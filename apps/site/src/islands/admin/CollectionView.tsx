@@ -1,5 +1,5 @@
-import type { CollectionDef, CollectionDoc } from '@vibelingan-channel/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { CollectionDef, CollectionDoc } from '@vibelingan-channel/shared';
 import { useState } from 'react';
 import { RecordForm } from './RecordForm.tsx';
 import { createRecord, listRecords, removeRecord, updateRecord } from './api.ts';

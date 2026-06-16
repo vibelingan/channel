@@ -1,1 +1,60 @@
 @import "tailwindcss";
+@import "./tokens.css";
+
+/*
+ * Base layer — global element defaults built on top of the design tokens.
+ * Component/page visual choices stay in markup via utility classes; this file
+ * only sets cross-cutting defaults that depend on tokens.
+ */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    /* Offset anchored scrolling so content clears the fixed header. */
+    scroll-padding-top: var(--spacing-header);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-ink);
+    background-color: var(--color-surface);
+  }
+
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+}
+
+/*
+ * Scroll-reveal: sections fade/rise in as they enter the viewport.
+ * Progressive enhancement — without JS the content is simply visible.
+ */
+@layer utilities {
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.7s var(--ease-out-soft), transform 0.7s var(--ease-out-soft);
+    will-change: opacity, transform;
+  }
+
+  .reveal.is-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+  }
+}

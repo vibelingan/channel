@@ -1,0 +1,51 @@
+---
+import type { ContentSection } from '../i18n/site.ts';
+
+interface Props {
+  section: ContentSection;
+  /** Even index = image right; odd index = image left (alternating layout). */
+  index?: number;
+}
+
+const { section, index = 0 } = Astro.props;
+const imageFirst = index % 2 === 1;
+---
+
+<section
+  id={section.id}
+  class="scroll-mt-[var(--spacing-header)] bg-surface py-20 odd:bg-surface-alt sm:py-28"
+>
+  <div
+    class="mx-auto grid max-w-[var(--width-container)] items-center gap-10 px-4 sm:px-6 lg:grid-cols-2 lg:gap-16 lg:px-8"
+  >
+    <!-- Text -->
+    <div class:list={['reveal', imageFirst ? 'lg:order-2' : 'lg:order-1']}>
+      <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
+        {section.eyebrow}
+      </p>
+      <h2 class="mt-3 font-display text-3xl font-bold text-ink sm:text-4xl">
+        {section.heading}
+      </h2>
+      <p class="mt-5 text-lg leading-relaxed text-ink-soft">
+        {section.body}
+      </p>
+    </div>
+
+    <!-- Image -->
+    <div class:list={['reveal', imageFirst ? 'lg:order-1' : 'lg:order-2']}>
+      <div
+        class="overflow-hidden rounded-[var(--radius-card)] shadow-[var(--shadow-card)] ring-1 ring-black/5"
+      >
+        <img
+          src={section.image}
+          alt={section.imageAlt}
+          loading="lazy"
+          decoding="async"
+          width="800"
+          height="600"
+          class="aspect-[4/3] h-full w-full object-cover"
+        />
+      </div>
+    </div>
+  </div>
+</section>

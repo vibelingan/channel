@@ -1,19 +1,25 @@
 ---
+import ContentSection from '../components/ContentSection.astro';
+import HeroVideo from '../components/HeroVideo.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
 import BaseLayout from '../layouts/BaseLayout.astro';
+
+// Region/language is fixed to en-US for now. Add more locale markdown files
+// under src/i18n/content/ to support additional regions.
+const content = getSiteContent(DEFAULT_LOCALE);
+const { brand, nav, hero, sections, footer } = content;
 ---
 
-<BaseLayout title="Channel Portal">
-  <main class="mx-auto flex min-h-full max-w-3xl flex-col items-center justify-center px-6 py-24 text-center">
-    <h1 class="text-4xl font-bold tracking-tight sm:text-5xl">Channel Portal</h1>
-    <p class="mt-4 max-w-xl text-lg text-slate-600">
-      A fresh Astro + TailwindCSS portal with a secure, registry-driven admin backed by
-      CloudBase (wx-server-sdk).
-    </p>
-    <a
-      href="/admin"
-      class="mt-8 inline-flex items-center rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-700"
-    >
-      Open admin
-    </a>
+<BaseLayout title={`${brand.name} — ${brand.tagline}`} description={hero.subheading} lang="en">
+  <SiteHeader brand={brand} nav={nav} />
+
+  <main>
+    <HeroVideo hero={hero} />
+
+    {sections.map((section, index) => <ContentSection section={section} index={index} />)}
   </main>
+
+  <SiteFooter brand={brand} footer={footer} />
 </BaseLayout>
