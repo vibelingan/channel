@@ -1,0 +1,19 @@
+packages:
+  - 'apps/*'
+  - 'apps/functions/*'
+  - 'packages/*'
+
+allowBuilds:
+  '@biomejs/biome': true
+  argon2: true
+  esbuild: true
+  protobufjs: true
+  sharp: true
+
+# Native packages allowed to run install/build scripts.
+onlyBuiltDependencies:
+  - '@biomejs/biome'
+  - argon2
+  - esbuild
+  - sharp
+  - protobufjs

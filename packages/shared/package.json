@@ -1,0 +1,22 @@
+{
+  "name": "@vibelingan-channel/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./api": "./src/api.ts",
+    "./errors": "./src/errors.ts",
+    "./env": "./src/env.ts",
+    "./collections": "./src/collections.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2"
+  }
+}

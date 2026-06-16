@@ -1,0 +1,25 @@
+{
+  "name": "channel-portal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Channel portal — Astro + TailwindCSS site with a registry-driven admin backed by wx-server-sdk (CloudBase).",
+  "type": "module",
+  "packageManager": "pnpm@11.5.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @vibelingan-channel/site dev",
+    "dev:api": "pnpm --filter @vibelingan-channel/local-server dev",
+    "build": "pnpm --filter @vibelingan-channel/site build",
+    "build:functions": "pnpm -r --filter \"./apps/functions/**\" build",
+    "preview": "pnpm --filter @vibelingan-channel/site preview",
+    "typecheck": "pnpm -r --filter \"./packages/**\" --filter \"./apps/**\" typecheck",
+    "lint": "biome check .",
+    "format": "biome format --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "typescript": "^5.6.3"
+  }
+}

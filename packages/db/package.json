@@ -1,0 +1,21 @@
+{
+  "name": "@vibelingan-channel/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./adapter": "./src/adapter.ts",
+    "./cloudbase": "./src/cloudbase-adapter.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vibelingan-channel/shared": "workspace:*",
+    "wx-server-sdk": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2"
+  }
+}

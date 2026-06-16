@@ -1,0 +1,24 @@
+{
+  "name": "@vibelingan-channel/local-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local Express server that runs the admin API against a file-backed DB, mirroring the remote CloudBase environment for offline development.",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/main.ts",
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vibelingan-channel/auth": "workspace:*",
+    "@vibelingan-channel/db": "workspace:*",
+    "@vibelingan-channel/fn-admin": "workspace:*",
+    "@vibelingan-channel/shared": "workspace:*",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2"
+  }
+}

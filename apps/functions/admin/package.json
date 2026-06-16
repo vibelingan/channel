@@ -1,0 +1,25 @@
+{
+  "name": "@vibelingan-channel/fn-admin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Generic, registry-driven CRUD cloud function for the admin portal. Exposes secure list/get/create/update/remove over every registered collection.",
+  "main": "dist/index.js",
+  "exports": {
+    ".": "./src/index.ts",
+    "./handler": "./src/handler.ts"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vibelingan-channel/auth": "workspace:*",
+    "@vibelingan-channel/db": "workspace:*",
+    "@vibelingan-channel/shared": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsup": "^8.3.5"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "packages/*/src/**/*.ts",
+    "apps/functions/*/src/**/*.ts",
+    "apps/local-server/src/**/*.ts"
+  ]
+}
