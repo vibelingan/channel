@@ -1,0 +1,67 @@
+---
+/**
+ * Section — reusable page section wrapper.
+ *
+ * Provides the consistent container, vertical rhythm, alternating background
+ * tone, and an optional eyebrow/heading/intro header. Page-specific content
+ * goes in the default slot. Reused across all marketing pages for a uniform
+ * look and feel.
+ */
+interface Props {
+  id?: string;
+  eyebrow?: string;
+  heading?: string;
+  intro?: string;
+  /** Background tone. */
+  tone?: 'surface' | 'alt' | 'dark';
+  /** Center the header block. */
+  center?: boolean;
+  class?: string;
+}
+
+const {
+  id,
+  eyebrow,
+  heading,
+  intro,
+  tone = 'surface',
+  center = false,
+  class: className = '',
+} = Astro.props;
+
+const toneClass = {
+  surface: 'bg-surface text-ink',
+  alt: 'bg-surface-alt text-ink',
+  dark: 'bg-surface-dark text-white',
+}[tone];
+
+const eyebrowClass = tone === 'dark' ? 'text-accent-300' : 'text-brand-600';
+const introClass = tone === 'dark' ? 'text-white/70' : 'text-ink-soft';
+---
+
+<section
+  id={id}
+  class:list={['scroll-mt-[var(--spacing-header)] py-20 sm:py-28', toneClass, className]}
+>
+  <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
+    {
+      (eyebrow || heading || intro) && (
+        <div class:list={['reveal max-w-3xl', center && 'mx-auto text-center']}>
+          {eyebrow && (
+            <p class:list={['text-sm font-semibold uppercase tracking-[0.15em]', eyebrowClass]}>
+              {eyebrow}
+            </p>
+          )}
+          {heading && (
+            <h2 class="mt-3 font-display text-3xl font-bold sm:text-4xl">{heading}</h2>
+          )}
+          {intro && <p class:list={['mt-5 text-lg leading-relaxed', introClass]}>{intro}</p>}
+        </div>
+      )
+    }
+
+    <div class:list={[(eyebrow || heading || intro) && 'mt-12 sm:mt-16']}>
+      <slot />
+    </div>
+  </div>
+</section>

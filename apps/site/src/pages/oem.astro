@@ -1,0 +1,121 @@
+---
+import CardGrid from '../components/CardGrid.astro';
+import PageHero from '../components/PageHero.astro';
+import ProcessTimeline from '../components/ProcessTimeline.astro';
+import ProjectForm from '../components/ProjectForm.astro';
+import ReasonList from '../components/ReasonList.astro';
+import Section from '../components/Section.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import WorkflowChain from '../components/WorkflowChain.astro';
+import { getOemContent } from '../i18n/oem.ts';
+import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = getSiteContent(DEFAULT_LOCALE);
+const oem = getOemContent(DEFAULT_LOCALE);
+const { brand, nav, footer } = site;
+const { meta, hero, oneStop, capabilities, process, whyUs, submit } = oem;
+---
+
+<BaseLayout title={`${meta.title} — ${brand.name}`} description={meta.description} lang="en">
+  <SiteHeader brand={brand} nav={nav} />
+
+  <main>
+    <PageHero
+      eyebrow={hero.eyebrow}
+      heading={hero.heading}
+      subheading={hero.subheading}
+      primaryCta={hero.primaryCta}
+      secondaryCta={hero.secondaryCta}
+    />
+
+    <!-- Section 1: One-Stop OEM Development Service -->
+    <Section
+      id={oneStop.id}
+      eyebrow={oneStop.eyebrow}
+      heading={oneStop.heading}
+      intro={oneStop.intro}
+      tone="surface"
+    >
+      <div class="reveal">
+        <h3 class="font-display text-lg font-semibold text-ink sm:text-xl">
+          {oneStop.servicesTitle}
+        </h3>
+      </div>
+      <div class="mt-6">
+        <CardGrid items={oneStop.services} columns={4} />
+      </div>
+
+      <!-- Workflow sequence -->
+      <div class="mt-16 rounded-[var(--radius-card)] bg-surface-alt p-6 sm:p-10">
+        <div class="reveal mx-auto max-w-2xl text-center">
+          <h3 class="font-display text-xl font-semibold text-ink sm:text-2xl">
+            {oneStop.workflowTitle}
+          </h3>
+          <p class="mt-3 text-ink-soft">{oneStop.workflowIntro}</p>
+        </div>
+        <div class="mt-10">
+          <WorkflowChain steps={oneStop.workflow} />
+        </div>
+      </div>
+    </Section>
+
+    <!-- Section 2: Our Development Capability -->
+    <Section
+      id={capabilities.id}
+      eyebrow={capabilities.eyebrow}
+      heading={capabilities.heading}
+      intro={capabilities.intro}
+      tone="alt"
+    >
+      <CardGrid items={capabilities.items} columns={3} />
+      <p class="reveal mx-auto mt-10 max-w-3xl text-center text-base leading-relaxed text-ink-soft">
+        {capabilities.note}
+      </p>
+    </Section>
+
+    <!-- Section 3: OEM Development Process -->
+    <Section
+      id={process.id}
+      eyebrow={process.eyebrow}
+      heading={process.heading}
+      intro={process.intro}
+      tone="surface"
+    >
+      <ProcessTimeline steps={process.steps} />
+    </Section>
+
+    <!-- Section 4: Why Choose Us -->
+    <Section
+      id={whyUs.id}
+      eyebrow={whyUs.eyebrow}
+      heading={whyUs.heading}
+      intro={whyUs.intro}
+      tone="alt"
+    >
+      <ReasonList reasons={whyUs.reasons} />
+    </Section>
+
+    <!-- Section 5: Submit Your Project -->
+    <Section
+      id={submit.id}
+      eyebrow={submit.eyebrow}
+      heading={submit.heading}
+      intro={submit.intro}
+      tone="surface"
+    >
+      <div class="mx-auto max-w-3xl">
+        <ProjectForm
+          fields={submit.fields}
+          submitLabel={submit.submitLabel}
+          disclaimer={submit.disclaimer}
+          successTitle={submit.successTitle}
+          successBody={submit.successBody}
+        />
+      </div>
+    </Section>
+  </main>
+
+  <SiteFooter brand={brand} footer={footer} />
+</BaseLayout>

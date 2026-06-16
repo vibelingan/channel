@@ -1,0 +1,35 @@
+---
+/**
+ * ProcessTimeline — numbered, standardized procedure steps.
+ *
+ * Large step numbers and a connecting accent rail communicate a repeatable,
+ * standardized process. Responsive: single column on mobile, multi-column grid
+ * on larger screens.
+ */
+import type { ProcessStep } from '../i18n/oem.ts';
+
+interface Props {
+  steps: ProcessStep[];
+}
+
+const { steps } = Astro.props;
+---
+
+<ol class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+  {
+    steps.map((step, index) => (
+      <li class="reveal relative h-full overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-surface p-6 shadow-sm">
+        {/* Accent top rail */}
+        <span class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-600 to-accent-500" aria-hidden="true" />
+
+        <div class="flex items-center gap-4">
+          <span class="font-display text-4xl font-bold text-brand-100">
+            {String(index + 1).padStart(2, '0')}
+          </span>
+          <h3 class="font-display text-lg font-semibold text-ink">{step.title}</h3>
+        </div>
+        <p class="mt-4 text-sm leading-relaxed text-ink-soft">{step.desc}</p>
+      </li>
+    ))
+  }
+</ol>

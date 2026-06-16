@@ -1,0 +1,149 @@
+---
+/**
+ * ProjectForm — OEM project submission form.
+ *
+ * Fields are data-driven from the page content. The form degrades gracefully
+ * without JS (native validation); with JS it submits asynchronously and shows
+ * an inline success state. The submit endpoint is left as a data attribute so a
+ * backend (e.g. an `inquiries` collection) can be wired later.
+ */
+import type { FormField } from '../i18n/oem.ts';
+
+interface Props {
+  fields: FormField[];
+  submitLabel: string;
+  disclaimer: string;
+  successTitle: string;
+  successBody: string;
+  /** Optional backend endpoint to POST to. */
+  action?: string;
+}
+
+const { fields, submitLabel, disclaimer, successTitle, successBody, action = '' } = Astro.props;
+
+const fieldBase =
+  'mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-ink shadow-sm outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-600/20';
+---
+
+<div
+  class="reveal overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-surface shadow-[var(--shadow-card)]"
+>
+  <form
+    class="grid grid-cols-1 gap-5 p-6 sm:grid-cols-2 sm:p-8"
+    data-project-form
+    data-endpoint={action}
+    novalidate
+  >
+    {
+      fields.map((field) => (
+        <div class:list={[field.full ? 'sm:col-span-2' : '']}>
+          <label for={field.name} class="block text-sm font-medium text-ink">
+            {field.label}
+            {field.required && <span class="text-red-500"> *</span>}
+          </label>
+
+          {field.type === 'select' ? (
+            <select id={field.name} name={field.name} class={fieldBase} required={field.required}>
+              <option value="" disabled selected>
+                Select…
+              </option>
+              {field.options?.map((option) => <option value={option}>{option}</option>)}
+            </select>
+          ) : field.type === 'file' ? (
+            <input
+              id={field.name}
+              name={field.name}
+              type="file"
+              accept={field.accept}
+              class:list={[
+                fieldBase,
+                'file:mr-3 file:rounded-md file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100',
+              ]}
+            />
+          ) : (
+            <input
+              id={field.name}
+              name={field.name}
+              type={field.type}
+              placeholder={field.placeholder}
+              required={field.required}
+              class={fieldBase}
+            />
+          )}
+        </div>
+      ))
+    }
+
+    <div class="sm:col-span-2">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <p class="max-w-md text-xs text-ink-muted">{disclaimer}</p>
+        <button
+          type="submit"
+          class="inline-flex items-center justify-center rounded-lg bg-brand-700 px-7 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-800 disabled:opacity-60"
+          data-submit
+        >
+          {submitLabel}
+        </button>
+      </div>
+      <p class="mt-3 hidden text-sm font-medium text-red-600" data-error role="alert"></p>
+    </div>
+  </form>
+
+  <!-- Success state (revealed after submit) -->
+  <div class="hidden p-8 text-center sm:p-12" data-success>
+    <span
+      class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-green-600"
+    >
+      <svg class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 13l4 4L19 7"></path>
+      </svg>
+    </span>
+    <h3 class="mt-5 font-display text-xl font-semibold text-ink" data-success-title>{successTitle}</h3>
+    <p class="mx-auto mt-2 max-w-md text-sm leading-relaxed text-ink-soft">{successBody}</p>
+  </div>
+</div>
+
+<script>
+  const form = document.querySelector<HTMLFormElement>('[data-project-form]');
+  const root = form?.closest('div');
+  const success = root?.querySelector<HTMLElement>('[data-success]');
+  const errorEl = form?.querySelector<HTMLElement>('[data-error]');
+  const submitBtn = form?.querySelector<HTMLButtonElement>('[data-submit]');
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+    errorEl?.classList.add('hidden');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting…';
+    }
+
+    const endpoint = form.dataset.endpoint;
+    try {
+      if (endpoint) {
+        const res = await fetch(endpoint, { method: 'POST', body: new FormData(form) });
+        if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      } else {
+        // No backend wired yet — simulate a successful submission.
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      }
+      form.classList.add('hidden');
+      success?.classList.remove('hidden');
+      success?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (err) {
+      if (errorEl) {
+        errorEl.textContent =
+          err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+        errorEl.classList.remove('hidden');
+      }
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit project';
+      }
+    }
+  });
+</script>

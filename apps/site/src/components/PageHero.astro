@@ -1,0 +1,70 @@
+---
+/**
+ * PageHero — compact hero for interior pages (no background video).
+ *
+ * Shares the brand gradient + typographic style of the home hero so sub-pages
+ * feel part of the same site, while staying lighter weight.
+ */
+interface Props {
+  eyebrow: string;
+  heading: string;
+  subheading: string;
+  primaryCta?: { label: string; href: string };
+  secondaryCta?: { label: string; href: string };
+}
+
+const { eyebrow, heading, subheading, primaryCta, secondaryCta } = Astro.props;
+---
+
+<section class="relative overflow-hidden bg-surface-dark text-white">
+  <!-- Decorative gradient + grid -->
+  <div
+    class="absolute inset-0 bg-gradient-to-br from-brand-800 via-brand-950 to-brand-950"
+    aria-hidden="true"
+  >
+  </div>
+  <div
+    class="absolute inset-0 opacity-[0.15] [background-image:linear-gradient(var(--color-brand-400)_1px,transparent_1px),linear-gradient(90deg,var(--color-brand-400)_1px,transparent_1px)] [background-size:48px_48px]"
+    aria-hidden="true"
+  >
+  </div>
+  <div
+    class="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-accent-500/20 blur-3xl"
+    aria-hidden="true"
+  >
+  </div>
+
+  <div
+    class="relative mx-auto max-w-[var(--width-container)] px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-28"
+  >
+    <div class="max-w-3xl">
+      <p class="text-sm font-semibold uppercase tracking-[0.2em] text-accent-300">{eyebrow}</p>
+      <h1 class="mt-4 font-display text-4xl font-bold leading-tight sm:text-5xl lg:text-6xl">
+        {heading}
+      </h1>
+      <p class="mt-6 max-w-2xl text-lg leading-relaxed text-white/80">{subheading}</p>
+      {
+        (primaryCta || secondaryCta) && (
+          <div class="mt-9 flex flex-col gap-3 sm:flex-row">
+            {primaryCta && (
+              <a
+                href={primaryCta.href}
+                class="inline-flex items-center justify-center rounded-lg bg-accent-500 px-6 py-3 text-base font-semibold text-brand-950 shadow-lg transition hover:bg-accent-400"
+              >
+                {primaryCta.label}
+              </a>
+            )}
+            {secondaryCta && (
+              <a
+                href={secondaryCta.href}
+                class="inline-flex items-center justify-center rounded-lg border border-white/40 px-6 py-3 text-base font-semibold text-white transition hover:bg-white/10"
+              >
+                {secondaryCta.label}
+              </a>
+            )}
+          </div>
+        )
+      }
+    </div>
+  </div>
+</section>
