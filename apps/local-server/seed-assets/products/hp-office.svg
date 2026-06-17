@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" role="img" aria-label="Office headset">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8fafc" />
+      <stop offset="1" stop-color="#e8edf5" />
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2b3138" />
+      <stop offset="1" stop-color="#13171c" />
+    </linearGradient>
+  </defs>
+  <rect width="1000" height="1000" fill="url(#bg)" />
+  <ellipse cx="500" cy="830" rx="250" ry="34" fill="#000" opacity="0.08" />
+  <!-- headband -->
+  <path d="M300 560 V450 a200 200 0 0 1 400 0 V520" fill="none" stroke="url(#body)" stroke-width="46" stroke-linecap="round" />
+  <!-- single ear cup (left) -->
+  <g>
+    <rect x="250" y="520" width="130" height="210" rx="60" fill="url(#body)" />
+    <ellipse cx="370" cy="625" rx="70" ry="105" fill="#0c0e12" />
+    <ellipse cx="370" cy="625" rx="48" ry="80" fill="#1c2026" />
+  </g>
+  <!-- mic boom -->
+  <path d="M370 720 q-120 60 -150 150" fill="none" stroke="url(#body)" stroke-width="20" stroke-linecap="round" />
+  <ellipse cx="218" cy="876" rx="34" ry="20" fill="#3a3f46" transform="rotate(-30 218 876)" />
+  <!-- right band end pad -->
+  <rect x="660" y="500" width="60" height="70" rx="22" fill="url(#body)" />
+</svg>

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" role="img" aria-label="Over-ear headphones">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8fafc" />
+      <stop offset="1" stop-color="#e8edf5" />
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3a3f46" />
+      <stop offset="1" stop-color="#1c2026" />
+    </linearGradient>
+    <radialGradient id="cup" cx="0.5" cy="0.4" r="0.7">
+      <stop offset="0" stop-color="#4b515a" />
+      <stop offset="1" stop-color="#15181d" />
+    </radialGradient>
+  </defs>
+  <rect width="1000" height="1000" fill="url(#bg)" />
+  <ellipse cx="500" cy="820" rx="300" ry="40" fill="#000" opacity="0.08" />
+  <!-- headband -->
+  <path d="M230 540 V440 a270 270 0 0 1 540 0 V540" fill="none" stroke="url(#body)" stroke-width="56" stroke-linecap="round" />
+  <path d="M255 540 V445 a245 245 0 0 1 490 0 V540" fill="none" stroke="#0f1216" stroke-width="14" stroke-linecap="round" opacity="0.5" />
+  <!-- left cup -->
+  <g>
+    <rect x="180" y="500" width="150" height="250" rx="70" fill="url(#body)" />
+    <ellipse cx="300" cy="625" rx="78" ry="120" fill="url(#cup)" />
+    <ellipse cx="300" cy="625" rx="52" ry="92" fill="#0c0e12" />
+    <circle cx="300" cy="600" r="9" fill="#6b7280" opacity="0.5" />
+  </g>
+  <!-- right cup -->
+  <g>
+    <rect x="670" y="500" width="150" height="250" rx="70" fill="url(#body)" />
+    <ellipse cx="700" cy="625" rx="78" ry="120" fill="url(#cup)" />
+    <ellipse cx="700" cy="625" rx="52" ry="92" fill="#0c0e12" />
+    <circle cx="700" cy="600" r="9" fill="#6b7280" opacity="0.5" />
+  </g>
+</svg>

@@ -18,7 +18,9 @@ export function initCloudBase(envId: string): void {
 
 function database() {
   if (!initialized) {
-    throw new Error('@vibelingan-channel/db: initCloudBase(envId) must be called before using the database');
+    throw new Error(
+      '@vibelingan-channel/db: initCloudBase(envId) must be called before using the database',
+    );
   }
   return cloud.database();
 }

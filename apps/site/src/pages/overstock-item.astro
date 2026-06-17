@@ -1,0 +1,27 @@
+---
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { DEFAULT_LOCALE, getOverstockContent } from '../i18n/overstock.ts';
+import { getSiteContent } from '../i18n/site.ts';
+import { OverstockDetail } from '../islands/shop/OverstockDetail.tsx';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = getSiteContent();
+const os = getOverstockContent(DEFAULT_LOCALE);
+const { brand, footer } = site;
+const shopNav = { items: os.shopNav };
+---
+
+<BaseLayout title={`${os.meta.title} — ${brand.name}`} description={os.meta.description} lang="en">
+  <SiteHeader brand={brand} nav={shopNav} showName={false} />
+
+  <main>
+    <section class="py-10 sm:py-14">
+      <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
+        <OverstockDetail content={os} apiPath="/api/overstock" client:only="react" />
+      </div>
+    </section>
+  </main>
+
+  <SiteFooter brand={brand} footer={footer} />
+</BaseLayout>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" role="img" aria-label="Cooler bag folded">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#1e3a8a"/></linearGradient></defs>
+  <rect width="1000" height="1000" fill="url(#bg)"/>
+  <g transform="translate(500 480)" fill="none" stroke="#fff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" opacity="0.92">
+    <rect x="-150" y="-120" width="300" height="260" rx="20"/>
+    <path d="M-150 -10 h300"/>
+    <path d="M-60 -120 v-40 h120 v40"/>
+  </g>
+  <text x="500" y="860" text-anchor="middle" fill="#fff" fill-opacity="0.9" font-family="Poppins, system-ui, sans-serif" font-size="40" font-weight="600">Foldable</text>
+</svg>

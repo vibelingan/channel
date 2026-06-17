@@ -38,7 +38,7 @@ app.use(express.json({ limit: '1mb' }));
 app.use((_req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   next();
 });
 app.options('/api/admin', (_req, res) => res.sendStatus(204));
@@ -52,6 +52,60 @@ app.post('/api/admin', async (req, res) => {
   const result = await handleAdminRequest(body ?? { action: '' }, config);
   res.json(result);
 });
+
+// ---------------------------------------------------------------------------
+// Public, read-only catalog endpoints (no auth). These mirror what a public
+// CloudBase function will later expose for the storefront. A single helper
+// serves any catalog-style collection (products, overstock, …).
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve a catalog document's `imageIds` (references into the `images`
+ * collection) into client-facing URLs that stream the stored bytes. Catalog
+ * documents never persist file paths — only image ids — mirroring how
+ * wx-server-sdk will store image binaries in production.
+ */
+function resolveImages(doc: Record<string, unknown>): Record<string, unknown> {
+  const ids = Array.isArray(doc.imageIds) ? (doc.imageIds as unknown[]) : [];
+  return { ...doc, images: ids.map((id) => `/api/images/${String(id)}`) };
+}
+
+// Serve image bytes stored (base64) in the `images` collection.
+app.get('/api/images/:id', async (req, res) => {
+  const doc = await adapter.get('images', req.params.id);
+  if (!doc || typeof doc.data !== 'string') {
+    res.status(404).end();
+    return;
+  }
+  res.setHeader('Content-Type', String(doc.mimeType ?? 'application/octet-stream'));
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.send(Buffer.from(doc.data, 'base64'));
+});
+
+function registerCatalog(collection: string, basePath: string): void {
+  app.get(basePath, async (req, res) => {
+    const page = await adapter.list({ collection, page: 1, pageSize: 200, search: '' });
+    const categoriesParam = String(req.query.category ?? '').trim();
+    const categories = categoriesParam ? categoriesParam.split(',').filter(Boolean) : null;
+    const filtered = categories
+      ? page.items.filter((p) => categories.includes(String(p.category)))
+      : page.items;
+    const items = filtered.map(resolveImages);
+    res.json({ ok: true, data: { items, total: items.length } });
+  });
+
+  app.get(`${basePath}/:id`, async (req, res) => {
+    const doc = await adapter.get(collection, req.params.id);
+    if (!doc) {
+      res.status(404).json({ ok: false, error: { code: 'NOT_FOUND', message: 'Item not found' } });
+      return;
+    }
+    res.json({ ok: true, data: resolveImages(doc) });
+  });
+}
+
+registerCatalog('products', '/api/products');
+registerCatalog('overstock', '/api/overstock');
 
 app.listen(PORT, () => {
   console.log('');

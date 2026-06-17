@@ -14,13 +14,23 @@ import type { DbAdapter } from './adapter.ts';
 
 export type { DbAdapter } from './adapter.ts';
 
-let adapter: DbAdapter | null = null;
+/**
+ * The active adapter is stored on `globalThis` rather than a plain module
+ * variable. Under pnpm, a package can be loaded as more than one module
+ * instance (different symlink-resolved URLs), which would give each instance
+ * its own singleton. Anchoring to `globalThis` keeps a single shared adapter
+ * regardless of how many times this module is instantiated.
+ */
+const ADAPTER_KEY = Symbol.for('@vibelingan-channel/db.adapter');
+
+type AdapterHost = { [ADAPTER_KEY]?: DbAdapter | null };
 
 export function setAdapter(next: DbAdapter): void {
-  adapter = next;
+  (globalThis as AdapterHost)[ADAPTER_KEY] = next;
 }
 
 function db(): DbAdapter {
+  const adapter = (globalThis as AdapterHost)[ADAPTER_KEY];
   if (!adapter) {
     throw new Error('@vibelingan-channel/db: no adapter configured. Call setAdapter() at startup.');
   }
