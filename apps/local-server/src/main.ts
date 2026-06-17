@@ -11,6 +11,7 @@ import { setAdapter } from '@vibelingan-channel/db';
 import { handleAdminRequest } from '@vibelingan-channel/fn-admin/handler';
 import type { AdminConfig, AdminRequest } from '@vibelingan-channel/fn-admin/handler';
 import { optionalEnv } from '@vibelingan-channel/shared';
+import type { FilterClause } from '@vibelingan-channel/shared';
 import express from 'express';
 import { JsonFileAdapter } from './json-adapter.ts';
 import { seed } from './seed.ts';
@@ -81,15 +82,33 @@ app.get('/api/images/:id', async (req, res) => {
 
 function registerCatalog(collection: string, basePath: string): void {
   app.get(basePath, async (req, res) => {
-    const page = await adapter.list({ collection, page: 1, pageSize: 200, search: '' });
     const categoriesParam = String(req.query.category ?? '').trim();
     const categories = categoriesParam ? categoriesParam.split(',').filter(Boolean) : null;
-    const filtered = page.items
-      // Only published items are visible to the public storefront.
-      .filter((p) => p.published === true)
-      .filter((p) => !categories || categories.includes(String(p.category)));
-    const items = filtered.map(resolveImages);
-    res.json({ ok: true, data: { items, total: items.length } });
+    const search = String(req.query.search ?? '').trim();
+    const page = Math.max(1, Number.parseInt(String(req.query.page ?? '1'), 10) || 1);
+    const pageSize = Math.min(
+      48,
+      Math.max(1, Number.parseInt(String(req.query.pageSize ?? '24'), 10) || 24),
+    );
+
+    // Public storefront only ever sees published items; optional category and
+    // free-text search are applied server-side so large catalogs paginate well.
+    const clauses: FilterClause[] = [{ field: 'published', op: 'eq', value: true }];
+    if (categories) {
+      clauses.push({ field: 'category', op: 'in', value: categories });
+    }
+    const result = await adapter.list({
+      collection,
+      page,
+      pageSize,
+      search,
+      filter: { combinator: 'and', clauses },
+    });
+    const items = result.items.map(resolveImages);
+    res.json({
+      ok: true,
+      data: { items, total: result.total, page: result.page, pageSize: result.pageSize },
+    });
   });
 
   app.get(`${basePath}/:id`, async (req, res) => {

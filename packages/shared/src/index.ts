@@ -3,6 +3,9 @@ export * from './errors.ts';
 export * from './env.ts';
 export * from './collections.ts';
 export * from './auth.ts';
+export * from './query.ts';
+
+import type { FilterModel, SortClause } from './query.ts';
 
 /** Shared types for the generic admin CRUD protocol. */
 export interface ListQuery {
@@ -10,6 +13,8 @@ export interface ListQuery {
   page?: number;
   pageSize?: number;
   search?: string;
+  filter?: FilterModel;
+  sort?: SortClause[];
 }
 
 export interface ListResult<T> {

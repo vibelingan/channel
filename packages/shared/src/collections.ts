@@ -109,26 +109,6 @@ export const COLLECTIONS: readonly CollectionDef[] = [
     ],
   },
   {
-    name: 'applications',
-    label: 'Applications',
-    description: 'Channel / partnership applications submitted from the site.',
-    searchableFields: ['company', 'contactName', 'email'],
-    fields: [
-      { name: 'company', label: 'Company', type: 'string', required: true },
-      { name: 'contactName', label: 'Contact', type: 'string', required: true },
-      { name: 'email', label: 'Email', type: 'email', required: true },
-      { name: 'phone', label: 'Phone', type: 'string' },
-      {
-        name: 'status',
-        label: 'Status',
-        type: 'select',
-        options: ['new', 'reviewing', 'approved', 'rejected'],
-        required: true,
-      },
-      { name: 'message', label: 'Message', type: 'text', hideInTable: true },
-    ],
-  },
-  {
     name: 'products',
     label: 'Products',
     description: 'Catalog products (headphones and other categories).',

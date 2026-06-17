@@ -52,17 +52,9 @@ export async function seed(adapter: JsonFileAdapter): Promise<void> {
       passwordHash: await hashPassword('password'),
       loginCount: 0,
     },
-  ]);
-
-  adapter.seedIfEmpty('applications', [
-    {
-      company: 'Acme Channels',
-      contactName: 'John Doe',
-      email: 'john@acme.example',
-      phone: '+1-555-0200',
-      status: 'new',
-      message: 'Interested in becoming a reseller partner.',
-    },
+    // A larger synthetic user base so pagination / filtering have something to
+    // chew on during local development.
+    ...(await generateUsers(140)),
   ]);
 
   // Images are seeded as a collection of base64 bytes — mirroring how
@@ -77,8 +69,67 @@ export async function seed(adapter: JsonFileAdapter): Promise<void> {
   );
   adapter.seedIfEmpty(
     'overstock',
-    OVERSTOCK.map((p) => ({ ...p, published: true })),
+    [...OVERSTOCK, ...generateOverstock(180)].map((p) => ({ ...p, published: true })),
   );
+}
+
+/** Generate `count` synthetic user accounts (all share the password "password"). */
+async function generateUsers(count: number): Promise<Record<string, unknown>[]> {
+  const passwordHash = await hashPassword('password');
+  const roles = ['', 'viewer', 'member', 'contributor'];
+  const out: Record<string, unknown>[] = [];
+  for (let i = 1; i <= count; i++) {
+    const num = String(i).padStart(3, '0');
+    out.push({
+      username: `user${num}`,
+      email: `user${num}@channel.local`,
+      role: roles[i % roles.length],
+      status: i % 9 === 0 ? 'suspended' : 'active',
+      passwordHash,
+      loginCount: (i * 7) % 50,
+    });
+  }
+  return out;
+}
+
+/** Generate `count` synthetic overstock listings to exercise the grid at scale. */
+function generateOverstock(count: number): Record<string, unknown>[] {
+  const categories = [
+    'electronics',
+    'headphones',
+    'phone-accessories',
+    'home',
+    'promotional',
+    'seasonal',
+  ];
+  const prefixes: Record<string, string> = {
+    electronics: 'EL',
+    headphones: 'HP',
+    'phone-accessories': 'PA',
+    home: 'HM',
+    promotional: 'PR',
+    seasonal: 'SE',
+  };
+  const out: Record<string, unknown>[] = [];
+  for (let i = 1; i <= count; i++) {
+    const category = categories[i % categories.length] ?? 'electronics';
+    const num = String(i).padStart(4, '0');
+    const unitPrice = Number((2 + ((i * 3) % 60) + (i % 10) / 10).toFixed(2));
+    out.push({
+      name: `Clearance Lot ${num}`,
+      category,
+      productCode: `OS-${prefixes[category]}-${9000 + i}`,
+      description: `Synthetic overstock listing #${num} for local pagination testing.`,
+      inventory: (i * 37) % 5000,
+      moq: 100 * (1 + (i % 5)),
+      unitPrice,
+      clearancePrice: Number((unitPrice * 0.6).toFixed(2)),
+      wholesalePrice: Number((unitPrice * 0.8).toFixed(2)),
+      vipPrice: Number((unitPrice * 0.55).toFixed(2)),
+      imageIds: [],
+    });
+  }
+  return out;
 }
 
 /**

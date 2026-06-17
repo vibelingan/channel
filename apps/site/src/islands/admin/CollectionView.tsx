@@ -1,9 +1,31 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CollectionDef, CollectionDoc, FieldDef } from '@vibelingan-channel/shared';
-import { useMemo, useState } from 'react';
+import {
+  type ColumnDef,
+  type SortingState,
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+} from '@tanstack/react-table';
+import type {
+  CollectionDef,
+  CollectionDoc,
+  FieldDef,
+  FilterModel,
+  SortClause,
+} from '@vibelingan-channel/shared';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { FilterBuilder } from './FilterBuilder.tsx';
 import { PreviewModal } from './PreviewModal.tsx';
 import { RecordForm } from './RecordForm.tsx';
-import { createRecord, imageUrl, listRecords, removeRecord, updateRecord } from './api.ts';
+import {
+  batchRemoveRecords,
+  batchUpdateRecords,
+  createRecord,
+  imageUrl,
+  listRecords,
+  removeRecord,
+  updateRecord,
+} from './api.ts';
 import type { DashboardSection } from './sections.ts';
 
 const PAGE_SIZE = 20;
@@ -18,22 +40,43 @@ export function CollectionView({ collection, section }: Props) {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [filter, setFilter] = useState<FilterModel | null>(null);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const [editing, setEditing] = useState<CollectionDoc | null>(null);
   const [creating, setCreating] = useState(false);
   const [previewing, setPreviewing] = useState<CollectionDoc | null>(null);
 
   const isCatalog = section.catalog === true;
+  const isUsers = collection.name === 'users';
   const inlineEdit = useMemo(() => new Set(section.inlineEdit ?? []), [section.inlineEdit]);
   const singular = section.label.replace(/s$/, '');
 
-  const queryKey = ['list', collection.name, page, search] as const;
+  const sortClauses: SortClause[] = useMemo(
+    () => sorting.map((s) => ({ field: s.id, dir: s.desc ? 'desc' : 'asc' })),
+    [sorting],
+  );
+
+  const queryKey = ['list', collection.name, page, search, filter, sortClauses] as const;
   const { data, isLoading, error } = useQuery({
     queryKey,
-    queryFn: () => listRecords({ collection: collection.name, page, pageSize: PAGE_SIZE, search }),
+    queryFn: () =>
+      listRecords({
+        collection: collection.name,
+        page,
+        pageSize: PAGE_SIZE,
+        search,
+        ...(filter ? { filter } : {}),
+        ...(sortClauses.length > 0 ? { sort: sortClauses } : {}),
+      }),
   });
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['list', collection.name] });
+  }
+
+  function clearSelection() {
+    setRowSelection({});
   }
 
   const createMutation = useMutation({
@@ -58,18 +101,169 @@ export function CollectionView({ collection, section }: Props) {
     onSuccess: invalidate,
   });
 
+  const batchUpdateMutation = useMutation({
+    mutationFn: (vars: { ids: string[]; values: Record<string, unknown> }) =>
+      batchUpdateRecords(collection.name, vars.ids, vars.values),
+    onSuccess: () => {
+      clearSelection();
+      invalidate();
+    },
+  });
+
+  const batchRemoveMutation = useMutation({
+    mutationFn: (ids: string[]) => batchRemoveRecords(collection.name, ids),
+    onSuccess: () => {
+      clearSelection();
+      invalidate();
+    },
+  });
+
   function patch(id: string, values: Record<string, unknown>) {
     updateMutation.mutate({ id, values });
   }
 
-  // Catalog renders a dedicated thumbnail + status column, so drop those from
-  // the generic field columns.
-  const tableFields = collection.fields.filter(
-    (f) => !f.hideInTable && !(isCatalog && f.name === 'published'),
+  // Drop any stale selection when the visible result set changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset triggers
+  useEffect(() => {
+    setRowSelection({});
+  }, [search, filter, page]);
+
+  const tableFields = useMemo(
+    () => collection.fields.filter((f) => !f.hideInTable && !(isCatalog && f.name === 'published')),
+    [collection.fields, isCatalog],
   );
+
   const total = data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const colCount = tableFields.length + (isCatalog ? 2 : 0) + 1;
+  const rows = useMemo(() => data?.items ?? [], [data]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: handler closures are stable for this view
+  const columns = useMemo<ColumnDef<CollectionDoc>[]>(() => {
+    const cols: ColumnDef<CollectionDoc>[] = [];
+
+    cols.push({
+      id: 'select',
+      enableSorting: false,
+      header: ({ table }) => (
+        <Checkbox
+          checked={table.getIsAllRowsSelected()}
+          indeterminate={table.getIsSomeRowsSelected()}
+          onChange={table.getToggleAllRowsSelectedHandler()}
+          ariaLabel="Select all rows"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onChange={row.getToggleSelectedHandler()}
+          ariaLabel="Select row"
+        />
+      ),
+    });
+
+    if (isCatalog) {
+      cols.push({
+        id: 'image',
+        header: 'Image',
+        enableSorting: false,
+        cell: ({ row }) => <Thumb doc={row.original} />,
+      });
+    }
+
+    for (const field of tableFields) {
+      cols.push({
+        id: field.name,
+        accessorKey: field.name,
+        header: field.label,
+        cell: ({ row }) => {
+          const doc = row.original;
+          if (inlineEdit.has(field.name) && field.type === 'select') {
+            return (
+              <InlineSelect
+                field={field}
+                value={doc[field.name]}
+                onChange={(v) => patch(doc._id, { [field.name]: v })}
+              />
+            );
+          }
+          return formatCell(doc[field.name]);
+        },
+      });
+    }
+
+    if (isCatalog) {
+      cols.push({
+        id: 'status',
+        header: 'Status',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <PublishToggle
+            published={row.original.published === true}
+            onToggle={() =>
+              patch(row.original._id, { published: !(row.original.published === true) })
+            }
+          />
+        ),
+      });
+    }
+
+    cols.push({
+      id: 'actions',
+      header: () => <span className="sr-only">Actions</span>,
+      enableSorting: false,
+      cell: ({ row }) => {
+        const doc = row.original;
+        return (
+          <div className="whitespace-nowrap text-right">
+            {isCatalog && (
+              <button
+                type="button"
+                onClick={() => setPreviewing(doc)}
+                className="text-sm font-medium text-brand-700 hover:text-brand-900"
+              >
+                Preview
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setEditing(doc)}
+              className="ml-3 text-sm font-medium text-slate-700 hover:text-slate-900"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm('Delete this record?')) removeMutation.mutate(doc._id);
+              }}
+              className="ml-3 text-sm font-medium text-red-600 hover:text-red-700"
+            >
+              Delete
+            </button>
+          </div>
+        );
+      },
+    });
+
+    return cols;
+  }, [tableFields, isCatalog, inlineEdit]);
+
+  const table = useReactTable({
+    data: rows,
+    columns,
+    state: { sorting, rowSelection },
+    getRowId: (row) => row._id,
+    onSortingChange: setSorting,
+    onRowSelectionChange: setRowSelection,
+    manualSorting: true,
+    manualPagination: true,
+    pageCount,
+    getCoreRowModel: getCoreRowModel(),
+    enableRowSelection: true,
+  });
+
+  const selectedIds = table.getSelectedRowModel().rows.map((r) => r.original._id);
+  const colCount = columns.length;
 
   return (
     <div className="p-8">
@@ -89,41 +283,82 @@ export function CollectionView({ collection, section }: Props) {
         </button>
       </header>
 
-      <form
-        className="mt-6 flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setPage(1);
-          setSearch(searchInput.trim());
-        }}
-      >
-        <input
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          placeholder={`Search ${collection.searchableFields.join(', ')}…`}
-          className="w-72 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
-        />
-        <button
-          type="submit"
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+      <div className="mt-6 flex flex-wrap items-center gap-2">
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setPage(1);
+            setSearch(searchInput.trim());
+          }}
         >
-          Search
-        </button>
-      </form>
+          <input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder={`Search ${collection.searchableFields.join(', ')}…`}
+            className="w-72 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+          />
+          <button
+            type="submit"
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+          >
+            Search
+          </button>
+        </form>
+        <FilterBuilder
+          collection={collection}
+          applied={filter}
+          onApply={(next) => {
+            setPage(1);
+            setFilter(next);
+          }}
+        />
+      </div>
+
+      {selectedIds.length > 0 && (
+        <BatchBar
+          count={selectedIds.length}
+          isCatalog={isCatalog}
+          isUsers={isUsers}
+          collection={collection}
+          busy={batchUpdateMutation.isPending || batchRemoveMutation.isPending}
+          onClear={clearSelection}
+          onSetValues={(values) => batchUpdateMutation.mutate({ ids: selectedIds, values })}
+          onDelete={() => {
+            if (confirm(`Delete ${selectedIds.length} record(s)?`)) {
+              batchRemoveMutation.mutate(selectedIds);
+            }
+          }}
+        />
+      )}
 
       <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              {isCatalog && <th className="w-16 px-4 py-3 font-medium">Image</th>}
-              {tableFields.map((field) => (
-                <th key={field.name} className="px-4 py-3 font-medium">
-                  {field.label}
-                </th>
-              ))}
-              {isCatalog && <th className="px-4 py-3 font-medium">Status</th>}
-              <th className="px-4 py-3 text-right font-medium">Actions</th>
-            </tr>
+            {table.getHeaderGroups().map((group) => (
+              <tr key={group.id}>
+                {group.headers.map((header) => {
+                  const sortable = header.column.getCanSort();
+                  const sorted = header.column.getIsSorted();
+                  return (
+                    <th key={header.id} className="px-4 py-3 font-medium">
+                      {sortable ? (
+                        <button
+                          type="button"
+                          onClick={header.column.getToggleSortingHandler()}
+                          className="inline-flex items-center gap-1 font-medium uppercase tracking-wide hover:text-slate-900"
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          <SortIcon dir={sorted === false ? null : sorted} />
+                        </button>
+                      ) : (
+                        flexRender(header.column.columnDef.header, header.getContext())
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+            ))}
           </thead>
           <tbody className="divide-y divide-slate-100">
             {isLoading && (
@@ -140,64 +375,21 @@ export function CollectionView({ collection, section }: Props) {
                 </td>
               </tr>
             )}
-            {data?.items.map((doc) => (
-              <tr key={doc._id} className="hover:bg-slate-50">
-                {isCatalog && (
-                  <td className="px-4 py-3">
-                    <Thumb doc={doc} />
-                  </td>
-                )}
-                {tableFields.map((field) => (
-                  <td key={field.name} className="px-4 py-3 text-slate-700">
-                    {inlineEdit.has(field.name) && field.type === 'select' ? (
-                      <InlineSelect
-                        field={field}
-                        value={doc[field.name]}
-                        onChange={(v) => patch(doc._id, { [field.name]: v })}
-                      />
-                    ) : (
-                      formatCell(doc[field.name])
-                    )}
-                  </td>
-                ))}
-                {isCatalog && (
-                  <td className="px-4 py-3">
-                    <PublishToggle
-                      published={doc.published === true}
-                      onToggle={() => patch(doc._id, { published: !(doc.published === true) })}
-                    />
-                  </td>
-                )}
-                <td className="whitespace-nowrap px-4 py-3 text-right">
-                  {isCatalog && (
-                    <button
-                      type="button"
-                      onClick={() => setPreviewing(doc)}
-                      className="text-sm font-medium text-brand-700 hover:text-brand-900"
-                    >
-                      Preview
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setEditing(doc)}
-                    className="ml-3 text-sm font-medium text-slate-700 hover:text-slate-900"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (confirm('Delete this record?')) removeMutation.mutate(doc._id);
-                    }}
-                    className="ml-3 text-sm font-medium text-red-600 hover:text-red-700"
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {data && data.items.length === 0 && !isLoading && (
+            {!isLoading &&
+              !error &&
+              table.getRowModel().rows.map((row) => (
+                <tr
+                  key={row.id}
+                  className={row.getIsSelected() ? 'bg-brand-50' : 'hover:bg-slate-50'}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} className="px-4 py-3 text-slate-700">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            {data && rows.length === 0 && !isLoading && (
               <tr>
                 <td colSpan={colCount} className="px-4 py-8 text-center text-slate-400">
                   No records.
@@ -269,6 +461,171 @@ export function CollectionView({ collection, section }: Props) {
         />
       )}
     </div>
+  );
+}
+
+function BatchBar({
+  count,
+  isCatalog,
+  isUsers,
+  collection,
+  busy,
+  onClear,
+  onSetValues,
+  onDelete,
+}: {
+  count: number;
+  isCatalog: boolean;
+  isUsers: boolean;
+  collection: CollectionDef;
+  busy: boolean;
+  onClear: () => void;
+  onSetValues: (values: Record<string, unknown>) => void;
+  onDelete: () => void;
+}) {
+  const roleField = collection.fields.find((f) => f.name === 'role');
+  const statusField = collection.fields.find((f) => f.name === 'status');
+
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3">
+      <span className="text-sm font-semibold text-brand-900">{count} selected</span>
+
+      {isCatalog && (
+        <>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onSetValues({ published: true })}
+            className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+          >
+            Publish
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onSetValues({ published: false })}
+            className="rounded-lg bg-slate-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+          >
+            Disable
+          </button>
+        </>
+      )}
+
+      {isUsers && roleField && (
+        <BatchSelect
+          label="Set role"
+          field={roleField}
+          disabled={busy}
+          onPick={(value) => onSetValues({ role: value })}
+        />
+      )}
+      {isUsers && statusField && (
+        <BatchSelect
+          label="Set status"
+          field={statusField}
+          disabled={busy}
+          onPick={(value) => onSetValues({ status: value })}
+        />
+      )}
+
+      <button
+        type="button"
+        disabled={busy}
+        onClick={onDelete}
+        className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+      >
+        Delete
+      </button>
+
+      <button
+        type="button"
+        onClick={onClear}
+        className="ml-auto text-sm font-medium text-brand-700 hover:text-brand-900"
+      >
+        Clear selection
+      </button>
+    </div>
+  );
+}
+
+function BatchSelect({
+  label,
+  field,
+  disabled,
+  onPick,
+}: {
+  label: string;
+  field: FieldDef;
+  disabled: boolean;
+  onPick: (value: string) => void;
+}) {
+  return (
+    <select
+      defaultValue=""
+      disabled={disabled}
+      onChange={(e) => {
+        if (e.target.value) {
+          onPick(e.target.value);
+          e.target.value = '';
+        }
+      }}
+      className="rounded-lg border border-brand-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 outline-none focus:border-brand-600 disabled:opacity-50"
+    >
+      <option value="">{label}…</option>
+      {field.options?.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function Checkbox({
+  checked,
+  indeterminate,
+  onChange,
+  ariaLabel,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  onChange: (e: unknown) => void;
+  ariaLabel: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.indeterminate = !checked && indeterminate === true;
+    }
+  }, [checked, indeterminate]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      aria-label={ariaLabel}
+      className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+    />
+  );
+}
+
+function SortIcon({ dir }: { dir: 'asc' | 'desc' | null }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      className={`h-3.5 w-3.5 ${dir ? 'text-slate-900' : 'text-slate-300'}`}
+    >
+      {dir === 'asc' ? (
+        <path d="M10 5l4 6H6l4-6Z" />
+      ) : dir === 'desc' ? (
+        <path d="M10 15l-4-6h8l-4 6Z" />
+      ) : (
+        <path d="M10 4l3 4H7l3-4Zm0 12l-3-4h6l-3 4Z" />
+      )}
+    </svg>
   );
 }
 

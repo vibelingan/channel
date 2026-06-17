@@ -11,6 +11,8 @@ export interface CatalogListStrings {
   allLabel: string;
   resultsLabel: string;
   emptyLabel: string;
+  /** Placeholder for the catalog search box. */
+  searchPlaceholder?: string;
   categories: CategoryOption[];
   wholesaleLabel: string;
   vipLabel: string;

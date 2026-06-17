@@ -46,9 +46,15 @@ declare module 'wx-server-sdk' {
   interface Command {
     or(conditions: Record<string, unknown>[]): Record<string, unknown>;
     and(conditions: Record<string, unknown>[]): Record<string, unknown>;
+    eq(value: unknown): unknown;
+    neq(value: unknown): unknown;
     gt(value: unknown): unknown;
+    gte(value: unknown): unknown;
     lt(value: unknown): unknown;
+    lte(value: unknown): unknown;
     in(values: unknown[]): unknown;
+    nin(values: unknown[]): unknown;
+    exists(value: boolean): unknown;
   }
 
   interface Database {

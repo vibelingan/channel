@@ -21,6 +21,8 @@ import {
 } from '@vibelingan-channel/auth/password';
 import {
   UnknownCollectionError,
+  batchRemove,
+  batchUpdate,
   create,
   createDoc,
   findByField,
@@ -35,6 +37,7 @@ import {
   type ApiResult,
   COLLECTIONS,
   type CollectionDoc,
+  FILTER_OPERATORS,
   type Role,
   canEditCollection,
   canReadCollection,
@@ -72,11 +75,26 @@ const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: z.string().min(6).max(200),
 });
+const filterClauseSchema = z.object({
+  field: z.string().min(1),
+  op: z.enum(FILTER_OPERATORS),
+  value: z.unknown().optional(),
+});
+const filterModelSchema = z.object({
+  combinator: z.enum(['and', 'or']).default('and'),
+  clauses: z.array(filterClauseSchema).default([]),
+});
+const sortClauseSchema = z.object({
+  field: z.string().min(1),
+  dir: z.enum(['asc', 'desc']),
+});
 const listSchema = z.object({
   collection: z.string(),
   page: z.number().int().positive().default(1),
   pageSize: z.number().int().positive().max(100).default(20),
   search: z.string().default(''),
+  filter: filterModelSchema.optional(),
+  sort: z.array(sortClauseSchema).optional(),
 });
 const idSchema = z.object({ collection: z.string(), id: z.string().min(1) });
 const createSchema = z.object({ collection: z.string(), values: z.record(z.unknown()) });
@@ -84,6 +102,15 @@ const updateSchema = z.object({
   collection: z.string(),
   id: z.string().min(1),
   values: z.record(z.unknown()),
+});
+const batchUpdateSchema = z.object({
+  collection: z.string(),
+  ids: z.array(z.string().min(1)).min(1).max(500),
+  values: z.record(z.unknown()),
+});
+const batchRemoveSchema = z.object({
+  collection: z.string(),
+  ids: z.array(z.string().min(1)).min(1).max(500),
 });
 
 const SESSION_TTL = 60 * 60 * 12;
@@ -168,6 +195,10 @@ export async function handleAdminRequest(
         return await updateAction(req, claims);
       case 'remove':
         return await removeAction(req, claims);
+      case 'batchUpdate':
+        return await batchUpdateAction(req, claims);
+      case 'batchRemove':
+        return await batchRemoveAction(req, claims);
       default:
         return err('BAD_REQUEST', `Unknown action: ${req.action}`);
     }
@@ -311,7 +342,12 @@ async function listAction(req: AdminRequest, claims: SessionClaims): Promise<Api
   if (!canReadCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have access to this collection.');
   }
-  const result = await list(parsed.data);
+  const { filter, sort, ...rest } = parsed.data;
+  const result = await list({
+    ...rest,
+    ...(filter ? { filter } : {}),
+    ...(sort ? { sort } : {}),
+  });
   return ok({ ...result, items: result.items.map((d) => redact(parsed.data.collection, d)) });
 }
 
@@ -356,4 +392,34 @@ async function removeAction(req: AdminRequest, claims: SessionClaims): Promise<A
   const deleted = await remove(parsed.data.collection, parsed.data.id);
   if (!deleted) return err('NOT_FOUND', 'Document not found');
   return ok({ deleted: true });
+}
+
+async function batchUpdateAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  const parsed = batchUpdateSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'collection, ids and values are required');
+  const unknown = ensureKnown(parsed.data.collection);
+  if (unknown) return unknown;
+  if (!canEditCollection(claims.role, parsed.data.collection)) {
+    return err('FORBIDDEN', 'You do not have permission to modify this collection.');
+  }
+  const docs = await batchUpdate(parsed.data.collection, parsed.data.ids, parsed.data.values);
+  return ok({ updated: docs.length, items: docs.map((d) => redact(parsed.data.collection, d)) });
+}
+
+async function batchRemoveAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  const parsed = batchRemoveSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'collection and ids are required');
+  const unknown = ensureKnown(parsed.data.collection);
+  if (unknown) return unknown;
+  if (!canEditCollection(claims.role, parsed.data.collection)) {
+    return err('FORBIDDEN', 'You do not have permission to modify this collection.');
+  }
+  const removed = await batchRemove(parsed.data.collection, parsed.data.ids);
+  return ok({ removed });
 }

@@ -1,4 +1,9 @@
-import { type CollectionDoc, type ListResult, getCollection } from '@vibelingan-channel/shared';
+import {
+  type CollectionDoc,
+  type FilterClause,
+  type ListResult,
+  getCollection,
+} from '@vibelingan-channel/shared';
 /**
  * CloudBase (wx-server-sdk) implementation of `DbAdapter`.
  *
@@ -6,6 +11,7 @@ import { type CollectionDoc, type ListResult, getCollection } from '@vibelingan-
  * load before the adapter is used.
  */
 import cloud from 'wx-server-sdk';
+import type { Command, Database } from 'wx-server-sdk';
 import type { DbAdapter } from './adapter.ts';
 
 let initialized = false;
@@ -34,20 +40,44 @@ export const cloudBaseAdapter: DbAdapter = {
     const db = database();
     const def = getCollection(query.collection);
     const collection = db.collection(query.collection);
+    const _ = db.command;
 
-    let where: Record<string, unknown> | undefined;
+    const ands: Record<string, unknown>[] = [];
+
+    // Free-text search across the collection's searchable fields.
     if (query.search && def && def.searchableFields.length > 0) {
-      const _ = db.command;
       const term = db.RegExp({ regexp: escapeRegExp(query.search), options: 'i' });
-      where = _.or(def.searchableFields.map((field) => ({ [field]: term })));
+      ands.push(_.or(def.searchableFields.map((field) => ({ [field]: term }))));
     }
 
+    // Structured filter (field/operator/value clauses combined with AND/OR).
+    if (query.filter && query.filter.clauses.length > 0) {
+      const clauseWheres = query.filter.clauses
+        .map((c) => clauseToWhere(db, _, c))
+        .filter((w): w is Record<string, unknown> => w !== null);
+      if (clauseWheres.length > 0) {
+        ands.push(query.filter.combinator === 'or' ? _.or(clauseWheres) : _.and(clauseWheres));
+      }
+    }
+
+    const where = ands.length === 0 ? undefined : ands.length === 1 ? ands[0] : _.and(ands);
+
     const base = where ? collection.where(where) : collection;
-    const countRes = await (where ? collection.where(where) : collection).count();
+    const countRes = await base.count();
     const total = countRes.total ?? 0;
 
+    // Apply sort (default: newest first), then page.
+    let q = base;
+    const sort =
+      query.sort && query.sort.length > 0
+        ? query.sort
+        : [{ field: 'createdAt', dir: 'desc' as const }];
+    for (const s of sort) {
+      q = q.orderBy(s.field, s.dir);
+    }
+
     const skip = (query.page - 1) * query.pageSize;
-    const res = await base.orderBy('createdAt', 'desc').skip(skip).limit(query.pageSize).get();
+    const res = await q.skip(skip).limit(query.pageSize).get();
 
     return {
       items: (res.data as Record<string, unknown>[]).map(normalize),
@@ -103,4 +133,41 @@ export const cloudBaseAdapter: DbAdapter = {
 
 function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Translate one filter clause into a wx-server-sdk `where` fragment. */
+function clauseToWhere(
+  db: Database,
+  _: Command,
+  clause: FilterClause,
+): Record<string, unknown> | null {
+  const { field, op, value } = clause;
+  switch (op) {
+    case 'eq':
+      return { [field]: _.eq(value) };
+    case 'ne':
+      return { [field]: _.neq(value) };
+    case 'contains':
+      return { [field]: db.RegExp({ regexp: escapeRegExp(String(value ?? '')), options: 'i' }) };
+    case 'startsWith':
+      return {
+        [field]: db.RegExp({ regexp: `^${escapeRegExp(String(value ?? ''))}`, options: 'i' }),
+      };
+    case 'gt':
+      return { [field]: _.gt(value) };
+    case 'gte':
+      return { [field]: _.gte(value) };
+    case 'lt':
+      return { [field]: _.lt(value) };
+    case 'lte':
+      return { [field]: _.lte(value) };
+    case 'in':
+      return { [field]: _.in(Array.isArray(value) ? value : [value]) };
+    case 'isEmpty':
+      return { [field]: _.in(['', null]) };
+    case 'isNotEmpty':
+      return { [field]: _.nin(['', null]) };
+    default:
+      return null;
+  }
 }

@@ -6,12 +6,26 @@
  * development wires a file-backed adapter. This keeps the persistence layer
  * swappable without any module-aliasing tricks.
  */
-import type { CollectionDoc, ListQuery, ListResult } from '@vibelingan-channel/shared';
+import type {
+  CollectionDoc,
+  FilterModel,
+  ListQuery,
+  ListResult,
+  SortClause,
+} from '@vibelingan-channel/shared';
+
+/** Normalized query passed to adapters: defaults already applied. */
+export interface AdapterListQuery {
+  collection: string;
+  page: number;
+  pageSize: number;
+  search: string;
+  filter?: FilterModel;
+  sort?: SortClause[];
+}
 
 export interface DbAdapter {
-  list(
-    query: Required<Omit<ListQuery, 'search'>> & { search: string },
-  ): Promise<ListResult<CollectionDoc>>;
+  list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>>;
   get(collection: string, id: string): Promise<CollectionDoc | null>;
   /** Find the first document where `field` exactly equals `value`. */
   findByField(collection: string, field: string, value: unknown): Promise<CollectionDoc | null>;
@@ -23,3 +37,6 @@ export interface DbAdapter {
   ): Promise<CollectionDoc | null>;
   remove(collection: string, id: string): Promise<boolean>;
 }
+
+// Re-exported so callers building queries can reference the input shape.
+export type { ListQuery };

@@ -9,8 +9,14 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { DbAdapter } from '@vibelingan-channel/db';
-import { type CollectionDoc, type ListResult, getCollection } from '@vibelingan-channel/shared';
+import type { AdapterListQuery, DbAdapter } from '@vibelingan-channel/db';
+import {
+  type CollectionDoc,
+  type ListResult,
+  compareBySort,
+  getCollection,
+  matchesFilter,
+} from '@vibelingan-channel/shared';
 
 type Store = Record<string, CollectionDoc[]>;
 
@@ -39,12 +45,7 @@ export class JsonFileAdapter implements DbAdapter {
     return this.store[collection];
   }
 
-  async list(query: {
-    collection: string;
-    page: number;
-    pageSize: number;
-    search: string;
-  }): Promise<ListResult<CollectionDoc>> {
+  async list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>> {
     const def = getCollection(query.collection);
     let docs = [...this.docs(query.collection)];
 
@@ -59,7 +60,17 @@ export class JsonFileAdapter implements DbAdapter {
       );
     }
 
-    docs.sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
+    if (query.filter && query.filter.clauses.length > 0) {
+      const filter = query.filter;
+      docs = docs.filter((doc) => matchesFilter(doc, filter));
+    }
+
+    if (query.sort && query.sort.length > 0) {
+      const sort = query.sort;
+      docs.sort((a, b) => compareBySort(a, b, sort));
+    } else {
+      docs.sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
+    }
 
     const total = docs.length;
     const start = (query.page - 1) * query.pageSize;

@@ -12,7 +12,7 @@ import {
 } from '@vibelingan-channel/shared';
 import type { DbAdapter } from './adapter.ts';
 
-export type { DbAdapter } from './adapter.ts';
+export type { AdapterListQuery, DbAdapter } from './adapter.ts';
 
 /**
  * The active adapter is stored on `globalThis` rather than a plain module
@@ -64,6 +64,8 @@ export async function list(query: ListQuery): Promise<ListResult<CollectionDoc>>
     page,
     pageSize,
     search: (query.search ?? '').trim(),
+    ...(query.filter ? { filter: query.filter } : {}),
+    ...(query.sort ? { sort: query.sort } : {}),
   });
 }
 
@@ -126,4 +128,37 @@ export function updateDoc(
 export function remove(collection: string, id: string): Promise<boolean> {
   assertKnown(collection);
   return db().remove(collection, id);
+}
+
+/**
+ * Apply the same partial update to many documents. Validated against the
+ * registry write-schema once, then applied per id. Returns the updated docs.
+ */
+export async function batchUpdate(
+  collection: string,
+  ids: string[],
+  data: Record<string, unknown>,
+): Promise<CollectionDoc[]> {
+  const def = assertKnown(collection);
+  const parsed = buildWriteSchema(def).partial().parse(data);
+  const results: CollectionDoc[] = [];
+  for (const id of ids) {
+    const updated = await db().update(collection, id, parsed);
+    if (updated) {
+      results.push(updated);
+    }
+  }
+  return results;
+}
+
+/** Remove many documents by id. Returns the count actually removed. */
+export async function batchRemove(collection: string, ids: string[]): Promise<number> {
+  assertKnown(collection);
+  let removed = 0;
+  for (const id of ids) {
+    if (await db().remove(collection, id)) {
+      removed += 1;
+    }
+  }
+  return removed;
 }

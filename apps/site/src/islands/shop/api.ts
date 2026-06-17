@@ -28,18 +28,44 @@ interface ApiEnvelope<T> {
   error?: { code: string; message: string };
 }
 
+/** A page of catalog results from the storefront API. */
+export interface CatalogPage {
+  items: Product[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface CatalogQuery {
+  categories?: string[];
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
 /**
- * Fetch a catalog collection from a serverless endpoint.
+ * Fetch a page of a catalog collection from a serverless endpoint.
  * `basePath` lets the same client serve multiple catalogs (e.g. `/api/products`
- * or `/api/overstock`).
+ * or `/api/overstock`). Filtering, search and pagination all happen server-side
+ * so large catalogs stay fast.
  */
-export async function fetchCatalog(basePath: string, categories?: string[]): Promise<Product[]> {
-  const qs = categories && categories.length > 0 ? `?category=${categories.join(',')}` : '';
-  const res = await fetch(`${basePath}${qs}`);
+export async function fetchCatalog(
+  basePath: string,
+  query: CatalogQuery = {},
+): Promise<CatalogPage> {
+  const params = new URLSearchParams();
+  if (query.categories && query.categories.length > 0) {
+    params.set('category', query.categories.join(','));
+  }
+  if (query.search) params.set('search', query.search);
+  if (query.page) params.set('page', String(query.page));
+  if (query.pageSize) params.set('pageSize', String(query.pageSize));
+  const qs = params.toString();
+  const res = await fetch(`${basePath}${qs ? `?${qs}` : ''}`);
   if (!res.ok) throw new Error(`Failed to load catalog (${res.status})`);
-  const json = (await res.json()) as ApiEnvelope<{ items: Product[]; total: number }>;
+  const json = (await res.json()) as ApiEnvelope<CatalogPage>;
   if (!json.ok || !json.data) throw new Error(json.error?.message ?? 'Failed to load catalog');
-  return json.data.items;
+  return json.data;
 }
 
 export async function fetchCatalogItem(basePath: string, id: string): Promise<Product> {
@@ -52,8 +78,8 @@ export async function fetchCatalogItem(basePath: string, id: string): Promise<Pr
 }
 
 // Back-compat helpers for the headphones pages (products catalog).
-export function fetchProducts(categories?: string[]): Promise<Product[]> {
-  return fetchCatalog('/api/products', categories);
+export function fetchProducts(categories?: string[]): Promise<CatalogPage> {
+  return fetchCatalog('/api/products', categories ? { categories } : {});
 }
 
 export function fetchProduct(id: string): Promise<Product> {

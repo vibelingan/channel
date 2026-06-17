@@ -5,7 +5,13 @@
  * `{ action, data, token }` protocol the cloud function and local-server speak.
  * The session token is shared with the rest of the site via `lib/session`.
  */
-import type { ApiResult, CollectionDoc, ListResult } from '@vibelingan-channel/shared';
+import type {
+  ApiResult,
+  CollectionDoc,
+  FilterModel,
+  ListResult,
+  SortClause,
+} from '@vibelingan-channel/shared';
 import { getToken } from '../../lib/session.ts';
 
 const ENDPOINT = '/api/admin';
@@ -47,6 +53,8 @@ export interface ListArgs {
   page?: number;
   pageSize?: number;
   search?: string;
+  filter?: FilterModel;
+  sort?: SortClause[];
 }
 
 export function listRecords(args: ListArgs): Promise<ListResult<CollectionDoc>> {
@@ -70,6 +78,27 @@ export function updateRecord(
 
 export function removeRecord(collection: string, id: string): Promise<{ deleted: boolean }> {
   return call<{ deleted: boolean }>('remove', { collection, id });
+}
+
+/** Apply the same values to many documents at once. */
+export function batchUpdateRecords(
+  collection: string,
+  ids: string[],
+  values: Record<string, unknown>,
+): Promise<{ updated: number; items: CollectionDoc[] }> {
+  return call<{ updated: number; items: CollectionDoc[] }>('batchUpdate', {
+    collection,
+    ids,
+    values,
+  });
+}
+
+/** Delete many documents at once; returns how many were removed. */
+export function batchRemoveRecords(
+  collection: string,
+  ids: string[],
+): Promise<{ removed: number }> {
+  return call<{ removed: number }>('batchRemove', { collection, ids });
 }
 
 /** Public URL that streams the bytes of an image stored in the `images` collection. */
