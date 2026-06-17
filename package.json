@@ -9,14 +9,14 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "pnpm --filter @vibelingan-channel/site dev",
-    "dev:api": "pnpm --filter @vibelingan-channel/local-server dev",
-    "build": "pnpm --filter @vibelingan-channel/site build",
-    "build:functions": "pnpm -r --filter \"./apps/functions/**\" build",
-    "preview": "pnpm --filter @vibelingan-channel/site preview",
-    "typecheck": "pnpm -r --filter \"./packages/**\" --filter \"./apps/**\" typecheck",
-    "lint": "biome check .",
-    "format": "biome format --write ."
+    "dev": "npx pnpm --filter @vibelingan-channel/site dev",
+    "dev:api": "npx pnpm --filter @vibelingan-channel/local-server dev",
+    "build": "npx pnpm --filter @vibelingan-channel/site build",
+    "build:functions": "npx pnpm -r --filter \"./apps/functions/**\" build",
+    "preview": "npx pnpm --filter @vibelingan-channel/site preview",
+    "typecheck": "npx pnpm -r --filter \"./packages/**\" --filter \"./apps/**\" typecheck",
+    "lint": "npx biome check .",
+    "format": "npx biome format --write ."
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
