@@ -1,0 +1,24 @@
+---
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { getSiteContent } from '../i18n/site.ts';
+import { ProfilePanel } from '../islands/auth/ProfilePanel.tsx';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = getSiteContent();
+const { brand, nav, footer } = site;
+---
+
+<BaseLayout title={`Account — ${brand.name}`} description="Manage your account." lang="en">
+  <SiteHeader brand={brand} nav={nav} />
+
+  <main>
+    <section class="py-12 sm:py-16">
+      <div class="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
+        <ProfilePanel client:only="react" />
+      </div>
+    </section>
+  </main>
+
+  <SiteFooter brand={brand} footer={footer} />
+</BaseLayout>

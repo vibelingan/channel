@@ -1,5 +1,6 @@
 ---
 import type { NavItem, SiteContent } from '../i18n/site.ts';
+import { AccountMenu } from '../islands/auth/AccountMenu.tsx';
 
 interface Props {
   brand: SiteContent['brand'];
@@ -10,9 +11,9 @@ interface Props {
 
 const { brand, nav, showName = true } = Astro.props;
 
-function isEmphasis(item: NavItem): boolean {
-  return item.emphasis === true;
-}
+// Auth-related nav entries are handled by the AccountMenu island instead.
+const AUTH_HREFS = ['/admin', '/login', '/register'];
+const menuItems: NavItem[] = nav.items.filter((item) => !AUTH_HREFS.includes(item.href));
 ---
 
 <header
@@ -65,24 +66,16 @@ function isEmphasis(item: NavItem): boolean {
     <!-- Desktop navigation -->
     <nav class="hidden items-center gap-1 lg:flex" aria-label="Primary">
       {
-        nav.items.map((item) =>
-          isEmphasis(item) ? (
-            <a
-              href={item.href}
-              class="ml-2 inline-flex items-center rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-800"
-            >
-              {item.label}
-            </a>
-          ) : (
-            <a
-              href={item.href}
-              class="rounded-lg px-3 py-2 text-sm font-medium text-ink-soft transition hover:bg-brand-50 hover:text-brand-700"
-            >
-              {item.label}
-            </a>
-          ),
-        )
+        menuItems.map((item) => (
+          <a
+            href={item.href}
+            class="rounded-lg px-3 py-2 text-sm font-medium text-ink-soft transition hover:bg-brand-50 hover:text-brand-700"
+          >
+            {item.label}
+          </a>
+        ))
       }
+      <span class="ml-2"><AccountMenu client:only="react" /></span>
     </nav>
 
     <!-- Mobile menu toggle -->
@@ -108,20 +101,18 @@ function isEmphasis(item: NavItem): boolean {
     data-mobile-menu
   >
     {
-      nav.items.map((item) => (
+      menuItems.map((item) => (
         <a
           href={item.href}
-          class:list={[
-            'block rounded-lg px-3 py-3 text-base font-medium transition',
-            isEmphasis(item)
-              ? 'mt-1 bg-brand-700 text-center text-white hover:bg-brand-800'
-              : 'text-ink-soft hover:bg-brand-50 hover:text-brand-700',
-          ]}
+          class="block rounded-lg px-3 py-3 text-base font-medium text-ink-soft transition hover:bg-brand-50 hover:text-brand-700"
         >
           {item.label}
         </a>
       ))
     }
+    <div class="mt-2 border-t border-slate-100 pt-3">
+      <AccountMenu client:only="react" />
+    </div>
   </nav>
 </header>
 

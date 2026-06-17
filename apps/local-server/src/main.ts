@@ -21,18 +21,15 @@ const DB_FILE = resolve(process.cwd(), optionalEnv('LOCAL_DB_FILE', './data/db.l
 // Dev defaults so the server runs with zero configuration.
 const config: AdminConfig = {
   jwtSecret: optionalEnv('JWT_SECRET', 'dev-secret-do-not-use-in-production'),
-  ...(optionalEnv('ADMIN_PASSWORD_HASH')
-    ? { adminPasswordHash: optionalEnv('ADMIN_PASSWORD_HASH') }
-    : {}),
-  adminPasswordPlain: optionalEnv('ADMIN_PASSWORD', 'admin'),
+  loginUrl: optionalEnv('LOGIN_URL', 'http://localhost:4321/login'),
 };
 
 const adapter = new JsonFileAdapter(DB_FILE);
 setAdapter(adapter);
-seed(adapter);
+await seed(adapter);
 
 const app = express();
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '12mb' }));
 
 // CORS for the Astro dev server (when not using its proxy).
 app.use((_req, res, next) => {
@@ -87,16 +84,17 @@ function registerCatalog(collection: string, basePath: string): void {
     const page = await adapter.list({ collection, page: 1, pageSize: 200, search: '' });
     const categoriesParam = String(req.query.category ?? '').trim();
     const categories = categoriesParam ? categoriesParam.split(',').filter(Boolean) : null;
-    const filtered = categories
-      ? page.items.filter((p) => categories.includes(String(p.category)))
-      : page.items;
+    const filtered = page.items
+      // Only published items are visible to the public storefront.
+      .filter((p) => p.published === true)
+      .filter((p) => !categories || categories.includes(String(p.category)));
     const items = filtered.map(resolveImages);
     res.json({ ok: true, data: { items, total: items.length } });
   });
 
   app.get(`${basePath}/:id`, async (req, res) => {
     const doc = await adapter.get(collection, req.params.id);
-    if (!doc) {
+    if (!doc || doc.published !== true) {
       res.status(404).json({ ok: false, error: { code: 'NOT_FOUND', message: 'Item not found' } });
       return;
     }
@@ -112,6 +110,6 @@ app.listen(PORT, () => {
   console.log('  channel local API server');
   console.log(`  ➜  http://localhost:${PORT}/api/admin`);
   console.log(`  ➜  db file: ${DB_FILE}`);
-  console.log(`  ➜  admin password: ${config.adminPasswordPlain ?? '(hash configured)'}`);
+  console.log('  ➜  seeded admin login: admin@channel.local / admin');
   console.log('');
 });

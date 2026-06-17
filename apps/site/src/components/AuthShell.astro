@@ -1,0 +1,62 @@
+---
+import { getSiteContent } from '../i18n/site.ts';
+
+interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
+const { brand } = getSiteContent();
+---
+
+<div class="flex min-h-screen flex-col lg:flex-row">
+  <!-- Brand panel -->
+  <aside
+    class="relative hidden overflow-hidden bg-surface-dark lg:flex lg:w-1/2 lg:flex-col lg:justify-between"
+  >
+    <div
+      class="absolute inset-0 bg-gradient-to-br from-brand-700 via-brand-900 to-brand-950"
+      aria-hidden="true"
+    >
+    </div>
+    <div
+      class="absolute inset-0 opacity-[0.12] [background-image:linear-gradient(var(--color-brand-300)_1px,transparent_1px),linear-gradient(90deg,var(--color-brand-300)_1px,transparent_1px)] [background-size:44px_44px]"
+      aria-hidden="true"
+    >
+    </div>
+    <div class="relative p-10">
+      <a href="/" class="inline-flex items-center gap-3 text-white">
+        {
+          brand.logo ? (
+            <img src="/favicon.svg" alt="" width="36" height="36" class="h-9 w-9 rounded-lg" />
+          ) : null
+        }
+        <span class="font-display text-lg font-semibold">{brand.name}</span>
+      </a>
+    </div>
+    <div class="relative p-10">
+      <p class="font-display text-3xl font-bold leading-tight text-white">
+        OEM manufacturing &amp; global supply, all in one portal.
+      </p>
+      <p class="mt-4 max-w-md text-white/70">
+        Sign in to unlock VIP pricing, submit project inquiries, and manage your catalog.
+      </p>
+    </div>
+  </aside>
+
+  <!-- Form panel -->
+  <main class="flex flex-1 flex-col">
+    <div class="flex items-center justify-between p-6 lg:hidden">
+      <a href="/" class="inline-flex items-center gap-2">
+        <img src="/favicon.svg" alt="" width="32" height="32" class="h-8 w-8 rounded-lg" />
+        <span class="font-display text-base font-semibold text-ink">{brand.name}</span>
+      </a>
+    </div>
+    <div class="flex flex-1 items-center justify-center px-6 py-10">
+      <div class="w-full max-w-sm">
+        <slot />
+      </div>
+    </div>
+    <p class="p-6 text-center text-xs text-ink-muted">{title}</p>
+  </main>
+</div>

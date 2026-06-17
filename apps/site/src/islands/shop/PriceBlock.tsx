@@ -20,7 +20,7 @@ export function PriceBlock({
   wholesalePrice,
   vipPrice,
   registered,
-  signInHref = '/admin',
+  signInHref = '/login',
   size = 'sm',
 }: Props) {
   const priceClass = size === 'lg' ? 'text-3xl' : 'text-xl';

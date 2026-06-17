@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import argon2 from 'argon2';
 
 /** Hash a plaintext password using argon2id. */
@@ -12,4 +13,17 @@ export async function verifyPassword(hash: string, plain: string): Promise<boole
   } catch {
     return false;
   }
+}
+
+// Ambiguous characters (0/O, 1/l/I) are excluded for legibility in emails.
+const PASSWORD_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%^&*';
+
+/** Generate a cryptographically-strong random password (default 12 chars). */
+export function generateRandomPassword(length = 12): string {
+  if (length < 8) throw new Error('generateRandomPassword: length must be >= 8');
+  let pwd = '';
+  for (let i = 0; i < length; i += 1) {
+    pwd += PASSWORD_CHARS[randomInt(0, PASSWORD_CHARS.length)];
+  }
+  return pwd;
 }

@@ -14,10 +14,7 @@ setAdapter(cloudBaseAdapter);
 
 const config: AdminConfig = {
   jwtSecret: requireEnv('JWT_SECRET'),
-  ...(optionalEnv('ADMIN_PASSWORD_HASH')
-    ? { adminPasswordHash: optionalEnv('ADMIN_PASSWORD_HASH') }
-    : {}),
-  ...(optionalEnv('ADMIN_PASSWORD') ? { adminPasswordPlain: optionalEnv('ADMIN_PASSWORD') } : {}),
+  ...(optionalEnv('LOGIN_URL') ? { loginUrl: optionalEnv('LOGIN_URL') } : {}),
 };
 
 export const main = async (event: AdminRequest): Promise<unknown> => {

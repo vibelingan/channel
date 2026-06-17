@@ -1,25 +1,32 @@
+import type { Role } from '@vibelingan-channel/shared';
 import { SignJWT, jwtVerify } from 'jose';
 
-export interface AdminClaims {
+/** Claims carried inside a portal session token. */
+export interface SessionClaims {
+  /** User document id. */
   sub: string;
-  role: 'admin';
+  email: string;
+  /** Username (display name). */
+  name: string;
+  /** Role is embedded so authorization needs no per-request DB lookup. */
+  role: Role;
 }
 
 const ALG = 'HS256';
 const ISSUER = 'channel-portal';
-const AUDIENCE = 'channel-admin';
+const AUDIENCE = 'channel-session';
 
 function secretKey(secret: string): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-/** Sign an admin session token. `ttlSeconds` defaults to 12 hours. */
-export function signAdminToken(
+/** Sign a portal session token. `ttlSeconds` defaults to 12 hours. */
+export function signSession(
   secret: string,
-  claims: AdminClaims,
+  claims: SessionClaims,
   ttlSeconds = 60 * 60 * 12,
 ): Promise<string> {
-  return new SignJWT({ role: claims.role })
+  return new SignJWT({ email: claims.email, name: claims.name, role: claims.role })
     .setProtectedHeader({ alg: ALG })
     .setSubject(claims.sub)
     .setIssuer(ISSUER)
@@ -29,15 +36,20 @@ export function signAdminToken(
     .sign(secretKey(secret));
 }
 
-/** Verify an admin session token. Returns the claims or null when invalid. */
-export async function verifyAdminToken(secret: string, token: string): Promise<AdminClaims | null> {
+/** Verify a portal session token. Returns the claims or null when invalid. */
+export async function verifySession(secret: string, token: string): Promise<SessionClaims | null> {
   try {
     const { payload } = await jwtVerify(token, secretKey(secret), {
       issuer: ISSUER,
       audience: AUDIENCE,
     });
-    if (payload.role !== 'admin' || typeof payload.sub !== 'string') return null;
-    return { sub: payload.sub, role: 'admin' };
+    if (typeof payload.sub !== 'string') return null;
+    return {
+      sub: payload.sub,
+      email: typeof payload.email === 'string' ? payload.email : '',
+      name: typeof payload.name === 'string' ? payload.name : '',
+      role: (typeof payload.role === 'string' ? payload.role : '') as Role,
+    };
   } catch {
     return null;
   }

@@ -15,6 +15,7 @@
   "dependencies": {
     "@vibelingan-channel/auth": "workspace:*",
     "@vibelingan-channel/db": "workspace:*",
+    "@vibelingan-channel/email": "workspace:*",
     "@vibelingan-channel/shared": "workspace:*",
     "zod": "^3.24.1"
   },

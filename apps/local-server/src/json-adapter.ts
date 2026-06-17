@@ -71,6 +71,14 @@ export class JsonFileAdapter implements DbAdapter {
     return this.docs(collection).find((d) => d._id === id) ?? null;
   }
 
+  async findByField(
+    collection: string,
+    field: string,
+    value: unknown,
+  ): Promise<CollectionDoc | null> {
+    return this.docs(collection).find((d) => d[field] === value) ?? null;
+  }
+
   async create(collection: string, data: Record<string, unknown>): Promise<CollectionDoc> {
     const now = new Date().toISOString();
     const doc: CollectionDoc = { _id: randomUUID(), ...data, createdAt: now, updatedAt: now };

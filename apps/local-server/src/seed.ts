@@ -1,24 +1,56 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { hashPassword } from '@vibelingan-channel/auth/password';
+import { optionalEnv } from '@vibelingan-channel/shared';
 import type { JsonFileAdapter } from './json-adapter.ts';
 
 /** Inject a little demo data so the admin UI has something to show on first run. */
-export function seed(adapter: JsonFileAdapter): void {
-  adapter.seedIfEmpty('members', [
+export async function seed(adapter: JsonFileAdapter): Promise<void> {
+  // Bootstrap admin account. Email/password are env-configurable for parity
+  // with production; defaults are convenient for local development.
+  const adminEmail = optionalEnv('ADMIN_EMAIL', 'admin@channel.local').toLowerCase();
+  const adminPassword = optionalEnv('ADMIN_PASSWORD', 'admin');
+  adapter.seedIfEmpty('users', [
     {
-      name: 'Ada Lovelace',
-      email: 'ada@example.com',
-      phone: '+1-555-0100',
+      username: 'admin',
+      email: adminEmail,
       role: 'admin',
       status: 'active',
-      notes: 'Seed admin member.',
+      passwordHash: await hashPassword(adminPassword),
+      loginCount: 0,
+    },
+    // Sample accounts (local dev only) — one per role tier, all password "password".
+    {
+      username: 'contributor',
+      email: 'contributor@channel.local',
+      role: 'contributor',
+      status: 'active',
+      passwordHash: await hashPassword('password'),
+      loginCount: 0,
     },
     {
-      name: 'Grace Hopper',
-      email: 'grace@example.com',
-      phone: '+1-555-0101',
-      role: 'partner',
-      status: 'pending',
+      username: 'member',
+      email: 'member@channel.local',
+      role: 'member',
+      status: 'active',
+      passwordHash: await hashPassword('password'),
+      loginCount: 0,
+    },
+    {
+      username: 'viewer',
+      email: 'viewer@channel.local',
+      role: 'viewer',
+      status: 'active',
+      passwordHash: await hashPassword('password'),
+      loginCount: 0,
+    },
+    {
+      username: 'newbie',
+      email: 'newbie@channel.local',
+      role: '',
+      status: 'active',
+      passwordHash: await hashPassword('password'),
+      loginCount: 0,
     },
   ]);
 
@@ -37,8 +69,16 @@ export function seed(adapter: JsonFileAdapter): void {
   // wx-server-sdk will store image binaries in production. Catalog items only
   // reference image ids (see `imageIds`), never file paths.
   adapter.seedIfEmpty('images', loadImageBytes());
-  adapter.seedIfEmpty('products', PRODUCTS);
-  adapter.seedIfEmpty('overstock', OVERSTOCK);
+  // Seeded catalog items are published so the demo storefront has content;
+  // items created later through the dashboard start unpublished (disabled).
+  adapter.seedIfEmpty(
+    'products',
+    PRODUCTS.map((p) => ({ ...p, published: true })),
+  );
+  adapter.seedIfEmpty(
+    'overstock',
+    OVERSTOCK.map((p) => ({ ...p, published: true })),
+  );
 }
 
 /**

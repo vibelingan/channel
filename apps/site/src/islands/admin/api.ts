@@ -1,26 +1,14 @@
 /**
- * Browser API client for the admin backend.
+ * Browser API client for the admin dashboard.
  *
  * All requests go to a single endpoint (`/api/admin`) using the same
  * `{ action, data, token }` protocol the cloud function and local-server speak.
+ * The session token is shared with the rest of the site via `lib/session`.
  */
 import type { ApiResult, CollectionDoc, ListResult } from '@vibelingan-channel/shared';
+import { getToken } from '../../lib/session.ts';
 
 const ENDPOINT = '/api/admin';
-const TOKEN_KEY = 'channel.adminToken';
-
-export function getToken(): string {
-  if (typeof localStorage === 'undefined') return '';
-  return localStorage.getItem(TOKEN_KEY) ?? '';
-}
-
-export function setToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
-}
-
-export function clearToken(): void {
-  localStorage.removeItem(TOKEN_KEY);
-}
 
 export class AdminApiError extends Error {
   constructor(
@@ -54,10 +42,6 @@ async function call<T>(action: string, data?: unknown): Promise<T> {
   return result.data;
 }
 
-export function login(password: string): Promise<{ token: string }> {
-  return call<{ token: string }>('login', { password });
-}
-
 export interface ListArgs {
   collection: string;
   page?: number;
@@ -86,4 +70,34 @@ export function updateRecord(
 
 export function removeRecord(collection: string, id: string): Promise<{ deleted: boolean }> {
   return call<{ deleted: boolean }>('remove', { collection, id });
+}
+
+/** Public URL that streams the bytes of an image stored in the `images` collection. */
+export function imageUrl(id: string): string {
+  return `/api/images/${encodeURIComponent(id)}`;
+}
+
+/** Read a File as a base64 string (without the data: prefix). */
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result);
+      const comma = result.indexOf(',');
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/** Upload an image file into the `images` byte collection; returns its id. */
+export async function uploadImage(file: File): Promise<string> {
+  const data = await fileToBase64(file);
+  const doc = await createRecord('images', {
+    name: file.name,
+    mimeType: file.type || 'application/octet-stream',
+    data,
+  });
+  return doc._id;
 }

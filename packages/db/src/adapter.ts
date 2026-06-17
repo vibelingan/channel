@@ -13,6 +13,8 @@ export interface DbAdapter {
     query: Required<Omit<ListQuery, 'search'>> & { search: string },
   ): Promise<ListResult<CollectionDoc>>;
   get(collection: string, id: string): Promise<CollectionDoc | null>;
+  /** Find the first document where `field` exactly equals `value`. */
+  findByField(collection: string, field: string, value: unknown): Promise<CollectionDoc | null>;
   create(collection: string, data: Record<string, unknown>): Promise<CollectionDoc>;
   update(
     collection: string,

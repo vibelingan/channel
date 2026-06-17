@@ -72,6 +72,16 @@ export function get(collection: string, id: string): Promise<CollectionDoc | nul
   return db().get(collection, id);
 }
 
+/** Find the first document where `field` exactly equals `value`. */
+export function findByField(
+  collection: string,
+  field: string,
+  value: unknown,
+): Promise<CollectionDoc | null> {
+  assertKnown(collection);
+  return db().findByField(collection, field, value);
+}
+
 /** Validate `data` against the collection registry, then create the document. */
 export function create(collection: string, data: Record<string, unknown>): Promise<CollectionDoc> {
   const def = assertKnown(collection);
@@ -88,6 +98,29 @@ export function update(
   const def = assertKnown(collection);
   const parsed = buildWriteSchema(def).partial().parse(data);
   return db().update(collection, id, parsed);
+}
+
+/**
+ * Trusted, server-side write that bypasses the registry write-schema. Used by
+ * the auth flow to set server-managed fields (e.g. `passwordHash`) that are
+ * marked read-only for the generic admin CRUD.
+ */
+export function createDoc(
+  collection: string,
+  data: Record<string, unknown>,
+): Promise<CollectionDoc> {
+  assertKnown(collection);
+  return db().create(collection, data);
+}
+
+/** Trusted, server-side partial update that bypasses the registry write-schema. */
+export function updateDoc(
+  collection: string,
+  id: string,
+  data: Record<string, unknown>,
+): Promise<CollectionDoc | null> {
+  assertKnown(collection);
+  return db().update(collection, id, data);
 }
 
 export function remove(collection: string, id: string): Promise<boolean> {

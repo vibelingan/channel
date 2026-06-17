@@ -1,5 +1,6 @@
 import type { CollectionDef, CollectionDoc, FieldDef } from '@vibelingan-channel/shared';
 import { useState } from 'react';
+import { ImageManager } from './ImageManager.tsx';
 
 interface RecordFormProps {
   collection: CollectionDef;
@@ -119,6 +120,25 @@ function Field({
   );
   const inputClass =
     'mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900';
+
+  // Images are managed inline with a visual uploader rather than raw JSON.
+  if (field.name === 'imageIds') {
+    let ids: string[] = [];
+    try {
+      const parsed = JSON.parse(String(value || '[]'));
+      if (Array.isArray(parsed)) ids = parsed.map(String);
+    } catch {
+      ids = [];
+    }
+    return (
+      <div>
+        {label}
+        <div className="mt-1.5">
+          <ImageManager value={ids} onChange={(next) => onChange(JSON.stringify(next))} />
+        </div>
+      </div>
+    );
+  }
 
   if (field.type === 'boolean') {
     return (

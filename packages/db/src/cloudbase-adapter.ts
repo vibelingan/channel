@@ -68,6 +68,17 @@ export const cloudBaseAdapter: DbAdapter = {
     }
   },
 
+  async findByField(collection, field, value): Promise<CollectionDoc | null> {
+    const db = database();
+    const res = await db
+      .collection(collection)
+      .where({ [field]: value })
+      .limit(1)
+      .get();
+    const raw = (res.data as Record<string, unknown>[])[0];
+    return raw ? normalize(raw) : null;
+  },
+
   async create(collection, data): Promise<CollectionDoc> {
     const db = database();
     const now = new Date().toISOString();

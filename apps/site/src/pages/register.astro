@@ -1,0 +1,19 @@
+---
+import AuthShell from '../components/AuthShell.astro';
+import { getSiteContent } from '../i18n/site.ts';
+import { AuthForm } from '../islands/auth/AuthForm.tsx';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const { brand } = getSiteContent();
+const returnTo = Astro.url.searchParams.get('returnTo') ?? undefined;
+---
+
+<BaseLayout
+  title={`Create account — ${brand.name}`}
+  description="Register for the Channel portal."
+  lang="en"
+>
+  <AuthShell title={`© 2004–2026 ${brand.name}`}>
+    <AuthForm mode="register" returnTo={returnTo} client:load />
+  </AuthShell>
+</BaseLayout>

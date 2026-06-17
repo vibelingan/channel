@@ -2,9 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { CategoryFilter } from './CategoryFilter.tsx';
 import { InquiryCartBar } from './InquiryCartBar.tsx';
 import { ProductCard } from './ProductCard.tsx';
-import { RegisteredToggle } from './RegisteredToggle.tsx';
 import { type Product, fetchCatalog } from './api.ts';
-import { useRegistered } from './session.ts';
+import { useSession } from './session.ts';
 import type { CatalogConfig, CatalogListStrings, InquiryStrings } from './types.ts';
 
 interface Props {
@@ -21,7 +20,7 @@ export function ProductGrid({ content, config, inquiry }: Props) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const registered = useRegistered();
+  const { canSeeVip, loggedIn } = useSession();
 
   useEffect(() => {
     let active = true;
@@ -65,7 +64,14 @@ export function ProductGrid({ content, config, inquiry }: Props) {
           <p className="text-sm text-ink-muted">
             {loading ? '…' : products.length} {content.resultsLabel}
           </p>
-          <RegisteredToggle registered={registered} />
+          {!loggedIn && (
+            <a
+              href="/login"
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-ink-muted transition hover:border-brand-400 hover:text-brand-700"
+            >
+              Sign in for VIP pricing
+            </a>
+          )}
         </div>
       </div>
 
@@ -101,7 +107,7 @@ export function ProductGrid({ content, config, inquiry }: Props) {
                 product={product}
                 content={content}
                 config={config}
-                registered={registered}
+                registered={canSeeVip}
               />
             ))}
           </div>

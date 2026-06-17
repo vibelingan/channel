@@ -48,6 +48,8 @@ export interface CollectionDef {
   /** Fields the free-text search box matches against. */
   searchableFields: readonly string[];
   fields: readonly FieldDef[];
+  /** Hide from the dashboard navigation (managed indirectly, e.g. images). */
+  hideFromNav?: boolean;
 }
 
 /**
@@ -67,29 +69,43 @@ export const SYSTEM_FIELDS: readonly FieldDef[] = [
  */
 export const COLLECTIONS: readonly CollectionDef[] = [
   {
-    name: 'members',
-    label: 'Members',
-    description: 'Portal members / channel partners.',
-    searchableFields: ['name', 'email', 'phone'],
+    name: 'users',
+    label: 'Users',
+    description: 'Portal accounts and their role-based entitlements.',
+    searchableFields: ['email', 'username'],
     fields: [
-      { name: 'name', label: 'Name', type: 'string', required: true },
+      { name: 'username', label: 'Username', type: 'string', required: true },
       { name: 'email', label: 'Email', type: 'email', required: true },
-      { name: 'phone', label: 'Phone', type: 'string' },
       {
         name: 'role',
         label: 'Role',
         type: 'select',
-        options: ['member', 'partner', 'admin'],
-        required: true,
+        // Blank (no selection) = base entitlement; admins assign the rest.
+        options: ['viewer', 'member', 'contributor', 'admin'],
       },
       {
         name: 'status',
         label: 'Status',
         type: 'select',
-        options: ['active', 'pending', 'suspended'],
-        required: true,
+        options: ['active', 'suspended'],
       },
-      { name: 'notes', label: 'Notes', type: 'text', hideInTable: true },
+      // Server-managed: the argon2id hash is set only by the auth flow, never
+      // through the generic admin CRUD, and is redacted from API responses.
+      {
+        name: 'passwordHash',
+        label: 'Password Hash',
+        type: 'text',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'lastLoginAt', label: 'Last Login', type: 'date', readOnly: true, hideInTable: true },
+      {
+        name: 'loginCount',
+        label: 'Login Count',
+        type: 'number',
+        readOnly: true,
+        hideInTable: true,
+      },
     ],
   },
   {
@@ -135,6 +151,7 @@ export const COLLECTIONS: readonly CollectionDef[] = [
       { name: 'wholesalePrice', label: 'Wholesale Price', type: 'number' },
       { name: 'vipPrice', label: 'VIP Price', type: 'number' },
       { name: 'imageIds', label: 'Image IDs', type: 'json', hideInTable: true },
+      { name: 'published', label: 'Published', type: 'boolean' },
     ],
   },
   {
@@ -167,6 +184,7 @@ export const COLLECTIONS: readonly CollectionDef[] = [
       { name: 'wholesalePrice', label: 'Wholesale Price', type: 'number' },
       { name: 'vipPrice', label: 'VIP Price', type: 'number' },
       { name: 'imageIds', label: 'Image IDs', type: 'json', hideInTable: true },
+      { name: 'published', label: 'Published', type: 'boolean' },
     ],
   },
   {
@@ -174,6 +192,7 @@ export const COLLECTIONS: readonly CollectionDef[] = [
     label: 'Images',
     description: 'Binary image assets (stored as base64 bytes) referenced by catalog items.',
     searchableFields: ['name'],
+    hideFromNav: true,
     fields: [
       { name: 'name', label: 'Name', type: 'string', required: true },
       { name: 'mimeType', label: 'MIME Type', type: 'string', required: true },

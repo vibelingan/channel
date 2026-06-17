@@ -3,11 +3,10 @@ import type { OverstockContent } from '../../i18n/overstock.ts';
 import { Gallery } from './Gallery.tsx';
 import { InquiryCartBar } from './InquiryCartBar.tsx';
 import { InquiryForm } from './InquiryForm.tsx';
-import { RegisteredToggle } from './RegisteredToggle.tsx';
 import { StockBadge } from './StockBadge.tsx';
 import { type Product, fetchCatalogItem, formatPrice, stockStatus } from './api.ts';
 import { useInquiryCart } from './inquiryCart.ts';
-import { useRegistered } from './session.ts';
+import { useSession } from './session.ts';
 
 interface Props {
   content: OverstockContent;
@@ -25,7 +24,7 @@ export function OverstockDetail({ content, apiPath }: Props) {
   const [product, setProduct] = useState<Product | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'not-found' | 'error'>('loading');
   const [showInquiry, setShowInquiry] = useState(false);
-  const registered = useRegistered();
+  const { canSeeVip, loggedIn } = useSession();
   const cart = useInquiryCart();
 
   useEffect(() => {
@@ -119,7 +118,6 @@ export function OverstockDetail({ content, apiPath }: Props) {
           </svg>
           {detail.backLabel}
         </a>
-        <RegisteredToggle registered={registered} />
       </div>
 
       <div className="mt-6 grid gap-10 lg:grid-cols-2">
@@ -171,7 +169,7 @@ export function OverstockDetail({ content, apiPath }: Props) {
                 </div>
               )}
             </div>
-            {registered && product.vipPrice !== undefined && (
+            {canSeeVip && product.vipPrice !== undefined && (
               <p className="mt-3 border-t border-accent-200 pt-3 text-sm font-semibold text-brand-700">
                 {detail.vipLabel}: {formatPrice(product.vipPrice)}
               </p>
@@ -222,7 +220,7 @@ export function OverstockDetail({ content, apiPath }: Props) {
               {inCart ? detail.inInquiry : detail.addToInquiry}
             </button>
 
-            {registered ? (
+            {loggedIn ? (
               <button
                 type="button"
                 onClick={() => setShowInquiry(true)}
@@ -232,7 +230,7 @@ export function OverstockDetail({ content, apiPath }: Props) {
               </button>
             ) : (
               <a
-                href="/admin"
+                href="/login"
                 className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-6 py-3.5 text-base font-semibold text-ink-soft transition hover:border-brand-400 hover:text-brand-700"
               >
                 <svg

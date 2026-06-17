@@ -3,9 +3,8 @@ import type { HeadphonesContent } from '../../i18n/headphones.ts';
 import { Gallery } from './Gallery.tsx';
 import { InquiryForm } from './InquiryForm.tsx';
 import { PriceBlock } from './PriceBlock.tsx';
-import { RegisteredToggle } from './RegisteredToggle.tsx';
 import { type Product, fetchProduct, formatPrice } from './api.ts';
-import { useRegistered } from './session.ts';
+import { useSession } from './session.ts';
 
 interface Props {
   content: HeadphonesContent;
@@ -22,7 +21,7 @@ export function ProductDetail({ content }: Props) {
   const [product, setProduct] = useState<Product | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'not-found' | 'error'>('loading');
   const [showInquiry, setShowInquiry] = useState(false);
-  const registered = useRegistered();
+  const { canSeeVip, loggedIn } = useSession();
 
   useEffect(() => {
     const id = getId();
@@ -96,7 +95,6 @@ export function ProductDetail({ content }: Props) {
           </svg>
           {detail.backLabel}
         </a>
-        <RegisteredToggle registered={registered} />
       </div>
 
       <div className="mt-6 grid gap-10 lg:grid-cols-2">
@@ -133,14 +131,14 @@ export function ProductDetail({ content }: Props) {
               vipLockedLabel={detail.vipLockedLabel}
               wholesalePrice={product.wholesalePrice}
               vipPrice={product.vipPrice}
-              registered={registered}
+              registered={canSeeVip}
               size="lg"
             />
           </div>
 
-          {/* Inquiry CTA — registered users only */}
+          {/* Inquiry CTA — signed-in users only */}
           <div className="mt-6">
-            {registered ? (
+            {loggedIn ? (
               <button
                 type="button"
                 onClick={() => setShowInquiry(true)}
@@ -164,7 +162,7 @@ export function ProductDetail({ content }: Props) {
               </button>
             ) : (
               <a
-                href="/admin"
+                href="/login"
                 className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-6 py-3.5 text-base font-semibold text-ink-soft transition hover:border-brand-400 hover:text-brand-700 sm:w-auto"
               >
                 <svg
@@ -178,7 +176,7 @@ export function ProductDetail({ content }: Props) {
                   <rect x="5" y="11" width="14" height="10" rx="2" />
                   <path d="M8 11V8a4 4 0 0 1 8 0v3" />
                 </svg>
-                {detail.vipLockedLabel}
+                Sign in to request a quote
               </a>
             )}
           </div>
