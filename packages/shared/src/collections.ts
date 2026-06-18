@@ -21,7 +21,8 @@ export type FieldType =
   | 'date'
   | 'email'
   | 'select'
-  | 'json';
+  | 'json'
+  | 'file';
 
 export interface FieldDef {
   /** Property name as stored in the database document. */
@@ -109,6 +110,42 @@ export const COLLECTIONS: readonly CollectionDef[] = [
     ],
   },
   {
+    name: 'oemProjects',
+    label: 'OEM Requests',
+    description: 'OEM project enquiries submitted from the public OEM page.',
+    searchableFields: ['company', 'contact', 'email'],
+    fields: [
+      { name: 'company', label: 'Company', type: 'string', required: true },
+      { name: 'contact', label: 'Contact', type: 'string', required: true },
+      { name: 'email', label: 'Email', type: 'email', required: true },
+      { name: 'whatsapp', label: 'WhatsApp', type: 'string' },
+      {
+        name: 'category',
+        label: 'Category',
+        type: 'select',
+        options: [
+          'Plastic Products',
+          'Electronics',
+          'Headphones',
+          'Consumer Goods',
+          'Hardware Products',
+          'Promotional Products',
+          'Other',
+        ],
+      },
+      { name: 'quantity', label: 'Est. Quantity', type: 'number' },
+      { name: 'drawingName', label: 'File name', type: 'string', hideInTable: true },
+      { name: 'drawing', label: 'Drawing', type: 'file' },
+      {
+        name: 'status',
+        label: 'Status',
+        type: 'select',
+        options: ['new', 'reviewing', 'quoted', 'closed'],
+        required: true,
+      },
+    ],
+  },
+  {
     name: 'products',
     label: 'Products',
     description: 'Catalog products (headphones and other categories).',
@@ -171,6 +208,18 @@ export const COLLECTIONS: readonly CollectionDef[] = [
     name: 'images',
     label: 'Images',
     description: 'Binary image assets (stored as base64 bytes) referenced by catalog items.',
+    searchableFields: ['name'],
+    hideFromNav: true,
+    fields: [
+      { name: 'name', label: 'Name', type: 'string', required: true },
+      { name: 'mimeType', label: 'MIME Type', type: 'string', required: true },
+      { name: 'data', label: 'Data (base64)', type: 'text', hideInTable: true },
+    ],
+  },
+  {
+    name: 'files',
+    label: 'Files',
+    description: 'Binary file attachments (stored as base64 bytes), e.g. OEM drawings.',
     searchableFields: ['name'],
     hideFromNav: true,
     fields: [

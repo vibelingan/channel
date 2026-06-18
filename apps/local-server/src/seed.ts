@@ -57,6 +57,42 @@ export async function seed(adapter: JsonFileAdapter): Promise<void> {
     ...(await generateUsers(140)),
   ]);
 
+  adapter.seedIfEmpty('files', [
+    {
+      _id: 'sample-drawing',
+      name: 'enclosure-rev-b.txt',
+      mimeType: 'text/plain',
+      data: Buffer.from(
+        'Sample OEM drawing placeholder.\nReplace with the real CAD/PDF file.\n',
+      ).toString('base64'),
+    },
+  ]);
+
+  adapter.seedIfEmpty('oemProjects', [
+    {
+      company: 'Northwind Gadgets',
+      contact: 'Dana Lee',
+      email: 'dana@northwind.example',
+      whatsapp: '+1 555 010 2030',
+      category: 'Electronics',
+      quantity: 5000,
+      drawingName: 'enclosure-rev-b.txt',
+      drawing: 'sample-drawing',
+      status: 'new',
+    },
+    {
+      company: 'Brightline Audio',
+      contact: 'Marco Rossi',
+      email: 'marco@brightline.example',
+      whatsapp: '',
+      category: 'Headphones',
+      quantity: 2000,
+      drawingName: '',
+      drawing: '',
+      status: 'reviewing',
+    },
+  ]);
+
   // Images are seeded as a collection of base64 bytes — mirroring how
   // wx-server-sdk will store image binaries in production. Catalog items only
   // reference image ids (see `imageIds`), never file paths.

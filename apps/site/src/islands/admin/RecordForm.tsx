@@ -196,6 +196,36 @@ function Field({
     );
   }
 
+  // File reference: bytes are stored in the `files` collection and downloaded
+  // via /api/files/<id>. Shown read-only here (re-upload is not supported in the
+  // admin edit form).
+  if (field.type === 'file') {
+    const fileId = String(value || '');
+    return (
+      <div>
+        {label}
+        <div className="mt-1">
+          {fileId ? (
+            <a
+              href={`/api/files/${encodeURIComponent(fileId)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-900"
+            >
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                <path d="M10 2a1 1 0 0 1 1 1v8.59l2.3-2.3a1 1 0 1 1 1.4 1.42l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.42l2.3 2.3V3a1 1 0 0 1 1-1Z" />
+                <path d="M4 15a1 1 0 0 1 1 1v1h10v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z" />
+              </svg>
+              Download file
+            </a>
+          ) : (
+            <span className="text-sm text-slate-400">No file attached</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       {label}

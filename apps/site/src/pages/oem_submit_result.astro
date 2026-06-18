@@ -1,0 +1,88 @@
+---
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = getSiteContent(DEFAULT_LOCALE);
+const { brand, nav, footer } = site;
+---
+
+<BaseLayout
+  title={`Request received — ${brand.name}`}
+  description="Your OEM project request has been received."
+  lang="en"
+>
+  <SiteHeader brand={brand} nav={nav} />
+
+  <main class="min-h-[60vh] bg-surface-alt">
+    <section class="mx-auto flex max-w-2xl flex-col items-center px-4 py-20 text-center sm:px-6 lg:py-28">
+      <span
+        class="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-600"
+      >
+        <svg
+          class="h-8 w-8"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M5 13l4 4L19 7"></path>
+        </svg>
+      </span>
+
+      <h1 class="mt-6 font-display text-3xl font-bold text-ink sm:text-4xl">
+        Your OEM request has been submitted
+      </h1>
+
+      <p class="mt-4 max-w-xl text-lg leading-relaxed text-ink-soft">
+        Thank you — we have logged your project enquiry. Our engineering team will review the
+        details and get back to you within one business day. A confirmation email is on its way to
+        the address you provided.
+      </p>
+
+      <div
+        class="mt-8 hidden w-full max-w-md rounded-[var(--radius-card)] border border-slate-200 bg-surface p-6 shadow-[var(--shadow-card)]"
+        data-ref-card
+      >
+        <p class="text-sm font-medium uppercase tracking-wide text-ink-muted">Your reference id</p>
+        <p class="mt-2 break-all font-mono text-lg font-semibold text-brand-700" data-ref-id></p>
+        <p class="mt-3 text-xs text-ink-muted">
+          Please keep this reference for any follow-up about your request.
+        </p>
+      </div>
+
+      <div class="mt-10 flex flex-wrap items-center justify-center gap-3">
+        <a
+          href="/oem"
+          class="inline-flex items-center justify-center rounded-lg bg-brand-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-800"
+        >
+          Submit another request
+        </a>
+        <a
+          href="/"
+          class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-ink transition hover:bg-slate-50"
+        >
+          Back to home
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <SiteFooter brand={brand} footer={footer} />
+</BaseLayout>
+
+<script>
+  // The id is provided as a query param after a successful submission. The site
+  // is statically generated, so it is read on the client.
+  const id = new URLSearchParams(window.location.search).get('id');
+  if (id) {
+    const card = document.querySelector<HTMLElement>('[data-ref-card]');
+    const idEl = document.querySelector<HTMLElement>('[data-ref-id]');
+    if (idEl) idEl.textContent = `#${id}`;
+    card?.classList.remove('hidden');
+  }
+</script>

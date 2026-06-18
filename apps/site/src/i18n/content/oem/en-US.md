@@ -130,6 +130,7 @@ submit:
         type: file,
         accept: '.pdf,.zip,.rar,.png,.jpg,.jpeg,.step,.stp,.igs,.dwg',
         full: true,
+        hint: 'Have several files? Compress them into a single .zip and upload that one file.',
       }
   submitLabel: Submit project
   disclaimer: >-

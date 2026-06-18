@@ -95,3 +95,20 @@ function escapeHtml(input: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+export interface OemConfirmationData {
+  to: string;
+  contact: string;
+  company: string;
+  category: string;
+  projectId: string;
+}
+
+/** Acknowledge a freshly submitted OEM project enquiry to the submitter. */
+export function sendOemConfirmationEmail(data: OemConfirmationData): Promise<boolean> {
+  const subject = `We received your OEM request (#${data.projectId})`;
+  const categoryLine = data.category ? `\n  Category: ${data.category}` : '';
+  const text = `Hi ${data.contact},\n\nThank you for submitting an OEM project enquiry to Channel. We have logged your request and our engineering team will review it and respond within one business day.\n\n  Reference: #${data.projectId}\n  Company: ${data.company}${categoryLine}\n\nPlease keep this reference number for any follow-up.\n\n— Channel Engineering Team`;
+  const html = `<div style="font-family:system-ui,sans-serif;max-width:480px;margin:auto"><h2 style="color:#1f2a73">OEM request received</h2><p>Hi ${escapeHtml(data.contact)},</p><p>Thank you for submitting an OEM project enquiry to Channel. We have logged your request and our engineering team will review it and respond within one business day.</p><p style="background:#f6f8fc;padding:12px 16px;border-radius:8px"><strong>Reference:</strong> #${escapeHtml(data.projectId)}<br/><strong>Company:</strong> ${escapeHtml(data.company)}${data.category ? `<br/><strong>Category:</strong> ${escapeHtml(data.category)}` : ''}</p><p>Please keep this reference number for any follow-up.</p><p style="color:#64748b;font-size:13px">— Channel Engineering Team</p></div>`;
+  return sendMail({ to: data.to, subject, html, text });
+}

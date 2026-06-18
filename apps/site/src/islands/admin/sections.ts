@@ -31,6 +31,7 @@ export const DASHBOARD_SECTIONS: readonly DashboardSection[] = [
   },
   { label: 'Headphones', collection: 'products', catalog: true },
   { label: 'Overstock', collection: 'overstock', catalog: true },
+  { label: 'OEM Requests', collection: 'oemProjects', inlineEdit: ['status'] },
 ];
 
 /** Field used to gate public visibility of catalog items. */

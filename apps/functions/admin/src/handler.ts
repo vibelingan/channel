@@ -32,7 +32,7 @@ import {
   update,
   updateDoc,
 } from '@vibelingan-channel/db';
-import { sendRecoveryEmail } from '@vibelingan-channel/email';
+import { sendOemConfirmationEmail, sendRecoveryEmail } from '@vibelingan-channel/email';
 import {
   type ApiResult,
   COLLECTIONS,
@@ -70,6 +70,18 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 const recoverSchema = z.object({ email: z.string().email() });
+const submitProjectSchema = z.object({
+  company: z.string().min(1).max(200),
+  contact: z.string().min(1).max(200),
+  email: z.string().email(),
+  whatsapp: z.string().max(60).optional(),
+  category: z.string().max(100).optional(),
+  quantity: z.union([z.string(), z.number()]).optional(),
+  drawingName: z.string().max(300).optional(),
+  drawingType: z.string().max(200).optional(),
+  // Base64-encoded file bytes (~12MB cap, matching the server body limit).
+  drawingData: z.string().max(16_000_000).optional(),
+});
 const updateProfileSchema = z.object({ username: z.string().min(2).max(40) });
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
@@ -170,6 +182,8 @@ export async function handleAdminRequest(
         return await login(req, config);
       case 'recover':
         return await recover(req, config);
+      case 'submitProject':
+        return await submitProject(req);
     }
 
     // ---- Everything below requires a valid session --------------------
@@ -279,6 +293,67 @@ async function recover(req: AdminRequest, config: AdminConfig): Promise<ApiResul
   // Always return the same response so the endpoint cannot probe which emails
   // are registered.
   return ok({ message: 'If that email is registered, a new password has been sent.' });
+}
+
+/**
+ * Public OEM project enquiry. Anyone may submit; the request is persisted to the
+ * `oemProjects` collection (visible to admins/contributors in the dashboard) and
+ * the submitter receives a confirmation email with the new reference id.
+ */
+async function submitProject(req: AdminRequest): Promise<ApiResult<unknown>> {
+  const parsed = submitProjectSchema.safeParse(req.data);
+  if (!parsed.success) {
+    return err('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join('; '));
+  }
+  const {
+    company,
+    contact,
+    email,
+    whatsapp,
+    category,
+    quantity,
+    drawingName,
+    drawingType,
+    drawingData,
+  } = parsed.data;
+  const numericQuantity = quantity === undefined || quantity === '' ? undefined : Number(quantity);
+
+  // Persist the uploaded drawing as a standalone byte document (like images),
+  // and reference it by id from the project. The bytes never live inline.
+  let drawingId = '';
+  if (drawingData) {
+    const fileDoc = await createDoc('files', {
+      name: drawingName ?? 'drawing',
+      mimeType: drawingType ?? 'application/octet-stream',
+      data: drawingData,
+    });
+    drawingId = fileDoc._id;
+  }
+
+  const doc = await createDoc('oemProjects', {
+    company,
+    contact,
+    email: email.toLowerCase(),
+    whatsapp: whatsapp ?? '',
+    category: category ?? '',
+    ...(numericQuantity !== undefined && !Number.isNaN(numericQuantity)
+      ? { quantity: numericQuantity }
+      : {}),
+    drawingName: drawingName ?? '',
+    drawing: drawingId,
+    status: 'new',
+  });
+
+  // Best-effort acknowledgement; never block the submission on email delivery.
+  await sendOemConfirmationEmail({
+    to: email.toLowerCase(),
+    contact,
+    company,
+    category: category ?? '',
+    projectId: doc._id,
+  }).catch((e) => console.error('[submitProject] confirmation email failed:', e));
+
+  return ok({ id: doc._id });
 }
 
 // --- Authenticated profile actions ----------------------------------------

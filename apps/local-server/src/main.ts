@@ -30,7 +30,7 @@ setAdapter(adapter);
 await seed(adapter);
 
 const app = express();
-app.use(express.json({ limit: '12mb' }));
+app.use(express.json({ limit: '20mb' }));
 
 // CORS for the Astro dev server (when not using its proxy).
 app.use((_req, res, next) => {
@@ -77,6 +77,20 @@ app.get('/api/images/:id', async (req, res) => {
   }
   res.setHeader('Content-Type', String(doc.mimeType ?? 'application/octet-stream'));
   res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.send(Buffer.from(doc.data, 'base64'));
+});
+
+// Download file bytes stored (base64) in the `files` collection. Sent as an
+// attachment with the original filename so admins can save OEM drawings.
+app.get('/api/files/:id', async (req, res) => {
+  const doc = await adapter.get('files', req.params.id);
+  if (!doc || typeof doc.data !== 'string') {
+    res.status(404).end();
+    return;
+  }
+  const name = String(doc.name ?? 'file').replace(/["\r\n]/g, '');
+  res.setHeader('Content-Type', String(doc.mimeType ?? 'application/octet-stream'));
+  res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
   res.send(Buffer.from(doc.data, 'base64'));
 });
 

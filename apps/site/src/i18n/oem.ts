@@ -38,6 +38,8 @@ export interface FormField {
   options?: string[];
   accept?: string;
   full?: boolean;
+  /** Optional helper text shown beneath the field (e.g. file upload tips). */
+  hint?: string;
 }
 
 export interface OemContent {

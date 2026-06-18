@@ -17,9 +17,19 @@ interface Props {
   successBody: string;
   /** Optional backend endpoint to POST to. */
   action?: string;
+  /** When set, redirect here (with ?id=) after a successful submission. */
+  resultPath?: string;
 }
 
-const { fields, submitLabel, disclaimer, successTitle, successBody, action = '' } = Astro.props;
+const {
+  fields,
+  submitLabel,
+  disclaimer,
+  successTitle,
+  successBody,
+  action = '',
+  resultPath = '',
+} = Astro.props;
 
 const fieldBase =
   'mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-ink shadow-sm outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-600/20';
@@ -32,6 +42,7 @@ const fieldBase =
     class="grid grid-cols-1 gap-5 p-6 sm:grid-cols-2 sm:p-8"
     data-project-form
     data-endpoint={action}
+    data-result={resultPath}
     novalidate
   >
     {
@@ -69,6 +80,12 @@ const fieldBase =
               required={field.required}
               class={fieldBase}
             />
+          )}
+
+          {field.hint && (
+            <p id={`${field.name}-hint`} class="mt-1.5 text-xs leading-relaxed text-ink-muted">
+              {field.hint}
+            </p>
           )}
         </div>
       ))
@@ -110,6 +127,20 @@ const fieldBase =
   const errorEl = form?.querySelector<HTMLElement>('[data-error]');
   const submitBtn = form?.querySelector<HTMLButtonElement>('[data-submit]');
 
+  /** Read a File as a base64 string (without the data: URL prefix). */
+  function readFileAsBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result);
+        const comma = result.indexOf(',');
+        resolve(comma >= 0 ? result.slice(comma + 1) : result);
+      };
+      reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+  }
+
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!form.checkValidity()) {
@@ -123,10 +154,43 @@ const fieldBase =
     }
 
     const endpoint = form.dataset.endpoint;
+    const resultPath = form.dataset.result;
     try {
       if (endpoint) {
-        const res = await fetch(endpoint, { method: 'POST', body: new FormData(form) });
-        if (!res.ok) throw new Error(`Request failed (${res.status})`);
+        // Collect text fields into a plain object. The drawing file is read as
+        // base64 so its bytes are persisted server-side (in the `files`
+        // collection), not just its name.
+        const data: Record<string, string> = {};
+        for (const el of Array.from(form.elements)) {
+          const field = el as HTMLInputElement | HTMLSelectElement;
+          if (!field.name) continue;
+          if (field instanceof HTMLInputElement && field.type === 'file') {
+            const file = field.files?.[0];
+            if (file) {
+              data.drawingName = file.name;
+              data.drawingType = file.type || 'application/octet-stream';
+              data.drawingData = await readFileAsBase64(file);
+            }
+          } else {
+            data[field.name] = field.value;
+          }
+        }
+
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'submitProject', data }),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok) {
+          throw new Error(json?.error?.message ?? `Request failed (${res.status})`);
+        }
+
+        // Redirect to a dedicated result page carrying the new reference id.
+        if (resultPath && json.data?.id) {
+          window.location.href = `${resultPath}?id=${encodeURIComponent(json.data.id)}`;
+          return;
+        }
       } else {
         // No backend wired yet — simulate a successful submission.
         await new Promise((resolve) => setTimeout(resolve, 600));
