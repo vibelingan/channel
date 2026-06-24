@@ -1,0 +1,26 @@
+{
+  "name": "@vibelingan-channel/fn-public-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Public, read-only catalog HTTP function for the Channel portal storefront.",
+  "main": "dist/index.js",
+  "exports": {
+    ".": "./src/index.ts",
+    "./handler": "./src/handler.ts",
+    "./http-adapter": "./src/http-adapter.ts"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "tsx --test src/**/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vibelingan-channel/db": "workspace:*",
+    "@vibelingan-channel/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsup": "^8.3.5",
+    "tsx": "^4.22.4"
+  }
+}
