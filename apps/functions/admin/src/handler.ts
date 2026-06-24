@@ -13,6 +13,7 @@
  * trade-off: a role change only takes effect for a user once their current
  * token expires (12h) or they sign in again.
  */
+import { timingSafeEqual } from 'node:crypto';
 import { type SessionClaims, signSession, verifySession } from '@vibelingan-channel/auth/jwt';
 import {
   generateRandomPassword,
@@ -51,6 +52,12 @@ export interface AdminConfig {
   jwtSecret: string;
   /** Absolute URL of the login page, used in recovery emails. */
   loginUrl?: string;
+  bootstrap?: {
+    enabled: boolean;
+    adminToken?: string;
+    adminEmail?: string;
+    adminPasswordHash?: string;
+  };
 }
 
 export interface AdminRequest {
@@ -69,6 +76,7 @@ const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 });
+const bootstrapAdminSchema = z.object({ token: z.string().min(1).max(4096) });
 const recoverSchema = z.object({ email: z.string().email() });
 const submitProjectSchema = z.object({
   company: z.string().min(1).max(200),
@@ -167,6 +175,64 @@ function issueToken(config: AdminConfig, doc: CollectionDoc): Promise<string> {
   );
 }
 
+function timingSafeStringEqual(input: string, expected: string): boolean {
+  const left = Buffer.from(input);
+  const right = Buffer.from(expected);
+  if (right.length === 0) return false;
+
+  if (left.length !== right.length) {
+    const length = Math.max(left.length, right.length, 1);
+    const paddedLeft = Buffer.alloc(length);
+    const paddedRight = Buffer.alloc(length);
+    left.copy(paddedLeft);
+    right.copy(paddedRight);
+    timingSafeEqual(paddedLeft, paddedRight);
+    return false;
+  }
+
+  return timingSafeEqual(left, right);
+}
+
+interface ReadyBootstrapConfig {
+  adminToken: string;
+  adminEmail: string;
+  adminPasswordHash: string;
+}
+
+function readyBootstrapConfig(config: AdminConfig): ReadyBootstrapConfig | null {
+  const bootstrap = config.bootstrap;
+  if (!bootstrap?.enabled) return null;
+
+  const adminToken = bootstrap.adminToken?.trim() ?? '';
+  const adminEmail = bootstrap.adminEmail?.trim().toLowerCase() ?? '';
+  const adminPasswordHash = bootstrap.adminPasswordHash?.trim() ?? '';
+  if (!adminToken || !adminEmail || !adminPasswordHash) return null;
+  if (!z.string().email().safeParse(adminEmail).success) return null;
+  return { adminToken, adminEmail, adminPasswordHash };
+}
+
+function bootstrapUsername(email: string): string {
+  const [localPart = ''] = email.split('@');
+  const normalized = localPart.replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 40);
+  return normalized.length >= 2 ? normalized : 'admin';
+}
+
+async function activeAdminExists(): Promise<boolean> {
+  const admins = await list({
+    collection: 'users',
+    page: 1,
+    pageSize: 1,
+    filter: {
+      combinator: 'and',
+      clauses: [
+        { field: 'role', op: 'eq', value: 'admin' },
+        { field: 'status', op: 'eq', value: 'active' },
+      ],
+    },
+  });
+  return admins.total > 0;
+}
+
 // --- Handler ---------------------------------------------------------------
 
 export async function handleAdminRequest(
@@ -180,6 +246,8 @@ export async function handleAdminRequest(
         return await register(req, config);
       case 'login':
         return await login(req, config);
+      case 'bootstrapAdmin':
+        return await bootstrapAdmin(req, config);
       case 'recover':
         return await recover(req, config);
       case 'submitProject':
@@ -252,6 +320,44 @@ async function register(req: AdminRequest, config: AdminConfig): Promise<ApiResu
   });
   const token = await issueToken(config, doc);
   return ok({ token, user: publicUser(doc) });
+}
+
+async function bootstrapAdmin(req: AdminRequest, config: AdminConfig): Promise<ApiResult<unknown>> {
+  const settings = readyBootstrapConfig(config);
+  if (!settings) return err('FORBIDDEN', 'Bootstrap is not available.');
+
+  const parsed = bootstrapAdminSchema.safeParse(req.data);
+  const suppliedToken = parsed.success ? parsed.data.token : '';
+  if (!timingSafeStringEqual(suppliedToken, settings.adminToken)) {
+    return err('UNAUTHORIZED', 'Invalid bootstrap request.');
+  }
+
+  if (await activeAdminExists()) {
+    return err('CONFLICT', 'An active admin account already exists.');
+  }
+
+  if (await findByField('users', 'email', settings.adminEmail)) {
+    return err('CONFLICT', 'Bootstrap admin email already exists.');
+  }
+
+  const username = bootstrapUsername(settings.adminEmail);
+  if (await findByField('users', 'username', username)) {
+    return err('CONFLICT', 'Bootstrap admin username already exists.');
+  }
+
+  const doc = await createDoc('users', {
+    email: settings.adminEmail,
+    username,
+    role: 'admin',
+    status: 'active',
+    passwordHash: settings.adminPasswordHash,
+    loginCount: 0,
+  });
+
+  return ok({
+    user: publicUser(doc),
+    bootstrap: { disableRequired: true },
+  });
 }
 
 async function login(req: AdminRequest, config: AdminConfig): Promise<ApiResult<unknown>> {

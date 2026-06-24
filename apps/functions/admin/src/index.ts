@@ -20,6 +20,12 @@ setAdapter(cloudBaseAdapter);
 const config: AdminHttpConfig = {
   jwtSecret: requireEnv('JWT_SECRET'),
   ...(optionalEnv('LOGIN_URL') ? { loginUrl: optionalEnv('LOGIN_URL') } : {}),
+  bootstrap: {
+    enabled: optionalEnv('BOOTSTRAP_ENABLED') === '1',
+    adminToken: optionalEnv('BOOTSTRAP_ADMIN_TOKEN'),
+    adminEmail: optionalEnv('ADMIN_EMAIL'),
+    adminPasswordHash: optionalEnv('ADMIN_PASSWORD_HASH'),
+  },
   ...(optionalEnv('CORS_ALLOWED_ORIGINS')
     ? { corsAllowedOrigins: parseAllowedOrigins(optionalEnv('CORS_ALLOWED_ORIGINS')) }
     : {}),
