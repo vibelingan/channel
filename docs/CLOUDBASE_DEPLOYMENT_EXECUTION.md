@@ -378,33 +378,28 @@ Goal: ensure deployed functions can cold start outside the monorepo.
 
 Implementation tasks:
 
-1. Resolve native dependency handling for `argon2` before deploy:
-   - Preferred: replace native `argon2` with a runtime-safe WASM argon2id
-     implementation, such as `hash-wasm`, and regenerate
-     `ADMIN_PASSWORD_HASH` with the same library used in production.
-   - Fallback: build/install native `argon2` for the CloudBase Linux runtime,
-     not on macOS.
+1. Replace native `argon2` with `hash-wasm` argon2id and regenerate
+   `ADMIN_PASSWORD_HASH` with the same helper used by production runtime.
 2. Bundle internal workspace packages.
-3. Add `@vibelingan-channel/email` to the function bundler's `noExternal` list
-   or otherwise prove it is present in the deploy artifact.
-4. Ensure `zod`, `jose`, and `nodemailer` are either bundled or listed in the
-   deploy artifact package manifest.
+3. Add `@vibelingan-channel/email` to the admin function bundler strategy.
+4. Bundle `zod`, `jose`, `nodemailer`, and `hash-wasm` into function artifacts.
 5. Keep `wx-server-sdk` external only if the selected CloudBase runtime provides
    it.
-6. Generate a deploy artifact directory per function.
+6. Generate a deploy artifact directory per function under
+   `.cloudbase-artifacts/functions`.
 7. Add package smokes:
 
    ```bash
-   rg '@vibelingan-channel/' apps/functions/*/dist
-   node -e "require('./apps/functions/admin/dist/index.js')"
+   pnpm package:functions
+   pnpm smoke:functions
    ```
 
-   The `node -e` command may need a stub or CloudBase runtime guard if
-   `wx-server-sdk` is unavailable locally; unresolved workspace imports are not
-   acceptable.
-8. Run at least one Linux/CloudBase-equivalent cold-start smoke for the function
-   artifact. A macOS `node -e` smoke can pass while native `argon2` fails in
-   CloudBase.
+   The smoke runs each artifact from a clean temporary directory and stubs only
+   `wx-server-sdk`; unresolved workspace or deploy-time dependency imports are
+   not acceptable.
+8. If a native dependency is ever reintroduced, run a Linux/CloudBase-equivalent
+   cold-start smoke before deploying. With `hash-wasm`, the native `argon2`
+   Linux/macOS mismatch risk is removed.
 
 Acceptance:
 
@@ -792,8 +787,8 @@ P0 issues:
 4. Add CloudBase HTTP adapter for `admin`.
 5. Add `public-api` HTTP function.
 6. Add first-admin bootstrap flow with timing-safe bootstrap token validation.
-7. Fix function packaging and runtime dependency strategy, including argon2 and
-   workspace email bundling.
+7. Fix function packaging and runtime dependency strategy, including hash-wasm
+   argon2id and workspace email bundling.
 8. Provision NoSQL collections/indexes/rules.
 9. Deploy functions and HTTP routes.
 10. Deploy static site/Web App.

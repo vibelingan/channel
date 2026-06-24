@@ -13,7 +13,9 @@
     "dev:api": "npx pnpm --filter @vibelingan-channel/local-server dev",
     "build": "npx pnpm --filter @vibelingan-channel/site build",
     "build:functions": "npx pnpm -r --filter \"./apps/functions/**\" build",
+    "package:functions": "npx pnpm build:functions && node scripts/package-functions.mjs",
     "preview": "npx pnpm --filter @vibelingan-channel/site preview",
+    "smoke:functions": "node scripts/smoke-function-artifacts.mjs",
     "typecheck": "npx pnpm -r --filter \"./packages/**\" --filter \"./apps/**\" typecheck",
     "lint": "npx biome check .",
     "format": "npx biome format --write ."

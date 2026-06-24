@@ -4,6 +4,7 @@ node_modules/
 
 # Build output
 dist/
+.cloudbase-artifacts/
 .astro/
 *.tsbuildinfo
 

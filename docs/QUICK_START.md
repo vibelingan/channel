@@ -21,7 +21,7 @@ If pnpm reports **"Ignored build scripts"**, approve the native packages once:
 pnpm approve-builds        # press "a" to select all, then "y" to confirm
 ```
 
-These are `argon2`, `esbuild`, `sharp`, `@biomejs/biome`, and `protobufjs`.
+These are `esbuild`, `sharp`, `@biomejs/biome`, and `protobufjs`.
 
 Then copy the example env file:
 
@@ -48,6 +48,7 @@ Open <http://localhost:4321/admin> and sign in with the dev password **`admin`**
 ```bash
 pnpm build                 # build the Astro site  -> apps/site/dist
 pnpm build:functions       # bundle cloud functions -> apps/functions/*/dist
+pnpm package:functions     # build deploy artifacts -> .cloudbase-artifacts/functions
 ```
 
 ## 5. Check everything
@@ -87,6 +88,8 @@ derived from it — no other file needs to change.
 | `pnpm dev:api` | Run the local file-backed API server |
 | `pnpm build` | Build the Astro site |
 | `pnpm build:functions` | Bundle all cloud functions |
+| `pnpm package:functions` | Build CloudBase function artifacts |
+| `pnpm smoke:functions` | Smoke-test packaged function artifacts |
 | `pnpm typecheck` | Type-check every workspace |
 | `pnpm lint` | Lint with Biome |
 | `pnpm format` | Auto-format with Biome |
@@ -100,6 +103,7 @@ Set these environment variables in the function configuration:
 | --- | --- |
 | `TCB_ENV` | CloudBase environment id |
 | `JWT_SECRET` | Secret used to sign admin tokens |
-| `ADMIN_PASSWORD_HASH` | argon2id hash of the admin password |
+| `ADMIN_PASSWORD_HASH` | hash-wasm argon2id hash of the admin password |
 
-Build with `pnpm build:functions`, then deploy the bundled `dist/` output.
+Build with `pnpm package:functions`, then deploy the matching directory under
+`.cloudbase-artifacts/functions/<function-name>`.

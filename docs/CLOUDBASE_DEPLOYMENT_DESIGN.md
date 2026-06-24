@@ -610,33 +610,39 @@ If CloudRun is introduced later:
 CloudBase Node functions need an entry file and `package.json` when npm packages
 are used.
 
-Current risk:
+Resolved P0.6 packaging strategy:
 
-- The generated `apps/functions/admin/dist/index.js` still requires
-  `@vibelingan-channel/email` and `zod`.
-- If only `dist/index.js` is deployed, the function can fail at cold start.
-- `packages/auth` currently uses native `argon2`. A macOS-built native binding
-  will not load in the CloudBase Linux runtime.
+- Internal workspace packages are bundled into function artifacts.
+- `@vibelingan-channel/email` is explicitly bundled into the admin artifact.
+- `packages/auth` uses `hash-wasm` argon2id instead of native `argon2`, so the
+  deployed password verifier no longer depends on macOS-built native bindings.
+- `zod`, `jose`, `nodemailer`, and `hash-wasm` are bundled rather than required
+  from a deploy-time `node_modules`.
+- `wx-server-sdk` stays external because the CloudBase runtime provides it.
 
-Required packaging decision:
+Artifact command:
 
-- Bundle internal workspace packages into the function artifact.
-- Explicitly include `@vibelingan-channel/email` in the admin function bundler
-  strategy; it is imported by the handler and must not remain as `workspace:*`.
-- Keep `wx-server-sdk` external if relying on the CloudBase runtime-provided SDK.
-- Prefer replacing native `argon2` with a runtime-safe WASM argon2id
-  implementation before deployment. If native `argon2` stays, install/build it
-  for the CloudBase Linux runtime and validate cold start there, not only on
-  macOS.
-- Generate `ADMIN_PASSWORD_HASH` with the same hashing library that the deployed
-  runtime verifies.
+```bash
+pnpm package:functions
+pnpm smoke:functions
+```
+
+Deployment should use:
+
+```text
+.cloudbase-artifacts/functions/admin
+.cloudbase-artifacts/functions/public-api
+```
+
+Generate `ADMIN_PASSWORD_HASH` with the same `hash-wasm` based
+`hashPassword(...)` helper that the deployed runtime verifies.
 
 Function artifact should contain:
 
 ```text
 index.js
 package.json
-node_modules/ only if the deploy method does not install dependencies remotely
+node_modules/ only for CloudBase platform stubs in local smoke tests
 ```
 
 Acceptance:
