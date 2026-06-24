@@ -1,8 +1,15 @@
 # Tencent Cloud Deployment Design
 
-Status: design for cross validation  
-Scope: Channel portal production deployment on Tencent Cloud / CloudBase  
+Status: design for cross validation
+Scope: Channel portal production deployment on Tencent Cloud / CloudBase
 Last updated: 2026-06-24
+
+> Canonical follow-up docs after review:
+>
+> - `docs/CLOUDBASE_DEPLOYMENT_DESIGN.md`
+> - `docs/CLOUDBASE_DEPLOYMENT_EXECUTION.md`
+>
+> This file is kept as the original design plus independent review notes.
 
 ## 1. Current Repository State
 
@@ -808,4 +815,3 @@ before `tcb fn deploy`.
 4. R3 private file / image auth — closes the data-leak risk.
 5. R5 runtime + bundling — makes deploys reproducible.
 6. Minor items folded into the relevant MIUs.
-
