@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { apiMediaUrl } from '../../lib/api-url.ts';
 
 interface Props {
   images: string[];
@@ -12,7 +13,7 @@ interface Props {
  * Zoom is pointer-only (skipped on touch / coarse pointers).
  */
 export function Gallery({ images, alt, zoomHint }: Props) {
-  const list = images.length > 0 ? images : ['/api/images/_placeholder'];
+  const list = (images.length > 0 ? images : ['/api/images/_placeholder']).map(apiMediaUrl);
   const [active, setActive] = useState(0);
   const [zoom, setZoom] = useState(false);
   const [pos, setPos] = useState({ x: 50, y: 50 });

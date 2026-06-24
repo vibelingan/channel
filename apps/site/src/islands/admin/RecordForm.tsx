@@ -1,5 +1,6 @@
 import type { CollectionDef, CollectionDoc, FieldDef } from '@vibelingan-channel/shared';
 import { useState } from 'react';
+import { fileUrl } from './api.ts';
 import { ImageManager } from './ImageManager.tsx';
 
 interface RecordFormProps {
@@ -207,7 +208,7 @@ function Field({
         <div className="mt-1">
           {fileId ? (
             <a
-              href={`/api/files/${encodeURIComponent(fileId)}`}
+              href={fileUrl(fileId)}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-900"

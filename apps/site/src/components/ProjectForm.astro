@@ -121,6 +121,8 @@ const fieldBase =
 </div>
 
 <script>
+  import { apiUrl } from '../lib/api-url.ts';
+
   const form = document.querySelector<HTMLFormElement>('[data-project-form]');
   const root = form?.closest('div');
   const success = root?.querySelector<HTMLElement>('[data-success]');
@@ -176,7 +178,7 @@ const fieldBase =
           }
         }
 
-        const res = await fetch(endpoint, {
+        const res = await fetch(apiUrl(endpoint), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'submitProject', data }),

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { apiMediaUrl } from '../../lib/api-url.ts';
 import { InquiryForm } from './InquiryForm.tsx';
 import { useInquiryCart } from './inquiryCart.ts';
 import type { InquiryStrings } from './types.ts';
@@ -39,7 +40,7 @@ export function InquiryCartBar({ inquiry }: Props) {
             {items.map((item) => (
               <li key={item.id} className="flex items-center gap-3 px-4 py-2.5">
                 <img
-                  src={item.image ?? '/api/images/_placeholder'}
+                  src={apiMediaUrl(item.image ?? '/api/images/_placeholder')}
                   alt=""
                   className="h-10 w-10 shrink-0 rounded-md border border-slate-200 object-cover"
                 />

@@ -1,4 +1,5 @@
 /** Shared product types + API client for the storefront islands. */
+import { apiMediaUrl, apiUrl } from '../../lib/api-url.ts';
 
 export interface Product {
   _id: string;
@@ -43,6 +44,15 @@ export interface CatalogQuery {
   pageSize?: number;
 }
 
+function resolveProductMedia(product: Product): Product {
+  if (!product.images) return product;
+  return { ...product, images: product.images.map(apiMediaUrl) };
+}
+
+function resolveCatalogMedia(page: CatalogPage): CatalogPage {
+  return { ...page, items: page.items.map(resolveProductMedia) };
+}
+
 /**
  * Fetch a page of a catalog collection from a serverless endpoint.
  * `basePath` lets the same client serve multiple catalogs (e.g. `/api/products`
@@ -61,20 +71,20 @@ export async function fetchCatalog(
   if (query.page) params.set('page', String(query.page));
   if (query.pageSize) params.set('pageSize', String(query.pageSize));
   const qs = params.toString();
-  const res = await fetch(`${basePath}${qs ? `?${qs}` : ''}`);
+  const res = await fetch(apiUrl(`${basePath}${qs ? `?${qs}` : ''}`));
   if (!res.ok) throw new Error(`Failed to load catalog (${res.status})`);
   const json = (await res.json()) as ApiEnvelope<CatalogPage>;
   if (!json.ok || !json.data) throw new Error(json.error?.message ?? 'Failed to load catalog');
-  return json.data;
+  return resolveCatalogMedia(json.data);
 }
 
 export async function fetchCatalogItem(basePath: string, id: string): Promise<Product> {
-  const res = await fetch(`${basePath}/${encodeURIComponent(id)}`);
+  const res = await fetch(apiUrl(`${basePath}/${encodeURIComponent(id)}`));
   if (res.status === 404) throw new Error('not-found');
   if (!res.ok) throw new Error(`Failed to load item (${res.status})`);
   const json = (await res.json()) as ApiEnvelope<Product>;
   if (!json.ok || !json.data) throw new Error(json.error?.message ?? 'Failed to load item');
-  return json.data;
+  return resolveProductMedia(json.data);
 }
 
 // Back-compat helpers for the headphones pages (products catalog).

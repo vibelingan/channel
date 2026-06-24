@@ -12,9 +12,10 @@ import type {
   ListResult,
   SortClause,
 } from '@vibelingan-channel/shared';
+import { apiUrl } from '../../lib/api-url.ts';
 import { getToken } from '../../lib/session.ts';
 
-const ENDPOINT = '/api/admin';
+const ENDPOINT = apiUrl('/api/admin');
 
 export class AdminApiError extends Error {
   constructor(
@@ -103,7 +104,12 @@ export function batchRemoveRecords(
 
 /** Public URL that streams the bytes of an image stored in the `images` collection. */
 export function imageUrl(id: string): string {
-  return `/api/images/${encodeURIComponent(id)}`;
+  return apiUrl(`/api/images/${encodeURIComponent(id)}`);
+}
+
+/** Public URL that streams the bytes of a file stored in the `files` collection. */
+export function fileUrl(id: string): string {
+  return apiUrl(`/api/files/${encodeURIComponent(id)}`);
 }
 
 /** Read a File as a base64 string (without the data: prefix). */

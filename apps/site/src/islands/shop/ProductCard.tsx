@@ -1,3 +1,4 @@
+import { apiMediaUrl } from '../../lib/api-url.ts';
 import { PriceBlock } from './PriceBlock.tsx';
 import { StockBadge } from './StockBadge.tsx';
 import type { Product } from './api.ts';
@@ -14,7 +15,7 @@ interface Props {
 /** eBay-style product card for the catalog grid. Reused by every catalog. */
 export function ProductCard({ product, content, config, registered }: Props) {
   const href = `${config.detailPath}?id=${encodeURIComponent(product._id)}`;
-  const image = product.images?.[0] ?? config.fallbackImage;
+  const image = apiMediaUrl(product.images?.[0] ?? config.fallbackImage);
   const categoryLabel =
     content.categories.find((c) => c.key === product.category)?.label ?? product.category;
   const cart = useInquiryCart();
@@ -78,6 +79,7 @@ export function ProductCard({ product, content, config, registered }: Props) {
               wholesalePrice={product.wholesalePrice}
               vipPrice={product.vipPrice}
               registered={registered}
+              signInHref={null}
             />
           </div>
         </div>

@@ -9,6 +9,7 @@
  */
 import type { Role, SessionUser } from '@vibelingan-channel/shared';
 import { canAccessAdmin, canSeeVipPricing } from '@vibelingan-channel/shared';
+import { apiUrl } from './api-url.ts';
 
 export type { Role, SessionUser } from '@vibelingan-channel/shared';
 export { canAccessAdmin, canManageUsers, canSeeVipPricing } from '@vibelingan-channel/shared';
@@ -16,7 +17,7 @@ export { canAccessAdmin, canManageUsers, canSeeVipPricing } from '@vibelingan-ch
 const TOKEN_KEY = 'channel.token';
 const USER_KEY = 'channel.user';
 const AUTH_EVENT = 'channel:auth';
-const ENDPOINT = '/api/admin';
+const ENDPOINT = apiUrl('/api/admin');
 
 export interface ApiError {
   code: string;
