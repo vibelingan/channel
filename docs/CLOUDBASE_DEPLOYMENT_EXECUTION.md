@@ -237,12 +237,16 @@ Implementation tasks:
    - image/file URL helpers
 3. If `PUBLIC_API_BASE_URL` is empty, preserve current same-origin behavior.
 4. If it is set, prefix every `/api/*` URL with it.
+5. Normalize API-returned media URLs too. Existing catalog JSON can contain
+   relative values such as `/api/images/:id`; those must resolve against the API
+   origin when `PUBLIC_API_BASE_URL` is set, not against the static site origin.
 
 Acceptance:
 
 - Local dev still works with relative `/api/*`.
 - A production build can target a separate API origin without code changes.
 - CORS origin list is explicit.
+- A catalog image renders when the site origin and API origin are different.
 
 Do not block P0 on custom domain unless the client requires the final domain for
 the first review.
@@ -299,8 +303,12 @@ Implementation tasks:
 5. Enforce `published: true` on catalog reads.
 6. Enforce `pageSize <= 48`.
 7. Gate image bytes by published-linked record.
-8. Return binary responses with correct `Content-Type` and cache headers.
-9. Add tests for published filtering, unpublished 404, image authorization, and
+8. Emit image URLs that work for the chosen route strategy:
+   - absolute API-origin URLs when `PUBLIC_API_BASE_URL` points to a separate
+     API domain, or
+   - relative URLs only after same-origin routing is proven.
+9. Return binary responses with correct `Content-Type` and cache headers.
+10. Add tests for published filtering, unpublished 404, image authorization, and
    page size cap.
 
 Acceptance:
@@ -309,6 +317,8 @@ Acceptance:
 - Unpublished documents never leak.
 - Raw image ids not linked to published records do not leak.
 - OEM files cannot be downloaded through public API.
+- Product and overstock API JSON does not make the browser fetch images from
+  the wrong origin.
 
 ### P0.5 First Admin Bootstrap
 
@@ -328,6 +338,13 @@ Minimum acceptable P0 implementation:
   - `BOOTSTRAP_ADMIN_TOKEN`
   - `ADMIN_EMAIL`
   - `ADMIN_PASSWORD_HASH`
+- Keep `bootstrapAdmin` in the pre-auth public action path. It cannot require an
+  existing session, because it creates the first session-capable admin.
+- Read the bootstrap token from the request payload, for example `data.token`,
+  not from the normal session `token` field.
+- Compare `BOOTSTRAP_ADMIN_TOKEN` with a constant-time check such as
+  `crypto.timingSafeEqual`, including a fail-closed length mismatch path. Do not
+  use plain `===`.
 - Check if any active admin user exists.
 - If an admin exists, return conflict and do not write.
 - If no admin exists, create one user with:
@@ -344,6 +361,7 @@ Acceptance:
 - Admin can be created exactly once.
 - No plaintext admin password is stored in GitHub, CloudBase env, docs, or logs.
 - Re-running bootstrap does not overwrite an existing admin.
+- Invalid bootstrap tokens do not leak timing or placement clues.
 
 ### P0.6 Function Packaging Fix
 
@@ -352,15 +370,21 @@ Goal: ensure deployed functions can cold start outside the monorepo.
 
 Implementation tasks:
 
-1. Decide native dependency handling for `argon2`.
+1. Resolve native dependency handling for `argon2` before deploy:
+   - Preferred: replace native `argon2` with a runtime-safe WASM argon2id
+     implementation, such as `hash-wasm`, and regenerate
+     `ADMIN_PASSWORD_HASH` with the same library used in production.
+   - Fallback: build/install native `argon2` for the CloudBase Linux runtime,
+     not on macOS.
 2. Bundle internal workspace packages.
-3. Ensure `@vibelingan-channel/email` is not left as unresolved external.
+3. Add `@vibelingan-channel/email` to the function bundler's `noExternal` list
+   or otherwise prove it is present in the deploy artifact.
 4. Ensure `zod`, `jose`, and `nodemailer` are either bundled or listed in the
    deploy artifact package manifest.
 5. Keep `wx-server-sdk` external only if the selected CloudBase runtime provides
    it.
 6. Generate a deploy artifact directory per function.
-7. Add a package smoke:
+7. Add package smokes:
 
    ```bash
    rg '@vibelingan-channel/' apps/functions/*/dist
@@ -370,6 +394,9 @@ Implementation tasks:
    The `node -e` command may need a stub or CloudBase runtime guard if
    `wx-server-sdk` is unavailable locally; unresolved workspace imports are not
    acceptable.
+8. Run at least one Linux/CloudBase-equivalent cold-start smoke for the function
+   artifact. A macOS `node -e` smoke can pass while native `argon2` fails in
+   CloudBase.
 
 Acceptance:
 
@@ -377,6 +404,8 @@ Acceptance:
 - CloudBase deploy command receives the artifact directory, not the monorepo
   source root by accident.
 - Runtime dependency strategy is documented.
+- The selected password-hash library can both generate and verify
+  `ADMIN_PASSWORD_HASH` in the deployed runtime.
 
 ### P0.7 CloudBase Resources
 
@@ -534,6 +563,8 @@ Acceptance:
 - Site URL is returned.
 - `/`, `/admin`, `/login`, `/oem`, `/headphones`, `/overstock` load.
 - Network calls go to the API origin.
+- At least one catalog image request succeeds from the API origin when the
+  static site and API use different origins.
 
 ### P0.11 Bootstrap And Smoke
 
@@ -566,6 +597,8 @@ Browser smoke:
 
 - Open site URL.
 - Open `/headphones`.
+- Confirm at least one product image renders and its network request targets the
+  API origin when `PUBLIC_API_BASE_URL` is set.
 - Open `/overstock`.
 - Open `/login`.
 - Log in as admin.
@@ -736,6 +769,8 @@ Stop and ask before continuing if:
 - Same-domain custom routing cannot be validated and the code still lacks
   `PUBLIC_API_BASE_URL`.
 - Function deployment requires a runtime lower than the code can support.
+- The selected password-hash library cannot be verified in a CloudBase/Linux
+  runtime before deploy.
 - Bootstrap would overwrite an existing admin.
 - Any public endpoint returns OEM file bytes without auth.
 
@@ -745,99 +780,28 @@ P0 issues:
 
 1. Confirm two-env model and establish `dev`/`main` branch mapping.
 2. Add API base URL helper and CORS-aware clients.
-3. Add CloudBase HTTP adapter for `admin`.
-4. Add `public-api` HTTP function.
-5. Add first-admin bootstrap flow.
-6. Fix function packaging and runtime dependency strategy.
-7. Provision NoSQL collections/indexes/rules.
-8. Deploy functions and HTTP routes.
-9. Deploy static site/Web App.
-10. Run and document smoke tests.
+3. Add media URL origin handling for cross-origin API responses.
+4. Add CloudBase HTTP adapter for `admin`.
+5. Add `public-api` HTTP function.
+6. Add first-admin bootstrap flow with timing-safe bootstrap token validation.
+7. Fix function packaging and runtime dependency strategy, including argon2 and
+   workspace email bundling.
+8. Provision NoSQL collections/indexes/rules.
+9. Deploy functions and HTTP routes.
+10. Deploy static site/Web App.
+11. Run and document smoke tests.
 
 P1 issues:
 
-11. Add GitHub Actions `dev` -> `dev` deploy.
-12. Add `main` -> `prod` deploy gate.
-13. Migrate binaries to CloudBase Storage.
-14. Add rate limiting and upload validation.
-15. Enable logs/CLS and structured function logs.
-16. Bind custom domain and route `/api/*`.
+12. Add GitHub Actions `dev` -> `dev` deploy.
+13. Add `main` -> `prod` deploy gate.
+14. Migrate binaries to CloudBase Storage.
+15. Add rate limiting and upload validation.
+16. Enable logs/CLS and structured function logs.
+17. Bind custom domain and route `/api/*`.
 
 P2 issues:
 
-17. Harden session cookies.
-18. Improve pagination and catalog scale.
-19. Add external uptime monitoring.
-
----
-
-## 9. Reviewer Insights — Round 2 (post-consolidation)
-
-> Advisory, append-only. Independent review of the consolidated DESIGN + this
-> EXECUTION plan against the code on `dev/albertli/try01` (2026-06-24). The plan
-> already absorbs the round-1 findings (HTTP adapter, token-gated idempotent
-> bootstrap, private OEM file endpoint, `PUBLIC_API_BASE_URL`, function bundling).
-> The items below are code-verified refinements to fold into the named P0 steps.
-> Severity: 🔴 can hard-block a cold start · 🟠 fix before client demo · 🟡 track.
-
-### R2-1 🔴 argon2 is a NATIVE module — choose the runtime-safe path before P0.8 (folds into P0.6)
-
-Confirmed: `packages/auth/package.json` depends on `argon2@^0.41.1` and
-`packages/auth/src/password.ts` calls `argon2.hash` / `argon2.verify`. argon2
-compiles a native binding, so a binary built on macOS will **not** load on the
-CloudBase Linux runtime — the function crashes at cold start. Resolve, in order:
-
-1. **Preferred:** switch to a WASM argon2id (e.g. `hash-wasm`). No native binary,
-   runs on any runtime, and it emits standard `$argon2id$...` PHC strings, so
-   existing hashes and the generated `ADMIN_PASSWORD_HASH` stay verifiable.
-2. **Else:** install argon2 built for the Linux target at deploy time (remote
-   `npm install` on CloudBase, or `npm_config_target_platform=linux`); never ship
-   the macOS-built binary.
-
-Constraint: `ADMIN_PASSWORD_HASH` (generated in P0.1) must be produced by a lib
-the deployed runtime can verify. If the hashing lib changes, regenerate the hash
-with the **same** lib. Also: the P0.6 smoke `node -e "require('dist/index.js')"`
-loads argon2 — it can pass on macOS yet fail on CloudBase. Validate the package on
-a Linux/CloudBase-equivalent, not only locally.
-
-### R2-2 🟠 `@vibelingan-channel/email` is not bundled (folds into P0.6)
-
-`apps/functions/admin/tsup.config.ts` `noExternal` lists only `shared`, `auth`,
-`db` — **not** `email`. The handler imports `@vibelingan-channel/email`, so `dist`
-keeps an unresolved `workspace:*` require (exactly the DESIGN §7.1 risk). Add
-`@vibelingan-channel/email` to `noExternal`, and confirm its transitive
-`nodemailer` plus `zod` and `jose` are bundled or declared in the artifact
-`package.json`.
-
-### R2-3 🟠 Cross-origin image URLs break when API origin ≠ site origin (folds into P0.2 / P0.4)
-
-The catalog API embeds image URLs as **relative** `/api/images/:id` (see
-`apps/local-server/src/main.ts` `resolveImages`). With `PUBLIC_API_BASE_URL`
-pointing at a separate API origin, `<img src="/api/images/x">` resolves against
-the **site** origin (which serves no `/api`) and 404s. The base-URL helper in P0.2
-must rewrite the image/file URLs returned **inside** API JSON, not only the
-outbound `fetch()` calls — or `public-api` must emit absolute image URLs. Add a
-smoke that a catalog image actually renders from the API origin.
-
-### R2-4 🟠 Bootstrap token: pre-auth placement + timing-safe compare (folds into P0.5)
-
-The bootstrap token travels in `data.token` (P0.11), not the session `token`
-field. The `bootstrapAdmin` action must live in the **public, pre-`authenticate`**
-switch in `handler.ts`, and compare `BOOTSTRAP_ADMIN_TOKEN` with a constant-time
-check (`crypto.timingSafeEqual`), never `===`. Keep the "fail if any admin exists"
-guard in the same single path.
-
-### R2-5 🟡 Minor
-
-- DESIGN §5.4 index list omits `products.name` while EXECUTION P0.7 includes it —
-  reconcile.
-- `PUBLIC_CB_PROXY` is only read by `astro.config.ts` for the **dev** server proxy;
-  it is a no-op in a static production build (harmless, but don't rely on it in prod).
-- `tsup` target is already `node18`, which matches the CloudBase runtime; only the
-  repo `engines: >=20` is out of step (DESIGN §9.2) — align the `engines` field.
-
-### Verdict
-
-Design + execution are implementation-ready. **R2-1 (argon2)** is the single item
-that can hard-block a cold start — resolve it before the P0.8 deploy. Everything
-else is a fold-in refinement to an already-correct plan.
+18. Harden session cookies.
+19. Improve pagination and catalog scale.
+20. Add external uptime monitoring.

@@ -198,7 +198,8 @@ Deployment target:
 Build-time inputs:
 
 - `PUBLIC_API_BASE_URL`
-- `PUBLIC_CB_PROXY=0`
+- `PUBLIC_CB_PROXY=0`, for local/dev proxy control only. It is harmless but
+  does not affect a static production build.
 - `PUBLIC_CB_HOST` only for local development or temporary preview builds.
 
 Static build must never receive:
@@ -333,6 +334,7 @@ Indexes:
 - `users.role`
 - `products.published`
 - `products.category`
+- `products.name`
 - `products.updatedAt`
 - `overstock.published`
 - `overstock.category`
@@ -603,14 +605,21 @@ Current risk:
 - The generated `apps/functions/admin/dist/index.js` still requires
   `@vibelingan-channel/email` and `zod`.
 - If only `dist/index.js` is deployed, the function can fail at cold start.
+- `packages/auth` currently uses native `argon2`. A macOS-built native binding
+  will not load in the CloudBase Linux runtime.
 
 Required packaging decision:
 
 - Bundle internal workspace packages into the function artifact.
+- Explicitly include `@vibelingan-channel/email` in the admin function bundler
+  strategy; it is imported by the handler and must not remain as `workspace:*`.
 - Keep `wx-server-sdk` external if relying on the CloudBase runtime-provided SDK.
-- Treat native dependencies such as `argon2` deliberately. Either package them
-  with function dependencies for the CloudBase Linux runtime, or replace them
-  with a runtime-safe hashing implementation before deployment.
+- Prefer replacing native `argon2` with a runtime-safe WASM argon2id
+  implementation before deployment. If native `argon2` stays, install/build it
+  for the CloudBase Linux runtime and validate cold start there, not only on
+  macOS.
+- Generate `ADMIN_PASSWORD_HASH` with the same hashing library that the deployed
+  runtime verifies.
 
 Function artifact should contain:
 
