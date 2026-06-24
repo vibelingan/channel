@@ -92,8 +92,8 @@ automation uses sensitive values.
 
 Environment plan:
 
-1. Use `diversity-123-d9grnqfux221323bb` as the `dev` CloudBase env unless the
-   team decides to recreate a cleaner dev/test env.
+1. Use `diversity-123-d9grnqfux221323bb` as the `test` CloudBase env unless the
+   team decides to recreate a cleaner test env.
 2. Create a separate `prod` CloudBase env before enabling `main` deploys.
 3. Do not create a separate staging env for this small project.
 4. Do not provision PostgreSQL or MySQL. CloudBase NoSQL is the selected
@@ -104,7 +104,7 @@ Environment plan:
 Branch model:
 
 ```text
-dev  -> GitHub Environment dev  -> CloudBase dev/test env
+test -> GitHub Environment test -> CloudBase test env
 main -> GitHub Environment prod -> CloudBase prod env
 PRs  -> checks only, no CloudBase deploy secrets
 ```
@@ -113,33 +113,38 @@ Prepare the deployment branches:
 
 ```bash
 git fetch origin
-git switch dev 2>/dev/null ||
-  git switch --track origin/dev 2>/dev/null ||
-  git switch -c dev
-git push -u origin dev
+git switch test 2>/dev/null ||
+  git switch --track origin/test 2>/dev/null ||
+  git switch -c test
+git push -u origin test
 ```
 
-If `origin/dev` does not exist yet, create it from the reviewed workstream that
-should become the test deployment baseline. Keep `main` for production-ready
-builds only.
+Use `test`, not a top-level `dev` branch, while the remote still has nested refs
+such as `dev/albertli/try01`. Git cannot have both `dev` and `dev/...` refs at
+the same time. Keep `main` for production-ready builds only.
 
 Create the required GitHub Environments:
 
 ```bash
-gh api repos/:owner/:repo/environments/dev -X PUT
+gh api repos/:owner/:repo/environments/test -X PUT
 gh api repos/:owner/:repo/environments/prod -X PUT
 ```
 
 Do not create a `staging` GitHub Environment.
 
-Set non-secret environment variables:
+Set non-secret test environment variables:
 
 ```bash
-gh variable set TCB_ENV_ID --env dev --body "diversity-123-d9grnqfux221323bb"
-gh variable set APP_ENV --env dev --body "dev"
-gh variable set CLOUDBASE_REGION --env dev --body "ap-shanghai"
-gh variable set PUBLIC_CB_PROXY --env dev --body "0"
+gh variable set TCB_ENV_ID --env test --body "diversity-123-d9grnqfux221323bb"
+gh variable set APP_ENV --env test --body "test"
+gh variable set CLOUDBASE_REGION --env test --body "ap-shanghai"
+gh variable set PUBLIC_CB_PROXY --env test --body "0"
+```
 
+Set production variables only after the real production CloudBase EnvId exists.
+Do not write a fake or placeholder `TCB_ENV_ID` into the `prod` environment.
+
+```bash
 gh variable set TCB_ENV_ID --env prod --body "<prod-env-id>"
 gh variable set APP_ENV --env prod --body "prod"
 gh variable set CLOUDBASE_REGION --env prod --body "ap-shanghai"
@@ -163,11 +168,11 @@ pnpm exec tsx -e "import { hashPassword } from './packages/auth/src/password.ts'
 Store secrets in GitHub Environment:
 
 ```bash
-gh secret set TENCENT_SECRET_ID --env dev
-gh secret set TENCENT_SECRET_KEY --env dev
-gh secret set JWT_SECRET --env dev
-gh secret set ADMIN_PASSWORD_HASH --env dev
-gh secret set BOOTSTRAP_ADMIN_TOKEN --env dev
+gh secret set TENCENT_SECRET_ID --env test
+gh secret set TENCENT_SECRET_KEY --env test
+gh secret set JWT_SECRET --env test
+gh secret set ADMIN_PASSWORD_HASH --env test
+gh secret set BOOTSTRAP_ADMIN_TOKEN --env test
 
 gh secret set TENCENT_SECRET_ID --env prod
 gh secret set TENCENT_SECRET_KEY --env prod
@@ -179,9 +184,9 @@ gh secret set BOOTSTRAP_ADMIN_TOKEN --env prod
 Store non-secret runtime values:
 
 ```bash
-gh variable set ADMIN_EMAIL --env dev --body "admin@example.com"
-gh variable set LOGIN_URL --env dev --body "https://<dev-site-url>/login"
-gh variable set CORS_ALLOWED_ORIGINS --env dev --body "https://<dev-site-url>,http://localhost:4321"
+gh variable set ADMIN_EMAIL --env test --body "admin@example.com"
+gh variable set LOGIN_URL --env test --body "https://<test-site-url>/login"
+gh variable set CORS_ALLOWED_ORIGINS --env test --body "https://<test-site-url>,http://localhost:4321"
 
 gh variable set ADMIN_EMAIL --env prod --body "admin@example.com"
 gh variable set LOGIN_URL --env prod --body "https://<prod-site-url>/login"
@@ -191,12 +196,12 @@ gh variable set CORS_ALLOWED_ORIGINS --env prod --body "https://<prod-site-url>"
 Optional SMTP:
 
 ```bash
-gh variable set EMAIL_HOST --env dev --body "smtp.exmail.qq.com"
-gh variable set EMAIL_PORT --env dev --body "465"
-gh variable set EMAIL_SECURE --env dev --body "true"
-gh variable set EMAIL_FROM --env dev --body '"Channel Portal" <admin@example.com>'
-gh secret set EMAIL_USER --env dev
-gh secret set EMAIL_PASSWORD --env dev
+gh variable set EMAIL_HOST --env test --body "smtp.exmail.qq.com"
+gh variable set EMAIL_PORT --env test --body "465"
+gh variable set EMAIL_SECURE --env test --body "true"
+gh variable set EMAIL_FROM --env test --body '"Channel Portal" <admin@example.com>'
+gh secret set EMAIL_USER --env test
+gh secret set EMAIL_PASSWORD --env test
 
 gh variable set EMAIL_HOST --env prod --body "smtp.exmail.qq.com"
 gh variable set EMAIL_PORT --env prod --body "465"
@@ -208,13 +213,14 @@ gh secret set EMAIL_PASSWORD --env prod
 
 Acceptance:
 
-- `dev` exists for test deploys and `main` remains the production branch.
-- GitHub Environments `dev` and `prod` exist.
-- No `.env` file contains dev or prod runtime secrets.
+- `test` exists for test deploys and `main` remains the production branch.
+- GitHub Environments `test` and `prod` exist.
+- No `.env` file contains test or prod runtime secrets.
 - Static build job will receive only `PUBLIC_*` variables.
 - CloudBase function env receives runtime secrets after deploy or as part of
   function config update.
-- The `prod` GitHub Environment points only at the production CloudBase EnvId.
+- The `prod` GitHub Environment points only at the production CloudBase EnvId
+  once that EnvId exists. Until then, production deployment remains disabled.
 
 ### P0.2 Route Strategy Spike
 
@@ -229,11 +235,13 @@ Fast path:
 
 Implementation tasks:
 
-1. Add an API URL helper in the site code.
+1. Add an API URL helper in the site code. The current helper names are
+   `apiUrl` for API fetches/links and `apiMediaUrl` for API-returned media URLs.
 2. Use it in:
    - admin API client
    - session API client
    - shop API client
+   - OEM project form submission
    - image/file URL helpers
 3. If `PUBLIC_API_BASE_URL` is empty, preserve current same-origin behavior.
 4. If it is set, prefix every `/api/*` URL with it.
@@ -483,7 +491,7 @@ Set function runtime env:
 
 ```text
 TCB_ENV=diversity-123-d9grnqfux221323bb
-APP_ENV=dev
+APP_ENV=test
 SITE_ORIGIN=https://<site-url>
 CORS_ALLOWED_ORIGINS=https://<site-url>,http://localhost:4321
 JWT_SECRET=<from GitHub Secret>
@@ -555,7 +563,7 @@ rg 'JWT_SECRET|ADMIN_PASSWORD|ADMIN_PASSWORD_HASH|TENCENT_SECRET|EMAIL_PASSWORD|
 Deploy:
 
 - Use CloudBase Web App through MCP `manageApps` for the first deployment.
-- Service name suggestion: `channel-portal-dev`.
+- Service name suggestion: `channel-portal-test`.
 - Build path: `apps/site/dist`.
 
 Acceptance:
@@ -632,13 +640,13 @@ Implement:
 
 - Deployment config scaffold:
   - `cloudbaserc.json`
-  - `deploy/cloudbase/dev.json`
+  - `deploy/cloudbase/test.json`
   - `deploy/cloudbase/prod.json`
   - `scripts/deploy-functions.sh`
   - `scripts/deploy-webapp.sh`
   - `scripts/smoke-cloudbase.sh`
 - PR workflow without secrets.
-- `dev` branch deploy workflow using GitHub Environment `dev`.
+- `test` branch deploy workflow using GitHub Environment `test`.
 - `main` branch production deploy workflow using GitHub Environment `prod`.
 - Secret-to-CloudBase runtime env update step.
 - Function artifact validation.
@@ -647,7 +655,7 @@ Implement:
 
 Acceptance:
 
-- A `dev` push can reproduce P0 from a clean runner in the dev env.
+- A `test` push can reproduce P0 from a clean runner in the test env.
 - A `main` production deploy uses only the `prod` GitHub Environment and the
   recorded production CloudBase EnvId.
 - Fork PRs cannot access deployment secrets.
@@ -731,7 +739,7 @@ Acceptance:
 
 Do these after client availability and P1 stability:
 
-- Immutable artifact promotion from `dev` to `main`/`prod`.
+- Immutable artifact promotion from `test` to `main`/`prod`.
 - Move session storage to httpOnly secure cookies.
 - Add stronger admin password policy.
 - Add cursor-based pagination for deep catalogs.
@@ -758,13 +766,13 @@ Every implementation agent should report:
 
 Stop and ask before continuing if:
 
-- A dev deploy target differs from `diversity-123-d9grnqfux221323bb` before the
-  team records a replacement dev EnvId.
+- A test deploy target differs from `diversity-123-d9grnqfux221323bb` before the
+  team records a replacement test EnvId.
 - A production deploy target is not the production EnvId recorded in deployment
   notes.
 - Any command would enable optional paid capacity such as CloudRun minimum
   instances before the workstream explicitly requires it.
-- A workflow would deploy `dev` to the prod env or `main` to the dev env.
+- A workflow would deploy `test` to the prod env or `main` to the test env.
 - A command would print or export secret values.
 - Same-domain custom routing cannot be validated and the code still lacks
   `PUBLIC_API_BASE_URL`.
@@ -778,7 +786,7 @@ Stop and ask before continuing if:
 
 P0 issues:
 
-1. Confirm two-env model and establish `dev`/`main` branch mapping.
+1. Confirm two-env model and establish `test`/`main` branch mapping.
 2. Add API base URL helper and CORS-aware clients.
 3. Add media URL origin handling for cross-origin API responses.
 4. Add CloudBase HTTP adapter for `admin`.
@@ -793,7 +801,7 @@ P0 issues:
 
 P1 issues:
 
-12. Add GitHub Actions `dev` -> `dev` deploy.
+12. Add GitHub Actions `test` -> `test` deploy.
 13. Add `main` -> `prod` deploy gate.
 14. Migrate binaries to CloudBase Storage.
 15. Add rate limiting and upload validation.

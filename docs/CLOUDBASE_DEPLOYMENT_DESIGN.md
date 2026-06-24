@@ -25,8 +25,11 @@ Repository facts:
 - `apps/functions/admin` is a CloudBase function package, but its entrypoint
   currently accepts direct invocation shape instead of HTTP envelope shape.
 - `apps/local-server` has the only complete HTTP API today.
-- The browser clients currently call relative paths such as `/api/admin`,
-  `/api/products`, `/api/overstock`, `/api/images/:id`, and `/api/files/:id`.
+- The browser clients use a small API URL helper. With no
+  `PUBLIC_API_BASE_URL`, they preserve same-origin relative paths such as
+  `/api/admin`, `/api/products`, `/api/overstock`, `/api/images/:id`, and
+  `/api/files/:id`. When `PUBLIC_API_BASE_URL` is set, API and API-backed media
+  URLs resolve against that API origin.
 - `pnpm build`, `pnpm build:functions`, and `pnpm typecheck` pass locally.
 
 Live CloudBase environment facts:
@@ -58,7 +61,7 @@ Design implication:
   of the P0/P1 plan and do not need to be provisioned unless the data model
   changes materially.
 - Use HTTP functions for the app API, not direct browser database writes.
-- Treat the current env as the first `dev`/test env. Production should use a
+- Treat the current env as the first `test` env. Production should use a
   separate `prod` env before the first `main` deployment.
 
 ## 3. Deployment Goals
@@ -87,25 +90,32 @@ P2 goal:
 ### 3.1 Two-Environment Branch Strategy
 
 This is a small project, so use exactly two CloudBase environments by default:
-`dev` for test/client-review builds and `prod` for production. Do not create a
+`test` for test/client-review builds and `prod` for production. Do not create a
 separate staging environment unless the project grows enough to justify it.
 
 | Git branch | GitHub Environment | CloudBase env | Deploy behavior | Notes |
 | --- | --- | --- | --- | --- |
 | Feature branches / PRs | none | none | Checks only, no CloudBase deploy | No cloud secrets |
-| `dev` | `dev` | Current env or future `channel-dev` env | Test/client-review deploys | Current EnvId starts here |
+| `test` | `test` | Current env or future `channel-test` env | Test/client-review deploys | Current EnvId starts here |
 | `main` | `prod` | `channel-prod` env | Production deploy | Separate prod data and secrets |
 
 Environment decisions:
 
-- Use `diversity-123-d9grnqfux221323bb` as `dev` unless the team chooses to
-  recreate a cleaner dev/test env.
+- Use `diversity-123-d9grnqfux221323bb` as `test` unless the team chooses to
+  recreate a cleaner test env.
+- Use `test` as the deployment branch name while the remote has nested refs such
+  as `dev/albertli/try01`. Git cannot have both a top-level `dev` branch and
+  existing `dev/...` branches at the same time.
 - Create a separate `prod` CloudBase env before enabling `main` production
-  deployments. Do not promote the current dev env to prod.
-- Treat release validation as a state of the `dev` environment, not a third
+  deployments. Do not promote the current test env to prod.
+- The production CloudBase EnvId should come from the account intended to own
+  production resources. If the CloudBase owner account should own production,
+  create the `prod` env under that account and grant deployment credentials for
+  CI/agents.
+- Treat release validation as a state of the `test` environment, not a third
   staging environment.
-- After production launch, never let the `dev` branch deploy into `prod`, and
-  never let `main` deploy into `dev`.
+- After production launch, never let the `test` branch deploy into `prod`, and
+  never let `main` deploy into `test`.
 - Keep CloudRun, minimum instances, CLS, and other potentially chargeable
   services off until they are part of an explicit priority item.
 
@@ -322,7 +332,7 @@ Collections:
 | `files` | OEM drawing metadata or temporary base64 file docs | Admin/contributor only |
 
 P0 may temporarily keep the current base64 storage model if the data set is
-small and file uploads are capped. That is acceptable only for dev/test review.
+small and file uploads are capped. That is acceptable only for test review.
 
 P1 must move binary objects to CloudBase Storage before real customer files or
 large catalog images are accepted.
@@ -468,12 +478,12 @@ No secret may be:
 
 Create GitHub Environments:
 
-- `dev`: maps to the `dev` branch and the current CloudBase dev/test env.
+- `test`: maps to the `test` branch and the current CloudBase test env.
 - `prod`: maps to the `main` branch and the separate CloudBase production env.
 
 Use environment protection:
 
-- `dev`: deploy allowed from `dev`; manual deploy can be allowed from the
+- `test`: deploy allowed from `test`; manual deploy can be allowed from the
   current working branch during the initial transition.
 - `prod`: deploy allowed from `main` only, with required reviewer approval.
 - PRs and feature branches run checks without deployment secrets.
@@ -488,12 +498,12 @@ Repository-level variables can hold non-secrets:
 
 Environment variables can hold non-secret environment-specific values:
 
-| Name | `dev` value | `prod` value | Notes |
+| Name | `test` value | `prod` value | Notes |
 | --- | --- | --- | --- |
 | `TCB_ENV_ID` | `diversity-123-d9grnqfux221323bb` | `<prod EnvId>` | Non-secret but environment-scoped |
-| `APP_ENV` | `dev` | `prod` | Runtime label |
-| `SITE_ORIGIN` | Dev/test Web App URL | Production URL | Used for CORS/login links |
-| `PUBLIC_API_BASE_URL` | Dev/test API origin | Production API origin | Build-time public value |
+| `APP_ENV` | `test` | `prod` | Runtime label |
+| `SITE_ORIGIN` | Test Web App URL | Production URL | Used for CORS/login links |
+| `PUBLIC_API_BASE_URL` | Test API origin | Production API origin | Build-time public value |
 
 Environment secrets:
 
@@ -509,7 +519,7 @@ Environment secrets:
 
 Use the same secret names inside each GitHub Environment instead of repository
 secrets with suffixes such as `_DEV` or `_PROD`. That keeps PRs secret-free and
-prevents accidental production secret use from the `dev` branch.
+prevents accidental production secret use from the `test` branch.
 
 Values that can be GitHub variables instead of secrets:
 
@@ -558,7 +568,7 @@ Set on `admin` and `public-api` functions as needed:
 | Variable | Function | Secret | Notes |
 | --- | --- | --- | --- |
 | `TCB_ENV` | both | no | Exact EnvId |
-| `APP_ENV` | both | no | `dev` or `prod` |
+| `APP_ENV` | both | no | `test` or `prod` |
 | `SITE_ORIGIN` | both | no | Browser origin allowed by CORS |
 | `CORS_ALLOWED_ORIGINS` | both | no | Comma-separated list |
 | `JWT_SECRET` | admin | yes | Session signing |
@@ -668,7 +678,7 @@ Recommended deployment scaffold for implementation:
 
 ```text
 cloudbaserc.json
-deploy/cloudbase/dev.json
+deploy/cloudbase/test.json
 deploy/cloudbase/prod.json
 scripts/deploy-functions.sh
 scripts/deploy-webapp.sh
@@ -700,18 +710,18 @@ Runs without secrets:
 
 No deploy on forked PRs.
 
-### 8.2 Dev Deploy Workflow
+### 8.2 Test Deploy Workflow
 
 Trigger:
 
 - Manual `workflow_dispatch`.
-- Push to `dev` after the first deploy is stable.
+- Push to `test` after the first deploy is stable.
 - Temporary manual deploy from the current working branch is allowed only during
   the initial transition.
 
 Uses GitHub Environment:
 
-- `dev`
+- `test`
 
 Steps:
 
@@ -729,7 +739,7 @@ Steps:
 
 Branch rule:
 
-- `dev` is the only automatic dev/test deploy branch.
+- `test` is the only automatic test/client-review deploy branch.
 - Feature branches and PRs must not receive CloudBase deployment secrets.
 
 ### 8.3 Production Workflow
@@ -748,7 +758,7 @@ Additional controls:
 
 - Required reviewers.
 - No direct deploy from feature branches.
-- No deploy from `dev` to the `prod` env.
+- No deploy from `test` to the `prod` env.
 - Require previous artifact promotion when possible.
 - Write deployment summary with commit SHA, EnvId, domains, smoke status, and
   rollback artifact id.
@@ -757,16 +767,16 @@ Additional controls:
 
 ### 9.1 Environment
 
-For immediate dev/test deployment:
+For immediate test deployment:
 
 - Use `diversity-123-d9grnqfux221323bb`.
-- Label it as `dev` in GitHub Environments.
+- Label it as `test` in GitHub Environments.
 
 For production launch:
 
 - Create a separate `prod` CloudBase env, for example `channel-prod`.
 - Map `main` deployments to `prod` only.
-- Keep production data, secrets, and storage separate from `dev`.
+- Keep production data, secrets, and storage separate from `test`.
 - Do not create a separate staging env for this small project.
 
 ### 9.2 Functions
@@ -886,14 +896,14 @@ Rate limits:
 ## 11. Open Decisions
 
 These must be resolved before production, but should not block the first
-dev/test deploy unless the client requires them immediately:
+test deploy unless the client requires them immediately:
 
 1. What is the production CloudBase EnvId after `channel-prod` or equivalent is
    created?
 2. What is the client-facing domain?
 3. Is ICP already complete for that domain if required?
 4. Should the production site use one domain or split `www` and `api`?
-5. Is SMTP required for the first dev/test client review?
+5. Is SMTP required for the first test client review?
 6. Are real catalog images and OEM drawings expected before P1 storage migration?
 7. Who owns production smoke approval after `main` deploys to `prod`?
 
