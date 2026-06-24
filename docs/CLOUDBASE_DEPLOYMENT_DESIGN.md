@@ -9,7 +9,8 @@ Last updated: 2026-06-24
 This document replaces the initial exploratory deployment plan with a reviewed
 design that is ready to drive implementation. It incorporates:
 
-- The cross-validation findings in `docs/DEPLOY_TENCENT_CLOUD.md`.
+- The independent review findings from the original Tencent Cloud deployment
+  draft, now merged into this canonical document.
 - The live CloudBase environment inspection for `diversity-123-d9grnqfux221323bb`.
 - A clean separation of build-time variables, GitHub Secrets, Docker/build
   inputs, and CloudBase runtime environment variables.
@@ -52,11 +53,13 @@ Live CloudBase environment facts:
 Design implication:
 
 - Use CloudBase NoSQL for the first deployment.
-- Do not design around CloudBase PostgreSQL or MySQL until those resources are
-  explicitly provisioned.
+- CloudBase NoSQL, effectively MongoDB-style document storage, is the selected
+  application database for now. PostgreSQL and MySQL are intentionally not part
+  of the P0/P1 plan and do not need to be provisioned unless the data model
+  changes materially.
 - Use HTTP functions for the app API, not direct browser database writes.
-- Treat the current env as `client-demo` unless the owner confirms it is the
-  long-term production env.
+- Treat the current env as the first `dev`/test env. Production should use a
+  separate `prod` env before the first `main` deployment.
 
 ## 3. Deployment Goals
 
@@ -78,13 +81,37 @@ P1 goal:
 
 P2 goal:
 
-- Custom domain, production/staging split, CloudBase Storage migration,
-  rate-limiting, durable monitoring, and cookie-based auth hardening are in
-  place.
+- Custom domain, production isolation, CloudBase Storage migration, rate
+  limiting, durable monitoring, and cookie-based auth hardening are in place.
+
+### 3.1 Two-Environment Branch Strategy
+
+This is a small project, so use exactly two CloudBase environments by default:
+`dev` for test/client-review builds and `prod` for production. Do not create a
+separate staging environment unless the project grows enough to justify it.
+
+| Git branch | GitHub Environment | CloudBase env | Deploy behavior | Notes |
+| --- | --- | --- | --- | --- |
+| Feature branches / PRs | none | none | Checks only, no CloudBase deploy | No cloud secrets |
+| `dev` | `dev` | Current env or future `channel-dev` env | Test/client-review deploys | Current EnvId starts here |
+| `main` | `prod` | `channel-prod` env | Production deploy | Separate prod data and secrets |
+
+Environment decisions:
+
+- Use `diversity-123-d9grnqfux221323bb` as `dev` unless the team chooses to
+  recreate a cleaner dev/test env.
+- Create a separate `prod` CloudBase env before enabling `main` production
+  deployments. Do not promote the current dev env to prod.
+- Treat release validation as a state of the `dev` environment, not a third
+  staging environment.
+- After production launch, never let the `dev` branch deploy into `prod`, and
+  never let `main` deploy into `dev`.
+- Keep CloudRun, minimum instances, CLS, and other potentially chargeable
+  services off until they are part of an explicit priority item.
 
 ## 4. Target Topology
 
-### 4.1 Fast Client-Demo Topology
+### 4.1 Fast Dev/Test Topology
 
 Use this first because it avoids blocking on custom domain, ICP, DNS, or
 same-domain routing.
@@ -294,7 +321,7 @@ Collections:
 | `files` | OEM drawing metadata or temporary base64 file docs | Admin/contributor only |
 
 P0 may temporarily keep the current base64 storage model if the data set is
-small and file uploads are capped. That is acceptable only for client-demo.
+small and file uploads are capped. That is acceptable only for dev/test review.
 
 P1 must move binary objects to CloudBase Storage before real customer files or
 large catalog images are accepted.
@@ -439,14 +466,15 @@ No secret may be:
 
 Create GitHub Environments:
 
-- `client-demo`
-- `staging` when a separate env exists
-- `production` when a separate env exists
+- `dev`: maps to the `dev` branch and the current CloudBase dev/test env.
+- `prod`: maps to the `main` branch and the separate CloudBase production env.
 
 Use environment protection:
 
-- `client-demo`: deploy allowed from the working branch.
-- `production`: required reviewer approval.
+- `dev`: deploy allowed from `dev`; manual deploy can be allowed from the
+  current working branch during the initial transition.
+- `prod`: deploy allowed from `main` only, with required reviewer approval.
+- PRs and feature branches run checks without deployment secrets.
 
 Repository-level variables can hold non-secrets:
 
@@ -458,12 +486,12 @@ Repository-level variables can hold non-secrets:
 
 Environment variables can hold non-secret environment-specific values:
 
-| Name | Client-demo value | Notes |
-| --- | --- | --- |
-| `TCB_ENV_ID` | `diversity-123-d9grnqfux221323bb` | Non-secret but environment-scoped |
-| `APP_ENV` | `client-demo` | Runtime label |
-| `SITE_ORIGIN` | Web App URL after deploy | Used for CORS/login links |
-| `PUBLIC_API_BASE_URL` | CloudBase HTTP API origin | Build-time public value |
+| Name | `dev` value | `prod` value | Notes |
+| --- | --- | --- | --- |
+| `TCB_ENV_ID` | `diversity-123-d9grnqfux221323bb` | `<prod EnvId>` | Non-secret but environment-scoped |
+| `APP_ENV` | `dev` | `prod` | Runtime label |
+| `SITE_ORIGIN` | Dev/test Web App URL | Production URL | Used for CORS/login links |
+| `PUBLIC_API_BASE_URL` | Dev/test API origin | Production API origin | Build-time public value |
 
 Environment secrets:
 
@@ -476,6 +504,10 @@ Environment secrets:
 | `BOOTSTRAP_ADMIN_TOKEN` | First admin bootstrap only | Remove/disable after bootstrap |
 | `EMAIL_USER` | CloudBase runtime | SMTP identity |
 | `EMAIL_PASSWORD` | CloudBase runtime | SMTP secret |
+
+Use the same secret names inside each GitHub Environment instead of repository
+secrets with suffixes such as `_DEV` or `_PROD`. That keeps PRs secret-free and
+prevents accidental production secret use from the `dev` branch.
 
 Values that can be GitHub variables instead of secrets:
 
@@ -498,7 +530,7 @@ PUBLIC_API_BASE_URL=https://api-or-default-http-domain.example
 Maybe allowed:
 
 ```env
-PUBLIC_SITE_ENV=client-demo
+PUBLIC_SITE_ENV=dev
 ```
 
 Disallowed:
@@ -524,7 +556,7 @@ Set on `admin` and `public-api` functions as needed:
 | Variable | Function | Secret | Notes |
 | --- | --- | --- | --- |
 | `TCB_ENV` | both | no | Exact EnvId |
-| `APP_ENV` | both | no | `client-demo`, `staging`, `production` |
+| `APP_ENV` | both | no | `dev` or `prod` |
 | `SITE_ORIGIN` | both | no | Browser origin allowed by CORS |
 | `CORS_ALLOWED_ORIGINS` | both | no | Comma-separated list |
 | `JWT_SECRET` | admin | yes | Session signing |
@@ -623,6 +655,26 @@ Do not rely on:
 - A developer's local device-code session for CI.
 - Implicit CloudBase current env.
 
+Recommended deployment scaffold for implementation:
+
+```text
+cloudbaserc.json
+deploy/cloudbase/dev.json
+deploy/cloudbase/prod.json
+scripts/deploy-functions.sh
+scripts/deploy-webapp.sh
+scripts/smoke-cloudbase.sh
+```
+
+The exact `cloudbaserc.json` schema must be validated against the selected
+CloudBase CLI/MCP path before implementation. The logical shape should include:
+
+- Explicit EnvId from the selected GitHub Environment.
+- Function root under `apps/functions`.
+- HTTP functions `admin` and `public-api`.
+- Static/Web App source `apps/site/dist`.
+- No staging target.
+
 ## 8. GitHub Actions Design
 
 ### 8.1 Pull Request Workflow
@@ -639,16 +691,18 @@ Runs without secrets:
 
 No deploy on forked PRs.
 
-### 8.2 Client-Demo Deploy Workflow
+### 8.2 Dev Deploy Workflow
 
 Trigger:
 
 - Manual `workflow_dispatch`.
-- Optional push to agreed branch after the first deploy is stable.
+- Push to `dev` after the first deploy is stable.
+- Temporary manual deploy from the current working branch is allowed only during
+  the initial transition.
 
 Uses GitHub Environment:
 
-- `client-demo`
+- `dev`
 
 Steps:
 
@@ -664,21 +718,28 @@ Steps:
 9. Run smoke tests.
 10. Print only URLs and non-sensitive metadata.
 
+Branch rule:
+
+- `dev` is the only automatic dev/test deploy branch.
+- Feature branches and PRs must not receive CloudBase deployment secrets.
+
 ### 8.3 Production Workflow
 
 Trigger:
 
 - Manual `workflow_dispatch`.
-- Later: tags or `main` after approval.
+- Push to `main` after the `prod` CloudBase env and secrets are configured.
+- Later: tags after approval.
 
 Uses GitHub Environment:
 
-- `production`
+- `prod`
 
 Additional controls:
 
 - Required reviewers.
 - No direct deploy from feature branches.
+- No deploy from `dev` to the `prod` env.
 - Require previous artifact promotion when possible.
 - Write deployment summary with commit SHA, EnvId, domains, smoke status, and
   rollback artifact id.
@@ -687,15 +748,17 @@ Additional controls:
 
 ### 9.1 Environment
 
-For immediate client demo:
+For immediate dev/test deployment:
 
 - Use `diversity-123-d9grnqfux221323bb`.
-- Label it as `client-demo` in docs and GitHub Environments.
+- Label it as `dev` in GitHub Environments.
 
-Before production launch:
+For production launch:
 
-- Create separate staging and production CloudBase environments, or explicitly
-  document that the client accepts one environment.
+- Create a separate `prod` CloudBase env, for example `channel-prod`.
+- Map `main` deployments to `prod` only.
+- Keep production data, secrets, and storage separate from `dev`.
+- Do not create a separate staging env for this small project.
 
 ### 9.2 Functions
 
@@ -756,6 +819,13 @@ P1:
 - Migrate images/files to CloudBase Storage.
 - Add metadata backfill and rollback.
 - Add temporary upload cleanup.
+- Keep an immutable backup of imported local JSON before migration.
+- Verify document counts for `users`, `products`, `overstock`, `oemProjects`,
+  `images`, and `files`.
+- Verify a sample catalog image render and an authenticated OEM file download.
+- Make migration scripts idempotent and avoid destructive schema changes.
+- Treat storage objects as append-only during migration; use UUID or
+  content-addressed paths and do not overwrite existing object paths.
 
 ### 9.6 Logs
 
@@ -767,7 +837,16 @@ P1:
 
 - Enable CLS/log service.
 - Add smoke log checks.
-- Alert on 5xx, login failure spike, OEM submission failures, and email failures.
+- Log action name, status code, duration, request id, and env label.
+- Never log tokens, passwords, password hashes, SMTP secrets, or CAM keys.
+- Track cloud function invocation count, latency, errors, and timeouts.
+- Track login failures, OEM submission success/failure, storage compensation
+  failures, email failures, and database read/write errors.
+- Alert on 5xx spikes, login failure spikes, OEM submission failures, sustained
+  email failures, storage upload/delete failures, and database errors.
+- Prefer unauthenticated `GET /api/health` for synthetic checks; if an admin
+  smoke uses credentials, define a renewable monitor credential because JWTs
+  expire.
 
 ## 10. Security Decisions
 
@@ -798,15 +877,16 @@ Rate limits:
 ## 11. Open Decisions
 
 These must be resolved before production, but should not block the first
-client-demo deploy unless the client requires them immediately:
+dev/test deploy unless the client requires them immediately:
 
-1. Is `diversity-123-d9grnqfux221323bb` a temporary demo env or the intended
-   production env?
+1. What is the production CloudBase EnvId after `channel-prod` or equivalent is
+   created?
 2. What is the client-facing domain?
 3. Is ICP already complete for that domain if required?
 4. Should the production site use one domain or split `www` and `api`?
-5. Is SMTP required for the first client demo?
+5. Is SMTP required for the first dev/test client review?
 6. Are real catalog images and OEM drawings expected before P1 storage migration?
+7. Who owns production smoke approval after `main` deploys to `prod`?
 
 ## 12. Official References Checked
 
