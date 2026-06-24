@@ -7,7 +7,5 @@ export default defineConfig({
   platform: 'node',
   clean: true,
   sourcemap: true,
-  // wx-server-sdk is provided by the CloudBase runtime; keep it external.
-  external: ['wx-server-sdk'],
-  noExternal: ['@vibelingan-channel/shared', '@vibelingan-channel/db', 'zod'],
+  noExternal: ['@vibelingan-channel/shared', '@vibelingan-channel/db', 'wx-server-sdk', 'zod'],
 });

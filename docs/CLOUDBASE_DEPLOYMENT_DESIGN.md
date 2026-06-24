@@ -616,9 +616,10 @@ Resolved P0.6 packaging strategy:
 - `@vibelingan-channel/email` is explicitly bundled into the admin artifact.
 - `packages/auth` uses `hash-wasm` argon2id instead of native `argon2`, so the
   deployed password verifier no longer depends on macOS-built native bindings.
-- `zod`, `jose`, `nodemailer`, and `hash-wasm` are bundled rather than required
-  from a deploy-time `node_modules`.
-- `wx-server-sdk` stays external because the CloudBase runtime provides it.
+- `zod`, `jose`, `nodemailer`, `hash-wasm`, and `wx-server-sdk` are bundled
+  rather than required from a deploy-time `node_modules`.
+- CloudBase Nodejs18.15 does not provide `wx-server-sdk` to this deployed
+  function by default, so leaving it external causes cold start failure.
 
 Artifact command:
 
@@ -642,14 +643,12 @@ Function artifact should contain:
 ```text
 index.js
 package.json
-node_modules/ only for CloudBase platform stubs in local smoke tests
 ```
 
 Acceptance:
 
 - In a clean directory with only the artifact, `node -e "require('./index.js')"`
-  must resolve every non-platform dependency except CloudBase runtime APIs that
-  only exist in CloudBase.
+  must resolve every bundled non-builtin dependency, including `wx-server-sdk`.
 
 ### 7.2 Frontend Packaging
 

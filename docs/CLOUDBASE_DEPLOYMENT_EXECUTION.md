@@ -382,9 +382,10 @@ Implementation tasks:
    `ADMIN_PASSWORD_HASH` with the same helper used by production runtime.
 2. Bundle internal workspace packages.
 3. Add `@vibelingan-channel/email` to the admin function bundler strategy.
-4. Bundle `zod`, `jose`, `nodemailer`, and `hash-wasm` into function artifacts.
-5. Keep `wx-server-sdk` external only if the selected CloudBase runtime provides
-   it.
+4. Bundle `zod`, `jose`, `nodemailer`, `hash-wasm`, and `wx-server-sdk` into
+   function artifacts.
+5. Do not leave `wx-server-sdk` external for Nodejs18.15 test deploys; remote
+   invoke has verified the runtime does not provide it by default.
 6. Generate a deploy artifact directory per function under
    `.cloudbase-artifacts/functions`.
 7. Add package smokes:
@@ -394,9 +395,9 @@ Implementation tasks:
    pnpm smoke:functions
    ```
 
-   The smoke runs each artifact from a clean temporary directory and stubs only
-   `wx-server-sdk`; unresolved workspace or deploy-time dependency imports are
-   not acceptable.
+   The smoke runs each artifact from a clean temporary directory; unresolved
+   workspace imports, `wx-server-sdk`, or deploy-time dependency imports are not
+   acceptable.
 8. If a native dependency is ever reintroduced, run a Linux/CloudBase-equivalent
    cold-start smoke before deploying. With `hash-wasm`, the native `argon2`
    Linux/macOS mismatch risk is removed.

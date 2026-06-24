@@ -96,7 +96,8 @@ derived from it — no other file needs to change.
 
 ## Deploy to production (CloudBase)
 
-The admin function (`apps/functions/admin`) runs on CloudBase with `wx-server-sdk`.
+The admin function (`apps/functions/admin`) runs on CloudBase with
+`wx-server-sdk` bundled into the function artifact.
 Set these environment variables in the function configuration:
 
 | Variable | Description |

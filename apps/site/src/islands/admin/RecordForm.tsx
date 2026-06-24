@@ -1,7 +1,7 @@
 import type { CollectionDef, CollectionDoc, FieldDef } from '@vibelingan-channel/shared';
 import { useState } from 'react';
-import { fileUrl } from './api.ts';
 import { ImageManager } from './ImageManager.tsx';
+import { fileUrl } from './api.ts';
 
 interface RecordFormProps {
   collection: CollectionDef;

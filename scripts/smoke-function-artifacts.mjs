@@ -1,13 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,25 +8,17 @@ const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)))
 const artifactRoot = join(root, '.cloudbase-artifacts', 'functions');
 const functions = ['admin', 'public-api'];
 
-const platformStub = `module.exports = {
-  init() {},
-  database() {
-    return {
-      command: {},
-      collection() {
-        throw new Error('wx-server-sdk database stub should not be used during cold-start smoke');
-      }
-    };
-  }
-};
-`;
-
 function assertNoUnresolvedImports(name, indexFile) {
   const js = readFileSync(indexFile, 'utf8');
   const checks = [
     [/require\(["']@vibelingan-channel\//, 'workspace require'],
     [/from ["']@vibelingan-channel\//, 'workspace import'],
     [/require\(["']argon2["']\)/, 'native argon2 require'],
+    [/require\(["']wx-server-sdk["']\)/, 'wx-server-sdk require'],
+    [/require\(["']@cloudbase\/node-sdk["']\)/, '@cloudbase/node-sdk require'],
+    [/require\(["']json-bigint["']\)/, 'json-bigint require'],
+    [/require\(["']protobufjs/, 'protobufjs require'],
+    [/require\(["']tslib["']\)/, 'tslib require'],
   ];
 
   for (const [pattern, label] of checks) {
@@ -44,17 +28,10 @@ function assertNoUnresolvedImports(name, indexFile) {
   }
 }
 
-function writeCloudBaseStub(functionDir) {
-  const moduleDir = join(functionDir, 'node_modules', 'wx-server-sdk');
-  mkdirSync(moduleDir, { recursive: true });
-  writeFileSync(join(moduleDir, 'index.js'), platformStub, 'utf8');
-}
-
 function smokeRequire(name, artifactDir) {
   const tempRoot = mkdtempSync(join(tmpdir(), `channel-${name}-artifact-`));
   const tempFunctionDir = join(tempRoot, name);
   cpSync(artifactDir, tempFunctionDir, { recursive: true });
-  writeCloudBaseStub(tempFunctionDir);
 
   const result = spawnSync(
     process.execPath,
