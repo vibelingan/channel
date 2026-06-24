@@ -645,3 +645,167 @@ Ask reviewers to validate:
 - Tencent Cloud CloudBase storage download and security note: https://www.tencentcloud.com/document/product/1266/71668
 - CloudBase environment and domain management: https://docs.cloudbase.net/en/quick-start/integrate-cloudbase
 
+---
+
+## 6. Reviewer Insights (Cross-Validation Pass)
+
+> **Advisory only — does not change the design above.** Added by an independent
+> review pass on 2026-06-24 that cross-checked every claim in sections 1–5
+> against the code on `dev/albertli/try01`. Each item below is a check/action
+> for the implementing (codex) agent to verify and resolve. Severity legend:
+> 🔴 high (blocks a working prod deploy) · 🟠 medium (must fix before launch) ·
+> 🟡 minor (track, not blocking). Code evidence cites paths relative to the repo
+> root at review time; line numbers may drift as code evolves.
+
+### 6.1 Verified accurate against code
+
+These design claims were checked and hold true — no action needed:
+
+- Build scripts `pnpm build` and `pnpm build:functions` exist (`package.json`).
+- Public route list, `published: true`-only reads, and `pageSize` cap of 48
+  match `apps/local-server/src/main.ts`.
+- Role model (`admin` / `contributor` / `member` / `viewer` / `""`) and access
+  rules (users = admin-only, content = contributor-editable) match
+  `packages/shared/src/auth.ts`.
+- JWT TTL ~12h matches the handler comment in
+  `apps/functions/admin/src/handler.ts`.
+- Email = nodemailer with console-mock fallback; base64-in-DB storage for
+  images/files — both confirmed (`packages/email`, `apps/local-server/src/seed.ts`).
+- `.env.example` contains `TCB_ENV`, `JWT_SECRET`, and the `EMAIL_*` settings as
+  described.
+
+### 6.2 R1 🔴 — HTTP function shape vs. direct-invocation shape
+
+The design (§2, §3.2, §3.8) routes the browser to **HTTP cloud functions** via
+same-domain `/api/*`. The browser clients already speak plain HTTP:
+`apps/site/src/islands/admin/api.ts` does `fetch('/api/admin', { method:'POST', body: JSON … })`
+and `apps/site/src/islands/shop/api.ts` does `fetch('/api/products')`.
+
+But the current production entry `apps/functions/admin/src/index.ts` is:
+
+```ts
+export const main = async (event: AdminRequest) =>
+  handleAdminRequest(event ?? { action: '' }, config);
+```
+
+This treats `event` **as** the `{ action, data, token }` body — the shape for a
+**direct SDK call** (`callFunction({ name:'admin', data })`), not an HTTP-access
+function. A repo-wide search found **no** `httpMethod` / `statusCode` /
+`isBase64Encoded` handling and **no** `@cloudbase/js-sdk` / `callFunction` usage
+anywhere. Under CloudBase HTTP access, `event` is the HTTP envelope, so
+`event.action` is `undefined` and every request fails.
+
+**Action for codex:** decide the integration contract and make it consistent
+end to end. Either (a) add an HTTP request/response adapter to `admin` (and the
+future `public-api`) — parse `event.body` JSON, base64-decode when
+`isBase64Encoded`, return `{ statusCode, headers, body: JSON.stringify(...) }`,
+handle `OPTIONS` — or (b) switch the frontend to the CloudBase SDK
+`callFunction`. Option (a) preserves the existing `fetch('/api/*')` clients and
+local-server parity, so it is the recommended path. Add this as an explicit MIU
+(currently missing from §3.16).
+
+### 6.3 R2 🔴 — No production admin bootstrap path
+
+§3.2 introduces `ADMIN_PASSWORD_HASH=<argon2id hash>`, but **no code consumes
+it**. Only `apps/local-server/src/seed.ts` seeds, and it reads the *plaintext*
+`ADMIN_PASSWORD` then hashes at runtime; `.env.example` ships `ADMIN_PASSWORD=admin`.
+The production `admin` function (`index.ts`) never seeds, so there is currently
+**no way to create the first admin user in a CloudBase env**.
+
+**Action for codex:** (1) define the prod bootstrap mechanism (a one-shot seed
+function / migration step, or an idempotent first-run seed in the deployed
+function); (2) reconcile `ADMIN_PASSWORD` vs `ADMIN_PASSWORD_HASH` — pick one and
+make the seed code + `.env.example` agree; (3) ensure the bootstrap is
+idempotent and cannot silently re-seed over an existing admin.
+
+### 6.4 R3 🟠 — Confidential binary endpoints are unauthenticated
+
+In `apps/local-server/src/main.ts`, `GET /api/files/:id` streams OEM drawing
+bytes with **no auth**, and `GET /api/images/:id` streams **any** image without
+checking whether it is linked to a `published` record. §3.4/§3.5 state the
+*intent* (OEM files private; images public only when published-linked), and
+§3.3 lists `/api/files/:id` under the **public** function with the soft phrase
+"restricted where needed."
+
+**Action for codex:** make these hard requirements, not best-effort.
+(1) Move OEM file download behind admin/contributor auth — it belongs in the
+`admin` function (or a token-checked route), **not** `public-api`.
+(2) Gate image-byte serving on a published-linked record.
+(3) Keep the existing filename sanitization on `Content-Disposition`.
+OEM drawings are customer IP; an unauthenticated enumerable `:id` is a data-leak
+risk.
+
+### 6.5 R4 🟠 — Same-domain `/api/*` routing is the load-bearing assumption
+
+The frontend hardcodes relative `/api/*` (see `apps/site/astro.config.ts`: the
+dev proxy forwards `/api` → `PUBLIC_CB_HOST`; prod sets `PUBLIC_CB_PROXY=0` and
+relies on same-origin). CloudBase Static Hosting and HTTP-function access
+historically use **different default domains**, so `www.example.com/api/*` →
+function on the *same* host requires CloudBase path routing/rewrite that must be
+proven feasible. §4 already asks this — this review **raises it to the #1 risk
+to validate before any build**, because if it is not feasible the relative-path
+clients break in prod.
+
+**Action for codex:** spike the routing config first. Document the fallback the
+code already supports — absolute API origin via `PUBLIC_CB_HOST` + scoped CORS —
+so the frontend can switch without a rewrite if same-domain routing is not
+available.
+
+### 6.6 R5 🟠 — Node runtime & monorepo function bundling
+
+The example `cloudbaserc.json` pins `"runtime": "Nodejs18.15"`, but root
+`package.json` declares `"engines": { "node": ">=20" }`. Functions also import
+workspace packages (`@vibelingan-channel/*`) using `.ts` ESM specifiers, so the
+deploy artifact must **bundle** workspace deps while keeping `wx-server-sdk`
+**external** (platform-provided). §3.9 addresses neither.
+
+**Action for codex:** (1) confirm the CloudBase-supported Node runtime and align
+`engines` / `tsup` target to it; (2) verify the function build output is
+self-contained (tsup `noExternal` for workspace pkgs, `external: ['wx-server-sdk']`)
+before `tcb fn deploy`.
+
+### 6.7 Minor items (🟡 track)
+
+- **Health check token lifecycle:** §3.11 uses an admin `collections` call with a
+  "synthetic monitor token," but tokens expire in ~12h. Prefer the existing
+  unauthenticated `GET /api/health` for synthetic checks, or define a renewable
+  monitor credential.
+- **CloudBase 16MB document limit:** a ~12MB base64 `drawingData`
+  (`apps/functions/admin/src/handler.ts` caps it at 16,000,000 chars) can
+  approach the per-document cap — this is the real forcing function for the §3.5
+  Storage migration; worth stating explicitly.
+- **Skip-based pagination cost:** `count()` + `skip().limit()` in
+  `packages/db/src/cloudbase-adapter.ts` is O(n) at depth on CloudBase; fine
+  under the page cap, but note it for large collections.
+- **Password policy:** registration allows 6-char passwords
+  (`handler.ts` `registerSchema`); consider a stronger admin/contributor policy.
+
+### 6.8 Reviewer answers to the §4 cross-validation questions
+
+- Static Hosting for Astro static output → **yes**, correct target.
+- Public API as a separate function vs. sharing `admin` → **keep separate**
+  (different risk / cache / rate-limit profiles), as designed.
+- Document DB sufficient → **yes** for this registry model; revisit MySQL only
+  for relational/reporting needs.
+- Image / OEM-file permissions strict enough → **not yet** — see R3; tighten
+  before launch.
+- Same-domain `/api/*` feasible → **unproven; validate first** — see R4.
+- Env vars named/scoped correctly → **mostly**, except the `ADMIN_PASSWORD_HASH`
+  gap in R2.
+- Migration / rollback safe enough → **yes**; the immutable-backup + idempotent +
+  count-verify plan is sound.
+- Rate limits / upload caps sufficient → backend caps exist; rate limiting is
+  still to-be-built (§3.6 / §10) — confirm it lands before public launch.
+- Token revocation acceptable → **yes**, provided the ~12h delay stays documented.
+- CI/CD secrets & CAM least-privilege → **yes** as described; enforce the CAM
+  sub-user scoping and fork-secret protection from §3.10.
+
+### 6.9 Suggested ordering for the codex agent
+
+1. R4 routing spike (unblocks the whole topology).
+2. R1 HTTP adapter (or SDK switch) — makes any request work end to end.
+3. R2 prod admin bootstrap — makes the deployed app usable.
+4. R3 private file / image auth — closes the data-leak risk.
+5. R5 runtime + bundling — makes deploys reproducible.
+6. Minor items folded into the relevant MIUs.
+
