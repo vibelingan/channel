@@ -132,12 +132,15 @@ Browser
       -> Astro static site
       -> browser calls PUBLIC_API_BASE_URL + /api/*
   -> CloudBase HTTP access default domain
-      -> /api/admin      -> admin HTTP function
-      -> /api/products   -> public-api HTTP function
-      -> /api/overstock  -> public-api HTTP function
-      -> /api/images     -> public-api HTTP function
-      -> /api/health     -> public-api HTTP function
+      -> /api/admin      -> admin Event Function via HTTP access
+      -> /api            -> public-api Event Function via HTTP access
+                            (products, overstock, images, health)
 ```
+
+CloudBase HTTP access strips the matched route prefix before invoking the Event
+Function. The `public-api` adapter therefore accepts both full API paths such as
+`/api/products` and stripped paths such as `/products` when it is mounted at
+`/api`.
 
 Frontend build behavior:
 

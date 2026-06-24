@@ -202,6 +202,23 @@ test('serves only images linked from published catalog records', async () => {
   assert.equal(unlinked.statusCode, 404);
 });
 
+test('accepts gateway-stripped public API paths', async () => {
+  setup();
+
+  const health = await handlePublicApiEvent({ httpMethod: 'GET', path: '/health' }, {});
+  const products = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/products', queryStringParameters: { pageSize: '1' } },
+    {},
+  );
+  const detail = await handlePublicApiEvent({ httpMethod: 'GET', path: '/products/p-1' }, {});
+  const image = await handlePublicApiEvent({ httpMethod: 'GET', path: '/images/linked-image' }, {});
+
+  assert.equal(health.statusCode, 200);
+  assert.equal(products.statusCode, 200);
+  assert.equal(detail.statusCode, 200);
+  assert.equal(image.statusCode, 200);
+});
+
 test('does not expose public file downloads', async () => {
   setup();
   const response = await handlePublicApiEvent({ httpMethod: 'GET', path: '/api/files/sample' }, {});

@@ -520,10 +520,11 @@ Fast path:
 - Use default CloudBase HTTP access domain.
 - Add routes:
   - `/api/admin` -> `admin`
-  - `/api/products` and `/api/products/*` -> `public-api`
-  - `/api/overstock` and `/api/overstock/*` -> `public-api`
-  - `/api/images/*` -> `public-api`
-  - `/api/health` -> `public-api`
+  - `/api` -> `public-api`
+- CloudBase HTTP access strips the matched route prefix before invoking the
+  Event Function. The `public-api` adapter must accept stripped paths like
+  `/products`, `/overstock`, `/images/:id`, and `/health` in addition to full
+  `/api/...` paths.
 
 Validate:
 

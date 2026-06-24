@@ -210,6 +210,11 @@ function decodeSegment(value: string): string {
   }
 }
 
+function apiSegments(path: string): string[] {
+  const segments = path.split('/').filter(Boolean);
+  return segments[0] === 'api' ? segments.slice(1) : segments;
+}
+
 async function routeGet(
   event: Record<string, unknown>,
   config: PublicHttpConfig,
@@ -217,31 +222,27 @@ async function routeGet(
   const url = new URL(requestPath(event), 'https://channel.local');
   const path = url.pathname.replace(/\/+$/, '') || '/';
   const params = queryParams(event, url);
-  const segments = path.split('/').filter(Boolean);
+  const segments = apiSegments(path);
 
-  if (path === '/api/health') {
+  if (segments.length === 1 && segments[0] === 'health') {
     return jsonResponse(event, config, ok({ status: 'ok', service: 'public-api' }));
   }
 
-  if (segments[0] !== 'api') {
-    return jsonResponse(event, config, err('NOT_FOUND', 'Route not found'));
-  }
-
-  const collection = segments[1] ? parseCatalogName(segments[1]) : null;
-  if (collection && segments.length === 2) {
+  const collection = segments[0] ? parseCatalogName(segments[0]) : null;
+  if (collection && segments.length === 1) {
     return jsonResponse(event, config, await listCatalog(collection, catalogQuery(params), config));
   }
 
-  if (collection && segments.length === 3) {
+  if (collection && segments.length === 2) {
     return jsonResponse(
       event,
       config,
-      await getCatalogItem(collection, decodeSegment(segments[2] ?? ''), config),
+      await getCatalogItem(collection, decodeSegment(segments[1] ?? ''), config),
     );
   }
 
-  if (segments[1] === 'images' && segments.length === 3) {
-    const result = await getCatalogImage(decodeSegment(segments[2] ?? ''));
+  if (segments[0] === 'images' && segments.length === 2) {
+    const result = await getCatalogImage(decodeSegment(segments[1] ?? ''));
     return result.ok && 'isBase64Encoded' in result
       ? binaryResponse(event, config, result)
       : jsonResponse(event, config, result);
