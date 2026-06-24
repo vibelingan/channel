@@ -768,3 +768,76 @@ P2 issues:
 17. Harden session cookies.
 18. Improve pagination and catalog scale.
 19. Add external uptime monitoring.
+
+---
+
+## 9. Reviewer Insights — Round 2 (post-consolidation)
+
+> Advisory, append-only. Independent review of the consolidated DESIGN + this
+> EXECUTION plan against the code on `dev/albertli/try01` (2026-06-24). The plan
+> already absorbs the round-1 findings (HTTP adapter, token-gated idempotent
+> bootstrap, private OEM file endpoint, `PUBLIC_API_BASE_URL`, function bundling).
+> The items below are code-verified refinements to fold into the named P0 steps.
+> Severity: 🔴 can hard-block a cold start · 🟠 fix before client demo · 🟡 track.
+
+### R2-1 🔴 argon2 is a NATIVE module — choose the runtime-safe path before P0.8 (folds into P0.6)
+
+Confirmed: `packages/auth/package.json` depends on `argon2@^0.41.1` and
+`packages/auth/src/password.ts` calls `argon2.hash` / `argon2.verify`. argon2
+compiles a native binding, so a binary built on macOS will **not** load on the
+CloudBase Linux runtime — the function crashes at cold start. Resolve, in order:
+
+1. **Preferred:** switch to a WASM argon2id (e.g. `hash-wasm`). No native binary,
+   runs on any runtime, and it emits standard `$argon2id$...` PHC strings, so
+   existing hashes and the generated `ADMIN_PASSWORD_HASH` stay verifiable.
+2. **Else:** install argon2 built for the Linux target at deploy time (remote
+   `npm install` on CloudBase, or `npm_config_target_platform=linux`); never ship
+   the macOS-built binary.
+
+Constraint: `ADMIN_PASSWORD_HASH` (generated in P0.1) must be produced by a lib
+the deployed runtime can verify. If the hashing lib changes, regenerate the hash
+with the **same** lib. Also: the P0.6 smoke `node -e "require('dist/index.js')"`
+loads argon2 — it can pass on macOS yet fail on CloudBase. Validate the package on
+a Linux/CloudBase-equivalent, not only locally.
+
+### R2-2 🟠 `@vibelingan-channel/email` is not bundled (folds into P0.6)
+
+`apps/functions/admin/tsup.config.ts` `noExternal` lists only `shared`, `auth`,
+`db` — **not** `email`. The handler imports `@vibelingan-channel/email`, so `dist`
+keeps an unresolved `workspace:*` require (exactly the DESIGN §7.1 risk). Add
+`@vibelingan-channel/email` to `noExternal`, and confirm its transitive
+`nodemailer` plus `zod` and `jose` are bundled or declared in the artifact
+`package.json`.
+
+### R2-3 🟠 Cross-origin image URLs break when API origin ≠ site origin (folds into P0.2 / P0.4)
+
+The catalog API embeds image URLs as **relative** `/api/images/:id` (see
+`apps/local-server/src/main.ts` `resolveImages`). With `PUBLIC_API_BASE_URL`
+pointing at a separate API origin, `<img src="/api/images/x">` resolves against
+the **site** origin (which serves no `/api`) and 404s. The base-URL helper in P0.2
+must rewrite the image/file URLs returned **inside** API JSON, not only the
+outbound `fetch()` calls — or `public-api` must emit absolute image URLs. Add a
+smoke that a catalog image actually renders from the API origin.
+
+### R2-4 🟠 Bootstrap token: pre-auth placement + timing-safe compare (folds into P0.5)
+
+The bootstrap token travels in `data.token` (P0.11), not the session `token`
+field. The `bootstrapAdmin` action must live in the **public, pre-`authenticate`**
+switch in `handler.ts`, and compare `BOOTSTRAP_ADMIN_TOKEN` with a constant-time
+check (`crypto.timingSafeEqual`), never `===`. Keep the "fail if any admin exists"
+guard in the same single path.
+
+### R2-5 🟡 Minor
+
+- DESIGN §5.4 index list omits `products.name` while EXECUTION P0.7 includes it —
+  reconcile.
+- `PUBLIC_CB_PROXY` is only read by `astro.config.ts` for the **dev** server proxy;
+  it is a no-op in a static production build (harmless, but don't rely on it in prod).
+- `tsup` target is already `node18`, which matches the CloudBase runtime; only the
+  repo `engines: >=20` is out of step (DESIGN §9.2) — align the `engines` field.
+
+### Verdict
+
+Design + execution are implementation-ready. **R2-1 (argon2)** is the single item
+that can hard-block a cold start — resolve it before the P0.8 deploy. Everything
+else is a fold-in refinement to an already-correct plan.
