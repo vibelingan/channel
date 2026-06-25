@@ -108,6 +108,57 @@ function envEntries(record) {
   return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined));
 }
 
+function createFunction(def) {
+  const result = callTool(
+    'cloudbase.manageFunctions',
+    {
+      action: 'createFunction',
+      functionRootPath,
+      force: true,
+      func: {
+        name: def.name,
+        runtime: targetRuntime,
+        handler: 'index.main',
+        timeout: 20,
+        memorySize: 256,
+        type: 'Event',
+        installDependency: false,
+        envVariables: def.envVariables,
+      },
+    },
+    { timeoutMs: 240_000 },
+  );
+  return (
+    result.data?.raw?.RequestId ??
+    result.data?.raw?.codeRes?.RequestId ??
+    result.data?.raw?.configRes?.RequestId ??
+    'unknown'
+  );
+}
+
+function updateFunction(def) {
+  const codeResult = callTool(
+    'cloudbase.manageFunctions',
+    {
+      action: 'updateFunctionCode',
+      functionName: def.name,
+      functionRootPath,
+    },
+    { timeoutMs: 240_000 },
+  );
+  const configResult = callTool('cloudbase.manageFunctions', {
+    action: 'updateFunctionConfig',
+    functionName: def.name,
+    handler: 'index.main',
+    timeout: 20,
+    envVariables: def.envVariables,
+  });
+  return {
+    codeRequestId: codeResult.data?.raw?.RequestId ?? codeResult.data?.requestId ?? 'unknown',
+    configRequestId: configResult.data?.raw?.RequestId ?? configResult.data?.requestId ?? 'unknown',
+  };
+}
+
 const functionDefs = [
   {
     name: 'admin',
@@ -161,30 +212,20 @@ function deployFunction(def) {
     waitForGone(def.name);
   }
 
-  const result = callTool(
-    'cloudbase.manageFunctions',
-    {
-      action: 'createFunction',
-      functionRootPath,
-      force: true,
-      func: {
-        name: def.name,
-        runtime: targetRuntime,
-        handler: 'index.main',
-        timeout: 20,
-        memorySize: 256,
-        type: 'Event',
-        installDependency: false,
-        envVariables: def.envVariables,
-      },
-    },
-    { timeoutMs: 240_000 },
-  );
-  const requestId =
-    result.data?.raw?.RequestId ??
-    result.data?.raw?.codeRes?.RequestId ??
-    result.data?.raw?.configRes?.RequestId ??
-    'unknown';
+  const current = functionDetail(def.name, true);
+  if (current) {
+    const requests = updateFunction(def);
+    const after = waitForActive(def.name);
+    if (after.Runtime !== targetRuntime) {
+      throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${after.Runtime}`);
+    }
+    console.log(
+      `${def.name}: updated on ${after.Runtime}; code request ${requests.codeRequestId}; config request ${requests.configRequestId}`,
+    );
+    return;
+  }
+
+  const requestId = createFunction(def);
 
   const after = waitForActive(def.name);
   if (after.Runtime !== targetRuntime) {
