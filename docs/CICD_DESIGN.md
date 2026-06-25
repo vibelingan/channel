@@ -3,7 +3,7 @@
 Status: PR CI, test deploy, and manual E2E workflows implemented; test deploy
 proven by GitHub Actions run 28160182821
 Scope: GitHub Actions path for repeatable CloudBase deployments
-Last updated: 2026-06-25
+Last updated: 2026-06-26
 
 ## 1. Answer To The E2E/CI Question
 
@@ -526,74 +526,26 @@ Phase C is the SCF alias/qualifier spike.
 Phase D implements alias-based blue/green or canary release only if Phase C
 proves CloudBase HTTP access can route to aliases safely.
 
-## 9. CI/CD Implementation Review (2026-06-25)
+## 9. Validated Review Disposition
 
-Critical review of the first implementation: `.github/workflows/ci.yml`,
-`deploy-test.yml`, `e2e.yml`, `scripts/deploy-cloudbase-test.mjs`,
-`scripts/smoke-cloudbase-deploy.mjs`, `config/mcporter.json`, the tsup `node20`
-target change, and the §8 consistency design. Verdict: proceed with warning —
-no P1; two P2 hardening items plus one design-vs-implementation contradiction.
+The implementation review pulled in commit `72c1a96` was validated against the
+current workflows and deploy scripts on 2026-06-26. Thread-aware GitHub review
+scan for PR #1 found no separate conversation comments, reviews, or inline
+threads.
 
-### Verified correct
+The valid active follow-ups are now tracked in
+`docs/CICD_EXECUTION.md`:
 
-- Least-privilege `permissions: contents: read` on all three workflows; secrets
-  scoped to GitHub Environment `test`; deploy/e2e use `cancel-in-progress: false`.
-- The §4 `TCB_ENV_ID -> TCB_ENV` mapping is correctly coded — `deploy-cloudbase-test.mjs`
-  sets function env `TCB_ENV: envId`.
-- tsup `target: node20` matches the CloudBase `Nodejs20.19` runtime
-  (canary-verified `v20.19.3`); the secret-name scan is aligned to the real
-  `TENCENTCLOUD_SECRETID/SECRETKEY/SESSIONTOKEN` names and runs before deploy.
-- Idempotent gateway (checks before create), runtime-drift delete/recreate,
-  synchronous `waitForActive`/`waitForGone`, fail-fast `requireEnv`, mcporter
-  retry, and `envEntries` omission of unset optional email vars.
-- `execFileSync` array args (no shell injection); read-only `public` E2E runs
-  post-deploy. The `EMAIL_*` names the deploy sets match the email package
-  consumer (`packages/email/src/index.ts`).
-- Deployment docs are accurate and honest (proof run id, runtime canary, the
-  remaining secret-provisioning gap).
+1. Scope deploy/E2E secrets to only the steps that need them.
+2. Change deploy concurrency from ref-scoped to CloudBase EnvId-scoped.
+3. Add release identity/manifest checks before relying on multi-function
+   consistency.
+4. Treat `mcporter --args` secret transport as a test-env residual risk unless
+   stdin or env-file transport is confirmed.
+5. Make bootstrap E2E explicitly require or manage deployed
+   `BOOTSTRAP_ENABLED=1`.
+6. Replace catch-all file-route smoke with deterministic real media privacy
+   coverage when test data is available.
 
-### Findings
-
-| # | Sev | Where | Issue | Fix |
-| --- | --- | --- | --- | --- |
-| D1 | P2 (security) | `deploy-test.yml` / `e2e.yml` job `env:` | All runtime + Tencent secrets are job-level, so they are present in the env of `pnpm install` / build / `playwright install` — steps that execute untrusted dependency code (postinstall). Supply-chain exfiltration surface. | Scope secrets to only the steps that need them: Tencent + runtime secrets on the Deploy step; E2E credentials on the run step. Keep install/build steps secret-free. |
-| D2 | P2/P3 (security) | `deploy-cloudbase-test.mjs` `callTool` | Secret values are passed as CLI args (`--args '{...}'`) and are visible in the process list (`/proc/<pid>/cmdline`). Mitigated by ephemeral runners and GitHub log masking, but a known anti-pattern. | Confirm `mcporter` does not echo `--args`; prefer passing function env via stdin / an env file if supported, else document the residual risk. |
-| D3 | P2 (design vs impl) | `deploy-test.yml` `concurrency` | The group is ref-scoped (`deploy-test-${{ github.ref }}`), but §8 requires EnvId-scoped (`cloudbase-deploy-${{ vars.TCB_ENV_ID }}`). Two refs targeting the same EnvId would not serialize — the concurrent-deploy race §8 itself warns about. | Change the concurrency group to EnvId-scoped to match §8. |
-| D4 | P3 (reliability) | `deploy-cloudbase-test.mjs` | Non-atomic update (`updateFunctionCode` then `updateFunctionConfig`) and delete/recreate-on-runtime-drift cause brief API downtime, partial state, and no rollback. Acceptable for `test`, not for prod. | Tracked by §8 Phase A/B; do not reuse delete/recreate on the prod path. |
-| D5 | P3 | `e2e.yml` bootstrap branch | Sets harness `E2E_ENABLE_BOOTSTRAP=1`, but the deploy sets function `BOOTSTRAP_ENABLED=0` and the workflow neither sets nor verifies the server flag, so the bootstrap suite fails unless it is flipped manually (§3 Manual E2E Gate said to verify). | Add a guard that enables/verifies deployed `BOOTSTRAP_ENABLED=1` (then re-disables), or document the manual precondition. |
-| D6 | P3 (fixed) | `ci.yml` / `package.json` | PR CI had no unit-test gate; the workspace unit tests (auth + admin + public-api, 18 passing) were not enforced on PRs. | Fixed: added root `"test": "pnpm -r test"` and a `Unit tests` step after Typecheck in `ci.yml`. |
-| D7 | P3 (cosmetic) | smoke + hosting | The `/api/files/__missing__` 404 is a catch-all, not a real file guard; `errorDocument: index.html` turns unknown paths into soft-200s. | Optional: smoke `/api/images/<unlinked-id>` for a real privacy assertion. |
-
-### §8 design critique (critical thinking)
-
-The Multi-Function Release Consistency design is sound: it correctly frames
-by-name deploys as non-atomic CD, the risk list is comprehensive (it even
-anticipates the route-churn downtime of its own delete/recreate logic), and the
-enhancements are standard practice — release manifest, `RELEASE_ID` stamp with a
-health-smoke consistency check, phased order with static-site-last,
-expand/contract DB compatibility, idempotent roll-forward over fake automatic
-rollback, and EnvId-scoped concurrency. The alias/blue-green track is correctly
-gated behind a spike rather than over-committed, and the Phase A–D ordering is
-risk-correct.
-
-Push-backs:
-
-- G1 (= D3): §8 prescribes EnvId-scoped concurrency, but the shipped
-  `deploy-test.yml` is ref-scoped — the design contradicts its own
-  implementation. Reconcile.
-- G2: §8 claims the deploy workflow owns "rollback posture and visibility" but
-  is silent on secret hygiene (D1/D2); that discipline belongs in the same CD
-  ownership.
-- G3: the `RELEASE_ID` consistency check needs a health/metadata endpoint
-  exposing the release id; `/api/health` currently returns only
-  `{ status, service }`. Exposing non-secret release metadata is fine but should
-  be a deliberate step.
-- G4: the compatibility rule ("additive API / one deploy window") is
-  honor-system — no cross-function contract test enforces it. Acceptable as
-  discipline, but it is not a gate.
-
-### Resolution
-
-- D6 fixed in this change (PR CI unit-test gate + root `test` script).
-- D1, D3 recommended next (scope secrets to steps; EnvId-scoped deploy
-  concurrency). D2, D4, D5, D7 tracked as hardening / §8 Phase A follow-ups.
+The previously noted missing unit-test gate is already fixed and is not kept as
+an active execution item.
