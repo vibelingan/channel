@@ -18,6 +18,7 @@
     "deploy:cloudbase:test": "node scripts/deploy-cloudbase-test.mjs",
     "smoke:cloudbase": "node scripts/smoke-cloudbase-deploy.mjs",
     "smoke:functions": "node scripts/smoke-function-artifacts.mjs",
+    "test": "pnpm -r test",
     "test:e2e": "playwright test",
     "test:e2e:public": "playwright test tests/e2e/public.spec.ts",
     "test:e2e:headed": "playwright test --headed",
