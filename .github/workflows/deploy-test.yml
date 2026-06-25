@@ -1,0 +1,112 @@
+name: Deploy Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_public_e2e:
+        description: Run public browser E2E after deploy
+        required: true
+        type: boolean
+        default: true
+  push:
+    branches:
+      - test
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-test-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build, deploy, and smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: test
+
+    env:
+      CI: 'true'
+      APP_ENV: ${{ vars.APP_ENV || 'test' }}
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+      CLOUDBASE_REGION: ${{ vars.CLOUDBASE_REGION || 'ap-shanghai' }}
+      CLOUDBASE_FUNCTION_RUNTIME: Nodejs20.19
+      CLOUDBASE_WEBAPP_SERVICE: channel-test
+      PUBLIC_CB_PROXY: '0'
+      PUBLIC_API_BASE_URL: ${{ vars.PUBLIC_API_BASE_URL || format('https://{0}.service.tcloudbase.com', vars.TCB_ENV_ID) }}
+      SITE_URL: ${{ vars.SITE_URL || format('https://channel-test-{0}.webapps.tcloudbase.com', vars.TCB_ENV_ID) }}
+      CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS || format('https://channel-test-{0}.webapps.tcloudbase.com,http://localhost:4321', vars.TCB_ENV_ID) }}
+      LOGIN_URL: ${{ vars.LOGIN_URL || format('https://channel-test-{0}.webapps.tcloudbase.com/login', vars.TCB_ENV_ID) }}
+      ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL || 'admin@channel.local' }}
+      BOOTSTRAP_ENABLED: '0'
+      TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+      TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+      TENCENTCLOUD_SESSIONTOKEN: ${{ secrets.TENCENTCLOUD_SESSIONTOKEN }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
+      BOOTSTRAP_ADMIN_TOKEN: ${{ secrets.BOOTSTRAP_ADMIN_TOKEN }}
+      EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
+      EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
+      EMAIL_SECURE: ${{ secrets.EMAIL_SECURE }}
+      EMAIL_USER: ${{ secrets.EMAIL_USER }}
+      EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+      E2E_SITE_URL: ${{ vars.SITE_URL || format('https://channel-test-{0}.webapps.tcloudbase.com', vars.TCB_ENV_ID) }}
+      E2E_API_URL: ${{ vars.PUBLIC_API_BASE_URL || format('https://{0}.service.tcloudbase.com', vars.TCB_ENV_ID) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Package CloudBase functions
+        run: pnpm package:functions
+
+      - name: Smoke function artifacts
+        run: pnpm smoke:functions
+
+      - name: Build site
+        run: pnpm build
+
+      - name: Scan built site for server secret names
+        run: |
+          if grep -R -I -n -E 'JWT_SECRET|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|TENCENTCLOUD_SECRET(ID|KEY)|TENCENTCLOUD_SESSIONTOKEN' apps/site/dist; then
+            echo "Server secret names were found in the public site build." >&2
+            exit 1
+          fi
+
+      - name: Deploy to CloudBase test
+        run: pnpm deploy:cloudbase:test
+
+      - name: Smoke deployed CloudBase test
+        run: pnpm smoke:cloudbase
+
+      - name: Install Playwright Chromium
+        if: ${{ github.event_name == 'push' || github.event.inputs.run_public_e2e == 'true' }}
+        run: npx playwright install --with-deps chromium
+
+      - name: Run public browser E2E
+        if: ${{ github.event_name == 'push' || github.event.inputs.run_public_e2e == 'true' }}
+        run: pnpm test:e2e:public

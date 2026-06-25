@@ -1,0 +1,82 @@
+name: E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: E2E suite to run
+        required: true
+        type: choice
+        default: public
+        options:
+          - public
+          - admin
+          - mutation
+          - bootstrap
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ inputs.suite }}
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    name: Run ${{ inputs.suite }} E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: test
+
+    env:
+      CI: 'true'
+      TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
+      E2E_SITE_URL: ${{ vars.SITE_URL || format('https://channel-test-{0}.webapps.tcloudbase.com', vars.TCB_ENV_ID) }}
+      E2E_API_URL: ${{ vars.PUBLIC_API_BASE_URL || format('https://{0}.service.tcloudbase.com', vars.TCB_ENV_ID) }}
+      E2E_ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL || 'admin@channel.local' }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      E2E_BOOTSTRAP_ADMIN_TOKEN: ${{ secrets.BOOTSTRAP_ADMIN_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run selected E2E suite
+        run: |
+          case "${{ inputs.suite }}" in
+            public)
+              pnpm test:e2e:public
+              ;;
+            admin)
+              npx playwright test tests/e2e/admin-auth.spec.ts
+              ;;
+            mutation)
+              E2E_ALLOW_MUTATION=1 npx playwright test tests/e2e/mutation.spec.ts
+              ;;
+            bootstrap)
+              E2E_ENABLE_BOOTSTRAP=1 npx playwright test tests/e2e/bootstrap.spec.ts
+              ;;
+            *)
+              echo "Unknown suite: ${{ inputs.suite }}" >&2
+              exit 1
+              ;;
+          esac

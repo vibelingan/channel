@@ -640,15 +640,13 @@ work order and acceptance boundary.
 Implement:
 
 - Deployment config scaffold:
-  - `cloudbaserc.json`
-  - `deploy/cloudbase/test.json`
-  - `deploy/cloudbase/prod.json`
-  - `scripts/deploy-functions.sh`
-  - `scripts/deploy-webapp.sh`
-  - `scripts/smoke-cloudbase.sh`
+  - `config/mcporter.json`
+  - `scripts/deploy-cloudbase-test.mjs`
+  - `scripts/smoke-cloudbase-deploy.mjs`
 - PR workflow without secrets.
 - `test` branch deploy workflow using GitHub Environment `test`.
-- `main` branch production deploy workflow using GitHub Environment `prod`.
+- `main` branch production deploy workflow using GitHub Environment `prod`
+  later, after prod EnvId and owner credentials exist.
 - Secret-to-CloudBase runtime env update step.
 - Function artifact validation.
 - Static secret scan.
@@ -656,12 +654,23 @@ Implement:
 - Playwright spec discovery with `pnpm test:e2e --list`.
 - Optional public browser smoke after a successful `test` deploy.
 - Manual/protected admin, mutation, and bootstrap E2E gates.
+- Function runtime contract:
+  - Target CloudBase function runtime for test is `Nodejs20.19`
+    (`process.version` verified as `v20.19.3` by canary).
+  - Existing `admin` and `public-api` functions were observed on
+    `Nodejs18.15`.
+  - Runtime is creation-time immutable for this workflow: same-name
+    `force=true` create and `updateFunctionConfig` do not change runtime.
+  - If runtime drift is detected, delete/recreate the same function name with
+    `Nodejs20.19`, then ensure gateway routes and run smoke before declaring
+    deploy success.
 
 Acceptance:
 
 - A `test` push can reproduce P0 from a clean runner in the test env.
-- A `main` production deploy uses only the `prod` GitHub Environment and the
-  recorded production CloudBase EnvId.
+- Production workflow remains blocked until a `prod` EnvId and owner CAM
+  credentials exist. When added, a `main` production deploy must use only the
+  `prod` GitHub Environment and the recorded production CloudBase EnvId.
 - Fork PRs cannot access deployment secrets.
 - Full real-DB E2E is not a default PR gate.
 

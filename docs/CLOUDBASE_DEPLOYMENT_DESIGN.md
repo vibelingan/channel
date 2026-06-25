@@ -807,10 +807,14 @@ Functions:
 
 Runtime:
 
-- Use the CloudBase-supported Node runtime selected during implementation.
-- Current docs show Nodejs 18.15 as an available runtime. The repo currently
-  states Node `>=20`; align repo, tsup target, and CloudBase runtime before
-  deployment.
+- Test CloudBase functions target `Nodejs20.19`.
+- A runtime canary verified CloudBase reports `process.version` as
+  `v20.19.3` for `Nodejs20.19`.
+- Existing test functions created on `Nodejs18.15` require delete/recreate or
+  replacement to migrate runtime; CloudBase runtime is not changed by same-name
+  force create or config update in this workflow.
+- CI/build runners use Node 22.13.0 with pnpm 11.5.0, while function bundles
+  compile with tsup `target: node20` for the CloudBase runtime.
 
 Function permissions:
 

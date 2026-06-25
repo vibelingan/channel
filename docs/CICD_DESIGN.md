@@ -1,6 +1,7 @@
 # CI/CD Design
 
-Status: Step 1 PR CI implemented; deploy workflows not implemented yet
+Status: PR CI implemented; test deploy/E2E workflows implemented in branch,
+pending GitHub Actions deployment proof
 Scope: GitHub Actions path for repeatable CloudBase deployments
 Last updated: 2026-06-25
 
@@ -32,7 +33,14 @@ MCP/`mcporter` operations:
 - Deploy CloudBase Web App service `channel-test`
 - Verify CloudBase build/version status and HTTP smoke
 
-There is no GitHub Actions deploy workflow in the repo yet.
+GitHub Actions now has:
+
+- `.github/workflows/ci.yml` for PR/branch checks without CloudBase secrets.
+- `.github/workflows/deploy-test.yml` for protected test deployment.
+- `.github/workflows/e2e.yml` for manual protected E2E gates.
+
+The deploy workflow is still considered unproven until a GitHub Actions run
+successfully builds, deploys, smokes, and verifies the CloudBase test env.
 
 ## 3. Proposed Workflows
 
@@ -65,7 +73,7 @@ PRs.
 Trigger:
 
 - `workflow_dispatch`
-- Later: push to `test`
+- Push to `test`
 
 Uses GitHub Environment `test`.
 
@@ -76,7 +84,7 @@ Steps:
 3. Build static site with:
    - `PUBLIC_API_BASE_URL`
    - `PUBLIC_CB_PROXY=0`
-4. Deploy/update CloudBase functions.
+4. Deploy/update CloudBase functions with runtime `Nodejs20.19`.
 5. Update function runtime env from GitHub Environment values. Do not copy names
    blindly: map GitHub `TCB_ENV_ID` to function runtime `TCB_ENV`.
 6. Ensure HTTP access routes exist.
@@ -143,6 +151,7 @@ GitHub Environment variables for `test`:
 - `TCB_ENV_ID` (deploy target; map to function runtime `TCB_ENV`)
 - `APP_ENV=test` (non-app deploy label; current code does not read it)
 - `CLOUDBASE_REGION=ap-shanghai`
+- `CLOUDBASE_FUNCTION_RUNTIME=Nodejs20.19` or workflow default
 - `PUBLIC_CB_PROXY=0`
 - `PUBLIC_API_BASE_URL`
 - `SITE_URL`
@@ -172,18 +181,19 @@ Function runtime env mapping for `public-api`:
 
 GitHub Environment secrets for `test`:
 
-- `TENCENT_SECRET_ID`
-- `TENCENT_SECRET_KEY`
+- `TENCENTCLOUD_SECRETID`
+- `TENCENTCLOUD_SECRETKEY`
+- `TENCENTCLOUD_SESSIONTOKEN` when using temporary credentials from MCP
 - `JWT_SECRET`
 - `ADMIN_PASSWORD_HASH`
 - `BOOTSTRAP_ADMIN_TOKEN`
 - Optional: `E2E_ADMIN_PASSWORD`
 - Optional SMTP secrets
 
-Current known gap: only the GitHub PAT has been set through the earlier setup.
-Tencent deploy credentials and runtime secrets are not fully in GitHub
-Environments yet, so GitHub Actions cannot reproduce the current manual
-CloudBase deployment today.
+Current known gap: the workflow and scripts are present, but the GitHub
+Environment must be verified to contain the deploy credentials and runtime
+secrets before GitHub Actions can reproduce the current manual CloudBase
+deployment.
 
 ## 5. Implementation Order
 
@@ -244,7 +254,12 @@ Runner steps:
    - `PUBLIC_CB_PROXY=0`
 3. Configure CloudBase auth from Tencent deploy secrets.
 4. Set active EnvId from `${{ vars.TCB_ENV_ID }}`.
-5. Deploy/update packaged functions.
+5. Deploy/update packaged functions with target runtime `Nodejs20.19`.
+   CloudBase function runtime is effectively creation-time immutable in this
+   workflow: same-name force create and config update do not change runtime.
+   If an existing function runtime differs from the target, the deployment
+   script must delete and recreate that function name, then restore config and
+   gateway access before smoke.
 6. Update function runtime env using the explicit mapping table in §4.
 7. Ensure gateway routes:
    - `/api/admin` -> `admin`
