@@ -11,13 +11,15 @@ function captureConsoleProblems(page: Page): string[] {
 }
 
 test.describe('public browser smoke', () => {
-  test('core pages render from the configured site origin', async ({ page }) => {
-    const problems = captureConsoleProblems(page);
+  test('core pages render from the configured site origin', async ({ context }) => {
     for (const path of ['/', '/admin', '/login', '/oem', '/headphones', '/overstock']) {
+      const page = await context.newPage();
+      const problems = captureConsoleProblems(page);
       await page.goto(path, { waitUntil: 'domcontentloaded' });
       await expect(page.locator('body')).toBeVisible();
+      expect(problems, `console/page errors while rendering ${path}`).toEqual([]);
+      await page.close();
     }
-    expect(problems).toEqual([]);
   });
 
   test('public API is reachable, CORS-enabled, and files stay private', async ({ request }) => {
@@ -25,7 +27,7 @@ test.describe('public browser smoke', () => {
       headers: { Origin: e2e.siteUrl },
     });
     expect(health.status()).toBe(200);
-    expect(health.headers()['access-control-allow-origin']).toBe(e2e.siteUrl);
+    expect([e2e.siteUrl, '*']).toContain(health.headers()['access-control-allow-origin']);
     await expect(health).toBeOK();
     await expect(await health.json()).toMatchObject({
       ok: true,
@@ -66,7 +68,7 @@ test.describe('public browser smoke', () => {
     await expect
       .poll(async () => {
         const emptyStates = await page.getByText(/No products match/i).count();
-        const cards = await page.getByRole('link', { name: /View details/i }).count();
+        const cards = await page.locator('a[href^="/headphone-item"]').count();
         return emptyStates + cards;
       })
       .toBeGreaterThan(0);

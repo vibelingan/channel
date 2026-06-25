@@ -28,7 +28,7 @@ Default safe mode:
 ```bash
 E2E_SITE_URL=https://channel-test-diversity-123-d9grnqfux221323bb.webapps.tcloudbase.com \
 E2E_API_URL=https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com \
-pnpm test:e2e:public
+npx playwright test tests/e2e/public.spec.ts
 ```
 
 This mode does not need credentials and does not write data.
@@ -47,7 +47,7 @@ Admin smoke mode:
 ```bash
 E2E_ADMIN_EMAIL=admin@example.com \
 E2E_ADMIN_PASSWORD=... \
-pnpm test:e2e -- tests/e2e/admin-auth.spec.ts
+npx playwright test tests/e2e/admin-auth.spec.ts
 ```
 
 This requires an existing active admin user. It verifies API login, user listing,
@@ -59,7 +59,7 @@ Mutation mode:
 E2E_ALLOW_MUTATION=1 \
 E2E_ADMIN_EMAIL=admin@example.com \
 E2E_ADMIN_PASSWORD=... \
-pnpm test:e2e -- tests/e2e/mutation.spec.ts
+npx playwright test tests/e2e/mutation.spec.ts
 ```
 
 This writes real CloudBase records with an `e2e-` run id, verifies them through
@@ -72,11 +72,13 @@ E2E_ENABLE_BOOTSTRAP=1 \
 E2E_BOOTSTRAP_ADMIN_TOKEN=... \
 E2E_ADMIN_EMAIL=admin@example.com \
 E2E_ADMIN_PASSWORD=... \
-pnpm test:e2e -- tests/e2e/bootstrap.spec.ts
+npx playwright test tests/e2e/bootstrap.spec.ts
 ```
 
-Only run this before the first admin exists. After a successful bootstrap,
-immediately disable bootstrap in the deployed `admin` function config.
+Only run this before the first admin exists. This requires both the local
+`E2E_ENABLE_BOOTSTRAP=1` harness flag and deployed `admin` function runtime
+config `BOOTSTRAP_ENABLED=1`. After a successful bootstrap, immediately set
+`BOOTSTRAP_ENABLED=0` again.
 
 ## 3. Coverage Matrix
 
@@ -101,8 +103,11 @@ they can be found and removed from the CloudBase admin dashboard.
 ## 5. Safety Gates
 
 - `E2E_ALLOW_MUTATION=1` is required before catalog/OEM write tests run.
-- `E2E_ENABLE_BOOTSTRAP=1` is required before first-admin bootstrap runs.
+- `E2E_ENABLE_BOOTSTRAP=1` and deployed `BOOTSTRAP_ENABLED=1` are both required
+  before first-admin bootstrap runs.
 - Admin credentials are read from environment variables only.
+- Public CORS smoke accepts either the exact `E2E_SITE_URL` origin or `*`,
+  because an empty CloudBase allowlist intentionally falls back to `*`.
 - Test output goes under `output/playwright/`, which is gitignored.
 - Screenshots, traces, and videos are off by default to avoid recording
   credentials. Set `E2E_RECORD_ARTIFACTS=1` only for non-sensitive debugging.
@@ -110,10 +115,12 @@ they can be found and removed from the CloudBase admin dashboard.
 
 ## 6. Current Known Boundary
 
-As of this plan, P0.11 has not been run in this thread. That means the safe
-public suite is runnable without credentials, while admin/bootstrap/mutation
-suites should remain skipped until the first admin credential is intentionally
-created and bootstrap is then disabled.
+P0.11 has now been run locally against the deployed `test` environment. First
+admin bootstrap completed once and deployed bootstrap is disabled. The safe
+public suite remains credential-free. Admin and mutation suites require the
+local admin credential env vars. Bootstrap should stay skipped unless the test
+environment is intentionally reset and `BOOTSTRAP_ENABLED=1` is restored
+temporarily.
 
 ## 7. Review Audit (2026-06-25)
 
@@ -140,3 +147,16 @@ specs assume were verified correct except where listed below.
 - Admin envelope `{ ok, data }` / `{ ok:false, error:{ code, message } }`; `login`/`list`/`create`/`remove`/`bootstrapAdmin` input+output shapes; `remove` -> `{ deleted:true }` with `NOT_FOUND` / "Document not found"; unauthenticated protected action -> 401; `search` supported on `list`.
 - Public `/api/health` -> `{ status:'ok', service:'public-api' }`; `/api/products` & `/api/overstock` -> `{ items, total, page, pageSize }`; `search` substring filter; pagination default 24 / max 48; images private unless linked to a published item.
 - DOM: `AuthForm` island + `Email`/`Password` labels + `Sign in`; `/admin` shows `Channel Admin` + `Headphones` button and client-redirects when unauthenticated; headphones heading, `animate-pulse`, empty-state regex, `Search products…` placeholder, `/api/products` fetch; OEM `form[data-project-form]` with all named fields, `Submit project`, redirect to `/oem_submit_result?id=`, stored `status:'new'` + `drawing` file id.
+
+### Resolution
+
+- E1 fixed by counting real `/headphone-item` card links rather than a
+  non-rendered `View details` label.
+- E2 fixed by adding mutation coverage for `/api/images/:id`: unlinked images
+  are 404, images linked from a published product are 200, and OEM file IDs are
+  not served as images.
+- E3 fixed by accepting exact origin or `*` for public CORS smoke.
+- E4 mitigated by isolating console/page-error capture per route.
+- E5 fixed in this plan by documenting the deployed `BOOTSTRAP_ENABLED` gate.
+- E6 fixed by turning `.env.e2e.example` URLs into placeholders.
+- E7 fixed by adding `tsconfig.e2e.json` and `pnpm typecheck:e2e`.

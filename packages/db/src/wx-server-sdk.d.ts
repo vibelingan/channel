@@ -3,8 +3,12 @@
  * surface used by `@vibelingan-channel/db`. The official package ships no types.
  */
 declare module 'wx-server-sdk' {
-  interface GetResult<T = Record<string, unknown>> {
+  interface QueryGetResult<T = Record<string, unknown>> {
     data: T[];
+  }
+
+  interface DocumentGetResult<T = Record<string, unknown>> {
+    data: T | T[];
   }
 
   interface CountResult {
@@ -24,7 +28,7 @@ declare module 'wx-server-sdk' {
   }
 
   interface DocumentReference {
-    get(): Promise<GetResult>;
+    get(): Promise<DocumentGetResult>;
     update(options: { data: Record<string, unknown> }): Promise<UpdateResult>;
     remove(): Promise<RemoveResult>;
   }
@@ -34,7 +38,7 @@ declare module 'wx-server-sdk' {
     orderBy(field: string, order: 'asc' | 'desc'): Query;
     skip(offset: number): Query;
     limit(count: number): Query;
-    get(): Promise<GetResult>;
+    get(): Promise<QueryGetResult>;
     count(): Promise<CountResult>;
   }
 

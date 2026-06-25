@@ -49,7 +49,7 @@ Steps:
 
 1. Install with `pnpm install --frozen-lockfile`.
 2. Run `pnpm lint`.
-3. Run `pnpm typecheck`.
+3. Run `pnpm typecheck`, including `tests/e2e` typechecking.
 4. Run `pnpm build:functions`.
 5. Run `pnpm package:functions`.
 6. Run `pnpm smoke:functions`.
@@ -77,7 +77,8 @@ Steps:
    - `PUBLIC_API_BASE_URL`
    - `PUBLIC_CB_PROXY=0`
 4. Deploy/update CloudBase functions.
-5. Update function runtime env from GitHub Environment values.
+5. Update function runtime env from GitHub Environment values. Do not copy names
+   blindly: map GitHub `TCB_ENV_ID` to function runtime `TCB_ENV`.
 6. Ensure HTTP access routes exist.
 7. Deploy Web App/static site.
 8. Poll Web App build/version status until success or failure.
@@ -86,9 +87,12 @@ Steps:
    - `GET /api/health`
    - `GET /api/products?pageSize=1`
    - `GET /api/overstock?pageSize=1`
-   - `POST /api/admin` unauthenticated returns controlled `401`
-   - `GET /api/files/__missing__` remains not publicly exposed
-10. Optionally run `pnpm test:e2e:public` once the site/API URLs are known.
+   - `POST /api/admin` with
+     `{"action":"list","data":{"collection":"users"}}` and no token returns
+     controlled `401`
+   - Unknown public paths, including `/api/files/__missing__`, return `404`
+10. Optionally install Chromium with `npx playwright install --with-deps chromium`
+    and run `pnpm test:e2e:public` once the site/API URLs are known.
 
 ### Manual E2E Gate
 
@@ -107,8 +111,11 @@ Rules:
 - `public` may run any time after a successful test deploy.
 - `admin` requires an active admin credential.
 - `mutation` requires `E2E_ALLOW_MUTATION=1` and should run against `test` only.
-- `bootstrap` requires `E2E_ENABLE_BOOTSTRAP=1` and must be followed by disabling
-  bootstrap in CloudBase runtime config.
+- `bootstrap` requires both local `E2E_ENABLE_BOOTSTRAP=1` and deployed
+  `BOOTSTRAP_ENABLED=1`; it must be followed by disabling bootstrap in CloudBase
+  runtime config.
+- Browser-driving suites require `npx playwright install --with-deps chromium`
+  before execution on a clean GitHub Actions runner.
 
 ### Production Deploy
 
@@ -133,8 +140,8 @@ Production should not use the current test EnvId.
 
 GitHub Environment variables for `test`:
 
-- `TCB_ENV_ID`
-- `APP_ENV=test`
+- `TCB_ENV_ID` (deploy target; map to function runtime `TCB_ENV`)
+- `APP_ENV=test` (non-app deploy label; current code does not read it)
 - `CLOUDBASE_REGION=ap-shanghai`
 - `PUBLIC_CB_PROXY=0`
 - `PUBLIC_API_BASE_URL`
@@ -142,6 +149,26 @@ GitHub Environment variables for `test`:
 - `CORS_ALLOWED_ORIGINS`
 - `LOGIN_URL`
 - `ADMIN_EMAIL`
+
+Function runtime env mapping for `admin`:
+
+| GitHub source | Function runtime name |
+| --- | --- |
+| `vars.TCB_ENV_ID` | `TCB_ENV` |
+| `vars.CORS_ALLOWED_ORIGINS` | `CORS_ALLOWED_ORIGINS` |
+| `vars.LOGIN_URL` | `LOGIN_URL` |
+| `vars.ADMIN_EMAIL` | `ADMIN_EMAIL` |
+| `secrets.JWT_SECRET` | `JWT_SECRET` |
+| `secrets.ADMIN_PASSWORD_HASH` | `ADMIN_PASSWORD_HASH` |
+| `secrets.BOOTSTRAP_ADMIN_TOKEN` | `BOOTSTRAP_ADMIN_TOKEN` |
+
+Function runtime env mapping for `public-api`:
+
+| GitHub source | Function runtime name |
+| --- | --- |
+| `vars.TCB_ENV_ID` | `TCB_ENV` |
+| `vars.PUBLIC_API_BASE_URL` | `PUBLIC_API_BASE_URL` |
+| `vars.CORS_ALLOWED_ORIGINS` | `CORS_ALLOWED_ORIGINS` |
 
 GitHub Environment secrets for `test`:
 
@@ -169,7 +196,109 @@ CloudBase deployment today.
 6. Add optional/manual E2E workflow.
 7. Add protected `main` -> `prod` workflow only after prod EnvId exists.
 
-## 6. Review Audit (2026-06-25)
+## 6. Concrete Execution Plan
+
+### Step 1: Add PR CI Workflow
+
+Create `.github/workflows/ci.yml`.
+
+Triggers:
+
+- `pull_request`
+- Push to `dev/albertli/try01`, `test`, and later `main`
+
+Runner steps:
+
+1. `actions/checkout`
+2. `actions/setup-node` with Node 20 and pnpm cache
+3. `corepack enable`
+4. `pnpm install --frozen-lockfile`
+5. `pnpm lint`
+6. `pnpm typecheck`
+7. `pnpm package:functions`
+8. `pnpm smoke:functions`
+9. `pnpm build`
+10. `pnpm test:e2e --list`
+
+No GitHub Environment and no CloudBase/Tencent secrets are attached to this
+workflow.
+
+### Step 2: Add Manual Test Deploy Workflow
+
+Create `.github/workflows/deploy-test.yml`.
+
+Trigger:
+
+- `workflow_dispatch`
+
+Environment:
+
+- `test`
+
+Runner steps:
+
+1. Run the same install/check/package/build sequence as PR CI.
+2. Build `apps/site` with:
+   - `PUBLIC_API_BASE_URL=${{ vars.PUBLIC_API_BASE_URL }}`
+   - `PUBLIC_CB_PROXY=0`
+3. Configure CloudBase auth from Tencent deploy secrets.
+4. Set active EnvId from `${{ vars.TCB_ENV_ID }}`.
+5. Deploy/update packaged functions.
+6. Update function runtime env using the explicit mapping table in §4.
+7. Ensure gateway routes:
+   - `/api/admin` -> `admin`
+   - `/api` -> `public-api`
+8. Deploy/update Web App `channel-test`.
+9. Poll Web App version until success/failure.
+10. Run HTTP smoke exactly as listed in §3.
+11. Write a deployment summary with commit SHA, EnvId, Web App URL, API URL, and
+    smoke result. Do not print secret values.
+
+### Step 3: Add Manual E2E Workflow
+
+Create `.github/workflows/e2e.yml`.
+
+Trigger:
+
+- `workflow_dispatch`
+
+Inputs:
+
+- `suite`: `public`, `admin`, `mutation`, or `bootstrap`
+- `site_url`
+- `api_url`
+
+Runner steps:
+
+1. `pnpm install --frozen-lockfile`
+2. `npx playwright install --with-deps chromium`
+3. Export `E2E_SITE_URL` and `E2E_API_URL` from workflow inputs.
+4. For `admin` and `mutation`, export `E2E_ADMIN_EMAIL` and
+   `E2E_ADMIN_PASSWORD` from protected environment values.
+5. For `mutation`, require `suite == mutation` and set `E2E_ALLOW_MUTATION=1`.
+6. For `bootstrap`, require a protected environment approval, set
+   `E2E_ENABLE_BOOTSTRAP=1`, and verify the deployed function has
+   `BOOTSTRAP_ENABLED=1` before running.
+7. Run the selected spec:
+   - public: `npx playwright test tests/e2e/public.spec.ts`
+   - admin: `npx playwright test tests/e2e/admin-auth.spec.ts`
+   - mutation: `npx playwright test tests/e2e/mutation.spec.ts`
+   - bootstrap: `npx playwright test tests/e2e/bootstrap.spec.ts`
+8. Upload `output/playwright/` only when `E2E_RECORD_ARTIFACTS=1`; otherwise keep
+   artifacts disabled to avoid recording credentials.
+9. For mutation, run a cleanup assertion for `e2e-` records after the suite.
+
+### Step 4: Add Production Workflow Later
+
+Do not implement production deploy until:
+
+- A real prod CloudBase EnvId exists.
+- The owner account/resource ownership is confirmed.
+- `prod` GitHub Environment has Tencent deploy credentials and runtime secrets.
+- Required reviewer approval is enabled.
+- The `test` workflow has successfully reproduced the current P0 deployment.
+
+## 7. Review Audit (2026-06-25)
 
 The env-var/secret table (§4) and smoke steps (§3) were reconciled against the
 code that actually consumes them (`apps/functions/*/src/index.ts`,
@@ -192,3 +321,12 @@ pre-implementation corrections.
 - Env-var names match code: `PUBLIC_API_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `JWT_SECRET`, `ADMIN_PASSWORD_HASH` (not `ADMIN_PASSWORD`), `LOGIN_URL`, `ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_TOKEN`.
 - URL topology (`*.webapps.tcloudbase.com` site / `*.service.tcloudbase.com` API / EnvId `diversity-123-…`) matches `CLOUDBASE_DEPLOYMENT_DESIGN.md`.
 - Smoke routes `/api/health`, `/api/products`, `/api/overstock` exist; every `pnpm` script referenced in §3 exists in `package.json`; no secrets committed; the "no real-DB E2E as a default PR gate" split is sound.
+
+### Resolution
+
+- C1 fixed with explicit `TCB_ENV_ID -> TCB_ENV` runtime mapping.
+- C2 fixed by describing `/api/files/*` as an unknown-path 404 and reserving
+  real image privacy for the browser E2E mutation suite.
+- C3 fixed by specifying the exact unauthenticated protected admin action body.
+- C4 fixed by labeling `APP_ENV` as a deploy label, not an app runtime input.
+- C5 fixed by adding the Chromium install step before browser-driving suites.

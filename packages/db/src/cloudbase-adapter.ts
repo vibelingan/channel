@@ -35,6 +35,13 @@ function normalize(raw: Record<string, unknown>): CollectionDoc {
   return raw as CollectionDoc;
 }
 
+function normalizeSingle(raw: unknown): CollectionDoc | null {
+  const doc = Array.isArray(raw) ? raw[0] : raw;
+  return doc && typeof doc === 'object' && !Array.isArray(doc)
+    ? normalize(doc as Record<string, unknown>)
+    : null;
+}
+
 export const cloudBaseAdapter: DbAdapter = {
   async list(query): Promise<ListResult<CollectionDoc>> {
     const db = database();
@@ -91,8 +98,7 @@ export const cloudBaseAdapter: DbAdapter = {
     const db = database();
     try {
       const res = await db.collection(collection).doc(id).get();
-      const raw = (res.data as Record<string, unknown>[])[0];
-      return raw ? normalize(raw) : null;
+      return normalizeSingle(res.data);
     } catch {
       return null;
     }

@@ -24,8 +24,49 @@ test.describe('mutation e2e flows', () => {
     const session = await loginAdmin(request);
     const productName = `${e2e.runId}-Headphones`;
     let productId = '';
+    let linkedImageId = '';
+    let unlinkedImageId = '';
 
     try {
+      const imageData = Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="#123456"/></svg>',
+      ).toString('base64');
+      const linkedImage = await adminAction<CollectionDoc>(
+        request,
+        'create',
+        {
+          collection: 'images',
+          values: {
+            name: `${e2e.runId}-linked.svg`,
+            mimeType: 'image/svg+xml',
+            data: imageData,
+          },
+        },
+        session.token,
+      );
+      linkedImageId = linkedImage._id;
+
+      const unlinkedImage = await adminAction<CollectionDoc>(
+        request,
+        'create',
+        {
+          collection: 'images',
+          values: {
+            name: `${e2e.runId}-unlinked.svg`,
+            mimeType: 'image/svg+xml',
+            data: imageData,
+          },
+        },
+        session.token,
+      );
+      unlinkedImageId = unlinkedImage._id;
+
+      const hiddenImage = await request.get(
+        `${e2e.apiUrl}/api/images/${encodeURIComponent(unlinkedImageId)}`,
+        { headers: { Origin: e2e.siteUrl } },
+      );
+      expect(hiddenImage.status()).toBe(404);
+
       const product = await adminAction<CollectionDoc>(
         request,
         'create',
@@ -42,7 +83,7 @@ test.describe('mutation e2e flows', () => {
             unitPrice: 12.34,
             wholesalePrice: 10.5,
             vipPrice: 9.5,
-            imageIds: [],
+            imageIds: [linkedImageId],
             published: true,
           },
         },
@@ -64,8 +105,17 @@ test.describe('mutation e2e flows', () => {
       await page.goto('/headphones', { waitUntil: 'domcontentloaded' });
       await page.getByPlaceholder(/Search products/i).fill(productName);
       await expect(page.getByText(productName)).toBeVisible({ timeout: 15_000 });
+
+      const linkedImageResponse = await request.get(
+        `${e2e.apiUrl}/api/images/${encodeURIComponent(linkedImageId)}`,
+        { headers: { Origin: e2e.siteUrl } },
+      );
+      expect(linkedImageResponse.status()).toBe(200);
+      expect(linkedImageResponse.headers()['content-type']).toContain('image/svg+xml');
     } finally {
       if (productId) await removeIfPresent(request, session, 'products', productId);
+      if (linkedImageId) await removeIfPresent(request, session, 'images', linkedImageId);
+      if (unlinkedImageId) await removeIfPresent(request, session, 'images', unlinkedImageId);
     }
   });
 
@@ -99,26 +149,25 @@ test.describe('mutation e2e flows', () => {
       const referenceId = url.searchParams.get('id') ?? '';
       expect(referenceId).not.toBe('');
 
-      let project: CollectionDoc | null = null;
+      async function findSubmittedProject(): Promise<CollectionDoc | null> {
+        const result = await adminAction<ListResult<CollectionDoc>>(
+          request,
+          'list',
+          { collection: 'oemProjects', page: 1, pageSize: 5, search: company },
+          session.token,
+        );
+        return result.items.find((item) => item.company === company) ?? null;
+      }
+
       await expect
         .poll(async () => {
-          const result = await adminAction<ListResult<CollectionDoc>>(
-            request,
-            'list',
-            { collection: 'oemProjects', page: 1, pageSize: 5, search: company },
-            session.token,
-          );
-          project = result.items.find((item) => item.company === company) ?? null;
-          if (project) {
-            projectId = project._id;
-            return true;
-          }
-          return false;
+          return (await findSubmittedProject())?._id ?? '';
         })
-        .toBe(true);
+        .not.toBe('');
 
-      expect(project).not.toBeNull();
+      const project = await findSubmittedProject();
       if (!project) throw new Error('OEM project was not readable after submit.');
+      projectId = project._id;
       expect(project.company).toBe(company);
       expect(project.status).toBe('new');
       fileId = typeof project.drawing === 'string' ? project.drawing : '';
@@ -126,6 +175,12 @@ test.describe('mutation e2e flows', () => {
 
       const file = await request.get(`${e2e.apiUrl}/api/files/${encodeURIComponent(fileId)}`);
       expect(file.status()).toBe(404);
+
+      const fileAsImage = await request.get(
+        `${e2e.apiUrl}/api/images/${encodeURIComponent(fileId)}`,
+        { headers: { Origin: e2e.siteUrl } },
+      );
+      expect(fileAsImage.status()).toBe(404);
     } finally {
       if (projectId) await removeIfPresent(request, session, 'oemProjects', projectId);
       if (fileId) await removeIfPresent(request, session, 'files', fileId);
