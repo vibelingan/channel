@@ -840,7 +840,9 @@ P1:
 
 P0:
 
-- Deploy with CloudBase Web App independent subdomain.
+- Serve through the existing CloudBase Web App independent subdomain.
+- CI/CD builds the static site in GitHub Actions and uploads `apps/site/dist`
+  to CloudBase static hosting, then validates the Web App domain by HTTP smoke.
 
 P1:
 

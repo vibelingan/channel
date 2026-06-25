@@ -654,6 +654,12 @@ Implement:
 - Playwright spec discovery with `pnpm test:e2e --list`.
 - Optional public browser smoke after a successful `test` deploy.
 - Manual/protected admin, mutation, and bootstrap E2E gates.
+- Static site deploy:
+  - Build in GitHub Actions.
+  - Upload `apps/site/dist` with `manageHosting(action="upload")`.
+  - Set `index.html` as both index and error document.
+  - Verify through the existing `channel-test-<EnvId>.webapps.tcloudbase.com`
+    domain during smoke.
 - Function runtime contract:
   - Target CloudBase function runtime for test is `Nodejs20.19`
     (`process.version` verified as `v20.19.3` by canary).

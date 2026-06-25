@@ -88,8 +88,9 @@ Steps:
 5. Update function runtime env from GitHub Environment values. Do not copy names
    blindly: map GitHub `TCB_ENV_ID` to function runtime `TCB_ENV`.
 6. Ensure HTTP access routes exist.
-7. Deploy Web App/static site.
-8. Poll Web App build/version status until success or failure.
+7. Upload the built static site to CloudBase hosting for the existing
+   `channel-test` web app domain.
+8. Configure `index.html` as both index and error document for SPA routing.
 9. Run HTTP smoke:
    - Site pages `/`, `/admin`, `/login`, `/oem`, `/headphones`, `/overstock`
    - `GET /api/health`
@@ -264,8 +265,9 @@ Runner steps:
 7. Ensure gateway routes:
    - `/api/admin` -> `admin`
    - `/api` -> `public-api`
-8. Deploy/update Web App `channel-test`.
-9. Poll Web App version until success/failure.
+8. Upload `apps/site/dist` to CloudBase static hosting for the existing
+   `channel-test` web app domain.
+9. Configure website index/error document to `index.html`.
 10. Run HTTP smoke exactly as listed in §3.
 11. Write a deployment summary with commit SHA, EnvId, Web App URL, API URL, and
     smoke result. Do not print secret values.

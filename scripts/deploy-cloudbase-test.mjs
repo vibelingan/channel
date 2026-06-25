@@ -217,82 +217,33 @@ function ensureGateway(def) {
   console.log(`${def.name}: created gateway route ${def.routePath}; request ${requestId}`);
 }
 
-function webAppDetail(allowFailure = false) {
-  const result = callTool(
-    'cloudbase.queryApps',
-    { action: 'getApp', serviceName: webAppServiceName },
-    { allowFailure },
-  );
-  if (result.success === false) return null;
-  return result.data?.app ?? null;
-}
-
-function webAppVersion(buildId, allowFailure = false) {
-  if (!buildId) return null;
-  const result = callTool(
-    'cloudbase.queryApps',
-    { action: 'listAppVersions', serviceName: webAppServiceName, pageSize: 10 },
-    { allowFailure },
-  );
-  if (result.success === false) return null;
-  const versions = result.data?.versions ?? result.data?.raw?.VersionList ?? [];
-  return versions.find((version) => String(version.BuildId) === String(buildId)) ?? null;
-}
-
-function waitForWebAppDeploy(beforeVersionName, buildId) {
-  for (let i = 0; i < 30; i += 1) {
-    const version = webAppVersion(buildId, true);
-    if (version?.Status === 'SUCCESS') {
-      console.log(`${webAppServiceName}: web app build ${buildId} succeeded`);
-      return;
-    }
-    if (version?.Status === 'FAIL' || version?.Status === 'FAILED') {
-      throw new Error(`${webAppServiceName}: web app build ${buildId} failed`);
-    }
-
-    const app = webAppDetail(true);
-    if (
-      app?.LatestStatus === 'SUCCESS' &&
-      (!beforeVersionName || app.LatestVersionName !== beforeVersionName)
-    ) {
-      console.log(`${webAppServiceName}: web app version ${app.LatestVersionName} succeeded`);
-      return;
-    }
-    if (app?.LatestStatus === 'FAIL' || app?.LatestStatus === 'FAILED') {
-      throw new Error(`${webAppServiceName}: web app deploy failed at ${app.LatestVersionName}`);
-    }
-
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10_000);
-  }
-  throw new Error(`${webAppServiceName}: web app deploy did not finish in time`);
-}
-
 function deployWebApp() {
   const distPath = resolve(siteRootPath, 'dist');
   if (!existsSync(resolve(distPath, 'index.html'))) {
     throw new Error(`Missing site build output: ${distPath}`);
   }
 
-  const before = webAppDetail(true);
-  const result = callTool(
-    'cloudbase.manageApps',
+  const uploaded = callTool(
+    'cloudbase.manageHosting',
     {
-      action: 'deployApp',
-      serviceName: webAppServiceName,
-      filePath: siteRootPath,
-      buildPath: 'dist',
-      framework: 'static',
-      installCmd: '',
-      buildCmd: '',
+      action: 'upload',
+      localPath: distPath,
+      cloudPath: '/',
+      isDir: true,
     },
     { timeoutMs: 300_000 },
   );
-  const requestId = result.data?.requestId ?? result.data?.raw?.RequestId ?? 'unknown';
-  const buildId = result.data?.buildId ?? result.data?.BuildId ?? result.data?.raw?.BuildId ?? '';
-  console.log(
-    `${webAppServiceName}: web app deploy submitted; request ${requestId}${buildId ? `; build ${buildId}` : ''}`,
-  );
-  waitForWebAppDeploy(before?.LatestVersionName, buildId);
+  const uploadRequestId = uploaded.data?.requestId ?? uploaded.data?.raw?.RequestId ?? 'unknown';
+  console.log(`${webAppServiceName}: static hosting upload finished; request ${uploadRequestId}`);
+
+  const configured = callTool('cloudbase.manageHosting', {
+    action: 'setWebsiteDocument',
+    indexDocument: 'index.html',
+    errorDocument: 'index.html',
+  });
+  const configRequestId =
+    configured.data?.requestId ?? configured.data?.raw?.RequestId ?? 'unknown';
+  console.log(`${webAppServiceName}: website document configured; request ${configRequestId}`);
 }
 
 console.log(`Deploying CloudBase test env ${envId} with function runtime ${targetRuntime}`);
