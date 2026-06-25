@@ -1,7 +1,7 @@
 # CI/CD Execution
 
-Status: review-hardening MIU prepared; implementation not started in this
-document update
+Status: review-hardening MIU prepared with CloudBase skill addendum;
+implementation not started in this document update
 Scope: executable follow-up plan for CloudBase GitHub Actions CI/CD
 Last updated: 2026-06-26
 
@@ -16,6 +16,11 @@ I validated the review against current code before turning it into execution
 work. The design doc should stay high-level; this file now owns execution order,
 MIU traces, and review disposition.
 
+CloudBase skill review was then run against the same code path using the
+CloudBase main skill, CloudBase code-review skill, Cloud Functions skill,
+CloudBase deployment gate, and `mcporter describe cloudbase --all-parameters`.
+That pass added CloudBase-specific execution items with `CB-*` ids.
+
 | ID | Disposition | Evidence | Execution Decision |
 | --- | --- | --- | --- |
 | D1 | accept | `.github/workflows/deploy-test.yml` and `.github/workflows/e2e.yml` put deploy/E2E secrets in job-level `env`, so install/build steps inherit them. | MIU-01. Scope secrets to the exact deploy, smoke, and selected E2E run steps. |
@@ -29,6 +34,10 @@ MIU traces, and review disposition.
 | G2 | accept | Secret hygiene belongs in CD ownership, not just security review notes. | Covered by MIU-01 and MIU-02. |
 | G3 | accept | `/api/health` currently returns only non-release health data, so `RELEASE_ID` consistency cannot be verified through HTTP yet. | MIU-02. Add safe release metadata or an admin-only diagnostic. |
 | G4 | accept as constraint | Backward-compatible API/DB deploy discipline is not enforced by a gate. | MIU-04. Add contract-test gate only after function boundaries grow beyond the current two-function setup. |
+| CB1 | accept | CloudBase function ops guidance says `updateFunctionConfig` should merge current env vars before updating. `scripts/deploy-cloudbase-test.mjs` sends only `def.envVariables`, so a deploy can erase console-side vars or a temporary flag such as `BOOTSTRAP_ENABLED=1`. | MIU-02. Read current function detail, merge managed env keys deliberately, and require explicit removal for env deletes. |
+| CB2 | accept | `manageGateway(action="createAccess", auth:false)` only configures the gateway entry; CloudBase schema says it does not modify function resource permission. Public HTTP access still depends on function permission state. | MIU-02. Add a public-access deployment gate: query/verify function permission or configure `managePermissions(resourceType="function")`, then prove unauthenticated HTTP smoke. |
+| CB3 | accept | Current script uses `manageHosting` to upload `apps/site/dist`; CloudBase guidance prefers `manageApps` for first-time independent webapp deployments and treats `manageHosting` as existing-project/fallback because URL topology differs. | MIU-04. Keep `manageHosting` only for the already-proven `channel-test` test path; first-time/prod web app path must explicitly choose `manageApps`/`deployApp` or document the URL tradeoff before implementation. |
+| CB4 | verified correct | Function code is Event-style (`exports.main` equivalent via `export const main`) and gateway access is configured as Event access. `functionRootPath` points to `.cloudbase-artifacts/functions`, the parent folder that contains function folders. Runtime is explicit. | No action. Keep this distinction in future docs to avoid accidentally converting these to HTTP Functions requiring `scf_bootstrap`. |
 
 No review point was rejected as technically wrong. D6 is the only item removed
 from the active queue because it is already fixed.
@@ -36,9 +45,11 @@ from the active queue because it is already fixed.
 ## 2. Execution Order
 
 1. MIU-01: secret scoping and EnvId deploy serialization.
-2. MIU-02: release identity, deploy manifest, and process-argument hardening.
+2. MIU-02: release identity, deploy manifest, CloudBase config/permission gates,
+   and process-argument hardening.
 3. MIU-03: bootstrap E2E gating and privacy smoke correction.
-4. MIU-04: production deploy guardrails and compatibility gates.
+4. MIU-04: production deploy guardrails, hosting-mode boundary, and
+   compatibility gates.
 
 Each MIU should be implemented and verified separately. Do not combine these
 into one large CI/CD change.
@@ -152,7 +163,7 @@ Remote validation:
 - Confirm a second deploy targeting the same EnvId waits instead of running
   concurrently.
 
-## MIU-02 - Release Identity And Deploy Transport Hardening
+## MIU-02 - Release Identity And CloudBase Deploy Hardening
 
 ### Runtime Problem
 
@@ -170,6 +181,32 @@ Current shapes:
 { "status": "ok", "service": "public-api" }
 ```
 
+CloudBase-specific risky shapes:
+
+```js
+await manageFunctions({
+  action: 'updateFunctionConfig',
+  functionName: def.name,
+  envVariables: def.envVariables,
+});
+```
+
+```js
+await manageGateway({
+  action: 'createAccess',
+  targetType: 'function',
+  targetName: def.name,
+  path: def.routePath,
+  type: 'Event',
+  auth: false,
+});
+```
+
+The first shape can overwrite function env vars that are not present in the
+current manifest. The second shape creates a gateway entry but does not by
+itself prove or modify the function resource permission required for public
+callers.
+
 ### Data Shape
 
 | Value | Example | Lifetime | Scope |
@@ -177,6 +214,8 @@ Current shapes:
 | Release id | Git SHA | one deploy | all deployed functions and static build metadata |
 | Manifest | function list, hashes, runtime, routes | one deploy plus artifact retention | CI artifact/operator evidence |
 | Runtime secret values | JWT/email/admin hashes | secret lifetime | deploy transport only |
+| Managed function env keys | `TCB_ENV`, `JWT_SECRET`, `BOOTSTRAP_ENABLED` | deploy to deploy | CloudBase function config |
+| Function public access state | gateway route + function resource permission | function lifetime | CloudBase HTTP access boundary |
 
 ### Technology Constraint
 
@@ -184,6 +223,12 @@ Same-host process arguments are easier to inspect than stdin or files with
 controlled permissions. Also, release consistency cannot be verified by HTTP
 until a function reports non-secret release metadata or a trusted diagnostic can
 query it.
+
+CloudBase `manageFunctions(action="updateFunctionConfig")` should not blindly
+replace env vars without reading current config and merging. CloudBase
+`manageGateway(action="createAccess")` explicitly creates only the gateway entry;
+function resource permission must still be checked or configured for the
+required caller mode.
 
 ### Best-Practice Fix
 
@@ -194,6 +239,19 @@ query it.
 4. Investigate whether `mcporter` supports stdin or env-file input for args that
    contain secrets. If not, record the test-env residual risk and avoid using
    this transport unchanged for prod.
+5. Read current function detail before config updates, merge existing env vars
+   with the manifest-managed env vars, and require an explicit planned removal
+   step for env deletes. This avoids accidentally clearing console-set values or
+   a temporary bootstrap flag.
+6. Add a public-access deployment gate for every function exposed through HTTP
+   Access:
+   - query existing gateway access,
+   - query function resource permission when available,
+   - apply `managePermissions(action="updateResourcePermission",
+     resourceType="function")` only when the desired public/controlled access
+     mode is confirmed,
+   - prove unauthenticated HTTP smoke for public routes and controlled 401 for
+     protected admin actions.
 
 ### Alternatives Rejected
 
@@ -202,6 +260,13 @@ query it.
   consistency.
 - Expose all runtime env in `/api/health`.
   Reason rejected: health responses must never include secret or config values.
+- Treat `auth:false` gateway access as complete authorization configuration.
+  Reason rejected: CloudBase gateway auth and function resource permission are
+  separate controls.
+- Replace full env config on every deploy.
+  Reason rejected: CloudBase operations guidance prefers read-merge-update, and
+  blind replacement can delete values that are intentionally managed outside the
+  current manifest.
 
 ### Risk / Test
 
@@ -217,6 +282,10 @@ Remote validation:
 
 - Deploy Test summary includes release id and manifest location.
 - `/api/health` or admin diagnostic exposes only safe release metadata.
+- Function details show expected runtime, expected release id, and no accidental
+  loss of non-managed env keys.
+- Gateway access and function permission are both verified before public smoke
+  is considered meaningful.
 
 ## MIU-03 - Bootstrap Gate And Privacy Smoke
 
@@ -289,6 +358,13 @@ The current deploy path is acceptable for test but not for production: function
 updates are sequential, runtime drift can trigger delete/recreate, rollback is
 manual, and compatibility is a written rule rather than an enforced gate.
 
+There is also a CloudBase hosting-mode boundary: current CI uploads the static
+build with `manageHosting`, while the project design describes the client URL as
+an existing `channel-test-<EnvId>.webapps.tcloudbase.com` Web App style domain.
+CloudBase guidance treats `manageApps` as the preferred first-time deployment
+path for independent `*.webapps.tcloudbase.com` apps, and `manageHosting` as an
+existing-project or fallback path with different URL topology.
+
 ### Data Shape
 
 | Value | Example | Lifetime | Scope |
@@ -296,12 +372,19 @@ manual, and compatibility is a written rule rather than an enforced gate.
 | API contract | `/api/products`, `/api/admin` envelope | release to release | browser and function callers |
 | DB shape | catalog/image/user documents | persistent | CloudBase database |
 | Function release set | admin + public-api | one deploy | CloudBase functions |
+| Static hosting mode | `manageApps` vs `manageHosting` | app lifetime unless migrated | CloudBase site URL and versioning |
 
 ### Technology Constraint
 
 CloudBase by-name function updates are not atomic across multiple functions and
 static hosting. Until alias/version routing is proven, production must assume a
 short mixed-release window.
+
+CloudBase `manageApps` and `manageHosting` are not interchangeable operationally:
+`manageApps` provides independent webapp subdomains and version management,
+while `manageHosting` uploads to static hosting and is best kept for existing
+legacy/fallback paths. Switching modes later can change URLs and invalidate
+bookmarks, CORS origins, and smoke-test assumptions.
 
 ### Best-Practice Fix
 
@@ -311,12 +394,25 @@ short mixed-release window.
 - Add compatibility tests only when APIs or function count grow enough that the
   risk justifies the gate.
 - Complete the SCF alias/qualifier spike before promising blue/green deploy.
+- Freeze the current `test` hosting behavior as "existing channel-test path only"
+  until the actual CloudBase app/static-hosting resource relationship is
+  inspected.
+- For any first-time environment or prod environment, explicitly choose one:
+  - `manageApps(action="deployApp")` for an independent Web App subdomain and
+    versioned app deploys, or
+  - `manageHosting(action="upload")` only if accepting the static-hosting URL
+    topology and documenting the CORS/site URL changes.
 
 ### Alternatives Rejected
 
 - Reuse test deploy unchanged for prod.
   Reason rejected: a prod traffic path needs stronger rollback and consistency
   guarantees than the current by-name rolling update provides.
+- Assume `CLOUDBASE_WEBAPP_SERVICE=channel-test` makes `manageHosting` deploy to
+  a Web App service.
+  Reason rejected: the current MCP schema separates `manageApps` and
+  `manageHosting`; the variable only controls our URL convention unless the
+  resource relationship is explicitly verified.
 
 ### Risk / Test
 
@@ -332,3 +428,11 @@ pnpm smoke:functions
 
 Then a protected test deploy must prove release consistency before any prod
 workflow is enabled.
+
+Hosting-mode readiness additionally requires:
+
+- inspect existing CloudBase app/static-hosting resources,
+- record whether the current `channel-test` URL is backed by `manageApps`,
+  static hosting, or an existing fallback,
+- update `SITE_URL`, `CORS_ALLOWED_ORIGINS`, and `LOGIN_URL` from the selected
+  hosting mode rather than assuming one URL template.

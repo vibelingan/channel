@@ -546,6 +546,8 @@ The valid active follow-ups are now tracked in
    `BOOTSTRAP_ENABLED=1`.
 6. Replace catch-all file-route smoke with deterministic real media privacy
    coverage when test data is available.
+7. Add CloudBase-specific deploy gates for function env merge, function public
+   access permission, and `manageApps` vs `manageHosting` hosting-mode choice.
 
 The previously noted missing unit-test gate is already fixed and is not kept as
 an active execution item.
