@@ -2,7 +2,7 @@
 
 Status: canonical deployment design after review
 Scope: make the Channel portal available on Tencent CloudBase with clean secret separation
-Last updated: 2026-06-24
+Last updated: 2026-06-25
 
 ## 1. Purpose
 
@@ -704,6 +704,10 @@ CloudBase CLI/MCP path before implementation. The logical shape should include:
 
 ## 8. GitHub Actions Design
 
+Detailed browser E2E coverage lives in `docs/E2E_TEST_PLAN.md`. Detailed
+CI/CD workflow design lives in `docs/CICD_DESIGN.md`. This section records only
+the canonical deployment boundary.
+
 ### 8.1 Pull Request Workflow
 
 Runs without secrets:
@@ -715,8 +719,11 @@ Runs without secrets:
 - Build functions.
 - Check generated function package for unresolved workspace imports.
 - Check `apps/site/dist` does not contain known secret names.
+- Validate Playwright spec discovery with `pnpm test:e2e --list`.
 
 No deploy on forked PRs.
+
+Do not run the full real-DB browser E2E suite as a default PR gate.
 
 ### 8.2 Test Deploy Workflow
 
@@ -744,6 +751,10 @@ Steps:
 8. Deploy Web App/static site.
 9. Run smoke tests.
 10. Print only URLs and non-sensitive metadata.
+
+After the deployed site/API URLs are known, public browser smoke may run against
+the `test` environment. Admin, mutation, and bootstrap E2E suites remain manual
+or protected gates because they require credentials or write real CloudBase data.
 
 Branch rule:
 

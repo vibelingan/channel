@@ -7,6 +7,9 @@ dist/
 .cloudbase-artifacts/
 .astro/
 *.tsbuildinfo
+output/playwright/
+playwright-report/
+test-results/
 
 # Local DB (file-backed mock for development)
 data/
@@ -16,6 +19,7 @@ data/
 .env
 .env.*
 !.env.example
+!.env.e2e.example
 
 # Logs
 *.log

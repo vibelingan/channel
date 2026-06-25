@@ -16,12 +16,17 @@
     "package:functions": "npx pnpm build:functions && node scripts/package-functions.mjs",
     "preview": "npx pnpm --filter @vibelingan-channel/site preview",
     "smoke:functions": "node scripts/smoke-function-artifacts.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:public": "playwright test tests/e2e/public.spec.ts",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report output/playwright/report",
     "typecheck": "npx pnpm -r --filter \"./packages/**\" --filter \"./apps/**\" typecheck",
     "lint": "npx biome check .",
     "format": "npx biome format --write ."
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "@playwright/test": "^1.61.1",
     "typescript": "^5.6.3"
   }
 }

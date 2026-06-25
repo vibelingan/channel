@@ -2,7 +2,7 @@
 
 Status: implementation plan for client availability
 Scope: concrete work order for deploying the Channel portal to CloudBase
-Last updated: 2026-06-24
+Last updated: 2026-06-25
 
 ## 1. Execution Principle
 
@@ -631,6 +631,10 @@ Acceptance:
 
 P1 starts after P0 is client-visible.
 
+Browser E2E details are tracked in `docs/E2E_TEST_PLAN.md`. CI/CD workflow
+details are tracked in `docs/CICD_DESIGN.md`; this execution plan keeps only the
+work order and acceptance boundary.
+
 ### P1.1 GitHub Actions Deploy Workflow
 
 Implement:
@@ -649,6 +653,9 @@ Implement:
 - Function artifact validation.
 - Static secret scan.
 - Post-deploy smoke tests.
+- Playwright spec discovery with `pnpm test:e2e --list`.
+- Optional public browser smoke after a successful `test` deploy.
+- Manual/protected admin, mutation, and bootstrap E2E gates.
 
 Acceptance:
 
@@ -656,6 +663,7 @@ Acceptance:
 - A `main` production deploy uses only the `prod` GitHub Environment and the
   recorded production CloudBase EnvId.
 - Fork PRs cannot access deployment secrets.
+- Full real-DB E2E is not a default PR gate.
 
 ### P1.2 Storage Migration
 
