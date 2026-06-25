@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - dev/albertli/try01
+      - test
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Build and smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      CI: 'true'
+      PUBLIC_CB_PROXY: '0'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Activate pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.5.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Package CloudBase functions
+        run: pnpm package:functions
+
+      - name: Smoke function artifacts
+        run: pnpm smoke:functions
+
+      - name: Build site
+        run: pnpm build
+
+      - name: Scan built site for server secret names
+        run: |
+          if grep -R -I -n -E 'JWT_SECRET|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|TENCENTCLOUD_SECRET_(ID|KEY)' apps/site/dist; then
+            echo "Server secret names were found in the public site build." >&2
+            exit 1
+          fi
+
+      - name: Discover Playwright specs
+        run: pnpm test:e2e --list

@@ -1,6 +1,6 @@
 # CI/CD Design
 
-Status: design only, workflows not implemented yet
+Status: Step 1 PR CI implemented; deploy workflows not implemented yet
 Scope: GitHub Actions path for repeatable CloudBase deployments
 Last updated: 2026-06-25
 
@@ -210,7 +210,7 @@ Triggers:
 Runner steps:
 
 1. `actions/checkout`
-2. `actions/setup-node` with Node 20 and pnpm cache
+2. `actions/setup-node` with Node 22.12.0 and pnpm cache
 3. `corepack enable`
 4. `pnpm install --frozen-lockfile`
 5. `pnpm lint`
@@ -218,7 +218,8 @@ Runner steps:
 7. `pnpm package:functions`
 8. `pnpm smoke:functions`
 9. `pnpm build`
-10. `pnpm test:e2e --list`
+10. Static scan of `apps/site/dist` for server secret names
+11. `pnpm test:e2e --list`
 
 No GitHub Environment and no CloudBase/Tencent secrets are attached to this
 workflow.
