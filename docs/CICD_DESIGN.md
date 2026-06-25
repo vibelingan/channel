@@ -1,7 +1,7 @@
 # CI/CD Design
 
-Status: PR CI implemented; test deploy/E2E workflows implemented in branch,
-pending GitHub Actions deployment proof
+Status: PR CI, test deploy, and manual E2E workflows implemented; test deploy
+proven by GitHub Actions run 28160182821
 Scope: GitHub Actions path for repeatable CloudBase deployments
 Last updated: 2026-06-25
 
@@ -39,8 +39,9 @@ GitHub Actions now has:
 - `.github/workflows/deploy-test.yml` for protected test deployment.
 - `.github/workflows/e2e.yml` for manual protected E2E gates.
 
-The deploy workflow is still considered unproven until a GitHub Actions run
-successfully builds, deploys, smokes, and verifies the CloudBase test env.
+The deploy workflow has one successful GitHub Actions proof run for the
+CloudBase test env. Future changes should preserve the same build, deploy,
+smoke, and verification sequence.
 
 ## 3. Proposed Workflows
 
@@ -348,3 +349,179 @@ pre-implementation corrections.
 - C3 fixed by specifying the exact unauthenticated protected admin action body.
 - C4 fixed by labeling `APP_ENV` as a deploy label, not an app runtime input.
 - C5 fixed by adding the Chromium install step before browser-driving suites.
+
+## 8. Multi-Function Release Consistency
+
+### Problem
+
+The current test deployment updates CloudBase functions by function name. That is
+acceptable while the function set is small and every change is backward
+compatible, but it is not atomic across a group of functions or across
+functions plus the static site. If the project later has many functions, live
+traffic can temporarily hit a mixed release: some functions already on the new
+code, some still on the previous code, and possibly a static site built for a
+different API shape.
+
+This is part of CD, not a separate infrastructure concern. The deployment
+workflow owns the release order, consistency checks, rollback posture, and
+visibility of what release is active.
+
+### Risk Cases
+
+- Cross-function contract drift: one function writes a new DB shape while
+  another still reads the old shape.
+- Static/backend mismatch: the web app is uploaded before all required backend
+  functions are verified.
+- Runtime/config mismatch: code deploys before required env vars or runtime
+  settings are in place.
+- Route churn: deleting/recreating a function to change runtime can temporarily
+  leave the HTTP access route missing or pointing at an unavailable function.
+- DB migration mismatch: destructive schema or document-shape changes are
+  deployed before all readers are compatible.
+- Auth/session mismatch: one function issues tokens or role claims that another
+  release cannot validate.
+- Partial failure: the deploy fails halfway and the next run does not know
+  whether to resume, roll forward, or restore the previous state.
+- Concurrent deploys: two workflow runs target the same EnvId and interleave
+  function updates.
+
+### Required Enhancements
+
+1. Release manifest
+
+   The package/deploy step should create a manifest for every release:
+
+   - `releaseId`: Git SHA for GitHub Actions deploys.
+   - Function name, artifact hash, target runtime, handler, and source package.
+   - Function env-key contract, without secret values.
+   - Expected HTTP access route for each function.
+   - Static build hash or build marker for `apps/site/dist`.
+   - Smoke endpoints that prove the release is serving.
+
+2. Release identity in runtime config
+
+   Add `RELEASE_ID` to every deployed function env. Health or metadata smoke can
+   verify that all functions serving test traffic report the same release id.
+   If a public health response includes release data, expose only non-secret
+   metadata such as release id, runtime family, and build timestamp.
+
+3. Phased deploy order
+
+   The deploy script should become manifest-driven:
+
+   1. Preflight current state: EnvId, function names, runtime, routes, and env
+      key presence.
+   2. Snapshot previous state needed for rollback or operator diagnosis.
+   3. Update function config and deploy backend functions.
+   4. Verify each function is active, has target runtime, has expected
+      non-secret env keys, and serves the new `RELEASE_ID`.
+   5. Ensure HTTP access routes are present.
+   6. Upload static site last.
+   7. Run public smoke and selected deployed E2E gates.
+   8. Write a deployment summary with release id, function versions observed,
+      routes, site URL, API URL, and smoke result.
+
+4. Compatibility rule
+
+   Until a true blue/green function switch exists, each release must be
+   compatible with the previous release for at least one deploy window:
+
+   - API changes are additive or tolerate old fields.
+   - DB changes follow expand/contract: add new fields first, migrate, then
+     remove old fields in a later release.
+   - New env vars are optional/defaulted for one release before becoming
+     required.
+   - Static site upload stays last, after backend verification.
+
+5. Rollback and resume posture
+
+   The first implementation should favor safe roll-forward plus clear state over
+   pretending that rollback is always automatic. If failure happens before static
+   upload, abort the static upload. If failure happens after static upload, the
+   deployment summary must make it clear which functions and static build are
+   active so the operator can rerun the previous commit or apply a fix-forward
+   commit.
+
+   The script should be idempotent: rerunning the same release id should compare
+   observed state against the manifest and converge missing pieces instead of
+   blindly recreating everything.
+
+6. Deploy concurrency
+
+   The GitHub Actions deploy workflow must serialize deploys per CloudBase EnvId:
+
+   ```yaml
+   concurrency:
+     group: cloudbase-deploy-${{ vars.TCB_ENV_ID || github.ref_name }}
+     cancel-in-progress: false
+   ```
+
+   `cancel-in-progress: false` avoids killing a deploy after some functions have
+   already been updated. Newer runs should wait for the active deploy to finish.
+
+### Version/Alias Research Track
+
+CloudBase HTTP access currently works by mapping a path such as `/api` to a
+CloudBase function name. Tencent Cloud SCF supports function versions, aliases,
+and weighted traffic shifting, including grayscale release and alias rollback.
+That is the likely path for true near-atomic backend switching, but it needs a
+small spike before it becomes part of the main CD design.
+
+Spike questions:
+
+- Can CloudBase-managed functions expose SCF `PublishVersion`, `CreateAlias`,
+  and `UpdateAlias` operations safely through the available Tencent/CloudBase
+  deploy credential?
+- Can CloudBase HTTP access target a function alias or qualifier, or does it
+  always resolve only by function name?
+- If HTTP access cannot target aliases directly, can a stable router function or
+  CloudRun service route to versioned backends without adding unacceptable
+  latency or complexity?
+
+If aliases are viable, the future deployment flow should become:
+
+1. Deploy each function as a new unpublished/latest artifact.
+2. Publish immutable versions for all changed functions.
+3. Smoke the new versions out of band.
+4. Move a stable alias, for example `test-current`, to the new version set.
+5. Keep the previous alias target available for quick rollback.
+
+If aliases are not viable in CloudBase HTTP access, keep the manifest-driven
+rolling deploy, enforce the compatibility rule, and consider grouping tightly
+coupled APIs into fewer functions to reduce mixed-release surface area.
+
+Reference docs:
+
+- CloudBase HTTP access:
+  <https://docs.cloudbase.net/en/service/access-cloud-function>
+- CloudBase cloud function HTTP quick start:
+  <https://docs.cloudbase.net/en/cloud-function/quick-start>
+- Tencent SCF alias grayscale release:
+  <https://www.tencentcloud.com/document/product/583/37458>
+- Tencent SCF traffic routing:
+  <https://www.tencentcloud.com/document/product/583/35952>
+
+### Implementation Landing Points
+
+- `scripts/deploy-cloudbase-test.mjs`: make deployment manifest-driven, add
+  `RELEASE_ID`, preflight current state, verify post-deploy state, and make
+  reruns idempotent.
+- `.github/workflows/deploy-test.yml`: add EnvId-scoped concurrency, pass
+  `GITHUB_SHA` as the release id, and upload the deployment summary artifact.
+- `scripts/smoke-cloudbase-deploy.mjs`: assert release id consistency, runtime
+  consistency, route availability, and public API/site smoke.
+- `apps/functions/*`: expose safe release metadata through health or admin-only
+  diagnostics, without returning secrets.
+
+### Phased Execution
+
+Phase A should be implemented first because it is low risk and immediately
+verifiable: release manifest, `RELEASE_ID`, EnvId concurrency, post-deploy
+consistency checks, and summary output.
+
+Phase B adds stronger resume/rollback metadata and a dry-run or plan mode.
+
+Phase C is the SCF alias/qualifier spike.
+
+Phase D implements alias-based blue/green or canary release only if Phase C
+proves CloudBase HTTP access can route to aliases safely.
