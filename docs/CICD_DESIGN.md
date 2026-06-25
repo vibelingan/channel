@@ -211,7 +211,7 @@ Runner steps:
 
 1. `actions/checkout`
 2. `pnpm/action-setup` with pnpm 11.5.0
-3. `actions/setup-node` with Node 22.12.0 and pnpm cache
+3. `actions/setup-node` with Node 22.13.0 and pnpm cache
 4. `pnpm install --frozen-lockfile`
 5. `pnpm lint`
 6. `pnpm typecheck`
