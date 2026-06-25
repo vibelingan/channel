@@ -168,3 +168,27 @@ CloudBase deployment today.
 5. Add manual `test` deploy workflow.
 6. Add optional/manual E2E workflow.
 7. Add protected `main` -> `prod` workflow only after prod EnvId exists.
+
+## 6. Review Audit (2026-06-25)
+
+The env-var/secret table (§4) and smoke steps (§3) were reconciled against the
+code that actually consumes them (`apps/functions/*/src/index.ts`,
+`packages/shared/src/env.ts`) and the canonical deployment docs. Names match
+except where noted. Workflows are still design-only, so these are
+pre-implementation corrections.
+
+### Findings
+
+| # | Sev | Location | Issue | Fix |
+| --- | --- | --- | --- | --- |
+| C1 | P1 (latent) | §4 variable list | The GitHub Environment variable is named `TCB_ENV_ID`, but both functions read `TCB_ENV` at init (`apps/functions/admin/src/index.ts`, `apps/functions/public-api/src/index.ts`). Step 5 ("update function runtime env from GitHub Environment values") implies a 1:1 copy — copying `TCB_ENV_ID` verbatim makes the function throw `Missing required environment variable: TCB_ENV` at cold start. Doc-nit today, deploy-breaking BLOCK the moment the workflow is implemented. | Map GitHub var `TCB_ENV_ID` -> function runtime var `TCB_ENV` explicitly, or rename the GitHub var to `TCB_ENV`. |
+| C2 | P2 | §3 Test Deploy step 9 | "`GET /api/files/__missing__` remains not publicly exposed" — there is no `/api/files/*` route; this is a generic catch-all 404, not a files guard. (The literal also differs from the spec's `e2e-missing`.) | Reword to "any unknown path (incl. `/api/files/*`) returns 404"; to actually smoke file privacy, hit `/api/images/<unlinked-id>` and expect 404. |
+| C3 | P2 | §3 Test Deploy step 9 | "`POST /api/admin` unauthenticated returns controlled 401" holds only for a protected action sent without a token; a `{}` body returns 400 ("must include an action"). | Specify the smoke posts e.g. `{"action":"list","data":{"collection":"users"}}` with no token to deterministically get 401. |
+| C4 | P3 | §4 variable list | `APP_ENV=test` is listed as required, but no code reads it (only `NODE_ENV` / `PUBLIC_*` / the named runtime vars). | Drop it, or label it explicitly as a non-app deploy label. |
+| C5 | P3 | §3 Manual E2E Gate | The browser-driving suites (admin/mutation/bootstrap and the public render test) require Playwright browser binaries; only `pnpm install --frozen-lockfile` is mentioned. (Verified: discovery fails with "playwright: command not found" before install, and `page`-based tests need the browser.) | Add `npx playwright install --with-deps chromium` to the Manual E2E Gate and the optional public-browser-smoke step. |
+
+### Verified correct
+
+- Env-var names match code: `PUBLIC_API_BASE_URL`, `CORS_ALLOWED_ORIGINS`, `JWT_SECRET`, `ADMIN_PASSWORD_HASH` (not `ADMIN_PASSWORD`), `LOGIN_URL`, `ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_TOKEN`.
+- URL topology (`*.webapps.tcloudbase.com` site / `*.service.tcloudbase.com` API / EnvId `diversity-123-…`) matches `CLOUDBASE_DEPLOYMENT_DESIGN.md`.
+- Smoke routes `/api/health`, `/api/products`, `/api/overstock` exist; every `pnpm` script referenced in §3 exists in `package.json`; no secrets committed; the "no real-DB E2E as a default PR gate" split is sound.
