@@ -104,6 +104,8 @@ they can be found and removed from the CloudBase admin dashboard.
 - `E2E_ENABLE_BOOTSTRAP=1` is required before first-admin bootstrap runs.
 - Admin credentials are read from environment variables only.
 - Test output goes under `output/playwright/`, which is gitignored.
+- Screenshots, traces, and videos are off by default to avoid recording
+  credentials. Set `E2E_RECORD_ARTIFACTS=1` only for non-sensitive debugging.
 - Real secret values must not be committed to `.env.e2e.example` or docs.
 
 ## 6. Current Known Boundary

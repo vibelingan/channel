@@ -83,7 +83,12 @@ export async function removeIfPresent(
   try {
     await adminAction<{ deleted: boolean }>(request, 'remove', { collection, id }, session.token);
   } catch (error) {
-    if (error instanceof Error && error.message.includes('NOT_FOUND')) return;
+    if (
+      error instanceof Error &&
+      (error.message.includes('NOT_FOUND') || error.message.includes('Document not found'))
+    ) {
+      return;
+    }
     throw error;
   }
 }

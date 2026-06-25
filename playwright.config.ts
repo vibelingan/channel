@@ -1,6 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const siteUrl = process.env.E2E_SITE_URL?.replace(/\/+$/, '') ?? 'http://localhost:4321';
+const recordArtifacts =
+  process.env.E2E_RECORD_ARTIFACTS === '1' ||
+  process.env.E2E_RECORD_ARTIFACTS?.toLowerCase() === 'true';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -24,9 +27,9 @@ export default defineConfig({
     baseURL: siteUrl,
     actionTimeout: 15_000,
     navigationTimeout: 45_000,
-    screenshot: 'only-on-failure',
-    trace: 'retain-on-failure',
-    video: 'retain-on-failure',
+    screenshot: recordArtifacts ? 'only-on-failure' : 'off',
+    trace: recordArtifacts ? 'retain-on-failure' : 'off',
+    video: recordArtifacts ? 'retain-on-failure' : 'off',
   },
   projects: [
     {

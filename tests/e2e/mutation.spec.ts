@@ -80,13 +80,14 @@ test.describe('mutation e2e flows', () => {
 
     try {
       await page.goto('/oem#submit', { waitUntil: 'domcontentloaded' });
-      await page.getByLabel(/Company Name/i).fill(company);
-      await page.getByLabel(/Contact Person/i).fill('E2E Contact');
-      await page.getByLabel(/^Email/i).fill(`${e2e.runId}@example.test`);
-      await page.getByLabel(/WhatsApp/i).fill('+1 555 0100');
-      await page.getByLabel(/Product Category/i).selectOption('Headphones');
-      await page.getByLabel(/Estimated Quantity/i).fill('5000');
-      await page.getByLabel(/Upload Drawing/i).setInputFiles({
+      const form = page.locator('form[data-project-form]');
+      await form.locator('[name="company"]').fill(company);
+      await form.locator('[name="contact"]').fill('E2E Contact');
+      await form.locator('[name="email"]').fill(`${e2e.runId}@example.test`);
+      await form.locator('[name="whatsapp"]').fill('+1 555 0100');
+      await form.locator('[name="category"]').selectOption('Headphones');
+      await form.locator('[name="quantity"]').fill('5000');
+      await form.locator('[name="drawing"]').setInputFiles({
         name: `${e2e.runId}-drawing.pdf`,
         mimeType: 'application/pdf',
         buffer: Buffer.from('%PDF-1.4\n% e2e drawing placeholder\n'),
@@ -95,23 +96,36 @@ test.describe('mutation e2e flows', () => {
       await expect(page).toHaveURL(/\/oem_submit_result\?id=/, { timeout: 20_000 });
 
       const url = new URL(page.url());
-      projectId = url.searchParams.get('id') ?? '';
-      expect(projectId).not.toBe('');
+      const referenceId = url.searchParams.get('id') ?? '';
+      expect(referenceId).not.toBe('');
 
-      const project = await adminAction<CollectionDoc>(
-        request,
-        'get',
-        { collection: 'oemProjects', id: projectId },
-        session.token,
-      );
+      let project: CollectionDoc | null = null;
+      await expect
+        .poll(async () => {
+          const result = await adminAction<ListResult<CollectionDoc>>(
+            request,
+            'list',
+            { collection: 'oemProjects', page: 1, pageSize: 5, search: company },
+            session.token,
+          );
+          project = result.items.find((item) => item.company === company) ?? null;
+          if (project) {
+            projectId = project._id;
+            return true;
+          }
+          return false;
+        })
+        .toBe(true);
+
+      expect(project).not.toBeNull();
+      if (!project) throw new Error('OEM project was not readable after submit.');
       expect(project.company).toBe(company);
       expect(project.status).toBe('new');
       fileId = typeof project.drawing === 'string' ? project.drawing : '';
+      expect(fileId).not.toBe('');
 
-      if (fileId) {
-        const file = await request.get(`${e2e.apiUrl}/api/files/${encodeURIComponent(fileId)}`);
-        expect(file.status()).toBe(404);
-      }
+      const file = await request.get(`${e2e.apiUrl}/api/files/${encodeURIComponent(fileId)}`);
+      expect(file.status()).toBe(404);
     } finally {
       if (projectId) await removeIfPresent(request, session, 'oemProjects', projectId);
       if (fileId) await removeIfPresent(request, session, 'files', fileId);

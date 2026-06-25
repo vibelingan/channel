@@ -21,6 +21,7 @@ test.describe('admin authenticated smoke', () => {
 
   test('admin can sign in through the browser and reach dashboard navigation', async ({ page }) => {
     await page.goto('/login?returnTo=/admin', { waitUntil: 'domcontentloaded' });
+    await page.locator('astro-island[component-export="AuthForm"]:not([ssr])').waitFor();
     await page.getByLabel('Email').fill(process.env.E2E_ADMIN_EMAIL ?? '');
     await page.getByLabel('Password').fill(process.env.E2E_ADMIN_PASSWORD ?? '');
     await page.getByRole('button', { name: 'Sign in' }).click();
