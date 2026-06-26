@@ -49,8 +49,8 @@ smoke, and verification sequence.
 
 Trigger:
 
-- `pull_request`
-- Pushes to feature branches, if desired
+- `pull_request` for feature-branch work.
+- Push to `test` and `main` for release-branch checks.
 
 No secrets.
 
@@ -59,7 +59,7 @@ Steps:
 1. Install with `pnpm install --frozen-lockfile`.
 2. Run `pnpm lint`.
 3. Run `pnpm typecheck`, including `tests/e2e` typechecking.
-4. Run `pnpm build:functions`.
+4. Run `pnpm test`.
 5. Run `pnpm package:functions`.
 6. Run `pnpm smoke:functions`.
 7. Run `pnpm build` with non-secret public defaults.
@@ -113,8 +113,9 @@ Trigger:
 Inputs:
 
 - suite: `public`, `admin`, `mutation`, or `bootstrap`
-- site URL
-- API URL
+
+GitHub Environment `test` provides `SITE_URL`, `PUBLIC_API_BASE_URL`,
+`TCB_ENV_ID`, and protected E2E credentials.
 
 Rules:
 
@@ -235,13 +236,14 @@ Runner steps:
 No GitHub Environment and no CloudBase/Tencent secrets are attached to this
 workflow.
 
-### Step 2: Add Manual Test Deploy Workflow
+### Step 2: Add Test Deploy Workflow
 
 Create `.github/workflows/deploy-test.yml`.
 
 Trigger:
 
 - `workflow_dispatch`
+- Push to `test`
 
 Environment:
 
@@ -283,14 +285,13 @@ Trigger:
 Inputs:
 
 - `suite`: `public`, `admin`, `mutation`, or `bootstrap`
-- `site_url`
-- `api_url`
 
 Runner steps:
 
 1. `pnpm install --frozen-lockfile`
 2. `npx playwright install --with-deps chromium`
-3. Export `E2E_SITE_URL` and `E2E_API_URL` from workflow inputs.
+3. Export `E2E_SITE_URL` and `E2E_API_URL` from GitHub Environment values,
+   defaulting from `TCB_ENV_ID` when explicit URLs are absent.
 4. For `admin` and `mutation`, export `E2E_ADMIN_EMAIL` and
    `E2E_ADMIN_PASSWORD` from protected environment values.
 5. For `mutation`, require `suite == mutation` and set `E2E_ALLOW_MUTATION=1`.
