@@ -210,14 +210,12 @@ deployment.
 
 ## 6. Concrete Execution Plan
 
-### Step 1: Add PR CI Workflow
-
-Create `.github/workflows/ci.yml`.
+### Step 1: PR CI Workflow (implemented in `.github/workflows/ci.yml`)
 
 Triggers:
 
-- `pull_request`
-- Push to `dev/albertli/try01`, `test`, and later `main`
+- `pull_request` (all PRs — gates feature-branch work)
+- Push to `test` and `main` (release branches)
 
 Runner steps:
 
@@ -227,11 +225,12 @@ Runner steps:
 4. `pnpm install --frozen-lockfile`
 5. `pnpm lint`
 6. `pnpm typecheck`
-7. `pnpm package:functions`
-8. `pnpm smoke:functions`
-9. `pnpm build`
-10. Static scan of `apps/site/dist` for server secret names
-11. `pnpm test:e2e --list`
+7. `pnpm test` (workspace unit tests)
+8. `pnpm package:functions`
+9. `pnpm smoke:functions`
+10. `pnpm build`
+11. Static scan of `apps/site/dist` for server secret names
+12. `pnpm test:e2e --list`
 
 No GitHub Environment and no CloudBase/Tencent secrets are attached to this
 workflow.
