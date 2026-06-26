@@ -1,0 +1,132 @@
+import { strict as assert } from 'node:assert';
+import test from 'node:test';
+import { buildWriteSchema, getCollection, writableFields } from './collections.ts';
+import {
+  BLOCKED_IMAGE_MIME_TYPES,
+  CATALOG_IMAGE_MAX_BYTES,
+  CATALOG_IMAGE_MIME_TYPES,
+  IMAGE_STORAGE_PROVIDERS,
+  type ImageMetadataDoc,
+  MEDIA_PURPOSES,
+  MEDIA_STATUSES,
+  catalogImageUploadSchema,
+} from './media.ts';
+
+function imagesDef() {
+  const def = getCollection('images');
+  assert.ok(def, 'images collection must be registered');
+  return def;
+}
+
+test('images generic write schema accepts only safe metadata fields', () => {
+  const schema = buildWriteSchema(imagesDef());
+  assert.deepEqual(schema.parse({ name: 'a.jpg', mimeType: 'image/jpeg' }), {
+    name: 'a.jpg',
+    mimeType: 'image/jpeg',
+  });
+});
+
+test('images generic write schema rejects forged storage identifiers', () => {
+  const schema = buildWriteSchema(imagesDef());
+  assert.throws(() =>
+    schema.parse({ name: 'a', mimeType: 'image/jpeg', storageFileId: 'cloud://forged' }),
+  );
+});
+
+test('images generic write schema rejects base64 data writes', () => {
+  const schema = buildWriteSchema(imagesDef());
+  assert.throws(() => schema.parse({ name: 'a', mimeType: 'image/jpeg', data: 'AAAA' }));
+});
+
+test('images generic write schema rejects every server-managed lifecycle field', () => {
+  const schema = buildWriteSchema(imagesDef());
+  const forgeries: Record<string, unknown>[] = [
+    { status: 'active' },
+    { publishedRefCount: 9 },
+    { storageProvider: 'cloudbase-storage' },
+    { storageMode: 'classic-nosql-storage' },
+    { storagePath: 'catalog/2026/06/x/original-p.jpg' },
+    { purpose: 'catalog-image' },
+    { variants: [] },
+    { byteSize: 10 },
+    { checksumSha256: 'deadbeef' },
+  ];
+  for (const forged of forgeries) {
+    assert.throws(
+      () => schema.parse({ name: 'a', mimeType: 'image/jpeg', ...forged }),
+      `expected generic write to reject ${JSON.stringify(forged)}`,
+    );
+  }
+});
+
+test('images writable fields are only name + mimeType', () => {
+  const names = writableFields(imagesDef()).map((f) => f.name);
+  assert.deepEqual(names, ['name', 'mimeType']);
+});
+
+test('media constants expose the policy vocabulary', () => {
+  assert.ok(MEDIA_PURPOSES.includes('catalog-image'));
+  assert.ok(MEDIA_PURPOSES.includes('oem-drawing'));
+  assert.ok(IMAGE_STORAGE_PROVIDERS.includes('legacy-base64'));
+  assert.ok(IMAGE_STORAGE_PROVIDERS.includes('cloudbase-storage'));
+  assert.ok(IMAGE_STORAGE_PROVIDERS.includes('local-disk'));
+  assert.ok(MEDIA_STATUSES.includes('pending'));
+  assert.ok(MEDIA_STATUSES.includes('active'));
+  assert.equal(CATALOG_IMAGE_MAX_BYTES, 10 * 1024 * 1024);
+  assert.ok(CATALOG_IMAGE_MIME_TYPES.includes('image/webp'));
+  assert.ok(BLOCKED_IMAGE_MIME_TYPES.includes('image/svg+xml'));
+});
+
+test('catalog image upload schema accepts a valid request and defaults purpose', () => {
+  const parsed = catalogImageUploadSchema.parse({
+    fileName: 'product.jpg',
+    mimeType: 'image/jpeg',
+    byteSize: 2048,
+  });
+  assert.equal(parsed.purpose, 'catalog-image');
+  assert.equal(parsed.fileName, 'product.jpg');
+});
+
+test('catalog image upload schema rejects blocked MIME, oversize, and empty name', () => {
+  assert.throws(() =>
+    catalogImageUploadSchema.parse({ fileName: 'p.svg', mimeType: 'image/svg+xml', byteSize: 10 }),
+  );
+  assert.throws(() =>
+    catalogImageUploadSchema.parse({
+      fileName: 'p.jpg',
+      mimeType: 'image/jpeg',
+      byteSize: CATALOG_IMAGE_MAX_BYTES + 1,
+    }),
+  );
+  assert.throws(() =>
+    catalogImageUploadSchema.parse({ fileName: '', mimeType: 'image/jpeg', byteSize: 10 }),
+  );
+});
+
+test('ImageMetadataDoc models both storage-backed and legacy records', () => {
+  const storage: ImageMetadataDoc = {
+    _id: 'img1',
+    name: 'product.jpg',
+    mimeType: 'image/jpeg',
+    purpose: 'catalog-image',
+    storageProvider: 'cloudbase-storage',
+    storageMode: 'classic-nosql-storage',
+    storageFileId: 'cloud://x',
+    storagePath: 'catalog/2026/06/img1/original-product.jpg',
+    byteSize: 2048,
+    status: 'active',
+    publishedRefCount: 1,
+  };
+  const legacy: ImageMetadataDoc = {
+    _id: 'img2',
+    name: 'placeholder.svg',
+    mimeType: 'image/svg+xml',
+    purpose: 'inline-small',
+    storageProvider: 'legacy-base64',
+    status: 'active',
+    publishedRefCount: 1,
+    data: 'PHN2Zz4=',
+  };
+  assert.equal(storage.storageProvider, 'cloudbase-storage');
+  assert.equal(legacy.storageProvider, 'legacy-base64');
+});

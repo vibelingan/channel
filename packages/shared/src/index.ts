@@ -2,6 +2,7 @@ export * from './api.ts';
 export * from './errors.ts';
 export * from './env.ts';
 export * from './collections.ts';
+export * from './media.ts';
 export * from './auth.ts';
 export * from './query.ts';
 

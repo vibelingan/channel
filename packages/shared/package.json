@@ -8,15 +8,18 @@
     "./api": "./src/api.ts",
     "./errors": "./src/errors.ts",
     "./env": "./src/env.ts",
-    "./collections": "./src/collections.ts"
+    "./collections": "./src/collections.ts",
+    "./media": "./src/media.ts"
   },
   "scripts": {
+    "test": "tsx --test src/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2"
+    "@types/node": "^22.10.2",
+    "tsx": "^4.22.4"
   }
 }
