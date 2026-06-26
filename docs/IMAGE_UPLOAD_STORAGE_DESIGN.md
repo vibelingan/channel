@@ -1845,3 +1845,96 @@ Exit criteria:
 - Current admin image UI: `apps/site/src/islands/admin/ImageManager.tsx`
 - Current admin handler: `apps/functions/admin/src/handler.ts`
 - Current public image delivery: `apps/functions/public-api/src/handler.ts`
+
+## 22. CloudBase-Validated Review (MIU Pass)
+
+Second review pass added 2026-06-26. This pass reviewed the hardened design plus
+the Section 20 MIU plan, and validated the load-bearing CloudBase mechanics
+against the official CloudBase knowledge base (cloud-functions skill,
+cloud-storage-web skill, and CloudBase docs search). It is an append-only
+addendum; it does not change Sections 1-21.
+
+Verdict: approve with minor changes. The revision is implementation-ready. It
+addresses every prior review finding, and its P0 byte path is a documented
+CloudBase pattern rather than an unproven assumption. Two findings (22.3-1 and
+22.3-2) should be folded into MIU-00 before implementation starts.
+
+### 22.1 Prior findings disposition
+
+| Prior finding | Resolution in this revision | Status |
+| --- | --- | --- |
+| P1 - Option A transport unproven on classic mode | MIU-00 readiness gate; Option C is P0 only if MIU-00 proves route capacity; MIU-07 isolates browser-direct with no P0 dependency | Resolved |
+| P2 - O(catalog) scan per image read | MIU-04 adds `publishedRefCount` maintained atomically via `db.command.inc`, with backfill and legacy fallback | Resolved |
+| P2 - no 3xx redirect path in adapter | MIU-04 ships proxy delivery (`getObjectAsBase64` to `BinaryResult`), avoiding the missing redirect path | Resolved |
+| P2 - forgeable `storageFileId` via generic CRUD | MIU-01 marks storage fields read-only; dedicated actions use `createDoc`/`updateDoc`; tests assert generic writes reject `storageFileId`/`data` | Resolved |
+| P3 - OEM has no prod delivery route | MIU-08 adds an authenticated admin delivery route, scoped separately | Resolved |
+| P3 - first-integration cost omitted | MIU-00 and MIU-02 budget SDK typings, local-disk shim, and smoke | Resolved |
+
+### 22.2 CloudBase validation results
+
+Each load-bearing CloudBase claim was checked against official guidance.
+
+| Design claim or gate | Doc verdict |
+| --- | --- |
+| Server function writes bytes to storage via SDK, frontend resolves a temp URL (MIU-03 + MIU-04 P0) | Confirmed. This is a canonical documented recipe (server SDK writes to storage, frontend uses `getTempFileURL`). |
+| `wx-server-sdk` can perform storage operations server-side (MIU-00/02) | Confirmed. The existing `wx-server-sdk` dependency wraps storage; a second SDK is not required for P0. |
+| HTTP-access functions can receive multipart/binary bodies (MIU-03) | Confirmed. The function `event` carries `multipart/form-data` and binary PUT bodies. Only the body-size cap is open, which is why MIU-00 measures it. |
+| Private bucket requires proxy or temp URL; store `fileID` not URL (Section 13) | Confirmed. Public URLs return 403 on private buckets; temp URLs are signed and short-lived. |
+| Browser-direct upload needs security domains plus a publishable key (MIU-07, Section 13) | Confirmed. Security-domain config, CloudBase Auth identity, and a publishable key are all required; this project has none, so the spike gating is correct. |
+| Do not weaken storage permissions to enable browser upload (Section 13) | Confirmed. By default only authenticated users may upload or delete. |
+| Env var updates must merge, not overwrite (MIU-09) | Confirmed. Matches the documented requirement to read-merge-update function env vars. |
+
+Section 13 hardening gates are well aligned with platform reality.
+
+### 22.3 New findings
+
+P2 (fold into MIU-00 before implementation):
+
+1. `getTempFileURL` typing mismatch. MIU-00 declares
+   `getTempFileURL({ fileList: string[] })`, but the project imports
+   `wx-server-sdk`, whose signature is
+   `getTempFileURL({ fileList: [{ fileID, maxAge }] })` (object form). As written
+   the typing drops `maxAge` or fails to type-check. `uploadFile({ cloudPath,
+   fileContent })` and `deleteFile({ fileList: string[] })` are correct; note
+   `deleteFile` caps at 50 files per call. Fix: pin the SDK in MIU-00 and match
+   the object-form signature.
+
+2. MIU-00 should also probe the native HTTP Function path. CloudBase documents a
+   distinct native HTTP Function type positioned for file upload, separate from
+   the Event-Functions-behind-HTTP-access that `admin`/`public-api` use today.
+   MIU-00's fallback chain (server upload -> direct storage -> CloudRun) should
+   add a fourth branch: does converting or adding a native HTTP Function raise
+   the body cap enough to keep server upload viable without CloudRun? Decide
+   early whether to provision a publishable key or accept CloudRun, so MIU-00
+   cannot dead-end if server upload fails the capacity gate.
+
+P3:
+
+3. Avoid double `cloud.init`. `packages/db/src/cloudbase-adapter.ts` already calls
+   `cloud.init({ env })` guarded by an `initialized` flag. The MIU-02 media
+   storage adapter must share that single init, not re-init in each function
+   `index.ts`. `cloud.DYNAMIC_CURRENT_ENV` is the standard env auto-resolver if
+   explicit env is ever dropped.
+
+4. Proxy delivery re-inflates and re-routes bytes. MIU-04's base64 proxy is a
+   sound P0 (it correctly avoids the missing redirect path), but it adds about
+   33 percent response inflation and routes bytes back through compute on every
+   cache miss. Schedule the temp-URL redirect (add a `RedirectResult` to the
+   adapter union) as an explicit fast-follow, not a permanent choice.
+
+5. Legacy SVG versus the new SVG block. MIU-03 blocks `image/svg+xml` for new
+   uploads (correct, since SVG is active content), but seeded assets are SVGs and
+   the current uploader accepts SVG. MIU-06 must carry legacy SVGs through the
+   `legacy-base64` read path and not run them through MIU-03's upload MIME
+   allowlist.
+
+6. Compute checksum server-side. MIU-03 stores `checksumSha256` from the client
+   but never verifies it. On server-side upload the function holds the bytes and
+   should compute the SHA-256 itself rather than trust the client value. For
+   MIU-07 browser-direct, the post-upload verify is already required.
+
+### 22.4 Gate decision
+
+Approved with minor changes. None of the new findings block. Fold 22.3-1 and
+22.3-2 into MIU-00 before implementation; treat 22.3-3 through 22.3-6 as
+implementation notes for their respective MIUs.
