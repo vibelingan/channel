@@ -1,6 +1,6 @@
 # Image Upload And Storage Design
 
-Status: design proposal, no implementation in this branch
+Status: design proposal, review-hardened with CloudBase skill guidance; no implementation in this branch
 Scope: product images, catalog media, and adjacent uploaded files in the current CloudBase infrastructure
 Last updated: 2026-06-26
 
@@ -22,12 +22,44 @@ The recommended direction is a storage-first media architecture:
   product image uploads.
 - Route different media classes through different policies when their size,
   privacy, format, or processing needs differ.
+- For the current infrastructure, ship P0 byte upload with Option C
+  (server-side `cloud.uploadFile` behind the existing custom JWT), while
+  adopting Option A's metadata and delivery architecture as the durable target.
+- Gate browser-direct upload behind a Phase-0 spike because the current
+  deployment docs say the browser publishable key is absent.
 
 This means the answer is not "all images must use exactly the same upload
 method." The durable model is a media asset service with a policy matrix:
 product photos, thumbnails, SVG placeholders, OEM drawings, and future marketing
 assets can share metadata conventions while choosing different upload transports
 and storage namespaces.
+
+## Review Source And Hardening Disposition
+
+This pass checked the available GitHub review surfaces before hardening the
+design:
+
+- PR #1 exists for `dev/albertli/try01`, but GitHub API review scans returned no
+  conversation comments, no review records, and no inline pull-request comments.
+- The image-upload branch does not currently have a matching GitHub PR.
+- Existing project review precedent lives in documents such as
+  `docs/CICD_EXECUTION.md`, where review feedback is folded into hardened design
+  and execution notes after a thread-aware scan.
+- Remote review commit `cb75f78` was fetched from the design branch and folded
+  into this final design. Its verdict was "approve with changes": keep the
+  target metadata model, but re-rank the P0 byte transport to Option C.
+
+The CloudBase-specific hardening in this revision comes from:
+
+- CloudBase main skill guidance.
+- CloudBase Storage Web SDK guidance.
+- Cloud Functions guidance, especially the distinction between Event Functions
+  exposed through HTTP access and native HTTP Functions.
+- Existing deployment design guardrails around private storage, append-only
+  migration, object cleanup, and media privacy smoke tests.
+
+Disposition: no code changes are made here. The design is hardened in place so
+the next implementation pass has clear CloudBase gates and fallback decisions.
 
 ## 2. Current Infra Facts
 
@@ -47,13 +79,17 @@ Repository facts:
 
 Deployment facts from the existing CloudBase design docs:
 
-- The deployed APIs are CloudBase HTTP access routes:
+- The deployed APIs are CloudBase HTTP access routes to Event Functions:
   - `/api/admin` -> `admin`
   - `/api` -> `public-api`
 - The selected current environment is CloudBase NoSQL/classic mode.
 - The CloudBase storage bucket exists and is private.
 - The app currently uses function-mediated database access, not direct browser
   database writes.
+- The current functions are not native CloudBase HTTP Functions. They use
+  Event-Function-style handlers behind HTTP access, so this media design should
+  not force a `scf_bootstrap` or port-9000 runtime migration unless the team
+  intentionally chooses a dedicated media gateway.
 
 Official CloudBase facts that matter to this design:
 
@@ -67,6 +103,10 @@ Official CloudBase facts that matter to this design:
   download URLs, public URLs, metadata, and image transform options.
 - The HTTP storage API can provide upload information that the client can use to
   PUT bytes directly to storage.
+- Browser-side storage work requires bucket readiness and security-domain
+  readiness before frontend code is treated as complete.
+- Temporary URLs are not durable identifiers. Store `fileID`, storage key, and
+  metadata; resolve temporary delivery URLs on demand.
 
 ## 3. Problem Statement
 
@@ -121,6 +161,10 @@ Goals:
   records should be publicly retrievable.
 - Support gradual migration from legacy base64 documents.
 - Make verification and rollback straightforward.
+- Keep direct browser database access out of the P0/P1 design. Browser upload
+  may touch storage only through an explicitly validated storage path.
+- Keep the storage bucket private unless a later CDN/public-variant decision is
+  separately reviewed.
 
 Non-goals:
 
@@ -152,10 +196,18 @@ Policy rules:
   URL policy, not by fabricating URLs in the browser.
 - Every uploaded asset should have a purpose, owner/reference, MIME type, size,
   storage key, and lifecycle state.
+- Do not store temporary download URLs in NoSQL. They expire and can leak access
+  policy. Store durable storage identifiers only.
+- If the project later moves to CloudBase PG storage, the upload API and
+  permission model must change to the PG storage/RLS model; do not reuse classic
+  CloudBase `app.uploadFile()` assumptions in PG mode.
 
 ## 6. Option A - Admin-Brokered Direct Upload To CloudBase Storage
 
-This is the recommended target for product catalog images.
+This is the recommended target architecture for product catalog images, but not
+the recommended P0 byte transport on the current stack. Adopt its metadata,
+policy, and delivery model now. Gate browser-direct/admin-brokered PUT behavior
+behind a Phase-0 spike against the deployed test EnvId.
 
 High-level flow:
 
@@ -190,7 +242,8 @@ Architecture:
   - `createMediaUploadIntent`
   - `completeMediaUpload`
   - `removeMediaAsset`
-- Keep generic CRUD for metadata edits, but do not use it for media bytes.
+- Generic CRUD may read/display safe media metadata, but raw storage fields,
+  status transitions, and activation must be owned by dedicated media actions.
 - Store product image metadata in `images`.
 - Add storage fields while preserving legacy fields:
 
@@ -201,12 +254,16 @@ images
   mimeType
   purpose: "catalog-image" | "thumbnail" | "marketing" | ...
   storageProvider: "cloudbase-storage" | "legacy-base64"
+  storageMode: "classic-nosql-storage" | "pg-storage" | "external"
   storageFileId
   storagePath
   byteSize
   width
   height
   checksum
+  status: "pending" | "active" | "deleted" | "failed"
+  uploadIntentId
+  referenceCount
   variants: [
     { role, storageFileId, width, height, mimeType, byteSize }
   ]
@@ -216,15 +273,23 @@ images
   data?              # legacy only
 ```
 
+The shape above is the persistence model. It is not permission to expose every
+field through generic `create`/`update` writes.
+
 Delivery choices:
 
-- P0 delivery: `/api/images/:id` verifies that the image is public, then returns
-  a short-lived redirect to a CloudBase temp URL. This keeps app-level
-  visibility rules while avoiding server-side byte streaming.
-- Safer fallback: `/api/images/:id` proxies bytes from storage if redirect
-  semantics or CORS are problematic.
-- Later optimization: public catalog variants can use cacheable public/CDN URLs
-  once access rules and invalidation are proven.
+- P0 delivery: `/api/images/:id` verifies that the image is public, then proxies
+  storage bytes through the existing `BinaryResult` response shape.
+- P0 visibility should not keep the current O(catalog) scan on every image hit.
+  Use a denormalized `publishedRefCount`/`isPublic` field or a reverse index.
+- Later redirect optimization: add an explicit `RedirectResult`/3xx path to the
+  public-api adapter, then return a short-lived CloudBase temp URL when that
+  behavior is tested.
+- Later CDN optimization: public catalog variants can use cacheable public/CDN
+  URLs once access rules and invalidation are proven.
+- Cache headers must respect the delivery mode. Signed/temp URL redirects should
+  not be cached beyond the signed URL lifetime; public CDN variants may use
+  longer caching only after their public policy is explicit.
 
 Why this fits current infra:
 
@@ -242,15 +307,19 @@ Tradeoffs:
 | Security | Strong if intents are short-lived and purpose-scoped. Existing admin roles remain source of truth. |
 | Implementation effort | Medium. Requires new media actions, storage signing integration, metadata verification, and migration fallback. |
 | UX | Good. Browser can show progress and retry raw upload independently. |
-| Operational fit | Good. Uses existing CloudBase Storage and current HTTP functions. |
+| Operational fit | Good. Uses existing CloudBase Storage and current Event Functions exposed through HTTP access. |
 | Risk | The exact storage-signing mechanism must be validated in the current CloudBase classic environment before coding. |
 
 Recommendation:
 
-- Use Option A as the target architecture for product images.
-- Validate upload-intent generation against the deployed CloudBase environment
-  before implementation starts.
+- Use Option A as the target metadata and delivery architecture for product
+  images.
+- Do not make browser-direct upload a P0 dependency. Validate upload-intent
+  generation against the deployed CloudBase environment as a Phase-0 spike.
 - Keep base64 reads only for legacy image records.
+- If the current classic CloudBase environment cannot safely broker direct
+  upload info from the admin function, keep P0 on Option C. Do not loosen
+  storage rules just to make browser upload work.
 
 ## 7. Option B - Direct Browser CloudBase Web SDK Upload
 
@@ -285,6 +354,9 @@ Costs in the current app:
 - Browser SDK upload also depends on safe domains/security rules being correct.
 - This may introduce two auth/session models: app JWT for admin API and
   CloudBase Auth for storage.
+- If this path is chosen, the implementation must first configure and verify
+  CloudBase publishable key, exact security domains, storage bucket existence,
+  and storage permission rules for the current EnvId.
 
 Tradeoffs:
 
@@ -328,6 +400,9 @@ Variants:
 - Cloud Function multipart endpoint for moderate product images.
 - CloudRun media gateway for larger OEM files, transformation jobs, malware
   scanning, or resumable uploads.
+- Current Event Functions exposed via HTTP access can keep the existing handler
+  model for metadata operations. Native HTTP Functions should be introduced only
+  if streaming/multipart behavior requires a real HTTP server contract.
 
 Strengths:
 
@@ -356,9 +431,13 @@ Tradeoffs:
 
 Recommendation:
 
-- Use only when backend processing or stricter privacy is worth the compute hop.
-- Consider CloudRun for OEM drawings and large private files, not for the first
-  product-image fix unless signing direct uploads is blocked.
+- Use Option C as the P0 byte transport for product images on the current
+  infrastructure.
+- Keep custom JWT as the only browser credential, upload bytes server-side with
+  CloudBase storage APIs, then write metadata through dedicated media actions.
+- Consider CloudRun for OEM drawings, large private files, resumable uploads, or
+  scanning workflows. Do not add CloudRun just to solve the first product-image
+  limit.
 
 ## 9. Option D - External Object Storage Or COS-First Media Service
 
@@ -414,8 +493,9 @@ Recommendation:
 
 ## 10. Recommended Architecture
 
-Choose Option A as the core architecture, implemented as a policy-based media
-asset service.
+Choose Option A's metadata and delivery model as the core architecture,
+implemented as a policy-based media asset service. For P0 on the current stack,
+use Option C's server-side byte transport inside that architecture.
 
 ```mermaid
 flowchart TB
@@ -424,7 +504,7 @@ flowchart TB
     ShopUI["Shop product/gallery UI"]
   end
 
-  subgraph API["CloudBase HTTP functions"]
+  subgraph API["CloudBase Event Functions via HTTP access"]
     AdminAPI["admin: auth, upload intents, metadata"]
     PublicAPI["public-api: catalog + image delivery policy"]
   end
@@ -434,14 +514,14 @@ flowchart TB
     Storage["CloudBase Storage: catalog/, oem/, marketing/"]
   end
 
-  AdminUI -->|"create intent / complete"| AdminAPI
+  AdminUI -->|"P0 raw file upload"| AdminAPI
   AdminAPI -->|"metadata writes"| NoSQL
-  AdminAPI -->|"signed upload info / verification"| Storage
-  AdminUI -->|"raw file upload"| Storage
+  AdminAPI -->|"P0 cloud.uploadFile / verification"| Storage
+  AdminUI -.->|"Phase-0 target direct upload if proven"| Storage
   ShopUI -->|"GET catalog"| PublicAPI
   ShopUI -->|"GET /api/images/:id"| PublicAPI
   PublicAPI -->|"published-reference check"| NoSQL
-  PublicAPI -->|"temp URL / proxy"| Storage
+  PublicAPI -->|"P0 proxy / later temp URL redirect"| Storage
 ```
 
 Key decisions:
@@ -504,6 +584,13 @@ Upload security:
   becomes active.
 - Storage keys should be generated server-side. The browser should not choose
   arbitrary paths.
+- Storage write permissions must stay scoped. A browser upload path may receive
+  one object-specific upload grant or use a verified SDK permission model, but
+  it must not require broad public write access to the bucket.
+- MIME validation should not trust `File.type` alone. Validate extension, MIME,
+  and lightweight file signature where practical before activation.
+- SVG product uploads should be blocked or sanitized by a documented policy.
+  Treat SVG as executable/vector content, not just an image byte stream.
 
 Read security:
 
@@ -514,6 +601,8 @@ Read security:
   - unlinked images are not public
 - OEM files remain separate from `/api/images/:id`.
 - Admin-only downloads use admin-authenticated routes or private signed URLs.
+- Do not log temporary URLs, upload grants, JWTs, or storage credentials. Logs
+  may include image ID, intent ID, storage key hash/prefix, and outcome.
 
 Abuse controls:
 
@@ -523,7 +612,31 @@ Abuse controls:
 - Consider file moderation/scanning before public visibility if real customer
   uploads become common.
 
-## 13. Migration Strategy
+## 13. CloudBase Hardening Gates
+
+These gates are mandatory before implementation moves beyond a local spike.
+
+| Gate | Required proof | Why it matters |
+| --- | --- | --- |
+| EnvId explicitness | Every storage, function, and management operation uses the canonical CloudBase EnvId. | Avoids accidental writes to a CLI-selected or developer-local environment. |
+| Bucket readiness | Query or inspect the target storage bucket before browser upload work. | CloudBase upload APIs fail with bucket-missing errors; frontend retries do not fix missing resources. |
+| Security-domain readiness | Verify the deployed site origin and local test origin in CloudBase security domains when using browser SDK upload. | Browser storage upload can fail from CORS/domain policy even when code is correct. |
+| Function model boundary | Keep `admin` and `public-api` as Event Functions behind HTTP access unless a media gateway explicitly adopts native HTTP Function or CloudRun. | Prevents accidental runtime migration to `scf_bootstrap`/port 9000 just for metadata actions. |
+| Storage permission boundary | Prove uploads work without public bucket write access and without direct browser NoSQL writes. | Keeps the custom JWT admin model as source of truth. |
+| Delivery boundary | `/api/images/:id` must check published catalog references before resolving storage. | Preserves the current public privacy contract. |
+| Temp URL handling | Store `fileID`/key only; generate temp URLs on demand and cap redirect caching by temp URL lifetime. | Prevents expired URLs in data and avoids long-lived leakage. |
+| Migration safety | Use append-only object paths, idempotent metadata backfill, immutable backup, and orphan cleanup. | Allows rollback without deleting source bytes. |
+| Deterministic privacy smoke | Test a published image, an unlinked image, and a missing image. | Replaces weak catch-all media smoke with the actual privacy boundary. |
+
+Fallback rule:
+
+- P0 baseline uses Option C. The browser-direct/admin-brokered upload grant may
+  graduate to Option A's byte transport only if the Phase-0 spike passes all
+  gates. If any gate fails, continue with Option C for product images or a
+  CloudRun media gateway for large/private files. Do not weaken storage
+  permissions to make browser upload work.
+
+## 14. Migration Strategy
 
 Phase 0 - validation:
 
@@ -531,11 +644,20 @@ Phase 0 - validation:
   upload-signing method in the deployed test env.
 - Confirm browser domain/security-domain requirements for the selected upload
   path.
+- Run a single end-to-end spike using the exact test EnvId before frontend work:
+  intent -> raw upload -> object verification -> metadata activation -> public
+  image resolution.
+- Decide the classic-mode API path explicitly:
+  - admin-brokered HTTP storage upload info, if safe and supported
+  - browser CloudBase Web SDK upload, if CloudBase Auth/domain rules are
+    intentionally adopted
+  - server-side upload fallback, if direct upload cannot be proven
 
 Phase 1 - compatibility schema:
 
 - Extend `images` schema to support metadata fields and `storageProvider`.
 - Keep `data` optional for legacy base64 records.
+- Add `status` and `uploadIntentId` so incomplete uploads never become public.
 - Update public image delivery to branch by provider:
   - `legacy-base64` -> existing DB byte response
   - `cloudbase-storage` -> storage temp URL redirect or proxy
@@ -554,6 +676,10 @@ Phase 3 - migration:
 - Keep a rollback window where both providers work.
 - After enough production soak time, remove legacy base64 writes and eventually
   remove legacy base64 reads.
+- Treat object writes as append-only during migration. Use UUID or
+  content-addressed paths and do not overwrite existing storage paths.
+- Delete uploaded objects as compensation if metadata activation fails, or mark
+  them for orphan cleanup if synchronous delete is unavailable.
 
 Phase 4 - OEM files:
 
@@ -561,7 +687,7 @@ Phase 4 - OEM files:
 - Decide whether public unauthenticated OEM submissions use signed direct upload
   with stricter anti-abuse controls or a CloudRun media gateway.
 
-## 14. Implementation Boundaries
+## 15. Implementation Boundaries
 
 Frontend:
 
@@ -576,6 +702,10 @@ Admin function:
 - Owns authorization, upload intent creation, upload completion, metadata
   creation, delete/orphan cleanup, and audit fields.
 - Does not receive product image bytes in JSON.
+- Remains an Event Function behind HTTP access unless the implementation
+  explicitly introduces a separate media gateway.
+- Must merge any future function config changes rather than assuming deploys can
+  replace environment variables wholesale.
 
 Public API function:
 
@@ -593,22 +723,25 @@ Local server:
 - It can store files on disk under a local media directory while preserving the
   same image metadata shape.
 
-## 15. Option Decision Matrix
+## 16. Option Decision Matrix
 
 | Option | Best use | Fit now | Sustainability | Main concern |
 | --- | --- | --- | --- | --- |
-| A. Admin-brokered direct CloudBase Storage upload | Product catalog images | Best | High | Validate signing/upload-info path |
-| B. Browser CloudBase Web SDK upload | Apps using CloudBase Auth in browser | Medium | High | Dual auth with current custom JWT |
-| C. Server-side multipart/function upload | Private/sensitive files, moderate sizes | Medium | Medium | Compute/body-size ceiling |
+| A. Admin-brokered direct CloudBase Storage upload | Target metadata/delivery architecture | Gated | High | Browser-direct grant unproven without publishable key |
+| B. Browser CloudBase Web SDK upload | Apps using CloudBase Auth in browser | Later | High | Publishable key and dual-auth boundary |
+| C. Server-side multipart/function upload | P0 product image byte transport | Best | Medium | Compute/body-size ceiling and first storage integration |
 | C2. CloudRun media gateway | Large OEM files, scanning, heavy processing | Later | High | New runtime and ops |
 | D. External object storage/COS-first | Media-heavy future platform | Later | High | More provider/ops complexity |
 | Legacy base64 | Tiny inline assets and migration fallback | Limited | Low for product photos | Size, DB bloat, gateway limits |
 
-## 16. Open Questions Before Implementation
+## 17. Open Questions Before Implementation
 
 - Which exact CloudBase storage API should issue upload intents in the current
   classic NoSQL environment: Web SDK mediated flow, HTTP storage upload info, or
   server SDK/manager support?
+- Does the chosen path require CloudBase Web Auth/publishable key, or can the
+  existing custom JWT admin function safely broker object-specific upload
+  grants?
 - Should original product images be retained, or should the largest normalized
   display variant become the source of truth?
 - What maximum upload size should product admins see in UI: 5 MB, 10 MB, or
@@ -619,39 +752,45 @@ Local server:
   batch?
 - Do we want temporary redirects from `/api/images/:id`, or function proxying
   for stricter URL opacity?
+- What lifecycle window should pending upload intents have before cleanup, for
+  example 15 minutes or 24 hours?
 
-## 17. Recommended Next Implementation Plan
+## 18. Recommended Next Implementation Plan
 
-1. Validate CloudBase storage upload-intent mechanics in the deployed test env.
-2. Add metadata-compatible `images` schema fields with legacy fallback.
-3. Add admin media actions for intent, completion, and deletion.
-4. Update public image delivery to support storage-backed records.
-5. Update the admin uploader to use raw storage upload and progress states.
-6. Add focused tests:
+1. Confirm bucket readiness, storage API availability, and function-side
+   `cloud.uploadFile`/temp URL support in the deployed test env.
+2. Confirm security-domain readiness and storage permission
+   boundaries through MCP/console inspection before frontend implementation.
+3. Add metadata-compatible `images` schema fields with legacy fallback.
+4. Add admin media actions for intent, completion, and deletion.
+5. Keep raw storage metadata out of generic `create`/`update` writes; media
+   actions should use dedicated validation and trusted writers.
+6. Add a visibility index or denormalized `publishedRefCount`/`isPublic` so
+   storage delivery does not carry forward the current O(catalog) image scan.
+7. Update public image delivery to support storage-backed records with P0 proxy
+   delivery.
+8. Update the admin uploader to send raw bytes to the server-side media endpoint
+   with progress states.
+9. Run the browser-direct upload grant spike separately. Promote to Option A
+   byte transport only if the classic-mode auth/domain/storage path is proven.
+10. Add focused tests:
    - legacy base64 image still renders
    - unlinked storage image is not public
    - published product storage image resolves
    - upload completion rejects wrong MIME/size/storage key
-7. Deploy to test and verify:
+   - pending/incomplete upload is not public
+   - bucket-missing or permission-denied failures surface as actionable admin UI
+     errors
+   - generic CRUD cannot forge `storageFileId` or activate pending media
+11. Deploy to test and verify:
    - admin can upload normal product images
    - product card/detail/gallery render
    - unpublished/unlinked images stay private
    - old seeded/base64 images still render
 
-## 18. References
-
-- CloudBase Storage overview: https://docs.cloudbase.net/en/storage/introduce
-- CloudBase Web SDK storage API: https://docs.cloudbase.net/en/api-reference/webv2/storage
-- CloudBase server Node SDK storage API: https://docs.cloudbase.net/en/api-reference/server/node-sdk/storage
-- CloudBase HTTP storage upload info: https://docs.cloudbase.net/en/http-api/storage/get-objects-upload-info
-- Current admin upload code: `apps/site/src/islands/admin/api.ts`
-- Current admin image UI: `apps/site/src/islands/admin/ImageManager.tsx`
-- Current admin handler: `apps/functions/admin/src/handler.ts`
-- Current public image delivery: `apps/functions/public-api/src/handler.ts`
-
 ## 19. Review Notes - Infra-Grounded Assessment
 
-Reviewer pass added 2026-06-26. This section is an addendum: it does not change
+Reviewer pass added 2026-06-26. This section is an addendum: it hardens
 the sections above, it records an independent review of them against the actual
 code on this branch. Verdict: approve with changes. The problem diagnosis and the
 target metadata model are correct. The option *ranking* should be re-ordered for
@@ -774,3 +913,15 @@ Four infra realities that change the ranking:
 Approved with changes. The diagnosis and target metadata model are right; the
 option ranking should be re-ordered for this infra so P0 ships on Option C while
 Option A remains the architectural north star.
+
+## 20. References
+
+- CloudBase Storage overview: https://docs.cloudbase.net/en/storage/introduce
+- CloudBase Web SDK storage API: https://docs.cloudbase.net/en/api-reference/webv2/storage
+- CloudBase server Node SDK storage API: https://docs.cloudbase.net/en/api-reference/server/node-sdk/storage
+- CloudBase HTTP storage upload info: https://docs.cloudbase.net/en/http-api/storage/get-objects-upload-info
+- CloudBase function boundary guidance: `cloudbase/references/cloud-functions/SKILL.md`
+- Current admin upload code: `apps/site/src/islands/admin/api.ts`
+- Current admin image UI: `apps/site/src/islands/admin/ImageManager.tsx`
+- Current admin handler: `apps/functions/admin/src/handler.ts`
+- Current public image delivery: `apps/functions/public-api/src/handler.ts`
