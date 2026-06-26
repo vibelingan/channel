@@ -648,3 +648,129 @@ Local server:
 - Current admin image UI: `apps/site/src/islands/admin/ImageManager.tsx`
 - Current admin handler: `apps/functions/admin/src/handler.ts`
 - Current public image delivery: `apps/functions/public-api/src/handler.ts`
+
+## 19. Review Notes - Infra-Grounded Assessment
+
+Reviewer pass added 2026-06-26. This section is an addendum: it does not change
+the sections above, it records an independent review of them against the actual
+code on this branch. Verdict: approve with changes. The problem diagnosis and the
+target metadata model are correct. The option *ranking* should be re-ordered for
+the current infrastructure so the first fix ships on Option C while Option A
+remains the architectural north star.
+
+### 19.1 Verdict
+
+The design is structurally sound, and its "Current Infra Facts" were verified
+against the code and found accurate. The one substantive correction:
+
+- Decouple the *metadata architecture* (storage-first `images`, purpose
+  policies, delivery indirection) from the *byte transport* (who PUTs the bytes).
+- Adopt the metadata architecture now (this is Option A's durable core).
+- Ship the byte transport as Option C (server-side `cloud.uploadFile`) for P0,
+  not Option A's browser-direct upload, for the infra reasons below.
+
+### 19.2 Infra-accuracy audit
+
+Confirmed accurate against code:
+
+- Base64 encode in browser then `createRecord('images')`:
+  `apps/site/src/islands/admin/api.ts` (`fileToBase64`, `uploadImage`).
+- `/api/images/:id` returns base64 binary from the DB:
+  `apps/functions/public-api/src/handler.ts` (`getCatalogImage`).
+- `files` uses the same base64-in-DB pattern for OEM drawings:
+  `apps/functions/admin/src/handler.ts` (`submitProject`).
+- Admin auth is custom JWT, not CloudBase Web Auth:
+  `apps/functions/admin/src/handler.ts` (`verifySession`).
+- Classic NoSQL mode, private bucket, no publishable key:
+  `docs/CLOUDBASE_DEPLOYMENT_DESIGN.md`.
+
+Four infra realities that change the ranking:
+
+1. The storage plane is completely unintegrated. The hand-written ambient
+   typings for `wx-server-sdk` declare only `init` and `database`, no
+   `uploadFile`/`getTempFileURL`/`deleteFile` (`packages/db/src/wx-server-sdk.d.ts`).
+   No storage SDK call exists anywhere in app code. Every storage option is
+   greenfield; "Medium" effort under-counts the first-integration tax (typings,
+   local-dev disk shim, deploy smoke).
+
+2. Server-side `cloud.uploadFile` already works at runtime; browser-direct
+   upload does not. `packages/db` depends on `wx-server-sdk`, which bundles
+   `@cloudbase/node-sdk` (the storage-capable server SDK). So Option C's byte
+   path runs on capabilities the function already has. Option A's browser PUT
+   and all of Option B need a browser-usable storage credential, which in
+   classic mode comes from the Web SDK session - i.e. the publishable key the
+   deploy docs say is absent. This inverts the doc's confidence: Option A is
+   rated "best fit now," but its defining mechanism is the least certain to
+   exist on this stack, while Option C (rated "Medium") is the most readily
+   implementable.
+
+3. The public-api HTTP adapter has no redirect (3xx) path. It only emits 200
+   (binary), 204, or error codes (`apps/functions/public-api/src/http-adapter.ts`).
+   Option A's preferred "302 to a temp URL" is new adapter code; the "proxy"
+   fallback fits the existing `BinaryResult` shape and is the lower-friction P0.
+   On current infra the doc's primary/fallback order is reversed.
+
+4. `buildWriteSchema` is `.strict()` and rejects unknown keys
+   (`packages/shared/src/collections.ts`). Extending the `images` schema
+   (Phase 1) is therefore mandatory, not optional - correct. But adding raw
+   storage fields (`storageFileId`, `storageProvider`) to the registry also
+   exposes them to the still-open generic `create`/`update` actions, letting a
+   contributor forge an image-metadata document that points at an arbitrary
+   storage object. Media actions should write via the registry-bypassing
+   trusted writers (`createDoc`/`updateDoc`) with their own validation, and keep
+   raw storage fields out of the generic write surface.
+
+### 19.3 Re-ranked options for this infra
+
+- Option A (admin-brokered direct upload): right architecture, wrong P0
+  transport bet. Adopt its metadata + delivery model now; gate the browser-direct
+  PUT behind a Phase-0 spike against the deployed test env. If the spike fails,
+  A's byte path collapses into C, so do not let the P0 fix depend on it.
+- Option B (browser Web SDK): correctly rejected for P0, and the blocker is
+  stronger than "dual-auth drift" - the publishable key needed to initialize the
+  browser SDK does not exist. Keep only if admin identity migrates to CloudBase
+  Auth wholesale.
+- Option C (server-side `cloud.uploadFile` endpoint): under-rated here, and the
+  recommended P0. Only option whose byte path runs on current capabilities with
+  no new auth surface (custom JWT stays the sole browser credential). Also fixes
+  a deploy-parity trap: local allows `express.json({ limit: '20mb' })`
+  (`apps/local-server/src/main.ts`) while production caps much lower, so an admin
+  can upload locally what silently fails in prod. C2 (CloudRun) stays deferred to
+  large OEM files.
+- Option D (external COS/S3/R2): correctly deferred. Adds a second
+  credential/lifecycle/observability surface to a single-env app.
+- Legacy base64: keep as read-only compatibility plus tiny inline assets. The
+  migration must retain the `legacy-base64` read branch (seeded SVGs and existing
+  `images.data` documents depend on it).
+
+### 19.4 Findings
+
+| # | Severity | Issue | Recommended fix |
+| --- | --- | --- | --- |
+| 1 | P1 | Headline option (A) depends on a browser-direct upload grant unproven on classic mode without a publishable key. | Re-frame: A's metadata/delivery is the target; C's byte path is P0. Make the spike a Phase-0 gate, not a parallel "validate later." |
+| 2 | P2 | `/api/images/:id` already does a full paginated scan of `products`+`overstock` per image hit to decide visibility; storage delivery keeps or amplifies this on every cache-miss. | Denormalize visibility (`isPublic`/`publishedRefCount` on the image doc, maintained on publish/unpublish) or a reverse index. Do not carry the O(catalog) scan into the new path. |
+| 3 | P2 | Redirect delivery assumed primary, but the adapter has no 3xx path. | Ship proxy delivery as P0 (fits existing `BinaryResult`); add 302 later once a `RedirectResult` is added to the adapter union. |
+| 4 | P2 | Storage metadata written through generic `.strict()` CRUD makes `storageFileId` forgeable. | Media actions write via `createDoc`/`updateDoc` with dedicated validation; keep raw storage fields out of the generic write surface. |
+| 5 | P3 | Phase 4 (OEM `files`) implies parity, but production has no `/api/files/:id` route at all - it exists only in local-server and is deliberately absent in prod. | State that OEM storage delivery is net-new in prod (authenticated admin route), not a migration of an existing route. |
+| 6 | P3 | Effort ratings omit the first-storage-integration tax (SDK typings, local-dev disk shim, deploy smoke). | Add a "first-integration cost" line to the tradeoff tables. |
+
+### 19.5 Recommendation
+
+1. Adopt the storage-first metadata architecture (Option A's model) now:
+   `images` becomes metadata, `imageIds` unchanged, delivery stays behind
+   `/api/images/:id`, `storageProvider` discriminates legacy vs storage.
+2. Choose Option C (`cloud.uploadFile` server endpoint) as the P0 byte transport,
+   not browser-direct.
+3. Make "browser-direct upload grant in classic mode" a Phase-0 spike gate. If it
+   works, graduate the transport to true Option A as an optimization; if not,
+   nothing is lost because C already shipped the fix.
+4. Fix the visibility scan (finding 2) in the same change, so the new delivery
+   path does not inherit and worsen it.
+5. Answer the max-upload-size open question explicitly and enforce it in the
+   Option C endpoint, since that becomes the real production ceiling.
+
+### 19.6 Decision
+
+Approved with changes. The diagnosis and target metadata model are right; the
+option ranking should be re-ordered for this infra so P0 ships on Option C while
+Option A remains the architectural north star.
