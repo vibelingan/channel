@@ -1,6 +1,6 @@
 # Image Upload And Storage Design
 
-Status: design proposal, review-hardened with CloudBase skill guidance; no implementation in this branch
+Status: design proposal, review-hardened with CloudBase skill guidance and implementation-grade MIUs; no runtime implementation in this branch
 Scope: product images, catalog media, and adjacent uploaded files in the current CloudBase infrastructure
 Last updated: 2026-06-26
 
@@ -22,9 +22,12 @@ The recommended direction is a storage-first media architecture:
   product image uploads.
 - Route different media classes through different policies when their size,
   privacy, format, or processing needs differ.
-- For the current infrastructure, ship P0 byte upload with Option C
-  (server-side `cloud.uploadFile` behind the existing custom JWT), while
-  adopting Option A's metadata and delivery architecture as the durable target.
+- For the current infrastructure, start P0 byte upload with Option C
+  (server-side `cloud.uploadFile` behind the existing custom JWT) only after a
+  raw multipart/binary route-capacity probe passes. If the 100 KiB limit is
+  route-wide, use direct storage upload info or CloudRun for P0 bytes while
+  still adopting Option A's metadata and delivery architecture as the durable
+  target.
 - Gate browser-direct upload behind a Phase-0 spike because the current
   deployment docs say the browser publishable key is absent.
 
@@ -47,7 +50,8 @@ design:
   and execution notes after a thread-aware scan.
 - Remote review commit `cb75f78` was fetched from the design branch and folded
   into this final design. Its verdict was "approve with changes": keep the
-  target metadata model, but re-rank the P0 byte transport to Option C.
+  target metadata model, and make Option C the first P0 byte-transport
+  candidate subject to deployed route-capacity proof.
 
 The CloudBase-specific hardening in this revision comes from:
 
@@ -318,8 +322,9 @@ Recommendation:
   generation against the deployed CloudBase environment as a Phase-0 spike.
 - Keep base64 reads only for legacy image records.
 - If the current classic CloudBase environment cannot safely broker direct
-  upload info from the admin function, keep P0 on Option C. Do not loosen
-  storage rules just to make browser upload work.
+  upload info from the admin function, keep P0 on Option C only if raw
+  multipart/binary route capacity is proven. If not, use CloudRun for the media
+  gateway. Do not loosen storage rules just to make browser upload work.
 
 ## 7. Option B - Direct Browser CloudBase Web SDK Upload
 
@@ -432,7 +437,8 @@ Tradeoffs:
 Recommendation:
 
 - Use Option C as the P0 byte transport for product images on the current
-  infrastructure.
+  infrastructure only if a deployed multipart/raw body probe proves the route
+  can carry the selected product-image max size.
 - Keep custom JWT as the only browser credential, upload bytes server-side with
   CloudBase storage APIs, then write metadata through dedicated media actions.
 - Consider CloudRun for OEM drawings, large private files, resumable uploads, or
@@ -495,7 +501,9 @@ Recommendation:
 
 Choose Option A's metadata and delivery model as the core architecture,
 implemented as a policy-based media asset service. For P0 on the current stack,
-use Option C's server-side byte transport inside that architecture.
+use Option C's server-side byte transport inside that architecture only if the
+deployed route-capacity probe passes; otherwise keep the same metadata model and
+swap the byte transport to direct storage upload info or CloudRun.
 
 ```mermaid
 flowchart TB
@@ -630,11 +638,12 @@ These gates are mandatory before implementation moves beyond a local spike.
 
 Fallback rule:
 
-- P0 baseline uses Option C. The browser-direct/admin-brokered upload grant may
-  graduate to Option A's byte transport only if the Phase-0 spike passes all
-  gates. If any gate fails, continue with Option C for product images or a
-  CloudRun media gateway for large/private files. Do not weaken storage
-  permissions to make browser upload work.
+- P0 baseline uses Option C only after MIU-00 proves raw/multipart gateway
+  capacity. The browser-direct/admin-brokered upload grant may graduate to
+  Option A's byte transport only if the Phase-0 spike passes all gates. If
+  server upload fails the route-capacity gate, continue with direct storage
+  upload info or a CloudRun media gateway. Do not weaken storage permissions to
+  make browser upload work.
 
 ## 14. Migration Strategy
 
@@ -769,7 +778,7 @@ Local server:
    storage delivery does not carry forward the current O(catalog) image scan.
 7. Update public image delivery to support storage-backed records with P0 proxy
    delivery.
-8. Update the admin uploader to send raw bytes to the server-side media endpoint
+8. Update the admin uploader to send raw bytes to the selected media transport
    with progress states.
 9. Run the browser-direct upload grant spike separately. Promote to Option A
    byte transport only if the classic-mode auth/domain/storage path is proven.
@@ -794,8 +803,8 @@ Reviewer pass added 2026-06-26. This section is an addendum: it hardens
 the sections above, it records an independent review of them against the actual
 code on this branch. Verdict: approve with changes. The problem diagnosis and the
 target metadata model are correct. The option *ranking* should be re-ordered for
-the current infrastructure so the first fix ships on Option C while Option A
-remains the architectural north star.
+the current infrastructure so the first fix prefers Option C when route capacity
+is proven, while Option A remains the architectural north star.
 
 ### 19.1 Verdict
 
@@ -805,8 +814,9 @@ against the code and found accurate. The one substantive correction:
 - Decouple the *metadata architecture* (storage-first `images`, purpose
   policies, delivery indirection) from the *byte transport* (who PUTs the bytes).
 - Adopt the metadata architecture now (this is Option A's durable core).
-- Ship the byte transport as Option C (server-side `cloud.uploadFile`) for P0,
-  not Option A's browser-direct upload, for the infra reasons below.
+- Ship the byte transport as Option C (server-side `cloud.uploadFile`) for P0
+  only after a raw/multipart route-capacity probe passes, not Option A's
+  browser-direct upload, for the infra reasons below.
 
 ### 19.2 Infra-accuracy audit
 
@@ -870,12 +880,13 @@ Four infra realities that change the ranking:
   browser SDK does not exist. Keep only if admin identity migrates to CloudBase
   Auth wholesale.
 - Option C (server-side `cloud.uploadFile` endpoint): under-rated here, and the
-  recommended P0. Only option whose byte path runs on current capabilities with
-  no new auth surface (custom JWT stays the sole browser credential). Also fixes
-  a deploy-parity trap: local allows `express.json({ limit: '20mb' })`
-  (`apps/local-server/src/main.ts`) while production caps much lower, so an admin
-  can upload locally what silently fails in prod. C2 (CloudRun) stays deferred to
-  large OEM files.
+  recommended first P0 candidate. Only option whose storage write path runs on
+  current capabilities with no new auth surface (custom JWT stays the sole
+  browser credential). But it still depends on route capacity: local allows
+  `express.json({ limit: '20mb' })` (`apps/local-server/src/main.ts`) while
+  production caps much lower, so MIU-00 must prove multipart/raw capacity before
+  C is accepted as product-image P0. If that proof fails, C2 (CloudRun) or direct
+  storage upload info moves forward.
 - Option D (external COS/S3/R2): correctly deferred. Adds a second
   credential/lifecycle/observability surface to a single-env app.
 - Legacy base64: keep as read-only compatibility plus tiny inline assets. The
@@ -898,28 +909,937 @@ Four infra realities that change the ranking:
 1. Adopt the storage-first metadata architecture (Option A's model) now:
    `images` becomes metadata, `imageIds` unchanged, delivery stays behind
    `/api/images/:id`, `storageProvider` discriminates legacy vs storage.
-2. Choose Option C (`cloud.uploadFile` server endpoint) as the P0 byte transport,
-   not browser-direct.
+2. Choose Option C (`cloud.uploadFile` server endpoint) as the P0 byte transport
+   only after MIU-00 proves multipart/raw route capacity; otherwise choose direct
+   storage upload info or CloudRun.
 3. Make "browser-direct upload grant in classic mode" a Phase-0 spike gate. If it
    works, graduate the transport to true Option A as an optimization; if not,
    nothing is lost because C already shipped the fix.
 4. Fix the visibility scan (finding 2) in the same change, so the new delivery
    path does not inherit and worsen it.
 5. Answer the max-upload-size open question explicitly and enforce it in the
-   Option C endpoint, since that becomes the real production ceiling.
+   selected transport, since that becomes the real production ceiling.
 
 ### 19.6 Decision
 
 Approved with changes. The diagnosis and target metadata model are right; the
-option ranking should be re-ordered for this infra so P0 ships on Option C while
-Option A remains the architectural north star.
+option ranking should be re-ordered for this infra so P0 prefers Option C only
+after route-capacity proof while Option A remains the architectural north star.
 
-## 20. References
+## 20. Low-Level Implementation MIU Plan
+
+This section is the implementation handoff. An MIU is a minimum implementable
+unit: small enough to code, review, test, and deploy independently, but detailed
+enough that the implementer should not need to invent architecture while
+building.
+
+The MIUs below are intentionally ordered. Do not start UI replacement before
+MIU-00 proves the storage and byte-transport path in the real CloudBase test
+EnvId.
+
+Implementation rule:
+
+- Keep this branch design-only.
+- Start implementation from this branch into a separate implementation PR when
+  approved.
+- Use the existing custom JWT as the P0 browser credential.
+- Keep `imageIds` unchanged for products and overstock.
+- Keep legacy base64 reads until migration is complete.
+- Do not ship a body-limit increase or larger base64 JSON envelope as the fix.
+- Treat Option C as P0 only if MIU-00 proves the selected raw multipart/binary
+  transport can carry the chosen catalog image max size through CloudBase HTTP
+  access. If the 100 KiB cap is route-wide, skip Option C for product images and
+  promote direct storage upload info or CloudRun.
+
+### 20.1 MIU Execution Order
+
+| Order | MIU | Outcome |
+| --- | --- | --- |
+| 0 | Storage and transport readiness | Proves CloudBase bucket, server SDK, route body limit, and delivery primitives |
+| 1 | Media data contract | Adds safe metadata schema without generic storage-field forgery |
+| 2 | Media storage adapter | Adds CloudBase and local-disk storage backends |
+| 3 | Admin product image upload | Replaces new product-image base64 writes with storage-backed uploads |
+| 4 | Public delivery and visibility index | Serves storage images only when published and removes O(catalog) scan |
+| 5 | Admin UI uploader | Sends raw files with progress and keeps product `imageIds` stable |
+| 6 | Migration and cleanup | Moves existing `images.data` documents to storage safely |
+| 7 | Browser-direct upload spike | Proves or rejects Option A byte transport for future optimization |
+| 8 | OEM files follow-up | Moves private files with a larger-file policy and admin-only delivery |
+| 9 | Deploy and smoke hardening | Adds CloudBase deploy gates and media privacy smoke tests |
+
+### 20.2 MIU-00 - CloudBase Storage And Transport Readiness
+
+Runtime problem:
+
+- The repo has no storage integration today. `packages/db/src/wx-server-sdk.d.ts`
+  declares database APIs only.
+- The measured `/api/admin` JSON path rejects payloads around 100 KiB in the
+  deployed environment.
+- Server-side upload fixes base64 overhead only if the CloudBase HTTP access
+  route can carry raw multipart/binary bodies at the chosen product-image limit.
+
+Data shape:
+
+```ts
+export interface MediaCapabilityReport {
+  envId: string;
+  bucketReady: boolean;
+  serverSdkStorageReady: boolean;
+  tempUrlReady: boolean;
+  deleteReady: boolean;
+  adminJsonLimitBytes: number;
+  adminMultipartLimitBytes: number;
+  chosenCatalogImageMaxBytes: number;
+  recommendedTransport: 'server-upload' | 'direct-storage-upload' | 'cloudrun-media-gateway';
+  checkedAt: string;
+}
+```
+
+Technology constraints:
+
+- Every probe must use the explicit test EnvId, not an implicit CLI default.
+- Functions stay Event Functions behind CloudBase HTTP access unless this MIU
+  proves the need for CloudRun or native HTTP Function.
+- Existing gateway routes are exact-path oriented today:
+  `/api/admin` -> `admin`, `/api` -> `public-api`.
+- If implementation chooses `/api/admin/media`, the deploy script must create
+  that access route explicitly. If implementation keeps upload on `/api/admin`
+  with `multipart/form-data`, the adapter must dispatch by `Content-Type`.
+
+Design and flow:
+
+1. Inspect CloudBase environment, bucket, and function routes for the canonical
+   EnvId.
+2. Add a throwaway local spike or script that initializes the server SDK with
+   `TCB_ENV`, uploads a tiny buffer to `media-smoke/<uuid>.txt`, resolves a temp
+   URL, downloads or proxies it, then deletes it.
+3. Probe deployed HTTP access with:
+   - current JSON body at 100 KiB, 256 KiB, 1 MiB
+   - multipart/raw body at 256 KiB, 1 MiB, 5 MiB
+4. Record whether server-side upload is actually viable for
+   `CATALOG_IMAGE_MAX_BYTES`.
+5. Decide transport:
+   - If multipart/raw passes the chosen product limit, use MIU-03 server upload.
+   - If multipart/raw is still capped around 100 KiB, use MIU-07 direct storage
+     upload info for product images or introduce CloudRun for a media gateway.
+
+Code translation:
+
+- Extend the ambient CloudBase type declarations before production code relies
+  on them:
+
+```ts
+interface UploadFileResult {
+  fileID: string;
+}
+
+interface TempFileUrlResult {
+  fileID: string;
+  tempFileURL: string;
+  maxAge?: number;
+}
+
+interface DownloadFileResult {
+  fileContent: Buffer;
+}
+
+interface Cloud {
+  init(options: { env: string }): void;
+  database(): Database;
+  uploadFile(options: {
+    cloudPath: string;
+    fileContent: Buffer | Uint8Array | NodeJS.ReadableStream;
+  }): Promise<UploadFileResult>;
+  getTempFileURL(options: {
+    fileList: string[];
+  }): Promise<{ fileList: TempFileUrlResult[] }>;
+  downloadFile(options: { fileID: string }): Promise<DownloadFileResult>;
+  deleteFile(options: { fileList: string[] }): Promise<{ fileList: unknown[] }>;
+}
+```
+
+- Add a smoke script, not production behavior, for the first proof:
+  `scripts/smoke-media-storage.mjs`.
+- Update `scripts/smoke-cloudbase-deploy.mjs` after the real implementation so
+  media checks become part of deploy verification.
+
+Tests and evidence:
+
+- Local unit test for any capability-report parser.
+- Manual or scripted CloudBase output showing:
+  - bucket exists
+  - server SDK can upload, temp-url, download, delete
+  - deployed route multipart/raw capacity is known
+  - chosen transport is recorded in the implementation PR description
+
+Exit criteria:
+
+- A committed design/update note or implementation PR comment includes
+  `MediaCapabilityReport`.
+- P0 transport is selected from evidence, not preference.
+- If route cap is still around 100 KiB, no implementation MIU may proceed with
+  server-side product image uploads through that route.
+
+### 20.3 MIU-01 - Media Data Contract And Safe Write Surface
+
+Runtime problem:
+
+- `images` currently means "base64 byte document."
+- `buildWriteSchema(def).strict()` rejects unknown keys, so storage metadata
+  must be modeled deliberately.
+- Adding writable `storageFileId` to the registry would let generic
+  `create`/`update` forge storage-backed image records.
+
+Data shape:
+
+```ts
+export const MEDIA_PURPOSES = [
+  'catalog-image',
+  'catalog-thumbnail',
+  'marketing-media',
+  'oem-drawing',
+  'inline-small',
+] as const;
+
+export const IMAGE_STORAGE_PROVIDERS = ['legacy-base64', 'cloudbase-storage', 'local-disk'] as const;
+
+export interface ImageVariantMetadata {
+  role: 'original' | 'detail' | 'card' | 'thumb';
+  storageProvider: 'cloudbase-storage' | 'local-disk';
+  storageFileId: string;
+  storagePath: string;
+  mimeType: string;
+  byteSize: number;
+  width?: number;
+  height?: number;
+  checksumSha256?: string;
+}
+
+export interface ImageMetadataDoc {
+  _id: string;
+  name: string;
+  mimeType: string;
+  purpose: 'catalog-image' | 'catalog-thumbnail' | 'marketing-media' | 'inline-small';
+  storageProvider: 'legacy-base64' | 'cloudbase-storage' | 'local-disk';
+  storageMode?: 'classic-nosql-storage' | 'pg-storage' | 'local-disk';
+  storageFileId?: string;
+  storagePath?: string;
+  byteSize?: number;
+  width?: number;
+  height?: number;
+  checksumSha256?: string;
+  status: 'pending' | 'active' | 'failed' | 'deleted';
+  publishedRefCount: number;
+  variants?: ImageVariantMetadata[];
+  data?: string; // legacy-base64 only
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+```
+
+Technology constraints:
+
+- Registry fields marked `readOnly: true` are excluded from generic writes.
+- Dedicated media actions may write server-managed fields with
+  `createDoc`/`updateDoc` only after Zod validation in
+  `apps/functions/admin/src/handler.ts`.
+- The admin table can read safe metadata, but new byte or storage writes must
+  not use generic `createRecord('images', ...)`.
+
+Design and flow:
+
+1. Update `packages/shared/src/collections.ts` so `images` becomes "media image
+   metadata" while keeping legacy `data`.
+2. Mark storage identifiers, status, byte counts, checksum, `data`, variants,
+   `publishedRefCount`, and audit fields as read-only in the generic registry.
+3. Add shared media constants/types either in `packages/shared/src/media.ts` or
+   a nearby shared module exported from `@vibelingan-channel/shared`.
+4. Add admin-only validation schemas in the handler or a media module:
+   - upload request schema
+   - stored metadata schema
+   - status transition schema
+5. Keep `files` legacy until MIU-08; do not quietly expose OEM storage fields in
+   this product-image MIU.
+
+Code translation:
+
+```ts
+{
+  name: 'images',
+  label: 'Images',
+  description: 'Image asset metadata referenced by catalog items.',
+  searchableFields: ['name'],
+  hideFromNav: true,
+  fields: [
+    { name: 'name', label: 'Name', type: 'string', required: true },
+    { name: 'mimeType', label: 'MIME Type', type: 'string', required: true },
+    { name: 'purpose', label: 'Purpose', type: 'select', options: MEDIA_PURPOSES, readOnly: true },
+    { name: 'storageProvider', label: 'Storage Provider', type: 'string', readOnly: true },
+    { name: 'storageFileId', label: 'Storage File ID', type: 'string', readOnly: true },
+    { name: 'storagePath', label: 'Storage Path', type: 'string', readOnly: true },
+    { name: 'byteSize', label: 'Byte Size', type: 'number', readOnly: true },
+    { name: 'checksumSha256', label: 'Checksum', type: 'string', readOnly: true },
+    { name: 'status', label: 'Status', type: 'select', options: ['pending', 'active', 'failed', 'deleted'], readOnly: true },
+    { name: 'publishedRefCount', label: 'Published Refs', type: 'number', readOnly: true },
+    { name: 'variants', label: 'Variants', type: 'json', readOnly: true, hideInTable: true },
+    { name: 'data', label: 'Legacy Data (base64)', type: 'text', readOnly: true, hideInTable: true },
+  ],
+}
+```
+
+Tests:
+
+- `buildWriteSchema(images).parse({ name, mimeType })` still works if needed for
+  generic safe edits.
+- `buildWriteSchema(images).parse({ storageFileId: 'x' })` rejects.
+- `buildWriteSchema(images).parse({ data: '...' })` rejects for generic writes.
+- Media-specific validation accepts only supported purpose/MIME/status values.
+
+Exit criteria:
+
+- Generic CRUD cannot activate media, forge storage keys, or write base64 bytes.
+- Legacy records with `data` still read through public delivery.
+
+### 20.4 MIU-02 - Media Storage Adapter
+
+Runtime problem:
+
+- CloudBase SDK calls should not leak through admin handler, public handler, UI
+  code, and migration scripts separately.
+- Local development needs storage-backed behavior without CloudBase.
+
+Data shape:
+
+```ts
+export interface PutMediaObjectInput {
+  namespace: 'catalog' | 'oem' | 'marketing' | 'smoke';
+  logicalId: string;
+  fileName: string;
+  mimeType: string;
+  content: Buffer | Uint8Array | NodeJS.ReadableStream;
+}
+
+export interface StoredMediaObject {
+  storageProvider: 'cloudbase-storage' | 'local-disk';
+  storageMode: 'classic-nosql-storage' | 'local-disk';
+  storageFileId: string;
+  storagePath: string;
+  byteSize?: number;
+}
+
+export interface MediaStorageAdapter {
+  putObject(input: PutMediaObjectInput): Promise<StoredMediaObject>;
+  getObjectAsBase64(fileId: string): Promise<{ body: string; byteSize?: number }>;
+  getTempUrl(fileId: string, maxAgeSeconds?: number): Promise<{ url: string; expiresAt?: string }>;
+  deleteObject(fileId: string): Promise<void>;
+}
+```
+
+Technology constraints:
+
+- Prefer a separate `packages/media-storage` package. It keeps object storage
+  separate from `@vibelingan-channel/db`, but the workspace already includes
+  `packages/*`, so the package addition is low ceremony.
+- If implementation wants a smaller first patch, an interim
+  `packages/db/src/media-storage.ts` facade is acceptable only if the export
+  stays narrow and can be moved later without touching handlers.
+- CloudBase implementation uses server privileges only inside functions and
+  scripts. Browser code never imports it.
+
+Design and flow:
+
+1. Add `packages/media-storage/package.json`, `src/index.ts`,
+   `src/cloudbase.ts`, and `src/local-disk.ts`.
+2. Add `setMediaStorage(adapter)` and `mediaStorage()` singleton mirroring the
+   database adapter pattern.
+3. Wire CloudBase storage in both `apps/functions/admin/src/index.ts` and
+   `apps/functions/public-api/src/index.ts` using the explicit `TCB_ENV`.
+4. Wire local disk storage in `apps/local-server/src/main.ts` under
+   `data/media/`.
+5. Keep generated storage paths server-side:
+
+```text
+catalog/<yyyy>/<mm>/<imageId>/<variantRole>-<safeName>
+oem/<yyyy>/<mm>/<projectId>/<fileId>-<safeName>
+marketing/<yyyy>/<mm>/<assetId>/<safeName>
+smoke/<uuid>.txt
+```
+
+Code translation:
+
+```ts
+export function catalogStoragePath(input: {
+  imageId: string;
+  role: 'original' | 'detail' | 'card' | 'thumb';
+  fileName: string;
+  now?: Date;
+}): string {
+  const now = input.now ?? new Date();
+  const yyyy = String(now.getUTCFullYear());
+  const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
+  return `catalog/${yyyy}/${mm}/${input.imageId}/${input.role}-${safeFileName(input.fileName)}`;
+}
+```
+
+Tests:
+
+- Local disk adapter writes, reads base64, temp-url stubs, and deletes.
+- CloudBase adapter has a smoke-only integration test or script gated by
+  explicit `TCB_ENV`.
+- Path builder sanitizes quotes, slashes, backslashes, control chars, and empty
+  names.
+- Public/admin functions fail cold-start with a clear message if media storage
+  is not configured for a storage-backed code path.
+
+Exit criteria:
+
+- Admin, public-api, local-server, and migration scripts can depend on one media
+  storage interface.
+- No browser bundle imports CloudBase server SDK.
+
+### 20.5 MIU-03 - Admin Product Image Upload
+
+Runtime problem:
+
+- `apps/site/src/islands/admin/api.ts` currently reads the file as base64 and
+  calls generic `createRecord('images', ...)`.
+- New product image bytes must bypass JSON and land in CloudBase Storage.
+- Pending or failed uploads must never become public catalog images.
+
+Transport decision from MIU-00:
+
+- If CloudBase HTTP access can carry raw/multipart bodies at
+  `CATALOG_IMAGE_MAX_BYTES`, implement server-side upload.
+- If it cannot, do not implement this MIU as the P0 byte path. Use MIU-07
+  direct storage upload info or CloudRun instead.
+
+P0 request shape for server-side upload:
+
+```text
+POST /api/admin
+Content-Type: multipart/form-data
+
+fields:
+  action = uploadImage
+  token = <custom JWT>
+  purpose = catalog-image
+  variantRole = original
+  checksumSha256 = <optional client-computed sha256>
+  file = <binary image file>
+```
+
+Alternative route shape:
+
+- `POST /api/admin/media` is cleaner semantically, but requires an explicit
+  CloudBase gateway route or route-prefix proof. If this path is chosen, update
+  `scripts/deploy-cloudbase-test.mjs` and gateway smoke tests in the same MIU.
+
+Validation policy:
+
+```ts
+const CATALOG_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+const CATALOG_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+const BLOCKED_IMAGE_MIME_TYPES = ['image/svg+xml'] as const;
+```
+
+Design and flow:
+
+1. `apps/functions/admin/src/http-adapter.ts` detects multipart by
+   `Content-Type`.
+2. It parses the form into a `MediaUploadRequest` without base64 JSON.
+3. It authenticates the same JWT by calling existing `authenticate` logic or a
+   narrow exported helper.
+4. It validates role with `canEditCollection(claims.role, 'images')` or a
+   stricter admin/contributor check.
+5. It validates MIME, extension, byte count, and a light file signature.
+6. It creates an `images` document in `pending` state with `publishedRefCount:
+   0`.
+7. It uploads bytes to storage under a server-generated path.
+8. It updates the document to `active` with storage metadata.
+9. If storage upload succeeds but metadata activation fails, it deletes the
+   object immediately or writes an orphan cleanup record.
+10. It returns `{ id, image }`, where `id` is the existing product `imageIds`
+    value.
+
+Code translation:
+
+```ts
+async function uploadImageAction(input: MediaUploadRequest, claims: SessionClaims) {
+  assertCanUploadCatalogImage(claims, input);
+  const pending = await createDoc('images', {
+    name: input.fileName,
+    mimeType: input.mimeType,
+    purpose: 'catalog-image',
+    storageProvider: 'cloudbase-storage',
+    storageMode: 'classic-nosql-storage',
+    status: 'pending',
+    publishedRefCount: 0,
+    byteSize: input.byteSize,
+    checksumSha256: input.checksumSha256 ?? '',
+    createdBy: claims.sub,
+  });
+
+  let stored: StoredMediaObject | null = null;
+  try {
+    stored = await mediaStorage().putObject({
+      namespace: 'catalog',
+      logicalId: pending._id,
+      fileName: input.fileName,
+      mimeType: input.mimeType,
+      content: input.content,
+    });
+
+    const active = await updateDoc('images', pending._id, {
+      ...stored,
+      status: 'active',
+      updatedAt: new Date().toISOString(),
+    });
+    if (!active) throw new Error('Pending image disappeared during activation');
+    return active;
+  } catch (error) {
+    if (stored) await mediaStorage().deleteObject(stored.storageFileId).catch(() => undefined);
+    await updateDoc('images', pending._id, { status: 'failed' }).catch(() => undefined);
+    throw error;
+  }
+}
+```
+
+Tests:
+
+- JSON `create` can no longer write `images.data`.
+- Multipart upload without token returns `401`.
+- Viewer role returns `403`.
+- Unsupported MIME returns `400`.
+- SVG returns `400`.
+- Oversize file returns `400` with actionable message.
+- Storage failure leaves a `failed` or absent image record and no public image.
+- Metadata failure deletes or records the orphaned object.
+- Successful upload returns an ID usable in `products.imageIds`.
+- CloudBase gateway smoke uploads at least one real product-size image in test.
+
+Exit criteria:
+
+- New product images no longer use `fileToBase64`.
+- Upload failures are visible to admins and do not create public assets.
+- The implementation PR states the enforced product-image max size.
+
+### 20.6 MIU-04 - Public Delivery And Published Visibility Index
+
+Runtime problem:
+
+- `getCatalogImage()` currently scans all published `products` and `overstock`
+  pages on every image request.
+- Storage-backed delivery would carry this cost into every cache miss.
+- Public delivery must support both `legacy-base64` and `cloudbase-storage`.
+
+Data shape:
+
+```ts
+interface ImageVisibilityFields {
+  status: 'pending' | 'active' | 'failed' | 'deleted';
+  publishedRefCount: number;
+}
+```
+
+Technology constraints:
+
+- `publishedRefCount` is canonical. `isPublic` may be added as a convenience
+  field, but public delivery should decide from `publishedRefCount > 0` plus
+  `status === 'active'`.
+- Increment/decrement should be atomic in CloudBase where possible.
+- The placeholder image remains public by explicit ID.
+
+Design and flow:
+
+1. Extend `DbAdapter` with a narrow trusted increment operation, or add a
+   purpose-specific helper that can atomically increment one numeric field.
+2. Add CloudBase implementation using `db.command.inc(delta)` and update the
+   ambient type declarations.
+3. Add local JSON implementation by read-modify-write.
+4. In admin `createAction`, `updateAction`, `batchUpdateAction`, and
+   `removeAction`, detect catalog document image visibility deltas:
+   - old published image IDs
+   - new published image IDs
+   - increment newly public image IDs
+   - decrement no-longer-public image IDs
+5. Backfill `publishedRefCount` for existing image IDs from the current catalog
+   before public delivery depends on the field.
+6. Do not let public-api scan catalogs for new storage-backed images.
+7. Legacy base64 records may use the old scan only as a temporary compatibility
+   fallback when `publishedRefCount` is absent. Once backfill runs, ref count is
+   canonical for both providers.
+8. Public delivery branches:
+   - placeholder -> existing static/base64 behavior
+   - legacy-base64 active/public -> existing `BinaryResult`
+   - cloudbase-storage active/public -> storage proxy `BinaryResult`
+   - pending/unlinked/deleted/missing -> `404`
+
+Code translation:
+
+```ts
+function publishedImageIdSet(doc: CollectionDoc | null): Set<string> {
+  if (!doc || doc.published !== true || !Array.isArray(doc.imageIds)) return new Set();
+  return new Set(doc.imageIds.map(String).filter(Boolean));
+}
+
+async function applyImageVisibilityDelta(before: CollectionDoc | null, after: CollectionDoc | null) {
+  const oldIds = publishedImageIdSet(before);
+  const newIds = publishedImageIdSet(after);
+  for (const id of newIds) if (!oldIds.has(id)) await incrementImageRefCount(id, 1);
+  for (const id of oldIds) if (!newIds.has(id)) await incrementImageRefCount(id, -1);
+}
+```
+
+```ts
+export async function getCatalogImage(imageId: string): Promise<ApiResult<unknown> | BinaryResult> {
+  if (imageId === PLACEHOLDER_IMAGE_ID) return placeholderImage();
+  const doc = await get('images', imageId);
+
+  if (!doc) return err('NOT_FOUND', 'Image not found');
+
+  const provider = String(doc.storageProvider ?? 'legacy-base64');
+  const refCount = Number(doc.publishedRefCount ?? 0);
+  const hasRefCount = Number.isFinite(refCount) && Object.hasOwn(doc, 'publishedRefCount');
+
+  if (provider === 'legacy-base64') {
+    const visible = hasRefCount ? refCount > 0 : await legacyImageIsPublicFallback(imageId);
+    if (!visible || typeof doc.data !== 'string') return err('NOT_FOUND', 'Image not found');
+    return legacyBase64Image(doc);
+  }
+
+  if (doc.status !== 'active' || refCount <= 0) return err('NOT_FOUND', 'Image not found');
+
+  if (doc.storageProvider === 'cloudbase-storage' && typeof doc.storageFileId === 'string') {
+    const object = await mediaStorage().getObjectAsBase64(doc.storageFileId);
+    return storageBinaryImage(doc, object.body);
+  }
+  return err('NOT_FOUND', 'Image not found');
+}
+```
+
+Tests:
+
+- Legacy base64 image linked from a published product still renders.
+- Storage-backed image linked from a published product renders.
+- Storage-backed image linked only from an unpublished product returns `404`.
+- Storage-backed image not linked from any catalog returns `404`.
+- Pending storage image returns `404` even if referenced.
+- Updating a product from unpublished to published increments image refs.
+- Removing an image ID or unpublishing a product decrements image refs.
+- Batch update publish/unpublish updates refs.
+- `/api/files/:id` still returns `404` from public-api.
+
+Exit criteria:
+
+- No O(catalog) scan remains in `getCatalogImage()` for the new path.
+- Public image privacy has deterministic unit and deployed smoke coverage.
+
+### 20.7 MIU-05 - Admin UI Uploader
+
+Runtime problem:
+
+- The admin UI currently converts every selected `File` to base64 before upload.
+- Admins need progress, per-file errors, and stable returned image IDs.
+
+Data shape:
+
+```ts
+export interface UploadImageOptions {
+  purpose?: 'catalog-image';
+  onProgress?: (state: { loaded: number; total?: number }) => void;
+}
+
+export interface UploadImageResult {
+  id: string;
+  image: CollectionDoc;
+}
+```
+
+Technology constraints:
+
+- `fetch` does not expose upload progress in all browsers. If progress is
+  required in P0, use `XMLHttpRequest` for the upload call only, or show
+  per-file pending/success/error states without byte progress.
+- Keep existing product form value shape: `imageIds: string[]`.
+- Do not import CloudBase Web SDK in this MIU.
+
+Design and flow:
+
+1. Replace `fileToBase64` usage in `apps/site/src/islands/admin/api.ts`.
+2. Add `uploadImage(file, options)` that sends `FormData` to the chosen endpoint
+   and parses the existing `ApiResult` envelope.
+3. Update `ImageManager.tsx` to:
+   - upload files sequentially or with a low concurrency limit, for example 2
+   - show each file as pending/uploading/succeeded/failed
+   - keep successful IDs in the current order
+   - allow retry of failed files
+4. Keep `imageUrl(id)` unchanged so previews still use `/api/images/:id`.
+5. Use human-readable errors from API responses for unsupported type/size.
+
+Code translation:
+
+```ts
+export async function uploadImage(file: File): Promise<string> {
+  const form = new FormData();
+  form.set('action', 'uploadImage');
+  form.set('token', getToken() ?? '');
+  form.set('purpose', 'catalog-image');
+  form.set('file', file, file.name);
+
+  const res = await fetch(ENDPOINT, { method: 'POST', body: form });
+  const result = (await res.json()) as ApiResult<UploadImageResult>;
+  if (!result.ok) throw new AdminApiError(result.error.code, result.error.message);
+  return result.data.id;
+}
+```
+
+Tests:
+
+- `uploadImage()` sends `FormData`, not JSON.
+- `uploadImage()` does not call `FileReader.readAsDataURL`.
+- `ImageManager` appends successful IDs and preserves existing IDs.
+- Per-file failure does not discard previously uploaded files.
+- Oversize/type errors render in the manager.
+
+Exit criteria:
+
+- Normal admin product upload uses storage-backed IDs with no visible product
+  form contract change.
+
+### 20.8 MIU-06 - Legacy Image Migration And Orphan Cleanup
+
+Runtime problem:
+
+- Existing `images.data` documents and seeded SVG/base64 records must keep
+  rendering during and after deployment.
+- Migration must be rollback-safe and idempotent.
+
+Data shape:
+
+```ts
+interface ImageMigrationCheckpoint {
+  imageId: string;
+  oldProvider: 'legacy-base64';
+  newProvider: 'cloudbase-storage';
+  storageFileId: string;
+  storagePath: string;
+  checksumSha256?: string;
+  migratedAt: string;
+}
+```
+
+Technology constraints:
+
+- Use append-only storage paths. Never overwrite an existing object path.
+- Keep a backup of original base64 data until the rollback window closes.
+- Do not delete `data` in the first migration pass.
+- Migration scripts must use explicit EnvId and should be dry-run capable.
+
+Design and flow:
+
+1. Add `scripts/migrate-images-to-storage.mjs` or a TypeScript script in the
+   repo's existing script style.
+2. Iterate `images` where `data` is a string and `storageProvider` is missing or
+   `legacy-base64`.
+3. Decode base64 to bytes, validate size/MIME, compute SHA-256.
+4. Upload to `catalog/migrated/<imageId>/original-<safeName>`.
+5. Update image metadata to include storage fields, but keep `data`.
+6. Set `storageProvider` to `cloudbase-storage` only after public delivery has
+   passed storage-backed tests. Until then, either keep `legacy-base64` or write
+   `migrationStorageFileId` as a staged field.
+7. Add orphan cleanup that deletes storage objects for failed pending images
+   older than the selected TTL.
+
+Tests:
+
+- Dry run reports counts and planned storage paths without writing.
+- Running migration twice does not create duplicate active objects.
+- Corrupt base64 marks the image skipped/failed without stopping the batch.
+- Legacy public image still renders before, during, and after migration.
+- Rollback can switch provider back to `legacy-base64` while `data` remains.
+
+Exit criteria:
+
+- Migration is idempotent.
+- Source bytes are retained through the rollback window.
+- Orphan cleanup is safe and logs deleted storage keys without temp URLs.
+
+### 20.9 MIU-07 - Browser-Direct Upload Spike
+
+Runtime problem:
+
+- Browser-direct upload is the long-term efficient transport, but current infra
+  lacks a confirmed browser publishable key and CloudBase Web Auth alignment.
+- It should be proven separately from the P0 product-image fix.
+
+Data shape:
+
+```ts
+interface MediaUploadIntent {
+  intentId: string;
+  imageId: string;
+  purpose: 'catalog-image';
+  storagePath: string;
+  expectedMimeType: string;
+  expectedByteSizeMax: number;
+  expiresAt: string;
+  uploadMethod: 'cloudbase-http-upload-info' | 'cloudbase-web-sdk';
+  uploadHeaders?: Record<string, string>;
+  uploadUrl?: string;
+}
+```
+
+Technology constraints:
+
+- Do not use public bucket write permissions.
+- Do not introduce direct browser NoSQL writes.
+- Verify CloudBase security domains and publishable key before frontend code is
+  considered viable.
+- Store only durable storage identifiers, never temporary URLs.
+
+Design and flow:
+
+1. Add admin action `createMediaUploadIntent` that validates JWT, purpose, MIME,
+   size, and creates a pending image record.
+2. Use CloudBase HTTP storage upload info or Web SDK only if the credential model
+   is safe in classic mode.
+3. Browser uploads directly to storage.
+4. Browser calls `completeMediaUpload`.
+5. Backend verifies object existence, size/checksum where available, and
+   activates metadata.
+6. If the spike cannot prove credential/domain/security rules, close it as
+   rejected and keep server upload or CloudRun.
+
+Tests and evidence:
+
+- Console or MCP proof of publishable key/security-domain readiness.
+- Direct upload succeeds from deployed test site origin.
+- Direct upload fails from an untrusted origin.
+- Completion rejects wrong path, wrong MIME, wrong size, expired intent, and
+  missing object.
+
+Exit criteria:
+
+- A yes/no decision on promoting Option A byte transport.
+- No P0 dependency on this spike unless MIU-00 rejects server upload and this
+  spike passes.
+
+### 20.10 MIU-08 - OEM Files Follow-Up
+
+Runtime problem:
+
+- `files` and OEM drawings still use base64.
+- Production public-api intentionally has no `/api/files/:id`; local-only file
+  downloads are not prod parity.
+- OEM files may be much larger and private, so product-image policy should not
+  be copied blindly.
+
+Data shape:
+
+```ts
+interface FileMetadataDoc {
+  _id: string;
+  name: string;
+  mimeType: string;
+  purpose: 'oem-drawing';
+  storageProvider: 'cloudbase-storage';
+  storageFileId: string;
+  storagePath: string;
+  byteSize: number;
+  status: 'pending' | 'active' | 'failed' | 'deleted';
+  ownerProjectId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+```
+
+Technology constraints:
+
+- OEM files are private admin-only assets.
+- Public unauthenticated OEM submission needs anti-abuse controls before direct
+  upload is allowed.
+- Large files, malware scanning, or resumable uploads are CloudRun media gateway
+  candidates.
+
+Design and flow:
+
+1. Keep product-image implementation scoped to `images`.
+2. Add a separate authenticated admin file-delivery route for OEM downloads.
+3. For public OEM submissions, choose one of:
+   - small-file server upload if route capacity is proven
+   - direct storage upload intent with strict expiry and object verification
+   - CloudRun media gateway for larger/private scanning workflows
+4. Link `oemProjects.drawing` to a `files` metadata doc, not base64 data.
+
+Tests:
+
+- Public `/api/files/:id` remains unavailable.
+- Admin-authenticated OEM download succeeds.
+- Unauthenticated OEM download fails.
+- Oversize private files fail with a clear message or route to CloudRun flow.
+
+Exit criteria:
+
+- OEM implementation has its own size/security policy.
+- No accidental public route exposes private drawings.
+
+### 20.11 MIU-09 - Deploy, Smoke, And Review Hardening
+
+Runtime problem:
+
+- Local behavior already differs from production body limits.
+- CloudBase deploys can drift in routes, function config, and runtime env.
+- Media privacy needs deterministic deploy smoke, not only unit tests.
+
+Design and flow:
+
+1. Update `scripts/deploy-cloudbase-test.mjs` only if the selected transport
+   needs new routes or env vars.
+2. Merge existing function env config when adding media env vars. Do not erase
+   console-side values accidentally.
+3. Update `scripts/smoke-function-artifacts.mjs` if new packages must be bundled
+   into function artifacts.
+4. Update `scripts/smoke-cloudbase-deploy.mjs` to verify:
+   - admin route still returns controlled `401` without token
+   - public health still works
+   - legacy image still renders
+   - uploaded storage image linked to published product renders
+   - uploaded storage image unlinked or unpublished returns `404`
+   - `/api/files/__missing__` remains a route absence check, not the privacy
+     proof
+5. Request another review focused on:
+   - storage permission boundary
+   - generic CRUD forgery prevention
+   - public image privacy
+   - deploy route/env drift
+
+Implementation checks:
+
+```text
+pnpm --filter @vibelingan-channel/shared typecheck
+pnpm --filter @vibelingan-channel/db typecheck
+pnpm --filter @vibelingan-channel/media-storage typecheck
+pnpm --filter @vibelingan-channel/fn-admin test
+pnpm --filter @vibelingan-channel/fn-public-api test
+pnpm build:functions
+pnpm smoke:functions
+pnpm smoke:cloudbase
+```
+
+Exit criteria:
+
+- Implementation PR includes the CloudBase capability report, unit-test output,
+  function artifact smoke, deployed media smoke, and exact max upload size.
+- Any selected fallback is explicit: server upload, direct storage upload, or
+  CloudRun.
+
+## 21. References
 
 - CloudBase Storage overview: https://docs.cloudbase.net/en/storage/introduce
 - CloudBase Web SDK storage API: https://docs.cloudbase.net/en/api-reference/webv2/storage
 - CloudBase server Node SDK storage API: https://docs.cloudbase.net/en/api-reference/server/node-sdk/storage
 - CloudBase HTTP storage upload info: https://docs.cloudbase.net/en/http-api/storage/get-objects-upload-info
+- CloudBase HTTP access for cloud functions: https://docs.cloudbase.net/en/service/access-cloud-function
 - CloudBase function boundary guidance: `cloudbase/references/cloud-functions/SKILL.md`
 - Current admin upload code: `apps/site/src/islands/admin/api.ts`
 - Current admin image UI: `apps/site/src/islands/admin/ImageManager.tsx`
