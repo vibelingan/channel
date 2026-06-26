@@ -989,7 +989,7 @@ export interface MediaCapabilityReport {
   adminJsonLimitBytes: number;
   adminMultipartLimitBytes: number;
   chosenCatalogImageMaxBytes: number;
-  recommendedTransport: 'server-upload' | 'direct-storage-upload' | 'cloudrun-media-gateway';
+  recommendedTransport: 'server-upload' | 'native-http-function-upload' | 'direct-storage-upload' | 'cloudrun-media-gateway';
   checkedAt: string;
 }
 ```
@@ -999,11 +999,17 @@ Technology constraints:
 - Every probe must use the explicit test EnvId, not an implicit CLI default.
 - Functions stay Event Functions behind CloudBase HTTP access unless this MIU
   proves the need for CloudRun or native HTTP Function.
-- Existing gateway routes are exact-path oriented today:
-  `/api/admin` -> `admin`, `/api` -> `public-api`.
-- If implementation chooses `/api/admin/media`, the deploy script must create
-  that access route explicitly. If implementation keeps upload on `/api/admin`
-  with `multipart/form-data`, the adapter must dispatch by `Content-Type`.
+- CloudBase HTTP access matches by path PREFIX, not exact path (cross-check
+  correction C5; see §23): `public-api` serves `/api/health`,
+  `/api/<collection>`, and `/api/images/:id` all under the single `/api` route
+  via internal segment dispatch (`apps/functions/public-api/src/http-adapter.ts`).
+  So the existing `/api/admin` prefix already reaches the `admin` function for
+  `/api/admin/media`.
+- A new gateway route is therefore a design CHOICE (e.g. a separate function to
+  escape the admin function body-size/compute ceiling), not a routing necessity.
+  If upload stays on `/api/admin` with `multipart/form-data`, the adapter must
+  dispatch by `Content-Type`. If a dedicated function is chosen, add its route
+  to `scripts/deploy-cloudbase-test.mjs`.
 
 Design and flow:
 
@@ -1017,10 +1023,15 @@ Design and flow:
    - multipart/raw body at 256 KiB, 1 MiB, 5 MiB
 4. Record whether server-side upload is actually viable for
    `CATALOG_IMAGE_MAX_BYTES`.
-5. Decide transport:
+5. Decide transport (cross-check correction C4 / §22.3-2 — four branches; see §23):
    - If multipart/raw passes the chosen product limit, use MIU-03 server upload.
-   - If multipart/raw is still capped around 100 KiB, use MIU-07 direct storage
-     upload info for product images or introduce CloudRun for a media gateway.
+   - Else, probe whether a native CloudBase HTTP Function (distinct from the
+     current Event-Function-behind-HTTP-access) raises the body cap enough to
+     keep server upload viable; if so, route product-image upload through it.
+   - Else, if multipart/raw is still capped around 100 KiB, use MIU-07 direct
+     storage upload info for product images.
+   - Else introduce CloudRun for a media gateway. Decide early whether to
+     provision a publishable key or accept CloudRun, so MIU-00 cannot dead-end.
 
 Code translation:
 
@@ -1050,7 +1061,10 @@ interface Cloud {
     fileContent: Buffer | Uint8Array | NodeJS.ReadableStream;
   }): Promise<UploadFileResult>;
   getTempFileURL(options: {
-    fileList: string[];
+    // Verified against installed @cloudbase/node-sdk@2.10.0 (wrapped by
+    // wx-server-sdk@3.0.4): the parameter is a UNION array, not string[].
+    // (Cross-check correction C1; see §23.)
+    fileList: (string | { fileID: string; maxAge?: number })[];
   }): Promise<{ fileList: TempFileUrlResult[] }>;
   downloadFile(options: { fileID: string }): Promise<DownloadFileResult>;
   deleteFile(options: { fileList: string[] }): Promise<{ fileList: unknown[] }>;
@@ -1938,3 +1952,70 @@ P3:
 Approved with minor changes. None of the new findings block. Fold 22.3-1 and
 22.3-2 into MIU-00 before implementation; treat 22.3-3 through 22.3-6 as
 implementation notes for their respective MIUs.
+
+## 23. Implementation Cross-Check Corrections (2026-06-26)
+
+Third pass added 2026-06-26 immediately before implementation. The Section 20
+MIU plan and both review addenda (§19, §22) were cross-checked against the
+actual code on this branch and the installed SDK type definitions (six parallel
+auditors). Verdict: approve with adjustments. The architecture and MIU
+sequencing are sound, and every enabling mechanism already exists in code:
+
+- the `readOnly` registry flag (`packages/shared/src/collections.ts:36-37`,
+  excluded from `buildWriteSchema().strict()` at lines 244-246/283-290), with
+  the `users.passwordHash` production precedent;
+- the trusted `createDoc`/`updateDoc` writers that bypass the registry
+  (`packages/db/src/index.ts:110-126`);
+- the idempotent `initCloudBase` guard (`packages/db/src/cloudbase-adapter.ts`);
+- the transitively-available storage SDK (no new dependency).
+
+The corrections below supersede the cited lines/sections. They are copy-paste /
+mislabel fixes, not architectural changes.
+
+Verified SDK facts (installed `@cloudbase/node-sdk@2.10.0`, wrapped by
+`wx-server-sdk@3.0.4`):
+
+- `uploadFile({ cloudPath, fileContent })` -> `{ fileID, requestId, statusCode }`.
+- `getTempFileURL({ fileList: (string | { fileID, maxAge? })[] })` ->
+  `{ fileList: [{ fileID, status, errMsg, maxAge, tempFileURL }], requestId }`.
+- `deleteFile({ fileList: string[] })` (no SDK-side count cap; chunk in code).
+- `downloadFile({ fileID, tempFilePath? })`.
+
+| ID | Supersedes | Correction | Owning MIU |
+| --- | --- | --- | --- |
+| C1 | §20.2 ambient type (`getTempFileURL`); §22.3-1 | Parameter is `fileList: (string \| { fileID, maxAge? })[]` (a UNION), NOT `string[]` (doc) and NOT object-only (§22.3-1). MIU-02 wrapper calls `getTempFileURL({ fileList: [{ fileID, maxAge }] })`. Fixed inline in §20.2. | MIU-00 typings, MIU-02 |
+| C2 | §22.2 row "Env var updates must merge" (labeled "Confirmed") | Mislabeled. `scripts/deploy-cloudbase-test.mjs` `updateFunctionConfig` passes only `envVariables: def.envVariables` and never reads existing env — it OVERWRITES. The merge is REQUIRED, NOT YET IMPLEMENTED. MIU-09 must fetch existing env (`getFunctionDetail`), deep-merge (script wins), and pass the merged set BEFORE any media env var is added. | MIU-09 |
+| C3 | §22.3-1 "deleteFile caps at 50" | The 50-file cap is a CloudBase server-side limit, not SDK-enforced (installed type is `fileList: string[]`, no chunking). MIU-02 must chunk delete batches itself. | MIU-02 |
+| C4 | §20.2 `recommendedTransport` + "Decide transport" | Added the 4th transport branch (native CloudBase HTTP Function) per §22.3-2 so MIU-00 cannot dead-end if multipart server upload fails the capacity gate. Fixed inline in §20.2. | MIU-00 |
+| C5 | §2 / §20.2 routing note | CloudBase HTTP access is PREFIX-matched, not exact-path. `/api/admin/media` already reaches `admin` via the `/api/admin` prefix; a new gateway route is a design choice, not a necessity. Fixed inline in §20.2. | MIU-03 |
+
+Threaded review notes (were only in §22.3; assigned here so §20 implementers see them):
+
+- §22.3-3 (MIU-02): reuse the exported idempotent `initCloudBase` from
+  `packages/db/src/cloudbase-adapter.ts`; do NOT re-init per function `index.ts`.
+- §22.3-4 (MIU-04): proxy delivery re-inflates bytes ~33% and routes through
+  compute on every cache miss. Add a tracked fast-follow to introduce a
+  `RedirectResult` (302 to temp URL) once MIU-04 ships proxy P0.
+- §22.3-5 (MIU-06): MIU-03 blocks `image/svg+xml` for new uploads, but seeded
+  assets and the current uploader accept SVG. MIU-06 must carry legacy SVGs
+  through the `legacy-base64` read path and NOT run them through MIU-03's upload
+  MIME allowlist. Add an explicit step + test.
+- §22.3-6 (MIU-03): compute `checksumSha256` server-side from the received
+  buffer rather than trusting the client value; store the computed value.
+
+MIU-01 implementation note: the `readOnly` mechanism is REUSED, not built. Because
+`writableFields` filters read-only fields BEFORE `zodForField` compiles `select`
+enums, a read-only `select` is NOT enum-enforced on write; the dedicated media
+action's own Zod schema must enforce `purpose`/`status`/MIME.
+
+Environment blocker for env-gated MIUs (MIU-00, MIU-03 server-upload smoke,
+MIU-07, MIU-09): the deployed probe is not runnable without CloudBase
+credentials, and there is an env-var name mismatch — app runtime + `.env(.example)`
+define `TCB_ENV`, but `scripts/deploy-cloudbase-test.mjs` and
+`scripts/smoke-cloudbase-deploy.mjs` `requireEnv('TCB_ENV_ID')`. Reconcile the
+name and add it to `.env.example` so these scripts fail loudly, not silently.
+
+Sequencing. Local-codeable now (no CloudBase env): MIU-01, MIU-02 (local-disk +
+typings), MIU-05, MIU-04 (logic). Env-gated: MIU-00, MIU-03 server-upload smoke,
+MIU-07, MIU-09. Recommended start: MIU-01 -> MIU-02 -> MIU-05 -> MIU-04, then
+the env-gated block once credentials are available.
