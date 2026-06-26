@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy-test-${{ github.ref }}
+  group: cloudbase-deploy-${{ vars.TCB_ENV_ID || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
