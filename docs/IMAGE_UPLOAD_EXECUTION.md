@@ -11,7 +11,7 @@ design-only; validation results and capability probes live here.
 
 | MIU | Scope | Status | Commit(s) | Validation |
 | --- | --- | --- | --- | --- |
-| MIU-01 | Media data contract + safe write surface | ✅ done; Codex re-review findings open | `8c94d25` (+review fixes) | 12 unit tests + 18 existing pass; tsc + biome clean; Codex review §2026-06-29 + re-review §2026-06-29 |
+| MIU-01 | Media data contract + safe write surface | ✅ done; Codex review + re-review resolved | `8c94d25` (+review fixes) | 13 unit tests + 18 existing pass; tsc + biome clean; Codex review + re-review §2026-06-29 resolved |
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done | (this commit) | 7 unit tests; root+e2e tsc clean; biome clean; both functions build with media-storage bundled |
 | MIU-04 | Public delivery + visibility index (logic) | pending | — | — |
@@ -299,10 +299,13 @@ Codex doc commit):
 
 1. **COS bucket CORS / upload-origin proof.** Prove a real browser-origin `PUT`
    to the COS `uploadUrl` succeeds from (a) the deployed site origin and (b) the
-   local dev origin. Configure bucket CORS to allow `PUT` + the required headers:
-   `Authorization`, `X-Cos-Security-Token`, `X-Cos-Meta-Fileid`, and content
-   headers (`Content-Type`, `Content-Length`). Record the proven origins +
-   headers here. A correct implementation still fails in-browser without this.
+   local dev origin. Configure bucket CORS to allow `PUT` + the headers the
+   frontend actually sets: `Authorization`, `X-Cos-Security-Token`,
+   `X-Cos-Meta-Fileid`, and `Content-Type` (if the upload sets one). Do NOT list
+   `Content-Length` — it is a forbidden/UA-managed request header that the browser
+   sets automatically; frontend code cannot set it and CORS need not allow it
+   (§re-review). Record the proven origins + headers here. A correct
+   implementation still fails in-browser without this.
 2. **Server-side checksum on `completeUpload`** (design §22.3-6): recompute the
    SHA-256 from the stored object; never trust a client-supplied value.
 3. **Single CloudBase init** (design §22.3-3): reuse the idempotent
@@ -341,3 +344,26 @@ not implement MIU-Upload until those sections are replaced, not merely labeled.
 SSH note: normal DNS resolution for `github.com` was failing through the current
 resolver, so the pull/push used SSH with the Macmini key and `HostKeyAlias=github.com`
 against GitHub's SSH endpoint IP. No HTTPS Git transport was used.
+
+### Re-Review Disposition (addressed 2026-06-29)
+
+Critically evaluated; all three accepted (one remedy adjusted):
+
+- **P1 (banners over stale code) — FIXED (remedy adjusted).** Agreed the hazard
+  was real: a "do not implement" banner over copy-pasteable server-multipart /
+  FormData / Web-SDK-spike code is still a trap. **Removed** those executable
+  snippets from design §20.5 / §20.7 / §20.9 (the doc shrank ~240 lines); each is
+  now a banner + the carry-over policy + a pointer to the authoritative flow here.
+  Pushed back on "author a full MIU-Upload LLD now" — that LLD is written when
+  MIU-Upload is actually planned; the authoritative flow already lives in
+  §"Upload-credential mechanism".
+- **P2 (ImageMetadataDoc too weak) — FIXED.** Added `StorageBackedImageMetadataDoc`
+  (required `purpose`/`storageProvider`/`storageFileId`/`storagePath`/`status`/
+  `publishedRefCount`, provider excludes `legacy-base64`) + the `isStorageBackedImage()`
+  narrowing guard in `packages/shared/src/media.ts`, with a test. The raw
+  `ImageMetadataDoc` stays optional for legacy reads; media actions + delivery use
+  the strict type. (Reconciles with the first review, which wanted optional for
+  legacy.)
+- **P2 (Content-Length is a forbidden header) — FIXED.** Sharp and correct — JS
+  cannot set `Content-Length`. Reworded the MIU-Upload CORS precondition to list
+  only frontend-settable headers and to state `Content-Length` is UA-managed.

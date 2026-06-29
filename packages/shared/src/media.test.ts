@@ -9,7 +9,9 @@ import {
   type ImageMetadataDoc,
   MEDIA_PURPOSES,
   MEDIA_STATUSES,
+  type StorageBackedImageMetadataDoc,
   catalogImageUploadSchema,
+  isStorageBackedImage,
 } from './media.ts';
 
 function imagesDef() {
@@ -170,4 +172,40 @@ test('ImageMetadataDoc models both storage-backed and legacy records', () => {
   assert.equal(storage.storageProvider, 'cloudbase-storage');
   assert.equal(legacy.storageProvider, undefined); // defaulted to legacy-base64 by consumers
   assert.equal(legacy.status, undefined); // MIU-04 treats absent status as legacy-active
+});
+
+test('StorageBackedImageMetadataDoc requires lifecycle/storage fields; isStorageBackedImage narrows', () => {
+  // Required fields — omitting any of these would fail tsc, which is the point:
+  // the strict contract media actions / public delivery write + read through.
+  const backed: StorageBackedImageMetadataDoc = {
+    _id: 'img1',
+    name: 'product.jpg',
+    mimeType: 'image/jpeg',
+    purpose: 'catalog-image',
+    storageProvider: 'cloudbase-storage',
+    storageFileId: 'cloud://x',
+    storagePath: 'catalog/2026/06/img1/original-product.jpg',
+    status: 'active',
+    publishedRefCount: 1,
+  };
+  assert.equal(isStorageBackedImage(backed), true);
+
+  // A raw legacy row lacks the storage/lifecycle fields → guard returns false.
+  const legacy: ImageMetadataDoc = {
+    _id: 'img2',
+    name: 'placeholder.svg',
+    mimeType: 'image/svg+xml',
+    data: 'PHN2Zz4=',
+  };
+  assert.equal(isStorageBackedImage(legacy), false);
+
+  // A half-written storage row (provider set, but no fileId/status yet) is also
+  // rejected — callers cannot treat an incomplete row as active/public.
+  const pending: ImageMetadataDoc = {
+    _id: 'img3',
+    name: 'p.jpg',
+    mimeType: 'image/jpeg',
+    storageProvider: 'cloudbase-storage',
+  };
+  assert.equal(isStorageBackedImage(pending), false);
 });

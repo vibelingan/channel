@@ -1311,142 +1311,26 @@ Exit criteria:
   storage interface.
 - No browser bundle imports CloudBase server SDK.
 
-### 20.5 MIU-03 - Admin Product Image Upload
+### 20.5 MIU-03 - Admin Product Image Upload (SUPERSEDED — folded into MIU-Upload)
 
-> ⚠️ **SUPERSEDED by §24 (MIU-00 validation) — do not implement as written.**
-> MIU-00 proved the CloudBase HTTP access route hard-caps request bodies at
-> 100 KiB, so the server-side `POST /api/admin` multipart upload described below
-> CANNOT carry product images. MIU-03 and MIU-07 are folded into a single
-> **admin-brokered direct-upload MIU** (`createUploadIntent` → browser raw COS
-> `PUT` via `getUploadMetadata` → `completeUpload`+server-side verify). The
-> authoritative mechanism is in `docs/IMAGE_UPLOAD_EXECUTION.md` §"Upload-credential
-> mechanism". Keep this section only for the validation/auth/MIME policy and the
-> pending→active state machine, which carry over unchanged; ignore its
-> multipart-through-`/api/admin` transport.
-
-Runtime problem:
-
-- `apps/site/src/islands/admin/api.ts` currently reads the file as base64 and
-  calls generic `createRecord('images', ...)`.
-- New product image bytes must bypass JSON and land in CloudBase Storage.
-- Pending or failed uploads must never become public catalog images.
-
-Transport decision from MIU-00:
-
-- If CloudBase HTTP access can carry raw/multipart bodies at
-  `CATALOG_IMAGE_MAX_BYTES`, implement server-side upload.
-- If it cannot, do not implement this MIU as the P0 byte path. Use MIU-07
-  direct storage upload info or CloudRun instead.
-
-P0 request shape for server-side upload:
-
-```text
-POST /api/admin
-Content-Type: multipart/form-data
-
-fields:
-  action = uploadImage
-  token = <custom JWT>
-  purpose = catalog-image
-  variantRole = original
-  checksumSha256 = <optional client-computed sha256>
-  file = <binary image file>
-```
-
-Alternative route shape:
-
-- `POST /api/admin/media` is cleaner semantically, but requires an explicit
-  CloudBase gateway route or route-prefix proof. If this path is chosen, update
-  `scripts/deploy-cloudbase-test.mjs` and gateway smoke tests in the same MIU.
-
-Validation policy:
-
-```ts
-const CATALOG_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
-const CATALOG_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
-const BLOCKED_IMAGE_MIME_TYPES = ['image/svg+xml'] as const;
-```
-
-Design and flow:
-
-1. `apps/functions/admin/src/http-adapter.ts` detects multipart by
-   `Content-Type`.
-2. It parses the form into a `MediaUploadRequest` without base64 JSON.
-3. It authenticates the same JWT by calling existing `authenticate` logic or a
-   narrow exported helper.
-4. It validates role with `canEditCollection(claims.role, 'images')` or a
-   stricter admin/contributor check.
-5. It validates MIME, extension, byte count, and a light file signature.
-6. It creates an `images` document in `pending` state with `publishedRefCount:
-   0`.
-7. It uploads bytes to storage under a server-generated path.
-8. It updates the document to `active` with storage metadata.
-9. If storage upload succeeds but metadata activation fails, it deletes the
-   object immediately or writes an orphan cleanup record.
-10. It returns `{ id, image }`, where `id` is the existing product `imageIds`
-    value.
-
-Code translation:
-
-```ts
-async function uploadImageAction(input: MediaUploadRequest, claims: SessionClaims) {
-  assertCanUploadCatalogImage(claims, input);
-  const pending = await createDoc('images', {
-    name: input.fileName,
-    mimeType: input.mimeType,
-    purpose: 'catalog-image',
-    storageProvider: 'cloudbase-storage',
-    storageMode: 'classic-nosql-storage',
-    status: 'pending',
-    publishedRefCount: 0,
-    byteSize: input.byteSize,
-    checksumSha256: input.checksumSha256 ?? '',
-    createdBy: claims.sub,
-  });
-
-  let stored: StoredMediaObject | null = null;
-  try {
-    stored = await mediaStorage().putObject({
-      namespace: 'catalog',
-      logicalId: pending._id,
-      fileName: input.fileName,
-      mimeType: input.mimeType,
-      content: input.content,
-    });
-
-    const active = await updateDoc('images', pending._id, {
-      ...stored,
-      status: 'active',
-      updatedAt: new Date().toISOString(),
-    });
-    if (!active) throw new Error('Pending image disappeared during activation');
-    return active;
-  } catch (error) {
-    if (stored) await mediaStorage().deleteObject(stored.storageFileId).catch(() => undefined);
-    await updateDoc('images', pending._id, { status: 'failed' }).catch(() => undefined);
-    throw error;
-  }
-}
-```
-
-Tests:
-
-- JSON `create` can no longer write `images.data`.
-- Multipart upload without token returns `401`.
-- Viewer role returns `403`.
-- Unsupported MIME returns `400`.
-- SVG returns `400`.
-- Oversize file returns `400` with actionable message.
-- Storage failure leaves a `failed` or absent image record and no public image.
-- Metadata failure deletes or records the orphaned object.
-- Successful upload returns an ID usable in `products.imageIds`.
-- CloudBase gateway smoke uploads at least one real product-size image in test.
-
-Exit criteria:
-
-- New product images no longer use `fileToBase64`.
-- Upload failures are visible to admins and do not create public assets.
-- The implementation PR states the enforced product-image max size.
+> SUPERSEDED by MIU-00 validation (§24). Server-side multipart upload through
+> `/api/admin` is impossible on this infra (100 KiB route cap), so the original
+> server-multipart request shape, `uploadImageAction` code, and FormData tests that
+> lived here were REMOVED to avoid a copy-paste trap. MIU-03 is folded with MIU-07
+> into one admin-brokered direct-upload MIU.
+>
+> Authoritative flow + data shapes: `docs/IMAGE_UPLOAD_EXECUTION.md`
+> §"Upload-credential mechanism" (createUploadIntent → server `getUploadMetadata`
+> → browser raw COS `PUT` → completeUpload verify+activate) and §"MIU-Upload
+> preconditions".
+>
+> Carry-over policy (still enforced by the upload MIU):
+> - Catalog MIME allowlist + max size from `@vibelingan-channel/shared`
+>   (`CATALOG_IMAGE_MIME_TYPES`, `CATALOG_IMAGE_MAX_BYTES`); SVG blocked for new uploads.
+> - The `images` row starts `status: 'pending'`, `publishedRefCount: 0`, and only
+>   flips to `active` after the object is verified — pending/failed rows never public.
+> - On activation failure, delete the uploaded object (compensation) or mark it for
+>   orphan cleanup. Compute `checksumSha256` server-side (§22.3-6).
 
 ### 20.6 MIU-04 - Public Delivery And Published Visibility Index
 
@@ -1559,86 +1443,19 @@ Exit criteria:
 - No O(catalog) scan remains in `getCatalogImage()` for the new path.
 - Public image privacy has deterministic unit and deployed smoke coverage.
 
-### 20.7 MIU-05 - Admin UI Uploader
+### 20.7 MIU-05 - Admin UI Uploader (SUPERSEDED — see MIU-Upload)
 
-> ⚠️ **Transport updated by §24 (MIU-00 validation).** The uploader does NOT send
-> `multipart/FormData` through `/api/admin` (that route caps at 100 KiB). Instead
-> it drives the admin-brokered direct-upload flow: call `createUploadIntent` →
-> raw `PUT` the file bytes to the returned COS `uploadUrl` (with the
-> `Authorization`/`X-Cos-Security-Token`/`X-Cos-Meta-Fileid` headers) → call
-> `completeUpload`. The progress/per-file-error/stable-ID UI requirements below
-> still apply; only the wire transport changes. See
-> `docs/IMAGE_UPLOAD_EXECUTION.md` §"Upload-credential mechanism".
-
-Runtime problem:
-
-- The admin UI currently converts every selected `File` to base64 before upload.
-- Admins need progress, per-file errors, and stable returned image IDs.
-
-Data shape:
-
-```ts
-export interface UploadImageOptions {
-  purpose?: 'catalog-image';
-  onProgress?: (state: { loaded: number; total?: number }) => void;
-}
-
-export interface UploadImageResult {
-  id: string;
-  image: CollectionDoc;
-}
-```
-
-Technology constraints:
-
-- `fetch` does not expose upload progress in all browsers. If progress is
-  required in P0, use `XMLHttpRequest` for the upload call only, or show
-  per-file pending/success/error states without byte progress.
-- Keep existing product form value shape: `imageIds: string[]`.
-- Do not import CloudBase Web SDK in this MIU.
-
-Design and flow:
-
-1. Replace `fileToBase64` usage in `apps/site/src/islands/admin/api.ts`.
-2. Add `uploadImage(file, options)` that sends `FormData` to the chosen endpoint
-   and parses the existing `ApiResult` envelope.
-3. Update `ImageManager.tsx` to:
-   - upload files sequentially or with a low concurrency limit, for example 2
-   - show each file as pending/uploading/succeeded/failed
-   - keep successful IDs in the current order
-   - allow retry of failed files
-4. Keep `imageUrl(id)` unchanged so previews still use `/api/images/:id`.
-5. Use human-readable errors from API responses for unsupported type/size.
-
-Code translation:
-
-```ts
-export async function uploadImage(file: File): Promise<string> {
-  const form = new FormData();
-  form.set('action', 'uploadImage');
-  form.set('token', getToken() ?? '');
-  form.set('purpose', 'catalog-image');
-  form.set('file', file, file.name);
-
-  const res = await fetch(ENDPOINT, { method: 'POST', body: form });
-  const result = (await res.json()) as ApiResult<UploadImageResult>;
-  if (!result.ok) throw new AdminApiError(result.error.code, result.error.message);
-  return result.data.id;
-}
-```
-
-Tests:
-
-- `uploadImage()` sends `FormData`, not JSON.
-- `uploadImage()` does not call `FileReader.readAsDataURL`.
-- `ImageManager` appends successful IDs and preserves existing IDs.
-- Per-file failure does not discard previously uploaded files.
-- Oversize/type errors render in the manager.
-
-Exit criteria:
-
-- Normal admin product upload uses storage-backed IDs with no visible product
-  form contract change.
+> SUPERSEDED by MIU-00 validation (§24). The original `FormData`-through-`/api/admin`
+> uploader code and FormData tests were REMOVED (that transport hits the 100 KiB
+> cap). The admin UI instead drives the admin-brokered direct-upload flow:
+> `createUploadIntent` → raw `PUT` the bytes to the returned COS `uploadUrl` (with the
+> `Authorization`/`X-Cos-Security-Token`/`X-Cos-Meta-Fileid` headers) → `completeUpload`.
+> See `docs/IMAGE_UPLOAD_EXECUTION.md` §"Upload-credential mechanism".
+>
+> Carry-over UI requirements (still apply): keep the product form value shape
+> `imageIds: string[]`; show per-file pending/uploading/succeeded/failed with retry,
+> preserving successful IDs in order; keep `imageUrl(id)` previews via
+> `/api/images/:id`; do not import the CloudBase Web SDK.
 
 ### 20.8 MIU-06 - Legacy Image Migration And Orphan Cleanup
 
@@ -1698,78 +1515,19 @@ Exit criteria:
 - Source bytes are retained through the rollback window.
 - Orphan cleanup is safe and logs deleted storage keys without temp URLs.
 
-### 20.9 MIU-07 - Browser-Direct Upload Spike
+### 20.9 MIU-07 - Browser-Direct Upload (PROMOTED to P0 — see MIU-Upload)
 
-> ⚠️ **No longer a deferred spike — PROMOTED to the P0 transport by §24
-> (MIU-00 validation), and merged with MIU-03 into the single admin-brokered
-> direct-upload MIU.** MIU-00 proved server-side upload is impossible (100 KiB
-> route cap) AND that the Web SDK path is unavailable here (no publishable key,
-> anonymous login off). The viable mechanism is admin-brokered, NOT the Web SDK
-> `MediaUploadIntent.uploadMethod: 'cloudbase-web-sdk'` variant below: the admin
-> function mints a pre-signed COS credential via `getUploadMetadata` /
-> `POST /v1/storages/get-objects-upload-info` (server identity), the browser raw
-> `PUT`s with that signature, and the custom JWT stays the only browser
-> credential. The "no P0 dependency on this spike" exit criterion is obsolete —
-> this IS the P0. See `docs/IMAGE_UPLOAD_EXECUTION.md` §"Upload-credential
-> mechanism" for the authoritative flow + the CORS precondition.
-
-Runtime problem:
-
-- Browser-direct upload is the long-term efficient transport, but current infra
-  lacks a confirmed browser publishable key and CloudBase Web Auth alignment.
-- It should be proven separately from the P0 product-image fix.
-
-Data shape:
-
-```ts
-interface MediaUploadIntent {
-  intentId: string;
-  imageId: string;
-  purpose: 'catalog-image';
-  storagePath: string;
-  expectedMimeType: string;
-  expectedByteSizeMax: number;
-  expiresAt: string;
-  uploadMethod: 'cloudbase-http-upload-info' | 'cloudbase-web-sdk';
-  uploadHeaders?: Record<string, string>;
-  uploadUrl?: string;
-}
-```
-
-Technology constraints:
-
-- Do not use public bucket write permissions.
-- Do not introduce direct browser NoSQL writes.
-- Verify CloudBase security domains and publishable key before frontend code is
-  considered viable.
-- Store only durable storage identifiers, never temporary URLs.
-
-Design and flow:
-
-1. Add admin action `createMediaUploadIntent` that validates JWT, purpose, MIME,
-   size, and creates a pending image record.
-2. Use CloudBase HTTP storage upload info or Web SDK only if the credential model
-   is safe in classic mode.
-3. Browser uploads directly to storage.
-4. Browser calls `completeMediaUpload`.
-5. Backend verifies object existence, size/checksum where available, and
-   activates metadata.
-6. If the spike cannot prove credential/domain/security rules, close it as
-   rejected and keep server upload or CloudRun.
-
-Tests and evidence:
-
-- Console or MCP proof of publishable key/security-domain readiness.
-- Direct upload succeeds from deployed test site origin.
-- Direct upload fails from an untrusted origin.
-- Completion rejects wrong path, wrong MIME, wrong size, expired intent, and
-  missing object.
-
-Exit criteria:
-
-- A yes/no decision on promoting Option A byte transport.
-- No P0 dependency on this spike unless MIU-00 rejects server upload and this
-  spike passes.
+> No longer a deferred spike. MIU-00 proved server upload impossible (100 KiB cap)
+> AND the Web SDK path unavailable here (no publishable key, anonymous login off), so
+> admin-brokered direct upload IS the P0 transport. The original
+> Web-SDK/publishable-key `MediaUploadIntent` spike code was REMOVED so no
+> implementer points at the wrong (Web SDK) mechanism.
+>
+> Authoritative mechanism: `docs/IMAGE_UPLOAD_EXECUTION.md` §"Upload-credential
+> mechanism" — the admin function mints a pre-signed COS credential via
+> `getUploadMetadata` / `POST /v1/storages/get-objects-upload-info` (server identity);
+> the browser raw-`PUT`s with that signature; the custom JWT stays the only browser
+> credential. CORS/origin proof is a hard precondition (§MIU-Upload preconditions).
 
 ### 20.10 MIU-08 - OEM Files Follow-Up
 

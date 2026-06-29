@@ -115,6 +115,55 @@ export interface ImageMetadataDoc {
 }
 
 /**
+ * A storage-backed image row with its lifecycle/storage invariants REQUIRED.
+ *
+ * `ImageMetadataDoc` above is the raw at-rest shape: every media field is
+ * optional because legacy/pre-migration rows lack them. That honesty makes it
+ * too weak as the contract for NEW rows — so media actions (MIU-Upload) write,
+ * and public delivery (MIU-04) consumes, through THIS stricter type, where
+ * `purpose`/`storageProvider`/`storageFileId`/`storagePath`/`status`/
+ * `publishedRefCount` are all required and the provider excludes
+ * `legacy-base64`. Use `isStorageBackedImage()` to narrow a raw row.
+ */
+export interface StorageBackedImageMetadataDoc {
+  _id: string;
+  name: string;
+  mimeType: string;
+  purpose: MediaPurpose;
+  storageProvider: 'cloudbase-storage' | 'local-disk';
+  storageMode?: ImageStorageMode;
+  storageFileId: string;
+  storagePath: string;
+  byteSize?: number;
+  width?: number;
+  height?: number;
+  checksumSha256?: string;
+  status: MediaStatus;
+  publishedRefCount: number;
+  variants?: ImageVariantMetadata[];
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Narrow a raw at-rest row to the storage-backed contract: a non-legacy
+ * provider plus all required storage + lifecycle fields present. Legacy rows
+ * (and incompletely-written rows) return false, forcing callers to handle them
+ * (e.g. via the legacy-base64 read path) rather than mistreating them.
+ */
+export function isStorageBackedImage(doc: ImageMetadataDoc): doc is StorageBackedImageMetadataDoc {
+  return (
+    (doc.storageProvider === 'cloudbase-storage' || doc.storageProvider === 'local-disk') &&
+    typeof doc.storageFileId === 'string' &&
+    typeof doc.storagePath === 'string' &&
+    typeof doc.purpose === 'string' &&
+    typeof doc.status === 'string' &&
+    typeof doc.publishedRefCount === 'number'
+  );
+}
+
+/**
  * Build a zod string-enum from a readonly non-empty tuple, preserving the
  * literal union in the inferred type. Spreading into a fresh (mutable) array
  * keeps the literal tuple type `[...T]` while dropping the
