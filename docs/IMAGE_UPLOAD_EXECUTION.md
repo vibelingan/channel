@@ -14,7 +14,7 @@ design-only; validation results and capability probes live here.
 | MIU-01 | Media data contract + safe write surface | ✅ done; Codex review + re-review resolved | `8c94d25` (+review fixes) | 13 unit tests + 18 existing pass; tsc + biome clean; Codex review + re-review §2026-06-29 resolved |
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
-| MIU-04 | Public delivery + visibility index (logic) | phases A+B done; Codex A-review + self-adversarial B-review resolved (C/D pending) | `4823a12` (+P2/P3 fix), Phase B | A: atomic `incrementField` + facade integer guard + `nextCounterValue` RMW helper. B: `publishedRefCount` maintenance in admin create/update/remove/batch (gated to catalog collections), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin tests 8→26; both functions build with maintenance bundled; root tsc + biome clean |
+| MIU-04 | Public delivery + visibility index (logic) | phases A+B+C done; Codex A-review + self-adversarial B/C reviews resolved (D=backfill pending) | `4823a12` (+fixes), Phase B, Phase C | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (gated to catalog), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin tests 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy via `mediaStorage()`; fail-closed on corrupt/non-finite refCount), O(catalog) scan removed from the new path; public-api tests 6→16; both functions build; root tsc + biome clean |
 | MIU-05 | Admin UI uploader (FormData) | pending | — | — |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | pending | — | env-gated; CORS/origin proof is a hard precondition (see Disposition) |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
@@ -579,3 +579,47 @@ test-pinned). All P3 (no P1/P2). Disposition:
   backfill-reconciled drift (§20.6 step 5), out of Phase B scope.
 - Re-verify: root tsc clean; biome clean; admin 26, public-api 6, shared 13,
   media-storage 23; both functions build with the maintenance bundled.
+
+## MIU-04 Phase C — public delivery branching (done)
+
+Rewrote `getCatalogImage` in the public-api handler so `publishedRefCount` is the
+canonical public-visibility gate and the per-request O(catalog) scan is gone for
+the new path:
+
+- Branches by provider + state: placeholder (public by explicit id);
+  legacy-base64 (trusts a present `publishedRefCount`, else the catalog-scan
+  fallback for pre-backfill rows); storage-backed (cloudbase-storage / local-disk
+  — requires `status === 'active'`, a positive finite refCount, and a string
+  `storageFileId`, then proxies bytes via `mediaStorage().getObjectAsBase64`).
+- Fail-closed throughout: a non-finite/corrupt refCount cannot render
+  (`Number.isFinite(refCount) && refCount > 0`); an unfetchable storage object is
+  logged and returned as 404, never a 500 / leaked bytes.
+- The legacy scan (`legacyImageIsPublicFallback`) is reached ONLY for legacy rows
+  with no refCount yet — satisfying the §20.6 exit criterion once backfill runs.
+- Validation: 10 delivery tests (storage active renders via proxy, refCount 0 →
+  404, pending → 404, unfetchable bytes → 404, corrupt refCount → 404, legacy
+  refCount 0 → 404, legacy canonical refCount>0 renders without scan, legacy scan
+  fallback still renders, placeholder by id, Phase B↔C contract: bumping
+  publishedRefCount makes a storage image deliverable). public-api 6 → 16.
+
+### MIU-04 Phase C Self-Review — adversarial workflow (2026-06-30)
+
+5-dimension adversarial review (visibility-correctness, scan-exit-criterion,
+security-leak, parity/errors, test-completeness), each finding verified by an
+independent skeptic. **Zero correctness or security-leak findings** — the
+security-leak and scan-exit dimensions came back clean. 4 raw, 2 confirmed (both
+P3 test gaps), 2 dismissed:
+
+- **Caught pre-review & fixed:** a corrupt/non-finite `publishedRefCount` could
+  render on the storage path (`NaN <= 0` is `false`); changed the gate to
+  `Number.isFinite(refCount) && refCount > 0` (fail-closed) + a regression test.
+- **Added (P3 gaps):** a legacy row canonically visible via refCount>0 with an id
+  in no catalog (proves the canonical path renders without the scan), and a Phase
+  B↔C contract test (bump `publishedRefCount` via the same `incrementField`
+  primitive → the image becomes deliverable).
+- **Dismissed (correctly):** "legacy ignores `status`" contradicts the design's
+  own reference impl (the status gate is storage-only, §20.6); "no local-disk
+  provider test" is redundant — local-disk and cloudbase-storage take the
+  identical `provider !== 'legacy-base64'` branch.
+- Re-verify: root tsc clean; biome clean; public-api 16; both functions build
+  with the storage proxy bundled.
