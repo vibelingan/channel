@@ -2108,3 +2108,61 @@ proxy delivery) is **unchanged** by this finding — it was always transport-
 agnostic. Proxy delivery (MIU-04) is further reinforced by 24.1's CDN-cache
 caveat: proxying private bytes through the function avoids leaving signed-URL
 content in the CDN edge cache after unpublish/delete.
+
+### 24.3 Upload-credential mechanism (resolved): admin-brokered pre-signed PUT
+
+The P0 transport needs the browser to write image bytes straight to the PRIVATE
+bucket — without a function carrying them (100 KiB cap) and without a browser
+CloudBase identity. Two candidates were evaluated against the live env.
+
+Mechanism B — CloudBase Web SDK `app.uploadFile()` — **REJECTED (proven):**
+- `queryAppAuth getPublishableKey` -> `publishableKey: null`.
+- `queryAppAuth getLoginConfig` -> `{ usernamePassword: true, anonymous: false,
+  email: false, phone: false }`.
+- `app.uploadFile()` requires the browser `@cloudbase/js-sdk` to hold an
+  authenticated CloudBase Auth session. This env has no publishable key, anonymous
+  login is OFF, and the app authenticates with its own custom JWT (not CloudBase
+  Auth) — so the browser has no CloudBase identity to authorize an upload.
+  Enabling B = provision a publishable key + enable anonymous login + adopt
+  CloudBase Auth in the browser, a new auth surface the design forbids. This is
+  the empirical confirmation of §19 finding 1.
+
+Mechanism A — admin-brokered pre-signed upload — **SELECTED:**
+- Primitive (classic/"传统模式" storage HTTP API, matches this NoSQL env):
+  `POST /v1/storages/get-objects-upload-info`, also wrapped by the bundled
+  `@cloudbase/node-sdk@2.10.0` as `cloud.getUploadMetadata({ cloudPath })`. The
+  call is permission-gated: the admin function (server identity) is authorized to
+  mint it; the browser is not.
+- Returns per object: `{ uploadUrl, authorization, token, cloudObjectMeta,
+  cloudObjectId, downloadUrl }`, where `cloudObjectId = cloud://env.bucket/path`
+  (the durable storageFileId to persist).
+- Flow:
+  1. Browser (custom JWT) -> `POST /api/admin { action: createUploadIntent, … }`
+     (tiny JSON, far under 100 KiB). Function validates JWT+role, picks a
+     server-controlled `cloudPath`
+     (`catalog/<yyyy>/<mm>/<imageId>/original-<safeName>`), writes a `pending`
+     image doc, calls `getUploadMetadata`, and returns
+     `{ imageId, uploadUrl, authorization, token, cloudObjectMeta, cloudObjectId }`.
+  2. Browser does a raw `PUT uploadUrl` with headers `Authorization:
+     <authorization>`, `X-Cos-Security-Token: <token>`, `X-Cos-Meta-Fileid:
+     <cloudObjectMeta>`, body = file bytes. Bytes go browser -> COS directly; the
+     100 KiB function cap is never on the path.
+  3. Browser -> `POST /api/admin { action: completeUpload, imageId,
+     cloudObjectId }`. Function verifies the object exists + size, computes
+     SHA-256 server-side (download or `get-objects-download-info`; §22.3-6), flips
+     the doc to `active` with `storageFileId = cloudObjectId`. On failure ->
+     `failed` / delete the object.
+- Browser credential: ONLY the custom JWT. The COS signature is minted
+  server-side, single-object and short-lived. No publishable key, no CloudBase
+  Auth, no broadened bucket permissions — satisfies the §13 storage-permission
+  and custom-JWT gates.
+
+Build-time gate (verify in the upload MIU): the COS bucket CORS must allow `PUT`
+from the deployed site origin and the local test origin. This is the §13
+"security-domain readiness" item for the raw-PUT path — a bucket CORS config, not
+a code blocker.
+
+This resolves §24.2's open sub-question. The new P0 upload MIU folds the old
+MIU-03 + MIU-07 into one admin-brokered direct-upload unit: intent ->
+pre-signed PUT -> complete+verify, all on the existing Event functions, no new
+runtime and no publishable key.
