@@ -58,7 +58,7 @@ export function mediaStorage(): MediaStorageAdapter {
   const adapter = (globalThis as MediaStorageHost)[MEDIA_STORAGE_KEY];
   if (!adapter) {
     throw new Error(
-      '@vibelingan-channel/db: no media storage configured. Call setMediaStorage() at startup.',
+      '@vibelingan-channel/media-storage: no media storage configured. Call setMediaStorage() at startup.',
     );
   }
   return adapter;
@@ -90,8 +90,10 @@ export function safeFileName(name: string): string {
     .replace(/\.{2,}/g, '.')
     .replace(/\s+/g, '_')
     .replace(/_{2,}/g, '_')
-    .replace(/^[._]+|[._]+$/g, '')
-    .slice(0, 120);
+    // Truncate BEFORE the leading/trailing trim so a cut at the 120-char
+    // boundary can't re-introduce a trailing `_`/`.`.
+    .slice(0, 120)
+    .replace(/^[._]+|[._]+$/g, '');
   return cleaned || 'file';
 }
 

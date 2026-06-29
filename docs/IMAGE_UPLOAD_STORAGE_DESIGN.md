@@ -734,6 +734,14 @@ Local server:
 
 ## 16. Option Decision Matrix
 
+> ⚠️ SUPERSEDED by MIU-00 validation (§24). The "Fit now" column below is the
+> original pre-validation analysis and is now INVERTED: Option C (server-side
+> upload) is **shelved** — the deployed HTTP route caps request bodies at 100 KiB
+> — and the **admin-brokered variant of Option A is the P0 transport** (browser
+> raw-PUT to COS with a server-minted credential). Option B stays rejected (no
+> publishable key). Read the rows as historical option analysis, not current
+> ranking.
+
 | Option | Best use | Fit now | Sustainability | Main concern |
 | --- | --- | --- | --- | --- |
 | A. Admin-brokered direct CloudBase Storage upload | Target metadata/delivery architecture | Gated | High | Browser-direct grant unproven without publishable key |
@@ -765,6 +773,13 @@ Local server:
   example 15 minutes or 24 hours?
 
 ## 18. Recommended Next Implementation Plan
+
+> ⚠️ Transport steps SUPERSEDED by §24. Step 1's `cloud.uploadFile` server path
+> and steps 8-9 (server-side raw-byte upload + "browser-direct spike, promote
+> only if proven") are obsolete: MIU-00 decided the P0 transport is
+> admin-brokered direct upload (browser raw-PUT to COS), MIU-03 server-upload is
+> shelved, and the browser-direct path is no longer a deferred spike. The
+> metadata/delivery steps (3-7, 10-11) still stand.
 
 1. Confirm bucket readiness, storage API availability, and function-side
    `cloud.uploadFile`/temp URL support in the deployed test env.
@@ -958,11 +973,11 @@ Implementation rule:
 | 0 | Storage and transport readiness | Proves CloudBase bucket, server SDK, route body limit, and delivery primitives |
 | 1 | Media data contract | Adds safe metadata schema without generic storage-field forgery |
 | 2 | Media storage adapter | Adds CloudBase and local-disk storage backends |
-| 3 | Admin product image upload | Replaces new product-image base64 writes with storage-backed uploads |
+| 3 | Admin product image upload | SUPERSEDED (§24) — folded into the MIU-Upload admin-brokered direct-upload MIU; server multipart shelved |
 | 4 | Public delivery and visibility index | Serves storage images only when published and removes O(catalog) scan |
-| 5 | Admin UI uploader | Sends raw files with progress and keeps product `imageIds` stable |
+| 5 | Admin UI uploader | Drives the admin-brokered upload-intent flow (NOT raw files through `/api/admin`); keeps `imageIds` stable (§24) |
 | 6 | Migration and cleanup | Moves existing `images.data` documents to storage safely |
-| 7 | Browser-direct upload spike | Proves or rejects Option A byte transport for future optimization |
+| 7 | Browser-direct upload | PROMOTED to P0 (§24) — the admin-brokered direct upload IS the transport, not a deferred spike |
 | 8 | OEM files follow-up | Moves private files with a larger-file policy and admin-only delivery |
 | 9 | Deploy and smoke hardening | Adds CloudBase deploy gates and media privacy smoke tests |
 

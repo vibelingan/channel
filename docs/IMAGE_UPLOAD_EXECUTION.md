@@ -13,7 +13,7 @@ design-only; validation results and capability probes live here.
 | --- | --- | --- | --- | --- |
 | MIU-01 | Media data contract + safe write surface | ✅ done; Codex review + re-review resolved | `8c94d25` (+review fixes) | 13 unit tests + 18 existing pass; tsc + biome clean; Codex review + re-review §2026-06-29 resolved |
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
-| MIU-02 | Media storage adapter (local-disk + typings) | ✅ done | (this commit) | 7 unit tests; root+e2e tsc clean; biome clean; both functions build with media-storage bundled |
+| MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; pre-push review resolved | `308b917` (+review fixes) | 17 media-storage unit tests (incl. fake-SDK cloudbase suite); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; 4-reviewer pre-push review (0 logic P1) |
 | MIU-04 | Public delivery + visibility index (logic) | pending | — | — |
 | MIU-05 | Admin UI uploader (FormData) | pending | — | — |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | pending | — | env-gated; CORS/origin proof is a hard precondition (see Disposition) |
@@ -367,3 +367,31 @@ Critically evaluated; all three accepted (one remedy adjusted):
 - **P2 (Content-Length is a forbidden header) — FIXED.** Sharp and correct — JS
   cannot set `Content-Length`. Reworded the MIU-Upload CORS precondition to list
   only frontend-settable headers and to state `Content-Length` is UA-managed.
+
+### MIU-02 pre-push review disposition (2026-06-29)
+
+4 parallel reviewers (assumption/docs, deep correctness+cross-file, TypeScript,
+test). **0 logic P1** — deep review independently verified the adapter against the
+installed SDK (DI typing sound, traversal guard layered, bundles clean, lazy
+singleton). Findings addressed:
+
+- **P1 (test) — FIXED.** `cloudbase.ts` (production backend) had zero tests despite
+  being fake-SDK testable. Added `packages/media-storage/src/cloudbase.test.ts`
+  (7 tests): putObject Buffer+stream, getTempUrl union call-shape/default/throw,
+  getObjectAsBase64, deleteObject, and the 50-file `deleteCloudBaseObjects`
+  chunking boundary (51→[50,1], 50→[50], 0→[]).
+- **P2 (docs drift) — FIXED.** The forward-looking artifacts that still pushed the
+  rejected paths — §16 option matrix, §18 plan steps, §20.1 execution-order table —
+  now carry SUPERSEDED-by-§24 redirects (the same trap the re-review killed in
+  §20.5/20.7/20.9, one layer up).
+- **P2 (TS contract duplication) — ACKNOWLEDGED, not coupled.** The
+  `CloudBaseStorageSdk` ↔ db `Cloud` assignability is already enforced at the
+  injection call site (`createCloudBaseMediaStorage(cloudStorageSdk)` fails `tsc`
+  if they drift); adding a redundant assertion would re-couple media-storage to
+  `wx-server-sdk`, which the DI design exists to avoid.
+- **P3s — FIXED.** `isStorageBackedImage` now checks enum MEMBERSHIP (not bare
+  `typeof string`); `getObjectAsBase64` guards an empty download; `safeFileName`
+  truncates before the trailing-trim; error namespace `db:`→`media-storage:`; added
+  marketing-path, smoke-sanitize, stream-putObject, and delete/tempUrl-traversal
+  tests. (LOW: §20.4 oem/smoke path examples still show the pre-implementation
+  shape — reconciled when MIU-06/08 define those namespaces.)

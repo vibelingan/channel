@@ -157,8 +157,10 @@ export function isStorageBackedImage(doc: ImageMetadataDoc): doc is StorageBacke
     (doc.storageProvider === 'cloudbase-storage' || doc.storageProvider === 'local-disk') &&
     typeof doc.storageFileId === 'string' &&
     typeof doc.storagePath === 'string' &&
-    typeof doc.purpose === 'string' &&
-    typeof doc.status === 'string' &&
+    // Validate enum MEMBERSHIP, not just `typeof string` — a row with a garbage
+    // `purpose`/`status` must not be narrowed to the closed literal unions.
+    (MEDIA_PURPOSES as readonly string[]).includes(doc.purpose ?? '') &&
+    (MEDIA_STATUSES as readonly string[]).includes(doc.status ?? '') &&
     typeof doc.publishedRefCount === 'number'
   );
 }

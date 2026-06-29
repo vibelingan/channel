@@ -36,7 +36,10 @@ export interface CloudBaseStorageSdk {
   getTempFileURL(options: {
     fileList: (string | { fileID: string; maxAge?: number })[];
   }): Promise<{ fileList: { fileID: string; tempFileURL: string; code?: string }[] }>;
-  downloadFile(options: { fileID: string }): Promise<{ fileContent: Buffer }>;
+  // `fileContent` is optional to match the installed SDK (a failed download
+  // yields no content); getObjectAsBase64 guards it. `Cloud`'s narrower
+  // `{ fileContent: Buffer }` is still assignable here.
+  downloadFile(options: { fileID: string }): Promise<{ fileContent: Buffer | undefined }>;
   deleteFile(options: { fileList: string[] }): Promise<{ fileList: unknown[] }>;
 }
 
@@ -69,6 +72,9 @@ export function createCloudBaseMediaStorage(sdk: CloudBaseStorageSdk): MediaStor
 
     async getObjectAsBase64(fileId: string): Promise<{ body: string; byteSize?: number }> {
       const { fileContent } = await sdk.downloadFile({ fileID: fileId });
+      if (!fileContent) {
+        throw new Error(`media-storage(cloudbase): download returned no content for ${fileId}`);
+      }
       return { body: fileContent.toString('base64'), byteSize: fileContent.byteLength };
     },
 
