@@ -24,6 +24,8 @@ class FakeSdk implements CloudBaseStorageSdk {
       downloadContent?: Buffer;
       failIds?: Set<string>; // these fileIDs come back with a non-zero status
       dropIds?: Set<string>; // these fileIDs are omitted from the result (missing)
+      deleteShape?: 'wx' | 'node';
+      mapDeleteFileId?: (id: string) => string;
     } = {},
   ) {}
 
@@ -46,14 +48,22 @@ class FakeSdk implements CloudBaseStorageSdk {
   async deleteFile(o: { fileList: string[] }) {
     this.deleteFileLists.push(o.fileList);
     // Mirror the wx-server-sdk per-file shape: { fileID, status: 0, errMsg: 'ok' }
-    // on success, non-zero status on failure; dropped ids produce no entry.
+    // on success, non-zero status on failure; dropped ids produce no entry. Tests
+    // can also ask for the raw @cloudbase/node-sdk shape: { fileID, code }.
     const fileList = o.fileList
       .filter((id) => !this.opts.dropIds?.has(id))
-      .map((id) =>
-        this.opts.failIds?.has(id)
-          ? { fileID: id, status: 1, errMsg: 'mock delete failure' }
-          : { fileID: id, status: 0, errMsg: 'ok' },
-      );
+      .map((id) => {
+        const fileID = this.opts.mapDeleteFileId?.(id) ?? id;
+        const failed = this.opts.failIds?.has(id);
+        if (this.opts.deleteShape === 'node') {
+          return failed
+            ? { fileID, code: 'DELETE_FAILED', message: 'mock delete failure' }
+            : { fileID, code: 'SUCCESS' };
+        }
+        return failed
+          ? { fileID, status: 1, errMsg: 'mock delete failure' }
+          : { fileID, status: 0, errMsg: 'ok' };
+      });
     return { fileList };
   }
 }
@@ -159,6 +169,22 @@ test('cloudbase deleteObject throws when no result entry is returned (missing)',
   const sdk = new FakeSdk({ dropIds: new Set(['cloud://x']) });
   const store = createCloudBaseMediaStorage(sdk);
   await assert.rejects(() => store.deleteObject('cloud://x'), /no delete result returned/);
+});
+
+test('cloudbase deleteObject accepts raw node-sdk SUCCESS delete entries', async () => {
+  const sdk = new FakeSdk({ deleteShape: 'node' });
+  const store = createCloudBaseMediaStorage(sdk);
+  await store.deleteObject('cloud://node-success');
+  assert.deepEqual(sdk.deleteFileLists.at(-1), ['cloud://node-success']);
+});
+
+test('cloudbase deleteObject throws when success entry is for a different fileID', async () => {
+  const sdk = new FakeSdk({ mapDeleteFileId: (id) => `${id}-other` });
+  const store = createCloudBaseMediaStorage(sdk);
+  await assert.rejects(
+    () => store.deleteObject('cloud://x'),
+    /delete result mismatch for cloud:\/\/x: returned cloud:\/\/x-other/,
+  );
 });
 
 test('deleteCloudBaseObjects aggregates per-file failures across chunks', async () => {

@@ -13,7 +13,7 @@ design-only; validation results and capability probes live here.
 | --- | --- | --- | --- | --- |
 | MIU-01 | Media data contract + safe write surface | ✅ done; Codex review + re-review resolved | `8c94d25` (+review fixes) | 13 unit tests + 18 existing pass; tsc + biome clean; Codex review + re-review §2026-06-29 resolved |
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
-| MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 21 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
+| MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
 | MIU-04 | Public delivery + visibility index (logic) | pending | — | — |
 | MIU-05 | Admin UI uploader (FormData) | pending | — | — |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | pending | — | env-gated; CORS/origin proof is a hard precondition (see Disposition) |
@@ -465,12 +465,14 @@ the `wx-server-sdk` wrapper returns `{ fileID, status, errMsg }` (ok =
 - Added `inspectDeleteEntry(entry)` — a defensive per-file normalizer covering
   BOTH shapes; anything not positively confirmed as success counts as a failure.
 - `deleteObject()` now throws `media-storage(cloudbase): delete failed for <id>…`
-  on a failed or missing result entry.
+  on a failed or missing result entry, and rejects a success entry whose returned
+  `fileID`/`fileId` does not match the requested id.
 - `deleteCloudBaseObjects()` aggregates failures + silently-dropped ids across
   all chunks and throws once with every failed id (so cleanup callers can retry).
-- Tests (`cloudbase.test.ts`, +4): single delete failure, missing result entry,
-  multi-chunk partial failure (one rejected + one dropped), and the all-success
-  path. media-storage suite 17 → 21.
+- Tests (`cloudbase.test.ts`, +6): single delete failure, missing result entry,
+  raw node-sdk `code:'SUCCESS'` entry, mismatched success `fileID`, multi-chunk
+  partial failure (one rejected + one dropped), and the all-success path.
+  media-storage suite 17 → 23.
 
-Verify: media-storage 21 + shared 13 unit tests; root + e2e `tsc` clean; biome
+Verify: media-storage 23 + shared 13 unit tests; root + e2e `tsc` clean; biome
 clean; both functions build with the hardening bundled.

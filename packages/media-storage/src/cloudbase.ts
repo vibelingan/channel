@@ -138,6 +138,13 @@ export function createCloudBaseMediaStorage(sdk: CloudBaseStorageSdk): MediaStor
           `media-storage(cloudbase): delete failed for ${fileId}: ${outcome.reason ?? 'unknown'}`,
         );
       }
+      if (outcome.fileID !== fileId) {
+        throw new Error(
+          `media-storage(cloudbase): delete result mismatch for ${fileId}: returned ${
+            outcome.fileID ?? 'no fileID'
+          }`,
+        );
+      }
     },
   };
 }
