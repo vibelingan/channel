@@ -11,8 +11,8 @@ design-only; validation results and capability probes live here.
 
 | MIU | Scope | Status | Commit(s) | Validation |
 | --- | --- | --- | --- | --- |
-| MIU-01 | Media data contract + safe write surface | ✅ done + reviewed | `8c94d25` (+review fixes) | 12 unit tests + 18 existing pass; tsc + biome clean; 4-reviewer self-review (0 P1) |
-| MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below) |
+| MIU-01 | Media data contract + safe write surface | ✅ done; review findings open | `8c94d25` (+review fixes) | 12 unit tests + 18 existing pass; tsc + biome clean; Codex review §2026-06-29 |
+| MIU-00 | CloudBase storage + transport readiness | ✅ validated; upload-origin gate open | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof still required for MIU-Upload |
 | MIU-02 | Media storage adapter (local-disk + typings) | pending | — | — |
 | MIU-04 | Public delivery + visibility index (logic) | pending | — | — |
 | MIU-05 | Admin UI uploader (FormData) | pending | — | — |
@@ -197,3 +197,37 @@ CloudBase identity. Two candidates were evaluated against the live env.
 `PUT` from the deployed site origin and the local test origin (the design §13
 "security-domain readiness" item for the raw-PUT path) — a bucket CORS config,
 not a code blocker.
+
+---
+
+## Codex Review — 2026-06-29
+
+Review base: `f81b29fcc5f08f098410123e5050828f45f07c0c` on
+`fix/image-upload-storage-design`.
+
+Verdict: MIU-01's shared contract implementation is directionally correct and
+passes its package checks, and MIU-00 records enough evidence to reject
+server-side upload through the current Event Function route. The branch is still
+not implementation-ready for the upload MIU until the findings below are
+resolved or explicitly accepted as blockers.
+
+### Findings
+
+| Severity | Finding | Evidence | Required change |
+| --- | --- | --- | --- |
+| P1 | The implementation-grade MIU plan is split-brained after MIU-00 selected admin-brokered pre-signed PUT. The execution log says old MIU-03 + MIU-07 fold into one direct-upload MIU, but the low-level design still tells the implementer to build server-side multipart upload first and keep browser-direct upload as a later spike. Following the stale section would re-enter the 100 KiB route-cap failure that MIU-00 just proved. | Execution decision: `docs/IMAGE_UPLOAD_EXECUTION.md` §MIU Progress Ledger and §Upload-credential mechanism. Stale plan: `docs/IMAGE_UPLOAD_STORAGE_DESIGN.md` §20.5 still specifies `POST /api/admin` multipart/server upload, §20.7 still treats browser-direct as a spike, and §20.7 exit criteria still says there is no P0 dependency on that spike. | Rewrite the low-level MIU section before Claude implements MIU-Upload: replace old MIU-03 + MIU-07 with one admin-brokered direct-upload MIU (`createUploadIntent` -> raw COS `PUT` -> `completeUpload`), and update MIU-05 to call that flow rather than multipart/FormData through `/api/admin`. |
+| P2 | The enabled mutation E2E flow still creates image bytes through generic `createRecord('images', { data })`, which MIU-01 now intentionally rejects. Shared unit tests prove the reject path, so any `E2E_ALLOW_MUTATION=1` run will fail before product/public image assertions. | `tests/e2e/mutation.spec.ts` creates linked/unlinked images with `data` on lines 34-44 and 49-59. `packages/shared/src/media.test.ts` asserts generic image writes reject `data` on lines 36-39 and partial updates reject it on lines 90-96. | Gate or rewrite the mutation image setup in the same execution plan. Options: skip only that media-dependent assertion until MIU-Upload lands, create legacy images through a trusted test fixture/backfill helper, or move the mutation test to the new upload-intent flow when implemented. |
+| P2 | The selected direct PUT transport still lacks a proved bucket CORS/upload-origin gate. The execution doc records it as a later build-time check, but for browser-to-COS bytes it is a hard readiness gate: a correct app implementation can still fail in the browser if deployed/local origins and PUT headers are not allowed. | `docs/IMAGE_UPLOAD_EXECUTION.md` §Build-time gate says CORS must allow `PUT` from deployed and local origins but has no live proof. The CloudBase design/security-domain checklist already treats origin readiness as a storage boundary item. | Promote CORS/origin proof into MIU-Upload preconditions or first exit criteria. Record the allowed origins and required headers (`Authorization`, `X-Cos-Security-Token`, `X-Cos-Meta-Fileid`, content headers), then smoke a real browser-origin PUT before wiring admin UI completion. |
+| P2 | `ImageMetadataDoc` models legacy images as if migration/backfill fields already exist, while actual legacy records only contain `_id`, `name`, `mimeType`, and `data`. Future MIU-04 code that trusts the required type can accidentally treat old images as non-active/non-public even though legacy reads must continue until migration completes. | `packages/shared/src/media.ts` requires `purpose`, `storageProvider`, `status`, and `publishedRefCount` on `ImageMetadataDoc`. `apps/local-server/src/seed.ts` still seeds legacy images with only `_id`, `name`, `mimeType`, and `data`, matching the current production shape. | Model pre-migration legacy rows explicitly: either use a discriminated union where those fields may be absent for `legacy-base64`, or add a backfill/defaulting helper that normalizes DB rows before public delivery and migration code consume them. |
+
+### Verification
+
+- `CI=true pnpm install --ignore-scripts --frozen-lockfile` in an extracted copy of
+  the latest remote branch: passed.
+- `pnpm --filter @vibelingan-channel/shared test`: passed, 12 tests.
+- `pnpm --filter @vibelingan-channel/shared typecheck`: passed.
+- `pnpm exec biome check packages/shared/src/media.ts packages/shared/src/media.test.ts packages/shared/src/collections.ts`: passed.
+
+Git transport note: local Git HTTPS/SSH fetch to GitHub was unavailable from this
+workspace, so this review was based on the GitHub API branch snapshot and pushed
+back through the GitHub contents API without rewriting branch history.
