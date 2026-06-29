@@ -14,7 +14,7 @@ design-only; validation results and capability probes live here.
 | MIU-01 | Media data contract + safe write surface | ✅ done; Codex review + re-review resolved | `8c94d25` (+review fixes) | 13 unit tests + 18 existing pass; tsc + biome clean; Codex review + re-review §2026-06-29 resolved |
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
-| MIU-04 | Public delivery + visibility index (logic) | pending | — | — |
+| MIU-04 | Public delivery + visibility index (logic) | phase A implemented; Codex review finding open | `4823a12` | atomic `incrementField` primitive added; focused tests/typecheck pass; review asks for finite-delta + numeric-current guard before using it for canonical visibility |
 | MIU-05 | Admin UI uploader (FormData) | pending | — | — |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | pending | — | env-gated; CORS/origin proof is a hard precondition (see Disposition) |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
@@ -476,3 +476,33 @@ the `wx-server-sdk` wrapper returns `{ fileID, status, errMsg }` (ok =
 
 Verify: media-storage 23 + shared 13 unit tests; root + e2e `tsc` clean; biome
 clean; both functions build with the hardening bundled.
+
+### MIU-04 Phase A Review — Atomic Refcount Primitive (2026-06-30)
+
+Review base: `4823a12` (`feat(db): atomic incrementField primitive (MIU-04
+phase A)`). Scope: adapter contract, CloudBase `db.command.inc` implementation,
+local JSON parity, test adapters, and alignment with design §20.6.
+
+**What is sound**
+
+- The phase matches design §20.6 steps 1-3: `DbAdapter.incrementField(...)`,
+  CloudBase `db.command.inc(delta)`, ambient `Command.inc`, and local JSON
+  read-modify-write are present.
+- The helper is exposed only as a trusted server-side facade; it intentionally
+  bypasses the generic registry write schema, like `createDoc`/`updateDoc`.
+- Existing focused checks pass: admin handler tests, public API tests, db
+  typecheck, and Biome for the changed files.
+
+**Findings**
+
+| Severity | Finding | Evidence | Required change |
+| --- | --- | --- | --- |
+| P2 | `incrementField` is a trusted write-schema bypass but accepts any JavaScript `number` delta, including `NaN`, `Infinity`, and fractional values. Because `publishedRefCount` becomes the canonical public-visibility gate, a bad delta can poison counters or diverge between CloudBase and local JSON behavior. | `packages/db/src/index.ts` forwards `delta` directly; `packages/db/src/cloudbase-adapter.ts` passes it to `db.command.inc(delta)`; local/test adapters compute `(Number.isFinite(current) ? current : 0) + delta`, so a non-finite delta can persist non-finite values locally. | At the facade boundary, reject non-finite and non-integer deltas with a clear error before calling the adapter. Add tests for `NaN`, `Infinity`, and fractional deltas. |
+| P3 | Local/test adapters silently treat an existing non-numeric counter value as `0`, while CloudBase `inc` is intended for numeric fields. That can hide corrupted/backfilled data in local and unit tests, then fail or behave differently in CloudBase. | `JsonFileAdapter.incrementField` and both `MemoryAdapter.incrementField` implementations use `Number(existing[field] ?? 0)` and replace non-finite current values with `0`. | Only initialise absent/null fields from `0`; if the field exists and is not a finite number, throw a clear counter-corruption error. Add one local/test adapter coverage case so MIU-04 visibility code does not normalize bad data silently. |
+
+**Verification run during this review**
+
+- `pnpm --filter @vibelingan-channel/db typecheck`: passed.
+- `pnpm --filter @vibelingan-channel/fn-admin test`: passed, 11 tests.
+- `pnpm --filter @vibelingan-channel/fn-public-api test`: passed, 6 tests.
+- `pnpm exec biome check packages/db/src/adapter.ts packages/db/src/index.ts packages/db/src/cloudbase-adapter.ts packages/db/src/wx-server-sdk.d.ts apps/local-server/src/json-adapter.ts apps/functions/admin/src/handler.test.ts apps/functions/public-api/src/http-adapter.test.ts`: passed.
