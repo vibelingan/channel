@@ -2019,3 +2019,92 @@ Sequencing. Local-codeable now (no CloudBase env): MIU-01, MIU-02 (local-disk +
 typings), MIU-05, MIU-04 (logic). Env-gated: MIU-00, MIU-03 server-upload smoke,
 MIU-07, MIU-09. Recommended start: MIU-01 -> MIU-02 -> MIU-05 -> MIU-04, then
 the env-gated block once credentials are available.
+
+## 24. MIU-00 Capability Report (validated 2026-06-29)
+
+MIU-00 was executed against the live deployed test env via the CloudBase MCP
+(device-authed) plus direct HTTPS probes. This section is the committed
+`MediaCapabilityReport` (the §20.2 exit-criteria artifact) and the
+evidence-backed transport decision.
+
+```ts
+const mediaCapabilityReport = {
+  envId: 'diversity-123-d9grnqfux221323bb',
+  alias: 'diversity-123',
+  region: 'ap-shanghai',
+  runtimeMode: 'nosql',          // classic NoSQL (MongoDB-style); PG NOT provisioned
+  package: 'baas_trial',         // trial tier — quotas/limits may be lower than paid
+  bucketReady: true,
+  bucket: '6469-diversity-123-d9grnqfux221323bb-1443560658',
+  bucketAcl: 'PRIVATE',          // public URLs 403; delivery must proxy or sign
+  cdnDomain: '6469-diversity-123-d9grnqfux221323bb-1443560658.tcb.qcloud.la',
+  fileIdFormat: 'cloud://<envId>.<bucket>/<path>',
+  serverSdkStorageReady: true,   // upload/tempUrl/download/delete proven (round-trip)
+  tempUrlReady: true,
+  deleteReady: true,
+  functions: {
+    admin: { route: '/api/admin', type: 'Event', runtime: 'Nodejs20.19', enableAuth: false },
+    publicApi: { route: '/api', type: 'Event', runtime: 'Nodejs20.19', enableAuth: false },
+  },
+  httpAccessHost: 'diversity-123-d9grnqfux221323bb.service.tcloudbase.com',
+  adminJsonLimitBytes: 102400,       // 100 KiB — gateway 413 EXCEED_MAX_PAYLOAD_SIZE above this
+  adminMultipartLimitBytes: 102400,  // same gateway cap (content-type independent, pre-handler)
+  chosenCatalogImageMaxBytes: 10 * 1024 * 1024, // 10 MiB target
+  recommendedTransport: 'direct-storage-upload', // server-upload FAILS the capacity gate
+  checkedAt: '2026-06-29',
+};
+```
+
+### 24.1 How each field was validated (evidence)
+
+| Claim | Method | Result |
+| --- | --- | --- |
+| Env is classic NoSQL, PG not provisioned | `envQuery(action=info)` -> `RuntimeMode`/`RuntimeBackends` | `nosql`; `{postgresql:false, nosql:true, mysql:false}` |
+| Bucket exists, region, CDN | `envQuery info` `Storages[0]` | `6469-…-1443560658`, ap-shanghai, Status NORMAL |
+| Bucket is private | `queryPermissions(getResourcePermission, storage)` | `aclTag: PRIVATE` |
+| Storage upload works | `manageStorage(upload)` of `media-smoke/<uuid>.txt` | success + signed temp URL |
+| Temp URL serves bytes intact | HTTPS GET of signed URL | HTTP 200, **sha256 matched** original |
+| Private bucket blocks anon read | HTTPS GET of bare public URL | **HTTP 403** |
+| Temp-URL resolution + durable fileID | `queryStorage(action=url)` | returned `cloud://env.bucket/path` fileID |
+| Delete works | `manageStorage(delete force)` then `queryStorage(list)` | `deleted:true`; prefix lists 0 files |
+| (caveat) CDN caches deleted object | GET temp URL after delete | still 200 from CDN edge — cache TTL ≠ deletion |
+| Functions are Event behind HTTP access | `queryFunctions(listFunctions)` | `admin`,`public-api`, `Type:Event`, Nodejs20.19 |
+| Routes | `queryGateway(getAccess)` | `/api/admin`, `/api` under one host |
+| **Body-size cap** | HTTPS POST of increasing JSON to `/api/admin` | <=102400 B -> handler (401); >102400 B -> **413 EXCEED_MAX_PAYLOAD_SIZE** |
+
+### 24.2 Transport decision (resolves the §19 P1 / §22.3-2 gate)
+
+The route-capacity gate is **failed by design's worst case**: the CloudBase HTTP
+access layer rejects any request body over **100 KiB (102400 bytes)** with a
+platform-level `413` *before* the function handler runs. Product images
+(100 KB–10 MB) therefore **cannot** be carried by server-side upload through the
+existing `admin` Event Function.
+
+Walking the §20.2 / C4 four-branch fallback against this evidence:
+
+1. `server-upload` (Option C / MIU-03 as written) — **REJECTED.** 100 KiB cap.
+2. `native-http-function-upload` — untested; *could* bypass the access-layer cap
+   but adds an `scf_bootstrap`/port-9000 runtime. Reserve as a fallback only if
+   server-side byte handling becomes a hard requirement.
+3. `direct-storage-upload` — **SELECTED P0.** Bytes go browser -> CloudBase
+   Storage directly (bucket confirmed, `app.uploadFile()` is the documented
+   browser path for this env), bypassing the 100 KiB function cap entirely. The
+   `admin` function only brokers a short-lived upload credential and writes
+   metadata — all small JSON, far under 100 KiB.
+4. `cloudrun-media-gateway` — reserve for large/private OEM files + scanning
+   (MIU-08), not needed for catalog images.
+
+**Consequence — MIU reordering:** the browser-direct/admin-brokered path
+(previously isolated as the MIU-07 *spike*) is **promoted to the P0 byte
+transport**. MIU-03 "server multipart upload" is shelved for product images.
+Open sub-question for the promoted MIU-07/03: confirm the exact browser upload
+credential — CloudBase Web SDK `app.uploadFile()` (needs web-auth/publishable
+key) vs an admin-brokered storage upload-info credential (keeps the custom JWT
+as the sole browser credential, no publishable key). The latter is preferred for
+this infra; verifying the storage upload-info API server-side is the next probe.
+
+The metadata/delivery architecture (MIU-01, MIU-02 adapter, MIU-04 visibility +
+proxy delivery) is **unchanged** by this finding — it was always transport-
+agnostic. Proxy delivery (MIU-04) is further reinforced by 24.1's CDN-cache
+caveat: proxying private bytes through the function avoids leaving signed-URL
+content in the CDN edge cache after unpublish/delete.
