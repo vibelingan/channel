@@ -87,6 +87,17 @@ test('catalog image upload schema accepts a valid request and defaults purpose',
   assert.equal(parsed.fileName, 'product.jpg');
 });
 
+test('images generic UPDATE (partial) write schema also rejects forged readOnly keys', () => {
+  // .partial() must preserve .strict(): the update path is as security-critical
+  // as create. Forging a storage key on update must throw, not be stripped.
+  const schema = buildWriteSchema(imagesDef()).partial();
+  assert.throws(() => schema.parse({ storageFileId: 'cloud://forged' }));
+  assert.throws(() => schema.parse({ data: 'AAAA' }));
+  assert.throws(() => schema.parse({ status: 'active' }));
+  // A safe partial edit still works.
+  assert.deepEqual(schema.parse({ name: 'renamed.jpg' }), { name: 'renamed.jpg' });
+});
+
 test('catalog image upload schema rejects blocked MIME, oversize, and empty name', () => {
   assert.throws(() =>
     catalogImageUploadSchema.parse({ fileName: 'p.svg', mimeType: 'image/svg+xml', byteSize: 10 }),
@@ -100,6 +111,35 @@ test('catalog image upload schema rejects blocked MIME, oversize, and empty name
   );
   assert.throws(() =>
     catalogImageUploadSchema.parse({ fileName: '', mimeType: 'image/jpeg', byteSize: 10 }),
+  );
+});
+
+test('catalog image upload MIME is a whitelist, not an SVG-only blocklist', () => {
+  // image/gif is neither allowed nor in BLOCKED_IMAGE_MIME_TYPES — it must still
+  // be rejected, proving enforcement is the allowlist enum (a regression to a
+  // naive `!== 'image/svg+xml'` blocklist would be caught here).
+  assert.throws(() =>
+    catalogImageUploadSchema.parse({ fileName: 'p.gif', mimeType: 'image/gif', byteSize: 10 }),
+  );
+  assert.throws(() =>
+    catalogImageUploadSchema.parse({
+      fileName: 'p.bin',
+      mimeType: 'application/octet-stream',
+      byteSize: 10,
+    }),
+  );
+});
+
+test('catalog image upload schema enforces byteSize bounds (int, positive, present)', () => {
+  const base = { fileName: 'p.jpg', mimeType: 'image/jpeg' as const };
+  assert.throws(() => catalogImageUploadSchema.parse({ ...base, byteSize: 0 }));
+  assert.throws(() => catalogImageUploadSchema.parse({ ...base, byteSize: -5 }));
+  assert.throws(() => catalogImageUploadSchema.parse({ ...base, byteSize: 2.5 }));
+  assert.throws(() => catalogImageUploadSchema.parse(base)); // byteSize missing
+  // Exactly at the cap is allowed (max is inclusive).
+  assert.equal(
+    catalogImageUploadSchema.parse({ ...base, byteSize: CATALOG_IMAGE_MAX_BYTES }).byteSize,
+    CATALOG_IMAGE_MAX_BYTES,
   );
 });
 

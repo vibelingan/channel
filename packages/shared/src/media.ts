@@ -50,7 +50,12 @@ export type VariantRole = (typeof VARIANT_ROLES)[number];
  */
 export const CATALOG_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 export const CATALOG_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
-/** SVG is active/vector content; blocked for new product uploads (legacy reads stay). */
+/**
+ * SVG is active/vector content. Advisory/UX list only — enforcement is the
+ * `CATALOG_IMAGE_MIME_TYPES` allowlist: any value not on it (SVG included) is
+ * rejected by `catalogImageUploadSchema`. Legacy SVGs still read via the
+ * `legacy-base64` path.
+ */
 export const BLOCKED_IMAGE_MIME_TYPES = ['image/svg+xml'] as const;
 
 /** Metadata for one generated variant of a source image. */
@@ -82,6 +87,9 @@ export interface ImageMetadataDoc {
   storageFileId?: string;
   storagePath?: string;
   byteSize?: number;
+  // Optional top-level source dimensions; per-variant dimensions live on
+  // ImageVariantMetadata. Server-managed and intentionally absent from the
+  // generic `images` registry (set only by dedicated media actions).
   width?: number;
   height?: number;
   checksumSha256?: string;
@@ -95,9 +103,15 @@ export interface ImageMetadataDoc {
   updatedAt?: string;
 }
 
-/** Build a zod string-enum from a readonly tuple (matches collections.ts style). */
+/**
+ * Build a zod string-enum from a readonly non-empty tuple, preserving the
+ * literal union in the inferred type. Spreading into a fresh (mutable) array
+ * keeps the literal tuple type `[...T]` while dropping the
+ * `as [string, ...string[]]` cast that would otherwise widen the schema output
+ * to plain `string` — which erases compile-time MIME narrowing downstream.
+ */
 function stringEnum<T extends readonly [string, ...string[]]>(values: T) {
-  return z.enum([values[0], ...values.slice(1)] as [string, ...string[]]);
+  return z.enum([...values]);
 }
 
 /**

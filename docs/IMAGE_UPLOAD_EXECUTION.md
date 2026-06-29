@@ -11,7 +11,7 @@ design-only; validation results and capability probes live here.
 
 | MIU | Scope | Status | Commit(s) | Validation |
 | --- | --- | --- | --- | --- |
-| MIU-01 | Media data contract + safe write surface | ✅ done | `8c94d25` | 9 unit tests + 18 existing pass; tsc + biome clean |
+| MIU-01 | Media data contract + safe write surface | ✅ done + reviewed | `8c94d25` (+review fixes) | 12 unit tests + 18 existing pass; tsc + biome clean; 4-reviewer self-review (0 P1) |
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below) |
 | MIU-02 | Media storage adapter (local-disk + typings) | pending | — | — |
 | MIU-04 | Public delivery + visibility index (logic) | pending | — | — |
@@ -39,10 +39,27 @@ Decision summary (binds the plan; evidence below):
 - Extended the `images` collection with server-managed storage fields, all
   `readOnly`, and flipped legacy `data` to `readOnly` — generic CRUD can no longer
   forge `storageFileId` or write base64 bytes.
-- Validation: 9 new unit tests (generic write rejects every storage/lifecycle
-  field + `data`; only `name`+`mimeType` writable; upload schema accepts valid /
-  rejects SVG, oversize, empty). 18 existing suites still pass. `tsc` clean across
-  7 backend packages + `astro check` 0 errors; biome clean. Commit `8c94d25`.
+- Validation: 12 unit tests (generic create AND `.partial()` update reject every
+  storage/lifecycle field + `data`; only `name`+`mimeType` writable; upload schema
+  accepts valid / rejects SVG + non-allowlisted MIME (whitelist, not SVG-blocklist)
+  + oversize + empty + `byteSize` bounds). 18 existing suites still pass. `tsc`
+  clean across 7 backend packages + `astro check` 0 errors; biome clean.
+- Self-review (4 parallel reviewers, 0 P1): fixed the `stringEnum` cast that
+  widened `mimeType` to `string` (now preserves the literal union), and added the
+  whitelist + `.partial()`-update + `byteSize`-bound tests above.
+
+> **Known intermediate state (by design):** flipping `data` to `readOnly` means the
+> legacy admin uploader (`apps/site/src/islands/admin/api.ts` `uploadImage` →
+> `ImageManager.tsx`) now fails **loudly** with `VALIDATION_ERROR` — generic CRUD
+> can no longer write base64 bytes. This is intentional; the replacement is the
+> admin-brokered direct-upload MIU (was MIU-03/05). **Do not ship to an
+> environment that expects working admin image upload until that MIU lands.** The
+> branch is a feature branch, not deployed.
+
+> **Follow-up (out of MIU-01 scope, pre-existing):** the admin `redact()` only
+> strips `users.passwordHash`; `images` `list`/`get` responses return the full
+> base64 `data` blob + storage identifiers to any read-authorized role. Tracked
+> separately (multi-MB payloads + internal paths in admin list responses).
 
 ---
 
