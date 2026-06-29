@@ -11,7 +11,7 @@ design-only; validation results and capability probes live here.
 
 | MIU | Scope | Status | Commit(s) | Validation |
 | --- | --- | --- | --- | --- |
-| MIU-01 | Media data contract + safe write surface | ✅ done; Codex review resolved | `8c94d25` (+review fixes) | 12 unit tests + 18 existing pass; tsc + biome clean; Codex review §2026-06-29 resolved |
+| MIU-01 | Media data contract + safe write surface | ✅ done; Codex re-review findings open | `8c94d25` (+review fixes) | 12 unit tests + 18 existing pass; tsc + biome clean; Codex review §2026-06-29 + re-review §2026-06-29 |
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | pending | — | — |
 | MIU-04 | Public delivery + visibility index (logic) | pending | — | — |
@@ -269,3 +269,37 @@ Codex doc commit):
    SHA-256 from the stored object; never trust a client-supplied value.
 3. **Single CloudBase init** (design §22.3-3): reuse the idempotent
    `initCloudBase`; do not re-init per function.
+
+---
+
+## Codex Re-Review — 2026-06-29 after `a0be06f`
+
+Review base: `a0be06f2f4b35c86370bf86e9cc7af2cce631ee9` on
+`fix/image-upload-storage-design`, pulled via SSH (`git@github.com`) into a clean
+review clone.
+
+Verdict: `a0be06f` improves the branch and the touched TypeScript still passes
+local checks, but it does not fully close the implementation-risk findings. The
+main remaining problem is that the low-level design still contains obsolete
+server-multipart/FormData code blocks underneath warning banners. Claude should
+not implement MIU-Upload until those sections are replaced, not merely labeled.
+
+### Findings
+
+| Severity | Finding | Evidence | Required change |
+| --- | --- | --- | --- |
+| P1 | The split-brain MIU handoff is not actually fixed; it is only bannered. The design now warns "do not implement as written," but the stale executable-looking steps, request shape, code translation, and tests still describe the rejected server-side multipart path and FormData UI path. This is still implementation-grade misleading: the next agent can copy the wrong code directly from the LLD. | `docs/IMAGE_UPLOAD_STORAGE_DESIGN.md` §20.5 lines 1314-1428 still includes `POST /api/admin`, `Content-Type: multipart/form-data`, `uploadImageAction(input.content)`, and `mediaStorage().putObject(...)`. §20.7 lines 1562-1633 still says `uploadImage()` sends `FormData` and tests for FormData. §20.9 lines 1701-1740 still frames the P0 transport as a Web SDK/publishable-key spike below the banner. | Replace those sections with a single authoritative MIU-Upload LLD: `createUploadIntent` small JSON, server-generated `cloudPath`, pending image doc, `getUploadMetadata`, browser raw COS `PUT`, `completeUpload` verify+activate, compensation/orphan handling, tests, and UI sequence. Remove or archive the old multipart/FormData snippets so no implementation path still points at the 100 KiB-capped route. |
+| P2 | `ImageMetadataDoc` is now honest for raw legacy rows, but it is too weak as the only shared contract for new storage-backed rows. By making `purpose`, `storageProvider`, `status`, and `publishedRefCount` optional on the sole exported image type, future MIU code can accidentally create or consume incomplete storage-backed records without TypeScript pushing back. | `packages/shared/src/media.ts` lines 88-108 make all lifecycle/storage fields optional. `packages/shared/src/media.test.ts` verifies a full storage example type-checks, but there is no exported `StorageBackedImageMetadataDoc`, `LegacyImageMetadataDoc`, normalizer return type, or Zod schema that requires the active/pending storage-backed invariants. | Split the types: keep a raw at-rest type for pre-migration reads, but add a discriminated/normalized contract for media actions and public delivery. Storage-backed rows should require `storageProvider`, `purpose`, `status`, `publishedRefCount`, and the appropriate `storageFileId`/`storagePath` once activated. MIU-Upload should write through that stricter schema. |
+| P2 | The CORS precondition lists `Content-Length` as a required browser/CORS header. Browser code cannot set `Content-Length`; it is a forbidden request header managed by the user agent. Telling the implementer to configure or send it as a required header can create false CORS/debugging work. | `docs/IMAGE_UPLOAD_EXECUTION.md` §MIU-Upload preconditions lines 262-267 lists content headers as `Content-Type`, `Content-Length` together with client-set COS headers. | Reword the gate to record actual browser preflight headers. Require `Authorization`, `X-Cos-Security-Token`, `X-Cos-Meta-Fileid`, and `Content-Type` if used; explicitly say `Content-Length` is browser-managed and must not be set by frontend code. |
+
+### Verification
+
+- `CI=true pnpm install --ignore-scripts --frozen-lockfile`: passed.
+- `pnpm --filter @vibelingan-channel/shared test`: passed, 12 tests.
+- `pnpm --filter @vibelingan-channel/shared typecheck`: passed.
+- `pnpm typecheck:e2e`: passed.
+- `pnpm exec biome check docs/IMAGE_UPLOAD_EXECUTION.md docs/IMAGE_UPLOAD_STORAGE_DESIGN.md packages/shared/src/media.ts packages/shared/src/media.test.ts tests/e2e/mutation.spec.ts`: passed for the non-ignored touched files (Biome reported 3 checked files).
+
+SSH note: normal DNS resolution for `github.com` was failing through the current
+resolver, so the pull/push used SSH with the Macmini key and `HostKeyAlias=github.com`
+against GitHub's SSH endpoint IP. No HTTPS Git transport was used.
