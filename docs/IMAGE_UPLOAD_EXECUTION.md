@@ -14,7 +14,7 @@ design-only; validation results and capability probes live here.
 | MIU-01 | Media data contract + safe write surface | ✅ done; Codex review + re-review resolved | `8c94d25` (+review fixes) | 13 unit tests + 18 existing pass; tsc + biome clean; Codex review + re-review §2026-06-29 resolved |
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
-| MIU-04 | Public delivery + visibility index (logic) | phases A+B+C done; Codex A-review + self-adversarial B/C reviews resolved (D=backfill pending) | `4823a12` (+fixes), Phase B, Phase C | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (gated to catalog), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin tests 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy via `mediaStorage()`; fail-closed on corrupt/non-finite refCount), O(catalog) scan removed from the new path; public-api tests 6→16; both functions build; root tsc + biome clean |
+| MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex A-review + self-adversarial B/C/D reviews resolved | `4823a12`+fixes, Phase B, C, D | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. All suites pass; both functions build; root tsc + biome clean. Deployed smoke = MIU-09 |
 | MIU-05 | Admin UI uploader (FormData) | pending | — | — |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | pending | — | env-gated; CORS/origin proof is a hard precondition (see Disposition) |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
@@ -623,3 +623,47 @@ P3 test gaps), 2 dismissed:
   identical `provider !== 'legacy-base64'` branch.
 - Re-verify: root tsc clean; biome clean; public-api 16; both functions build
   with the storage proxy bundled.
+
+## MIU-04 Phase D — publishedRefCount backfill (done)
+
+The canonical reconciliation that closes MIU-04 (design §20.6 step 5):
+
+- `backfillPublishedRefCounts({ dryRun })` in `@vibelingan-channel/db` — recompute
+  every image's `publishedRefCount` as the number of PUBLISHED catalog docs that
+  reference it. Catalog collections are derived from the registry (any with an
+  `imageIds` field), so it tracks products/overstock without hardcoding;
+  intra-doc duplicate ids count once; unreferenced images settle to 0. `dryRun`
+  reports the changes without writing. Runs against whichever adapter is wired.
+- **Admin-only action** `backfillImageRefCounts` (role === 'admin') invokes it in
+  the deployed runtime; `{ dryRun: true }` supported.
+- **Seed reuse**: the local-server seed calls it after seeding, so demo image rows
+  get correct counters (closes the Phase-B deferred seed-init item). Idempotent.
+- Validation: 6 tests (tally across published-only + dedupe + accumulation, sets
+  unreferenced to 0, dryRun no-write, action admin-gating, dryRun-then-apply,
+  >100-row paging, `_id`-sort assertion). admin 26 → 32.
+
+### MIU-04 Phase D Self-Review — adversarial workflow (2026-06-30)
+
+5-dimension review (backfill-correctness, registry-gating, action-security,
+prod-parity/paging, test-completeness). 4 confirmed, 0 dismissed:
+
+- **P2 (fixed) — unstable pagination on CloudBase.** The backfill paged via the
+  facade `list()` → CloudBase `skip/limit` over `createdAt desc` with **no unique
+  tiebreaker**, so rows tied on `createdAt` (common in bulk-seeded/migrated data)
+  could be skipped or double-counted across a 100-row page boundary — corrupting
+  the absolute counter. The in-memory test adapters sort stably, so it was
+  invisible to tests (works-on-test-adapter-only). Fixed by paging with an `_id`
+  tiebreaker (`STABLE_PAGE_SORT`) on both scans → total order → skip/duplicate-free.
+  Added a test asserting every backfill page requests the `_id` sort, plus a
+  >100-row paging test.
+- **P3 (documented) — absolute-SET vs a concurrent live increment.** Running the
+  backfill during live catalog mutation can transiently clobber a counter
+  (inherent to the backfill-reconciled scheme). Documented it as a
+  quiescent-window op; CAS is overkill for a one-shot admin maintenance call.
+- **P3 (= the P2 root cause from another dimension)** and **P3 (the >100-row test
+  gap)** — both addressed by the fix + tests above.
+- Re-verify: root tsc clean; biome clean; admin 32, public-api 16, shared 13,
+  media-storage 23; both functions build with the backfill bundled.
+
+**MIU-04 complete (A+B+C+D).** Remaining MIU-04 work is the deployed smoke check,
+which belongs to MIU-09.

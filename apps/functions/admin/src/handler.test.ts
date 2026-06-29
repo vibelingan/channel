@@ -4,6 +4,7 @@ import { signSession } from '@vibelingan-channel/auth/jwt';
 import {
   type AdapterListQuery,
   type DbAdapter,
+  backfillPublishedRefCounts,
   incrementField,
   nextCounterValue,
   setAdapter,
@@ -21,10 +22,13 @@ type Store = Record<string, CollectionDoc[]>;
 
 class MemoryAdapter implements DbAdapter {
   private nextId = 1;
+  /** Records every list() query so tests can assert pagination parameters. */
+  readonly listQueries: AdapterListQuery[] = [];
 
   constructor(private readonly store: Store) {}
 
   async list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>> {
+    this.listQueries.push(query);
     let docs = [...(this.store[query.collection] ?? [])];
     if (query.filter) {
       const filter = query.filter;
@@ -661,4 +665,126 @@ test('a corrupted sibling counter does not strand other images in a batch remove
   if (res.ok) assert.equal((res.data as { removed: number }).removed, 2);
   assert.equal(refCount(store, 'imgB'), 0); // healthy sibling still decremented
   assert.equal(refCount(store, 'imgA'), 'oops'); // corrupt counter left for backfill
+});
+
+// --- MIU-04 Phase D: publishedRefCount backfill ------------------------------
+
+function catalogStore(): Store {
+  return {
+    users: [],
+    images: [
+      { _id: 'imgA', name: 'a.png', mimeType: 'image/png' }, // no counter yet
+      { _id: 'imgB', name: 'b.png', mimeType: 'image/png', publishedRefCount: 99 }, // stale
+      { _id: 'imgC', name: 'c.png', mimeType: 'image/png' }, // unreferenced
+    ],
+    products: [
+      // imgA listed twice in one doc must count once.
+      { _id: 'p1', name: 'P1', category: 'wired', imageIds: ['imgA', 'imgA'], published: true },
+      { _id: 'p2', name: 'P2', category: 'wired', imageIds: ['imgA', 'imgB'], published: true },
+      // unpublished → ignored.
+      { _id: 'p3', name: 'P3', category: 'wired', imageIds: ['imgB', 'imgC'], published: false },
+    ],
+    overstock: [
+      { _id: 'o1', name: 'O1', category: 'electronics', imageIds: ['imgB'], published: true },
+    ],
+  };
+}
+
+test('backfillPublishedRefCounts recomputes counters from the published catalog', async () => {
+  const store = catalogStore();
+  setup(store);
+  const report = await backfillPublishedRefCounts();
+  assert.equal(report.dryRun, false);
+  assert.equal(report.imagesScanned, 3);
+  assert.equal(refCount(store, 'imgA'), 2); // p1 (dup → 1) + p2
+  assert.equal(refCount(store, 'imgB'), 2); // p2 + o1 (p3 unpublished ignored)
+  assert.equal(refCount(store, 'imgC'), 0); // referenced only by an unpublished doc
+});
+
+test('backfillPublishedRefCounts dryRun reports changes without writing', async () => {
+  const store = catalogStore();
+  setup(store);
+  const report = await backfillPublishedRefCounts({ dryRun: true });
+  assert.equal(report.dryRun, true);
+  // imgA null→2, imgB 99→2, imgC null→0 all differ.
+  assert.equal(report.changes.length, 3);
+  assert.ok(report.changes.some((c) => c.imageId === 'imgB' && c.from === 99 && c.to === 2));
+  // Nothing persisted.
+  assert.equal(refCount(store, 'imgA'), undefined);
+  assert.equal(refCount(store, 'imgB'), 99);
+});
+
+test('backfillImageRefCounts action is admin-only (contributor forbidden)', async () => {
+  setup({ users: [], images: [] });
+  const token = await signSession('test-secret', {
+    sub: 'c-1',
+    email: 'c@example.com',
+    name: 'contributor',
+    role: 'contributor',
+  });
+  expectErr(await call('backfillImageRefCounts', {}, token), 'FORBIDDEN');
+});
+
+test('backfillImageRefCounts action runs for an admin (dryRun then apply)', async () => {
+  const store = catalogStore();
+  setup(store);
+  const token = await adminToken();
+  const dry = await call('backfillImageRefCounts', { dryRun: true }, token);
+  assert.equal(dry.ok, true);
+  if (dry.ok) assert.equal((dry.data as { dryRun: boolean }).dryRun, true);
+  assert.equal(refCount(store, 'imgA'), undefined); // dry-run wrote nothing
+  const applied = await call('backfillImageRefCounts', {}, token);
+  assert.equal(applied.ok, true);
+  assert.equal(refCount(store, 'imgA'), 2); // applied
+});
+
+test('backfillPublishedRefCounts pages past the 100-row boundary correctly', async () => {
+  const n = 150;
+  const store: Store = {
+    users: [],
+    images: Array.from({ length: n }, (_, i) => ({
+      _id: `img-${i}`,
+      name: `img-${i}.png`,
+      mimeType: 'image/png',
+    })),
+    products: Array.from({ length: n }, (_, i) => ({
+      _id: `p-${i}`,
+      name: `P${i}`,
+      category: 'wired',
+      imageIds: [`img-${i}`],
+      published: true,
+    })),
+  };
+  // An extra published product also references img-0 → count 2 (accumulates
+  // across the catalog page split, since p-extra lands on page 2).
+  store.products?.push({
+    _id: 'p-extra',
+    name: 'Pextra',
+    category: 'wired',
+    imageIds: ['img-0'],
+    published: true,
+  });
+  setup(store);
+  const report = await backfillPublishedRefCounts();
+  assert.equal(report.imagesScanned, n); // every image visited despite 2 pages
+  assert.equal(refCount(store, 'img-0'), 2); // referenced twice
+  assert.equal(refCount(store, 'img-100'), 1); // page 2 of the images loop
+  assert.equal(refCount(store, 'img-149'), 1); // last row, page 2
+});
+
+test('backfill requests _id-sorted pages so CloudBase skip/limit paging is stable', async () => {
+  // Construct the adapter directly to inspect the queries the backfill issues.
+  const adapter = new MemoryAdapter({
+    users: [],
+    images: [{ _id: 'i1', name: 'i.png', mimeType: 'image/png' }],
+    products: [],
+    overstock: [],
+  });
+  setAdapter(adapter);
+  await backfillPublishedRefCounts();
+  assert.ok(adapter.listQueries.length > 0);
+  for (const q of adapter.listQueries) {
+    // Every paged scan must carry the unique-key tiebreaker (the P2 fix).
+    assert.deepEqual(q.sort, [{ field: '_id', dir: 'asc' }]);
+  }
 });

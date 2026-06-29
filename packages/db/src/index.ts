@@ -4,9 +4,11 @@
  * injected via `setAdapter` at startup.
  */
 import {
+  COLLECTIONS,
   type CollectionDoc,
   type ListQuery,
   type ListResult,
+  type SortClause,
   buildWriteSchema,
   getCollection,
 } from '@vibelingan-channel/shared';
@@ -210,4 +212,97 @@ export async function batchRemove(collection: string, ids: string[]): Promise<st
     }
   }
   return removed;
+}
+
+const BACKFILL_PAGE_SIZE = 100;
+
+// Page by the unique `_id` so skip/limit pagination has a TOTAL order. The
+// default sort (createdAt desc) ties for bulk-seeded/migrated rows, and CloudBase
+// (Mongo-style skip/limit) can then skip or duplicate a tied row across a page
+// boundary — which would corrupt the absolute counter this backfill writes. `_id`
+// is unique, so paging is skip/duplicate-free. Order is irrelevant to the tally.
+const STABLE_PAGE_SORT: SortClause[] = [{ field: '_id', dir: 'asc' }];
+
+export interface BackfillRefCountsReport {
+  dryRun: boolean;
+  imagesScanned: number;
+  changes: { imageId: string; from: number | null; to: number }[];
+}
+
+/**
+ * Recompute `images.publishedRefCount` from the current catalog: for each image,
+ * the number of PUBLISHED catalog documents that reference it. "Catalog" is
+ * derived from the registry (any collection with an `imageIds` field), so it
+ * tracks products/overstock without hardcoding. Every image's counter is set to
+ * its tally (0 when unreferenced); duplicate ids within one document count once.
+ *
+ * This is the canonical reconciliation for MIU-04 (design §20.6 step 5): it
+ * repairs drift from the non-transactional maintenance path and initialises rows
+ * that never went through it (e.g. seeded data). With `dryRun`, it computes and
+ * reports the changes without writing. Runs against whatever adapter is wired,
+ * so it serves both the local seed and a deployed (CloudBase) invocation.
+ *
+ * Run during a quiescent window: it writes ABSOLUTE counts, so a live increment
+ * (Phase B maintenance) landing between this function's read and its write can be
+ * transiently clobbered — re-run to reconcile. Not a concern for the local seed
+ * or a one-shot admin maintenance call.
+ */
+export async function backfillPublishedRefCounts(
+  opts: { dryRun?: boolean } = {},
+): Promise<BackfillRefCountsReport> {
+  const dryRun = opts.dryRun ?? false;
+  const catalogCollections = COLLECTIONS.filter((def) =>
+    def.fields.some((field) => field.name === 'imageIds'),
+  ).map((def) => def.name);
+
+  // Tally published references per image id.
+  const counts = new Map<string, number>();
+  for (const collection of catalogCollections) {
+    let page = 1;
+    for (;;) {
+      const res = await list({
+        collection,
+        page,
+        pageSize: BACKFILL_PAGE_SIZE,
+        search: '',
+        filter: { combinator: 'and', clauses: [{ field: 'published', op: 'eq', value: true }] },
+        sort: STABLE_PAGE_SORT,
+      });
+      for (const doc of res.items) {
+        if (!Array.isArray(doc.imageIds)) continue;
+        const ids = new Set(doc.imageIds.map((id) => String(id)).filter((id) => id.length > 0));
+        for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
+      }
+      if (res.items.length === 0 || page * res.pageSize >= res.total) break;
+      page += 1;
+    }
+  }
+
+  // Set every image's counter to its tally.
+  const changes: BackfillRefCountsReport['changes'] = [];
+  let imagesScanned = 0;
+  let page = 1;
+  for (;;) {
+    const res = await list({
+      collection: 'images',
+      page,
+      pageSize: BACKFILL_PAGE_SIZE,
+      search: '',
+      sort: STABLE_PAGE_SORT,
+    });
+    for (const image of res.items) {
+      imagesScanned += 1;
+      const id = String(image._id);
+      const to = counts.get(id) ?? 0;
+      const from = typeof image.publishedRefCount === 'number' ? image.publishedRefCount : null;
+      if (from !== to) {
+        changes.push({ imageId: id, from, to });
+        if (!dryRun) await updateDoc('images', id, { publishedRefCount: to });
+      }
+    }
+    if (res.items.length === 0 || page * res.pageSize >= res.total) break;
+    page += 1;
+  }
+
+  return { dryRun, imagesScanned, changes };
 }

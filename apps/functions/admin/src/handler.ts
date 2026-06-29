@@ -22,6 +22,7 @@ import {
 } from '@vibelingan-channel/auth/password';
 import {
   UnknownCollectionError,
+  backfillPublishedRefCounts,
   batchRemove,
   batchUpdate,
   create,
@@ -283,6 +284,8 @@ export async function handleAdminRequest(
         return await batchUpdateAction(req, claims);
       case 'batchRemove':
         return await batchRemoveAction(req, claims);
+      case 'backfillImageRefCounts':
+        return await backfillImageRefCountsAction(req, claims);
       default:
         return err('BAD_REQUEST', `Unknown action: ${req.action}`);
     }
@@ -718,4 +721,21 @@ async function batchRemoveAction(
     }
   }
   return ok({ removed: removedIds.length });
+}
+
+async function backfillImageRefCountsAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  // Privileged one-shot reconciliation over every image counter — admins only
+  // (contributors can edit catalog rows but not rewrite the visibility index).
+  if (claims.role !== 'admin') {
+    return err('FORBIDDEN', 'Only an admin may backfill image reference counts.');
+  }
+  const dryRun =
+    !!req.data &&
+    typeof req.data === 'object' &&
+    (req.data as { dryRun?: unknown }).dryRun === true;
+  const report = await backfillPublishedRefCounts({ dryRun });
+  return ok(report);
 }
