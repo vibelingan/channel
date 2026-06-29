@@ -13,7 +13,7 @@ design-only; validation results and capability probes live here.
 | --- | --- | --- | --- | --- |
 | MIU-01 | Media data contract + safe write surface | ✅ done; Codex review + re-review resolved | `8c94d25` (+review fixes) | 13 unit tests + 18 existing pass; tsc + biome clean; Codex review + re-review §2026-06-29 resolved |
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
-| MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; pre-push review resolved | `308b917` (+review fixes) | 17 media-storage unit tests (incl. fake-SDK cloudbase suite); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; 4-reviewer pre-push review (0 logic P1) |
+| MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; follow-up hardening open | `308b917` (+review fixes) | 17 media-storage unit tests (incl. fake-SDK cloudbase suite); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; 4-reviewer pre-push review (0 logic P1); Codex re-review found delete-result hardening gap |
 | MIU-04 | Public delivery + visibility index (logic) | pending | — | — |
 | MIU-05 | Admin UI uploader (FormData) | pending | — | — |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | pending | — | env-gated; CORS/origin proof is a hard precondition (see Disposition) |
@@ -395,3 +395,59 @@ singleton). Findings addressed:
   marketing-path, smoke-sanitize, stream-putObject, and delete/tempUrl-traversal
   tests. (LOW: §20.4 oem/smoke path examples still show the pre-implementation
   shape — reconciled when MIU-06/08 define those namespaces.)
+
+### Codex Re-Review After Claude Update (2026-06-29)
+
+Review base: `c709b04` (`fix(media): address MIU-02 pre-push review findings`).
+Scope: confirm Claude's fixes, then re-review MIU-02 against the current design,
+CloudBase storage rules, bundling, and implementation-grade readiness.
+
+**What Claude fixed correctly**
+
+- **Prior P1 stale LLD path — FIXED.** The copy-pasteable server-multipart,
+  `FormData`, and Web-SDK/browser-credential snippets have been removed from the
+  superseded design sections. They now redirect to the admin-brokered direct-upload
+  path instead of leaving contradictory implementation code under warning banners.
+- **Prior P2 weak storage-backed type — FIXED.** `StorageBackedImageMetadataDoc`
+  and `isStorageBackedImage()` now provide a strict contract for new/storage-backed
+  rows while preserving the optional raw `ImageMetadataDoc` shape needed for legacy
+  reads.
+- **Prior P2 forbidden `Content-Length` header — FIXED.** The MIU-Upload CORS gate
+  now names only frontend-settable request headers (`Authorization`,
+  `X-Cos-Security-Token`, `X-Cos-Meta-Fileid`, optional `Content-Type`) and
+  explicitly states `Content-Length` is browser-managed.
+- **MIU-02 adapter readiness — MOSTLY SOUND.** The package is CloudBase-SDK-free at
+  import time, dependency-injects the initialized SDK, has local-disk traversal
+  guards, includes fake-SDK coverage for upload/temp URL/download/delete chunking,
+  and is bundled into both cloud functions via `noExternal`.
+
+**New findings**
+
+| Severity | Finding | Evidence | Required change |
+| --- | --- | --- | --- |
+| P2 | CloudBase delete wrappers do not inspect per-file delete results, so cleanup code can report success while CloudBase rejected one or more objects. This matters most for MIU-Upload compensation and MIU-06 orphan cleanup: a failed object delete would leave private storage garbage behind with no retry signal. | `packages/media-storage/src/cloudbase.ts` declares `deleteFile(...): Promise<{ fileList: unknown[] }>` but `deleteObject()` just awaits the SDK call, and `deleteCloudBaseObjects()` only chunks calls at 50. `packages/media-storage/src/cloudbase.test.ts` asserts call shape/chunking but has no fake-SDK failure case. CloudBase storage review rule STO-004 requires per-file delete-result inspection for reliable cleanup. | Define a small typed delete-result normalizer for CloudBase's per-file entries (`fileID`/`fileId`, `status`/`code`, `errMsg`/`message` as available from the installed SDK response shape). `deleteObject()` should throw a clear `media-storage(cloudbase): delete failed...` error when its file entry fails or is missing. `deleteCloudBaseObjects()` should aggregate failures across chunks and throw/report all failed IDs. Add fake-SDK tests for single delete failure, missing result, and multi-chunk partial failure. |
+
+**Notes for the next MIU**
+
+- The current generic `objectStoragePath()` is acceptable for MIU-02, but MIU-Upload
+  should use the catalog-specific path helper (or an explicit role-bearing filename)
+  so original/derived variants cannot collide under the same logical ID.
+- Keep the upload flow server-brokered: intent JSON through the admin API, browser
+  raw `PUT` to COS using the minted credential, then server-side complete/verify.
+  Do not reintroduce base64 JSON or multipart bytes through `/api/admin`.
+
+**Verification run during this re-review**
+
+- `pnpm --filter @vibelingan-channel/media-storage test`: passed, 17 tests.
+- `pnpm --filter @vibelingan-channel/media-storage typecheck`: passed.
+- `pnpm --filter @vibelingan-channel/shared test`: passed, 13 tests.
+- `pnpm --filter @vibelingan-channel/shared typecheck`: passed.
+- `pnpm typecheck`: passed.
+- `pnpm build:functions`: passed.
+- `pnpm package:functions && pnpm smoke:functions`: passed.
+- `pnpm exec biome check ...`: passed for the implementation/design files reviewed.
+
+Operational note: `pnpm smoke:functions` by itself expects packaged function
+artifacts and fails when `.cloudbase-artifacts/functions/*/index.js` is absent.
+Running `pnpm package:functions` first produces the artifacts and the smoke check
+passes.
