@@ -1313,6 +1313,17 @@ Exit criteria:
 
 ### 20.5 MIU-03 - Admin Product Image Upload
 
+> ⚠️ **SUPERSEDED by §24 (MIU-00 validation) — do not implement as written.**
+> MIU-00 proved the CloudBase HTTP access route hard-caps request bodies at
+> 100 KiB, so the server-side `POST /api/admin` multipart upload described below
+> CANNOT carry product images. MIU-03 and MIU-07 are folded into a single
+> **admin-brokered direct-upload MIU** (`createUploadIntent` → browser raw COS
+> `PUT` via `getUploadMetadata` → `completeUpload`+server-side verify). The
+> authoritative mechanism is in `docs/IMAGE_UPLOAD_EXECUTION.md` §"Upload-credential
+> mechanism". Keep this section only for the validation/auth/MIME policy and the
+> pending→active state machine, which carry over unchanged; ignore its
+> multipart-through-`/api/admin` transport.
+
 Runtime problem:
 
 - `apps/site/src/islands/admin/api.ts` currently reads the file as base64 and
@@ -1550,6 +1561,15 @@ Exit criteria:
 
 ### 20.7 MIU-05 - Admin UI Uploader
 
+> ⚠️ **Transport updated by §24 (MIU-00 validation).** The uploader does NOT send
+> `multipart/FormData` through `/api/admin` (that route caps at 100 KiB). Instead
+> it drives the admin-brokered direct-upload flow: call `createUploadIntent` →
+> raw `PUT` the file bytes to the returned COS `uploadUrl` (with the
+> `Authorization`/`X-Cos-Security-Token`/`X-Cos-Meta-Fileid` headers) → call
+> `completeUpload`. The progress/per-file-error/stable-ID UI requirements below
+> still apply; only the wire transport changes. See
+> `docs/IMAGE_UPLOAD_EXECUTION.md` §"Upload-credential mechanism".
+
 Runtime problem:
 
 - The admin UI currently converts every selected `File` to base64 before upload.
@@ -1679,6 +1699,19 @@ Exit criteria:
 - Orphan cleanup is safe and logs deleted storage keys without temp URLs.
 
 ### 20.9 MIU-07 - Browser-Direct Upload Spike
+
+> ⚠️ **No longer a deferred spike — PROMOTED to the P0 transport by §24
+> (MIU-00 validation), and merged with MIU-03 into the single admin-brokered
+> direct-upload MIU.** MIU-00 proved server-side upload is impossible (100 KiB
+> route cap) AND that the Web SDK path is unavailable here (no publishable key,
+> anonymous login off). The viable mechanism is admin-brokered, NOT the Web SDK
+> `MediaUploadIntent.uploadMethod: 'cloudbase-web-sdk'` variant below: the admin
+> function mints a pre-signed COS credential via `getUploadMetadata` /
+> `POST /v1/storages/get-objects-upload-info` (server identity), the browser raw
+> `PUT`s with that signature, and the custom JWT stays the only browser
+> credential. The "no P0 dependency on this spike" exit criterion is obsolete —
+> this IS the P0. See `docs/IMAGE_UPLOAD_EXECUTION.md` §"Upload-credential
+> mechanism" for the authoritative flow + the CORS precondition.
 
 Runtime problem:
 

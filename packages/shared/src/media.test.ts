@@ -157,16 +157,17 @@ test('ImageMetadataDoc models both storage-backed and legacy records', () => {
     status: 'active',
     publishedRefCount: 1,
   };
+  // A REAL pre-migration legacy row (matches apps/local-server/src/seed.ts):
+  // only _id/name/mimeType/data — no purpose/storageProvider/status/refCount.
+  // This must type-check; if the migration fields were required, it would not,
+  // and MIU-04 code would wrongly assume legacy rows carry lifecycle state.
   const legacy: ImageMetadataDoc = {
     _id: 'img2',
     name: 'placeholder.svg',
     mimeType: 'image/svg+xml',
-    purpose: 'inline-small',
-    storageProvider: 'legacy-base64',
-    status: 'active',
-    publishedRefCount: 1,
     data: 'PHN2Zz4=',
   };
   assert.equal(storage.storageProvider, 'cloudbase-storage');
-  assert.equal(legacy.storageProvider, 'legacy-base64');
+  assert.equal(legacy.storageProvider, undefined); // defaulted to legacy-base64 by consumers
+  assert.equal(legacy.status, undefined); // MIU-04 treats absent status as legacy-active
 });

@@ -11,12 +11,12 @@ design-only; validation results and capability probes live here.
 
 | MIU | Scope | Status | Commit(s) | Validation |
 | --- | --- | --- | --- | --- |
-| MIU-01 | Media data contract + safe write surface | ✅ done; review findings open | `8c94d25` (+review fixes) | 12 unit tests + 18 existing pass; tsc + biome clean; Codex review §2026-06-29 |
-| MIU-00 | CloudBase storage + transport readiness | ✅ validated; upload-origin gate open | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof still required for MIU-Upload |
+| MIU-01 | Media data contract + safe write surface | ✅ done; Codex review resolved | `8c94d25` (+review fixes) | 12 unit tests + 18 existing pass; tsc + biome clean; Codex review §2026-06-29 resolved |
+| MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | pending | — | — |
 | MIU-04 | Public delivery + visibility index (logic) | pending | — | — |
 | MIU-05 | Admin UI uploader (FormData) | pending | — | — |
-| MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | pending | — | env-gated |
+| MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | pending | — | env-gated; CORS/origin proof is a hard precondition (see Disposition) |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
 | MIU-09 | Deploy, smoke, review hardening | pending | — | env-gated |
@@ -193,10 +193,12 @@ CloudBase identity. Two candidates were evaluated against the live env.
   Auth, no broadened bucket permissions — satisfies the design §13
   storage-permission and custom-JWT gates.
 
-**Build-time gate (verify in the upload MIU):** the COS bucket CORS must allow
-`PUT` from the deployed site origin and the local test origin (the design §13
-"security-domain readiness" item for the raw-PUT path) — a bucket CORS config,
-not a code blocker.
+**CORS / upload-origin gate — a HARD MIU-Upload precondition (not a "later"
+note).** For browser→COS bytes this is a readiness gate, not a build-time
+afterthought: a correct app implementation still fails in-browser if the bucket
+CORS does not allow `PUT` + the required headers from the site origin. Promoted
+to a MIU-Upload precondition + first exit criterion — see "Codex Review
+Disposition → MIU-Upload preconditions" below.
 
 ---
 
@@ -231,3 +233,39 @@ resolved or explicitly accepted as blockers.
 Git transport note: local Git HTTPS/SSH fetch to GitHub was unavailable from this
 workspace, so this review was based on the GitHub API branch snapshot and pushed
 back through the GitHub contents API without rewriting branch history.
+
+### Codex Review Disposition (addressed 2026-06-29)
+
+All four findings accepted as valid and resolved/assigned (commit on top of the
+Codex doc commit):
+
+- **P1 (split-brain plan) — FIXED.** Added SUPERSEDED/UPDATED banners to design
+  §20.5 (MIU-03), §20.7 (MIU-05), and §20.9 (MIU-07) pointing to the
+  admin-brokered direct-upload mechanism here. The low-level sections no longer
+  read as "build server multipart first / browser-direct is a later spike."
+- **P2 (E2E mutation) — FIXED.** `tests/e2e/mutation.spec.ts` Test 1 (image-create
+  + visibility flow) is now `test.skip` with a reason — its renderable-image
+  precondition is intentionally gone until MIU-Upload restores a byte-backed
+  create path. The OEM test (Test 2) still runs under `E2E_ALLOW_MUTATION=1`.
+- **P2 (ImageMetadataDoc legacy modeling) — FIXED.** `purpose`, `storageProvider`,
+  `status`, `publishedRefCount` are now OPTIONAL on `ImageMetadataDoc` (the honest
+  at-rest shape — legacy rows lack them); the doc comment directs consumers to
+  default and assigns the normalizer/`publishedRefCount` backfill to MIU-04. Test
+  now constructs a minimal real legacy row (`_id`/`name`/`mimeType`/`data` only).
+  (Chose the optional-fields fix over a full normalizer now — the normalizer is
+  MIU-04 scope.)
+- **P2 (CORS gate) — PROMOTED** from a build-time note to a hard precondition
+  (below).
+
+#### MIU-Upload preconditions (hard gates — verify FIRST, before any UI wiring)
+
+1. **COS bucket CORS / upload-origin proof.** Prove a real browser-origin `PUT`
+   to the COS `uploadUrl` succeeds from (a) the deployed site origin and (b) the
+   local dev origin. Configure bucket CORS to allow `PUT` + the required headers:
+   `Authorization`, `X-Cos-Security-Token`, `X-Cos-Meta-Fileid`, and content
+   headers (`Content-Type`, `Content-Length`). Record the proven origins +
+   headers here. A correct implementation still fails in-browser without this.
+2. **Server-side checksum on `completeUpload`** (design §22.3-6): recompute the
+   SHA-256 from the stored object; never trust a client-supplied value.
+3. **Single CloudBase init** (design §22.3-3): reuse the idempotent
+   `initCloudBase`; do not re-init per function.

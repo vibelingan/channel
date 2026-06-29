@@ -72,17 +72,26 @@ export interface ImageVariantMetadata {
 }
 
 /**
- * The `images` collection document. `data` is present only for
- * `storageProvider === 'legacy-base64'`; storage-backed records use
- * `storageFileId`/`storagePath`. Server-managed fields are written only by
- * dedicated media actions, never the generic CRUD surface.
+ * A row as it actually exists in the `images` collection.
+ *
+ * IMPORTANT: legacy/pre-migration rows (e.g. seeded base64 SVGs — see
+ * apps/local-server/src/seed.ts) carry ONLY `_id`/`name`/`mimeType`/`data` and
+ * NONE of the media-metadata fields. Storage-backed rows (written by the
+ * admin-brokered upload MIU) carry the full set. So every field beyond
+ * `_id`/`name`/`mimeType` is OPTIONAL at the persistence layer: consumers must
+ * default rather than trust presence — `storageProvider ?? 'legacy-base64'`,
+ * treat absent `status` as legacy-active, `publishedRefCount ?? 0`, etc. A
+ * normalizer / `publishedRefCount` backfill that turns these raw rows into a
+ * trusted shape is defined in MIU-04 (public delivery + visibility index), not
+ * here. Do not gate visibility on the bare required-ness of these fields.
  */
 export interface ImageMetadataDoc {
   _id: string;
   name: string;
   mimeType: string;
-  purpose: MediaPurpose;
-  storageProvider: ImageStorageProvider;
+  // Present on storage-backed rows; ABSENT on legacy/pre-migration rows.
+  purpose?: MediaPurpose;
+  storageProvider?: ImageStorageProvider;
   storageMode?: ImageStorageMode;
   storageFileId?: string;
   storagePath?: string;
@@ -93,8 +102,10 @@ export interface ImageMetadataDoc {
   width?: number;
   height?: number;
   checksumSha256?: string;
-  status: MediaStatus;
-  publishedRefCount: number;
+  // Lifecycle fields — present on storage-backed rows, ABSENT on legacy rows.
+  // MIU-04 normalizes/backfills these before public delivery trusts them.
+  status?: MediaStatus;
+  publishedRefCount?: number;
   variants?: ImageVariantMetadata[];
   /** Legacy base64 bytes; only set when `storageProvider === 'legacy-base64'`. */
   data?: string;
