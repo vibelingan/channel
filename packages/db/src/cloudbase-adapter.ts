@@ -11,7 +11,7 @@ import {
  * load before the adapter is used.
  */
 import cloud from 'wx-server-sdk';
-import type { Command, Database } from 'wx-server-sdk';
+import type { Cloud, Command, Database } from 'wx-server-sdk';
 import type { DbAdapter } from './adapter.ts';
 
 let initialized = false;
@@ -21,6 +21,14 @@ export function initCloudBase(envId: string): void {
   cloud.init({ env: envId });
   initialized = true;
 }
+
+/**
+ * The initialised CloudBase SDK instance, exposed for media-storage injection:
+ * `setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk))`. Keeps the
+ * single shared `cloud.init` here (design §22.3-3) — callers must run
+ * `initCloudBase()` before any storage call is made.
+ */
+export const cloudStorageSdk: Cloud = cloud;
 
 function database() {
   if (!initialized) {

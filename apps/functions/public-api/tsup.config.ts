@@ -7,5 +7,11 @@ export default defineConfig({
   platform: 'node',
   clean: true,
   sourcemap: true,
-  noExternal: ['@vibelingan-channel/shared', '@vibelingan-channel/db', 'wx-server-sdk', 'zod'],
+  noExternal: [
+    '@vibelingan-channel/shared',
+    '@vibelingan-channel/db',
+    '@vibelingan-channel/media-storage',
+    'wx-server-sdk',
+    'zod',
+  ],
 });

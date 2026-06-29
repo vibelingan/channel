@@ -12,6 +12,7 @@ export default defineConfig({
     '@vibelingan-channel/auth',
     '@vibelingan-channel/db',
     '@vibelingan-channel/email',
+    '@vibelingan-channel/media-storage',
     'hash-wasm',
     'jose',
     'nodemailer',

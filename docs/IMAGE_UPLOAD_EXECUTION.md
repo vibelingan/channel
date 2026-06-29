@@ -13,7 +13,7 @@ design-only; validation results and capability probes live here.
 | --- | --- | --- | --- | --- |
 | MIU-01 | Media data contract + safe write surface | ✅ done; Codex re-review findings open | `8c94d25` (+review fixes) | 12 unit tests + 18 existing pass; tsc + biome clean; Codex review §2026-06-29 + re-review §2026-06-29 |
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
-| MIU-02 | Media storage adapter (local-disk + typings) | pending | — | — |
+| MIU-02 | Media storage adapter (local-disk + typings) | ✅ done | (this commit) | 7 unit tests; root+e2e tsc clean; biome clean; both functions build with media-storage bundled |
 | MIU-04 | Public delivery + visibility index (logic) | pending | — | — |
 | MIU-05 | Admin UI uploader (FormData) | pending | — | — |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | pending | — | env-gated; CORS/origin proof is a hard precondition (see Disposition) |
@@ -60,6 +60,44 @@ Decision summary (binds the plan; evidence below):
 > strips `users.passwordHash`; `images` `list`/`get` responses return the full
 > base64 `data` blob + storage identifiers to any read-authorized role. Tracked
 > separately (multi-MB payloads + internal paths in admin list responses).
+
+---
+
+## MIU-02 — Media storage adapter (done)
+
+New standalone package **`@vibelingan-channel/media-storage`** (the design's
+preferred home — extracted from the MIU-01 interim location):
+
+- `src/index.ts` — `MediaStorageAdapter` interface, `setMediaStorage`/`mediaStorage()`
+  globalThis-anchored singleton, and server-side path builders
+  (`objectStoragePath`, `catalogStoragePath`, `safeFileName`). CloudBase-free.
+- `src/local-disk.ts` — `LocalDiskMediaStorage` (fs-backed, base-dir confined,
+  traversal-guarded, `file://` temp-URL stub).
+- `src/cloudbase.ts` — `createCloudBaseMediaStorage(sdk)` + `deleteCloudBaseObjects`
+  (50-file chunking, §23 C3). **Dependency-injected**: takes the SDK via a
+  `CloudBaseStorageSdk` interface and never `import`s `wx-server-sdk`, so this
+  package can't pull the CloudBase SDK into any bundle (exit criterion) and there
+  is no duplicate SDK type-stub.
+
+Supporting changes:
+- `@vibelingan-channel/db` exposes the initialised SDK as `cloudStorageSdk` (typed
+  `Cloud`, now exported) for injection; `wx-server-sdk.d.ts` extended with the
+  storage methods (`uploadFile`/`getTempFileURL` union/`downloadFile`/`deleteFile`,
+  verified in MIU-00 / §24.3). Single `cloud.init` reused (§22.3-3).
+- Wired `setMediaStorage` into `admin` + `public-api`
+  (`createCloudBaseMediaStorage(cloudStorageSdk)`) and `local-server`
+  (`LocalDiskMediaStorage(./data/media)`).
+- Added `@vibelingan-channel/media-storage` to the three consumers' deps **and to
+  both functions' tsup `noExternal`** so it bundles into the deployed artifact
+  (verified: `createCloudBaseMediaStorage` present in both `dist/index.js`).
+
+Validation: 7 unit tests (unconfigured-throws, singleton, `safeFileName`
+sanitization, path partitioning, local-disk round-trip, traversal rejection);
+root + e2e `tsc` clean; biome clean; both functions build successfully with
+media-storage bundled. CloudBase backend is exercised by the local-disk tests +
+type-checked against the verified SDK signatures; its live round-trip rides the
+MIU-00 storage proof. (No HTTP/UI behavior changes yet — no handler calls
+`mediaStorage()` until MIU-04/Upload — so E2E behavior is unchanged.)
 
 ---
 

@@ -32,6 +32,9 @@ importers:
       '@vibelingan-channel/email':
         specifier: workspace:*
         version: link:../../../packages/email
+      '@vibelingan-channel/media-storage':
+        specifier: workspace:*
+        version: link:../../../packages/media-storage
       '@vibelingan-channel/shared':
         specifier: workspace:*
         version: link:../../../packages/shared
@@ -54,6 +57,9 @@ importers:
       '@vibelingan-channel/db':
         specifier: workspace:*
         version: link:../../../packages/db
+      '@vibelingan-channel/media-storage':
+        specifier: workspace:*
+        version: link:../../../packages/media-storage
       '@vibelingan-channel/shared':
         specifier: workspace:*
         version: link:../../../packages/shared
@@ -79,6 +85,9 @@ importers:
       '@vibelingan-channel/fn-admin':
         specifier: workspace:*
         version: link:../functions/admin
+      '@vibelingan-channel/media-storage':
+        specifier: workspace:*
+        version: link:../../packages/media-storage
       '@vibelingan-channel/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -189,6 +198,15 @@ importers:
       '@types/nodemailer':
         specifier: ^6.4.16
         version: 6.4.24
+
+  packages/media-storage:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.21
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
 
   packages/shared:
     dependencies:

@@ -70,9 +70,22 @@ declare module 'wx-server-sdk' {
   interface Cloud {
     init(options: { env: string }): void;
     database(): Database;
+    // Storage surface (verified against @cloudbase/node-sdk@2.10.0 in MIU-00 /
+    // design §24.3). Note getTempFileURL's fileList is a union array, not
+    // string[] (§24.3 C1). Consumed by @vibelingan-channel/media-storage via
+    // injection (createCloudBaseMediaStorage(cloud)).
+    uploadFile(options: {
+      cloudPath: string;
+      fileContent: Buffer | Uint8Array | NodeJS.ReadableStream;
+    }): Promise<{ fileID: string }>;
+    getTempFileURL(options: {
+      fileList: (string | { fileID: string; maxAge?: number })[];
+    }): Promise<{ fileList: { fileID: string; tempFileURL: string; code?: string }[] }>;
+    downloadFile(options: { fileID: string }): Promise<{ fileContent: Buffer }>;
+    deleteFile(options: { fileList: string[] }): Promise<{ fileList: unknown[] }>;
   }
 
   const cloud: Cloud;
-  export type { Database, Command, CollectionReference, DocumentReference };
+  export type { Cloud, Database, Command, CollectionReference, DocumentReference };
   export default cloud;
 }
