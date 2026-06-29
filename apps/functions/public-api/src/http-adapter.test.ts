@@ -1,6 +1,11 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
-import { type AdapterListQuery, type DbAdapter, setAdapter } from '@vibelingan-channel/db';
+import {
+  type AdapterListQuery,
+  type DbAdapter,
+  nextCounterValue,
+  setAdapter,
+} from '@vibelingan-channel/db';
 import {
   type CollectionDoc,
   type ListResult,
@@ -86,8 +91,7 @@ class MemoryAdapter implements DbAdapter {
     const index = docs.findIndex((doc) => doc._id === id);
     if (index < 0) return null;
     const existing = docs[index] as CollectionDoc;
-    const current = Number(existing[field] ?? 0);
-    const next = (Number.isFinite(current) ? current : 0) + delta;
+    const next = nextCounterValue(existing[field], delta);
     docs[index] = { ...existing, [field]: next };
     return next;
   }

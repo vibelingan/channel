@@ -146,8 +146,11 @@ export const cloudBaseAdapter: DbAdapter = {
 
   async incrementField(collection, id, field, delta): Promise<number | null> {
     const db = database();
-    // db.command.inc is atomic and initialises an absent field from 0. Updating
-    // a missing doc is a no-op (updated: 0) — report that as null, not 0.
+    // db.command.inc is atomic and initialises an absent field from 0; it rejects
+    // a non-numeric field (the local nextCounterValue helper mirrors that throw,
+    // so the two backends agree). The facade has already validated delta is a
+    // finite integer. Updating a missing doc is a no-op (updated: 0) — report
+    // that as null, not 0.
     const res = await db
       .collection(collection)
       .doc(id)

@@ -138,7 +138,34 @@ export function incrementField(
   delta: number,
 ): Promise<number | null> {
   assertKnown(collection);
+  // The delta feeds CloudBase db.command.inc and the local read-modify-write
+  // path directly. A non-finite or fractional delta (NaN/Infinity/0.5) would
+  // poison the counter — and since publishedRefCount gates public visibility,
+  // a NaN silently hides the image (NaN > 0 === false). Guard the one choke
+  // point so counters stay integral.
+  if (!Number.isInteger(delta)) {
+    throw new Error(
+      `@vibelingan-channel/db: incrementField delta must be a finite integer (got ${delta}).`,
+    );
+  }
   return db().incrementField(collection, id, field, delta);
+}
+
+/**
+ * Compute the next value of an atomic numeric counter for the read-modify-write
+ * adapters (local JSON + in-memory test fakes), mirroring CloudBase
+ * `db.command.inc` semantics: an absent/null field initialises from 0, while an
+ * existing value that is not a finite number is a corruption error — CloudBase's
+ * `$inc` likewise rejects a non-numeric field, so the local path must not
+ * silently coerce it to 0 and diverge. `delta` is assumed already validated
+ * (finite integer) by `incrementField`.
+ */
+export function nextCounterValue(current: unknown, delta: number): number {
+  if (current === undefined || current === null) return delta;
+  if (typeof current === 'number' && Number.isFinite(current)) return current + delta;
+  throw new Error(
+    `@vibelingan-channel/db: cannot increment a non-numeric counter value (got ${typeof current}).`,
+  );
 }
 
 export function remove(collection: string, id: string): Promise<boolean> {

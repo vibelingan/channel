@@ -14,7 +14,7 @@ design-only; validation results and capability probes live here.
 | MIU-01 | Media data contract + safe write surface | ✅ done; Codex review + re-review resolved | `8c94d25` (+review fixes) | 13 unit tests + 18 existing pass; tsc + biome clean; Codex review + re-review §2026-06-29 resolved |
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
-| MIU-04 | Public delivery + visibility index (logic) | phase A implemented; Codex review finding open | `4823a12` | atomic `incrementField` primitive added; focused tests/typecheck pass; review asks for finite-delta + numeric-current guard before using it for canonical visibility |
+| MIU-04 | Public delivery + visibility index (logic) | phase A done; Codex review resolved (B/C/D pending) | `4823a12` (+P2/P3 fix) | atomic `incrementField` primitive + facade integer-delta guard (P2) + shared `nextCounterValue` RMW helper mirroring CloudBase, corruption-throwing (P3); admin tests 5→8, public-api 6; root+e2e tsc + biome clean |
 | MIU-05 | Admin UI uploader (FormData) | pending | — | — |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | pending | — | env-gated; CORS/origin proof is a hard precondition (see Disposition) |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
@@ -506,3 +506,23 @@ local JSON parity, test adapters, and alignment with design §20.6.
 - `pnpm --filter @vibelingan-channel/fn-admin test`: passed, 11 tests.
 - `pnpm --filter @vibelingan-channel/fn-public-api test`: passed, 6 tests.
 - `pnpm exec biome check packages/db/src/adapter.ts packages/db/src/index.ts packages/db/src/cloudbase-adapter.ts packages/db/src/wx-server-sdk.d.ts apps/local-server/src/json-adapter.ts apps/functions/admin/src/handler.test.ts apps/functions/public-api/src/http-adapter.test.ts`: passed.
+
+**Disposition (fixed in the follow-up commit) — both accepted after critical review**
+
+- **P2 (accepted).** `incrementField` feeds `db.command.inc` and the local
+  read-modify-write directly, and `publishedRefCount` gates public visibility, so
+  a non-finite/fractional delta would poison the counter (and `NaN > 0 === false`
+  silently hides the image). Added an integer guard at the facade — the single
+  choke point — that throws on `NaN`/`±Infinity`/fractional deltas
+  (`Number.isInteger`). Tests added for all four.
+- **P3 (accepted — it was a real CloudBase/local divergence).** MongoDB-style
+  `$inc` (CloudBase) *errors* on a non-numeric field, but the local/test RMW
+  silently coerced it to `0`, so local tests would pass while CloudBase throws.
+  Extracted one shared `nextCounterValue(current, delta)` helper in `db`
+  (absent/null → init 0; existing non-finite value → throw) and used it in the
+  JSON adapter + both test fakes, so there is a single source of truth for RMW
+  counter semantics that mirrors CloudBase. The CloudBase adapter relies on
+  CloudBase's native numeric-field check (commented for parity). Coverage added
+  for the corruption throw and the helper directly.
+- Re-verify: root + e2e `tsc` clean; biome clean; admin handler tests 5 → 8;
+  public-api tests 6; no regression.

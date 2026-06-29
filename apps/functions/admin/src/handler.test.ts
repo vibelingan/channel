@@ -4,6 +4,7 @@ import {
   type AdapterListQuery,
   type DbAdapter,
   incrementField,
+  nextCounterValue,
   setAdapter,
 } from '@vibelingan-channel/db';
 import {
@@ -88,8 +89,7 @@ class MemoryAdapter implements DbAdapter {
     const index = docs.findIndex((doc) => doc._id === id);
     if (index < 0) return null;
     const existing = docs[index] as CollectionDoc;
-    const current = Number(existing[field] ?? 0);
-    const next = (Number.isFinite(current) ? current : 0) + delta;
+    const next = nextCounterValue(existing[field], delta);
     docs[index] = { ...existing, [field]: next };
     return next;
   }
@@ -127,6 +127,41 @@ test('incrementField atomically adjusts a numeric field; null for a missing doc'
   // An absent field initialises from 0; a missing document returns null.
   assert.equal(await incrementField('images', 'img1', 'newCounter', 5), 5);
   assert.equal(await incrementField('images', 'missing', 'publishedRefCount', 1), null);
+});
+
+test('incrementField rejects non-integer deltas (NaN, Infinity, fractional)', () => {
+  setup({
+    users: [],
+    images: [{ _id: 'img1', name: 'p.jpg', mimeType: 'image/jpeg', publishedRefCount: 0 }],
+  });
+  for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 1.5]) {
+    // The facade guard throws synchronously, like assertKnown — counters must stay integral.
+    assert.throws(
+      () => incrementField('images', 'img1', 'publishedRefCount', bad),
+      /finite integer/,
+    );
+  }
+});
+
+test('incrementField surfaces a non-numeric stored counter as a corruption error', async () => {
+  // Mirrors CloudBase: db.command.inc rejects a non-numeric field instead of
+  // silently treating it as 0 (which would diverge from production).
+  setup({
+    users: [],
+    images: [{ _id: 'imgX', name: 'p.jpg', mimeType: 'image/jpeg', publishedRefCount: 'oops' }],
+  });
+  await assert.rejects(
+    () => incrementField('images', 'imgX', 'publishedRefCount', 1),
+    /non-numeric counter value/,
+  );
+});
+
+test('nextCounterValue: init-from-0, add, and corruption guard', () => {
+  assert.equal(nextCounterValue(undefined, 3), 3);
+  assert.equal(nextCounterValue(null, -2), -2);
+  assert.equal(nextCounterValue(4, 1), 5);
+  assert.throws(() => nextCounterValue('5', 1), /non-numeric counter value/);
+  assert.throws(() => nextCounterValue(Number.NaN, 1), /non-numeric counter value/);
 });
 
 test('bootstrapAdmin creates the first active admin from configured hash', async () => {
