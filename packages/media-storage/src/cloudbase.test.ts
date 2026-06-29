@@ -18,7 +18,14 @@ class FakeSdk implements CloudBaseStorageSdk {
   tempFileLists: (string | { fileID: string; maxAge?: number })[][] = [];
   deleteFileLists: string[][] = [];
 
-  constructor(private readonly opts: { tempFileURL?: string; downloadContent?: Buffer } = {}) {}
+  constructor(
+    private readonly opts: {
+      tempFileURL?: string;
+      downloadContent?: Buffer;
+      failIds?: Set<string>; // these fileIDs come back with a non-zero status
+      dropIds?: Set<string>; // these fileIDs are omitted from the result (missing)
+    } = {},
+  ) {}
 
   async uploadFile(o: {
     cloudPath: string;
@@ -38,7 +45,16 @@ class FakeSdk implements CloudBaseStorageSdk {
   }
   async deleteFile(o: { fileList: string[] }) {
     this.deleteFileLists.push(o.fileList);
-    return { fileList: [] };
+    // Mirror the wx-server-sdk per-file shape: { fileID, status: 0, errMsg: 'ok' }
+    // on success, non-zero status on failure; dropped ids produce no entry.
+    const fileList = o.fileList
+      .filter((id) => !this.opts.dropIds?.has(id))
+      .map((id) =>
+        this.opts.failIds?.has(id)
+          ? { fileID: id, status: 1, errMsg: 'mock delete failure' }
+          : { fileID: id, status: 0, errMsg: 'ok' },
+      );
+    return { fileList };
   }
 }
 
@@ -131,4 +147,38 @@ test('deleteCloudBaseObjects chunks under the 50-file server cap', async () => {
   assert.equal(sdk51.deleteFileLists.length, 2);
   assert.equal(sdk51.deleteFileLists[0]?.length, 50);
   assert.equal(sdk51.deleteFileLists[1]?.length, 1);
+});
+
+test('cloudbase deleteObject throws when CloudBase rejects the object', async () => {
+  const sdk = new FakeSdk({ failIds: new Set(['cloud://x']) });
+  const store = createCloudBaseMediaStorage(sdk);
+  await assert.rejects(() => store.deleteObject('cloud://x'), /delete failed for cloud:\/\/x/);
+});
+
+test('cloudbase deleteObject throws when no result entry is returned (missing)', async () => {
+  const sdk = new FakeSdk({ dropIds: new Set(['cloud://x']) });
+  const store = createCloudBaseMediaStorage(sdk);
+  await assert.rejects(() => store.deleteObject('cloud://x'), /no delete result returned/);
+});
+
+test('deleteCloudBaseObjects aggregates per-file failures across chunks', async () => {
+  // 51 ids → 2 chunks; one rejected (chunk 1) and one dropped/missing (chunk 2).
+  const ids = Array.from({ length: 51 }, (_, i) => `f${i}`);
+  const sdk = new FakeSdk({ failIds: new Set(['f3']), dropIds: new Set(['f50']) });
+  await assert.rejects(
+    () => deleteCloudBaseObjects(sdk, ids),
+    (err: Error) =>
+      /delete failed for:/.test(err.message) &&
+      err.message.includes('f3') &&
+      err.message.includes('f50 (no delete result)'),
+  );
+});
+
+test('deleteCloudBaseObjects resolves when every object is confirmed deleted', async () => {
+  const sdk = new FakeSdk();
+  await deleteCloudBaseObjects(
+    sdk,
+    Array.from({ length: 51 }, (_, i) => `f${i}`),
+  ); // must not throw — all entries report status 0
+  assert.equal(sdk.deleteFileLists.flat().length, 51);
 });

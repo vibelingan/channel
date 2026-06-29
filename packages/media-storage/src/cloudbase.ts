@@ -52,6 +52,38 @@ const DELETE_CHUNK = 50;
 
 const DEFAULT_TEMP_URL_MAX_AGE_SECONDS = 3600;
 
+/**
+ * Inspect one entry of a CloudBase `deleteFile` per-file result. The shape
+ * differs by SDK layer: `@cloudbase/node-sdk` returns `{ fileID, code }`
+ * (success `code === 'SUCCESS'`), while the `wx-server-sdk` wrapper returns
+ * `{ fileID, status, errMsg }` (success `status === 0`). So we inspect both
+ * defensively and treat anything we cannot positively confirm as a success as a
+ * failure — CloudBase rule STO-004: per-file delete results MUST be checked, or
+ * a rejected object silently leaks (orphaned private bytes, no retry signal).
+ */
+function inspectDeleteEntry(entry: unknown): {
+  fileID?: string | undefined;
+  ok: boolean;
+  reason?: string;
+} {
+  if (!entry || typeof entry !== 'object') {
+    return { ok: false, reason: 'malformed delete-result entry' };
+  }
+  const e = entry as Record<string, unknown>;
+  const fileID =
+    typeof e.fileID === 'string' ? e.fileID : typeof e.fileId === 'string' ? e.fileId : undefined;
+  if (e.status === 0 || e.code === 'SUCCESS' || e.code === 0) {
+    return { fileID, ok: true };
+  }
+  const reason =
+    (typeof e.errMsg === 'string' && e.errMsg) ||
+    (typeof e.message === 'string' && e.message) ||
+    (e.code != null ? `code=${String(e.code)}` : undefined) ||
+    (e.status != null ? `status=${String(e.status)}` : undefined) ||
+    'unconfirmed delete (no success marker)';
+  return { fileID, ok: false, reason };
+}
+
 export function createCloudBaseMediaStorage(sdk: CloudBaseStorageSdk): MediaStorageAdapter {
   return {
     async putObject(input: PutMediaObjectInput): Promise<StoredMediaObject> {
@@ -95,7 +127,17 @@ export function createCloudBaseMediaStorage(sdk: CloudBaseStorageSdk): MediaStor
     },
 
     async deleteObject(fileId: string): Promise<void> {
-      await sdk.deleteFile({ fileList: [fileId] });
+      const res = await sdk.deleteFile({ fileList: [fileId] });
+      const entry = res.fileList[0];
+      const outcome =
+        entry === undefined
+          ? { ok: false, reason: 'no delete result returned' }
+          : inspectDeleteEntry(entry);
+      if (!outcome.ok) {
+        throw new Error(
+          `media-storage(cloudbase): delete failed for ${fileId}: ${outcome.reason ?? 'unknown'}`,
+        );
+      }
     },
   };
 }
@@ -109,7 +151,34 @@ export async function deleteCloudBaseObjects(
   sdk: CloudBaseStorageSdk,
   fileIds: string[],
 ): Promise<void> {
+  if (fileIds.length === 0) return;
+  const succeeded = new Set<string>();
+  const failed = new Map<string, string>(); // fileID -> reason
+  let unattributableFailures = 0;
   for (let i = 0; i < fileIds.length; i += DELETE_CHUNK) {
-    await sdk.deleteFile({ fileList: fileIds.slice(i, i + DELETE_CHUNK) });
+    const res = await sdk.deleteFile({ fileList: fileIds.slice(i, i + DELETE_CHUNK) });
+    for (const entry of res.fileList) {
+      const outcome = inspectDeleteEntry(entry);
+      if (outcome.ok) {
+        if (outcome.fileID) succeeded.add(outcome.fileID);
+      } else if (outcome.fileID) {
+        failed.set(outcome.fileID, outcome.reason ?? 'failed');
+      } else {
+        unattributableFailures += 1;
+      }
+    }
+  }
+  // A requested id with neither a success nor an explicit failure entry was
+  // silently dropped by the SDK — treat as a failure so cleanup callers retry.
+  const missing = fileIds.filter((id) => !succeeded.has(id) && !failed.has(id));
+  if (failed.size > 0 || missing.length > 0 || unattributableFailures > 0) {
+    const parts = [
+      ...[...failed].map(([id, reason]) => `${id} (${reason})`),
+      ...missing.map((id) => `${id} (no delete result)`),
+      ...(unattributableFailures > 0
+        ? [`${unattributableFailures} unattributable failure(s)`]
+        : []),
+    ];
+    throw new Error(`media-storage(cloudbase): delete failed for: ${parts.join(', ')}`);
   }
 }
