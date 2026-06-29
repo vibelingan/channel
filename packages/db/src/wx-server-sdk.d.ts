@@ -59,6 +59,8 @@ declare module 'wx-server-sdk' {
     in(values: unknown[]): unknown;
     nin(values: unknown[]): unknown;
     exists(value: boolean): unknown;
+    /** Atomic numeric increment update operator (used for publishedRefCount). */
+    inc(value: number): unknown;
   }
 
   interface Database {

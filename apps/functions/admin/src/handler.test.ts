@@ -1,6 +1,11 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
-import { type AdapterListQuery, type DbAdapter, setAdapter } from '@vibelingan-channel/db';
+import {
+  type AdapterListQuery,
+  type DbAdapter,
+  incrementField,
+  setAdapter,
+} from '@vibelingan-channel/db';
 import {
   type ApiResult,
   type CollectionDoc,
@@ -72,6 +77,22 @@ class MemoryAdapter implements DbAdapter {
     docs.splice(index, 1);
     return true;
   }
+
+  async incrementField(
+    collection: string,
+    id: string,
+    field: string,
+    delta: number,
+  ): Promise<number | null> {
+    const docs = this.store[collection] ?? [];
+    const index = docs.findIndex((doc) => doc._id === id);
+    if (index < 0) return null;
+    const existing = docs[index] as CollectionDoc;
+    const current = Number(existing[field] ?? 0);
+    const next = (Number.isFinite(current) ? current : 0) + delta;
+    docs[index] = { ...existing, [field]: next };
+    return next;
+  }
 }
 
 const config = {
@@ -93,6 +114,20 @@ function expectErr(result: ApiResult<unknown>, code: string): void {
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.error.code, code);
 }
+
+test('incrementField atomically adjusts a numeric field; null for a missing doc', async () => {
+  const store = setup({
+    users: [],
+    images: [{ _id: 'img1', name: 'p.jpg', mimeType: 'image/jpeg', publishedRefCount: 0 }],
+  });
+  assert.equal(await incrementField('images', 'img1', 'publishedRefCount', 1), 1);
+  assert.equal(await incrementField('images', 'img1', 'publishedRefCount', 1), 2);
+  assert.equal(await incrementField('images', 'img1', 'publishedRefCount', -1), 1);
+  assert.equal(store.images?.[0]?.publishedRefCount, 1);
+  // An absent field initialises from 0; a missing document returns null.
+  assert.equal(await incrementField('images', 'img1', 'newCounter', 5), 5);
+  assert.equal(await incrementField('images', 'missing', 'publishedRefCount', 1), null);
+});
 
 test('bootstrapAdmin creates the first active admin from configured hash', async () => {
   const store = setup();

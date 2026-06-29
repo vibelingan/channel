@@ -125,6 +125,22 @@ export function updateDoc(
   return db().update(collection, id, data);
 }
 
+/**
+ * Trusted, server-side atomic increment of one numeric field, bypassing the
+ * registry write-schema. Used to maintain server-managed counters such as
+ * `images.publishedRefCount` (read-only on the generic CRUD surface). Returns
+ * the new value, or `null` if the document does not exist.
+ */
+export function incrementField(
+  collection: string,
+  id: string,
+  field: string,
+  delta: number,
+): Promise<number | null> {
+  assertKnown(collection);
+  return db().incrementField(collection, id, field, delta);
+}
+
 export function remove(collection: string, id: string): Promise<boolean> {
   assertKnown(collection);
   return db().remove(collection, id);

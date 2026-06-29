@@ -75,6 +75,22 @@ class MemoryAdapter implements DbAdapter {
     docs.splice(index, 1);
     return true;
   }
+
+  async incrementField(
+    collection: string,
+    id: string,
+    field: string,
+    delta: number,
+  ): Promise<number | null> {
+    const docs = this.store[collection] ?? [];
+    const index = docs.findIndex((doc) => doc._id === id);
+    if (index < 0) return null;
+    const existing = docs[index] as CollectionDoc;
+    const current = Number(existing[field] ?? 0);
+    const next = (Number.isFinite(current) ? current : 0) + delta;
+    docs[index] = { ...existing, [field]: next };
+    return next;
+  }
 }
 
 function body(response: HttpResponse): unknown {

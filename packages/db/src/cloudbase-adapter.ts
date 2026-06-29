@@ -143,6 +143,20 @@ export const cloudBaseAdapter: DbAdapter = {
     const res = await db.collection(collection).doc(id).remove();
     return (res.deleted ?? 0) > 0;
   },
+
+  async incrementField(collection, id, field, delta): Promise<number | null> {
+    const db = database();
+    // db.command.inc is atomic and initialises an absent field from 0. Updating
+    // a missing doc is a no-op (updated: 0) — report that as null, not 0.
+    const res = await db
+      .collection(collection)
+      .doc(id)
+      .update({ data: { [field]: db.command.inc(delta), updatedAt: new Date().toISOString() } });
+    if ((res.updated ?? 0) === 0) return null;
+    const doc = await this.get(collection, id);
+    const value = doc ? Number(doc[field]) : Number.NaN;
+    return Number.isFinite(value) ? value : null;
+  },
 };
 
 function escapeRegExp(input: string): string {

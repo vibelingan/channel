@@ -36,6 +36,18 @@ export interface DbAdapter {
     data: Record<string, unknown>,
   ): Promise<CollectionDoc | null>;
   remove(collection: string, id: string): Promise<boolean>;
+  /**
+   * Atomically add `delta` to one numeric field of a document and return the
+   * new value, or `null` if the document does not exist. A trusted server-side
+   * primitive for maintaining server-managed counters (e.g.
+   * `images.publishedRefCount`) that are read-only on the generic write surface.
+   */
+  incrementField(
+    collection: string,
+    id: string,
+    field: string,
+    delta: number,
+  ): Promise<number | null>;
 }
 
 // Re-exported so callers building queries can reference the input shape.

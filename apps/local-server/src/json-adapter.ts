@@ -122,6 +122,23 @@ export class JsonFileAdapter implements DbAdapter {
     return true;
   }
 
+  async incrementField(
+    collection: string,
+    id: string,
+    field: string,
+    delta: number,
+  ): Promise<number | null> {
+    const docs = this.docs(collection);
+    const index = docs.findIndex((d) => d._id === id);
+    if (index === -1) return null;
+    const existing = docs[index] as CollectionDoc;
+    const current = Number(existing[field] ?? 0);
+    const next = (Number.isFinite(current) ? current : 0) + delta;
+    docs[index] = { ...existing, [field]: next, updatedAt: new Date().toISOString() };
+    this.persist();
+    return next;
+  }
+
   /** Seed a collection only when it is currently empty. */
   seedIfEmpty(collection: string, rows: Record<string, unknown>[]): void {
     if (this.docs(collection).length > 0) return;
