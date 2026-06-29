@@ -28,6 +28,7 @@ import {
   createDoc,
   findByField,
   get,
+  incrementField,
   list,
   remove,
   update,
@@ -43,6 +44,7 @@ import {
   canEditCollection,
   canReadCollection,
   err,
+  getCollection,
   isKnownCollection,
   ok,
 } from '@vibelingan-channel/shared';
@@ -543,6 +545,70 @@ async function getAction(req: AdminRequest, claims: SessionClaims): Promise<ApiR
   return ok(redact(parsed.data.collection, doc));
 }
 
+/**
+ * Catalog collections (products, overstock) reference images by id and carry a
+ * `published` flag; only they affect public image visibility. Gating on the
+ * presence of an `imageIds` field means non-catalog mutations skip the extra
+ * before-state read entirely.
+ */
+function tracksImageVisibility(collection: string): boolean {
+  const def = getCollection(collection);
+  return def?.fields.some((field) => field.name === 'imageIds') ?? false;
+}
+
+/**
+ * The image ids a catalog document makes PUBLIC: only when it is `published`
+ * with an `imageIds` array. An unpublished (or non-catalog) document
+ * contributes nothing. Duplicate ids within one document collapse to a single
+ * reference.
+ */
+function publishedImageIdSet(doc: CollectionDoc | null): Set<string> {
+  if (!doc || doc.published !== true || !Array.isArray(doc.imageIds)) return new Set();
+  return new Set(doc.imageIds.map((id) => String(id)).filter((id) => id.length > 0));
+}
+
+/**
+ * Maintain `images.publishedRefCount` for the before → after transition of one
+ * catalog document: +1 for each image newly made public, −1 for each no longer
+ * public. `publishedRefCount` is the canonical public-visibility gate (MIU-04,
+ * design §20.6). `incrementField` is a no-op (returns null) for a dangling
+ * image id, so a reference to a since-deleted image is harmless.
+ *
+ * This runs AFTER the catalog write has committed and is not transactional with
+ * it. Two consequences, both reconciled by the Phase-D backfill (design §20.6
+ * step 5), not prevented here:
+ *  - Per-image failures are isolated: a single image's counter error (e.g. a
+ *    corrupted non-numeric counter) is logged and skipped so it cannot strand
+ *    its siblings or mask an already-committed write as a 500. The disjoint
+ *    new/old loops never touch the same id within one call.
+ *  - Concurrent mutations of the same document can still race (the before-read
+ *    and the increment are separate steps); atomic increments keep each write
+ *    consistent but cannot un-stale a delta computed from an older snapshot.
+ */
+async function applyImageVisibilityDelta(
+  before: CollectionDoc | null,
+  after: CollectionDoc | null,
+): Promise<void> {
+  const oldIds = publishedImageIdSet(before);
+  const newIds = publishedImageIdSet(after);
+  const adjust = async (imageId: string, delta: number): Promise<void> => {
+    try {
+      await incrementField('images', imageId, 'publishedRefCount', delta);
+    } catch (e) {
+      console.error(
+        `[fn-admin] publishedRefCount ${delta > 0 ? '+' : ''}${delta} failed for image ${imageId} (backfill will reconcile):`,
+        e,
+      );
+    }
+  };
+  for (const id of newIds) {
+    if (!oldIds.has(id)) await adjust(id, 1);
+  }
+  for (const id of oldIds) {
+    if (!newIds.has(id)) await adjust(id, -1);
+  }
+}
+
 async function createAction(req: AdminRequest, claims: SessionClaims): Promise<ApiResult<unknown>> {
   const parsed = createSchema.safeParse(req.data);
   if (!parsed.success) return err('BAD_REQUEST', 'collection and values are required');
@@ -550,6 +616,9 @@ async function createAction(req: AdminRequest, claims: SessionClaims): Promise<A
     return err('FORBIDDEN', 'You do not have permission to modify this collection.');
   }
   const doc = await create(parsed.data.collection, parsed.data.values);
+  if (tracksImageVisibility(parsed.data.collection)) {
+    await applyImageVisibilityDelta(null, doc);
+  }
   return ok(redact(parsed.data.collection, doc));
 }
 
@@ -559,8 +628,11 @@ async function updateAction(req: AdminRequest, claims: SessionClaims): Promise<A
   if (!canEditCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have permission to modify this collection.');
   }
+  const tracks = tracksImageVisibility(parsed.data.collection);
+  const before = tracks ? await get(parsed.data.collection, parsed.data.id) : null;
   const doc = await update(parsed.data.collection, parsed.data.id, parsed.data.values);
   if (!doc) return err('NOT_FOUND', 'Document not found');
+  if (tracks) await applyImageVisibilityDelta(before, doc);
   return ok(redact(parsed.data.collection, doc));
 }
 
@@ -570,8 +642,11 @@ async function removeAction(req: AdminRequest, claims: SessionClaims): Promise<A
   if (!canEditCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have permission to modify this collection.');
   }
+  const tracks = tracksImageVisibility(parsed.data.collection);
+  const before = tracks ? await get(parsed.data.collection, parsed.data.id) : null;
   const deleted = await remove(parsed.data.collection, parsed.data.id);
   if (!deleted) return err('NOT_FOUND', 'Document not found');
+  if (tracks) await applyImageVisibilityDelta(before, null);
   return ok({ deleted: true });
 }
 
@@ -586,7 +661,28 @@ async function batchUpdateAction(
   if (!canEditCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have permission to modify this collection.');
   }
+  const tracks = tracksImageVisibility(parsed.data.collection);
+  // Capture before-states once per unique id (a duplicate id must not double
+  // count the visibility delta).
+  const befores = tracks
+    ? new Map(
+        await Promise.all(
+          [...new Set(parsed.data.ids)].map(
+            async (id) => [id, await get(parsed.data.collection, id)] as const,
+          ),
+        ),
+      )
+    : null;
   const docs = await batchUpdate(parsed.data.collection, parsed.data.ids, parsed.data.values);
+  if (befores) {
+    const applied = new Set<string>();
+    for (const after of docs) {
+      const id = String(after._id);
+      if (applied.has(id)) continue;
+      applied.add(id);
+      await applyImageVisibilityDelta(befores.get(id) ?? null, after);
+    }
+  }
   return ok({ updated: docs.length, items: docs.map((d) => redact(parsed.data.collection, d)) });
 }
 
@@ -601,6 +697,25 @@ async function batchRemoveAction(
   if (!canEditCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have permission to modify this collection.');
   }
-  const removed = await batchRemove(parsed.data.collection, parsed.data.ids);
-  return ok({ removed });
+  const tracks = tracksImageVisibility(parsed.data.collection);
+  // Capture before-states per unique id, then decrement only for ids this call
+  // actually removed (batchRemove returns the removed ids, each at most once) —
+  // mirroring batchUpdate's iterate-over-results invariant so a concurrent
+  // delete of the same doc cannot trigger a double-decrement here.
+  const befores = tracks
+    ? new Map(
+        await Promise.all(
+          [...new Set(parsed.data.ids)].map(
+            async (id) => [id, await get(parsed.data.collection, id)] as const,
+          ),
+        ),
+      )
+    : null;
+  const removedIds = await batchRemove(parsed.data.collection, parsed.data.ids);
+  if (befores) {
+    for (const id of removedIds) {
+      await applyImageVisibilityDelta(befores.get(id) ?? null, null);
+    }
+  }
+  return ok({ removed: removedIds.length });
 }

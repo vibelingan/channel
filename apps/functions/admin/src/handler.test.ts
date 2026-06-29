@@ -1,5 +1,6 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
+import { signSession } from '@vibelingan-channel/auth/jwt';
 import {
   type AdapterListQuery,
   type DbAdapter,
@@ -254,4 +255,410 @@ test('bootstrapAdmin does not overwrite an existing account with the admin email
 
   expectErr(result, 'CONFLICT');
   assert.deepEqual(store.users, [existingUser]);
+});
+
+// --- MIU-04 Phase B: publishedRefCount visibility maintenance ----------------
+
+/** A store seeded with image docs (publishedRefCount 0) ready to be referenced. */
+function imageStore(imageIds: string[]): Store {
+  return {
+    users: [],
+    images: imageIds.map((id) => ({
+      _id: id,
+      name: `${id}.jpg`,
+      mimeType: 'image/jpeg',
+      publishedRefCount: 0,
+    })),
+  };
+}
+
+function refCount(store: Store, imageId: string): unknown {
+  return store.images?.find((doc) => doc._id === imageId)?.publishedRefCount;
+}
+
+function adminToken(): Promise<string> {
+  return signSession('test-secret', {
+    sub: 'admin-1',
+    email: 'admin@example.com',
+    name: 'admin',
+    role: 'admin',
+  });
+}
+
+async function call(action: string, data: unknown, token: string) {
+  return handleAdminRequest(
+    { action, token, data } as Parameters<typeof handleAdminRequest>[0],
+    config,
+  );
+}
+
+test('create published product increments publishedRefCount for each image', async () => {
+  const store = imageStore(['imgA', 'imgB']);
+  setup(store);
+  const token = await adminToken();
+  const res = await call(
+    'create',
+    {
+      collection: 'products',
+      values: { name: 'P1', category: 'wired', imageIds: ['imgA', 'imgB'], published: true },
+    },
+    token,
+  );
+  assert.equal(res.ok, true);
+  assert.equal(refCount(store, 'imgA'), 1);
+  assert.equal(refCount(store, 'imgB'), 1);
+});
+
+test('create unpublished product leaves refcounts untouched', async () => {
+  const store = imageStore(['imgA']);
+  setup(store);
+  const token = await adminToken();
+  await call(
+    'create',
+    {
+      collection: 'products',
+      values: { name: 'P', category: 'wired', imageIds: ['imgA'], published: false },
+    },
+    token,
+  );
+  assert.equal(refCount(store, 'imgA'), 0);
+});
+
+test('publishing then unpublishing a product increments then decrements', async () => {
+  const store = imageStore(['imgA']);
+  setup(store);
+  const token = await adminToken();
+  await call(
+    'create',
+    {
+      collection: 'products',
+      values: { name: 'P', category: 'wired', imageIds: ['imgA'], published: false },
+    },
+    token,
+  );
+  const id = store.products?.[0]?._id as string;
+  assert.equal(refCount(store, 'imgA'), 0);
+  await call('update', { collection: 'products', id, values: { published: true } }, token);
+  assert.equal(refCount(store, 'imgA'), 1);
+  await call('update', { collection: 'products', id, values: { published: false } }, token);
+  assert.equal(refCount(store, 'imgA'), 0);
+});
+
+test('changing imageIds on a published product moves the refcounts', async () => {
+  const store = imageStore(['imgA', 'imgB', 'imgC']);
+  setup(store);
+  const token = await adminToken();
+  await call(
+    'create',
+    {
+      collection: 'products',
+      values: { name: 'P', category: 'wired', imageIds: ['imgA', 'imgB'], published: true },
+    },
+    token,
+  );
+  const id = store.products?.[0]?._id as string;
+  assert.equal(refCount(store, 'imgA'), 1);
+  assert.equal(refCount(store, 'imgB'), 1);
+  await call(
+    'update',
+    { collection: 'products', id, values: { imageIds: ['imgA', 'imgC'] } },
+    token,
+  );
+  assert.equal(refCount(store, 'imgA'), 1); // kept
+  assert.equal(refCount(store, 'imgB'), 0); // dropped
+  assert.equal(refCount(store, 'imgC'), 1); // added
+});
+
+test('removing a published product decrements its images', async () => {
+  const store = imageStore(['imgA']);
+  setup(store);
+  const token = await adminToken();
+  await call(
+    'create',
+    {
+      collection: 'products',
+      values: { name: 'P', category: 'wired', imageIds: ['imgA'], published: true },
+    },
+    token,
+  );
+  const id = store.products?.[0]?._id as string;
+  assert.equal(refCount(store, 'imgA'), 1);
+  await call('remove', { collection: 'products', id }, token);
+  assert.equal(refCount(store, 'imgA'), 0);
+});
+
+test('refcount reflects the number of publishing catalog docs', async () => {
+  const store = imageStore(['imgA']);
+  setup(store);
+  const token = await adminToken();
+  await call(
+    'create',
+    {
+      collection: 'products',
+      values: { name: 'P1', category: 'wired', imageIds: ['imgA'], published: true },
+    },
+    token,
+  );
+  await call(
+    'create',
+    {
+      collection: 'products',
+      values: { name: 'P2', category: 'office', imageIds: ['imgA'], published: true },
+    },
+    token,
+  );
+  assert.equal(refCount(store, 'imgA'), 2);
+  const firstId = store.products?.[0]?._id as string;
+  await call(
+    'update',
+    { collection: 'products', id: firstId, values: { published: false } },
+    token,
+  );
+  assert.equal(refCount(store, 'imgA'), 1);
+});
+
+test('batchUpdate publish then unpublish updates refcounts per doc', async () => {
+  const store = imageStore(['imgA', 'imgB']);
+  setup(store);
+  const token = await adminToken();
+  await call(
+    'create',
+    {
+      collection: 'products',
+      values: { name: 'P1', category: 'wired', imageIds: ['imgA'], published: false },
+    },
+    token,
+  );
+  await call(
+    'create',
+    {
+      collection: 'products',
+      values: { name: 'P2', category: 'wired', imageIds: ['imgB'], published: false },
+    },
+    token,
+  );
+  const ids = (store.products ?? []).map((p) => p._id);
+  await call('batchUpdate', { collection: 'products', ids, values: { published: true } }, token);
+  assert.equal(refCount(store, 'imgA'), 1);
+  assert.equal(refCount(store, 'imgB'), 1);
+  await call('batchUpdate', { collection: 'products', ids, values: { published: false } }, token);
+  assert.equal(refCount(store, 'imgA'), 0);
+  assert.equal(refCount(store, 'imgB'), 0);
+});
+
+test('batchRemove decrements refcounts for published docs', async () => {
+  const store = imageStore(['imgA', 'imgB']);
+  setup(store);
+  const token = await adminToken();
+  await call(
+    'create',
+    {
+      collection: 'products',
+      values: { name: 'P1', category: 'wired', imageIds: ['imgA'], published: true },
+    },
+    token,
+  );
+  await call(
+    'create',
+    {
+      collection: 'products',
+      values: { name: 'P2', category: 'wired', imageIds: ['imgB'], published: true },
+    },
+    token,
+  );
+  const ids = (store.products ?? []).map((p) => p._id);
+  await call('batchRemove', { collection: 'products', ids }, token);
+  assert.equal(refCount(store, 'imgA'), 0);
+  assert.equal(refCount(store, 'imgB'), 0);
+});
+
+test('duplicate ids in a batch do not double-count', async () => {
+  const store = imageStore(['imgA']);
+  setup(store);
+  const token = await adminToken();
+  await call(
+    'create',
+    {
+      collection: 'products',
+      values: { name: 'P', category: 'wired', imageIds: ['imgA'], published: false },
+    },
+    token,
+  );
+  const id = store.products?.[0]?._id as string;
+  await call(
+    'batchUpdate',
+    { collection: 'products', ids: [id, id, id], values: { published: true } },
+    token,
+  );
+  assert.equal(refCount(store, 'imgA'), 1); // not 3
+});
+
+test('publishing a product that references a missing image is a no-op (no throw)', async () => {
+  const store = imageStore([]); // no image docs
+  setup(store);
+  const token = await adminToken();
+  const res = await call(
+    'create',
+    {
+      collection: 'products',
+      values: { name: 'P', category: 'wired', imageIds: ['ghost'], published: true },
+    },
+    token,
+  );
+  assert.equal(res.ok, true);
+});
+
+test('overstock is tracked for image visibility too', async () => {
+  const store = imageStore(['imgA']);
+  setup(store);
+  const token = await adminToken();
+  await call(
+    'create',
+    {
+      collection: 'overstock',
+      values: { name: 'O', category: 'electronics', imageIds: ['imgA'], published: true },
+    },
+    token,
+  );
+  assert.equal(refCount(store, 'imgA'), 1);
+});
+
+// --- MIU-04 Phase B: review-hardening regression guards ----------------------
+
+test('removing an UNpublished product does not decrement (delete-side no-op)', async () => {
+  const store = imageStore(['imgA']);
+  setup(store);
+  const token = await adminToken();
+  await call(
+    'create',
+    {
+      collection: 'products',
+      values: { name: 'P', category: 'wired', imageIds: ['imgA'], published: false },
+    },
+    token,
+  );
+  const id = store.products?.[0]?._id as string;
+  await call('remove', { collection: 'products', id }, token);
+  assert.equal(refCount(store, 'imgA'), 0);
+});
+
+test('changing imageIds on an UNpublished product moves nothing', async () => {
+  const store = imageStore(['imgA', 'imgB']);
+  setup(store);
+  const token = await adminToken();
+  await call(
+    'create',
+    {
+      collection: 'products',
+      values: { name: 'P', category: 'wired', imageIds: ['imgA'], published: false },
+    },
+    token,
+  );
+  const id = store.products?.[0]?._id as string;
+  await call('update', { collection: 'products', id, values: { imageIds: ['imgB'] } }, token);
+  assert.equal(refCount(store, 'imgA'), 0);
+  assert.equal(refCount(store, 'imgB'), 0);
+});
+
+test('the same image listed twice in one imageIds array counts once', async () => {
+  const store = imageStore(['imgA']);
+  setup(store);
+  const token = await adminToken();
+  await call(
+    'create',
+    {
+      collection: 'products',
+      values: { name: 'P', category: 'wired', imageIds: ['imgA', 'imgA'], published: true },
+    },
+    token,
+  );
+  assert.equal(refCount(store, 'imgA'), 1); // not 2
+});
+
+test('null / non-array / empty / empty-string imageIds are handled safely', async () => {
+  const store = imageStore(['imgA']);
+  setup(store);
+  const token = await adminToken();
+  // null, a bare string, [], and [''] all pass the json write schema and must
+  // not throw nor produce a spurious increment.
+  for (const imageIds of [null, 'imgA', [], ['']]) {
+    const res = await call(
+      'create',
+      {
+        collection: 'products',
+        values: { name: 'P', category: 'wired', imageIds, published: true },
+      },
+      token,
+    );
+    assert.equal(res.ok, true);
+  }
+  assert.equal(refCount(store, 'imgA'), 0);
+  assert.equal(refCount(store, ''), undefined); // empty-string id was filtered out
+});
+
+test('batchRemove with duplicate ids does not over-decrement', async () => {
+  const store = imageStore(['imgA']);
+  setup(store);
+  const token = await adminToken();
+  await call(
+    'create',
+    {
+      collection: 'products',
+      values: { name: 'P', category: 'wired', imageIds: ['imgA'], published: true },
+    },
+    token,
+  );
+  const id = store.products?.[0]?._id as string;
+  const res = await call('batchRemove', { collection: 'products', ids: [id, id, id] }, token);
+  assert.equal(res.ok, true);
+  if (res.ok) assert.equal((res.data as { removed: number }).removed, 1);
+  assert.equal(refCount(store, 'imgA'), 0); // exactly once, not −2
+});
+
+test('batch ops with a non-existent id only move the real docs', async () => {
+  const store = imageStore(['imgA']);
+  setup(store);
+  const token = await adminToken();
+  await call(
+    'create',
+    {
+      collection: 'products',
+      values: { name: 'P', category: 'wired', imageIds: ['imgA'], published: false },
+    },
+    token,
+  );
+  const id = store.products?.[0]?._id as string;
+  const upd = await call(
+    'batchUpdate',
+    { collection: 'products', ids: [id, 'ghost-id'], values: { published: true } },
+    token,
+  );
+  if (upd.ok) assert.equal((upd.data as { updated: number }).updated, 1);
+  assert.equal(refCount(store, 'imgA'), 1);
+  const rem = await call('batchRemove', { collection: 'products', ids: [id, 'ghost-id'] }, token);
+  if (rem.ok) assert.equal((rem.data as { removed: number }).removed, 1);
+  assert.equal(refCount(store, 'imgA'), 0);
+});
+
+test('a corrupted sibling counter does not strand other images in a batch remove', async () => {
+  // imgA has a corrupted (non-numeric) counter; imgB is healthy at 1. Removing
+  // both publishing products must still decrement imgB even though imgA throws.
+  const store: Store = {
+    users: [],
+    images: [
+      { _id: 'imgA', name: 'a.jpg', mimeType: 'image/jpeg', publishedRefCount: 'oops' },
+      { _id: 'imgB', name: 'b.jpg', mimeType: 'image/jpeg', publishedRefCount: 1 },
+    ],
+    products: [
+      { _id: 'p1', name: 'P1', category: 'wired', imageIds: ['imgA'], published: true },
+      { _id: 'p2', name: 'P2', category: 'wired', imageIds: ['imgB'], published: true },
+    ],
+  };
+  setup(store);
+  const token = await adminToken();
+  const res = await call('batchRemove', { collection: 'products', ids: ['p1', 'p2'] }, token);
+  assert.equal(res.ok, true); // the committed deletes are not masked as a 500
+  if (res.ok) assert.equal((res.data as { removed: number }).removed, 2);
+  assert.equal(refCount(store, 'imgB'), 0); // healthy sibling still decremented
+  assert.equal(refCount(store, 'imgA'), 'oops'); // corrupt counter left for backfill
 });

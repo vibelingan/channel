@@ -14,7 +14,7 @@ design-only; validation results and capability probes live here.
 | MIU-01 | Media data contract + safe write surface | ✅ done; Codex review + re-review resolved | `8c94d25` (+review fixes) | 13 unit tests + 18 existing pass; tsc + biome clean; Codex review + re-review §2026-06-29 resolved |
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
-| MIU-04 | Public delivery + visibility index (logic) | phase A done; Codex review resolved (B/C/D pending) | `4823a12` (+P2/P3 fix) | atomic `incrementField` primitive + facade integer-delta guard (P2) + shared `nextCounterValue` RMW helper mirroring CloudBase, corruption-throwing (P3); admin tests 5→8, public-api 6; root+e2e tsc + biome clean |
+| MIU-04 | Public delivery + visibility index (logic) | phases A+B done; Codex A-review + self-adversarial B-review resolved (C/D pending) | `4823a12` (+P2/P3 fix), Phase B | A: atomic `incrementField` + facade integer guard + `nextCounterValue` RMW helper. B: `publishedRefCount` maintenance in admin create/update/remove/batch (gated to catalog collections), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin tests 8→26; both functions build with maintenance bundled; root tsc + biome clean |
 | MIU-05 | Admin UI uploader (FormData) | pending | — | — |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | pending | — | env-gated; CORS/origin proof is a hard precondition (see Disposition) |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
@@ -526,3 +526,56 @@ local JSON parity, test adapters, and alignment with design §20.6.
   for the corruption throw and the helper directly.
 - Re-verify: root + e2e `tsc` clean; biome clean; admin handler tests 5 → 8;
   public-api tests 6; no regression.
+
+## MIU-04 Phase B — publishedRefCount maintenance (done)
+
+Wired `publishedRefCount` upkeep into the admin handler so the canonical
+public-visibility gate stays in sync as catalog docs change:
+
+- `tracksImageVisibility(collection)` gates the work to collections that have an
+  `imageIds` field (products, overstock) via the registry — every other
+  collection skips the extra before-state read.
+- `publishedImageIdSet(doc)` = the images a doc makes public (published + an
+  `imageIds` array; intra-array duplicates collapse). `applyImageVisibilityDelta`
+  applies +1 for newly-public ids and −1 for no-longer-public ids on the
+  before → after transition.
+- Hooked into `create`/`update`/`remove`/`batchUpdate`/`batchRemove`. Batch paths
+  dedupe ids; before-states captured per unique id.
+- Validation: 11 transition tests (publish/unpublish, imageIds add/remove, remove,
+  ref-count = #publishing-docs, batch publish/unpublish, batch remove, dangling
+  image id, overstock). admin handler 8 → 19.
+
+### MIU-04 Phase B Self-Review — adversarial workflow (2026-06-30)
+
+Ran a 6-dimension adversarial review (transition-correctness, batch-semantics,
+transactionality/parity, gating-coverage, test-completeness, visibility-security),
+each finding verified by an independent skeptic prompted to refute. Result: the
+core delta math (transition-correctness) returned **zero** findings; 12 P3 issues
+confirmed, 1 dismissed (negative-clamp — the non-floor is intentional and already
+test-pinned). All P3 (no P1/P2). Disposition:
+
+- **Fixed — `batchRemove` asymmetry.** It was the lone mutation path applying
+  deltas over the *pre-read* set rather than what was actually written (cf.
+  `removeAction` gating on `deleted`, `batchUpdate` iterating `docs`). `batchRemove`
+  now returns the ids it actually removed; `batchRemoveAction` decrements only
+  those — closing a concurrent-delete double-decrement and unifying all three
+  paths on "apply deltas only for writes that happened". HTTP response unchanged
+  (`{ removed: <count> }`).
+- **Fixed — per-image error isolation.** The delta loop ran AFTER the committed
+  write with no error handling, so one image's counter error (e.g. a corrupted
+  non-numeric counter) aborted the loop and left *other* images fail-open. Each
+  per-image increment is now wrapped (log + continue), so a single bad counter
+  cannot strand its siblings or mask the committed write as a 500. Drift is
+  reconciled by the Phase-D backfill.
+- **Fixed — comment.** Softened the "increments never contend" note: it holds
+  within one call (disjoint id sets), not across concurrent calls.
+- **Added 7 regression guards:** remove-unpublished no-op, imageIds change on an
+  unpublished doc, same image twice in one array (count once), null/non-array/
+  empty/empty-string imageIds, batchRemove duplicate ids, batch ops with a ghost
+  id, and a corrupted-sibling resilience test. admin handler 19 → 26.
+- **Deferred (correctly later-phase):** local-server seed never initialises
+  `publishedRefCount` → folded into the Phase-D backfill (which must also cover
+  the seed path). Stronger CAS/transactional concurrency is the design-accepted,
+  backfill-reconciled drift (§20.6 step 5), out of Phase B scope.
+- Re-verify: root tsc clean; biome clean; admin 26, public-api 6, shared 13,
+  media-storage 23; both functions build with the maintenance bundled.

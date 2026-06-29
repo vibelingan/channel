@@ -194,13 +194,19 @@ export async function batchUpdate(
   return results;
 }
 
-/** Remove many documents by id. Returns the count actually removed. */
-export async function batchRemove(collection: string, ids: string[]): Promise<number> {
+/**
+ * Remove many documents by id. Returns the ids actually removed (each at most
+ * once — a repeated or already-gone id is reported only on the call that
+ * deleted it). Callers that maintain derived state (e.g. publishedRefCount) can
+ * thus apply side effects for exactly the deletes that happened, not for ids
+ * they merely intended to delete.
+ */
+export async function batchRemove(collection: string, ids: string[]): Promise<string[]> {
   assertKnown(collection);
-  let removed = 0;
+  const removed: string[] = [];
   for (const id of ids) {
     if (await db().remove(collection, id)) {
-      removed += 1;
+      removed.push(id);
     }
   }
   return removed;
