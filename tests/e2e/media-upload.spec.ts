@@ -132,14 +132,20 @@ async function browserPutObject(page: Page, intent: UploadIntent): Promise<Brows
 
 test.describe('MIU-09 deployed media upload smoke', () => {
   test.skip(
-    !e2e.mediaUploadSmoke || !hasAdminCredentials(),
-    'Set E2E_MEDIA_UPLOAD_SMOKE=1 plus E2E_ADMIN_EMAIL/E2E_ADMIN_PASSWORD to run the deployed media upload smoke.',
+    !e2e.mediaUploadSmoke,
+    'Set E2E_MEDIA_UPLOAD_SMOKE=1 to run the deployed media upload smoke.',
   );
 
   test('browser origin uploads to COS, admin previews privately, and public delivery is refcount-gated', async ({
     page,
     request,
   }) => {
+    if (!hasAdminCredentials()) {
+      throw new Error(
+        'E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD are required when E2E_MEDIA_UPLOAD_SMOKE=1.',
+      );
+    }
+
     await page.goto('/login', { waitUntil: 'domcontentloaded' });
 
     let token = '';
@@ -218,13 +224,16 @@ test.describe('MIU-09 deployed media upload smoke', () => {
       productId = product._id;
 
       await expect
-        .poll(async () => {
-          const response = await browserFetchStatus(
-            page,
-            `${e2e.apiUrl}/api/images/${encodeURIComponent(imageId)}`,
-          );
-          return response.status === 200 && response.contentType.includes('image/png');
-        })
+        .poll(
+          async () => {
+            const response = await browserFetchStatus(
+              page,
+              `${e2e.apiUrl}/api/images/${encodeURIComponent(imageId)}`,
+            );
+            return response.status === 200 && response.contentType.includes('image/png');
+          },
+          { timeout: 30_000 },
+        )
         .toBe(true);
     } finally {
       if (productId && token) {
