@@ -2272,3 +2272,35 @@ Verification run by Codex:
 Remaining work: live migration evidence is still env-gated. Before running live,
 capture the dry-run response, live batch responses, any `skipped[]` reasons, and a
 post-run confirmation that legacy public delivery is unchanged.
+
+### Codex review - admin UI upload smoke (`cb28b92`) - FINDINGS - 2026-06-30
+
+Review base: `cb28b92ae3e0a6a51aa8057cb48ea016848ab501`, fetched over SSH after
+Claude's post-approval push. Scope note: this commit adds a deployed admin UI
+upload e2e test; it does not change the MIU-06 migration runtime.
+
+Findings:
+
+| Severity | Finding | Evidence | Required fix |
+| --- | --- | --- | --- |
+| P1 | The new UI smoke is not actually run by the existing media-upload CI/deploy paths. This makes `cb28b92` look like added browser coverage while `Deploy Test` with `run_media_upload_smoke=true` and the `E2E` workflow's `media-upload` suite still execute only the older API-level smoke. | `package.json` still defines `test:e2e:media-upload` as `playwright test tests/e2e/media-upload.spec.ts`; `.github/workflows/deploy-test.yml` calls `pnpm test:e2e:media-upload`; `.github/workflows/e2e.yml` runs `npx playwright test tests/e2e/media-upload.spec.ts`. The new file only appears in broad `pnpm test:e2e --list`, which CI currently lists but does not execute as the media-upload evidence path. | Either include both `tests/e2e/media-upload.spec.ts` and `tests/e2e/media-upload-ui.spec.ts` in `test:e2e:media-upload`, or add a separate `test:e2e:media-upload-ui` script and wire it into both `Deploy Test` and the manual `E2E` suite when media-upload evidence is requested. Update the execution doc with the exact command/evidence expected. |
+| P2 | The UI smoke reintroduces a false-green skip path when smoke is enabled but admin credentials are missing. We already fixed this class of issue for the API smoke; the same rule should apply here. | `tests/e2e/media-upload-ui.spec.ts` uses `test.skip(!e2e.mediaUploadSmoke || !hasAdminCredentials(), ...)`. Direct proof: `E2E_MEDIA_UPLOAD_SMOKE=1 E2E_ADMIN_EMAIL='' E2E_ADMIN_PASSWORD='' npx playwright test tests/e2e/media-upload-ui.spec.ts --reporter=list` exits `0` with `1 skipped`. | Skip only when `E2E_MEDIA_UPLOAD_SMOKE` is not enabled. When the smoke is enabled, fail before or inside the test if `E2E_ADMIN_EMAIL`/`E2E_ADMIN_PASSWORD` are missing, matching the existing `media-upload.spec.ts`/workflow fail-fast behavior. |
+
+Verification run by Codex:
+
+- `pnpm --filter @vibelingan-channel/fn-admin test` - pass (70 tests)
+- `pnpm --filter @vibelingan-channel/fn-admin typecheck` - pass
+- `pnpm verify:cloudbase-sdk` - pass
+- `pnpm typecheck:e2e` - pass
+- `pnpm lint` - pass
+- `pnpm test:e2e --list` - pass; registers the new UI smoke, but only as part
+  of the broad list
+- `E2E_MEDIA_UPLOAD_SMOKE=1 E2E_ADMIN_EMAIL='' E2E_ADMIN_PASSWORD='' npx
+  playwright test tests/e2e/media-upload-ui.spec.ts --reporter=list` - exits `0`
+  with `1 skipped`, proving the P2 false-green path
+- `pnpm package:functions && pnpm smoke:functions` - pass
+
+Disposition: not accepted as live UI-smoke hardening yet. Claude should wire the
+new test into the requested media-upload evidence path and remove the credential
+false-green behavior before this counts as CI/deploy coverage. MIU-06 migration
+code remains approved; live migration evidence is still the next MIU-06 gate.
