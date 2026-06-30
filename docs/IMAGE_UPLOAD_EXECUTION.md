@@ -18,7 +18,7 @@ design-only; validation results and capability probes live here.
 | MIU-05 | Admin UI uploader (direct COS POST UI) | ✅ done; Codex final review passed; POST contract correction pending live smoke | Phase U2a, U2b-a, U2b-b (+Codex U2b-b fixes, final review `f2063de3`) | `uploadImage()` → createUploadIntent/COS multipart POST/completeUpload; `getImagePreview` admin-auth preview (active+recognized-provider). `ImageManager` per-file state/retry, jpeg/png/webp accept, object-URL + admin previews — now commits successes against the LATEST list (concurrent-edit safe) and revokes object URLs. local-server `/api/images/:id` **delegates to `getCatalogImage`** (full prod parity incl. legacy). final Codex review: local-server tsc, site astro check+build, public-api tests, Biome, and local route smoke all pass. Live browser→COS POST + CORS = MIU-09 |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed COS POST form → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated; node-sdk contract correction pending live smoke | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | ✅ code done; live migration run pending | `c4aaa8d`,`e23b67b`,`e603f34` | `cleanupOrphanImages` admin-only action + tests; `migrateLegacyImages` staged legacy `images.data` -> storage action + compensation tests; live dry-run/live ops evidence pending |
-| MIU-08 | OEM files follow-up | pending | — | env-gated |
+| MIU-08 | OEM Cloud Storage upload + private delivery | pending; design revised for 10 MiB public OEM attachments | design revision below | Move public OEM attachments off `drawingData` base64 JSON. New flow: public intent -> browser COS POST -> `submitProject` finalization -> admin-only temp-URL download. Must pass deployed 9-10 MiB ZIP smoke with no `EXCEED_MAX_PAYLOAD_SIZE`. |
 | MIU-09 | Deploy, smoke, review hardening | ✅ DONE — live run `28435302827` (205cd71) green incl. media-upload smoke: browser→COS POST + CORS proven | Codex browser-origin smoke harness + deploy wait hardening + release verification + node-sdk upload contract correction | Added deployed media-upload smoke: browser-origin admin login → createUploadIntent → browser-enforced COS POST → completeUpload → admin preview → public 404 before published link → published product link → public 200. Wired as opt-in `E2E_MEDIA_UPLOAD_SMOKE=1` / `pnpm test:e2e:media-upload` and deploy-test workflow input. Claude accepted the harness. Runs `28431709752` and `28433320633` exposed stale-code and Updating-state deploy defects; Codex fixed both. Run `28433688422` proved the deployed release SHA and then exposed the real upload SDK-contract mismatch (`createUploadIntent` 500), now corrected to node-sdk `getUploadMetadata` + COS POST form. |
 
 Decision summary (binds the plan; evidence below):
@@ -2060,8 +2060,54 @@ left behind.
 
 **MIU-09 is done.** The admin-brokered image-upload feature (MIU-Upload + MIU-04
 delivery + MIU-05 UI) is now validated end-to-end against the deployed CloudBase
-test environment. Remaining open work is unrelated to upload: **MIU-06 Phase 2**
-(legacy `images.data` → storage migration script) and **MIU-08** (OEM files).
+test environment. Remaining open work is outside catalog-image upload:
+**MIU-06 Phase 2** (legacy `images.data` → storage migration script) and
+**MIU-08** (OEM Cloud Storage upload/private delivery).
+
+## MIU-08 — OEM Cloud Storage Upload + Private Delivery
+
+### Codex design revision — 2026-06-30
+
+Triggered by browser testing of a realistic OEM ZIP:
+
+- `channel-oem-heavy-image-pack.zip` is 9.0 MiB and contains six normal PNG
+  drawing-image exports.
+- Submitting it through the public OEM page failed with CloudBase
+  `EXCEED_MAX_PAYLOAD_SIZE`.
+- Root cause: OEM still uses the legacy `FileReader.readAsDataURL` ->
+  `drawingData` -> `/api/admin` JSON -> `files.data` base64 path. A 9 MiB ZIP
+  expands to roughly 12 MiB+ before JSON overhead, so the gateway rejects it
+  before `submitProject` runs.
+
+Decision now captured in `docs/IMAGE_UPLOAD_STORAGE_DESIGN.md` §20.10:
+
+- P0 OEM attachment cap is **10 MiB**.
+- ZIP/PDF/CAD/drawing-image files are private OEM files, not catalog images.
+- New OEM writes must use CloudBase Storage under `oem/`, not base64 JSON.
+- Public submit uses a separate public-intent flow:
+  `createOemFileUploadIntent` -> browser direct COS multipart POST ->
+  `submitProject` finalizes and links `oemProjects.drawing`.
+- Admin delivery uses an authenticated short-lived temp URL action; do not add a
+  public `/api/files/:id` route and do not return large OEM bytes as JSON/base64.
+- Reuse the MIU-09-verified `@cloudbase/node-sdk` upload metadata path. Do not
+  reintroduce `wx-server-sdk.getUploadMetadata`.
+
+Implementation-grade requirements added:
+
+- `OEM_FILE_MAX_BYTES = 10 * 1024 * 1024`.
+- Allow PDF, ZIP/RAR, common CAD extensions, and drawing images.
+- Validate extension + MIME, with `application/octet-stream` allowed only for
+  known CAD extensions.
+- Store `files` metadata with `purpose: 'oem-drawing'`, lifecycle state,
+  storage identifiers, optional checksum, upload intent id, expiry, and
+  server-only upload-secret hash.
+- Keep `files.data` as legacy-only; no new OEM attachment writes may populate it.
+- Add pending-intent cleanup and compensation/idempotency tests around
+  `submitProject`, because the current DB facade has no transaction or
+  create-with-id primitive.
+- Deployed acceptance smoke must upload the 9 MiB ZIP through the public OEM
+  page and verify `/api/admin` carries only small JSON while bytes go to
+  CloudBase Storage.
 
 ### Claude review — orphan-cleanup paging fix (6ca3e866) — APPROVED — 2026-06-30
 

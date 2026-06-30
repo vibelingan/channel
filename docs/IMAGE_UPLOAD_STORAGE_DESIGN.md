@@ -187,7 +187,7 @@ policy explicit instead of hiding it inside ad hoc upload code.
 | Product catalog image | Headphones, overstock photos | Public after linked to published item | 100 KB to 10 MB source | CloudBase Storage, `catalog/` namespace | Admin-brokered direct upload |
 | Product thumbnail/variant | Card image, admin preview, detail zoom image | Public if parent image is public | 20 KB to 500 KB | CloudBase Storage variant paths | Generated client-side first, server-side later if needed |
 | Tiny inline/admin asset | Placeholder SVG, icon, color swatch | Public or internal | Under 20-50 KB | Static asset or base64 DB field | Base64 acceptable only by policy |
-| OEM drawing/file | PDF, ZIP, CAD, drawing image | Private admin-only | 100 KB to 50 MB+ | CloudBase Storage, `oem/` namespace | Signed/direct upload with stricter intent, or CloudRun multipart if large |
+| OEM drawing/file | PDF, ZIP, CAD, drawing image | Private admin-only | 100 KB to 10 MB P0; larger later | CloudBase Storage, `oem/` namespace | Public form direct-to-storage intent; CloudRun only for larger/scanned files |
 | Marketing/site media | Hero photos, campaign media | Public | 100 KB to 20 MB | CloudBase Storage or static hosting | Storage upload plus metadata |
 | Generated/exported artifact | Future catalogs, generated images | Mixed | Variable | Storage with lifecycle metadata | Backend write or async job |
 
@@ -195,7 +195,9 @@ Policy rules:
 
 - Base64 is acceptable for deliberately tiny inline assets, test fixtures, and
   migration fallback.
-- Product photos and OEM files should not use base64 for new writes.
+- Product photos and OEM files should not use base64 for new writes. ZIP is a
+  normal OEM attachment type, not an image workaround; a realistic ZIP must not
+  be tunneled through JSON/base64.
 - Public images should be resolved through an application route or signed/public
   URL policy, not by fabricating URLs in the browser.
 - Every uploaded asset should have a purpose, owner/reference, MIME type, size,
@@ -693,9 +695,13 @@ Phase 3 - migration:
 
 Phase 4 - OEM files:
 
-- Apply the same storage-first model to `files` for OEM drawings.
-- Decide whether public unauthenticated OEM submissions use signed direct upload
-  with stricter anti-abuse controls or a CloudRun media gateway.
+- Apply the same storage-first model to `files` for OEM drawings and bundled
+  ZIP/PDF/CAD attachments.
+- Use the proven CloudBase Storage upload-credential primitive for the public
+  OEM form, but with a separate public-intent contract, 10 MiB P0 max, strict
+  extension/MIME allowlist, expiry, and pending-intent cleanup.
+- Keep CloudRun media gateway as the later path for files above 10 MiB,
+  resumable uploads, malware scanning, or heavy transformations.
 
 ## 15. Implementation Boundaries
 
@@ -979,7 +985,7 @@ Implementation rule:
 | 5 | Admin UI uploader | Drives the admin-brokered upload-intent flow (NOT raw files through `/api/admin`); keeps `imageIds` stable (§24) |
 | 6 | Migration and cleanup | Moves existing `images.data` documents to storage safely |
 | 7 | Browser-direct upload | PROMOTED to P0 (§24) — the admin-brokered direct upload IS the transport, not a deferred spike |
-| 8 | OEM files follow-up | Moves private files with a larger-file policy and admin-only delivery |
+| 8 | OEM Cloud Storage upload | Moves public OEM attachments off base64 JSON into private `oem/` storage with 10 MiB P0 policy and admin-only delivery |
 | 9 | Deploy and smoke hardening | Adds CloudBase deploy gates and media privacy smoke tests |
 
 ### 20.2 MIU-00 - CloudBase Storage And Transport Readiness
@@ -1633,15 +1639,34 @@ Exit criteria:
 > Live-env evidence + the CORS/origin precondition: `docs/IMAGE_UPLOAD_EXECUTION.md`
 > §"Upload-credential mechanism" / §"MIU-Upload preconditions".
 
-### 20.10 MIU-08 - OEM Files Follow-Up
+### 20.10 MIU-08 - OEM Cloud Storage Upload And Private Delivery
 
 Runtime problem:
 
-- `files` and OEM drawings still use base64.
+- `files` and OEM drawings still use base64. The public OEM page reads the
+  selected file with `FileReader.readAsDataURL`, sends `drawingData` inside
+  `/api/admin` JSON, and hits CloudBase `EXCEED_MAX_PAYLOAD_SIZE` for realistic
+  files.
+- A 9-10 MiB OEM ZIP is a normal business input. After base64 expansion and JSON
+  overhead it becomes a 12-14 MiB request body, so the gateway rejects it before
+  `submitProject` can run. Increasing the JSON cap or shrinking test fixtures is
+  not a durable fix.
+- ZIP/PDF/CAD/drawing-image attachments are private OEM files, not catalog
+  images. They must not enter the `images` collection, public `/api/images/:id`,
+  or product-image `publishedRefCount` path.
 - Production public-api intentionally has no `/api/files/:id`; local-only file
   downloads are not prod parity.
-- OEM files may be much larger and private, so product-image policy should not
-  be copied blindly.
+
+Decision:
+
+- P0 accepts **one OEM attachment up to 10 MiB** from the public OEM form.
+- Accepted classes: PDF, ZIP, RAR, common CAD exports (`step`, `stp`, `igs`,
+  `iges`, `dwg`, `dxf`), and drawing images (`png`, `jpeg`, `webp`).
+- The browser uploads bytes directly to CloudBase Storage under `oem/` using a
+  server-minted, single-object COS multipart POST credential. The function only
+  receives small JSON metadata and the finalization request.
+- CloudRun media gateway is deferred to a later MIU for files above 10 MiB,
+  resumable upload, malware scanning, or conversion/preview jobs.
 
 Data shape:
 
@@ -1651,45 +1676,162 @@ interface FileMetadataDoc {
   name: string;
   mimeType: string;
   purpose: 'oem-drawing';
-  storageProvider: 'cloudbase-storage';
-  storageFileId: string;
-  storagePath: string;
-  byteSize: number;
+  storageProvider: 'cloudbase-storage' | 'local-disk' | 'legacy-base64';
+  storageMode?: 'classic-nosql-storage' | 'local-disk';
+  storageFileId?: string;
+  storagePath?: string;
+  byteSize?: number;
+  checksumSha256?: string;
   status: 'pending' | 'active' | 'failed' | 'deleted';
+  uploadIntentId?: string;
+  uploadSecretHash?: string; // server-only; never returned to public clients
+  uploadExpiresAt?: string;
   ownerProjectId?: string;
+  data?: string; // legacy-base64 only; no new writes
   createdAt?: string;
   updatedAt?: string;
 }
 ```
 
-Technology constraints:
+New constants and policy:
 
-- OEM files are private admin-only assets.
-- Public unauthenticated OEM submission needs anti-abuse controls before direct
-  upload is allowed.
-- Large files, malware scanning, or resumable uploads are CloudRun media gateway
-  candidates.
+```ts
+export const OEM_FILE_MAX_BYTES = 10 * 1024 * 1024;
+export const OEM_FILE_EXTENSIONS = [
+  'pdf',
+  'zip',
+  'rar',
+  'png',
+  'jpg',
+  'jpeg',
+  'webp',
+  'step',
+  'stp',
+  'igs',
+  'iges',
+  'dwg',
+  'dxf',
+] as const;
+```
 
-Design and flow:
+- Validate both extension and MIME when the browser provides a useful MIME.
+- Permit `application/octet-stream` only for an allowed CAD extension; never use
+  octet-stream as a blanket bypass.
+- Normalize and store the original filename separately from the storage path.
+  Storage paths are always server-generated with `objectStoragePath({
+  namespace: 'oem', ... })`.
 
-1. Keep product-image implementation scoped to `images`.
-2. Add a separate authenticated admin file-delivery route for OEM downloads.
-3. For public OEM submissions, choose one of:
-   - small-file server upload if route capacity is proven
-   - direct storage upload intent with strict expiry and object verification
-   - CloudRun media gateway for larger/private scanning workflows
-4. Link `oemProjects.drawing` to a `files` metadata doc, not base64 data.
+Public upload flow:
+
+```mermaid
+sequenceDiagram
+  participant Browser as Public OEM Form
+  participant AdminFn as Admin Function /api/admin
+  participant Storage as CloudBase Storage oem/
+  participant DB as CloudBase DB
+
+  Browser->>AdminFn: createOemFileUploadIntent(fileName, mimeType, byteSize, checksum?)
+  AdminFn->>AdminFn: validate 10 MiB cap + extension/MIME + rate/TTL policy
+  AdminFn->>Storage: getUploadMetadata(oem/<yyyy>/<mm>/<intent>/<safeName>)
+  AdminFn->>DB: create files pending doc + uploadSecretHash + expiry
+  AdminFn-->>Browser: fileId + uploadSecret + COS POST fields
+  Browser->>Storage: multipart POST file bytes directly to COS
+  Browser->>AdminFn: submitProject(text fields + fileId + uploadSecret)
+  AdminFn->>Storage: fetch object metadata/bytes for verification
+  AdminFn->>AdminFn: verify size/checksum/MIME and expiry
+  AdminFn->>DB: create oemProjects row
+  AdminFn->>DB: activate files row with ownerProjectId
+  AdminFn-->>Browser: project id
+```
+
+Server actions:
+
+1. `createOemFileUploadIntent`
+   - Public action, no admin JWT.
+   - Accepts `fileName`, `mimeType`, `byteSize`, optional `checksumSha256`, and
+     an optional client `submissionId` for best-effort idempotency.
+   - Rejects files above `OEM_FILE_MAX_BYTES` with a clear validation message.
+   - Mints upload credentials through the **same verified `@cloudbase/node-sdk`
+     upload-metadata path used by MIU-09**, not `wx-server-sdk`.
+   - Creates a `files` row with `status: 'pending'`, `purpose: 'oem-drawing'`,
+     storage metadata, `uploadIntentId`, `uploadSecretHash`, and
+     `uploadExpiresAt`.
+   - Returns only the `fileId`, one-time `uploadSecret`, and COS POST fields.
+
+2. `submitProject`
+   - Keeps the no-file path.
+   - For the new file path, accepts `drawingFileId`, `uploadIntentId`, and
+     `uploadSecret` instead of `drawingData`.
+   - Validates the pending file row, expiry, secret hash, storage provider,
+     storage path prefix, and object bytes before creating the OEM project.
+   - Recomputes server-side `byteSize` and `checksumSha256`; client metadata is
+     only a hint.
+   - Creates the `oemProjects` row, then activates the `files` row and sets
+     `ownerProjectId`. Because the DB facade has no transaction/create-with-id
+     primitive today, implementation must include compensation/idempotency tests:
+     if activation fails after project creation, the project row must be
+     removed or marked without `drawing` and the error must be surfaced instead
+     of reporting success.
+   - Does not accept `drawingData` for new writes. Keep legacy `drawingData`
+     only behind an explicit temporary compatibility branch if required by old
+     clients, with a small cap and clear deprecation.
+
+3. `getOemFileDownloadUrl`
+   - Admin-authenticated action.
+   - Validates the caller can read `oemProjects`/`files`, the file is
+     `purpose: 'oem-drawing'`, `status: 'active'`, provider is recognized, and
+     `ownerProjectId` is present.
+   - Returns a short-lived temp URL from `mediaStorage().getTempUrl(...)` plus
+     filename/MIME metadata. Do not store temp URLs in the DB.
+   - Do not stream large OEM bytes through JSON/base64. The old local
+     `/api/files/:id` route remains local/legacy only until replaced.
+
+4. Cleanup
+   - Extend orphan cleanup or add an OEM-specific cleanup action to reap expired
+     `files.status === 'pending'` rows and delete their storage objects.
+   - Failed verification marks the row `failed` and best-effort deletes the
+     object; cleanup retries deletion later.
+
+Frontend/API flow:
+
+- `ProjectForm.astro` stops calling `readFileAsBase64` for OEM attachments.
+- Client-side validation shows the 10 MiB limit before upload.
+- The file input copy should say the form accepts PDF/ZIP/CAD/drawing images up
+  to 10 MiB. If several files are needed, compress them into one ZIP under 10
+  MiB; larger packages need the CloudRun/later path or manual follow-up.
+- The browser shows progress for the direct COS POST and only calls
+  `submitProject` after the storage upload succeeds.
+- Admin `RecordForm`/OEM Requests uses an authenticated download action, not
+  the absent production `/api/files/:id` route.
 
 Tests:
 
-- Public `/api/files/:id` remains unavailable.
-- Admin-authenticated OEM download succeeds.
-- Unauthenticated OEM download fails.
-- Oversize private files fail with a clear message or route to CloudRun flow.
+- `ProjectForm`/API helper no longer serializes selected OEM files as base64.
+- `createOemFileUploadIntent` rejects over-10 MiB files and unsupported
+  extension/MIME combinations before any DB write.
+- Intent mint failure leaves no pending row.
+- Successful intent writes a pending `files` row under `oem/`.
+- `submitProject` with a valid uploaded ZIP creates an OEM request and active
+  `files` metadata linked by `oemProjects.drawing`.
+- `submitProject` rejects expired, wrong-secret, wrong-prefix, missing-object,
+  over-cap-landed, checksum-mismatch, and wrong-status file rows.
+- If project creation or file activation partially fails, compensation prevents
+  a false success and leaves an operator-visible state.
+- Public `/api/files/:id` remains unavailable in production.
+- Admin-authenticated OEM download URL succeeds; unauthenticated download URL
+  request fails.
+- Deployed browser smoke uploads the 9 MiB PNG ZIP fixture through the public
+  OEM form and verifies no `EXCEED_MAX_PAYLOAD_SIZE`.
 
 Exit criteria:
 
-- OEM implementation has its own size/security policy.
+- A 9-10 MiB ZIP uploaded from the public OEM page succeeds in the deployed test
+  environment.
+- Network traces show `/api/admin` only carries small JSON; bytes go directly to
+  CloudBase Storage.
+- `files.data` is not written for new OEM attachments.
+- OEM implementation has its own size/security policy and does not weaken the
+  catalog image/public-delivery model.
 - No accidental public route exposes private drawings.
 
 ### 20.11 MIU-09 - Deploy, Smoke, And Review Hardening
