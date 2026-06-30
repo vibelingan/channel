@@ -1,3 +1,8 @@
+/// <reference path="./wx-server-sdk.d.ts" />
+// The reference above pins the hand-written `wx-server-sdk` ambient declaration
+// into the program whenever THIS file is compiled — including cross-package
+// consumers that pull `@vibelingan-channel/db/cloudbase` in (e.g. local-server's
+// env-gated dynamic import), where db's tsconfig `include` does not apply.
 import {
   type CollectionDoc,
   type FilterClause,

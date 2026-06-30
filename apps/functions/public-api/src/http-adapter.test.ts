@@ -39,6 +39,9 @@ const fakeMediaStorage: MediaStorageAdapter = {
   async deleteObject() {
     throw new Error('fake media storage: deleteObject not used in public-api tests');
   },
+  async getUploadCredential() {
+    throw new Error('fake media storage: getUploadCredential not used in public-api tests');
+  },
 };
 
 class MemoryAdapter implements DbAdapter {

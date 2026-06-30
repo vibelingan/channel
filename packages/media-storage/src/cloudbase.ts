@@ -141,10 +141,23 @@ export function createCloudBaseMediaStorage(sdk: CloudBaseStorageSdk): MediaStor
 
     async getUploadCredential(cloudPath: string): Promise<UploadCredential> {
       const meta = await sdk.getUploadMetadata({ cloudPath });
-      // The browser PUT and the persisted storageFileId both depend on these, so
-      // fail loudly rather than mint a half-credential that 403s in the browser.
-      if (!meta || !meta.uploadUrl || !meta.cloudObjectId) {
-        throw new Error(`media-storage(cloudbase): incomplete upload metadata for ${cloudPath}`);
+      // Every field is either a browser PUT header value or the durable id the
+      // image doc depends on. The SDK is hand-typed (untrusted at runtime), so
+      // require each required field as a NON-EMPTY string — otherwise we'd mint a
+      // half-credential that 403s in the browser and orphans a pending doc.
+      for (const field of [
+        'uploadUrl',
+        'authorization',
+        'token',
+        'cloudObjectMeta',
+        'cloudObjectId',
+      ] as const) {
+        const value = meta?.[field];
+        if (typeof value !== 'string' || value.length === 0) {
+          throw new Error(
+            `media-storage(cloudbase): incomplete upload metadata (missing ${field}) for ${cloudPath}`,
+          );
+        }
       }
       return {
         uploadUrl: meta.uploadUrl,

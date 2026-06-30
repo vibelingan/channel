@@ -15,8 +15,8 @@ design-only; validation results and capability probes live here.
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
 | MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex A-review + post-D review + self-adversarial B/C/D reviews all resolved | `4823a12`+fixes, Phase B, C, D, post-D hardening | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. Post-D: strict-number counter guard (reject numeric strings), present-but-corrupt fails closed (no scan), unknown provider fails closed; public-api 16→20. All suites pass; both functions build; root tsc + biome clean. Deployed smoke = MIU-09 |
-| MIU-05 | Admin UI uploader (direct PUT UI) | pending; blocked behind MIU-Upload U1 review fixes | — | — |
-| MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | U1 server has Codex blocking review findings; U2 (UI) + live mint/CORS env-gated | Phase U1 + Codex review | Admin/media/public/shared tests pass and functions build, but root typecheck fails (`fn-public-api` fake missing `getUploadCredential`) and `local-server` typecheck fails on `wx-server-sdk` ambient types after the new CloudBase dynamic import; see Codex U1 review below. Live credential mint + bucket CORS = MIU-09 |
+| MIU-05 | Admin UI uploader (direct PUT UI) | U2a done (client flow + local delivery); U2b (per-file UI) pending | Phase U2a | `uploadImage()` → createUploadIntent → raw PUT → completeUpload; local-server `/api/images/:id` proxies storage-backed rows. root tsc + astro check + biome clean |
+| MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
 | MIU-09 | Deploy, smoke, review hardening | pending | — | env-gated |
@@ -869,3 +869,45 @@ not hardened enough for a hand-typed external SDK boundary.
 - `pnpm typecheck` - **fail** (same `fn-public-api` TS2741 blocks the root check).
 - `pnpm build:functions` - pass.
 - `pnpm exec biome check apps/functions/admin/src/handler.ts apps/functions/admin/src/handler.test.ts apps/local-server/src/main.ts packages/db/src/wx-server-sdk.d.ts packages/media-storage/src/index.ts packages/media-storage/src/local-disk.ts packages/media-storage/src/cloudbase.ts packages/media-storage/src/cloudbase.test.ts packages/media-storage/src/index.test.ts` - pass.
+
+### Codex U1 Review — disposition (all 4 accepted & fixed)
+
+Critically evaluated; all four are real. **Root cause of the two P1s: I had been
+verifying with root `tsc --noEmit`, which is NOT the project's per-package
+`pnpm typecheck` — the per-package programs caught what root tsc masked.** Now
+verifying with the per-package check.
+
+- **P1 (public-api fake missing `getUploadCredential`).** My fix WAS written but I
+  never staged `apps/functions/public-api/src/http-adapter.test.ts` into `5a043e0`
+  (staging miss) — so the pushed commit was broken. Committed the fake conformance.
+- **P1 (local-server `wx-server-sdk` ambient not visible).** The env-gated dynamic
+  import of `@vibelingan-channel/db/cloudbase` pulls `cloudbase-adapter.ts` into
+  the local-server program, where db's package-local `wx-server-sdk.d.ts` is not
+  in scope (TS7016). Fixed with a `/// <reference path="./wx-server-sdk.d.ts" />`
+  in `cloudbase-adapter.ts` so the ambient declaration pins into any program that
+  compiles that file. `local-server` typecheck now passes.
+- **P2 (credential metadata only partially validated).** `getUploadCredential`
+  now requires ALL of `uploadUrl`/`authorization`/`token`/`cloudObjectMeta`/
+  `cloudObjectId` as non-empty strings (was: only `uploadUrl`+`cloudObjectId`),
+  failing the mint cleanly instead of returning undefined PUT headers. Added a
+  fake-SDK test asserting each missing field throws.
+- **P3 (lifecycle doc mismatch).** Aligned design §20.7: a not-yet-retrievable
+  object at `completeUpload` stays `pending` (retryable); only size/checksum
+  verification failures mark `failed`. (The handler already behaved this way.)
+
+Re-verify with the per-package check: `pnpm typecheck` (all packages) green; admin
+45 / media-storage 26 / public-api 20 / shared 13; both functions build.
+
+### MIU-05 (U2) — admin uploader UI, phase U2a (client flow + local delivery)
+
+- `apps/site/src/islands/admin/api.ts` `uploadImage()` now drives the
+  admin-brokered flow: `createUploadIntent({fileName, mimeType, byteSize})` → raw
+  `PUT` the File to `upload.url` with the COS headers → `completeUpload({imageId})`.
+  Removed the dead `fileToBase64` helper (only the old base64 path used it).
+- `apps/local-server/src/main.ts` `/api/images/:id` now also proxies storage-backed
+  rows (`status:'active'` + `storageFileId`, via `mediaStorage()`), closing the
+  U1-deferred local upload→view gap. Gated on `active` (not refCount) so the admin
+  can preview a freshly-uploaded, not-yet-linked image.
+- Verify: root + per-package tsc clean; `astro check` 0 errors; biome clean. The
+  live browser→COS PUT (CORS/signature) is exercised at MIU-09. U2b adds per-file
+  upload state + retry in the UI.

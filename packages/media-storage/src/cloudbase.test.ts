@@ -27,19 +27,27 @@ class FakeSdk implements CloudBaseStorageSdk {
       dropIds?: Set<string>; // these fileIDs are omitted from the result (missing)
       deleteShape?: 'wx' | 'node';
       mapDeleteFileId?: (id: string) => string;
-      incompleteUpload?: boolean; // mint metadata missing uploadUrl (failure case)
+      // Mint metadata with one required field blanked (failure case).
+      missingUploadField?:
+        | 'uploadUrl'
+        | 'authorization'
+        | 'token'
+        | 'cloudObjectMeta'
+        | 'cloudObjectId';
     } = {},
   ) {}
 
   async getUploadMetadata(o: { cloudPath: string }) {
     this.uploadMetaPaths.push(o.cloudPath);
-    return {
-      uploadUrl: this.opts.incompleteUpload ? '' : 'https://cos.example/put',
+    const meta = {
+      uploadUrl: 'https://cos.example/put',
       authorization: 'q-sign-algorithm=...',
       token: 'sts-token',
       cloudObjectMeta: 'cos-meta',
       cloudObjectId: `cloud://env.bucket/${o.cloudPath}`,
     };
+    if (this.opts.missingUploadField) meta[this.opts.missingUploadField] = '';
+    return meta;
   }
 
   async uploadFile(o: {
@@ -154,10 +162,23 @@ test('cloudbase getUploadCredential maps the SDK upload metadata to the clean sh
   assert.equal(cred.storageFileId, 'cloud://env.bucket/catalog/2026/06/img1/original-p.jpg');
 });
 
-test('cloudbase getUploadCredential throws on incomplete metadata (no uploadUrl)', async () => {
-  const sdk = new FakeSdk({ incompleteUpload: true });
-  const store = createCloudBaseMediaStorage(sdk);
-  await assert.rejects(() => store.getUploadCredential('catalog/x'), /incomplete upload metadata/);
+test('cloudbase getUploadCredential throws when ANY required metadata field is missing/empty', async () => {
+  // Each required field is a browser PUT header or the durable id — a hand-typed
+  // SDK omitting any of them must fail the mint cleanly, not return undefined.
+  for (const field of [
+    'uploadUrl',
+    'authorization',
+    'token',
+    'cloudObjectMeta',
+    'cloudObjectId',
+  ] as const) {
+    const sdk = new FakeSdk({ missingUploadField: field });
+    const store = createCloudBaseMediaStorage(sdk);
+    await assert.rejects(
+      () => store.getUploadCredential('catalog/x'),
+      new RegExp(`missing ${field}`),
+    );
+  }
 });
 
 test('cloudbase deleteObject: deletes the single fileId', async () => {

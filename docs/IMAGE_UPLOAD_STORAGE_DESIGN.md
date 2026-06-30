@@ -1515,10 +1515,14 @@ via a dynamic import (so `wx-server-sdk` stays out of the default dev run) — s
 upload flow works locally too. Without `TCB_ENV` it wires local-disk for delivery
 only and uploads fail loudly. The DB stays file-backed either way.
 
-**Lifecycle:** `pending` (intent) → `active` (verified) | `failed`
-(missing/mismatch). A `pending` doc whose `PUT` or `completeUpload` never arrives
-is never public (delivery gates on `status === 'active'` && `publishedRefCount > 0`,
-§20.6) and is reaped by orphan cleanup (§20.8 / MIU-06).
+**Lifecycle:** `pending` (intent) → `active` (verified). Only a SIZE or CHECKSUM
+verification failure marks the doc `failed` (and best-effort deletes the bad
+object). An object that is not yet retrievable at `completeUpload` (transient /
+eventually-consistent miss, or a PUT that has not landed) is left `pending` and
+is **retryable** — it is NOT dead-ended to `failed`. A `pending` doc whose `PUT`
+or `completeUpload` never arrives is never public (delivery gates on
+`status === 'active'` && `publishedRefCount > 0`, §20.6) and is reaped by orphan
+cleanup (§20.8 / MIU-06).
 
 **MIU-05 — Admin UI uploader (U2, drives this flow):** replace `uploadImage()`
 with `createUploadIntent` → raw `PUT` to `upload.url` → `completeUpload`. Keep the
