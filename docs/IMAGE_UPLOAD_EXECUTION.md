@@ -17,7 +17,7 @@ design-only; validation results and capability probes live here.
 | MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex A-review + post-D review + self-adversarial B/C/D reviews all resolved | `4823a12`+fixes, Phase B, C, D, post-D hardening | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. Post-D: strict-number counter guard (reject numeric strings), present-but-corrupt fails closed (no scan), unknown provider fails closed; public-api 16→20. All suites pass; both functions build; root tsc + biome clean. Deployed smoke = MIU-09 |
 | MIU-05 | Admin UI uploader (direct COS POST UI) | ✅ done; Codex final review passed; POST contract correction pending live smoke | Phase U2a, U2b-a, U2b-b (+Codex U2b-b fixes, final review `f2063de3`) | `uploadImage()` → createUploadIntent/COS multipart POST/completeUpload; `getImagePreview` admin-auth preview (active+recognized-provider). `ImageManager` per-file state/retry, jpeg/png/webp accept, object-URL + admin previews — now commits successes against the LATEST list (concurrent-edit safe) and revokes object URLs. local-server `/api/images/:id` **delegates to `getCatalogImage`** (full prod parity incl. legacy). final Codex review: local-server tsc, site astro check+build, public-api tests, Biome, and local route smoke all pass. Live browser→COS POST + CORS = MIU-09 |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed COS POST form → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated; node-sdk contract correction pending live smoke | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
-| MIU-06 | Legacy migration + orphan cleanup | Phase 1 done; migration pending | `c4aaa8d` | `cleanupOrphanImages` admin-only action + tests; legacy `images.data` migration script pending |
+| MIU-06 | Legacy migration + orphan cleanup | ✅ code done; live migration run pending | `c4aaa8d`,`e23b67b`,`e603f34` | `cleanupOrphanImages` admin-only action + tests; `migrateLegacyImages` staged legacy `images.data` -> storage action + compensation tests; live dry-run/live ops evidence pending |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
 | MIU-09 | Deploy, smoke, review hardening | ✅ DONE — live run `28435302827` (205cd71) green incl. media-upload smoke: browser→COS POST + CORS proven | Codex browser-origin smoke harness + deploy wait hardening + release verification + node-sdk upload contract correction | Added deployed media-upload smoke: browser-origin admin login → createUploadIntent → browser-enforced COS POST → completeUpload → admin preview → public 404 before published link → published product link → public 200. Wired as opt-in `E2E_MEDIA_UPLOAD_SMOKE=1` / `pnpm test:e2e:media-upload` and deploy-test workflow input. Claude accepted the harness. Runs `28431709752` and `28433320633` exposed stale-code and Updating-state deploy defects; Codex fixed both. Run `28433688422` proved the deployed release SHA and then exposed the real upload SDK-contract mismatch (`createUploadIntent` 500), now corrected to node-sdk `getUploadMetadata` + COS POST form. |
 
@@ -1869,10 +1869,8 @@ no-false-green behavior while matching CloudBase's asynchronous update lifecycle
 
 ## MIU-06 — Legacy Migration + Orphan Cleanup (Claude, parallel to MIU-09)
 
-Started in parallel while Codex hardened the MIU-09 deploy (non-conflicting: the
-deploy fix lives in `scripts/deploy-cloudbase-test.mjs`; this work is in the admin
-handler + a migration script). Env-gated: code + unit tests land now; live runs
-wait on the MIU-09 deploy actually shipping.
+Started in parallel while Codex hardened the MIU-09 deploy. Env-gated: code +
+unit tests land now; live migration runs only after deploy evidence is green.
 
 ### Phase 1 — orphan cleanup (done)
 
@@ -1896,8 +1894,9 @@ mutates nothing; a failed storage delete keeps the doc (retryable) and is report
 admin-only; a huge `olderThanMs` reaps nothing. Verified: `pnpm --filter fn-admin
 typecheck` + `test` (61 pass) + `biome` all green.
 
-Phase 2 (legacy `images.data` → storage migration script, `scripts/migrate-images-to-storage.mjs`,
-dry-run + idempotent per §20.8) is pending.
+Phase 2 is now implemented as the admin-only `migrateLegacyImages` action rather
+than a standalone script. The operator path is documented below: dry-run first,
+then bounded live batches against `/api/admin`.
 
 ### Codex review — MIU-06 Phase 1 after MIU-09 acceptance — FIXED — 2026-06-30
 
@@ -2248,3 +2247,28 @@ flip `storageProvider`). The admin JWT is obtained the same way the media-upload
 smoke does (`login` action with the env's admin creds). The later provider **cutover**
 (flip `storageProvider`→`cloudbase-storage`, drop `data`) remains a separate,
 out-of-scope step gated on storage-backed delivery being proven.
+
+### Codex re-review - MIU-06 Phase 2 fix (`e603f34`) - APPROVED - 2026-06-30
+
+Review base: `e603f34c3a9d196875fdfd86bf72316f558060d1`, fetched over SSH after
+Claude's response to `be15a0c`.
+
+Disposition: approved. The P1 compensation bug is fixed: upload and staging are
+separated, `updateDoc(...) === null` no longer counts as migrated, thrown staging
+errors roll back the uploaded object, and rollback-delete failures are surfaced in
+`skipped[]` with the leaked `storageFileId`. The new regressions cover null-stage,
+throwing-stage, and rollback-delete-failure cases. The P2 operator path is now
+documented as dry-run then bounded live `/api/admin` calls; the standalone script
+shape is no longer required for MIU-06 Phase 2.
+
+Verification run by Codex:
+
+- `pnpm --filter @vibelingan-channel/fn-admin test` - pass (70 tests)
+- `pnpm --filter @vibelingan-channel/fn-admin typecheck` - pass
+- `pnpm verify:cloudbase-sdk` - pass
+- `pnpm lint` - pass
+- `pnpm package:functions && pnpm smoke:functions` - pass
+
+Remaining work: live migration evidence is still env-gated. Before running live,
+capture the dry-run response, live batch responses, any `skipped[]` reasons, and a
+post-run confirmation that legacy public delivery is unchanged.

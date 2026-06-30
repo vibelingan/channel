@@ -1581,17 +1581,23 @@ Technology constraints:
 - Use append-only storage paths. Never overwrite an existing object path.
 - Keep a backup of original base64 data until the rollback window closes.
 - Do not delete `data` in the first migration pass.
-- Migration scripts must use explicit EnvId and should be dry-run capable.
+- Migration tooling must target an explicit environment and should be dry-run
+  capable. In the current implementation this is the admin-only
+  `migrateLegacyImages` action invoked against a specific `/api/admin` endpoint,
+  rather than a standalone local script.
 
 Design and flow:
 
-1. Add `scripts/migrate-images-to-storage.mjs` or a TypeScript script in the
-   repo's existing script style.
+1. Add an admin-only migration operator path (`migrateLegacyImages` action, or a
+   wrapper script around that action) with dry-run support and explicit env/URL
+   targeting.
 2. Iterate `images` where `data` is a string and `storageProvider` is missing or
    `legacy-base64`.
 3. Decode base64 to bytes, validate size/MIME, compute SHA-256.
-4. Upload to `catalog/migrated/<imageId>/original-<safeName>`.
-5. Update image metadata to include storage fields, but keep `data`.
+4. Upload to an append-only catalog migration path generated server-side.
+5. Update image metadata to include staged migration storage fields, but keep
+   `data`. If metadata staging fails after upload, best-effort delete the object
+   and report any rollback-delete failure explicitly.
 6. Set `storageProvider` to `cloudbase-storage` only after public delivery has
    passed storage-backed tests. Until then, either keep `legacy-base64` or write
    `migrationStorageFileId` as a staged field.
