@@ -125,6 +125,11 @@ function assertToolSucceeded(result, label) {
   }
 }
 
+function isFunctionUpdatingResult(result) {
+  const message = `${result?.message ?? result?.data?.raw?.Message ?? ''}`;
+  return /Updating状态|updating/i.test(message);
+}
+
 function isCredentialFailure(message) {
   return /token verification failed|authfailure|unauthorized|invalid.+credential|invalid.+token|expired.+token/i.test(
     message ?? '',
@@ -269,13 +274,27 @@ function updateFunctionCode(def) {
 }
 
 function updateFunctionConfig(def) {
-  const configResult = callTool('cloudbase.manageFunctions', {
-    action: 'updateFunctionConfig',
-    functionName: def.name,
-    handler: 'index.main',
-    timeout: 20,
-    envVariables: def.envVariables,
-  });
+  let configResult = null;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    configResult = callTool('cloudbase.manageFunctions', {
+      action: 'updateFunctionConfig',
+      functionName: def.name,
+      handler: 'index.main',
+      timeout: 20,
+      envVariables: def.envVariables,
+    });
+    if (
+      configResult.success !== false ||
+      !isFunctionUpdatingResult(configResult) ||
+      attempt === 3
+    ) {
+      break;
+    }
+    console.log(
+      `${def.name}: config update hit Updating state; waiting before retry ${attempt + 1}`,
+    );
+    waitForActive(def.name);
+  }
   assertToolSucceeded(configResult, `${def.name}: updateFunctionConfig`);
   return requestIdFrom(configResult) ?? 'unknown';
 }
@@ -348,6 +367,10 @@ function deployFunction(def) {
       }
       console.log(`${def.name}: recreated on ${recreated.Runtime}; request ${recreateRequestId}`);
       return;
+    }
+    const codeAfter = waitForActive(def.name);
+    if (codeAfter.Runtime !== targetRuntime) {
+      throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${codeAfter.Runtime}`);
     }
     const configRequestId = updateFunctionConfig(def);
     const after = waitForActive(def.name);

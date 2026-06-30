@@ -1844,3 +1844,18 @@ a session`; both deploy scripts `node --check` clean.
 Disposition: P1 resolved and verified. Re-running `Deploy Test` should now either
 ship the real code (smoke proceeds to the browser→COS PUT, finally exercising bucket
 CORS) or fail loudly at the release-id check — no more silent stale-code green.
+
+Follow-up live run `28433320633` (commit `7f10674`) proved the stale-code guard is
+working: `admin` received a real code update RequestId, so the previous
+`code request unknown` blind spot is closed. The run then failed in deploy before
+smoke because `public-api` tried `updateFunctionConfig` while CloudBase still had
+the function in `Updating` after `updateFunctionCode`:
+
+```text
+[UpdateFunctionConfiguration] 当前函数处于Updating状态，无法进行此操作，请稍后重试。
+```
+
+Codex follow-up fix: after a confirmed `updateFunctionCode`, wait for the function
+to return Active/Available before `updateFunctionConfig`; if config still hits the
+transient Updating state, wait and retry before failing. This keeps the stricter
+no-false-green behavior while matching CloudBase's asynchronous update lifecycle.
