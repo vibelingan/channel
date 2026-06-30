@@ -19,7 +19,7 @@ design-only; validation results and capability probes live here.
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed COS POST form → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated; node-sdk contract correction pending live smoke | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | Phase 1 done; migration pending | `c4aaa8d` | `cleanupOrphanImages` admin-only action + tests; legacy `images.data` migration script pending |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
-| MIU-09 | Deploy, smoke, review hardening | deploy/release verification fixed; true upload contract fix pending live rerun | Codex browser-origin smoke harness + deploy wait hardening + release verification + node-sdk upload contract correction | Added deployed media-upload smoke: browser-origin admin login → createUploadIntent → browser-enforced COS POST → completeUpload → admin preview → public 404 before published link → published product link → public 200. Wired as opt-in `E2E_MEDIA_UPLOAD_SMOKE=1` / `pnpm test:e2e:media-upload` and deploy-test workflow input. Claude accepted the harness. Runs `28431709752` and `28433320633` exposed stale-code and Updating-state deploy defects; Codex fixed both. Run `28433688422` proved the deployed release SHA and then exposed the real upload SDK-contract mismatch (`createUploadIntent` 500), now corrected to node-sdk `getUploadMetadata` + COS POST form. |
+| MIU-09 | Deploy, smoke, review hardening | ✅ DONE — live run `28435302827` (205cd71) green incl. media-upload smoke: browser→COS POST + CORS proven | Codex browser-origin smoke harness + deploy wait hardening + release verification + node-sdk upload contract correction | Added deployed media-upload smoke: browser-origin admin login → createUploadIntent → browser-enforced COS POST → completeUpload → admin preview → public 404 before published link → published product link → public 200. Wired as opt-in `E2E_MEDIA_UPLOAD_SMOKE=1` / `pnpm test:e2e:media-upload` and deploy-test workflow input. Claude accepted the harness. Runs `28431709752` and `28433320633` exposed stale-code and Updating-state deploy defects; Codex fixed both. Run `28433688422` proved the deployed release SHA and then exposed the real upload SDK-contract mismatch (`createUploadIntent` 500), now corrected to node-sdk `getUploadMetadata` + COS POST form. |
 
 Decision summary (binds the plan; evidence below):
 - P0 byte transport = **admin-brokered direct-storage-upload** (browser POSTs a
@@ -2010,3 +2010,28 @@ new dep — the only local snag, resolved in CI's frozen install):
 Disposition: APPROVED. The last code bug on the admin-brokered upload is fixed; only
 the live browser→COS POST + bucket CORS remain unproven, which the next Deploy Test
 (`run_media_upload_smoke=true`) will exercise.
+
+### ✅ MIU-09 ACCEPTED — live browser→COS evidence recorded — 2026-06-30
+
+Deploy Test run **`28435302827`** (SHA `205cd71`, the node-sdk POST-multipart fix)
+**passed end-to-end**, every step green:
+
+- Deploy to CloudBase test ✓ (hardened script — real code shipped)
+- Smoke deployed CloudBase ✓ (release-SHA assertion: deployed `releaseId` == build SHA)
+- Run public browser E2E ✓
+- **Run media upload smoke ✓** — the deployed-env Playwright smoke completed the full
+  admin-brokered flow from a real Chromium page:
+  browser-origin `login` → `createUploadIntent` → **browser-origin direct COS
+  multipart `POST`** → `completeUpload` → admin `getImagePreview` → public
+  `/api/images/:id` `404` (unpublished) → published product link → public `200
+  image/png`.
+
+This is the live evidence MIU-09 existed to produce: the **browser→COS upload works**
+and, because the browser-origin POST to COS succeeded, **bucket CORS is confirmed**
+(a CORS/preflight failure would have failed the smoke). Run URL:
+`https://github.com/vibelingan/channel/actions/runs/28435302827`.
+
+**MIU-09 is done.** The admin-brokered image-upload feature (MIU-Upload + MIU-04
+delivery + MIU-05 UI) is now validated end-to-end against the deployed CloudBase
+test environment. Remaining open work is unrelated to upload: **MIU-06 Phase 2**
+(legacy `images.data` → storage migration script) and **MIU-08** (OEM files).
