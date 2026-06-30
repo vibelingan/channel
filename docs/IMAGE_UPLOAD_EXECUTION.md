@@ -22,7 +22,7 @@ design-only; validation results and capability probes live here.
 | MIU-09 | Deploy, smoke, review hardening | ✅ DONE — live run `28435302827` (205cd71) green incl. media-upload smoke: browser→COS POST + CORS proven | Codex browser-origin smoke harness + deploy wait hardening + release verification + node-sdk upload contract correction | Added deployed media-upload smoke: browser-origin admin login → createUploadIntent → browser-enforced COS POST → completeUpload → admin preview → public 404 before published link → published product link → public 200. Wired as opt-in `E2E_MEDIA_UPLOAD_SMOKE=1` / `pnpm test:e2e:media-upload` and deploy-test workflow input. Claude accepted the harness. Runs `28431709752` and `28433320633` exposed stale-code and Updating-state deploy defects; Codex fixed both. Run `28433688422` proved the deployed release SHA and then exposed the real upload SDK-contract mismatch (`createUploadIntent` 500), now corrected to node-sdk `getUploadMetadata` + COS POST form. |
 | MIU-10 | Upload transport policy gate | pending implementation; design approved by Claude + Codex monitor | design revision below; Claude review `a017f5a` | Add shared purpose/type/size policy so base64 is eligible only for explicit `inline-small`/legacy paths. Product catalog images and OEM attachments stay CloudBase Storage-backed even when small; tests must prove no size-only base64 fallback. Implementation nits: public rate/pending counters must use atomic `incrementField`; 60s OEM URL TTL should be a named constant. |
 | MIU-11 | Edge rate-limit + throttling | backlog; design-only, not a MIU-08 blocker | §20.13 / §27 audit | Later hardening to move OEM/public caps toward gateway/OPA where possible. MIU-08 still owns the P0 in-function shared-state caps and cleanup; do not defer those into MIU-11. |
-| MIU-12 | Quarantine state machine | backlog; design-only | §20.13 / §27 audit | Formalize rejection logs/hash/scan hooks after P0 upload paths exist. |
+| MIU-12 | Quarantine state machine | groundwork pushed; Codex findings open | `35c6400`; review below | Shared lifecycle helper adds expired-pending selection and status transition validator. Needs doc/object mapping preservation and corrupt-status fail-closed hardening before MIU-08 wires it into cleanup/finalization. |
 | MIU-13 | Async media processing | backlog; design-only | §20.13 / §27 audit | Queue-backed variants/scanning/bulk work when volume or scanning justifies it; not P0. |
 | MIU-14 | Media observability | backlog; design-only | §20.13 / §27 audit | Add metrics for upload failures, pending/orphan counts, rate-limit rejections, CDN stale incidents, and migration progress. |
 | MIU-15 | Public-CDN delivery | backlog; design-only | §20.13 / §27 audit | Optional public variant/CDN path with content-addressed keys or purge strategy; private proxy/temp-URL P0 remains unchanged. |
@@ -2209,6 +2209,29 @@ Review disposition:
 
 Validation run:
 
+- `pnpm lint`
+- `pnpm verify:cloudbase-sdk`
+- `pnpm --filter @vibelingan-channel/fn-admin typecheck`
+- `pnpm --filter @vibelingan-channel/fn-admin test` — 70 tests passed
+
+### Codex review — MIU-08/12 lifecycle helper `35c6400` — FINDINGS — 2026-06-30
+
+Review base: `35c6400` (`feat(media): opportunistic-cleanup selector +
+quarantine transition validator`), fetched over SSH after the monitor detected a
+new remote head.
+
+Summary: good direction and clean pure helper shape, but not ready to wire into
+MIU-08 cleanup/finalization until two review findings are addressed.
+
+| Severity | Finding | Evidence | Required fix |
+| --- | --- | --- | --- |
+| P2 | `selectExpiredPendingForSweep` drops the doc/object pairing needed for safe partial-delete handling. It returns `docIds` and `storageFileIds` as independent arrays, and `storageFileIds` deliberately omits rows without a storage id. A MIU-08 caller that deletes storage objects first cannot map a failed `deleteObject(storageFileId)` back to the doc id to keep that doc retryable; marking all `docIds` deleted would recreate the cleanup false-success class we already fixed in MIU-06. | `packages/shared/src/media-lifecycle.ts` builds `docIds = expired.map(_id)` and `storageFileIds = expired.map(storageFileId).filter(...)`; tests only assert the two arrays independently. Existing `cleanupOrphanImages` behavior keeps the specific doc whose storage delete failed. | Preserve pairing in the selector output, e.g. `items: Array<{ docId, storageFileId?: string, uploadExpiresAt: string }>` or `storageObjects: Array<{ docId, storageFileId }>` plus `docIds`. Add a regression showing a mixed selection can keep only the doc whose object deletion failed. |
+| P3 | `isValidMediaStatusTransition` allows same-state transitions before validating enum membership. With TypeScript-only `MediaStatus` this is fine for trusted callers, but DB rows are runtime data and this helper is intended to enforce a quarantine state machine. If a corrupted value is cast/normalized too early, `isValidMediaStatusTransition('unknown' as MediaStatus, 'unknown' as MediaStatus)` returns `true` instead of failing closed. | `packages/shared/src/media-lifecycle.ts` returns `true` immediately when `from === to`; it imports only the type, not `MEDIA_STATUSES`. Existing media delivery hardening fails closed on unknown lifecycle/provider values. | Import `MEDIA_STATUSES` and verify both `from` and `to` are members before allowing same-state idempotency. Add tests for unknown/corrupt `from` and `to` values using explicit casts. |
+
+Validation run:
+
+- `pnpm --filter @vibelingan-channel/shared typecheck`
+- `pnpm --filter @vibelingan-channel/shared test` — 27 tests passed
 - `pnpm lint`
 - `pnpm verify:cloudbase-sdk`
 - `pnpm --filter @vibelingan-channel/fn-admin typecheck`
