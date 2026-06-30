@@ -1609,3 +1609,47 @@ auth fail-fast). The remaining blocker is unchanged and non-code: the CI CloudBa
 credentials must be refreshed (permanent CAM SecretId/SecretKey, drop the stale
 SessionToken). Once that lands, `Deploy Test` with `run_media_upload_smoke=true`
 should reach the smoke and record the live browser→COS evidence.
+
+### Codex CI credential report + workflow hardening — 2026-06-30
+
+Question answered: why did CI/deploy pass before, but fail now?
+
+Evidence:
+
+- GitHub Environment `test` secret metadata shows all Tencent credentials were
+  created on `2026-06-25T09:02Z` and have not been updated:
+  `TENCENTCLOUD_SECRETID`, `TENCENTCLOUD_SECRETKEY`,
+  `TENCENTCLOUD_SESSIONTOKEN`.
+- The successful `Deploy Test` run `28160182821` started at
+  `2026-06-25T09:21:48Z`, about 19 minutes after those secrets were created.
+  Its logs show `TENCENTCLOUD_SESSIONTOKEN` was present and the deploy succeeded:
+  `admin` and `public-api` updated on `Nodejs20.19`, then deploy smoke and public
+  browser E2E passed.
+- The failed hardened run `28428297514` on `2026-06-30T07:38Z` used the same
+  unchanged secret set, but every CloudBase detail poll returned:
+  `[DescribeEnvInfo] Token verification failed. Please check your Token is correct.`
+- Ordinary `CI` runs passed because `.github/workflows/ci.yml` does not deploy
+  CloudBase and does not consume the Tencent credentials. `Deploy Test` is the
+  workflow that exercises CloudBase auth.
+
+Conclusion: the earlier deploy worked because the temporary STS credential set
+was fresh. It now fails because the unchanged `TENCENTCLOUD_SESSIONTOKEN` path is
+expired. This is not an MIU upload-code failure.
+
+Workflow fix applied:
+
+- Removed `TENCENTCLOUD_SESSIONTOKEN` from `.github/workflows/deploy-test.yml`.
+  The durable path is now permanent CAM `TENCENTCLOUD_SECRETID` +
+  `TENCENTCLOUD_SECRETKEY` only; a stale session-token secret can no longer poison
+  this workflow after permanent keys are installed.
+- Added a deploy credential guard before `pnpm deploy:cloudbase:test` so missing
+  SecretId/SecretKey fails clearly before CloudBase calls.
+
+Remaining maintainer action:
+
+1. In Tencent CAM, create or reuse a deploy-only sub-user/API key with the minimum
+   CloudBase/SCF/hosting/gateway permissions needed by `scripts/deploy-cloudbase-test.mjs`.
+2. In GitHub Environment `test`, replace `TENCENTCLOUD_SECRETID` and
+   `TENCENTCLOUD_SECRETKEY` with that permanent deploy key.
+3. Delete the old `TENCENTCLOUD_SESSIONTOKEN` environment secret as cleanup.
+4. Rerun `Deploy Test` with `run_media_upload_smoke=true`.

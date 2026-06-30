@@ -47,7 +47,6 @@ jobs:
       BOOTSTRAP_ENABLED: '0'
       TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
       TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
-      TENCENTCLOUD_SESSIONTOKEN: ${{ secrets.TENCENTCLOUD_SESSIONTOKEN }}
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
       ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
       BOOTSTRAP_ADMIN_TOKEN: ${{ secrets.BOOTSTRAP_ADMIN_TOKEN }}
@@ -99,6 +98,13 @@ jobs:
         run: |
           if grep -R -I -n -E 'JWT_SECRET|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|TENCENTCLOUD_SECRET(ID|KEY)|TENCENTCLOUD_SESSIONTOKEN' apps/site/dist; then
             echo "Server secret names were found in the public site build." >&2
+            exit 1
+          fi
+
+      - name: Verify CloudBase deploy credentials
+        run: |
+          if [ -z "$TENCENTCLOUD_SECRETID" ] || [ -z "$TENCENTCLOUD_SECRETKEY" ]; then
+            echo "TENCENTCLOUD_SECRETID and TENCENTCLOUD_SECRETKEY must be set in the test environment" >&2
             exit 1
           fi
 
