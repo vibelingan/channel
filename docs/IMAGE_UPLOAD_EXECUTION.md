@@ -1859,3 +1859,35 @@ Codex follow-up fix: after a confirmed `updateFunctionCode`, wait for the functi
 to return Active/Available before `updateFunctionConfig`; if config still hits the
 transient Updating state, wait and retry before failing. This keeps the stricter
 no-false-green behavior while matching CloudBase's asynchronous update lifecycle.
+
+## MIU-06 — Legacy Migration + Orphan Cleanup (Claude, parallel to MIU-09)
+
+Started in parallel while Codex hardened the MIU-09 deploy (non-conflicting: the
+deploy fix lives in `scripts/deploy-cloudbase-test.mjs`; this work is in the admin
+handler + a migration script). Env-gated: code + unit tests land now; live runs
+wait on the MIU-09 deploy actually shipping.
+
+### Phase 1 — orphan cleanup (done)
+
+New admin-only action `cleanupOrphanImages` (`apps/functions/admin/src/handler.ts`,
+dispatch `case 'cleanupOrphanImages'`). Reaps abandoned image docs — `pending`
+intents whose upload never finished and `failed` rows from a rejected
+`completeUpload` — older than a TTL (default 24h, `olderThanMs` override), deleting
+the private storage object FIRST and only then the metadata. Key safety properties:
+
+- Never touches `active` images (the live catalog); admin-only (contributor → `FORBIDDEN`).
+- A storage-delete failure leaves the row in place and reports it (`storageFailed`)
+  so the next sweep retries — bytes are never silently orphaned (per §20.8 + the
+  STO-004 per-file delete-result rule).
+- `dryRun` reports candidates (`removed`, counts) without mutating anything.
+- Storage keys are logged; no temporary URLs (§20.8 exit criteria).
+- Query: `status in [pending,failed]` AND `createdAt < cutoff` (ISO compares
+  chronologically; both adapters translate `in`/`lt`).
+
+Tests (`handler.test.ts`, 5): reaps stale pending/failed + deletes objects; `dryRun`
+mutates nothing; a failed storage delete keeps the doc (retryable) and is reported;
+admin-only; a huge `olderThanMs` reaps nothing. Verified: `pnpm --filter fn-admin
+typecheck` + `test` (61 pass) + `biome` all green.
+
+Phase 2 (legacy `images.data` → storage migration script, `scripts/migrate-images-to-storage.mjs`,
+dry-run + idempotent per §20.8) is pending.

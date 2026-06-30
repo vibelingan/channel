@@ -302,6 +302,8 @@ export async function handleAdminRequest(
         return await batchRemoveAction(req, claims);
       case 'backfillImageRefCounts':
         return await backfillImageRefCountsAction(req, claims);
+      case 'cleanupOrphanImages':
+        return await cleanupOrphanImagesAction(req, claims);
       case 'createUploadIntent':
         return await createUploadIntentAction(req, claims);
       case 'completeUpload':
@@ -760,6 +762,95 @@ async function backfillImageRefCountsAction(
     (req.data as { dryRun?: unknown }).dryRun === true;
   const report = await backfillPublishedRefCounts({ dryRun });
   return ok(report);
+}
+
+/** Default orphan TTL: a `pending`/`failed` image older than this is treated as
+ *  abandoned (the browser PUT or completeUpload never finished). */
+const ORPHAN_CLEANUP_DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+
+const cleanupOrphanImagesSchema = z.object({
+  olderThanMs: z.number().int().positive().optional(),
+  dryRun: z.boolean().optional(),
+  limit: z.number().int().positive().max(500).optional(),
+});
+
+/**
+ * MIU-06 orphan cleanup. Reaps abandoned image documents — `pending` intents whose
+ * upload never completed and `failed` rows from a rejected completeUpload — older
+ * than a TTL, deleting the private storage object FIRST and only then the metadata.
+ * A storage-delete failure leaves the row in place (reported, retried next sweep)
+ * rather than silently orphaning bytes. Never touches `active` images (the live
+ * catalog) and is admin-only. `dryRun` reports candidates without mutating. Storage
+ * keys are logged; temporary URLs are not (§20.8 exit criteria).
+ */
+async function cleanupOrphanImagesAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  if (claims.role !== 'admin') {
+    return err('FORBIDDEN', 'Only an admin may clean up orphaned uploads.');
+  }
+  const parsed = cleanupOrphanImagesSchema.safeParse(req.data ?? {});
+  if (!parsed.success) return err('BAD_REQUEST', 'Invalid orphan-cleanup parameters');
+
+  const ttlMs = parsed.data.olderThanMs ?? ORPHAN_CLEANUP_DEFAULT_TTL_MS;
+  const dryRun = parsed.data.dryRun === true;
+  // ISO timestamps sort chronologically as strings, so a `createdAt < cutoff`
+  // filter selects rows older than the TTL on both adapters.
+  const cutoff = new Date(Date.now() - ttlMs).toISOString();
+
+  const candidates = await list({
+    collection: 'images',
+    page: 1,
+    pageSize: parsed.data.limit ?? 100,
+    filter: {
+      combinator: 'and',
+      clauses: [
+        { field: 'status', op: 'in', value: ['pending', 'failed'] },
+        { field: 'createdAt', op: 'lt', value: cutoff },
+      ],
+    },
+  });
+
+  const removed: string[] = [];
+  const storageDeleted: string[] = [];
+  const storageFailed: Array<{ id: string; error: string }> = [];
+
+  for (const doc of candidates.items) {
+    const id = String(doc._id);
+    if (dryRun) {
+      removed.push(id);
+      continue;
+    }
+    const provider = typeof doc.storageProvider === 'string' ? doc.storageProvider : '';
+    const storageFileId = typeof doc.storageFileId === 'string' ? doc.storageFileId : '';
+    const hasObject =
+      storageFileId.length > 0 && (provider === 'cloudbase-storage' || provider === 'local-disk');
+    if (hasObject) {
+      try {
+        await mediaStorage().deleteObject(storageFileId);
+        console.log(`[fn-admin] cleanupOrphanImages: deleted storage object ${storageFileId}`);
+        storageDeleted.push(storageFileId);
+      } catch (e) {
+        // Keep the metadata so a later sweep retries; never silently orphan bytes.
+        console.error(`[fn-admin] cleanupOrphanImages: object delete failed for ${id}`, e);
+        storageFailed.push({ id, error: e instanceof Error ? e.message : 'storage delete failed' });
+        continue;
+      }
+    }
+    if (await remove('images', id)) removed.push(id);
+  }
+
+  return ok({
+    dryRun,
+    cutoff,
+    scanned: candidates.items.length,
+    total: candidates.total,
+    docsRemoved: dryRun ? 0 : removed.length,
+    removed,
+    storageDeleted,
+    storageFailed,
+  });
 }
 
 /**

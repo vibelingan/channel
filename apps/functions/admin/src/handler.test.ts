@@ -1161,3 +1161,166 @@ test('getImagePreview: viewer forbidden; unknown id → 404; unfetchable object 
   expectErr(await call('getImagePreview', { id: 'does-not-exist' }, admin), 'NOT_FOUND');
   expectErr(await call('getImagePreview', { id: 'imgN' }, admin), 'NOT_FOUND');
 });
+
+// --- MIU-06 (Phase 1): orphan cleanup ----------------------------------------
+
+/** Media-storage fake that records deleteObject calls and can fail specific ids. */
+function makeTrackingStorage(failFor: string[] = []): MediaStorageAdapter & { deleted: string[] } {
+  const deleted: string[] = [];
+  return {
+    deleted,
+    async putObject() {
+      throw new Error('fake: putObject unused');
+    },
+    async getTempUrl() {
+      throw new Error('fake: getTempUrl unused');
+    },
+    async getUploadCredential() {
+      throw new Error('fake: getUploadCredential unused');
+    },
+    async getObjectAsBase64() {
+      throw new Error('fake: getObjectAsBase64 unused');
+    },
+    async deleteObject(fileId: string) {
+      if (failFor.includes(fileId)) throw new Error('fake: delete rejected');
+      deleted.push(fileId);
+    },
+  };
+}
+
+const ORPHAN_OLD = '2000-01-01T00:00:00.000Z';
+
+function orphanStore(): Store {
+  return {
+    users: [],
+    images: [
+      // abandoned, old, with a storage object → reaped + object deleted
+      {
+        _id: 'op',
+        name: 'op.jpg',
+        mimeType: 'image/jpeg',
+        status: 'pending',
+        publishedRefCount: 0,
+        storageProvider: 'cloudbase-storage',
+        storageFileId: 'cloud://b/op',
+        createdAt: ORPHAN_OLD,
+      },
+      {
+        _id: 'of',
+        name: 'of.jpg',
+        mimeType: 'image/jpeg',
+        status: 'failed',
+        publishedRefCount: 0,
+        storageProvider: 'cloudbase-storage',
+        storageFileId: 'cloud://b/of',
+        createdAt: ORPHAN_OLD,
+      },
+      // old pending with no storage object yet (intent never PUT) → reaped, no delete
+      {
+        _id: 'on',
+        name: 'on.jpg',
+        mimeType: 'image/jpeg',
+        status: 'pending',
+        publishedRefCount: 0,
+        createdAt: ORPHAN_OLD,
+      },
+      // recent pending → within TTL, kept
+      {
+        _id: 'recent',
+        name: 'r.jpg',
+        mimeType: 'image/jpeg',
+        status: 'pending',
+        publishedRefCount: 0,
+        storageProvider: 'cloudbase-storage',
+        storageFileId: 'cloud://b/recent',
+        createdAt: new Date().toISOString(),
+      },
+      // active, old → never reaped (live catalog)
+      {
+        _id: 'active',
+        name: 'a.jpg',
+        mimeType: 'image/jpeg',
+        status: 'active',
+        publishedRefCount: 1,
+        storageProvider: 'cloudbase-storage',
+        storageFileId: 'cloud://b/active',
+        createdAt: ORPHAN_OLD,
+      },
+    ],
+  };
+}
+
+test('cleanupOrphanImages reaps stale pending/failed docs and deletes their storage objects', async () => {
+  const store = setup(orphanStore());
+  const storage = makeTrackingStorage();
+  setMediaStorage(storage);
+  const token = await adminToken();
+
+  const data = okData(await call('cleanupOrphanImages', {}, token));
+
+  assert.deepEqual([...(data.removed as string[])].sort(), ['of', 'on', 'op']);
+  assert.equal(data.docsRemoved, 3);
+  assert.deepEqual([...storage.deleted].sort(), ['cloud://b/of', 'cloud://b/op']); // 'on' had no object
+  assert.deepEqual(data.storageFailed, []);
+  assert.deepEqual((store.images ?? []).map((d) => d._id).sort(), ['active', 'recent']);
+});
+
+test('cleanupOrphanImages dryRun reports candidates without deleting anything', async () => {
+  const store = setup(orphanStore());
+  const storage = makeTrackingStorage();
+  setMediaStorage(storage);
+  const token = await adminToken();
+
+  const data = okData(await call('cleanupOrphanImages', { dryRun: true }, token));
+  assert.equal(data.dryRun, true);
+  assert.deepEqual([...(data.removed as string[])].sort(), ['of', 'on', 'op']);
+  assert.equal(data.docsRemoved, 0);
+  assert.deepEqual(storage.deleted, []);
+  assert.equal((store.images ?? []).length, 5);
+});
+
+test('cleanupOrphanImages keeps a doc whose storage delete fails (retryable) and reports it', async () => {
+  const store = setup(orphanStore());
+  setMediaStorage(makeTrackingStorage(['cloud://b/op'])); // op's object delete rejects
+  const token = await adminToken();
+
+  const data = okData(await call('cleanupOrphanImages', {}, token));
+  assert.deepEqual(
+    (data.storageFailed as Array<{ id: string }>).map((f) => f.id),
+    ['op'],
+  );
+  assert.ok((store.images ?? []).some((d) => d._id === 'op')); // kept for retry
+  assert.equal(
+    (store.images ?? []).some((d) => d._id === 'of'),
+    false,
+  );
+  assert.equal(
+    (store.images ?? []).some((d) => d._id === 'on'),
+    false,
+  );
+});
+
+test('cleanupOrphanImages is admin-only', async () => {
+  setup(orphanStore());
+  setMediaStorage(makeTrackingStorage());
+  const contributor = await signSession('test-secret', {
+    sub: 'c-1',
+    email: 'c@example.com',
+    name: 'contributor',
+    role: 'contributor',
+  });
+  expectErr(await call('cleanupOrphanImages', {}, contributor), 'FORBIDDEN');
+});
+
+test('cleanupOrphanImages respects olderThanMs (a huge TTL reaps nothing)', async () => {
+  const store = setup(orphanStore());
+  setMediaStorage(makeTrackingStorage());
+  const token = await adminToken();
+  // cutoff far in the past → even the 2000-era rows are newer than it → none reaped.
+  const data = okData(
+    await call('cleanupOrphanImages', { olderThanMs: 100 * 365 * 24 * 3600 * 1000 }, token),
+  );
+  assert.equal(data.docsRemoved, 0);
+  assert.deepEqual(data.removed, []);
+  assert.equal((store.images ?? []).length, 5);
+});
