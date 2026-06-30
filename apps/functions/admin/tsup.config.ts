@@ -20,6 +20,7 @@ export default defineConfig({
     '@vibelingan-channel/db',
     '@vibelingan-channel/email',
     '@vibelingan-channel/media-storage',
+    '@cloudbase/node-sdk',
     'hash-wasm',
     'jose',
     'nodemailer',

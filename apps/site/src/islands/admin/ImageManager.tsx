@@ -20,7 +20,7 @@ const ACCEPT = 'image/jpeg,image/png,image/webp';
 
 /**
  * Inline image manager for the catalog edit form. Uploads files through the
- * admin-brokered direct-upload flow (`uploadImage`: intent → raw PUT → complete)
+ * admin-brokered direct-upload flow (`uploadImage`: intent → direct COS POST → complete)
  * and stores their ids. Previews come from the admin-authenticated
  * `getImagePreview` (the public `/api/images/:id` is `publishedRefCount`-gated and
  * would 404 unpublished images); just-uploaded files preview from a local object

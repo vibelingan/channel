@@ -37,19 +37,21 @@ export interface StoredMediaObject {
 /**
  * A short-lived, single-object credential that lets the BROWSER write bytes
  * straight to storage (bypassing the function byte cap). The server mints it; the
- * browser does a raw `PUT uploadUrl` with the COS headers, then reports back so
- * the server can verify + activate. `storageFileId` is the durable id to persist.
+ * browser posts a multipart form directly to COS, then reports back so the
+ * server can verify + activate. `storageFileId` is the durable id to persist.
  * See docs/IMAGE_UPLOAD_EXECUTION.md §"Upload-credential mechanism".
  */
 export interface UploadCredential {
-  /** Raw PUT target for the bytes. */
+  /** Direct COS form POST target for the bytes. */
   uploadUrl: string;
-  /** Value for the request `Authorization` header. */
-  authorization: string;
-  /** Value for the `X-Cos-Security-Token` header. */
-  token: string;
-  /** Value for the `X-Cos-Meta-Fileid` header (CloudBase object meta). */
-  cosFileId: string;
+  method: 'POST';
+  /** Required multipart fields; append these before the `file` part. */
+  formFields: {
+    Signature: string;
+    'x-cos-security-token': string;
+    'x-cos-meta-fileid': string;
+    key: string;
+  };
   /** Durable storage id to persist on the image doc (e.g. `cloud://env.bucket/path`). */
   storageFileId: string;
 }

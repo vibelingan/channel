@@ -1,19 +1,14 @@
 /**
  * CloudBase `MediaStorageAdapter` — the production backend.
  *
- * It deliberately does NOT `import 'wx-server-sdk'`. Instead the caller (a cloud
- * function's entry file) passes the already-initialised `cloud` SDK in. Two
- * reasons:
- *   1. This package then imports nothing CloudBase-specific, so it can never be
- *      pulled into a browser bundle (design §20.4 exit criterion).
- *   2. It avoids duplicating the hand-written `wx-server-sdk` type-stub that
- *      lives in `@vibelingan-channel/db` (the SDK ships no types). The function
- *      calls db's `initCloudBase(env)` once, then
- *      `setMediaStorage(createCloudBaseMediaStorage(cloud))`.
+ * It deliberately does NOT import or initialise CloudBase SDKs itself. Instead
+ * the caller passes the already-initialised server SDK in. This package then
+ * stays browser-safe unless a cloud function explicitly imports the `./cloudbase`
+ * entry (design §20.4 exit criterion).
  *
- * Storage signatures were verified against the installed @cloudbase/node-sdk@2.10.0
- * (wrapped by wx-server-sdk@3.0.4) in MIU-00 — see docs/IMAGE_UPLOAD_EXECUTION.md
- * §"Upload-credential mechanism" / design §24.3.
+ * Storage signatures are verified against the installed @cloudbase/node-sdk@2.10.0.
+ * `wx-server-sdk@3.0.4` does not expose `getUploadMetadata`, so upload credential
+ * minting uses node-sdk directly via dependency injection.
  */
 import {
   type MediaStorageAdapter,
@@ -42,17 +37,18 @@ export interface CloudBaseStorageSdk {
   // `{ fileContent: Buffer }` is still assignable here.
   downloadFile(options: { fileID: string }): Promise<{ fileContent: Buffer | undefined }>;
   deleteFile(options: { fileList: string[] }): Promise<{ fileList: unknown[] }>;
-  // Mints a single-object pre-signed upload credential (classic-storage
-  // `POST /v1/storages/get-objects-upload-info`). Permission-gated to the server
-  // identity. Field shape per MIU-00 probe (design §24 / execution-doc
-  // §"Upload-credential mechanism").
+  // Mints a single-object direct COS form credential. The node-sdk returns
+  // `{ data: { url, authorization, token, fileId, cosFileId } }` and its own
+  // `uploadFile` implementation posts those fields as multipart/form-data.
   getUploadMetadata(options: { cloudPath: string }): Promise<{
-    uploadUrl: string;
-    authorization: string;
-    token: string;
-    cloudObjectMeta: string;
-    cloudObjectId: string;
-    downloadUrl?: string;
+    data?: {
+      url?: unknown;
+      authorization?: unknown;
+      token?: unknown;
+      fileId?: unknown;
+      cosFileId?: unknown;
+      download_url?: unknown;
+    };
   }>;
 }
 
@@ -64,6 +60,20 @@ export interface CloudBaseStorageSdk {
 const DELETE_CHUNK = 50;
 
 const DEFAULT_TEMP_URL_MAX_AGE_SECONDS = 3600;
+
+function requireStringField(
+  record: Record<string, unknown>,
+  field: string,
+  cloudPath: string,
+): string {
+  const value = record[field];
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(
+      `media-storage(cloudbase): incomplete upload metadata (missing ${field}) for ${cloudPath}`,
+    );
+  }
+  return value;
+}
 
 /**
  * Inspect one entry of a CloudBase `deleteFile` per-file result. The shape
@@ -141,30 +151,31 @@ export function createCloudBaseMediaStorage(sdk: CloudBaseStorageSdk): MediaStor
 
     async getUploadCredential(cloudPath: string): Promise<UploadCredential> {
       const meta = await sdk.getUploadMetadata({ cloudPath });
-      // Every field is either a browser PUT header value or the durable id the
-      // image doc depends on. The SDK is hand-typed (untrusted at runtime), so
-      // require each required field as a NON-EMPTY string — otherwise we'd mint a
-      // half-credential that 403s in the browser and orphans a pending doc.
-      for (const field of [
-        'uploadUrl',
-        'authorization',
-        'token',
-        'cloudObjectMeta',
-        'cloudObjectId',
-      ] as const) {
-        const value = meta?.[field];
-        if (typeof value !== 'string' || value.length === 0) {
-          throw new Error(
-            `media-storage(cloudbase): incomplete upload metadata (missing ${field}) for ${cloudPath}`,
-          );
-        }
+      const data = meta?.data;
+      if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        throw new Error(
+          `media-storage(cloudbase): incomplete upload metadata (missing data) for ${cloudPath}`,
+        );
       }
+      const fields = data as Record<string, unknown>;
+      // Every field is either a browser form field or the durable id the image
+      // doc depends on. Treat the SDK response as untrusted at runtime so a
+      // contract mismatch fails during mint instead of returning a half-credential.
+      const uploadUrl = requireStringField(fields, 'url', cloudPath);
+      const authorization = requireStringField(fields, 'authorization', cloudPath);
+      const token = requireStringField(fields, 'token', cloudPath);
+      const cosFileId = requireStringField(fields, 'cosFileId', cloudPath);
+      const storageFileId = requireStringField(fields, 'fileId', cloudPath);
       return {
-        uploadUrl: meta.uploadUrl,
-        authorization: meta.authorization,
-        token: meta.token,
-        cosFileId: meta.cloudObjectMeta,
-        storageFileId: meta.cloudObjectId,
+        uploadUrl,
+        method: 'POST',
+        formFields: {
+          Signature: authorization,
+          'x-cos-security-token': token,
+          'x-cos-meta-fileid': cosFileId,
+          key: cloudPath,
+        },
+        storageFileId,
       };
     },
 

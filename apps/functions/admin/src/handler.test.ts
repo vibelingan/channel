@@ -848,10 +848,14 @@ function makeFakeMediaStorage(
     async getUploadCredential(cloudPath: string): Promise<UploadCredential> {
       if (opts.uploadThrows) throw new Error('fake: credential mint failed');
       return {
-        uploadUrl: 'https://cos.example/put',
-        authorization: 'q-sign-algorithm=...',
-        token: 'sts-token',
-        cosFileId: 'cos-meta',
+        uploadUrl: 'https://cos.example/post',
+        method: 'POST',
+        formFields: {
+          Signature: 'q-sign-algorithm=...',
+          'x-cos-security-token': 'sts-token',
+          'x-cos-meta-fileid': 'cos-meta',
+          key: cloudPath,
+        },
         storageFileId: `cloud://env.bucket/${cloudPath}`,
         ...opts.credential,
       };
@@ -878,14 +882,15 @@ test('createUploadIntent mints a credential and writes a pending image doc', asy
     imageId: string;
     uploadIntentId: string;
     storageFileId: string;
-    upload: { url: string; headers: Record<string, string> };
+    upload: { method: 'POST'; url: string; fields: Record<string, string> };
   }>(res);
 
   assert.ok(data.imageId);
-  assert.equal(data.upload.url, 'https://cos.example/put');
-  assert.equal(data.upload.headers.Authorization, 'q-sign-algorithm=...');
-  assert.equal(data.upload.headers['X-Cos-Security-Token'], 'sts-token');
-  assert.equal(data.upload.headers['X-Cos-Meta-Fileid'], 'cos-meta');
+  assert.equal(data.upload.method, 'POST');
+  assert.equal(data.upload.url, 'https://cos.example/post');
+  assert.equal(data.upload.fields.Signature, 'q-sign-algorithm=...');
+  assert.equal(data.upload.fields['x-cos-security-token'], 'sts-token');
+  assert.equal(data.upload.fields['x-cos-meta-fileid'], 'cos-meta');
 
   const doc = store.images?.find((i) => i._id === data.imageId);
   assert.equal(doc?.status, 'pending');

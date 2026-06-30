@@ -17,7 +17,7 @@ import {
 
 initCloudBase(requireEnv('TCB_ENV'));
 setAdapter(cloudBaseAdapter);
-setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk));
+setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 
 const config: PublicHttpConfig = {
   ...(optionalEnv('PUBLIC_API_BASE_URL') ? { apiBaseUrl: optionalEnv('PUBLIC_API_BASE_URL') } : {}),

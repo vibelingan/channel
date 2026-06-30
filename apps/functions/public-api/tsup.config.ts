@@ -18,6 +18,7 @@ export default defineConfig({
     '@vibelingan-channel/shared',
     '@vibelingan-channel/db',
     '@vibelingan-channel/media-storage',
+    '@cloudbase/node-sdk',
     'wx-server-sdk',
     'zod',
   ],

@@ -116,13 +116,13 @@ interface UploadIntentResponse {
   imageId: string;
   uploadIntentId: string;
   storageFileId: string;
-  upload: { url: string; headers: Record<string, string> };
+  upload: { method: 'POST'; url: string; fields: Record<string, string> };
 }
 
 /**
  * Upload an image via the admin-brokered direct-upload flow (MIU-Upload):
  *   1. ask the server for a single-object pre-signed credential (createUploadIntent);
- *   2. `PUT` the bytes straight to storage — bypassing the function byte cap;
+ *   2. `POST` the bytes straight to COS as multipart/form-data — bypassing the function byte cap;
  *   3. have the server verify + activate (completeUpload).
  * Returns the new image id. The browser never holds a storage identity — only the
  * custom JWT (carried by `call`); the COS signature is server-minted.
@@ -134,14 +134,17 @@ export async function uploadImage(file: File): Promise<string> {
     byteSize: file.size,
   });
 
-  const put = await fetch(intent.upload.url, {
-    method: 'PUT',
-    headers: intent.upload.headers,
-    body: file,
+  const form = new FormData();
+  for (const [key, value] of Object.entries(intent.upload.fields)) form.append(key, value);
+  form.append('file', file);
+
+  const post = await fetch(intent.upload.url, {
+    method: intent.upload.method,
+    body: form,
   });
-  if (!put.ok) {
+  if (!post.ok) {
     // Leave the pending doc for orphan cleanup; surface a clear error.
-    throw new AdminApiError('UPLOAD_FAILED', `Storage upload failed (${put.status})`);
+    throw new AdminApiError('UPLOAD_FAILED', `Storage upload failed (${post.status})`);
   }
 
   await call('completeUpload', { imageId: intent.imageId });

@@ -227,10 +227,10 @@ sequenceDiagram
   UI->>Admin: createUploadIntent(token, file metadata)
   Admin->>Admin: validate JWT, role, MIME, size
   Admin->>Storage: getUploadMetadata(cloudPath) — server identity
-  Storage-->>Admin: pre-signed upload URL + headers
+  Storage-->>Admin: direct POST URL + form fields
   Admin->>DB: write pending image doc
-  Admin-->>UI: { imageId, upload: { url, headers } }
-  UI->>Storage: PUT raw bytes
+  Admin-->>UI: { imageId, upload: { method, url, fields } }
+  UI->>Storage: POST multipart form + file
   UI->>Admin: completeUpload(imageId)
   Admin->>Storage: verify object + recompute size/SHA-256
   Admin->>DB: activate image doc (pending → active)
@@ -861,7 +861,7 @@ Four infra realities that change the ranking:
 2. Server-side `cloud.uploadFile` already works at runtime; browser-direct
    upload does not. `packages/db` depends on `wx-server-sdk`, which bundles
    `@cloudbase/node-sdk` (the storage-capable server SDK). So Option C's byte
-   path runs on capabilities the function already has. Option A's browser PUT
+   path runs on capabilities the function already has. Option A's browser direct write
    and all of Option B need a browser-usable storage credential, which in
    classic mode comes from the Web SDK session - i.e. the publishable key the
    deploy docs say is absent. This inverts the doc's confidence: Option A is
@@ -1464,8 +1464,8 @@ Exit criteria:
 The single upload MIU. The old server-multipart (MIU-03), `FormData`-through-
 `/api/admin` (MIU-05), and CloudBase Web-SDK (MIU-07) paths are all folded here —
 §24 records why (the 100 KiB function-route cap and the absent browser CloudBase
-identity). **One upload path everywhere:** the browser `PUT`s bytes straight to
-CloudBase Storage using a server-minted, single-object, short-lived pre-signed
+identity). **One upload path everywhere:** the browser `POST`s a multipart form
+straight to CloudBase Storage using a server-minted, single-object, short-lived
 credential. The custom JWT stays the only browser credential — no local-folder
 upload path, no CloudBase Web SDK in the browser.
 
@@ -1486,11 +1486,12 @@ upload path, no CloudBase Web SDK in the browser.
      (`storageProvider: 'cloudbase-storage'`, `storageMode: 'classic-nosql-storage'`,
      `storagePath`, `storageFileId`, `status: 'pending'`, `publishedRefCount: 0`,
      `uploadIntentId`, `byteSize`, optional `checksumSha256`);
-   - returns `{ imageId, uploadIntentId, storageFileId, upload: { url, headers } }`,
-     where `headers` = `Authorization`, `X-Cos-Security-Token`, `X-Cos-Meta-Fileid`
-     (NOT `Content-Length` — browser/UA-managed).
-2. Browser raw-`PUT`s the bytes to `upload.url` with those headers. Bytes go
-   browser → COS directly; the 100 KiB function cap is never on the path.
+   - returns `{ imageId, uploadIntentId, storageFileId, upload: { method: "POST",
+     url, fields } }`, where `fields` = `Signature`, `x-cos-security-token`,
+     `x-cos-meta-fileid`, `key`, appended before the `file` form part.
+2. Browser `POST`s multipart `FormData` to `upload.url` with those fields and the
+   file. Bytes go browser → COS directly; the 100 KiB function cap is never on the
+   path.
 3. `completeUpload` — body = `{ imageId }`. Verifies the object is retrievable,
    **recomputes `byteSize` + SHA-256 SERVER-side** (never trusts the client;
    §22.3-6), and flips the doc `pending → active`. A SIZE or CHECKSUM verification
@@ -1502,31 +1503,33 @@ upload path, no CloudBase Web SDK in the browser.
 `MediaStorageAdapter.getUploadCredential(cloudPath)`:
 - CloudBase impl wraps the server-only `getUploadMetadata`
   (`POST /v1/storages/get-objects-upload-info`) and maps its result to
-  `{ uploadUrl, authorization, token, cosFileId, storageFileId }`
-  (`cloudObjectMeta → cosFileId`, `cloudObjectId → storageFileId`); throws on
-  incomplete metadata.
+  `{ uploadUrl, method: "POST", formFields, storageFileId }`. The installed
+  `@cloudbase/node-sdk@2.10.0` shape is `{ data: { url, authorization, token,
+  fileId, cosFileId } }`; `wx-server-sdk@3.0.4` does not expose
+  `getUploadMetadata`, so the injected storage SDK is the node-sdk `CloudBase`
+  instance, not the wx-server-sdk wrapper. Throws on incomplete metadata.
 - local-disk impl **throws** — local-disk is a dev convenience for byte DELIVERY
   only, never an upload target.
 - This keeps the credential mint the single env-bound piece; the two admin actions
   are unit-tested with fakes.
 
 **Local development:** `local-server` mints REAL CloudBase credentials when
-`TCB_ENV` is set — `setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk))`
-via a dynamic import (so `wx-server-sdk` stays out of the default dev run) — so the
+`TCB_ENV` is set — `setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()))`
+via a dynamic import (so CloudBase SDKs stay out of the default dev run) — so the
 upload flow works locally too. Without `TCB_ENV` it wires local-disk for delivery
 only and uploads fail loudly. The DB stays file-backed either way.
 
 **Lifecycle:** `pending` (intent) → `active` (verified). Only a SIZE or CHECKSUM
 verification failure marks the doc `failed` (and best-effort deletes the bad
 object). An object that is not yet retrievable at `completeUpload` (transient /
-eventually-consistent miss, or a PUT that has not landed) is left `pending` and
-is **retryable** — it is NOT dead-ended to `failed`. A `pending` doc whose `PUT`
+eventually-consistent miss, or a POST that has not landed) is left `pending` and
+is **retryable** — it is NOT dead-ended to `failed`. A `pending` doc whose POST
 or `completeUpload` never arrives is never public (delivery gates on
 `status === 'active'` && `publishedRefCount > 0`, §20.6) and is reaped by orphan
 cleanup (§20.8 / MIU-06).
 
 **MIU-05 — Admin UI uploader (U2, drives this flow):** replace `uploadImage()`
-with `createUploadIntent` → raw `PUT` to `upload.url` → `completeUpload`. Keep the
+with `createUploadIntent` → direct COS multipart `POST` → `completeUpload`. Keep the
 product form value shape `imageIds: string[]`; show per-file
 pending/uploading/succeeded/failed with retry, preserving successful IDs in order;
 restrict the file picker to jpeg/png/webp (matching `catalogImageUploadSchema`);
@@ -1546,9 +1549,9 @@ do NOT import the CloudBase Web SDK.
 > parity land and review.
 
 **Still env-gated (MIU-09):** a real pre-signed-credential mint and the bucket
-**CORS gate** — allow `PUT` + `Authorization`/`X-Cos-Security-Token`/
-`X-Cos-Meta-Fileid`/`Content-Type` from the site origin — a hard readiness gate
-for browser→COS bytes. Evidence + preconditions: `docs/IMAGE_UPLOAD_EXECUTION.md`
+**CORS gate** — allow browser-origin `POST` to the COS form endpoint from the site
+origin. The signature, token, file id, and object key are multipart fields rather
+than custom request headers. Evidence + preconditions: `docs/IMAGE_UPLOAD_EXECUTION.md`
 §"Upload-credential mechanism" / §"MIU-Upload preconditions".
 
 ### 20.8 MIU-06 - Legacy Image Migration And Orphan Cleanup
@@ -1915,14 +1918,14 @@ upload-credential decisions.
 
 Decisions from MIU-00 validation (2026-06-29) that now bind this plan:
 
-- P0 byte transport = **admin-brokered direct-storage-upload**: the browser PUTs
-  bytes straight to CloudBase Storage using a server-minted pre-signed credential
+- P0 byte transport = **admin-brokered direct-storage-upload**: the browser POSTs
+  bytes straight to CloudBase Storage using a server-minted direct form credential
   (`getUploadMetadata` / `POST /v1/storages/get-objects-upload-info`); the custom
   JWT stays the only browser credential. Server-side upload (Option C / MIU-03 as
   written) is **shelved** — the HTTP access route hard-caps request bodies at
   100 KiB.
 - The old **MIU-03 + MIU-07 fold into one** admin-brokered direct-upload MIU
-  (intent -> pre-signed PUT -> complete+verify).
+  (intent -> pre-signed COS POST form -> complete+verify).
 - Env confirmed **classic NoSQL**; storage bucket is **private** (proxy/temp-URL
   delivery, reinforcing the MIU-04 proxy P0); `admin`/`public-api` stay Event
   Functions behind HTTP access. Web SDK browser upload is unavailable here

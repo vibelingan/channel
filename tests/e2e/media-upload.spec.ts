@@ -14,7 +14,7 @@ interface UploadIntent {
   imageId: string;
   uploadIntentId: string;
   storageFileId: string;
-  upload: { url: string; headers: Record<string, string> };
+  upload: { method: 'POST'; url: string; fields: Record<string, string> };
 }
 
 interface ImagePreview {
@@ -104,16 +104,18 @@ async function browserFetchStatus(
   );
 }
 
-async function browserPutObject(page: Page, intent: UploadIntent): Promise<BrowserFetchResult> {
+async function browserPostObject(page: Page, intent: UploadIntent): Promise<BrowserFetchResult> {
   return page.evaluate(
-    async ({ uploadUrl, headers, bodyBase64 }) => {
+    async ({ uploadUrl, method, fields, bodyBase64 }) => {
       const raw = atob(bodyBase64);
       const bytes = new Uint8Array(raw.length);
       for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+      const form = new FormData();
+      for (const [key, value] of Object.entries(fields)) form.append(key, value);
+      form.append('file', new Blob([bytes], { type: 'image/png' }), 'miu09.png');
       const response = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers,
-        body: new Blob([bytes], { type: 'image/png' }),
+        method,
+        body: form,
       });
       const text = await response.text();
       return {
@@ -124,7 +126,8 @@ async function browserPutObject(page: Page, intent: UploadIntent): Promise<Brows
     },
     {
       uploadUrl: intent.upload.url,
-      headers: intent.upload.headers,
+      method: intent.upload.method,
+      fields: intent.upload.fields,
       bodyBase64: onePixelPng.toString('base64'),
     },
   );
@@ -173,13 +176,15 @@ test.describe('MIU-09 deployed media upload smoke', () => {
       );
       imageId = intent.imageId;
       expect(intent.upload.url).toMatch(/^https:\/\//);
-      expect(intent.upload.headers.Authorization).toBeTruthy();
-      expect(intent.upload.headers['X-Cos-Security-Token']).toBeTruthy();
-      expect(intent.upload.headers['X-Cos-Meta-Fileid']).toBeTruthy();
+      expect(intent.upload.method).toBe('POST');
+      expect(intent.upload.fields.Signature).toBeTruthy();
+      expect(intent.upload.fields['x-cos-security-token']).toBeTruthy();
+      expect(intent.upload.fields['x-cos-meta-fileid']).toBeTruthy();
+      expect(intent.upload.fields.key).toBeTruthy();
 
-      const put = await browserPutObject(page, intent);
-      expect(put.status, `COS PUT failed: ${put.bodySnippet}`).toBeGreaterThanOrEqual(200);
-      expect(put.status, `COS PUT failed: ${put.bodySnippet}`).toBeLessThan(300);
+      const post = await browserPostObject(page, intent);
+      expect(post.status, `COS POST failed: ${post.bodySnippet}`).toBeGreaterThanOrEqual(200);
+      expect(post.status, `COS POST failed: ${post.bodySnippet}`).toBeLessThan(300);
 
       await browserAdminAction(page, 'completeUpload', { imageId }, token);
 
@@ -209,7 +214,7 @@ test.describe('MIU-09 deployed media upload smoke', () => {
             category: 'wired',
             series: 'MIU-09',
             modName: 'Storage Upload Smoke',
-            modType: 'Browser PUT',
+            modType: 'Browser POST',
             description: 'Created by MIU-09 media upload smoke and removed during cleanup.',
             moq: 1,
             unitPrice: 1,

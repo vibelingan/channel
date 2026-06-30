@@ -28,26 +28,22 @@ class FakeSdk implements CloudBaseStorageSdk {
       deleteShape?: 'wx' | 'node';
       mapDeleteFileId?: (id: string) => string;
       // Mint metadata with one required field blanked (failure case).
-      missingUploadField?:
-        | 'uploadUrl'
-        | 'authorization'
-        | 'token'
-        | 'cloudObjectMeta'
-        | 'cloudObjectId';
+      missingUploadField?: 'data' | 'url' | 'authorization' | 'token' | 'cosFileId' | 'fileId';
     } = {},
   ) {}
 
   async getUploadMetadata(o: { cloudPath: string }) {
     this.uploadMetaPaths.push(o.cloudPath);
-    const meta = {
-      uploadUrl: 'https://cos.example/put',
+    const data = {
+      url: 'https://cos.example/post',
       authorization: 'q-sign-algorithm=...',
       token: 'sts-token',
-      cloudObjectMeta: 'cos-meta',
-      cloudObjectId: `cloud://env.bucket/${o.cloudPath}`,
+      cosFileId: 'cos-meta',
+      fileId: `cloud://env.bucket/${o.cloudPath}`,
     };
-    if (this.opts.missingUploadField) meta[this.opts.missingUploadField] = '';
-    return meta;
+    if (this.opts.missingUploadField === 'data') return {};
+    if (this.opts.missingUploadField) data[this.opts.missingUploadField] = '';
+    return { data };
   }
 
   async uploadFile(o: {
@@ -155,23 +151,19 @@ test('cloudbase getUploadCredential maps the SDK upload metadata to the clean sh
   const store = createCloudBaseMediaStorage(sdk);
   const cred = await store.getUploadCredential('catalog/2026/06/img1/original-p.jpg');
   assert.deepEqual(sdk.uploadMetaPaths.at(-1), 'catalog/2026/06/img1/original-p.jpg');
-  assert.equal(cred.uploadUrl, 'https://cos.example/put');
-  assert.equal(cred.authorization, 'q-sign-algorithm=...');
-  assert.equal(cred.token, 'sts-token');
-  assert.equal(cred.cosFileId, 'cos-meta'); // cloudObjectMeta → X-Cos-Meta-Fileid
+  assert.equal(cred.uploadUrl, 'https://cos.example/post');
+  assert.equal(cred.method, 'POST');
+  assert.equal(cred.formFields.Signature, 'q-sign-algorithm=...');
+  assert.equal(cred.formFields['x-cos-security-token'], 'sts-token');
+  assert.equal(cred.formFields['x-cos-meta-fileid'], 'cos-meta');
+  assert.equal(cred.formFields.key, 'catalog/2026/06/img1/original-p.jpg');
   assert.equal(cred.storageFileId, 'cloud://env.bucket/catalog/2026/06/img1/original-p.jpg');
 });
 
 test('cloudbase getUploadCredential throws when ANY required metadata field is missing/empty', async () => {
-  // Each required field is a browser PUT header or the durable id — a hand-typed
-  // SDK omitting any of them must fail the mint cleanly, not return undefined.
-  for (const field of [
-    'uploadUrl',
-    'authorization',
-    'token',
-    'cloudObjectMeta',
-    'cloudObjectId',
-  ] as const) {
+  // Each required field is a browser form field or the durable id — an SDK
+  // contract mismatch must fail the mint cleanly, not return undefined.
+  for (const field of ['data', 'url', 'authorization', 'token', 'cosFileId', 'fileId'] as const) {
     const sdk = new FakeSdk({ missingUploadField: field });
     const store = createCloudBaseMediaStorage(sdk);
     await assert.rejects(

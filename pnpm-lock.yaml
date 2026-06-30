@@ -178,6 +178,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@cloudbase/node-sdk':
+        specifier: 2.10.0
+        version: 2.10.0
       '@vibelingan-channel/shared':
         specifier: workspace:*
         version: link:../shared

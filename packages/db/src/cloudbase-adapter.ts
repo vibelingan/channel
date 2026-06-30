@@ -1,8 +1,8 @@
 /// <reference path="./wx-server-sdk.d.ts" />
-// The reference above pins the hand-written `wx-server-sdk` ambient declaration
-// into the program whenever THIS file is compiled — including cross-package
-// consumers that pull `@vibelingan-channel/db/cloudbase` in (e.g. local-server's
-// env-gated dynamic import), where db's tsconfig `include` does not apply.
+// Keep the ambient reference before imports. wx-server-sdk publishes no usable
+// .d.ts file, and cross-package consumers of this entry need the local shim.
+import * as cloudbase from '@cloudbase/node-sdk';
+import type { CloudBase } from '@cloudbase/node-sdk';
 import {
   type CollectionDoc,
   type FilterClause,
@@ -20,20 +20,29 @@ import type { Cloud, Command, Database } from 'wx-server-sdk';
 import type { DbAdapter } from './adapter.ts';
 
 let initialized = false;
+let storageApp: CloudBase | null = null;
 
 export function initCloudBase(envId: string): void {
   if (initialized) return;
   cloud.init({ env: envId });
+  storageApp = cloudbase.init({ env: envId });
   initialized = true;
 }
 
 /**
- * The initialised CloudBase SDK instance, exposed for media-storage injection:
- * `setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk))`. Keeps the
- * single shared `cloud.init` here (design §22.3-3) — callers must run
- * `initCloudBase()` before any storage call is made.
+ * The initialised CloudBase node-sdk instance, exposed for media-storage
+ * injection. `wx-server-sdk` wraps only part of the storage API and does not
+ * expose `getUploadMetadata`; upload-intent minting must use @cloudbase/node-sdk
+ * directly while the DB adapter still uses wx-server-sdk.
  */
-export const cloudStorageSdk: Cloud = cloud;
+export function cloudStorageSdk(): CloudBase {
+  if (!storageApp) {
+    throw new Error(
+      '@vibelingan-channel/db: initCloudBase(envId) must be called before using storage',
+    );
+  }
+  return storageApp;
+}
 
 function database() {
   if (!initialized) {

@@ -15,15 +15,15 @@ design-only; validation results and capability probes live here.
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
 | MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex A-review + post-D review + self-adversarial B/C/D reviews all resolved | `4823a12`+fixes, Phase B, C, D, post-D hardening | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. Post-D: strict-number counter guard (reject numeric strings), present-but-corrupt fails closed (no scan), unknown provider fails closed; public-api 16→20. All suites pass; both functions build; root tsc + biome clean. Deployed smoke = MIU-09 |
-| MIU-05 | Admin UI uploader (direct PUT UI) | ✅ done; Codex final review passed | Phase U2a, U2b-a, U2b-b (+Codex U2b-b fixes, final review `f2063de3`) | `uploadImage()` → createUploadIntent/PUT/completeUpload; `getImagePreview` admin-auth preview (active+recognized-provider). `ImageManager` per-file state/retry, jpeg/png/webp accept, object-URL + admin previews — now commits successes against the LATEST list (concurrent-edit safe) and revokes object URLs. local-server `/api/images/:id` **delegates to `getCatalogImage`** (full prod parity incl. legacy). final Codex review: local-server tsc, site astro check+build, public-api tests, Biome, and local route smoke all pass. Live browser→COS PUT + CORS = MIU-09 |
-| MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
-| MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
+| MIU-05 | Admin UI uploader (direct COS POST UI) | ✅ done; Codex final review passed; POST contract correction pending live smoke | Phase U2a, U2b-a, U2b-b (+Codex U2b-b fixes, final review `f2063de3`) | `uploadImage()` → createUploadIntent/COS multipart POST/completeUpload; `getImagePreview` admin-auth preview (active+recognized-provider). `ImageManager` per-file state/retry, jpeg/png/webp accept, object-URL + admin previews — now commits successes against the LATEST list (concurrent-edit safe) and revokes object URLs. local-server `/api/images/:id` **delegates to `getCatalogImage`** (full prod parity incl. legacy). final Codex review: local-server tsc, site astro check+build, public-api tests, Biome, and local route smoke all pass. Live browser→COS POST + CORS = MIU-09 |
+| MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed COS POST form → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated; node-sdk contract correction pending live smoke | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
+| MIU-06 | Legacy migration + orphan cleanup | Phase 1 done; migration pending | `c4aaa8d` | `cleanupOrphanImages` admin-only action + tests; legacy `images.data` migration script pending |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
-| MIU-09 | Deploy, smoke, review hardening | harness accepted; stale-code deploy P1 fixed; live evidence pending rerun | Codex browser-origin smoke harness + deploy wait hardening + release verification | Added deployed media-upload smoke: browser-origin admin login → createUploadIntent → browser-enforced COS PUT → completeUpload → admin preview → public 404 before published link → published product link → public 200. Wired as opt-in `E2E_MEDIA_UPLOAD_SMOKE=1` / `pnpm test:e2e:media-upload` and deploy-test workflow input. Claude accepted the harness. The first full run `28431709752` proved creds/deploy/public smoke green but exposed stale function code (`Unknown action: createUploadIntent`). Codex accepted Claude's P1 and added code-update result hardening plus build-time release health checks; live browser→COS evidence still pending the next Deploy Test rerun. |
+| MIU-09 | Deploy, smoke, review hardening | deploy/release verification fixed; true upload contract fix pending live rerun | Codex browser-origin smoke harness + deploy wait hardening + release verification + node-sdk upload contract correction | Added deployed media-upload smoke: browser-origin admin login → createUploadIntent → browser-enforced COS POST → completeUpload → admin preview → public 404 before published link → published product link → public 200. Wired as opt-in `E2E_MEDIA_UPLOAD_SMOKE=1` / `pnpm test:e2e:media-upload` and deploy-test workflow input. Claude accepted the harness. Runs `28431709752` and `28433320633` exposed stale-code and Updating-state deploy defects; Codex fixed both. Run `28433688422` proved the deployed release SHA and then exposed the real upload SDK-contract mismatch (`createUploadIntent` 500), now corrected to node-sdk `getUploadMetadata` + COS POST form. |
 
 Decision summary (binds the plan; evidence below):
-- P0 byte transport = **admin-brokered direct-storage-upload** (browser PUTs to
-  COS with a server-minted pre-signed credential; custom JWT stays the only
+- P0 byte transport = **admin-brokered direct-storage-upload** (browser POSTs a
+  multipart form to COS with a server-minted credential; custom JWT stays the only
   browser credential). Server-side upload is shelved (100 KiB route cap).
 - The old MIU-03 + MIU-07 fold into one admin-brokered direct-upload MIU.
 - Env is classic NoSQL; bucket is private (proxy/temp-URL delivery); functions
@@ -80,12 +80,13 @@ preferred home — extracted from the MIU-01 interim location):
   is no duplicate SDK type-stub.
 
 Supporting changes:
-- `@vibelingan-channel/db` exposes the initialised SDK as `cloudStorageSdk` (typed
-  `Cloud`, now exported) for injection; `wx-server-sdk.d.ts` extended with the
-  storage methods (`uploadFile`/`getTempFileURL` union/`downloadFile`/`deleteFile`,
-  verified in MIU-00 / §24.3). Single `cloud.init` reused (§22.3-3).
+- `@vibelingan-channel/db` exposes the initialised storage SDK as
+  `cloudStorageSdk()` (typed `@cloudbase/node-sdk` `CloudBase`) for injection.
+  `wx-server-sdk` remains the DB adapter, but it does **not** expose
+  `getUploadMetadata`; upload-credential minting uses node-sdk directly while
+  keeping the same DI boundary.
 - Wired `setMediaStorage` into `admin` + `public-api`
-  (`createCloudBaseMediaStorage(cloudStorageSdk)`) and `local-server`
+  (`createCloudBaseMediaStorage(cloudStorageSdk())`) and `local-server`
   (`LocalDiskMediaStorage(./data/media)`).
 - Added `@vibelingan-channel/media-storage` to the three consumers' deps **and to
   both functions' tsup `noExternal`** so it bundles into the deployed artifact
@@ -183,7 +184,7 @@ delivery) is **unchanged** — it was always transport-agnostic. Proxy delivery
 through the function avoids leaving signed-URL content in the CDN edge cache
 after unpublish/delete.
 
-### Upload-credential mechanism (resolved): admin-brokered pre-signed PUT
+### Upload-credential mechanism (resolved): admin-brokered direct COS POST form
 
 The P0 transport needs the browser to write image bytes straight to the PRIVATE
 bucket — without a function carrying them (100 KiB cap) and without a browser
@@ -201,30 +202,36 @@ CloudBase identity. Two candidates were evaluated against the live env.
   CloudBase Auth in the browser, a new auth surface the design forbids. This is
   the empirical confirmation of design §19 finding 1.
 
-**Mechanism A — admin-brokered pre-signed upload — SELECTED:**
+**Mechanism A — admin-brokered direct COS POST form — SELECTED:**
 - Primitive (classic/"传统模式" storage HTTP API, matches this NoSQL env):
   `POST /v1/storages/get-objects-upload-info`, also wrapped by the bundled
-  `@cloudbase/node-sdk@2.10.0` as `cloud.getUploadMetadata({ cloudPath })`. The
+  `@cloudbase/node-sdk@2.10.0` as `app.getUploadMetadata({ cloudPath })`. The
   call is permission-gated: the admin function (server identity) is authorized to
-  mint it; the browser is not.
-- Returns per object: `{ uploadUrl, authorization, token, cloudObjectMeta,
-  cloudObjectId, downloadUrl }`, where `cloudObjectId = cloud://env.bucket/path`
-  (the durable storageFileId to persist).
+  mint it; the browser is not. Important runtime correction from MIU-09:
+  `wx-server-sdk@3.0.4` does not expose `getUploadMetadata`, even though it bundles
+  node-sdk internally for `uploadFile`; media-storage must be injected with an
+  explicit node-sdk `CloudBase` instance.
+- Returns per object as `{ data: { url, authorization, token, fileId, cosFileId,
+  download_url } }`. `fileId = cloud://env.bucket/path` is the durable
+  `storageFileId` to persist. `authorization`, `token`, `cosFileId`, and
+  `cloudPath` become multipart form fields, matching node-sdk's own `uploadFile`
+  implementation.
 - Flow:
   1. Browser (custom JWT) -> `POST /api/admin { action: createUploadIntent, … }`
      (tiny JSON, far under 100 KiB). Function validates JWT+role, picks a
      server-controlled `cloudPath`
-     (`catalog/<yyyy>/<mm>/<imageId>/original-<safeName>`), writes a `pending`
-     image doc, calls `getUploadMetadata`, and returns
-     `{ imageId, uploadUrl, authorization, token, cloudObjectMeta, cloudObjectId }`.
-  2. Browser does a raw `PUT uploadUrl` with headers `Authorization:
-     <authorization>`, `X-Cos-Security-Token: <token>`, `X-Cos-Meta-Fileid:
-     <cloudObjectMeta>`, body = file bytes. Bytes go browser -> COS directly; the
+     (`catalog/<yyyy>/<mm>/<uploadIntentId>/original-<safeName>`), calls
+     `getUploadMetadata`, then writes a `pending` image doc and returns
+     `{ imageId, uploadIntentId, storageFileId, upload: { method: "POST", url,
+     fields } }`.
+  2. Browser builds `FormData`, appends every returned field first
+     (`Signature`, `x-cos-security-token`, `x-cos-meta-fileid`, `key`), appends
+     `file`, and `POST`s to `upload.url`. Bytes go browser -> COS directly; the
      100 KiB function cap is never on the path.
-  3. Browser -> `POST /api/admin { action: completeUpload, imageId,
-     cloudObjectId }`. Function verifies the object exists + size, computes
+  3. Browser -> `POST /api/admin { action: completeUpload, imageId }`. Function
+     verifies the object exists + size, computes
      SHA-256 server-side (download or `get-objects-download-info`; design §22.3-6),
-     flips the doc to `active` with `storageFileId = cloudObjectId`. On failure ->
+     flips the doc to `active` with `storageFileId = fileId`. On failure ->
      `failed` / delete the object.
 - Browser credential: ONLY the custom JWT. The COS signature is minted
   server-side, single-object and short-lived. No publishable key, no CloudBase
@@ -297,14 +304,13 @@ Codex doc commit):
 
 #### MIU-Upload preconditions (hard gates — verify FIRST, before any UI wiring)
 
-1. **COS bucket CORS / upload-origin proof.** Prove a real browser-origin `PUT`
+1. **COS bucket CORS / upload-origin proof.** Prove a real browser-origin `POST`
    to the COS `uploadUrl` succeeds from (a) the deployed site origin and (b) the
-   local dev origin. Configure bucket CORS to allow `PUT` + the headers the
-   frontend actually sets: `Authorization`, `X-Cos-Security-Token`,
-   `X-Cos-Meta-Fileid`, and `Content-Type` (if the upload sets one). Do NOT list
-   `Content-Length` — it is a forbidden/UA-managed request header that the browser
-   sets automatically; frontend code cannot set it and CORS need not allow it
-   (§re-review). Record the proven origins + headers here. A correct
+   local dev origin. Configure bucket CORS to allow `POST`; the signature, token,
+   file id, and object key are multipart form fields (`Signature`,
+   `x-cos-security-token`, `x-cos-meta-fileid`, `key`), not custom request
+   headers. Do NOT list `Content-Length` — it is forbidden/UA-managed. Record the
+   proven origins + method here. A correct
    implementation still fails in-browser without this.
 2. **Server-side checksum on `completeUpload`** (design §22.3-6): recompute the
    SHA-256 from the stored object; never trust a client-supplied value.
@@ -771,15 +777,16 @@ then returned `OK`.
 
 The admin-brokered direct-upload server, built to the authoritative contract
 (design §20.7, now rewritten as the as-built LLD). One upload path everywhere:
-the browser PUTs bytes straight to CloudBase with a server-minted single-object
-pre-signed credential; local-disk is delivery-only.
+the browser POSTs bytes straight to CloudBase with a server-minted single-object
+direct form credential; local-disk is delivery-only.
 
 - `MediaStorageAdapter.getUploadCredential(cloudPath)` (DI): CloudBase wraps
-  `getUploadMetadata` and maps it to `{ uploadUrl, authorization, token, cosFileId,
-  storageFileId }`; local-disk throws (uploads always route through CloudBase).
+  node-sdk `getUploadMetadata` and maps it to `{ uploadUrl, method: "POST",
+  formFields, storageFileId }`; local-disk throws (uploads always route through
+  CloudBase).
 - `createUploadIntent` (admin/contributor): validate `catalogImageUploadSchema` →
   mint credential FIRST (no orphan on failure) → write a `pending` image doc →
-  return `{ imageId, upload: { url, headers } }`.
+  return `{ imageId, upload: { method: "POST", url, fields } }`.
 - `completeUpload`: verify the object is retrievable, recompute size + SHA-256
   SERVER-side, re-enforce the size cap, then flip `pending → active`.
 - Local wiring: `local-server` mints REAL CloudBase credentials when `TCB_ENV` is
@@ -1907,7 +1914,7 @@ now: asserts every tool call, recreates on a no-RequestId code update, waits for
 Active before config (retrying the transient Updating state), and verifies the
 deployed release SHA in the smoke.
 
-### First REAL live mint — P1: `sdk.getUploadMetadata` does not exist (2026-06-30)
+### First REAL live mint — P1 found, fixed: upload SDK contract (2026-06-30)
 
 With the deploy chain fixed, run `28433688422` finally shipped the real code (the
 `Smoke deployed CloudBase` release-id check passed) and the media smoke **ran**.
@@ -1920,37 +1927,54 @@ the true cause:
     at getUploadCredential (media-storage/cloudbase) → createUploadIntentAction
 ```
 
-**Root cause (P1): the entire admin-brokered upload rests on a CloudBase SDK method
-that does not exist at runtime.** `packages/media-storage/src/cloudbase.ts`
-`getUploadCredential()` calls `sdk.getUploadMetadata({ cloudPath })`, and
-`packages/db/src/wx-server-sdk.d.ts` *declares* that method on `Cloud` — but the
-real `wx-server-sdk` (`cloudStorageSdk = cloud`) has no such method.
-This execution doc (the "Upload-credential mechanism" §) asserted
-`@cloudbase/node-sdk@2.10.0` "wraps `POST /v1/storages/get-objects-upload-info` as
-`cloud.getUploadMetadata({ cloudPath })`" — but **MIU-00 verified that only on
-paper (signatures), never with a runtime call.** The hand-written `.d.ts` made it
-typecheck, so the gap survived all the way to the first live mint. The prod entry
-DOES wire the adapter (`setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk))`),
-so this is not a wiring miss — the method genuinely isn't there.
+**Root cause (P1): the entire admin-brokered upload rested on a CloudBase SDK
+method that does not exist on the injected runtime object.** The prod entry did
+wire the adapter, but it wired `wx-server-sdk` (`cloudStorageSdk = cloud`) into
+media-storage. `packages/db/src/wx-server-sdk.d.ts` declared
+`getUploadMetadata` on that `Cloud` type, so TypeScript vouched for a false
+runtime contract and the gap survived until the first live mint.
 
-**Authoritative API (from the storage OpenAPI):** the credential is minted by the
-HTTP endpoint `POST /v1/storages/get-objects-upload-info` (host
-`https://{envId}.api.tcloudbasegateway.com`, `Authorization: Bearer <access-token>`),
-which returns exactly the fields the adapter already maps:
-`uploadUrl` / `authorization` / `token` / `cloudObjectMeta` / `cloudObjectId`. So
-the response SHAPE is correct; only the *call mechanism* is wrong.
+Root cause confirmed by inspecting the installed SDKs:
 
-**Fix options (needs live SDK iteration — the runtime SDK surface isn't
-introspectable from this workspace; `wx-server-sdk` is CloudBase-runtime-provided):**
+- `wx-server-sdk@3.0.4` exposes storage helpers such as `uploadFile`,
+  `getTempFileURL`, and `deleteFile`, but it does **not** expose
+  `getUploadMetadata` on the object we were injecting.
+- The actual `getUploadMetadata` API exists on `@cloudbase/node-sdk@2.10.0`.
+  Its typed/runtime shape is `{ data: { url, authorization, token, fileId,
+  cosFileId, download_url } }`, not the hand-written top-level
+  `{ uploadUrl, authorization, token, cloudObjectMeta, cloudObjectId }`.
+- The node-sdk's own `uploadFile` implementation does a multipart `POST` with
+  form fields `Signature`, `x-cos-security-token`, `x-cos-meta-fileid`, `key`,
+  and `file`. It is **not** a raw browser `PUT` with custom headers.
 
-1. Find the real runtime method (a quick deploy of a one-off probe action reporting
-   `Object.getOwnPropertyNames(sdk)` + `typeof` of candidate names) and call it; OR
-2. Call the HTTP API `get-objects-upload-info` directly from `getUploadCredential`,
-   obtaining a server access token inside the function (per
-   `/http-api/basic/access-token`).
+Fix:
 
-Either way the `getUploadMetadata` type-stub must be removed so the compiler can no
-longer vouch for a non-existent method, and a fake-SDK unit test should assert the
-adapter calls whatever the real mechanism is. This is Claude's code (MIU-Upload), so
-Claude fixes; Codex reviews — but the correct call mechanism must be confirmed
-against the live env, so the next concrete step is a runtime SDK-surface probe.
+- `@vibelingan-channel/db/cloudbase` now initialises both SDK boundaries:
+  `wx-server-sdk` for database access and `@cloudbase/node-sdk` for storage
+  upload-credential minting. The media-storage adapter remains DI-based, but it
+  receives the SDK that actually owns `getUploadMetadata`.
+- `wx-server-sdk.d.ts` was narrowed back to the real DB-only surface used by the
+  DB adapter, preventing TypeScript from proving a false runtime contract.
+- `MediaStorageAdapter.getUploadCredential` now maps the node-sdk response to
+  `{ uploadUrl, method: "POST", formFields, storageFileId }` and validates all
+  required fields as non-empty strings.
+- Admin `createUploadIntent`, the site uploader, and the deployed Playwright
+  smoke now use browser-origin direct COS multipart `POST` form upload. Bytes
+  still go browser -> COS directly; `/api/admin` still only carries tiny JSON.
+
+Expected next evidence: rerun Deploy Test with `run_media_upload_smoke=true`.
+The smoke should now progress past `createUploadIntent` and exercise the real
+browser-origin COS `POST`/CORS gate.
+
+Local verification before push:
+
+- `pnpm --filter @vibelingan-channel/media-storage test` — pass (26 tests)
+- `pnpm --filter @vibelingan-channel/fn-admin test` — pass (61 tests, including
+  `cleanupOrphanImages`)
+- `pnpm --filter @vibelingan-channel/fn-public-api test` — pass (20 tests)
+- `pnpm typecheck` — pass (site has existing React `FormEvent` deprecation hints,
+  0 errors)
+- `pnpm lint` — pass
+- `pnpm package:functions && pnpm smoke:functions` — pass; artifacts do not leave
+  unresolved `wx-server-sdk` or `@cloudbase/node-sdk` requires
+- `pnpm build` — pass

@@ -18,7 +18,7 @@ import {
 
 initCloudBase(requireEnv('TCB_ENV'));
 setAdapter(cloudBaseAdapter);
-setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk));
+setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 
 const config: AdminHttpConfig = {
   jwtSecret: requireEnv('JWT_SECRET'),

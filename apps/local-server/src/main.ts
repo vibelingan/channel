@@ -45,7 +45,7 @@ if (TCB_ENV) {
     '@vibelingan-channel/media-storage/cloudbase'
   );
   initCloudBase(TCB_ENV);
-  setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk));
+  setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
   console.log(
     `[local-server] media storage: CloudBase (TCB_ENV=${TCB_ENV}) — real uploads + delivery`,
   );

@@ -143,9 +143,6 @@ const batchRemoveSchema = z.object({
 
 const completeUploadSchema = z.object({
   imageId: z.string().min(1),
-  // Echoed back by the client; advisory only — the server re-derives the
-  // durable storageFileId from the pending doc rather than trusting this.
-  cloudObjectId: z.string().optional(),
 });
 
 const imagePreviewSchema = z.object({ id: z.string().min(1) });
@@ -765,7 +762,7 @@ async function backfillImageRefCountsAction(
 }
 
 /** Default orphan TTL: a `pending`/`failed` image older than this is treated as
- *  abandoned (the browser PUT or completeUpload never finished). */
+ *  abandoned (the browser direct POST or completeUpload never finished). */
 const ORPHAN_CLEANUP_DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 
 const cleanupOrphanImagesSchema = z.object({
@@ -856,10 +853,10 @@ async function cleanupOrphanImagesAction(
 /**
  * Step 1 of the admin-brokered direct upload (MIU-Upload). Validates the file
  * metadata, mints a single-object pre-signed credential, and writes a `pending`
- * image doc. The browser then PUTs bytes straight to storage and calls
+ * image doc. The browser then POSTs a multipart form straight to COS and calls
  * `completeUpload`. The credential is minted FIRST so a mint failure never leaves
- * an orphan doc; the bytes don't exist until the browser PUTs, so a half-finished
- * intent is just a pending (never-public) doc for orphan cleanup (MIU-06).
+ * an orphan doc; the bytes don't exist until the browser direct POST, so a
+ * half-finished intent is just a pending (never-public) doc for orphan cleanup.
  */
 async function createUploadIntentAction(
   req: AdminRequest,
@@ -903,13 +900,10 @@ async function createUploadIntentAction(
     uploadIntentId,
     storageFileId: credential.storageFileId,
     upload: {
+      method: credential.method,
       url: credential.uploadUrl,
-      // Browser sets these on the raw PUT; Content-Length is UA-managed (never set here).
-      headers: {
-        Authorization: credential.authorization,
-        'X-Cos-Security-Token': credential.token,
-        'X-Cos-Meta-Fileid': credential.cosFileId,
-      },
+      // Browser appends these to multipart/form-data before the file part.
+      fields: credential.formFields,
     },
   });
 }
