@@ -764,12 +764,48 @@ async function backfillImageRefCountsAction(
 /** Default orphan TTL: a `pending`/`failed` image older than this is treated as
  *  abandoned (the browser direct POST or completeUpload never finished). */
 const ORPHAN_CLEANUP_DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+const ORPHAN_CLEANUP_MAX_LIMIT = 500;
+const ORPHAN_CLEANUP_DB_PAGE_SIZE = 100;
+const ORPHAN_CLEANUP_SORT = [{ field: '_id', dir: 'asc' as const }];
 
 const cleanupOrphanImagesSchema = z.object({
   olderThanMs: z.number().int().positive().optional(),
   dryRun: z.boolean().optional(),
-  limit: z.number().int().positive().max(500).optional(),
+  limit: z.number().int().positive().max(ORPHAN_CLEANUP_MAX_LIMIT).optional(),
 });
+
+async function listOrphanCleanupCandidates(input: {
+  cutoff: string;
+  limit: number;
+}): Promise<{ items: CollectionDoc[]; total: number }> {
+  const items: CollectionDoc[] = [];
+  let total = 0;
+  let page = 1;
+  const pageSize = Math.min(ORPHAN_CLEANUP_DB_PAGE_SIZE, input.limit);
+
+  while (items.length < input.limit) {
+    const res = await list({
+      collection: 'images',
+      page,
+      pageSize,
+      sort: ORPHAN_CLEANUP_SORT,
+      filter: {
+        combinator: 'and',
+        clauses: [
+          { field: 'status', op: 'in', value: ['pending', 'failed'] },
+          { field: 'createdAt', op: 'lt', value: input.cutoff },
+        ],
+      },
+    });
+
+    if (page === 1) total = res.total;
+    items.push(...res.items);
+    if (res.items.length < pageSize) break;
+    page += 1;
+  }
+
+  return { items: items.slice(0, input.limit), total };
+}
 
 /**
  * MIU-06 orphan cleanup. Reaps abandoned image documents — `pending` intents whose
@@ -792,22 +828,12 @@ async function cleanupOrphanImagesAction(
 
   const ttlMs = parsed.data.olderThanMs ?? ORPHAN_CLEANUP_DEFAULT_TTL_MS;
   const dryRun = parsed.data.dryRun === true;
+  const limit = parsed.data.limit ?? ORPHAN_CLEANUP_DB_PAGE_SIZE;
   // ISO timestamps sort chronologically as strings, so a `createdAt < cutoff`
   // filter selects rows older than the TTL on both adapters.
   const cutoff = new Date(Date.now() - ttlMs).toISOString();
 
-  const candidates = await list({
-    collection: 'images',
-    page: 1,
-    pageSize: parsed.data.limit ?? 100,
-    filter: {
-      combinator: 'and',
-      clauses: [
-        { field: 'status', op: 'in', value: ['pending', 'failed'] },
-        { field: 'createdAt', op: 'lt', value: cutoff },
-      ],
-    },
-  });
+  const candidates = await listOrphanCleanupCandidates({ cutoff, limit });
 
   const removed: string[] = [];
   const storageDeleted: string[] = [];

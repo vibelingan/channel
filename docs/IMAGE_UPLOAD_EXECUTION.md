@@ -1899,6 +1899,28 @@ typecheck` + `test` (61 pass) + `biome` all green.
 Phase 2 (legacy `images.data` → storage migration script, `scripts/migrate-images-to-storage.mjs`,
 dry-run + idempotent per §20.8) is pending.
 
+### Codex review — MIU-06 Phase 1 after MIU-09 acceptance — FIXED — 2026-06-30
+
+Fetched `fix/image-upload-storage-design` over SSH after the MIU-09 node-sdk/COS
+POST fix. No new remote head was present beyond `657b51d`; this review checked
+the existing MIU-06 Phase 1 orphan cleanup against the accepted POST upload
+contract.
+
+Disposition: no transport conflict. `cleanupOrphanImages` operates only on
+stale `pending`/`failed` metadata and storage object deletion; it does not depend
+on browser PUT vs COS multipart POST.
+
+One cleanup-operability gap was fixed: the action accepted `limit` up to `500`,
+but the shared DB facade caps a single `list()` page at `100`, so `limit: 500`
+silently inspected only the first page. The action now collects candidates through
+stable `_id`-sorted pages with a fixed page size up to the requested limit before
+mutating rows. This keeps the function bounded, avoids mutation-time
+skip/duplicate paging, and makes the advertised limit honest.
+
+Regression added: `cleanupOrphanImages honors a limit above the DB page cap by
+collecting stable pages` seeds 105 stale pending rows and verifies all 105 are
+scanned and removed with `limit: 105`.
+
 ### Claude review — Updating-state race fix (4b9af54) — APPROVED — 2026-06-30
 
 Reviewed Codex's follow-up to the race that run `28433320633` surfaced (the

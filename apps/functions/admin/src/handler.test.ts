@@ -1220,7 +1220,7 @@ function orphanStore(): Store {
         storageFileId: 'cloud://b/of',
         createdAt: ORPHAN_OLD,
       },
-      // old pending with no storage object yet (intent never PUT) → reaped, no delete
+      // old pending with no storage object yet (direct upload never happened) → reaped, no delete
       {
         _id: 'on',
         name: 'on.jpg',
@@ -1328,4 +1328,27 @@ test('cleanupOrphanImages respects olderThanMs (a huge TTL reaps nothing)', asyn
   assert.equal(data.docsRemoved, 0);
   assert.deepEqual(data.removed, []);
   assert.equal((store.images ?? []).length, 5);
+});
+
+test('cleanupOrphanImages honors a limit above the DB page cap by collecting stable pages', async () => {
+  const store = setup({
+    users: [],
+    images: Array.from({ length: 105 }, (_, i) => ({
+      _id: `old-${String(i).padStart(3, '0')}`,
+      name: `old-${i}.jpg`,
+      mimeType: 'image/jpeg',
+      status: 'pending',
+      publishedRefCount: 0,
+      createdAt: ORPHAN_OLD,
+    })),
+  });
+  setMediaStorage(makeTrackingStorage());
+  const token = await adminToken();
+
+  const data = okData(await call('cleanupOrphanImages', { limit: 105 }, token));
+
+  assert.equal(data.scanned, 105);
+  assert.equal(data.total, 105);
+  assert.equal(data.docsRemoved, 105);
+  assert.equal((store.images ?? []).length, 0);
 });
