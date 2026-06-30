@@ -22,7 +22,7 @@ design-only; validation results and capability probes live here.
 | MIU-09 | Deploy, smoke, review hardening | ✅ DONE — live run `28435302827` (205cd71) green incl. media-upload smoke: browser→COS POST + CORS proven | Codex browser-origin smoke harness + deploy wait hardening + release verification + node-sdk upload contract correction | Added deployed media-upload smoke: browser-origin admin login → createUploadIntent → browser-enforced COS POST → completeUpload → admin preview → public 404 before published link → published product link → public 200. Wired as opt-in `E2E_MEDIA_UPLOAD_SMOKE=1` / `pnpm test:e2e:media-upload` and deploy-test workflow input. Claude accepted the harness. Runs `28431709752` and `28433320633` exposed stale-code and Updating-state deploy defects; Codex fixed both. Run `28433688422` proved the deployed release SHA and then exposed the real upload SDK-contract mismatch (`createUploadIntent` 500), now corrected to node-sdk `getUploadMetadata` + COS POST form. |
 | MIU-10 | Upload transport policy gate | pending implementation; design approved by Claude + Codex monitor | design revision below; Claude review `a017f5a` | Add shared purpose/type/size policy so base64 is eligible only for explicit `inline-small`/legacy paths. Product catalog images and OEM attachments stay CloudBase Storage-backed even when small; tests must prove no size-only base64 fallback. Implementation nits: public rate/pending counters must use atomic `incrementField`; 60s OEM URL TTL should be a named constant. |
 | MIU-11 | Edge rate-limit + throttling | backlog; design-only, not a MIU-08 blocker | §20.13 / §27 audit | Later hardening to move OEM/public caps toward gateway/OPA where possible. MIU-08 still owns the P0 in-function shared-state caps and cleanup; do not defer those into MIU-11. |
-| MIU-12 | Quarantine state machine | groundwork pushed; Codex findings open | `35c6400`; review below | Shared lifecycle helper adds expired-pending selection and status transition validator. Needs doc/object mapping preservation and corrupt-status fail-closed hardening before MIU-08 wires it into cleanup/finalization. |
+| MIU-12 | Quarantine state machine | groundwork accepted; Codex findings resolved | `35c6400`, fix `f04cd2f`; review below | Shared lifecycle helper adds expired-pending selection and status transition validator. `f04cd2f` preserves doc/object pairing for partial delete handling and fails closed on corrupt runtime statuses. |
 | MIU-13 | Async media processing | backlog; design-only | §20.13 / §27 audit | Queue-backed variants/scanning/bulk work when volume or scanning justifies it; not P0. |
 | MIU-14 | Media observability | backlog; design-only | §20.13 / §27 audit | Add metrics for upload failures, pending/orphan counts, rate-limit rejections, CDN stale incidents, and migration progress. |
 | MIU-15 | Public-CDN delivery | backlog; design-only | §20.13 / §27 audit | Optional public variant/CDN path with content-addressed keys or purge strategy; private proxy/temp-URL P0 remains unchanged. |
@@ -2256,6 +2256,33 @@ Addressed both Codex findings on `35c6400` (`packages/shared/src/media-lifecycle
 
 Validation: `pnpm --filter @vibelingan-channel/shared typecheck` clean;
 `test` — 29 passed; `biome check` clean on both files.
+
+### Codex re-review — lifecycle helper fix `f04cd2f` — APPROVED — 2026-07-01
+
+Fetched and fast-forwarded `fix/image-upload-storage-design` over SSH after
+Claude pushed `f04cd2f`.
+
+Disposition: approved; no remaining blockers in this delta.
+
+- P2 resolved: `selectExpiredPendingForSweep` now exposes authoritative
+  `items: SweepItem[]` plus paired `storageObjects`, so MIU-08 cleanup can map a
+  failed object delete back to exactly one doc and keep only that doc retryable.
+- P3 resolved: `isValidMediaStatusTransition` validates both `from` and `to`
+  against `MEDIA_STATUSES` before the same-state shortcut, so corrupt runtime
+  statuses fail closed.
+- Function artifact smoke was run because `packages/shared/src/index.ts`
+  exposes the new helper and function bundles consume shared code.
+
+Validation run:
+
+- `pnpm --filter @vibelingan-channel/shared typecheck`
+- `pnpm --filter @vibelingan-channel/shared test` — 29 tests passed
+- `pnpm lint`
+- `pnpm verify:cloudbase-sdk`
+- `pnpm --filter @vibelingan-channel/fn-admin typecheck`
+- `pnpm --filter @vibelingan-channel/fn-admin test` — 70 tests passed
+- `pnpm build:functions`
+- `pnpm smoke:functions`
 
 ### Claude review — orphan-cleanup paging fix (6ca3e866) — APPROVED — 2026-06-30
 
