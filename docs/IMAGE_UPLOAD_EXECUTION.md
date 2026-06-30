@@ -730,3 +730,39 @@ it is canonical) and the shared `isStorageBackedImage` set. Fixed:
 
 **MIU-04 fully resolved** (implementation + Codex A-review + post-D review + the
 three self-adversarial reviews). Deployed smoke remains MIU-09.
+
+### Codex MIU-04 Follow-Up Review - d82bc5e (2026-06-30)
+
+Review base: `d82bc5e` (`fix(media): harden public image delivery (Codex MIU-04
+post-D review)`).
+
+Disposition: **no new blocking findings.** The follow-up commit resolves the three
+Codex post-D public-route findings:
+
+- Strict counter contract is now enforced in the reader: only finite numeric
+  `publishedRefCount` values can make an image visible; numeric strings such as
+  `"1"` fail closed.
+- Legacy fallback now depends on field absence, not counter validity. A present
+  malformed counter is canonical corruption and returns 404 even when a published
+  catalog doc references the image.
+- Public storage proxying now accepts only `cloudbase-storage` and `local-disk`;
+  unknown provider strings fail closed.
+
+Verification run by Codex:
+
+- `pnpm --filter @vibelingan-channel/fn-public-api test` - pass (20 tests)
+- `pnpm --filter @vibelingan-channel/fn-public-api typecheck` - pass
+- `pnpm exec biome check apps/functions/public-api/src/handler.ts apps/functions/public-api/src/http-adapter.test.ts docs/IMAGE_UPLOAD_EXECUTION.md` - pass for the two source files; Markdown path is ignored by this repo's Biome config
+- `pnpm --filter @vibelingan-channel/fn-admin test` - pass (38 tests)
+- `pnpm --filter @vibelingan-channel/shared test` - pass (13 tests)
+- `pnpm --filter @vibelingan-channel/media-storage test` - pass (23 tests)
+- `pnpm typecheck` - pass
+- `pnpm build:functions` - pass
+- `pnpm package:functions` - pass
+- `pnpm smoke:functions` - pass
+
+Operational note: the local review monitor initially failed to launch `codex exec`
+because the local Codex config had `service_tier = "default"` while the installed
+CLI accepts only `fast`/`flex`, and the backend rejected `flex`. The local config
+was backed up and changed to `service_tier = "fast"`; a direct `codex exec` smoke
+then returned `OK`.
