@@ -31,13 +31,14 @@ function askHidden(query) {
       originalWrite.call(rl, value);
     };
 
-    rl.stdoutMuted = true;
+    rl.stdoutMuted = false;
     rl.question(query, (answer) => {
       rl.stdoutMuted = false;
       output.write('\n');
       rl.close();
       resolve(answer.trim());
     });
+    rl.stdoutMuted = true;
   });
 }
 
