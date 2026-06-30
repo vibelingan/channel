@@ -15,7 +15,7 @@ design-only; validation results and capability probes live here.
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
 | MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex A-review + post-D review + self-adversarial B/C/D reviews all resolved | `4823a12`+fixes, Phase B, C, D, post-D hardening | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. Post-D: strict-number counter guard (reject numeric strings), present-but-corrupt fails closed (no scan), unknown provider fails closed; public-api 16→20. All suites pass; both functions build; root tsc + biome clean. Deployed smoke = MIU-09 |
-| MIU-05 | Admin UI uploader (direct PUT UI) | U2a reviewed; **P1 preview-route blocker**; U2b (per-file UI) pending | Phase U2a + Codex review | `uploadImage()` drives createUploadIntent → raw PUT → completeUpload, but admin previews still use public `/api/images/:id`, which rejects unlinked/unpublished storage-backed images in production; see Codex MIU-05 review below. |
+| MIU-05 | Admin UI uploader (direct PUT UI) | U2a done; Codex review → P3 fixed; P1 (admin preview) + P2 (accept-list/per-file) folded into U2b (next) | Phase U2a + Codex review | `uploadImage()` drives createUploadIntent → raw PUT → completeUpload. U2b will add an admin-authed preview (public `/api/images/:id` correctly gates on `publishedRefCount`, so it 404s unpublished/just-uploaded images), per-file upload state + retry, and a jpeg/png/webp accept-list; see disposition below. |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
@@ -955,3 +955,29 @@ Verification run by Codex:
 Disposition: U1 fixes are accepted, but MIU-05 is **not done**. The P1 preview
 route blocker must be fixed before marking the admin uploader complete; U2b
 per-file state/retry remains pending.
+
+### Codex MIU-05 Review — disposition
+
+Critically evaluated; all three valid. MIU-05 is correctly U2a-done / U2b-pending,
+so P1+P2 are the remaining U2b scope (not regressions in shipped work).
+
+- **P3 (fixed now).** The `completeUploadAction` doc comment still said "missing
+  object marks failed"; the code + design already leave a not-yet-retrievable
+  object `pending` (retryable). Comment aligned.
+- **P1 (→ U2b).** Admin previews go through the public `/api/images/:id`, which
+  correctly gates on `status==='active' && publishedRefCount>0` — so a freshly
+  uploaded (active, refCount 0) or unpublished image 404s. My U2a local-server
+  proxy gated on `active` only, which *masked* this. **Do not weaken the public
+  route.** U2b plan: add an admin-authenticated preview (admin action returning the
+  image bytes / a signed URL, auth = `canReadCollection('images')`, no refCount
+  gate) and point `ImageManager` at it; revert local-server `/api/images/:id` to
+  the public contract (delegate to `getCatalogImage`) so local dev no longer masks
+  prod.
+- **P2 (→ U2b).** `ImageManager` accept-list still allows SVG/GIF (server allows
+  only jpeg/png/webp) and uses a single busy flag so a mid-batch rejection drops
+  earlier successes. U2b plan: restrict accept + copy; per-file state
+  (pending/uploading/succeeded/failed) with retry, committing each success as it
+  lands.
+
+Codex verification on `ba27b60`: all per-package typechecks pass, `pnpm typecheck`
+green, both functions build, biome clean — confirming the U1 fixes landed.

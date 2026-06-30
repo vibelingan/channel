@@ -819,8 +819,10 @@ async function createUploadIntentAction(
 /**
  * Step 3 of the admin-brokered upload. Verifies the bytes actually landed,
  * recomputes size + SHA-256 SERVER-SIDE (never trusts the client; §22.3-6), and
- * flips the pending doc to `active`. A missing object or checksum mismatch marks
- * the doc `failed` so it never becomes public.
+ * flips the pending doc to `active`. A SIZE or CHECKSUM verification failure marks
+ * the doc `failed` (and best-effort deletes the bad object). A not-yet-retrievable
+ * object leaves the doc `pending` (retryable; reaped by orphan cleanup if
+ * abandoned) — it is never dead-ended. Pending/failed are never public.
  */
 async function completeUploadAction(
   req: AdminRequest,
