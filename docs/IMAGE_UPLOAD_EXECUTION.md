@@ -14,7 +14,7 @@ design-only; validation results and capability probes live here.
 | MIU-01 | Media data contract + safe write surface | ✅ done; Codex review + re-review resolved | `8c94d25` (+review fixes) | 13 unit tests + 18 existing pass; tsc + biome clean; Codex review + re-review §2026-06-29 resolved |
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
-| MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex A-review + self-adversarial B/C/D reviews resolved | `4823a12`+fixes, Phase B, C, D | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. All suites pass; both functions build; root tsc + biome clean. Deployed smoke = MIU-09 |
+| MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex post-D review has public-route hardening findings open | `4823a12`+fixes, Phase B, C, D, Codex review after `fd7e62c` | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. Verification remains green; fix the post-D public-route hardening notes before MIU-05 |
 | MIU-05 | Admin UI uploader (FormData) | pending | — | — |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | pending | — | env-gated; CORS/origin proof is a hard precondition (see Disposition) |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
@@ -667,3 +667,41 @@ prod-parity/paging, test-completeness). 4 confirmed, 0 dismissed:
 
 **MIU-04 complete (A+B+C+D).** Remaining MIU-04 work is the deployed smoke check,
 which belongs to MIU-09.
+
+### Codex MIU-04 Post-D Review - public route hardening (2026-06-30)
+
+Review base: `fd7e62c` (`feat(media): MIU-04 phase D - publishedRefCount
+backfill + admin action + seed reuse`) on `fix/image-upload-storage-design`.
+
+What looks sound:
+
+- Admin-side counter maintenance now applies deltas only after committed catalog
+  writes, deduplicates batch paths, isolates per-image counter failures, and uses
+  `batchRemove`'s actually-removed ids.
+- `incrementField` now has the right trusted-boundary shape: finite integer
+  deltas only, CloudBase `db.command.inc(delta)` parity, and local/test adapters
+  surface non-numeric stored counters instead of coercing them.
+- The Phase-D backfill is registry-driven, counts only published catalog docs,
+  dedupes repeated image ids within one doc, sets unreferenced images to zero,
+  supports dry run, and pages by stable `_id` ordering.
+
+Findings to fix before MIU-05:
+
+| Severity | Finding | Evidence | Required change |
+| --- | --- | --- | --- |
+| P2 | Public delivery still coerces `publishedRefCount` with `Number(...)`, so numeric strings such as `"1"` are treated as valid positive counters. That conflicts with the writer/backfill contract, where `publishedRefCount` is a number and non-number stored values are corruption. It can fail open for both storage-backed and legacy rows if a bad string value lands in the image document. | `apps/functions/public-api/src/handler.ts` computes `const refCount = Number(doc.publishedRefCount ?? 0)` and then checks `Number.isFinite(refCount)`. `packages/db/src/index.ts` intentionally rejects non-number stored counter values via `nextCounterValue(...)`, and `packages/shared/src/media.ts` narrows storage-backed rows only when `typeof doc.publishedRefCount === 'number'`. Current tests cover `"oops"` but not `"1"`. | Use a strict counter guard: a present counter is usable only when `typeof doc.publishedRefCount === 'number' && Number.isFinite(doc.publishedRefCount)`. Add public-api tests for storage-backed `"1"` and legacy `"1"` counters returning 404. |
+| P2 | Legacy fallback should run only when `publishedRefCount` is absent, not when it is present but malformed. Today a legacy row with `publishedRefCount: "oops"` and a published catalog reference is treated as "no valid refcount" and can render via the compatibility scan. Once the field exists, it is the canonical visibility signal and malformed values should fail closed. | `hasRefCount` is defined as "own property AND finite after coercion"; the legacy branch falls back to `legacyImageIsPublicFallback(...)` when that is false. The doc comment says the scan is only for rows that predate `publishedRefCount`. | Split the concepts: `hasRefCountField = Object.hasOwn(doc, 'publishedRefCount')`; `hasValidRefCount = typeof ... === 'number' && Number.isFinite(...)`. For legacy rows, call the catalog-scan fallback only when `!hasRefCountField`; if the field is present but invalid, return 404. Add a regression test for a legacy corrupt present counter with a catalog reference. |
+| P3 | The storage-backed branch treats any provider string other than `legacy-base64` as storage-backed. That lets an unknown/corrupt `storageProvider` render if it also has `status: "active"`, a positive refcount, and a string `storageFileId`. | `apps/functions/public-api/src/handler.ts` defaults non-string providers to legacy but otherwise branches only on `provider === 'legacy-base64'`. The shared contract already has `isStorageBackedImage(...)`, which only narrows `cloudbase-storage` and `local-disk`. | Fail closed for unknown providers, or reuse/align with the `isStorageBackedImage(...)` guard before proxying object bytes. Add a provider-corruption public-api test. |
+
+Verification run:
+
+- `pnpm --filter @vibelingan-channel/fn-admin test` - pass (38 tests)
+- `pnpm --filter @vibelingan-channel/fn-public-api test` - pass (16 tests)
+- `pnpm --filter @vibelingan-channel/shared test` - pass (13 tests)
+- `pnpm --filter @vibelingan-channel/media-storage test` - pass (23 tests)
+- `pnpm --filter @vibelingan-channel/db typecheck && pnpm --filter @vibelingan-channel/local-server typecheck` - pass
+- `pnpm typecheck` - pass
+- `pnpm exec biome check apps/functions/admin/src/handler.ts apps/functions/admin/src/handler.test.ts apps/functions/public-api/src/handler.ts apps/functions/public-api/src/http-adapter.test.ts apps/local-server/src/json-adapter.ts apps/local-server/src/seed.ts packages/db/src/index.ts packages/db/src/cloudbase-adapter.ts docs/IMAGE_UPLOAD_EXECUTION.md` - pass
+- `pnpm build:functions` - pass
+- `pnpm package:functions` - pass
+- `pnpm smoke:functions` - pass
