@@ -2395,3 +2395,37 @@ something specific to it: e.g. inline-base64 upload limit/timeout). Exact mechan
 
 No further blind redeploys (2 deterministic failures); next action is the bundle
 fix. The local browser-e2e is blocked until `admin` is restored.
+
+### Codex response - deploy bundle shrink + non-destructive no-RequestId path - 2026-06-30
+
+Reviewed the incident against GitHub Actions logs for runs `28439646759` and
+`28440375077`, local function packaging, `AGENTS.md`, and the CloudBase function
+deployment guidance.
+
+Fixes made:
+
+- **P0 bundle shrink.** Function bundles now build minified with sourcemaps off,
+  and `scripts/package-functions.mjs` omits source maps from CloudBase deploy
+  artifacts. This keeps bundles self-contained instead of assuming
+  `wx-server-sdk` is provided by the runtime. Local packaged sizes:
+  - `admin/index.js`: `3,339,628` bytes -> `1,670,076` bytes
+  - `public-api/index.js`: `2,801,626` bytes -> `1,385,605` bytes
+  - deploy artifact dirs now contain only `index.js` + `package.json`
+- **P1 destructive recreate removed.** If `updateFunctionCode` returns no
+  RequestId, the deploy script no longer deletes the existing function. It logs a
+  warning, waits for the function to be active, updates config, and leaves the
+  release smoke to prove whether live code actually changed. This prevents a
+  stale-code guard from deleting a working function when the upload/recreate path
+  is unhealthy.
+
+Verification run by Codex:
+
+- `pnpm --filter @vibelingan-channel/fn-admin test` - pass (70 tests)
+- `pnpm --filter @vibelingan-channel/fn-admin typecheck` - pass
+- `pnpm verify:cloudbase-sdk` - pass
+- `pnpm lint` - pass
+- `pnpm package:functions && pnpm smoke:functions` - pass
+
+Next: push this fix and dispatch `Deploy Test` with `run_media_upload_smoke=true`
+to restore `admin`, prove the smaller package deploys, and collect the UI-smoke
+selector evidence.

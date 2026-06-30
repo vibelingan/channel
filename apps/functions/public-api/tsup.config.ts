@@ -9,7 +9,8 @@ export default defineConfig({
   target: 'node20',
   platform: 'node',
   clean: true,
-  sourcemap: true,
+  sourcemap: false,
+  minify: true,
   define: {
     'process.env.CHANNEL_BUILD_SHA': JSON.stringify(releaseId),
     'process.env.CHANNEL_BUILD_TIME': JSON.stringify(buildTime),

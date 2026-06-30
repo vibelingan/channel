@@ -356,17 +356,8 @@ function deployFunction(def) {
       console.warn(
         `${def.name}: updateFunctionCode returned no RequestId (${toolMessage(
           code.result,
-        )}); recreating test function so stale code cannot be reported as deployed.`,
+        )}); continuing without destructive recreate. The release smoke must verify live code before this deploy is accepted.`,
       );
-      deleteFunction(def.name);
-      waitForGone(def.name);
-      const recreateRequestId = createFunction(def);
-      const recreated = waitForActive(def.name);
-      if (recreated.Runtime !== targetRuntime) {
-        throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${recreated.Runtime}`);
-      }
-      console.log(`${def.name}: recreated on ${recreated.Runtime}; request ${recreateRequestId}`);
-      return;
     }
     const codeAfter = waitForActive(def.name);
     if (codeAfter.Runtime !== targetRuntime) {
