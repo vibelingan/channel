@@ -1019,6 +1019,11 @@ Implementation rule:
 | 8 | OEM Cloud Storage upload | Moves public OEM attachments off base64 JSON into private `oem/` storage with 10 MiB P0 policy and admin-only delivery |
 | 9 | Deploy and smoke hardening | Adds CloudBase deploy gates and media privacy smoke tests |
 | 10 | Upload transport policy gate | Adds a shared decision gate so base64 is only eligible for `inline-small`/legacy paths and catalog/OEM stay storage-backed |
+| 11 | Edge rate-limit + throttling | Public-endpoint abuse controls at the gateway with shared-state counters and `429`/`Retry-After` (from §27.2-2) |
+| 12 | Quarantine state machine | Formal `pending→active→failed` with hash-logged rejections and a scan hook (from §27.2-3) |
+| 13 | Async media processing | Queue-fronted server-side variant/scan jobs so uploads do not block (from §27.2-4) |
+| 14 | Media observability | Upload/orphan/abuse/CDN-stale metrics (from §27.2-5) |
+| 15 | Public-CDN delivery | Cacheable public variants with a defined invalidation strategy (from §27.2-6) |
 
 ### 20.2 MIU-00 - CloudBase Storage And Transport Readiness
 
@@ -2145,6 +2150,34 @@ Exit criteria:
   coverage for small-file cases.
 - Documentation and execution log explicitly state that base64 remains supported
   for legacy reads and `inline-small` only; it is not a fallback for catalog/OEM.
+
+### 20.13 Enrichment MIUs - P1 operational-maturity backlog (from §27 audit)
+
+These formalize the §27.2 architecture-pattern enrichment items as tracked MIUs.
+They are **P1 operational-maturity**, not P0 blockers; most depend on the core
+upload/OEM MIUs landing first. Each is backlog-level scope here and gets a full
+LLD when scheduled.
+
+Decision (team, 2026-06-30): **no dedicated review/cleanup scheduler.** The
+pending-intent / orphan reaper (§27.2-1) is folded into MIU-08 as **opportunistic
+cleanup** — a sampled sweep performed inside `createOemFileUploadIntent` /
+`createUploadIntent` (and the existing admin cleanup action), not a standalone
+timer service. CloudBase's native scheduled-trigger is reserved as a future
+option only if piggyback sweeps prove insufficient at volume.
+
+| MIU | Scope | Pattern | Depends on | Priority |
+| --- | --- | --- | --- | --- |
+| MIU-11 | Move OEM/public rate + pending caps to a gateway/OPA edge rule where possible; keep the in-function cap as backstop using the atomic `incrementField` (shared DB state, never per-instance memory); reject with `429` + `Retry-After`. | Rate Limiting / Throttling | MIU-08 | P1 (high — public surface) |
+| MIU-12 | Formal `pending→active→failed` quarantine state machine; log every rejection with the already-computed content SHA-256; expose a scan hook (CloudRun) for the OEM/file class. | Quarantine | MIU-08, MIU-Upload | P1 |
+| MIU-13 | When variant generation / scanning / bulk legacy migration move server-side, front them with a queue and an async (poll/webhook) contract so upload latency is decoupled and spikes are leveled. | Async Request-Reply + Queue-Based Load Leveling | MIU-04, MIU-06 | P2 (post-P0) |
+| MIU-14 | Structured media metrics: upload success/failure rate, pending-orphan count, rate-limit rejections, CDN-stale-after-delete incidents, migration progress. Weakest current dimension. | Observability | core upload MIUs | P1 |
+| MIU-15 | Optional cacheable public catalog variants via CDN with a defined invalidation strategy (content-addressed keys or explicit purge) before any public URL is served. | Static Content Hosting | MIU-04 | P2 (post-P0) |
+
+Opportunistic-cleanup note (replaces the §27.2-1 scheduler): each intent-create
+performs a small bounded sweep (e.g. up to N expired `pending` rows past
+`uploadExpiresAt`), deleting their storage objects and marking rows `deleted`.
+This keeps abuse cleanup running without any external scheduler, at the cost of
+slightly lazier reaping under low traffic — acceptable for P0/P1.
 
 ## 21. References
 
