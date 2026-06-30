@@ -208,6 +208,37 @@ Policy rules:
   permission model must change to the PG storage/RLS model; do not reuse classic
   CloudBase `app.uploadFile()` assumptions in PG mode.
 
+Upload transport decision policy:
+
+Transport is selected by **purpose first, file type second, and size third**.
+Size alone must never downshift a product/OEM file into base64.
+
+| Purpose | Allowed types | P0 size cap | Upload transport | Notes |
+| --- | --- | --- | --- | --- |
+| `catalog-image` | `image/jpeg`, `image/png`, `image/webp` | 10 MiB | CloudBase Storage direct COS POST | Used for all new product photos, even if the image is tiny. Keeps one lifecycle, checksum, cleanup, preview, and public-delivery model. |
+| `catalog-thumbnail` | generated `jpeg`/`png`/`webp` variants | derived from source | CloudBase Storage variant path | Generated metadata follows the parent source image. Do not store product thumbnails as DB base64 unless they are legacy records. |
+| `oem-drawing` | PDF, ZIP/RAR, CAD extensions, drawing `png`/`jpeg`/`webp` | 10 MiB P0 | CloudBase Storage direct COS POST under `oem/` | Private admin-only lifecycle. Never tunnel OEM bytes through `/api/admin` JSON/base64. |
+| `inline-small` | SVG/icon/swatch-style `svg`/`png`/`webp` only | 50 KiB raw max | Static asset or explicit base64 field | Only for deliberate inline/admin assets, seeded fixtures, and compatibility. Must use a named action/schema; never generic CRUD. |
+| `marketing-media` | `jpeg`/`png`/`webp` and future video if approved | 20 MiB design cap | Storage or static hosting | Public media needs a separate publishing/cache policy. Not a fallback for catalog/OEM. |
+
+Base64 eligibility contract:
+
+1. The caller must name `purpose: 'inline-small'` or an explicit legacy
+   migration path. No other purpose may choose base64 for a new write.
+2. The type must be allowlisted for inline rendering. ZIP, PDF, CAD, OEM files,
+   and product photos are ineligible even when under 50 KiB.
+3. The raw byte size must be at or below `INLINE_SMALL_MAX_BYTES = 50 * 1024`.
+   The server validates raw bytes, not base64 string length alone.
+4. The write surface must be a dedicated action with its own schema. Generic
+   `createRecord`/`updateRecord` stays unable to write `data` or storage fields.
+5. Reads can keep `legacy-base64` compatibility, but new catalog/OEM writes must
+   converge on storage so cleanup, audit, delivery, and migration stay coherent.
+
+This policy does **not** break the current storage-backed catalog-image design.
+It preserves MIU-Upload as the only new product-image write path and keeps OEM
+attachments in MIU-08's private `files` lifecycle. A future small-inline feature
+would be a separate action/MIU, not a fallback inside `createUploadIntent`.
+
 ## 6. Option A - Admin-Brokered Direct Upload To CloudBase Storage
 
 This is the recommended target architecture for product catalog images, but not
@@ -987,6 +1018,7 @@ Implementation rule:
 | 7 | Browser-direct upload | PROMOTED to P0 (§24) — the admin-brokered direct upload IS the transport, not a deferred spike |
 | 8 | OEM Cloud Storage upload | Moves public OEM attachments off base64 JSON into private `oem/` storage with 10 MiB P0 policy and admin-only delivery |
 | 9 | Deploy and smoke hardening | Adds CloudBase deploy gates and media privacy smoke tests |
+| 10 | Upload transport policy gate | Adds a shared decision gate so base64 is only eligible for `inline-small`/legacy paths and catalog/OEM stay storage-backed |
 
 ### 20.2 MIU-00 - CloudBase Storage And Transport Readiness
 
@@ -1697,6 +1729,10 @@ New constants and policy:
 
 ```ts
 export const OEM_FILE_MAX_BYTES = 10 * 1024 * 1024;
+export const OEM_UPLOAD_INTENT_TTL_MS = 15 * 60 * 1000;
+export const OEM_MAX_PENDING_INTENTS_PER_SOURCE = 3;
+export const OEM_UPLOAD_RATE_WINDOW_MS = 60 * 1000;
+export const OEM_UPLOAD_RATE_MAX_PER_WINDOW = 5;
 export const OEM_FILE_EXTENSIONS = [
   'pdf',
   'zip',
@@ -1717,9 +1753,23 @@ export const OEM_FILE_EXTENSIONS = [
 - Validate both extension and MIME when the browser provides a useful MIME.
 - Permit `application/octet-stream` only for an allowed CAD extension; never use
   octet-stream as a blanket bypass.
+- The COS multipart POST policy must include `content-length-range` bounded by
+  `OEM_FILE_MAX_BYTES` so oversized bytes are rejected before object creation,
+  not only during `submitProject` verification.
 - Normalize and store the original filename separately from the storage path.
   Storage paths are always server-generated with `objectStoragePath({
   namespace: 'oem', ... })`.
+- Public intent creation is an abuse surface. P0 requires a coarse per-source
+  rate limit, a concurrent pending-intent cap, a short expiry, and cleanup of
+  expired pending objects. If CloudBase Event Functions cannot derive a trusted
+  client IP consistently, use the best available gateway/source signal plus
+  `submissionId` and global minute counters; do not leave the endpoint unlimited.
+- `uploadSecret` exists to prevent anonymous Client A from finalizing Client B's
+  guessed/enumerated pending `fileId`. Store only `uploadSecretHash`, compare in
+  constant time, and consume it exactly once on successful `submitProject`.
+- After upload, sniff cheap magic bytes for ZIP (`PK\x03\x04`) and PDF (`%PDF`)
+  before activation. CAD may remain extension-gated until the CloudRun scanning
+  path exists.
 
 Public upload flow:
 
@@ -1751,8 +1801,13 @@ Server actions:
    - Accepts `fileName`, `mimeType`, `byteSize`, optional `checksumSha256`, and
      an optional client `submissionId` for best-effort idempotency.
    - Rejects files above `OEM_FILE_MAX_BYTES` with a clear validation message.
+   - Applies intent abuse controls before minting credentials:
+     per-source/window rate limit, max concurrent pending intents, and a global
+     emergency cap if source identity is unavailable.
    - Mints upload credentials through the **same verified `@cloudbase/node-sdk`
      upload-metadata path used by MIU-09**, not `wx-server-sdk`.
+   - Binds the returned COS POST policy to exactly one server-chosen object key
+     and `content-length-range: 0..OEM_FILE_MAX_BYTES`.
    - Creates a `files` row with `status: 'pending'`, `purpose: 'oem-drawing'`,
      storage metadata, `uploadIntentId`, `uploadSecretHash`, and
      `uploadExpiresAt`.
@@ -1764,8 +1819,13 @@ Server actions:
      `uploadSecret` instead of `drawingData`.
    - Validates the pending file row, expiry, secret hash, storage provider,
      storage path prefix, and object bytes before creating the OEM project.
+   - Compares `uploadSecretHash` in constant time and consumes/rotates it on
+     successful finalization so replay cannot attach the same pending object to
+     another request.
    - Recomputes server-side `byteSize` and `checksumSha256`; client metadata is
      only a hint.
+   - Performs ZIP/PDF magic-byte sniffing after reading the object. Mismatch
+     marks the row `failed` and best-effort deletes the object.
    - Creates the `oemProjects` row, then activates the `files` row and sets
      `ownerProjectId`. Because the DB facade has no transaction/create-with-id
      primitive today, implementation must include compensation/idempotency tests:
@@ -1781,10 +1841,18 @@ Server actions:
    - Validates the caller can read `oemProjects`/`files`, the file is
      `purpose: 'oem-drawing'`, `status: 'active'`, provider is recognized, and
      `ownerProjectId` is present.
-   - Returns a short-lived temp URL from `mediaStorage().getTempUrl(...)` plus
-     filename/MIME metadata. Do not store temp URLs in the DB.
-   - Do not stream large OEM bytes through JSON/base64. The old local
-     `/api/files/:id` route remains local/legacy only until replaced.
+   - P0 returns a short-lived temp URL from `mediaStorage().getTempUrl(...)`
+     plus sanitized filename/MIME metadata. Use the shortest practical TTL
+     (target 60 seconds; never store it in the DB) because MIU-00 observed that
+     CDN edges can outlive object deletion.
+   - Always force `Content-Disposition: attachment` in any proxy/header path and
+     sanitize the public-supplied filename by stripping CR, LF, quotes, path
+     separators, and control characters.
+   - Do not stream large OEM bytes through JSON/base64. A future CloudRun proxy
+     can replace temp URLs if hard-delete privacy becomes stricter than the
+     short-TTL P0; Event Function base64 proxy is not acceptable for 10 MiB OEM.
+     The old local `/api/files/:id` route remains local/legacy only until
+     replaced.
 
 4. Cleanup
    - Extend orphan cleanup or add an OEM-specific cleanup action to reap expired
@@ -1809,17 +1877,25 @@ Tests:
 - `ProjectForm`/API helper no longer serializes selected OEM files as base64.
 - `createOemFileUploadIntent` rejects over-10 MiB files and unsupported
   extension/MIME combinations before any DB write.
+- Public intent creation enforces rate/window caps, pending-intent caps,
+  expiry, and cleanup; unlimited anonymous intent minting is a failing test.
+- The returned COS POST policy includes a `content-length-range` condition
+  capped at `OEM_FILE_MAX_BYTES`.
 - Intent mint failure leaves no pending row.
 - Successful intent writes a pending `files` row under `oem/`.
 - `submitProject` with a valid uploaded ZIP creates an OEM request and active
   `files` metadata linked by `oemProjects.drawing`.
 - `submitProject` rejects expired, wrong-secret, wrong-prefix, missing-object,
   over-cap-landed, checksum-mismatch, and wrong-status file rows.
+- `submitProject` consumes the upload secret once; replay with the same secret
+  fails.
+- ZIP/PDF magic-byte mismatch fails verification and triggers best-effort
+  deletion.
 - If project creation or file activation partially fails, compensation prevents
   a false success and leaves an operator-visible state.
 - Public `/api/files/:id` remains unavailable in production.
 - Admin-authenticated OEM download URL succeeds; unauthenticated download URL
-  request fails.
+  request fails; filename/header sanitization prevents CRLF/inline rendering.
 - Deployed browser smoke uploads the 9 MiB PNG ZIP fixture through the public
   OEM form and verifies no `EXCEED_MAX_PAYLOAD_SIZE`.
 
@@ -1883,6 +1959,192 @@ Exit criteria:
   function artifact smoke, deployed media smoke, and exact max upload size.
 - Any selected fallback is explicit: server upload, direct storage upload, or
   CloudRun.
+
+### 20.12 MIU-10 - Upload Transport Policy Gate
+
+Runtime problem:
+
+- The platform now has multiple media/file purposes: product images, generated
+  variants, OEM files, marketing media, legacy base64 records, and tiny inline
+  assets.
+- Choosing transport by size alone is tempting ("small file -> base64"), but it
+  would reintroduce dual write paths for catalog/OEM and undo the storage
+  lifecycle, cleanup, checksum, preview, and privacy contracts already proven by
+  MIU-Upload/MIU-09.
+- Base64 is still useful for deliberately tiny inline/admin assets and legacy
+  reads. It should remain an explicit, narrow provider instead of becoming an
+  accidental fallback.
+
+Data shape:
+
+```ts
+export type UploadPurpose =
+  | 'catalog-image'
+  | 'catalog-thumbnail'
+  | 'oem-drawing'
+  | 'inline-small'
+  | 'marketing-media'
+  | 'legacy-migration';
+
+export type UploadTransport =
+  | 'cloudbase-storage-direct'
+  | 'cloudbase-storage-generated'
+  | 'inline-base64'
+  | 'legacy-base64-readonly'
+  | 'manual-or-cloudrun-large-file';
+
+export interface UploadTransportInput {
+  purpose: UploadPurpose;
+  fileName: string;
+  mimeType: string;
+  byteSize: number;
+  actorSurface: 'admin' | 'public-oem' | 'system-migration';
+}
+
+export interface UploadTransportDecision {
+  transport: UploadTransport;
+  maxBytes: number;
+  namespace?: 'catalog' | 'catalog-variants' | 'oem' | 'marketing';
+  reason: string;
+}
+```
+
+Technology constraint:
+
+- CloudBase HTTP-access JSON bodies are not a byte transport for large files.
+  MIU-00 proved the route cap; MIU-09 proved browser -> COS multipart POST.
+- CloudBase Storage uploads require a real bucket/security-domain/CORS setup and
+  a server-minted credential. The browser must not fabricate URLs or write
+  storage metadata directly.
+- Base64 expands bytes by roughly one third and stores payloads in the database,
+  so it is inappropriate for mutable product/OEM media even when a single file
+  happens to be small.
+
+Design and flow:
+
+```mermaid
+flowchart TD
+  A["Upload request metadata"] --> B{"Purpose allowlisted?"}
+  B -- "No" --> R["Reject"]
+  B -- "Yes" --> C{"Type allowed for purpose?"}
+  C -- "No" --> R
+  C -- "Yes" --> D{"Purpose"}
+  D -- "catalog-image / catalog-thumbnail" --> S1["CloudBase Storage under catalog namespace"]
+  D -- "oem-drawing" --> S2{"<= 10 MiB?"}
+  S2 -- "Yes" --> S3["CloudBase Storage under oem namespace"]
+  S2 -- "No" --> S4["Manual / CloudRun large-file path"]
+  D -- "inline-small" --> I{"Allowed inline type and <= 50 KiB raw?"}
+  I -- "Yes" --> B64["Explicit inline-base64/static asset action"]
+  I -- "No" --> R
+  D -- "legacy-migration" --> L["Legacy read/migration-only path"]
+```
+
+Best-practice fix:
+
+Add a shared pure policy helper (for example in `packages/shared/src/media.ts`
+or `packages/shared/src/upload-policy.ts`) and require all new upload actions to
+call it before minting credentials or reading bytes.
+
+```ts
+export const INLINE_SMALL_MAX_BYTES = 50 * 1024;
+export const CATALOG_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+export const OEM_FILE_MAX_BYTES = 10 * 1024 * 1024;
+
+export function chooseUploadTransport(input: UploadTransportInput): UploadTransportDecision {
+  const normalized = normalizeUploadInput(input);
+
+  if (normalized.purpose === 'catalog-image') {
+    assertAllowedMime(normalized.mimeType, ['image/jpeg', 'image/png', 'image/webp']);
+    assertMaxBytes(normalized.byteSize, CATALOG_IMAGE_MAX_BYTES);
+    return {
+      transport: 'cloudbase-storage-direct',
+      maxBytes: CATALOG_IMAGE_MAX_BYTES,
+      namespace: 'catalog',
+      reason: 'catalog images use one storage-backed lifecycle for all new writes',
+    };
+  }
+
+  if (normalized.purpose === 'oem-drawing') {
+    assertAllowedOemType(normalized.fileName, normalized.mimeType);
+    if (normalized.byteSize > OEM_FILE_MAX_BYTES) {
+      return {
+        transport: 'manual-or-cloudrun-large-file',
+        maxBytes: OEM_FILE_MAX_BYTES,
+        namespace: 'oem',
+        reason: 'P0 OEM direct upload is capped at 10 MiB; larger/private scanning path is CloudRun/manual',
+      };
+    }
+    return {
+      transport: 'cloudbase-storage-direct',
+      maxBytes: OEM_FILE_MAX_BYTES,
+      namespace: 'oem',
+      reason: 'OEM files are private storage objects, not base64 JSON payloads',
+    };
+  }
+
+  if (normalized.purpose === 'inline-small') {
+    assertAllowedMime(normalized.mimeType, ['image/svg+xml', 'image/png', 'image/webp']);
+    assertMaxBytes(normalized.byteSize, INLINE_SMALL_MAX_BYTES);
+    return {
+      transport: 'inline-base64',
+      maxBytes: INLINE_SMALL_MAX_BYTES,
+      reason: 'only deliberate tiny inline assets may use base64 for new writes',
+    };
+  }
+
+  throw new UploadPolicyError('unsupported upload purpose');
+}
+```
+
+Alternatives rejected:
+
+- **Base64 for all files under a threshold.** Rejected because a tiny catalog
+  photo or OEM drawing would bypass the canonical storage lifecycle and create
+  dual delivery/cleanup/security paths.
+- **Storage for every single byte, including seeded icons.** Rejected because
+  tiny inline fixtures/admin assets are a legitimate low-risk base64/static use
+  case and do not need the direct-COS flow.
+- **Let each UI decide.** Rejected because upload eligibility is a security and
+  cost policy; it must be enforced server-side/shared, not by component code.
+
+Code translation:
+
+- `createUploadIntent` for product images calls `chooseUploadTransport(...)` and
+  requires `transport === 'cloudbase-storage-direct'` with namespace `catalog`.
+- `createOemFileUploadIntent` calls the same helper and requires
+  `transport === 'cloudbase-storage-direct'` with namespace `oem`; if the helper
+  returns `manual-or-cloudrun-large-file`, the UI shows a controlled "too large
+  for self-service upload" message instead of falling back to base64.
+- Any future `saveInlineAsset` action is separate and requires
+  `transport === 'inline-base64'`. Generic CRUD still cannot write `data`.
+- Migration code may read `legacy-base64` and write storage-backed metadata, but
+  no new catalog/OEM action may choose `legacy-base64`.
+
+Risk and tests:
+
+- Unit tests:
+  - tiny `catalog-image` JPEG still returns `cloudbase-storage-direct`, not
+    `inline-base64`.
+  - tiny `oem-drawing` PNG and tiny ZIP still return `cloudbase-storage-direct`.
+  - 9-10 MiB OEM ZIP returns `cloudbase-storage-direct`.
+  - 11 MiB OEM ZIP returns `manual-or-cloudrun-large-file` / controlled reject.
+  - `inline-small` SVG/PNG/WebP under 50 KiB returns `inline-base64`.
+  - `inline-small` PDF/ZIP/CAD/product photo rejects even under 50 KiB.
+  - unknown MIME/purpose rejects before any DB or credential mint.
+- Integration tests:
+  - product/OEM upload actions refuse to mint credentials unless the policy
+    returns the expected storage transport.
+  - no generic registry write can set `data`, `storageFileId`, `storagePath`, or
+    lifecycle status.
+
+Exit criteria:
+
+- Shared policy helper and tests land before any new base64 write feature or
+  OEM implementation.
+- Product image and OEM upload call sites use the helper and have regression
+  coverage for small-file cases.
+- Documentation and execution log explicitly state that base64 remains supported
+  for legacy reads and `inline-small` only; it is not a fallback for catalog/OEM.
 
 ## 21. References
 
@@ -2130,3 +2392,8 @@ OEM MIU implementation and must be specified before code. 25-2 through 25-4 are
 P2s to resolve in the same MIU; 25-5/25-6 are implementation notes. The core
 architecture — public intent, server-chosen path, post-upload verification,
 admin-only delivery — is correct and ready to build on once 25-1 is specified.
+
+Disposition update: §20.10 now folds these findings into the authoritative OEM
+MIU body: public intent rate/pending caps, COS `content-length-range`, short-TTL
+private delivery caveat, constant-time single-use upload secret, filename
+sanitization, and ZIP/PDF magic-byte sniffing are all required in MIU-08.

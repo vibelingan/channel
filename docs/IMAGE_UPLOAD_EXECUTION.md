@@ -18,8 +18,9 @@ design-only; validation results and capability probes live here.
 | MIU-05 | Admin UI uploader (direct COS POST UI) | ✅ done; Codex final review passed; POST contract correction pending live smoke | Phase U2a, U2b-a, U2b-b (+Codex U2b-b fixes, final review `f2063de3`) | `uploadImage()` → createUploadIntent/COS multipart POST/completeUpload; `getImagePreview` admin-auth preview (active+recognized-provider). `ImageManager` per-file state/retry, jpeg/png/webp accept, object-URL + admin previews — now commits successes against the LATEST list (concurrent-edit safe) and revokes object URLs. local-server `/api/images/:id` **delegates to `getCatalogImage`** (full prod parity incl. legacy). final Codex review: local-server tsc, site astro check+build, public-api tests, Biome, and local route smoke all pass. Live browser→COS POST + CORS = MIU-09 |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed COS POST form → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated; node-sdk contract correction pending live smoke | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | ✅ code done; live migration run pending | `c4aaa8d`,`e23b67b`,`e603f34` | `cleanupOrphanImages` admin-only action + tests; `migrateLegacyImages` staged legacy `images.data` -> storage action + compensation tests; live dry-run/live ops evidence pending |
-| MIU-08 | OEM Cloud Storage upload + private delivery | pending; design revised for 10 MiB public OEM attachments | design revision below | Move public OEM attachments off `drawingData` base64 JSON. New flow: public intent -> browser COS POST -> `submitProject` finalization -> admin-only temp-URL download. Must pass deployed 9-10 MiB ZIP smoke with no `EXCEED_MAX_PAYLOAD_SIZE`. |
+| MIU-08 | OEM Cloud Storage upload + private delivery | pending; design revised for 10 MiB public OEM attachments + Claude abuse-control review incorporated | design revision below + `ed8989a` review | Move public OEM attachments off `drawingData` base64 JSON. New flow: public intent -> browser COS POST -> `submitProject` finalization -> admin-only short-TTL delivery. Must include rate/pending caps, COS `content-length-range`, one-time upload secret, filename sanitization, ZIP/PDF sniffing, and deployed 9-10 MiB ZIP smoke with no `EXCEED_MAX_PAYLOAD_SIZE`. |
 | MIU-09 | Deploy, smoke, review hardening | ✅ DONE — live run `28435302827` (205cd71) green incl. media-upload smoke: browser→COS POST + CORS proven | Codex browser-origin smoke harness + deploy wait hardening + release verification + node-sdk upload contract correction | Added deployed media-upload smoke: browser-origin admin login → createUploadIntent → browser-enforced COS POST → completeUpload → admin preview → public 404 before published link → published product link → public 200. Wired as opt-in `E2E_MEDIA_UPLOAD_SMOKE=1` / `pnpm test:e2e:media-upload` and deploy-test workflow input. Claude accepted the harness. Runs `28431709752` and `28433320633` exposed stale-code and Updating-state deploy defects; Codex fixed both. Run `28433688422` proved the deployed release SHA and then exposed the real upload SDK-contract mismatch (`createUploadIntent` 500), now corrected to node-sdk `getUploadMetadata` + COS POST form. |
+| MIU-10 | Upload transport policy gate | pending; design added | design revision below | Add shared purpose/type/size policy so base64 is eligible only for explicit `inline-small`/legacy paths. Product catalog images and OEM attachments stay CloudBase Storage-backed even when small; tests must prove no size-only base64 fallback. |
 
 Decision summary (binds the plan; evidence below):
 - P0 byte transport = **admin-brokered direct-storage-upload** (browser POSTs a
@@ -28,6 +29,9 @@ Decision summary (binds the plan; evidence below):
 - The old MIU-03 + MIU-07 fold into one admin-brokered direct-upload MIU.
 - Env is classic NoSQL; bucket is private (proxy/temp-URL delivery); functions
   remain Event-behind-HTTP-access.
+- Upload transport is purpose/type/size gated: `catalog-image` and
+  `oem-drawing` use storage for all new writes; base64 is only for explicit
+  `inline-small` assets and legacy reads/migration.
 
 ---
 
@@ -2108,6 +2112,46 @@ Implementation-grade requirements added:
 - Deployed acceptance smoke must upload the 9 MiB ZIP through the public OEM
   page and verify `/api/admin` carries only small JSON while bytes go to
   CloudBase Storage.
+
+### Codex design revision — upload transport policy gate — 2026-06-30
+
+User question: can we keep base64 for small image upload while using CloudBase
+Storage for larger files?
+
+Architectural answer captured in `docs/IMAGE_UPLOAD_STORAGE_DESIGN.md` §5 and
+§20.12:
+
+- Yes, base64 can remain, but only for explicit `inline-small` assets and legacy
+  compatibility/migration paths.
+- No, product catalog images should not switch to base64 just because a file is
+  small. All new catalog images stay on the MIU-Upload storage-backed lifecycle
+  so preview, public delivery, checksum, cleanup, and migration remain single-path.
+- No, OEM files should not use base64 even when the selected file is a small
+  image. OEM is a private attachment lifecycle and may be ZIP/PDF/CAD/image; it
+  belongs in the `files`/`oem/` storage path, not the `images` collection or
+  JSON body.
+- The actual decision gate is purpose -> file type -> size. Size is a cap within
+  an allowed purpose/type, not the primary transport selector.
+
+New MIU-10 requirements:
+
+- Add a shared `chooseUploadTransport(input)` policy helper before any new
+  base64 write feature or OEM implementation.
+- Required outcomes:
+  - tiny `catalog-image` JPEG => `cloudbase-storage-direct`
+  - tiny `oem-drawing` PNG/ZIP => `cloudbase-storage-direct`
+  - 9-10 MiB OEM ZIP => `cloudbase-storage-direct`
+  - over-10 MiB OEM ZIP => controlled reject or `manual-or-cloudrun-large-file`
+  - `inline-small` SVG/PNG/WebP under 50 KiB => `inline-base64`
+  - `inline-small` PDF/ZIP/CAD/product photo => reject
+- Product/OEM call sites must refuse to mint credentials unless the policy
+  returns their expected storage transport.
+- Generic CRUD remains unable to write `data`, `storageFileId`, `storagePath`,
+  lifecycle state, or upload secrets.
+
+This is intentionally non-breaking for the current upload design: MIU-Upload and
+MIU-08 remain storage-backed. The only new design surface is a future
+`inline-small` action, if the product actually needs one.
 
 ### Claude review — orphan-cleanup paging fix (6ca3e866) — APPROVED — 2026-06-30
 
