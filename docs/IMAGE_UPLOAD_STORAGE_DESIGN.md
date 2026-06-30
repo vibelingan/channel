@@ -1536,11 +1536,14 @@ do NOT import the CloudBase Web SDK.
 > `/api/images/:id` — that route is `publishedRefCount`-gated and so 404s a
 > freshly-uploaded (active, refCount 0) or unpublished image. Preview through the
 > admin-authenticated **`getImagePreview`** action (auth = `canReadCollection('images')`,
-> no refCount gate, serves legacy or storage-backed bytes for any readable image),
-> optionally with `URL.createObjectURL(file)` for the just-uploaded session.
-> local-server must mirror production by delegating `/api/images/:id` to
-> `getCatalogImage` (so local dev does not mask the public gate). MIU-05 is not
-> complete until this admin-auth preview + local-server parity land and review.
+> NO refCount gate) which serves legacy `data` rows and **`active`, recognized-provider
+> storage rows** (those passed `completeUpload` verification) — `pending`/`failed`/
+> `deleted`/unknown-provider rows are refused so the endpoint cannot be used to fetch
+> unverified/oversized or rejected objects. The just-uploaded (pre-activation) preview
+> uses `URL.createObjectURL(file)` client-side. local-server must mirror production by
+> delegating `/api/images/:id` to `getCatalogImage` (so local dev does not mask the
+> public gate). MIU-05 is not complete until this admin-auth preview + local-server
+> parity land and review.
 
 **Still env-gated (MIU-09):** a real pre-signed-credential mint and the bucket
 **CORS gate** — allow `PUT` + `Authorization`/`X-Cos-Security-Token`/

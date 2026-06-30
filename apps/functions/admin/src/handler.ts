@@ -930,7 +930,14 @@ async function getImagePreviewAction(
   if (typeof doc.data === 'string') {
     return ok({ id: parsed.data.id, mimeType, dataBase64: doc.data });
   }
-  if (typeof doc.storageFileId === 'string') {
+  // Storage-backed: serve ONLY recognized-provider + `active` rows. Active rows
+  // have passed completeUpload's size/checksum verification, so this can't be used
+  // to download an unverified/oversized pending object, a rejected `failed` row,
+  // a `deleted` row, or an unknown/corrupt provider. Pre-activation (pending)
+  // previews are the client's job (URL.createObjectURL on the just-uploaded File).
+  const provider = typeof doc.storageProvider === 'string' ? doc.storageProvider : '';
+  const isStorageProvider = provider === 'cloudbase-storage' || provider === 'local-disk';
+  if (isStorageProvider && doc.status === 'active' && typeof doc.storageFileId === 'string') {
     try {
       const object = await mediaStorage().getObjectAsBase64(doc.storageFileId);
       return ok({ id: parsed.data.id, mimeType, dataBase64: object.body });
@@ -939,5 +946,5 @@ async function getImagePreviewAction(
       return err('NOT_FOUND', 'Image bytes are unavailable');
     }
   }
-  return err('NOT_FOUND', 'Image has no retrievable bytes');
+  return err('NOT_FOUND', 'Image not available for preview');
 }

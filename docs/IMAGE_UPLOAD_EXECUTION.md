@@ -15,7 +15,7 @@ design-only; validation results and capability probes live here.
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
 | MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex A-review + post-D review + self-adversarial B/C/D reviews all resolved | `4823a12`+fixes, Phase B, C, D, post-D hardening | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. Post-D: strict-number counter guard (reject numeric strings), present-but-corrupt fails closed (no scan), unknown provider fails closed; public-api 16→20. All suites pass; both functions build; root tsc + biome clean. Deployed smoke = MIU-09 |
-| MIU-05 | Admin UI uploader (direct PUT UI) | U2a done; U2b-a reviewed with P2 pending; U2b-b pending (wire ImageManager + local-server parity) | Phase U2a, U2b-a + Codex review | `uploadImage()` → createUploadIntent/PUT/completeUpload. U2b-a: `getImagePreview` admin action added, but Codex found its storage branch serves any `storageFileId` without provider/status/verification gating; fix before accepting U2b-a. U2b-b wires `ImageManager` to admin preview + per-file state + jpeg/png/webp accept + reverts the local-server mask. admin 55 pass; fn-admin typecheck + functions build pass |
+| MIU-05 | Admin UI uploader (direct PUT UI) | U2a done; U2b-a done (P2 hardened); U2b-b pending (wire ImageManager + local-server parity) | Phase U2a, U2b-a (+Codex P2 fix) | `uploadImage()` → createUploadIntent/PUT/completeUpload. U2b-a: `getImagePreview` now serves only legacy `data` + **`active`, recognized-provider** storage rows (refuses pending/failed/deleted/unknown — can't fetch unverified/oversized objects); pre-activation preview = client object URL. §20.7 aligned. U2b-b wires `ImageManager` + per-file state + jpeg/png/webp accept + reverts the local-server mask. admin 49 |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
@@ -1068,3 +1068,20 @@ Disposition: U2b-a is not accepted yet. Fix the preview storage-branch lifecycle
 guard above, then continue U2b-b (`ImageManager` wiring, per-file state/retry,
 jpeg/png/webp accept, and local-server public-route parity). MIU-05 remains **not
 done** until U2b-a and U2b-b both land and review cleanly.
+
+### Codex U2b-a Review — disposition (P2 fixed)
+
+Valid (accept). `getImagePreview`'s storage branch served ANY row with a string
+`storageFileId` — so a `failed`/`deleted`/unknown-provider row, or a `pending`
+(unverified, possibly-oversized) object whose bytes never passed `completeUpload`,
+could be downloaded + base64-returned through the admin function.
+
+Fix: the storage branch now serves only a **recognized provider**
+(`cloudbase-storage`/`local-disk`) with **`status === 'active'`** — active rows
+have passed completeUpload's size/checksum verification, so the endpoint cannot
+fetch unverified/oversized, rejected, or corrupt objects. Pre-activation (pending)
+previews are the client's job (`URL.createObjectURL` on the just-uploaded File).
+Legacy `data` rows are unaffected. Tests: the prior "serves pending" case is
+replaced by a refusal test asserting pending/failed/deleted/unknown-provider all
+404 (with FETCHABLE bytes, so the 404 proves a status/provider gate, not a fetch
+miss). §20.7 preview note aligned. admin 49; fn-admin tsc + biome clean; builds.

@@ -1085,24 +1085,34 @@ test('getImagePreview proxies an UNPUBLISHED storage image (refCount 0) — the 
   assert.equal(data.dataBase64, bytes.toString('base64'));
 });
 
-test('getImagePreview also serves a PENDING upload (preview before activation)', async () => {
+test('getImagePreview refuses non-servable storage rows (pending/failed/deleted/unknown provider)', async () => {
+  // Each has FETCHABLE bytes — so a 404 proves the refusal is by status/provider,
+  // not a fetch miss. Pre-activation previews are the client's job (object URL);
+  // failed/deleted/unknown-provider must never be served.
+  const row = (id: string, status: string, storageProvider = 'cloudbase-storage') => ({
+    _id: id,
+    name: `${id}.png`,
+    mimeType: 'image/png',
+    storageProvider,
+    storageFileId: 'cloud://x',
+    status,
+    publishedRefCount: 0,
+  });
   const store: Store = {
     users: [],
     images: [
-      {
-        _id: 'imgP',
-        name: 'p.png',
-        mimeType: 'image/png',
-        storageProvider: 'cloudbase-storage',
-        storageFileId: 'cloud://x',
-        status: 'pending',
-        publishedRefCount: 0,
-      },
+      row('imgPending', 'pending'),
+      row('imgFailed', 'failed'),
+      row('imgDeleted', 'deleted'),
+      row('imgUnknown', 'active', 'mystery-provider'),
     ],
   };
   setup(store);
-  setMediaStorage(makeFakeMediaStorage({ objectBytes: Buffer.from('pending-bytes') }));
-  assert.equal((await call('getImagePreview', { id: 'imgP' }, await adminToken())).ok, true);
+  setMediaStorage(makeFakeMediaStorage({ objectBytes: Buffer.from('fetchable-bytes') }));
+  const token = await adminToken();
+  for (const id of ['imgPending', 'imgFailed', 'imgDeleted', 'imgUnknown']) {
+    expectErr(await call('getImagePreview', { id }, token), 'NOT_FOUND');
+  }
 });
 
 test('getImagePreview: viewer forbidden; unknown id → 404; unfetchable object → 404', async () => {
