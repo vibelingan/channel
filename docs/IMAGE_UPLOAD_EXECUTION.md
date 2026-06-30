@@ -2075,3 +2075,68 @@ accumulating up to `limit`, plus a 105-row regression proving it pages past the 
 Correct and well-scoped. Verified: fn-admin `typecheck` + tests (my 5 cleanup tests +
 the new paging test) + `biome` all green. This is the no-fixed-role loop working as it
 should — I implemented Phase 1, Codex reviewed and hardened it.
+
+## Process Hardening — CloudBase SDK Contract Gate (2026-06-30)
+
+### Root cause attribution for the upload-metadata SDK miss
+
+The `sdk.getUploadMetadata is not a function` failure was caused by a design +
+implementation workflow miss, not by the final CloudBase deploy script.
+
+Commit chain:
+
+- `5a043e0` (`feat(media): MIU-Upload U1 — admin-brokered direct-upload server
+  contract`) introduced the wrong assumption. It added `getUploadMetadata` to the
+  hand-written `packages/db/src/wx-server-sdk.d.ts` `Cloud` type and implemented
+  media-storage around a top-level upload-info shape.
+- `ba27b60` (`fix(media): address Codex MIU-Upload U1 review...`) hardened
+  validation of that wrong shape (`uploadUrl` / `cloudObjectMeta` /
+  `cloudObjectId`) instead of re-verifying the SDK boundary, so TypeScript became
+  better at proving the wrong contract.
+- `7b8357e` recorded the live P1: deployed `createUploadIntent` reached the
+  adapter and crashed because the injected `wx-server-sdk` object did not expose
+  `getUploadMetadata`.
+- `205cd71` fixed the code by injecting an explicit `@cloudbase/node-sdk` app for
+  upload-metadata minting, narrowing the `wx-server-sdk` type shim back to the
+  observed DB/storage-helper surface, and switching the browser upload contract
+  to node-sdk-compatible multipart `POST`.
+- `27578ca` reviewed and approved the node-sdk POST-multipart fix; live run
+  `28435302827` then proved browser -> COS POST + CORS end-to-end.
+
+Responsibility split:
+
+- **Design fault:** the design mixed the raw CloudBase Storage OpenAPI upload-info
+  model with an assumed SDK-wrapper model and did not prove which runtime object
+  would be injected.
+- **Implementation fault:** the hand-written `wx-server-sdk.d.ts` made the false
+  runtime method typecheck, so normal `tsc` review could not catch it.
+- **Review/workflow fault:** reviews checked TypeScript, tests, and deployed
+  packaging, but did not require SDK source/runtime proof before accepting a
+  new SDK method on an ambient type.
+
+### Permanent prevention now landed
+
+CloudBase SDK-boundary work now has an executable and documented gate:
+
+- New project rule: `AGENTS.md` requires CloudBase SDK/OpenAPI/storage/function
+  work to follow `docs/CLOUDBASE_SDK_CONTRACT_VERIFICATION.md`.
+- New workflow doc:
+  `docs/CLOUDBASE_SDK_CONTRACT_VERIFICATION.md` requires CloudBase skill/doc
+  lookup, official docs/OpenAPI lookup, installed package source/type inspection,
+  and explicit Context7 usage when that tool is available. If Context7 is not
+  available in a session, the reviewer must say so and use the CloudBase
+  docs/OpenAPI tool plus installed SDK inspection instead.
+- New executable gate: `pnpm verify:cloudbase-sdk` checks the installed
+  `@cloudbase/node-sdk` and `wx-server-sdk` runtime/type surfaces, confirms
+  node-sdk owns `getUploadMetadata`, confirms wx-server-sdk does not, confirms
+  node-sdk's upload metadata is `data.url` / `data.authorization` / `data.token`
+  / `data.fileId` / `data.cosFileId`, and confirms media-storage emits
+  multipart `POST` form credentials.
+- CI now runs `pnpm verify:cloudbase-sdk` before lint/typecheck/tests, so a
+  future fake ambient method or stale upload-info shape fails immediately.
+
+Current tool reality: Context7 was searched for in this session but is not
+available in the active Codex toolset. The landed rule is therefore explicit:
+use Context7 when present; otherwise do not guess - use the CloudBase official
+docs/OpenAPI search plus installed SDK source/type/runtime inspection, and
+record that path in the design or execution log.

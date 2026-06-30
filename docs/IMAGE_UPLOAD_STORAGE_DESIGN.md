@@ -1930,3 +1930,8 @@ Decisions from MIU-00 validation (2026-06-29) that now bind this plan:
   delivery, reinforcing the MIU-04 proxy P0); `admin`/`public-api` stay Event
   Functions behind HTTP access. Web SDK browser upload is unavailable here
   (no publishable key, anonymous login off) — empirically confirming §19 P1.
+- CloudBase SDK boundaries are now a hard verification gate, not a type-only
+  assumption. See `docs/CLOUDBASE_SDK_CONTRACT_VERIFICATION.md` and
+  `pnpm verify:cloudbase-sdk`; in particular, `wx-server-sdk` must not be typed
+  as an upload-metadata provider unless its installed runtime actually exposes
+  that method.
