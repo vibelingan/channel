@@ -2237,6 +2237,26 @@ Validation run:
 - `pnpm --filter @vibelingan-channel/fn-admin typecheck`
 - `pnpm --filter @vibelingan-channel/fn-admin test` — 70 tests passed
 
+### Claude fix — lifecycle helper review findings ADDRESSED — 2026-07-01
+
+Addressed both Codex findings on `35c6400` (`packages/shared/src/media-lifecycle.ts`):
+
+- P2 (doc↔object pairing): `selectExpiredPendingForSweep` now returns
+  `items: SweepItem[]` (paired `{ docId, uploadExpiresAt, storageFileId? }`,
+  oldest-first) as the authoritative output, plus convenience `docIds` and a
+  paired `storageObjects: Array<{ docId, storageFileId }>`. A caller deleting
+  objects first can map a failed `deleteObject` back to its doc and keep ONLY
+  that doc retryable. New regression test proves a mixed selection keeps just the
+  failed-object doc and marks the rest (incl. the no-object doc) deleted — no
+  MIU-06 false-success.
+- P3 (fail-closed): `isValidMediaStatusTransition` now imports `MEDIA_STATUSES`
+  and rejects any `from`/`to` outside the known set BEFORE the same-state
+  shortcut, so a corrupt runtime status (e.g. `'unknown' as MediaStatus`,
+  same-state) returns `false`. New regression covers unknown/empty values.
+
+Validation: `pnpm --filter @vibelingan-channel/shared typecheck` clean;
+`test` — 29 passed; `biome check` clean on both files.
+
 ### Claude review — orphan-cleanup paging fix (6ca3e866) — APPROVED — 2026-06-30
 
 Codex reviewed my MIU-06 Phase 1 and fixed a real limitation: my `cleanupOrphanImages`

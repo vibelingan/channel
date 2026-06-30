@@ -14,7 +14,7 @@
  *
  * See docs/IMAGE_UPLOAD_STORAGE_DESIGN.md §20.13 and §27.2.
  */
-import type { MediaStatus } from './media.ts';
+import { MEDIA_STATUSES, type MediaStatus } from './media.ts';
 
 /** Minimal shape a row needs to be considered for an opportunistic sweep. */
 export interface SweepCandidate {
@@ -26,11 +26,28 @@ export interface SweepCandidate {
   storageFileId?: string;
 }
 
+/** One selected row, with its doc id paired to its storage object (if any). */
+export interface SweepItem {
+  docId: string;
+  /** The expiry that made this row eligible (ISO-8601). */
+  uploadExpiresAt: string;
+  /** Durable storage id to delete first; absent if the intent never minted one. */
+  storageFileId?: string;
+}
+
 export interface SweepSelection {
-  /** Doc ids to mark `deleted`/`failed` after their storage objects are removed. */
+  /**
+   * Selected rows, oldest-expiry first, doc↔object pairing PRESERVED. This is the
+   * authoritative output: a caller deleting storage objects must iterate `items`
+   * (or `storageObjects`) so a failed `deleteObject` can be mapped back to its
+   * doc and that doc kept retryable — never blindly mark all `docIds` deleted on
+   * a partial failure (that is the MIU-06 cleanup false-success class).
+   */
+  items: SweepItem[];
+  /** Convenience: every swept doc id, in `items` order. Safe only when every object delete succeeds. */
   docIds: string[];
-  /** Storage objects to delete first; the subset of swept docs that have one. */
-  storageFileIds: string[];
+  /** Convenience: only the swept items that have a storage object, paired. */
+  storageObjects: Array<{ docId: string; storageFileId: string }>;
 }
 
 function expiryMs(iso: string | undefined): number {
@@ -60,7 +77,7 @@ export function selectExpiredPendingForSweep(
   now: Date,
   limit: number,
 ): SweepSelection {
-  if (!Number.isFinite(limit) || limit <= 0) return { docIds: [], storageFileIds: [] };
+  if (!Number.isFinite(limit) || limit <= 0) return { items: [], docIds: [], storageObjects: [] };
   const nowMs = now.getTime();
 
   const expired = candidates
@@ -68,12 +85,21 @@ export function selectExpiredPendingForSweep(
     .sort((a, b) => expiryMs(a.uploadExpiresAt) - expiryMs(b.uploadExpiresAt))
     .slice(0, Math.trunc(limit));
 
-  const docIds = expired.map((c) => c._id);
-  const storageFileIds = expired
-    .map((c) => c.storageFileId)
-    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  const items: SweepItem[] = expired.map((c) => ({
+    docId: c._id,
+    // `isExpired` guaranteed a present, parseable expiry above.
+    uploadExpiresAt: c.uploadExpiresAt as string,
+    ...(typeof c.storageFileId === 'string' && c.storageFileId.length > 0
+      ? { storageFileId: c.storageFileId }
+      : {}),
+  }));
 
-  return { docIds, storageFileIds };
+  const docIds = items.map((i) => i.docId);
+  const storageObjects = items
+    .filter((i): i is SweepItem & { storageFileId: string } => typeof i.storageFileId === 'string')
+    .map((i) => ({ docId: i.docId, storageFileId: i.storageFileId }));
+
+  return { items, docIds, storageObjects };
 }
 
 /**
@@ -90,8 +116,17 @@ const ALLOWED_TRANSITIONS: Readonly<Record<MediaStatus, readonly MediaStatus[]>>
   deleted: [],
 };
 
-/** True if `to` is reachable from `from` (same-state allowed as idempotent). */
+/** Known media statuses, for fail-closed runtime validation of DB values. */
+const VALID_STATUSES: ReadonlySet<string> = new Set(MEDIA_STATUSES);
+
+/**
+ * True if `to` is reachable from `from`. Fails CLOSED on values outside
+ * `MEDIA_STATUSES` — these are runtime DB rows, not just compile-time types, so a
+ * corrupt/unknown status is never a valid transition, not even same-state.
+ * Same-state among known statuses is allowed as an idempotent no-op.
+ */
 export function isValidMediaStatusTransition(from: MediaStatus, to: MediaStatus): boolean {
+  if (!VALID_STATUSES.has(from) || !VALID_STATUSES.has(to)) return false;
   if (from === to) return true;
   return ALLOWED_TRANSITIONS[from]?.includes(to) ?? false;
 }
