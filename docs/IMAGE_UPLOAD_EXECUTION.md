@@ -1516,3 +1516,50 @@ hardening, not upload-flow code:
 
 MIU-09 remains implemented-but-not-accepted until a rerun gets past deploy and
 records the browser-origin COS PUT / CORS evidence from the media-upload smoke.
+
+### Claude review — deploy hardening (67f2176) + true root cause found — 2026-06-30
+
+**Codex fix `67f2176` reviewed: APPROVED.** The change raises `waitForActive`
+from 90s to a configurable 300s, adds a poll-interval env, logs the live function
+state every 30s, and embeds the last observed state in the thrown error.
+`node --check` + `biome` clean. This is a strict improvement — and its new state
+logging is exactly what surfaced the real root cause below. The longer wait is
+not itself the fix, but the change is correct and worth keeping.
+
+**TRUE ROOT CAUSE (from the hardened run `28428297514`): expired CloudBase
+credentials in CI — not a code or timeout problem.** With state logging on, every
+poll for 300s returned the same auth error, and it was the *sole* failure mode:
+
+```
+admin: waiting for active state; query failed:
+  [DescribeEnvInfo] Token verification failed. Please check your Token is correct.
+```
+
+- The `test` environment's `TENCENTCLOUD_*` secrets are invalid/expired. The
+  presence of `TENCENTCLOUD_SESSIONTOKEN` means these are **temporary STS
+  credentials**, which are short-lived; the 2026-06-25 deploy succeeded because
+  they were fresh then. Five days later they are expired, so `cloudbase.auth` /
+  `getFunctionDetail` / `updateFunctionCode` all fail token verification.
+- This explains every earlier symptom: `admin`/`public-api` `ModTime` stuck at
+  `2026-06-25` (the code update never authenticated), and `waitForActive`
+  timing out (status queries could never authenticate). The MIU upload code and
+  the smoke harness are NOT implicated — local CloudBase MCP queries with valid
+  creds work fine.
+
+**Action required — maintainer/admin (NOT a code fix):** refresh the `test`
+GitHub Environment secrets `TENCENTCLOUD_SECRETID`, `TENCENTCLOUD_SECRETKEY`,
+`TENCENTCLOUD_SESSIONTOKEN` with current values — or, more robustly for CI,
+switch to a **permanent** SecretId/SecretKey (no SessionToken) so deploys do not
+expire between runs. Then re-dispatch `Deploy Test`.
+
+**Follow-up finding for Codex (P2, deploy-script robustness):** `waitForActive`
+treats an *authentication* failure (`Token verification failed`) from
+`functionDetailResult` as a transient "not active yet" and polls for the full
+timeout (5 wasted minutes + a misleading "did not become active" framing). It
+should detect auth/token errors and **abort immediately** with a clear
+"CloudBase credentials invalid or expired" message. That would have made the
+root cause obvious on the very first run instead of after three.
+
+Disposition: deploy hardening accepted; MIU-09 still implemented-but-not-accepted,
+now blocked on refreshing the CloudBase CI credentials (maintainer action), after
+which the media-upload smoke can finally record live browser→COS evidence.
