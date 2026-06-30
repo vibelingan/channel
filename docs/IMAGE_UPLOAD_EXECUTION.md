@@ -19,7 +19,7 @@ design-only; validation results and capability probes live here.
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
-| MIU-09 | Deploy, smoke, review hardening | harness accepted; live evidence blocked in CloudBase deploy | Codex browser-origin smoke harness + deploy wait hardening | Added deployed media-upload smoke: browser-origin admin login → createUploadIntent → browser-enforced COS PUT → completeUpload → admin preview → public 404 before published link → published product link → public 200. Wired as opt-in `E2E_MEDIA_UPLOAD_SMOKE=1` / `pnpm test:e2e:media-upload` and deploy-test workflow input. Claude accepted the harness. Latest live run `28427449894` reached the runner but failed in `Deploy to CloudBase test` because `admin` did not become active before the deploy-script wait expired; script now uses a longer configurable wait and logs last observed function state. Live browser→COS evidence still pending. |
+| MIU-09 | Deploy, smoke, review hardening | harness accepted; stale-code deploy P1 fixed; live evidence pending rerun | Codex browser-origin smoke harness + deploy wait hardening + release verification | Added deployed media-upload smoke: browser-origin admin login → createUploadIntent → browser-enforced COS PUT → completeUpload → admin preview → public 404 before published link → published product link → public 200. Wired as opt-in `E2E_MEDIA_UPLOAD_SMOKE=1` / `pnpm test:e2e:media-upload` and deploy-test workflow input. Claude accepted the harness. The first full run `28431709752` proved creds/deploy/public smoke green but exposed stale function code (`Unknown action: createUploadIntent`). Codex accepted Claude's P1 and added code-update result hardening plus build-time release health checks; live browser→COS evidence still pending the next Deploy Test rerun. |
 
 Decision summary (binds the plan; evidence below):
 - P0 byte transport = **admin-brokered direct-storage-upload** (browser PUTs to
@@ -1765,3 +1765,52 @@ Disposition: the upload feature, the smoke harness, the credentials, and the
 deploy-up-to-code-upload all work; MIU-09 is now blocked solely on the deploy
 script actually shipping the new code (P1 above). Bucket CORS / browser→COS PUT
 remain unverified — the smoke can't exercise them until the upload code is live.
+
+### Codex fix — stale-code deploy hardening after Claude P1 — 2026-06-30
+
+Accepted Claude's P1 as valid after independent checks:
+
+- Source has `createUploadIntent`/`completeUpload`/`getImagePreview`.
+- A freshly generated local artifact contains those actions.
+- The stale local artifact from before packaging did not, matching the live
+  symptom class.
+- The prior deploy log had `code request unknown` while config requests had real
+  ids, so the workflow could report "Deploy to CloudBase ✅" after only config
+  changed.
+
+Implemented hardening:
+
+- `scripts/deploy-cloudbase-test.mjs` now inspects CloudBase MCP results instead
+  of treating a parsed JSON object as success. `success:false` fails the deploy
+  with a safe summarized message.
+- `updateFunctionCode` without a RequestId is no longer a green update. In this
+  **test-only** deploy script it triggers delete/recreate of that function so the
+  branch can still collect MIU-09 evidence, and stale code cannot be reported as
+  deployed. Production still needs the broader CICD release/alias plan before
+  using this pattern.
+- Deploy logs now include each packaged function artifact's byte size and SHA-256
+  prefix, and function wait diagnostics include remote `CodeSize`.
+- Both function bundles embed a build-time release marker through tsup
+  `define` (`CHANNEL_BUILD_SHA || GITHUB_SHA || local`, plus build time).
+- Public `/api/health` and admin `POST /api/admin {action:"health"}` return only
+  safe release metadata. Because the release id is compiled into the bundle, a
+  successful config update cannot fake a successful code update.
+- `scripts/smoke-cloudbase-deploy.mjs` now asserts both public-api and admin
+  report the expected release id before continuing to catalog/media smokes.
+
+Validation:
+
+- `pnpm --filter @vibelingan-channel/fn-admin test` — pass (56 tests).
+- `pnpm --filter @vibelingan-channel/fn-public-api test` — pass (20 tests).
+- `pnpm --filter @vibelingan-channel/fn-admin typecheck` — pass.
+- `pnpm --filter @vibelingan-channel/fn-public-api typecheck` — pass.
+- `pnpm --filter @vibelingan-channel/shared typecheck` — pass.
+- `pnpm exec biome check ...` on the touched implementation files — pass.
+- `pnpm package:functions && pnpm smoke:functions` — pass.
+- Artifact inspection confirms `admin/index.js` contains the upload actions and
+  both function artifacts contain an embedded release id/build time.
+
+Remaining live step: push this fix, rerun `Deploy Test` with
+`run_public_e2e=true` and `run_media_upload_smoke=true`, and require the workflow
+to pass public/admin release-id checks before considering the browser→COS evidence
+valid.

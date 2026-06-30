@@ -304,6 +304,31 @@ async function call(action: string, data: unknown, token: string) {
   );
 }
 
+/** Extract the `data` payload of a successful ApiResult (asserts ok first). */
+function okData<T = Record<string, unknown>>(res: ApiResult<unknown>): T {
+  assert.equal(res.ok, true);
+  if (!res.ok) throw new Error('unreachable');
+  return res.data as T;
+}
+
+test('health returns safe release metadata without a session', async () => {
+  setup();
+  const res = await handleAdminRequest({ action: 'health' }, config);
+  const data = okData<{
+    status: string;
+    service: string;
+    releaseId: string;
+    buildTime: string;
+  }>(res);
+
+  assert.equal(data.status, 'ok');
+  assert.equal(data.service, 'admin');
+  assert.equal(typeof data.releaseId, 'string');
+  assert.notEqual(data.releaseId.length, 0);
+  assert.equal(typeof data.buildTime, 'string');
+  assert.notEqual(data.buildTime.length, 0);
+});
+
 test('create published product increments publishedRefCount for each image', async () => {
   const store = imageStore(['imgA', 'imgB']);
   setup(store);
@@ -839,13 +864,6 @@ function makeFakeMediaStorage(
       return { body, byteSize: opts.reportByteSize ?? buf.byteLength };
     },
   };
-}
-
-/** Extract the `data` payload of a successful ApiResult (asserts ok first). */
-function okData<T = Record<string, unknown>>(res: ApiResult<unknown>): T {
-  assert.equal(res.ok, true);
-  if (!res.ok) throw new Error('unreachable');
-  return res.data as T;
 }
 
 const validUpload = { fileName: 'photo.jpg', mimeType: 'image/jpeg', byteSize: 2048 };

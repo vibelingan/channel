@@ -9,7 +9,8 @@
     "./errors": "./src/errors.ts",
     "./env": "./src/env.ts",
     "./collections": "./src/collections.ts",
-    "./media": "./src/media.ts"
+    "./media": "./src/media.ts",
+    "./release": "./src/release.ts"
   },
   "scripts": {
     "test": "tsx --test src/**/*.test.ts",

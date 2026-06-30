@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -89,6 +90,41 @@ function callTool(selector, args, options = {}) {
   throw new Error(`mcporter call failed for ${selector}: ${lastError?.message ?? 'unknown error'}`);
 }
 
+function requestIdFrom(result) {
+  return (
+    result?.data?.raw?.RequestId ??
+    result?.data?.raw?.codeRes?.RequestId ??
+    result?.data?.raw?.configRes?.RequestId ??
+    result?.data?.requestId ??
+    result?.data?.RequestId ??
+    result?.requestId ??
+    null
+  );
+}
+
+function toolMessage(result) {
+  if (!result || typeof result !== 'object') return 'no result object returned';
+  const raw = result.data?.raw;
+  const summary = {
+    success: result.success,
+    code: result.code ?? raw?.Code,
+    message: result.message ?? raw?.Message,
+    requestId: requestIdFrom(result),
+    dataKeys: result.data && typeof result.data === 'object' ? Object.keys(result.data) : [],
+    rawKeys: raw && typeof raw === 'object' ? Object.keys(raw) : [],
+  };
+  return JSON.stringify(summary).slice(0, 700);
+}
+
+function assertToolSucceeded(result, label) {
+  if (!result || typeof result !== 'object') {
+    throw new Error(`${label} returned no result object.`);
+  }
+  if (result.success === false) {
+    throw new Error(`${label} failed: ${toolMessage(result)}`);
+  }
+}
+
 function isCredentialFailure(message) {
   return /token verification failed|authfailure|unauthorized|invalid.+credential|invalid.+token|expired.+token/i.test(
     message ?? '',
@@ -131,10 +167,18 @@ function summarizeFunctionState(state) {
     status: detail.Status,
     availableStatus: detail.AvailableStatus,
     runtime: detail.Runtime,
+    codeSize: detail.CodeSize,
     statusReason: detail.StatusReason,
     statusDesc: detail.StatusDesc,
     updateTime: detail.UpdateTime,
   });
+}
+
+function artifactSummary(functionName) {
+  const indexFile = resolve(functionRootPath, functionName, 'index.js');
+  const size = statSync(indexFile).size;
+  const hash = createHash('sha256').update(readFileSync(indexFile)).digest('hex').slice(0, 16);
+  return `${size} bytes sha256:${hash}`;
 }
 
 function waitForGone(functionName) {
@@ -143,6 +187,16 @@ function waitForGone(functionName) {
     sleep(functionPollIntervalMs);
   }
   throw new Error(`${functionName} still exists after delete.`);
+}
+
+function deleteFunction(functionName) {
+  const result = callTool('cloudbase.manageFunctions', {
+    action: 'deleteFunction',
+    functionName,
+    confirm: true,
+  });
+  assertToolSucceeded(result, `${functionName}: deleteFunction`);
+  return requestIdFrom(result) ?? 'unknown';
 }
 
 function waitForActive(functionName) {
@@ -193,15 +247,11 @@ function createFunction(def) {
     },
     { timeoutMs: 240_000 },
   );
-  return (
-    result.data?.raw?.RequestId ??
-    result.data?.raw?.codeRes?.RequestId ??
-    result.data?.raw?.configRes?.RequestId ??
-    'unknown'
-  );
+  assertToolSucceeded(result, `${def.name}: createFunction`);
+  return requestIdFrom(result) ?? 'unknown';
 }
 
-function updateFunction(def) {
+function updateFunctionCode(def) {
   const codeResult = callTool(
     'cloudbase.manageFunctions',
     {
@@ -211,6 +261,14 @@ function updateFunction(def) {
     },
     { timeoutMs: 240_000 },
   );
+  assertToolSucceeded(codeResult, `${def.name}: updateFunctionCode`);
+  return {
+    requestId: requestIdFrom(codeResult),
+    result: codeResult,
+  };
+}
+
+function updateFunctionConfig(def) {
   const configResult = callTool('cloudbase.manageFunctions', {
     action: 'updateFunctionConfig',
     functionName: def.name,
@@ -218,10 +276,8 @@ function updateFunction(def) {
     timeout: 20,
     envVariables: def.envVariables,
   });
-  return {
-    codeRequestId: codeResult.data?.raw?.RequestId ?? codeResult.data?.requestId ?? 'unknown',
-    configRequestId: configResult.data?.raw?.RequestId ?? configResult.data?.requestId ?? 'unknown',
-  };
+  assertToolSucceeded(configResult, `${def.name}: updateFunctionConfig`);
+  return requestIdFrom(configResult) ?? 'unknown';
 }
 
 const functionDefs = [
@@ -263,29 +319,43 @@ function deployFunction(def) {
   if (!existsSync(resolve(artifactDir, 'index.js'))) {
     throw new Error(`Missing packaged function artifact for ${def.name}: ${artifactDir}`);
   }
+  console.log(`${def.name}: artifact ${artifactSummary(def.name)}`);
 
   const before = functionDetail(def.name, true);
   if (before && before.Runtime !== targetRuntime) {
     console.log(
       `${def.name}: runtime drift ${before.Runtime} -> ${targetRuntime}; deleting for recreate`,
     );
-    callTool('cloudbase.manageFunctions', {
-      action: 'deleteFunction',
-      functionName: def.name,
-      confirm: true,
-    });
+    deleteFunction(def.name);
     waitForGone(def.name);
   }
 
   const current = functionDetail(def.name, true);
   if (current) {
-    const requests = updateFunction(def);
+    const code = updateFunctionCode(def);
+    if (!code.requestId) {
+      console.warn(
+        `${def.name}: updateFunctionCode returned no RequestId (${toolMessage(
+          code.result,
+        )}); recreating test function so stale code cannot be reported as deployed.`,
+      );
+      deleteFunction(def.name);
+      waitForGone(def.name);
+      const recreateRequestId = createFunction(def);
+      const recreated = waitForActive(def.name);
+      if (recreated.Runtime !== targetRuntime) {
+        throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${recreated.Runtime}`);
+      }
+      console.log(`${def.name}: recreated on ${recreated.Runtime}; request ${recreateRequestId}`);
+      return;
+    }
+    const configRequestId = updateFunctionConfig(def);
     const after = waitForActive(def.name);
     if (after.Runtime !== targetRuntime) {
       throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${after.Runtime}`);
     }
     console.log(
-      `${def.name}: updated on ${after.Runtime}; code request ${requests.codeRequestId}; config request ${requests.configRequestId}`,
+      `${def.name}: updated on ${after.Runtime}; code request ${code.requestId}; config request ${configRequestId}`,
     );
     return;
   }

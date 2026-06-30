@@ -53,6 +53,7 @@ import {
   isKnownCollection,
   ok,
 } from '@vibelingan-channel/shared';
+import { releaseInfo } from '@vibelingan-channel/shared/release';
 import { z } from 'zod';
 
 export interface AdminConfig {
@@ -266,6 +267,8 @@ export async function handleAdminRequest(
         return await bootstrapAdmin(req, config);
       case 'recover':
         return await recover(req, config);
+      case 'health':
+        return ok(releaseInfo('admin'));
       case 'submitProject':
         return await submitProject(req);
     }

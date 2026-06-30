@@ -366,6 +366,17 @@ test('accepts gateway-stripped public API paths', async () => {
   const image = await handlePublicApiEvent({ httpMethod: 'GET', path: '/images/linked-image' }, {});
 
   assert.equal(health.statusCode, 200);
+  const healthBody = JSON.parse(health.body) as {
+    ok: boolean;
+    data?: { status?: string; service?: string; releaseId?: string; buildTime?: string };
+  };
+  assert.equal(healthBody.ok, true);
+  assert.equal(healthBody.data?.status, 'ok');
+  assert.equal(healthBody.data?.service, 'public-api');
+  assert.equal(typeof healthBody.data?.releaseId, 'string');
+  assert.notEqual(healthBody.data?.releaseId?.length, 0);
+  assert.equal(typeof healthBody.data?.buildTime, 'string');
+  assert.notEqual(healthBody.data?.buildTime?.length, 0);
   assert.equal(products.statusCode, 200);
   assert.equal(detail.statusCode, 200);
   assert.equal(image.statusCode, 200);
