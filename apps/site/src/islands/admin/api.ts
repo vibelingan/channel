@@ -112,27 +112,38 @@ export function fileUrl(id: string): string {
   return apiUrl(`/api/files/${encodeURIComponent(id)}`);
 }
 
-/** Read a File as a base64 string (without the data: prefix). */
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result);
-      const comma = result.indexOf(',');
-      resolve(comma >= 0 ? result.slice(comma + 1) : result);
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
-    reader.readAsDataURL(file);
-  });
+interface UploadIntentResponse {
+  imageId: string;
+  uploadIntentId: string;
+  storageFileId: string;
+  upload: { url: string; headers: Record<string, string> };
 }
 
-/** Upload an image file into the `images` byte collection; returns its id. */
+/**
+ * Upload an image via the admin-brokered direct-upload flow (MIU-Upload):
+ *   1. ask the server for a single-object pre-signed credential (createUploadIntent);
+ *   2. `PUT` the bytes straight to storage — bypassing the function byte cap;
+ *   3. have the server verify + activate (completeUpload).
+ * Returns the new image id. The browser never holds a storage identity — only the
+ * custom JWT (carried by `call`); the COS signature is server-minted.
+ */
 export async function uploadImage(file: File): Promise<string> {
-  const data = await fileToBase64(file);
-  const doc = await createRecord('images', {
-    name: file.name,
-    mimeType: file.type || 'application/octet-stream',
-    data,
+  const intent = await call<UploadIntentResponse>('createUploadIntent', {
+    fileName: file.name,
+    mimeType: file.type,
+    byteSize: file.size,
   });
-  return doc._id;
+
+  const put = await fetch(intent.upload.url, {
+    method: 'PUT',
+    headers: intent.upload.headers,
+    body: file,
+  });
+  if (!put.ok) {
+    // Leave the pending doc for orphan cleanup; surface a clear error.
+    throw new AdminApiError('UPLOAD_FAILED', `Storage upload failed (${put.status})`);
+  }
+
+  await call('completeUpload', { imageId: intent.imageId });
+  return intent.imageId;
 }

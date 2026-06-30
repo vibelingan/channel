@@ -10,7 +10,7 @@ import { resolve } from 'node:path';
 import { setAdapter } from '@vibelingan-channel/db';
 import { handleAdminRequest } from '@vibelingan-channel/fn-admin/handler';
 import type { AdminConfig, AdminRequest } from '@vibelingan-channel/fn-admin/handler';
-import { setMediaStorage } from '@vibelingan-channel/media-storage';
+import { mediaStorage, setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
 import { optionalEnv } from '@vibelingan-channel/shared';
 import type { FilterClause } from '@vibelingan-channel/shared';
@@ -94,16 +94,35 @@ function resolveImages(doc: Record<string, unknown>): Record<string, unknown> {
   return { ...doc, images: ids.map((id) => `/api/images/${String(id)}`) };
 }
 
-// Serve image bytes stored (base64) in the `images` collection.
+// Serve image bytes: legacy rows carry inline base64 `data`; storage-backed rows
+// (uploaded via the admin-brokered flow when TCB_ENV wires CloudBase media) are
+// proxied through the media adapter. Gated on `status === 'active'` — not on
+// publishedRefCount — so the admin can preview a freshly-uploaded, not-yet-linked
+// image (public delivery gates on refCount separately, in getCatalogImage).
 app.get('/api/images/:id', async (req, res) => {
   const doc = await adapter.get('images', req.params.id);
-  if (!doc || typeof doc.data !== 'string') {
+  if (!doc) {
+    res.status(404).end();
+    return;
+  }
+  let body: Buffer | null = null;
+  if (typeof doc.data === 'string') {
+    body = Buffer.from(doc.data, 'base64');
+  } else if (doc.status === 'active' && typeof doc.storageFileId === 'string') {
+    try {
+      const object = await mediaStorage().getObjectAsBase64(doc.storageFileId);
+      body = Buffer.from(object.body, 'base64');
+    } catch (e) {
+      console.error('[local-server] image proxy failed for', req.params.id, e);
+    }
+  }
+  if (!body) {
     res.status(404).end();
     return;
   }
   res.setHeader('Content-Type', String(doc.mimeType ?? 'application/octet-stream'));
   res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.send(Buffer.from(doc.data, 'base64'));
+  res.send(body);
 });
 
 // Download file bytes stored (base64) in the `files` collection. Sent as an
