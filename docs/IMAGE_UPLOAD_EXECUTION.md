@@ -15,8 +15,8 @@ design-only; validation results and capability probes live here.
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
 | MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex A-review + post-D review + self-adversarial B/C/D reviews all resolved | `4823a12`+fixes, Phase B, C, D, post-D hardening | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. Post-D: strict-number counter guard (reject numeric strings), present-but-corrupt fails closed (no scan), unknown provider fails closed; public-api 16→20. All suites pass; both functions build; root tsc + biome clean. Deployed smoke = MIU-09 |
-| MIU-05 | Admin UI uploader (FormData) | pending | — | — |
-| MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | U1 (server) done + self-review resolved; U2 (UI) + live mint/CORS env-gated | Phase U1 | `createUploadIntent`/`completeUpload` admin actions + `getUploadCredential` DI adapter method (CloudBase mint / local-disk throws) + local-server CloudBase-media wiring (TCB_ENV); admin tests 32→45; both functions build. Live credential mint + bucket CORS = MIU-09 |
+| MIU-05 | Admin UI uploader (direct PUT UI) | pending; blocked behind MIU-Upload U1 review fixes | — | — |
+| MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | U1 server has Codex blocking review findings; U2 (UI) + live mint/CORS env-gated | Phase U1 + Codex review | Admin/media/public/shared tests pass and functions build, but root typecheck fails (`fn-public-api` fake missing `getUploadCredential`) and `local-server` typecheck fails on `wx-server-sdk` ambient types after the new CloudBase dynamic import; see Codex U1 review below. Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
 | MIU-09 | Deploy, smoke, review hardening | pending | — | env-gated |
@@ -829,3 +829,43 @@ high-level mermaid aligned to the as-built flow (pending-at-intent,
 `completeUpload(imageId)`, activate-at-complete, refCount delivery gate); the
 §20.5/§20.9 banners now cross-reference §20.7 as authoritative. Closes the
 long-standing "stale design LLD" Codex P1.
+
+## Codex MIU-Upload U1 Review - 5a043e0 (2026-06-30)
+
+Review base: `5a043e0df52b6d061baf6a67fca3a62af5da9329`
+(`feat(media): MIU-Upload U1 — admin-brokered direct-upload server contract`) on
+`fix/image-upload-storage-design`, fetched via SSH.
+
+Verdict: **blocking findings.** The server flow is directionally aligned with
+the direct-upload design, and the focused runtime tests pass, but the branch is
+not ready for MIU-05/UI work because the new storage adapter contract breaks
+typecheck in existing consumers and the CloudBase upload credential mapping is
+not hardened enough for a hand-typed external SDK boundary.
+
+### Findings
+
+| Severity | Finding | Evidence | Required change |
+| --- | --- | --- | --- |
+| P1 | Root typecheck is broken because `MediaStorageAdapter.getUploadCredential` became required but the public-api test fake still implements the old interface. This is a release/CI blocker even though the public-api runtime tests still pass under `tsx`. | `apps/functions/public-api/src/http-adapter.test.ts:27` defines `fakeMediaStorage: MediaStorageAdapter` with `putObject`, `getObjectAsBase64`, `getTempUrl`, and `deleteObject`, but no `getUploadCredential`. `pnpm --filter @vibelingan-channel/fn-public-api typecheck` fails with TS2741. `pnpm typecheck` fails on the same error before reaching all later packages. | Update every `MediaStorageAdapter` fake/test implementation to satisfy the new method (usually throw "not used" for public delivery), or split upload credential minting into a narrower upload-capable interface so read-only consumers are not forced to implement upload-only methods. Then rerun root typecheck. |
+| P1 | The new local-server CloudBase upload wiring breaks `@vibelingan-channel/local-server` typecheck. The dynamic import of `@vibelingan-channel/db/cloudbase` causes TypeScript to compile `packages/db/src/cloudbase-adapter.ts`, but the package-local `wx-server-sdk.d.ts` declaration is not visible from the local-server program. This contradicts the U1 self-review claim that root tsc is clean. | `apps/local-server/src/main.ts:41-47` dynamically imports `@vibelingan-channel/db/cloudbase` when `TCB_ENV` is set. `pnpm --filter @vibelingan-channel/local-server typecheck` fails with TS7016 for `wx-server-sdk` imports in `packages/db/src/cloudbase-adapter.ts`. The previous head wired only `LocalDiskMediaStorage` in local-server, so this dependency edge is new. | Make the `wx-server-sdk` ambient declaration visible to cross-package consumers of `@vibelingan-channel/db/cloudbase` (for example by moving/exporting the declaration appropriately or adjusting the package type/include strategy), or isolate the local-server CloudBase wiring behind a typed boundary that does not pull undeclared SDK imports into the consumer typecheck. |
+| P2 | CloudBase upload credential metadata is only partially validated at runtime. If the hand-typed SDK response omits `authorization`, `token`, or `cloudObjectMeta`, `createUploadIntent` can still persist a pending image doc and return unusable/undefined browser PUT headers. That turns an external contract mismatch into a broken upload plus orphan pending state instead of a clean mint failure. | `packages/media-storage/src/cloudbase.ts:142-154` throws only when `uploadUrl` or `cloudObjectId` is missing, but returns `authorization`, `token`, and `cloudObjectMeta` unchecked. `apps/functions/admin/src/handler.ts:807-814` forwards those values as required headers. The design says incomplete metadata should throw. Current tests cover missing `uploadUrl` only. | Treat every required credential field as an untrusted runtime value: assert non-empty strings for `uploadUrl`, `authorization`, `token`, `cloudObjectMeta`, and `cloudObjectId` before returning the credential, and add fake-SDK tests for each missing required field. |
+| P3 | The U1 lifecycle contract is inconsistent about retrieval misses. The implemented behavior leaves the image doc `pending` when `completeUpload` cannot fetch the object, but the design doc and handler comment still say a missing object marks the doc `failed`. That can mislead MIU-05 into treating a retryable completion miss as terminal. | Implementation: `apps/functions/admin/src/handler.ts:847-857` catches fetch failure and returns `NOT_FOUND` while leaving `pending`; tests and the execution self-review also say "retrieval-miss stays pending". Conflicting text: `apps/functions/admin/src/handler.ts:820-823` and `docs/IMAGE_UPLOAD_STORAGE_DESIGN.md:1494-1498`, `1518-1520`. | Align the docs/comments with the actual retryable behavior: missing/not-yet-retrievable object stays `pending`; size/checksum verification failures mark `failed` and best-effort delete. |
+
+### Verification Run By Codex
+
+- `git fetch origin fix/image-upload-storage-design` using the pinned SSH-only
+  transport from the review prompt - passed;
+  `origin/fix/image-upload-storage-design` =
+  `5a043e0df52b6d061baf6a67fca3a62af5da9329`.
+- `pnpm --filter @vibelingan-channel/fn-admin test` - pass (51 tests).
+- `pnpm --filter @vibelingan-channel/media-storage test` - pass (26 tests).
+- `pnpm --filter @vibelingan-channel/shared test` - pass (13 tests).
+- `pnpm --filter @vibelingan-channel/fn-public-api test` - pass (20 tests).
+- `pnpm --filter @vibelingan-channel/fn-admin typecheck` - pass.
+- `pnpm --filter @vibelingan-channel/media-storage typecheck` - pass.
+- `pnpm --filter @vibelingan-channel/db typecheck` - pass.
+- `pnpm --filter @vibelingan-channel/local-server typecheck` - **fail** (TS7016: missing declaration for `wx-server-sdk` from the new CloudBase dynamic import path).
+- `pnpm --filter @vibelingan-channel/fn-public-api typecheck` - **fail** (TS2741: public-api fake missing required `getUploadCredential`).
+- `pnpm typecheck` - **fail** (same `fn-public-api` TS2741 blocks the root check).
+- `pnpm build:functions` - pass.
+- `pnpm exec biome check apps/functions/admin/src/handler.ts apps/functions/admin/src/handler.test.ts apps/local-server/src/main.ts packages/db/src/wx-server-sdk.d.ts packages/media-storage/src/index.ts packages/media-storage/src/local-disk.ts packages/media-storage/src/cloudbase.ts packages/media-storage/src/cloudbase.test.ts packages/media-storage/src/index.test.ts` - pass.
