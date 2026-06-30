@@ -15,7 +15,7 @@ design-only; validation results and capability probes live here.
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
 | MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex A-review + post-D review + self-adversarial B/C/D reviews all resolved | `4823a12`+fixes, Phase B, C, D, post-D hardening | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. Post-D: strict-number counter guard (reject numeric strings), present-but-corrupt fails closed (no scan), unknown provider fails closed; public-api 16→20. All suites pass; both functions build; root tsc + biome clean. Deployed smoke = MIU-09 |
-| MIU-05 | Admin UI uploader (direct PUT UI) | U2a done; U2b-a done (P2 hardened); U2b-b pending (wire ImageManager + local-server parity) | Phase U2a, U2b-a (+Codex P2 fix) | `uploadImage()` → createUploadIntent/PUT/completeUpload. U2b-a: `getImagePreview` now serves only legacy `data` + **`active`, recognized-provider** storage rows (refuses pending/failed/deleted/unknown — can't fetch unverified/oversized objects); pre-activation preview = client object URL. §20.7 aligned. Codex re-review after `490459d`: no blockers for U2b-a. U2b-b wires `ImageManager` + per-file state + jpeg/png/webp accept + reverts the local-server mask. admin 55 |
+| MIU-05 | Admin UI uploader (direct PUT UI) | feature-complete (U2a+U2b-a+U2b-b); Codex U2b-b review pending | Phase U2a, U2b-a, U2b-b | `uploadImage()` → createUploadIntent/PUT/completeUpload. U2b-a: `getImagePreview` admin-auth preview (active + recognized-provider only). U2b-b: `ImageManager` rewritten — per-file upload state + retry (each success committed cumulatively), jpeg/png/webp accept, previews via `getImagePreview` + object URLs for the just-uploaded session; local-server `/api/images/:id` now refCount-gates storage delivery (mirrors `getCatalogImage`, un-masks prod). root tsc + astro check + biome clean. Live browser→COS PUT + CORS = MIU-09 |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
@@ -1108,3 +1108,28 @@ Verification run by Codex:
 Disposition: U2b-a is accepted. MIU-05 remains **not done** until U2b-b lands and
 reviews cleanly (`ImageManager` wiring to admin preview + object URLs, per-file
 state/retry, jpeg/png/webp accept-list, and local-server public-route parity).
+
+### MIU-05 (U2) — admin uploader UI, phase U2b-b (feature-complete)
+
+The remaining MIU-05 work; lands the three interdependent pieces together so local
+preview never breaks in between:
+
+- `api.ts`: `getImagePreview(id)` client → calls the admin action, returns a
+  `data:` URL.
+- `ImageManager.tsx` (rewrite): **per-file** upload state — each file shows
+  uploading / ret”failed-retry”; a success is committed to `value` **cumulatively**
+  (`[...baseValue, ...added]`) so a later rejection cannot drop earlier successes.
+  `accept` restricted to jpeg/png/webp (matches the server allowlist). Previews use
+  a local **object URL** for the just-uploaded session (instant, no round-trip) and
+  `getImagePreview` for persisted ids (admin-auth, bypasses the public refCount
+  gate). No CloudBase Web SDK.
+- `local-server` `/api/images/:id`: storage delivery now requires recognized
+  provider + `active` + `publishedRefCount > 0` (mirrors `getCatalogImage`) so local
+  dev no longer masks the production public gate — closing the Codex masking note.
+  (Inline mirror rather than importing `getCatalogImage`, to avoid adding an
+  `fn-public-api` dep + pnpm install; behavior matches.)
+- Verify: root tsc clean; `astro check` 0 errors; biome clean. The browser→COS PUT
+  + bucket CORS are exercised at MIU-09; the React UI has no unit harness here, so
+  end-to-end upload is a deployed/e2e check.
+
+**MIU-05 is feature-complete** (U2a + U2b-a + U2b-b) pending the Codex U2b-b review.

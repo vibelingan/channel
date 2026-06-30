@@ -147,3 +147,16 @@ export async function uploadImage(file: File): Promise<string> {
   await call('completeUpload', { imageId: intent.imageId });
   return intent.imageId;
 }
+
+/**
+ * Admin-authenticated preview: fetch an image's bytes as a `data:` URL — works for
+ * any image the admin may read, regardless of publication. Used by `ImageManager`
+ * instead of the public `/api/images/:id` (which is `publishedRefCount`-gated and
+ * 404s unpublished images). Serves legacy `data` rows and `active` storage rows.
+ */
+export async function getImagePreview(id: string): Promise<string> {
+  const res = await call<{ id: string; mimeType: string; dataBase64: string }>('getImagePreview', {
+    id,
+  });
+  return `data:${res.mimeType};base64,${res.dataBase64}`;
+}

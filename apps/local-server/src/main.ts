@@ -94,11 +94,12 @@ function resolveImages(doc: Record<string, unknown>): Record<string, unknown> {
   return { ...doc, images: ids.map((id) => `/api/images/${String(id)}`) };
 }
 
-// Serve image bytes: legacy rows carry inline base64 `data`; storage-backed rows
-// (uploaded via the admin-brokered flow when TCB_ENV wires CloudBase media) are
-// proxied through the media adapter. Gated on `status === 'active'` — not on
-// publishedRefCount — so the admin can preview a freshly-uploaded, not-yet-linked
-// image (public delivery gates on refCount separately, in getCatalogImage).
+// PUBLIC image delivery. Mirrors the production public route (getCatalogImage):
+// legacy rows serve inline base64 `data`; storage-backed rows require a recognized
+// provider, `status === 'active'`, AND `publishedRefCount > 0` — so local dev does
+// NOT show an image production would 404 (an unpublished/just-uploaded image).
+// Admin previews of unpublished images go through the authed `getImagePreview`
+// action, not this route.
 app.get('/api/images/:id', async (req, res) => {
   const doc = await adapter.get('images', req.params.id);
   if (!doc) {
@@ -108,12 +109,18 @@ app.get('/api/images/:id', async (req, res) => {
   let body: Buffer | null = null;
   if (typeof doc.data === 'string') {
     body = Buffer.from(doc.data, 'base64');
-  } else if (doc.status === 'active' && typeof doc.storageFileId === 'string') {
-    try {
-      const object = await mediaStorage().getObjectAsBase64(doc.storageFileId);
-      body = Buffer.from(object.body, 'base64');
-    } catch (e) {
-      console.error('[local-server] image proxy failed for', req.params.id, e);
+  } else {
+    const provider = typeof doc.storageProvider === 'string' ? doc.storageProvider : '';
+    const known = provider === 'cloudbase-storage' || provider === 'local-disk';
+    const refCount = doc.publishedRefCount;
+    const visible = typeof refCount === 'number' && Number.isFinite(refCount) && refCount > 0;
+    if (known && doc.status === 'active' && visible && typeof doc.storageFileId === 'string') {
+      try {
+        const object = await mediaStorage().getObjectAsBase64(doc.storageFileId);
+        body = Buffer.from(object.body, 'base64');
+      } catch (e) {
+        console.error('[local-server] image proxy failed for', req.params.id, e);
+      }
     }
   }
   if (!body) {
