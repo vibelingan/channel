@@ -2,6 +2,12 @@
 
 These project rules apply in addition to the user's global Codex instructions.
 
+## Engineering Craft
+
+Reusable engineering patterns live in `docs/ENGINEERING_CRAFT.md`. Read it before
+changing media preview, private asset delivery, browser upload UI, or CloudBase
+storage delivery code.
+
 ## CloudBase SDK Contract Gate
 
 Before designing or changing CloudBase SDK, CloudBase Storage, Cloud Functions,
