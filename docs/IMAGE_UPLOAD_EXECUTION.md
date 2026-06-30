@@ -2174,3 +2174,17 @@ Note: implemented on top of Codex's `66f07ccd` (CloudBase SDK contract gate),
 integrated cleanly. A pre-existing **untracked** `AGENTS.md` collided with the
 tracked `AGENTS.md` that `66f07ccd` adds; the untracked copy was backed up to the
 session scratchpad and moved aside so the tracked one is now in place.
+
+### Claude review — CloudBase SDK contract gate (66f07ccd) — APPROVED — 2026-06-30
+
+Reviewed Codex's regression gate (`scripts/verify-cloudbase-sdk-contract.mjs` +
+`pnpm verify:cloudbase-sdk` + CI wiring). It pins exactly the contract whose
+violation caused the live-mint P1: asserts `@cloudbase/node-sdk` **has**
+`getUploadMetadata` (+ uploadFile/getTempFileURL/deleteFile), that `wx-server-sdk`
+**does not** expose `getUploadMetadata` (so a future SDK change is an intentional
+update, not a silent surprise), the node-sdk `data.{url,token,authorization,fileId,
+cosFileId}` shape + multipart-POST usage, and that the repo code stays honest (no
+reintroduced fake stub in `wx-server-sdk.d.ts`; db inits node-sdk for storage;
+media-storage maps to POST form, no stale `cloudObjectMeta/cloudObjectId`). Ran it
+locally — all 18 checks PASS; `node --check` clean. This is the safety net that
+would have caught the original bug; APPROVED.
