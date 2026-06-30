@@ -15,7 +15,7 @@ design-only; validation results and capability probes live here.
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
 | MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex A-review + post-D review + self-adversarial B/C/D reviews all resolved | `4823a12`+fixes, Phase B, C, D, post-D hardening | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. Post-D: strict-number counter guard (reject numeric strings), present-but-corrupt fails closed (no scan), unknown provider fails closed; public-api 16→20. All suites pass; both functions build; root tsc + biome clean. Deployed smoke = MIU-09 |
-| MIU-05 | Admin UI uploader (direct PUT UI) | feature-complete (U2a+U2b-a+U2b-b); Codex U2b-b review pending | Phase U2a, U2b-a, U2b-b | `uploadImage()` → createUploadIntent/PUT/completeUpload. U2b-a: `getImagePreview` admin-auth preview (active + recognized-provider only). U2b-b: `ImageManager` rewritten — per-file upload state + retry (each success committed cumulatively), jpeg/png/webp accept, previews via `getImagePreview` + object URLs for the just-uploaded session; local-server `/api/images/:id` now refCount-gates storage delivery (mirrors `getCatalogImage`, un-masks prod). root tsc + astro check + biome clean. Live browser→COS PUT + CORS = MIU-09 |
+| MIU-05 | Admin UI uploader (direct PUT UI) | feature-complete (U2a+U2b-a+U2b-b); Codex U2b-b review blocking | Phase U2a, U2b-a, U2b-b | `uploadImage()` → createUploadIntent/PUT/completeUpload. U2b-a: `getImagePreview` admin-auth preview (active + recognized-provider only). U2b-b added per-file state/retry, jpeg/png/webp accept, object URLs, and storage refCount gating in local-server. Codex U2b-b review found stale UI value commits plus incomplete local legacy-route parity; MIU-05 is not accepted yet. Focused tests/typechecks/builds pass; live browser→COS PUT + CORS = MIU-09 |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
@@ -1117,7 +1117,7 @@ preview never breaks in between:
 - `api.ts`: `getImagePreview(id)` client → calls the admin action, returns a
   `data:` URL.
 - `ImageManager.tsx` (rewrite): **per-file** upload state — each file shows
-  uploading / ret”failed-retry”; a success is committed to `value` **cumulatively**
+  uploading / failed-retry; a success is committed to `value` **cumulatively**
   (`[...baseValue, ...added]`) so a later rejection cannot drop earlier successes.
   `accept` restricted to jpeg/png/webp (matches the server allowlist). Previews use
   a local **object URL** for the just-uploaded session (instant, no round-trip) and
@@ -1133,3 +1133,41 @@ preview never breaks in between:
   end-to-end upload is a deployed/e2e check.
 
 **MIU-05 is feature-complete** (U2a + U2b-a + U2b-b) pending the Codex U2b-b review.
+
+### Codex MIU-05 U2b-b Review - 2026-06-30 after `6290326`
+
+Review base: `62903269b9fdb959cf355d66e5bcbbf83cb85515`, diffed against the
+previous processed head `31a355e92c38b0c8808c3e7422f0df56e5c9e1e1`.
+
+What is sound:
+
+- The client upload helper still follows the intended small-JSON intent → raw
+  storage `PUT` → small-JSON complete flow; no base64 or multipart bytes go
+  through `/api/admin`.
+- `ImageManager` now uses `getImagePreview` for persisted admin previews and
+  object URLs for just-uploaded files, and the picker is restricted to the server
+  allowlist (`jpeg`/`png`/`webp`).
+- The public/admin preview split remains intact: production public delivery stays
+  `publishedRefCount`-gated, while admin preview uses the authenticated action.
+
+Findings:
+
+| Severity | Finding | Evidence | Required change |
+| --- | --- | --- | --- |
+| P2 | `ImageManager` can overwrite concurrent image-list edits when an upload finishes. The new per-file loop captures `baseValue = value` once at file-selection time and each success calls `onChange([...baseValue, ...added])`. A COS upload can take long enough for an admin to remove/reorder existing images or for the parent form value to change; the later success then resurrects removed ids or discards the newer order. This is the same class of "late async write wins over user edits" data-loss bug the per-file state was meant to avoid. | `apps/site/src/islands/admin/ImageManager.tsx` lines 68-80 (`baseValue`, `added`, `succeed(... [...baseValue, ...added])`) and `RecordForm.tsx` passes only the concrete next array, not a functional updater. | Commit successes against the latest image list, not the render-time snapshot. For example, track latest `value` in a ref and append a successful id to that current list, preserving upload order without replaying stale base ids. Add a component/e2e regression for remove/reorder while a slow upload is pending. |
+| P2 | The local-server public image route still does not mirror `getCatalogImage` for legacy/base64 rows, despite the U2b-b parity claim. It now gates storage-backed rows by recognized provider + `active` + positive numeric `publishedRefCount`, but any row with `doc.data` is returned immediately. Production public delivery hides legacy rows with a present `publishedRefCount: 0`, numeric-string/corrupt counters, or no published catalog reference (except the explicit placeholder / pre-backfill scan fallback). Local dev can therefore still show an unlinked or hidden legacy image that production would 404. | `apps/local-server/src/main.ts` lines 97-111 serve all legacy `doc.data`; production `apps/functions/public-api/src/handler.ts` uses `hasRefCountField`, strict numeric `visibleByRefCount`, placeholder special-case, and catalog-scan fallback only when the field is absent. Design §20.7 said local-server must mirror production by delegating `/api/images/:id` to `getCatalogImage`. | Reuse the public route logic or duplicate the full legacy semantics: placeholder by id, strict numeric refCount when present, fallback scan only when absent, and fail-closed for malformed present counters. Add a local-server route test or otherwise share the production helper so this parity cannot drift again. |
+| P3 | Just-uploaded preview object URLs are never revoked. Each successful upload calls `URL.createObjectURL(file)` and stores the URL in component state, but removal/unmount does not call `URL.revokeObjectURL`. In a long admin session with large product images, this leaks browser memory until page teardown. | `apps/site/src/islands/admin/ImageManager.tsx` line 63 creates object URLs; there is no cleanup effect or revoke call when an image id is removed or the component unmounts. | Track created object URLs and revoke them when their image id leaves `value` and during unmount. Keep fetched `data:` previews unaffected. |
+
+Verification run by Codex:
+
+- `pnpm --filter @vibelingan-channel/site typecheck` - pass (`astro check`, 0 errors; existing FormEvent deprecation hints only)
+- `pnpm --filter @vibelingan-channel/site build` - pass
+- `pnpm --filter @vibelingan-channel/local-server typecheck` - pass
+- `pnpm --filter @vibelingan-channel/fn-admin test` - pass (55 tests)
+- `pnpm --filter @vibelingan-channel/fn-public-api test` - pass (20 tests)
+- `pnpm typecheck` - pass across packages/apps + e2e
+- `pnpm exec biome check apps/site/src/islands/admin/ImageManager.tsx apps/site/src/islands/admin/api.ts apps/local-server/src/main.ts docs/IMAGE_UPLOAD_EXECUTION.md docs/IMAGE_UPLOAD_STORAGE_DESIGN.md` - pass for the three non-ignored implementation files; Markdown docs are ignored by this repo's Biome config
+
+Disposition: U2b-b is not accepted yet. MIU-05 remains **not done** until the
+stale UI commit path and local-server legacy parity are fixed and re-reviewed;
+the object-URL cleanup should be handled in the same UI pass.
