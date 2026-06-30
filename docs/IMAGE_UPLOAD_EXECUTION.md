@@ -2140,3 +2140,37 @@ available in the active Codex toolset. The landed rule is therefore explicit:
 use Context7 when present; otherwise do not guess - use the CloudBase official
 docs/OpenAPI search plus installed SDK source/type/runtime inspection, and
 record that path in the design or execution log.
+
+### MIU-06 Phase 2 — legacy data → storage migration (Claude, done) — 2026-06-30
+
+New admin-only action `migrateLegacyImages` (`apps/functions/admin/src/handler.ts`,
+dispatch `case 'migrateLegacyImages'`). Migrates legacy inline-base64 images to
+storage **conservatively / rollback-safe** per §20.8:
+
+- Selects un-migrated legacy rows (`data isNotEmpty` AND `migrationStorageFileId
+  isEmpty`) via stable `_id`-sorted paging up to `limit` (same pagination-stability
+  guard as orphan cleanup / the MIU-04 backfill; `$in:[null]`/`isEmpty` matches a
+  missing field on both adapters).
+- For each: validates the base64 (`BASE64_RE` + length), decodes, enforces
+  `CATALOG_IMAGE_MAX_BYTES`, uploads via `mediaStorage().putObject({ namespace:
+  'catalog', logicalId: id, fileName: 'migrated-<name>', … })`, then records STAGED
+  fields only — `migrationStorageFileId` / `migrationStoragePath` /
+  `migrationChecksumSha256` / `migrationByteSize` / `migratedAt`.
+- **Does NOT touch `data`, `storageProvider`, `storageFileId`, or `status`** — so
+  public delivery keeps serving the legacy bytes and a later cutover can flip the
+  provider once storage-backed delivery is proven; rollback = ignore the staged
+  fields. Idempotent (already-staged rows filtered out); a malformed / oversize /
+  upload-failed row goes to `skipped` and never aborts the batch; `dryRun` reports
+  candidates without writing; admin-only.
+
+Tests (`handler.test.ts`, 5): stages legacy rows (uploads + records staged fields,
+keeps `data`/provider); `dryRun` writes nothing; idempotent re-run migrates nothing;
+malformed base64 is skipped while the batch continues; admin-only. Verified:
+`pnpm --filter fn-admin typecheck` + `test` (67 pass) + `biome` green. Env-gated:
+the live migration RUN (against real legacy data) is a later ops step; the actual
+provider cutover is deliberately out of scope here.
+
+Note: implemented on top of Codex's `66f07ccd` (CloudBase SDK contract gate),
+integrated cleanly. A pre-existing **untracked** `AGENTS.md` collided with the
+tracked `AGENTS.md` that `66f07ccd` adds; the untracked copy was backed up to the
+session scratchpad and moved aside so the tracked one is now in place.

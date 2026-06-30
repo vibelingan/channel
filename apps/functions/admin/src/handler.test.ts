@@ -1352,3 +1352,171 @@ test('cleanupOrphanImages honors a limit above the DB page cap by collecting sta
   assert.equal(data.docsRemoved, 105);
   assert.equal((store.images ?? []).length, 0);
 });
+
+// --- MIU-06 (Phase 2): legacy data → storage migration -----------------------
+
+/** Media-storage fake that records putObject uploads; can fail a given logicalId. */
+function makeMigrationStorage(opts: { putThrowsFor?: string[] } = {}): MediaStorageAdapter & {
+  uploaded: Array<{ logicalId: string; fileName: string; byteSize: number }>;
+} {
+  const uploaded: Array<{ logicalId: string; fileName: string; byteSize: number }> = [];
+  return {
+    uploaded,
+    async putObject(input) {
+      if (opts.putThrowsFor?.includes(input.logicalId)) throw new Error('fake: upload rejected');
+      const byteSize = input.content instanceof Uint8Array ? input.content.byteLength : 0;
+      uploaded.push({ logicalId: input.logicalId, fileName: input.fileName, byteSize });
+      return {
+        storageProvider: 'cloudbase-storage',
+        storageMode: 'classic-nosql-storage',
+        storageFileId: `cloud://env.bucket/catalog/${input.logicalId}/${input.fileName}`,
+        storagePath: `catalog/${input.logicalId}/${input.fileName}`,
+        byteSize,
+      };
+    },
+    async getObjectAsBase64() {
+      throw new Error('fake: unused');
+    },
+    async getTempUrl() {
+      throw new Error('fake: unused');
+    },
+    async deleteObject() {
+      throw new Error('fake: unused');
+    },
+    async getUploadCredential() {
+      throw new Error('fake: unused');
+    },
+  };
+}
+
+const LEGACY_B64 = Buffer.from('hello-legacy-image').toString('base64');
+
+function legacyStore(): Store {
+  return {
+    users: [],
+    images: [
+      // legacy inline-data, not migrated → migrate
+      {
+        _id: 'leg1',
+        name: 'a.jpg',
+        mimeType: 'image/jpeg',
+        data: LEGACY_B64,
+        publishedRefCount: 0,
+      },
+      { _id: 'leg2', name: 'b.png', mimeType: 'image/png', data: LEGACY_B64, publishedRefCount: 0 },
+      // already-staged legacy → excluded by the filter (idempotency)
+      {
+        _id: 'done1',
+        name: 'c.jpg',
+        mimeType: 'image/jpeg',
+        data: LEGACY_B64,
+        migrationStorageFileId: 'cloud://x/done',
+        publishedRefCount: 0,
+      },
+      // storage-backed (no inline data) → not a candidate
+      {
+        _id: 'sb1',
+        name: 'd.jpg',
+        mimeType: 'image/jpeg',
+        status: 'active',
+        storageProvider: 'cloudbase-storage',
+        storageFileId: 'cloud://x/sb',
+        publishedRefCount: 1,
+      },
+    ],
+  };
+}
+
+test('migrateLegacyImages stages legacy images: uploads + records migration fields, keeps data/provider', async () => {
+  const store = setup(legacyStore());
+  const storage = makeMigrationStorage();
+  setMediaStorage(storage);
+  const token = await adminToken();
+
+  const data = okData(await call('migrateLegacyImages', {}, token));
+  assert.deepEqual([...(data.migrated as string[])].sort(), ['leg1', 'leg2']);
+  assert.equal(data.migratedCount, 2);
+  assert.deepEqual(data.skipped, []);
+  assert.deepEqual(storage.uploaded.map((u) => u.logicalId).sort(), ['leg1', 'leg2']);
+
+  const leg1 = store.images?.find((i) => i._id === 'leg1');
+  assert.equal(typeof leg1?.migrationStorageFileId, 'string'); // staged
+  assert.ok(leg1?.migratedAt);
+  assert.equal(leg1?.data, LEGACY_B64); // inline data KEPT (rollback-safe)
+  assert.equal(leg1?.storageProvider, undefined); // provider untouched
+  // already-staged + storage-backed rows untouched
+  assert.equal(
+    store.images?.find((i) => i._id === 'done1')?.migrationStorageFileId,
+    'cloud://x/done',
+  );
+  assert.equal(
+    storage.uploaded.some((u) => u.logicalId === 'sb1'),
+    false,
+  );
+});
+
+test('migrateLegacyImages dryRun reports candidates without uploading or writing', async () => {
+  const store = setup(legacyStore());
+  const storage = makeMigrationStorage();
+  setMediaStorage(storage);
+  const token = await adminToken();
+
+  const data = okData(await call('migrateLegacyImages', { dryRun: true }, token));
+  assert.deepEqual([...(data.migrated as string[])].sort(), ['leg1', 'leg2']);
+  assert.equal(data.migratedCount, 0);
+  assert.deepEqual(storage.uploaded, []);
+  assert.equal(store.images?.find((i) => i._id === 'leg1')?.migrationStorageFileId, undefined);
+});
+
+test('migrateLegacyImages is idempotent — a second run migrates nothing', async () => {
+  setup(legacyStore());
+  setMediaStorage(makeMigrationStorage());
+  const token = await adminToken();
+  await call('migrateLegacyImages', {}, token);
+  const data = okData(await call('migrateLegacyImages', {}, token));
+  assert.equal(data.scanned, 0);
+  assert.deepEqual(data.migrated, []);
+});
+
+test('migrateLegacyImages skips malformed base64 but continues the batch', async () => {
+  const store = setup({
+    users: [],
+    images: [
+      {
+        _id: 'bad',
+        name: 'x.jpg',
+        mimeType: 'image/jpeg',
+        data: '!!!not-base64!!!',
+        publishedRefCount: 0,
+      },
+      {
+        _id: 'good',
+        name: 'y.jpg',
+        mimeType: 'image/jpeg',
+        data: LEGACY_B64,
+        publishedRefCount: 0,
+      },
+    ],
+  });
+  setMediaStorage(makeMigrationStorage());
+  const token = await adminToken();
+  const data = okData(await call('migrateLegacyImages', {}, token));
+  assert.deepEqual(
+    (data.skipped as Array<{ id: string }>).map((s) => s.id),
+    ['bad'],
+  );
+  assert.deepEqual(data.migrated, ['good']);
+  assert.ok(store.images?.find((i) => i._id === 'good')?.migrationStorageFileId);
+});
+
+test('migrateLegacyImages is admin-only', async () => {
+  setup(legacyStore());
+  setMediaStorage(makeMigrationStorage());
+  const contributor = await signSession('test-secret', {
+    sub: 'c-1',
+    email: 'c@example.com',
+    name: 'contributor',
+    role: 'contributor',
+  });
+  expectErr(await call('migrateLegacyImages', {}, contributor), 'FORBIDDEN');
+});

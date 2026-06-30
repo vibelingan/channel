@@ -301,6 +301,8 @@ export async function handleAdminRequest(
         return await backfillImageRefCountsAction(req, claims);
       case 'cleanupOrphanImages':
         return await cleanupOrphanImagesAction(req, claims);
+      case 'migrateLegacyImages':
+        return await migrateLegacyImagesAction(req, claims);
       case 'createUploadIntent':
         return await createUploadIntentAction(req, claims);
       case 'completeUpload':
@@ -873,6 +875,140 @@ async function cleanupOrphanImagesAction(
     removed,
     storageDeleted,
     storageFailed,
+  });
+}
+
+const migrateLegacyImagesSchema = z.object({
+  dryRun: z.boolean().optional(),
+  limit: z.number().int().positive().max(500).optional(),
+});
+
+const LEGACY_MIGRATION_DB_PAGE_SIZE = 100;
+const LEGACY_MIGRATION_SORT = [{ field: '_id', dir: 'asc' as const }];
+// A legacy `data` field must be well-formed base64 to migrate; anything else is
+// recorded as skipped (never aborts the batch). Buffer.from(..,'base64') is lenient
+// (drops invalid chars silently), so screen the string before trusting a decode.
+const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
+
+/**
+ * Page legacy migration candidates: inline `data` present and not yet staged
+ * (`migrationStorageFileId` absent). Stable `_id` sort so skip/limit paging cannot
+ * miss or duplicate rows; `data isNotEmpty`/`migrationStorageFileId isEmpty` select
+ * un-migrated legacy rows on both adapters (CloudBase `$in:[null]` matches a missing
+ * field; the local matcher treats undefined as empty).
+ */
+async function listLegacyImageCandidates(
+  limit: number,
+): Promise<{ items: CollectionDoc[]; total: number }> {
+  const items: CollectionDoc[] = [];
+  let total = 0;
+  let page = 1;
+  const pageSize = Math.min(LEGACY_MIGRATION_DB_PAGE_SIZE, limit);
+  while (items.length < limit) {
+    const res = await list({
+      collection: 'images',
+      page,
+      pageSize,
+      sort: LEGACY_MIGRATION_SORT,
+      filter: {
+        combinator: 'and',
+        clauses: [
+          { field: 'data', op: 'isNotEmpty' },
+          { field: 'migrationStorageFileId', op: 'isEmpty' },
+        ],
+      },
+    });
+    if (page === 1) total = res.total;
+    items.push(...res.items);
+    if (res.items.length < pageSize) break;
+    page += 1;
+  }
+  return { items: items.slice(0, limit), total };
+}
+
+/**
+ * MIU-06 Phase 2 — legacy `images.data` → storage migration (rollback-safe, staged).
+ * For each un-migrated legacy inline-base64 image: validate + decode the bytes,
+ * upload them to catalog storage, and record STAGED fields
+ * (`migrationStorageFileId`/`migrationStoragePath`/`migrationChecksumSha256`/
+ * `migrationByteSize`/`migratedAt`) WITHOUT touching `data`, `storageProvider`,
+ * `storageFileId`, or `status`. Delivery therefore keeps serving the legacy bytes,
+ * a later cutover can flip the provider once storage-backed delivery is proven, and
+ * rollback is free (ignore the staged fields). Admin-only; `dryRun` reports
+ * candidates without writing; idempotent (already-staged rows are filtered out); a
+ * malformed/oversize/upload-failed row is recorded in `skipped` and never aborts the
+ * batch (§20.8).
+ */
+async function migrateLegacyImagesAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  if (claims.role !== 'admin') {
+    return err('FORBIDDEN', 'Only an admin may migrate legacy images.');
+  }
+  const parsed = migrateLegacyImagesSchema.safeParse(req.data ?? {});
+  if (!parsed.success) return err('BAD_REQUEST', 'Invalid migration parameters');
+  const dryRun = parsed.data.dryRun === true;
+  const limit = parsed.data.limit ?? LEGACY_MIGRATION_DB_PAGE_SIZE;
+
+  const candidates = await listLegacyImageCandidates(limit);
+  const migrated: string[] = [];
+  const skipped: Array<{ id: string; reason: string }> = [];
+
+  for (const doc of candidates.items) {
+    const id = String(doc._id);
+    const data = typeof doc.data === 'string' ? doc.data : '';
+    if (!data || data.length % 4 !== 0 || !BASE64_RE.test(data)) {
+      skipped.push({ id, reason: 'missing or malformed base64 data' });
+      continue;
+    }
+    const bytes = Buffer.from(data, 'base64');
+    if (bytes.byteLength === 0) {
+      skipped.push({ id, reason: 'empty decoded bytes' });
+      continue;
+    }
+    if (bytes.byteLength > CATALOG_IMAGE_MAX_BYTES) {
+      skipped.push({ id, reason: 'decoded bytes exceed the catalog image size cap' });
+      continue;
+    }
+    if (dryRun) {
+      migrated.push(id);
+      continue;
+    }
+    try {
+      const mimeType = typeof doc.mimeType === 'string' ? doc.mimeType : 'application/octet-stream';
+      const name = typeof doc.name === 'string' && doc.name.length > 0 ? doc.name : `${id}.bin`;
+      const stored = await mediaStorage().putObject({
+        namespace: 'catalog',
+        logicalId: id,
+        fileName: `migrated-${name}`,
+        mimeType,
+        content: bytes,
+      });
+      // Staged fields ONLY — data/provider/storageFileId/status are intentionally
+      // untouched so delivery is unchanged and rollback is a no-op.
+      await updateDoc('images', id, {
+        migrationStorageFileId: stored.storageFileId,
+        migrationStoragePath: stored.storagePath,
+        migrationChecksumSha256: createHash('sha256').update(bytes).digest('hex'),
+        migrationByteSize: bytes.byteLength,
+        migratedAt: new Date().toISOString(),
+      });
+      migrated.push(id);
+    } catch (e) {
+      // A single failure never aborts the batch (§20.8); the row is retried next run.
+      console.error(`[fn-admin] migrateLegacyImages: failed for ${id}`, e);
+      skipped.push({ id, reason: e instanceof Error ? e.message : 'migration upload failed' });
+    }
+  }
+
+  return ok({
+    dryRun,
+    scanned: candidates.items.length,
+    total: candidates.total,
+    migratedCount: dryRun ? 0 : migrated.length,
+    migrated,
+    skipped,
   });
 }
 
