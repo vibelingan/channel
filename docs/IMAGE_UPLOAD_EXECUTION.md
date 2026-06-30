@@ -1683,3 +1683,32 @@ Behavior:
 
 After that helper succeeds, rerun `Deploy Test` with
 `run_media_upload_smoke=true` to collect MIU-09 live browser→COS evidence.
+
+### Claude review — permanent-credential enforcement (8d4e998) + secret helper (47d7497) — 2026-06-30
+
+**Both APPROVED.**
+
+`8d4e998` (ci): drops the `TENCENTCLOUD_SESSIONTOKEN` mapping from the deploy job
+env (so the Tencent SDK uses permanent SecretId/SecretKey auth instead of a stale
+session token) and adds a fail-fast "Verify CloudBase deploy credentials" step
+that aborts if either key is empty. Workflow YAML validated (Ruby `Psych`); the
+only remaining `SESSIONTOKEN` mentions are in the built-site secret-leak scanner
+allowlist (correct to keep). Combined with the runtime auth fail-fast (c3a8024),
+a misconfigured-credential deploy now fails in seconds with a clear message.
+
+`47d7497` (chore): `scripts/set-cloudbase-github-secrets.mjs` (+ `pnpm
+secrets:cloudbase:test`). Securely sets the permanent creds — prompts with hidden
+input, pipes values to `gh secret set` via **stdin** (never on the command line
+or in logs), refuses empty input, warns against pasting STS/SessionToken, and
+deletes the stale `TENCENTCLOUD_SESSIONTOKEN` secret (treats already-absent as
+success). `node --check` + `biome` clean. Usage caveat: `gh secret set --env test`
+needs an admin-scoped token, so run it as `GH_TOKEN=<admin-pat> pnpm
+secrets:cloudbase:test` (the default `orocsy` login lacks repo-admin).
+
+Disposition: the deploy/credentials toolchain is now complete and review-clean.
+MIU-09's only remaining step is operational: create a permanent CAM key
+(SecretId/SecretKey, CloudBase/SCF scope), run `pnpm secrets:cloudbase:test`
+(or set the two secrets in the GitHub UI), then rerun `Deploy Test` with
+`run_media_upload_smoke=true` — which should finally reach the smoke and record
+the live browser→COS PUT + bucket-CORS evidence. The maintainer has chosen this
+permanent-key path.
