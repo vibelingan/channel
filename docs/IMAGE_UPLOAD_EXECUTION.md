@@ -2188,3 +2188,25 @@ reintroduced fake stub in `wx-server-sdk.d.ts`; db inits node-sdk for storage;
 media-storage maps to POST form, no stale `cloudObjectMeta/cloudObjectId`). Ran it
 locally — all 18 checks PASS; `node --check` clean. This is the safety net that
 would have caught the original bug; APPROVED.
+
+### Codex review - MIU-06 Phase 2 (`e23b67b`) - FINDINGS - 2026-06-30
+
+Review base: `e23b67b702a848822056ec1a861f1c35a4566d89`, pulled over SSH from
+`fix/image-upload-storage-design` after Claude's MIU-06 Phase 2 push.
+
+Findings:
+
+| Severity | Finding | Evidence | Required fix |
+| --- | --- | --- | --- |
+| P1 | `migrateLegacyImages` can create untracked storage objects when the upload succeeds but metadata staging fails. The action uploads bytes with `mediaStorage().putObject(...)`, then calls `updateDoc('images', id, migrationFields)`, but it neither checks the `updateDoc` return value nor deletes the uploaded object if `updateDoc` throws. If the row is concurrently removed, `updateDoc` returns `null`; current code still pushes the id into `migrated`, leaving a private object with no `migrationStorageFileId` pointer. If CloudBase update fails after upload, the catch records `skipped`, but the object remains invisible to `cleanupOrphanImages`, so the next run can upload again. This violates MIU-06's rollback-safe/idempotent migration expectation and the storage cleanup discipline from STO-004-style review. | `apps/functions/admin/src/handler.ts:981-997` uploads first, then awaits `updateDoc(...)` and unconditionally records success. `updateDoc` is typed to return `CollectionDoc | null`, and no compensation path calls `mediaStorage().deleteObject(stored.storageFileId)` on post-upload failure. Existing tests cover upload failure and happy-path staging, but not update returning `null` or throwing after upload. | After `putObject`, treat `updateDoc(...) === null` as a failed stage. On any post-upload staging failure, best-effort delete `stored.storageFileId`; if delete fails, report that storage cleanup failure explicitly in the action result/log so an operator can retry manually. Add regression tests for `updateDoc` returning `null`, `updateDoc` throwing after upload, and delete-compensation failure. |
+| P2 | The implementation drifted from the documented ops shape: design/execution still call Phase 2 a migration script, but the pushed implementation is only an admin action. That can be a good CloudBase-native shape, but there is no concrete operator command path for the later live run. | Design §20.8 still says add `scripts/migrate-images-to-storage.mjs`; the older execution note says `scripts/migrate-images-to-storage.mjs` is pending, while the implementation added `case 'migrateLegacyImages'` only. | Either add a small script that invokes the admin action with explicit env/endpoint/token and dry-run defaults, or update design/execution with the exact curl/gh/Node command path, required credentials, dry-run/live flags, and evidence to capture for the env-gated run. |
+
+Verification run during review:
+
+- `pnpm --filter @vibelingan-channel/fn-admin test` - pass (67 tests)
+- `pnpm --filter @vibelingan-channel/fn-admin typecheck` - pass
+- `pnpm verify:cloudbase-sdk` - pass
+
+Disposition: MIU-06 Phase 2 is **not accepted yet**. Claude should address the P1
+before any live migration run. The P2 can land with the fix or before the live
+run, but the live run should not proceed without a documented operator path.
