@@ -15,6 +15,7 @@ import {
   type MediaStorageAdapter,
   type PutMediaObjectInput,
   type StoredMediaObject,
+  type UploadCredential,
   objectStoragePath,
 } from './index.ts';
 
@@ -82,5 +83,15 @@ export class LocalDiskMediaStorage implements MediaStorageAdapter {
   async deleteObject(fileId: string): Promise<void> {
     const abs = this.resolveSafe(this.toStoragePath(fileId));
     await rm(abs, { force: true });
+  }
+
+  async getUploadCredential(_cloudPath: string): Promise<UploadCredential> {
+    // Project decision: there is ONE upload path everywhere — the admin flow
+    // always mints a real CloudBase pre-signed credential (set TCB_ENV locally to
+    // wire createCloudBaseMediaStorage). Local-disk is a dev convenience for byte
+    // DELIVERY only, never an upload target, so fail loudly if reached.
+    throw new Error(
+      'media-storage(local-disk): uploads are not brokered locally — configure TCB_ENV to mint CloudBase upload credentials. Local-disk handles byte delivery only.',
+    );
   }
 }

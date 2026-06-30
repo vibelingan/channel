@@ -1,4 +1,6 @@
 import { strict as assert } from 'node:assert';
+import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { signSession } from '@vibelingan-channel/auth/jwt';
 import {
@@ -10,7 +12,13 @@ import {
   setAdapter,
 } from '@vibelingan-channel/db';
 import {
+  type MediaStorageAdapter,
+  type UploadCredential,
+  setMediaStorage,
+} from '@vibelingan-channel/media-storage';
+import {
   type ApiResult,
+  CATALOG_IMAGE_MAX_BYTES,
   type CollectionDoc,
   type ListResult,
   matchesFilter,
@@ -787,4 +795,245 @@ test('backfill requests _id-sorted pages so CloudBase skip/limit paging is stabl
     // Every paged scan must carry the unique-key tiebreaker (the P2 fix).
     assert.deepEqual(q.sort, [{ field: '_id', dir: 'asc' }]);
   }
+});
+
+// --- MIU-Upload (U1): createUploadIntent / completeUpload --------------------
+
+/** Configurable media-storage fake: canned credential + object bytes, with
+ *  switches for the mint-failure and missing-object paths. */
+function makeFakeMediaStorage(
+  opts: {
+    uploadThrows?: boolean;
+    objectBytes?: Buffer | null;
+    omitByteSize?: boolean; // exercise the byteSize ?? bytes.byteLength fallback
+    reportByteSize?: number; // report a size without allocating (oversize test)
+    credential?: Partial<UploadCredential>;
+  } = {},
+): MediaStorageAdapter {
+  return {
+    async putObject() {
+      throw new Error('fake: putObject not used in admin upload tests');
+    },
+    async getTempUrl() {
+      throw new Error('fake: getTempUrl not used in admin upload tests');
+    },
+    async deleteObject() {
+      // allowed (compensation path) — no-op
+    },
+    async getUploadCredential(cloudPath: string): Promise<UploadCredential> {
+      if (opts.uploadThrows) throw new Error('fake: credential mint failed');
+      return {
+        uploadUrl: 'https://cos.example/put',
+        authorization: 'q-sign-algorithm=...',
+        token: 'sts-token',
+        cosFileId: 'cos-meta',
+        storageFileId: `cloud://env.bucket/${cloudPath}`,
+        ...opts.credential,
+      };
+    },
+    async getObjectAsBase64(_fileId: string): Promise<{ body: string; byteSize?: number }> {
+      if (opts.objectBytes === null) throw new Error('fake: object not found');
+      const buf = opts.objectBytes ?? Buffer.from('IMG');
+      const body = buf.toString('base64');
+      if (opts.omitByteSize) return { body };
+      return { body, byteSize: opts.reportByteSize ?? buf.byteLength };
+    },
+  };
+}
+
+/** Extract the `data` payload of a successful ApiResult (asserts ok first). */
+function okData<T = Record<string, unknown>>(res: ApiResult<unknown>): T {
+  assert.equal(res.ok, true);
+  if (!res.ok) throw new Error('unreachable');
+  return res.data as T;
+}
+
+const validUpload = { fileName: 'photo.jpg', mimeType: 'image/jpeg', byteSize: 2048 };
+
+test('createUploadIntent mints a credential and writes a pending image doc', async () => {
+  const store = imageStore([]);
+  setup(store);
+  setMediaStorage(makeFakeMediaStorage());
+  const token = await adminToken();
+  const res = await call('createUploadIntent', validUpload, token);
+  const data = okData<{
+    imageId: string;
+    uploadIntentId: string;
+    storageFileId: string;
+    upload: { url: string; headers: Record<string, string> };
+  }>(res);
+
+  assert.ok(data.imageId);
+  assert.equal(data.upload.url, 'https://cos.example/put');
+  assert.equal(data.upload.headers.Authorization, 'q-sign-algorithm=...');
+  assert.equal(data.upload.headers['X-Cos-Security-Token'], 'sts-token');
+  assert.equal(data.upload.headers['X-Cos-Meta-Fileid'], 'cos-meta');
+
+  const doc = store.images?.find((i) => i._id === data.imageId);
+  assert.equal(doc?.status, 'pending');
+  assert.equal(doc?.storageProvider, 'cloudbase-storage');
+  assert.equal(doc?.publishedRefCount, 0);
+  assert.equal(doc?.uploadIntentId, data.uploadIntentId);
+  assert.equal(doc?.storageFileId, data.storageFileId);
+  assert.ok(
+    typeof doc?.storagePath === 'string' && (doc.storagePath as string).startsWith('catalog/'),
+  );
+});
+
+test('createUploadIntent rejects a disallowed mime (svg) and writes nothing', async () => {
+  const store = imageStore([]);
+  setup(store);
+  setMediaStorage(makeFakeMediaStorage());
+  const token = await adminToken();
+  const res = await call(
+    'createUploadIntent',
+    { fileName: 'x.svg', mimeType: 'image/svg+xml', byteSize: 100 },
+    token,
+  );
+  expectErr(res, 'VALIDATION_ERROR');
+  assert.equal((store.images ?? []).length, 0);
+});
+
+test('createUploadIntent is forbidden for a non-editor role (viewer)', async () => {
+  setup(imageStore([]));
+  setMediaStorage(makeFakeMediaStorage());
+  const token = await signSession('test-secret', {
+    sub: 'v-1',
+    email: 'v@example.com',
+    name: 'viewer',
+    role: 'viewer',
+  });
+  expectErr(await call('createUploadIntent', validUpload, token), 'FORBIDDEN');
+});
+
+test('createUploadIntent: a credential-mint failure leaves no orphan doc', async () => {
+  const store = imageStore([]);
+  setup(store);
+  setMediaStorage(makeFakeMediaStorage({ uploadThrows: true }));
+  const token = await adminToken();
+  // Minted before any DB write → the failure surfaces but nothing is persisted.
+  expectErr(await call('createUploadIntent', validUpload, token), 'INTERNAL_ERROR');
+  assert.equal((store.images ?? []).length, 0);
+});
+
+test('completeUpload verifies bytes, records size+checksum, flips pending → active', async () => {
+  const store = imageStore([]);
+  setup(store);
+  const bytes = Buffer.from('the real image bytes');
+  setMediaStorage(makeFakeMediaStorage({ objectBytes: bytes }));
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(
+    await call('createUploadIntent', { ...validUpload, byteSize: bytes.byteLength }, token),
+  );
+  const res = await call('completeUpload', { imageId: intent.imageId }, token);
+  assert.equal(res.ok, true);
+  const doc = store.images?.find((i) => i._id === intent.imageId);
+  assert.equal(doc?.status, 'active');
+  assert.equal(doc?.byteSize, bytes.byteLength);
+  assert.equal(doc?.checksumSha256, createHash('sha256').update(bytes).digest('hex'));
+});
+
+test('completeUpload leaves the doc PENDING (retryable) when the object is not yet retrievable', async () => {
+  const store = imageStore([]);
+  setup(store);
+  setMediaStorage(makeFakeMediaStorage({ objectBytes: null })); // mint ok, object not (yet) there
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
+  expectErr(await call('completeUpload', { imageId: intent.imageId }, token), 'NOT_FOUND');
+  // Not dead-ended to failed — a transient/eventually-consistent miss can retry;
+  // a truly abandoned intent is reaped by orphan cleanup (MIU-06).
+  assert.equal(store.images?.find((i) => i._id === intent.imageId)?.status, 'pending');
+});
+
+test('completeUpload rejects an over-cap landed object (server re-checks size)', async () => {
+  const store = imageStore([]);
+  setup(store);
+  // Declared small at intent (passes), but the object that landed is over the cap.
+  setMediaStorage(
+    makeFakeMediaStorage({
+      objectBytes: Buffer.from('x'),
+      reportByteSize: CATALOG_IMAGE_MAX_BYTES + 1,
+    }),
+  );
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
+  expectErr(await call('completeUpload', { imageId: intent.imageId }, token), 'VALIDATION_ERROR');
+  assert.equal(store.images?.find((i) => i._id === intent.imageId)?.status, 'failed');
+});
+
+test('completeUpload records the SERVER-measured size, not the client-declared one', async () => {
+  const store = imageStore([]);
+  setup(store);
+  const landed = Buffer.from('the actual landed bytes are longer than the declared 8');
+  setMediaStorage(makeFakeMediaStorage({ objectBytes: landed }));
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(
+    await call('createUploadIntent', { ...validUpload, byteSize: 8 }, token), // declared 8 (a lie)
+  );
+  await call('completeUpload', { imageId: intent.imageId }, token);
+  assert.equal(store.images?.find((i) => i._id === intent.imageId)?.byteSize, landed.byteLength);
+});
+
+test('completeUpload byteSize falls back to the decoded length when the adapter omits it', async () => {
+  const store = imageStore([]);
+  setup(store);
+  const landed = Buffer.from('bytes-without-a-reported-size');
+  setMediaStorage(makeFakeMediaStorage({ objectBytes: landed, omitByteSize: true }));
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(
+    await call('createUploadIntent', { ...validUpload, byteSize: landed.byteLength }, token),
+  );
+  await call('completeUpload', { imageId: intent.imageId }, token);
+  assert.equal(store.images?.find((i) => i._id === intent.imageId)?.byteSize, landed.byteLength);
+});
+
+test('completeUpload requires an imageId (BAD_REQUEST)', async () => {
+  setup(imageStore([]));
+  setMediaStorage(makeFakeMediaStorage());
+  const token = await adminToken();
+  expectErr(await call('completeUpload', {}, token), 'BAD_REQUEST');
+});
+
+test('createUploadIntent allows a contributor (positive auth case)', async () => {
+  const store = imageStore([]);
+  setup(store);
+  setMediaStorage(makeFakeMediaStorage());
+  const token = await signSession('test-secret', {
+    sub: 'c-1',
+    email: 'c@example.com',
+    name: 'contributor',
+    role: 'contributor',
+  });
+  const res = await call('createUploadIntent', validUpload, token);
+  assert.equal(res.ok, true);
+  assert.equal((store.images ?? []).length, 1);
+  assert.equal(store.images?.[0]?.status, 'pending');
+});
+
+test('completeUpload marks the doc failed on a checksum mismatch', async () => {
+  const store = imageStore([]);
+  setup(store);
+  const bytes = Buffer.from('actual landed bytes');
+  setMediaStorage(makeFakeMediaStorage({ objectBytes: bytes }));
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(
+    await call(
+      'createUploadIntent',
+      { ...validUpload, byteSize: bytes.byteLength, checksumSha256: 'deadbeef' }, // wrong
+      token,
+    ),
+  );
+  expectErr(await call('completeUpload', { imageId: intent.imageId }, token), 'VALIDATION_ERROR');
+  assert.equal(store.images?.find((i) => i._id === intent.imageId)?.status, 'failed');
+});
+
+test('completeUpload: unknown id → NOT_FOUND; finalizing twice → CONFLICT', async () => {
+  const store = imageStore([]);
+  setup(store);
+  setMediaStorage(makeFakeMediaStorage({ objectBytes: Buffer.from('x') }));
+  const token = await adminToken();
+  expectErr(await call('completeUpload', { imageId: 'does-not-exist' }, token), 'NOT_FOUND');
+  const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
+  await call('completeUpload', { imageId: intent.imageId }, token); // → active
+  expectErr(await call('completeUpload', { imageId: intent.imageId }, token), 'CONFLICT');
 });

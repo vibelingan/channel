@@ -17,6 +17,7 @@ class FakeSdk implements CloudBaseStorageSdk {
   uploads: { cloudPath: string; fileContent: unknown }[] = [];
   tempFileLists: (string | { fileID: string; maxAge?: number })[][] = [];
   deleteFileLists: string[][] = [];
+  uploadMetaPaths: string[] = [];
 
   constructor(
     private readonly opts: {
@@ -26,8 +27,20 @@ class FakeSdk implements CloudBaseStorageSdk {
       dropIds?: Set<string>; // these fileIDs are omitted from the result (missing)
       deleteShape?: 'wx' | 'node';
       mapDeleteFileId?: (id: string) => string;
+      incompleteUpload?: boolean; // mint metadata missing uploadUrl (failure case)
     } = {},
   ) {}
+
+  async getUploadMetadata(o: { cloudPath: string }) {
+    this.uploadMetaPaths.push(o.cloudPath);
+    return {
+      uploadUrl: this.opts.incompleteUpload ? '' : 'https://cos.example/put',
+      authorization: 'q-sign-algorithm=...',
+      token: 'sts-token',
+      cloudObjectMeta: 'cos-meta',
+      cloudObjectId: `cloud://env.bucket/${o.cloudPath}`,
+    };
+  }
 
   async uploadFile(o: {
     cloudPath: string;
@@ -127,6 +140,24 @@ test('cloudbase getObjectAsBase64: returns base64 + byteSize', async () => {
   const r = await store.getObjectAsBase64('cloud://x');
   assert.equal(r.body, Buffer.from('hello world').toString('base64'));
   assert.equal(r.byteSize, 'hello world'.length);
+});
+
+test('cloudbase getUploadCredential maps the SDK upload metadata to the clean shape', async () => {
+  const sdk = new FakeSdk();
+  const store = createCloudBaseMediaStorage(sdk);
+  const cred = await store.getUploadCredential('catalog/2026/06/img1/original-p.jpg');
+  assert.deepEqual(sdk.uploadMetaPaths.at(-1), 'catalog/2026/06/img1/original-p.jpg');
+  assert.equal(cred.uploadUrl, 'https://cos.example/put');
+  assert.equal(cred.authorization, 'q-sign-algorithm=...');
+  assert.equal(cred.token, 'sts-token');
+  assert.equal(cred.cosFileId, 'cos-meta'); // cloudObjectMeta → X-Cos-Meta-Fileid
+  assert.equal(cred.storageFileId, 'cloud://env.bucket/catalog/2026/06/img1/original-p.jpg');
+});
+
+test('cloudbase getUploadCredential throws on incomplete metadata (no uploadUrl)', async () => {
+  const sdk = new FakeSdk({ incompleteUpload: true });
+  const store = createCloudBaseMediaStorage(sdk);
+  await assert.rejects(() => store.getUploadCredential('catalog/x'), /incomplete upload metadata/);
 });
 
 test('cloudbase deleteObject: deletes the single fileId', async () => {

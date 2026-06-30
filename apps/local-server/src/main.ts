@@ -21,6 +21,7 @@ import { seed } from './seed.ts';
 const PORT = Number(optionalEnv('PORT', '3002'));
 const DB_FILE = resolve(process.cwd(), optionalEnv('LOCAL_DB_FILE', './data/db.local.json'));
 const MEDIA_DIR = resolve(process.cwd(), optionalEnv('LOCAL_MEDIA_DIR', './data/media'));
+const TCB_ENV = optionalEnv('TCB_ENV', '');
 
 // Dev defaults so the server runs with zero configuration.
 const config: AdminConfig = {
@@ -30,7 +31,28 @@ const config: AdminConfig = {
 
 const adapter = new JsonFileAdapter(DB_FILE);
 setAdapter(adapter);
-setMediaStorage(new LocalDiskMediaStorage(MEDIA_DIR));
+
+// The DB stays file-backed locally, but media UPLOADS always mint a real
+// CloudBase pre-signed credential (project decision: one upload path
+// everywhere). When TCB_ENV is configured, wire the CloudBase media adapter so
+// createUploadIntent/completeUpload work locally too; the dynamic import keeps
+// wx-server-sdk out of the default (no-CloudBase) dev run. Otherwise fall back to
+// local-disk for byte DELIVERY only — uploads then fail loudly.
+if (TCB_ENV) {
+  const { cloudStorageSdk, initCloudBase } = await import('@vibelingan-channel/db/cloudbase');
+  const { createCloudBaseMediaStorage } = await import(
+    '@vibelingan-channel/media-storage/cloudbase'
+  );
+  initCloudBase(TCB_ENV);
+  setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk));
+  console.log(
+    `[local-server] media storage: CloudBase (TCB_ENV=${TCB_ENV}) — real uploads + delivery`,
+  );
+} else {
+  setMediaStorage(new LocalDiskMediaStorage(MEDIA_DIR));
+  console.log('[local-server] media storage: local-disk (delivery only; set TCB_ENV for uploads)');
+}
+
 await seed(adapter);
 
 const app = express();

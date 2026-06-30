@@ -19,6 +19,7 @@ import {
   type MediaStorageAdapter,
   type PutMediaObjectInput,
   type StoredMediaObject,
+  type UploadCredential,
   objectStoragePath,
 } from './index.ts';
 
@@ -41,6 +42,18 @@ export interface CloudBaseStorageSdk {
   // `{ fileContent: Buffer }` is still assignable here.
   downloadFile(options: { fileID: string }): Promise<{ fileContent: Buffer | undefined }>;
   deleteFile(options: { fileList: string[] }): Promise<{ fileList: unknown[] }>;
+  // Mints a single-object pre-signed upload credential (classic-storage
+  // `POST /v1/storages/get-objects-upload-info`). Permission-gated to the server
+  // identity. Field shape per MIU-00 probe (design §24 / execution-doc
+  // §"Upload-credential mechanism").
+  getUploadMetadata(options: { cloudPath: string }): Promise<{
+    uploadUrl: string;
+    authorization: string;
+    token: string;
+    cloudObjectMeta: string;
+    cloudObjectId: string;
+    downloadUrl?: string;
+  }>;
 }
 
 /**
@@ -123,6 +136,22 @@ export function createCloudBaseMediaStorage(sdk: CloudBaseStorageSdk): MediaStor
       return {
         url: first.tempFileURL,
         expiresAt: new Date(Date.now() + maxAge * 1000).toISOString(),
+      };
+    },
+
+    async getUploadCredential(cloudPath: string): Promise<UploadCredential> {
+      const meta = await sdk.getUploadMetadata({ cloudPath });
+      // The browser PUT and the persisted storageFileId both depend on these, so
+      // fail loudly rather than mint a half-credential that 403s in the browser.
+      if (!meta || !meta.uploadUrl || !meta.cloudObjectId) {
+        throw new Error(`media-storage(cloudbase): incomplete upload metadata for ${cloudPath}`);
+      }
+      return {
+        uploadUrl: meta.uploadUrl,
+        authorization: meta.authorization,
+        token: meta.token,
+        cosFileId: meta.cloudObjectMeta,
+        storageFileId: meta.cloudObjectId,
       };
     },
 

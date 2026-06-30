@@ -34,11 +34,38 @@ export interface StoredMediaObject {
   byteSize?: number;
 }
 
+/**
+ * A short-lived, single-object credential that lets the BROWSER write bytes
+ * straight to storage (bypassing the function byte cap). The server mints it; the
+ * browser does a raw `PUT uploadUrl` with the COS headers, then reports back so
+ * the server can verify + activate. `storageFileId` is the durable id to persist.
+ * See docs/IMAGE_UPLOAD_EXECUTION.md §"Upload-credential mechanism".
+ */
+export interface UploadCredential {
+  /** Raw PUT target for the bytes. */
+  uploadUrl: string;
+  /** Value for the request `Authorization` header. */
+  authorization: string;
+  /** Value for the `X-Cos-Security-Token` header. */
+  token: string;
+  /** Value for the `X-Cos-Meta-Fileid` header (CloudBase object meta). */
+  cosFileId: string;
+  /** Durable storage id to persist on the image doc (e.g. `cloud://env.bucket/path`). */
+  storageFileId: string;
+}
+
 export interface MediaStorageAdapter {
   putObject(input: PutMediaObjectInput): Promise<StoredMediaObject>;
   getObjectAsBase64(fileId: string): Promise<{ body: string; byteSize?: number }>;
   getTempUrl(fileId: string, maxAgeSeconds?: number): Promise<{ url: string; expiresAt?: string }>;
   deleteObject(fileId: string): Promise<void>;
+  /**
+   * Mint a pre-signed credential for a browser-direct upload to `cloudPath`
+   * (server-controlled). The browser never holds a storage identity — only this
+   * single-object, short-lived credential. Used by the admin createUploadIntent
+   * flow (MIU-Upload).
+   */
+  getUploadCredential(cloudPath: string): Promise<UploadCredential>;
 }
 
 /**

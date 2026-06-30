@@ -16,7 +16,7 @@ design-only; validation results and capability probes live here.
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
 | MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex A-review + post-D review + self-adversarial B/C/D reviews all resolved | `4823a12`+fixes, Phase B, C, D, post-D hardening | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. Post-D: strict-number counter guard (reject numeric strings), present-but-corrupt fails closed (no scan), unknown provider fails closed; public-api 16→20. All suites pass; both functions build; root tsc + biome clean. Deployed smoke = MIU-09 |
 | MIU-05 | Admin UI uploader (FormData) | pending | — | — |
-| MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | pending | — | env-gated; CORS/origin proof is a hard precondition (see Disposition) |
+| MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | U1 (server) done + self-review resolved; U2 (UI) + live mint/CORS env-gated | Phase U1 | `createUploadIntent`/`completeUpload` admin actions + `getUploadCredential` DI adapter method (CloudBase mint / local-disk throws) + local-server CloudBase-media wiring (TCB_ENV); admin tests 32→45; both functions build. Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
 | MIU-09 | Deploy, smoke, review hardening | pending | — | env-gated |
@@ -766,3 +766,66 @@ because the local Codex config had `service_tier = "default"` while the installe
 CLI accepts only `fast`/`flex`, and the backend rejected `flex`. The local config
 was backed up and changed to `service_tier = "fast"`; a direct `codex exec` smoke
 then returned `OK`.
+
+## MIU-Upload — U1 server contract (done)
+
+The admin-brokered direct-upload server, built to the authoritative contract
+(design §20.7, now rewritten as the as-built LLD). One upload path everywhere:
+the browser PUTs bytes straight to CloudBase with a server-minted single-object
+pre-signed credential; local-disk is delivery-only.
+
+- `MediaStorageAdapter.getUploadCredential(cloudPath)` (DI): CloudBase wraps
+  `getUploadMetadata` and maps it to `{ uploadUrl, authorization, token, cosFileId,
+  storageFileId }`; local-disk throws (uploads always route through CloudBase).
+- `createUploadIntent` (admin/contributor): validate `catalogImageUploadSchema` →
+  mint credential FIRST (no orphan on failure) → write a `pending` image doc →
+  return `{ imageId, upload: { url, headers } }`.
+- `completeUpload`: verify the object is retrievable, recompute size + SHA-256
+  SERVER-side, re-enforce the size cap, then flip `pending → active`.
+- Local wiring: `local-server` mints REAL CloudBase credentials when `TCB_ENV` is
+  set (dynamic import keeps `wx-server-sdk` out of the default dev run); else
+  local-disk delivery-only. DB stays file-backed.
+- Validation: admin handler 32 → 45 (intent happy/validation/forbidden/mint-fail;
+  complete verify→active, retrieval-miss stays pending, over-cap→failed, checksum
+  mismatch→failed, server-measured size, byteSize fallback, BAD_REQUEST, double→
+  CONFLICT, contributor positive auth) + media-storage 23→26. Both functions
+  build with the upload actions bundled; root tsc + biome clean.
+
+### MIU-Upload U1 Self-Review — adversarial workflow (2026-06-30)
+
+6-dimension review (intent/complete correctness, security-auth, lifecycle/
+compensation, wiring-parity, test-completeness), each finding verified by a
+skeptic. 9 confirmed (1 P2 + 8 P3), 0 dismissed. Disposition:
+
+- **P2 (fixed) — size cap not re-enforced.** The 10 MiB cap was checked only
+  against the client-declared `byteSize` at intent; the pre-signed credential is
+  unbounded, so an editor could declare small and PUT a huge object.
+  `completeUpload` now re-checks the SERVER-measured size against
+  `CATALOG_IMAGE_MAX_BYTES` and marks the doc `failed` over the cap. Regression
+  test added.
+- **P3 (fixed) — transient retrieval miss dead-ended the doc.** A failed
+  `getObjectAsBase64` marked the doc `failed`. Now it leaves the doc `pending`
+  (retryable; orphan cleanup reaps a truly abandoned intent) and only
+  checksum/size failures mark `failed`.
+- **P3 (fixed) — orphaned object on a failed completion.** The size/checksum
+  failure paths now best-effort `deleteObject` the rejected bytes (compensation;
+  MIU-06 also sweeps).
+- **P3 (fixed) — 4 test gaps:** declared≠landed size, `byteSize` fallback,
+  `completeUpload` BAD_REQUEST, contributor positive-auth. Added.
+- **Deferred (noted):** (a) magic-byte content sniff (declared-vs-actual MIME) —
+  P3 defense-in-depth, bounded (trusted editor; served as `image/*` so no XSS),
+  deferred to a hardening pass; (b) local-server `/api/images/:id` storage-backed
+  delivery (serves only legacy `data` today) — folded into **U2**, where the
+  uploader UI + local view loop live.
+- Re-verify: root tsc + biome clean; admin 45, media-storage 26, public-api 20,
+  shared 13; both functions build.
+
+### Design doc updated
+
+`docs/IMAGE_UPLOAD_STORAGE_DESIGN.md` §20.7 rewritten from a "SUPERSEDED" banner
+into the authoritative **as-built MIU-Upload LLD** (server contract, credential
+provider, local wiring, lifecycle, MIU-05 UI flow, env-gated CORS/mint); §6's
+high-level mermaid aligned to the as-built flow (pending-at-intent,
+`completeUpload(imageId)`, activate-at-complete, refCount delivery gate); the
+§20.5/§20.9 banners now cross-reference §20.7 as authoritative. Closes the
+long-standing "stale design LLD" Codex P1.

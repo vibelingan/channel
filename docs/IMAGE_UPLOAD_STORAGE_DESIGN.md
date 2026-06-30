@@ -224,20 +224,21 @@ sequenceDiagram
   participant Public as public-api
   participant Shop as Shop UI
 
-  UI->>Admin: createUploadIntent(token, purpose, file metadata)
-  Admin->>Admin: validate JWT, role, MIME, size, purpose
-  Admin->>Storage: request signed upload info for storage key
-  Storage-->>Admin: upload URL/token or SDK upload grant
-  Admin-->>UI: upload intent and required headers
+  UI->>Admin: createUploadIntent(token, file metadata)
+  Admin->>Admin: validate JWT, role, MIME, size
+  Admin->>Storage: getUploadMetadata(cloudPath) — server identity
+  Storage-->>Admin: pre-signed upload URL + headers
+  Admin->>DB: write pending image doc
+  Admin-->>UI: { imageId, upload: { url, headers } }
   UI->>Storage: PUT raw bytes
-  UI->>Admin: completeUpload(intentId, storage file ID, checksum)
-  Admin->>Storage: verify object exists and metadata matches
-  Admin->>DB: create images metadata document
-  Admin-->>UI: image document ID
+  UI->>Admin: completeUpload(imageId)
+  Admin->>Storage: verify object + recompute size/SHA-256
+  Admin->>DB: activate image doc (pending → active)
+  Admin-->>UI: { imageId, status: active }
   Shop->>Public: GET /api/images/:id
-  Public->>DB: check image metadata and published references
-  Public->>Storage: resolve signed/public delivery URL
-  Public-->>Shop: redirect/proxy to image bytes
+  Public->>DB: status active && publishedRefCount > 0?
+  Public->>Storage: proxy bytes (getObjectAsBase64)
+  Public-->>Shop: image bytes
 ```
 
 Architecture:
@@ -1334,10 +1335,10 @@ Exit criteria:
 > lived here were REMOVED to avoid a copy-paste trap. MIU-03 is folded with MIU-07
 > into one admin-brokered direct-upload MIU.
 >
-> Authoritative flow + data shapes: `docs/IMAGE_UPLOAD_EXECUTION.md`
-> §"Upload-credential mechanism" (createUploadIntent → server `getUploadMetadata`
-> → browser raw COS `PUT` → completeUpload verify+activate) and §"MIU-Upload
-> preconditions".
+> Authoritative as-built design: **§20.7 (MIU-Upload)**; live-env evidence +
+> preconditions: `docs/IMAGE_UPLOAD_EXECUTION.md` §"Upload-credential mechanism"
+> (createUploadIntent → server `getUploadMetadata` → browser raw COS `PUT` →
+> completeUpload verify+activate) and §"MIU-Upload preconditions".
 >
 > Carry-over policy (still enforced by the upload MIU):
 > - Catalog MIME allowlist + max size from `@vibelingan-channel/shared`
@@ -1458,19 +1459,79 @@ Exit criteria:
 - No O(catalog) scan remains in `getCatalogImage()` for the new path.
 - Public image privacy has deterministic unit and deployed smoke coverage.
 
-### 20.7 MIU-05 - Admin UI Uploader (SUPERSEDED — see MIU-Upload)
+### 20.7 MIU-Upload — Admin-Brokered Direct Upload (was MIU-03 + MIU-05 + MIU-07)
 
-> SUPERSEDED by MIU-00 validation (§24). The original `FormData`-through-`/api/admin`
-> uploader code and FormData tests were REMOVED (that transport hits the 100 KiB
-> cap). The admin UI instead drives the admin-brokered direct-upload flow:
-> `createUploadIntent` → raw `PUT` the bytes to the returned COS `uploadUrl` (with the
-> `Authorization`/`X-Cos-Security-Token`/`X-Cos-Meta-Fileid` headers) → `completeUpload`.
-> See `docs/IMAGE_UPLOAD_EXECUTION.md` §"Upload-credential mechanism".
->
-> Carry-over UI requirements (still apply): keep the product form value shape
-> `imageIds: string[]`; show per-file pending/uploading/succeeded/failed with retry,
-> preserving successful IDs in order; keep `imageUrl(id)` previews via
-> `/api/images/:id`; do not import the CloudBase Web SDK.
+The single upload MIU. The old server-multipart (MIU-03), `FormData`-through-
+`/api/admin` (MIU-05), and CloudBase Web-SDK (MIU-07) paths are all folded here —
+§24 records why (the 100 KiB function-route cap and the absent browser CloudBase
+identity). **One upload path everywhere:** the browser `PUT`s bytes straight to
+CloudBase Storage using a server-minted, single-object, short-lived pre-signed
+credential. The custom JWT stays the only browser credential — no local-folder
+upload path, no CloudBase Web SDK in the browser.
+
+**Server contract — U1, IMPLEMENTED** (`apps/functions/admin/src/handler.ts`):
+
+1. `createUploadIntent` — body = catalog-image metadata validated by
+   `catalogImageUploadSchema` (`fileName`; `mimeType` ∈ {jpeg, png, webp};
+   `byteSize` int > 0, ≤ 10 MiB; optional client `checksumSha256`; `purpose`).
+   The action:
+   - authorizes `canEditCollection(role, 'images')` (admin/contributor);
+   - picks a server-controlled `cloudPath`
+     (`catalog/<yyyy>/<mm>/<uploadIntentId>/original-<safeName>`), where
+     `uploadIntentId` is a fresh UUID — so the credential is minted with no prior
+     DB write;
+   - mints the credential **first** via `mediaStorage().getUploadCredential(cloudPath)`
+     (a mint failure therefore leaves no orphan doc, and no bytes exist yet);
+   - writes a `pending` `images` doc with server-owned fields only
+     (`storageProvider: 'cloudbase-storage'`, `storageMode: 'classic-nosql-storage'`,
+     `storagePath`, `storageFileId`, `status: 'pending'`, `publishedRefCount: 0`,
+     `uploadIntentId`, `byteSize`, optional `checksumSha256`);
+   - returns `{ imageId, uploadIntentId, storageFileId, upload: { url, headers } }`,
+     where `headers` = `Authorization`, `X-Cos-Security-Token`, `X-Cos-Meta-Fileid`
+     (NOT `Content-Length` — browser/UA-managed).
+2. Browser raw-`PUT`s the bytes to `upload.url` with those headers. Bytes go
+   browser → COS directly; the 100 KiB function cap is never on the path.
+3. `completeUpload` — body = `{ imageId }`. Verifies the object is retrievable,
+   **recomputes `byteSize` + SHA-256 SERVER-side** (never trusts the client;
+   §22.3-6), and flips the doc `pending → active`. A missing object, or a mismatch
+   against the client-declared `checksumSha256`, marks the doc `failed`;
+   re-completing an already-finalized doc returns `CONFLICT`.
+
+**Credential provider (dependency-injected)** —
+`MediaStorageAdapter.getUploadCredential(cloudPath)`:
+- CloudBase impl wraps the server-only `getUploadMetadata`
+  (`POST /v1/storages/get-objects-upload-info`) and maps its result to
+  `{ uploadUrl, authorization, token, cosFileId, storageFileId }`
+  (`cloudObjectMeta → cosFileId`, `cloudObjectId → storageFileId`); throws on
+  incomplete metadata.
+- local-disk impl **throws** — local-disk is a dev convenience for byte DELIVERY
+  only, never an upload target.
+- This keeps the credential mint the single env-bound piece; the two admin actions
+  are unit-tested with fakes.
+
+**Local development:** `local-server` mints REAL CloudBase credentials when
+`TCB_ENV` is set — `setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk))`
+via a dynamic import (so `wx-server-sdk` stays out of the default dev run) — so the
+upload flow works locally too. Without `TCB_ENV` it wires local-disk for delivery
+only and uploads fail loudly. The DB stays file-backed either way.
+
+**Lifecycle:** `pending` (intent) → `active` (verified) | `failed`
+(missing/mismatch). A `pending` doc whose `PUT` or `completeUpload` never arrives
+is never public (delivery gates on `status === 'active'` && `publishedRefCount > 0`,
+§20.6) and is reaped by orphan cleanup (§20.8 / MIU-06).
+
+**MIU-05 — Admin UI uploader (U2, drives this flow):** replace `uploadImage()`
+with `createUploadIntent` → raw `PUT` to `upload.url` → `completeUpload`. Keep the
+product form value shape `imageIds: string[]`; show per-file
+pending/uploading/succeeded/failed with retry, preserving successful IDs in order;
+keep `imageUrl(id)` previews via `/api/images/:id`; do NOT import the CloudBase
+Web SDK.
+
+**Still env-gated (MIU-09):** a real pre-signed-credential mint and the bucket
+**CORS gate** — allow `PUT` + `Authorization`/`X-Cos-Security-Token`/
+`X-Cos-Meta-Fileid`/`Content-Type` from the site origin — a hard readiness gate
+for browser→COS bytes. Evidence + preconditions: `docs/IMAGE_UPLOAD_EXECUTION.md`
+§"Upload-credential mechanism" / §"MIU-Upload preconditions".
 
 ### 20.8 MIU-06 - Legacy Image Migration And Orphan Cleanup
 
@@ -1538,11 +1599,12 @@ Exit criteria:
 > Web-SDK/publishable-key `MediaUploadIntent` spike code was REMOVED so no
 > implementer points at the wrong (Web SDK) mechanism.
 >
-> Authoritative mechanism: `docs/IMAGE_UPLOAD_EXECUTION.md` §"Upload-credential
-> mechanism" — the admin function mints a pre-signed COS credential via
-> `getUploadMetadata` / `POST /v1/storages/get-objects-upload-info` (server identity);
-> the browser raw-`PUT`s with that signature; the custom JWT stays the only browser
-> credential. CORS/origin proof is a hard precondition (§MIU-Upload preconditions).
+> Authoritative as-built design: **§20.7 (MIU-Upload)** — the admin function mints
+> a pre-signed COS credential via `getUploadMetadata` /
+> `POST /v1/storages/get-objects-upload-info` (server identity); the browser
+> raw-`PUT`s with that signature; the custom JWT stays the only browser credential.
+> Live-env evidence + the CORS/origin precondition: `docs/IMAGE_UPLOAD_EXECUTION.md`
+> §"Upload-credential mechanism" / §"MIU-Upload preconditions".
 
 ### 20.10 MIU-08 - OEM Files Follow-Up
 

@@ -13,7 +13,8 @@
  * trade-off: a role change only takes effect for a user once their current
  * token expires (12h) or they sign in again.
  */
-import { timingSafeEqual } from 'node:crypto';
+import { Buffer } from 'node:buffer';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { type SessionClaims, signSession, verifySession } from '@vibelingan-channel/auth/jwt';
 import {
   generateRandomPassword,
@@ -36,14 +37,17 @@ import {
   updateDoc,
 } from '@vibelingan-channel/db';
 import { sendOemConfirmationEmail, sendRecoveryEmail } from '@vibelingan-channel/email';
+import { catalogStoragePath, mediaStorage } from '@vibelingan-channel/media-storage';
 import {
   type ApiResult,
+  CATALOG_IMAGE_MAX_BYTES,
   COLLECTIONS,
   type CollectionDoc,
   FILTER_OPERATORS,
   type Role,
   canEditCollection,
   canReadCollection,
+  catalogImageUploadSchema,
   err,
   getCollection,
   isKnownCollection,
@@ -134,6 +138,13 @@ const batchUpdateSchema = z.object({
 const batchRemoveSchema = z.object({
   collection: z.string(),
   ids: z.array(z.string().min(1)).min(1).max(500),
+});
+
+const completeUploadSchema = z.object({
+  imageId: z.string().min(1),
+  // Echoed back by the client; advisory only — the server re-derives the
+  // durable storageFileId from the pending doc rather than trusting this.
+  cloudObjectId: z.string().optional(),
 });
 
 const SESSION_TTL = 60 * 60 * 12;
@@ -286,6 +297,10 @@ export async function handleAdminRequest(
         return await batchRemoveAction(req, claims);
       case 'backfillImageRefCounts':
         return await backfillImageRefCountsAction(req, claims);
+      case 'createUploadIntent':
+        return await createUploadIntentAction(req, claims);
+      case 'completeUpload':
+        return await completeUploadAction(req, claims);
       default:
         return err('BAD_REQUEST', `Unknown action: ${req.action}`);
     }
@@ -738,4 +753,148 @@ async function backfillImageRefCountsAction(
     (req.data as { dryRun?: unknown }).dryRun === true;
   const report = await backfillPublishedRefCounts({ dryRun });
   return ok(report);
+}
+
+/**
+ * Step 1 of the admin-brokered direct upload (MIU-Upload). Validates the file
+ * metadata, mints a single-object pre-signed credential, and writes a `pending`
+ * image doc. The browser then PUTs bytes straight to storage and calls
+ * `completeUpload`. The credential is minted FIRST so a mint failure never leaves
+ * an orphan doc; the bytes don't exist until the browser PUTs, so a half-finished
+ * intent is just a pending (never-public) doc for orphan cleanup (MIU-06).
+ */
+async function createUploadIntentAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  if (!canEditCollection(claims.role, 'images')) {
+    return err('FORBIDDEN', 'You do not have permission to upload images.');
+  }
+  const parsed = catalogImageUploadSchema.safeParse(req.data);
+  if (!parsed.success) {
+    return err('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join('; '));
+  }
+
+  // The path segment uses the intent id (a fresh UUID), so the credential can be
+  // minted before any DB write.
+  const uploadIntentId = randomUUID();
+  const cloudPath = catalogStoragePath({
+    imageId: uploadIntentId,
+    role: 'original',
+    fileName: parsed.data.fileName,
+  });
+  const credential = await mediaStorage().getUploadCredential(cloudPath);
+
+  const pending = await createDoc('images', {
+    name: parsed.data.fileName,
+    mimeType: parsed.data.mimeType,
+    purpose: parsed.data.purpose,
+    storageProvider: 'cloudbase-storage',
+    storageMode: 'classic-nosql-storage',
+    storagePath: cloudPath,
+    storageFileId: credential.storageFileId,
+    status: 'pending',
+    publishedRefCount: 0,
+    uploadIntentId,
+    byteSize: parsed.data.byteSize,
+    ...(parsed.data.checksumSha256 ? { checksumSha256: parsed.data.checksumSha256 } : {}),
+  });
+
+  return ok({
+    imageId: pending._id,
+    uploadIntentId,
+    storageFileId: credential.storageFileId,
+    upload: {
+      url: credential.uploadUrl,
+      // Browser sets these on the raw PUT; Content-Length is UA-managed (never set here).
+      headers: {
+        Authorization: credential.authorization,
+        'X-Cos-Security-Token': credential.token,
+        'X-Cos-Meta-Fileid': credential.cosFileId,
+      },
+    },
+  });
+}
+
+/**
+ * Step 3 of the admin-brokered upload. Verifies the bytes actually landed,
+ * recomputes size + SHA-256 SERVER-SIDE (never trusts the client; §22.3-6), and
+ * flips the pending doc to `active`. A missing object or checksum mismatch marks
+ * the doc `failed` so it never becomes public.
+ */
+async function completeUploadAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  if (!canEditCollection(claims.role, 'images')) {
+    return err('FORBIDDEN', 'You do not have permission to upload images.');
+  }
+  const parsed = completeUploadSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'imageId is required');
+
+  const doc = await get('images', parsed.data.imageId);
+  if (!doc) return err('NOT_FOUND', 'Upload intent not found');
+  if (doc.status !== 'pending') return err('CONFLICT', 'This upload was already finalized');
+  if (typeof doc.storageFileId !== 'string') {
+    return err('INTERNAL_ERROR', 'Upload intent is missing its storage id');
+  }
+
+  const storageFileId = doc.storageFileId;
+  const imageId = parsed.data.imageId;
+
+  let object: { body: string; byteSize?: number };
+  try {
+    object = await mediaStorage().getObjectAsBase64(storageFileId);
+  } catch (e) {
+    // The bytes are not retrievable (yet). This may be a transient / eventually
+    // consistent miss OR a PUT that never happened. Either way, leave the doc
+    // PENDING (never public) and let the caller retry; a truly abandoned intent
+    // is reaped by orphan cleanup (MIU-06). Do NOT dead-end it to `failed`.
+    console.error('[fn-admin] completeUpload: object not retrievable (left pending)', e);
+    return err(
+      'NOT_FOUND',
+      'Uploaded object not found yet — retry completeUpload once the PUT finishes.',
+    );
+  }
+
+  // The object IS present but fails verification below → mark `failed` and make a
+  // best-effort delete of the bad bytes (compensation; MIU-06 also sweeps).
+  const rejectInvalid = async (message: string): Promise<ApiResult<unknown>> => {
+    await updateDoc('images', imageId, { status: 'failed' });
+    await mediaStorage()
+      .deleteObject(storageFileId)
+      .catch((e) =>
+        console.error('[fn-admin] completeUpload: could not delete rejected object', e),
+      );
+    return err('VALIDATION_ERROR', message);
+  };
+
+  const bytes = Buffer.from(object.body, 'base64');
+  const byteSize = object.byteSize ?? bytes.byteLength;
+
+  // Re-enforce the catalog size cap against the REAL bytes. The pre-signed
+  // credential is unbounded and the intent-time `byteSize` was only a
+  // client-declared hint, so the cap MUST be checked here (contract §22.3-6).
+  if (byteSize > CATALOG_IMAGE_MAX_BYTES) {
+    return rejectInvalid('Uploaded object exceeds the maximum allowed size.');
+  }
+
+  // Recompute SHA-256 server-side; if the client declared one, the bytes that
+  // landed must match it — otherwise the object was tampered with or truncated.
+  const checksumSha256 = createHash('sha256').update(bytes).digest('hex');
+  if (typeof doc.checksumSha256 === 'string' && doc.checksumSha256 !== checksumSha256) {
+    return rejectInvalid('Uploaded bytes do not match the declared checksum.');
+  }
+
+  const activated = await updateDoc('images', imageId, {
+    status: 'active',
+    byteSize,
+    checksumSha256,
+  });
+  return ok({
+    imageId,
+    status: 'active',
+    byteSize,
+    ...(activated ? { image: redact('images', activated) } : {}),
+  });
 }

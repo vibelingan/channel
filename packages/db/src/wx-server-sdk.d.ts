@@ -85,6 +85,16 @@ declare module 'wx-server-sdk' {
     }): Promise<{ fileList: { fileID: string; tempFileURL: string; code?: string }[] }>;
     downloadFile(options: { fileID: string }): Promise<{ fileContent: Buffer }>;
     deleteFile(options: { fileList: string[] }): Promise<{ fileList: unknown[] }>;
+    // Mints a single-object pre-signed browser-upload credential (MIU-Upload;
+    // field shape per the MIU-00 probe / design §24).
+    getUploadMetadata(options: { cloudPath: string }): Promise<{
+      uploadUrl: string;
+      authorization: string;
+      token: string;
+      cloudObjectMeta: string;
+      cloudObjectId: string;
+      downloadUrl?: string;
+    }>;
   }
 
   const cloud: Cloud;
