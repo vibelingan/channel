@@ -1465,3 +1465,19 @@ temporarily allow this branch into the `test` environment; or run
 `pnpm test:e2e:media-upload` locally against an already-deployed build with creds
 + `E2E_MEDIA_UPLOAD_SMOKE=1`). That is not a code task — the reversed
 review→fix loop has converged.
+
+### Live deploy-smoke attempt after harness acceptance — still policy-blocked
+
+After Claude accepted the harness, another `Deploy Test` workflow was dispatched:
+
+- Workflow run: `28424882618`
+- Ref/SHA: `fix/image-upload-storage-design` /
+  `dc956615b4a82d5b11140538a93c69e11e07d276`
+- Result: failed before any job step ran.
+- GitHub annotation: branch `fix/image-upload-storage-design` is not allowed to
+  deploy to the `test` environment due to environment protection rules; the
+  deployment was rejected.
+
+Disposition: same blocker as the earlier `92d8a1d` attempt, now confirmed at the
+review-clean harness head. No code change is indicated. MIU-09 still needs an
+allowed live-run path to collect browser-origin COS PUT / CORS evidence.
