@@ -13,6 +13,10 @@ const webAppServiceName = process.env.CLOUDBASE_WEBAPP_SERVICE || 'channel-test'
 const functionActiveTimeoutMs = positiveIntegerEnv('CLOUDBASE_FUNCTION_ACTIVE_TIMEOUT_MS', 300_000);
 const functionPollIntervalMs = positiveIntegerEnv('CLOUDBASE_FUNCTION_POLL_INTERVAL_MS', 5_000);
 const cloudBaseCliPackage = process.env.CLOUDBASE_CLI_PACKAGE || '@cloudbase/cli@3.5.9';
+const cloudBaseCliDeployModes = (process.env.CLOUDBASE_CLI_DEPLOY_MODES || 'zip,cos')
+  .split(',')
+  .map((mode) => mode.trim())
+  .filter(Boolean);
 const envId = requireEnv('TCB_ENV_ID');
 const appEnv = process.env.APP_ENV || 'test';
 const siteUrl = trimSlash(
@@ -223,30 +227,46 @@ function deployFunctionWithCloudBaseCli(def, reason) {
   const { configDir, configPath } = writeCloudBaseCliConfig(def);
   const artifactDir = resolve(functionRootPath, def.name);
   try {
-    const output = runCloudBaseCli(
-      [
-        '--config-file',
-        configPath,
-        '-e',
-        envId,
-        'fn',
-        'deploy',
-        def.name,
-        '--dir',
-        artifactDir,
-        '--runtime',
-        targetRuntime,
-        '--deployMode',
-        'cos',
-        '--force',
-        '--json',
-      ],
-      { timeoutMs: 600_000 },
-    );
-    console.log(
-      `${def.name}: CloudBase CLI deploy fallback submitted (${reason}); ${summarizeCloudBaseCliOutput(
-        output,
-      )}`,
+    const errors = [];
+    for (const deployMode of cloudBaseCliDeployModes) {
+      try {
+        const output = runCloudBaseCli(
+          [
+            '--config-file',
+            configPath,
+            '-e',
+            envId,
+            'fn',
+            'deploy',
+            def.name,
+            '--dir',
+            artifactDir,
+            '--runtime',
+            targetRuntime,
+            '--deployMode',
+            deployMode,
+            '--force',
+            '--json',
+          ],
+          { timeoutMs: 600_000 },
+        );
+        console.log(
+          `${def.name}: CloudBase CLI ${deployMode} deploy fallback submitted (${reason}); ${summarizeCloudBaseCliOutput(
+            output,
+          )}`,
+        );
+        return;
+      } catch (error) {
+        errors.push(`${deployMode}: ${error.message}`);
+        if (deployMode !== cloudBaseCliDeployModes.at(-1)) {
+          console.warn(
+            `${def.name}: CloudBase CLI ${deployMode} fallback failed; trying next mode.`,
+          );
+        }
+      }
+    }
+    throw new Error(
+      `${def.name}: all CloudBase CLI deploy fallback modes failed\n${errors.join('\n')}`,
     );
   } finally {
     rmSync(configDir, { force: true, recursive: true });

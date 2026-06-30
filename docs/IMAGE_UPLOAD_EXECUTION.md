@@ -2560,3 +2560,47 @@ call). Cross-checked and approved:
 
 Validation in flight: Deploy Test `28442621836` (on `8df1440f`) — expected to
 **restore `admin` via the CLI COS path**, then run API + UI smokes. Outcome next.
+
+### Codex follow-up - CLI COS timeout; switch fallback order to ZIP then COS - 2026-06-30
+
+Deploy Test `28442621836` on `8df1440` proved the new fallback path reached the
+official CLI, but COS upload is not viable from the GitHub runner as currently
+called:
+
+- MCP `createFunction` again returned an empty/non-error result and `admin` stayed
+  not found for 300s.
+- The CLI fallback authenticated successfully with the permanent CAM key.
+- `tcb fn deploy admin --deployMode cos` then failed with
+  `[admin] COS 上传超时（60秒）`.
+
+This is better than the previous silent MCP ambiguity, but still does not restore
+`admin`. Checked the installed `@cloudbase/cli@3.5.9` implementation: direct
+`deployMode=zip` uses `ZipFile` and is allowed when the compressed package is
+under 1.5 MB; COS is the default/fallback and has the observed 60s timeout.
+Measured local artifacts:
+
+- `admin` zipped artifact: `457276` bytes
+- `public-api` zipped artifact: `374971` bytes
+
+Fix made:
+
+- `scripts/deploy-cloudbase-test.mjs` now tries CloudBase CLI deploy modes in
+  `zip,cos` order by default (`CLOUDBASE_CLI_DEPLOY_MODES` can override).
+- If ZIP fails, the script logs a warning and falls through to COS. If all modes
+  fail, it emits each mode's safe summarized error.
+- The post-fallback Active/runtime/config checks remain unchanged; a CLI command
+  returning success is not enough by itself.
+
+Verification run by Codex before push:
+
+- `node --check scripts/deploy-cloudbase-test.mjs` - pass
+- `pnpm --filter @vibelingan-channel/fn-admin test` - pass (70 tests)
+- `pnpm --filter @vibelingan-channel/fn-admin typecheck` - pass
+- `pnpm verify:cloudbase-sdk` - pass
+- `pnpm lint` - pass
+- `pnpm package:functions && pnpm smoke:functions` - pass
+- `git diff --check` - pass
+
+Next: push, then dispatch Deploy Test again. Expected evidence: ZIP mode should
+avoid the runner->COS 60s timeout and either restore `admin` or surface the direct
+ZipFile API error.
