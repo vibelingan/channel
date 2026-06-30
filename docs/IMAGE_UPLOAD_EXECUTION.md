@@ -2031,6 +2031,12 @@ and, because the browser-origin POST to COS succeeded, **bucket CORS is confirme
 (a CORS/preflight failure would have failed the smoke). Run URL:
 `https://github.com/vibelingan/channel/actions/runs/28435302827`.
 
+Follow-up hygiene: the passing media smoke logged best-effort cleanup warnings
+(`product remove failed: Unknown API error`, `image metadata remove failed:
+Unknown API error`). That does not weaken the upload/CORS evidence, but the cleanup
+helper should report the underlying API error and eventually fail if test rows are
+left behind.
+
 **MIU-09 is done.** The admin-brokered image-upload feature (MIU-Upload + MIU-04
 delivery + MIU-05 UI) is now validated end-to-end against the deployed CloudBase
 test environment. Remaining open work is unrelated to upload: **MIU-06 Phase 2**
