@@ -20,7 +20,7 @@ design-only; validation results and capability probes live here.
 | MIU-06 | Legacy migration + orphan cleanup | ✅ code done; live migration run pending | `c4aaa8d`,`e23b67b`,`e603f34` | `cleanupOrphanImages` admin-only action + tests; `migrateLegacyImages` staged legacy `images.data` -> storage action + compensation tests; live dry-run/live ops evidence pending |
 | MIU-08 | OEM Cloud Storage upload + private delivery | pending; design revised for 10 MiB public OEM attachments + Claude abuse-control review incorporated | design revision below + `ed8989a` review | Move public OEM attachments off `drawingData` base64 JSON. New flow: public intent -> browser COS POST -> `submitProject` finalization -> admin-only short-TTL delivery. Must include rate/pending caps, COS `content-length-range`, one-time upload secret, filename sanitization, ZIP/PDF sniffing, and deployed 9-10 MiB ZIP smoke with no `EXCEED_MAX_PAYLOAD_SIZE`. |
 | MIU-09 | Deploy, smoke, review hardening | ✅ DONE — live run `28435302827` (205cd71) green incl. media-upload smoke: browser→COS POST + CORS proven | Codex browser-origin smoke harness + deploy wait hardening + release verification + node-sdk upload contract correction | Added deployed media-upload smoke: browser-origin admin login → createUploadIntent → browser-enforced COS POST → completeUpload → admin preview → public 404 before published link → published product link → public 200. Wired as opt-in `E2E_MEDIA_UPLOAD_SMOKE=1` / `pnpm test:e2e:media-upload` and deploy-test workflow input. Claude accepted the harness. Runs `28431709752` and `28433320633` exposed stale-code and Updating-state deploy defects; Codex fixed both. Run `28433688422` proved the deployed release SHA and then exposed the real upload SDK-contract mismatch (`createUploadIntent` 500), now corrected to node-sdk `getUploadMetadata` + COS POST form. |
-| MIU-10 | Upload transport policy gate | pending; design added | design revision below | Add shared purpose/type/size policy so base64 is eligible only for explicit `inline-small`/legacy paths. Product catalog images and OEM attachments stay CloudBase Storage-backed even when small; tests must prove no size-only base64 fallback. |
+| MIU-10 | Upload transport policy gate | pending implementation; design approved by Claude + Codex monitor | design revision below; Claude review `a017f5a` | Add shared purpose/type/size policy so base64 is eligible only for explicit `inline-small`/legacy paths. Product catalog images and OEM attachments stay CloudBase Storage-backed even when small; tests must prove no size-only base64 fallback. Implementation nits: public rate/pending counters must use atomic `incrementField`; 60s OEM URL TTL should be a named constant. |
 
 Decision summary (binds the plan; evidence below):
 - P0 byte transport = **admin-brokered direct-storage-upload** (browser POSTs a
@@ -2152,6 +2152,29 @@ New MIU-10 requirements:
 This is intentionally non-breaking for the current upload design: MIU-Upload and
 MIU-08 remain storage-backed. The only new design surface is a future
 `inline-small` action, if the product actually needs one.
+
+### Codex monitor review — Claude MIU-10 design approval `a017f5a` — 2026-06-30
+
+Fetched and fast-forwarded `fix/image-upload-storage-design` over SSH after
+Claude pushed `a017f5a` ("review upload transport policy gate"). The commit is
+docs-only and approves `2e089d4` with no blockers.
+
+Review disposition:
+
+- No blocking findings. Claude's §26 review correctly treats MIU-10 as a design
+  gate, not an implementation change, and confirms that base64 is limited to
+  `inline-small`/legacy while catalog and OEM remain storage-backed.
+- Accepted non-blocking nits for implementation:
+  - public OEM rate/pending counters must use the existing atomic
+    `incrementField` primitive, not read-modify-write;
+  - the aggressive OEM download TTL should become a named constant.
+- No runtime package or function artifact changed in `a017f5a`, so no function
+  package smoke was required for this monitor cycle.
+
+Validation run:
+
+- `pnpm lint`
+- `pnpm verify:cloudbase-sdk`
 
 ### Claude review — orphan-cleanup paging fix (6ca3e866) — APPROVED — 2026-06-30
 
