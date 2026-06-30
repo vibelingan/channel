@@ -1493,9 +1493,10 @@ upload path, no CloudBase Web SDK in the browser.
    browser → COS directly; the 100 KiB function cap is never on the path.
 3. `completeUpload` — body = `{ imageId }`. Verifies the object is retrievable,
    **recomputes `byteSize` + SHA-256 SERVER-side** (never trusts the client;
-   §22.3-6), and flips the doc `pending → active`. A missing object, or a mismatch
-   against the client-declared `checksumSha256`, marks the doc `failed`;
-   re-completing an already-finalized doc returns `CONFLICT`.
+   §22.3-6), and flips the doc `pending → active`. A SIZE or CHECKSUM verification
+   failure marks the doc `failed` (and best-effort deletes the object); an object
+   that is not yet retrievable leaves the doc `pending` (retryable — see Lifecycle
+   below). Re-completing an already-finalized doc returns `CONFLICT`.
 
 **Credential provider (dependency-injected)** —
 `MediaStorageAdapter.getUploadCredential(cloudPath)`:
@@ -1528,8 +1529,18 @@ cleanup (§20.8 / MIU-06).
 with `createUploadIntent` → raw `PUT` to `upload.url` → `completeUpload`. Keep the
 product form value shape `imageIds: string[]`; show per-file
 pending/uploading/succeeded/failed with retry, preserving successful IDs in order;
-keep `imageUrl(id)` previews via `/api/images/:id`; do NOT import the CloudBase
-Web SDK.
+restrict the file picker to jpeg/png/webp (matching `catalogImageUploadSchema`);
+do NOT import the CloudBase Web SDK.
+
+> **Preview path (U2b exit criterion):** previews must NOT use the public
+> `/api/images/:id` — that route is `publishedRefCount`-gated and so 404s a
+> freshly-uploaded (active, refCount 0) or unpublished image. Preview through the
+> admin-authenticated **`getImagePreview`** action (auth = `canReadCollection('images')`,
+> no refCount gate, serves legacy or storage-backed bytes for any readable image),
+> optionally with `URL.createObjectURL(file)` for the just-uploaded session.
+> local-server must mirror production by delegating `/api/images/:id` to
+> `getCatalogImage` (so local dev does not mask the public gate). MIU-05 is not
+> complete until this admin-auth preview + local-server parity land and review.
 
 **Still env-gated (MIU-09):** a real pre-signed-credential mint and the bucket
 **CORS gate** — allow `PUT` + `Authorization`/`X-Cos-Security-Token`/

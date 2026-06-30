@@ -1037,3 +1037,99 @@ test('completeUpload: unknown id → NOT_FOUND; finalizing twice → CONFLICT', 
   await call('completeUpload', { imageId: intent.imageId }, token); // → active
   expectErr(await call('completeUpload', { imageId: intent.imageId }, token), 'CONFLICT');
 });
+
+// --- MIU-05 (U2b): admin-authenticated image preview -------------------------
+
+test('getImagePreview returns legacy base64 bytes (admin-authed, no refcount gate)', async () => {
+  const store: Store = {
+    users: [],
+    images: [
+      {
+        _id: 'imgL',
+        name: 'l.svg',
+        mimeType: 'image/svg+xml',
+        data: Buffer.from('<svg/>').toString('base64'),
+      },
+    ],
+  };
+  setup(store);
+  setMediaStorage(makeFakeMediaStorage());
+  const data = okData<{ id: string; mimeType: string; dataBase64: string }>(
+    await call('getImagePreview', { id: 'imgL' }, await adminToken()),
+  );
+  assert.equal(data.mimeType, 'image/svg+xml');
+  assert.equal(data.dataBase64, Buffer.from('<svg/>').toString('base64'));
+});
+
+test('getImagePreview proxies an UNPUBLISHED storage image (refCount 0) — the admin-preview fix', async () => {
+  const store: Store = {
+    users: [],
+    images: [
+      {
+        _id: 'imgS',
+        name: 's.png',
+        mimeType: 'image/png',
+        storageProvider: 'cloudbase-storage',
+        storageFileId: 'cloud://x',
+        status: 'active',
+        publishedRefCount: 0, // public route would 404; admin preview must NOT
+      },
+    ],
+  };
+  setup(store);
+  const bytes = Buffer.from('storage-preview-bytes');
+  setMediaStorage(makeFakeMediaStorage({ objectBytes: bytes }));
+  const data = okData<{ dataBase64: string }>(
+    await call('getImagePreview', { id: 'imgS' }, await adminToken()),
+  );
+  assert.equal(data.dataBase64, bytes.toString('base64'));
+});
+
+test('getImagePreview also serves a PENDING upload (preview before activation)', async () => {
+  const store: Store = {
+    users: [],
+    images: [
+      {
+        _id: 'imgP',
+        name: 'p.png',
+        mimeType: 'image/png',
+        storageProvider: 'cloudbase-storage',
+        storageFileId: 'cloud://x',
+        status: 'pending',
+        publishedRefCount: 0,
+      },
+    ],
+  };
+  setup(store);
+  setMediaStorage(makeFakeMediaStorage({ objectBytes: Buffer.from('pending-bytes') }));
+  assert.equal((await call('getImagePreview', { id: 'imgP' }, await adminToken())).ok, true);
+});
+
+test('getImagePreview: viewer forbidden; unknown id → 404; unfetchable object → 404', async () => {
+  const store: Store = {
+    users: [],
+    images: [
+      {
+        _id: 'imgN',
+        name: 'n.png',
+        mimeType: 'image/png',
+        storageProvider: 'cloudbase-storage',
+        storageFileId: 'cloud://missing',
+        status: 'active',
+        publishedRefCount: 1,
+      },
+    ],
+  };
+  setup(store);
+  setMediaStorage(makeFakeMediaStorage({ objectBytes: null })); // object unfetchable
+  const viewer = await signSession('test-secret', {
+    sub: 'v-1',
+    email: 'v@example.com',
+    name: 'viewer',
+    role: 'viewer',
+  });
+  expectErr(await call('getImagePreview', { id: 'imgN' }, viewer), 'FORBIDDEN');
+  const admin = await adminToken();
+  expectErr(await call('getImagePreview', { id: 'does-not-exist' }, admin), 'NOT_FOUND');
+  expectErr(await call('getImagePreview', { id: 'imgN' }, admin), 'NOT_FOUND');
+});

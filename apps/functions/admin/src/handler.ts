@@ -147,6 +147,8 @@ const completeUploadSchema = z.object({
   cloudObjectId: z.string().optional(),
 });
 
+const imagePreviewSchema = z.object({ id: z.string().min(1) });
+
 const SESSION_TTL = 60 * 60 * 12;
 
 // --- Helpers ---------------------------------------------------------------
@@ -301,6 +303,8 @@ export async function handleAdminRequest(
         return await createUploadIntentAction(req, claims);
       case 'completeUpload':
         return await completeUploadAction(req, claims);
+      case 'getImagePreview':
+        return await getImagePreviewAction(req, claims);
       default:
         return err('BAD_REQUEST', `Unknown action: ${req.action}`);
     }
@@ -899,4 +903,41 @@ async function completeUploadAction(
     byteSize,
     ...(activated ? { image: redact('images', activated) } : {}),
   });
+}
+
+/**
+ * Admin-authenticated image preview. Returns the bytes (base64) for ANY image the
+ * caller may read, REGARDLESS of publication — so the dashboard can preview a
+ * freshly-uploaded (active, `publishedRefCount: 0`) or unpublished image. The
+ * PUBLIC `/api/images/:id` route stays `publishedRefCount`-gated (storefront
+ * visibility); this is the admin's preview channel. Legacy rows return their
+ * inline `data`; storage-backed rows are proxied through the media adapter.
+ */
+async function getImagePreviewAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  if (!canReadCollection(claims.role, 'images')) {
+    return err('FORBIDDEN', 'You do not have permission to view images.');
+  }
+  const parsed = imagePreviewSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'id is required');
+
+  const doc = await get('images', parsed.data.id);
+  if (!doc) return err('NOT_FOUND', 'Image not found');
+  const mimeType = typeof doc.mimeType === 'string' ? doc.mimeType : 'application/octet-stream';
+
+  if (typeof doc.data === 'string') {
+    return ok({ id: parsed.data.id, mimeType, dataBase64: doc.data });
+  }
+  if (typeof doc.storageFileId === 'string') {
+    try {
+      const object = await mediaStorage().getObjectAsBase64(doc.storageFileId);
+      return ok({ id: parsed.data.id, mimeType, dataBase64: object.body });
+    } catch (e) {
+      console.error('[fn-admin] getImagePreview: storage fetch failed', e);
+      return err('NOT_FOUND', 'Image bytes are unavailable');
+    }
+  }
+  return err('NOT_FOUND', 'Image has no retrievable bytes');
 }

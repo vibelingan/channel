@@ -15,7 +15,7 @@ design-only; validation results and capability probes live here.
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
 | MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex A-review + post-D review + self-adversarial B/C/D reviews all resolved | `4823a12`+fixes, Phase B, C, D, post-D hardening | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. Post-D: strict-number counter guard (reject numeric strings), present-but-corrupt fails closed (no scan), unknown provider fails closed; public-api 16→20. All suites pass; both functions build; root tsc + biome clean. Deployed smoke = MIU-09 |
-| MIU-05 | Admin UI uploader (direct PUT UI) | U2a reviewed again; P3 comment fixed; **not done** until U2b resolves the admin-preview + per-file/accept-list blockers and the design handoff is aligned | Phase U2a + Codex review | `uploadImage()` drives createUploadIntent → raw PUT → completeUpload, but the current UI still previews through public `/api/images/:id` and local-server still masks that production gate. U2b must add admin-authed preview, per-file state/retry, and jpeg/png/webp-only selection; see latest review below. |
+| MIU-05 | Admin UI uploader (direct PUT UI) | U2a done; U2b-a done (admin-auth preview action + design handoff aligned); U2b-b pending (wire ImageManager + local-server parity) | Phase U2a, U2b-a | `uploadImage()` → createUploadIntent/PUT/completeUpload. U2b-a: `getImagePreview` admin action (auth `canReadCollection('images')`, no refCount gate, serves legacy/storage bytes for any readable image incl. pending/unpublished); §20.7 design now mandates admin-auth preview + local-server `getCatalogImage` delegation. U2b-b wires `ImageManager` to it + per-file state + jpeg/png/webp accept + reverts the local-server mask. admin 45→49 |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
@@ -1013,3 +1013,23 @@ Disposition: `0480ef3` closes the narrow P3 handler-comment issue, but MIU-05 is
 still **not done**. The next Claude pass should implement U2b (admin-auth preview,
 local-server parity, per-file upload state/retry, jpeg/png/webp accept-list) and
 align the design handoff before MIU-05 can be marked reviewed/complete.
+
+### Codex MIU-05 disposition re-review — disposition (U2b-a)
+
+Both findings valid (doc-handoff consistency). Rather than ping-pong on docs, did
+the substantive fix Codex pointed to — started U2b:
+
+- **P1 (design handoff conflict).** Added the admin-authenticated `getImagePreview`
+  action (the preview channel that bypasses the public `publishedRefCount` gate)
+  and rewrote design §20.7's MIU-05 line to mandate it (no more "keep `imageUrl(id)`
+  via the public route") + the local-server `getCatalogImage` delegation. Tests
+  (admin 45→49): legacy bytes, an UNPUBLISHED storage image (refCount 0) served,
+  a PENDING upload served, viewer-forbidden / unknown-id-404 / unfetchable-404.
+- **P3 (stale §20.7 step-3 text).** Aligned §20.7 step 3 too (it still said "missing
+  object marks failed"): retrieval miss → `pending` (retryable); size/checksum →
+  `failed`.
+
+Remaining for U2b-b (next): wire `ImageManager` to `getImagePreview` (+ object URLs
+for the just-uploaded session), per-file upload state/retry, jpeg/png/webp accept,
+and revert local-server `/api/images/:id` to delegate to `getCatalogImage`. MIU-05
+stays **not done** until U2b-b lands + reviews.
