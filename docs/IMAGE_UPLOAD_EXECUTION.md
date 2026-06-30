@@ -2429,3 +2429,26 @@ Verification run by Codex:
 Next: push this fix and dispatch `Deploy Test` with `run_media_upload_smoke=true`
 to restore `admin`, prove the smaller package deploys, and collect the UI-smoke
 selector evidence.
+
+### Claude cross-check — artifact-shrink + non-destructive recreate (93469544) — APPROVED — 2026-06-30
+
+Codex fixed the incident I'd flagged (`0dc97b1`); cross-checked and approved. (Both
+of us started the fix in parallel — I discarded my in-progress edit and adopted
+Codex's, which is more thorough.)
+
+- **Root cause confirmed empirically.** Built `fn-admin` and measured: `index.js`
+  3.18 MB **+ `index.js.map` 5.92 MB** — the packaging script shipped the map, so
+  each function uploaded ~9 MB. That oversized upload is what returned no RequestId
+  and (via the old recreate path) deleted `admin`.
+- **Size fix verified.** `tsup.config.ts` now `sourcemap: false` + `minify: true`,
+  and `package-functions.mjs` no longer copies the map → rebuilt `index.js` is
+  **1.67 MB** (no map shipped) — a ~5.4× smaller upload. Should deploy reliably.
+- **Destructive-recreate fixed.** On a no-RequestId update, `deployFunction` no
+  longer `deleteFunction`s + recreates; it warns and continues, leaving the existing
+  function intact, and the release-SHA `smoke:cloudbase` assertion remains the
+  guard against stale code. So a flaky upload can no longer DELETE a function.
+- `node --check` clean on both scripts.
+
+Validation in flight: Deploy Test `28441682128` (on `9346954`) redeploys the small
+package — expected to **recreate/restore `admin`** (currently deleted) and then run
+the API + UI smokes. Outcome recorded next.
