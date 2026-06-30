@@ -2719,3 +2719,29 @@ Fix made:
 This is the cleaner CloudBase CLI contract for CI: **code update for existing
 functions, deploy for first create, config update as a separate step, and smoke
 after command success**.
+
+### Codex deploy-flow correction evidence (`de65427`) - ACCEPTED - 2026-06-30
+
+Deploy Test
+[`28444918002`](https://github.com/vibelingan/channel/actions/runs/28444918002)
+ran on `de65427fc03d56ac1fd5cfb7b39756baa619c67f` and completed successfully
+in 4m34s.
+
+Evidence:
+
+- `admin`: `CloudBase CLI zip update submitted (primary CI code update)`, then
+  `deployed on Nodejs20.19`.
+- `public-api`: `CloudBase CLI zip update submitted (primary CI code update)`,
+  then `deployed on Nodejs20.19`.
+- No MCP `createFunction`/`updateFunctionCode` function upload probe occurred in
+  the CI function-code path.
+- Existing gateway routes were preserved: `/api/admin` and `/api`.
+- Deployed smoke saw both functions Active on `Nodejs20.19`.
+- Release smoke matched the branch head:
+  `de65427fc03d56ac1fd5cfb7b39756baa619c67f` for both `admin` and `public-api`.
+- Public browser E2E passed: `3 passed (19.4s)`.
+- Media upload smoke passed: `2 passed (30.4s)`.
+
+Disposition: **accepted**. GitHub CI now follows the CloudBase CLI lifecycle:
+`fn code update` for existing functions, `fn deploy` for missing functions,
+separate config update, and deployed smoke as the authority.
