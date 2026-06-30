@@ -1712,3 +1712,8 @@ MIU-09's only remaining step is operational: create a permanent CAM key
 `run_media_upload_smoke=true` — which should finally reach the smoke and record
 the live browser→COS PUT + bucket-CORS evidence. The maintainer has chosen this
 permanent-key path.
+
+**Follow-up `ad0aec9` (secret-helper UX) — APPROVED.** `askHidden` now unmutes
+before `rl.question(query)` so the prompt label renders, then re-mutes so only the
+typed value is masked (previously the prompt itself collapsed to a single `*`).
+Correct; `node --check` + `biome` clean. No behavioral change to what gets stored.
