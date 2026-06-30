@@ -2063,3 +2063,15 @@ left behind.
 delivery + MIU-05 UI) is now validated end-to-end against the deployed CloudBase
 test environment. Remaining open work is unrelated to upload: **MIU-06 Phase 2**
 (legacy `images.data` → storage migration script) and **MIU-08** (OEM files).
+
+### Claude review — orphan-cleanup paging fix (6ca3e866) — APPROVED — 2026-06-30
+
+Codex reviewed my MIU-06 Phase 1 and fixed a real limitation: my `cleanupOrphanImages`
+passed `pageSize: limit`, but the `list()` facade caps a page at 100, so `limit > 100`
+silently reaped only the first 100 candidates. Codex's `listOrphanCleanupCandidates`
+now pages with a **stable `_id` sort** (the same pagination-stability guard as the
+MIU-04 backfill — without it, skip/limit over an unstable order can miss/dup rows),
+accumulating up to `limit`, plus a 105-row regression proving it pages past the cap.
+Correct and well-scoped. Verified: fn-admin `typecheck` + tests (my 5 cleanup tests +
+the new paging test) + `biome` all green. This is the no-fixed-role loop working as it
+should — I implemented Phase 1, Codex reviewed and hardened it.
