@@ -1297,3 +1297,101 @@ failure. The next live-evidence path is one of:
 
 Until one of those paths records a successful browser-origin upload, MIU-09
 remains implemented-but-not-accepted.
+
+### Claude review — MIU-09 smoke harness (round 1) — 2026-06-30
+
+Reviewed commit `92d8a1d` (test-only). Method: deterministic gates + a
+3-dimension adversarial review (contract parity / test quality / CI wiring) with
+each finding verified against the actual code. (The adversarial workflow hit a
+provider session limit mid-run after the CI-wiring dimension; the reviewer
+completed the contract-parity and test-quality dimensions by hand and verified
+both surviving CI findings directly against the code — see below.)
+
+**Deterministic gates — PASS**
+
+- `pnpm typecheck:e2e` (tsconfig.e2e.json) → exit 0
+- `npx biome check tests/e2e/media-upload.spec.ts tests/e2e/helpers/env.ts` → exit 0
+- `npx playwright test tests/e2e/media-upload.spec.ts --list` → registers exactly 1 test
+
+**Contract parity — PASS (no mismatch)**
+
+Every shape the spec assumes matches the real server/client contract:
+
+- `createUploadIntent` → `{ imageId, uploadIntentId, storageFileId, upload: { url,
+  headers: { Authorization, X-Cos-Security-Token, X-Cos-Meta-Fileid } } }`
+  (`handler.ts:807-820`) ✔
+- `completeUpload({ imageId })` ✔; `getImagePreview` → `{ id, mimeType, dataBase64 }`
+  (`handler.ts:916-950`) ✔
+- public `/api/images/:id`: `404` unpublished → `200 image/png` once published
+  (public-api `getCatalogImage`) ✔
+- the browser-PUT header names match the server-minted headers exactly; the
+  `login` response `{ token, user: { role } }` it destructures is correct ✔
+
+**Findings**
+
+P2 — the `media-upload` smoke reports **GREEN having executed nothing** when
+`secrets.E2E_ADMIN_PASSWORD` is unset in the `test` environment (both workflows).
+
+- `tests/e2e/media-upload.spec.ts:134-137` self-skips via
+  `test.skip(!e2e.mediaUploadSmoke || !hasAdminCredentials())`, and
+  `hasAdminCredentials()` (`helpers/env.ts:28-30`) returns false when
+  `E2E_ADMIN_PASSWORD` is empty. A fully-skipped Playwright run exits `0`, so the
+  job is green. Neither `deploy-test.yml:119-125` nor `e2e.yml:76-78` asserts the
+  secret is present before running. Because this smoke **is** MIU-09's acceptance
+  evidence, a silent skip = false acceptance.
+- (The adversarial reviewer proposed P1; the lead adjusted to **P2** — it needs a
+  missing-secret misconfiguration to trigger and touches no production code, but
+  the impact when it bites is high and the fix is cheap.)
+- Fix: add a fail-fast guard before the run step (do **not** echo the value),
+  in both `deploy-test.yml` (the smoke step) and `e2e.yml` (the `media-upload)`
+  case):
+
+  ```bash
+  if [ -z "$E2E_ADMIN_PASSWORD" ]; then
+    echo "E2E_ADMIN_PASSWORD secret is not set for the test environment" >&2
+    exit 1
+  fi
+  ```
+
+  The opt-in, default-off gating itself is correct — only the unguarded secret is
+  the gap. (A spec-level alternative: when `E2E_MEDIA_UPLOAD_SMOKE=1` is set
+  explicitly but creds are absent, `throw` instead of `test.skip`.)
+
+P3 — the public-delivery `expect.poll(...).toBe(true)`
+(`media-upload.spec.ts:218-228`) uses the 10s global expect timeout
+(`playwright.config.ts:16`) with no explicit override. Against eventual
+consistency (completeUpload → publish → public refCount propagation + a cold COS
+fetch) 10s may flake. Recommend an explicit generous timeout, e.g.
+`expect.poll(async () => …, { timeout: 30_000 }).toBe(true)`.
+
+P3 (optional, belt-and-suspenders) — CI does not assert that ≥1 test actually
+ran (skip is indistinguishable from pass). The P2 secret guard closes this for
+the media-upload spec; a global "expected > 0 && skipped == 0" reporter check is
+a nice-to-have but out of scope for this change.
+
+**Test-quality notes (accepted, no change needed)**
+
+- Cleanup runs in `finally` via the `request` fixture; `productId`/`imageId` are
+  each guarded before the remove call, so no metadata leaks on a partial failure.
+  The underlying COS object is intentionally left for MIU-06 orphan cleanup
+  (documented; acceptable for the test env; the `e2e-…`/`miu09` naming makes it
+  identifiable).
+- The test briefly publishes a product on the test storefront and then removes
+  it — acceptable blast radius for a dedicated `test` env.
+- `mode: 'serial'` with a single test is fine.
+
+**Disposition**
+
+- The harness is correct and well-built; contract parity holds and the
+  deterministic gates pass. One **P2** to fix (the secret fail-fast guard) before
+  the smoke can be trusted as acceptance evidence, plus two **P3**s (explicit poll
+  timeout; optional "a test actually ran" assertion).
+- Separate, non-code blocker (Codex `8e72116`): the live deploy-smoke is blocked
+  by GitHub Environment protection (this feature branch is not allowed to deploy
+  to `test`). MIU-09 stays **implemented-but-not-accepted** until a live run
+  records the browser→COS PUT + bucket-CORS evidence via one of the three unblock
+  paths Codex listed — and that choice is a deploy-policy decision for the
+  maintainer, not a code fix.
+- Handing back to Codex: apply the **P2** guard (and ideally the **P3** poll
+  timeout). The live-evidence unblock is gated on the maintainer's deploy-policy
+  decision.
