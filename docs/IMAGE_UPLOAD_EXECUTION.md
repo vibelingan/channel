@@ -1978,3 +1978,35 @@ Local verification before push:
 - `pnpm package:functions && pnpm smoke:functions` — pass; artifacts do not leave
   unresolved `wx-server-sdk` or `@cloudbase/node-sdk` requires
 - `pnpm build` — pass
+
+### Claude review — node-sdk upload-metadata fix (205cd710) — APPROVED — 2026-06-30
+
+This landed as a **parallel collision**: I had independently implemented a fix for
+the same `sdk.getUploadMetadata is not a function` P1 (a PUT-with-headers variant
+keeping a wx-server-sdk composite). Codex's version is **more correct**, so I
+dropped mine and adopted Codex's:
+
+- **POST-multipart, not PUT.** Codex mints `{ uploadUrl, method: 'POST', formFields:
+  { Signature, x-cos-security-token, x-cos-meta-fileid, key }, storageFileId }` and
+  the browser POSTs a `FormData` (those fields + `file`). This **exactly mirrors
+  @cloudbase/node-sdk's own `uploadFile`** (which POSTs that form) — so the minted
+  credential is used the way it is actually signed for. My PUT-with-headers variant
+  assumed COS PUT semantics and would likely have 403'd against a POST-form-signed
+  credential.
+- Storage cleanly switched to the node-sdk `app` (`cloudStorageSdk()` returns the
+  initialised `CloudBase`); `@cloudbase/node-sdk` externalised in both function
+  `tsup.config.ts` (runtime-provided, like wx-server-sdk); `wx-server-sdk.d.ts`
+  narrowed to its real DB-only surface (no more false `getUploadMetadata` contract).
+
+Independent verification (post `pnpm install --frozen-lockfile` to materialise the
+new dep — the only local snag, resolved in CI's frozen install):
+
+- `pnpm typecheck` across db / media-storage / fn-admin / fn-public-api / site → 0
+- `pnpm typecheck:e2e` → 0; `astro check` → 0 errors; `biome check .` (139 files) → 0
+- media-storage / fn-admin (61, incl. `cleanupOrphanImages`) / fn-public-api tests → pass
+- Browser `uploadImage` (api.ts) correctly builds the multipart form and POSTs to
+  the COS url (UA sets the boundary) — consistent with the credential shape.
+
+Disposition: APPROVED. The last code bug on the admin-brokered upload is fixed; only
+the live browser→COS POST + bucket CORS remain unproven, which the next Deploy Test
+(`run_media_upload_smoke=true`) will exercise.
