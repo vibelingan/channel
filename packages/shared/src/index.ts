@@ -5,6 +5,7 @@ export * from './collections.ts';
 export * from './media.ts';
 export * from './media-content.ts';
 export * from './media-lifecycle.ts';
+export * from './media-ratelimit.ts';
 export * from './auth.ts';
 export * from './query.ts';
 

@@ -2346,6 +2346,23 @@ Validation: `pnpm --filter @vibelingan-channel/shared typecheck` clean;
 `test` — shared suite green (23 media-content tests; 52 total in shared);
 `biome check` clean.
 
+### Claude impl — rate-limit / pending-cap decision groundwork — 2026-07-01
+
+Added `packages/shared/src/media-ratelimit.ts` (pure, constant-agnostic) for the
+MIU-08 public-intent abuse controls (§20.10) and §27.2-2:
+
+- `evaluateFixedWindowRateLimit({ countInWindow, maxPerWindow, windowMs, nowMs?,
+  windowResetAtMs? })` → `{ allowed, retryAfterSeconds }`. Allowed iff the
+  post-increment count ≤ max; Retry-After is the time to the (epoch-aligned, or
+  explicit) window reset, floored at 1s. Fails CLOSED on misconfig.
+- `withinPendingCap(currentPending, maxPending)` → boolean; allowed iff adding one
+  stays within max; fails closed on bad max/count.
+
+Deliberately takes the limits as parameters so the OEM thresholds
+(`OEM_UPLOAD_RATE_*`, `OEM_MAX_PENDING_*`) stay owned by MIU-08, not duplicated
+here. MIU-08 wires the atomic `incrementField` counter to these and returns 429 +
+`Retry-After` on deny. 8 tests (60 total in shared); tsc + biome clean.
+
 ### Claude review — orphan-cleanup paging fix (6ca3e866) — APPROVED — 2026-06-30
 
 Codex reviewed my MIU-06 Phase 1 and fixed a real limitation: my `cleanupOrphanImages`
