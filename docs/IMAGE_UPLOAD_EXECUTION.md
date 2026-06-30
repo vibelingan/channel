@@ -21,6 +21,11 @@ design-only; validation results and capability probes live here.
 | MIU-08 | OEM Cloud Storage upload + private delivery | pending; design revised for 10 MiB public OEM attachments + Claude abuse-control review incorporated | design revision below + `ed8989a` review | Move public OEM attachments off `drawingData` base64 JSON. New flow: public intent -> browser COS POST -> `submitProject` finalization -> admin-only short-TTL delivery. Must include rate/pending caps, COS `content-length-range`, one-time upload secret, filename sanitization, ZIP/PDF sniffing, and deployed 9-10 MiB ZIP smoke with no `EXCEED_MAX_PAYLOAD_SIZE`. |
 | MIU-09 | Deploy, smoke, review hardening | ✅ DONE — live run `28435302827` (205cd71) green incl. media-upload smoke: browser→COS POST + CORS proven | Codex browser-origin smoke harness + deploy wait hardening + release verification + node-sdk upload contract correction | Added deployed media-upload smoke: browser-origin admin login → createUploadIntent → browser-enforced COS POST → completeUpload → admin preview → public 404 before published link → published product link → public 200. Wired as opt-in `E2E_MEDIA_UPLOAD_SMOKE=1` / `pnpm test:e2e:media-upload` and deploy-test workflow input. Claude accepted the harness. Runs `28431709752` and `28433320633` exposed stale-code and Updating-state deploy defects; Codex fixed both. Run `28433688422` proved the deployed release SHA and then exposed the real upload SDK-contract mismatch (`createUploadIntent` 500), now corrected to node-sdk `getUploadMetadata` + COS POST form. |
 | MIU-10 | Upload transport policy gate | pending implementation; design approved by Claude + Codex monitor | design revision below; Claude review `a017f5a` | Add shared purpose/type/size policy so base64 is eligible only for explicit `inline-small`/legacy paths. Product catalog images and OEM attachments stay CloudBase Storage-backed even when small; tests must prove no size-only base64 fallback. Implementation nits: public rate/pending counters must use atomic `incrementField`; 60s OEM URL TTL should be a named constant. |
+| MIU-11 | Edge rate-limit + throttling | backlog; design-only, not a MIU-08 blocker | §20.13 / §27 audit | Later hardening to move OEM/public caps toward gateway/OPA where possible. MIU-08 still owns the P0 in-function shared-state caps and cleanup; do not defer those into MIU-11. |
+| MIU-12 | Quarantine state machine | backlog; design-only | §20.13 / §27 audit | Formalize rejection logs/hash/scan hooks after P0 upload paths exist. |
+| MIU-13 | Async media processing | backlog; design-only | §20.13 / §27 audit | Queue-backed variants/scanning/bulk work when volume or scanning justifies it; not P0. |
+| MIU-14 | Media observability | backlog; design-only | §20.13 / §27 audit | Add metrics for upload failures, pending/orphan counts, rate-limit rejections, CDN stale incidents, and migration progress. |
+| MIU-15 | Public-CDN delivery | backlog; design-only | §20.13 / §27 audit | Optional public variant/CDN path with content-addressed keys or purge strategy; private proxy/temp-URL P0 remains unchanged. |
 
 Decision summary (binds the plan; evidence below):
 - P0 byte transport = **admin-brokered direct-storage-upload** (browser POSTs a
@@ -32,6 +37,8 @@ Decision summary (binds the plan; evidence below):
 - Upload transport is purpose/type/size gated: `catalog-image` and
   `oem-drawing` use storage for all new writes; base64 is only for explicit
   `inline-small` assets and legacy reads/migration.
+- MIU-11..15 are operational-maturity backlog. They should not delay MIU-08 or
+  dilute MIU-08's P0 public-intent safeguards.
 
 ---
 
@@ -2175,6 +2182,37 @@ Validation run:
 
 - `pnpm lint`
 - `pnpm verify:cloudbase-sdk`
+
+### Codex monitor review — architecture-pattern audit / MIU-11..15 backlog `425c0ff..80d0a5e` — 2026-06-30
+
+Fetched and fast-forwarded `fix/image-upload-storage-design` over SSH after
+Claude pushed:
+
+- `425c0ff` — architecture-pattern audit (§27), verdict P0 LLD sufficient.
+- `80d0a5e` — formalized enrichment backlog as MIU-11..15 (§20.13).
+
+Review disposition:
+
+- No blocking findings. The additions are docs-only and correctly keep the
+  current scenario focused: MIU-08 and MIU-10 remain the implementation gates;
+  MIU-11..15 are backlog-level operational maturity.
+- Important boundary preserved: MIU-11 is later edge/gateway hardening. It does
+  **not** defer MIU-08's P0 public OEM safeguards. MIU-08 must still implement
+  shared-state rate/window caps, pending-intent caps, TTL, opportunistic cleanup,
+  and controlled rejection before it is accepted.
+- The "no dedicated scheduler" choice is acceptable for the current traffic and
+  cost profile because §20.13 folds cleanup into bounded sampled sweeps on
+  intent creation plus the existing admin cleanup action, with CloudBase native
+  scheduled triggers reserved if piggyback cleanup proves insufficient.
+- No runtime package changed. I still ran fn-admin typecheck/tests because these
+  docs touch cleanup/rate-limit design around the admin function.
+
+Validation run:
+
+- `pnpm lint`
+- `pnpm verify:cloudbase-sdk`
+- `pnpm --filter @vibelingan-channel/fn-admin typecheck`
+- `pnpm --filter @vibelingan-channel/fn-admin test` — 70 tests passed
 
 ### Claude review — orphan-cleanup paging fix (6ca3e866) — APPROVED — 2026-06-30
 
