@@ -253,12 +253,40 @@ function seedStore(): Store {
         status: 'active',
         publishedRefCount: 0,
       },
+      // Post-D hardening fixtures: a numeric-STRING counter is corruption (the
+      // writer always stores a number) and must fail closed, not coerce.
+      {
+        _id: 'storage-string-refcount',
+        name: 's1.png',
+        mimeType: 'image/png',
+        storageProvider: 'cloudbase-storage',
+        storageFileId: 'cloud://active',
+        status: 'active',
+        publishedRefCount: '1',
+      },
+      {
+        _id: 'legacy-string-refcount',
+        name: 'l1.svg',
+        mimeType: 'image/svg+xml',
+        data: Buffer.from('<svg/>').toString('base64'),
+        publishedRefCount: '1',
+      },
+      // Unknown/corrupt provider must not be treated as storage-backed.
+      {
+        _id: 'storage-unknown-provider',
+        name: 'u.png',
+        mimeType: 'image/png',
+        storageProvider: 'mystery-store',
+        storageFileId: 'cloud://active',
+        status: 'active',
+        publishedRefCount: 1,
+      },
     ],
   };
 }
 
-function setup(): void {
-  setAdapter(new MemoryAdapter(seedStore()));
+function setup(store: Store = seedStore()): void {
+  setAdapter(new MemoryAdapter(store));
   setMediaStorage(fakeMediaStorage);
 }
 
@@ -426,4 +454,50 @@ test('Phase B↔C contract: bumping publishedRefCount makes a storage image deli
   const res = await imageReq('storage-link-e2e');
   assert.equal(res.statusCode, 200); // reader consumes the counter the writer maintains
   assert.equal(res.body, STORAGE_BYTES['cloud://active']);
+});
+
+// --- MIU-04 post-D review hardening: strict counter + provider guards --------
+
+test('storage-backed image with a numeric-STRING refCount fails closed (404)', async () => {
+  setup();
+  // "1" is a contract violation (writer stores a number); must not coerce.
+  assert.equal((await imageReq('storage-string-refcount')).statusCode, 404);
+});
+
+test('legacy row with a numeric-STRING refCount fails closed (404)', async () => {
+  setup();
+  assert.equal((await imageReq('legacy-string-refcount')).statusCode, 404);
+});
+
+test('image with an unknown storageProvider fails closed (404)', async () => {
+  setup();
+  assert.equal((await imageReq('storage-unknown-provider')).statusCode, 404);
+});
+
+test('legacy row with a present-but-corrupt refCount does NOT fall back to the scan (404)', async () => {
+  // A published product references it, so the pre-fix scan fallback would have
+  // rendered it; a PRESENT-but-invalid counter is canonical corruption → 404.
+  const store: Store = {
+    products: [
+      {
+        _id: 'p-corrupt',
+        name: 'Pc',
+        category: 'wired',
+        published: true,
+        imageIds: ['legacy-corrupt'],
+      },
+    ],
+    overstock: [],
+    images: [
+      {
+        _id: 'legacy-corrupt',
+        name: 'c.svg',
+        mimeType: 'image/svg+xml',
+        data: Buffer.from('<svg/>').toString('base64'),
+        publishedRefCount: 'oops',
+      },
+    ],
+  };
+  setup(store);
+  assert.equal((await imageReq('legacy-corrupt')).statusCode, 404);
 });

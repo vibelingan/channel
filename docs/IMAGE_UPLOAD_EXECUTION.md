@@ -14,7 +14,7 @@ design-only; validation results and capability probes live here.
 | MIU-01 | Media data contract + safe write surface | ✅ done; Codex review + re-review resolved | `8c94d25` (+review fixes) | 13 unit tests + 18 existing pass; tsc + biome clean; Codex review + re-review §2026-06-29 resolved |
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
-| MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex post-D review has public-route hardening findings open | `4823a12`+fixes, Phase B, C, D, Codex review after `fd7e62c` | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. Verification remains green; fix the post-D public-route hardening notes before MIU-05 |
+| MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex A-review + post-D review + self-adversarial B/C/D reviews all resolved | `4823a12`+fixes, Phase B, C, D, post-D hardening | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. Post-D: strict-number counter guard (reject numeric strings), present-but-corrupt fails closed (no scan), unknown provider fails closed; public-api 16→20. All suites pass; both functions build; root tsc + biome clean. Deployed smoke = MIU-09 |
 | MIU-05 | Admin UI uploader (FormData) | pending | — | — |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | pending | — | env-gated; CORS/origin proof is a hard precondition (see Disposition) |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
@@ -705,3 +705,28 @@ Verification run:
 - `pnpm build:functions` - pass
 - `pnpm package:functions` - pass
 - `pnpm smoke:functions` - pass
+
+**Disposition — all three accepted after critical review (fixed in the follow-up commit)**
+
+All three are real public-route fail-open gaps in `getCatalogImage` and consistent
+with the writer/backfill contract (`publishedRefCount` is a number; once present
+it is canonical) and the shared `isStorageBackedImage` set. Fixed:
+
+- **P2 (numeric-string counter).** Phase C guarded `Number.isFinite` but computed
+  via `Number(...)`, so `"1"` coerced to a valid positive count. Now a counter is
+  usable only as `typeof === 'number' && Number.isFinite && > 0`; a numeric string
+  (or any non-number) fails closed on BOTH the storage and legacy paths.
+- **P2 (present-but-corrupt legacy → scan).** Split field-presence from validity:
+  `hasRefCountField = Object.hasOwn(...)`. The legacy catalog-scan fallback now
+  runs ONLY when the field is absent; a present-but-invalid counter is canonical
+  corruption → 404, never scans (even with a published catalog reference).
+- **P3 (unknown provider).** The storage branch now proxies only the recognised
+  providers (`cloudbase-storage` / `local-disk`, matching `isStorageBackedImage`);
+  an unknown/corrupt `storageProvider` fails closed.
+- Tests (public-api 16 → 20): storage-backed `"1"` → 404, legacy `"1"` → 404,
+  unknown provider → 404, and a legacy present-but-corrupt counter WITH a published
+  catalog reference → 404 (proves the scan is not reached). root tsc + biome clean;
+  public-api builds.
+
+**MIU-04 fully resolved** (implementation + Codex A-review + post-D review + the
+three self-adversarial reviews). Deployed smoke remains MIU-09.

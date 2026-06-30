@@ -171,27 +171,40 @@ export async function getCatalogImage(imageId: string): Promise<ApiResult<unknow
   }
 
   const provider = typeof doc.storageProvider === 'string' ? doc.storageProvider : 'legacy-base64';
-  const refCount = Number(doc.publishedRefCount ?? 0);
-  // A positive, finite ref count is the only "visible" signal (fail closed: a
-  // corrupt/non-finite counter must NOT render — NaN comparisons are false).
-  const visibleByRefCount = Number.isFinite(refCount) && refCount > 0;
-  const hasRefCount = Object.hasOwn(doc, 'publishedRefCount') && Number.isFinite(refCount);
+  // publishedRefCount is "valid" only as a finite NUMBER. The writer/backfill
+  // always store a number (and `isStorageBackedImage` narrows on
+  // `typeof === 'number'`), so a numeric STRING like "1" — or any non-number — is
+  // a corrupt value and must fail closed, not coerce to a positive count.
+  const refCount = doc.publishedRefCount;
+  const visibleByRefCount =
+    typeof refCount === 'number' && Number.isFinite(refCount) && refCount > 0;
+  const hasRefCountField = Object.hasOwn(doc, 'publishedRefCount');
 
   if (provider === 'legacy-base64') {
-    // Trust the ref count once it exists (post-backfill); until then fall back to
-    // the O(catalog) scan so legacy rows keep rendering.
-    const visible = hasRefCount ? visibleByRefCount : await legacyImageIsPublicFallback(imageId);
+    // The O(catalog) scan is a compatibility fallback ONLY for rows that predate
+    // publishedRefCount (field absent). Once the field is PRESENT it is canonical
+    // — a present-but-invalid counter is corruption and fails closed, never scans.
+    const visible = hasRefCountField
+      ? visibleByRefCount
+      : await legacyImageIsPublicFallback(imageId);
     if (!visible || typeof doc.data !== 'string') return err('NOT_FOUND', 'Image not found');
     return binaryImage(doc, doc.data);
   }
 
-  // Storage-backed (cloudbase-storage / local-disk): publishedRefCount + status
-  // are canonical — no catalog scan. Bytes are proxied via the media adapter.
-  if (doc.status !== 'active' || !visibleByRefCount || typeof doc.storageFileId !== 'string') {
+  // Storage-backed: only the recognised providers may proxy (matches the shared
+  // `isStorageBackedImage` set) — an unknown/corrupt provider fails closed. Then
+  // require active status, a positive finite numeric count, and a string fileId.
+  const storageFileId = doc.storageFileId;
+  if (
+    (provider !== 'cloudbase-storage' && provider !== 'local-disk') ||
+    doc.status !== 'active' ||
+    !visibleByRefCount ||
+    typeof storageFileId !== 'string'
+  ) {
     return err('NOT_FOUND', 'Image not found');
   }
   try {
-    const object = await mediaStorage().getObjectAsBase64(doc.storageFileId);
+    const object = await mediaStorage().getObjectAsBase64(storageFileId);
     return binaryImage(doc, object.body);
   } catch (e) {
     // Active metadata but unfetchable bytes (missing object / transient store
