@@ -2452,3 +2452,29 @@ Codex's, which is more thorough.)
 Validation in flight: Deploy Test `28441682128` (on `9346954`) redeploys the small
 package — expected to **recreate/restore `admin`** (currently deleted) and then run
 the API + UI smokes. Outcome recorded next.
+
+### ⚠️ UPDATE — size fix verified but `admin` STILL not restorable; `createFunction` is the real failure — 2026-06-30
+
+Run `28441550566` (on `9346954`) built the shrunk artifact — `admin: artifact
+1670111 bytes` (1.67 MB, no map, minified ✓ — the size fix is real) — but the deploy
+**still failed the same way**: `admin` is absent so `deployFunction` takes the
+`createFunction` path, and `waitForActive` then logs `[GetFunction] 未找到指定的
+Function` (not found) for the full 300 s → "did not become active." (My run
+`28441682128` was cancelled by the concurrency collision with `28441550566`.)
+
+**So size was NOT the (whole) cause.** Even at 1.67 MB, `createFunction` returns a
+non-error result (it doesn't throw → `assertToolSucceeded` passes) yet the function
+**never materializes**. The recent successful deploys only ever *updated* an
+existing `admin` (it has existed since 06-25); the **create-from-scratch path has
+not actually worked**, and now that `admin` is deleted we're stuck on it.
+
+Open hypotheses (need the raw `createFunction` result, which the deploy swallows):
+the MCP `manageFunctions createFunction` (with `functionRootPath` + `force:true`)
+isn't actually creating the Event function; or the just-deleted `admin` name is in
+a transient/reserved state that blocks recreate; or a create-specific config/param
+issue. **The size fix stays (good regardless), but it does not restore `admin`.**
+
+Status: test-env `admin` still DELETED; no more blind redeploys (4 deterministic
+failures). Next: get the REAL `createFunction` behavior — a direct MCP
+`createFunction` (raw result/error) and/or restore `admin` manually — then fix the
+deploy's create path accordingly.
