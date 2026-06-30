@@ -2435,3 +2435,48 @@ base64. It does not alter MIU-Upload or MIU-08.
 
 Gate decision: approved, no blockers. The loop's §25 → `2e089d4` round-trip is
 complete; OEM MIU-08 is ready to implement against the hardened spec.
+
+## 27. Architecture-Pattern Audit (cloud-design-patterns, 2026-06-30)
+
+Beyond line-by-line technical review, this is an architecture audit of the whole
+media design against the 42 industry cloud-design patterns, to answer one
+question: **is the MIU low-level design sufficient, or should it be enriched?**
+
+Verdict: the LLD is **sufficient to build P0 and is pattern-compliant — no G2
+blockers**. It is unusually detailed for an LLD (data shapes, flows, tests, exit
+criteria per MIU). The enrichment opportunities below are **operational-maturity**
+items, mostly post-P0; exactly one (27.2-1, cleanup scheduling) is a P0-adjacent
+hole because an abuse-control reaper that is never triggered does not run.
+
+### 27.1 Patterns already applied well (do not re-open)
+
+| Pattern | Where | Constraint satisfied |
+| --- | --- | --- |
+| Valet Key | Admin-brokered pre-signed COS POST (§24, MIU-08) | Minimum scope: single server-chosen key, `content-length-range`, short TTL, single-use secret. Never wildcard. |
+| Compensating Transaction | Upload→activate and project→file-activate failure paths (MIU-03/06/08) | Each compensating step is idempotent; orphan cleanup retries. |
+| Strangler Fig | `legacy-base64` reads coexist with storage writes, then retire (§14, MIU-06) | The delivery facade branches by provider — never serves old and new for the same request. |
+| Anti-Corruption Layer | `MediaStorageAdapter` (`packages/media-storage`) | CloudBase SDK shapes do not leak into handlers; returns domain `StoredMediaObject`. |
+| Gateway Routing | CloudBase HTTP access prefix dispatch (C5) | Routing only; no business rules in the gateway. |
+| Health Endpoint Monitoring | `/api/health` | Unauthenticated, as required. |
+
+### 27.2 Enrichment opportunities (ranked)
+
+| # | Pattern | Gap | Enrichment |
+| --- | --- | --- | --- |
+| 27.2-1 | Scheduler Agent Supervisor | The pending-intent / orphan reaper (MIU-06/08) is defined as an *action* but no MIU says **who triggers it**. Unscheduled, expired-pending cleanup and abuse-mitigation never actually run. | Define a trigger: a CloudBase **timer-triggered** function (or piggyback cleanup on each intent-create with a sampled sweep). State cadence + batch size. This is the one P0-adjacent item. |
+| 27.2-2 | Rate Limiting / Throttling | OEM public rate/pending caps live **inside** the Event Function (per-service), counters risk per-instance state, and rejection isn't specified as `429 + Retry-After`. | Enforce at the **edge** (gateway/OPA rule) where possible; keep the in-function cap as backstop using the **atomic `incrementField`** (shared DB state, not per-instance memory — same hard constraint as Circuit Breaker); return `429` + `Retry-After`. |
+| 27.2-3 | Quarantine | `pending→active` is an implicit quarantine and magic-byte sniff exists, but the failure path isn't a formal logged-with-content-hash quarantine, and malware scanning is deferred. | Formalize the `pending→active→failed` state machine; log every rejection with the content SHA-256 (already computed); name the CloudRun scan as the quarantine deepening for the file class. |
+| 27.2-4 | Async Request-Reply + Queue-Based Load Leveling | Server-side variant generation, scanning, and bulk legacy migration are described as synchronous/batch. At volume they will block uploads or spike compute. | When variant/scan moves server-side (P1), specify an **async job** (poll/webhook) fronted by a **queue** so upload latency is decoupled and spikes are leveled. |
+| 27.2-5 | Observability (cross-cutting) | The design is strong on *what not to log* (secrets/temp URLs) but light on *what to measure*. | Define metrics: upload success/failure rate, orphan/pending count, rate-limit rejections, CDN-stale-after-delete incidents, migration progress. This is the weakest dimension across the whole design. |
+| 27.2-6 | Static Content Hosting | The later public-CDN variant optimization (§6) needs an invalidation strategy before it ships. | Define cache-invalidation up front (content-addressed keys or explicit purge) when the public-CDN path is taken; not needed for the private-proxy P0. |
+
+### 27.3 G2 check
+
+No hard blockers. The two near-constraints — rate-limit counters must be
+shared-state (not per-instance memory) and retries must stay idempotent — are
+already required by the design (atomic `incrementField`; overwrite-key PUT,
+`imageId`-keyed completion, `submissionId`). Keep them enforced in code review.
+
+Bottom line: do not enrich the P0 LLD further to start building — it is enough.
+Fold 27.2-1 (cleanup scheduling) into the OEM/migration MIUs now, and treat
+27.2-2 through 27.2-6 as the explicit operational-maturity backlog for P1.
