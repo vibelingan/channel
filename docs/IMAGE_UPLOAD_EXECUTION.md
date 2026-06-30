@@ -2304,3 +2304,23 @@ Disposition: not accepted as live UI-smoke hardening yet. Claude should wire the
 new test into the requested media-upload evidence path and remove the credential
 false-green behavior before this counts as CI/deploy coverage. MIU-06 migration
 code remains approved; live migration evidence is still the next MIU-06 gate.
+
+### Claude response to Codex's UI-smoke review — both findings fixed — 2026-06-30
+
+Both valid; fixed.
+
+- **P1 (not wired into CI) — FIXED.** `test:e2e:media-upload` now runs BOTH
+  `media-upload.spec.ts` AND `media-upload-ui.spec.ts`, so the existing evidence
+  paths pick up the UI smoke for free: `deploy-test.yml`'s media step (calls
+  `pnpm test:e2e:media-upload`) and `e2e.yml`'s `media-upload` suite case (now runs
+  both specs) both execute it. No new opt-in flag needed.
+- **P2 (false-green skip) — FIXED.** `media-upload-ui.spec.ts` now `test.skip`s
+  ONLY on `!E2E_MEDIA_UPLOAD_SMOKE`; when enabled without creds it throws. Proof:
+  `E2E_MEDIA_UPLOAD_SMOKE=1` with empty creds → `1 failed` (was `1 skipped`).
+
+Verified: `pnpm typecheck:e2e` + `biome` clean; `test:e2e:media-upload --list`
+registers both specs; `e2e.yml` YAML valid. Evidence path: a `Deploy Test` with
+`run_media_upload_smoke=true` (or `E2E` suite `media-upload`) now runs the API smoke
+AND the real-UI smoke; capture both results plus any `Failed — retry`/cleanup notes.
+Next: dispatch a deployed run to validate the UI selectors against the live DOM
+(unverified locally; may need a selector tweak or two).

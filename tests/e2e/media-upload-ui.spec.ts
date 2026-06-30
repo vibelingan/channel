@@ -33,15 +33,22 @@ async function uiLogin(page: Page): Promise<void> {
 }
 
 test.describe('MIU-09 admin UI upload (ImageManager) — deployed env', () => {
+  // Skip ONLY when the smoke is not enabled. When it IS enabled, missing creds must
+  // FAIL (below), never silently skip — same fail-fast rule as media-upload.spec.ts.
   test.skip(
-    !e2e.mediaUploadSmoke || !hasAdminCredentials(),
-    'Set E2E_MEDIA_UPLOAD_SMOKE=1 plus E2E_ADMIN_EMAIL/E2E_ADMIN_PASSWORD to run the deployed UI upload test.',
+    !e2e.mediaUploadSmoke,
+    'Set E2E_MEDIA_UPLOAD_SMOKE=1 to run the deployed UI upload test.',
   );
 
   test('an admin uploads an image through the ImageManager UI and it previews', async ({
     page,
     request,
   }) => {
+    if (!hasAdminCredentials()) {
+      throw new Error(
+        'E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD are required when E2E_MEDIA_UPLOAD_SMOKE=1.',
+      );
+    }
     const fileName = `${e2e.runId}-ui.png`;
 
     try {
