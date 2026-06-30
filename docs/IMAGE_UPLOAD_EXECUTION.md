@@ -2690,3 +2690,32 @@ Verification:
 Next evidence gate: dispatch Deploy Test again and confirm the log now shows
 `CloudBase CLI zip deploy submitted (primary CI update)` for existing functions
 without the earlier MCP create/update probe.
+
+### Codex deploy-flow correction - use CLI code update for existing functions - 2026-06-30
+
+Deploy Test
+[`28444383618`](https://github.com/vibelingan/channel/actions/runs/28444383618)
+on `2e31b5c3cce27d7dce1a97d7e92553ec486f5998` validated the CLI-primary
+boundary but exposed one more lifecycle mismatch:
+
+- The script used `tcb fn deploy --force --deployMode zip` for an existing
+  `admin` function.
+- CloudBase CLI source/help shows `fn deploy` is the create/full-deploy command.
+  On the existing-function force path, the CLI internally calls its code-update
+  path without preserving the explicit `zip` deploy mode.
+- The run log showed exactly that: it printed `部署方式: ZIP base64 上传`, then
+  fell through to `部署方式: COS 上传`, then failed with
+  `[admin] COS 上传超时（60秒）`.
+
+Fix made:
+
+- Existing function: `tcb fn code update <name> --dir <artifactDir>
+  --deployMode zip --json`, falling back to `cos` only if ZIP truly fails.
+- Missing function: `tcb fn deploy <name> --dir <artifactDir> --runtime
+  Nodejs20.19 --deployMode zip --force --json`.
+- Function config still updates separately through the existing MCP
+  `updateFunctionConfig` retry path, followed by Active/runtime smoke.
+
+This is the cleaner CloudBase CLI contract for CI: **code update for existing
+functions, deploy for first create, config update as a separate step, and smoke
+after command success**.

@@ -222,7 +222,7 @@ function summarizeCloudBaseCliOutput(output) {
   return output.replace(/\s+/g, ' ').trim().slice(0, 700) || 'no CLI output';
 }
 
-function deployFunctionWithCloudBaseCli(def, reason) {
+function deployFunctionWithCloudBaseCli(def, reason, action) {
   ensureCloudBaseCliAuth();
   const { configDir, configPath } = writeCloudBaseCliConfig(def);
   const artifactDir = resolve(functionRootPath, def.name);
@@ -230,28 +230,43 @@ function deployFunctionWithCloudBaseCli(def, reason) {
     const errors = [];
     for (const deployMode of cloudBaseCliDeployModes) {
       try {
-        const output = runCloudBaseCli(
-          [
-            '--config-file',
-            configPath,
-            '-e',
-            envId,
-            'fn',
-            'deploy',
-            def.name,
-            '--dir',
-            artifactDir,
-            '--runtime',
-            targetRuntime,
-            '--deployMode',
-            deployMode,
-            '--force',
-            '--json',
-          ],
-          { timeoutMs: 600_000 },
-        );
+        const commandArgs =
+          action === 'update'
+            ? [
+                '--config-file',
+                configPath,
+                '-e',
+                envId,
+                'fn',
+                'code',
+                'update',
+                def.name,
+                '--dir',
+                artifactDir,
+                '--deployMode',
+                deployMode,
+                '--json',
+              ]
+            : [
+                '--config-file',
+                configPath,
+                '-e',
+                envId,
+                'fn',
+                'deploy',
+                def.name,
+                '--dir',
+                artifactDir,
+                '--runtime',
+                targetRuntime,
+                '--deployMode',
+                deployMode,
+                '--force',
+                '--json',
+              ];
+        const output = runCloudBaseCli(commandArgs, { timeoutMs: 600_000 });
         console.log(
-          `${def.name}: CloudBase CLI ${deployMode} deploy submitted (${reason}); ${summarizeCloudBaseCliOutput(
+          `${def.name}: CloudBase CLI ${deployMode} ${action} submitted (${reason}); ${summarizeCloudBaseCliOutput(
             output,
           )}`,
         );
@@ -259,11 +274,13 @@ function deployFunctionWithCloudBaseCli(def, reason) {
       } catch (error) {
         errors.push(`${deployMode}: ${error.message}`);
         if (deployMode !== cloudBaseCliDeployModes.at(-1)) {
-          console.warn(`${def.name}: CloudBase CLI ${deployMode} deploy failed; trying next mode.`);
+          console.warn(
+            `${def.name}: CloudBase CLI ${deployMode} ${action} failed; trying next mode.`,
+          );
         }
       }
     }
-    throw new Error(`${def.name}: all CloudBase CLI deploy modes failed\n${errors.join('\n')}`);
+    throw new Error(`${def.name}: all CloudBase CLI ${action} modes failed\n${errors.join('\n')}`);
   } finally {
     rmSync(configDir, { force: true, recursive: true });
   }
@@ -432,7 +449,11 @@ function deployFunction(def) {
     );
   }
 
-  deployFunctionWithCloudBaseCli(def, before ? 'primary CI update' : 'primary CI create');
+  deployFunctionWithCloudBaseCli(
+    def,
+    before ? 'primary CI code update' : 'primary CI create',
+    before ? 'update' : 'deploy',
+  );
   const after = waitForActive(def.name);
   if (after.Runtime !== targetRuntime) {
     throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${after.Runtime}`);
