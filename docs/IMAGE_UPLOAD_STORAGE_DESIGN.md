@@ -2397,3 +2397,41 @@ Disposition update: §20.10 now folds these findings into the authoritative OEM
 MIU body: public intent rate/pending caps, COS `content-length-range`, short-TTL
 private delivery caveat, constant-time single-use upload secret, filename
 sanitization, and ZIP/PDF magic-byte sniffing are all required in MIU-08.
+
+## 26. Review - Upload Transport Policy Gate (2026-06-30)
+
+Review of commit `2e089d4` ("add upload transport policy gate"). Verdict:
+approved — it resolves all six §25 findings and adds a useful purpose-first
+transport gate (new MIU-10). Append-only; does not change §1-25.
+
+### 26.1 §25 findings — all resolved
+
+| §25 finding | Resolution in `2e089d4` |
+| --- | --- |
+| 25-1 P1 public-intent abuse/DoS | New constants `OEM_UPLOAD_INTENT_TTL_MS`, `OEM_MAX_PENDING_INTENTS_PER_SOURCE`, `OEM_UPLOAD_RATE_WINDOW_MS`/`_MAX_PER_WINDOW`; intent creation enforces per-source/window rate limit, pending cap, expiry, cleanup, and a global emergency cap when source IP is untrusted; "unlimited anonymous minting" is a failing test. |
+| 25-2 P2 oversize lands before check | COS POST policy now binds `content-length-range: 0..OEM_FILE_MAX_BYTES`; tested. |
+| 25-3 P2 OEM temp-URL vs proxy / CDN cache | Shortest-practical TTL (target 60 s), never stored, with an explicit MIU-00 CDN-edge-outlives-delete caveat and a CloudRun-proxy upgrade path noted. |
+| 25-4 P2 uploadSecret threat model | Stated (anti-hijack of a guessed/enumerated `fileId`); `uploadSecretHash` compared in constant time and consumed once; replay test added. |
+| 25-5 P3 download filename safety | Forces `Content-Disposition: attachment` and strips CR/LF/quotes/path-seps/control chars; tested. |
+| 25-6 P3 magic-byte sniff | ZIP (`PK\x03\x04`) / PDF (`%PDF`) sniff after upload, mismatch → `failed` + best-effort delete; CAD stays extension-gated until CloudRun scanning. |
+
+### 26.2 Transport policy gate (new, good)
+
+The purpose-first decision table (catalog-image / oem-drawing / inline-small /
+marketing) plus the five-point base64-eligibility contract is a sound guardrail:
+base64 is reachable only via an explicit `inline-small`/legacy action with a
+50 KiB raw-byte cap, so size can never silently downshift a product/OEM file into
+base64. It does not alter MIU-Upload or MIU-08.
+
+### 26.3 Residual notes (nits, non-blocking)
+
+- The rate/pending counters are shared mutable state hit from a public endpoint;
+  implement them with the existing atomic `incrementField` primitive (MIU-04
+  phase A), not read-modify-write, or two concurrent intents can both pass the
+  cap. The global minute counter is the real backstop since Event Functions
+  cannot fully trust a client IP — call that out in the implementing MIU.
+- 60 s download TTL is deliberately aggressive; fine because the URL is minted on
+  the admin's click, but make it a named constant so it is tunable.
+
+Gate decision: approved, no blockers. The loop's §25 → `2e089d4` round-trip is
+complete; OEM MIU-08 is ready to implement against the hardened spec.
