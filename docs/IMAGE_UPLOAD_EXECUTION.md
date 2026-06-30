@@ -2604,3 +2604,43 @@ Verification run by Codex before push:
 Next: push, then dispatch Deploy Test again. Expected evidence: ZIP mode should
 avoid the runner->COS 60s timeout and either restore `admin` or surface the direct
 ZipFile API error.
+
+### Codex review - ZIP fallback live evidence (`6485ee5`) - ACCEPTED - 2026-06-30
+
+Deploy Test
+[`28443386213`](https://github.com/vibelingan/channel/actions/runs/28443386213)
+ran on `6485ee54867acccbd794f2b3a42995b9423c240b` and completed successfully.
+
+Evidence:
+
+- The MCP create path still returned an empty/non-error result while `admin`
+  remained not found for 300 s, so the deploy script correctly treated the MCP
+  result as insufficient.
+- The official CloudBase CLI authenticated with permanent CAM credentials.
+- The fallback used `deployMode=zip` first and restored `admin`:
+  `admin: CloudBase CLI zip deploy fallback submitted ... 部署方式: ZIP base64 上传`.
+- Post-deploy verification saw both functions Active on `Nodejs20.19`.
+- The deployed release SHAs matched the branch head for both functions:
+  `public-api` and `admin` reported
+  `6485ee54867acccbd794f2b3a42995b9423c240b`.
+- CloudBase smoke passed for site routes, API health, authenticated admin POST,
+  public catalog endpoints, private file 404, and unauthorized admin 401.
+- Public browser E2E passed: `3 passed (14.9s)`.
+- Media upload smoke passed: `2 passed (32.8s)`, including:
+  - `MIU-09 admin UI upload (ImageManager) ... previews`
+  - `browser origin uploads to COS, admin previews privately, and public delivery
+    is refcount-gated`
+
+Review disposition: **no blockers** on the ZIP-first CLI fallback, deployed
+function release verification, or MIU-09 live upload acceptance path. This also
+restores the broken test environment `admin` function without manual console work.
+
+Residual non-blocking follow-ups:
+
+- The cold-create path still waits 300 s on the known-bad MCP create probe before
+  entering CLI fallback. Functionally safe, but slow; a later deploy-hardening
+  cleanup can shorten or skip that probe when `GetFunction` confirms the function
+  is absent.
+- The MIU-09 smoke's cleanup phase logged non-fatal `Unknown API error` messages
+  for product/image metadata removal, while both upload assertions still passed.
+  Treat as test cleanup hygiene, not an upload blocker.
