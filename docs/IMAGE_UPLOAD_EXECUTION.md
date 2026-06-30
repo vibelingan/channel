@@ -15,7 +15,7 @@ design-only; validation results and capability probes live here.
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
 | MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex A-review + post-D review + self-adversarial B/C/D reviews all resolved | `4823a12`+fixes, Phase B, C, D, post-D hardening | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. Post-D: strict-number counter guard (reject numeric strings), present-but-corrupt fails closed (no scan), unknown provider fails closed; public-api 16→20. All suites pass; both functions build; root tsc + biome clean. Deployed smoke = MIU-09 |
-| MIU-05 | Admin UI uploader (direct PUT UI) | U2a done; Codex review → P3 fixed; P1 (admin preview) + P2 (accept-list/per-file) folded into U2b (next) | Phase U2a + Codex review | `uploadImage()` drives createUploadIntent → raw PUT → completeUpload. U2b will add an admin-authed preview (public `/api/images/:id` correctly gates on `publishedRefCount`, so it 404s unpublished/just-uploaded images), per-file upload state + retry, and a jpeg/png/webp accept-list; see disposition below. |
+| MIU-05 | Admin UI uploader (direct PUT UI) | U2a reviewed again; P3 comment fixed; **not done** until U2b resolves the admin-preview + per-file/accept-list blockers and the design handoff is aligned | Phase U2a + Codex review | `uploadImage()` drives createUploadIntent → raw PUT → completeUpload, but the current UI still previews through public `/api/images/:id` and local-server still masks that production gate. U2b must add admin-authed preview, per-file state/retry, and jpeg/png/webp-only selection; see latest review below. |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
@@ -981,3 +981,35 @@ so P1+P2 are the remaining U2b scope (not regressions in shipped work).
 
 Codex verification on `ba27b60`: all per-package typechecks pass, `pnpm typecheck`
 green, both functions build, biome clean — confirming the U1 fixes landed.
+
+### Codex MIU-05 Review — 2026-06-30 after `0480ef3`
+
+Review base: `0480ef3` (`docs(media): MIU-05 Codex review disposition + fix
+stale completeUpload comment (P3)`), diffed against the previous processed head
+`0357cb85`.
+
+What is sound:
+
+- The admin handler comment now matches the implementation and tests:
+  not-yet-retrievable objects stay `pending` and retryable; only size/checksum
+  verification failures mark the doc `failed` and trigger best-effort delete.
+- No TypeScript or CloudBase SDK contract regression was found in the
+  comment-only handler delta.
+
+Findings:
+
+| Severity | Finding | Evidence | Required change |
+| --- | --- | --- | --- |
+| P1 | MIU-05 is still blocked, but the new disposition softens the previous P1 into ordinary "U2b scope" while the authoritative design still points the next implementer at the broken preview path. `docs/IMAGE_UPLOAD_STORAGE_DESIGN.md` §20.7 still says to keep `imageUrl(id)` previews via public `/api/images/:id`; the latest execution disposition correctly says U2b must add an admin-authenticated preview and stop local-server from masking production. Those two handoffs conflict. If Claude follows the design text, fresh storage-backed uploads still 404 in production admin preview because public delivery requires `publishedRefCount > 0`. | Current code: `ImageManager` previews with `imageUrl(id)`, `imageUrl` is public `/api/images/:id`, production public delivery gates storage-backed rows on `status === 'active' && publishedRefCount > 0`, and local-server still gates storage rows on `active` only. Docs conflict: design §20.7 says keep public previews; latest execution disposition says add admin preview and revert local-server masking. | Treat admin-auth preview + local-server parity as blocking MIU-05 completion, not a passed U2a footnote. Update design §20.7 to remove the public-preview instruction, make the admin-auth preview route the U2b exit criterion, and keep MIU-05 marked not done until that implementation and review land. |
+| P3 | The P3 lifecycle comment fix is only partially reflected in the docs. The handler comment is now correct, but `docs/IMAGE_UPLOAD_STORAGE_DESIGN.md` §20.7's detailed `completeUpload` step still says "A missing object ... marks the doc failed" before the later lifecycle paragraph says the opposite. That is a stale implementation contract for MIU-06/MIU-09. | Design §20.7 server-contract step 3 conflicts with the same section's lifecycle paragraph and with `completeUploadAction` tests (`completeUpload leaves the doc PENDING (retryable) when the object is not yet retrievable`). | Align the detailed design step with the actual contract: retrieval miss stays `pending` and retryable; size/checksum verification failures mark `failed`. |
+
+Verification run by Codex on `0480ef3`:
+
+- `pnpm --filter @vibelingan-channel/fn-admin test` - pass (51 tests).
+- `pnpm --filter @vibelingan-channel/fn-admin typecheck` - pass.
+- `pnpm exec biome check apps/functions/admin/src/handler.ts docs/IMAGE_UPLOAD_EXECUTION.md` - pass for `handler.ts`; Markdown is ignored by this repo's Biome config.
+
+Disposition: `0480ef3` closes the narrow P3 handler-comment issue, but MIU-05 is
+still **not done**. The next Claude pass should implement U2b (admin-auth preview,
+local-server parity, per-file upload state/retry, jpeg/png/webp accept-list) and
+align the design handoff before MIU-05 can be marked reviewed/complete.
