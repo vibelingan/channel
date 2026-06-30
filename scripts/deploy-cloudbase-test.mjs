@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -11,6 +12,7 @@ const targetRuntime = process.env.CLOUDBASE_FUNCTION_RUNTIME || 'Nodejs20.19';
 const webAppServiceName = process.env.CLOUDBASE_WEBAPP_SERVICE || 'channel-test';
 const functionActiveTimeoutMs = positiveIntegerEnv('CLOUDBASE_FUNCTION_ACTIVE_TIMEOUT_MS', 300_000);
 const functionPollIntervalMs = positiveIntegerEnv('CLOUDBASE_FUNCTION_POLL_INTERVAL_MS', 5_000);
+const cloudBaseCliPackage = process.env.CLOUDBASE_CLI_PACKAGE || '@cloudbase/cli@3.5.9';
 const envId = requireEnv('TCB_ENV_ID');
 const appEnv = process.env.APP_ENV || 'test';
 const siteUrl = trimSlash(
@@ -122,6 +124,132 @@ function assertToolSucceeded(result, label) {
   }
   if (result.success === false) {
     throw new Error(`${label} failed: ${toolMessage(result)}`);
+  }
+}
+
+function parseCliJsonWithNoise(output) {
+  const start = output.indexOf('{');
+  if (start < 0) return null;
+  try {
+    return JSON.parse(output.slice(start));
+  } catch {
+    return null;
+  }
+}
+
+function redactCliArgs(args) {
+  const sensitiveFlags = new Set(['--apiKeyId', '--apiKey', '--token']);
+  return args.map((arg, index) => (sensitiveFlags.has(args[index - 1]) ? '<redacted>' : arg));
+}
+
+function runCloudBaseCli(args, options = {}) {
+  try {
+    return execFileSync('npx', ['-y', '-p', cloudBaseCliPackage, 'tcb', ...args], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: options.timeoutMs ?? 300_000,
+    });
+  } catch (error) {
+    const safeArgs = redactCliArgs(args).join(' ');
+    const output = `${error.stdout ?? ''}${error.stderr ?? ''}`.slice(0, 1_200);
+    throw new Error(`CloudBase CLI failed: tcb ${safeArgs}\n${output}`);
+  }
+}
+
+let cloudBaseCliAuthenticated = false;
+
+function ensureCloudBaseCliAuth() {
+  if (cloudBaseCliAuthenticated) return;
+  runCloudBaseCli(
+    [
+      'login',
+      '--apiKeyId',
+      requireEnv('TENCENTCLOUD_SECRETID'),
+      '--apiKey',
+      requireEnv('TENCENTCLOUD_SECRETKEY'),
+      '--json',
+    ],
+    { timeoutMs: 180_000 },
+  );
+  cloudBaseCliAuthenticated = true;
+  console.log('CloudBase CLI authenticated with permanent CAM credentials.');
+}
+
+function writeCloudBaseCliConfig(def) {
+  const configDir = mkdtempSync(resolve(tmpdir(), `channel-${def.name}-tcb-`));
+  const configPath = resolve(configDir, 'cloudbaserc.json');
+  writeFileSync(
+    configPath,
+    `${JSON.stringify(
+      {
+        $schema: 'https://static.cloudbase.net/cli/cloudbaserc.schema.json',
+        envId,
+        functionRoot: functionRootPath,
+        functions: [
+          {
+            name: def.name,
+            runtime: targetRuntime,
+            handler: 'index.main',
+            timeout: 20,
+            memorySize: 256,
+            envVariables: def.envVariables,
+          },
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
+  return { configDir, configPath };
+}
+
+function summarizeCloudBaseCliOutput(output) {
+  const parsed = parseCliJsonWithNoise(output);
+  if (parsed) {
+    return JSON.stringify({
+      code: parsed.code,
+      message: parsed.message,
+      requestId: parsed.requestId ?? parsed.RequestId ?? parsed.data?.requestId,
+      dataKeys: parsed.data && typeof parsed.data === 'object' ? Object.keys(parsed.data) : [],
+    }).slice(0, 700);
+  }
+  return output.replace(/\s+/g, ' ').trim().slice(0, 700) || 'no CLI output';
+}
+
+function deployFunctionWithCloudBaseCli(def, reason) {
+  ensureCloudBaseCliAuth();
+  const { configDir, configPath } = writeCloudBaseCliConfig(def);
+  const artifactDir = resolve(functionRootPath, def.name);
+  try {
+    const output = runCloudBaseCli(
+      [
+        '--config-file',
+        configPath,
+        '-e',
+        envId,
+        'fn',
+        'deploy',
+        def.name,
+        '--dir',
+        artifactDir,
+        '--runtime',
+        targetRuntime,
+        '--deployMode',
+        'cos',
+        '--force',
+        '--json',
+      ],
+      { timeoutMs: 600_000 },
+    );
+    console.log(
+      `${def.name}: CloudBase CLI deploy fallback submitted (${reason}); ${summarizeCloudBaseCliOutput(
+        output,
+      )}`,
+    );
+  } finally {
+    rmSync(configDir, { force: true, recursive: true });
   }
 }
 
@@ -253,7 +381,10 @@ function createFunction(def) {
     { timeoutMs: 240_000 },
   );
   assertToolSucceeded(result, `${def.name}: createFunction`);
-  return requestIdFrom(result) ?? 'unknown';
+  return {
+    requestId: requestIdFrom(result),
+    result,
+  };
 }
 
 function updateFunctionCode(def) {
@@ -351,13 +482,15 @@ function deployFunction(def) {
 
   const current = functionDetail(def.name, true);
   if (current) {
-    const code = updateFunctionCode(def);
+    let code = updateFunctionCode(def);
     if (!code.requestId) {
       console.warn(
         `${def.name}: updateFunctionCode returned no RequestId (${toolMessage(
           code.result,
-        )}); continuing without destructive recreate. The release smoke must verify live code before this deploy is accepted.`,
+        )}); trying CloudBase CLI COS deploy fallback.`,
       );
+      deployFunctionWithCloudBaseCli(def, 'MCP updateFunctionCode returned no RequestId');
+      code = { requestId: 'cloudbase-cli-fallback', result: code.result };
     }
     const codeAfter = waitForActive(def.name);
     if (codeAfter.Runtime !== targetRuntime) {
@@ -374,13 +507,33 @@ function deployFunction(def) {
     return;
   }
 
-  const requestId = createFunction(def);
-
-  const after = waitForActive(def.name);
+  let created = createFunction(def);
+  let after;
+  try {
+    after = waitForActive(def.name);
+  } catch (error) {
+    console.warn(
+      `${def.name}: MCP createFunction did not produce an active function (${toolMessage(
+        created.result,
+      )}; ${error.message}); trying CloudBase CLI COS deploy fallback.`,
+    );
+    deployFunctionWithCloudBaseCli(def, 'MCP createFunction did not become queryable');
+    created = { requestId: 'cloudbase-cli-fallback', result: created.result };
+    after = waitForActive(def.name);
+  }
   if (after.Runtime !== targetRuntime) {
     throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${after.Runtime}`);
   }
-  console.log(`${def.name}: deployed on ${after.Runtime}; request ${requestId}`);
+  const configRequestId = updateFunctionConfig(def);
+  const configAfter = waitForActive(def.name);
+  if (configAfter.Runtime !== targetRuntime) {
+    throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${configAfter.Runtime}`);
+  }
+  console.log(
+    `${def.name}: deployed on ${configAfter.Runtime}; create request ${
+      created.requestId ?? 'unknown'
+    }; config request ${configRequestId}`,
+  );
 }
 
 function ensureGateway(def) {

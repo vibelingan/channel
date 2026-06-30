@@ -2478,3 +2478,60 @@ Status: test-env `admin` still DELETED; no more blind redeploys (4 deterministic
 failures). Next: get the REAL `createFunction` behavior — a direct MCP
 `createFunction` (raw result/error) and/or restore `admin` manually — then fix the
 deploy's create path accordingly.
+
+### Codex follow-up - MCP create still cannot restore `admin`; add CLI COS deploy fallback - 2026-06-30
+
+Reviewed Claude's `67994dc` update and the live Deploy Test outcomes.
+Important correction: the artifact shrink was necessary, but the first redeploy
+proved it was not sufficient to restore a deleted `admin` function through the
+MCP create path.
+
+Evidence:
+
+- Deploy Test `28441550566` on `9346954` failed after the shrink. Logs show
+  `admin: artifact 1670111 bytes sha256:9f59c30a311c548b`, then `GetFunction`
+  stayed not found for 300s. So the current restore blocker is no longer the
+  previously shipped source map / ~9 MB upload.
+- Duplicate Deploy Test `28441682128` was cancelled to avoid repeating the same
+  known-bad create path.
+- `npx @cloudbase/cli` failed earlier because that package invocation does not
+  select a bin. Verified the correct official CLI invocation is
+  `npx -y -p @cloudbase/cli cloudbase|tcb --version` (`3.5.9`).
+- `tcb fn deploy --help` confirms first deploy creates a missing function and
+  supports `--dir`, `--runtime`, `--deployMode cos`, `--force`, and `--json`.
+  `tcb login --help` confirms non-interactive permanent CAM login via
+  `--apiKeyId` + `--apiKey`.
+- Local MCP auth is unavailable on this machine (`AUTH_REQUIRED`), so local
+  CloudBase mutation could not be used to restore the function directly. CI has
+  the permanent CAM secrets and is the right place to exercise the fallback.
+
+Fix made:
+
+- `scripts/deploy-cloudbase-test.mjs` now has an official CloudBase CLI fallback
+  using pinned `@cloudbase/cli@3.5.9`.
+- If MCP `updateFunctionCode` returns no RequestId, the script no longer accepts
+  a possibly stale code deploy. It runs `tcb fn deploy <name> --deployMode cos`
+  through the CLI, then continues with the existing Active/runtime/config checks.
+- If MCP `createFunction` returns success but the function never becomes
+  queryable/Active, the script runs the same CLI COS deploy fallback and only
+  proceeds after `queryFunctions(getFunctionDetail)` sees the function.
+- The CLI fallback logs in with the permanent `TENCENTCLOUD_SECRETID` /
+  `TENCENTCLOUD_SECRETKEY` already scoped to the GitHub `test` environment.
+  It writes the required `cloudbaserc.json` to an OS temp directory and deletes it
+  in `finally`, so secret-bearing function env config is not left in the repo
+  workspace.
+
+Verification run by Codex before push:
+
+- `node --check scripts/deploy-cloudbase-test.mjs` - pass
+- `pnpm --filter @vibelingan-channel/fn-admin test` - pass (70 tests)
+- `pnpm --filter @vibelingan-channel/fn-admin typecheck` - pass
+- `pnpm verify:cloudbase-sdk` - pass
+- `pnpm lint` - pass
+- `pnpm package:functions && pnpm smoke:functions` - pass
+- `git diff --check` - pass
+
+Next: push, then dispatch Deploy Test with `run_media_upload_smoke=true`. The
+expected new evidence is either (a) `admin` restored by CLI COS deploy and media
+smoke continues, or (b) a concrete CloudBase CLI error message to escalate,
+instead of the previous silent MCP create/no-RequestId ambiguity.
