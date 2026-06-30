@@ -2644,3 +2644,49 @@ Residual non-blocking follow-ups:
 - The MIU-09 smoke's cleanup phase logged non-fatal `Unknown API error` messages
   for product/image metadata removal, while both upload assertions still passed.
   Treat as test cleanup hygiene, not an upload blocker.
+
+### Codex deploy-flow cleanup - make GitHub CI CLI-primary for functions - 2026-06-30
+
+Follow-up after the successful live run: the ZIP fallback proved the official
+CloudBase CLI is the reliable CI deploy surface for function code, while the MCP
+function create/update upload path had already shown two unsafe behaviors:
+
+- `updateFunctionCode` could return success-shaped output without a RequestId,
+  leaving stale code deployed.
+- `createFunction` could return success-shaped output while the function never
+  became queryable, which caused the deleted `admin` function incident to stay
+  broken until CLI restore.
+
+Cleaned up `scripts/deploy-cloudbase-test.mjs` so GitHub CI now uses
+`tcb fn deploy` as the **primary** function deploy/create/update path, not as a
+late fallback after the known-bad MCP probe. The CLI still tries `zip,cos` in
+that order because the GitHub runner proved ZIP works and COS upload timed out
+after 60 s.
+
+The script still uses MCP for the management surfaces it already owns and that
+have not shown the upload bug: function detail polling, config update retry,
+gateway route management, and static hosting upload/config. That leaves a clean
+boundary:
+
+- **CI function code deployment:** CloudBase CLI (`tcb fn deploy`) with permanent
+  CAM credentials from the GitHub `test` environment.
+- **Post-deploy gates:** query Active/runtime/release smoke; do not accept command
+  success alone.
+- **Gateway/static hosting management:** existing MCP calls, still followed by
+  deployed smoke tests.
+
+Safety hardening:
+
+- Removed automatic delete/recreate on runtime drift. CloudBase function runtime
+  is creation-time locked; CI now fails loudly instead of deleting a function and
+  hoping recreate succeeds.
+- Removed the 300 s known-bad MCP cold-create wait. A missing function goes
+  directly through `tcb fn deploy`.
+
+Verification:
+
+- `node --check scripts/deploy-cloudbase-test.mjs` - pass
+
+Next evidence gate: dispatch Deploy Test again and confirm the log now shows
+`CloudBase CLI zip deploy submitted (primary CI update)` for existing functions
+without the earlier MCP create/update probe.

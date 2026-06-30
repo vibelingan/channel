@@ -251,7 +251,7 @@ function deployFunctionWithCloudBaseCli(def, reason) {
           { timeoutMs: 600_000 },
         );
         console.log(
-          `${def.name}: CloudBase CLI ${deployMode} deploy fallback submitted (${reason}); ${summarizeCloudBaseCliOutput(
+          `${def.name}: CloudBase CLI ${deployMode} deploy submitted (${reason}); ${summarizeCloudBaseCliOutput(
             output,
           )}`,
         );
@@ -259,15 +259,11 @@ function deployFunctionWithCloudBaseCli(def, reason) {
       } catch (error) {
         errors.push(`${deployMode}: ${error.message}`);
         if (deployMode !== cloudBaseCliDeployModes.at(-1)) {
-          console.warn(
-            `${def.name}: CloudBase CLI ${deployMode} fallback failed; trying next mode.`,
-          );
+          console.warn(`${def.name}: CloudBase CLI ${deployMode} deploy failed; trying next mode.`);
         }
       }
     }
-    throw new Error(
-      `${def.name}: all CloudBase CLI deploy fallback modes failed\n${errors.join('\n')}`,
-    );
+    throw new Error(`${def.name}: all CloudBase CLI deploy modes failed\n${errors.join('\n')}`);
   } finally {
     rmSync(configDir, { force: true, recursive: true });
   }
@@ -334,24 +330,6 @@ function artifactSummary(functionName) {
   return `${size} bytes sha256:${hash}`;
 }
 
-function waitForGone(functionName) {
-  for (let i = 0; i < 12; i += 1) {
-    if (!functionDetail(functionName, true)) return;
-    sleep(functionPollIntervalMs);
-  }
-  throw new Error(`${functionName} still exists after delete.`);
-}
-
-function deleteFunction(functionName) {
-  const result = callTool('cloudbase.manageFunctions', {
-    action: 'deleteFunction',
-    functionName,
-    confirm: true,
-  });
-  assertToolSucceeded(result, `${functionName}: deleteFunction`);
-  return requestIdFrom(result) ?? 'unknown';
-}
-
 function waitForActive(functionName) {
   const deadline = Date.now() + functionActiveTimeoutMs;
   let nextLogAt = Date.now();
@@ -378,50 +356,6 @@ function waitForActive(functionName) {
 
 function envEntries(record) {
   return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined));
-}
-
-function createFunction(def) {
-  const result = callTool(
-    'cloudbase.manageFunctions',
-    {
-      action: 'createFunction',
-      functionRootPath,
-      force: true,
-      func: {
-        name: def.name,
-        runtime: targetRuntime,
-        handler: 'index.main',
-        timeout: 20,
-        memorySize: 256,
-        type: 'Event',
-        installDependency: false,
-        envVariables: def.envVariables,
-      },
-    },
-    { timeoutMs: 240_000 },
-  );
-  assertToolSucceeded(result, `${def.name}: createFunction`);
-  return {
-    requestId: requestIdFrom(result),
-    result,
-  };
-}
-
-function updateFunctionCode(def) {
-  const codeResult = callTool(
-    'cloudbase.manageFunctions',
-    {
-      action: 'updateFunctionCode',
-      functionName: def.name,
-      functionRootPath,
-    },
-    { timeoutMs: 240_000 },
-  );
-  assertToolSucceeded(codeResult, `${def.name}: updateFunctionCode`);
-  return {
-    requestId: requestIdFrom(codeResult),
-    result: codeResult,
-  };
 }
 
 function updateFunctionConfig(def) {
@@ -493,54 +427,13 @@ function deployFunction(def) {
 
   const before = functionDetail(def.name, true);
   if (before && before.Runtime !== targetRuntime) {
-    console.log(
-      `${def.name}: runtime drift ${before.Runtime} -> ${targetRuntime}; deleting for recreate`,
+    throw new Error(
+      `${def.name}: runtime drift ${before.Runtime} -> ${targetRuntime}; CloudBase function runtime is creation-time locked, so CI will not delete/recreate it automatically.`,
     );
-    deleteFunction(def.name);
-    waitForGone(def.name);
   }
 
-  const current = functionDetail(def.name, true);
-  if (current) {
-    let code = updateFunctionCode(def);
-    if (!code.requestId) {
-      console.warn(
-        `${def.name}: updateFunctionCode returned no RequestId (${toolMessage(
-          code.result,
-        )}); trying CloudBase CLI COS deploy fallback.`,
-      );
-      deployFunctionWithCloudBaseCli(def, 'MCP updateFunctionCode returned no RequestId');
-      code = { requestId: 'cloudbase-cli-fallback', result: code.result };
-    }
-    const codeAfter = waitForActive(def.name);
-    if (codeAfter.Runtime !== targetRuntime) {
-      throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${codeAfter.Runtime}`);
-    }
-    const configRequestId = updateFunctionConfig(def);
-    const after = waitForActive(def.name);
-    if (after.Runtime !== targetRuntime) {
-      throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${after.Runtime}`);
-    }
-    console.log(
-      `${def.name}: updated on ${after.Runtime}; code request ${code.requestId}; config request ${configRequestId}`,
-    );
-    return;
-  }
-
-  let created = createFunction(def);
-  let after;
-  try {
-    after = waitForActive(def.name);
-  } catch (error) {
-    console.warn(
-      `${def.name}: MCP createFunction did not produce an active function (${toolMessage(
-        created.result,
-      )}; ${error.message}); trying CloudBase CLI COS deploy fallback.`,
-    );
-    deployFunctionWithCloudBaseCli(def, 'MCP createFunction did not become queryable');
-    created = { requestId: 'cloudbase-cli-fallback', result: created.result };
-    after = waitForActive(def.name);
-  }
+  deployFunctionWithCloudBaseCli(def, before ? 'primary CI update' : 'primary CI create');
+  const after = waitForActive(def.name);
   if (after.Runtime !== targetRuntime) {
     throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${after.Runtime}`);
   }
@@ -550,9 +443,7 @@ function deployFunction(def) {
     throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${configAfter.Runtime}`);
   }
   console.log(
-    `${def.name}: deployed on ${configAfter.Runtime}; create request ${
-      created.requestId ?? 'unknown'
-    }; config request ${configRequestId}`,
+    `${def.name}: deployed on ${configAfter.Runtime}; code deploy cloudbase-cli-primary; config request ${configRequestId}`,
   );
 }
 
