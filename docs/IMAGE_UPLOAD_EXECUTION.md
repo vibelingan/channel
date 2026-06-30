@@ -19,7 +19,7 @@ design-only; validation results and capability probes live here.
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
-| MIU-09 | Deploy, smoke, review hardening | pending | — | env-gated |
+| MIU-09 | Deploy, smoke, review hardening | implementation started; live evidence pending Claude review/run | Codex browser-origin smoke harness | Added deployed media-upload smoke: browser-origin admin login → createUploadIntent → browser-enforced COS PUT → completeUpload → admin preview → public 404 before published link → published product link → public 200. Wired as opt-in `E2E_MEDIA_UPLOAD_SMOKE=1` / `pnpm test:e2e:media-upload` and deploy-test workflow input. Live run must still execute against CloudBase test with admin creds + bucket CORS. |
 
 Decision summary (binds the plan; evidence below):
 - P0 byte transport = **admin-brokered direct-storage-upload** (browser PUTs to
@@ -1215,3 +1215,60 @@ Verification run by Codex:
 
 Disposition: MIU-05 is accepted as done. Remaining live browser→COS PUT, bucket
 CORS, and deployment smoke stay assigned to MIU-09 as planned.
+
+---
+
+## MIU-09 — Deploy, Browser-Origin Upload Smoke, Review Hardening
+
+### Codex implementation pass — 2026-06-30
+
+Scope implemented:
+
+- Added `tests/e2e/media-upload.spec.ts`, a deployed smoke that runs from the
+  configured site origin in a real Chromium page. It intentionally performs the
+  storage `PUT` from browser JS instead of Node so bucket CORS/preflight failures
+  are caught by the browser.
+- The smoke flow:
+  1. browser-origin admin `login`;
+  2. browser-origin `createUploadIntent`;
+  3. browser-origin raw COS `PUT` using the server-minted `Authorization`,
+     `X-Cos-Security-Token`, and `X-Cos-Meta-Fileid` headers;
+  4. browser-origin `completeUpload`;
+  5. browser-origin `getImagePreview` for an unpublished active image;
+  6. browser-origin public `/api/images/:id` returns `404` before catalog link;
+  7. browser-origin admin creates a published product with that image;
+  8. browser-origin public `/api/images/:id` becomes `200 image/png`.
+- Cleanup removes the temporary product and image metadata. The underlying
+  storage object may remain until MIU-06 orphan cleanup, which is acceptable for
+  the test env and is visible by the `e2e-`/`miu09` naming convention.
+- Wired `pnpm test:e2e:media-upload`.
+- Added the manual E2E suite option `media-upload`.
+- Added `Deploy Test` workflow input `run_media_upload_smoke`; when true, the
+  workflow installs Chromium if needed and runs the smoke with
+  `E2E_MEDIA_UPLOAD_SMOKE=1`, `E2E_ADMIN_EMAIL`, and `E2E_ADMIN_PASSWORD`.
+
+Run contract:
+
+```bash
+E2E_MEDIA_UPLOAD_SMOKE=1 \
+E2E_SITE_URL=https://channel-test-<env>.webapps.tcloudbase.com \
+E2E_API_URL=https://<env>.service.tcloudbase.com \
+E2E_ADMIN_EMAIL=<admin email> \
+E2E_ADMIN_PASSWORD=<admin password> \
+pnpm test:e2e:media-upload
+```
+
+GitHub Actions contract:
+
+- Dispatch `Deploy Test` with `run_media_upload_smoke=true` after CloudBase test
+  secrets include `E2E_ADMIN_PASSWORD`.
+- Or dispatch `E2E` with suite `media-upload` against an already-deployed build.
+
+Review status:
+
+- Not yet accepted as MIU-09 done. Claude should first review this harness and
+  workflow wiring.
+- MIU-09 can be marked done only after a deployed run records the actual CloudBase
+  test evidence: deployed URLs, workflow/run id or local command, browser-origin
+  COS PUT success, admin preview success, public 404-before-link, and public
+  200-after-published-link.
