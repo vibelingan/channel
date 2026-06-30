@@ -1906,3 +1906,51 @@ no-false-green assertions. `node --check` clean. Combined with `7f10674`, the de
 now: asserts every tool call, recreates on a no-RequestId code update, waits for
 Active before config (retrying the transient Updating state), and verifies the
 deployed release SHA in the smoke.
+
+### First REAL live mint — P1: `sdk.getUploadMetadata` does not exist (2026-06-30)
+
+With the deploy chain fixed, run `28433688422` finally shipped the real code (the
+`Smoke deployed CloudBase` release-id check passed) and the media smoke **ran**.
+It got past `Unknown action` — `createUploadIntent` now executes — but failed with
+`createUploadIntent failed: Unexpected server error`. The admin function log gives
+the true cause:
+
+```
+[fn-admin] unexpected error: TypeError: sdk.getUploadMetadata is not a function
+    at getUploadCredential (media-storage/cloudbase) → createUploadIntentAction
+```
+
+**Root cause (P1): the entire admin-brokered upload rests on a CloudBase SDK method
+that does not exist at runtime.** `packages/media-storage/src/cloudbase.ts`
+`getUploadCredential()` calls `sdk.getUploadMetadata({ cloudPath })`, and
+`packages/db/src/wx-server-sdk.d.ts` *declares* that method on `Cloud` — but the
+real `wx-server-sdk` (`cloudStorageSdk = cloud`) has no such method.
+This execution doc (the "Upload-credential mechanism" §) asserted
+`@cloudbase/node-sdk@2.10.0` "wraps `POST /v1/storages/get-objects-upload-info` as
+`cloud.getUploadMetadata({ cloudPath })`" — but **MIU-00 verified that only on
+paper (signatures), never with a runtime call.** The hand-written `.d.ts` made it
+typecheck, so the gap survived all the way to the first live mint. The prod entry
+DOES wire the adapter (`setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk))`),
+so this is not a wiring miss — the method genuinely isn't there.
+
+**Authoritative API (from the storage OpenAPI):** the credential is minted by the
+HTTP endpoint `POST /v1/storages/get-objects-upload-info` (host
+`https://{envId}.api.tcloudbasegateway.com`, `Authorization: Bearer <access-token>`),
+which returns exactly the fields the adapter already maps:
+`uploadUrl` / `authorization` / `token` / `cloudObjectMeta` / `cloudObjectId`. So
+the response SHAPE is correct; only the *call mechanism* is wrong.
+
+**Fix options (needs live SDK iteration — the runtime SDK surface isn't
+introspectable from this workspace; `wx-server-sdk` is CloudBase-runtime-provided):**
+
+1. Find the real runtime method (a quick deploy of a one-off probe action reporting
+   `Object.getOwnPropertyNames(sdk)` + `typeof` of candidate names) and call it; OR
+2. Call the HTTP API `get-objects-upload-info` directly from `getUploadCredential`,
+   obtaining a server access token inside the function (per
+   `/http-api/basic/access-token`).
+
+Either way the `getUploadMetadata` type-stub must be removed so the compiler can no
+longer vouch for a non-existent method, and a fake-SDK unit test should assert the
+adapter calls whatever the real mechanism is. This is Claude's code (MIU-Upload), so
+Claude fixes; Codex reviews — but the correct call mechanism must be confirmed
+against the live env, so the next concrete step is a runtime SDK-surface probe.
