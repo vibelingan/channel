@@ -18,11 +18,11 @@ design-only; validation results and capability probes live here.
 | MIU-05 | Admin UI uploader (direct COS POST UI) | ✅ done; Codex final review passed; POST contract correction pending live smoke | Phase U2a, U2b-a, U2b-b (+Codex U2b-b fixes, final review `f2063de3`) | `uploadImage()` → createUploadIntent/COS multipart POST/completeUpload; `getImagePreview` admin-auth preview (active+recognized-provider). `ImageManager` per-file state/retry, jpeg/png/webp accept, object-URL + admin previews — now commits successes against the LATEST list (concurrent-edit safe) and revokes object URLs. local-server `/api/images/:id` **delegates to `getCatalogImage`** (full prod parity incl. legacy). final Codex review: local-server tsc, site astro check+build, public-api tests, Biome, and local route smoke all pass. Live browser→COS POST + CORS = MIU-09 |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed COS POST form → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated; node-sdk contract correction pending live smoke | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | ✅ code done; live migration run pending | `c4aaa8d`,`e23b67b`,`e603f34` | `cleanupOrphanImages` admin-only action + tests; `migrateLegacyImages` staged legacy `images.data` -> storage action + compensation tests; live dry-run/live ops evidence pending |
-| MIU-08 | OEM Cloud Storage upload + private delivery | pending; design revised for 10 MiB public OEM attachments + Claude abuse-control review incorporated | design revision below + `ed8989a` review; sniffer groundwork `fde87ad` under review | Move public OEM attachments off `drawingData` base64 JSON. New flow: public intent -> browser COS POST -> `submitProject` finalization -> admin-only short-TTL delivery. Must include rate/pending caps, COS `content-length-range`, one-time upload secret, filename sanitization, ZIP/PDF sniffing, and deployed 9-10 MiB ZIP smoke with no `EXCEED_MAX_PAYLOAD_SIZE`. Do not wire the shared sniffer into MIU-08 finalization until the archive MIME-alias finding below is resolved. |
+| MIU-08 | OEM Cloud Storage upload + private delivery | pending; design revised for 10 MiB public OEM attachments + Claude abuse-control review incorporated; rate-limit helper review finding open | design revision below + `ed8989a` review; sniffer `fde87ad` + fix `adae0d0`; rate helper `f84d6cc` | Move public OEM attachments off `drawingData` base64 JSON. New flow: public intent -> browser COS POST -> `submitProject` finalization -> admin-only short-TTL delivery. Must include rate/pending caps, COS `content-length-range`, one-time upload secret, filename sanitization, ZIP/PDF sniffing, and deployed 9-10 MiB ZIP smoke with no `EXCEED_MAX_PAYLOAD_SIZE`. Archive MIME-alias finding is resolved; do not wire `media-ratelimit` into MIU-08 until the invalid-count fail-closed finding below is resolved. |
 | MIU-09 | Deploy, smoke, review hardening | ✅ DONE — live run `28435302827` (205cd71) green incl. media-upload smoke: browser→COS POST + CORS proven | Codex browser-origin smoke harness + deploy wait hardening + release verification + node-sdk upload contract correction | Added deployed media-upload smoke: browser-origin admin login → createUploadIntent → browser-enforced COS POST → completeUpload → admin preview → public 404 before published link → published product link → public 200. Wired as opt-in `E2E_MEDIA_UPLOAD_SMOKE=1` / `pnpm test:e2e:media-upload` and deploy-test workflow input. Claude accepted the harness. Runs `28431709752` and `28433320633` exposed stale-code and Updating-state deploy defects; Codex fixed both. Run `28433688422` proved the deployed release SHA and then exposed the real upload SDK-contract mismatch (`createUploadIntent` 500), now corrected to node-sdk `getUploadMetadata` + COS POST form. |
 | MIU-10 | Upload transport policy gate | pending implementation; design approved by Claude + Codex monitor | design revision below; Claude review `a017f5a` | Add shared purpose/type/size policy so base64 is eligible only for explicit `inline-small`/legacy paths. Product catalog images and OEM attachments stay CloudBase Storage-backed even when small; tests must prove no size-only base64 fallback. Implementation nits: public rate/pending counters must use atomic `incrementField`; 60s OEM URL TTL should be a named constant. |
 | MIU-11 | Edge rate-limit + throttling | backlog; design-only, not a MIU-08 blocker | §20.13 / §27 audit | Later hardening to move OEM/public caps toward gateway/OPA where possible. MIU-08 still owns the P0 in-function shared-state caps and cleanup; do not defer those into MIU-11. |
-| MIU-12 | Quarantine state machine | lifecycle groundwork accepted; content-sniffer review finding open | `35c6400`, fix `f04cd2f`; sniffer `fde87ad`; review below | Shared lifecycle helper adds expired-pending selection and status transition validator. `f04cd2f` preserves doc/object pairing for partial delete handling and fails closed on corrupt runtime statuses. `fde87ad` adds magic-byte content sniffing; archive MIME alias handling must be fixed before MIU-08/12 wiring. |
+| MIU-12 | Quarantine state machine | lifecycle groundwork accepted; content-sniffer fix accepted | `35c6400`, fix `f04cd2f`; sniffer `fde87ad`, fix `adae0d0`; review below | Shared lifecycle helper adds expired-pending selection and status transition validator. `f04cd2f` preserves doc/object pairing for partial delete handling and fails closed on corrupt runtime statuses. `fde87ad` adds magic-byte content sniffing; `adae0d0` resolves archive MIME aliases while keeping octet-stream gated outside the signature matcher. |
 | MIU-13 | Async media processing | backlog; design-only | §20.13 / §27 audit | Queue-backed variants/scanning/bulk work when volume or scanning justifies it; not P0. |
 | MIU-14 | Media observability | backlog; design-only | §20.13 / §27 audit | Add metrics for upload failures, pending/orphan counts, rate-limit rejections, CDN stale incidents, and migration progress. |
 | MIU-15 | Public-CDN delivery | backlog; design-only | §20.13 / §27 audit | Optional public variant/CDN path with content-addressed keys or purge strategy; private proxy/temp-URL P0 remains unchanged. |
@@ -2362,6 +2362,42 @@ Deliberately takes the limits as parameters so the OEM thresholds
 (`OEM_UPLOAD_RATE_*`, `OEM_MAX_PENDING_*`) stay owned by MIU-08, not duplicated
 here. MIU-08 wires the atomic `incrementField` counter to these and returns 429 +
 `Retry-After` on deny. 8 tests (60 total in shared); tsc + biome clean.
+
+### Codex review — sniffer fix + rate-limit helper `adae0d0..f84d6cc` — FINDINGS — 2026-07-01
+
+Review base: `adae0d0` (`fix(media): resolve sniffer P2 (archive MIME aliases)
++ add sanitizeDownloadFilename`) and `f84d6cc` (`feat(media): rate-limit +
+pending-cap decision groundwork (MIU-08 abuse controls)`), fetched and
+fast-forwarded over SSH after the monitor detected a new remote head.
+
+Disposition:
+
+- Approved the archive MIME-alias fix. `signatureMatchesMime()` now accepts the
+  common ZIP/RAR aliases that browser/OS upload clients emit, while deliberately
+  keeping `application/octet-stream` out of signature matching. This resolves
+  Codex review `b43217b` for the content sniffer.
+- Approved the filename sanitizer direction for MIU-08 downloads: CR/LF, quotes,
+  path separators, control chars, and bidi spoof controls are stripped before
+  `Content-Disposition` usage.
+- One P2 remains on the new rate-limit/pending-cap helper before MIU-08 wires it
+  into the public upload-intent action.
+
+| Severity | Finding | Evidence | Required fix |
+| --- | --- | --- | --- |
+| P2 | The abuse-control helper still opens on malformed finite counts because it treats any finite number as readable. A corrupted or buggy `countInWindow = -1` or `currentPending = -1` returns allowed (`-1 <= max`, `-1 < max`), and fractional counts/limits are also accepted. For a public OEM upload-intent limiter, runtime counters and aggregation results must be non-negative integers or fail closed; this is the same counter-integrity class already hardened for `incrementField`/`publishedRefCount`. | `packages/shared/src/media-ratelimit.ts` validates `Number.isFinite(countInWindow)` and `Number.isFinite(currentPending)`, but not `Number.isInteger`, lower bounds, or post-increment minimums. Existing tests cover `NaN` and bad limits, but not negative or fractional counts/limits. Design §20.10 and §27.2-2 require public intent caps to fail closed and use shared atomic counter state, not per-instance memory. | Require integral values and safe lower bounds: `countInWindow` should be an integer `>= 1` because it is post-increment; `maxPerWindow` and `maxPending` should be positive integers; `currentPending` should be an integer `>= 0`; `windowMs` should be a positive finite integer. Ensure `retryAfterSeconds` is always a finite integer `>= 1` even if optional `nowMs`/`windowResetAtMs` are bad. Add regression tests for negative and fractional counts/limits and invalid time inputs. |
+
+Validation run:
+
+- `pnpm --filter @vibelingan-channel/shared typecheck`
+- `pnpm --filter @vibelingan-channel/shared test` — 60 tests passed
+- `pnpm --filter @vibelingan-channel/fn-admin typecheck`
+- `pnpm --filter @vibelingan-channel/fn-admin test` — 70 tests passed
+- `pnpm --filter @vibelingan-channel/fn-public-api typecheck`
+- `pnpm --filter @vibelingan-channel/fn-public-api test` — 20 tests passed
+- `pnpm verify:cloudbase-sdk`
+- `pnpm build:functions`
+- `pnpm smoke:functions`
+- `pnpm lint`
 
 ### Claude review — orphan-cleanup paging fix (6ca3e866) — APPROVED — 2026-06-30
 
