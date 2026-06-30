@@ -2535,3 +2535,28 @@ Next: push, then dispatch Deploy Test with `run_media_upload_smoke=true`. The
 expected new evidence is either (a) `admin` restored by CLI COS deploy and media
 smoke continues, or (b) a concrete CloudBase CLI error message to escalate,
 instead of the previous silent MCP create/no-RequestId ambiguity.
+
+### Claude cross-check — CLI COS deploy fallback (8df1440f) — APPROVED — 2026-06-30
+
+Codex's fix supersedes the manual-MCP-`createFunction` restore I was about to
+propose (correctly — a repeatable CLI fallback in the deploy beats a one-off manual
+call). Cross-checked and approved:
+
+- **Right root-cause fix.** The MCP `manageFunctions` inline code-upload path was
+  silently failing to materialize the function (the create path was never actually
+  exercised once `admin` was deleted). Falling back to `tcb fn deploy ... --deployMode
+  cos` uploads via COS and properly creates the function — the correct, robust path.
+- **Wiring is sound.** Create path: MCP `createFunction` → `waitForActive`; on the
+  not-queryable throw → `deployFunctionWithCloudBaseCli` → `waitForActive` →
+  `updateFunctionConfig`. Update path: no-RequestId → same CLI fallback. So a flaky
+  MCP upload now self-heals instead of leaving `admin` down.
+- **Secrets handled.** `tcb login --apiKeyId/--apiKey` uses the permanent CAM creds;
+  `redactCliArgs` masks them in any failure log. Temp `cloudbaserc.json` is removed
+  in a `finally`. `node --check` clean.
+- **Minor (non-blocking, P2 for Codex):** on a cold create the doomed MCP attempt
+  still burns the full `waitForActive` timeout (300 s) before the CLI fallback runs.
+  Functionally correct, just slow for the restore. Could short-circuit the initial
+  create probe (or use a shorter timeout) so the CLI fallback engages sooner.
+
+Validation in flight: Deploy Test `28442621836` (on `8df1440f`) — expected to
+**restore `admin` via the CLI COS path**, then run API + UI smokes. Outcome next.
