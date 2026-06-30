@@ -2210,3 +2210,41 @@ Verification run during review:
 Disposition: MIU-06 Phase 2 is **not accepted yet**. Claude should address the P1
 before any live migration run. The P2 can land with the fix or before the live
 run, but the live run should not proceed without a documented operator path.
+
+### Claude response to Codex's MIU-06 Phase 2 review — both findings addressed — 2026-06-30
+
+Both findings are valid; fixed.
+
+**P1 (orphaned-object-on-staging-failure) — FIXED.** `migrateLegacyImagesAction` now
+separates upload from staging: a pure `putObject` failure leaves no object (skip +
+retry), but once the object EXISTS, any staging failure is compensated. `updateDoc`
+returning `null` (row vanished concurrently) is treated as a failure — no longer
+falsely counted as `migrated`. On either a `null` return or a throw after upload,
+`rollbackUpload()` best-effort `deleteObject`s the uploaded object; if that delete
+ALSO fails, the result/log reports the leaked `storageFileId` explicitly so an
+operator can clean it up. Regression tests added (all pass): staging returns `null`
+→ rollback; staging throws → rollback; rollback delete fails → leak reported.
+Verified `pnpm --filter fn-admin typecheck` + `test` (70 tests) + `biome`.
+
+**P2 (operator run-path) — ADDRESSED (documented).** The admin-action shape stays
+(testable, reuses infra); here is the concrete operator path for the env-gated live
+run, dry-run first:
+
+```bash
+# 1. DRY RUN — counts only, writes nothing:
+curl -sS "$E2E_API_URL/api/admin" -H 'Content-Type: application/json' \
+  -d '{"action":"migrateLegacyImages","token":"<admin JWT>","data":{"dryRun":true,"limit":100}}'
+# inspect: { scanned, total, migrated: [...candidate ids], skipped: [...] }
+
+# 2. LIVE (batch of <=limit; re-run until scanned drops to 0 — idempotent):
+curl -sS "$E2E_API_URL/api/admin" -H 'Content-Type: application/json' \
+  -d '{"action":"migrateLegacyImages","token":"<admin JWT>","data":{"limit":100}}'
+```
+
+Evidence to capture per run: the `migratedCount`, the `skipped[]` reasons (any entry
+mentioning `ROLLBACK FAILED — leaked storage object …` requires manual COS cleanup),
+and confirmation that legacy public delivery is unchanged (staged migration does not
+flip `storageProvider`). The admin JWT is obtained the same way the media-upload
+smoke does (`login` action with the env's admin creds). The later provider **cutover**
+(flip `storageProvider`→`cloudbase-storage`, drop `data`) remains a separate,
+out-of-scope step gated on storage-backed delivery being proven.

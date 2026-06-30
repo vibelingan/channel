@@ -1356,12 +1356,17 @@ test('cleanupOrphanImages honors a limit above the DB page cap by collecting sta
 // --- MIU-06 (Phase 2): legacy data → storage migration -----------------------
 
 /** Media-storage fake that records putObject uploads; can fail a given logicalId. */
-function makeMigrationStorage(opts: { putThrowsFor?: string[] } = {}): MediaStorageAdapter & {
+function makeMigrationStorage(
+  opts: { putThrowsFor?: string[]; deleteThrows?: boolean } = {},
+): MediaStorageAdapter & {
   uploaded: Array<{ logicalId: string; fileName: string; byteSize: number }>;
+  deleted: string[];
 } {
   const uploaded: Array<{ logicalId: string; fileName: string; byteSize: number }> = [];
+  const deleted: string[] = [];
   return {
     uploaded,
+    deleted,
     async putObject(input) {
       if (opts.putThrowsFor?.includes(input.logicalId)) throw new Error('fake: upload rejected');
       const byteSize = input.content instanceof Uint8Array ? input.content.byteLength : 0;
@@ -1380,12 +1385,48 @@ function makeMigrationStorage(opts: { putThrowsFor?: string[] } = {}): MediaStor
     async getTempUrl() {
       throw new Error('fake: unused');
     },
-    async deleteObject() {
-      throw new Error('fake: unused');
+    async deleteObject(fileId: string) {
+      if (opts.deleteThrows) throw new Error('fake: delete rejected');
+      deleted.push(fileId);
     },
     async getUploadCredential() {
       throw new Error('fake: unused');
     },
+  };
+}
+
+/** Wrap a MemoryAdapter but force `update` to fail, to exercise the migration's
+ *  post-upload compensation path (object uploaded, then staging fails). */
+function setupFailingUpdate(store: Store, mode: 'null' | 'throw'): Store {
+  const mem = new MemoryAdapter(store);
+  const adapter: DbAdapter = {
+    list: (q) => mem.list(q),
+    get: (c, i) => mem.get(c, i),
+    findByField: (c, f, v) => mem.findByField(c, f, v),
+    create: (c, d) => mem.create(c, d),
+    remove: (c, i) => mem.remove(c, i),
+    incrementField: (c, i, f, d) => mem.incrementField(c, i, f, d),
+    async update() {
+      if (mode === 'throw') throw new Error('fake: update rejected');
+      return null;
+    },
+  };
+  setAdapter(adapter);
+  return store;
+}
+
+function oneLegacyStore(): Store {
+  return {
+    users: [],
+    images: [
+      {
+        _id: 'leg1',
+        name: 'a.jpg',
+        mimeType: 'image/jpeg',
+        data: LEGACY_B64,
+        publishedRefCount: 0,
+      },
+    ],
   };
 }
 
@@ -1519,4 +1560,49 @@ test('migrateLegacyImages is admin-only', async () => {
     role: 'contributor',
   });
   expectErr(await call('migrateLegacyImages', {}, contributor), 'FORBIDDEN');
+});
+
+test('migrateLegacyImages rolls back the uploaded object when staging returns null (row vanished)', async () => {
+  setupFailingUpdate(oneLegacyStore(), 'null');
+  const storage = makeMigrationStorage();
+  setMediaStorage(storage);
+  const token = await adminToken();
+
+  const data = okData(await call('migrateLegacyImages', {}, token));
+  assert.deepEqual(data.migrated, []);
+  assert.equal(storage.uploaded.length, 1); // the object WAS uploaded
+  assert.deepEqual(storage.deleted, ['cloud://env.bucket/catalog/leg1/migrated-a.jpg']); // then rolled back
+  const skipped = data.skipped as Array<{ id: string; reason: string }>;
+  assert.equal(skipped[0]?.id, 'leg1');
+  assert.match(skipped[0]?.reason ?? '', /rolled back/);
+});
+
+test('migrateLegacyImages rolls back the uploaded object when staging throws', async () => {
+  setupFailingUpdate(oneLegacyStore(), 'throw');
+  const storage = makeMigrationStorage();
+  setMediaStorage(storage);
+  const token = await adminToken();
+
+  const data = okData(await call('migrateLegacyImages', {}, token));
+  assert.deepEqual(data.migrated, []);
+  assert.deepEqual(storage.deleted, ['cloud://env.bucket/catalog/leg1/migrated-a.jpg']);
+  assert.match(
+    (data.skipped as Array<{ reason: string }>)[0]?.reason ?? '',
+    /staging failed after upload/,
+  );
+});
+
+test('migrateLegacyImages reports a leaked object when the rollback delete also fails', async () => {
+  setupFailingUpdate(oneLegacyStore(), 'throw');
+  const storage = makeMigrationStorage({ deleteThrows: true });
+  setMediaStorage(storage);
+  const token = await adminToken();
+
+  const data = okData(await call('migrateLegacyImages', {}, token));
+  assert.deepEqual(data.migrated, []);
+  assert.deepEqual(storage.deleted, []); // delete threw → no confirmed deletion
+  assert.match(
+    (data.skipped as Array<{ reason: string }>)[0]?.reason ?? '',
+    /ROLLBACK FAILED|leaked/,
+  );
 });

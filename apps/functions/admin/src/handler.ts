@@ -37,7 +37,11 @@ import {
   updateDoc,
 } from '@vibelingan-channel/db';
 import { sendOemConfirmationEmail, sendRecoveryEmail } from '@vibelingan-channel/email';
-import { catalogStoragePath, mediaStorage } from '@vibelingan-channel/media-storage';
+import {
+  type StoredMediaObject,
+  catalogStoragePath,
+  mediaStorage,
+} from '@vibelingan-channel/media-storage';
 import {
   type ApiResult,
   CATALOG_IMAGE_MAX_BYTES,
@@ -955,6 +959,28 @@ async function migrateLegacyImagesAction(
   const migrated: string[] = [];
   const skipped: Array<{ id: string; reason: string }> = [];
 
+  // Best-effort delete of an object whose metadata staging failed AFTER a
+  // successful upload, so a post-upload failure never leaks private bytes with no
+  // doc pointer (which cleanupOrphanImages cannot see and a re-run would duplicate
+  // — STO-004). If the compensating delete ALSO fails, the object is genuinely
+  // leaked: report it explicitly so an operator can clean it up.
+  const rollbackUpload = async (imageId: string, fileId: string, reason: string): Promise<void> => {
+    try {
+      await mediaStorage().deleteObject(fileId);
+      skipped.push({ id: imageId, reason: `${reason}; uploaded object rolled back` });
+    } catch (delErr) {
+      const dm = delErr instanceof Error ? delErr.message : 'delete failed';
+      console.error(
+        `[fn-admin] migrateLegacyImages: LEAKED storage object ${fileId} for ${imageId} (rollback delete failed)`,
+        delErr,
+      );
+      skipped.push({
+        id: imageId,
+        reason: `${reason}; ROLLBACK FAILED — leaked storage object ${fileId} (${dm})`,
+      });
+    }
+  };
+
   for (const doc of candidates.items) {
     const id = String(doc._id);
     const data = typeof doc.data === 'string' ? doc.data : '';
@@ -975,31 +1001,53 @@ async function migrateLegacyImagesAction(
       migrated.push(id);
       continue;
     }
+    const mimeType = typeof doc.mimeType === 'string' ? doc.mimeType : 'application/octet-stream';
+    const name = typeof doc.name === 'string' && doc.name.length > 0 ? doc.name : `${id}.bin`;
+
+    // 1) Upload first. A pure upload failure leaves NO object → just skip + retry.
+    let stored: StoredMediaObject;
     try {
-      const mimeType = typeof doc.mimeType === 'string' ? doc.mimeType : 'application/octet-stream';
-      const name = typeof doc.name === 'string' && doc.name.length > 0 ? doc.name : `${id}.bin`;
-      const stored = await mediaStorage().putObject({
+      stored = await mediaStorage().putObject({
         namespace: 'catalog',
         logicalId: id,
         fileName: `migrated-${name}`,
         mimeType,
         content: bytes,
       });
-      // Staged fields ONLY — data/provider/storageFileId/status are intentionally
-      // untouched so delivery is unchanged and rollback is a no-op.
-      await updateDoc('images', id, {
+    } catch (e) {
+      console.error(`[fn-admin] migrateLegacyImages: upload failed for ${id}`, e);
+      skipped.push({ id, reason: e instanceof Error ? e.message : 'storage upload failed' });
+      continue;
+    }
+
+    // 2) Stage the pointer. From here an object EXISTS, so any staging failure must
+    // be compensated (delete it) — never leave orphaned bytes. Staged fields ONLY:
+    // data/provider/storageFileId/status stay untouched so delivery is unchanged.
+    let staged: CollectionDoc | null = null;
+    let stageError: unknown;
+    try {
+      staged = await updateDoc('images', id, {
         migrationStorageFileId: stored.storageFileId,
         migrationStoragePath: stored.storagePath,
         migrationChecksumSha256: createHash('sha256').update(bytes).digest('hex'),
         migrationByteSize: bytes.byteLength,
         migratedAt: new Date().toISOString(),
       });
-      migrated.push(id);
     } catch (e) {
-      // A single failure never aborts the batch (§20.8); the row is retried next run.
-      console.error(`[fn-admin] migrateLegacyImages: failed for ${id}`, e);
-      skipped.push({ id, reason: e instanceof Error ? e.message : 'migration upload failed' });
+      stageError = e;
     }
+    if (staged) {
+      migrated.push(id);
+      continue;
+    }
+    // `null` return = the row vanished (concurrent remove) between query and stage.
+    await rollbackUpload(
+      id,
+      stored.storageFileId,
+      stageError instanceof Error
+        ? `staging failed after upload: ${stageError.message}`
+        : 'image row no longer exists at stage time',
+    );
   }
 
   return ok({
