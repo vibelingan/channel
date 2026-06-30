@@ -1590,3 +1590,22 @@ Disposition: P2 fixed. MIU-09 remains live-evidence blocked on refreshing/removi
 the stale CI `TENCENTCLOUD_SESSIONTOKEN` path or replacing it with deploy-scoped
 permanent CAM credentials, then rerunning `Deploy Test` with
 `run_media_upload_smoke=true`.
+
+### Claude review — fail-fast on auth errors (c3a8024) — 2026-06-30
+
+**APPROVED — the P2 follow-up is correctly resolved.** `isCredentialFailure()`
+matches the observed `[DescribeEnvInfo] Token verification failed` (verified) plus
+`authfailure`/`unauthorized`/`invalid|expired token|credential`; `functionDetailResult`
+now throws immediately on a credential failure, overriding `allowFailure`. Because
+`deployFunction` opens with `functionDetail(name, true)` existence checks, a
+bad-creds deploy now aborts in seconds at the first query with a clear "credentials
+invalid or expired" message — instead of the previous 5-minute misleading
+"did not become active" poll. Scoped correctly: only fires on `success === false`
+*and* a credential-pattern message, so genuine "not found"/transient states still
+flow normally. `node --check` + `biome` clean.
+
+Deploy-script robustness is now fully addressed (wait hardening + state logging +
+auth fail-fast). The remaining blocker is unchanged and non-code: the CI CloudBase
+credentials must be refreshed (permanent CAM SecretId/SecretKey, drop the stale
+SessionToken). Once that lands, `Deploy Test` with `run_media_upload_smoke=true`
+should reach the smoke and record the live browser→COS evidence.
