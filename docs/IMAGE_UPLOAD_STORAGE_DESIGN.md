@@ -2083,3 +2083,50 @@ Decisions from MIU-00 validation (2026-06-29) that now bind this plan:
   `pnpm verify:cloudbase-sdk`; in particular, `wx-server-sdk` must not be typed
   as an upload-metadata provider unless its installed runtime actually exposes
   that method.
+
+## 25. Review - OEM Cloud Storage Upload MIU (2026-06-30)
+
+Review of commit `4e61394` (the redefined §20.10 MIU-08 — OEM Cloud Storage
+Upload And Private Delivery) against the proven product-image upload primitive
+and the live-env facts in `docs/IMAGE_UPLOAD_EXECUTION.md`. Append-only addendum;
+does not change §1-24.
+
+Verdict: approve with changes. The design is sound and correctly reuses the
+proven node-sdk upload-credential primitive, but it opens a **public,
+unauthenticated** direct-to-storage path — a materially higher-risk surface than
+the admin-only product-image upload — and the abuse controls are named but not
+yet specified. Finding 25-1 must be in the OEM MIU's own scope, not deferred.
+
+### 25.1 What is right (keep)
+
+- OEM files are correctly kept out of the `images` collection, public
+  `/api/images/:id`, and the `publishedRefCount` path — separate `files` doc,
+  `purpose: 'oem-drawing'`, admin-only delivery.
+- Credentials are minted through the **same verified `@cloudbase/node-sdk`
+  upload-metadata path used by MIU-09**, not `wx-server-sdk` (which was proven to
+  lack the method). Consistent with the SDK contract gate.
+- Server recomputes `byteSize`/`checksumSha256` after upload; client metadata is
+  a hint only. Matches §22.3-6.
+- The no-transaction compensation/idempotency hazard (project row created, file
+  activation fails) is explicitly called out with a required test. Good.
+- `application/octet-stream` is accepted only for an allowed CAD extension, not
+  as a blanket bypass.
+
+### 25.2 Findings
+
+| # | Severity | Issue | Recommended fix |
+| --- | --- | --- | --- |
+| 25-1 | P1 | `createOemFileUploadIntent` is public (no JWT). An anonymous caller can mint unlimited intents and PUT 10 MiB objects into the private bucket — a storage-cost/DoS and bucket-pollution vector. The flow diagram says "rate/TTL policy" but the server-action spec does not define one. | Make abuse control part of the OEM MIU scope, not a later item: per-source rate limit on intent creation, a cap on concurrent `pending` intents per IP/`submissionId`, short `uploadExpiresAt` (e.g. 15 min), and aggressive pending-intent cleanup. Without a per-IP limiter in Event Functions, gate via a coarse counter (e.g. per-minute) or OPA/gateway rule. |
+| 25-2 | P2 | Size is validated from client-claimed `byteSize` at intent time and re-verified after upload, but the COS POST credential itself may not bound object size — oversize bytes can land before the server rejects them (cost already incurred). | Bind the COS POST policy's `content-length-range` to `OEM_FILE_MAX_BYTES` so COS rejects oversize at upload, before the object lands. |
+| 25-3 | P2 | Delivery inconsistency: OEM (the most-private class) uses a temp-URL via `getOemFileDownloadUrl`, but product images (less sensitive) use **proxy** delivery (MIU-04) specifically to avoid the CDN-cache-after-delete leak MIU-00 observed. A signed OEM URL can linger at the CDN edge after the file is deleted/withdrawn. | Prefer proxy delivery for OEM (most sensitive), or use a very short TTL and document why edge-cache exposure is acceptable. At minimum reconcile with the MIU-00 CDN-cache caveat explicitly. |
+| 25-4 | P2 | `uploadSecret` is introduced without an explicit threat model. Since intents are public, its value is preventing one anonymous client from finalizing/attaching another's `pending` fileId (anti-hijack of a guessed/enumerated fileId). | State the threat it closes; confirm `uploadSecretHash` is compared in constant time and the secret is single-use (consumed/rotated on `submitProject`). |
+| 25-5 | P3 | Admin download uses the public-supplied original filename in `Content-Disposition`; CRLF/quote injection and inline-render are risks. | Sanitize the filename (the local `/api/files/:id` already strips `["\r\n]`) and always serve `Content-Disposition: attachment`, never inline. |
+| 25-6 | P3 | Validation is extension + MIME only; ZIP/PDF carry a cheap magic-byte signature (`PK\x03\x04`, `%PDF`). | Add a lightweight magic-byte sniff for PDF/ZIP after upload; CAD formats may stay extension-gated. Malware scanning correctly stays deferred to the CloudRun path. |
+
+### 25.3 Gate decision
+
+Approved with changes. 25-1 (public-upload abuse controls) is a blocker for the
+OEM MIU implementation and must be specified before code. 25-2 through 25-4 are
+P2s to resolve in the same MIU; 25-5/25-6 are implementation notes. The core
+architecture — public intent, server-chosen path, post-upload verification,
+admin-only delivery — is correct and ready to build on once 25-1 is specified.
