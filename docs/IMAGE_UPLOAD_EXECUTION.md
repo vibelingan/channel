@@ -15,7 +15,7 @@ design-only; validation results and capability probes live here.
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
 | MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex A-review + post-D review + self-adversarial B/C/D reviews all resolved | `4823a12`+fixes, Phase B, C, D, post-D hardening | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. Post-D: strict-number counter guard (reject numeric strings), present-but-corrupt fails closed (no scan), unknown provider fails closed; public-api 16→20. All suites pass; both functions build; root tsc + biome clean. Deployed smoke = MIU-09 |
-| MIU-05 | Admin UI uploader (direct PUT UI) | feature-complete (U2a+U2b-a+U2b-b); Codex U2b-b review blocking | Phase U2a, U2b-a, U2b-b | `uploadImage()` → createUploadIntent/PUT/completeUpload. U2b-a: `getImagePreview` admin-auth preview (active + recognized-provider only). U2b-b added per-file state/retry, jpeg/png/webp accept, object URLs, and storage refCount gating in local-server. Codex U2b-b review found stale UI value commits plus incomplete local legacy-route parity; MIU-05 is not accepted yet. Focused tests/typechecks/builds pass; live browser→COS PUT + CORS = MIU-09 |
+| MIU-05 | Admin UI uploader (direct PUT UI) | feature-complete (U2a+U2b-a+U2b-b); Codex U2b-b review (2 P2 + P3) resolved | Phase U2a, U2b-a, U2b-b (+Codex U2b-b fixes) | `uploadImage()` → createUploadIntent/PUT/completeUpload; `getImagePreview` admin-auth preview (active+recognized-provider). `ImageManager` per-file state/retry, jpeg/png/webp accept, object-URL + admin previews — now commits successes against the LATEST list (concurrent-edit safe) and revokes object URLs. local-server `/api/images/:id` **delegates to `getCatalogImage`** (full prod parity incl. legacy). per-package tsc + astro check + biome clean. Live browser→COS PUT + CORS = MIU-09 |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
@@ -1171,3 +1171,22 @@ Verification run by Codex:
 Disposition: U2b-b is not accepted yet. MIU-05 remains **not done** until the
 stale UI commit path and local-server legacy parity are fixed and re-reviewed;
 the object-URL cleanup should be handled in the same UI pass.
+
+### Codex U2b-b Review — disposition (2 P2 + P3, all fixed)
+
+- **P2 (stale UI value commit).** `ImageManager` committed `[...baseValue, ...added]`
+  from the render-time snapshot, so a slow upload could clobber a concurrent
+  remove/reorder. Now a `valueRef` tracks the latest committed list and every
+  mutation goes through `commit()`; a success appends to `valueRef.current`
+  (order preserved, concurrent edits respected).
+- **P2 (local-server legacy parity).** The inline mirror gated only storage rows;
+  legacy `data` rows were served unconditionally. Replaced the route with a direct
+  **delegation to `getCatalogImage`** (added `@vibelingan-channel/fn-public-api` as
+  a local-server dep) — local dev now shares the exact production gate (legacy
+  strict-refCount / scan-fallback / placeholder / fail-closed), so parity can't
+  drift again.
+- **P3 (object-URL leak).** Object URLs are now revoked when their id leaves
+  `value` and all are revoked on unmount.
+- Verify: per-package `tsc` (incl. local-server) + `astro check` (0 errors) +
+  biome clean; `pnpm-lock.yaml` updated for the new dep. UI has no unit harness
+  here — end-to-end upload is the deployed/e2e check (MIU-09).

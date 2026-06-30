@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getImagePreview, uploadImage } from './api.ts';
 
 interface Props {
@@ -32,6 +32,14 @@ export function ImageManager({ value, onChange }: Props) {
   const [objectUrls, setObjectUrls] = useState<Record<string, string>>({});
   const [fetched, setFetched] = useState<Record<string, string>>({});
 
+  // Latest committed list, so a slow upload appends to the CURRENT value (not the
+  // render-time snapshot) — concurrent removes/reorders are preserved.
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  // Mirror of objectUrls for the unmount cleanup (effect deps are [] there).
+  const objectUrlsRef = useRef(objectUrls);
+  objectUrlsRef.current = objectUrls;
+
   // Lazily fetch admin previews for persisted ids that have no object URL.
   useEffect(() => {
     let cancelled = false;
@@ -50,8 +58,38 @@ export function ImageManager({ value, onChange }: Props) {
     };
   }, [value, objectUrls, fetched]);
 
+  // Revoke an object URL once its id leaves `value`, and all on unmount — a long
+  // editing session with large images would otherwise leak blob memory.
+  useEffect(() => {
+    setObjectUrls((m) => {
+      let changed = false;
+      const next: Record<string, string> = {};
+      for (const [id, url] of Object.entries(m)) {
+        if (value.includes(id)) {
+          next[id] = url;
+        } else {
+          URL.revokeObjectURL(url);
+          changed = true;
+        }
+      }
+      return changed ? next : m;
+    });
+  }, [value]);
+  useEffect(
+    () => () => {
+      for (const url of Object.values(objectUrlsRef.current)) URL.revokeObjectURL(url);
+    },
+    [],
+  );
+
   function previewSrc(id: string): string | undefined {
     return objectUrls[id] ?? fetched[id];
+  }
+
+  /** Update the latest-value ref and notify the parent together. */
+  function commit(next: string[]): void {
+    valueRef.current = next;
+    onChange(next);
   }
 
   function failUpload(key: string, e: unknown): void {
@@ -59,25 +97,20 @@ export function ImageManager({ value, onChange }: Props) {
     setPending((p) => p.map((x) => (x.key === key ? { ...x, error } : x)));
   }
 
-  function succeed(key: string, id: string, file: File, nextValue: string[]): void {
+  function succeed(key: string, id: string, file: File): void {
     setObjectUrls((m) => ({ ...m, [id]: URL.createObjectURL(file) }));
-    onChange(nextValue);
+    commit([...valueRef.current, id]); // append to the LATEST list, preserving order
     setPending((p) => p.filter((x) => x.key !== key));
   }
 
   async function handleFiles(files: FileList | null): Promise<void> {
     if (!files || files.length === 0) return;
-    // `value` is stable for this handler; accumulate ids and commit each success
-    // cumulatively so a later rejection never drops earlier successful uploads.
-    const baseValue = value;
-    const added: string[] = [];
     for (const file of Array.from(files)) {
       const key = crypto.randomUUID();
       setPending((p) => [...p, { key, name: file.name, file }]);
       try {
         const id = await uploadImage(file);
-        added.push(id);
-        succeed(key, id, file, [...baseValue, ...added]);
+        succeed(key, id, file);
       } catch (e) {
         failUpload(key, e);
       }
@@ -88,23 +121,24 @@ export function ImageManager({ value, onChange }: Props) {
     setPending((p) => p.map((x) => (x.key === item.key ? { ...x, error: undefined } : x)));
     try {
       const id = await uploadImage(item.file);
-      succeed(item.key, id, item.file, [...value, id]);
+      succeed(item.key, id, item.file);
     } catch (e) {
       failUpload(item.key, e);
     }
   }
 
   function remove(id: string): void {
-    onChange(value.filter((v) => v !== id));
+    commit(valueRef.current.filter((v) => v !== id));
   }
 
   function move(id: string, dir: -1 | 1): void {
-    const idx = value.indexOf(id);
+    const current = valueRef.current;
+    const idx = current.indexOf(id);
     const next = idx + dir;
-    if (next < 0 || next >= value.length) return;
-    const copy = [...value];
+    if (next < 0 || next >= current.length) return;
+    const copy = [...current];
     [copy[idx], copy[next]] = [copy[next] as string, copy[idx] as string];
-    onChange(copy);
+    commit(copy);
   }
 
   const uploading = pending.filter((p) => !p.error);

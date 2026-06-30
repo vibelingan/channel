@@ -85,6 +85,9 @@ importers:
       '@vibelingan-channel/fn-admin':
         specifier: workspace:*
         version: link:../functions/admin
+      '@vibelingan-channel/fn-public-api':
+        specifier: workspace:*
+        version: link:../functions/public-api
       '@vibelingan-channel/media-storage':
         specifier: workspace:*
         version: link:../../packages/media-storage

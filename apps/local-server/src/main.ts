@@ -10,7 +10,8 @@ import { resolve } from 'node:path';
 import { setAdapter } from '@vibelingan-channel/db';
 import { handleAdminRequest } from '@vibelingan-channel/fn-admin/handler';
 import type { AdminConfig, AdminRequest } from '@vibelingan-channel/fn-admin/handler';
-import { mediaStorage, setMediaStorage } from '@vibelingan-channel/media-storage';
+import { getCatalogImage } from '@vibelingan-channel/fn-public-api/handler';
+import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
 import { optionalEnv } from '@vibelingan-channel/shared';
 import type { FilterClause } from '@vibelingan-channel/shared';
@@ -94,42 +95,21 @@ function resolveImages(doc: Record<string, unknown>): Record<string, unknown> {
   return { ...doc, images: ids.map((id) => `/api/images/${String(id)}`) };
 }
 
-// PUBLIC image delivery. Mirrors the production public route (getCatalogImage):
-// legacy rows serve inline base64 `data`; storage-backed rows require a recognized
-// provider, `status === 'active'`, AND `publishedRefCount > 0` — so local dev does
-// NOT show an image production would 404 (an unpublished/just-uploaded image).
-// Admin previews of unpublished images go through the authed `getImagePreview`
-// action, not this route.
+// PUBLIC image delivery — delegates to the SAME logic as production
+// (`getCatalogImage`): provider/refCount/status gating, the legacy catalog-scan
+// fallback, the placeholder special-case, and fail-closed behavior, all driven by
+// the wired `mediaStorage()` adapter. Sharing the helper keeps local dev from
+// masking the production public gate (no parity to drift). Admin previews of
+// unpublished images use the authed `getImagePreview` action, not this route.
 app.get('/api/images/:id', async (req, res) => {
-  const doc = await adapter.get('images', req.params.id);
-  if (!doc) {
-    res.status(404).end();
+  const result = await getCatalogImage(req.params.id);
+  if (result.ok && 'body' in result) {
+    res.setHeader('Content-Type', result.headers['Content-Type'] ?? 'application/octet-stream');
+    res.setHeader('Cache-Control', result.headers['Cache-Control'] ?? 'public, max-age=3600');
+    res.send(Buffer.from(result.body, 'base64'));
     return;
   }
-  let body: Buffer | null = null;
-  if (typeof doc.data === 'string') {
-    body = Buffer.from(doc.data, 'base64');
-  } else {
-    const provider = typeof doc.storageProvider === 'string' ? doc.storageProvider : '';
-    const known = provider === 'cloudbase-storage' || provider === 'local-disk';
-    const refCount = doc.publishedRefCount;
-    const visible = typeof refCount === 'number' && Number.isFinite(refCount) && refCount > 0;
-    if (known && doc.status === 'active' && visible && typeof doc.storageFileId === 'string') {
-      try {
-        const object = await mediaStorage().getObjectAsBase64(doc.storageFileId);
-        body = Buffer.from(object.body, 'base64');
-      } catch (e) {
-        console.error('[local-server] image proxy failed for', req.params.id, e);
-      }
-    }
-  }
-  if (!body) {
-    res.status(404).end();
-    return;
-  }
-  res.setHeader('Content-Type', String(doc.mimeType ?? 'application/octet-stream'));
-  res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.send(body);
+  res.status(404).end();
 });
 
 // Download file bytes stored (base64) in the `files` collection. Sent as an
