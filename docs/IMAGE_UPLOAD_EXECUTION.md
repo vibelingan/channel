@@ -1717,3 +1717,51 @@ permanent-key path.
 before `rl.question(query)` so the prompt label renders, then re-mutes so only the
 typed value is masked (previously the prompt itself collapsed to a single `*`).
 Correct; `node --check` + `biome` clean. No behavioral change to what gets stored.
+
+### Claude review — first full live run; deploy silently ships STALE code (P1) — 2026-06-30
+
+With permanent CAM creds set, `Deploy Test` run `28431709752` (SHA `bdf745d`) finally
+got past the credential gate: verify-creds ✅, **Deploy to CloudBase ✅**,
+smoke-functions ✅, public-e2e ✅, then the media-upload smoke **ran** and failed.
+(Note: my earlier "new bundle fails to provision on cold start" hypothesis was
+**wrong** — it was the expired credentials all along; the functions provision fine.)
+
+**Smoke failure — real finding:** `createUploadIntent failed: Unknown action:
+createUploadIntent`. Login succeeded; the request reached the deployed `admin`
+function; the function rejected the action — i.e. the **live code lacks the
+MIU-Upload actions**. Confirmed it is running stale (pre-MIU) code.
+
+**Root cause (P1): the deploy reports success but never updates the function code.**
+Evidence:
+- Deploy log: `admin: updated on Nodejs20.19; code request unknown; config request
+  cfbbf61a-…` — and identically for `public-api`. The **`code request` is
+  `unknown`** (no RequestId ⇒ `updateFunctionCode` did not succeed); the
+  `config request` is a real UUID (`updateFunctionConfig` did succeed).
+- Live `admin` detail: `ModTime` advanced to today (16:44:38 — from the config
+  update) but **`CodeSize` is byte-identical to the pre-MIU build (2205829)** ⇒ the
+  code bytes never changed.
+- Source on `bdf745d` has the dispatch case (`handler.ts:302 case 'createUploadIntent'`),
+  so the live function predates it.
+- Mechanism: `updateFunction()` (scripts/deploy-cloudbase-test.mjs) calls
+  `updateFunctionCode` then `updateFunctionConfig` but **does not check the code
+  result** — `callTool` only throws on a hard mcporter failure, so a soft
+  `{success:false}`/empty result is swallowed (hence `code request unknown`).
+  `updateFunctionConfig` then succeeds (ModTime advances) and `waitForActive` sees
+  the already-`Active` function → the deploy is declared green while the code is
+  stale. This is the most dangerous deploy failure mode: a silent stale-code ship.
+
+**Fix (Codex, deploy-script owner):**
+1. **Assert `updateFunctionCode` succeeded** — fail the deploy if `codeResult.success
+   === false` or no RequestId was returned (treat `code request unknown` as fatal),
+   and log `codeResult.message` so the real error surfaces.
+2. **Investigate why `updateFunctionCode` returns no RequestId on UPDATE** (create
+   worked on 06-25). Likely the MCP `manageFunctions` update path needs a different
+   arg/shape, or it errors; the now-surfaced message will show it. Consider `zipFile`
+   vs `functionRootPath`, or the `incrementalDeployFunction` action.
+3. **Add a post-deploy code-change assertion** (CodeSize/version delta, or a deployed
+   version/health probe) so "deploy succeeded" provably implies "new code is live".
+
+Disposition: the upload feature, the smoke harness, the credentials, and the
+deploy-up-to-code-upload all work; MIU-09 is now blocked solely on the deploy
+script actually shipping the new code (P1 above). Bucket CORS / browser→COS PUT
+remain unverified — the smoke can't exercise them until the upload code is live.
