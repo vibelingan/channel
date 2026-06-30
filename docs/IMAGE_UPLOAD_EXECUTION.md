@@ -1814,3 +1814,33 @@ Remaining live step: push this fix, rerun `Deploy Test` with
 `run_public_e2e=true` and `run_media_upload_smoke=true`, and require the workflow
 to pass public/admin release-id checks before considering the browser→COS evidence
 valid.
+
+### Claude review — stale-code deploy fix (7f10674) — APPROVED — 2026-06-30
+
+Reviewed Codex's P1 fix. It implements **all three** recommendations from the prior
+finding and is correct:
+
+1. **Tool failures no longer swallowed.** `assertToolSucceeded()` now guards
+   `createFunction`/`updateFunctionCode`/`updateFunctionConfig`/`deleteFunction`;
+   `updateFunctionCode` returns its real RequestId via `requestIdFrom()`.
+2. **No-RequestId code update is handled, not ignored.** When `updateFunctionCode`
+   returns no RequestId (the exact `code request unknown` symptom), `deployFunction`
+   now logs the tool message and **deletes + recreates the function** "so stale code
+   cannot be reported as deployed." Plus `artifactSummary()` logs the deployed
+   artifact's size + sha256.
+3. **Post-deploy code-change assertion.** New `packages/shared/src/release.ts`
+   (`releaseInfo`), an unauthenticated `health` action (`ok(releaseInfo('admin'))`),
+   and `smoke-cloudbase-deploy.mjs` `assertRelease()` now require the deployed
+   function to report `releaseId === expected`. The build SHA is injected at build
+   time via each `tsup.config.ts` `define` (`CHANNEL_BUILD_SHA || GITHUB_SHA`), and
+   GitHub Actions auto-provides `GITHUB_SHA` to the build + smoke steps — so a stale
+   function (old/`local` releaseId) now fails the smoke. Verified the build-SHA
+   injection path is correct (no workflow change needed).
+
+Independent verification: `pnpm typecheck` (shared + fn-admin + fn-public-api) → 0;
+fn-admin + public-api tests pass incl. `health returns safe release metadata without
+a session`; both deploy scripts `node --check` clean.
+
+Disposition: P1 resolved and verified. Re-running `Deploy Test` should now either
+ship the real code (smoke proceeds to the browser→COS PUT, finally exercising bucket
+CORS) or fail loudly at the release-id check — no more silent stale-code green.
