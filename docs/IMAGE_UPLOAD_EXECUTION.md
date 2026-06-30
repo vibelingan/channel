@@ -15,7 +15,7 @@ design-only; validation results and capability probes live here.
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
 | MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex A-review + post-D review + self-adversarial B/C/D reviews all resolved | `4823a12`+fixes, Phase B, C, D, post-D hardening | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. Post-D: strict-number counter guard (reject numeric strings), present-but-corrupt fails closed (no scan), unknown provider fails closed; public-api 16→20. All suites pass; both functions build; root tsc + biome clean. Deployed smoke = MIU-09 |
-| MIU-05 | Admin UI uploader (direct PUT UI) | U2a done; U2b-a done (admin-auth preview action + design handoff aligned); U2b-b pending (wire ImageManager + local-server parity) | Phase U2a, U2b-a | `uploadImage()` → createUploadIntent/PUT/completeUpload. U2b-a: `getImagePreview` admin action (auth `canReadCollection('images')`, no refCount gate, serves legacy/storage bytes for any readable image incl. pending/unpublished); §20.7 design now mandates admin-auth preview + local-server `getCatalogImage` delegation. U2b-b wires `ImageManager` to it + per-file state + jpeg/png/webp accept + reverts the local-server mask. admin 45→49 |
+| MIU-05 | Admin UI uploader (direct PUT UI) | U2a done; U2b-a reviewed with P2 pending; U2b-b pending (wire ImageManager + local-server parity) | Phase U2a, U2b-a + Codex review | `uploadImage()` → createUploadIntent/PUT/completeUpload. U2b-a: `getImagePreview` admin action added, but Codex found its storage branch serves any `storageFileId` without provider/status/verification gating; fix before accepting U2b-a. U2b-b wires `ImageManager` to admin preview + per-file state + jpeg/png/webp accept + reverts the local-server mask. admin 55 pass; fn-admin typecheck + functions build pass |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
@@ -1033,3 +1033,38 @@ Remaining for U2b-b (next): wire `ImageManager` to `getImagePreview` (+ object U
 for the just-uploaded session), per-file upload state/retry, jpeg/png/webp accept,
 and revert local-server `/api/images/:id` to delegate to `getCatalogImage`. MIU-05
 stays **not done** until U2b-b lands + reviews.
+
+### Codex MIU-05 U2b-a Review - 2026-06-30 after `5439334`
+
+Review base: `54393344360712fe891de431d3b1ecf36b6049e5` (`feat(media): MIU-05
+U2b-a - admin-authenticated getImagePreview + design handoff aligned`), diffed
+against the previous processed head `27ab5bbd767cfd0ea459b408462ceda47f41d24a`.
+
+What is sound:
+
+- The action is behind the existing admin session gate and uses
+  `canReadCollection(claims.role, 'images')`, so `viewer`/blank roles cannot use
+  it.
+- It correctly avoids the public `/api/images/:id` refcount gate for the intended
+  admin preview case: active but unpublished/refCount-0 storage images can be
+  previewed without weakening public delivery.
+- The design handoff now tells U2b-b to stop using public image URLs for admin
+  previews and to restore local-server parity with the production public route.
+
+Finding:
+
+| Severity | Finding | Evidence | Required change |
+| --- | --- | --- | --- |
+| P2 | `getImagePreview` bypasses the storage-backed row contract and the upload verification lifecycle. Any readable `images` row with a string `storageFileId` is proxied, regardless of `storageProvider`, `storagePath`, or `status`, and with no size/checksum guard. That means a rejected `failed` upload whose best-effort delete did not remove bytes, a `deleted` row, an unknown-provider/corrupt row, or a pending object that has not passed `completeUpload` validation can still be served through the admin preview endpoint. Because the upload credential is explicitly unbounded until `completeUpload` re-checks real bytes, this also lets a contributor/admin force the admin function to download and JSON-base64 return oversized unverified objects. | `apps/functions/admin/src/handler.ts` `getImagePreviewAction` returns `mediaStorage().getObjectAsBase64(doc.storageFileId)` for any string `storageFileId`. `completeUploadAction` only marks size/checksum failures as `failed` after downloading and validating the object; delete is best-effort. The shared contract already requires recognized provider + storage path + lifecycle fields via `StorageBackedImageMetadataDoc` / `isStorageBackedImage()`, and the public route recently failed closed for unknown providers. Current tests cover legacy, active refCount-0, pending, viewer forbidden, missing object, but not failed/deleted/unknown-provider/oversized-pending rows. | In the storage preview branch, first narrow to the recognized storage-backed contract (or equivalent explicit provider/path checks), and refuse `failed`/`deleted` rows. Prefer serving only `active` storage rows through this server endpoint; for pre-activation UI previews, use `URL.createObjectURL(file)` client-side. If pending server preview remains a requirement, reapply the real-object size cap and declared checksum guard before returning bytes, and add tests for failed, deleted, unknown provider, and oversized/unverified pending objects. |
+
+Verification run by Codex:
+
+- `pnpm --filter @vibelingan-channel/fn-admin test` - pass (55 tests)
+- `pnpm --filter @vibelingan-channel/fn-admin typecheck` - pass
+- `pnpm exec biome check apps/functions/admin/src/handler.ts apps/functions/admin/src/handler.test.ts docs/IMAGE_UPLOAD_STORAGE_DESIGN.md docs/IMAGE_UPLOAD_EXECUTION.md` - pass for the two TypeScript files; Markdown paths are ignored by this repo's Biome config
+- `pnpm build:functions` - pass
+
+Disposition: U2b-a is not accepted yet. Fix the preview storage-branch lifecycle
+guard above, then continue U2b-b (`ImageManager` wiring, per-file state/retry,
+jpeg/png/webp accept, and local-server public-route parity). MIU-05 remains **not
+done** until U2b-a and U2b-b both land and review cleanly.
