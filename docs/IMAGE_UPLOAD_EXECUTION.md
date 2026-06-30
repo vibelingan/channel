@@ -19,7 +19,7 @@ design-only; validation results and capability probes live here.
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
-| MIU-09 | Deploy, smoke, review hardening | implementation started; live evidence pending Claude review/run | Codex browser-origin smoke harness | Added deployed media-upload smoke: browser-origin admin login → createUploadIntent → browser-enforced COS PUT → completeUpload → admin preview → public 404 before published link → published product link → public 200. Wired as opt-in `E2E_MEDIA_UPLOAD_SMOKE=1` / `pnpm test:e2e:media-upload` and deploy-test workflow input. Live run must still execute against CloudBase test with admin creds + bucket CORS. |
+| MIU-09 | Deploy, smoke, review hardening | harness accepted; live evidence blocked in CloudBase deploy | Codex browser-origin smoke harness + deploy wait hardening | Added deployed media-upload smoke: browser-origin admin login → createUploadIntent → browser-enforced COS PUT → completeUpload → admin preview → public 404 before published link → published product link → public 200. Wired as opt-in `E2E_MEDIA_UPLOAD_SMOKE=1` / `pnpm test:e2e:media-upload` and deploy-test workflow input. Claude accepted the harness. Latest live run `28427449894` reached the runner but failed in `Deploy to CloudBase test` because `admin` did not become active before the deploy-script wait expired; script now uses a longer configurable wait and logs last observed function state. Live browser→COS evidence still pending. |
 
 Decision summary (binds the plan; evidence below):
 - P0 byte transport = **admin-brokered direct-storage-upload** (browser PUTs to
@@ -1481,3 +1481,38 @@ After Claude accepted the harness, another `Deploy Test` workflow was dispatched
 Disposition: same blocker as the earlier `92d8a1d` attempt, now confirmed at the
 review-clean harness head. No code change is indicated. MIU-09 still needs an
 allowed live-run path to collect browser-origin COS PUT / CORS evidence.
+
+### Live deploy-smoke attempt after environment gate opened — CloudBase activation timeout
+
+A later `Deploy Test` workflow run used the accepted harness head and reached the
+actual runner/deploy step:
+
+- Workflow run: `28427449894`
+- Ref/SHA: `fix/image-upload-storage-design` /
+  `09b128f72a14e20d18808c90c28673b757795850`
+- Inputs: `run_media_upload_smoke=true`
+- Result: failed in `Deploy to CloudBase test`; all prior CI steps passed:
+  checkout, install, lint, typecheck, function packaging, artifact smoke, site
+  build, and public-secret scan.
+- Failure line:
+  `Error: admin did not become active.`
+- Script location:
+  `scripts/deploy-cloudbase-test.mjs` `waitForActive("admin")`
+- CloudBase target:
+  env `diversity-123-d9grnqfux221323bb`, runtime `Nodejs20.19`
+
+Disposition: this is no longer the GitHub Environment branch-policy blocker.
+The deploy proceeded far enough to update/query CloudBase, then timed out waiting
+for the `admin` Event Function to report `Status: Active` or
+`AvailableStatus: Available`. The first corrective action is deploy-script
+hardening, not upload-flow code:
+
+- increase the activation wait from 90 seconds to 300 seconds by default;
+- make the timeout and poll interval configurable via
+  `CLOUDBASE_FUNCTION_ACTIVE_TIMEOUT_MS` and
+  `CLOUDBASE_FUNCTION_POLL_INTERVAL_MS`;
+- log periodic function state while waiting;
+- include the last observed CloudBase status/runtime/reason in the thrown error.
+
+MIU-09 remains implemented-but-not-accepted until a rerun gets past deploy and
+records the browser-origin COS PUT / CORS evidence from the media-upload smoke.

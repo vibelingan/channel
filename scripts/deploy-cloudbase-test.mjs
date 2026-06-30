@@ -8,6 +8,8 @@ const functionRootPath = resolve(root, '.cloudbase-artifacts/functions');
 const siteRootPath = resolve(root, 'apps/site');
 const targetRuntime = process.env.CLOUDBASE_FUNCTION_RUNTIME || 'Nodejs20.19';
 const webAppServiceName = process.env.CLOUDBASE_WEBAPP_SERVICE || 'channel-test';
+const functionActiveTimeoutMs = positiveIntegerEnv('CLOUDBASE_FUNCTION_ACTIVE_TIMEOUT_MS', 300_000);
+const functionPollIntervalMs = positiveIntegerEnv('CLOUDBASE_FUNCTION_POLL_INTERVAL_MS', 5_000);
 const envId = requireEnv('TCB_ENV_ID');
 const appEnv = process.env.APP_ENV || 'test';
 const siteUrl = trimSlash(
@@ -27,6 +29,16 @@ function trimSlash(value) {
 function requireEnv(name) {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
+  return value;
+}
+
+function positiveIntegerEnv(name, fallback) {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer number of milliseconds.`);
+  }
   return value;
 }
 
@@ -77,31 +89,73 @@ function callTool(selector, args, options = {}) {
   throw new Error(`mcporter call failed for ${selector}: ${lastError?.message ?? 'unknown error'}`);
 }
 
-function functionDetail(functionName, allowFailure = false) {
+function functionDetailResult(functionName, allowFailure = false) {
   const result = callTool(
     'cloudbase.queryFunctions',
     { action: 'getFunctionDetail', functionName },
     { allowFailure },
   );
-  if (result.success === false) return null;
-  return result.data?.functionDetail ?? null;
+  return {
+    detail: result.success === false ? null : (result.data?.functionDetail ?? null),
+    message: result.message,
+  };
+}
+
+function functionDetail(functionName, allowFailure = false) {
+  return functionDetailResult(functionName, allowFailure).detail;
+}
+
+function sleep(ms) {
+  if (ms > 0) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  }
+}
+
+function summarizeFunctionState(state) {
+  const detail = state?.detail;
+  if (!detail) {
+    return state?.message ? `query failed: ${state.message}` : 'no function detail returned';
+  }
+  return JSON.stringify({
+    status: detail.Status,
+    availableStatus: detail.AvailableStatus,
+    runtime: detail.Runtime,
+    statusReason: detail.StatusReason,
+    statusDesc: detail.StatusDesc,
+    updateTime: detail.UpdateTime,
+  });
 }
 
 function waitForGone(functionName) {
   for (let i = 0; i < 12; i += 1) {
     if (!functionDetail(functionName, true)) return;
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5000);
+    sleep(functionPollIntervalMs);
   }
   throw new Error(`${functionName} still exists after delete.`);
 }
 
 function waitForActive(functionName) {
-  for (let i = 0; i < 18; i += 1) {
-    const detail = functionDetail(functionName, true);
+  const deadline = Date.now() + functionActiveTimeoutMs;
+  let nextLogAt = Date.now();
+  let lastState = null;
+
+  while (Date.now() < deadline) {
+    lastState = functionDetailResult(functionName, true);
+    const detail = lastState.detail;
     if (detail?.Status === 'Active' || detail?.AvailableStatus === 'Available') return detail;
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5000);
+
+    const now = Date.now();
+    if (now >= nextLogAt) {
+      console.log(
+        `${functionName}: waiting for active state; ${summarizeFunctionState(lastState)}`,
+      );
+      nextLogAt = now + 30_000;
+    }
+    sleep(Math.min(functionPollIntervalMs, Math.max(deadline - now, 0)));
   }
-  throw new Error(`${functionName} did not become active.`);
+  throw new Error(
+    `${functionName} did not become active within ${functionActiveTimeoutMs}ms; last state: ${summarizeFunctionState(lastState)}`,
+  );
 }
 
 function envEntries(record) {
