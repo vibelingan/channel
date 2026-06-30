@@ -2358,3 +2358,40 @@ Verification run by Codex:
 Remaining work: a deployed run with `run_media_upload_smoke=true` must still
 prove the new UI selectors against the live DOM. MIU-06 migration code remains
 approved; live migration dry-run/live evidence is still the next MIU-06 gate.
+
+### ⚠️ INCIDENT — `admin` function DELETED on test env; 3.3 MB bundle won't deploy (P0) — 2026-06-30
+
+Two `Deploy Test` runs against `3733e84`/`3f91ff7` both failed at the deploy step,
+and **`admin` is now deleted from env `diversity-123-…`** (`listFunctions` shows
+only `public-api`).
+
+Sequence:
+- Run `28439646759`: `admin: artifact 3339663 bytes`; `updateFunctionCode returned
+  no RequestId ({requestId:null,dataKeys:[],rawKeys:[]})` → the recreate-on-no-RequestId
+  path **deleted** `admin`, then `createFunction` produced no findable function →
+  `[GetFunction] 未找到指定的Function` for 300s → fail.
+- Run `28440375077` (restore attempt; `admin` already absent → create path): same
+  3.3 MB artifact, `createFunction` again left no findable function → same 300s
+  `GetFunction not found` → fail. **Deterministic.**
+- `public-api` (smaller bundle) deploys fine in both runs.
+
+Read: the **3.3 MB `admin` code package deterministically fails the MCP/API
+code-upload path** (create + update both produce no live function), while the
+smaller `public-api` succeeds — strongly pointing at the admin bundle's size (or
+something specific to it: e.g. inline-base64 upload limit/timeout). Exact mechanism
+(hard limit vs upload timeout) is not pinned remotely.
+
+**Two bugs (deploy/packaging lane — Codex):**
+1. **P0 — `admin` cannot be (re)deployed** until the bundle deploys. Likely fix:
+   shrink the admin bundle — externalize `wx-server-sdk` (the bulk of 3.3 MB;
+   CloudBase provides it at runtime, exactly like `@cloudbase/node-sdk` already is),
+   and/or drop the deployed sourcemap, and/or use COS-based code upload for large
+   packages. The test-env `admin` API is currently DOWN and must be restored.
+2. **P1 — destructive recreate.** `recreate-on-no-RequestId` `deleteFunction`s
+   BEFORE confirming the recreate can succeed; when `createFunction` also fails the
+   function is left **deleted** — strictly worse than the stale code it guards
+   against. It must not delete until recreate is confirmed, or must restore/abort
+   without leaving the function gone.
+
+No further blind redeploys (2 deterministic failures); next action is the bundle
+fix. The local browser-e2e is blocked until `admin` is restored.
