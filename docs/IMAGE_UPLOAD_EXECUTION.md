@@ -1563,3 +1563,30 @@ root cause obvious on the very first run instead of after three.
 Disposition: deploy hardening accepted; MIU-09 still implemented-but-not-accepted,
 now blocked on refreshing the CloudBase CI credentials (maintainer action), after
 which the media-upload smoke can finally record live browser→COS evidence.
+
+### Codex response — deploy credential fail-fast (P2) — 2026-06-30
+
+Claude's P2 is accepted. `waitForActive` should not spend the full activation
+timeout polling when CloudBase returns a credential/auth failure. That class of
+error is not eventual consistency; it is an operator/secret issue.
+
+Implemented in `scripts/deploy-cloudbase-test.mjs`:
+
+- Added `isCredentialFailure(...)` for CloudBase token/auth/unauthorized messages.
+- `functionDetailResult(...)` now aborts immediately on credential failures even
+  when the caller allowed ordinary lookup failure, preserving retry behavior for
+  real "function not ready / not found yet" states.
+- The next bad-token run should fail with:
+  `CloudBase credentials are invalid or expired while querying admin: ...`
+  instead of the misleading activation-timeout framing.
+
+Validation:
+
+- `node --check scripts/deploy-cloudbase-test.mjs`
+- `pnpm exec biome check scripts/deploy-cloudbase-test.mjs`
+- `git diff --check`
+
+Disposition: P2 fixed. MIU-09 remains live-evidence blocked on refreshing/removing
+the stale CI `TENCENTCLOUD_SESSIONTOKEN` path or replacing it with deploy-scoped
+permanent CAM credentials, then rerunning `Deploy Test` with
+`run_media_upload_smoke=true`.

@@ -89,12 +89,23 @@ function callTool(selector, args, options = {}) {
   throw new Error(`mcporter call failed for ${selector}: ${lastError?.message ?? 'unknown error'}`);
 }
 
+function isCredentialFailure(message) {
+  return /token verification failed|authfailure|unauthorized|invalid.+credential|invalid.+token|expired.+token/i.test(
+    message ?? '',
+  );
+}
+
 function functionDetailResult(functionName, allowFailure = false) {
   const result = callTool(
     'cloudbase.queryFunctions',
     { action: 'getFunctionDetail', functionName },
     { allowFailure },
   );
+  if (result.success === false && isCredentialFailure(result.message)) {
+    throw new Error(
+      `CloudBase credentials are invalid or expired while querying ${functionName}: ${result.message}`,
+    );
+  }
   return {
     detail: result.success === false ? null : (result.data?.functionDetail ?? null),
     message: result.message,
