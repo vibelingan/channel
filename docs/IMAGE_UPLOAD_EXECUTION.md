@@ -1272,3 +1272,28 @@ Review status:
   test evidence: deployed URLs, workflow/run id or local command, browser-origin
   COS PUT success, admin preview success, public 404-before-link, and public
   200-after-published-link.
+
+### Live deploy-smoke attempt — blocked by GitHub Environment policy
+
+Codex attempted to dispatch `Deploy Test` on this branch after pushing the
+implementation:
+
+- Workflow run: `28422392812`
+- Ref/SHA: `fix/image-upload-storage-design` /
+  `92d8a1d7704a2b82b58bfb7fa0bbf209250d8e32`
+- Inputs: `run_public_e2e=true`, `run_media_upload_smoke=true`
+- Result: failed before any job step ran.
+- GitHub annotation: branch `fix/image-upload-storage-design` is not allowed to
+  deploy to the `test` environment due to environment protection rules; the
+  deployment was rejected.
+
+Disposition: this is an environment-policy gate, not an upload implementation
+failure. The next live-evidence path is one of:
+
+1. run the same workflow from an allowed deploy branch after Claude review; or
+2. temporarily allow this feature branch to deploy to the `test` environment; or
+3. run `pnpm test:e2e:media-upload` locally against an already-deployed build
+   with `E2E_MEDIA_UPLOAD_SMOKE=1`, deployed URLs, and admin credentials.
+
+Until one of those paths records a successful browser-origin upload, MIU-09
+remains implemented-but-not-accepted.
