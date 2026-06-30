@@ -835,6 +835,11 @@ skeptic. 9 confirmed (1 P2 + 8 P3), 0 dismissed. Disposition:
   deferred to a hardening pass; (b) local-server `/api/images/:id` storage-backed
   delivery (serves only legacy `data` today) — folded into **U2**, where the
   uploader UI + local view loop live.
+- **Update (2026-07-01):** deferred item (a) magic-byte sniff is now implemented
+  as pure shared groundwork — `sniffMagicBytes()` + `signatureMatchesMime()` in
+  `packages/shared/src/media-content.ts` (PNG/JPEG/WebP/GIF/PDF/ZIP/RAR; CAD stays
+  extension-gated, RIFF-non-WebP rejected, declared-MIME cross-check). 15 tests.
+  MIU-08/MIU-12 wire it into upload verification (`pending→active` gate).
 - Re-verify: root tsc + biome clean; admin 45, media-storage 26, public-api 20,
   shared 13; both functions build.
 
