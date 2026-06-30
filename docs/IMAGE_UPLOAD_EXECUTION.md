@@ -15,7 +15,7 @@ design-only; validation results and capability probes live here.
 | MIU-00 | CloudBase storage + transport readiness | ✅ validated | `051d510`,`335d4eb` (now moved here) | live-env probe (§MIU-00 below); CORS/origin proof reassigned to MIU-Upload preconditions |
 | MIU-02 | Media storage adapter (local-disk + typings) | ✅ done; all Codex reviews resolved | `308b917` (+review fixes) | 23 media-storage unit tests (incl. fake-SDK cloudbase suite w/ delete-failure + node-sdk shape cases); root+e2e tsc clean; biome clean; both functions build with media-storage bundled; pre-push review + Codex re-review (delete-result hardening) resolved |
 | MIU-04 | Public delivery + visibility index (logic) | ✅ done (A+B+C+D); Codex A-review + post-D review + self-adversarial B/C/D reviews all resolved | `4823a12`+fixes, Phase B, C, D, post-D hardening | A: atomic `incrementField` + facade integer guard + `nextCounterValue`. B: `publishedRefCount` maintenance in admin mutations (catalog-gated), batch dedup, per-image error isolation, `batchRemove` returns removed ids; admin 8→26. C: `getCatalogImage` branches by provider+refCount (legacy scan only as pre-backfill fallback; storage proxy; fail-closed); O(catalog) scan gone from the new path; public-api 6→16. D: `backfillPublishedRefCounts` (registry-driven, dry-run, stable `_id` paging) + admin-only action + seed reuse; admin 26→32. Post-D: strict-number counter guard (reject numeric strings), present-but-corrupt fails closed (no scan), unknown provider fails closed; public-api 16→20. All suites pass; both functions build; root tsc + biome clean. Deployed smoke = MIU-09 |
-| MIU-05 | Admin UI uploader (direct PUT UI) | U2a done (client flow + local delivery); U2b (per-file UI) pending | Phase U2a | `uploadImage()` → createUploadIntent → raw PUT → completeUpload; local-server `/api/images/:id` proxies storage-backed rows. root tsc + astro check + biome clean |
+| MIU-05 | Admin UI uploader (direct PUT UI) | U2a reviewed; **P1 preview-route blocker**; U2b (per-file UI) pending | Phase U2a + Codex review | `uploadImage()` drives createUploadIntent → raw PUT → completeUpload, but admin previews still use public `/api/images/:id`, which rejects unlinked/unpublished storage-backed images in production; see Codex MIU-05 review below. |
 | MIU-Upload (was 03+07) | Admin-brokered direct upload (intent → pre-signed PUT → complete) | U1 done + Codex review resolved; U2 (UI) + live mint/CORS env-gated | Phase U1 (+Codex-review fixes) | `createUploadIntent`/`completeUpload` + `getUploadCredential` DI; Codex U1 review (2 P1 + P2 + P3) resolved — see disposition below. **`pnpm typecheck` (per-package) now green across all packages.** Live credential mint + bucket CORS = MIU-09 |
 | MIU-06 | Legacy migration + orphan cleanup | pending | — | env-gated |
 | MIU-08 | OEM files follow-up | pending | — | env-gated |
@@ -911,3 +911,47 @@ Re-verify with the per-package check: `pnpm typecheck` (all packages) green; adm
 - Verify: root + per-package tsc clean; `astro check` 0 errors; biome clean. The
   live browser→COS PUT (CORS/signature) is exercised at MIU-09. U2b adds per-file
   upload state + retry in the UI.
+
+### Codex MIU-05/U1 Fix Review — 2026-06-30
+
+Review base: `ba27b60` (`fix(media): address Codex MIU-Upload U1 review
+(typecheck P1s + credential validation + lifecycle doc)`), diffed against the
+previous processed head `db335899`.
+
+What is sound:
+
+- The U1 fixes close the cross-package TypeScript contract break: public-api's
+  fake storage adapter now implements `getUploadCredential`, and local-server can
+  typecheck the env-gated CloudBase dynamic import.
+- `getUploadCredential` now validates every required CloudBase upload metadata
+  field as a non-empty string before returning browser PUT headers.
+- The client upload sequence in `uploadImage()` is the intended small-JSON intent
+  -> raw storage PUT -> small-JSON complete flow; no base64 or multipart bytes go
+  through `/api/admin`.
+
+Findings:
+
+| Severity | Finding | Evidence | Required change |
+| --- | --- | --- | --- |
+| P1 | MIU-05's admin preview path is still production-broken for new storage-backed images. `uploadImage()` returns only the image id, and `ImageManager` immediately previews that id through `imageUrl(id)` -> public `/api/images/:id`. The production public route intentionally requires `status === 'active'` AND a positive numeric `publishedRefCount`; a newly uploaded image is active but has `publishedRefCount: 0` until a catalog record is saved and published, so the admin preview returns 404 for freshly uploaded, unlinked, or unpublished storage images. The new local-server proxy bypasses `publishedRefCount`, which masks the production behavior instead of proving it. | `apps/site/src/islands/admin/api.ts:105-108`, `apps/site/src/islands/admin/ImageManager.tsx:51-56`, `apps/functions/public-api/src/handler.ts:198-204`, `apps/local-server/src/main.ts:97-124`. Design §20.7 says MIU-05 should keep image previews working, but the public delivery gate is not an admin preview route. | Do not weaken the public route. Add an admin-authenticated image preview/delivery path, or return/use local object URLs for just-uploaded files and add an authenticated route for persisted admin previews. Align local-server with that same contract so local dev does not hide the deployed behavior. |
+| P2 | The uploader still invites formats the server now rejects. The file picker accepts SVG and GIF, and the helper copy says SVG is supported, but `catalogImageUploadSchema` only permits JPEG, PNG, and WebP. This makes the new direct-upload UI fail after selection with a server validation error; in a multi-file selection, any earlier successful uploads are already active but never added to the form because `onChange` happens only after the whole loop finishes. | `apps/site/src/islands/admin/ImageManager.tsx:99-109`; server allowlist in `packages/shared/src/media.ts` (`CATALOG_IMAGE_MIME_TYPES`). | Restrict `accept` and copy to JPEG/PNG/WebP, and add client-side filtering or per-file state so one rejected file does not hide earlier successful uploads. |
+| P3 | The lifecycle documentation fix is incomplete in code comments. The design now correctly says a not-yet-retrievable object stays `pending`, but the `completeUploadAction` block comment still says a missing object marks the doc `failed`. The implementation and tests leave it pending. | `apps/functions/admin/src/handler.ts:819-824` conflicts with `apps/functions/admin/src/handler.ts:845-857` and design §20.7 lifecycle text. | Update the stale comment when Claude next touches the upload action so future MIU-06/MIU-09 work follows the retryable-miss contract. |
+
+Verification run by Codex:
+
+- `pnpm --filter @vibelingan-channel/fn-admin test` - pass (51 tests).
+- `pnpm --filter @vibelingan-channel/media-storage test` - pass (26 tests).
+- `pnpm --filter @vibelingan-channel/fn-public-api test` - pass (20 tests).
+- `pnpm --filter @vibelingan-channel/local-server typecheck` - pass.
+- `pnpm --filter @vibelingan-channel/site typecheck` - pass (`astro check`, 0 errors; existing FormEvent hints only).
+- `pnpm --filter @vibelingan-channel/fn-public-api typecheck` - pass.
+- `pnpm --filter @vibelingan-channel/media-storage typecheck` - pass.
+- `pnpm --filter @vibelingan-channel/fn-admin typecheck` - pass.
+- `pnpm --filter @vibelingan-channel/db typecheck` - pass.
+- `pnpm typecheck` - pass across packages/apps + e2e.
+- `pnpm build:functions` - pass.
+- `pnpm exec biome check apps/functions/public-api/src/http-adapter.test.ts apps/local-server/src/main.ts apps/site/src/islands/admin/api.ts packages/db/src/cloudbase-adapter.ts packages/media-storage/src/cloudbase.ts packages/media-storage/src/cloudbase.test.ts docs/IMAGE_UPLOAD_EXECUTION.md docs/IMAGE_UPLOAD_STORAGE_DESIGN.md` - pass for the six non-ignored implementation files; Markdown docs are ignored by this repo's Biome config.
+
+Disposition: U1 fixes are accepted, but MIU-05 is **not done**. The P1 preview
+route blocker must be fixed before marking the admin uploader complete; U2b
+per-file state/retry remains pending.
