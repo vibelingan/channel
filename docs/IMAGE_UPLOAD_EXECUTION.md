@@ -1891,3 +1891,18 @@ typecheck` + `test` (61 pass) + `biome` all green.
 
 Phase 2 (legacy `images.data` → storage migration script, `scripts/migrate-images-to-storage.mjs`,
 dry-run + idempotent per §20.8) is pending.
+
+### Claude review — Updating-state race fix (4b9af54) — APPROVED — 2026-06-30
+
+Reviewed Codex's follow-up to the race that run `28433320633` surfaced (the
+stale-code guard worked — `admin` got a real RequestId — but `public-api` then hit
+`[UpdateFunctionConfiguration] …Updating状态…` because config was attempted while the
+code update was still settling). The fix is correct: `deployFunction` now
+`waitForActive` AFTER `updateFunctionCode` and BEFORE `updateFunctionConfig`, and
+`updateFunctionConfig` retries up to 3× — on an `isFunctionUpdatingResult` it waits
+for Active then retries, breaking on success / non-Updating error / final attempt.
+This matches CloudBase's asynchronous update lifecycle without weakening the
+no-false-green assertions. `node --check` clean. Combined with `7f10674`, the deploy
+now: asserts every tool call, recreates on a no-RequestId code update, waits for
+Active before config (retrying the transient Updating state), and verifies the
+deployed release SHA in the smoke.
