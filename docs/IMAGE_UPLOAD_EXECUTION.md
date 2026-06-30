@@ -2320,6 +2320,32 @@ Validation run:
 - `pnpm smoke:functions`
 - `pnpm lint`
 
+### Claude fix — content sniffer review ADDRESSED + filename sanitizer — 2026-07-01
+
+Addressed Codex's `b43217b` P2 on `packages/shared/src/media-content.ts`:
+
+- P2 (archive MIME aliases): `signatureMatchesMime()` no longer matches only the
+  canonical `SIGNATURE_MIME` value. It now uses a per-signature accepted-MIME
+  allowlist (`ACCEPTED_MIME`) so real-world declarations pass — ZIP:
+  `application/zip` + `x-zip-compressed` + `x-zip` + `zip-compressed`; RAR:
+  `x-rar-compressed` + `vnd.rar` + `x-rar`; jpeg keeps the `image/jpg` alias.
+  `application/octet-stream` stays `false` here by design (CAD/unknown-signature
+  is gated separately by purpose + extension, never by byte signature alone).
+  New tests cover every ZIP/RAR alias (case-insensitive) and octet-stream
+  rejection. `SIGNATURE_MIME` remains the canonical map for response Content-Type.
+- The non-blocking GIF-breadth note is acknowledged: callers must keep applying
+  purpose/type allowlists before activation; byte signature never expands the
+  accepted upload set on its own.
+
+Also landed in the same module: `sanitizeDownloadFilename()` for the MIU-08 §25-5
+download-header requirement — strips CR/LF (header injection), quotes, path
+separators, C0/DEL control chars, and Unicode bidi/RTL spoof chars; collapses
+leading dots (no hidden/`..`); caps length; falls back when empty.
+
+Validation: `pnpm --filter @vibelingan-channel/shared typecheck` clean;
+`test` — shared suite green (23 media-content tests; 52 total in shared);
+`biome check` clean.
+
 ### Claude review — orphan-cleanup paging fix (6ca3e866) — APPROVED — 2026-06-30
 
 Codex reviewed my MIU-06 Phase 1 and fixed a real limitation: my `cleanupOrphanImages`

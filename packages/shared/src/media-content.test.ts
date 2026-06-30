@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   type MediaSignature,
   SIGNATURE_MIME,
+  sanitizeDownloadFilename,
   signatureMatchesMime,
   sniffMagicBytes,
 } from './media-content.ts';
@@ -79,6 +80,27 @@ test('image/jpg alias matches a jpeg signature', () => {
   assert.equal(signatureMatchesMime('jpeg', 'image/jpeg'), true);
 });
 
+test('accepts common archive MIME aliases (clients report ZIP/RAR inconsistently)', () => {
+  for (const m of [
+    'application/zip',
+    'application/x-zip-compressed',
+    'application/x-zip',
+    'application/zip-compressed',
+    'APPLICATION/X-ZIP-COMPRESSED', // case-insensitive
+  ]) {
+    assert.equal(signatureMatchesMime('zip', m), true);
+  }
+  for (const m of ['application/x-rar-compressed', 'application/vnd.rar', 'application/x-rar']) {
+    assert.equal(signatureMatchesMime('rar', m), true);
+  }
+});
+
+test('octet-stream is NOT accepted via signature alone (CAD gated separately)', () => {
+  assert.equal(signatureMatchesMime('zip', 'application/octet-stream'), false);
+  assert.equal(signatureMatchesMime('pdf', 'application/octet-stream'), false);
+  assert.equal(signatureMatchesMime('png', 'application/octet-stream'), false);
+});
+
 test('unknown signature never matches any MIME', () => {
   assert.equal(signatureMatchesMime('unknown', 'application/pdf'), false);
   assert.equal(signatureMatchesMime('unknown', 'image/png'), false);
@@ -88,4 +110,40 @@ test('mismatched signature/MIME is rejected (declared lies)', () => {
   assert.equal(signatureMatchesMime('png', 'image/jpeg'), false);
   assert.equal(signatureMatchesMime('zip', 'application/pdf'), false);
   assert.equal(signatureMatchesMime('pdf', 'application/zip'), false);
+});
+
+// --- sanitizeDownloadFilename -----------------------------------------------
+
+test('strips CR/LF (header injection) and quotes', () => {
+  assert.equal(sanitizeDownloadFilename('a\r\nb.pdf'), 'ab.pdf');
+  assert.equal(sanitizeDownloadFilename(`a"b'c.pdf`), 'abc.pdf');
+});
+
+test('strips path separators and leading dots (no traversal/hidden names)', () => {
+  assert.equal(sanitizeDownloadFilename('../../etc/passwd'), 'etcpasswd');
+  assert.equal(sanitizeDownloadFilename('...hidden.txt'), 'hidden.txt');
+  assert.equal(sanitizeDownloadFilename('a\\b/c.zip'), 'abc.zip');
+});
+
+test('strips control characters', () => {
+  assert.equal(sanitizeDownloadFilename('a\u0000\u001f\u007fb.zip'), 'ab.zip');
+});
+
+test('strips Unicode bidi/RTL-override spoof characters', () => {
+  // U+202E would visually flip "...fdp.exe" to look like "...exe.pdf"
+  assert.equal(sanitizeDownloadFilename('invoice\u202egpj.exe'), 'invoicegpj.exe');
+  assert.equal(sanitizeDownloadFilename('a\u200e\u2066b.pdf'), 'ab.pdf');
+});
+
+test('falls back when nothing safe remains', () => {
+  assert.equal(sanitizeDownloadFilename(''), 'download');
+  assert.equal(sanitizeDownloadFilename('   '), 'download');
+  assert.equal(sanitizeDownloadFilename('..'), 'download');
+  assert.equal(sanitizeDownloadFilename('', 'oem-file'), 'oem-file');
+});
+
+test('preserves a normal unicode filename and caps length at 255', () => {
+  assert.equal(sanitizeDownloadFilename('Drawing v2 (final).pdf'), 'Drawing v2 (final).pdf');
+  assert.equal(sanitizeDownloadFilename('résumé.pdf'), 'résumé.pdf');
+  assert.equal(sanitizeDownloadFilename('x'.repeat(300)).length, 255);
 });

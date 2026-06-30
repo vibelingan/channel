@@ -68,13 +68,59 @@ export function sniffMagicBytes(bytes: Uint8Array): MediaSignature {
 }
 
 /**
- * True if the sniffed signature is consistent with a declared MIME (trimmed,
- * case-insensitive). `'unknown'` never matches — the caller must then fall back
- * to its extension allowlist or reject. A `image/jpg` alias maps to `jpeg`.
+ * MIME values a caller may legitimately DECLARE for each signature. Browsers and
+ * upload clients report non-canonical archive/image MIME types, so a declared-vs-
+ * actual check must accept known aliases — not just the canonical `SIGNATURE_MIME`
+ * value — or valid OEM ZIP/RAR uploads get falsely rejected (Codex review,
+ * `b43217b`). `application/octet-stream` is deliberately NOT here: a caller that
+ * wants to accept octet-stream (e.g. CAD with no reliable signature) must gate it
+ * separately by purpose + extension, never via byte signature alone.
+ */
+const ACCEPTED_MIME: Readonly<Record<Exclude<MediaSignature, 'unknown'>, readonly string[]>> = {
+  png: ['image/png'],
+  jpeg: ['image/jpeg', 'image/jpg'],
+  webp: ['image/webp'],
+  gif: ['image/gif'],
+  pdf: ['application/pdf'],
+  zip: [
+    'application/zip',
+    'application/x-zip-compressed',
+    'application/x-zip',
+    'application/zip-compressed',
+  ],
+  rar: ['application/x-rar-compressed', 'application/vnd.rar', 'application/x-rar'],
+};
+
+/**
+ * True if a client-declared MIME is consistent with the sniffed signature,
+ * accepting common non-canonical aliases (trimmed, case-insensitive). `'unknown'`
+ * never matches — the caller must then fall back to its extension allowlist or
+ * reject. Use `SIGNATURE_MIME` (not this) to choose the response `Content-Type`.
  */
 export function signatureMatchesMime(sig: MediaSignature, declaredMime: string): boolean {
   if (sig === 'unknown') return false;
-  const mime = declaredMime.trim().toLowerCase();
-  if (sig === 'jpeg' && mime === 'image/jpg') return true; // common non-canonical alias
-  return SIGNATURE_MIME[sig] === mime;
+  return ACCEPTED_MIME[sig].includes(declaredMime.trim().toLowerCase());
+}
+
+/**
+ * Sanitize a client-supplied filename for safe use in a `Content-Disposition`
+ * header and as a stored display name. Removes CR/LF (header injection), quotes
+ * (breaks the header token), path separators (traversal), and control chars;
+ * strips leading dots/space so a name cannot become hidden or `..`; caps length
+ * and falls back when nothing safe remains.
+ *
+ * Design §20.10 / §25-5: OEM downloads must always be served as `attachment`
+ * with a sanitized name. This is necessary but not the whole story — the caller
+ * must still quote or RFC 5987-encode the header value.
+ */
+export function sanitizeDownloadFilename(name: string, fallback = 'download'): string {
+  const cleaned = name
+    .replace(/[\r\n"'\\/]/g, '') // CR, LF, quotes, path separators
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars is the intent
+    .replace(/[\u0000-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '') // C0 + DEL + bidi/RTL spoof chars
+    .replace(/^[.\s]+/, '') // leading dots/space → never hidden or ".."
+    .trim()
+    .slice(0, 255)
+    .trim();
+  return cleaned.length > 0 ? cleaned : fallback;
 }
