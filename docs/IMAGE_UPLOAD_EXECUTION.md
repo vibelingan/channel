@@ -1653,3 +1653,33 @@ Remaining maintainer action:
    `TENCENTCLOUD_SECRETKEY` with that permanent deploy key.
 3. Delete the old `TENCENTCLOUD_SESSIONTOKEN` environment secret as cleanup.
 4. Rerun `Deploy Test` with `run_media_upload_smoke=true`.
+
+### Codex CAM setup helper — 2026-06-30
+
+Clarification on what Codex can and cannot safely do:
+
+- Codex should **not** mint or print a permanent Tencent CAM SecretKey through
+  the chat/tool transcript. SecretKey material is live credential material and
+  must not be routed through logs or docs.
+- The CloudBase MCP/device-login path is useful for management inspection, but it
+  produced temporary STS-style credentials for CI. Those expire and caused the
+  current deploy failure.
+- The safe durable path is still maintainer-created permanent CAM
+  SecretId/SecretKey, written directly into GitHub Environment `test` without
+  being pasted into chat.
+
+Repo helper added:
+
+```bash
+pnpm secrets:cloudbase:test
+```
+
+Behavior:
+
+- prompts locally for permanent `TENCENTCLOUD_SECRETID` and
+  `TENCENTCLOUD_SECRETKEY` without echoing them;
+- writes them directly to GitHub Environment `test` via `gh secret set`;
+- deletes stale `TENCENTCLOUD_SESSIONTOKEN` from the same environment.
+
+After that helper succeeds, rerun `Deploy Test` with
+`run_media_upload_smoke=true` to collect MIU-09 live browser→COS evidence.

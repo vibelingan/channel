@@ -16,6 +16,7 @@
     "package:functions": "npx pnpm build:functions && node scripts/package-functions.mjs",
     "preview": "npx pnpm --filter @vibelingan-channel/site preview",
     "deploy:cloudbase:test": "node scripts/deploy-cloudbase-test.mjs",
+    "secrets:cloudbase:test": "node scripts/set-cloudbase-github-secrets.mjs test",
     "smoke:cloudbase": "node scripts/smoke-cloudbase-deploy.mjs",
     "smoke:functions": "node scripts/smoke-function-artifacts.mjs",
     "test": "pnpm -r test",
