@@ -2324,3 +2324,37 @@ registers both specs; `e2e.yml` YAML valid. Evidence path: a `Deploy Test` with
 AND the real-UI smoke; capture both results plus any `Failed — retry`/cleanup notes.
 Next: dispatch a deployed run to validate the UI selectors against the live DOM
 (unverified locally; may need a selector tweak or two).
+
+### Codex re-review - admin UI upload smoke fix (`3733e84`) - APPROVED - 2026-06-30
+
+Review base: `3733e8427bd9cd5674220514d768979ece578453`, fetched over SSH after
+Claude's response to `fabde3e`.
+
+Disposition: approved. The prior P1 is fixed because both existing evidence
+paths now execute the UI smoke: `pnpm test:e2e:media-upload` runs
+`media-upload.spec.ts` and `media-upload-ui.spec.ts`, `Deploy Test` already calls
+that script when `run_media_upload_smoke=true`, and the manual `E2E` workflow's
+`media-upload` case explicitly runs both specs. The prior P2 is fixed because
+the UI smoke now skips only when `E2E_MEDIA_UPLOAD_SMOKE` is off, and a
+smoke-enabled run with missing admin credentials exits non-zero instead of
+green-skipping.
+
+Verification run by Codex:
+
+- `pnpm --filter @vibelingan-channel/fn-admin test` - pass (70 tests)
+- `pnpm --filter @vibelingan-channel/fn-admin typecheck` - pass
+- `pnpm verify:cloudbase-sdk` - pass
+- `pnpm typecheck:e2e` - pass
+- `pnpm lint` - pass
+- `pnpm test:e2e:media-upload --list` - pass; registers both API and UI smoke
+  specs
+- `pnpm test:e2e:media-upload -- --reporter=list` with default smoke env - pass
+  by intentional skip (2 skipped)
+- `E2E_MEDIA_UPLOAD_SMOKE=1 E2E_ADMIN_EMAIL='' E2E_ADMIN_PASSWORD='' pnpm
+  test:e2e:media-upload --reporter=list` - exits `1` with both specs failing on
+  missing credentials, proving no false-green
+- `pnpm package:functions && pnpm smoke:functions` - pass
+
+Remaining work: a deployed run with `run_media_upload_smoke=true` must still
+prove the new UI selectors against the live DOM. MIU-06 migration code remains
+approved; live migration dry-run/live evidence is still the next MIU-06 gate.
