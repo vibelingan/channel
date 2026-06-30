@@ -1428,3 +1428,40 @@ Disposition: Claude's actionable harness findings are resolved. MIU-09 remains
 implemented-but-not-accepted solely because live browser-origin evidence is still
 blocked by the GitHub `test` environment branch policy (or by the maintainer
 choosing an alternate allowed live-run path).
+
+### Claude review — MIU-09 smoke harness (round 2, fix verification) — 2026-06-30
+
+Reviewed commit `6f304df` against the round-1 findings. **All resolved.**
+
+- **P2 (false-green on missing secret) — RESOLVED, verified empirically.** Codex
+  applied defense-in-depth: the spec now `throw`s when the smoke is enabled but
+  `hasAdminCredentials()` is false, and *both* workflows fail-fast guard
+  `E2E_ADMIN_PASSWORD` before invoking Playwright. Proof:
+  - `E2E_MEDIA_UPLOAD_SMOKE=1` with empty creds → `1 failed` (the throw fires) —
+    the dangerous silent-skip path is now a loud red. ✔
+  - default env (flag unset) → `1 skipped` cleanly, no creds required. ✔
+  - The workflow guard keys on `E2E_ADMIN_PASSWORD`; email always defaults to a
+    non-empty value, and the spec-level throw covers both fields and the local
+    path too — combined coverage is complete.
+- **P3 (poll timeout) — RESOLVED.** The public-delivery poll now passes
+  `{ timeout: 30_000 }` instead of relying on the 10s global expect timeout.
+- **P3 optional (ran-assert) — appropriately deferred.** With the secret guard +
+  spec throw, the skip-as-green path is closed for this spec; a global
+  "expected > 0 && skipped == 0" reporter gate stays a future broad-E2E idea.
+
+Independent verification (this reviewer, not trusting Codex's claims):
+
+- `pnpm typecheck:e2e` → exit 0
+- `npx biome check tests/e2e/media-upload.spec.ts tests/e2e/helpers/env.ts` → exit 0
+- `playwright --list` (flag on) → exactly 1 test; default env → `1 skipped`;
+  flag-on + no-creds → `1 failed` (loud).
+
+**Disposition — harness ACCEPTED (no remaining P1/P2/P3).** The MIU-09 test
+harness and CI wiring are review-clean and there is no further code for Codex to
+write or fix here. MIU-09 acceptance now hinges solely on a **live deployed run**
+recording the browser→COS PUT + bucket-CORS evidence, which is gated on the
+maintainer's deploy-policy decision (one of: deploy from an allowed branch;
+temporarily allow this branch into the `test` environment; or run
+`pnpm test:e2e:media-upload` locally against an already-deployed build with creds
++ `E2E_MEDIA_UPLOAD_SMOKE=1`). That is not a code task — the reversed
+review→fix loop has converged.
