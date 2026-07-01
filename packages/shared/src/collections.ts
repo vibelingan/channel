@@ -346,6 +346,13 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         hideInTable: true,
       },
       {
+        name: 'uploadSourceHash',
+        label: 'Upload Source Hash',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
         name: 'uploadExpiresAt',
         label: 'Upload Expires',
         type: 'date',

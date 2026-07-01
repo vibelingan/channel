@@ -230,6 +230,18 @@ export const OEM_UPLOAD_RATE_WINDOW_MS = 60 * 1000;
 export const OEM_UPLOAD_RATE_MAX_PER_WINDOW = 5;
 
 /**
+ * Global emergency ceilings for the public OEM intent endpoint, enforced IN
+ * ADDITION to the per-source caps above. Because CloudBase Event Functions may
+ * not expose a trusted client IP consistently (§20.10), a spoofed/absent source
+ * would collapse every request into one bucket; these site-wide ceilings bound
+ * total abuse in that case without throttling a normal per-source stream. They
+ * are deliberately higher than the per-source caps (a real B2B OEM form is
+ * low-volume, so headroom here is generous but still finite).
+ */
+export const OEM_UPLOAD_RATE_MAX_PER_WINDOW_GLOBAL = 30;
+export const OEM_MAX_PENDING_INTENTS_GLOBAL = 50;
+
+/**
  * TTL for the admin OEM-file download temp URL. Deliberately short (§20.10):
  * MIU-00 observed CDN edges can outlive object deletion, so never persist this
  * URL and re-mint per request.
@@ -261,6 +273,12 @@ export interface FileMetadataDoc {
   uploadIntentId?: string;
   uploadSecretHash?: string;
   uploadExpiresAt?: string;
+  /**
+   * Hash of the request source (e.g. client IP) at intent creation, used to
+   * count per-source rate/pending caps. Server-only; hashed so the raw source
+   * is never persisted. Absent when no trusted source signal was available.
+   */
+  uploadSourceHash?: string;
   /** Legacy base64 bytes; only when `storageProvider === 'legacy-base64'`. */
   data?: string;
   createdAt?: string;

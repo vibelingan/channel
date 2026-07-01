@@ -12,9 +12,11 @@ import {
   MEDIA_STATUSES,
   OEM_FILE_EXTENSIONS,
   OEM_FILE_MAX_BYTES,
+  OEM_MAX_PENDING_INTENTS_GLOBAL,
   OEM_MAX_PENDING_INTENTS_PER_SOURCE,
   OEM_UPLOAD_INTENT_TTL_MS,
   OEM_UPLOAD_RATE_MAX_PER_WINDOW,
+  OEM_UPLOAD_RATE_MAX_PER_WINDOW_GLOBAL,
   OEM_UPLOAD_RATE_WINDOW_MS,
   type StorageBackedImageMetadataDoc,
   catalogImageUploadSchema,
@@ -255,6 +257,7 @@ test('files generic write schema rejects every server-managed storage/lifecycle 
     { ownerProjectId: 'proj1' },
     { uploadIntentId: 'intent1' },
     { uploadSecretHash: 'hash' },
+    { uploadSourceHash: 'srchash' },
     { uploadExpiresAt: new Date().toISOString() },
   ];
   for (const forged of forgeries) {
@@ -281,6 +284,12 @@ test('OEM upload constants expose the abuse-control policy', () => {
   assert.equal(OEM_MAX_PENDING_INTENTS_PER_SOURCE, 3);
   assert.equal(OEM_UPLOAD_RATE_WINDOW_MS, 60 * 1000);
   assert.equal(OEM_UPLOAD_RATE_MAX_PER_WINDOW, 5);
+  // Global emergency ceilings are enforced in addition to (and are higher than)
+  // the per-source caps, bounding total abuse if the source signal is absent.
+  assert.equal(OEM_UPLOAD_RATE_MAX_PER_WINDOW_GLOBAL, 30);
+  assert.equal(OEM_MAX_PENDING_INTENTS_GLOBAL, 50);
+  assert.ok(OEM_UPLOAD_RATE_MAX_PER_WINDOW_GLOBAL > OEM_UPLOAD_RATE_MAX_PER_WINDOW);
+  assert.ok(OEM_MAX_PENDING_INTENTS_GLOBAL > OEM_MAX_PENDING_INTENTS_PER_SOURCE);
   // Archive, CAD, and image families are all represented.
   for (const ext of ['pdf', 'zip', 'rar', 'step', 'dwg', 'dxf', 'png', 'jpg']) {
     assert.ok(
