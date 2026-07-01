@@ -2590,9 +2590,10 @@ Moved the public OEM form off base64 `drawingData` onto the storage-upload flow
   throw by design (`TCB_ENV` required) — same as the image flow.
 - **Validation:** `astro check` 0 errors, `astro build` OK (11 pages incl. /oem),
   biome clean. Backend suites unchanged (admin 99 / shared 70 / public-api 20).
-- **Remaining:** admin OEM-Requests download UI should call `getOemFileDownloadUrl`
-  (Increment 4 action) instead of the absent prod `/api/files/:id`; deployed
-  9–10 MiB ZIP smoke (Increment 6).
+- **Remaining:** deployed 9–10 MiB ZIP smoke (Increment 6). Admin
+  OEM-Requests download UI now calls `getOemFileDownloadUrl` instead of the
+  absent prod `/api/files/:id`, but Codex found one follow-up on the concrete
+  browser download contract; see the `9127dd2` review below.
 
 ### Admin OEM-download UI wiring — 2026-07-01
 
@@ -2611,6 +2612,30 @@ action (Increment 4) instead of the prod-absent `/api/files/:id`.
   local `FileLink` + `fileUrl` helper are removed (dead code).
 - **Validation:** `astro check` 0 errors (61 files), `astro build` OK (11 pages),
   biome clean. The backend action already has 6 handler tests (Increment 4).
+
+### Codex ultra-review — `9127dd2` admin OEM download UI — FINDINGS — 2026-07-01
+
+Review base: Claude pushed `9127dd2` (`feat(admin): wire OEM file download to
+getOemFileDownloadUrl (MIU-08)`). Codex pulled the live SSH head and reviewed the
+admin UI wiring, backend delivery action, media-storage CloudBase adapter, local
+CloudBase SDK contract, and execution/design docs.
+
+| Severity | Finding | Evidence | Required fix |
+| --- | --- | --- | --- |
+| P2 | The admin UI now calls the correct authenticated action, but it still does not actually enforce the intended attachment-download contract and can silently fail under popup blockers. `FileDownloadLink` awaits `getOemFileDownloadUrl`, then `window.open`s the raw temporary storage URL and ignores the returned `fileName`, `mimeType`, and `contentDisposition`. Since the app is not serving the storage URL response, the returned `contentDisposition` is only JSON metadata; it does not set a real response header. Browser behavior can therefore inline-render image/PDF OEM attachments or block the async popup with no user-visible error. | `apps/site/src/islands/admin/FileDownloadLink.tsx` lines 24-29. `apps/functions/admin/src/handler.ts` returns `contentDisposition` lines 1540-1549, but no app route applies that header. Local SDK inspection confirms `@cloudbase/node-sdk@2.10.0` `getTempFileURL` accepts only `fileID` + `maxAge` for this path, so the current temp-URL adapter cannot attach a filename/disposition override. | Pick and implement a real download contract before calling Increment 6 fully done: either use a verified signed-url API that can set response-content-disposition, or fetch the temp URL as a `Blob` and trigger an `<a download={fileName}>` object-URL download if CloudBase CORS permits it, or add an authenticated byte-stream download route that sets `Content-Disposition: attachment` without JSON/base64 proxying and without violating the 10 MiB platform cap. At minimum, pre-open/handle a blocked popup and surface failure instead of silently doing nothing. Add a focused browser/unit test proving the click path uses the returned filename/disposition contract and reports the failure path. |
+| P3 | The previous Codex review section still contained stale wording saying admin OEM-download UI wiring was pending and still pointed at `/api/files/:id`. | This section now follows `9127dd2`; the stale text conflicted with the new wiring note above. | Corrected in this doc update: the UI is now wired to `getOemFileDownloadUrl`; the remaining issue is the attachment/download enforcement described in the P2 above. |
+
+Validation run during this review:
+
+- `pnpm --filter @vibelingan-channel/site build` — pass, 11 pages
+- `pnpm --filter @vibelingan-channel/site typecheck` — pass, 0 errors; existing
+  `React.FormEvent` deprecation hints only
+- `pnpm --filter @vibelingan-channel/fn-admin typecheck` — pass
+- `pnpm --filter @vibelingan-channel/fn-admin test` — pass, 99 tests
+- `pnpm --filter @vibelingan-channel/shared typecheck` — pass
+- `pnpm verify:cloudbase-sdk` — pass
+- `pnpm smoke:functions` — pass
+- `pnpm lint` — pass
 
 ### Codex ultra-review — `f2bf266` + `6ad15ae` — NO BLOCKERS — 2026-07-01
 
@@ -2638,10 +2663,9 @@ delivery boundary.
   matches the existing admin direct-upload shape and keeps bytes out of the
   small function JSON body cap.
 - **Non-blocking remainder:** deployed 9-10 MiB ZIP browser smoke is still the
-  evidence gate for Increment 6. Admin OEM-download UI wiring is still pending
-  and must call `getOemFileDownloadUrl`; current admin file links still point at
-  `/api/files/:id`, which is intentionally absent in production and was already
-  listed as next work.
+  evidence gate for Increment 6. Admin OEM-download UI wiring has since landed
+  in `9127dd2`; Codex's follow-up on the concrete browser attachment-download
+  contract is recorded above.
 - **Doc cleanup by Codex:** the MIU-08 summary row no longer says finalization
   gate ordering and `ProjectForm` COS POST remain to be implemented; those are
   complete, leaving deployed ZIP smoke + admin download UI wiring.
