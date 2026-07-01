@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import { getOemFileDownloadUrl } from './api.ts';
+import { browserOemDownloadDeps, downloadOemFile } from './oem-download.ts';
 
 /**
  * Admin OEM-drawing download (MIU-08 §20.10 step 3).
  *
  * Production has no public `/api/files/:id` route — OEM delivery is the
  * authenticated `getOemFileDownloadUrl` action, which mints a SHORT-lived temp
- * URL on demand. So this renders a button (not a static link): on click it fetches
- * a fresh URL (never persisted; it expires in ~60s) and opens it. Only a finalized
- * (`active`, storage-backed) OEM drawing resolves; legacy/base64 or non-active rows
- * fail closed with a clear inline message.
+ * URL on demand. So this renders a button (not a static link): on click it mints
+ * a fresh URL (never persisted; it expires in ~60s), FETCHES the bytes, and saves
+ * them as a named attachment (see `downloadOemFile`) — so image/PDF drawings
+ * download instead of inline-rendering, the real filename is preserved, and there
+ * is no async popup to be blocked. Only a finalized (`active`, storage-backed) OEM
+ * drawing resolves; legacy/base64 or non-active rows fail closed inline.
  */
 export function FileDownloadLink({ id, name }: { id: unknown; name?: unknown }) {
   const fileId = id ? String(id) : '';
@@ -25,8 +28,10 @@ export function FileDownloadLink({ id, name }: { id: unknown; name?: unknown }) 
     setError('');
     setLoading(true);
     try {
-      const { url } = await getOemFileDownloadUrl(fileId);
-      window.open(url, '_blank', 'noopener,noreferrer');
+      await downloadOemFile(fileId, {
+        getDownloadUrl: getOemFileDownloadUrl,
+        ...browserOemDownloadDeps,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Download failed.');
     } finally {

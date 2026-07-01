@@ -2592,8 +2592,10 @@ Moved the public OEM form off base64 `drawingData` onto the storage-upload flow
   biome clean. Backend suites unchanged (admin 99 / shared 70 / public-api 20).
 - **Remaining:** deployed 9–10 MiB ZIP smoke (Increment 6). Admin
   OEM-Requests download UI now calls `getOemFileDownloadUrl` instead of the
-  absent prod `/api/files/:id`, but Codex found one follow-up on the concrete
-  browser download contract; see the `9127dd2` review below.
+  absent prod `/api/files/:id`; Codex's `9127dd2` follow-up on the concrete
+  browser download contract (P2/P3) is now resolved — the UI fetches the temp URL
+  and saves a named attachment (`downloadOemFile`), covered by
+  `oem-download.test.ts`; see the review + disposition below.
 
 ### Admin OEM-download UI wiring — 2026-07-01
 
@@ -2602,10 +2604,14 @@ action (Increment 4) instead of the prod-absent `/api/files/:id`.
 
 - New `apps/site/src/islands/admin/FileDownloadLink.tsx`: a click-to-download
   button (not a static link) — on click it mints a fresh short-TTL temp URL via
-  `getOemFileDownloadUrl(fileId)` (never persisted; ~60s) and `window.open`s it
-  with `noopener,noreferrer`, showing loading/error states. Only finalized
-  (`active`, storage-backed) OEM rows resolve; legacy/base64/non-active rows fail
-  closed with a clear message (design forbids base64-proxying 10 MiB OEM bytes).
+  `getOemFileDownloadUrl(fileId)` (never persisted; ~60s), FETCHES the bytes, and
+  saves them as a named attachment via `downloadOemFile` (object-URL
+  `<a download={fileName}>`, not `window.open`), showing loading/error states.
+  Only finalized (`active`, storage-backed) OEM rows resolve; legacy/base64/
+  non-active rows fail closed with a clear message (design forbids base64-proxying
+  10 MiB OEM bytes). Fetching the temp URL needs COS bucket GET CORS for the site
+  origin (ops prerequisite). Superseded the initial `window.open` wiring per
+  Codex `9127dd2` P2 (see disposition below).
 - `api.ts`: replaced `fileUrl` (which pointed at the prod-404 `/api/files/:id`)
   with `getOemFileDownloadUrl(fileId): Promise<OemFileDownload>` (JWT-carried
   `call`). `CollectionView` + `RecordForm` now render `FileDownloadLink`; the old
@@ -2624,6 +2630,31 @@ CloudBase SDK contract, and execution/design docs.
 | --- | --- | --- | --- |
 | P2 | The admin UI now calls the correct authenticated action, but it still does not actually enforce the intended attachment-download contract and can silently fail under popup blockers. `FileDownloadLink` awaits `getOemFileDownloadUrl`, then `window.open`s the raw temporary storage URL and ignores the returned `fileName`, `mimeType`, and `contentDisposition`. Since the app is not serving the storage URL response, the returned `contentDisposition` is only JSON metadata; it does not set a real response header. Browser behavior can therefore inline-render image/PDF OEM attachments or block the async popup with no user-visible error. | `apps/site/src/islands/admin/FileDownloadLink.tsx` lines 24-29. `apps/functions/admin/src/handler.ts` returns `contentDisposition` lines 1540-1549, but no app route applies that header. Local SDK inspection confirms `@cloudbase/node-sdk@2.10.0` `getTempFileURL` accepts only `fileID` + `maxAge` for this path, so the current temp-URL adapter cannot attach a filename/disposition override. | Pick and implement a real download contract before calling Increment 6 fully done: either use a verified signed-url API that can set response-content-disposition, or fetch the temp URL as a `Blob` and trigger an `<a download={fileName}>` object-URL download if CloudBase CORS permits it, or add an authenticated byte-stream download route that sets `Content-Disposition: attachment` without JSON/base64 proxying and without violating the 10 MiB platform cap. At minimum, pre-open/handle a blocked popup and surface failure instead of silently doing nothing. Add a focused browser/unit test proving the click path uses the returned filename/disposition contract and reports the failure path. |
 | P3 | The previous Codex review section still contained stale wording saying admin OEM-download UI wiring was pending and still pointed at `/api/files/:id`. | This section now follows `9127dd2`; the stale text conflicted with the new wiring note above. | Corrected in this doc update: the UI is now wired to `getOemFileDownloadUrl`; the remaining issue is the attachment/download enforcement described in the P2 above. |
+
+**Disposition (Claude) — resolved:**
+
+- **P2 (real download contract):** Chose Codex's "fetch the temp URL as a `Blob`
+  and trigger an `<a download={fileName}>` object-URL download" path. Extracted a
+  dependency-injected orchestrator `downloadOemFile(fileId, deps)` into new
+  `apps/site/src/islands/admin/oem-download.ts`: it mints the URL, FETCHES the
+  bytes, then saves them as a named attachment (browser `saveBlob` uses an
+  object-URL `<a download>`, which is not popup-blocked). `FileDownloadLink` no
+  longer `window.open`s — image/PDF drawings now download instead of
+  inline-rendering, the returned `fileName` is honoured (not the opaque storage
+  key), and any non-OK/CORS/mint failure rejects and is surfaced inline (never
+  silent). Cross-origin GET of the temp URL requires COS bucket GET CORS for the
+  site origin — an ops prerequisite, same as the browser upload POST; recorded in
+  design §20.10 step 3.
+- **P2 test:** New `apps/site/src/islands/admin/oem-download.test.ts` (4 tests,
+  `node:test` via `tsx`) proves the click path uses the returned filename
+  contract, falls back to a safe name, and surfaces both fetch/CORS and mint
+  failures without saving a partial file. Wired a runnable + typechecked site
+  test runner: added `@types/node`+`tsx`, `apps/site/tsconfig.test.json` (node
+  types), a `test`/`typecheck:test` script, and excluded `*.test.ts` from the
+  browser-pure `astro check`.
+- **P3 (stale wording):** Codex already corrected the stale section in this doc
+  update; design §20.10 step 3 + the Tests list now describe the client-side
+  attachment enforcement and the bucket GET CORS prerequisite.
 
 Validation run during this review:
 

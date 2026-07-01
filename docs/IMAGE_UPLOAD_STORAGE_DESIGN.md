@@ -1861,9 +1861,22 @@ Server actions:
      plus sanitized filename/MIME metadata. Use the shortest practical TTL
      (target 60 seconds; never store it in the DB) because MIU-00 observed that
      CDN edges can outlive object deletion.
-   - Always force `Content-Disposition: attachment` in any proxy/header path and
-     sanitize the public-supplied filename by stripping CR, LF, quotes, path
-     separators, and control characters.
+   - That temp URL is a RAW COS presigned link: CloudBase `getTempFileURL`
+     cannot attach a `Content-Disposition`, so the header cannot be set on the
+     temp-URL path. The action therefore returns `fileName`/`mimeType`/
+     `contentDisposition` as a client CONTRACT, and the admin UI enforces the
+     attachment download CLIENT-SIDE: it fetches the temp URL's bytes and saves
+     them via an object-URL `<a download={fileName}>` (see
+     `apps/site/src/islands/admin/oem-download.ts`). Do NOT `window.open` the
+     temp URL — that inline-renders image/PDF drawings, drops the real filename,
+     and can be silently popup-blocked. Failures (non-OK/CORS/network) surface to
+     the admin, never silent. Fetching the temp URL cross-origin requires the COS
+     bucket to allow GET from the site origin (bucket CORS / security-domain — an
+     ops prerequisite, same as the browser upload POST).
+   - The returned filename is sanitized server-side (strip CR, LF, quotes, path
+     separators, and control characters) before it reaches the client contract.
+     If a future proxy/header path is added it must also force
+     `Content-Disposition: attachment`.
    - Do not stream large OEM bytes through JSON/base64. A future CloudRun proxy
      can replace temp URLs if hard-delete privacy becomes stricter than the
      short-TTL P0; Event Function base64 proxy is not acceptable for 10 MiB OEM.
@@ -1914,6 +1927,10 @@ Tests:
 - Public `/api/files/:id` remains unavailable in production.
 - Admin-authenticated OEM download URL succeeds; unauthenticated download URL
   request fails; filename/header sanitization prevents CRLF/inline rendering.
+- The admin download UI honours the returned filename contract: `downloadOemFile`
+  fetches the minted temp URL and saves it under the returned `fileName` (not the
+  opaque storage key), and a fetch/CORS or mint failure rejects (surfaced to the
+  admin) without saving a partial file (`oem-download.test.ts`).
 - Deployed browser smoke uploads the 9 MiB PNG ZIP fixture through the public
   OEM form and verifies no `EXCEED_MAX_PAYLOAD_SIZE`.
 
