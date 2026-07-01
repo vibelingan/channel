@@ -848,9 +848,12 @@ function makeFakeMediaStorage(
     credential?: Partial<UploadCredential>;
     tempUrl?: { url: string; expiresAt?: string };
     tempUrlThrows?: boolean;
+    deleteFailFor?: string[]; // storage ids whose deleteObject should reject
   } = {},
-): MediaStorageAdapter {
+): MediaStorageAdapter & { deleted: string[] } {
+  const deleted: string[] = [];
   return {
+    deleted,
     async putObject() {
       throw new Error('fake: putObject not used in admin upload tests');
     },
@@ -863,8 +866,9 @@ function makeFakeMediaStorage(
         }
       );
     },
-    async deleteObject() {
-      // allowed (compensation path) — no-op
+    async deleteObject(fileId: string) {
+      if (opts.deleteFailFor?.includes(fileId)) throw new Error('fake: delete rejected');
+      deleted.push(fileId);
     },
     async getUploadCredential(cloudPath: string): Promise<UploadCredential> {
       if (opts.uploadThrows) throw new Error('fake: credential mint failed');
@@ -1797,6 +1801,46 @@ test('createOemFileUploadIntent mints a credential, writes a pending row, return
   // The client IP is hashed, never persisted raw.
   assert.equal(doc?.uploadSourceHash, sha256('1.2.3.4'));
   assert.notEqual(doc?.uploadSourceHash, '1.2.3.4');
+});
+
+test('createOemFileUploadIntent sweeps expired pending OEM uploads (object first; keep on failure; no over-delete; leave live rows)', async () => {
+  const past = new Date(Date.now() - 60_000).toISOString();
+  const future = new Date(Date.now() + 60_000).toISOString();
+  const oem = (id: string, expiresAt: string, storageFileId?: string): CollectionDoc => ({
+    _id: id,
+    name: 'x.step',
+    mimeType: 'application/zip',
+    purpose: 'oem-drawing',
+    status: 'pending',
+    uploadExpiresAt: expiresAt,
+    ...(storageFileId ? { storageFileId, storageProvider: 'cloudbase-storage' } : {}),
+  });
+  const store = setup({
+    users: [],
+    files: [
+      oem('exp-obj', past, 'cloud://b/exp-obj'), // expired + object -> swept + object deleted
+      oem('exp-noobj', past), // expired + no object -> row retired, no delete call
+      oem('exp-fail', past, 'cloud://b/failme'), // expired + object delete FAILS -> kept for retry
+      oem('live', future, 'cloud://b/live'), // NOT expired -> untouched
+    ],
+  });
+  const storage = makeFakeMediaStorage({ deleteFailFor: ['cloud://b/failme'] });
+  setMediaStorage(storage);
+
+  // A brand-new intent triggers the piggyback sweep and still succeeds.
+  const data = okData<{ fileId: string }>(
+    await callPublic('createOemFileUploadIntent', validOemIntent, { sourceIp: '9.9.9.9' }),
+  );
+  assert.ok(data.fileId);
+
+  const ids = new Set((store.files ?? []).map((f) => String(f._id)));
+  assert.equal(ids.has('exp-obj'), false); // expired row with object is swept
+  assert.equal(ids.has('exp-noobj'), false); // expired row without object is retired
+  assert.equal(ids.has('exp-fail'), true); // kept when its object delete fails (retryable)
+  assert.equal(ids.has('live'), true); // unexpired pending row untouched
+  assert.ok(storage.deleted.includes('cloud://b/exp-obj')); // object deleted first
+  assert.equal(storage.deleted.includes('cloud://b/failme'), false); // no over-delete on failure
+  assert.equal(storage.deleted.includes('cloud://b/live'), false); // live object untouched
 });
 
 test('createOemFileUploadIntent rejects an unsupported type or oversize file before minting', async () => {

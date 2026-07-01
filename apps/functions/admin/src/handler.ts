@@ -51,6 +51,7 @@ import {
   FILTER_OPERATORS,
   type FilterClause,
   type MediaSignature,
+  type MediaStatus,
   OEM_DOWNLOAD_URL_TTL_SECONDS,
   OEM_FILE_MAX_BYTES,
   OEM_MAX_PENDING_INTENTS_GLOBAL,
@@ -72,6 +73,7 @@ import {
   ok,
   rateLimited,
   sanitizeDownloadFilename,
+  selectExpiredPendingForSweep,
   sniffMagicBytes,
   withinPendingCap,
 } from '@vibelingan-channel/shared';
@@ -1574,6 +1576,74 @@ async function countOemFiles(clauses: FilterClause[]): Promise<number> {
  * row, then count it in — so admitted reservations are always ≤ the ceiling and a
  * denied one is rolled back (see the inline note); the raw IP is never persisted.
  */
+/** How many expired pending OEM uploads a single intent call may opportunistically reap. */
+const OEM_PENDING_SWEEP_LIMIT = 3;
+
+/**
+ * Reap a bounded, oldest-first batch of EXPIRED `pending` OEM upload rows: delete
+ * the private `oem/` object FIRST, then retire the paired row only when that delete
+ * succeeds (or there was never an object). A storage-delete failure leaves the row
+ * for the next sweep — never orphan bytes, never over-delete. Piggybacked
+ * best-effort on `createOemFileUploadIntent` so the UNAUTHENTICATED OEM surface
+ * self-heals without a scheduler (uses the shared `selectExpiredPendingForSweep`
+ * selection primitive, §20.13/§27.2).
+ */
+async function sweepExpiredOemPendingUploads(limit: number): Promise<{
+  swept: string[];
+  storageDeleted: string[];
+  storageFailed: Array<{ id: string; error: string }>;
+}> {
+  const swept: string[] = [];
+  const storageDeleted: string[] = [];
+  const storageFailed: Array<{ id: string; error: string }> = [];
+  if (!Number.isInteger(limit) || limit <= 0) return { swept, storageDeleted, storageFailed };
+
+  const now = new Date();
+  const page = await list({
+    collection: 'files',
+    page: 1,
+    pageSize: limit,
+    sort: [{ field: 'uploadExpiresAt', dir: 'asc' }],
+    filter: {
+      combinator: 'and',
+      clauses: [
+        { field: 'purpose', op: 'eq', value: 'oem-drawing' },
+        { field: 'status', op: 'eq', value: 'pending' },
+        { field: 'uploadExpiresAt', op: 'lt', value: now.toISOString() },
+      ],
+    },
+  });
+  const selection = selectExpiredPendingForSweep(
+    page.items.map((d) => ({
+      _id: String(d._id),
+      status: (typeof d.status === 'string' ? d.status : 'pending') as MediaStatus,
+      ...(typeof d.uploadExpiresAt === 'string' ? { uploadExpiresAt: d.uploadExpiresAt } : {}),
+      ...(typeof d.storageFileId === 'string' ? { storageFileId: d.storageFileId } : {}),
+    })),
+    now,
+    limit,
+  );
+  for (const item of selection.items) {
+    // Delete the object FIRST; retire the row only if that succeeds (or there is no
+    // object). A delete failure leaves the row for the next sweep.
+    if (typeof item.storageFileId === 'string' && item.storageFileId.length > 0) {
+      try {
+        await mediaStorage().deleteObject(item.storageFileId);
+        storageDeleted.push(item.storageFileId);
+      } catch (e) {
+        console.error(`[fn-admin] OEM sweep: object delete failed for ${item.docId}`, e);
+        storageFailed.push({
+          id: item.docId,
+          error: e instanceof Error ? e.message : 'storage delete failed',
+        });
+        continue;
+      }
+    }
+    if (await remove('files', item.docId)) swept.push(item.docId);
+  }
+  return { swept, storageDeleted, storageFailed };
+}
+
 async function createOemFileUploadIntentAction(
   req: AdminRequest,
   context?: RequestContext,
@@ -1582,6 +1652,14 @@ async function createOemFileUploadIntentAction(
   if (!parsed.success) {
     return err('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join('; '));
   }
+
+  // Self-heal the unauthenticated OEM surface: opportunistically reap a small,
+  // bounded batch of EXPIRED pending uploads (delete orphaned `oem/` objects +
+  // retire rows) so abandoned anonymous intents cannot accumulate bucket pollution.
+  // Best-effort — a sweep failure never blocks a legitimate new upload.
+  await sweepExpiredOemPendingUploads(OEM_PENDING_SWEEP_LIMIT).catch((e) =>
+    console.error('[fn-admin] createOemFileUploadIntent: expired-pending sweep failed', e),
+  );
 
   const now = Date.now();
   // Epoch-aligned window start, matching evaluateFixedWindowRateLimit's Retry-After.
