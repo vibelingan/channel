@@ -258,6 +258,7 @@ test('files generic write schema rejects every server-managed storage/lifecycle 
     { uploadIntentId: 'intent1' },
     { uploadSecretHash: 'hash' },
     { uploadSourceHash: 'srchash' },
+    { finalizeClaim: 1 },
     { uploadExpiresAt: new Date().toISOString() },
   ];
   for (const forged of forgeries) {

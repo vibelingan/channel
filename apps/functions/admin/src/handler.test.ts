@@ -1927,3 +1927,280 @@ test('createOemFileUploadIntent admits at most the cap as reservations accumulat
   expectErr(await callPublic('createOemFileUploadIntent', validOemIntent, ctx), 'RATE_LIMITED');
   assert.equal(store.files?.length, OEM_MAX_PENDING_INTENTS_PER_SOURCE);
 });
+
+// --- MIU-08 Increment 3: submitProject OEM finalization ----------------------
+
+// Magic-byte fixtures (see packages/shared/src/media-content.ts `sniffMagicBytes`).
+const PDF_BYTES = Buffer.from('%PDF-1.4\n1 0 obj\n');
+const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+const ZIP_BYTES = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]);
+const STEP_BYTES = Buffer.from('ISO-10303-21;\nHEADER;\nENDSEC;\n'); // CAD → sniff 'unknown'
+const OEM_STORAGE_ID = 'cloud://env.bucket/oem/2026/07/intent1/drawing.pdf';
+const OEM_SECRET = 'a'.repeat(64);
+const sha256Bytes = (b: Buffer) => createHash('sha256').update(b).digest('hex');
+
+/** Media-storage fake that serves configurable bytes and RECORDS deletes. */
+function makeFinalizeStorage(
+  opts: { bytes?: Buffer; getThrows?: boolean; deleteThrows?: boolean } = {},
+): MediaStorageAdapter & { deleted: string[] } {
+  const deleted: string[] = [];
+  return {
+    deleted,
+    async putObject() {
+      throw new Error('fake: putObject unused');
+    },
+    async getTempUrl() {
+      throw new Error('fake: getTempUrl unused');
+    },
+    async getUploadCredential() {
+      throw new Error('fake: getUploadCredential unused');
+    },
+    async getObjectAsBase64() {
+      if (opts.getThrows) throw new Error('fake: object not retrievable');
+      const buf = opts.bytes ?? PDF_BYTES;
+      return { body: buf.toString('base64'), byteSize: buf.byteLength };
+    },
+    async deleteObject(fileId: string) {
+      if (opts.deleteThrows) throw new Error('fake: delete rejected');
+      deleted.push(fileId);
+    },
+  };
+}
+
+/** A pending OEM upload row bound to `OEM_SECRET`. */
+function pendingOemRow(overrides: Partial<CollectionDoc> = {}): CollectionDoc {
+  return {
+    _id: 'file1',
+    name: 'drawing.pdf',
+    mimeType: 'application/pdf',
+    purpose: 'oem-drawing',
+    storageProvider: 'cloudbase-storage',
+    storageMode: 'classic-nosql-storage',
+    storageFileId: OEM_STORAGE_ID,
+    storagePath: 'oem/2026/07/intent1/drawing.pdf',
+    status: 'pending',
+    uploadIntentId: 'intent1',
+    uploadSecretHash: sha256(OEM_SECRET),
+    uploadExpiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+    ...overrides,
+  };
+}
+
+function finalizeInput(overrides: Record<string, unknown> = {}) {
+  return {
+    company: 'ACME',
+    contact: 'Jo',
+    email: 'jo@acme.com',
+    drawingFileId: 'file1',
+    uploadIntentId: 'intent1',
+    uploadSecret: OEM_SECRET,
+    ...overrides,
+  };
+}
+
+test('submitProject storage finalize activates the drawing, creates the project, consumes the secret', async () => {
+  const store = setup({ users: [], files: [pendingOemRow()], oemProjects: [] });
+  const storage = makeFinalizeStorage({ bytes: PDF_BYTES });
+  setMediaStorage(storage);
+
+  const data = okData<{ id: string }>(await callPublic('submitProject', finalizeInput()));
+  const project = store.oemProjects?.find((p) => p._id === data.id);
+  assert.equal(project?.drawing, 'file1');
+  assert.equal(project?.status, 'new');
+
+  const file = store.files?.find((f) => f._id === 'file1');
+  assert.equal(file?.status, 'active');
+  assert.equal(file?.ownerProjectId, data.id);
+  assert.equal(file?.byteSize, PDF_BYTES.byteLength); // SERVER-recomputed
+  assert.equal(file?.checksumSha256, sha256Bytes(PDF_BYTES));
+  assert.equal(file?.uploadSecretHash, ''); // consumed
+  assert.equal(file?.finalizeClaim, 1); // single-winner claim
+  assert.deepEqual(storage.deleted, []); // success never deletes
+});
+
+test('submitProject accepts a CAD file by extension when the bytes sniff unknown', async () => {
+  const store = setup({
+    users: [],
+    files: [pendingOemRow({ name: 'part.step', mimeType: 'application/octet-stream' })],
+    oemProjects: [],
+  });
+  setMediaStorage(makeFinalizeStorage({ bytes: STEP_BYTES }));
+  const data = okData<{ id: string }>(await callPublic('submitProject', finalizeInput()));
+  assert.ok(store.oemProjects?.find((p) => p._id === data.id));
+  assert.equal(store.files?.find((f) => f._id === 'file1')?.status, 'active');
+});
+
+test('submitProject rejects a WRONG SECRET without deleting or failing the object (no unauth DoS)', async () => {
+  const store = setup({ users: [], files: [pendingOemRow()], oemProjects: [] });
+  const storage = makeFinalizeStorage({ bytes: PDF_BYTES });
+  setMediaStorage(storage);
+  expectErr(
+    await callPublic('submitProject', finalizeInput({ uploadSecret: 'b'.repeat(64) })),
+    'FORBIDDEN',
+  );
+  // Critical: a caller who lacks the secret must not be able to mutate/destroy the
+  // legit upload just by knowing its fileId + intentId.
+  assert.equal(store.files?.find((f) => f._id === 'file1')?.status, 'pending'); // NOT failed
+  assert.deepEqual(storage.deleted, []); // NOT deleted
+  assert.equal(store.oemProjects?.length, 0);
+});
+
+test('submitProject rejects structural failures without mutating the row or object', async () => {
+  const cases: Array<{ label: string; row: CollectionDoc | undefined; code: string }> = [
+    { label: 'not found', row: undefined, code: 'NOT_FOUND' },
+    { label: 'not pending', row: pendingOemRow({ status: 'active' }), code: 'CONFLICT' },
+    { label: 'wrong purpose', row: pendingOemRow({ purpose: 'catalog-image' }), code: 'NOT_FOUND' },
+    { label: 'wrong intent', row: pendingOemRow({ uploadIntentId: 'other' }), code: 'NOT_FOUND' },
+    {
+      label: 'expired',
+      row: pendingOemRow({ uploadExpiresAt: new Date(Date.now() - 1000).toISOString() }),
+      code: 'CONFLICT',
+    },
+    {
+      label: 'non-oem path',
+      row: pendingOemRow({ storagePath: 'catalog/x/y.pdf' }),
+      code: 'NOT_FOUND',
+    },
+    {
+      label: 'missing secret hash',
+      row: pendingOemRow({ uploadSecretHash: '' }),
+      code: 'NOT_FOUND',
+    },
+  ];
+  for (const { label, row, code } of cases) {
+    const store = setup({ users: [], files: row ? [row] : [], oemProjects: [] });
+    const storage = makeFinalizeStorage({ bytes: PDF_BYTES });
+    setMediaStorage(storage);
+    const res = await callPublic('submitProject', finalizeInput());
+    assert.equal(res.ok, false, `${label} should reject`);
+    if (!res.ok) assert.equal(res.error.code, code, `${label} code`);
+    assert.deepEqual(storage.deleted, [], `${label} must not delete`);
+    if (row) {
+      assert.notEqual(
+        store.files?.find((f) => f._id === 'file1')?.status,
+        'failed',
+        `${label} must not fail the row`,
+      );
+    }
+    assert.equal(store.oemProjects?.length, 0, `${label} no project`);
+  }
+});
+
+test('submitProject fails the row + deletes the object for post-secret byte failures', async () => {
+  const oversized = Buffer.concat([PDF_BYTES, Buffer.alloc(OEM_FILE_MAX_BYTES)]); // > cap
+  const cases: Array<{ label: string; row: CollectionDoc; bytes: Buffer }> = [
+    { label: 'oversize', row: pendingOemRow(), bytes: oversized },
+    {
+      label: 'checksum mismatch',
+      row: pendingOemRow({ checksumSha256: 'deadbeef' }),
+      bytes: PDF_BYTES,
+    },
+    { label: 'sniff mismatch', row: pendingOemRow(), bytes: PNG_BYTES }, // pdf name, png bytes
+    { label: 'CAD disguise', row: pendingOemRow({ name: 'x.dwg' }), bytes: ZIP_BYTES }, // dwg name, zip bytes
+    { label: 'empty', row: pendingOemRow(), bytes: Buffer.alloc(0) },
+  ];
+  for (const { label, row, bytes } of cases) {
+    const store = setup({ users: [], files: [row], oemProjects: [] });
+    const storage = makeFinalizeStorage({ bytes });
+    setMediaStorage(storage);
+    expectErr(await callPublic('submitProject', finalizeInput()), 'VALIDATION_ERROR');
+    assert.equal(
+      store.files?.find((f) => f._id === 'file1')?.status,
+      'failed',
+      `${label} row failed`,
+    );
+    assert.deepEqual(storage.deleted, [OEM_STORAGE_ID], `${label} object deleted`);
+    assert.equal(store.oemProjects?.length, 0, `${label} no project`);
+  }
+});
+
+test('submitProject leaves the row pending (retryable) when the object is not yet retrievable', async () => {
+  const store = setup({ users: [], files: [pendingOemRow()], oemProjects: [] });
+  const storage = makeFinalizeStorage({ getThrows: true });
+  setMediaStorage(storage);
+  expectErr(await callPublic('submitProject', finalizeInput()), 'NOT_FOUND');
+  assert.equal(store.files?.find((f) => f._id === 'file1')?.status, 'pending'); // retryable
+  assert.deepEqual(storage.deleted, []);
+  assert.equal(store.oemProjects?.length, 0);
+});
+
+test('submitProject consume-once: a concurrent loser (claim already 1) is rejected with no side effects', async () => {
+  const store = setup({ users: [], files: [pendingOemRow({ finalizeClaim: 1 })], oemProjects: [] });
+  const storage = makeFinalizeStorage({ bytes: PDF_BYTES });
+  setMediaStorage(storage);
+  expectErr(await callPublic('submitProject', finalizeInput()), 'CONFLICT');
+  // The loser must not delete the object (the winner owns it) nor create a project.
+  assert.deepEqual(storage.deleted, []);
+  assert.equal(store.oemProjects?.length, 0);
+  // The atomic gate ran (claim advanced 1→2) but the row is otherwise untouched.
+  assert.equal(store.files?.find((f) => f._id === 'file1')?.finalizeClaim, 2);
+  assert.equal(store.files?.find((f) => f._id === 'file1')?.status, 'pending');
+});
+
+test('submitProject compensation: activation failure rolls back the project and surfaces an error', async () => {
+  const store = setupFailingUpdate(
+    { users: [], files: [pendingOemRow()], oemProjects: [] },
+    'null',
+  );
+  setMediaStorage(makeFinalizeStorage({ bytes: PDF_BYTES }));
+  expectErr(await callPublic('submitProject', finalizeInput()), 'INTERNAL_ERROR');
+  // The project must not survive holding a non-active drawing.
+  assert.equal(store.oemProjects?.length, 0);
+});
+
+test('submitProject rejects an incomplete storage triad', async () => {
+  setup({ users: [], files: [pendingOemRow()], oemProjects: [] });
+  setMediaStorage(makeFinalizeStorage({ bytes: PDF_BYTES }));
+  expectErr(
+    await callPublic('submitProject', {
+      company: 'A',
+      contact: 'B',
+      email: 'a@b.com',
+      drawingFileId: 'file1', // no intent/secret
+    }),
+    'VALIDATION_ERROR',
+  );
+});
+
+test('submitProject legacy base64 path still works (no storage calls)', async () => {
+  const store = setup({ users: [], files: [], oemProjects: [] });
+  const storage = makeFinalizeStorage({ bytes: PDF_BYTES });
+  setMediaStorage(storage);
+  const data = okData<{ id: string }>(
+    await callPublic('submitProject', {
+      company: 'A',
+      contact: 'B',
+      email: 'a@b.com',
+      drawingName: 'legacy.pdf',
+      drawingType: 'application/pdf',
+      drawingData: Buffer.from('legacy-bytes').toString('base64'),
+    }),
+  );
+  const project = store.oemProjects?.find((p) => p._id === data.id);
+  const file = store.files?.find((f) => f._id === project?.drawing);
+  assert.equal(typeof file?.data, 'string'); // inline base64
+  assert.deepEqual(storage.deleted, []); // no storage interaction
+});
+
+test('submitProject no-drawing path creates a project with an empty drawing', async () => {
+  const store = setup({ users: [], files: [], oemProjects: [] });
+  setMediaStorage(makeFinalizeStorage());
+  const data = okData<{ id: string }>(
+    await callPublic('submitProject', { company: 'A', contact: 'B', email: 'a@b.com' }),
+  );
+  assert.equal(store.oemProjects?.find((p) => p._id === data.id)?.drawing, '');
+  assert.equal(store.files?.length, 0);
+});
+
+test('submitProject rejects missing/invalid required text fields', async () => {
+  setup({ users: [], files: [], oemProjects: [] });
+  setMediaStorage(makeFinalizeStorage());
+  expectErr(
+    await callPublic('submitProject', { contact: 'B', email: 'a@b.com' }),
+    'VALIDATION_ERROR',
+  );
+  expectErr(
+    await callPublic('submitProject', { company: 'A', contact: 'B', email: 'not-an-email' }),
+    'VALIDATION_ERROR',
+  );
+});

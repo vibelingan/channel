@@ -360,6 +360,13 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         hideInTable: true,
       },
       {
+        name: 'finalizeClaim',
+        label: 'Finalize Claim',
+        type: 'number',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
         name: 'data',
         label: 'Legacy Data (base64)',
         type: 'text',

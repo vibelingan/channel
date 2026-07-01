@@ -50,7 +50,9 @@ import {
   type CollectionDoc,
   FILTER_OPERATORS,
   type FilterClause,
+  type MediaSignature,
   OEM_DOWNLOAD_URL_TTL_SECONDS,
+  OEM_FILE_MAX_BYTES,
   OEM_MAX_PENDING_INTENTS_GLOBAL,
   OEM_MAX_PENDING_INTENTS_PER_SOURCE,
   OEM_UPLOAD_INTENT_TTL_MS,
@@ -63,12 +65,14 @@ import {
   catalogImageUploadSchema,
   err,
   evaluateFixedWindowRateLimit,
+  fileExtension,
   getCollection,
   isKnownCollection,
   oemFileUploadSchema,
   ok,
   rateLimited,
   sanitizeDownloadFilename,
+  sniffMagicBytes,
   withinPendingCap,
 } from '@vibelingan-channel/shared';
 import { releaseInfo } from '@vibelingan-channel/shared/release';
@@ -123,7 +127,13 @@ const submitProjectSchema = z.object({
   quantity: z.union([z.string(), z.number()]).optional(),
   drawingName: z.string().max(300).optional(),
   drawingType: z.string().max(200).optional(),
-  // Base64-encoded file bytes (~12MB cap, matching the server body limit).
+  // Storage-upload finalization (MIU-08 §20.10): the browser POSTs bytes to COS
+  // with a `createOemFileUploadIntent` credential, then references the pending
+  // `files` row here. All three are required TOGETHER (a partial triad is rejected).
+  drawingFileId: z.string().min(1).max(200).optional(),
+  uploadIntentId: z.string().min(1).max(200).optional(),
+  uploadSecret: z.string().min(1).max(400).optional(),
+  // Legacy base64 fallback (inline `data`); superseded by the storage path above.
   drawingData: z.string().max(16_000_000).optional(),
 });
 const updateProfileSchema = z.object({ username: z.string().min(2).max(40) });
@@ -465,9 +475,139 @@ async function recover(req: AdminRequest, config: AdminConfig): Promise<ApiResul
 }
 
 /**
+ * True iff SERVER-fetched `bytes` are consistent with the file's declared type.
+ * Types with a reliable magic number (pdf/zip/rar/png/jpg/webp) must match their
+ * bytes; CAD formats (step/stp/igs/iges/dwg/dxf) have no universal signature and
+ * are extension-gated — but a CAD-extension file whose bytes sniff as some OTHER
+ * known type is rejected (blocks disguising a real payload behind a CAD name).
+ */
+function oemBytesMatchType(fileName: string, bytes: Buffer): boolean {
+  const sig = sniffMagicBytes(bytes);
+  const requireSignature: Record<string, MediaSignature> = {
+    pdf: 'pdf',
+    zip: 'zip',
+    rar: 'rar',
+    png: 'png',
+    jpg: 'jpeg',
+    jpeg: 'jpeg',
+    webp: 'webp',
+  };
+  const expected = requireSignature[fileExtension(fileName)];
+  if (expected) return sig === expected;
+  // No reliable signature for this extension (CAD): allow ONLY if the bytes do
+  // not sniff as some other recognized type.
+  return sig === 'unknown';
+}
+
+/** Result of a successful upload verification + single-winner claim. */
+interface OemUploadClaim {
+  fileId: string;
+  storageFileId: string;
+  byteSize: number;
+  checksumSha256: string;
+}
+
+/**
+ * Verify a browser-direct OEM upload against its pending `files` row and CLAIM it
+ * exactly once (MIU-08 §20.10 step 2). Ownership is proven ONLY by the one-time
+ * `uploadSecret` (constant-time compared to the stored hash), so:
+ *  - Structural / not-found / expired / WRONG-SECRET failures reject WITHOUT
+ *    mutating anything — an unauthenticated caller who merely guesses a `fileId`
+ *    must not be able to delete or fail a legitimate uploader's object.
+ *  - Only AFTER the secret verifies do byte-level failures (size/checksum/sniff)
+ *    mark the row `failed` and best-effort delete the object (the caller owns it).
+ * The consume-once gate is an ATOMIC `incrementField` claim (storage-layer, not a
+ * JS read-then-write): only the request that flips `finalizeClaim` 0→1 proceeds;
+ * a concurrent double-submit / replay gets >1 and loses without side effects.
+ */
+async function verifyAndClaimOemUpload(input: {
+  drawingFileId: string;
+  uploadIntentId: string;
+  uploadSecret: string;
+}): Promise<{ ok: true; claim: OemUploadClaim } | { ok: false; error: ApiResult<unknown> }> {
+  const fail = (error: ApiResult<unknown>) => ({ ok: false as const, error });
+  const notFound = fail(err('NOT_FOUND', 'Upload not found.'));
+
+  const doc = await get('files', input.drawingFileId);
+  if (!doc) return notFound;
+  if (doc.status !== 'pending') return fail(err('CONFLICT', 'This upload was already used.'));
+  if (doc.purpose !== 'oem-drawing') return notFound;
+  if (doc.uploadIntentId !== input.uploadIntentId) return notFound;
+  const expiresAt =
+    typeof doc.uploadExpiresAt === 'string' ? Date.parse(doc.uploadExpiresAt) : Number.NaN;
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+    return fail(err('CONFLICT', 'This upload has expired. Please re-upload.'));
+  }
+  const provider = typeof doc.storageProvider === 'string' ? doc.storageProvider : '';
+  if (provider !== 'cloudbase-storage' && provider !== 'local-disk') return notFound;
+  if (typeof doc.storageFileId !== 'string' || doc.storageFileId.length === 0) return notFound;
+  if (typeof doc.storagePath !== 'string' || !doc.storagePath.startsWith('oem/')) return notFound;
+  if (typeof doc.uploadSecretHash !== 'string' || doc.uploadSecretHash.length === 0)
+    return notFound;
+
+  // Constant-time secret verification (the ONLY browser credential; §20.10). Guard
+  // equal length first so timingSafeEqual never throws on a length mismatch.
+  const presentedHash = createHash('sha256').update(input.uploadSecret).digest('hex');
+  const storedHash = doc.uploadSecretHash;
+  const secretOk =
+    presentedHash.length === storedHash.length &&
+    timingSafeEqual(Buffer.from(presentedHash), Buffer.from(storedHash));
+  if (!secretOk) return fail(err('FORBIDDEN', 'Upload verification failed.'));
+
+  // --- Ownership PROVEN. Byte-level failures below may fail + delete the object.
+  const storageFileId = doc.storageFileId;
+  const fileName = typeof doc.name === 'string' ? doc.name : '';
+  const rejectOwned = async (message: string) => {
+    await updateDoc('files', input.drawingFileId, { status: 'failed' }).catch((e) =>
+      console.error('[submitProject] mark-failed after rejection failed', e),
+    );
+    await mediaStorage()
+      .deleteObject(storageFileId)
+      .catch((e) => console.error('[submitProject] delete rejected object failed', e));
+    return fail(err('VALIDATION_ERROR', message));
+  };
+
+  let object: { body: string; byteSize?: number };
+  try {
+    object = await mediaStorage().getObjectAsBase64(storageFileId);
+  } catch (e) {
+    // Bytes not retrievable yet (eventual consistency or an abandoned intent).
+    // Leave the row pending (retryable / reaped later); do not fail it.
+    console.error('[submitProject] uploaded object not retrievable', e);
+    return fail(err('NOT_FOUND', 'Uploaded file not found yet — please retry.'));
+  }
+
+  const bytes = Buffer.from(object.body, 'base64');
+  // The SERVER-recomputed length is authoritative — never trust the client size.
+  const byteSize = bytes.byteLength;
+  if (byteSize === 0) return rejectOwned('Uploaded file is empty.');
+  if (byteSize > OEM_FILE_MAX_BYTES) return rejectOwned('Uploaded file exceeds the maximum size.');
+  const checksumSha256 = createHash('sha256').update(bytes).digest('hex');
+  if (typeof doc.checksumSha256 === 'string' && doc.checksumSha256 !== checksumSha256) {
+    return rejectOwned('Uploaded bytes do not match the declared checksum.');
+  }
+  if (!oemBytesMatchType(fileName, bytes)) {
+    return rejectOwned('File content does not match its type.');
+  }
+
+  // Consume-once ATOMIC claim. Only claim === 1 wins; a concurrent duplicate gets
+  // >1 and loses WITHOUT touching the object (the winner owns it).
+  const claim = await incrementField('files', input.drawingFileId, 'finalizeClaim', 1);
+  if (claim === null) return notFound;
+  if (claim !== 1) return fail(err('CONFLICT', 'This upload was already submitted.'));
+
+  return {
+    ok: true,
+    claim: { fileId: input.drawingFileId, storageFileId, byteSize, checksumSha256 },
+  };
+}
+
+/**
  * Public OEM project enquiry. Anyone may submit; the request is persisted to the
  * `oemProjects` collection (visible to admins/contributors in the dashboard) and
- * the submitter receives a confirmation email with the new reference id.
+ * the submitter receives a confirmation email with the new reference id. A drawing
+ * may be attached three ways: the MIU-08 storage-upload triad (verified + claimed
+ * here), a legacy inline base64 `drawingData`, or none.
  */
 async function submitProject(req: AdminRequest): Promise<ApiResult<unknown>> {
   const parsed = submitProjectSchema.safeParse(req.data);
@@ -484,13 +624,32 @@ async function submitProject(req: AdminRequest): Promise<ApiResult<unknown>> {
     drawingName,
     drawingType,
     drawingData,
+    drawingFileId,
+    uploadIntentId,
+    uploadSecret,
   } = parsed.data;
   const numericQuantity = quantity === undefined || quantity === '' ? undefined : Number(quantity);
 
-  // Persist the uploaded drawing as a standalone byte document (like images),
-  // and reference it by id from the project. The bytes never live inline.
+  // The storage triad and legacy base64 are mutually exclusive; the triad must be
+  // complete (all three) or it is rejected rather than silently dropping a drawing.
+  const hasAnyStorageRef = Boolean(drawingFileId || uploadIntentId || uploadSecret);
+  const hasFullStorageRef = Boolean(drawingFileId && uploadIntentId && uploadSecret);
+  if (hasAnyStorageRef && !hasFullStorageRef) {
+    return err('VALIDATION_ERROR', 'Incomplete upload reference.');
+  }
+
   let drawingId = '';
-  if (drawingData) {
+  let claim: OemUploadClaim | undefined;
+  if (drawingFileId && uploadIntentId && uploadSecret) {
+    const finalized = await verifyAndClaimOemUpload({
+      drawingFileId,
+      uploadIntentId,
+      uploadSecret,
+    });
+    if (!finalized.ok) return finalized.error;
+    claim = finalized.claim;
+    drawingId = claim.fileId; // still `pending`; activated AFTER the project exists
+  } else if (drawingData) {
     const fileDoc = await createDoc('files', {
       name: drawingName ?? 'drawing',
       mimeType: drawingType ?? 'application/octet-stream',
@@ -499,7 +658,7 @@ async function submitProject(req: AdminRequest): Promise<ApiResult<unknown>> {
     drawingId = fileDoc._id;
   }
 
-  const doc = await createDoc('oemProjects', {
+  const projectData = {
     company,
     contact,
     email: email.toLowerCase(),
@@ -511,7 +670,47 @@ async function submitProject(req: AdminRequest): Promise<ApiResult<unknown>> {
     drawingName: drawingName ?? '',
     drawing: drawingId,
     status: 'new',
-  });
+  };
+
+  // A storage upload is already CLAIMED here, so failing to create the project must
+  // not leave a zombie pending row — mark it failed and surface the error.
+  let project: CollectionDoc;
+  try {
+    project = await createDoc('oemProjects', projectData);
+  } catch (e) {
+    console.error('[submitProject] project create failed', e);
+    if (claim) {
+      await updateDoc('files', claim.fileId, { status: 'failed' }).catch((err2) =>
+        console.error('[submitProject] mark-failed after project-create failure failed', err2),
+      );
+    }
+    return err('INTERNAL_ERROR', 'Could not submit your project. Please try again.');
+  }
+
+  if (claim) {
+    // Activate the drawing AFTER the project exists and bind it. Compensation: if
+    // activation fails, the project must not keep a dangling pending drawing —
+    // remove it, mark the upload failed, and surface the error (never success).
+    const activated = await updateDoc('files', claim.fileId, {
+      status: 'active',
+      ownerProjectId: project._id,
+      byteSize: claim.byteSize,
+      checksumSha256: claim.checksumSha256,
+      uploadSecretHash: '',
+    }).catch((e) => {
+      console.error('[submitProject] activation failed after project create', e);
+      return null;
+    });
+    if (!activated) {
+      await remove('oemProjects', project._id).catch((e) =>
+        console.error('[submitProject] project rollback failed', e),
+      );
+      await updateDoc('files', claim.fileId, { status: 'failed' }).catch((e) =>
+        console.error('[submitProject] mark-failed after activation failure failed', e),
+      );
+      return err('INTERNAL_ERROR', 'Could not finalize the upload. Please try again.');
+    }
+  }
 
   // Best-effort acknowledgement; never block the submission on email delivery.
   await sendOemConfirmationEmail({
@@ -519,10 +718,10 @@ async function submitProject(req: AdminRequest): Promise<ApiResult<unknown>> {
     contact,
     company,
     category: category ?? '',
-    projectId: doc._id,
+    projectId: project._id,
   }).catch((e) => console.error('[submitProject] confirmation email failed:', e));
 
-  return ok({ id: doc._id });
+  return ok({ id: project._id });
 }
 
 // --- Authenticated profile actions ----------------------------------------

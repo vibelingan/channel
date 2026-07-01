@@ -279,6 +279,13 @@ export interface FileMetadataDoc {
    * is never persisted. Absent when no trusted source signal was available.
    */
   uploadSourceHash?: string;
+  /**
+   * Atomic single-winner finalization claim (server-only). `submitProject`
+   * increments this via `incrementField`; only the request that flips it 0→1 may
+   * finalize the upload, so a concurrent double-submit/replay cannot attach the
+   * same object to two projects (consume-once).
+   */
+  finalizeClaim?: number;
   /** Legacy base64 bytes; only when `storageProvider === 'legacy-base64'`. */
   data?: string;
   createdAt?: string;
