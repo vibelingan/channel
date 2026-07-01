@@ -22,6 +22,7 @@ import {
   type CollectionDoc,
   type ListResult,
   OEM_FILE_MAX_BYTES,
+  OEM_MAX_PENDING_INTENTS_PER_SOURCE,
   matchesFilter,
   ok,
 } from '@vibelingan-channel/shared';
@@ -1819,7 +1820,10 @@ test('createOemFileUploadIntent rejects an unsupported type or oversize file bef
 test('createOemFileUploadIntent enforces the per-source fixed-window rate limit', async () => {
   const src = sha256('9.9.9.9');
   // Five intents already created this minute by the same source (the per-source cap).
-  setup({ users: [], files: Array.from({ length: 5 }, (_, i) => oemWindowDoc(`w${i}`, src)) });
+  const store = setup({
+    users: [],
+    files: Array.from({ length: 5 }, (_, i) => oemWindowDoc(`w${i}`, src)),
+  });
   setMediaStorage(makeFakeMediaStorage());
 
   const limited = await callPublic('createOemFileUploadIntent', validOemIntent, {
@@ -1829,6 +1833,8 @@ test('createOemFileUploadIntent enforces the per-source fixed-window rate limit'
   if (!limited.ok) {
     assert.ok((limited.error.retryAfterSeconds ?? 0) >= 1);
   }
+  // Reserve-first: the rejected reservation is rolled back, not left behind.
+  assert.equal(store.files?.length, 5);
   // A different source is under the global ceiling and still allowed.
   assert.equal(
     (await callPublic('createOemFileUploadIntent', validOemIntent, { sourceIp: '8.8.8.8' })).ok,
@@ -1881,10 +1887,31 @@ test('createOemFileUploadIntent ignores EXPIRED pending intents when applying th
 });
 
 test('createOemFileUploadIntent returns INTERNAL_ERROR when the credential mint fails', async () => {
-  setup({ users: [], files: [] });
+  const store = setup({ users: [], files: [] });
   setMediaStorage(makeFakeMediaStorage({ uploadThrows: true }));
   expectErr(
     await callPublic('createOemFileUploadIntent', validOemIntent, { sourceIp: '1.2.3.4' }),
     'INTERNAL_ERROR',
   );
+  // The reservation is rolled back when the mint fails — no leaked pending row.
+  assert.equal(store.files?.length, 0);
+});
+
+test('createOemFileUploadIntent admits at most the cap as reservations accumulate', async () => {
+  // Reserve-first bound: each admitted intent persists as a pending row that the
+  // NEXT request counts, so the per-source pending cap admits exactly N then
+  // blocks — proving a concurrent burst cannot overshoot the ceiling.
+  const store = setup({ users: [], files: [] });
+  setMediaStorage(makeFakeMediaStorage());
+  const ctx = { sourceIp: '5.5.5.5' };
+  for (let i = 0; i < OEM_MAX_PENDING_INTENTS_PER_SOURCE; i++) {
+    assert.equal(
+      (await callPublic('createOemFileUploadIntent', validOemIntent, ctx)).ok,
+      true,
+      `reservation ${i + 1} should be admitted`,
+    );
+  }
+  // The cap is full; the next reservation is rejected AND rolled back.
+  expectErr(await callPublic('createOemFileUploadIntent', validOemIntent, ctx), 'RATE_LIMITED');
+  assert.equal(store.files?.length, OEM_MAX_PENDING_INTENTS_PER_SOURCE);
 });

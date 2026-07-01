@@ -1358,14 +1358,13 @@ async function countOemFiles(clauses: FilterClause[]): Promise<number> {
  * transits the function body cap, and records a `pending` `files` row bound to a
  * one-time upload secret (only its hash is stored) with a short expiry.
  *
- * Because it is unauthenticated it is an abuse surface, so BEFORE minting anything
- * it enforces (fail-closed) both a fixed-window rate limit and a concurrent
- * pending-intent cap. Each is checked per-source (hashed client IP) AND against a
- * global emergency ceiling: CloudBase may not expose a trusted IP, and when the
- * source signal is absent every request collapses into the global bucket, so the
- * site-wide ceilings still bound total abuse. Counters are derived by querying the
- * `files` collection (shared DB state — never per-instance memory), mirroring the
- * orphan-cleanup query pattern; the raw IP is never persisted.
+ * Because it is unauthenticated it is an abuse surface, so it enforces (fail-safe)
+ * a fixed-window rate limit and a concurrent pending-intent cap, each per-source
+ * (hashed client IP) AND against a global emergency ceiling (CloudBase may not
+ * expose a trusted IP; an absent source collapses into the global bucket). To make
+ * the caps hold under concurrency it uses a RESERVE-FIRST order — write the pending
+ * row, then count it in — so admitted reservations are always ≤ the ceiling and a
+ * denied one is rolled back (see the inline note); the raw IP is never persisted.
  */
 async function createOemFileUploadIntentAction(
   req: AdminRequest,
@@ -1402,97 +1401,124 @@ async function createOemFileUploadIntentAction(
       retryAfterSeconds,
     );
 
-  // --- Fixed-window rate limit: global ceiling, then per-source --------------
-  const inWindow: FilterClause[] = [
-    oemDrawing,
-    { field: 'createdAt', op: 'gte', value: windowStartIso },
-  ];
-  const globalRate = evaluateFixedWindowRateLimit({
-    countInWindow: (await countOemFiles(inWindow)) + 1,
-    maxPerWindow: OEM_UPLOAD_RATE_MAX_PER_WINDOW_GLOBAL,
-    windowMs: OEM_UPLOAD_RATE_WINDOW_MS,
-    nowMs: now,
-  });
-  if (!globalRate.allowed) return tooMany(globalRate.retryAfterSeconds);
-
-  if (uploadSourceHash) {
-    const sourceRate = evaluateFixedWindowRateLimit({
-      countInWindow:
-        (await countOemFiles([
-          ...inWindow,
-          { field: 'uploadSourceHash', op: 'eq', value: uploadSourceHash },
-        ])) + 1,
-      maxPerWindow: OEM_UPLOAD_RATE_MAX_PER_WINDOW,
-      windowMs: OEM_UPLOAD_RATE_WINDOW_MS,
-      nowMs: now,
-    });
-    if (!sourceRate.allowed) return tooMany(sourceRate.retryAfterSeconds);
-  }
-
-  // --- Concurrent pending-intent cap: global ceiling, then per-source --------
-  const pendingLive: FilterClause[] = [
-    oemDrawing,
-    { field: 'status', op: 'eq', value: 'pending' },
-    { field: 'uploadExpiresAt', op: 'gt', value: nowIso },
-  ];
-  const globalPending = await countOemFiles(pendingLive);
-  if (!withinPendingCap(globalPending, OEM_MAX_PENDING_INTENTS_GLOBAL)) {
-    return tooManyPending(await soonestPendingRetryAfterSeconds(pendingLive, now));
-  }
-  if (uploadSourceHash) {
-    const sourcePending = await countOemFiles([
-      ...pendingLive,
-      { field: 'uploadSourceHash', op: 'eq', value: uploadSourceHash },
-    ]);
-    if (!withinPendingCap(sourcePending, OEM_MAX_PENDING_INTENTS_PER_SOURCE)) {
-      return tooManyPending(
-        await soonestPendingRetryAfterSeconds(
-          [...pendingLive, { field: 'uploadSourceHash', op: 'eq', value: uploadSourceHash }],
-          now,
-        ),
-      );
-    }
-  }
-
-  // --- Mint the credential + write the pending row ---------------------------
+  // Reserve-first abuse control: WRITE the pending row before counting, then
+  // count (this reservation included) and roll it back if any ceiling is
+  // exceeded. Because every ADMITTED reservation persists and is visible to
+  // concurrent counters, no cap can admit more than its ceiling even under a
+  // burst — closing the read-then-write race where a check-then-create ordering
+  // let callers overshoot the cap before any 429 (Codex `724d70c` P1). It fails
+  // SAFE: under contention it may over-REJECT (extra 429s) but never over-admit.
+  // (A literal atomic `incrementField` counter — design §27.2-2 — is an
+  // alternative mechanism; reserve-first reuses the `files` rows we already write,
+  // so it needs no per-window counter docs, no counter GC, and no new storage
+  // primitive/CloudBase SDK surface.)
   const uploadIntentId = randomUUID();
   const cloudPath = objectStoragePath({
     namespace: 'oem',
     logicalId: uploadIntentId,
     fileName: parsed.data.fileName,
   });
-  let credential: Awaited<ReturnType<ReturnType<typeof mediaStorage>['getUploadCredential']>>;
-  try {
-    credential = await mediaStorage().getUploadCredential(cloudPath);
-  } catch (e) {
-    console.error('[fn-admin] createOemFileUploadIntent: credential mint failed', e);
-    return err('INTERNAL_ERROR', 'Could not start the upload. Please try again.');
-  }
-
   // One-time secret: only the client that created this intent can finalize it
   // (§20.10 anti-enumeration). Store ONLY the hash; hand the plaintext back once.
   const uploadSecret = `${randomUUID()}${randomUUID()}`.replace(/-/g, '');
   const uploadSecretHash = createHash('sha256').update(uploadSecret).digest('hex');
 
-  const pending = await createDoc('files', {
+  const reserved = await createDoc('files', {
     name: parsed.data.fileName,
     mimeType: parsed.data.mimeType,
     purpose: 'oem-drawing',
     storageProvider: 'cloudbase-storage',
     storageMode: 'classic-nosql-storage',
     storagePath: cloudPath,
-    storageFileId: credential.storageFileId,
     status: 'pending',
     uploadIntentId,
     uploadSecretHash,
     uploadExpiresAt: new Date(now + OEM_UPLOAD_INTENT_TTL_MS).toISOString(),
     byteSize: parsed.data.byteSize,
+    // Stamp createdAt explicitly so the fixed-window rate query counts this
+    // reservation identically on every adapter (the in-memory test fake does not
+    // auto-stamp createdAt; the real adapters overwrite it with an equivalent now).
+    createdAt: nowIso,
     ...(parsed.data.checksumSha256 ? { checksumSha256: parsed.data.checksumSha256 } : {}),
     ...(uploadSourceHash ? { uploadSourceHash } : {}),
   });
+  const rollback = async (): Promise<void> => {
+    await remove('files', reserved._id).catch((e) =>
+      console.error('[fn-admin] createOemFileUploadIntent: reservation rollback failed', e),
+    );
+  };
+
+  // --- Fixed-window rate limit (reservation included): global then per-source -
+  const inWindow: FilterClause[] = [
+    oemDrawing,
+    { field: 'createdAt', op: 'gte', value: windowStartIso },
+  ];
+  const globalRate = evaluateFixedWindowRateLimit({
+    // The reservation is already persisted, so the count IS the post-increment
+    // window total — allowed iff it stays within the ceiling (no speculative +1).
+    countInWindow: await countOemFiles(inWindow),
+    maxPerWindow: OEM_UPLOAD_RATE_MAX_PER_WINDOW_GLOBAL,
+    windowMs: OEM_UPLOAD_RATE_WINDOW_MS,
+    nowMs: now,
+  });
+  if (!globalRate.allowed) {
+    await rollback();
+    return tooMany(globalRate.retryAfterSeconds);
+  }
+  if (uploadSourceHash) {
+    const sourceRate = evaluateFixedWindowRateLimit({
+      countInWindow: await countOemFiles([
+        ...inWindow,
+        { field: 'uploadSourceHash', op: 'eq', value: uploadSourceHash },
+      ]),
+      maxPerWindow: OEM_UPLOAD_RATE_MAX_PER_WINDOW,
+      windowMs: OEM_UPLOAD_RATE_WINDOW_MS,
+      nowMs: now,
+    });
+    if (!sourceRate.allowed) {
+      await rollback();
+      return tooMany(sourceRate.retryAfterSeconds);
+    }
+  }
+
+  // --- Concurrent pending-intent cap (reservation included) ------------------
+  const pendingLive: FilterClause[] = [
+    oemDrawing,
+    { field: 'status', op: 'eq', value: 'pending' },
+    { field: 'uploadExpiresAt', op: 'gt', value: nowIso },
+  ];
+  // The reservation is one of the live pending rows, so subtract it to recover
+  // the count that PRECEDES this request (withinPendingCap allows `< cap`).
+  const globalPending = await countOemFiles(pendingLive);
+  if (!withinPendingCap(globalPending - 1, OEM_MAX_PENDING_INTENTS_GLOBAL)) {
+    await rollback();
+    return tooManyPending(await soonestPendingRetryAfterSeconds(pendingLive, now));
+  }
+  if (uploadSourceHash) {
+    const sourceClauses: FilterClause[] = [
+      ...pendingLive,
+      { field: 'uploadSourceHash', op: 'eq', value: uploadSourceHash },
+    ];
+    const sourcePending = await countOemFiles(sourceClauses);
+    if (!withinPendingCap(sourcePending - 1, OEM_MAX_PENDING_INTENTS_PER_SOURCE)) {
+      await rollback();
+      return tooManyPending(await soonestPendingRetryAfterSeconds(sourceClauses, now));
+    }
+  }
+
+  // --- All caps cleared → mint the credential and attach it to the reservation
+  let credential: Awaited<ReturnType<ReturnType<typeof mediaStorage>['getUploadCredential']>>;
+  try {
+    credential = await mediaStorage().getUploadCredential(cloudPath);
+  } catch (e) {
+    console.error('[fn-admin] createOemFileUploadIntent: credential mint failed', e);
+    await rollback();
+    return err('INTERNAL_ERROR', 'Could not start the upload. Please try again.');
+  }
+  await updateDoc('files', reserved._id, { storageFileId: credential.storageFileId });
 
   return ok({
-    fileId: pending._id,
+    fileId: reserved._id,
     uploadIntentId,
     // Returned exactly once; the server keeps only the hash.
     uploadSecret,
