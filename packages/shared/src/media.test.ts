@@ -5,13 +5,23 @@ import {
   BLOCKED_IMAGE_MIME_TYPES,
   CATALOG_IMAGE_MAX_BYTES,
   CATALOG_IMAGE_MIME_TYPES,
+  type FileMetadataDoc,
   IMAGE_STORAGE_PROVIDERS,
   type ImageMetadataDoc,
   MEDIA_PURPOSES,
   MEDIA_STATUSES,
+  OEM_FILE_EXTENSIONS,
+  OEM_FILE_MAX_BYTES,
+  OEM_MAX_PENDING_INTENTS_PER_SOURCE,
+  OEM_UPLOAD_INTENT_TTL_MS,
+  OEM_UPLOAD_RATE_MAX_PER_WINDOW,
+  OEM_UPLOAD_RATE_WINDOW_MS,
   type StorageBackedImageMetadataDoc,
   catalogImageUploadSchema,
+  fileExtension,
+  isAllowedOemExtension,
   isStorageBackedImage,
+  oemFileUploadSchema,
 } from './media.ts';
 
 function imagesDef() {
@@ -208,4 +218,165 @@ test('StorageBackedImageMetadataDoc requires lifecycle/storage fields; isStorage
     storageProvider: 'cloudbase-storage',
   };
   assert.equal(isStorageBackedImage(pending), false);
+});
+
+// --- OEM file (attachment) foundation — MIU-08 -----------------------------
+
+function filesDef() {
+  const def = getCollection('files');
+  assert.ok(def, 'files collection must be registered');
+  return def;
+}
+
+test('files generic write schema accepts only safe metadata (name + mimeType)', () => {
+  const schema = buildWriteSchema(filesDef());
+  assert.deepEqual(schema.parse({ name: 'drawing.pdf', mimeType: 'application/pdf' }), {
+    name: 'drawing.pdf',
+    mimeType: 'application/pdf',
+  });
+  assert.deepEqual(
+    writableFields(filesDef()).map((f) => f.name),
+    ['name', 'mimeType'],
+  );
+});
+
+test('files generic write schema rejects every server-managed storage/lifecycle field', () => {
+  const schema = buildWriteSchema(filesDef());
+  const forgeries: Record<string, unknown>[] = [
+    { data: 'AAAA' },
+    { status: 'active' },
+    { storageProvider: 'cloudbase-storage' },
+    { storageMode: 'classic-nosql-storage' },
+    { storageFileId: 'cloud://forged' },
+    { storagePath: 'oem/2026/06/x/drawing.pdf' },
+    { byteSize: 10 },
+    { checksumSha256: 'deadbeef' },
+    { purpose: 'oem-drawing' },
+    { ownerProjectId: 'proj1' },
+    { uploadIntentId: 'intent1' },
+    { uploadSecretHash: 'hash' },
+    { uploadExpiresAt: new Date().toISOString() },
+  ];
+  for (const forged of forgeries) {
+    assert.throws(
+      () => schema.parse({ name: 'd', mimeType: 'application/pdf', ...forged }),
+      `expected files generic write to reject ${JSON.stringify(forged)}`,
+    );
+  }
+});
+
+test('files generic UPDATE (partial) write schema also rejects forged readOnly keys', () => {
+  // The upload secret must NEVER be settable through generic CRUD — forging it
+  // (or the storage id / status) on the update path must throw, not be stripped.
+  const schema = buildWriteSchema(filesDef()).partial();
+  assert.throws(() => schema.parse({ uploadSecretHash: 'hash' }));
+  assert.throws(() => schema.parse({ storageFileId: 'cloud://forged' }));
+  assert.throws(() => schema.parse({ status: 'active' }));
+  assert.deepEqual(schema.parse({ name: 'renamed.pdf' }), { name: 'renamed.pdf' });
+});
+
+test('OEM upload constants expose the abuse-control policy', () => {
+  assert.equal(OEM_FILE_MAX_BYTES, 10 * 1024 * 1024);
+  assert.equal(OEM_UPLOAD_INTENT_TTL_MS, 15 * 60 * 1000);
+  assert.equal(OEM_MAX_PENDING_INTENTS_PER_SOURCE, 3);
+  assert.equal(OEM_UPLOAD_RATE_WINDOW_MS, 60 * 1000);
+  assert.equal(OEM_UPLOAD_RATE_MAX_PER_WINDOW, 5);
+  // Archive, CAD, and image families are all represented.
+  for (const ext of ['pdf', 'zip', 'rar', 'step', 'dwg', 'dxf', 'png', 'jpg']) {
+    assert.ok(
+      (OEM_FILE_EXTENSIONS as readonly string[]).includes(ext),
+      `expected ${ext} to be an accepted OEM extension`,
+    );
+  }
+});
+
+test('fileExtension extracts the lowercase extension, or empty string', () => {
+  assert.equal(fileExtension('Drawing.PDF'), 'pdf');
+  assert.equal(fileExtension('archive.tar.GZ'), 'gz');
+  assert.equal(fileExtension('a.STEP'), 'step');
+  assert.equal(fileExtension('noext'), '');
+  assert.equal(fileExtension('trailingdot.'), '');
+});
+
+test('isAllowedOemExtension gates by the extension allowlist (case-insensitive)', () => {
+  assert.equal(isAllowedOemExtension('part.STEP'), true);
+  assert.equal(isAllowedOemExtension('drawing.pdf'), true);
+  assert.equal(isAllowedOemExtension('bundle.zip'), true);
+  assert.equal(isAllowedOemExtension('malware.exe'), false);
+  assert.equal(isAllowedOemExtension('script.svg'), false);
+  assert.equal(isAllowedOemExtension('noextension'), false);
+});
+
+test('oemFileUploadSchema accepts allowlisted types incl. CAD, rejects the rest', () => {
+  for (const fileName of [
+    'part.step',
+    'model.STP',
+    'plan.dwg',
+    'sheet.dxf',
+    'doc.pdf',
+    'imgs.zip',
+  ]) {
+    const parsed = oemFileUploadSchema.parse({
+      fileName,
+      mimeType: 'application/octet-stream',
+      byteSize: 4096,
+    });
+    assert.equal(parsed.fileName, fileName);
+  }
+  // Unsupported extension is rejected even with a benign MIME.
+  assert.throws(() =>
+    oemFileUploadSchema.parse({
+      fileName: 'x.exe',
+      mimeType: 'application/octet-stream',
+      byteSize: 10,
+    }),
+  );
+  // An extension-less filename cannot pass the allowlist.
+  assert.throws(() =>
+    oemFileUploadSchema.parse({ fileName: 'drawing', mimeType: 'application/pdf', byteSize: 10 }),
+  );
+});
+
+test('oemFileUploadSchema enforces byteSize bounds (int, positive, capped)', () => {
+  const base = { fileName: 'part.step', mimeType: 'application/octet-stream' };
+  assert.throws(() => oemFileUploadSchema.parse({ ...base, byteSize: 0 }));
+  assert.throws(() => oemFileUploadSchema.parse({ ...base, byteSize: -1 }));
+  assert.throws(() => oemFileUploadSchema.parse({ ...base, byteSize: 3.5 }));
+  assert.throws(() => oemFileUploadSchema.parse({ ...base, byteSize: OEM_FILE_MAX_BYTES + 1 }));
+  assert.throws(() => oemFileUploadSchema.parse(base)); // byteSize missing
+  // Exactly at the cap is allowed (inclusive max).
+  assert.equal(
+    oemFileUploadSchema.parse({ ...base, byteSize: OEM_FILE_MAX_BYTES }).byteSize,
+    OEM_FILE_MAX_BYTES,
+  );
+});
+
+test('FileMetadataDoc models both storage-backed and legacy OEM records', () => {
+  const storage: FileMetadataDoc = {
+    _id: 'file1',
+    name: 'assembly.step',
+    mimeType: 'application/octet-stream',
+    purpose: 'oem-drawing',
+    storageProvider: 'cloudbase-storage',
+    storageFileId: 'cloud://oem/x',
+    storagePath: 'oem/2026/06/file1/assembly.step',
+    byteSize: 4096,
+    status: 'pending',
+    uploadIntentId: 'intent1',
+    uploadSecretHash: 'hash',
+    uploadExpiresAt: new Date().toISOString(),
+  };
+  // A legacy inline-base64 row: only identity + purpose + data, no lifecycle.
+  const legacy: FileMetadataDoc = {
+    _id: 'file2',
+    name: 'old.pdf',
+    mimeType: 'application/pdf',
+    purpose: 'oem-drawing',
+    storageProvider: 'legacy-base64',
+    data: 'JVBERi0=',
+  };
+  assert.equal(storage.storageProvider, 'cloudbase-storage');
+  assert.equal(storage.status, 'pending');
+  assert.equal(legacy.data, 'JVBERi0=');
+  assert.equal(legacy.status, undefined);
 });

@@ -195,3 +195,103 @@ export const catalogImageUploadSchema = z.object({
   purpose: z.literal('catalog-image').default('catalog-image'),
 });
 export type CatalogImageUploadInput = z.infer<typeof catalogImageUploadSchema>;
+
+// --- OEM file (attachment) policy — MIU-08 ---------------------------------
+
+/** Max size for a single public OEM attachment (P0). */
+export const OEM_FILE_MAX_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Accepted OEM attachment extensions (lowercase, no dot). Images + archives have
+ * reliable magic bytes (cross-checked post-upload); CAD formats have no universal
+ * signature and stay EXTENSION-gated here by policy.
+ */
+export const OEM_FILE_EXTENSIONS = [
+  'pdf',
+  'zip',
+  'rar',
+  'png',
+  'jpg',
+  'jpeg',
+  'webp',
+  'step',
+  'stp',
+  'igs',
+  'iges',
+  'dwg',
+  'dxf',
+] as const;
+export type OemFileExtension = (typeof OEM_FILE_EXTENSIONS)[number];
+
+/** Public upload-intent abuse-control limits (design §20.10). */
+export const OEM_UPLOAD_INTENT_TTL_MS = 15 * 60 * 1000;
+export const OEM_MAX_PENDING_INTENTS_PER_SOURCE = 3;
+export const OEM_UPLOAD_RATE_WINDOW_MS = 60 * 1000;
+export const OEM_UPLOAD_RATE_MAX_PER_WINDOW = 5;
+
+/**
+ * The `files` collection document (OEM drawings/attachments). Mirrors
+ * `ImageMetadataDoc`: storage-backed rows carry storage identifiers + lifecycle,
+ * legacy rows carry base64 `data`. Every storage/lifecycle field is
+ * server-managed — written only by dedicated OEM media actions, never generic
+ * CRUD. `uploadSecretHash` is server-only and never returned to clients.
+ */
+export interface FileMetadataDoc {
+  _id: string;
+  name: string;
+  mimeType: string;
+  purpose: 'oem-drawing';
+  storageProvider: ImageStorageProvider;
+  storageMode?: ImageStorageMode;
+  storageFileId?: string;
+  storagePath?: string;
+  byteSize?: number;
+  checksumSha256?: string;
+  status?: MediaStatus;
+  /** Owning OEM project, set on finalization. */
+  ownerProjectId?: string;
+  /** Single-use upload-intent binding (server-only). */
+  uploadIntentId?: string;
+  uploadSecretHash?: string;
+  uploadExpiresAt?: string;
+  /** Legacy base64 bytes; only when `storageProvider === 'legacy-base64'`. */
+  data?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** Lowercase extension (no dot) of a filename, or '' when there is none. */
+export function fileExtension(name: string): string {
+  const dot = name.lastIndexOf('.');
+  if (dot < 0 || dot === name.length - 1) return '';
+  return name.slice(dot + 1).toLowerCase();
+}
+
+/** True if the filename's extension is an accepted OEM attachment type. */
+export function isAllowedOemExtension(name: string): boolean {
+  return (OEM_FILE_EXTENSIONS as readonly string[]).includes(fileExtension(name));
+}
+
+/**
+ * Validation for a public OEM upload-intent request. The extension must be
+ * allowlisted; the declared MIME is advisory (CAD clients often send
+ * `application/octet-stream`) and is cross-checked against magic bytes after
+ * upload. `byteSize` is capped here; the finalization action recomputes size and
+ * checksum server-side rather than trusting the client.
+ */
+export const oemFileUploadSchema = z
+  .object({
+    fileName: z.string().min(1, 'File name is required').max(300),
+    mimeType: z.string().min(1).max(200),
+    byteSize: z
+      .number()
+      .int()
+      .positive()
+      .max(OEM_FILE_MAX_BYTES, `File exceeds ${OEM_FILE_MAX_BYTES} bytes`),
+    checksumSha256: z.string().optional(),
+  })
+  .refine((v) => isAllowedOemExtension(v.fileName), {
+    message: 'Unsupported file type',
+    path: ['fileName'],
+  });
+export type OemFileUploadInput = z.infer<typeof oemFileUploadSchema>;

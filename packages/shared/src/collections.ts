@@ -281,13 +281,84 @@ export const COLLECTIONS: readonly CollectionDef[] = [
   {
     name: 'files',
     label: 'Files',
-    description: 'Binary file attachments (stored as base64 bytes), e.g. OEM drawings.',
+    // OEM file/drawing metadata. Bytes live in CloudBase Storage (storage-backed
+    // rows) or, for legacy rows, inline base64 in `data`. Every storage/lifecycle
+    // field is server-managed (readOnly): bytes, storage identifiers, the upload
+    // secret, and status are never accepted through generic CRUD — only through
+    // the dedicated OEM media actions. See §20.10 (MIU-08).
+    description: 'OEM file/drawing metadata referenced by OEM project requests.',
     searchableFields: ['name'],
     hideFromNav: true,
     fields: [
       { name: 'name', label: 'Name', type: 'string', required: true },
       { name: 'mimeType', label: 'MIME Type', type: 'string', required: true },
-      { name: 'data', label: 'Data (base64)', type: 'text', hideInTable: true },
+      { name: 'purpose', label: 'Purpose', type: 'string', readOnly: true },
+      { name: 'storageProvider', label: 'Storage Provider', type: 'string', readOnly: true },
+      {
+        name: 'storageMode',
+        label: 'Storage Mode',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'storageFileId',
+        label: 'Storage File ID',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'storagePath',
+        label: 'Storage Path',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'byteSize', label: 'Byte Size', type: 'number', readOnly: true },
+      {
+        name: 'checksumSha256',
+        label: 'Checksum',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'status',
+        label: 'Status',
+        type: 'select',
+        options: MEDIA_STATUSES,
+        readOnly: true,
+      },
+      { name: 'ownerProjectId', label: 'Owner Project', type: 'string', readOnly: true },
+      {
+        name: 'uploadIntentId',
+        label: 'Upload Intent',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'uploadSecretHash',
+        label: 'Upload Secret Hash',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'uploadExpiresAt',
+        label: 'Upload Expires',
+        type: 'date',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'data',
+        label: 'Legacy Data (base64)',
+        type: 'text',
+        readOnly: true,
+        hideInTable: true,
+      },
     ],
   },
 ] as const;
