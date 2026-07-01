@@ -27,6 +27,12 @@ design-only; validation results and capability probes live here.
 | MIU-14 | Media observability | backlog; design-only | §20.13 / §27 audit | Add metrics for upload failures, pending/orphan counts, rate-limit rejections, CDN stale incidents, and migration progress. |
 | MIU-15 | Public-CDN delivery | backlog; design-only | §20.13 / §27 audit | Optional public variant/CDN path with content-addressed keys or purge strategy; private proxy/temp-URL P0 remains unchanged. |
 
+> 2026-07-02 Codex final-review correction: do not treat MIU-08 as
+> merge-ready until the P1 OEM expired-pending cleanup gap below is fixed. The
+> CloudBase test deployment is green for runtime commit `72c6e73`, but the OEM
+> smoke evidence is retry-green, defaults to 2 MiB, and does not yet prove the
+> final admin Blob-download path in a deployed browser.
+
 Decision summary (binds the plan; evidence below):
 - P0 byte transport = **admin-brokered direct-storage-upload** (browser POSTs a
   multipart form to COS with a server-minted credential; custom JWT stays the only
@@ -2789,6 +2795,60 @@ Validation run during this review:
 - `pnpm verify:cloudbase-sdk` — pass
 - `pnpm smoke:functions` — pass
 - `pnpm lint` — pass
+
+### Codex final comprehensive review — `e2ac678` + CloudBase gates — FINDINGS — 2026-07-02
+
+Review base: live SSH branch `fix/image-upload-storage-design` at
+`e2ac678` after Claude's final pieces. Codex reviewed the final delta
+(`ee3b019`→`e2ac678`) plus the surrounding media lifecycle, CloudBase SDK
+contract, CI/deploy workflows, docs, and deployed run evidence using the
+CloudBase skill/reference rules (CloudBase CLI for CI/CD, Cloud Functions,
+Cloud Storage Web/CORS, and code-review storage cleanup guidance).
+
+One small CI/process regression was fixed directly in this review commit:
+`package.json` now restores `verify:cloudbase-sdk` ->
+`node scripts/verify-cloudbase-sdk-contract.mjs`. Without that alias,
+`.github/workflows/ci.yml` would fail at its mandatory CloudBase SDK contract
+step even though the script still existed and passed when invoked directly.
+
+| Severity | Finding | Evidence | Required fix |
+| --- | --- | --- | --- |
+| P1 | OEM expired-pending cleanup is designed and unit-modeled but not wired into production. Public `createOemFileUploadIntent` can mint a pending `files` row and a COS credential; if the browser uploads bytes and never finalizes, the row eventually expires and stops counting against the live pending cap, but no production action deletes the `oem/` storage object or retires the row. This leaves a storage-cost/bucket-pollution path in the unauthenticated OEM surface. | `packages/shared/src/media-lifecycle.ts` says `selectExpiredPendingForSweep` is the piggyback reaper for expired pending rows, but `rg` shows it is only used by `packages/shared/src/media-lifecycle.test.ts`. `cleanupOrphanImagesAction` only queries `collection: 'images'` and never `files`. Design §20.10/§20.13/§27.2 requires expired `files.status === 'pending'` cleanup. | Wire a bounded OEM file sweep before calling MIU-08 merge-ready: either piggyback a small sweep inside `createOemFileUploadIntent` or add an admin/timer action. Query expired pending `files` rows, delete each storage object first, then mark/delete the paired row only when that object's delete succeeds; leave delete failures retryable and reported. Add tests for object-delete failure, rows with no `storageFileId`, expired source/global-cap recovery, and the no-overdelete partial-failure case. |
+| P2 | The deployed OEM upload evidence is green but not deterministic and is weaker than the current "9-10 MiB ZIP" wording. Run `28530464454` deployed and smoked runtime commit `72c6e73`, but the OEM step failed twice on the result-page wait and only passed on retry #2. The workflow default fixture is 2 MiB, not near the 10 MiB cap. | GitHub deploy-test run `28530464454` is `success`; job logs show public-api/admin releases both at `72c6e73` and CloudBase smoke passed, then OEM smoke failed twice at `expect(page).toHaveURL(/\\/oem_submit_result\\?id=/)` before passing as `1 flaky`. `tests/e2e/oem-upload.spec.ts` defaults `OEM_ZIP_BYTES` to `2 * 1024 * 1024`; the near-cap run is only documented as a local probe. | Keep the deployed status as "runtime green with retry caveat," not "clean proof." Stabilize the OEM smoke so first-pass failures expose the actual app/network state, and either run a manual/dispatch near-cap job with `E2E_OEM_SMOKE_BYTES` close to `OEM_FILE_MAX_BYTES` or lower the documented exit criterion to "multi-MiB deployed smoke + separate local near-cap probe." |
+| P2 | The deployed smoke does not exercise the final admin Blob-download contract. It mints `getOemFileDownloadUrl` and asserts URL metadata, but it does not fetch the temp URL bytes from the deployed browser path, so bucket GET CORS and the new `downloadOemFile`/`FileDownloadLink` behavior are covered by unit tests plus manual evidence, not by CI. | `tests/e2e/oem-upload.spec.ts` lines 152-166 explicitly assert only the mint contract and say byte fetching is a separate CORS prerequisite. The final UI fix in `apps/site/src/islands/admin/oem-download.ts` fetches the temp URL and saves a Blob, but no deployed browser test clicks the admin link or verifies a successful cross-origin GET. | Add a small admin-browser deployed smoke for one finalized OEM file: click the admin download control or call the same helper, observe the temp-URL GET returns 200/CORS, and prove the filename path is used. This can be opt-in if download artifacts are noisy, but should exist before calling admin delivery fully live-verified. |
+| P2 | MIU-10 remains real remaining work: the public OEM UI is storage-first, but the backend legacy `drawingData` base64 compatibility branch is still present. That is acceptable for migration compatibility, but it means the whole upload program is not yet at the final purpose/type/size policy gate. | `apps/site/src/components/ProjectForm.astro` posts only `drawingFileId`/`uploadIntentId`/`uploadSecret` after COS upload, so the current UI no longer uses base64. `apps/functions/admin/src/handler.ts` still accepts `drawingData` and writes `files.data` for the legacy path. The ledger already lists MIU-10 as pending. | Implement MIU-10's shared transport-policy helper and route all new upload decisions through purpose -> type -> size. Keep `drawingData` only behind explicit legacy/compatibility policy or remove it when compatibility is no longer needed. Tests should prove catalog/OEM never fall back to base64 due to small size. |
+
+Deployment/test-env disposition:
+
+- **Properly deployed runtime:** yes for runtime commit `72c6e73` in CloudBase test.
+  Deploy-test run `28530464454` completed successfully; logs show
+  `public-api` and `admin` release `72c6e73`, then CloudBase smoke passed for
+  `https://channel-test-diversity-123-d9grnqfux221323bb.webapps.tcloudbase.com`.
+- **Current branch head:** `e2ac678` was docs-only on top of `72c6e73`; this
+  review commit adds the missing `package.json` script alias and review notes, so
+  it should go through normal CI before merge.
+- **Not fully done:** MIU-08 is runtime-green but not merge-ready until the P1
+  expired-pending OEM cleanup is wired. MIU-10 is still pending by design.
+
+Validation run during this final review:
+
+- `pnpm --filter @vibelingan-channel/fn-admin test` — pass, 99 tests
+- `pnpm --filter @vibelingan-channel/fn-admin typecheck` — pass
+- `pnpm --filter @vibelingan-channel/shared test` — pass, 70 tests
+- `pnpm --filter @vibelingan-channel/shared typecheck` — pass
+- `pnpm --filter @vibelingan-channel/site test` — pass, 4 tests
+- `pnpm --filter @vibelingan-channel/site typecheck` — pass, 0 errors; existing
+  `React.FormEvent` deprecation hints only
+- `pnpm --filter @vibelingan-channel/media-storage test` — pass, 26 tests
+- `pnpm --filter @vibelingan-channel/media-storage typecheck` — pass
+- `pnpm typecheck` — pass
+- `pnpm lint` — pass
+- `pnpm package:functions` — pass
+- `pnpm build` — pass, 11 pages
+- `pnpm smoke:functions` — pass
+- `pnpm verify:cloudbase-sdk` — pass after restoring the script alias
+- `pnpm typecheck:e2e` — pass
+- `pnpm test:e2e --list` — pass, 11 tests discovered
 
 ### Codex ultra-review — `f2bf266` + `6ad15ae` — NO BLOCKERS — 2026-07-01
 
