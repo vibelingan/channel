@@ -41,6 +41,7 @@ import {
   type StoredMediaObject,
   catalogStoragePath,
   mediaStorage,
+  objectStoragePath,
 } from '@vibelingan-channel/media-storage';
 import {
   type ApiResult,
@@ -48,16 +49,26 @@ import {
   COLLECTIONS,
   type CollectionDoc,
   FILTER_OPERATORS,
+  type FilterClause,
   OEM_DOWNLOAD_URL_TTL_SECONDS,
+  OEM_MAX_PENDING_INTENTS_GLOBAL,
+  OEM_MAX_PENDING_INTENTS_PER_SOURCE,
+  OEM_UPLOAD_INTENT_TTL_MS,
+  OEM_UPLOAD_RATE_MAX_PER_WINDOW,
+  OEM_UPLOAD_RATE_MAX_PER_WINDOW_GLOBAL,
+  OEM_UPLOAD_RATE_WINDOW_MS,
   type Role,
   canEditCollection,
   canReadCollection,
   catalogImageUploadSchema,
   err,
+  evaluateFixedWindowRateLimit,
   getCollection,
   isKnownCollection,
+  oemFileUploadSchema,
   ok,
   sanitizeDownloadFilename,
+  withinPendingCap,
 } from '@vibelingan-channel/shared';
 import { releaseInfo } from '@vibelingan-channel/shared/release';
 import { z } from 'zod';
@@ -78,6 +89,16 @@ export interface AdminRequest {
   action: string;
   data?: unknown;
   token?: string;
+}
+
+/**
+ * Per-request context the transport (HTTP adapter) derives from the raw event
+ * and the pure handler cannot see from `{action,data,token}` alone. Optional so
+ * direct/local callers and existing tests keep working unchanged.
+ */
+export interface RequestContext {
+  /** Best-effort client IP (first `x-forwarded-for` hop / gateway sourceIp). */
+  sourceIp?: string;
 }
 
 // --- Validation schemas ----------------------------------------------------
@@ -260,6 +281,7 @@ async function activeAdminExists(): Promise<boolean> {
 export async function handleAdminRequest(
   req: AdminRequest,
   config: AdminConfig,
+  context?: RequestContext,
 ): Promise<ApiResult<unknown>> {
   try {
     // ---- Public auth actions ------------------------------------------
@@ -276,6 +298,8 @@ export async function handleAdminRequest(
         return ok(releaseInfo('admin'));
       case 'submitProject':
         return await submitProject(req);
+      case 'createOemFileUploadIntent':
+        return await createOemFileUploadIntentAction(req, context);
     }
 
     // ---- Everything below requires a valid session --------------------
@@ -1313,5 +1337,156 @@ async function getOemFileDownloadUrlAction(
     // Any proxy/header path MUST force a download (never inline-render an OEM
     // attachment) with the sanitized name.
     contentDisposition: `attachment; filename="${fileName}"`,
+  });
+}
+
+/** Count `files` matching an AND-filter, using `list().total` (no doc fetch). */
+async function countOemFiles(clauses: FilterClause[]): Promise<number> {
+  const res = await list({
+    collection: 'files',
+    page: 1,
+    pageSize: 1,
+    filter: { combinator: 'and', clauses },
+  });
+  return res.total;
+}
+
+/**
+ * MIU-08 §20.10 step 1 — PUBLIC OEM upload-intent creation (no admin JWT). Mints a
+ * single-object browser->COS upload credential so a ≤10 MiB OEM attachment never
+ * transits the function body cap, and records a `pending` `files` row bound to a
+ * one-time upload secret (only its hash is stored) with a short expiry.
+ *
+ * Because it is unauthenticated it is an abuse surface, so BEFORE minting anything
+ * it enforces (fail-closed) both a fixed-window rate limit and a concurrent
+ * pending-intent cap. Each is checked per-source (hashed client IP) AND against a
+ * global emergency ceiling: CloudBase may not expose a trusted IP, and when the
+ * source signal is absent every request collapses into the global bucket, so the
+ * site-wide ceilings still bound total abuse. Counters are derived by querying the
+ * `files` collection (shared DB state — never per-instance memory), mirroring the
+ * orphan-cleanup query pattern; the raw IP is never persisted.
+ */
+async function createOemFileUploadIntentAction(
+  req: AdminRequest,
+  context?: RequestContext,
+): Promise<ApiResult<unknown>> {
+  const parsed = oemFileUploadSchema.safeParse(req.data);
+  if (!parsed.success) {
+    return err('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join('; '));
+  }
+
+  const now = Date.now();
+  // Epoch-aligned window start, matching evaluateFixedWindowRateLimit's Retry-After.
+  const windowStartIso = new Date(
+    Math.floor(now / OEM_UPLOAD_RATE_WINDOW_MS) * OEM_UPLOAD_RATE_WINDOW_MS,
+  ).toISOString();
+  const nowIso = new Date(now).toISOString();
+
+  // Source key = SHA-256 of the client IP when available; the raw IP is never
+  // stored. Absent/spoofed source falls through to the global ceilings only.
+  const sourceIp = context?.sourceIp?.trim();
+  const uploadSourceHash = sourceIp
+    ? createHash('sha256').update(sourceIp).digest('hex')
+    : undefined;
+
+  const oemDrawing: FilterClause = { field: 'purpose', op: 'eq', value: 'oem-drawing' };
+  const tooMany = (retryAfterSeconds: number): ApiResult<unknown> =>
+    err('CONFLICT', `Too many upload requests. Please retry in ${retryAfterSeconds}s.`);
+  const tooManyPending = (): ApiResult<unknown> =>
+    err('CONFLICT', 'Too many pending uploads. Finish or wait for the existing ones to expire.');
+
+  // --- Fixed-window rate limit: global ceiling, then per-source --------------
+  const inWindow: FilterClause[] = [
+    oemDrawing,
+    { field: 'createdAt', op: 'gte', value: windowStartIso },
+  ];
+  const globalRate = evaluateFixedWindowRateLimit({
+    countInWindow: (await countOemFiles(inWindow)) + 1,
+    maxPerWindow: OEM_UPLOAD_RATE_MAX_PER_WINDOW_GLOBAL,
+    windowMs: OEM_UPLOAD_RATE_WINDOW_MS,
+    nowMs: now,
+  });
+  if (!globalRate.allowed) return tooMany(globalRate.retryAfterSeconds);
+
+  if (uploadSourceHash) {
+    const sourceRate = evaluateFixedWindowRateLimit({
+      countInWindow:
+        (await countOemFiles([
+          ...inWindow,
+          { field: 'uploadSourceHash', op: 'eq', value: uploadSourceHash },
+        ])) + 1,
+      maxPerWindow: OEM_UPLOAD_RATE_MAX_PER_WINDOW,
+      windowMs: OEM_UPLOAD_RATE_WINDOW_MS,
+      nowMs: now,
+    });
+    if (!sourceRate.allowed) return tooMany(sourceRate.retryAfterSeconds);
+  }
+
+  // --- Concurrent pending-intent cap: global ceiling, then per-source --------
+  const pendingLive: FilterClause[] = [
+    oemDrawing,
+    { field: 'status', op: 'eq', value: 'pending' },
+    { field: 'uploadExpiresAt', op: 'gt', value: nowIso },
+  ];
+  if (!withinPendingCap(await countOemFiles(pendingLive), OEM_MAX_PENDING_INTENTS_GLOBAL)) {
+    return tooManyPending();
+  }
+  if (uploadSourceHash) {
+    const sourcePending = await countOemFiles([
+      ...pendingLive,
+      { field: 'uploadSourceHash', op: 'eq', value: uploadSourceHash },
+    ]);
+    if (!withinPendingCap(sourcePending, OEM_MAX_PENDING_INTENTS_PER_SOURCE)) {
+      return tooManyPending();
+    }
+  }
+
+  // --- Mint the credential + write the pending row ---------------------------
+  const uploadIntentId = randomUUID();
+  const cloudPath = objectStoragePath({
+    namespace: 'oem',
+    logicalId: uploadIntentId,
+    fileName: parsed.data.fileName,
+  });
+  let credential: Awaited<ReturnType<ReturnType<typeof mediaStorage>['getUploadCredential']>>;
+  try {
+    credential = await mediaStorage().getUploadCredential(cloudPath);
+  } catch (e) {
+    console.error('[fn-admin] createOemFileUploadIntent: credential mint failed', e);
+    return err('INTERNAL_ERROR', 'Could not start the upload. Please try again.');
+  }
+
+  // One-time secret: only the client that created this intent can finalize it
+  // (§20.10 anti-enumeration). Store ONLY the hash; hand the plaintext back once.
+  const uploadSecret = `${randomUUID()}${randomUUID()}`.replace(/-/g, '');
+  const uploadSecretHash = createHash('sha256').update(uploadSecret).digest('hex');
+
+  const pending = await createDoc('files', {
+    name: parsed.data.fileName,
+    mimeType: parsed.data.mimeType,
+    purpose: 'oem-drawing',
+    storageProvider: 'cloudbase-storage',
+    storageMode: 'classic-nosql-storage',
+    storagePath: cloudPath,
+    storageFileId: credential.storageFileId,
+    status: 'pending',
+    uploadIntentId,
+    uploadSecretHash,
+    uploadExpiresAt: new Date(now + OEM_UPLOAD_INTENT_TTL_MS).toISOString(),
+    byteSize: parsed.data.byteSize,
+    ...(parsed.data.checksumSha256 ? { checksumSha256: parsed.data.checksumSha256 } : {}),
+    ...(uploadSourceHash ? { uploadSourceHash } : {}),
+  });
+
+  return ok({
+    fileId: pending._id,
+    uploadIntentId,
+    // Returned exactly once; the server keeps only the hash.
+    uploadSecret,
+    upload: {
+      method: credential.method,
+      url: credential.uploadUrl,
+      fields: credential.formFields,
+    },
   });
 }

@@ -21,10 +21,11 @@ import {
   CATALOG_IMAGE_MAX_BYTES,
   type CollectionDoc,
   type ListResult,
+  OEM_FILE_MAX_BYTES,
   matchesFilter,
   ok,
 } from '@vibelingan-channel/shared';
-import { type AdminConfig, handleAdminRequest } from './handler.ts';
+import { type AdminConfig, type RequestContext, handleAdminRequest } from './handler.ts';
 
 type Store = Record<string, CollectionDoc[]>;
 
@@ -303,6 +304,17 @@ async function call(action: string, data: unknown, token: string) {
     config,
   );
 }
+
+/** Invoke a PUBLIC action (no token), optionally with request context (client IP). */
+function callPublic(action: string, data: unknown, context?: RequestContext) {
+  return handleAdminRequest({ action, data }, config, context);
+}
+
+const validOemIntent = {
+  fileName: 'part.step',
+  mimeType: 'application/octet-stream',
+  byteSize: 4096,
+};
 
 /** Extract the `data` payload of a successful ApiResult (asserts ok first). */
 function okData<T = Record<string, unknown>>(res: ApiResult<unknown>): T {
@@ -1718,4 +1730,151 @@ test('getOemFileDownloadUrl validates input and missing rows', async () => {
   const token = await adminToken();
   expectErr(await call('getOemFileDownloadUrl', {}, token), 'BAD_REQUEST');
   expectErr(await call('getOemFileDownloadUrl', { fileId: 'nope' }, token), 'NOT_FOUND');
+});
+
+// --- MIU-08: createOemFileUploadIntent (public intent + abuse controls) -------
+
+/** A `files` row shaped like one intent already created this minute by a source. */
+function oemWindowDoc(id: string, sourceHash?: string): CollectionDoc {
+  return {
+    _id: id,
+    name: 'a.step',
+    mimeType: 'application/octet-stream',
+    purpose: 'oem-drawing',
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    ...(sourceHash ? { uploadSourceHash: sourceHash } : {}),
+  };
+}
+
+/** A live (non-expired) pending intent held by a source. */
+function oemPendingDoc(id: string, sourceHash: string, expiresAt: string): CollectionDoc {
+  return {
+    _id: id,
+    name: 'a.step',
+    mimeType: 'application/octet-stream',
+    purpose: 'oem-drawing',
+    status: 'pending',
+    uploadExpiresAt: expiresAt,
+    uploadSourceHash: sourceHash,
+  };
+}
+
+const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+
+test('createOemFileUploadIntent mints a credential, writes a pending row, returns a one-time secret', async () => {
+  const store = setup({ users: [], files: [] });
+  setMediaStorage(makeFakeMediaStorage());
+
+  const data = okData<{
+    fileId: string;
+    uploadIntentId: string;
+    uploadSecret: string;
+    upload: { method: string; url: string; fields: Record<string, string> };
+  }>(await callPublic('createOemFileUploadIntent', validOemIntent, { sourceIp: '1.2.3.4' }));
+
+  assert.ok(data.fileId);
+  assert.ok(data.uploadIntentId);
+  assert.ok(data.uploadSecret.length >= 32);
+  assert.equal(data.upload.method, 'POST');
+  assert.equal(data.upload.url, 'https://cos.example/post');
+
+  const doc = store.files?.find((f) => f._id === data.fileId);
+  assert.ok(doc);
+  assert.equal(doc?.status, 'pending');
+  assert.equal(doc?.purpose, 'oem-drawing');
+  assert.equal(doc?.storageProvider, 'cloudbase-storage');
+  assert.equal(typeof doc?.uploadExpiresAt, 'string');
+  // The plaintext secret is NEVER stored — only its SHA-256 hash.
+  assert.notEqual(doc?.uploadSecretHash, data.uploadSecret);
+  assert.equal(doc?.uploadSecretHash, sha256(data.uploadSecret));
+  // The client IP is hashed, never persisted raw.
+  assert.equal(doc?.uploadSourceHash, sha256('1.2.3.4'));
+  assert.notEqual(doc?.uploadSourceHash, '1.2.3.4');
+});
+
+test('createOemFileUploadIntent rejects an unsupported type or oversize file before minting', async () => {
+  const store = setup({ users: [], files: [] });
+  setMediaStorage(makeFakeMediaStorage({ uploadThrows: true })); // would throw IF it minted
+  expectErr(
+    await callPublic('createOemFileUploadIntent', {
+      fileName: 'malware.exe',
+      mimeType: 'application/octet-stream',
+      byteSize: 10,
+    }),
+    'VALIDATION_ERROR',
+  );
+  expectErr(
+    await callPublic('createOemFileUploadIntent', {
+      fileName: 'big.pdf',
+      mimeType: 'application/pdf',
+      byteSize: OEM_FILE_MAX_BYTES + 1,
+    }),
+    'VALIDATION_ERROR',
+  );
+  // Nothing was written (validation fails closed before any DB/credential work).
+  assert.equal(store.files?.length, 0);
+});
+
+test('createOemFileUploadIntent enforces the per-source fixed-window rate limit', async () => {
+  const src = sha256('9.9.9.9');
+  // Five intents already created this minute by the same source (the per-source cap).
+  setup({ users: [], files: Array.from({ length: 5 }, (_, i) => oemWindowDoc(`w${i}`, src)) });
+  setMediaStorage(makeFakeMediaStorage());
+
+  expectErr(
+    await callPublic('createOemFileUploadIntent', validOemIntent, { sourceIp: '9.9.9.9' }),
+    'CONFLICT',
+  );
+  // A different source is under the global ceiling and still allowed.
+  assert.equal(
+    (await callPublic('createOemFileUploadIntent', validOemIntent, { sourceIp: '8.8.8.8' })).ok,
+    true,
+  );
+});
+
+test('createOemFileUploadIntent enforces the global rate ceiling when the source is unknown', async () => {
+  // 30 intents this minute (the global ceiling) with no per-source signal.
+  setup({ users: [], files: Array.from({ length: 30 }, (_, i) => oemWindowDoc(`g${i}`)) });
+  setMediaStorage(makeFakeMediaStorage());
+  // No sourceIp -> only the global ceiling applies; the 31st is blocked.
+  expectErr(await callPublic('createOemFileUploadIntent', validOemIntent), 'CONFLICT');
+});
+
+test('createOemFileUploadIntent enforces the per-source pending-intent cap', async () => {
+  const src = sha256('7.7.7.7');
+  const future = new Date(Date.now() + 10 * 60_000).toISOString();
+  setup({
+    users: [],
+    files: Array.from({ length: 3 }, (_, i) => oemPendingDoc(`p${i}`, src, future)),
+  });
+  setMediaStorage(makeFakeMediaStorage());
+  expectErr(
+    await callPublic('createOemFileUploadIntent', validOemIntent, { sourceIp: '7.7.7.7' }),
+    'CONFLICT',
+  );
+});
+
+test('createOemFileUploadIntent ignores EXPIRED pending intents when applying the cap', async () => {
+  const src = sha256('7.7.7.7');
+  const past = new Date(Date.now() - 1000).toISOString();
+  // Five pending rows but all expired (uploadExpiresAt < now) -> none count.
+  setup({
+    users: [],
+    files: Array.from({ length: 5 }, (_, i) => oemPendingDoc(`x${i}`, src, past)),
+  });
+  setMediaStorage(makeFakeMediaStorage());
+  assert.equal(
+    (await callPublic('createOemFileUploadIntent', validOemIntent, { sourceIp: '7.7.7.7' })).ok,
+    true,
+  );
+});
+
+test('createOemFileUploadIntent returns INTERNAL_ERROR when the credential mint fails', async () => {
+  setup({ users: [], files: [] });
+  setMediaStorage(makeFakeMediaStorage({ uploadThrows: true }));
+  expectErr(
+    await callPublic('createOemFileUploadIntent', validOemIntent, { sourceIp: '1.2.3.4' }),
+    'INTERNAL_ERROR',
+  );
 });
