@@ -13,6 +13,11 @@ on:
         required: true
         type: boolean
         default: false
+      run_oem_upload_smoke:
+        description: Run browser-origin OEM 9-10 MiB ZIP upload smoke after deploy
+        required: true
+        type: boolean
+        default: false
   push:
     branches:
       - test
@@ -115,7 +120,7 @@ jobs:
         run: pnpm smoke:cloudbase
 
       - name: Install Playwright Chromium
-        if: ${{ github.event_name == 'push' || github.event.inputs.run_public_e2e == 'true' || github.event.inputs.run_media_upload_smoke == 'true' }}
+        if: ${{ github.event_name == 'push' || github.event.inputs.run_public_e2e == 'true' || github.event.inputs.run_media_upload_smoke == 'true' || github.event.inputs.run_oem_upload_smoke == 'true' }}
         run: npx playwright install --with-deps chromium
 
       - name: Run public browser E2E
@@ -134,3 +139,16 @@ jobs:
             exit 1
           fi
           pnpm test:e2e:media-upload
+
+      - name: Run OEM upload smoke
+        if: ${{ github.event.inputs.run_oem_upload_smoke == 'true' }}
+        env:
+          E2E_OEM_UPLOAD_SMOKE: '1'
+          E2E_ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL || 'admin@channel.local' }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+        run: |
+          if [ -z "$E2E_ADMIN_PASSWORD" ]; then
+            echo "E2E_ADMIN_PASSWORD secret is not set for the test environment" >&2
+            exit 1
+          fi
+          pnpm test:e2e:oem-upload

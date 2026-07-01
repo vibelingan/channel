@@ -2628,6 +2628,30 @@ the moment the branch is deployed to the test env.
   `E2E_ADMIN_EMAIL`/`E2E_ADMIN_PASSWORD` + deployed URLs and confirm no
   `EXCEED_MAX_PAYLOAD_SIZE`.
 
+### Increment 6 — deployed to test env + CORS verified + smoke wired to CI — 2026-07-01
+
+- **Deployed:** fast-forwarded `test` to the branch head; Deploy Test run
+  `28516959432` succeeded (deploy + `smoke:cloudbase` + public browser E2E all
+  green). Test env: `diversity-123-d9grnqfux221323bb`.
+- **CORS verified (STORAGE001 satisfied):** the CloudBase storage bucket is
+  `6469-diversity-123-d9grnqfux221323bb-1443560658` (ap-shanghai) — it lives under
+  the CloudBase-managed "云开发桶列表" (not the general COS list, which is why the
+  general list looked empty despite working uploads). CORS preflight against
+  `…cos.ap-shanghai.myqcloud.com` returns `Access-Control-Allow-Origin:
+  https://channel-test-diversity-123-d9grnqfux221323bb.webapps.tcloudbase.com`
+  with `Allow-Methods: GET,POST,PUT,DELETE,HEAD` — so the browser upload POST and
+  the temp-URL download GET are both allowed cross-origin. Storage read/write
+  permission stays default (server mints scoped upload creds; server SDK
+  reads/writes), so no permission change is needed.
+- **Smoke wired to CI:** added a `run_oem_upload_smoke` `workflow_dispatch` input
+  + a "Run OEM upload smoke" step to `.github/workflows/deploy-test.yml` (mirrors
+  the media-upload smoke; uses the existing `E2E_ADMIN_PASSWORD` secret +
+  `ADMIN_EMAIL`/`SITE_URL`/`PUBLIC_API_BASE_URL` vars — no new secrets, nothing
+  hardcoded). Added `test:e2e:oem-upload` script (and restored the missing
+  `test:e2e:media-upload` script the media step already referenced).
+- **Next:** dispatch the workflow with `run_oem_upload_smoke=true` to run the live
+  9–10 MiB ZIP smoke against the deployed env. Green run closes Increment 6 → MIU-08.
+
 ### Admin OEM-download UI wiring — 2026-07-01
 
 Wired the admin OEM-Requests file links to the authenticated `getOemFileDownloadUrl`
