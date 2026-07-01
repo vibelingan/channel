@@ -69,6 +69,11 @@ test.describe('MIU-08 deployed OEM upload smoke', () => {
       );
     }
 
+    // A ~9.5 MiB browser->COS upload plus the server-side finalization (which
+    // re-downloads the object to re-hash it) can run well past the default
+    // per-test timeout from a cross-region CI runner. Give it generous headroom.
+    test.setTimeout(180_000);
+
     const session = await loginAdmin(request);
     const company = `${e2e.runId} OEM ZIP Smoke`;
     const zip = buildOemZip();
@@ -93,9 +98,16 @@ test.describe('MIU-08 deployed OEM upload smoke', () => {
 
       // Reaching the result page proves the 9-10 MiB ZIP went through the direct
       // COS POST: a base64-through-Event-Function path would have failed with
-      // 413 EXCEED_MAX_PAYLOAD_SIZE well before this navigation. Allow generous
-      // time for the multi-MiB upload over the network.
-      await expect(page).toHaveURL(/\/oem_submit_result\?id=/, { timeout: 90_000 });
+      // 413 EXCEED_MAX_PAYLOAD_SIZE well before this navigation. If the form
+      // instead surfaces an inline error, fail FAST with that message rather than
+      // waiting out the whole timeout on an opaque URL check.
+      const formError = page.locator('form[data-project-form] [data-error]');
+      await Promise.race([
+        expect(page).toHaveURL(/\/oem_submit_result\?id=/, { timeout: 150_000 }),
+        formError.waitFor({ state: 'visible', timeout: 150_000 }).then(async () => {
+          throw new Error(`OEM form submission failed: ${(await formError.textContent())?.trim()}`);
+        }),
+      ]);
       const referenceId = new URL(page.url()).searchParams.get('id') ?? '';
       expect(referenceId).not.toBe('');
 

@@ -2652,6 +2652,35 @@ the moment the branch is deployed to the test env.
 - **Next:** dispatch the workflow with `run_oem_upload_smoke=true` to run the live
   9–10 MiB ZIP smoke against the deployed env. Green run closes Increment 6 → MIU-08.
 
+### Increment 6 — live smoke caught a PROD-breaking claim bug (P0) — 2026-07-01
+
+First dispatched OEM smoke (`run_oem_upload_smoke=true`, run `28523991064`) FAILED
+at the submit step. Diagnosed it end-to-end against the deployed env with ad-hoc
+probes:
+
+- Intent mint ✅ and browser→COS POST ✅ (HTTP 204, ~16s for 9.5 MiB from here);
+  but `submitProject` returned **404 `NOT_FOUND` "Upload not found."** — even with
+  a valid triad and no upload.
+- Isolation: a WRONG secret returned `403 FORBIDDEN` (row found + structural checks
+  1–8 passed), while the RIGHT secret returned `404`. After the secret check the
+  only `NOT_FOUND` path is `claim === null`, so the atomic single-winner claim
+  `incrementField('files', id, 'finalizeClaim', 1)` was returning null.
+- **Root cause:** the pending `files` row did not initialise `finalizeClaim`. Real
+  CloudBase `.doc(id).update({ f: _.inc() })` reports `updated: 0` for an inc on an
+  **absent** field, which the adapter maps to `null` → claim fails → `NOT_FOUND`.
+  This broke **every** OEM file submission in production, not just the smoke. The
+  in-memory test adapter initialises absent fields on inc, so the 99 admin unit
+  tests could never catch it — the live smoke did (exactly its purpose). Images
+  already dodge this by initialising `publishedRefCount: 0` at creation.
+- **Fix:** initialise `finalizeClaim: 0` on the pending row in
+  `createOemFileUploadIntent` (mirrors `publishedRefCount: 0`); the claim now
+  increments an existing field → `updated: 1` → `claim === 1`. Added a write-time
+  unit guard (`finalizeClaim === 0` on the minted row) since the adapter can't.
+  Also bumped the smoke's per-test timeout to 180s (cross-region 9.5 MiB upload +
+  server-side re-hash) and made it surface the form's inline `[data-error]` on
+  failure instead of an opaque URL-wait timeout.
+- **Next:** re-deploy + re-dispatch the smoke to confirm green → Increment 6 → MIU-08.
+
 ### Admin OEM-download UI wiring — 2026-07-01
 
 Wired the admin OEM-Requests file links to the authenticated `getOemFileDownloadUrl`

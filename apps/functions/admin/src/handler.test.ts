@@ -1785,6 +1785,13 @@ test('createOemFileUploadIntent mints a credential, writes a pending row, return
   assert.equal(doc?.status, 'pending');
   assert.equal(doc?.purpose, 'oem-drawing');
   assert.equal(doc?.storageProvider, 'cloudbase-storage');
+  // The single-winner claim counter MUST be initialised to 0: finalization's
+  // atomic `incrementField(..., 'finalizeClaim', 1)` must increment an existing
+  // field, because real CloudBase reports `updated: 0` for an inc on an ABSENT
+  // field (→ claim null → NOT_FOUND → every OEM submission broken). This adapter
+  // initialises absent fields on inc, so only this write-time guard catches a
+  // regression that drops the initialiser.
+  assert.equal(doc?.finalizeClaim, 0);
   assert.equal(typeof doc?.uploadExpiresAt, 'string');
   // The plaintext secret is NEVER stored — only its SHA-256 hash.
   assert.notEqual(doc?.uploadSecretHash, data.uploadSecret);

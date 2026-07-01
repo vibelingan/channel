@@ -1838,6 +1838,14 @@ Server actions:
      (now consumed) intent — the row is failed + best-effort deleted and the
      client re-uploads (releasing the claim would be racy; COS is read-after-write
      consistent so this is rare).
+   - The pending row MUST initialise `finalizeClaim: 0` at creation. Real CloudBase
+     `.doc(id).update({ f: _.inc() })` reports `updated: 0` for an inc on an ABSENT
+     field, which the adapter maps to `null`; the claim would then fail closed with
+     `NOT_FOUND` and break every submission. Any atomic-counter field must exist on
+     the doc before it is incremented (as `images.publishedRefCount` does). The
+     in-memory test adapter initialises absent fields on inc, so a write-time guard
+     (assert the field is `0` on the minted row) + the deployed smoke are what
+     catch a regression.
    - Recomputes server-side `byteSize` and `checksumSha256`; client metadata is
      only a hint.
    - Performs ZIP/PDF magic-byte sniffing after reading the object. Mismatch
