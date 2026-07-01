@@ -12,6 +12,7 @@
  * No other file needs to change to support CRUD on a brand new collection.
  */
 import { z } from 'zod';
+import { MEDIA_PURPOSES, MEDIA_STATUSES } from './media.ts';
 
 export type FieldType =
   | 'string'
@@ -207,25 +208,171 @@ export const COLLECTIONS: readonly CollectionDef[] = [
   {
     name: 'images',
     label: 'Images',
-    description: 'Binary image assets (stored as base64 bytes) referenced by catalog items.',
+    // Metadata for image assets referenced by catalog items. Bytes live in
+    // CloudBase Storage (storageProvider 'cloudbase-storage' / 'local-disk') or,
+    // for legacy records, inline base64 in `data` (storageProvider
+    // 'legacy-base64'). Every storage/lifecycle field is server-managed
+    // (readOnly): bytes and storage identifiers are never accepted through the
+    // generic CRUD surface — only through the dedicated media actions. See
+    // docs/IMAGE_UPLOAD_STORAGE_DESIGN.md §20.3 (MIU-01).
+    description: 'Image asset metadata referenced by catalog items.',
     searchableFields: ['name'],
     hideFromNav: true,
     fields: [
       { name: 'name', label: 'Name', type: 'string', required: true },
       { name: 'mimeType', label: 'MIME Type', type: 'string', required: true },
-      { name: 'data', label: 'Data (base64)', type: 'text', hideInTable: true },
+      {
+        name: 'purpose',
+        label: 'Purpose',
+        type: 'select',
+        options: MEDIA_PURPOSES,
+        readOnly: true,
+      },
+      { name: 'storageProvider', label: 'Storage Provider', type: 'string', readOnly: true },
+      {
+        name: 'storageMode',
+        label: 'Storage Mode',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'storageFileId',
+        label: 'Storage File ID',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'storagePath',
+        label: 'Storage Path',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'byteSize', label: 'Byte Size', type: 'number', readOnly: true },
+      {
+        name: 'checksumSha256',
+        label: 'Checksum (SHA-256)',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'status',
+        label: 'Status',
+        type: 'select',
+        options: MEDIA_STATUSES,
+        readOnly: true,
+      },
+      { name: 'publishedRefCount', label: 'Published Refs', type: 'number', readOnly: true },
+      { name: 'variants', label: 'Variants', type: 'json', readOnly: true, hideInTable: true },
+      // Legacy base64 bytes (storageProvider 'legacy-base64'). Read-only: new
+      // bytes never enter through generic CRUD; legacy reads still work.
+      {
+        name: 'data',
+        label: 'Legacy Data (base64)',
+        type: 'text',
+        readOnly: true,
+        hideInTable: true,
+      },
     ],
   },
   {
     name: 'files',
     label: 'Files',
-    description: 'Binary file attachments (stored as base64 bytes), e.g. OEM drawings.',
+    // OEM file/drawing metadata. Bytes live in CloudBase Storage (storage-backed
+    // rows) or, for legacy rows, inline base64 in `data`. Every storage/lifecycle
+    // field is server-managed (readOnly): bytes, storage identifiers, the upload
+    // secret, and status are never accepted through generic CRUD — only through
+    // the dedicated OEM media actions. See §20.10 (MIU-08).
+    description: 'OEM file/drawing metadata referenced by OEM project requests.',
     searchableFields: ['name'],
     hideFromNav: true,
     fields: [
       { name: 'name', label: 'Name', type: 'string', required: true },
       { name: 'mimeType', label: 'MIME Type', type: 'string', required: true },
-      { name: 'data', label: 'Data (base64)', type: 'text', hideInTable: true },
+      { name: 'purpose', label: 'Purpose', type: 'string', readOnly: true },
+      { name: 'storageProvider', label: 'Storage Provider', type: 'string', readOnly: true },
+      {
+        name: 'storageMode',
+        label: 'Storage Mode',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'storageFileId',
+        label: 'Storage File ID',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'storagePath',
+        label: 'Storage Path',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'byteSize', label: 'Byte Size', type: 'number', readOnly: true },
+      {
+        name: 'checksumSha256',
+        label: 'Checksum',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'status',
+        label: 'Status',
+        type: 'select',
+        options: MEDIA_STATUSES,
+        readOnly: true,
+      },
+      { name: 'ownerProjectId', label: 'Owner Project', type: 'string', readOnly: true },
+      {
+        name: 'uploadIntentId',
+        label: 'Upload Intent',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'uploadSecretHash',
+        label: 'Upload Secret Hash',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'uploadSourceHash',
+        label: 'Upload Source Hash',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'uploadExpiresAt',
+        label: 'Upload Expires',
+        type: 'date',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'finalizeClaim',
+        label: 'Finalize Claim',
+        type: 'number',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'data',
+        label: 'Legacy Data (base64)',
+        type: 'text',
+        readOnly: true,
+        hideInTable: true,
+      },
     ],
   },
 ] as const;

@@ -4,9 +4,11 @@
  * injected via `setAdapter` at startup.
  */
 import {
+  COLLECTIONS,
   type CollectionDoc,
   type ListQuery,
   type ListResult,
+  type SortClause,
   buildWriteSchema,
   getCollection,
 } from '@vibelingan-channel/shared';
@@ -125,6 +127,49 @@ export function updateDoc(
   return db().update(collection, id, data);
 }
 
+/**
+ * Trusted, server-side atomic increment of one numeric field, bypassing the
+ * registry write-schema. Used to maintain server-managed counters such as
+ * `images.publishedRefCount` (read-only on the generic CRUD surface). Returns
+ * the new value, or `null` if the document does not exist.
+ */
+export function incrementField(
+  collection: string,
+  id: string,
+  field: string,
+  delta: number,
+): Promise<number | null> {
+  assertKnown(collection);
+  // The delta feeds CloudBase db.command.inc and the local read-modify-write
+  // path directly. A non-finite or fractional delta (NaN/Infinity/0.5) would
+  // poison the counter — and since publishedRefCount gates public visibility,
+  // a NaN silently hides the image (NaN > 0 === false). Guard the one choke
+  // point so counters stay integral.
+  if (!Number.isInteger(delta)) {
+    throw new Error(
+      `@vibelingan-channel/db: incrementField delta must be a finite integer (got ${delta}).`,
+    );
+  }
+  return db().incrementField(collection, id, field, delta);
+}
+
+/**
+ * Compute the next value of an atomic numeric counter for the read-modify-write
+ * adapters (local JSON + in-memory test fakes), mirroring CloudBase
+ * `db.command.inc` semantics: an absent/null field initialises from 0, while an
+ * existing value that is not a finite number is a corruption error — CloudBase's
+ * `$inc` likewise rejects a non-numeric field, so the local path must not
+ * silently coerce it to 0 and diverge. `delta` is assumed already validated
+ * (finite integer) by `incrementField`.
+ */
+export function nextCounterValue(current: unknown, delta: number): number {
+  if (current === undefined || current === null) return delta;
+  if (typeof current === 'number' && Number.isFinite(current)) return current + delta;
+  throw new Error(
+    `@vibelingan-channel/db: cannot increment a non-numeric counter value (got ${typeof current}).`,
+  );
+}
+
 export function remove(collection: string, id: string): Promise<boolean> {
   assertKnown(collection);
   return db().remove(collection, id);
@@ -151,14 +196,113 @@ export async function batchUpdate(
   return results;
 }
 
-/** Remove many documents by id. Returns the count actually removed. */
-export async function batchRemove(collection: string, ids: string[]): Promise<number> {
+/**
+ * Remove many documents by id. Returns the ids actually removed (each at most
+ * once — a repeated or already-gone id is reported only on the call that
+ * deleted it). Callers that maintain derived state (e.g. publishedRefCount) can
+ * thus apply side effects for exactly the deletes that happened, not for ids
+ * they merely intended to delete.
+ */
+export async function batchRemove(collection: string, ids: string[]): Promise<string[]> {
   assertKnown(collection);
-  let removed = 0;
+  const removed: string[] = [];
   for (const id of ids) {
     if (await db().remove(collection, id)) {
-      removed += 1;
+      removed.push(id);
     }
   }
   return removed;
+}
+
+const BACKFILL_PAGE_SIZE = 100;
+
+// Page by the unique `_id` so skip/limit pagination has a TOTAL order. The
+// default sort (createdAt desc) ties for bulk-seeded/migrated rows, and CloudBase
+// (Mongo-style skip/limit) can then skip or duplicate a tied row across a page
+// boundary — which would corrupt the absolute counter this backfill writes. `_id`
+// is unique, so paging is skip/duplicate-free. Order is irrelevant to the tally.
+const STABLE_PAGE_SORT: SortClause[] = [{ field: '_id', dir: 'asc' }];
+
+export interface BackfillRefCountsReport {
+  dryRun: boolean;
+  imagesScanned: number;
+  changes: { imageId: string; from: number | null; to: number }[];
+}
+
+/**
+ * Recompute `images.publishedRefCount` from the current catalog: for each image,
+ * the number of PUBLISHED catalog documents that reference it. "Catalog" is
+ * derived from the registry (any collection with an `imageIds` field), so it
+ * tracks products/overstock without hardcoding. Every image's counter is set to
+ * its tally (0 when unreferenced); duplicate ids within one document count once.
+ *
+ * This is the canonical reconciliation for MIU-04 (design §20.6 step 5): it
+ * repairs drift from the non-transactional maintenance path and initialises rows
+ * that never went through it (e.g. seeded data). With `dryRun`, it computes and
+ * reports the changes without writing. Runs against whatever adapter is wired,
+ * so it serves both the local seed and a deployed (CloudBase) invocation.
+ *
+ * Run during a quiescent window: it writes ABSOLUTE counts, so a live increment
+ * (Phase B maintenance) landing between this function's read and its write can be
+ * transiently clobbered — re-run to reconcile. Not a concern for the local seed
+ * or a one-shot admin maintenance call.
+ */
+export async function backfillPublishedRefCounts(
+  opts: { dryRun?: boolean } = {},
+): Promise<BackfillRefCountsReport> {
+  const dryRun = opts.dryRun ?? false;
+  const catalogCollections = COLLECTIONS.filter((def) =>
+    def.fields.some((field) => field.name === 'imageIds'),
+  ).map((def) => def.name);
+
+  // Tally published references per image id.
+  const counts = new Map<string, number>();
+  for (const collection of catalogCollections) {
+    let page = 1;
+    for (;;) {
+      const res = await list({
+        collection,
+        page,
+        pageSize: BACKFILL_PAGE_SIZE,
+        search: '',
+        filter: { combinator: 'and', clauses: [{ field: 'published', op: 'eq', value: true }] },
+        sort: STABLE_PAGE_SORT,
+      });
+      for (const doc of res.items) {
+        if (!Array.isArray(doc.imageIds)) continue;
+        const ids = new Set(doc.imageIds.map((id) => String(id)).filter((id) => id.length > 0));
+        for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
+      }
+      if (res.items.length === 0 || page * res.pageSize >= res.total) break;
+      page += 1;
+    }
+  }
+
+  // Set every image's counter to its tally.
+  const changes: BackfillRefCountsReport['changes'] = [];
+  let imagesScanned = 0;
+  let page = 1;
+  for (;;) {
+    const res = await list({
+      collection: 'images',
+      page,
+      pageSize: BACKFILL_PAGE_SIZE,
+      search: '',
+      sort: STABLE_PAGE_SORT,
+    });
+    for (const image of res.items) {
+      imagesScanned += 1;
+      const id = String(image._id);
+      const to = counts.get(id) ?? 0;
+      const from = typeof image.publishedRefCount === 'number' ? image.publishedRefCount : null;
+      if (from !== to) {
+        changes.push({ imageId: id, from, to });
+        if (!dryRun) await updateDoc('images', id, { publishedRefCount: to });
+      }
+    }
+    if (res.items.length === 0 || page * res.pageSize >= res.total) break;
+    page += 1;
+  }
+
+  return { dryRun, imagesScanned, changes };
 }

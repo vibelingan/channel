@@ -14,6 +14,7 @@ export interface ApiErr {
   error: {
     code: ErrorCode;
     message: string;
+    retryAfterSeconds?: number;
   };
 }
 
@@ -25,6 +26,17 @@ export function ok<T>(data: T): ApiOk<T> {
 
 export function err(code: ErrorCode, message: string): ApiErr {
   return { ok: false, error: { code, message } };
+}
+
+export function rateLimited(message: string, retryAfterSeconds: number): ApiErr {
+  return {
+    ok: false,
+    error: {
+      code: 'RATE_LIMITED',
+      message,
+      retryAfterSeconds,
+    },
+  };
 }
 
 export function isOk<T>(result: ApiResult<T>): result is ApiOk<T> {

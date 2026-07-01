@@ -107,32 +107,74 @@ export function imageUrl(id: string): string {
   return apiUrl(`/api/images/${encodeURIComponent(id)}`);
 }
 
-/** Public URL that streams the bytes of a file stored in the `files` collection. */
-export function fileUrl(id: string): string {
-  return apiUrl(`/api/files/${encodeURIComponent(id)}`);
+/** A short-lived, admin-authenticated OEM file download (MIU-08 §20.10 step 3). */
+export interface OemFileDownload {
+  fileId: string;
+  url: string;
+  expiresAt?: string;
+  fileName: string;
+  mimeType: string;
+  contentDisposition: string;
 }
 
-/** Read a File as a base64 string (without the data: prefix). */
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result);
-      const comma = result.indexOf(',');
-      resolve(comma >= 0 ? result.slice(comma + 1) : result);
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
-    reader.readAsDataURL(file);
-  });
+/**
+ * Mint a short-TTL temp URL for an admin to download a finalized OEM drawing.
+ * Production has no public `/api/files/:id` route — OEM delivery is this
+ * authenticated action. Never persist the returned URL (it expires in ~60s);
+ * only `active`, storage-backed OEM rows resolve (others fail closed).
+ */
+export function getOemFileDownloadUrl(fileId: string): Promise<OemFileDownload> {
+  return call<OemFileDownload>('getOemFileDownloadUrl', { fileId });
 }
 
-/** Upload an image file into the `images` byte collection; returns its id. */
+interface UploadIntentResponse {
+  imageId: string;
+  uploadIntentId: string;
+  storageFileId: string;
+  upload: { method: 'POST'; url: string; fields: Record<string, string> };
+}
+
+/**
+ * Upload an image via the admin-brokered direct-upload flow (MIU-Upload):
+ *   1. ask the server for a single-object pre-signed credential (createUploadIntent);
+ *   2. `POST` the bytes straight to COS as multipart/form-data — bypassing the function byte cap;
+ *   3. have the server verify + activate (completeUpload).
+ * Returns the new image id. The browser never holds a storage identity — only the
+ * custom JWT (carried by `call`); the COS signature is server-minted.
+ */
 export async function uploadImage(file: File): Promise<string> {
-  const data = await fileToBase64(file);
-  const doc = await createRecord('images', {
-    name: file.name,
-    mimeType: file.type || 'application/octet-stream',
-    data,
+  const intent = await call<UploadIntentResponse>('createUploadIntent', {
+    fileName: file.name,
+    mimeType: file.type,
+    byteSize: file.size,
   });
-  return doc._id;
+
+  const form = new FormData();
+  for (const [key, value] of Object.entries(intent.upload.fields)) form.append(key, value);
+  form.append('file', file);
+
+  const post = await fetch(intent.upload.url, {
+    method: intent.upload.method,
+    body: form,
+  });
+  if (!post.ok) {
+    // Leave the pending doc for orphan cleanup; surface a clear error.
+    throw new AdminApiError('UPLOAD_FAILED', `Storage upload failed (${post.status})`);
+  }
+
+  await call('completeUpload', { imageId: intent.imageId });
+  return intent.imageId;
+}
+
+/**
+ * Admin-authenticated preview: fetch an image's bytes as a `data:` URL — works for
+ * any image the admin may read, regardless of publication. Used by `ImageManager`
+ * instead of the public `/api/images/:id` (which is `publishedRefCount`-gated and
+ * 404s unpublished images). Serves legacy `data` rows and `active` storage rows.
+ */
+export async function getImagePreview(id: string): Promise<string> {
+  const res = await call<{ id: string; mimeType: string; dataBase64: string }>('getImagePreview', {
+    id,
+  });
+  return `data:${res.mimeType};base64,${res.dataBase64}`;
 }

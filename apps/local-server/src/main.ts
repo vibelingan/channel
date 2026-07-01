@@ -10,6 +10,9 @@ import { resolve } from 'node:path';
 import { setAdapter } from '@vibelingan-channel/db';
 import { handleAdminRequest } from '@vibelingan-channel/fn-admin/handler';
 import type { AdminConfig, AdminRequest } from '@vibelingan-channel/fn-admin/handler';
+import { getCatalogImage } from '@vibelingan-channel/fn-public-api/handler';
+import { setMediaStorage } from '@vibelingan-channel/media-storage';
+import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
 import { optionalEnv } from '@vibelingan-channel/shared';
 import type { FilterClause } from '@vibelingan-channel/shared';
 import express from 'express';
@@ -18,6 +21,8 @@ import { seed } from './seed.ts';
 
 const PORT = Number(optionalEnv('PORT', '3002'));
 const DB_FILE = resolve(process.cwd(), optionalEnv('LOCAL_DB_FILE', './data/db.local.json'));
+const MEDIA_DIR = resolve(process.cwd(), optionalEnv('LOCAL_MEDIA_DIR', './data/media'));
+const TCB_ENV = optionalEnv('TCB_ENV', '');
 
 // Dev defaults so the server runs with zero configuration.
 const config: AdminConfig = {
@@ -27,6 +32,28 @@ const config: AdminConfig = {
 
 const adapter = new JsonFileAdapter(DB_FILE);
 setAdapter(adapter);
+
+// The DB stays file-backed locally, but media UPLOADS always mint a real
+// CloudBase pre-signed credential (project decision: one upload path
+// everywhere). When TCB_ENV is configured, wire the CloudBase media adapter so
+// createUploadIntent/completeUpload work locally too; the dynamic import keeps
+// wx-server-sdk out of the default (no-CloudBase) dev run. Otherwise fall back to
+// local-disk for byte DELIVERY only — uploads then fail loudly.
+if (TCB_ENV) {
+  const { cloudStorageSdk, initCloudBase } = await import('@vibelingan-channel/db/cloudbase');
+  const { createCloudBaseMediaStorage } = await import(
+    '@vibelingan-channel/media-storage/cloudbase'
+  );
+  initCloudBase(TCB_ENV);
+  setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
+  console.log(
+    `[local-server] media storage: CloudBase (TCB_ENV=${TCB_ENV}) — real uploads + delivery`,
+  );
+} else {
+  setMediaStorage(new LocalDiskMediaStorage(MEDIA_DIR));
+  console.log('[local-server] media storage: local-disk (delivery only; set TCB_ENV for uploads)');
+}
+
 await seed(adapter);
 
 const app = express();
@@ -68,16 +95,21 @@ function resolveImages(doc: Record<string, unknown>): Record<string, unknown> {
   return { ...doc, images: ids.map((id) => `/api/images/${String(id)}`) };
 }
 
-// Serve image bytes stored (base64) in the `images` collection.
+// PUBLIC image delivery — delegates to the SAME logic as production
+// (`getCatalogImage`): provider/refCount/status gating, the legacy catalog-scan
+// fallback, the placeholder special-case, and fail-closed behavior, all driven by
+// the wired `mediaStorage()` adapter. Sharing the helper keeps local dev from
+// masking the production public gate (no parity to drift). Admin previews of
+// unpublished images use the authed `getImagePreview` action, not this route.
 app.get('/api/images/:id', async (req, res) => {
-  const doc = await adapter.get('images', req.params.id);
-  if (!doc || typeof doc.data !== 'string') {
-    res.status(404).end();
+  const result = await getCatalogImage(req.params.id);
+  if (result.ok && 'body' in result) {
+    res.setHeader('Content-Type', result.headers['Content-Type'] ?? 'application/octet-stream');
+    res.setHeader('Cache-Control', result.headers['Cache-Control'] ?? 'public, max-age=3600');
+    res.send(Buffer.from(result.body, 'base64'));
     return;
   }
-  res.setHeader('Content-Type', String(doc.mimeType ?? 'application/octet-stream'));
-  res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.send(Buffer.from(doc.data, 'base64'));
+  res.status(404).end();
 });
 
 // Download file bytes stored (base64) in the `files` collection. Sent as an

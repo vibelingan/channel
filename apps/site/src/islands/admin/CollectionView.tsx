@@ -14,6 +14,7 @@ import type {
   SortClause,
 } from '@vibelingan-channel/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { FilterBuilder } from './FilterBuilder.tsx';
 import { PreviewModal } from './PreviewModal.tsx';
 import { RecordForm } from './RecordForm.tsx';
@@ -21,7 +22,6 @@ import {
   batchRemoveRecords,
   batchUpdateRecords,
   createRecord,
-  fileUrl,
   imageUrl,
   listRecords,
   removeRecord,
@@ -188,7 +188,7 @@ export function CollectionView({ collection, section }: Props) {
             );
           }
           if (field.type === 'file') {
-            return <FileLink id={doc[field.name]} name={doc.drawingName} />;
+            return <FileDownloadLink id={doc[field.name]} name={doc.drawingName} />;
           }
           return formatCell(doc[field.name]);
         },
@@ -673,28 +673,6 @@ function InlineSelect({
         </option>
       ))}
     </select>
-  );
-}
-
-function FileLink({ id, name }: { id: unknown; name: unknown }) {
-  const fileId = id ? String(id) : '';
-  if (!fileId) {
-    return <span className="text-slate-400">—</span>;
-  }
-  const label = name ? String(name) : 'Download';
-  return (
-    <a
-      href={fileUrl(fileId)}
-      target="_blank"
-      rel="noreferrer"
-      className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-900"
-    >
-      <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-        <path d="M10 2a1 1 0 0 1 1 1v8.59l2.3-2.3a1 1 0 1 1 1.4 1.42l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.42l2.3 2.3V3a1 1 0 0 1 1-1Z" />
-        <path d="M4 15a1 1 0 0 1 1 1v1h10v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z" />
-      </svg>
-      {label}
-    </a>
   );
 }
 

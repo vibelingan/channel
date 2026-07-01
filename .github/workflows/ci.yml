@@ -44,6 +44,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify CloudBase SDK contract
+        run: pnpm verify:cloudbase-sdk
+
       - name: Lint
         run: pnpm lint
 

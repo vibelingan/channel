@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@cloudbase/node-sdk": "2.10.0",
     "@vibelingan-channel/shared": "workspace:*",
     "wx-server-sdk": "latest"
   },

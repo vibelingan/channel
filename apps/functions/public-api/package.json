@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@vibelingan-channel/db": "workspace:*",
+    "@vibelingan-channel/media-storage": "workspace:*",
     "@vibelingan-channel/shared": "workspace:*"
   },
   "devDependencies": {

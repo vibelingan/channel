@@ -1,4 +1,5 @@
 import { get, list } from '@vibelingan-channel/db';
+import { mediaStorage } from '@vibelingan-channel/media-storage';
 import {
   type ApiResult,
   type CollectionDoc,
@@ -133,33 +134,84 @@ async function publishedCatalogReferencesImage(
   }
 }
 
-async function imageIsPublic(imageId: string): Promise<boolean> {
-  if (imageId === PLACEHOLDER_IMAGE_ID) return true;
+/**
+ * Legacy compatibility fallback: scan published catalogs for a reference to this
+ * image. Used ONLY for legacy-base64 rows that predate `publishedRefCount`; once
+ * the Phase-D backfill runs, the ref count is canonical for every provider and
+ * this O(catalog) scan is no longer reached.
+ */
+async function legacyImageIsPublicFallback(imageId: string): Promise<boolean> {
   for (const collection of CATALOGS) {
     if (await publishedCatalogReferencesImage(collection, imageId)) return true;
   }
   return false;
 }
 
-export async function getCatalogImage(imageId: string): Promise<ApiResult<unknown> | BinaryResult> {
-  if (!(await imageIsPublic(imageId))) {
-    return err('NOT_FOUND', 'Image not found');
-  }
-
-  const doc = await get('images', imageId);
-  if (!doc || typeof doc.data !== 'string') {
-    return err('NOT_FOUND', 'Image not found');
-  }
-
+function binaryImage(doc: CollectionDoc, body: string): BinaryResult {
   return {
     ok: true,
-    body: doc.data,
+    body,
     isBase64Encoded: true,
     headers: {
       'Cache-Control': 'public, max-age=3600',
       'Content-Type': typeof doc.mimeType === 'string' ? doc.mimeType : 'application/octet-stream',
     },
   };
+}
+
+export async function getCatalogImage(imageId: string): Promise<ApiResult<unknown> | BinaryResult> {
+  const doc = await get('images', imageId);
+  if (!doc) return err('NOT_FOUND', 'Image not found');
+
+  // The placeholder is public by explicit id — never gated on refcount/status.
+  if (imageId === PLACEHOLDER_IMAGE_ID) {
+    return typeof doc.data === 'string'
+      ? binaryImage(doc, doc.data)
+      : err('NOT_FOUND', 'Image not found');
+  }
+
+  const provider = typeof doc.storageProvider === 'string' ? doc.storageProvider : 'legacy-base64';
+  // publishedRefCount is "valid" only as a finite NUMBER. The writer/backfill
+  // always store a number (and `isStorageBackedImage` narrows on
+  // `typeof === 'number'`), so a numeric STRING like "1" — or any non-number — is
+  // a corrupt value and must fail closed, not coerce to a positive count.
+  const refCount = doc.publishedRefCount;
+  const visibleByRefCount =
+    typeof refCount === 'number' && Number.isFinite(refCount) && refCount > 0;
+  const hasRefCountField = Object.hasOwn(doc, 'publishedRefCount');
+
+  if (provider === 'legacy-base64') {
+    // The O(catalog) scan is a compatibility fallback ONLY for rows that predate
+    // publishedRefCount (field absent). Once the field is PRESENT it is canonical
+    // — a present-but-invalid counter is corruption and fails closed, never scans.
+    const visible = hasRefCountField
+      ? visibleByRefCount
+      : await legacyImageIsPublicFallback(imageId);
+    if (!visible || typeof doc.data !== 'string') return err('NOT_FOUND', 'Image not found');
+    return binaryImage(doc, doc.data);
+  }
+
+  // Storage-backed: only the recognised providers may proxy (matches the shared
+  // `isStorageBackedImage` set) — an unknown/corrupt provider fails closed. Then
+  // require active status, a positive finite numeric count, and a string fileId.
+  const storageFileId = doc.storageFileId;
+  if (
+    (provider !== 'cloudbase-storage' && provider !== 'local-disk') ||
+    doc.status !== 'active' ||
+    !visibleByRefCount ||
+    typeof storageFileId !== 'string'
+  ) {
+    return err('NOT_FOUND', 'Image not found');
+  }
+  try {
+    const object = await mediaStorage().getObjectAsBase64(storageFileId);
+    return binaryImage(doc, object.body);
+  } catch (e) {
+    // Active metadata but unfetchable bytes (missing object / transient store
+    // error): 404 for public delivery rather than leaking a 500.
+    console.error(`[fn-public-api] storage fetch failed for image ${imageId}:`, e);
+    return err('NOT_FOUND', 'Image not found');
+  }
 }
 
 export function parseCatalogName(pathPart: string): PublicCatalog | null {

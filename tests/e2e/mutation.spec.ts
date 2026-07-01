@@ -17,7 +17,14 @@ test.describe('mutation e2e flows', () => {
     'Set E2E_ALLOW_MUTATION=1 plus admin credentials to run DB-writing e2e.',
   );
 
-  test('admin-created published product appears in the public catalog and is cleaned up', async ({
+  // SKIPPED until the admin-brokered direct-upload MIU lands. MIU-01 made the
+  // `images` `data` field read-only, so this test's setup — creating renderable
+  // images via generic `create({ collection: 'images', data })` — is now
+  // intentionally rejected (VALIDATION_ERROR), and there is no generic path to
+  // create a byte-backed image anymore. Re-enable and route image creation
+  // through the upload-intent flow when MIU-Upload is implemented.
+  // See docs/IMAGE_UPLOAD_EXECUTION.md (MIU-01 "known intermediate state").
+  test.skip('admin-created published product appears in the public catalog and is cleaned up', async ({
     page,
     request,
   }) => {

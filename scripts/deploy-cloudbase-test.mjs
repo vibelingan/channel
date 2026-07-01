@@ -1,5 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,6 +10,13 @@ const functionRootPath = resolve(root, '.cloudbase-artifacts/functions');
 const siteRootPath = resolve(root, 'apps/site');
 const targetRuntime = process.env.CLOUDBASE_FUNCTION_RUNTIME || 'Nodejs20.19';
 const webAppServiceName = process.env.CLOUDBASE_WEBAPP_SERVICE || 'channel-test';
+const functionActiveTimeoutMs = positiveIntegerEnv('CLOUDBASE_FUNCTION_ACTIVE_TIMEOUT_MS', 300_000);
+const functionPollIntervalMs = positiveIntegerEnv('CLOUDBASE_FUNCTION_POLL_INTERVAL_MS', 5_000);
+const cloudBaseCliPackage = process.env.CLOUDBASE_CLI_PACKAGE || '@cloudbase/cli@3.5.9';
+const cloudBaseCliDeployModes = (process.env.CLOUDBASE_CLI_DEPLOY_MODES || 'zip,cos')
+  .split(',')
+  .map((mode) => mode.trim())
+  .filter(Boolean);
 const envId = requireEnv('TCB_ENV_ID');
 const appEnv = process.env.APP_ENV || 'test';
 const siteUrl = trimSlash(
@@ -27,6 +36,16 @@ function trimSlash(value) {
 function requireEnv(name) {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
+  return value;
+}
+
+function positiveIntegerEnv(name, fallback) {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer number of milliseconds.`);
+  }
   return value;
 }
 
@@ -77,86 +96,309 @@ function callTool(selector, args, options = {}) {
   throw new Error(`mcporter call failed for ${selector}: ${lastError?.message ?? 'unknown error'}`);
 }
 
-function functionDetail(functionName, allowFailure = false) {
+function requestIdFrom(result) {
+  return (
+    result?.data?.raw?.RequestId ??
+    result?.data?.raw?.codeRes?.RequestId ??
+    result?.data?.raw?.configRes?.RequestId ??
+    result?.data?.requestId ??
+    result?.data?.RequestId ??
+    result?.requestId ??
+    null
+  );
+}
+
+function toolMessage(result) {
+  if (!result || typeof result !== 'object') return 'no result object returned';
+  const raw = result.data?.raw;
+  const summary = {
+    success: result.success,
+    code: result.code ?? raw?.Code,
+    message: result.message ?? raw?.Message,
+    requestId: requestIdFrom(result),
+    dataKeys: result.data && typeof result.data === 'object' ? Object.keys(result.data) : [],
+    rawKeys: raw && typeof raw === 'object' ? Object.keys(raw) : [],
+  };
+  return JSON.stringify(summary).slice(0, 700);
+}
+
+function assertToolSucceeded(result, label) {
+  if (!result || typeof result !== 'object') {
+    throw new Error(`${label} returned no result object.`);
+  }
+  if (result.success === false) {
+    throw new Error(`${label} failed: ${toolMessage(result)}`);
+  }
+}
+
+function parseCliJsonWithNoise(output) {
+  const start = output.indexOf('{');
+  if (start < 0) return null;
+  try {
+    return JSON.parse(output.slice(start));
+  } catch {
+    return null;
+  }
+}
+
+function redactCliArgs(args) {
+  const sensitiveFlags = new Set(['--apiKeyId', '--apiKey', '--token']);
+  return args.map((arg, index) => (sensitiveFlags.has(args[index - 1]) ? '<redacted>' : arg));
+}
+
+function runCloudBaseCli(args, options = {}) {
+  try {
+    return execFileSync('npx', ['-y', '-p', cloudBaseCliPackage, 'tcb', ...args], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: options.timeoutMs ?? 300_000,
+    });
+  } catch (error) {
+    const safeArgs = redactCliArgs(args).join(' ');
+    const output = `${error.stdout ?? ''}${error.stderr ?? ''}`.slice(0, 1_200);
+    throw new Error(`CloudBase CLI failed: tcb ${safeArgs}\n${output}`);
+  }
+}
+
+let cloudBaseCliAuthenticated = false;
+
+function ensureCloudBaseCliAuth() {
+  if (cloudBaseCliAuthenticated) return;
+  runCloudBaseCli(
+    [
+      'login',
+      '--apiKeyId',
+      requireEnv('TENCENTCLOUD_SECRETID'),
+      '--apiKey',
+      requireEnv('TENCENTCLOUD_SECRETKEY'),
+      '--json',
+    ],
+    { timeoutMs: 180_000 },
+  );
+  cloudBaseCliAuthenticated = true;
+  console.log('CloudBase CLI authenticated with permanent CAM credentials.');
+}
+
+function writeCloudBaseCliConfig(def) {
+  const configDir = mkdtempSync(resolve(tmpdir(), `channel-${def.name}-tcb-`));
+  const configPath = resolve(configDir, 'cloudbaserc.json');
+  writeFileSync(
+    configPath,
+    `${JSON.stringify(
+      {
+        $schema: 'https://static.cloudbase.net/cli/cloudbaserc.schema.json',
+        envId,
+        functionRoot: functionRootPath,
+        functions: [
+          {
+            name: def.name,
+            runtime: targetRuntime,
+            handler: 'index.main',
+            timeout: 20,
+            memorySize: 256,
+            envVariables: def.envVariables,
+          },
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
+  return { configDir, configPath };
+}
+
+function summarizeCloudBaseCliOutput(output) {
+  const parsed = parseCliJsonWithNoise(output);
+  if (parsed) {
+    return JSON.stringify({
+      code: parsed.code,
+      message: parsed.message,
+      requestId: parsed.requestId ?? parsed.RequestId ?? parsed.data?.requestId,
+      dataKeys: parsed.data && typeof parsed.data === 'object' ? Object.keys(parsed.data) : [],
+    }).slice(0, 700);
+  }
+  return output.replace(/\s+/g, ' ').trim().slice(0, 700) || 'no CLI output';
+}
+
+function deployFunctionWithCloudBaseCli(def, reason, action) {
+  ensureCloudBaseCliAuth();
+  const { configDir, configPath } = writeCloudBaseCliConfig(def);
+  const artifactDir = resolve(functionRootPath, def.name);
+  try {
+    const errors = [];
+    for (const deployMode of cloudBaseCliDeployModes) {
+      try {
+        const commandArgs =
+          action === 'update'
+            ? [
+                '--config-file',
+                configPath,
+                '-e',
+                envId,
+                'fn',
+                'code',
+                'update',
+                def.name,
+                '--dir',
+                artifactDir,
+                '--deployMode',
+                deployMode,
+                '--json',
+              ]
+            : [
+                '--config-file',
+                configPath,
+                '-e',
+                envId,
+                'fn',
+                'deploy',
+                def.name,
+                '--dir',
+                artifactDir,
+                '--runtime',
+                targetRuntime,
+                '--deployMode',
+                deployMode,
+                '--force',
+                '--json',
+              ];
+        const output = runCloudBaseCli(commandArgs, { timeoutMs: 600_000 });
+        console.log(
+          `${def.name}: CloudBase CLI ${deployMode} ${action} submitted (${reason}); ${summarizeCloudBaseCliOutput(
+            output,
+          )}`,
+        );
+        return;
+      } catch (error) {
+        errors.push(`${deployMode}: ${error.message}`);
+        if (deployMode !== cloudBaseCliDeployModes.at(-1)) {
+          console.warn(
+            `${def.name}: CloudBase CLI ${deployMode} ${action} failed; trying next mode.`,
+          );
+        }
+      }
+    }
+    throw new Error(`${def.name}: all CloudBase CLI ${action} modes failed\n${errors.join('\n')}`);
+  } finally {
+    rmSync(configDir, { force: true, recursive: true });
+  }
+}
+
+function isFunctionUpdatingResult(result) {
+  const message = `${result?.message ?? result?.data?.raw?.Message ?? ''}`;
+  return /Updating状态|updating/i.test(message);
+}
+
+function isCredentialFailure(message) {
+  return /token verification failed|authfailure|unauthorized|invalid.+credential|invalid.+token|expired.+token/i.test(
+    message ?? '',
+  );
+}
+
+function functionDetailResult(functionName, allowFailure = false) {
   const result = callTool(
     'cloudbase.queryFunctions',
     { action: 'getFunctionDetail', functionName },
     { allowFailure },
   );
-  if (result.success === false) return null;
-  return result.data?.functionDetail ?? null;
+  if (result.success === false && isCredentialFailure(result.message)) {
+    throw new Error(
+      `CloudBase credentials are invalid or expired while querying ${functionName}: ${result.message}`,
+    );
+  }
+  return {
+    detail: result.success === false ? null : (result.data?.functionDetail ?? null),
+    message: result.message,
+  };
 }
 
-function waitForGone(functionName) {
-  for (let i = 0; i < 12; i += 1) {
-    if (!functionDetail(functionName, true)) return;
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5000);
+function functionDetail(functionName, allowFailure = false) {
+  return functionDetailResult(functionName, allowFailure).detail;
+}
+
+function sleep(ms) {
+  if (ms > 0) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
   }
-  throw new Error(`${functionName} still exists after delete.`);
+}
+
+function summarizeFunctionState(state) {
+  const detail = state?.detail;
+  if (!detail) {
+    return state?.message ? `query failed: ${state.message}` : 'no function detail returned';
+  }
+  return JSON.stringify({
+    status: detail.Status,
+    availableStatus: detail.AvailableStatus,
+    runtime: detail.Runtime,
+    codeSize: detail.CodeSize,
+    statusReason: detail.StatusReason,
+    statusDesc: detail.StatusDesc,
+    updateTime: detail.UpdateTime,
+  });
+}
+
+function artifactSummary(functionName) {
+  const indexFile = resolve(functionRootPath, functionName, 'index.js');
+  const size = statSync(indexFile).size;
+  const hash = createHash('sha256').update(readFileSync(indexFile)).digest('hex').slice(0, 16);
+  return `${size} bytes sha256:${hash}`;
 }
 
 function waitForActive(functionName) {
-  for (let i = 0; i < 18; i += 1) {
-    const detail = functionDetail(functionName, true);
+  const deadline = Date.now() + functionActiveTimeoutMs;
+  let nextLogAt = Date.now();
+  let lastState = null;
+
+  while (Date.now() < deadline) {
+    lastState = functionDetailResult(functionName, true);
+    const detail = lastState.detail;
     if (detail?.Status === 'Active' || detail?.AvailableStatus === 'Available') return detail;
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5000);
+
+    const now = Date.now();
+    if (now >= nextLogAt) {
+      console.log(
+        `${functionName}: waiting for active state; ${summarizeFunctionState(lastState)}`,
+      );
+      nextLogAt = now + 30_000;
+    }
+    sleep(Math.min(functionPollIntervalMs, Math.max(deadline - now, 0)));
   }
-  throw new Error(`${functionName} did not become active.`);
+  throw new Error(
+    `${functionName} did not become active within ${functionActiveTimeoutMs}ms; last state: ${summarizeFunctionState(lastState)}`,
+  );
 }
 
 function envEntries(record) {
   return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined));
 }
 
-function createFunction(def) {
-  const result = callTool(
-    'cloudbase.manageFunctions',
-    {
-      action: 'createFunction',
-      functionRootPath,
-      force: true,
-      func: {
-        name: def.name,
-        runtime: targetRuntime,
-        handler: 'index.main',
-        timeout: 20,
-        memorySize: 256,
-        type: 'Event',
-        installDependency: false,
-        envVariables: def.envVariables,
-      },
-    },
-    { timeoutMs: 240_000 },
-  );
-  return (
-    result.data?.raw?.RequestId ??
-    result.data?.raw?.codeRes?.RequestId ??
-    result.data?.raw?.configRes?.RequestId ??
-    'unknown'
-  );
-}
-
-function updateFunction(def) {
-  const codeResult = callTool(
-    'cloudbase.manageFunctions',
-    {
-      action: 'updateFunctionCode',
+function updateFunctionConfig(def) {
+  let configResult = null;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    configResult = callTool('cloudbase.manageFunctions', {
+      action: 'updateFunctionConfig',
       functionName: def.name,
-      functionRootPath,
-    },
-    { timeoutMs: 240_000 },
-  );
-  const configResult = callTool('cloudbase.manageFunctions', {
-    action: 'updateFunctionConfig',
-    functionName: def.name,
-    handler: 'index.main',
-    timeout: 20,
-    envVariables: def.envVariables,
-  });
-  return {
-    codeRequestId: codeResult.data?.raw?.RequestId ?? codeResult.data?.requestId ?? 'unknown',
-    configRequestId: configResult.data?.raw?.RequestId ?? configResult.data?.requestId ?? 'unknown',
-  };
+      handler: 'index.main',
+      timeout: 20,
+      envVariables: def.envVariables,
+    });
+    if (
+      configResult.success !== false ||
+      !isFunctionUpdatingResult(configResult) ||
+      attempt === 3
+    ) {
+      break;
+    }
+    console.log(
+      `${def.name}: config update hit Updating state; waiting before retry ${attempt + 1}`,
+    );
+    waitForActive(def.name);
+  }
+  assertToolSucceeded(configResult, `${def.name}: updateFunctionConfig`);
+  return requestIdFrom(configResult) ?? 'unknown';
 }
 
 const functionDefs = [
@@ -198,40 +440,32 @@ function deployFunction(def) {
   if (!existsSync(resolve(artifactDir, 'index.js'))) {
     throw new Error(`Missing packaged function artifact for ${def.name}: ${artifactDir}`);
   }
+  console.log(`${def.name}: artifact ${artifactSummary(def.name)}`);
 
   const before = functionDetail(def.name, true);
   if (before && before.Runtime !== targetRuntime) {
-    console.log(
-      `${def.name}: runtime drift ${before.Runtime} -> ${targetRuntime}; deleting for recreate`,
+    throw new Error(
+      `${def.name}: runtime drift ${before.Runtime} -> ${targetRuntime}; CloudBase function runtime is creation-time locked, so CI will not delete/recreate it automatically.`,
     );
-    callTool('cloudbase.manageFunctions', {
-      action: 'deleteFunction',
-      functionName: def.name,
-      confirm: true,
-    });
-    waitForGone(def.name);
   }
 
-  const current = functionDetail(def.name, true);
-  if (current) {
-    const requests = updateFunction(def);
-    const after = waitForActive(def.name);
-    if (after.Runtime !== targetRuntime) {
-      throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${after.Runtime}`);
-    }
-    console.log(
-      `${def.name}: updated on ${after.Runtime}; code request ${requests.codeRequestId}; config request ${requests.configRequestId}`,
-    );
-    return;
-  }
-
-  const requestId = createFunction(def);
-
+  deployFunctionWithCloudBaseCli(
+    def,
+    before ? 'primary CI code update' : 'primary CI create',
+    before ? 'update' : 'deploy',
+  );
   const after = waitForActive(def.name);
   if (after.Runtime !== targetRuntime) {
     throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${after.Runtime}`);
   }
-  console.log(`${def.name}: deployed on ${after.Runtime}; request ${requestId}`);
+  const configRequestId = updateFunctionConfig(def);
+  const configAfter = waitForActive(def.name);
+  if (configAfter.Runtime !== targetRuntime) {
+    throw new Error(`${def.name}: expected runtime ${targetRuntime}, got ${configAfter.Runtime}`);
+  }
+  console.log(
+    `${def.name}: deployed on ${configAfter.Runtime}; code deploy cloudbase-cli-primary; config request ${configRequestId}`,
+  );
 }
 
 function ensureGateway(def) {

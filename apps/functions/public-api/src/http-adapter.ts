@@ -1,4 +1,5 @@
 import { type ApiResult, err, ok } from '@vibelingan-channel/shared';
+import { releaseInfo } from '@vibelingan-channel/shared/release';
 import {
   type BinaryResult,
   type CatalogQuery,
@@ -114,6 +115,8 @@ function statusFor(result: ApiResult<unknown>): number {
       return 404;
     case 'CONFLICT':
       return 409;
+    case 'RATE_LIMITED':
+      return 429;
     case 'INTERNAL_ERROR':
       return 500;
     default: {
@@ -225,7 +228,7 @@ async function routeGet(
   const segments = apiSegments(path);
 
   if (segments.length === 1 && segments[0] === 'health') {
-    return jsonResponse(event, config, ok({ status: 'ok', service: 'public-api' }));
+    return jsonResponse(event, config, ok(releaseInfo('public-api')));
   }
 
   const collection = segments[0] ? parseCatalogName(segments[0]) : null;

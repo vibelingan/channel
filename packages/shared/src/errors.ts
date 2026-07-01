@@ -7,6 +7,7 @@ export const ERROR_CODES = [
   'VALIDATION_ERROR',
   'UNKNOWN_COLLECTION',
   'CONFLICT',
+  'RATE_LIMITED',
   'INTERNAL_ERROR',
 ] as const;
 

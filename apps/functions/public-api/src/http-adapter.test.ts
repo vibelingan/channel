@@ -1,6 +1,13 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
-import { type AdapterListQuery, type DbAdapter, setAdapter } from '@vibelingan-channel/db';
+import {
+  type AdapterListQuery,
+  type DbAdapter,
+  incrementField,
+  nextCounterValue,
+  setAdapter,
+} from '@vibelingan-channel/db';
+import { type MediaStorageAdapter, setMediaStorage } from '@vibelingan-channel/media-storage';
 import {
   type CollectionDoc,
   type ListResult,
@@ -10,6 +17,32 @@ import {
 import { type HttpResponse, handlePublicApiEvent } from './http-adapter.ts';
 
 type Store = Record<string, CollectionDoc[]>;
+
+/** Storage-backed bytes keyed by storageFileId; a missing key models an
+ *  unfetchable object so getCatalogImage's fetch-failure branch is exercised. */
+const STORAGE_BYTES: Record<string, string> = {
+  'cloud://active': Buffer.from('storage-png-bytes').toString('base64'),
+};
+
+const fakeMediaStorage: MediaStorageAdapter = {
+  async putObject() {
+    throw new Error('fake media storage: putObject not used in public-api tests');
+  },
+  async getObjectAsBase64(fileId: string) {
+    const bytes = STORAGE_BYTES[fileId];
+    if (bytes === undefined) throw new Error(`fake media storage: no object for ${fileId}`);
+    return { body: bytes, byteSize: Buffer.from(bytes, 'base64').byteLength };
+  },
+  async getTempUrl() {
+    throw new Error('fake media storage: getTempUrl not used in public-api tests');
+  },
+  async deleteObject() {
+    throw new Error('fake media storage: deleteObject not used in public-api tests');
+  },
+  async getUploadCredential() {
+    throw new Error('fake media storage: getUploadCredential not used in public-api tests');
+  },
+};
 
 class MemoryAdapter implements DbAdapter {
   constructor(private readonly store: Store) {}
@@ -75,6 +108,21 @@ class MemoryAdapter implements DbAdapter {
     docs.splice(index, 1);
     return true;
   }
+
+  async incrementField(
+    collection: string,
+    id: string,
+    field: string,
+    delta: number,
+  ): Promise<number | null> {
+    const docs = this.store[collection] ?? [];
+    const index = docs.findIndex((doc) => doc._id === id);
+    if (index < 0) return null;
+    const existing = docs[index] as CollectionDoc;
+    const next = nextCounterValue(existing[field], delta);
+    docs[index] = { ...existing, [field]: next };
+    return next;
+  }
 }
 
 function body(response: HttpResponse): unknown {
@@ -133,12 +181,116 @@ function seedStore(): Store {
         mimeType: 'image/svg+xml',
         data: Buffer.from('<svg/>').toString('base64'),
       },
+      // Storage-backed rows — visibility is canonical (status + publishedRefCount),
+      // no catalog scan. Bytes are proxied via the media adapter.
+      {
+        _id: 'storage-active',
+        name: 'active.png',
+        mimeType: 'image/png',
+        storageProvider: 'cloudbase-storage',
+        storageFileId: 'cloud://active',
+        status: 'active',
+        publishedRefCount: 1,
+      },
+      {
+        _id: 'storage-zero',
+        name: 'zero.png',
+        mimeType: 'image/png',
+        storageProvider: 'cloudbase-storage',
+        storageFileId: 'cloud://active',
+        status: 'active',
+        publishedRefCount: 0,
+      },
+      {
+        _id: 'storage-pending',
+        name: 'pending.png',
+        mimeType: 'image/png',
+        storageProvider: 'cloudbase-storage',
+        storageFileId: 'cloud://active',
+        status: 'pending',
+        publishedRefCount: 1,
+      },
+      {
+        _id: 'storage-nobytes',
+        name: 'nobytes.png',
+        mimeType: 'image/png',
+        storageProvider: 'cloudbase-storage',
+        storageFileId: 'cloud://missing',
+        status: 'active',
+        publishedRefCount: 1,
+      },
+      // Legacy row that HAS been backfilled to refCount 0 → canonical, no scan.
+      {
+        _id: 'legacy-refcount-zero',
+        name: 'legacy0.svg',
+        mimeType: 'image/svg+xml',
+        data: Buffer.from('<svg/>').toString('base64'),
+        publishedRefCount: 0,
+      },
+      // Storage row with a corrupt (non-finite) counter → must fail closed.
+      {
+        _id: 'storage-corrupt-refcount',
+        name: 'corrupt.png',
+        mimeType: 'image/png',
+        storageProvider: 'cloudbase-storage',
+        storageFileId: 'cloud://active',
+        status: 'active',
+        publishedRefCount: 'oops',
+      },
+      // Legacy row canonically visible via refCount>0; its id is in NO catalog,
+      // so a 200 proves the canonical path rendered it WITHOUT the scan fallback.
+      {
+        _id: 'legacy-refcount-positive',
+        name: 'legacy1.svg',
+        mimeType: 'image/svg+xml',
+        data: Buffer.from('<svg/>').toString('base64'),
+        publishedRefCount: 1,
+      },
+      // Storage row for the Phase B↔C contract test (refCount bumped at runtime).
+      {
+        _id: 'storage-link-e2e',
+        name: 'e2e.png',
+        mimeType: 'image/png',
+        storageProvider: 'cloudbase-storage',
+        storageFileId: 'cloud://active',
+        status: 'active',
+        publishedRefCount: 0,
+      },
+      // Post-D hardening fixtures: a numeric-STRING counter is corruption (the
+      // writer always stores a number) and must fail closed, not coerce.
+      {
+        _id: 'storage-string-refcount',
+        name: 's1.png',
+        mimeType: 'image/png',
+        storageProvider: 'cloudbase-storage',
+        storageFileId: 'cloud://active',
+        status: 'active',
+        publishedRefCount: '1',
+      },
+      {
+        _id: 'legacy-string-refcount',
+        name: 'l1.svg',
+        mimeType: 'image/svg+xml',
+        data: Buffer.from('<svg/>').toString('base64'),
+        publishedRefCount: '1',
+      },
+      // Unknown/corrupt provider must not be treated as storage-backed.
+      {
+        _id: 'storage-unknown-provider',
+        name: 'u.png',
+        mimeType: 'image/png',
+        storageProvider: 'mystery-store',
+        storageFileId: 'cloud://active',
+        status: 'active',
+        publishedRefCount: 1,
+      },
     ],
   };
 }
 
-function setup(): void {
-  setAdapter(new MemoryAdapter(seedStore()));
+function setup(store: Store = seedStore()): void {
+  setAdapter(new MemoryAdapter(store));
+  setMediaStorage(fakeMediaStorage);
 }
 
 test('lists only published catalog items and caps pageSize at 48', async () => {
@@ -214,6 +366,17 @@ test('accepts gateway-stripped public API paths', async () => {
   const image = await handlePublicApiEvent({ httpMethod: 'GET', path: '/images/linked-image' }, {});
 
   assert.equal(health.statusCode, 200);
+  const healthBody = JSON.parse(health.body) as {
+    ok: boolean;
+    data?: { status?: string; service?: string; releaseId?: string; buildTime?: string };
+  };
+  assert.equal(healthBody.ok, true);
+  assert.equal(healthBody.data?.status, 'ok');
+  assert.equal(healthBody.data?.service, 'public-api');
+  assert.equal(typeof healthBody.data?.releaseId, 'string');
+  assert.notEqual(healthBody.data?.releaseId?.length, 0);
+  assert.equal(typeof healthBody.data?.buildTime, 'string');
+  assert.notEqual(healthBody.data?.buildTime?.length, 0);
   assert.equal(products.statusCode, 200);
   assert.equal(detail.statusCode, 200);
   assert.equal(image.statusCode, 200);
@@ -235,4 +398,120 @@ test('returns 204 for CORS preflight', async () => {
   assert.equal(response.statusCode, 204);
   assert.equal(response.body, '');
   assert.equal(response.headers['Access-Control-Allow-Origin'], 'https://site.example');
+});
+
+// --- MIU-04 Phase C: provider/refCount delivery branching -------------------
+
+async function imageReq(id: string): Promise<HttpResponse> {
+  return handlePublicApiEvent({ httpMethod: 'GET', path: `/api/images/${id}` }, {});
+}
+
+test('storage-backed active image with refCount>0 renders via the media proxy', async () => {
+  setup();
+  const res = await imageReq('storage-active');
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers['Content-Type'], 'image/png');
+  assert.equal(res.isBase64Encoded, true);
+  assert.equal(res.body, STORAGE_BYTES['cloud://active']); // proxied bytes
+});
+
+test('storage-backed image with refCount 0 returns 404 (canonical, no scan)', async () => {
+  setup();
+  assert.equal((await imageReq('storage-zero')).statusCode, 404);
+});
+
+test('pending storage-backed image returns 404 even with refCount>0', async () => {
+  setup();
+  assert.equal((await imageReq('storage-pending')).statusCode, 404);
+});
+
+test('storage-backed image whose bytes are unfetchable returns 404 (not 500)', async () => {
+  setup();
+  assert.equal((await imageReq('storage-nobytes')).statusCode, 404);
+});
+
+test('legacy-base64 row with a present refCount of 0 is hidden (canonical, no scan)', async () => {
+  setup();
+  assert.equal((await imageReq('legacy-refcount-zero')).statusCode, 404);
+});
+
+test('legacy-base64 row without a refCount still renders via the catalog-scan fallback', async () => {
+  // linked-image has no publishedRefCount and is referenced by a published
+  // product, so the compatibility scan keeps it visible until backfill runs.
+  setup();
+  assert.equal((await imageReq('linked-image')).statusCode, 200);
+});
+
+test('placeholder image is public by id regardless of refcount/status', async () => {
+  setup();
+  const res = await imageReq('_placeholder');
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers['Content-Type'], 'image/svg+xml');
+});
+
+test('storage-backed image with a corrupt (non-finite) refCount fails closed (404)', async () => {
+  setup();
+  assert.equal((await imageReq('storage-corrupt-refcount')).statusCode, 404);
+});
+
+test('legacy-base64 row with refCount>0 renders via the canonical path (no scan)', async () => {
+  setup();
+  // The id is in no catalog, so the scan fallback would 404; a 200 proves the
+  // canonical visibleByRefCount branch rendered it.
+  assert.equal((await imageReq('legacy-refcount-positive')).statusCode, 200);
+});
+
+test('Phase B↔C contract: bumping publishedRefCount makes a storage image deliverable', async () => {
+  setup();
+  assert.equal((await imageReq('storage-link-e2e')).statusCode, 404); // refCount 0 → hidden
+  await incrementField('images', 'storage-link-e2e', 'publishedRefCount', 1);
+  const res = await imageReq('storage-link-e2e');
+  assert.equal(res.statusCode, 200); // reader consumes the counter the writer maintains
+  assert.equal(res.body, STORAGE_BYTES['cloud://active']);
+});
+
+// --- MIU-04 post-D review hardening: strict counter + provider guards --------
+
+test('storage-backed image with a numeric-STRING refCount fails closed (404)', async () => {
+  setup();
+  // "1" is a contract violation (writer stores a number); must not coerce.
+  assert.equal((await imageReq('storage-string-refcount')).statusCode, 404);
+});
+
+test('legacy row with a numeric-STRING refCount fails closed (404)', async () => {
+  setup();
+  assert.equal((await imageReq('legacy-string-refcount')).statusCode, 404);
+});
+
+test('image with an unknown storageProvider fails closed (404)', async () => {
+  setup();
+  assert.equal((await imageReq('storage-unknown-provider')).statusCode, 404);
+});
+
+test('legacy row with a present-but-corrupt refCount does NOT fall back to the scan (404)', async () => {
+  // A published product references it, so the pre-fix scan fallback would have
+  // rendered it; a PRESENT-but-invalid counter is canonical corruption → 404.
+  const store: Store = {
+    products: [
+      {
+        _id: 'p-corrupt',
+        name: 'Pc',
+        category: 'wired',
+        published: true,
+        imageIds: ['legacy-corrupt'],
+      },
+    ],
+    overstock: [],
+    images: [
+      {
+        _id: 'legacy-corrupt',
+        name: 'c.svg',
+        mimeType: 'image/svg+xml',
+        data: Buffer.from('<svg/>').toString('base64'),
+        publishedRefCount: 'oops',
+      },
+    ],
+  };
+  setup(store);
+  assert.equal((await imageReq('legacy-corrupt')).statusCode, 404);
 });
