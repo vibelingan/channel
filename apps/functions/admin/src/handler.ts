@@ -1515,7 +1515,23 @@ async function createOemFileUploadIntentAction(
     await rollback();
     return err('INTERNAL_ERROR', 'Could not start the upload. Please try again.');
   }
-  await updateDoc('files', reserved._id, { storageFileId: credential.storageFileId });
+
+  try {
+    const attached = await updateDoc('files', reserved._id, {
+      storageFileId: credential.storageFileId,
+    });
+    if (!attached) {
+      console.error(
+        '[fn-admin] createOemFileUploadIntent: reservation vanished before storageFileId attach',
+      );
+      await rollback();
+      return err('INTERNAL_ERROR', 'Could not start the upload. Please try again.');
+    }
+  } catch (e) {
+    console.error('[fn-admin] createOemFileUploadIntent: storageFileId attach failed', e);
+    await rollback();
+    return err('INTERNAL_ERROR', 'Could not start the upload. Please try again.');
+  }
 
   return ok({
     fileId: reserved._id,

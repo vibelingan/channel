@@ -1897,6 +1897,18 @@ test('createOemFileUploadIntent returns INTERNAL_ERROR when the credential mint 
   assert.equal(store.files?.length, 0);
 });
 
+test('createOemFileUploadIntent rolls back the reservation when storageFileId attach fails', async () => {
+  for (const mode of ['null', 'throw'] as const) {
+    const store = setupFailingUpdate({ users: [], files: [] }, mode);
+    setMediaStorage(makeFakeMediaStorage());
+    expectErr(
+      await callPublic('createOemFileUploadIntent', validOemIntent, { sourceIp: '6.6.6.6' }),
+      'INTERNAL_ERROR',
+    );
+    assert.equal(store.files?.length, 0, `${mode} attach failure should not leak a reservation`);
+  }
+});
+
 test('createOemFileUploadIntent admits at most the cap as reservations accumulate', async () => {
   // Reserve-first bound: each admitted intent persists as a pending row that the
   // NEXT request counts, so the per-source pending cap admits exactly N then
