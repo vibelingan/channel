@@ -554,9 +554,21 @@ async function verifyAndClaimOemUpload(input: {
     timingSafeEqual(Buffer.from(presentedHash), Buffer.from(storedHash));
   if (!secretOk) return fail(err('FORBIDDEN', 'Upload verification failed.'));
 
-  // --- Ownership PROVEN. Byte-level failures below may fail + delete the object.
+  // --- Ownership PROVEN by the secret. ---
   const storageFileId = doc.storageFileId;
   const fileName = typeof doc.name === 'string' ? doc.name : '';
+
+  // Consume-once ATOMIC single-winner claim — placed BEFORE any object download or
+  // destructive mutation (Codex `871adff` P1). A concurrent duplicate/replay
+  // (same secret) loses HERE and returns CONFLICT without ever reading storage or
+  // touching the row, so a valid secret cannot be used to amplify repeated ~10 MiB
+  // downloads or race the destructive byte-failure path. It is AFTER secret
+  // verification so a caller without the secret cannot burn it.
+  const claim = await incrementField('files', input.drawingFileId, 'finalizeClaim', 1);
+  if (claim === null) return notFound;
+  if (claim !== 1) return fail(err('CONFLICT', 'This upload was already submitted.'));
+
+  // --- WINNER-ONLY below. Byte-level failures may fail the row + delete the object.
   const rejectOwned = async (message: string) => {
     await updateDoc('files', input.drawingFileId, { status: 'failed' }).catch((e) =>
       console.error('[submitProject] mark-failed after rejection failed', e),
@@ -567,14 +579,17 @@ async function verifyAndClaimOemUpload(input: {
     return fail(err('VALIDATION_ERROR', message));
   };
 
+  // Download AFTER the claim. Chosen retry behavior (Codex P1): releasing the claim
+  // on a miss would be racy, and COS is read-after-write consistent, so a
+  // not-yet-readable object is terminal for this (now consumed) intent — the row is
+  // failed + the object best-effort deleted and the client uploads again. This
+  // never leaves a half-finalized pending row and never runs a loser's download.
   let object: { body: string; byteSize?: number };
   try {
     object = await mediaStorage().getObjectAsBase64(storageFileId);
   } catch (e) {
-    // Bytes not retrievable yet (eventual consistency or an abandoned intent).
-    // Leave the row pending (retryable / reaped later); do not fail it.
     console.error('[submitProject] uploaded object not retrievable', e);
-    return fail(err('NOT_FOUND', 'Uploaded file not found yet — please retry.'));
+    return rejectOwned('Uploaded file could not be read. Please upload it again.');
   }
 
   const bytes = Buffer.from(object.body, 'base64');
@@ -589,12 +604,6 @@ async function verifyAndClaimOemUpload(input: {
   if (!oemBytesMatchType(fileName, bytes)) {
     return rejectOwned('File content does not match its type.');
   }
-
-  // Consume-once ATOMIC claim. Only claim === 1 wins; a concurrent duplicate gets
-  // >1 and loses WITHOUT touching the object (the winner owns it).
-  const claim = await incrementField('files', input.drawingFileId, 'finalizeClaim', 1);
-  if (claim === null) return notFound;
-  if (claim !== 1) return fail(err('CONFLICT', 'This upload was already submitted.'));
 
   return {
     ok: true,

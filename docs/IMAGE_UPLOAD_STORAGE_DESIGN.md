@@ -1758,9 +1758,14 @@ export const OEM_FILE_EXTENSIONS = [
 - Validate both extension and MIME when the browser provides a useful MIME.
 - Permit `application/octet-stream` only for an allowed CAD extension; never use
   octet-stream as a blanket bypass.
-- The COS multipart POST policy must include `content-length-range` bounded by
-  `OEM_FILE_MAX_BYTES` so oversized bytes are rejected before object creation,
-  not only during `submitProject` verification.
+- Object-size enforcement is SERVER-SIDE at finalization, not at the COS policy.
+  The verified `@cloudbase/node-sdk` `getUploadMetadata` credential used here
+  CANNOT express a `content-length-range` condition, so the intent-time `byteSize`
+  is only an advisory hint. `submitProject` single-winner claims the intent BEFORE
+  downloading, then recomputes size + SHA-256 from the fetched bytes and
+  rejects/deletes over-`OEM_FILE_MAX_BYTES` bytes. `content-length-range` is
+  retained ONLY as a future option if switching to a lower-level COS/STS policy
+  that can actually bind object length.
 - Normalize and store the original filename separately from the storage path.
   Storage paths are always server-generated with `objectStoragePath({
   namespace: 'oem', ... })`.
@@ -1811,8 +1816,9 @@ Server actions:
      emergency cap if source identity is unavailable.
    - Mints upload credentials through the **same verified `@cloudbase/node-sdk`
      upload-metadata path used by MIU-09**, not `wx-server-sdk`.
-   - Binds the returned COS POST policy to exactly one server-chosen object key
-     and `content-length-range: 0..OEM_FILE_MAX_BYTES`.
+   - Binds the returned COS POST policy to exactly one server-chosen object key.
+     (The current `getUploadMetadata` credential cannot bind object length; size
+     is enforced server-side at finalization — see above.)
    - Creates a `files` row with `status: 'pending'`, `purpose: 'oem-drawing'`,
      storage metadata, `uploadIntentId`, `uploadSecretHash`, and
      `uploadExpiresAt`.
@@ -1822,11 +1828,16 @@ Server actions:
    - Keeps the no-file path.
    - For the new file path, accepts `drawingFileId`, `uploadIntentId`, and
      `uploadSecret` instead of `drawingData`.
-   - Validates the pending file row, expiry, secret hash, storage provider,
-     storage path prefix, and object bytes before creating the OEM project.
-   - Compares `uploadSecretHash` in constant time and consumes/rotates it on
-     successful finalization so replay cannot attach the same pending object to
-     another request.
+   - Validates the pending file row, expiry, secret hash (constant-time), storage
+     provider, and storage path prefix FIRST. Then takes a single-winner
+     consume-once claim (atomic `incrementField` on `finalizeClaim`) BEFORE
+     downloading the object or running any destructive validation, so a caller
+     holding the one-time secret cannot fire parallel finalizations to amplify
+     repeated ~10 MiB object downloads or race the fail/delete path. Losers return
+     `CONFLICT` with no storage call. A not-readable object is terminal for the
+     (now consumed) intent — the row is failed + best-effort deleted and the
+     client re-uploads (releasing the claim would be racy; COS is read-after-write
+     consistent so this is rare).
    - Recomputes server-side `byteSize` and `checksumSha256`; client metadata is
      only a hint.
    - Performs ZIP/PDF magic-byte sniffing after reading the object. Mismatch
@@ -1884,8 +1895,10 @@ Tests:
   extension/MIME combinations before any DB write.
 - Public intent creation enforces rate/window caps, pending-intent caps,
   expiry, and cleanup; unlimited anonymous intent minting is a failing test.
-- The returned COS POST policy includes a `content-length-range` condition
-  capped at `OEM_FILE_MAX_BYTES`.
+- `submitProject` takes the single-winner `finalizeClaim` BEFORE downloading the
+  object; a concurrent same-secret loser returns `CONFLICT` with no storage read,
+  no delete, and no row mutation. Server-side size + SHA-256 recompute is the
+  authoritative size gate (the credential cannot bind object length).
 - Intent mint failure leaves no pending row.
 - Successful intent writes a pending `files` row under `oem/`.
 - `submitProject` with a valid uploaded ZIP creates an OEM request and active
@@ -2442,7 +2455,7 @@ transport gate (new MIU-10). Append-only; does not change §1-25.
 | §25 finding | Resolution in `2e089d4` |
 | --- | --- |
 | 25-1 P1 public-intent abuse/DoS | New constants `OEM_UPLOAD_INTENT_TTL_MS`, `OEM_MAX_PENDING_INTENTS_PER_SOURCE`, `OEM_UPLOAD_RATE_WINDOW_MS`/`_MAX_PER_WINDOW`; intent creation enforces per-source/window rate limit, pending cap, expiry, cleanup, and a global emergency cap when source IP is untrusted; "unlimited anonymous minting" is a failing test. |
-| 25-2 P2 oversize lands before check | COS POST policy now binds `content-length-range: 0..OEM_FILE_MAX_BYTES`; tested. |
+| 25-2 P2 oversize lands before check | The `getUploadMetadata` credential cannot bind object length, so size is enforced SERVER-SIDE at finalization: `submitProject` single-winner claims before download, then recomputes size + SHA-256 and rejects/deletes over-`OEM_FILE_MAX_BYTES` bytes. `content-length-range` is a future option only if moving to a lower-level COS/STS policy. |
 | 25-3 P2 OEM temp-URL vs proxy / CDN cache | Shortest-practical TTL (target 60 s), never stored, with an explicit MIU-00 CDN-edge-outlives-delete caveat and a CloudRun-proxy upgrade path noted. |
 | 25-4 P2 uploadSecret threat model | Stated (anti-hijack of a guessed/enumerated `fileId`); `uploadSecretHash` compared in constant time and consumed once; replay test added. |
 | 25-5 P3 download filename safety | Forces `Content-Disposition: attachment` and strips CR/LF/quotes/path-seps/control chars; tested. |

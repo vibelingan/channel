@@ -1942,10 +1942,12 @@ const sha256Bytes = (b: Buffer) => createHash('sha256').update(b).digest('hex');
 /** Media-storage fake that serves configurable bytes and RECORDS deletes. */
 function makeFinalizeStorage(
   opts: { bytes?: Buffer; getThrows?: boolean; deleteThrows?: boolean } = {},
-): MediaStorageAdapter & { deleted: string[] } {
+): MediaStorageAdapter & { deleted: string[]; reads: string[] } {
   const deleted: string[] = [];
+  const reads: string[] = [];
   return {
     deleted,
+    reads,
     async putObject() {
       throw new Error('fake: putObject unused');
     },
@@ -1955,7 +1957,8 @@ function makeFinalizeStorage(
     async getUploadCredential() {
       throw new Error('fake: getUploadCredential unused');
     },
-    async getObjectAsBase64() {
+    async getObjectAsBase64(fileId: string) {
+      reads.push(fileId);
       if (opts.getThrows) throw new Error('fake: object not retrievable');
       const buf = opts.bytes ?? PDF_BYTES;
       return { body: buf.toString('base64'), byteSize: buf.byteLength };
@@ -2110,17 +2113,27 @@ test('submitProject fails the row + deletes the object for post-secret byte fail
       `${label} row failed`,
     );
     assert.deepEqual(storage.deleted, [OEM_STORAGE_ID], `${label} object deleted`);
+    // The single-winner claim ran BEFORE the destructive validation (Codex P1).
+    assert.equal(
+      store.files?.find((f) => f._id === 'file1')?.finalizeClaim,
+      1,
+      `${label} claim consumed before destructive validation`,
+    );
     assert.equal(store.oemProjects?.length, 0, `${label} no project`);
   }
 });
 
-test('submitProject leaves the row pending (retryable) when the object is not yet retrievable', async () => {
+test('submitProject treats an unreadable object as terminal (claim consumed, row failed, re-upload)', async () => {
   const store = setup({ users: [], files: [pendingOemRow()], oemProjects: [] });
   const storage = makeFinalizeStorage({ getThrows: true });
   setMediaStorage(storage);
-  expectErr(await callPublic('submitProject', finalizeInput()), 'NOT_FOUND');
-  assert.equal(store.files?.find((f) => f._id === 'file1')?.status, 'pending'); // retryable
-  assert.deepEqual(storage.deleted, []);
+  // The claim is taken BEFORE the download, so an unreadable object is terminal for
+  // the (now consumed) intent: the row is failed + best-effort deleted; re-upload.
+  expectErr(await callPublic('submitProject', finalizeInput()), 'VALIDATION_ERROR');
+  const file = store.files?.find((f) => f._id === 'file1');
+  assert.equal(file?.status, 'failed');
+  assert.equal(file?.finalizeClaim, 1); // claimed before the download attempt
+  assert.deepEqual(storage.deleted, [OEM_STORAGE_ID]); // best-effort cleanup
   assert.equal(store.oemProjects?.length, 0);
 });
 
@@ -2129,12 +2142,28 @@ test('submitProject consume-once: a concurrent loser (claim already 1) is reject
   const storage = makeFinalizeStorage({ bytes: PDF_BYTES });
   setMediaStorage(storage);
   expectErr(await callPublic('submitProject', finalizeInput()), 'CONFLICT');
-  // The loser must not delete the object (the winner owns it) nor create a project.
+  // The loser loses the claim BEFORE any storage call: it must NOT download the
+  // object (no ~10 MiB amplification), delete it, or create a project.
+  assert.deepEqual(storage.reads, []); // never downloaded
   assert.deepEqual(storage.deleted, []);
   assert.equal(store.oemProjects?.length, 0);
   // The atomic gate ran (claim advanced 1→2) but the row is otherwise untouched.
   assert.equal(store.files?.find((f) => f._id === 'file1')?.finalizeClaim, 2);
   assert.equal(store.files?.find((f) => f._id === 'file1')?.status, 'pending');
+});
+
+test('submitProject downloads the object at most once per intent (winner-only storage read)', async () => {
+  const store = setup({ users: [], files: [pendingOemRow()], oemProjects: [] });
+  const storage = makeFinalizeStorage({ bytes: PDF_BYTES });
+  setMediaStorage(storage);
+  // First finalize wins and reads the object exactly once.
+  okData(await callPublic('submitProject', finalizeInput()));
+  assert.equal(storage.reads.length, 1);
+  // A repeat finalize of the same intent is rejected at the status gate (the row is
+  // now `active`) BEFORE any second download — so the read never runs twice.
+  expectErr(await callPublic('submitProject', finalizeInput()), 'CONFLICT');
+  assert.equal(storage.reads.length, 1);
+  assert.equal(store.oemProjects?.length, 1); // exactly one project
 });
 
 test('submitProject compensation: activation failure rolls back the project and surfaces an error', async () => {
