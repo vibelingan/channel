@@ -833,14 +833,22 @@ function makeFakeMediaStorage(
     omitByteSize?: boolean; // exercise the byteSize ?? bytes.byteLength fallback
     reportByteSize?: number; // report a size without allocating (oversize test)
     credential?: Partial<UploadCredential>;
+    tempUrl?: { url: string; expiresAt?: string };
+    tempUrlThrows?: boolean;
   } = {},
 ): MediaStorageAdapter {
   return {
     async putObject() {
       throw new Error('fake: putObject not used in admin upload tests');
     },
-    async getTempUrl() {
-      throw new Error('fake: getTempUrl not used in admin upload tests');
+    async getTempUrl(): Promise<{ url: string; expiresAt?: string }> {
+      if (opts.tempUrlThrows) throw new Error('fake: temp URL mint failed');
+      return (
+        opts.tempUrl ?? {
+          url: 'https://cos.example/temp/oem',
+          expiresAt: '2026-01-01T00:01:00.000Z',
+        }
+      );
     },
     async deleteObject() {
       // allowed (compensation path) — no-op
@@ -1605,4 +1613,109 @@ test('migrateLegacyImages reports a leaked object when the rollback delete also 
     (data.skipped as Array<{ reason: string }>)[0]?.reason ?? '',
     /ROLLBACK FAILED|leaked/,
   );
+});
+
+// --- MIU-08: getOemFileDownloadUrl (admin OEM-file delivery) -----------------
+
+/** A finalized, deliverable OEM file row (all download guards satisfied). */
+function activeOemFile(overrides: Partial<CollectionDoc> = {}): CollectionDoc {
+  return {
+    _id: 'file1',
+    name: 'assembly.step',
+    mimeType: 'application/octet-stream',
+    purpose: 'oem-drawing',
+    storageProvider: 'cloudbase-storage',
+    storageMode: 'classic-nosql-storage',
+    storageFileId: 'cloud://env.bucket/oem/2026/06/intent1/assembly.step',
+    status: 'active',
+    ownerProjectId: 'oemProjects-1',
+    ...overrides,
+  };
+}
+
+test('getOemFileDownloadUrl returns a short-TTL temp URL + attachment disposition', async () => {
+  setup({ users: [], files: [activeOemFile()] });
+  setMediaStorage(makeFakeMediaStorage({ tempUrl: { url: 'https://cos/temp/x', expiresAt: 'E' } }));
+  const token = await adminToken();
+
+  const data = okData<{
+    fileId: string;
+    url: string;
+    expiresAt?: string;
+    fileName: string;
+    mimeType: string;
+    contentDisposition: string;
+  }>(await call('getOemFileDownloadUrl', { fileId: 'file1' }, token));
+
+  assert.equal(data.fileId, 'file1');
+  assert.equal(data.url, 'https://cos/temp/x');
+  assert.equal(data.expiresAt, 'E');
+  assert.equal(data.fileName, 'assembly.step');
+  assert.equal(data.mimeType, 'application/octet-stream');
+  assert.equal(data.contentDisposition, 'attachment; filename="assembly.step"');
+});
+
+test('getOemFileDownloadUrl fails closed for every non-deliverable row', async () => {
+  const cases: Array<{ label: string; doc: CollectionDoc }> = [
+    { label: 'pending (never finalized)', doc: activeOemFile({ status: 'pending' }) },
+    { label: 'failed (rejected)', doc: activeOemFile({ status: 'failed' }) },
+    { label: 'deleted', doc: activeOemFile({ status: 'deleted' }) },
+    { label: 'wrong purpose', doc: activeOemFile({ purpose: 'catalog-image' }) },
+    { label: 'no owner project', doc: activeOemFile({ ownerProjectId: undefined }) },
+    { label: 'empty owner project', doc: activeOemFile({ ownerProjectId: '' }) },
+    { label: 'legacy-base64 provider', doc: activeOemFile({ storageProvider: 'legacy-base64' }) },
+    { label: 'unknown provider', doc: activeOemFile({ storageProvider: 'bogus' }) },
+    { label: 'missing storageFileId', doc: activeOemFile({ storageFileId: undefined }) },
+  ];
+  for (const { label, doc } of cases) {
+    setup({ users: [], files: [doc] });
+    setMediaStorage(makeFakeMediaStorage());
+    const token = await adminToken();
+    const res = await call('getOemFileDownloadUrl', { fileId: 'file1' }, token);
+    assert.equal(res.ok, false, `expected ${label} to be rejected`);
+    if (!res.ok) assert.equal(res.error.code, 'NOT_FOUND', `expected NOT_FOUND for ${label}`);
+  }
+});
+
+test('getOemFileDownloadUrl sanitizes a header-injecting filename', async () => {
+  setup({ users: [], files: [activeOemFile({ name: 'a"b\r\nc.pdf' })] });
+  setMediaStorage(makeFakeMediaStorage());
+  const token = await adminToken();
+
+  const data = okData<{ fileName: string; contentDisposition: string }>(
+    await call('getOemFileDownloadUrl', { fileId: 'file1' }, token),
+  );
+  // CR/LF and quotes are stripped, so the header value cannot be split/injected.
+  assert.equal(data.fileName, 'abc.pdf');
+  assert.equal(data.contentDisposition, 'attachment; filename="abc.pdf"');
+  // No CR/LF can reach the header (the quotes here are the disposition's own
+  // legitimate delimiters; the filename itself is asserted quote-free above).
+  assert.equal(/[\r\n]/.test(data.contentDisposition), false);
+});
+
+test('getOemFileDownloadUrl requires read permission', async () => {
+  setup({ users: [], files: [activeOemFile()] });
+  setMediaStorage(makeFakeMediaStorage());
+  const memberToken = await signSession('test-secret', {
+    sub: 'member-1',
+    email: 'member@example.com',
+    name: 'member',
+    role: 'member',
+  });
+  expectErr(await call('getOemFileDownloadUrl', { fileId: 'file1' }, memberToken), 'FORBIDDEN');
+});
+
+test('getOemFileDownloadUrl returns NOT_FOUND when the temp URL mint fails', async () => {
+  setup({ users: [], files: [activeOemFile()] });
+  setMediaStorage(makeFakeMediaStorage({ tempUrlThrows: true }));
+  const token = await adminToken();
+  expectErr(await call('getOemFileDownloadUrl', { fileId: 'file1' }, token), 'NOT_FOUND');
+});
+
+test('getOemFileDownloadUrl validates input and missing rows', async () => {
+  setup({ users: [], files: [] });
+  setMediaStorage(makeFakeMediaStorage());
+  const token = await adminToken();
+  expectErr(await call('getOemFileDownloadUrl', {}, token), 'BAD_REQUEST');
+  expectErr(await call('getOemFileDownloadUrl', { fileId: 'nope' }, token), 'NOT_FOUND');
 });

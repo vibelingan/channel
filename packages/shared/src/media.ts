@@ -230,6 +230,13 @@ export const OEM_UPLOAD_RATE_WINDOW_MS = 60 * 1000;
 export const OEM_UPLOAD_RATE_MAX_PER_WINDOW = 5;
 
 /**
+ * TTL for the admin OEM-file download temp URL. Deliberately short (§20.10):
+ * MIU-00 observed CDN edges can outlive object deletion, so never persist this
+ * URL and re-mint per request.
+ */
+export const OEM_DOWNLOAD_URL_TTL_SECONDS = 60;
+
+/**
  * The `files` collection document (OEM drawings/attachments). Mirrors
  * `ImageMetadataDoc`: storage-backed rows carry storage identifiers + lifecycle,
  * legacy rows carry base64 `data`. Every storage/lifecycle field is

@@ -48,6 +48,7 @@ import {
   COLLECTIONS,
   type CollectionDoc,
   FILTER_OPERATORS,
+  OEM_DOWNLOAD_URL_TTL_SECONDS,
   type Role,
   canEditCollection,
   canReadCollection,
@@ -56,6 +57,7 @@ import {
   getCollection,
   isKnownCollection,
   ok,
+  sanitizeDownloadFilename,
 } from '@vibelingan-channel/shared';
 import { releaseInfo } from '@vibelingan-channel/shared/release';
 import { z } from 'zod';
@@ -150,6 +152,8 @@ const completeUploadSchema = z.object({
 });
 
 const imagePreviewSchema = z.object({ id: z.string().min(1) });
+
+const oemFileDownloadSchema = z.object({ fileId: z.string().min(1) });
 
 const SESSION_TTL = 60 * 60 * 12;
 
@@ -313,6 +317,8 @@ export async function handleAdminRequest(
         return await completeUploadAction(req, claims);
       case 'getImagePreview':
         return await getImagePreviewAction(req, claims);
+      case 'getOemFileDownloadUrl':
+        return await getOemFileDownloadUrlAction(req, claims);
       default:
         return err('BAD_REQUEST', `Unknown action: ${req.action}`);
     }
@@ -1245,4 +1251,67 @@ async function getImagePreviewAction(
     }
   }
   return err('NOT_FOUND', 'Image not available for preview');
+}
+
+/**
+ * Admin-authenticated OEM-file delivery (MIU-08, §20.10 step 3). Returns a
+ * SHORT-lived temp URL for a private OEM attachment plus a sanitized filename and
+ * a forced `attachment` disposition — never the bytes through JSON/base64 (10 MiB
+ * OEM files must not be proxied through the function body cap).
+ *
+ * Only a fully-finalized attachment is deliverable: `purpose: 'oem-drawing'`,
+ * `status: 'active'` (so it passed submitProject verification), a recognized
+ * storage provider, and an `ownerProjectId` (so an un-finalized pending intent
+ * can never be fetched). The TTL is deliberately tiny and re-minted per request
+ * because CDN edges can outlive object deletion (MIU-00); the URL is never
+ * persisted. The filename is sanitized to strip CR/LF/quotes/path separators/
+ * control + bidi characters, defeating header-injection and RTL-spoof downloads.
+ */
+async function getOemFileDownloadUrlAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  if (!canReadCollection(claims.role, 'files')) {
+    return err('FORBIDDEN', 'You do not have permission to download OEM files.');
+  }
+  const parsed = oemFileDownloadSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'fileId is required');
+
+  const doc = await get('files', parsed.data.fileId);
+  if (!doc) return err('NOT_FOUND', 'File not found');
+  // Deliver ONLY a finalized, storage-backed OEM attachment. Every guard below
+  // fails closed to NOT_FOUND so a pending/failed/legacy/foreign row cannot be
+  // turned into a download link by id enumeration.
+  if (doc.purpose !== 'oem-drawing') return err('NOT_FOUND', 'File is not an OEM drawing');
+  if (doc.status !== 'active') return err('NOT_FOUND', 'File is not available for download');
+  if (typeof doc.ownerProjectId !== 'string' || doc.ownerProjectId.length === 0) {
+    return err('NOT_FOUND', 'File is not linked to a project');
+  }
+  const provider = typeof doc.storageProvider === 'string' ? doc.storageProvider : '';
+  const isStorageProvider = provider === 'cloudbase-storage' || provider === 'local-disk';
+  if (!isStorageProvider || typeof doc.storageFileId !== 'string') {
+    return err('NOT_FOUND', 'File bytes are unavailable');
+  }
+
+  let temp: { url: string; expiresAt?: string };
+  try {
+    temp = await mediaStorage().getTempUrl(doc.storageFileId, OEM_DOWNLOAD_URL_TTL_SECONDS);
+  } catch (e) {
+    console.error('[fn-admin] getOemFileDownloadUrl: temp URL mint failed', e);
+    return err('NOT_FOUND', 'File bytes are unavailable');
+  }
+
+  const rawName = typeof doc.name === 'string' ? doc.name : '';
+  const fileName = sanitizeDownloadFilename(rawName, 'oem-drawing');
+  const mimeType = typeof doc.mimeType === 'string' ? doc.mimeType : 'application/octet-stream';
+  return ok({
+    fileId: parsed.data.fileId,
+    url: temp.url,
+    ...(temp.expiresAt ? { expiresAt: temp.expiresAt } : {}),
+    fileName,
+    mimeType,
+    // Any proxy/header path MUST force a download (never inline-render an OEM
+    // attachment) with the sanitized name.
+    contentDisposition: `attachment; filename="${fileName}"`,
+  });
 }
