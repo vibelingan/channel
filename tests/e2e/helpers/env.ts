@@ -22,6 +22,7 @@ export const e2e = {
   enableBootstrap: isEnabled(process.env.E2E_ENABLE_BOOTSTRAP),
   allowMutation: isEnabled(process.env.E2E_ALLOW_MUTATION),
   mediaUploadSmoke: isEnabled(process.env.E2E_MEDIA_UPLOAD_SMOKE),
+  oemUploadSmoke: isEnabled(process.env.E2E_OEM_UPLOAD_SMOKE),
   runId: process.env.E2E_RUN_ID?.trim() || uniqueRunId(),
 } as const;
 

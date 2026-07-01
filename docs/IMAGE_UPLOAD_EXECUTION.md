@@ -2597,6 +2597,37 @@ Moved the public OEM form off base64 `drawingData` onto the storage-upload flow
   and saves a named attachment (`downloadOemFile`), covered by
   `oem-download.test.ts`; see the review + disposition below.
 
+### Increment 6 — OEM ZIP deployed smoke authored (gated, awaiting live run) — 2026-07-01
+
+Authored the deployed OEM upload smoke so the last evidence gate is ready to run
+the moment the branch is deployed to the test env.
+
+- New `tests/e2e/oem-upload.spec.ts` (gated behind `E2E_OEM_UPLOAD_SMOKE=1` +
+  admin creds + deployed `E2E_SITE_URL`/`E2E_API_URL`), modeled on the proven
+  `tests/e2e/mutation.spec.ts` OEM UI flow + `tests/e2e/media-upload.spec.ts`
+  gating. It drives the real public `/oem#submit` form, uploads a ~9.5 MiB ZIP
+  (`PK\x03\x04` signature + incompressible random padding, under the 10 MiB
+  `OEM_FILE_MAX_BYTES` cap; finalization sniffs the leading magic + recomputes
+  size/checksum, so no ZIP-writer dep is needed), and asserts: reaching
+  `/oem_submit_result` proves the direct COS POST path (a base64-through-Event-
+  Function path would 413 `EXCEED_MAX_PAYLOAD_SIZE`); the project references a
+  storage-backed `drawing`; `/api/files/:id` + `/api/images/:id` stay 404; and
+  `getOemFileDownloadUrl` mints a well-formed short-TTL `https` temp URL + display
+  filename (Increment 4 + the P2 download contract). Added `oemUploadSmoke` to the
+  e2e env helper.
+- **Validation:** `typecheck:e2e` exit 0; `biome` clean; `playwright --list`
+  discovers the single test (gated-skipped when the flag is unset, so CI stays
+  green). **Not yet live-run** — needs a test-env deploy of this branch.
+- **Deploy prerequisites (ops, for the user):** (1) merge/deploy this branch to
+  the CloudBase **test** env (`pnpm deploy:cloudbase:test` / the deploy-test
+  workflow); (2) per skill rule **STORAGE001**, add the test-env site origin
+  (+ `http://localhost:4321` for Astro dev) to the env's CloudBase **security
+  domains / bucket CORS** — required for the browser upload POST *and* the admin
+  download's cross-origin temp-URL GET — via the CloudBase MCP `envDomainManagement`
+  tool or the `CreateAuthDomain` API; (3) run with `E2E_OEM_UPLOAD_SMOKE=1` +
+  `E2E_ADMIN_EMAIL`/`E2E_ADMIN_PASSWORD` + deployed URLs and confirm no
+  `EXCEED_MAX_PAYLOAD_SIZE`.
+
 ### Admin OEM-download UI wiring — 2026-07-01
 
 Wired the admin OEM-Requests file links to the authenticated `getOemFileDownloadUrl`
