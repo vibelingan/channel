@@ -48,18 +48,42 @@ test('Retry-After is never below 1 second', () => {
   assert.equal(d.retryAfterSeconds, 1);
 });
 
-test('fails closed on misconfiguration (denies, never opens)', () => {
-  for (const bad of [
+test('fails closed on bad counters/limits (deny; never opens)', () => {
+  const bad = [
     { countInWindow: 1, maxPerWindow: 0, windowMs: 60_000 },
     { countInWindow: 1, maxPerWindow: -5, windowMs: 60_000 },
     { countInWindow: 1, maxPerWindow: Number.NaN, windowMs: 60_000 },
+    { countInWindow: 1, maxPerWindow: 5.5, windowMs: 60_000 }, // fractional max
     { countInWindow: 1, maxPerWindow: 5, windowMs: 0 },
     { countInWindow: 1, maxPerWindow: 5, windowMs: Number.NaN },
+    { countInWindow: 1, maxPerWindow: 5, windowMs: 60_000.5 }, // fractional window
     { countInWindow: Number.NaN, maxPerWindow: 5, windowMs: 60_000 },
+    { countInWindow: -1, maxPerWindow: 5, windowMs: 60_000 }, // negative count
+    { countInWindow: 0, maxPerWindow: 5, windowMs: 60_000 }, // post-increment min is 1
+    { countInWindow: 2.5, maxPerWindow: 5, windowMs: 60_000 }, // fractional count
+  ];
+  for (const b of bad) {
+    const d = evaluateFixedWindowRateLimit(b);
+    assert.equal(d.allowed, false, JSON.stringify(b));
+    assert.ok(Number.isInteger(d.retryAfterSeconds) && d.retryAfterSeconds >= 1, JSON.stringify(b));
+  }
+});
+
+test('malformed time inputs still yield a finite integer Retry-After on deny', () => {
+  for (const t of [
+    { nowMs: Number.NaN },
+    { nowMs: Number.POSITIVE_INFINITY },
+    { windowResetAtMs: Number.NaN },
+    { windowResetAtMs: Number.POSITIVE_INFINITY },
   ]) {
-    const d = evaluateFixedWindowRateLimit(bad);
-    assert.equal(d.allowed, false, JSON.stringify(bad));
-    assert.ok(d.retryAfterSeconds >= 1, JSON.stringify(bad));
+    const d = evaluateFixedWindowRateLimit({
+      countInWindow: 9,
+      maxPerWindow: 5,
+      windowMs: 60_000,
+      ...t,
+    });
+    assert.equal(d.allowed, false);
+    assert.ok(Number.isInteger(d.retryAfterSeconds) && d.retryAfterSeconds >= 1, JSON.stringify(t));
   }
 });
 
@@ -76,5 +100,8 @@ test('pending cap fails closed on bad max or count', () => {
   assert.equal(withinPendingCap(0, 0), false);
   assert.equal(withinPendingCap(0, -1), false);
   assert.equal(withinPendingCap(0, Number.NaN), false);
+  assert.equal(withinPendingCap(0, 3.5), false); // fractional max
   assert.equal(withinPendingCap(Number.NaN, 3), false);
+  assert.equal(withinPendingCap(-1, 3), false); // negative count
+  assert.equal(withinPendingCap(1.5, 3), false); // fractional count
 });

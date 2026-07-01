@@ -2399,6 +2399,23 @@ Validation run:
 - `pnpm smoke:functions`
 - `pnpm lint`
 
+### Claude fix — rate-limit helper P2 (counter integrity) ADDRESSED — 2026-07-01
+
+Addressed Codex's `eee6fb8` P2 on `packages/shared/src/media-ratelimit.ts`:
+
+- Both helpers now require **safe non-negative integers or fail CLOSED** (the same
+  discipline as `incrementField`/`publishedRefCount`): `countInWindow` must be an
+  integer ≥ 1 (post-increment), `maxPerWindow`/`windowMs` positive integers,
+  `currentPending` an integer ≥ 0, `maxPending` a positive integer. A corrupt
+  `-1`/fractional counter no longer returns `allowed`.
+- `retryAfterSeconds` is now guaranteed a finite integer ≥ 1 even when `nowMs` or
+  `windowResetAtMs` are `NaN`/`Infinity` (guarded before use; bad time falls back
+  to `Date.now()` / epoch-aligned reset).
+- Regressions added: negative + fractional counts/limits, fractional window, and
+  malformed time inputs. shared suite green (61 tests); tsc + biome clean.
+
+`media-ratelimit` is now wire-ready for MIU-08.
+
 ### Claude review — orphan-cleanup paging fix (6ca3e866) — APPROVED — 2026-06-30
 
 Codex reviewed my MIU-06 Phase 1 and fixed a real limitation: my `cleanupOrphanImages`

@@ -15,7 +15,7 @@
 
 export interface RateLimitDecision {
   allowed: boolean;
-  /** Seconds the caller should wait before retrying. 0 when allowed. */
+  /** Seconds the caller should wait before retrying. 0 when allowed. Always an integer ≥ 1 on deny. */
   retryAfterSeconds: number;
 }
 
@@ -26,10 +26,14 @@ export interface RateLimitDecision {
  *
  * Retry-After is the time until the window resets: `windowResetAtMs` if provided,
  * otherwise an epoch-aligned fixed window (`ceil(now/windowMs)` boundary), which
- * matches a counter keyed by `floor(now / windowMs)`.
+ * matches a counter keyed by `floor(now / windowMs)`. It is always a finite
+ * integer ≥ 1, even if `nowMs`/`windowResetAtMs` are missing or malformed.
  *
- * Fails CLOSED (deny) on misconfiguration (non-positive/non-finite limits or a
- * non-finite count) rather than letting a config bug disable the limiter.
+ * Fails CLOSED (deny) unless the counter integrity holds: `countInWindow` is an
+ * integer ≥ 1 (it is post-increment), `maxPerWindow` and `windowMs` are positive
+ * integers. This is the same non-negative-integer counter discipline hardened for
+ * `incrementField`/`publishedRefCount` — a corrupt `-1`/fractional counter must
+ * never disable the limiter.
  */
 export function evaluateFixedWindowRateLimit(input: {
   countInWindow: number;
@@ -39,18 +43,22 @@ export function evaluateFixedWindowRateLimit(input: {
   windowResetAtMs?: number;
 }): RateLimitDecision {
   const { countInWindow, maxPerWindow, windowMs } = input;
-  const nowMs = input.nowMs ?? Date.now();
 
-  const windowOk = Number.isFinite(windowMs) && windowMs > 0;
-  const maxOk = Number.isFinite(maxPerWindow) && maxPerWindow > 0;
-  const countOk = Number.isFinite(countInWindow);
-
+  // Time inputs: guard so Retry-After is always a finite integer >= 1.
+  const nowMs =
+    typeof input.nowMs === 'number' && Number.isFinite(input.nowMs) ? input.nowMs : Date.now();
+  const windowOk = Number.isInteger(windowMs) && windowMs > 0;
   const resetAtMs =
-    input.windowResetAtMs ??
-    (windowOk ? (Math.floor(nowMs / windowMs) + 1) * windowMs : nowMs + 1000);
+    typeof input.windowResetAtMs === 'number' && Number.isFinite(input.windowResetAtMs)
+      ? input.windowResetAtMs
+      : windowOk
+        ? (Math.floor(nowMs / windowMs) + 1) * windowMs
+        : nowMs + 1000;
   const retryAfterSeconds = Math.max(1, Math.ceil((resetAtMs - nowMs) / 1000));
 
-  // Misconfig or unreadable count → fail closed.
+  // Counter integrity: safe non-negative integers or fail CLOSED.
+  const maxOk = Number.isInteger(maxPerWindow) && maxPerWindow > 0;
+  const countOk = Number.isInteger(countInWindow) && countInWindow >= 1; // post-increment
   if (!windowOk || !maxOk || !countOk) {
     return { allowed: false, retryAfterSeconds };
   }
@@ -63,11 +71,13 @@ export function evaluateFixedWindowRateLimit(input: {
 /**
  * Concurrent pending-intent cap. `currentPending` is how many `pending` intents
  * the source already holds (before creating this one); allowed iff adding one
- * stays within `maxPending` (i.e. `currentPending < maxPending`). Fails CLOSED on
- * a non-positive/non-finite max or unreadable count.
+ * stays within `maxPending` (`currentPending < maxPending`). Fails CLOSED unless
+ * `maxPending` is a positive integer and `currentPending` is an integer ≥ 0 — a
+ * corrupt `-1`/fractional count must never let an unbounded number through.
  */
 export function withinPendingCap(currentPending: number, maxPending: number): boolean {
-  if (!Number.isFinite(maxPending) || maxPending <= 0) return false;
-  if (!Number.isFinite(currentPending)) return false;
+  const maxOk = Number.isInteger(maxPending) && maxPending > 0;
+  const currentOk = Number.isInteger(currentPending) && currentPending >= 0;
+  if (!maxOk || !currentOk) return false;
   return currentPending < maxPending;
 }
