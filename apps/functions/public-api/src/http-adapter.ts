@@ -115,6 +115,8 @@ function statusFor(result: ApiResult<unknown>): number {
       return 404;
     case 'CONFLICT':
       return 409;
+    case 'RATE_LIMITED':
+      return 429;
     case 'INTERNAL_ERROR':
       return 500;
     default: {

@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
-import { type ApiResult, ok } from '@vibelingan-channel/shared';
+import { type ApiResult, ok, rateLimited } from '@vibelingan-channel/shared';
 import type { AdminConfig, AdminRequest } from './handler.ts';
 import {
   type HttpResponse,
@@ -77,6 +77,31 @@ test('returns BAD_REQUEST for invalid JSON without calling the handler', async (
   assert.deepEqual(parseBody(response), {
     ok: false,
     error: { code: 'BAD_REQUEST', message: 'Invalid JSON body.' },
+  });
+});
+
+test('maps RATE_LIMITED to 429 and exposes Retry-After', async () => {
+  const response = await handleAdminFunctionEvent(
+    {
+      httpMethod: 'POST',
+      headers: { origin: 'https://site.example' },
+      body: JSON.stringify({ action: 'createOemFileUploadIntent' }),
+    },
+    config,
+    async () => rateLimited('Too many upload requests. Please retry in 42s.', 42),
+  );
+
+  assert.ok(isHttpResponse(response));
+  assert.equal(response.statusCode, 429);
+  assert.equal(response.headers['Retry-After'], '42');
+  assert.equal(response.headers['Access-Control-Expose-Headers'], 'Retry-After');
+  assert.deepEqual(parseBody(response), {
+    ok: false,
+    error: {
+      code: 'RATE_LIMITED',
+      message: 'Too many upload requests. Please retry in 42s.',
+      retryAfterSeconds: 42,
+    },
   });
 });
 

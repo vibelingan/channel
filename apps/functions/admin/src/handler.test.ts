@@ -1822,10 +1822,13 @@ test('createOemFileUploadIntent enforces the per-source fixed-window rate limit'
   setup({ users: [], files: Array.from({ length: 5 }, (_, i) => oemWindowDoc(`w${i}`, src)) });
   setMediaStorage(makeFakeMediaStorage());
 
-  expectErr(
-    await callPublic('createOemFileUploadIntent', validOemIntent, { sourceIp: '9.9.9.9' }),
-    'CONFLICT',
-  );
+  const limited = await callPublic('createOemFileUploadIntent', validOemIntent, {
+    sourceIp: '9.9.9.9',
+  });
+  expectErr(limited, 'RATE_LIMITED');
+  if (!limited.ok) {
+    assert.ok((limited.error.retryAfterSeconds ?? 0) >= 1);
+  }
   // A different source is under the global ceiling and still allowed.
   assert.equal(
     (await callPublic('createOemFileUploadIntent', validOemIntent, { sourceIp: '8.8.8.8' })).ok,
@@ -1838,7 +1841,11 @@ test('createOemFileUploadIntent enforces the global rate ceiling when the source
   setup({ users: [], files: Array.from({ length: 30 }, (_, i) => oemWindowDoc(`g${i}`)) });
   setMediaStorage(makeFakeMediaStorage());
   // No sourceIp -> only the global ceiling applies; the 31st is blocked.
-  expectErr(await callPublic('createOemFileUploadIntent', validOemIntent), 'CONFLICT');
+  const limited = await callPublic('createOemFileUploadIntent', validOemIntent);
+  expectErr(limited, 'RATE_LIMITED');
+  if (!limited.ok) {
+    assert.ok((limited.error.retryAfterSeconds ?? 0) >= 1);
+  }
 });
 
 test('createOemFileUploadIntent enforces the per-source pending-intent cap', async () => {
@@ -1849,10 +1856,13 @@ test('createOemFileUploadIntent enforces the per-source pending-intent cap', asy
     files: Array.from({ length: 3 }, (_, i) => oemPendingDoc(`p${i}`, src, future)),
   });
   setMediaStorage(makeFakeMediaStorage());
-  expectErr(
-    await callPublic('createOemFileUploadIntent', validOemIntent, { sourceIp: '7.7.7.7' }),
-    'CONFLICT',
-  );
+  const limited = await callPublic('createOemFileUploadIntent', validOemIntent, {
+    sourceIp: '7.7.7.7',
+  });
+  expectErr(limited, 'RATE_LIMITED');
+  if (!limited.ok) {
+    assert.ok((limited.error.retryAfterSeconds ?? 0) >= 1);
+  }
 });
 
 test('createOemFileUploadIntent ignores EXPIRED pending intents when applying the cap', async () => {

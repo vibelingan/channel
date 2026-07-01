@@ -133,6 +133,8 @@ function errorStatus(result: ApiResult<unknown>): number {
       return 404;
     case 'CONFLICT':
       return 409;
+    case 'RATE_LIMITED':
+      return 429;
     case 'INTERNAL_ERROR':
       return 500;
     default: {
@@ -159,6 +161,7 @@ function responseHeaders(
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Origin': corsOrigin(event, config),
     'Access-Control-Max-Age': '86400',
+    'Access-Control-Expose-Headers': 'Retry-After',
     'Content-Type': 'application/json; charset=utf-8',
     Vary: 'Origin',
   };
@@ -170,9 +173,13 @@ function jsonResponse(
   result: ApiResult<unknown>,
   statusCode = errorStatus(result),
 ): HttpResponse {
+  const headers = responseHeaders(event, config);
+  if (!result.ok && typeof result.error.retryAfterSeconds === 'number') {
+    headers['Retry-After'] = String(result.error.retryAfterSeconds);
+  }
   return {
     statusCode,
-    headers: responseHeaders(event, config),
+    headers,
     body: JSON.stringify(result),
     isBase64Encoded: false,
   };

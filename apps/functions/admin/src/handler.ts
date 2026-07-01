@@ -67,6 +67,7 @@ import {
   isKnownCollection,
   oemFileUploadSchema,
   ok,
+  rateLimited,
   sanitizeDownloadFilename,
   withinPendingCap,
 } from '@vibelingan-channel/shared';
@@ -1391,9 +1392,15 @@ async function createOemFileUploadIntentAction(
 
   const oemDrawing: FilterClause = { field: 'purpose', op: 'eq', value: 'oem-drawing' };
   const tooMany = (retryAfterSeconds: number): ApiResult<unknown> =>
-    err('CONFLICT', `Too many upload requests. Please retry in ${retryAfterSeconds}s.`);
-  const tooManyPending = (): ApiResult<unknown> =>
-    err('CONFLICT', 'Too many pending uploads. Finish or wait for the existing ones to expire.');
+    rateLimited(
+      `Too many upload requests. Please retry in ${retryAfterSeconds}s.`,
+      retryAfterSeconds,
+    );
+  const tooManyPending = (retryAfterSeconds: number): ApiResult<unknown> =>
+    rateLimited(
+      'Too many pending uploads. Finish or wait for the existing ones to expire.',
+      retryAfterSeconds,
+    );
 
   // --- Fixed-window rate limit: global ceiling, then per-source --------------
   const inWindow: FilterClause[] = [
@@ -1428,8 +1435,9 @@ async function createOemFileUploadIntentAction(
     { field: 'status', op: 'eq', value: 'pending' },
     { field: 'uploadExpiresAt', op: 'gt', value: nowIso },
   ];
-  if (!withinPendingCap(await countOemFiles(pendingLive), OEM_MAX_PENDING_INTENTS_GLOBAL)) {
-    return tooManyPending();
+  const globalPending = await countOemFiles(pendingLive);
+  if (!withinPendingCap(globalPending, OEM_MAX_PENDING_INTENTS_GLOBAL)) {
+    return tooManyPending(await soonestPendingRetryAfterSeconds(pendingLive, now));
   }
   if (uploadSourceHash) {
     const sourcePending = await countOemFiles([
@@ -1437,7 +1445,12 @@ async function createOemFileUploadIntentAction(
       { field: 'uploadSourceHash', op: 'eq', value: uploadSourceHash },
     ]);
     if (!withinPendingCap(sourcePending, OEM_MAX_PENDING_INTENTS_PER_SOURCE)) {
-      return tooManyPending();
+      return tooManyPending(
+        await soonestPendingRetryAfterSeconds(
+          [...pendingLive, { field: 'uploadSourceHash', op: 'eq', value: uploadSourceHash }],
+          now,
+        ),
+      );
     }
   }
 
@@ -1489,4 +1502,23 @@ async function createOemFileUploadIntentAction(
       fields: credential.formFields,
     },
   });
+}
+
+async function soonestPendingRetryAfterSeconds(
+  clauses: FilterClause[],
+  nowMs: number,
+): Promise<number> {
+  const res = await list({
+    collection: 'files',
+    page: 1,
+    pageSize: 1,
+    filter: { combinator: 'and', clauses },
+    sort: [{ field: 'uploadExpiresAt', dir: 'asc' }],
+  });
+  const expiresAt = res.items[0]?.uploadExpiresAt;
+  const expiresAtMs = typeof expiresAt === 'string' ? new Date(expiresAt).getTime() : Number.NaN;
+  if (!Number.isFinite(expiresAtMs)) {
+    return Math.ceil(OEM_UPLOAD_INTENT_TTL_MS / 1000);
+  }
+  return Math.max(1, Math.ceil((expiresAtMs - nowMs) / 1000));
 }
