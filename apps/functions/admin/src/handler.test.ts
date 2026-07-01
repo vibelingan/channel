@@ -1785,12 +1785,10 @@ test('createOemFileUploadIntent mints a credential, writes a pending row, return
   assert.equal(doc?.status, 'pending');
   assert.equal(doc?.purpose, 'oem-drawing');
   assert.equal(doc?.storageProvider, 'cloudbase-storage');
-  // The single-winner claim counter MUST be initialised to 0: finalization's
-  // atomic `incrementField(..., 'finalizeClaim', 1)` must increment an existing
-  // field, because real CloudBase reports `updated: 0` for an inc on an ABSENT
-  // field (→ claim null → NOT_FOUND → every OEM submission broken). This adapter
-  // initialises absent fields on inc, so only this write-time guard catches a
-  // regression that drops the initialiser.
+  // The single-winner claim counter is initialised to 0 so finalization
+  // increments a concrete field. (The live failure was an SDK bug — wx-server-sdk
+  // `db.command.inc` not applying in the CloudBase runtime, fixed in the db
+  // adapter — not absent-field semantics; keeping `0` mirrors publishedRefCount.)
   assert.equal(doc?.finalizeClaim, 0);
   assert.equal(typeof doc?.uploadExpiresAt, 'string');
   // The plaintext secret is NEVER stored — only its SHA-256 hash.

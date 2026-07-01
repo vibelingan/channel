@@ -1639,13 +1639,12 @@ async function createOemFileUploadIntentAction(
     storageMode: 'classic-nosql-storage',
     storagePath: cloudPath,
     status: 'pending',
-    // Initialise the single-winner claim counter to 0 so finalization's atomic
-    // `incrementField('files', id, 'finalizeClaim', 1)` increments an EXISTING
-    // field. Real CloudBase `.doc(id).update({ f: _.inc() })` reports `updated: 0`
-    // for an inc on an ABSENT field, which the adapter maps to null → the claim
-    // would fail `NOT_FOUND` and break EVERY OEM submission. Mirrors how images
-    // initialise `publishedRefCount: 0`. The in-memory test adapter initialises on
-    // inc, so unit tests can't catch this — the deployed OEM smoke did.
+    // Initialise the single-winner claim counter so finalization increments a
+    // concrete field. NOTE: the live OEM failure was NOT absent-field semantics —
+    // wx-server-sdk's `db.command.inc` does not apply in the Tencent CloudBase
+    // runtime; the real fix routes `incrementField`'s atomic inc through
+    // @cloudbase/node-sdk (see packages/db/src/cloudbase-adapter.ts). Keeping the
+    // explicit `0` mirrors `images.publishedRefCount` and keeps the field concrete.
     finalizeClaim: 0,
     uploadIntentId,
     uploadSecretHash,

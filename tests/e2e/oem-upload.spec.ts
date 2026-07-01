@@ -16,27 +16,36 @@ test.describe.configure({ mode: 'serial' });
  * MIU-08 Increment 6 — deployed OEM upload smoke (live-env evidence gate).
  *
  * Proves the whole private-attachment path against a REAL CloudBase deployment:
- * a public visitor uploads a 9–10 MiB ZIP through the OEM form, the browser sends
+ * a public visitor uploads a multi-MiB ZIP through the OEM form, the browser sends
  * it via a DIRECT COS POST (never through the Event Function body — which caps at
  * ~100 KiB and would 413 `EXCEED_MAX_PAYLOAD_SIZE`), `submitProject` finalizes it
  * server-side (magic-byte sniff + size + checksum), and an admin can mint a
  * short-TTL private download. Public byte routes stay 404.
  *
  * Gated behind `E2E_OEM_UPLOAD_SMOKE=1` (+ admin creds + `E2E_SITE_URL`/
- * `E2E_API_URL` pointing at the deployed env). A 9–10 MiB browser upload also
- * requires the site origin to be in the env's CloudBase security domains / bucket
- * CORS (skill rule STORAGE001) — an ops prerequisite handled at deploy time.
+ * `E2E_API_URL` pointing at the deployed env). The browser upload also requires
+ * the site origin in the env's CloudBase security domains / bucket CORS (skill
+ * rule STORAGE001) — an ops prerequisite handled at deploy time.
  */
 
-/** ~9.5 MiB, comfortably under the 10 MiB `OEM_FILE_MAX_BYTES` cap. */
-const OEM_ZIP_BYTES = 9_961_472;
+/**
+ * Fixture size. Defaults to 2 MiB — 20x the ~100 KiB Event-Function body cap, so
+ * it still proves bytes go DIRECT to COS (not through the function) while
+ * uploading reliably from a cross-region CI runner. The near-cap 9-10 MiB case is
+ * slow trans-pacific and is validated separately by a local probe; override with
+ * `E2E_OEM_SMOKE_BYTES` (up to the 10 MiB `OEM_FILE_MAX_BYTES` cap).
+ */
+const OEM_ZIP_BYTES = (() => {
+  const override = Number(process.env.E2E_OEM_SMOKE_BYTES);
+  return Number.isFinite(override) && override > 0 ? override : 2 * 1024 * 1024;
+})();
 
 /**
- * A realistic large "ZIP": a real ZIP local-file signature (`PK\x03\x04`) followed
- * by incompressible random padding. Finalization sniffs the leading magic bytes
- * (not full archive validity) and recomputes size/checksum, so this exercises the
- * true large-file path without needing a ZIP writer dependency. Random padding
- * keeps the object incompressible so its stored size stays ~9.5 MiB.
+ * A realistic "ZIP": a real ZIP local-file signature (`PK\x03\x04`) followed by
+ * incompressible random padding. Finalization sniffs the leading magic bytes (not
+ * full archive validity) and recomputes size/checksum, so this exercises the true
+ * multi-MiB direct-upload path without needing a ZIP writer dependency. Random
+ * padding keeps the object incompressible so its stored size stays put.
  */
 function buildOemZip(): Buffer {
   const signature = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
@@ -59,7 +68,7 @@ test.describe('MIU-08 deployed OEM upload smoke', () => {
     'Set E2E_OEM_UPLOAD_SMOKE=1 (plus admin credentials + deployed env URLs) to run the OEM ZIP upload smoke.',
   );
 
-  test('public OEM form uploads a 9-10 MiB ZIP via direct COS POST, finalizes, and admin can mint a private download', async ({
+  test('public OEM form uploads a multi-MiB ZIP via direct COS POST, finalizes, and admin can mint a private download', async ({
     page,
     request,
   }) => {

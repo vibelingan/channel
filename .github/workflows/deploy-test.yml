@@ -14,7 +14,7 @@ on:
         type: boolean
         default: false
       run_oem_upload_smoke:
-        description: Run browser-origin OEM 9-10 MiB ZIP upload smoke after deploy
+        description: Run browser-origin OEM ZIP upload smoke after deploy
         required: true
         type: boolean
         default: false

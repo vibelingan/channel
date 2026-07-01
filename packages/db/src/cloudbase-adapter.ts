@@ -159,18 +159,23 @@ export const cloudBaseAdapter: DbAdapter = {
   },
 
   async incrementField(collection, id, field, delta): Promise<number | null> {
-    const db = database();
-    // db.command.inc is atomic and initialises an absent field from 0; it rejects
-    // a non-numeric field (the local nextCounterValue helper mirrors that throw,
-    // so the two backends agree). The facade has already validated delta is a
-    // finite integer. Updating a missing doc is a no-op (updated: 0) — report
-    // that as null, not 0.
-    const res = await db
-      .collection(collection)
-      .doc(id)
-      .update({ data: { [field]: db.command.inc(delta), updatedAt: new Date().toISOString() } });
+    // The atomic increment MUST go through @cloudbase/node-sdk, NOT wx-server-sdk.
+    // In the Tencent CloudBase runtime, wx-server-sdk's command-based update
+    // (`.doc(id).update({ data: { f: db.command.inc(n) } })`) returns `updated: 0`
+    // and does not apply — while PLAIN wx updates work. That silently broke every
+    // `incrementField` caller: the OEM `finalizeClaim` single-winner claim (hard
+    // `NOT_FOUND` → all OEM submissions failed) and `images.publishedRefCount`
+    // (masked by the delivery legacy-scan fallback). Diagnosed live 2026-07-01.
+    // node-sdk is the native SDK for this runtime and its `command.inc` applies;
+    // its `.update(data)` takes the patch directly (no `data:` wrapper) and
+    // `.get()` returns `{ data: [doc] }`. Re-read via the SAME sdk so the returned
+    // counter value reflects this write (read-after-write).
+    const db = cloudStorageSdk().database();
+    const ref = db.collection(collection).doc(id);
+    const res = await ref.update({ [field]: db.command.inc(delta), updatedAt: new Date().toISOString() });
     if ((res.updated ?? 0) === 0) return null;
-    const doc = await this.get(collection, id);
+    const got = await ref.get();
+    const doc = (got.data as Record<string, unknown>[] | undefined)?.[0];
     const value = doc ? Number(doc[field]) : Number.NaN;
     return Number.isFinite(value) ? value : null;
   },

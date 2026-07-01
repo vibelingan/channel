@@ -2681,6 +2681,38 @@ probes:
   failure instead of an opaque URL-wait timeout.
 - **Next:** re-deploy + re-dispatch the smoke to confirm green → Increment 6 → MIU-08.
 
+### Increment 6 — REAL root cause: wx-server-sdk atomic inc broken (P0 correction) — 2026-07-01
+
+The `finalizeClaim: 0` init above was necessary hygiene but **not** the cause. After
+it deployed (admin `releaseId` = `f941c72`, confirmed via `/api/admin` `health`),
+`submitProject` STILL returned `404`. Deeper live diagnosis:
+
+- Wrong-secret probe → `403 FORBIDDEN` (row found, structural checks 1–8 pass);
+  right-secret + no-upload → `404` (only `claim === null` path after the secret
+  check). So `incrementField('files', id, 'finalizeClaim', 1)` returns `null` on
+  the deployed runtime — even with the field initialised.
+- **Root cause:** the DB adapter runs on **wx-server-sdk** (`cloud.database()`). In
+  the Tencent CloudBase runtime, `add`, `.doc(id).get()` and PLAIN
+  `.doc(id).update({data:{…}})` all work (that's why the storageFileId attach and
+  checks 1–8 pass), but the **command-based** update
+  `.doc(id).update({data:{ f: db.command.inc(1) }})` returns **`updated: 0`** and
+  does not apply. wx-server-sdk's atomic `inc` operator simply isn't honoured here.
+- **Broader impact:** the same `incrementField` maintains `images.publishedRefCount`
+  (gates public image visibility). It was failing identically — masked only by the
+  catalog delivery's legacy-scan fallback, so it never surfaced.
+- **Fix (`packages/db/src/cloudbase-adapter.ts`):** route `incrementField`'s atomic
+  inc + re-read through **@cloudbase/node-sdk** (the native SDK for this runtime,
+  already initialised in the adapter for storage). node-sdk `.update(data)` takes
+  the patch directly (no `data:` wrapper) and `.get()` returns `{ data: [doc] }`;
+  re-reading via the same SDK keeps the returned counter read-after-write. `db`
+  typecheck + `verify-cloudbase-sdk-contract` pass.
+- **Smoke fixture reduced:** the 9.5 MiB upload times out from a US GitHub runner →
+  Shanghai COS (local upload 10–16s; CI exceeded 150s). The CI fixture now defaults
+  to **2 MiB** (20× the ~100 KiB function cap — still proves the direct-COS path),
+  overridable via `E2E_OEM_SMOKE_BYTES`; the near-cap 9–10 MiB round-trip is proven
+  by the local probe (COS POST 204 + server re-hash).
+- **Next:** re-deploy + re-dispatch the smoke to confirm green → Increment 6 → MIU-08.
+
 ### Admin OEM-download UI wiring — 2026-07-01
 
 Wired the admin OEM-Requests file links to the authenticated `getOemFileDownloadUrl`
