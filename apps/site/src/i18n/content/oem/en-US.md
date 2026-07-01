@@ -128,9 +128,9 @@ submit:
         name: drawing,
         label: Upload Drawing or Files,
         type: file,
-        accept: '.pdf,.zip,.rar,.png,.jpg,.jpeg,.step,.stp,.igs,.dwg',
+        accept: '.pdf,.zip,.rar,.png,.jpg,.jpeg,.webp,.step,.stp,.igs,.iges,.dwg,.dxf',
         full: true,
-        hint: 'Have several files? Compress them into a single .zip and upload that one file.',
+        hint: 'PDF, ZIP/RAR, CAD, or images up to 10 MiB. Have several files? Compress them into a single .zip and upload that one file.',
       }
   submitLabel: Submit project
   disclaimer: >-

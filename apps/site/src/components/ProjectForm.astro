@@ -122,25 +122,50 @@ const fieldBase =
 
 <script>
   import { apiUrl } from '../lib/api-url.ts';
+  import { OEM_FILE_MAX_BYTES, isAllowedOemExtension } from '@vibelingan-channel/shared';
 
   const form = document.querySelector<HTMLFormElement>('[data-project-form]');
   const root = form?.closest('div');
   const success = root?.querySelector<HTMLElement>('[data-success]');
   const errorEl = form?.querySelector<HTMLElement>('[data-error]');
   const submitBtn = form?.querySelector<HTMLButtonElement>('[data-submit]');
+  const submitLabel = submitBtn?.textContent ?? 'Submit';
+  const maxMiB = Math.floor(OEM_FILE_MAX_BYTES / (1024 * 1024));
 
-  /** Read a File as a base64 string (without the data: URL prefix). */
-  function readFileAsBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = String(reader.result);
-        const comma = result.indexOf(',');
-        resolve(comma >= 0 ? result.slice(comma + 1) : result);
-      };
-      reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
-      reader.readAsDataURL(file);
+  interface OemIntent {
+    fileId: string;
+    uploadIntentId: string;
+    uploadSecret: string;
+    upload: { method: string; url: string; fields: Record<string, string> };
+  }
+
+  function resetButton() {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = submitLabel;
+    }
+  }
+
+  function showError(message: string) {
+    if (errorEl) {
+      errorEl.textContent = message;
+      errorEl.classList.remove('hidden');
+    }
+    resetButton();
+  }
+
+  /** POST an admin-API action and return its `data`, throwing a clear error otherwise. */
+  async function postAction<T>(endpoint: string, action: string, data: unknown): Promise<T> {
+    const res = await fetch(apiUrl(endpoint), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, data }),
     });
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json?.ok) {
+      throw new Error(json?.error?.message ?? `Request failed (${res.status})`);
+    }
+    return json.data as T;
   }
 
   form?.addEventListener('submit', async (event) => {
@@ -150,6 +175,32 @@ const fieldBase =
       return;
     }
     errorEl?.classList.add('hidden');
+
+    // Collect text fields; capture the drawing file separately (never as base64).
+    const data: Record<string, string> = {};
+    let file: File | undefined;
+    for (const el of Array.from(form.elements)) {
+      const field = el as HTMLInputElement | HTMLSelectElement;
+      if (!field.name) continue;
+      if (field instanceof HTMLInputElement && field.type === 'file') {
+        file = field.files?.[0] ?? undefined;
+      } else {
+        data[field.name] = field.value;
+      }
+    }
+
+    // Advisory client-side validation (the server re-validates authoritatively).
+    if (file) {
+      if (file.size > OEM_FILE_MAX_BYTES) {
+        showError(`That file is too large — the maximum is ${maxMiB} MiB.`);
+        return;
+      }
+      if (!isAllowedOemExtension(file.name)) {
+        showError('Unsupported file type. Please upload a PDF, ZIP, RAR, CAD, or image file.');
+        return;
+      }
+    }
+
     if (submitBtn) {
       submitBtn.disabled = true;
       submitBtn.textContent = 'Submitting…';
@@ -159,38 +210,38 @@ const fieldBase =
     const resultPath = form.dataset.result;
     try {
       if (endpoint) {
-        // Collect text fields into a plain object. The drawing file is read as
-        // base64 so its bytes are persisted server-side (in the `files`
-        // collection), not just its name.
-        const data: Record<string, string> = {};
-        for (const el of Array.from(form.elements)) {
-          const field = el as HTMLInputElement | HTMLSelectElement;
-          if (!field.name) continue;
-          if (field instanceof HTMLInputElement && field.type === 'file') {
-            const file = field.files?.[0];
-            if (file) {
-              data.drawingName = file.name;
-              data.drawingType = file.type || 'application/octet-stream';
-              data.drawingData = await readFileAsBase64(file);
-            }
-          } else {
-            data[field.name] = field.value;
+        // Attach a drawing by uploading its bytes DIRECTLY to storage first, then
+        // referencing the pending row from the project. The bytes never transit
+        // the function's small JSON body cap (MIU-08 §20.10).
+        if (file) {
+          if (submitBtn) submitBtn.textContent = 'Uploading…';
+          const intent = await postAction<OemIntent>(endpoint, 'createOemFileUploadIntent', {
+            fileName: file.name,
+            mimeType: file.type || 'application/octet-stream',
+            byteSize: file.size,
+          });
+          // Multipart POST straight to COS: the server-minted fields FIRST, then
+          // the file part. The browser never holds a storage identity.
+          const cos = new FormData();
+          for (const [key, value] of Object.entries(intent.upload.fields)) cos.append(key, value);
+          cos.append('file', file);
+          const post = await fetch(intent.upload.url, { method: intent.upload.method, body: cos });
+          if (!post.ok) {
+            // Leave the pending row for expiry/cleanup; surface a clear error.
+            throw new Error(`File upload failed (${post.status}). Please try again.`);
           }
+          data.drawingName = file.name;
+          data.drawingFileId = intent.fileId;
+          data.uploadIntentId = intent.uploadIntentId;
+          data.uploadSecret = intent.uploadSecret;
         }
 
-        const res = await fetch(apiUrl(endpoint), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'submitProject', data }),
-        });
-        const json = await res.json().catch(() => null);
-        if (!res.ok || !json?.ok) {
-          throw new Error(json?.error?.message ?? `Request failed (${res.status})`);
-        }
+        if (submitBtn) submitBtn.textContent = 'Submitting…';
+        const result = await postAction<{ id?: string }>(endpoint, 'submitProject', data);
 
         // Redirect to a dedicated result page carrying the new reference id.
-        if (resultPath && json.data?.id) {
-          window.location.href = `${resultPath}?id=${encodeURIComponent(json.data.id)}`;
+        if (resultPath && result?.id) {
+          window.location.href = `${resultPath}?id=${encodeURIComponent(result.id)}`;
           return;
         }
       } else {
@@ -201,15 +252,7 @@ const fieldBase =
       success?.classList.remove('hidden');
       success?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } catch (err) {
-      if (errorEl) {
-        errorEl.textContent =
-          err instanceof Error ? err.message : 'Something went wrong. Please try again.';
-        errorEl.classList.remove('hidden');
-      }
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Submit project';
-      }
+      showError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     }
   });
 </script>
