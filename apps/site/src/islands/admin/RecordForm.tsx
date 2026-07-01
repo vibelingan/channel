@@ -1,7 +1,7 @@
 import type { CollectionDef, CollectionDoc, FieldDef } from '@vibelingan-channel/shared';
 import { useState } from 'react';
+import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { ImageManager } from './ImageManager.tsx';
-import { fileUrl } from './api.ts';
 
 interface RecordFormProps {
   collection: CollectionDef;
@@ -197,8 +197,10 @@ function Field({
     );
   }
 
-  // File reference: bytes are stored in the `files` collection and downloaded
-  // via /api/files/<id>. Shown read-only here (re-upload is not supported in the
+  // File reference: bytes live in the `files` collection (CloudBase Storage).
+  // Production has no public `/api/files/:id`, so download is the authenticated
+  // `getOemFileDownloadUrl` action (short-TTL temp URL), handled by
+  // `FileDownloadLink`. Shown read-only here (re-upload is not supported in the
   // admin edit form).
   if (field.type === 'file') {
     const fileId = String(value || '');
@@ -207,18 +209,7 @@ function Field({
         {label}
         <div className="mt-1">
           {fileId ? (
-            <a
-              href={fileUrl(fileId)}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-900"
-            >
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                <path d="M10 2a1 1 0 0 1 1 1v8.59l2.3-2.3a1 1 0 1 1 1.4 1.42l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.42l2.3 2.3V3a1 1 0 0 1 1-1Z" />
-                <path d="M4 15a1 1 0 0 1 1 1v1h10v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z" />
-              </svg>
-              Download file
-            </a>
+            <FileDownloadLink id={fileId} />
           ) : (
             <span className="text-sm text-slate-400">No file attached</span>
           )}

@@ -107,9 +107,24 @@ export function imageUrl(id: string): string {
   return apiUrl(`/api/images/${encodeURIComponent(id)}`);
 }
 
-/** Public URL that streams the bytes of a file stored in the `files` collection. */
-export function fileUrl(id: string): string {
-  return apiUrl(`/api/files/${encodeURIComponent(id)}`);
+/** A short-lived, admin-authenticated OEM file download (MIU-08 §20.10 step 3). */
+export interface OemFileDownload {
+  fileId: string;
+  url: string;
+  expiresAt?: string;
+  fileName: string;
+  mimeType: string;
+  contentDisposition: string;
+}
+
+/**
+ * Mint a short-TTL temp URL for an admin to download a finalized OEM drawing.
+ * Production has no public `/api/files/:id` route — OEM delivery is this
+ * authenticated action. Never persist the returned URL (it expires in ~60s);
+ * only `active`, storage-backed OEM rows resolve (others fail closed).
+ */
+export function getOemFileDownloadUrl(fileId: string): Promise<OemFileDownload> {
+  return call<OemFileDownload>('getOemFileDownloadUrl', { fileId });
 }
 
 interface UploadIntentResponse {
