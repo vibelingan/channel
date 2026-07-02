@@ -369,3 +369,30 @@ fixed before calling Success Stories complete.
 - Preview DOM checks on `http://127.0.0.1:4325`: `/oem` has 0 videos and 1 factory
   poster image; `/portfolio` has 8 certificate images, 0 dialogs, and 0 main
   buttons; `/headphones` and `/overstock` return 404.
+
+### 10.4 Response (2026-07-02)
+
+All three findings addressed on `dev/albertli/try01`:
+
+- **OR-1 (factory video) — resolved as explicit deferral.** No HD factory clip
+  is available yet (client question open) and the repo has no transcode path, so
+  MIU 7's *video* is deferred. The `/oem` capabilities block ships the real
+  `factory-oem.webp` facility **photo** via `MediaVideo` (poster-only), which
+  upgrades to an inline `<video>` with a one-line content change (set
+  `factoryVideo.src` to a CloudBase storage/CDN URL) once the clip is uploaded.
+  Content + interface comments record the deferral; `public.spec.ts` asserts the
+  poster renders and **no** `<video>` is emitted while `src` is empty.
+- **OR-2 (certificate lightbox) — implemented.** `CertificateGallery` now wraps
+  each thumbnail in an accessible `<button>` that opens a native `<dialog>`
+  (Esc + focus-trap via `showModal()`, backdrop-click + close-button to
+  dismiss). `public.spec.ts` proves both groups render, every certificate has an
+  enlarge control, and a certificate opens then closes.
+- **OR-3 (intrinsic image dimensions) — implemented.** Measured `width`/`height`
+  added to the portfolio content model and applied across `LogoWall`,
+  `CertificateGallery`, and the `MediaVideo` poster to reserve layout space.
+
+Also fixed during verification (the original review only checked a local
+preview): the CloudBase **deploy did not prune** removed files, so the retired
+`/headphones` and `/overstock` pages kept serving on the test CDN.
+`deployWebApp()` now prunes retired paths after upload, and the deploy smoke
+asserts they return 404.

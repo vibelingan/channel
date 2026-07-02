@@ -28,12 +28,12 @@ customers:
     A selection of the brands and buying offices we've partnered with across
     audio, children's products, and consumer electronics.
   logos:
-    - { src: /media/portfolio/customers/artcoustic-logo.webp, name: Artcoustic }
-    - { src: /media/portfolio/customers/audio-diversity2.webp, name: Audio Diversity }
-    - { src: /media/portfolio/customers/coremee-giik4.webp, name: CoreMee }
-    - { src: /media/portfolio/customers/di.webp, name: Digital Innovations }
-    - { src: /media/portfolio/customers/pabobo.webp, name: Pabobo }
-    - { src: /media/portfolio/customers/as.webp, name: AS Audio }
+    - { src: /media/portfolio/customers/artcoustic-logo.webp, name: Artcoustic, width: 360, height: 58 }
+    - { src: /media/portfolio/customers/audio-diversity2.webp, name: Audio Diversity, width: 360, height: 112 }
+    - { src: /media/portfolio/customers/coremee-giik4.webp, name: CoreMee, width: 360, height: 78 }
+    - { src: /media/portfolio/customers/di.webp, name: Digital Innovations, width: 360, height: 108 }
+    - { src: /media/portfolio/customers/pabobo.webp, name: Pabobo, width: 360, height: 360 }
+    - { src: /media/portfolio/customers/as.webp, name: AS Audio, width: 360, height: 360 }
     - { src: /media/portfolio/customers/education-institution.webp, name: Leading education brand, anonymized: true }
 
 cases:
@@ -98,14 +98,14 @@ certificates:
   companyLabel: Company & compliance
   productLabel: Product test reports
   items:
-    - { src: /media/portfolio/certs/ce-certification.webp, label: CE Certificate of Compliance, kind: company }
-    - { src: /media/portfolio/certs/emc-certification.webp, label: EMC Certification, kind: company }
-    - { src: /media/portfolio/certs/fcc-certification.webp, label: FCC Certification, kind: company }
-    - { src: /media/portfolio/certs/jd-certification.webp, label: JD Certification, kind: company }
-    - { src: /media/portfolio/certs/as1.webp, label: 'AS1 Speaker — test report', kind: product }
-    - { src: /media/portfolio/certs/cs1-001.webp, label: 'CS1 Speaker — test report', kind: product }
-    - { src: /media/portfolio/certs/sc3-001.webp, label: 'SC3 Headphone — test report', kind: product }
-    - { src: /media/portfolio/certs/op1.webp, label: 'OP1 Gaming Headphone — test report', kind: product }
+    - { src: /media/portfolio/certs/ce-certification.webp, label: CE Certificate of Compliance, kind: company, width: 614, height: 869 }
+    - { src: /media/portfolio/certs/emc-certification.webp, label: EMC Certification, kind: company, width: 700, height: 990 }
+    - { src: /media/portfolio/certs/fcc-certification.webp, label: FCC Certification, kind: company, width: 700, height: 991 }
+    - { src: /media/portfolio/certs/jd-certification.webp, label: JD Certification, kind: company, width: 700, height: 906 }
+    - { src: /media/portfolio/certs/as1.webp, label: 'AS1 Speaker — test report', kind: product, width: 700, height: 965 }
+    - { src: /media/portfolio/certs/cs1-001.webp, label: 'CS1 Speaker — test report', kind: product, width: 700, height: 965 }
+    - { src: /media/portfolio/certs/sc3-001.webp, label: 'SC3 Headphone — test report', kind: product, width: 700, height: 965 }
+    - { src: /media/portfolio/certs/op1.webp, label: 'OP1 Gaming Headphone — test report', kind: product, width: 700, height: 990 }
 ---
 
 <!--

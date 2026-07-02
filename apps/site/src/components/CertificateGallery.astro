@@ -22,19 +22,55 @@ const groups = [
         <h3 class="font-display text-lg font-semibold text-ink">{group.label}</h3>
         <ul class="mt-5 grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
           {group.items.map((cert) => (
-            <li class="reveal">
-              <figure class="overflow-hidden rounded-[var(--radius-card)] bg-white shadow-[var(--shadow-card)] ring-1 ring-black/5">
+            <li class="cert-item reveal">
+              <button
+                type="button"
+                class="cert-trigger group block w-full cursor-zoom-in overflow-hidden rounded-[var(--radius-card)] bg-white text-left shadow-[var(--shadow-card)] outline-none ring-1 ring-black/5 transition hover:ring-brand-500/40 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+                aria-haspopup="dialog"
+                aria-label={`Enlarge certificate: ${cert.label}`}
+              >
                 <img
                   src={cert.src}
                   alt={cert.label}
+                  width={cert.width}
+                  height={cert.height}
                   loading="lazy"
                   decoding="async"
                   class="aspect-[3/4] w-full bg-white object-contain p-2"
                 />
-                <figcaption class="border-t border-black/5 px-3 py-2 text-center text-xs text-ink-soft">
+                <span class="block border-t border-black/5 px-3 py-2 text-center text-xs text-ink-soft">
                   {cert.label}
-                </figcaption>
-              </figure>
+                </span>
+              </button>
+              <dialog
+                class="cert-dialog w-[min(92vw,42rem)] rounded-[var(--radius-card)] bg-white p-0 shadow-2xl backdrop:bg-black/70"
+                aria-label={cert.label}
+              >
+                <div class="relative">
+                  <form method="dialog" class="absolute right-3 top-3 z-10">
+                    <button
+                      type="submit"
+                      class="flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white outline-none transition hover:bg-black/80 focus-visible:ring-2 focus-visible:ring-white"
+                      aria-label="Close"
+                    >
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M6 6l12 12M18 6L6 18" stroke-linecap="round" />
+                      </svg>
+                    </button>
+                  </form>
+                  <img
+                    src={cert.src}
+                    alt={cert.label}
+                    width={cert.width}
+                    height={cert.height}
+                    decoding="async"
+                    class="max-h-[80vh] w-full bg-white object-contain p-4"
+                  />
+                  <p class="border-t border-black/5 px-4 py-3 text-center text-sm text-ink-soft">
+                    {cert.label}
+                  </p>
+                </div>
+              </dialog>
             </li>
           ))}
         </ul>
@@ -42,3 +78,18 @@ const groups = [
     ))
   }
 </div>
+
+<script>
+  // Progressive enhancement: open each certificate in its lightbox <dialog>.
+  // Native <dialog> provides Esc-to-close and a focus trap; we add click-to-open
+  // and backdrop-click-to-close. Without JS the thumbnails still render.
+  for (const item of document.querySelectorAll<HTMLElement>('.cert-item')) {
+    const trigger = item.querySelector<HTMLButtonElement>('.cert-trigger');
+    const dialog = item.querySelector<HTMLDialogElement>('.cert-dialog');
+    if (!trigger || !dialog) continue;
+    trigger.addEventListener('click', () => dialog.showModal());
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+  }
+</script>

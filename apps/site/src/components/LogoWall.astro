@@ -18,6 +18,8 @@ const { logos } = Astro.props;
           <img
             src={logo.src}
             alt={logo.name}
+            width={logo.width}
+            height={logo.height}
             loading="lazy"
             decoding="async"
             class="max-h-12 w-auto opacity-80 grayscale transition hover:opacity-100 hover:grayscale-0"

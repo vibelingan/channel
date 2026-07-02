@@ -12,6 +12,9 @@ export interface CustomerLogo {
   name: string;
   /** When true, `name` is a category/alias, not a real brand (client-gated). */
   anonymized?: boolean;
+  /** Intrinsic pixel dimensions of `src` (omit for anonymised text-only logos). */
+  width?: number;
+  height?: number;
 }
 
 export interface StarCase {
@@ -32,6 +35,9 @@ export interface Certificate {
   src: string;
   label: string;
   kind: 'company' | 'product';
+  /** Intrinsic pixel dimensions of `src`, to reserve layout space (avoid CLS). */
+  width: number;
+  height: number;
 }
 
 export interface PortfolioContent {

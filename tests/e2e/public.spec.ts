@@ -12,7 +12,7 @@ function captureConsoleProblems(page: Page): string[] {
 
 test.describe('public browser smoke', () => {
   test('core pages render from the configured site origin', async ({ context }) => {
-    for (const path of ['/', '/admin', '/login', '/oem']) {
+    for (const path of ['/', '/admin', '/login', '/oem', '/portfolio']) {
       const page = await context.newPage();
       const problems = captureConsoleProblems(page);
       await page.goto(path, { waitUntil: 'domcontentloaded' });
@@ -52,6 +52,34 @@ test.describe('public browser smoke', () => {
       headers: { Origin: e2e.siteUrl },
     });
     expect(files.status()).toBe(404);
+  });
+
+  test('Success Stories certificates open in an accessible lightbox', async ({ page }) => {
+    await page.goto('/portfolio', { waitUntil: 'domcontentloaded' });
+
+    // Both certificate groups render (company + product).
+    await expect(page.getByRole('heading', { name: 'Company & compliance' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Product test reports' })).toBeVisible();
+
+    // Every certificate exposes an enlargement control.
+    const triggers = page.getByRole('button', { name: /Enlarge certificate/i });
+    expect(await triggers.count()).toBeGreaterThan(0);
+
+    // Opening a certificate shows a modal <dialog>; Escape closes it.
+    const dialog = page.locator('dialog.cert-dialog').first();
+    await expect(dialog).toBeHidden();
+    await triggers.first().click();
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+  });
+
+  test('OEM factory block shows the facility poster (video deferred)', async ({ page }) => {
+    await page.goto('/oem', { waitUntil: 'domcontentloaded' });
+    // MIU 7 factory video is deferred: the poster image renders and no <video>
+    // is emitted until a clip URL is configured. See docs/oem-refresh/DESIGN.md.
+    await expect(page.locator('img[src*="factory-oem"]')).toBeVisible();
+    expect(await page.locator('video').count()).toBe(0);
   });
 
   // Headphones storefront is hidden (un-routed) on the OEM-only site; this page

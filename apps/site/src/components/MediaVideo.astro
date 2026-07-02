@@ -15,12 +15,15 @@ interface Props {
   src?: string;
   /** Poster / fallback image path (served from public/media). */
   poster?: string;
+  /** Intrinsic pixel dimensions of `poster`, to reserve layout space (avoid CLS). */
+  posterWidth?: number;
+  posterHeight?: number;
   caption?: string;
   /** Accessible label / alt text for the media. */
   label?: string;
 }
 
-const { src, poster, caption, label } = Astro.props;
+const { src, poster, posterWidth, posterHeight, caption, label } = Astro.props;
 const hasVideo = Boolean(src);
 const alt = label ?? caption ?? '';
 ---
@@ -51,6 +54,8 @@ const alt = label ?? caption ?? '';
           <img
             src={poster}
             alt={alt}
+            width={posterWidth}
+            height={posterHeight}
             loading="lazy"
             decoding="async"
             class="aspect-video h-full w-full object-cover"

@@ -141,9 +141,15 @@ submit:
     Our engineering team will review your details and get back to you within one
     business day.
 
+# NOTE (MIU 7 — deferred): the factory VIDEO is deferred until the client's HD
+# clip is available. With `src: ''` the poster facility photo renders on its own;
+# set `src` to a CloudBase storage/CDN URL to upgrade to an inline video with no
+# code change. See docs/oem-refresh/DESIGN.md §10.
 factoryVideo:
   src: ''
   poster: /media/factory-oem.webp
+  posterWidth: 1228
+  posterHeight: 718
   caption: Inside our Dongguan engineering and production facility
 ---
 
