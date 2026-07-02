@@ -13,6 +13,7 @@ brand:
 nav:
   items:
     - { label: OEM Development, href: '/oem' }
+    - { label: Success Stories, href: '/portfolio' }
     - { label: Sign In / Register, href: '/admin', emphasis: true }
 
 hero:
@@ -21,7 +22,7 @@ hero:
   subheading: >-
     From Product Development to Bulk Supply
   primaryCta: { label: Explore OEM Development, href: '/oem' }
-  secondaryCta: { label: Submit a Project, href: '/oem#submit' }
+  secondaryCta: { label: View our work, href: '/portfolio' }
   scrollLabel: Scroll to discover
 
 sections:

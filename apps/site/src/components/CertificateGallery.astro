@@ -1,0 +1,44 @@
+---
+import type { Certificate } from '../i18n/portfolio.ts';
+
+interface Props {
+  certs: Certificate[];
+  companyLabel: string;
+  productLabel: string;
+}
+
+const { certs, companyLabel, productLabel } = Astro.props;
+
+const groups = [
+  { label: companyLabel, items: certs.filter((c) => c.kind === 'company') },
+  { label: productLabel, items: certs.filter((c) => c.kind === 'product') },
+].filter((g) => g.items.length > 0);
+---
+
+<div class="space-y-12">
+  {
+    groups.map((group) => (
+      <div>
+        <h3 class="font-display text-lg font-semibold text-ink">{group.label}</h3>
+        <ul class="mt-5 grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
+          {group.items.map((cert) => (
+            <li class="reveal">
+              <figure class="overflow-hidden rounded-[var(--radius-card)] bg-white shadow-[var(--shadow-card)] ring-1 ring-black/5">
+                <img
+                  src={cert.src}
+                  alt={cert.label}
+                  loading="lazy"
+                  decoding="async"
+                  class="aspect-[3/4] w-full bg-white object-contain p-2"
+                />
+                <figcaption class="border-t border-black/5 px-3 py-2 text-center text-xs text-ink-soft">
+                  {cert.label}
+                </figcaption>
+              </figure>
+            </li>
+          ))}
+        </ul>
+      </div>
+    ))
+  }
+</div>

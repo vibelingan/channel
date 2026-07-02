@@ -13,12 +13,13 @@ test('home "Who we are" section uses the real team photo', () => {
   );
 });
 
-test('every /media asset referenced by site + OEM content exists in public/', () => {
-  const oem = readFileSync(
-    fileURLToPath(new URL('./content/oem/en-US.md', import.meta.url)),
-    'utf8',
+test('every /media asset referenced by site + OEM + portfolio content exists in public/', () => {
+  const others = ['./content/oem/en-US.md', './content/portfolio/en-US.md'].map((p) =>
+    readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8'),
   );
-  const refs = [...`${enUS}\n${oem}`.matchAll(/(?:image|logo|poster):\s*(\/media\/\S+)/g)].map(
+  const all = [enUS, ...others].join('\n');
+  // Path stops at whitespace / comma / closing brace / quote (handles inline YAML).
+  const refs = [...all.matchAll(/(?:image|logo|poster|src):\s*['"]?(\/media\/[^\s,}'"]+)/g)].map(
     (m) => m[1],
   );
   assert.ok(refs.length > 0, 'found media references');
