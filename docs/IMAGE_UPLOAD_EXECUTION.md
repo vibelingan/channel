@@ -2734,6 +2734,21 @@ it deployed (admin `releaseId` = `f941c72`, confirmed via `/api/admin` `health`)
   **P1 (expired-pending sweep) — now wired** (see disposition above); the three P2s
   are adjusted/deferred/acknowledged.
 
+- **Merged-workflow deploy verified GREEN on `test` (`20c0e7b`) — 2026-07-02:** after
+  merging into `dev/albertli/try01` (`af8e03b`), the first real run of the merged
+  `deploy-test.yml` (test push `28560744424`) **failed at `Verify CloudBase deploy
+  credentials`**: Albert's MIU-H1 moved deploy secrets from job-level to per-step env
+  but missed that step, so `$TENCENTCLOUD_SECRETID` was empty → `exit 1`. (The
+  dev-branch dispatch never caught it — it died at startup on the `test` environment's
+  deployment-branch allowlist, which only permits `fix/image-upload-storage-design` +
+  `test`.) Fixed in `20c0e7b` by scoping `TENCENTCLOUD_SECRETID`/`SECRETKEY` into the
+  verify step. Redeploy `28560952582` (push) is **all-green** — `Verify ✓ Deploy ✓
+  Smoke ✓ Public E2E ✓` — which also confirms the SESSIONTOKEN removal is correct
+  (deploy succeeds on permanent creds only). Dispatch `28561137908`
+  (`run_oem_upload_smoke=true`) is **all-green with a clean (non-flaky) OEM upload
+  smoke**. `origin/test == origin/dev/albertli/try01 == 20c0e7b`, deployed to the
+  CloudBase test env.
+
 ### Admin OEM-download UI wiring — 2026-07-01
 
 Wired the admin OEM-Requests file links to the authenticated `getOemFileDownloadUrl`
