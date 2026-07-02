@@ -438,50 +438,50 @@ Verification run:
 
 ## 11. 客户待澄清问题（图文汇总）
 
-> 汇总需向客户确认的问题。下方截图取自**测试环境实况页面**并已勾画标注，可直接发客户。
-> 测试站：`https://channel-test-diversity-123-d9grnqfux221323bb.webapps.tcloudbase.com`
-> （标注源图见 `docs/assets/oem-questions/`。）
+> 已按 **PRD**（`Diversity_Technology_Website_Upgrade_Specification.pdf`）+ 客户《修改内容》+ 素材逐条核对。
+> **素材已明确的直接落地（不再问）**、**PRD 已答的不再问**，下面只列**真正还需客户确认**的问题。
+> 截图取自测试站实况并已勾画标注，可直接发客户。标注源图见 `docs/assets/oem-questions/`。
 
-### 11.1 客户 Logo 墙（公司案例页 `/portfolio`）
+### 11.1 已按素材落地（无需确认，已做进站点）
 
-![Q8 客户 Logo 标注](../assets/oem-questions/q8-customers.png)
+- **工厂视频**：客户提供的 `OEM.mp4`（`替换视频.zip`）已压缩接入 `/oem`（解决 review OR-1；客户《修改内容》要求“OEM 工厂图改真实场景视频”）。
+- **客户 logo “AS Audio” → “Allsop”**（PRD 明确“美國 Allsop”）。
+- **删除页脚 `Minimum Order Amount: $500`**（客户《修改内容》“删除USD500”）。
 
-- **①–⑦** 每个 logo 是否都能公开展示？不能公开的可匿名为品类别名（如 “Leading UK Audio Brand”）。
-- **⑥** 图片实际显示为 **ALLSOP**，但站内标注为 “AS Audio” —— 请确认真实品牌名。
-- **⑦** 目前匿名为 “Leading education brand” —— 可否具名？若可，请提供正式名称 / logo。
-- **③** 显示为 “CoreMee Giik” —— 请确认完整品牌名。
+### 11.2 PRD / 素材已明确（无需再问）
 
-### 11.2 证书 / 检测报告（公司案例页 `/portfolio`）
+| 曾经列过的疑问 | 已有答案 |
+|---|---|
+| 多语言 | PRD：首期纯英文，二期繁体中文 + 日文，`/en/ /zh/` 路由 |
+| 版权年份 | PRD：公司 **2004 年**成立 |
+| 后台 CMS | PRD：动态页面（案例 / 拆解 / 概念）**要求建 CMS**（属二期） |
+| MOQ / $500 | 客户《修改内容》：**删除** |
+| “JD” 证书标签 | 客户素材文件本身即命名 `JD certification.png`，非错标 |
+| 二期页面（拆解 Lab / 蓝海 / AI 估价器） | PRD 明确要做，属**二期**（本期先做 主页 + OEM + 案例） |
 
-![Q10 证书标注](../assets/oem-questions/q10-certificates.png)
+### 11.3 真正待客户确认（4 项）
 
-- 证书**清晰可读**，含公司名称（**Channel Technology Limited**）、地址、报告编号、经办人姓名 —— 这些可否公开？或需打码 / 换低清缩略图？
+#### ① 公司名称（页脚 / meta）—— 三处不一致
+
+![页脚公司名标注](../assets/oem-questions/a1-footer.png)
+
+- PRD 用 `Diversity Technology Limited`；证书 / OEM服务介绍用 `Channel Technology Limited`；**当前网站**用 `Diversity Innovations Limited`。
+- 统一使用哪个法律主体名称？是否为两个实体（贸易主体 vs 制造 / 证书主体）？
+
+#### ② 真实联系方式
+
+（见上图橙框）当前为占位符：`hello@example.com`、`+852 0000 0000`、地址仅 “Hong Kong · Dongguan”。请提供真实 email / 电话 / 地址。
+
+#### ③ 证书 / 检测报告可读信息
+
+![证书标注](../assets/oem-questions/q10-certificates.png)
+
+- 证书**清晰可读**，含公司名称、地址、报告编号、经办人姓名 —— 可否公开？或需打码 / 换低清缩略图？
 - 分组「公司资质」vs「产品检测报告」是否 OK？是否有机密项需下架？
-- 第 4 张标注为 “JD Certification”，实际是 **DE 检测报告**（品牌 CoreMee Giik）—— 标签是否需订正？
-- 缩略图点击可弹出大图查看（已实现灯箱）。
 
-### 11.3 工厂展示视频（OEM 页 `/oem`）
+#### ④ 客户 logo 公开与匿名
 
-![工厂视频标注](../assets/oem-questions/video-factory.png)
+![客户 Logo 标注](../assets/oem-questions/q8-customers.png)
 
-- 能否提供 **① HD 工厂视频**（将自动内嵌循环播放）+ **② 车间 / 产线内景照片**？
-- 当前占位图是**厂房外景**，但文案写 “Inside our … facility”（内景）—— 建议换内景。
-- 视频只需给出 URL 即可上线，无需改代码（升级路径已就位）。
-
-### 11.4 法律主体名称（页脚 / meta）
-
-![A1 页脚标注](../assets/oem-questions/a1-footer.png)
-
-- 页脚 © 用 “**Diversity Innovations Limited**”，但合规证书主体是 “**Channel Technology Limited**” —— 页脚与 meta 统一用哪个法律主体？两者是否同一实体？
-
-### 11.5 其他待确认（文字）
-
-| # | 项目 | 现状 | 需客户确认 |
-|---|---|---|---|
-| C1 | 联系方式 | 占位符：`hello@example.com`、`+852 0000 0000`、地址仅 “Hong Kong · Dongguan” | 提供真实 email / 电话 / 地址 |
-| C2 | 起订量 | 页脚显示 “Minimum Order Amount: $500” | 数值是否正确？是否要展示？ |
-| C3 | 版权年份 | 页脚 “© 2004–2026” | 确认起始年份（2004？） |
-| C4 | 二期页面（A2） | 拆解 Lab / 蓝海概念 / AI 估价器**未做** | 本期是否需要？ |
-| C5 | 多语言（A5） | 本期**纯英文** | 二期是否加中文等？ |
-| C6 | 案例维护（A3） | **静态**维护（改内容文件） | 是否需要后台自助管理（CMS）？ |
-| C7 | 首页 Hero（A6） | 保留现有 4K 科技动画 | 是否需换实拍素材？ |
+- 已提供的 logo 默认可公开展示 —— 请确认无误（名称已按 PRD 校正）。
+- 第 7 个（教育机构）目前匿名为 “Leading education brand” —— 可否具名？
