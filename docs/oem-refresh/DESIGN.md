@@ -317,4 +317,55 @@ PT-1  MIU1 ─┐        PT-2  MIU4 ── MIU5 ── MIU6      PT-4  MIU8 ─�
 ## 9. 交付物与下一步
 - 本设计 = dev-pipeline 的 Phase 2–4 产出（HLD + Level1 + Level2 MIU）。
 - 建议：`/dp-pipeline` 从**批 1（隐藏）**起实现——这批完全确定、零客户依赖，可立即动工；批 2/3 的公司名(A1)、页面范围(A2) 定了再推进。
-```
+
+---
+
+## 10. Implementation Review - OEM Refresh (2026-07-02)
+
+Scope: `dev/albertli/try01` commits `8ad0a60..e2eaa50`, i.e. the OEM-refresh work
+after the OEM/private-media upload merge: hidden headphones/overstock routes,
+real brand/team media, OEM factory media block, marketing-video policy, and the
+new Success Stories page. Review used the current code plus rendered preview
+checks; it intentionally does not re-open the earlier MIU-08 storage/upload work
+already reviewed in `docs/IMAGE_UPLOAD_STORAGE_DESIGN.md`.
+
+Verdict: **approve with changes**. The branch is structurally sound and the
+hidden-route/branding/portfolio skeleton work builds cleanly, but MIU 7 and MIU
+11 are not yet fully delivered as designed. Treat OR-1 as a release blocker
+unless the factory video is explicitly deferred in product scope; OR-2 should be
+fixed before calling Success Stories complete.
+
+### 10.1 Findings
+
+| # | Severity | Cause / layer | Issue | Recommended fix |
+|---|---|---|---|---|
+| OR-1 | P1 | Mixed: requirement + verification gap; content/i18n + route verification | The OEM page does not actually render a factory video. `apps/site/src/i18n/content/oem/en-US.md` sets `factoryVideo.src: ''`, and `MediaVideo` falls back to an `<img>` when `src` is empty. Rendered `/oem` has **0** `<video>` elements and 1 `factory-oem.webp` poster image, so MIU 7's "OEM factory video" done condition is not met. | Host the approved/transcoded factory clip outside the static site build (CloudBase Storage/CDN per the new marketing-video policy), set `factoryVideo.src`, and add a rendered route assertion that `/oem` emits a `<video>` when the content includes a video URL. If the clip is not available, mark MIU 7 as explicitly deferred and change the page/caption to avoid implying video delivery. |
+| OR-2 | P2 | Frontend issue + verification gap; feature component | `CertificateGallery` does not implement the designed lightbox. The design requires each certificate to open in a native `<dialog>`, but `apps/site/src/components/CertificateGallery.astro` renders static figures only. Rendered `/portfolio` has **0** `<dialog>` elements and **0** buttons, so certificates/test reports cannot be enlarged or inspected. | Wrap each thumbnail in an accessible button, render a keyboard-closeable `<dialog>` with the full certificate image and label, and add component/render coverage that proves two groups render and each cert has an enlargement control. |
+| OR-3 | P3 | Frontend issue; component/content contract | New marketing thumbnails omit intrinsic `width`/`height` attributes in `LogoWall`, `CertificateGallery`, and the `MediaVideo` poster fallback. CSS aspect ratios keep the layout mostly stable, but this still violates the current web interface image guideline and leaves unnecessary CLS risk for the new `/portfolio` media wall. | Add dimensions to the portfolio content model or component-level asset metadata and pass `width`/`height` onto all generated `<img>` tags; keep `loading="lazy"` for below-fold images. |
+
+### 10.2 What Passed
+
+- Hidden storefront routes behave as intended: rendered preview returned `404`
+  for `/headphones` and `/overstock`, while `/`, `/oem`, and `/portfolio`
+  returned `200`.
+- `astro build` generated 8 public pages and included `/portfolio/index.html`;
+  hidden headphones/overstock pages were not emitted.
+- Responsive smoke at 390, 768, and 1440 px found no horizontal overflow on `/`,
+  `/oem`, or `/portfolio`.
+- Brand/logo/team media and portfolio asset references are present on disk; the
+  focused site tests cover the content/asset references.
+- The marketing-video policy is documented and uses a non-bundled storage/CDN
+  direction, which is the right shape for the future factory-video upload path.
+
+### 10.3 Verification Run
+
+- `pnpm --filter @vibelingan-channel/site test` - pass (6 tests).
+- `pnpm typecheck` - pass; Astro reported 0 errors, with existing React
+  `FormEvent` deprecation hints only.
+- `pnpm build` - pass; 8 static pages generated.
+- `pnpm lint` - pass.
+- `pnpm verify:cloudbase-sdk` - pass; confirms the CloudBase SDK storage contract
+  and that `wx-server-sdk` still does not expose `getUploadMetadata`.
+- Preview DOM checks on `http://127.0.0.1:4325`: `/oem` has 0 videos and 1 factory
+  poster image; `/portfolio` has 8 certificate images, 0 dialogs, and 0 main
+  buttons; `/headphones` and `/overstock` return 404.
