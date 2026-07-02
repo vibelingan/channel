@@ -57,6 +57,12 @@ inline or legacy compatibility paths.
    delivery proof, cleanup/failure cases, and a no-flake or clearly qualified
    smoke result.
 
+9. Keep the review and ops path visible.
+   For shared branches, remote agents, CI credentials, deployed smoke, or
+   monitoring loops, read `references/operations-and-review.md`. Background
+   health checks should not replace visible review findings and should be
+   stopped when they become context noise.
+
 ## Provider Notes
 
 For CloudBase/COS implementations, read

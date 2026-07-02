@@ -25,6 +25,10 @@ Do not assume one CloudBase SDK object has every storage method.
   `{ url, authorization, token, fileId, cosFileId, download_url }`.
 - The browser upload used multipart POST form fields, not a stale raw PUT/header
   contract.
+- `wx-server-sdk` command-based atomic increment was not honored in the deployed
+  runtime even though plain updates worked. Route atomic counters and
+  single-winner claims through the verified native CloudBase node SDK, and prove
+  them with a deployed smoke.
 
 Mandatory gate when touching CloudBase media/storage SDK code:
 
@@ -33,7 +37,9 @@ pnpm verify:cloudbase-sdk
 ```
 
 Also inspect the installed packages and declarations. A hand-written `.d.ts`
-file is never the source of truth.
+file is never the source of truth. If live library docs such as Context7 are
+available, use them; otherwise use the CloudBase official docs/knowledge base
+plus installed package inspection, and record that Context7 was unavailable.
 
 ## Direct Upload Shape
 
@@ -61,6 +67,8 @@ Public unauthenticated intent creation is an abuse surface. Add:
 - server-generated `oem/` path;
 - expired pending sweep that deletes storage objects;
 - server-side size/checksum/magic-byte verification before activation.
+- denials as `429` with `Retry-After`, with the header exposed through CORS when
+  browser clients need to read it.
 
 ## Private Delivery
 
@@ -72,6 +80,13 @@ Public unauthenticated intent creation is an abuse surface. Add:
   `<a download>` using the sanitized filename returned by the app action.
 - CloudBase bucket CORS/security-domain must allow the deployed site origin for
   browser upload POST and temp-url GET paths.
+- Browser code cannot set `Content-Length`; do not list it as a required
+  frontend/CORS header. Configure/verify the headers the browser actually
+  preflights, such as the COS signature/security-token metadata headers and
+  `Content-Type` when used.
+- Managed CloudBase storage buckets may appear under the CloudBase bucket view
+  rather than the generic COS bucket list. Verify the platform-specific storage
+  view or API before assuming the bucket is missing.
 
 ## Deployment And Ops
 
@@ -82,3 +97,7 @@ Public unauthenticated intent creation is an abuse surface. Add:
   behavior.
 - Record deployed release SHA and function health after deploy. A green local
   build is not enough evidence for SDK/runtime behavior.
+- Do not paste CAM SecretKeys or STS credentials into chat. Set GitHub
+  environment secrets directly through a secure local/console path. When moving
+  from STS to permanent CAM keys, remove stale `TENCENTCLOUD_SESSIONTOKEN` so
+  the SDK/CLI does not try an expired session token first.

@@ -19,6 +19,10 @@ acceptance.
   storage URLs.
 - Delete/cleanup code ignores per-object failures.
 - Deployed evidence does not run the real runtime code path.
+- The implementation depends on a third-party SDK operator but has no deployed
+  smoke against the real SDK/runtime.
+- CI credentials are temporary, expired, or routed through chat instead of
+  environment secrets.
 
 ## P2 Risks
 
@@ -32,6 +36,13 @@ acceptance.
 - Cleanup is implemented in unit tests but not wired into a production action,
   timer, or piggyback path.
 - The design mentions provider features that the selected SDK cannot express.
+- Bucket CORS/security-domain setup is documented but not verified from the
+  deployed browser origin.
+- Fallback branches hide broken fast paths without logging/counters.
+- The admin UI can mint a private URL but does not exercise the final Blob
+  download path and filename contract.
+- Shared-branch review relies on background monitors only, with no visible
+  review findings or reviewed SHA ledger.
 
 ## Evidence To Record
 
@@ -43,6 +54,10 @@ acceptance.
 - Deployed checks: release SHA, health endpoint, browser upload, CORS, admin
   private download, failure/oversize behavior.
 - Known caveats, retry/flakiness, and remaining MIUs.
+- Git transport and branch coordination assumptions when multiple agents share
+  an ordinary branch.
+- Secret-management path for CI credentials, including removal of stale session
+  tokens when switching to permanent keys.
 
 ## Common Fix Patterns
 
@@ -54,3 +69,6 @@ acceptance.
 - Use `Blob` object URLs for private browser preview/download, then revoke them.
 - Add bounded expired-pending cleanup before declaring a public upload surface
   merge-ready.
+- Route provider atomic operators through the SDK proven in the deployed
+  runtime, not merely the SDK that compiles locally.
+- Add a health/release endpoint and rerun the exact failing probe after deploy.

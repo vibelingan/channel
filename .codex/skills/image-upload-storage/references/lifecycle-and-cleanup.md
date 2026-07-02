@@ -38,6 +38,8 @@ Intent creation:
 - Choose the exact storage path server-side.
 - Store a pending row with TTL, expected metadata, and a one-time secret hash
   when public clients can create intents.
+- For public/anonymous clients, reserve or rate-limit before issuing a storage
+  credential; roll back the reservation if credential attachment fails.
 - Return only the upload credential fields the browser needs.
 
 Upload:
@@ -56,6 +58,8 @@ Finalize:
 - Create or update the owning business record, then activate the media row.
 - If a later step fails, compensate so the API does not report success while
   leaving unowned active bytes.
+- If the provider cannot bind object size in the upload credential, claim first,
+  then re-read/recompute and reject/delete over-cap landed objects server-side.
 
 ## Cleanup Rules
 
@@ -71,6 +75,8 @@ Cleanup is product behavior, not background tidying.
 - Never over-delete on partial failure. Pair each row to one object and report
   failures.
 - Ref-counted public media must separate unlinking from hard delete.
+- Fallback cleanup paths should emit logs/counters; otherwise a broken fast path
+  can remain hidden behind compatibility behavior.
 
 ## Delivery
 

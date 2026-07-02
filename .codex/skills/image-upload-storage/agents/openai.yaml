@@ -1,0 +1,4 @@
+interface:
+  display_name: "Image Upload Storage"
+  short_description: "Storage-backed upload design"
+  default_prompt: "Use $image-upload-storage to design or review a storage-backed media upload flow with purpose/type/size policy, lifecycle cleanup, provider contract checks, and deployed evidence."

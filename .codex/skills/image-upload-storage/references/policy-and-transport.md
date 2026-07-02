@@ -8,6 +8,8 @@ Choose upload transport in this order:
 2. Type: which MIME/extension classes are valid for that purpose?
 3. Size: is the selected transport allowed for this byte range?
 4. Security: which actor can upload, finalize, read, publish, or delete it?
+5. Entry point: which UI/API owns the upload versus which UI only reviews or
+   edits the resulting record?
 
 Size alone must not choose base64. A 20 KB catalog photo is still a catalog
 image and should follow the same storage lifecycle as a 5 MiB catalog photo. A
@@ -64,3 +66,5 @@ Reject or redesign when any of these appear:
 - New writes store temporary download URLs in the database.
 - One upload action accepts every purpose and type with ad hoc branching.
 - The selected route has not been checked against deployed body limits.
+- The admin/review form is treated as the upload source of truth when the real
+  business upload happens on a public or customer-facing form.
