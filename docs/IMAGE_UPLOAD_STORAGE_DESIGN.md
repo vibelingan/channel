@@ -219,7 +219,8 @@ Size alone must never downshift a product/OEM file into base64.
 | `catalog-thumbnail` | generated `jpeg`/`png`/`webp` variants | derived from source | CloudBase Storage variant path | Generated metadata follows the parent source image. Do not store product thumbnails as DB base64 unless they are legacy records. |
 | `oem-drawing` | PDF, ZIP/RAR, CAD extensions, drawing `png`/`jpeg`/`webp` | 10 MiB P0 | CloudBase Storage direct COS POST under `oem/` | Private admin-only lifecycle. Never tunnel OEM bytes through `/api/admin` JSON/base64. |
 | `inline-small` | SVG/icon/swatch-style `svg`/`png`/`webp` only | 50 KiB raw max | Static asset or explicit base64 field | Only for deliberate inline/admin assets, seeded fixtures, and compatibility. Must use a named action/schema; never generic CRUD. |
-| `marketing-media` | `jpeg`/`png`/`webp` and future video if approved | 20 MiB design cap | Storage or static hosting | Public media needs a separate publishing/cache policy. Not a fallback for catalog/OEM. |
+| `marketing-media` (image) | `jpeg`/`png`/`webp` | 10 MiB | Storage or static hosting | Public-site imagery (team / factory / case photos). Separate publishing/cache policy; not a fallback for catalog/OEM. |
+| `marketing-media` (video) | `video/mp4`, `video/webm` | **200 MiB single-video cap** (`MARKETING_VIDEO_MAX_BYTES`) | CloudBase Storage direct COS POST; served by URL (never bundled in the site build) | ~2–4 min 1080p clip. CloudBase free tier ≈ 5 GiB storage + limited CDN traffic — budget only a handful. **Above 200 MiB ⇒ chunked / resumable (multipart) upload — intentionally NOT built yet.** |
 
 Base64 eligibility contract:
 
