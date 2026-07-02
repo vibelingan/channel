@@ -396,3 +396,40 @@ preview): the CloudBase **deploy did not prune** removed files, so the retired
 `/headphones` and `/overstock` pages kept serving on the test CDN.
 `deployWebApp()` now prunes retired paths after upload, and the deploy smoke
 asserts they return 404.
+
+### 10.5 Review Round 2 (2026-07-02)
+
+Review of `d910bfa..d9f8225` on `dev/albertli/try01`. Verdict:
+**accepted; no new blockers found.**
+
+- OR-1 is now a product-scope deferral rather than a hidden implementation gap:
+  the OEM page intentionally renders the facility poster while `factoryVideo.src`
+  is empty, and the content/type comments plus Playwright coverage make that
+  contract explicit.
+- OR-2 is implemented: `/portfolio` renders one accessible enlargement trigger
+  and native `<dialog>` per certificate, with Escape-close behavior verified.
+- OR-3 is implemented: rendered `/portfolio` no longer has marketing `<img>`
+  elements missing `width`/`height`, and the OEM factory poster reserves its
+  intrinsic dimensions.
+- The static-hosting prune is the right targeted fix for retired paths
+  lingering after additive uploads. It is code-reviewed here; live acceptance
+  still depends on the next CloudBase deploy smoke proving `/headphones` and
+  `/overstock` return 404 in the deployed test environment.
+
+Verification run:
+
+- `pnpm --filter @vibelingan-channel/site test` - pass (6 tests).
+- `pnpm typecheck` - pass; Astro reported 0 errors, with existing React
+  `FormEvent` deprecation hints only.
+- `pnpm build` - pass; 8 static pages generated.
+- `pnpm lint` - pass.
+- `pnpm verify:cloudbase-sdk` - pass.
+- Focused Playwright local preview:
+  `E2E_SITE_URL=http://127.0.0.1:4325 pnpm exec playwright test tests/e2e/public.spec.ts -g "core pages render|Success Stories certificates|OEM factory block"`
+  - pass (3 tests). Full public API smoke was not run locally because it needs a
+  deployed or local API base URL.
+- Manual browser DOM checks on local preview: `/`, `/oem`, `/portfolio` return
+  200; `/headphones` and `/overstock` return 404; `/portfolio` has 8 certificate
+  triggers and 8 dialogs; dialog opens and closes with Escape; no main marketing
+  images are missing intrinsic dimensions; no horizontal overflow at 390, 768,
+  or 1440 px.
