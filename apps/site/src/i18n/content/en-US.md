@@ -13,8 +13,6 @@ brand:
 nav:
   items:
     - { label: OEM Development, href: '/oem' }
-    - { label: Headphones, href: '/headphones' }
-    - { label: Overstock, href: '/overstock' }
     - { label: Sign In / Register, href: '/admin', emphasis: true }
 
 hero:
@@ -23,7 +21,7 @@ hero:
   subheading: >-
     From Product Develoopment to Bulk Supply
   primaryCta: { label: Explore OEM Development, href: '/oem' }
-  secondaryCta: { label: Browse Overstock, href: '/overstock' }
+  secondaryCta: { label: Submit a Project, href: '/oem#submit' }
   scrollLabel: Scroll to discover
 
 sections:
@@ -70,11 +68,9 @@ footer:
         - { label: Capabilities, href: '#capabilities' }
         - { label: Partnership, href: '#partnership' }
         - { label: Quality Assurance, href: '#' }
-    - heading: Products
+    - heading: Services
       links:
         - { label: OEM Development, href: '/oem' }
-        - { label: Headphones, href: '/headphones' }
-        - { label: Overstock, href: '/overstock' }
     - heading: Contact Us
       links:
         - { label: 'Email: hello@example.com', href: 'mailto:hello@example.com' }
