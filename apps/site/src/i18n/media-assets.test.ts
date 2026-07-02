@@ -1,12 +1,9 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
+import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-const enUS = readFileSync(
-  fileURLToPath(new URL('./content/en-US.md', import.meta.url)),
-  'utf8',
-);
+const enUS = readFileSync(fileURLToPath(new URL('./content/en-US.md', import.meta.url)), 'utf8');
 
 test('home "Who we are" section uses the real team photo', () => {
   assert.ok(enUS.includes('/media/team-diversity.webp'), 'heritage image is the team photo');

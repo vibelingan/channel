@@ -12,7 +12,7 @@ function captureConsoleProblems(page: Page): string[] {
 
 test.describe('public browser smoke', () => {
   test('core pages render from the configured site origin', async ({ context }) => {
-    for (const path of ['/', '/admin', '/login', '/oem', '/headphones', '/overstock']) {
+    for (const path of ['/', '/admin', '/login', '/oem']) {
       const page = await context.newPage();
       const problems = captureConsoleProblems(page);
       await page.goto(path, { waitUntil: 'domcontentloaded' });
@@ -54,7 +54,9 @@ test.describe('public browser smoke', () => {
     expect(files.status()).toBe(404);
   });
 
-  test('headphones page hydrates and resolves catalog loading state', async ({ page }) => {
+  // Headphones storefront is hidden (un-routed) on the OEM-only site; this page
+  // test moves to the future standalone headphones site. See docs/oem-refresh/DESIGN.md.
+  test.skip('headphones page hydrates and resolves catalog loading state', async ({ page }) => {
     const problems = captureConsoleProblems(page);
     const productsResponse = page.waitForResponse(
       (response) => response.url().includes('/api/products') && response.status() === 200,
