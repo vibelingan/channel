@@ -19,7 +19,7 @@ hero:
   eyebrow: Since 2004 · Hong Kong · Dongguan
   heading: OEM Manufacturing & Global Supply Chain Solutions
   subheading: >-
-    From Product Develoopment to Bulk Supply
+    From Product Development to Bulk Supply
   primaryCta: { label: Explore OEM Development, href: '/oem' }
   secondaryCta: { label: Submit a Project, href: '/oem#submit' }
   scrollLabel: Scroll to discover
@@ -34,8 +34,8 @@ sections:
       Headquartered in Hong Kong and supported by advanced production facilities
       and engineering expertise in Dongguan, China, we deliver innovative and
       reliable product solutions to customers worldwide.
-    image: /media/section-heritage.png
-    imageAlt: Illustration of a modern manufacturing facility
+    image: /media/team-diversity.webp
+    imageAlt: The Diversity Innovations engineering and manufacturing team
   - id: capabilities
     eyebrow: What we make
     heading: From audio devices to home products
