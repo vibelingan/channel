@@ -492,6 +492,43 @@ function ensureGateway(def) {
   console.log(`${def.name}: created gateway route ${def.routePath}; request ${requestId}`);
 }
 
+// Static hosting `upload` is additive: it creates/overwrites files but never
+// deletes remote files that are absent from the new build. Pages and assets
+// intentionally removed from the site therefore linger on the CDN from earlier
+// deploys (e.g. the retired /headphones and /overstock storefronts). We prune
+// the known legacy paths explicitly.
+//
+// This is a *targeted* prune, not a blanket "delete everything not in dist":
+// this script runs only in CI with no local dry-run, so an over-broad prune
+// could delete live files with no safety net. Add an entry here whenever a page
+// or asset is intentionally removed from the site.
+const legacyHostingPaths = [
+  { cloudPath: 'headphones', isDir: true },
+  { cloudPath: 'headphone-item', isDir: true },
+  { cloudPath: 'overstock', isDir: true },
+  { cloudPath: 'overstock-item', isDir: true },
+  { cloudPath: 'media/logo-channel.svg', isDir: false },
+  { cloudPath: 'media/section-heritage.png', isDir: false },
+  { cloudPath: 'media/portfolio/cases/tws-speaker-2.webp', isDir: false },
+  { cloudPath: 'media/portfolio/cases/tws-speaker-3.webp', isDir: false },
+];
+
+function pruneLegacyHostingPaths() {
+  for (const { cloudPath, isDir } of legacyHostingPaths) {
+    const result = callTool(
+      'cloudbase.manageHosting',
+      { action: 'delete', cloudPath, isDir, confirm: true },
+      { allowFailure: true, timeoutMs: 120_000 },
+    );
+    const removed = result?.success !== false;
+    console.log(
+      `${webAppServiceName}: prune ${isDir ? 'dir ' : 'file'} ${cloudPath} -> ${
+        removed ? 'removed/absent' : `left in place (${toolMessage(result)})`
+      }`,
+    );
+  }
+}
+
 function deployWebApp() {
   const distPath = resolve(siteRootPath, 'dist');
   if (!existsSync(resolve(distPath, 'index.html'))) {
@@ -510,6 +547,8 @@ function deployWebApp() {
   );
   const uploadRequestId = uploaded.data?.requestId ?? uploaded.data?.raw?.RequestId ?? 'unknown';
   console.log(`${webAppServiceName}: static hosting upload finished; request ${uploadRequestId}`);
+
+  pruneLegacyHostingPaths();
 
   const configured = callTool('cloudbase.manageHosting', {
     action: 'setWebsiteDocument',
