@@ -434,6 +434,44 @@ Verification run:
   images are missing intrinsic dimensions; no horizontal overflow at 390, 768,
   or 1440 px.
 
+### 10.6 Review Round 3 (2026-07-02)
+
+Review of `6b983c5..be3d047` on `dev/albertli/try01`. Verdict:
+**approve with one policy-alignment finding.** The current UI behavior is sound:
+the factory video renders, the MOQ badge is gone, Allsop labeling is corrected,
+and the pruned client-question list is focused.
+
+| # | Severity | Cause / layer | Issue | Recommended fix |
+|---|---|---|---|---|
+| OR-4 | P2 | Mixed: design-policy drift + deployment risk; media delivery / docs | The factory video is now wired and works, but it is committed under `apps/site/public/media/oem-factory.mp4` and served as a static-hosting asset (`/media/oem-factory.mp4`, 7,201,197 bytes). That contradicts the canonical marketing-video policy in `docs/IMAGE_UPLOAD_STORAGE_DESIGN.md` ("CloudBase Storage direct COS POST; served by URL (never bundled in the site build)") and the `MediaVideo` comment that says video files are intentionally not bundled into Astro. It is not a rendering blocker, but it leaves future maintainers with two incompatible delivery rules and can grow static hosting deploy/CDN cost as videos change. | Before final release, choose and document one rule: either move the factory clip to CloudBase Storage/CDN and keep `factoryVideo.src` as that URL, or explicitly amend the canonical media policy to allow small launch marketing videos in static hosting with a size budget, ownership note, and prune/deploy implications. |
+
+What passed:
+
+- `/oem` now emits exactly one muted autoplay looping `<video>` with source
+  `/media/oem-factory.mp4`; local preview serves it as `video/mp4` with content
+  length `7201197`.
+- Rendered crop keeps the factory scene visible; the source is 960×720 H.264,
+  130.7 seconds, ~441 kbps.
+- `/`, `/oem`, `/portfolio` render 200; `/headphones` and `/overstock` render
+  404 locally.
+- `/portfolio` still has 8 certificate triggers and 8 dialogs; no main
+  marketing images are missing intrinsic dimensions.
+- No horizontal overflow at 390, 768, or 1440 px across `/`, `/oem`, and
+  `/portfolio`.
+
+Verification run:
+
+- `pnpm --filter @vibelingan-channel/site test` - pass (6 tests).
+- `pnpm typecheck` - pass; Astro reported 0 errors, with existing React
+  `FormEvent` deprecation hints only.
+- `pnpm build` - pass; 8 static pages generated.
+- `pnpm lint` - pass.
+- `pnpm verify:cloudbase-sdk` - pass.
+- Focused Playwright local preview:
+  `E2E_SITE_URL=http://127.0.0.1:4325 pnpm exec playwright test tests/e2e/public.spec.ts -g "core pages render|Success Stories certificates|OEM factory block|OEM factory block renders"`
+  - pass (3 tests). Full public API smoke was not run locally because it needs a
+  deployed or local API base URL.
+
 ---
 
 ## 11. 客户待澄清问题（图文汇总）
