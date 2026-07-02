@@ -6,10 +6,10 @@
  * The session token is shared with the rest of the site via `lib/session`.
  */
 import type {
-  ApiResult,
   CollectionDoc,
   FilterModel,
   ListResult,
+  SessionUser,
   SortClause,
 } from '@vibelingan-channel/shared';
 import { apiUrl } from '../../lib/api-url.ts';
@@ -31,6 +31,35 @@ export class AdminApiError extends Error {
   }
 }
 
+interface ApiError {
+  code: string;
+  message: string;
+}
+
+type ApiEnvelope<T> = { ok: true; data: T } | { ok: false; error: ApiError };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isApiEnvelope<T>(value: unknown): value is ApiEnvelope<T> {
+  if (!isRecord(value) || typeof value.ok !== 'boolean') return false;
+  if (value.ok === true) return 'data' in value;
+  const error = value.error;
+  return isRecord(error) && typeof error.code === 'string' && typeof error.message === 'string';
+}
+
+async function readApiEnvelope<T>(res: Response): Promise<ApiEnvelope<T> | null> {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return isApiEnvelope<T>(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 async function call<T>(action: string, data?: unknown): Promise<T> {
   const res = await fetch(ENDPOINT, {
     method: 'POST',
@@ -38,15 +67,21 @@ async function call<T>(action: string, data?: unknown): Promise<T> {
     body: JSON.stringify({ action, data, token: getToken() }),
   });
 
-  if (!res.ok) {
-    throw new AdminApiError('INTERNAL_ERROR', `Request failed (${res.status})`);
+  const result = await readApiEnvelope<T>(res);
+  if (!result) {
+    throw new AdminApiError(
+      res.status === 401 ? 'UNAUTHORIZED' : 'INTERNAL_ERROR',
+      `Request failed (${res.status})`,
+    );
   }
-
-  const result = (await res.json()) as ApiResult<T>;
   if (!result.ok) {
     throw new AdminApiError(result.error.code, result.error.message);
   }
   return result.data;
+}
+
+export function fetchCurrentUser(): Promise<{ user: SessionUser }> {
+  return call<{ user: SessionUser }>('me');
 }
 
 export interface ListArgs {

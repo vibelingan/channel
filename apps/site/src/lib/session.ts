@@ -34,6 +34,30 @@ export class SessionApiError extends Error {
   }
 }
 
+type ApiEnvelope<T> = { ok: true; data: T } | { ok: false; error: ApiError };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isApiEnvelope<T>(value: unknown): value is ApiEnvelope<T> {
+  if (!isRecord(value) || typeof value.ok !== 'boolean') return false;
+  if (value.ok === true) return 'data' in value;
+  const error = value.error;
+  return isRecord(error) && typeof error.code === 'string' && typeof error.message === 'string';
+}
+
+async function readApiEnvelope<T>(res: Response): Promise<ApiEnvelope<T> | null> {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return isApiEnvelope<T>(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export function getToken(): string {
   if (typeof localStorage === 'undefined') return '';
   return localStorage.getItem(TOKEN_KEY) ?? '';
@@ -86,8 +110,13 @@ export async function callApi<T>(action: string, data?: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, data, token: getToken() }),
   });
-  if (!res.ok) throw new SessionApiError('INTERNAL_ERROR', `Request failed (${res.status})`);
-  const json = (await res.json()) as { ok: true; data: T } | { ok: false; error: ApiError };
+  const json = await readApiEnvelope<T>(res);
+  if (!json) {
+    throw new SessionApiError(
+      res.status === 401 ? 'UNAUTHORIZED' : 'INTERNAL_ERROR',
+      `Request failed (${res.status})`,
+    );
+  }
   if (!json.ok) {
     if (json.error.code === 'UNAUTHORIZED') clearSession();
     throw new SessionApiError(json.error.code, json.error.message);
