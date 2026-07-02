@@ -141,12 +141,11 @@ submit:
     Our engineering team will review your details and get back to you within one
     business day.
 
-# NOTE (MIU 7 — deferred): the factory VIDEO is deferred until the client's HD
-# clip is available. With `src: ''` the poster facility photo renders on its own;
-# set `src` to a CloudBase storage/CDN URL to upgrade to an inline video with no
-# code change. See docs/oem-refresh/DESIGN.md §10.
+# Real factory-scene video provided by the client (替换视频.zip / OEM.mp4),
+# compressed to a muted, web-optimized mp4 and served from public/media. The
+# poster shows until the muted autoplay loop starts.
 factoryVideo:
-  src: ''
+  src: /media/oem-factory.mp4
   poster: /media/factory-oem.webp
   posterWidth: 1228
   posterHeight: 718

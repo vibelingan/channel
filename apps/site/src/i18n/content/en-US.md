@@ -7,7 +7,6 @@ brand:
   name: Diversity Innovations Limited
   logo: /media/logo-diversity.svg
   logoInitials: DI
-  minOrder: 'Minimum Order Amount: $500'
   tagline: OEM / ODM Manufacturing Partner
 
 nav:

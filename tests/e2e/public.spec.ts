@@ -74,12 +74,12 @@ test.describe('public browser smoke', () => {
     await expect(dialog).toBeHidden();
   });
 
-  test('OEM factory block shows the facility poster (video deferred)', async ({ page }) => {
+  test('OEM factory block renders the facility video', async ({ page }) => {
     await page.goto('/oem', { waitUntil: 'domcontentloaded' });
-    // MIU 7 factory video is deferred: the poster image renders and no <video>
-    // is emitted until a clip URL is configured. See docs/oem-refresh/DESIGN.md.
-    await expect(page.locator('img[src*="factory-oem"]')).toBeVisible();
-    expect(await page.locator('video').count()).toBe(0);
+    // The client-provided factory video is wired: /oem emits a muted autoplay
+    // <video> with an mp4 source. See docs/oem-refresh/DESIGN.md.
+    await expect(page.locator('video')).toHaveCount(1);
+    await expect(page.locator('video source[src*="oem-factory"]')).toHaveCount(1);
   });
 
   // Headphones storefront is hidden (un-routed) on the OEM-only site; this page

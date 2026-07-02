@@ -33,7 +33,7 @@ customers:
     - { src: /media/portfolio/customers/coremee-giik4.webp, name: CoreMee, width: 360, height: 78 }
     - { src: /media/portfolio/customers/di.webp, name: Digital Innovations, width: 360, height: 108 }
     - { src: /media/portfolio/customers/pabobo.webp, name: Pabobo, width: 360, height: 360 }
-    - { src: /media/portfolio/customers/as.webp, name: AS Audio, width: 360, height: 360 }
+    - { src: /media/portfolio/customers/as.webp, name: Allsop, width: 360, height: 360 }
     - { src: /media/portfolio/customers/education-institution.webp, name: Leading education brand, anonymized: true }
 
 cases:
