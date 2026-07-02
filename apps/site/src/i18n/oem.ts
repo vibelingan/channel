@@ -98,6 +98,12 @@ export interface OemContent {
     successTitle: string;
     successBody: string;
   };
+  /** Optional inline factory video (served from storage by URL; poster shown until a URL is set). */
+  factoryVideo?: {
+    src: string;
+    poster: string;
+    caption?: string;
+  };
 }
 
 interface MarkdownModule {

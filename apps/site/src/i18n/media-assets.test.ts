@@ -16,8 +16,14 @@ test('home "Who we are" section uses the real team photo', () => {
   );
 });
 
-test('every /media asset referenced by en-US content exists in public/', () => {
-  const refs = [...enUS.matchAll(/(?:image|logo):\s*(\/media\/\S+)/g)].map((m) => m[1]);
+test('every /media asset referenced by site + OEM content exists in public/', () => {
+  const oem = readFileSync(
+    fileURLToPath(new URL('./content/oem/en-US.md', import.meta.url)),
+    'utf8',
+  );
+  const refs = [...`${enUS}\n${oem}`.matchAll(/(?:image|logo|poster):\s*(\/media\/\S+)/g)].map(
+    (m) => m[1],
+  );
   assert.ok(refs.length > 0, 'found media references');
   for (const ref of refs) {
     const file = fileURLToPath(new URL(`../../public${ref}`, import.meta.url));

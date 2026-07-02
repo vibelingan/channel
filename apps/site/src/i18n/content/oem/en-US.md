@@ -140,6 +140,11 @@ submit:
   successBody: >-
     Our engineering team will review your details and get back to you within one
     business day.
+
+factoryVideo:
+  src: ''
+  poster: /media/factory-oem.webp
+  caption: Inside our Dongguan engineering and production facility
 ---
 
 <!--

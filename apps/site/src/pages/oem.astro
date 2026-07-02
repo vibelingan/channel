@@ -1,5 +1,6 @@
 ---
 import CardGrid from '../components/CardGrid.astro';
+import MediaVideo from '../components/MediaVideo.astro';
 import PageHero from '../components/PageHero.astro';
 import ProcessTimeline from '../components/ProcessTimeline.astro';
 import ProjectForm from '../components/ProjectForm.astro';
@@ -15,7 +16,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 const site = getSiteContent(DEFAULT_LOCALE);
 const oem = getOemContent(DEFAULT_LOCALE);
 const { brand, nav, footer } = site;
-const { meta, hero, oneStop, capabilities, process, whyUs, submit } = oem;
+const { meta, hero, oneStop, capabilities, process, whyUs, submit, factoryVideo } = oem;
 ---
 
 <BaseLayout title={`${meta.title} — ${brand.name}`} description={meta.description} lang="en">
@@ -73,6 +74,18 @@ const { meta, hero, oneStop, capabilities, process, whyUs, submit } = oem;
       <p class="reveal mx-auto mt-10 max-w-3xl text-center text-base leading-relaxed text-ink-soft">
         {capabilities.note}
       </p>
+      {
+        factoryVideo && (
+          <div class="reveal mx-auto mt-14 max-w-3xl">
+            <MediaVideo
+              src={factoryVideo.src}
+              poster={factoryVideo.poster}
+              caption={factoryVideo.caption}
+              label="Diversity Innovations production facility"
+            />
+          </div>
+        )
+      }
     </Section>
 
     <!-- Section 3: OEM Development Process -->
