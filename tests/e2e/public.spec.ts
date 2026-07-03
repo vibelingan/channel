@@ -12,7 +12,7 @@ function captureConsoleProblems(page: Page): string[] {
 
 test.describe('public browser smoke', () => {
   test('core pages render from the configured site origin', async ({ context }) => {
-    for (const path of ['/', '/admin', '/login', '/oem', '/headphones', '/overstock']) {
+    for (const path of ['/', '/admin', '/login', '/oem', '/portfolio']) {
       const page = await context.newPage();
       const problems = captureConsoleProblems(page);
       await page.goto(path, { waitUntil: 'domcontentloaded' });
@@ -54,7 +54,37 @@ test.describe('public browser smoke', () => {
     expect(files.status()).toBe(404);
   });
 
-  test('headphones page hydrates and resolves catalog loading state', async ({ page }) => {
+  test('Success Stories certificates open in an accessible lightbox', async ({ page }) => {
+    await page.goto('/portfolio', { waitUntil: 'domcontentloaded' });
+
+    // Both certificate groups render (company + product).
+    await expect(page.getByRole('heading', { name: 'Company & compliance' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Product test reports' })).toBeVisible();
+
+    // Every certificate exposes an enlargement control.
+    const triggers = page.getByRole('button', { name: /Enlarge certificate/i });
+    expect(await triggers.count()).toBeGreaterThan(0);
+
+    // Opening a certificate shows a modal <dialog>; Escape closes it.
+    const dialog = page.locator('dialog.cert-dialog').first();
+    await expect(dialog).toBeHidden();
+    await triggers.first().click();
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+  });
+
+  test('OEM factory block renders the facility video', async ({ page }) => {
+    await page.goto('/oem', { waitUntil: 'domcontentloaded' });
+    // The client-provided factory video is wired: /oem emits a muted autoplay
+    // <video> with an mp4 source. See docs/oem-refresh/DESIGN.md.
+    await expect(page.locator('video')).toHaveCount(1);
+    await expect(page.locator('video source[src*="oem-factory"]')).toHaveCount(1);
+  });
+
+  // Headphones storefront is hidden (un-routed) on the OEM-only site; this page
+  // test moves to the future standalone headphones site. See docs/oem-refresh/DESIGN.md.
+  test.skip('headphones page hydrates and resolves catalog loading state', async ({ page }) => {
     const problems = captureConsoleProblems(page);
     const productsResponse = page.waitForResponse(
       (response) => response.url().includes('/api/products') && response.status() === 200,

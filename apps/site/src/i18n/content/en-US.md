@@ -5,25 +5,23 @@ dir: ltr
 
 brand:
   name: Diversity Innovations Limited
-  logo: /media/logo-channel.svg
+  logo: /media/logo-diversity.svg
   logoInitials: DI
-  minOrder: 'Minimum Order Amount: $500'
   tagline: OEM / ODM Manufacturing Partner
 
 nav:
   items:
     - { label: OEM Development, href: '/oem' }
-    - { label: Headphones, href: '/headphones' }
-    - { label: Overstock, href: '/overstock' }
+    - { label: Success Stories, href: '/portfolio' }
     - { label: Sign In / Register, href: '/admin', emphasis: true }
 
 hero:
   eyebrow: Since 2004 · Hong Kong · Dongguan
   heading: OEM Manufacturing & Global Supply Chain Solutions
   subheading: >-
-    From Product Develoopment to Bulk Supply
+    From Product Development to Bulk Supply
   primaryCta: { label: Explore OEM Development, href: '/oem' }
-  secondaryCta: { label: Browse Overstock, href: '/overstock' }
+  secondaryCta: { label: View our work, href: '/portfolio' }
   scrollLabel: Scroll to discover
 
 sections:
@@ -36,8 +34,8 @@ sections:
       Headquartered in Hong Kong and supported by advanced production facilities
       and engineering expertise in Dongguan, China, we deliver innovative and
       reliable product solutions to customers worldwide.
-    image: /media/section-heritage.png
-    imageAlt: Illustration of a modern manufacturing facility
+    image: /media/team-diversity.webp
+    imageAlt: The Diversity Innovations engineering and manufacturing team
   - id: capabilities
     eyebrow: What we make
     heading: From audio devices to home products
@@ -70,11 +68,9 @@ footer:
         - { label: Capabilities, href: '#capabilities' }
         - { label: Partnership, href: '#partnership' }
         - { label: Quality Assurance, href: '#' }
-    - heading: Products
+    - heading: Services
       links:
         - { label: OEM Development, href: '/oem' }
-        - { label: Headphones, href: '/headphones' }
-        - { label: Overstock, href: '/overstock' }
     - heading: Contact Us
       links:
         - { label: 'Email: hello@example.com', href: 'mailto:hello@example.com' }

@@ -106,8 +106,15 @@ callTool('cloudbase.auth', { action: 'set_env', envId });
 verifyFunctionRuntime('admin');
 verifyFunctionRuntime('public-api');
 
-for (const path of ['/', '/admin', '/login', '/oem', '/headphones', '/overstock']) {
+for (const path of ['/', '/admin', '/login', '/oem', '/portfolio']) {
   await expectHttp('GET', `${siteUrl}${path}`, 200);
+}
+
+// The headphones/overstock storefronts were retired in the OEM refresh. Static
+// hosting upload is additive, so deployWebApp() prunes them; assert they stay
+// gone. A 200 here means a stale page resurfaced and the prune regressed.
+for (const path of ['/headphones', '/overstock']) {
+  await expectHttp('GET', `${siteUrl}${path}`, 404);
 }
 
 assertRelease('public-api', await expectJson('GET', `${apiUrl}/api/health`, 200));

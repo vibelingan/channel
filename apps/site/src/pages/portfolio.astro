@@ -1,0 +1,64 @@
+---
+import CaseShowcase from '../components/CaseShowcase.astro';
+import CertificateGallery from '../components/CertificateGallery.astro';
+import LogoWall from '../components/LogoWall.astro';
+import PageHero from '../components/PageHero.astro';
+import Section from '../components/Section.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { getPortfolioContent } from '../i18n/portfolio.ts';
+import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = getSiteContent(DEFAULT_LOCALE);
+const portfolio = getPortfolioContent(DEFAULT_LOCALE);
+const { brand, nav, footer } = site;
+const { meta, hero, customers, cases, certificates } = portfolio;
+---
+
+<BaseLayout title={`${meta.title} — ${brand.name}`} description={meta.description} lang="en">
+  <SiteHeader brand={brand} nav={nav} />
+
+  <main>
+    <PageHero
+      eyebrow={hero.eyebrow}
+      heading={hero.heading}
+      subheading={hero.subheading}
+      primaryCta={hero.primaryCta}
+      secondaryCta={hero.secondaryCta}
+    />
+
+    <!-- Case studies (STAR) -->
+    <Section id={cases.id} eyebrow={cases.eyebrow} heading={cases.heading} intro={cases.intro} tone="surface">
+      <CaseShowcase items={cases.items} />
+    </Section>
+
+    <!-- Customer logo wall -->
+    <Section
+      id={customers.id}
+      eyebrow={customers.eyebrow}
+      heading={customers.heading}
+      intro={customers.intro}
+      tone="alt"
+    >
+      <LogoWall logos={customers.logos} />
+    </Section>
+
+    <!-- Certifications & test reports -->
+    <Section
+      id={certificates.id}
+      eyebrow={certificates.eyebrow}
+      heading={certificates.heading}
+      intro={certificates.intro}
+      tone="surface"
+    >
+      <CertificateGallery
+        certs={certificates.items}
+        companyLabel={certificates.companyLabel}
+        productLabel={certificates.productLabel}
+      />
+    </Section>
+  </main>
+
+  <SiteFooter brand={brand} footer={footer} />
+</BaseLayout>

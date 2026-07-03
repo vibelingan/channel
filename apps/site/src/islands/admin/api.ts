@@ -12,6 +12,7 @@ import type {
   SessionUser,
   SortClause,
 } from '@vibelingan-channel/shared';
+import { readApiEnvelope } from '../../lib/api-envelope.ts';
 import { apiUrl } from '../../lib/api-url.ts';
 import { getToken } from '../../lib/session.ts';
 
@@ -28,35 +29,6 @@ export class AdminApiError extends Error {
 
   get isUnauthorized(): boolean {
     return this.code === 'UNAUTHORIZED';
-  }
-}
-
-interface ApiError {
-  code: string;
-  message: string;
-}
-
-type ApiEnvelope<T> = { ok: true; data: T } | { ok: false; error: ApiError };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isApiEnvelope<T>(value: unknown): value is ApiEnvelope<T> {
-  if (!isRecord(value) || typeof value.ok !== 'boolean') return false;
-  if (value.ok === true) return 'data' in value;
-  const error = value.error;
-  return isRecord(error) && typeof error.code === 'string' && typeof error.message === 'string';
-}
-
-async function readApiEnvelope<T>(res: Response): Promise<ApiEnvelope<T> | null> {
-  const text = await res.text();
-  if (!text) return null;
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return isApiEnvelope<T>(parsed) ? parsed : null;
-  } catch {
-    return null;
   }
 }
 

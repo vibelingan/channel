@@ -44,19 +44,10 @@ const menuItems: NavItem[] = nav.items.filter((item) => !AUTH_HREFS.includes(ite
         )
       }
       {
-        showName ? (
+        showName && (
           <span class="hidden min-w-0 flex-col leading-tight sm:flex">
             <span class="truncate font-display text-sm font-semibold text-ink sm:text-base">
               {brand.name}
-            </span>
-            <span class="mt-0.5 inline-flex w-fit items-center gap-1 rounded-full bg-accent-100 px-2 py-0.5 text-[11px] font-semibold text-accent-700">
-              {brand.minOrder}
-            </span>
-          </span>
-        ) : (
-          <span class="hidden items-center sm:inline-flex">
-            <span class="inline-flex w-fit items-center gap-1 rounded-full bg-accent-100 px-2.5 py-1 text-xs font-semibold text-accent-700">
-              {brand.minOrder}
             </span>
           </span>
         )

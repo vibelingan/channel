@@ -1,0 +1,31 @@
+---
+import type { CustomerLogo } from '../i18n/portfolio.ts';
+
+interface Props {
+  logos: CustomerLogo[];
+}
+
+const { logos } = Astro.props;
+---
+
+<ul class="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
+  {
+    logos.map((logo) => (
+      <li class="reveal flex min-h-[6rem] items-center justify-center rounded-[var(--radius-card)] bg-surface p-6 shadow-[var(--shadow-card)] ring-1 ring-black/5">
+        {logo.anonymized ? (
+          <span class="text-center text-sm font-medium text-ink-soft">{logo.name}</span>
+        ) : (
+          <img
+            src={logo.src}
+            alt={logo.name}
+            width={logo.width}
+            height={logo.height}
+            loading="lazy"
+            decoding="async"
+            class="max-h-12 w-auto opacity-80 grayscale transition hover:opacity-100 hover:grayscale-0"
+          />
+        )}
+      </li>
+    ))
+  }
+</ul>

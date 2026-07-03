@@ -140,6 +140,16 @@ submit:
   successBody: >-
     Our engineering team will review your details and get back to you within one
     business day.
+
+# Real factory-scene video provided by the client (替换视频.zip / OEM.mp4),
+# compressed to a muted, web-optimized mp4 and served from public/media. The
+# poster shows until the muted autoplay loop starts.
+factoryVideo:
+  src: /media/oem-factory.mp4
+  poster: /media/factory-oem.webp
+  posterWidth: 1228
+  posterHeight: 718
+  caption: Inside our Dongguan engineering and production facility
 ---
 
 <!--

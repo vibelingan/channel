@@ -9,6 +9,7 @@
  */
 import type { Role, SessionUser } from '@vibelingan-channel/shared';
 import { canAccessAdmin, canSeeVipPricing } from '@vibelingan-channel/shared';
+import { readApiEnvelope } from './api-envelope.ts';
 import { apiUrl } from './api-url.ts';
 
 export type { Role, SessionUser } from '@vibelingan-channel/shared';
@@ -19,11 +20,6 @@ const USER_KEY = 'channel.user';
 const AUTH_EVENT = 'channel:auth';
 const ENDPOINT = apiUrl('/api/admin');
 
-export interface ApiError {
-  code: string;
-  message: string;
-}
-
 export class SessionApiError extends Error {
   constructor(
     public readonly code: string,
@@ -31,30 +27,6 @@ export class SessionApiError extends Error {
   ) {
     super(message);
     this.name = 'SessionApiError';
-  }
-}
-
-type ApiEnvelope<T> = { ok: true; data: T } | { ok: false; error: ApiError };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isApiEnvelope<T>(value: unknown): value is ApiEnvelope<T> {
-  if (!isRecord(value) || typeof value.ok !== 'boolean') return false;
-  if (value.ok === true) return 'data' in value;
-  const error = value.error;
-  return isRecord(error) && typeof error.code === 'string' && typeof error.message === 'string';
-}
-
-async function readApiEnvelope<T>(res: Response): Promise<ApiEnvelope<T> | null> {
-  const text = await res.text();
-  if (!text) return null;
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return isApiEnvelope<T>(parsed) ? parsed : null;
-  } catch {
-    return null;
   }
 }
 

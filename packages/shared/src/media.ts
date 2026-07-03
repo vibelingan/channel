@@ -196,6 +196,26 @@ export const catalogImageUploadSchema = z.object({
 });
 export type CatalogImageUploadInput = z.infer<typeof catalogImageUploadSchema>;
 
+// --- Marketing media (public-site video) policy ----------------------------
+
+/**
+ * Max size for a SINGLE self-service marketing video (e.g. a client-uploaded
+ * factory walkthrough). 200 MiB comfortably covers a 2–4 min 1080p H.264/WebM
+ * clip while staying well under CloudBase Storage's single-PUT ceiling. Note
+ * the CloudBase free tier grants only ~5 GiB total storage + limited monthly
+ * CDN traffic, so budget for a small number of these (verify the env's real
+ * quota in the console before enabling client self-service upload).
+ *
+ * Files ABOVE this must use a chunked / resumable (multipart) upload — a direct
+ * browser POST of >200 MiB is unreliable on flaky networks and can exceed
+ * function/gateway request ceilings. That larger-file path is intentionally NOT
+ * built yet (see docs/IMAGE_UPLOAD_STORAGE_DESIGN.md "marketing-media").
+ */
+export const MARKETING_VIDEO_MAX_BYTES = 200 * 1024 * 1024;
+
+/** Accepted marketing video MIME types (web-deliverable, broadly supported). */
+export const MARKETING_VIDEO_MIME_TYPES = ['video/mp4', 'video/webm'] as const;
+
 // --- OEM file (attachment) policy — MIU-08 ---------------------------------
 
 /** Max size for a single public OEM attachment (P0). */

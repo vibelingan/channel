@@ -98,6 +98,20 @@ export interface OemContent {
     successTitle: string;
     successBody: string;
   };
+  /**
+   * Optional factory media block. The factory VIDEO (MIU 7) is deferred until
+   * the client's HD clip is available: with `src: ''` the `poster` facility
+   * photo renders on its own. Setting `src` to a storage/CDN URL upgrades it to
+   * an inline video with no code change (see MediaVideo).
+   */
+  factoryVideo?: {
+    src: string;
+    poster: string;
+    /** Intrinsic pixel dimensions of `poster`, to reserve layout space (avoid CLS). */
+    posterWidth?: number;
+    posterHeight?: number;
+    caption?: string;
+  };
 }
 
 interface MarkdownModule {

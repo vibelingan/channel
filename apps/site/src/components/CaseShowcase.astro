@@ -1,0 +1,71 @@
+---
+import type { StarCase } from '../i18n/portfolio.ts';
+
+interface Props {
+  items: StarCase[];
+}
+
+const { items } = Astro.props;
+
+const STAR: {
+  key: keyof Pick<StarCase, 'situation' | 'task' | 'action' | 'result'>;
+  label: string;
+}[] = [
+  { key: 'situation', label: 'Situation' },
+  { key: 'task', label: 'Task' },
+  { key: 'action', label: 'Action' },
+  { key: 'result', label: 'Result' },
+];
+---
+
+<div class="space-y-16">
+  {
+    items.map((c, i) => (
+      <article class="grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
+        <div class:list={['reveal', i % 2 === 1 && 'lg:order-2']}>
+          <div class="overflow-hidden rounded-[var(--radius-card)] shadow-[var(--shadow-card)] ring-1 ring-black/5">
+            <img
+              src={c.image}
+              alt={c.imageAlt}
+              loading="lazy"
+              decoding="async"
+              width="800"
+              height="600"
+              class="aspect-[4/3] w-full object-cover"
+            />
+          </div>
+        </div>
+        <div class:list={['reveal', i % 2 === 1 && 'lg:order-1']}>
+          <h3 class="font-display text-2xl font-bold text-ink sm:text-3xl">{c.title}</h3>
+          <dl class="mt-5 space-y-3 text-ink-soft">
+            {STAR.map((s) => (
+              <div>
+                <dt class="text-xs font-semibold uppercase tracking-wide text-brand-600">{s.label}</dt>
+                <dd class="mt-1 leading-relaxed">{c[s.key]}</dd>
+              </div>
+            ))}
+          </dl>
+          {c.metrics && c.metrics.length > 0 && (
+            <div class="mt-6 flex flex-wrap gap-8">
+              {c.metrics.map((m) => (
+                <div>
+                  <div class="font-display text-lg font-bold text-ink">{m.value}</div>
+                  <div class="text-xs text-ink-soft">{m.label}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {c.capabilities && c.capabilities.length > 0 && (
+            <ul class="mt-6 flex flex-wrap gap-2">
+              {c.capabilities.map((cap) => (
+                <li class="rounded-full bg-surface-alt px-3 py-1 text-xs font-medium text-ink-soft ring-1 ring-black/5">
+                  {cap}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </article>
+    ))
+  }
+</div>

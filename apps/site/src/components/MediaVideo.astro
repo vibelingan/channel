@@ -1,0 +1,72 @@
+---
+/**
+ * MediaVideo — inline, muted, auto-looping video for section content
+ * (e.g. a factory walkthrough).
+ *
+ * The video file is intentionally NOT bundled into the Astro build: pass a
+ * `src` URL served from CloudBase storage / a CDN so the deploy stays lean
+ * (an 18MB clip in `public/` would bloat every build + hosting sync). When
+ * `src` is omitted, the `poster` image renders on its own — so the section
+ * shows real imagery immediately and upgrades to a video the moment a URL is
+ * configured (e.g. once the client's HD version is uploaded to storage).
+ */
+interface Props {
+  /** Video URL (CloudBase storage / CDN). Empty ⇒ show the poster only. */
+  src?: string;
+  /** Poster / fallback image path (served from public/media). */
+  poster?: string;
+  /** Intrinsic pixel dimensions of `poster`, to reserve layout space (avoid CLS). */
+  posterWidth?: number;
+  posterHeight?: number;
+  caption?: string;
+  /** Accessible label / alt text for the media. */
+  label?: string;
+}
+
+const { src, poster, posterWidth, posterHeight, caption, label } = Astro.props;
+const hasVideo = Boolean(src);
+const alt = label ?? caption ?? '';
+---
+
+{
+  (src || poster) && (
+    <figure
+      class="overflow-hidden rounded-[var(--radius-card)] shadow-[var(--shadow-card)] ring-1 ring-black/5"
+    >
+      {
+        hasVideo ? (
+          <video
+            class="aspect-video h-full w-full object-cover"
+            muted
+            autoplay
+            loop
+            playsinline
+            preload="metadata"
+            poster={poster}
+            aria-label={label}
+          >
+            <source src={src} type="video/mp4" />
+            {poster && (
+              <img src={poster} alt={alt} class="aspect-video h-full w-full object-cover" />
+            )}
+          </video>
+        ) : (
+          <img
+            src={poster}
+            alt={alt}
+            width={posterWidth}
+            height={posterHeight}
+            loading="lazy"
+            decoding="async"
+            class="aspect-video h-full w-full object-cover"
+          />
+        )
+      }
+      {caption && (
+        <figcaption class="bg-surface px-4 py-3 text-center text-sm text-ink-soft">
+          {caption}
+        </figcaption>
+      )}
+    </figure>
+  )
+}

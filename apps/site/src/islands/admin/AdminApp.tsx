@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   canAccessAdmin,
   clearSession,
@@ -24,16 +24,15 @@ function isUnauthorized(error: unknown): boolean {
   return error instanceof AdminApiError && error.isUnauthorized;
 }
 
-function redirectToLogin(queryClient: QueryClient) {
-  clearSession();
-  queryClient.clear();
-  gotoLogin();
+function isInvalidSessionPreflight(error: unknown): boolean {
+  return error instanceof AdminApiError && (error.isUnauthorized || error.code === 'NOT_FOUND');
 }
 
 export function AdminApp() {
   const { ready } = useSession();
   const [gate, setGate] = useState<GateState>('checking');
   const [gateError, setGateError] = useState('');
+  const redirectingRef = useRef(false);
 
   const queryClient = useMemo(
     () =>
@@ -43,27 +42,35 @@ export function AdminApp() {
     [],
   );
 
+  const redirectToLogin = useCallback(() => {
+    if (redirectingRef.current) return;
+    redirectingRef.current = true;
+    clearSession();
+    queryClient.clear();
+    gotoLogin();
+  }, [queryClient]);
+
   // Any UNAUTHORIZED response (expired token) bounces back to login.
   useEffect(() => {
     const unsubscribeQueries = queryClient.getQueryCache().subscribe((event) => {
       const error = event.query.state.error;
-      if (isUnauthorized(error)) redirectToLogin(queryClient);
+      if (isUnauthorized(error)) redirectToLogin();
     });
     const unsubscribeMutations = queryClient.getMutationCache().subscribe((event) => {
       const error = event.mutation?.state.error;
-      if (isUnauthorized(error)) redirectToLogin(queryClient);
+      if (isUnauthorized(error)) redirectToLogin();
     });
     return () => {
       unsubscribeQueries();
       unsubscribeMutations();
     };
-  }, [queryClient]);
+  }, [queryClient, redirectToLogin]);
 
   // Guard: a stored token must still be accepted by the API before the dashboard mounts.
   useEffect(() => {
     if (!ready) return;
     if (!isLoggedIn()) {
-      gotoLogin();
+      redirectToLogin();
       return;
     }
 
@@ -79,8 +86,8 @@ export function AdminApp() {
       })
       .catch((error: unknown) => {
         if (!active) return;
-        if (isUnauthorized(error)) {
-          redirectToLogin(queryClient);
+        if (isInvalidSessionPreflight(error)) {
+          redirectToLogin();
           return;
         }
         const message = error instanceof Error ? error.message : 'Unable to verify your session.';
@@ -91,9 +98,24 @@ export function AdminApp() {
     return () => {
       active = false;
     };
-  }, [ready, queryClient]);
+  }, [ready, redirectToLogin]);
 
-  if (!ready || gate === 'checking') return null;
+  if (!ready || gate === 'checking') {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-4">
+        <output
+          className="flex items-center gap-3 text-sm font-medium text-ink-soft"
+          aria-live="polite"
+        >
+          <span
+            className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-brand-700"
+            aria-hidden="true"
+          />
+          Verifying session...
+        </output>
+      </main>
+    );
+  }
 
   if (gate === 'denied') {
     return (

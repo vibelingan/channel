@@ -10,7 +10,7 @@ Date: 2026-07-02.
 
 | Field | Value |
 | --- | --- |
-| Branch | `dev/SeanCai/401-login-redirect` (also pushed as `origin/dev/codex/401-login-redirect`) |
+| Branch | `dev/SeanCai/401-login-redirect` |
 | Commit under review | `b563b94` — "Handle expired admin sessions" |
 | Base (fork point) | `2badb7c` on `dev/albertli/try01` |
 | Diff | 4 files, +212 / −24 |
@@ -100,3 +100,13 @@ Happy / expired / denied paths were traced end-to-end and are correct. **No P1 f
 Per the dev-pipeline gate (0 P1, ≤3 P2 → proceed with ACK): **not blocked.**
 Recommend addressing **#2 (deleted-account stuck state)** before or right after merge,
 and **#1 (de-duplicate the envelope helper)** as a small follow-up. #3–#6 are nits.
+
+## Follow-up Applied
+
+2026-07-03: Valid review findings were addressed on `dev/SeanCai/401-login-redirect`:
+
+- #1/#5: extracted shared site-side response-envelope parsing into `apps/site/src/lib/api-envelope.ts` and reused it from both admin and session clients.
+- #2: `NOT_FOUND` from the `me` session preflight now invalidates the stale session and redirects to `/login?returnTo=/admin`.
+- #3: the admin gate now renders a lightweight `Verifying session...` state instead of a blank screen.
+- #4: login redirects are guarded with a ref so query/mutation/preflight failures cannot trigger duplicate redirect work.
+- #6: E2E coverage now includes valid-admin happy path and deleted-account `NOT_FOUND` redirect coverage.
