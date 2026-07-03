@@ -15,6 +15,9 @@ const adminUser = {
 async function seedAdminSession(page: Page, token = 'valid-token') {
   await page.addInitScript(
     ({ seedToken, user }) => {
+      // Init scripts re-run on every document load; only seed while on /admin
+      // so a post-redirect /login load can't re-plant the cleared session.
+      if (!window.location.pathname.startsWith('/admin')) return;
       localStorage.setItem('channel.token', seedToken);
       localStorage.setItem('channel.user', JSON.stringify(user));
     },
