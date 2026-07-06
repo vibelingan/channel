@@ -375,7 +375,57 @@ function envEntries(record) {
   return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined));
 }
 
+// Env keys this deploy OWNS (the union of every function's manifest env). A managed key is
+// always authoritative: present => manifest value wins (GUARD 1, e.g. BOOTSTRAP_ENABLED reset
+// to '0'); absent this deploy => deleted, never resurrected from the existing env (GUARD 2).
+const MANAGED_ENV_KEYS = new Set([
+  'TCB_ENV',
+  'APP_ENV',
+  'ADMIN_EMAIL',
+  'JWT_SECRET',
+  'ADMIN_PASSWORD_HASH',
+  'BOOTSTRAP_ENABLED',
+  'BOOTSTRAP_ADMIN_TOKEN',
+  'CORS_ALLOWED_ORIGINS',
+  'LOGIN_URL',
+  'PUBLIC_API_BASE_URL',
+  'EMAIL_HOST',
+  'EMAIL_PORT',
+  'EMAIL_SECURE',
+  'EMAIL_USER',
+  'EMAIL_PASSWORD',
+  'EMAIL_FROM',
+]);
+
+// CB1 (verified 2026-07-06 via Context7 + the SCF GetFunction contract): CloudBase
+// updateFunctionConfig REPLACES the function env, so any console-managed key absent from the
+// manifest would be erased. Preserve UNMANAGED (console-only) keys by merging them UNDER the
+// manifest's managed keys. getFunctionDetail returns env as SCF Environment.Variables (a list of
+// { Key, Value }); if that shape is absent/unrecognized, fall back to manifest-only (today's exact
+// behavior) so the deploy can never break on an unexpected contract.
+// LIVE-VERIFY PENDING: the read-merge path must be proven by a test-env deploy (the env list read
+// could not be authenticated locally). Until then the fallback preserves parity with prior deploys.
+function mergeEnvWithExisting(def, existingDetail) {
+  const managed = def.envVariables;
+  const existingVars = existingDetail?.Environment?.Variables;
+  if (!Array.isArray(existingVars)) return managed; // no/unknown existing env => manifest-only
+  const preserved = {};
+  for (const entry of existingVars) {
+    const key = entry?.Key;
+    if (
+      typeof key === 'string' &&
+      key.length > 0 &&
+      typeof entry?.Value === 'string' &&
+      !MANAGED_ENV_KEYS.has(key)
+    ) {
+      preserved[key] = entry.Value;
+    }
+  }
+  return { ...preserved, ...managed };
+}
+
 function updateFunctionConfig(def) {
+  const mergedEnv = mergeEnvWithExisting(def, functionDetail(def.name, true));
   let configResult = null;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     configResult = callTool('cloudbase.manageFunctions', {
@@ -383,7 +433,7 @@ function updateFunctionConfig(def) {
       functionName: def.name,
       handler: 'index.main',
       timeout: 20,
-      envVariables: def.envVariables,
+      envVariables: mergedEnv,
     });
     if (
       configResult.success !== false ||

@@ -97,11 +97,16 @@ define, so a runtime env would be dead code AND would break the existing smoke
 assertion. The only ongoing action is keeping `GITHUB_SHA` wired as the build arg
 in the deploy workflow (already the case).
 
-### MIU-02.3 — Read-merge-update function env (CB1) — REINSTATED (see §0: MCP replaces env — REQUIRED for prod)
+### MIU-02.3 — Read-merge-update function env (CB1) — IMPLEMENTED (deploy-verify pending)
 
 > Verdict reversed 2026-07-06 (Context7): the MCP **replaces** env on `updateFunctionConfig`, so this
-> read-merge IS the required fix. Deferred to MIU-04 prod guardrails (`CICD_PRODUCTION_PLAN.md` §4);
-> not yet implemented (low impact for test — the manifest is the complete, authoritative env).
+> read-merge IS the required fix. **Implemented 2026-07-06** on `dev/SeanCai/cicd-prod-hardening`
+> (`scripts/deploy-cloudbase-test.mjs`: `MANAGED_ENV_KEYS` + `mergeEnvWithExisting()` before
+> `updateFunctionConfig`, GUARD 1/GUARD 2 semantics, defensive fallback to manifest-only).
+> **Deploy-verify PENDING**: the merge reads `getFunctionDetail` → `Environment.Variables`; this must be
+> proven on the test env (local MCP could not authenticate — `当前未登录`, and login needs a TTY). Until a
+> green test deploy confirms it, the fallback keeps parity with prior deploys (zero regression). Then it
+> graduates into `deploy-prod.yml` (`CICD_PRODUCTION_PLAN.md` §4).
 
 ```
 Block:        INFRASTRUCTURE
