@@ -2,7 +2,7 @@
 
 Status: canonical deployment design after review
 Scope: make the Channel portal available on Tencent CloudBase with clean secret separation
-Last updated: 2026-06-25
+Last updated: 2026-07-06
 
 ## 1. Purpose
 
@@ -940,3 +940,73 @@ test deploy unless the client requires them immediately:
 - CloudBase function environment variables: https://docs.cloudbase.net/en/cloud-function/function-configuration/env
 - CloudBase cloud function quick start: https://docs.cloudbase.net/en/cloud-function/quick-start
 - CloudBase MCP tools: https://docs.cloudbase.net/en/ai/cloudbase-ai-toolkit/mcp-tools
+- CloudBase storage SDK file management: https://docs.cloudbase.net/en/storage/sdk
+
+## 13. Production Deployment Review Audit (2026-07-06)
+
+Review base: `dev/albertli/try01` at `1f0afff`.
+
+Review scope: canonical deployment design, deployment execution plan, CI/CD
+design and execution notes, CloudBase storage/media design, OEM refresh design,
+the deploy/smoke scripts, and the GitHub deploy workflow. This pass used the
+CloudBase main skill, Web Development, Cloud Functions, Cloud Storage Web,
+CloudBase CLI, and CloudBase Code Review rule index. Context7 was not available
+in this session, so SDK contract verification used CloudBase official docs plus
+installed package/source inspection.
+
+### Findings
+
+| # | Sev | Area | Issue | Required action |
+| --- | --- | --- | --- | --- |
+| PD-1 | P1 | Deployment acceptance / OEM refresh | The deployment docs still say `/headphones` and `/overstock` must render, but the current OEM refresh intentionally retires those routes. `scripts/smoke-cloudbase-deploy.mjs` now expects `/`, `/admin`, `/login`, `/oem`, and `/portfolio` to return 200, and `/headphones` / `/overstock` to return 404. | Update `docs/CLOUDBASE_DEPLOYMENT_EXECUTION.md`, `docs/CICD_DESIGN.md`, and this canonical design so production DoD says `/portfolio` is live and retired storefront routes are pruned/404. Keep product/overstock APIs only if they remain an admin/data reuse boundary. |
+| PD-2 | P1 | GitHub Environment setup | Secret names drift across docs and implementation. This doc and the execution plan still use `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY`, while `.github/workflows/deploy-test.yml`, `scripts/deploy-cloudbase-test.mjs`, `scripts/set-cloudbase-github-secrets.mjs`, and `docs/CICD_DESIGN.md` require `TENCENTCLOUD_SECRETID` / `TENCENTCLOUD_SECRETKEY`. SMTP values also drift: the canonical docs describe most `EMAIL_*` values as variables, while the workflow injects all `EMAIL_*` through secrets. | Create one canonical GitHub Environment matrix and update every setup command to match it. Recommended current shape: `TENCENTCLOUD_SECRETID` / `TENCENTCLOUD_SECRETKEY` as GitHub Environment secrets for deploy, never function runtime env; decide whether non-sensitive SMTP settings are vars or secrets and make workflow/docs agree. |
+| PD-3 | P1 | CloudBase state baseline | Section 2 still records the pre-deploy live env state (`Cloud functions: none yet`, `CloudBase Web Apps: none yet`, no collections), but CI/CD docs and scripts assume an existing deployed `channel-test` path, gateway routes, functions, and static hosting/Web App URL. | Before production sign-off, run a fresh CloudBase inspection for `test` and the future `prod` EnvId. Replace the stale "Current Facts" block with dated "last verified" state, including functions, runtime, gateway routes, hosting/Web App mode, storage bucket/CORS, collections/indexes/rules, CLS status, and deploy ownership. |
+| PD-4 | P1 | Hosting mode / first prod deploy | The design correctly says first-time frontend deployment should use `manageApps`, but the implemented test deploy uses `manageHosting(action="upload")` for the already-proven `channel-test` path. CloudBase guidance treats first-time independent Web App deployment and static-hosting upload as different operational surfaces. | Document hosting mode per environment. Keep `manageHosting` only for the existing `channel-test` test path if that is the verified surface. For first production deploy, explicitly create/deploy the production Web App with `manageApps`/CloudBase App deploy, or consciously choose static hosting and record URL/version/prune tradeoffs before enabling `main -> prod`. |
+| PD-5 | P1 | Production CD guardrails | Several CI/CD hardening items remain test-only or partially implemented: `updateFunctionConfig` still sends only the manifest env and can erase console-managed vars; gateway creation does not explicitly verify function resource permission; runtime secrets still travel through `mcporter --args` and temporary CLI config files; release health exists, but a durable release manifest/artifact is not yet emitted. These items are already tracked in `docs/CICD_EXECUTION.md`, but production should not inherit them silently. | Keep `main -> prod` blocked until these are fixed or explicitly accepted for prod: read-merge-update function env, verify public function permission separately from gateway route, harden secret transport, emit a release manifest, and write deploy summaries with release id, function hashes, routes, hosting mode, smoke status, and rollback/resume notes. |
+| PD-6 | P2 | Media delivery / CloudBase hosting cost | The latest OEM refresh wires `apps/site/public/media/oem-factory.mp4` into the static build, while `docs/IMAGE_UPLOAD_STORAGE_DESIGN.md` says marketing video should be CloudBase Storage/CDN hosted and never bundled in the site build. `docs/oem-refresh/DESIGN.md` already records this as OR-4, and it remains a real deployment-policy drift. | Before final production release, choose one rule: move the factory video to CloudBase Storage/CDN and keep `factoryVideo.src` as a storage/CDN URL, or amend the media policy to allow small launch videos in static hosting with a size budget, pruning behavior, owner, and CDN-cost note. |
+| PD-7 | P2 | CloudBase terminology | Several docs use "CloudBase HTTP function" for what the code actually implements as Event Functions exposed through HTTP Access. CloudBase also has true HTTP Functions that require `scf_bootstrap` and a server listening on port `9000`, so the wording can send a future operator down the wrong deploy path. | Rename the current runtime surface consistently as "Event Function via HTTP Access" or "HTTP-access Event Function." Reserve "HTTP Function" for the `--httpFn`/`scf_bootstrap` model. |
+
+### Verified Correct
+
+- The current function code and deploy script use Event Functions exposed through
+  HTTP Access, matching CloudBase HTTP Access docs: event envelope parsing,
+  `path`/`httpMethod` handling, JSON response objects, and gateway type `Event`.
+- Function runtime env names avoid CloudBase reserved prefixes (`SCF_`,
+  `QCLOUD_`, `TENCENTCLOUD_`). GitHub deploy credential names use
+  `TENCENTCLOUD_*`, but those are not copied into function runtime env.
+- The storage SDK boundary is now guarded: `@cloudbase/node-sdk@2.10.0` owns
+  `getUploadMetadata`, `wx-server-sdk@3.0.4` does not, and
+  `packages/db/src/wx-server-sdk.d.ts` does not reintroduce a fake method.
+- Private media delivery matches the project craft rule: public image bytes are
+  published-ref gated, OEM files have no public route, admin OEM download mints
+  a short-lived URL and the browser fetches bytes into a Blob/download path.
+- Static deploy now accounts for additive hosting upload by pruning known retired
+  paths and smoking that retired routes stay 404.
+
+### Verification Run
+
+Local verification was run in a fresh shallow clone of `dev/albertli/try01`:
+
+```bash
+pnpm verify:cloudbase-sdk
+pnpm --filter @vibelingan-channel/media-storage test
+pnpm --filter @vibelingan-channel/fn-admin test
+pnpm --filter @vibelingan-channel/fn-public-api test
+pnpm package:functions
+pnpm smoke:functions
+pnpm typecheck
+pnpm lint
+```
+
+All commands passed. `pnpm typecheck` produced no TypeScript errors; Astro
+reported existing hint-level `React.FormEvent` deprecation notes only. Remote
+CloudBase smoke was not rerun in this review because no production EnvId or prod
+credentials were available in the review environment.
+
+### Disposition
+
+No code-level CloudBase blocker was found in the branch-local checks. The
+production deployment docs are not yet coherent enough to approve a production
+run as written. Resolve PD-1 through PD-5 before enabling any `main -> prod`
+workflow. PD-6 and PD-7 can trail the first client review only if the release
+owner explicitly accepts their cost/operational risk.
