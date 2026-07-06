@@ -97,16 +97,18 @@ define, so a runtime env would be dead code AND would break the existing smoke
 assertion. The only ongoing action is keeping `GITHUB_SHA` wired as the build arg
 in the deploy workflow (already the case).
 
-### MIU-02.3 — Read-merge-update function env (CB1) — IMPLEMENTED (deploy-verify pending)
+### MIU-02.3 — Read-merge-update function env (CB1) — IMPLEMENTED (contract live-verified; e2e deploy test recommended)
 
 > Verdict reversed 2026-07-06 (Context7): the MCP **replaces** env on `updateFunctionConfig`, so this
 > read-merge IS the required fix. **Implemented 2026-07-06** on `dev/SeanCai/cicd-prod-hardening`
 > (`scripts/deploy-cloudbase-test.mjs`: `MANAGED_ENV_KEYS` + `mergeEnvWithExisting()` before
 > `updateFunctionConfig`, GUARD 1/GUARD 2 semantics, defensive fallback to manifest-only).
-> **Deploy-verify PENDING**: the merge reads `getFunctionDetail` → `Environment.Variables`; this must be
-> proven on the test env (local MCP could not authenticate — `当前未登录`, and login needs a TTY). Until a
-> green test deploy confirms it, the fallback keeps parity with prior deploys (zero regression). Then it
-> graduates into `deploy-prod.yml` (`CICD_PRODUCTION_PLAN.md` §4).
+> **Contract LIVE-VERIFIED 2026-07-06** via the CloudBase MCP: `getFunctionDetail` on `admin` returns
+> `Environment.Variables` as `[{Key,Value}]` exactly as the code reads, so the read-merge path executes
+> (not just the fallback); `BOOTSTRAP_ENABLED=0` observed live. All current keys are managed (no
+> console-only keys yet), so today merge == manifest-only. A full **end-to-end deploy test** (add a
+> console-only key → redeploy → confirm survival) remains the final check before it graduates into
+> `deploy-prod.yml` (`CICD_PRODUCTION_PLAN.md` §4).
 
 ```
 Block:        INFRASTRUCTURE

@@ -403,8 +403,10 @@ const MANAGED_ENV_KEYS = new Set([
 // manifest's managed keys. getFunctionDetail returns env as SCF Environment.Variables (a list of
 // { Key, Value }); if that shape is absent/unrecognized, fall back to manifest-only (today's exact
 // behavior) so the deploy can never break on an unexpected contract.
-// LIVE-VERIFY PENDING: the read-merge path must be proven by a test-env deploy (the env list read
-// could not be authenticated locally). Until then the fallback preserves parity with prior deploys.
+// CONTRACT LIVE-VERIFIED 2026-07-06 (test env, via CloudBase MCP getFunctionDetail): the response
+// returns Environment.Variables as [{ Key, Value }] exactly as read below, so the read-merge path
+// executes (not just the fallback). A full end-to-end deploy test (add a console-only key, redeploy,
+// confirm it survives) remains the final belt-and-suspenders check before prod.
 function mergeEnvWithExisting(def, existingDetail) {
   const managed = def.envVariables;
   const existingVars = existingDetail?.Environment?.Variables;
