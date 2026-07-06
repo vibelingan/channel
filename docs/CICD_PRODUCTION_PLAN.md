@@ -1,9 +1,11 @@
 # CI/CD Production Plan — MIU-04
 
-Status: design + prerequisites checklist — NOT implemented. Blocked on human/ops prereqs (§1). Reviewed 2026-07-06 (assumption-checker WARN → findings 1–4 applied).
+Status: design + prerequisites checklist + reconciled readiness audit (§8) — NOT implemented. Blocked on human/ops prereqs (§1). Reviewed 2026-07-06 (assumption-checker WARN → findings 1–4 applied); reconciled 2026-07-06 with Codex `CLOUDBASE_DEPLOYMENT_DESIGN.md` Section 13 (PD-1…PD-7) + CB1 verdict corrected (Context7).
 Scope: MIU-04 from `docs/CICD_EXECUTION.md` — production deploy guardrails, hosting-mode (CB3),
-compatibility (G4). Builds on MIU-01 (secret scoping + EnvId concurrency, done) and the
-contract verification in `docs/CICD_HARDENING_MIU02.md` §0 (CB1/CB2 retired; release id G3 shipped).
+compatibility (G4), and the reconciled production-readiness audit (§8, absorbing Codex's
+`CLOUDBASE_DEPLOYMENT_DESIGN.md` Section 13 PD-1…PD-7). Builds on MIU-01 (secret scoping + EnvId
+concurrency, done); CB2 not needed for HTTP and release id G3 shipped (`docs/CICD_HARDENING_MIU02.md`
+§0); **CB1 (env read-merge) is a real prod guardrail — §4** (verdict corrected 2026-07-06).
 Last updated: 2026-07-06
 
 Production must go through a **gated `deploy-prod.yml`** (reviewer approval + GitHub-stored prod
@@ -74,9 +76,18 @@ Sequence (reuse test's build/package/secret-scan, then):
    public routes `200`, protected admin `401`, and the current no-public-files check
    (`/api/files/__missing__` `404`). The stronger `/api/images/<unlinked>` `404` privacy assertion
    lands with MIU-03 (§7); until then it lives only in the mutation E2E, not the smoke.
-6. Emit a deployment summary (commit SHA, EnvId, URLs, release id, smoke result — no secret values).
+6. Emit a **durable, non-secret release manifest artifact** (commit SHA, EnvId, per-function names +
+   code hashes + runtime, gateway routes, hosting mode, release id, smoke result — no secret values),
+   uploaded as a CI artifact for operator evidence/rollback (closes Codex PD-5's "no durable release
+   manifest").
 
 Guardrails (prod):
+- **Env read-merge (CB1).** `updateFunctionConfig` **replaces** function env (CloudBase default —
+  verified 2026-07-06 via Context7; the earlier "merge" reading was wrong). For prod, read current env
+  (`getFunctionDetail`) and merge the manifest over it before update, with an explicit removal list for
+  intentional deletes — so an out-of-band console value isn't silently erased and a rotated secret is
+  still removed deliberately. (Test is unaffected: its manifest is the complete, authoritative env;
+  design in `docs/CICD_HARDENING_MIU02.md` MIU-02.3 with GUARD 1/GUARD 2 delete semantics.)
 - **Fail on runtime drift (no delete/recreate).** The deploy script already **throws** on runtime
   drift (CloudBase runtime is creation-time locked; CI does not delete/recreate) — keep that
   fail-fast behavior for prod so a runtime mismatch requires a deliberate manual migration, not
@@ -104,3 +115,30 @@ now; add a cross-function contract-test gate only when the function count grows.
 ## 7. Out of scope
 
 MIU-03 (bootstrap E2E gate + `/api/images` privacy smoke — small, agent-doable, can land before prod).
+
+## 8. Production-readiness audit — reconciled with Codex Section 13 (PD-1…PD-7)
+
+This folds Codex's independent production audit (`docs/CLOUDBASE_DEPLOYMENT_DESIGN.md` Section 13,
+branch `dev/albertli/try01` @ `99f130e`, findings PD-1…PD-7) into this canonical plan so there is **one**
+production gate, not two divergent reviews. Where our earlier contract verification disagreed, the
+settled verdict is recorded here.
+
+| PD | Sev | Finding (Codex) | Reconciled disposition |
+| --- | --- | --- | --- |
+| PD-1 | P1 | Deploy DoD still lists `/headphones` + `/overstock` as must-render, but the OEM refresh retires them (smoke now expects those `404`, `/portfolio` `200`). | **Accept.** Prod DoD = `/`, `/admin`, `/login`, `/oem`, `/portfolio` → `200`; `/headphones`, `/overstock` → `404`. Fix the stale DoD in `CLOUDBASE_DEPLOYMENT_*` when the OEM-refresh branch merges. |
+| PD-2 | P1 | Secret-name drift: canonical/execution docs use `TENCENT_SECRET_ID/KEY`; workflow/scripts use `TENCENTCLOUD_SECRETID/SECRETKEY`; SMTP var-vs-secret drift. | **Accept.** This plan already standardizes on `TENCENTCLOUD_SECRETID/SECRETKEY` (§1) and `EMAIL_*` as secrets. Fix the stale `TENCENT_SECRET_ID/KEY` names in `CLOUDBASE_DEPLOYMENT_*` at merge. |
+| PD-3 | P1 | Section 2 "current facts" state baseline is stale (`none yet`). | **Accept.** Run a fresh CloudBase inspection for `test` + the new `prod` EnvId at prod bring-up (§6); replace with dated "last verified" state. |
+| PD-4 | P1 | Hosting mode: first prod deploy should use `manageApps`; test uses `manageHosting upload`. | **Already this plan's CB3 / §3** — independent agreement. Choose mode before first prod deploy; derive URLs from it. |
+| PD-5 | P1 | `updateFunctionConfig` can erase console-managed env; gateway doesn't verify function permission; secrets via `mcporter --args`; no durable release manifest. | **Settled.** Env-replace is **real** → CB1 read-merge (§4, reverses our earlier "merge" reading). Gateway-vs-function-permission = CB2 (not needed for HTTP; `CICD_HARDENING_MIU02.md` §0). Secret transport = D2 (harden for prod). Durable release manifest = §4 step 6 (now a CI artifact). |
+| PD-6 | P2 | Factory video bundled in static build vs storage/CDN policy (OR-4). | Media-policy decision on the OEM/image-upload branch; **not a CI/CD gate**. Resolve before final client release. |
+| PD-7 | P2 | "HTTP function" terminology vs Event Function via HTTP Access. | **Accept** wording fix in the deploy docs; our runtime is an **Event Function via HTTP Access** (matches `CICD_HARDENING_MIU02.md` §0). |
+
+**Net for the prod gate:** PD-4 (=CB3, §3) and PD-5's env-replace (=CB1, §4) are the two findings that
+change *this* plan; both are now folded in. PD-1/PD-2/PD-3/PD-7 are doc-consistency fixes for the
+CloudBase deploy docs (apply at branch merge); PD-6 is a media-policy decision outside CI/CD. Codex's
+"Verified Correct" items (Event-Function/HTTP-Access model, `TENCENTCLOUD_*` not copied into runtime
+env, storage SDK boundary, private-media delivery, retired-route pruning) corroborate MIU-01 + the
+storage design and need no action.
+
+This section is the canonical production-readiness gate and **supersedes Codex's Section 13**; at branch
+merge, reduce that section to a pointer here.

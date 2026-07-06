@@ -27,7 +27,7 @@ workflows **without changing what they deploy or how the app behaves**.
   concurrently. Serialize by EnvId.
 
 Non-goals (tracked elsewhere, do not touch here): RELEASE_ID / release manifest,
-CloudBase `updateFunctionConfig` env-merge (CB1), function resource permission
+CloudBase `updateFunctionConfig` env read-merge (CB1), function resource permission
 (CB2), `mcporter --args` transport (D2), production workflow, and any
 application/runtime/bundle change. **This is a planning document only;
 implementation is a separate, approved step.**

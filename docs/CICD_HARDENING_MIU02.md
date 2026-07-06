@@ -1,6 +1,6 @@
 # CI/CD Hardening Plan — MIU-02: Release Identity & CloudBase Deploy Hardening
 
-Status: **Contract-verified 2026-07-06 — CB1 and CB2 found NOT needed** (see §0). Only D2 (minor, optional) remains as code; G3 already shipped.
+Status: **Contract re-verified 2026-07-06 (Context7) — CB1 REAL (verdict reversed; the earlier "merge" reading was wrong), CB2 not needed for HTTP** (see §0). CB1 read-merge → prod guardrail (`CICD_PRODUCTION_PLAN.md` §4); D2 minor/optional; G3 shipped.
 Scope: MIU-02 from `docs/CICD_EXECUTION.md` — CB1, CB2, D2, G3.
 Prereq: MIU-01 (secret scoping + EnvId deploy concurrency) — implemented.
 Reviews: assumption-checker 2026-07-05 (BLOCK → revised); **CloudBase SDK contract verification 2026-07-06** (this consolidation — §0).
@@ -20,13 +20,23 @@ Per the AGENTS.md CloudBase SDK Contract Gate + `docs/CLOUDBASE_SDK_CONTRACT_VER
 (`docs.cloudbase.net/cloud-function/security-rules`), installed packages
 (`@cloudbase/node-sdk@2.10.0`, `wx-server-sdk@3.0.4`), and the proven test deploys.
 
-**CB1 — VERIFIED NOT NEEDED.** The MCP `manageFunctions(action="updateFunctionConfig")`
-documents `envVariables` as **“配置更新时要合并的环境变量”** (env vars to **MERGE**, not
-replace). The deploy does NOT wipe console-set vars — the review's “full-replace” premise was
-wrong, so the proposed read-merge-update is unnecessary. `BOOTSTRAP_ENABLED='0'` is always sent
-→ merged → correctly reset. Residual (low): a merge never DELETES an omitted key, so a
-once-set optional secret persists; and the `deployFunctionWithCloudBaseCli`
-(`tcb`/`cloudbaserc.json`) path's env behavior is a separate check if it is used for env updates.
+**CB1 — VERIFIED REAL (verdict reversed 2026-07-06, Context7).** The earlier reading of the MCP
+`envVariables` label **“配置更新时要合并的环境变量”** as "the tool merges for you" was a **misread** —
+it means "the vars *the caller* wants merged in," and the caller must do the merge. Authoritative
+sources: the CloudBase MCP skill (`cloudbase-mcp` `config/source/skills/cloud-functions/SKILL.md`, via
+Context7): *"When updating environment variables, it's crucial to first query the existing values and
+merge them with the new ones to prevent accidental overwriting"*; and the tool exposes
+`patchMode:"merge"` **precisely because the default is full-replace**. Our `updateFunctionConfig(def)`
+sends `envVariables: def.envVariables` (manifest-only — no `getFunctionDetail` read-merge, no
+`patchMode`) → it **replaces** function env and would erase any console-managed key absent from the
+manifest. This matches Codex's PD-5 (`CLOUDBASE_DEPLOYMENT_DESIGN.md` Section 13) and this repo's own
+`CICD_EXECUTION.md` best-practice #5 / "Alternatives Rejected → Replace full env config". **Impact:**
+low for test (the manifest is the complete env set and no console-only vars exist, so each deploy
+re-sets everything), **real for prod** (an out-of-band console hotfix would be silently erased).
+**Action:** resolve for prod via read-merge-update (query `getFunctionDetail` env → merge manifest over
+existing → send the union, with an explicit removal list for intentional deletes) — reinstated as
+MIU-02.3 and tracked as a prod guardrail in `CICD_PRODUCTION_PLAN.md` §4. (`BOOTSTRAP_ENABLED='0'` is
+still correctly reset because it is always in the manifest.)
 
 **CB2 — VERIFIED NOT NEEDED for HTTP.** CloudBase cloud-function *security rules*
 (`managePermissions/queryPermissions resourceType="function"`, the `{ "*": { "invoke": … } }`
@@ -42,14 +52,15 @@ correct proof.
 `managePermissions(action="updateResourcePermission", resourceType="function", securityRule)`
 all exist.
 
-**Net remaining MIU-02 work: D2 (optional, minor) + these doc corrections.** G3 already shipped.
-The MIU-02.3/02.4 sections below are the pre-verification proposals, kept for history and
-SUPERSEDED by this §0.
+**Net remaining MIU-02 work: CB1 read-merge (reinstated — deferred to prod guardrail
+`CICD_PRODUCTION_PLAN.md` §4) + D2 (optional, minor) + these doc corrections.** G3 already shipped.
+MIU-02.3 (CB1) below is REINSTATED by this §0; MIU-02.4 (CB2) stays SUPERSEDED (HTTP ≠ SDK rules).
 
 ## 1. Goal (re-scoped after verification)
 
-- **CB1** — ~~read-merge-update~~ **NOT needed** (MCP merges env). Optional residual: explicitly
-  clear stale optional secrets only if we decide it matters.
+- **CB1** — **read-merge-update REQUIRED for prod** (MCP `updateFunctionConfig` **replaces** env;
+  verdict reversed 2026-07-06, Context7). Low impact for test (manifest is the complete, authoritative
+  env); tracked as a prod guardrail in `CICD_PRODUCTION_PLAN.md` §4.
 - **CB2** — ~~function permission gate~~ **NOT needed** for HTTP (security rules are SDK-only;
   gateway `createAccess` governs HTTP, proven).
 - **G3** — ✅ already shipped (build-time `CHANNEL_BUILD_SHA`).
@@ -61,7 +72,7 @@ bootstrap gate + `/api/images` privacy smoke (MIU-03); release manifest file (MI
 
 ## 2. Current State (verified 2026-07-05 against `scripts/deploy-cloudbase-test.mjs`, 573 lines)
 
-- `updateFunctionConfig(def)` (≈L378) sends `envVariables: def.envVariables`. Per §0 the CloudBase MCP **merges** these env vars (does not replace), so console-set vars are preserved (CB1 not needed).
+- `updateFunctionConfig(def)` (≈L378) sends `envVariables: def.envVariables` (manifest-only — no `patchMode`, no `getFunctionDetail` read-merge). Per §0 the CloudBase MCP **replaces** function env, so a console-managed key absent from the manifest is erased (CB1 real; low impact for test because the manifest is the complete, authoritative env; must fix for prod — `CICD_PRODUCTION_PLAN.md` §4).
 - `ensureGateway(def)` (≈L471) calls `manageGateway(action:"createAccess", auth:false)`, which governs **HTTP access** (proven public). Function *security rules* are a separate SDK-`callFunction` control, not required here (CB2 not needed).
 - Function env is built by `envEntries({...})` (≈L408 admin, L429 public-api). The deploy also sets `ADMIN_EMAIL` on admin — a managed key CB1's merge set must include.
 - `callTool(...)` shells `npx mcporter call <tool> --args <JSON>` (L67) → secret values in argv (D2 open; accepted for test, tighten for prod).
@@ -86,10 +97,11 @@ define, so a runtime env would be dead code AND would break the existing smoke
 assertion. The only ongoing action is keeping `GITHUB_SHA` wired as the build arg
 in the deploy workflow (already the case).
 
-### MIU-02.3 — Read-merge-update function env (CB1) — SUPERSEDED (see §0: MCP merges env — NOT needed)
+### MIU-02.3 — Read-merge-update function env (CB1) — REINSTATED (see §0: MCP replaces env — REQUIRED for prod)
 
-> Pre-verification proposal, kept for history. The CloudBase MCP already merges env on
-> `updateFunctionConfig`, so this is **not implemented**.
+> Verdict reversed 2026-07-06 (Context7): the MCP **replaces** env on `updateFunctionConfig`, so this
+> read-merge IS the required fix. Deferred to MIU-04 prod guardrails (`CICD_PRODUCTION_PLAN.md` §4);
+> not yet implemented (low impact for test — the manifest is the complete, authoritative env).
 
 ```
 Block:        INFRASTRUCTURE
