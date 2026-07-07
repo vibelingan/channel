@@ -12,6 +12,7 @@
  * No other file needs to change to support CRUD on a brand new collection.
  */
 import { z } from 'zod';
+import { ROLES } from './auth.ts';
 import { MEDIA_PURPOSES, MEDIA_STATUSES } from './media.ts';
 
 export type FieldType =
@@ -83,7 +84,9 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         label: 'Role',
         type: 'select',
         // Blank (no selection) = base entitlement; admins assign the rest.
-        options: ['viewer', 'member', 'contributor', 'admin'],
+        // Derived from the canonical union so a future role (sales, client)
+        // can't be assignable here yet silently collapsed to '' by toRole().
+        options: [...ROLES],
       },
       {
         name: 'status',

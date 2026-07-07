@@ -80,9 +80,12 @@ export async function resolveCatalogViewer(
     const user = await get('users', claims.sub);
     if (!user || user.status === 'suspended') return ANONYMOUS_VIEWER;
     return { canSeeVipPricing: canSeeVipPricing(toRole(user.role)) };
-  } catch {
+  } catch (e) {
     // The catalog must stay up even if the entitlement lookup fails; degrade
-    // to the anonymous projection rather than surfacing an error.
+    // to the anonymous projection rather than surfacing an error. Logged so a
+    // persistent users-collection outage (every member silently losing VIP
+    // pricing) is visible in ops rather than a mystery.
+    console.error('[fn-public-api] catalog entitlement lookup failed:', e);
     return ANONYMOUS_VIEWER;
   }
 }

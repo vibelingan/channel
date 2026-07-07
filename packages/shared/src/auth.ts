@@ -12,7 +12,8 @@
  *                 a viewer for pricing. `member`/`viewer` are reserved for
  *                 explicit assignment later.
  */
-export const ROLES = ['admin', 'contributor', 'member', 'viewer'] as const;
+// Ascending privilege — also the display order for admin role-select options.
+export const ROLES = ['viewer', 'member', 'contributor', 'admin'] as const;
 export type AssignableRole = (typeof ROLES)[number];
 /** A user's role; '' (blank) is the default base entitlement. */
 export type Role = AssignableRole | '';
