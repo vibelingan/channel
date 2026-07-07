@@ -54,6 +54,68 @@ test.describe('public browser smoke', () => {
     expect(files.status()).toBe(404);
   });
 
+  test('public catalog payloads never ship role-gated pricing or raw internal fields', async ({
+    request,
+  }) => {
+    // The unauthenticated API projects an explicit allowlist: vipPrice is
+    // role-gated in the UI and must not ride along in the network payload for
+    // anonymous callers (the client-side gate is cosmetic).
+    for (const path of ['/api/products?pageSize=48', '/api/overstock?pageSize=48']) {
+      const response = await request.get(`${e2e.apiUrl}${path}`, {
+        headers: { Origin: e2e.siteUrl },
+      });
+      expect(response.status()).toBe(200);
+      const body = (await response.json()) as {
+        ok: boolean;
+        data?: { items?: Record<string, unknown>[] };
+      };
+      const items = body.data?.items ?? [];
+      expect(items.length).toBeGreaterThan(0);
+      for (const item of items) {
+        expect(item, `vipPrice leaked in ${path}`).not.toHaveProperty('vipPrice');
+        expect(item, `imageIds leaked in ${path}`).not.toHaveProperty('imageIds');
+        expect(item, `createdAt leaked in ${path}`).not.toHaveProperty('createdAt');
+      }
+      // Detail route runs the same projection.
+      const first = items[0] as { _id: string };
+      const detail = await request.get(
+        `${e2e.apiUrl}${path.split('?')[0]}/${encodeURIComponent(first._id)}`,
+        { headers: { Origin: e2e.siteUrl } },
+      );
+      expect(detail.status()).toBe(200);
+      const detailBody = (await detail.json()) as { data?: Record<string, unknown> };
+      expect(detailBody.data).not.toHaveProperty('vipPrice');
+      expect(detailBody.data).not.toHaveProperty('imageIds');
+    }
+  });
+
+  test('public image delivery sends nosniff and an allowlisted Content-Type', async ({
+    request,
+  }) => {
+    // Find a real image URL from the published catalog rather than hardcoding
+    // a seed id, so the test survives seed-data changes.
+    const list = await request.get(`${e2e.apiUrl}/api/products?pageSize=48`, {
+      headers: { Origin: e2e.siteUrl },
+    });
+    const body = (await list.json()) as { data?: { items?: { images?: string[] }[] } };
+    const imagePath = body.data?.items?.flatMap((item) => item.images ?? [])[0];
+    expect(imagePath, 'expected at least one published product image').toBeTruthy();
+
+    const image = await request.get(
+      imagePath?.startsWith('http') ? (imagePath as string) : `${e2e.apiUrl}${imagePath}`,
+      { headers: { Origin: e2e.siteUrl } },
+    );
+    expect(image.status()).toBe(200);
+    expect(image.headers()['x-content-type-options']).toBe('nosniff');
+    const contentType = image.headers()['content-type'] ?? '';
+    expect(
+      ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml'].some((allowed) =>
+        contentType.startsWith(allowed),
+      ),
+      `Content-Type ${contentType} must come from the image allowlist`,
+    ).toBe(true);
+  });
+
   test('Success Stories certificates open in an accessible lightbox', async ({ page }) => {
     await page.goto('/portfolio', { waitUntil: 'domcontentloaded' });
 

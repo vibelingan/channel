@@ -19,6 +19,7 @@ import type { PublicCatalog } from '@vibelingan-channel/fn-public-api/handler';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
 import { optionalEnv } from '@vibelingan-channel/shared';
+import { releaseInfo } from '@vibelingan-channel/shared/release';
 import express from 'express';
 import { JsonFileAdapter } from './json-adapter.ts';
 import { seed } from './seed.ts';
@@ -72,8 +73,10 @@ app.use((_req, res, next) => {
 });
 app.options('/api/admin', (_req, res) => res.sendStatus(204));
 
+// Same envelope as the production public-api health (parity with the e2e
+// contract), plus local-only diagnostics.
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, mode: 'local', db: DB_FILE });
+  res.json({ ok: true, data: { ...releaseInfo('public-api'), mode: 'local', db: DB_FILE } });
 });
 
 app.post('/api/admin', async (req, res) => {
