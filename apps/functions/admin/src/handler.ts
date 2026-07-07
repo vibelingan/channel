@@ -61,6 +61,7 @@ import {
   OEM_UPLOAD_RATE_MAX_PER_WINDOW_GLOBAL,
   OEM_UPLOAD_RATE_WINDOW_MS,
   type Role,
+  SIGNATURE_MIME,
   canEditCollection,
   canReadCollection,
   catalogImageUploadSchema,
@@ -634,7 +635,6 @@ async function submitProject(req: AdminRequest): Promise<ApiResult<unknown>> {
     category,
     quantity,
     drawingName,
-    drawingType,
     drawingData,
     drawingFileId,
     uploadIntentId,
@@ -662,9 +662,15 @@ async function submitProject(req: AdminRequest): Promise<ApiResult<unknown>> {
     claim = finalized.claim;
     drawingId = claim.fileId; // still `pending`; activated AFTER the project exists
   } else if (drawingData) {
+    // submitProject is UNAUTHENTICATED and files.mimeType is reflected by the
+    // OEM download path, so the client-declared `drawingType` is NOT trusted:
+    // derive the stored type from a byte sniff (a recognised signature → its
+    // canonical MIME; anything else, incl. CAD, → octet-stream). This prevents
+    // an anonymous caller persisting e.g. mimeType 'text/html' with HTML bytes.
+    const sig = sniffMagicBytes(Buffer.from(drawingData, 'base64'));
     const fileDoc = await createDoc('files', {
       name: drawingName ?? 'drawing',
-      mimeType: drawingType ?? 'application/octet-stream',
+      mimeType: sig === 'unknown' ? 'application/octet-stream' : SIGNATURE_MIME[sig],
       data: drawingData,
     });
     drawingId = fileDoc._id;

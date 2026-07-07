@@ -1120,11 +1120,38 @@ test('completeUpload rejects bytes whose signature is a DIFFERENT image type tha
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     Buffer.from('png-payload'),
   ]);
-  setMediaStorage(makeFakeMediaStorage({ objectBytes: png }));
+  const fake = makeFakeMediaStorage({ objectBytes: png });
+  setMediaStorage(fake);
   const token = await adminToken();
   const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
   expectErr(await call('completeUpload', { imageId: intent.imageId }, token), 'VALIDATION_ERROR');
-  assert.equal(store.images?.find((i) => i._id === intent.imageId)?.status, 'failed');
+  const doc = store.images?.find((i) => i._id === intent.imageId);
+  assert.equal(doc?.status, 'failed');
+  // Same cleanup contract as the HTML-payload path: the rejected object is deleted.
+  assert.deepEqual(fake.deleted, [doc?.storageFileId]);
+});
+
+test('completeUpload ACCEPTS a valid PNG under an image/png intent (sniff does not over-reject)', async () => {
+  // Guards against the sniff gate rejecting a legitimate non-JPEG type: a real
+  // PNG declared as image/png must sniff-match and activate.
+  const store = imageStore([]);
+  setup(store);
+  const png = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.from('png-payload'),
+  ]);
+  setMediaStorage(makeFakeMediaStorage({ objectBytes: png }));
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(
+    await call(
+      'createUploadIntent',
+      { fileName: 'photo.png', mimeType: 'image/png', byteSize: png.byteLength },
+      token,
+    ),
+  );
+  const res = await call('completeUpload', { imageId: intent.imageId }, token);
+  assert.equal(res.ok, true);
+  assert.equal(store.images?.find((i) => i._id === intent.imageId)?.status, 'active');
 });
 
 test('generic update cannot rewrite images.mimeType (readOnly in the registry)', async () => {
@@ -2139,6 +2166,47 @@ test('submitProject accepts a CAD file by extension when the bytes sniff unknown
   const data = okData<{ id: string }>(await callPublic('submitProject', finalizeInput()));
   assert.ok(store.oemProjects?.find((p) => p._id === data.id));
   assert.equal(store.files?.find((f) => f._id === 'file1')?.status, 'active');
+});
+
+test('submitProject legacy drawingData derives mimeType from a byte sniff, not the client string', async () => {
+  // Anonymous caller tries to persist an HTML payload labelled text/html via the
+  // legacy inline path. The stored mimeType must be sniff-derived (octet-stream
+  // for non-image bytes), never the attacker-supplied value — files.mimeType is
+  // reflected by OEM download delivery.
+  const store = setup({ users: [], files: [], oemProjects: [] });
+  setMediaStorage(makeFinalizeStorage());
+  const html = Buffer.from('<html><script>alert(1)</script></html>').toString('base64');
+  const data = okData<{ id: string }>(
+    await callPublic('submitProject', {
+      company: 'ACME',
+      contact: 'Jo',
+      email: 'jo@acme.com',
+      drawingName: 'evil.html',
+      drawingType: 'text/html',
+      drawingData: html,
+    }),
+  );
+  const project = store.oemProjects?.find((p) => p._id === data.id);
+  const file = store.files?.find((f) => f._id === project?.drawing);
+  assert.equal(file?.mimeType, 'application/octet-stream');
+
+  // A real PNG under a lying drawingType is stored as its true canonical MIME.
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]).toString(
+    'base64',
+  );
+  const data2 = okData<{ id: string }>(
+    await callPublic('submitProject', {
+      company: 'ACME',
+      contact: 'Jo',
+      email: 'jo@acme.com',
+      drawingName: 'real.png',
+      drawingType: 'text/html',
+      drawingData: png,
+    }),
+  );
+  const project2 = store.oemProjects?.find((p) => p._id === data2.id);
+  const file2 = store.files?.find((f) => f._id === project2?.drawing);
+  assert.equal(file2?.mimeType, 'image/png');
 });
 
 test('submitProject rejects a WRONG SECRET without deleting or failing the object (no unauth DoS)', async () => {

@@ -82,12 +82,14 @@ const PUBLIC_CATALOG_FIELDS = [
 ] as const;
 
 function publicDoc(doc: CollectionDoc, config: PublicApiConfig): CollectionDoc {
-  const out: Record<string, unknown> = {};
+  // Constructed as a CollectionDoc with `_id` set unconditionally, so the
+  // result is structurally guaranteed (no cast) — dropping `_id` from the
+  // allowlist can never silently ship an id-less doc.
+  const out: CollectionDoc = { _id: doc._id, images: catalogImages(doc, config) };
   for (const key of PUBLIC_CATALOG_FIELDS) {
-    if (key in doc) out[key] = doc[key];
+    if (key !== '_id' && key in doc) out[key] = doc[key];
   }
-  out.images = catalogImages(doc, config);
-  return out as CollectionDoc;
+  return out;
 }
 
 function positiveInt(value: number | undefined, fallback: number): number {
@@ -204,6 +206,13 @@ function binaryImage(doc: CollectionDoc, body: string): BinaryResult {
       'Content-Type': PUBLIC_IMAGE_MIME_TYPES.has(declared) ? declared : 'application/octet-stream',
       // Never let a browser second-guess the declared type into text/html.
       'X-Content-Type-Options': 'nosniff',
+      // Defense-in-depth for the one active-content type on the allowlist:
+      // image/svg+xml opened DIRECTLY (navigated, not <img>) is a document and
+      // nosniff does not stop inline <script> in it. `sandbox` (no allow-scripts)
+      // runs it in a script-disabled unique origin; `default-src 'none'` blocks
+      // any external fetch it attempts. Legacy SVG rows have no user write path,
+      // so this is belt-and-suspenders, not the primary control.
+      'Content-Security-Policy': "default-src 'none'; sandbox",
     },
   };
 }

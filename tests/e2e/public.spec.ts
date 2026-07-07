@@ -77,9 +77,11 @@ test.describe('public browser smoke', () => {
         expect(item, `createdAt leaked in ${path}`).not.toHaveProperty('createdAt');
       }
       // Detail route runs the same projection.
-      const first = items[0] as { _id: string };
+      const first = items[0];
+      const firstId = first?._id;
+      if (typeof firstId !== 'string') throw new Error(`no _id on first ${path} item`);
       const detail = await request.get(
-        `${e2e.apiUrl}${path.split('?')[0]}/${encodeURIComponent(first._id)}`,
+        `${e2e.apiUrl}${path.split('?')[0]}/${encodeURIComponent(firstId)}`,
         { headers: { Origin: e2e.siteUrl } },
       );
       expect(detail.status()).toBe(200);
@@ -99,14 +101,15 @@ test.describe('public browser smoke', () => {
     });
     const body = (await list.json()) as { data?: { items?: { images?: string[] }[] } };
     const imagePath = body.data?.items?.flatMap((item) => item.images ?? [])[0];
-    expect(imagePath, 'expected at least one published product image').toBeTruthy();
+    if (!imagePath) throw new Error('expected at least one published product image');
 
     const image = await request.get(
-      imagePath?.startsWith('http') ? (imagePath as string) : `${e2e.apiUrl}${imagePath}`,
+      imagePath.startsWith('http') ? imagePath : `${e2e.apiUrl}${imagePath}`,
       { headers: { Origin: e2e.siteUrl } },
     );
     expect(image.status()).toBe(200);
     expect(image.headers()['x-content-type-options']).toBe('nosniff');
+    expect(image.headers()['content-security-policy']).toBe("default-src 'none'; sandbox");
     const contentType = image.headers()['content-type'] ?? '';
     expect(
       ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml'].some((allowed) =>

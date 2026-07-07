@@ -111,6 +111,23 @@ app.get('/api/images/:id', async (req, res) => {
   res.status(404).end();
 });
 
+// Content-Type values the OEM file download may reflect. Same defense-in-depth
+// as the public image route: even though these bytes are served as an
+// `attachment` (never rendered inline) and `mimeType` is now readOnly, we still
+// gate the reflected type to a server allowlist and send `nosniff` so a corrupt
+// or legacy `text/html` row can never influence how a browser treats the bytes.
+const DOWNLOAD_MIME_TYPES: ReadonlySet<string> = new Set([
+  'application/pdf',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/x-rar-compressed',
+  'application/vnd.rar',
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'application/octet-stream',
+]);
+
 // Download file bytes stored (base64) in the `files` collection. Sent as an
 // attachment with the original filename so admins can save OEM drawings.
 app.get('/api/files/:id', async (req, res) => {
@@ -120,7 +137,12 @@ app.get('/api/files/:id', async (req, res) => {
     return;
   }
   const name = String(doc.name ?? 'file').replace(/["\r\n]/g, '');
-  res.setHeader('Content-Type', String(doc.mimeType ?? 'application/octet-stream'));
+  const declared = typeof doc.mimeType === 'string' ? doc.mimeType.trim().toLowerCase() : '';
+  res.setHeader(
+    'Content-Type',
+    DOWNLOAD_MIME_TYPES.has(declared) ? declared : 'application/octet-stream',
+  );
+  res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
   res.send(Buffer.from(doc.data, 'base64'));
 });

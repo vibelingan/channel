@@ -404,6 +404,7 @@ test('serves only images linked from published catalog records', async () => {
   assert.equal(linked.headers['Content-Type'], 'image/svg+xml');
   assert.equal(linked.headers['Cache-Control'], 'public, max-age=3600');
   assert.equal(linked.headers['X-Content-Type-Options'], 'nosniff');
+  assert.equal(linked.headers['Content-Security-Policy'], "default-src 'none'; sandbox");
   assert.equal(linked.isBase64Encoded, true);
   assert.equal(hidden.statusCode, 404);
   assert.equal(unlinked.statusCode, 404);
