@@ -34,27 +34,25 @@ function imagesDef() {
 
 test('images generic write schema accepts only safe metadata fields', () => {
   const schema = buildWriteSchema(imagesDef());
-  assert.deepEqual(schema.parse({ name: 'a.jpg', mimeType: 'image/jpeg' }), {
-    name: 'a.jpg',
-    mimeType: 'image/jpeg',
-  });
+  assert.deepEqual(schema.parse({ name: 'a.jpg' }), { name: 'a.jpg' });
 });
 
 test('images generic write schema rejects forged storage identifiers', () => {
   const schema = buildWriteSchema(imagesDef());
-  assert.throws(() =>
-    schema.parse({ name: 'a', mimeType: 'image/jpeg', storageFileId: 'cloud://forged' }),
-  );
+  assert.throws(() => schema.parse({ name: 'a', storageFileId: 'cloud://forged' }));
 });
 
 test('images generic write schema rejects base64 data writes', () => {
   const schema = buildWriteSchema(imagesDef());
-  assert.throws(() => schema.parse({ name: 'a', mimeType: 'image/jpeg', data: 'AAAA' }));
+  assert.throws(() => schema.parse({ name: 'a', data: 'AAAA' }));
 });
 
 test('images generic write schema rejects every server-managed lifecycle field', () => {
   const schema = buildWriteSchema(imagesDef());
   const forgeries: Record<string, unknown>[] = [
+    // mimeType is reflected into the public delivery Content-Type, so it is
+    // server-managed like the storage/lifecycle fields (stored-XSS hardening).
+    { mimeType: 'text/html' },
     { status: 'active' },
     { publishedRefCount: 9 },
     { storageProvider: 'cloudbase-storage' },
@@ -67,15 +65,15 @@ test('images generic write schema rejects every server-managed lifecycle field',
   ];
   for (const forged of forgeries) {
     assert.throws(
-      () => schema.parse({ name: 'a', mimeType: 'image/jpeg', ...forged }),
+      () => schema.parse({ name: 'a', ...forged }),
       `expected generic write to reject ${JSON.stringify(forged)}`,
     );
   }
 });
 
-test('images writable fields are only name + mimeType', () => {
+test('images writable fields are only name', () => {
   const names = writableFields(imagesDef()).map((f) => f.name);
-  assert.deepEqual(names, ['name', 'mimeType']);
+  assert.deepEqual(names, ['name']);
 });
 
 test('media constants expose the policy vocabulary', () => {
@@ -230,21 +228,19 @@ function filesDef() {
   return def;
 }
 
-test('files generic write schema accepts only safe metadata (name + mimeType)', () => {
+test('files generic write schema accepts only safe metadata (name)', () => {
   const schema = buildWriteSchema(filesDef());
-  assert.deepEqual(schema.parse({ name: 'drawing.pdf', mimeType: 'application/pdf' }), {
-    name: 'drawing.pdf',
-    mimeType: 'application/pdf',
-  });
+  assert.deepEqual(schema.parse({ name: 'drawing.pdf' }), { name: 'drawing.pdf' });
   assert.deepEqual(
     writableFields(filesDef()).map((f) => f.name),
-    ['name', 'mimeType'],
+    ['name'],
   );
 });
 
 test('files generic write schema rejects every server-managed storage/lifecycle field', () => {
   const schema = buildWriteSchema(filesDef());
   const forgeries: Record<string, unknown>[] = [
+    { mimeType: 'text/html' },
     { data: 'AAAA' },
     { status: 'active' },
     { storageProvider: 'cloudbase-storage' },
@@ -276,6 +272,7 @@ test('files generic UPDATE (partial) write schema also rejects forged readOnly k
   assert.throws(() => schema.parse({ uploadSecretHash: 'hash' }));
   assert.throws(() => schema.parse({ storageFileId: 'cloud://forged' }));
   assert.throws(() => schema.parse({ status: 'active' }));
+  assert.throws(() => schema.parse({ mimeType: 'text/html' }));
   assert.deepEqual(schema.parse({ name: 'renamed.pdf' }), { name: 'renamed.pdf' });
 });
 

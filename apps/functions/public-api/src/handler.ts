@@ -56,8 +56,38 @@ function catalogImages(doc: CollectionDoc, config: PublicApiConfig): string[] {
   return ids.map((id) => imageUrl(id, config));
 }
 
+/**
+ * Fields a catalog document may expose through this UNAUTHENTICATED API.
+ * Everything not listed (vipPrice, imageIds, timestamps, any future internal
+ * field) is withheld by default. `unitPrice` and `clearancePrice` are here
+ * because the storefront renders them ungated (spec sheet / strike-through
+ * discount); `vipPrice` is role-gated in the UI, so it may only ever ship on
+ * an authenticated catalog path that verifies the role server-side.
+ */
+const PUBLIC_CATALOG_FIELDS = [
+  '_id',
+  'name',
+  'category',
+  'series',
+  'modName',
+  'modType',
+  'description',
+  'productCode',
+  'moq',
+  'inventory',
+  'unitPrice',
+  'wholesalePrice',
+  'clearancePrice',
+  'published',
+] as const;
+
 function publicDoc(doc: CollectionDoc, config: PublicApiConfig): CollectionDoc {
-  return { ...doc, images: catalogImages(doc, config) };
+  const out: Record<string, unknown> = {};
+  for (const key of PUBLIC_CATALOG_FIELDS) {
+    if (key in doc) out[key] = doc[key];
+  }
+  out.images = catalogImages(doc, config);
+  return out as CollectionDoc;
 }
 
 function positiveInt(value: number | undefined, fallback: number): number {
@@ -147,14 +177,33 @@ async function legacyImageIsPublicFallback(imageId: string): Promise<boolean> {
   return false;
 }
 
+/**
+ * Content-Type values public image delivery may reflect. `mimeType` is
+ * server-managed (readOnly in the registry, byte-sniffed at completeUpload),
+ * but delivery still refuses to reflect anything outside this list so a
+ * corrupt or pre-hardening value degrades to octet-stream instead of becoming
+ * a scriptable Content-Type. SVG stays: legacy seeded rows are SVG and legacy
+ * `data` bytes have no write path.
+ */
+const PUBLIC_IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+  'image/svg+xml',
+]);
+
 function binaryImage(doc: CollectionDoc, body: string): BinaryResult {
+  const declared = typeof doc.mimeType === 'string' ? doc.mimeType.trim().toLowerCase() : '';
   return {
     ok: true,
     body,
     isBase64Encoded: true,
     headers: {
       'Cache-Control': 'public, max-age=3600',
-      'Content-Type': typeof doc.mimeType === 'string' ? doc.mimeType : 'application/octet-stream',
+      'Content-Type': PUBLIC_IMAGE_MIME_TYPES.has(declared) ? declared : 'application/octet-stream',
+      // Never let a browser second-guess the declared type into text/html.
+      'X-Content-Type-Options': 'nosniff',
     },
   };
 }

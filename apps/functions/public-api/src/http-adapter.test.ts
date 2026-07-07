@@ -136,6 +136,13 @@ function seedStore(): Store {
     category: index % 2 === 0 ? 'wired' : 'office',
     published: true,
     imageIds: index === 0 ? ['linked-image'] : [],
+    // Pricing tiers + internal fields, to prove the public projection ships
+    // only the allowlisted fields (vipPrice is role-gated in the UI).
+    unitPrice: 12,
+    wholesalePrice: 10,
+    vipPrice: 8,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-02T00:00:00.000Z',
   }));
   products.push({
     _id: 'p-hidden',
@@ -143,6 +150,11 @@ function seedStore(): Store {
     category: 'wired',
     published: false,
     imageIds: ['hidden-image'],
+    unitPrice: 12,
+    wholesalePrice: 10,
+    vipPrice: 8,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-02T00:00:00.000Z',
   });
 
   return {
@@ -274,6 +286,15 @@ function seedStore(): Store {
         data: Buffer.from('<svg/>').toString('base64'),
         publishedRefCount: '1',
       },
+      // A non-image mimeType on a visible row must never be reflected into the
+      // response Content-Type (stored-XSS via content-type confusion).
+      {
+        _id: 'legacy-scripty-mime',
+        name: 'scripty.html',
+        mimeType: 'text/html',
+        data: Buffer.from('<script>document.title = "xss"</script>').toString('base64'),
+        publishedRefCount: 1,
+      },
       // Unknown/corrupt provider must not be treated as storage-backed.
       {
         _id: 'storage-unknown-provider',
@@ -318,6 +339,39 @@ test('lists only published catalog items and caps pageSize at 48', async () => {
   ]);
 });
 
+// --- Public projection: no role-gated pricing / internal fields --------------
+
+test('catalog list ships only allowlisted public fields (no vipPrice / imageIds / timestamps)', async () => {
+  setup();
+  const response = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/products', queryStringParameters: { pageSize: '1' } },
+    {},
+  );
+  const json = body(response) as { ok: true; data: { items: CollectionDoc[] } };
+  const item = json.data.items[0] as CollectionDoc;
+
+  // Publicly rendered fields survive the projection…
+  assert.equal(item.unitPrice, 12);
+  assert.equal(item.wholesalePrice, 10);
+  assert.ok(Array.isArray(item.images));
+  // …role-gated pricing and internal/raw fields never leave the server.
+  assert.equal('vipPrice' in item, false);
+  assert.equal('imageIds' in item, false);
+  assert.equal('createdAt' in item, false);
+  assert.equal('updatedAt' in item, false);
+});
+
+test('catalog detail ships only allowlisted public fields', async () => {
+  setup();
+  const response = await handlePublicApiEvent({ httpMethod: 'GET', path: '/api/products/p-1' }, {});
+  const json = body(response) as { ok: true; data: CollectionDoc };
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(json.data.wholesalePrice, 10);
+  assert.equal('vipPrice' in json.data, false);
+  assert.equal('imageIds' in json.data, false);
+});
+
 test('returns 404 for unpublished catalog detail', async () => {
   setup();
   const response = await handlePublicApiEvent(
@@ -349,6 +403,7 @@ test('serves only images linked from published catalog records', async () => {
   assert.equal(linked.statusCode, 200);
   assert.equal(linked.headers['Content-Type'], 'image/svg+xml');
   assert.equal(linked.headers['Cache-Control'], 'public, max-age=3600');
+  assert.equal(linked.headers['X-Content-Type-Options'], 'nosniff');
   assert.equal(linked.isBase64Encoded, true);
   assert.equal(hidden.statusCode, 404);
   assert.equal(unlinked.statusCode, 404);
@@ -413,6 +468,15 @@ test('storage-backed active image with refCount>0 renders via the media proxy', 
   assert.equal(res.headers['Content-Type'], 'image/png');
   assert.equal(res.isBase64Encoded, true);
   assert.equal(res.body, STORAGE_BYTES['cloud://active']); // proxied bytes
+});
+
+test('image delivery never reflects a non-allowlisted mimeType into Content-Type', async () => {
+  setup();
+  const res = await imageReq('legacy-scripty-mime');
+  assert.equal(res.statusCode, 200);
+  // text/html degrades to octet-stream and nosniff blocks browser re-guessing.
+  assert.equal(res.headers['Content-Type'], 'application/octet-stream');
+  assert.equal(res.headers['X-Content-Type-Options'], 'nosniff');
 });
 
 test('storage-backed image with refCount 0 returns 404 (canonical, no scan)', async () => {

@@ -887,12 +887,18 @@ function makeFakeMediaStorage(
     },
     async getObjectAsBase64(_fileId: string): Promise<{ body: string; byteSize?: number }> {
       if (opts.objectBytes === null) throw new Error('fake: object not found');
-      const buf = opts.objectBytes ?? Buffer.from('IMG');
+      const buf = opts.objectBytes ?? jpegBytes('IMG');
       const body = buf.toString('base64');
       if (opts.omitByteSize) return { body };
       return { body, byteSize: opts.reportByteSize ?? buf.byteLength };
     },
   };
+}
+
+/** Payload bytes behind a real JPEG magic-byte prefix, so the landed object
+ *  passes completeUpload's signature-vs-declared-MIME sniff. */
+function jpegBytes(payload: string): Buffer {
+  return Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.from(payload)]);
 }
 
 const validUpload = { fileName: 'photo.jpg', mimeType: 'image/jpeg', byteSize: 2048 };
@@ -967,7 +973,7 @@ test('createUploadIntent: a credential-mint failure leaves no orphan doc', async
 test('completeUpload verifies bytes, records size+checksum, flips pending → active', async () => {
   const store = imageStore([]);
   setup(store);
-  const bytes = Buffer.from('the real image bytes');
+  const bytes = jpegBytes('the real image bytes');
   setMediaStorage(makeFakeMediaStorage({ objectBytes: bytes }));
   const token = await adminToken();
   const intent = okData<{ imageId: string }>(
@@ -1012,7 +1018,7 @@ test('completeUpload rejects an over-cap landed object (server re-checks size)',
 test('completeUpload records the SERVER-measured size, not the client-declared one', async () => {
   const store = imageStore([]);
   setup(store);
-  const landed = Buffer.from('the actual landed bytes are longer than the declared 8');
+  const landed = jpegBytes('the actual landed bytes are longer than the declared 8');
   setMediaStorage(makeFakeMediaStorage({ objectBytes: landed }));
   const token = await adminToken();
   const intent = okData<{ imageId: string }>(
@@ -1025,7 +1031,7 @@ test('completeUpload records the SERVER-measured size, not the client-declared o
 test('completeUpload byteSize falls back to the decoded length when the adapter omits it', async () => {
   const store = imageStore([]);
   setup(store);
-  const landed = Buffer.from('bytes-without-a-reported-size');
+  const landed = jpegBytes('bytes-without-a-reported-size');
   setMediaStorage(makeFakeMediaStorage({ objectBytes: landed, omitByteSize: true }));
   const token = await adminToken();
   const intent = okData<{ imageId: string }>(
@@ -1078,12 +1084,65 @@ test('completeUpload marks the doc failed on a checksum mismatch', async () => {
 test('completeUpload: unknown id → NOT_FOUND; finalizing twice → CONFLICT', async () => {
   const store = imageStore([]);
   setup(store);
-  setMediaStorage(makeFakeMediaStorage({ objectBytes: Buffer.from('x') }));
+  setMediaStorage(makeFakeMediaStorage({ objectBytes: jpegBytes('x') }));
   const token = await adminToken();
   expectErr(await call('completeUpload', { imageId: 'does-not-exist' }, token), 'NOT_FOUND');
   const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
   await call('completeUpload', { imageId: intent.imageId }, token); // → active
   expectErr(await call('completeUpload', { imageId: intent.imageId }, token), 'CONFLICT');
+});
+
+test('completeUpload rejects landed bytes that are not the declared image type (HTML payload)', async () => {
+  // The pre-signed credential fixes only the KEY, so the browser can PUT
+  // arbitrary bytes. An HTML/JS document behind photo.jpg must fail the magic-
+  // byte sniff, mark the row failed, and delete the object — otherwise it would
+  // later be served from the API origin with an attacker-useful Content-Type.
+  const store = imageStore([]);
+  setup(store);
+  const fake = makeFakeMediaStorage({
+    objectBytes: Buffer.from('<html><script>alert(document.domain)</script></html>'),
+  });
+  setMediaStorage(fake);
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
+  expectErr(await call('completeUpload', { imageId: intent.imageId }, token), 'VALIDATION_ERROR');
+  const doc = store.images?.find((i) => i._id === intent.imageId);
+  assert.equal(doc?.status, 'failed');
+  assert.deepEqual(fake.deleted, [doc?.storageFileId]);
+});
+
+test('completeUpload rejects bytes whose signature is a DIFFERENT image type than declared', async () => {
+  // PNG bytes behind an image/jpeg intent: still an image, but the declared
+  // MIME (which becomes the delivery Content-Type) does not match the content.
+  const store = imageStore([]);
+  setup(store);
+  const png = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.from('png-payload'),
+  ]);
+  setMediaStorage(makeFakeMediaStorage({ objectBytes: png }));
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
+  expectErr(await call('completeUpload', { imageId: intent.imageId }, token), 'VALIDATION_ERROR');
+  assert.equal(store.images?.find((i) => i._id === intent.imageId)?.status, 'failed');
+});
+
+test('generic update cannot rewrite images.mimeType (readOnly in the registry)', async () => {
+  // A contributor relabeling landed bytes as text/html was the second half of
+  // the stored-XSS chain; mimeType is server-managed via the media actions only.
+  const store = imageStore(['img-1']);
+  setup(store);
+  setMediaStorage(makeFakeMediaStorage());
+  const token = await adminToken();
+  expectErr(
+    await call(
+      'update',
+      { collection: 'images', id: 'img-1', values: { mimeType: 'text/html' } },
+      token,
+    ),
+    'VALIDATION_ERROR',
+  );
+  assert.equal(store.images?.find((i) => i._id === 'img-1')?.mimeType, 'image/jpeg');
 });
 
 // --- MIU-05 (U2b): admin-authenticated image preview -------------------------

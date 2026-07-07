@@ -220,7 +220,11 @@ export const COLLECTIONS: readonly CollectionDef[] = [
     hideFromNav: true,
     fields: [
       { name: 'name', label: 'Name', type: 'string', required: true },
-      { name: 'mimeType', label: 'MIME Type', type: 'string', required: true },
+      // readOnly: the value is reflected into the public delivery Content-Type,
+      // so it is set only by the dedicated media actions from their validated
+      // allowlist — never through generic CRUD (a writable mimeType would let a
+      // content editor relabel landed bytes as e.g. text/html).
+      { name: 'mimeType', label: 'MIME Type', type: 'string', required: true, readOnly: true },
       {
         name: 'purpose',
         label: 'Purpose',
@@ -291,7 +295,9 @@ export const COLLECTIONS: readonly CollectionDef[] = [
     hideFromNav: true,
     fields: [
       { name: 'name', label: 'Name', type: 'string', required: true },
-      { name: 'mimeType', label: 'MIME Type', type: 'string', required: true },
+      // readOnly for the same reason as images.mimeType: server-managed, set
+      // only by the dedicated OEM media actions.
+      { name: 'mimeType', label: 'MIME Type', type: 'string', required: true, readOnly: true },
       { name: 'purpose', label: 'Purpose', type: 'string', readOnly: true },
       { name: 'storageProvider', label: 'Storage Provider', type: 'string', readOnly: true },
       {

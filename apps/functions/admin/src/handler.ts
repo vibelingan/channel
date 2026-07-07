@@ -74,6 +74,7 @@ import {
   rateLimited,
   sanitizeDownloadFilename,
   selectExpiredPendingForSweep,
+  signatureMatchesMime,
   sniffMagicBytes,
   withinPendingCap,
 } from '@vibelingan-channel/shared';
@@ -1429,6 +1430,17 @@ async function completeUploadAction(
   const checksumSha256 = createHash('sha256').update(bytes).digest('hex');
   if (typeof doc.checksumSha256 === 'string' && doc.checksumSha256 !== checksumSha256) {
     return rejectInvalid('Uploaded bytes do not match the declared checksum.');
+  }
+
+  // The pre-signed credential fixes only the object KEY, not the content, so
+  // the landed bytes may be anything the browser PUT. Require the magic bytes
+  // to match the intent's declared (allowlisted) image MIME — an HTML/JS
+  // payload behind an image name must never activate, because `mimeType` is
+  // reflected into the public delivery Content-Type. Mirrors the OEM path's
+  // `oemBytesMatchType` sniff.
+  const declaredMime = typeof doc.mimeType === 'string' ? doc.mimeType : '';
+  if (!signatureMatchesMime(sniffMagicBytes(bytes), declaredMime)) {
+    return rejectInvalid('Uploaded bytes are not a valid image of the declared type.');
   }
 
   const activated = await updateDoc('images', imageId, {

@@ -10,11 +10,15 @@ import { resolve } from 'node:path';
 import { setAdapter } from '@vibelingan-channel/db';
 import { handleAdminRequest } from '@vibelingan-channel/fn-admin/handler';
 import type { AdminConfig, AdminRequest } from '@vibelingan-channel/fn-admin/handler';
-import { getCatalogImage } from '@vibelingan-channel/fn-public-api/handler';
+import {
+  getCatalogImage,
+  getCatalogItem,
+  listCatalog,
+} from '@vibelingan-channel/fn-public-api/handler';
+import type { PublicCatalog } from '@vibelingan-channel/fn-public-api/handler';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
 import { optionalEnv } from '@vibelingan-channel/shared';
-import type { FilterClause } from '@vibelingan-channel/shared';
 import express from 'express';
 import { JsonFileAdapter } from './json-adapter.ts';
 import { seed } from './seed.ts';
@@ -84,28 +88,20 @@ app.post('/api/admin', async (req, res) => {
 // serves any catalog-style collection (products, overstock, …).
 // ---------------------------------------------------------------------------
 
-/**
- * Resolve a catalog document's `imageIds` (references into the `images`
- * collection) into client-facing URLs that stream the stored bytes. Catalog
- * documents never persist file paths — only image ids — mirroring how
- * wx-server-sdk will store image binaries in production.
- */
-function resolveImages(doc: Record<string, unknown>): Record<string, unknown> {
-  const ids = Array.isArray(doc.imageIds) ? (doc.imageIds as unknown[]) : [];
-  return { ...doc, images: ids.map((id) => `/api/images/${String(id)}`) };
-}
-
 // PUBLIC image delivery — delegates to the SAME logic as production
 // (`getCatalogImage`): provider/refCount/status gating, the legacy catalog-scan
 // fallback, the placeholder special-case, and fail-closed behavior, all driven by
 // the wired `mediaStorage()` adapter. Sharing the helper keeps local dev from
 // masking the production public gate (no parity to drift). Admin previews of
 // unpublished images use the authed `getImagePreview` action, not this route.
+// Every header the handler sets (Content-Type allowlist, nosniff, caching) is
+// forwarded verbatim so local delivery matches production byte-for-byte.
 app.get('/api/images/:id', async (req, res) => {
   const result = await getCatalogImage(req.params.id);
   if (result.ok && 'body' in result) {
-    res.setHeader('Content-Type', result.headers['Content-Type'] ?? 'application/octet-stream');
-    res.setHeader('Cache-Control', result.headers['Cache-Control'] ?? 'public, max-age=3600');
+    for (const [name, value] of Object.entries(result.headers)) {
+      res.setHeader(name, value);
+    }
     res.send(Buffer.from(result.body, 'base64'));
     return;
   }
@@ -126,44 +122,33 @@ app.get('/api/files/:id', async (req, res) => {
   res.send(Buffer.from(doc.data, 'base64'));
 });
 
-function registerCatalog(collection: string, basePath: string): void {
+// Catalog routes delegate to the SAME handler as production (`listCatalog` /
+// `getCatalogItem`) for the same parity reason as the image route above — in
+// particular the public field allowlist (no vipPrice / imageIds / internal
+// fields on the unauthenticated surface) must not drift between the two.
+function registerCatalog(collection: PublicCatalog, basePath: string): void {
   app.get(basePath, async (req, res) => {
     const categoriesParam = String(req.query.category ?? '').trim();
-    const categories = categoriesParam ? categoriesParam.split(',').filter(Boolean) : null;
-    const search = String(req.query.search ?? '').trim();
-    const page = Math.max(1, Number.parseInt(String(req.query.page ?? '1'), 10) || 1);
-    const pageSize = Math.min(
-      48,
-      Math.max(1, Number.parseInt(String(req.query.pageSize ?? '24'), 10) || 24),
-    );
-
-    // Public storefront only ever sees published items; optional category and
-    // free-text search are applied server-side so large catalogs paginate well.
-    const clauses: FilterClause[] = [{ field: 'published', op: 'eq', value: true }];
-    if (categories) {
-      clauses.push({ field: 'category', op: 'in', value: categories });
-    }
-    const result = await adapter.list({
+    const result = await listCatalog(
       collection,
-      page,
-      pageSize,
-      search,
-      filter: { combinator: 'and', clauses },
-    });
-    const items = result.items.map(resolveImages);
-    res.json({
-      ok: true,
-      data: { items, total: result.total, page: result.page, pageSize: result.pageSize },
-    });
+      {
+        ...(categoriesParam ? { categories: categoriesParam.split(',').filter(Boolean) } : {}),
+        search: String(req.query.search ?? '').trim(),
+        page: Number.parseInt(String(req.query.page ?? '1'), 10) || 1,
+        pageSize: Number.parseInt(String(req.query.pageSize ?? '24'), 10) || 24,
+      },
+      {},
+    );
+    res.json(result);
   });
 
   app.get(`${basePath}/:id`, async (req, res) => {
-    const doc = await adapter.get(collection, req.params.id);
-    if (!doc || doc.published !== true) {
-      res.status(404).json({ ok: false, error: { code: 'NOT_FOUND', message: 'Item not found' } });
+    const result = await getCatalogItem(collection, req.params.id, {});
+    if (!result.ok) {
+      res.status(404).json(result);
       return;
     }
-    res.json({ ok: true, data: resolveImages(doc) });
+    res.json(result);
   });
 }
 
