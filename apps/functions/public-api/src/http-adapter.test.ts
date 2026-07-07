@@ -315,6 +315,16 @@ function seedStore(): Store {
         publishedRefCount: 1,
       },
     ],
+    // Users rows backing the authenticated catalog path: `resolveCatalogViewer`
+    // re-anchors every verified token to its CURRENT row (V3 revocation), so a
+    // token without a live row unlocks nothing.
+    users: [
+      { _id: 'u-member', email: 'm@example.com', role: 'member', status: 'active' },
+      { _id: 'u-admin', email: 'a@example.com', role: 'admin', status: 'active' },
+      { _id: 'u-viewer', email: 'v@example.com', role: 'viewer', status: 'active' },
+      // Legacy row predating the status field — stays valid, mirroring `login`.
+      { _id: 'u-legacy', email: 'l@example.com', role: 'member' },
+    ],
   };
 }
 
@@ -395,8 +405,14 @@ test('catalog responses Vary on Authorization so a shared cache never leaks VIP 
 
 // --- Authenticated catalog path: server-side role-gated VIP pricing ----------
 
+/** Token whose sub points at the seeded users row matching `role`. */
 async function memberToken(role: Role = 'member'): Promise<string> {
-  return signSession(JWT_SECRET, { sub: 'u-1', email: 'm@example.com', name: 'M', role });
+  return signSession(JWT_SECRET, {
+    sub: `u-${role || 'member'}`,
+    email: 'm@example.com',
+    name: 'M',
+    role,
+  });
 }
 
 test('authenticated catalog attaches vipPrice for an entitled (member) viewer', async () => {
@@ -463,6 +479,96 @@ test('a valid member token is ignored when the function has no jwtSecret configu
   const response = await handlePublicApiEvent(authEvent('/api/products?pageSize=1', token), {});
   const item = (body(response) as { data: { items: CollectionDoc[] } }).data.items[0];
   assert.equal('vipPrice' in (item ?? {}), false);
+});
+
+test('an EXPIRED member token fails closed to the anonymous projection', async () => {
+  setup();
+  const token = await signSession(
+    JWT_SECRET,
+    { sub: 'u-member', email: 'm@example.com', name: 'M', role: 'member' },
+    -1,
+  );
+  const response = await handlePublicApiEvent(authEvent('/api/products?pageSize=1', token), {
+    jwtSecret: JWT_SECRET,
+  });
+  const item = (body(response) as { data: { items: CollectionDoc[] } }).data.items[0];
+  assert.equal('vipPrice' in (item ?? {}), false);
+});
+
+// --- V3 revocation on the catalog path: the users ROW is authoritative -------
+
+async function vipItemFor(token: string): Promise<boolean> {
+  const response = await handlePublicApiEvent(authEvent('/api/products?pageSize=1', token), {
+    jwtSecret: JWT_SECRET,
+  });
+  assert.equal(response.statusCode, 200); // revocation degrades, never errors
+  const item = (body(response) as { data: { items: CollectionDoc[] } }).data.items[0];
+  return 'vipPrice' in (item ?? {});
+}
+
+test('a SUSPENDED user loses vipPrice on their next request despite a valid token', async () => {
+  const store = seedStore();
+  store.users = [{ _id: 'u-member', email: 'm@example.com', role: 'member', status: 'suspended' }];
+  setup(store);
+  assert.equal(await vipItemFor(await memberToken('member')), false);
+});
+
+test('a DELETED user (no users row) loses vipPrice despite a valid token', async () => {
+  setup();
+  const token = await signSession(JWT_SECRET, {
+    sub: 'u-ghost',
+    email: 'g@example.com',
+    name: 'G',
+    role: 'member',
+  });
+  assert.equal(await vipItemFor(token), false);
+});
+
+test('a DEMOTED user drops vipPrice immediately (row role wins over token role)', async () => {
+  setup();
+  // Token still claims member, but the row (u-viewer) says viewer.
+  const token = await signSession(JWT_SECRET, {
+    sub: 'u-viewer',
+    email: 'v@example.com',
+    name: 'V',
+    role: 'member',
+  });
+  assert.equal(await vipItemFor(token), false);
+});
+
+test('a PROMOTED user gains vipPrice without re-login (row role wins)', async () => {
+  setup();
+  // Token still claims viewer, but the row (u-member) says member.
+  const token = await signSession(JWT_SECRET, {
+    sub: 'u-member',
+    email: 'm@example.com',
+    name: 'M',
+    role: 'viewer',
+  });
+  assert.equal(await vipItemFor(token), true);
+});
+
+test('a legacy users row without a status field keeps VIP access (mirrors login)', async () => {
+  setup();
+  const token = await signSession(JWT_SECRET, {
+    sub: 'u-legacy',
+    email: 'l@example.com',
+    name: 'L',
+    role: 'member',
+  });
+  assert.equal(await vipItemFor(token), true);
+});
+
+test('catalog stays up (anonymous projection) when the users lookup fails', async () => {
+  class ThrowingUsersAdapter extends MemoryAdapter {
+    override async get(collection: string, id: string): Promise<CollectionDoc | null> {
+      if (collection === 'users') throw new Error('fake db: users unavailable');
+      return super.get(collection, id);
+    }
+  }
+  setAdapter(new ThrowingUsersAdapter(seedStore()));
+  setMediaStorage(fakeMediaStorage);
+  assert.equal(await vipItemFor(await memberToken('member')), false);
 });
 
 test('returns 404 for unpublished catalog detail', async () => {

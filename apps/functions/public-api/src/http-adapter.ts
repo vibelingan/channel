@@ -148,9 +148,10 @@ function jsonResponse(
 /**
  * Cache directives for the role-VARYING catalog routes. The same URL now returns
  * different bodies depending on the session token, so a shared cache MUST key on
- * `Authorization` (anonymous responses stay cacheable under the no-token key;
- * per-token responses never get served to a different caller). `private` further
- * forbids any shared cache from storing an entitled response.
+ * `Authorization`. `Cache-Control: private, no-cache` goes further and forbids
+ * shared caches from storing ANY catalog variant — anonymous included — as a
+ * second lock against Vary-ignoring CDNs. Deliberate trade-off: no CDN caching
+ * of the catalog until an anonymous-only split is worth the added risk surface.
  */
 const CATALOG_CACHE_HEADERS: Record<string, string> = {
   Vary: 'Origin, Authorization',

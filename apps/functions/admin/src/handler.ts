@@ -77,6 +77,7 @@ import {
   selectExpiredPendingForSweep,
   signatureMatchesMime,
   sniffMagicBytes,
+  toRole,
   withinPendingCap,
 } from '@vibelingan-channel/shared';
 import { releaseInfo } from '@vibelingan-channel/shared/release';
@@ -201,7 +202,7 @@ function publicUser(doc: CollectionDoc) {
     id: doc._id,
     email: doc.email ?? '',
     username: doc.username ?? '',
-    role: (doc.role ?? '') as Role,
+    role: toRole(doc.role),
     status: doc.status ?? 'active',
   };
 }
@@ -236,7 +237,7 @@ async function revalidateSession(claims: SessionClaims): Promise<SessionClaims |
   const user = await get('users', claims.sub);
   if (!user) return null;
   if (user.status === 'suspended') return null;
-  return { ...claims, role: (user.role ?? '') as Role };
+  return { ...claims, role: toRole(user.role) };
 }
 
 function issueToken(config: AdminConfig, doc: CollectionDoc): Promise<string> {
@@ -246,7 +247,7 @@ function issueToken(config: AdminConfig, doc: CollectionDoc): Promise<string> {
       sub: doc._id,
       email: String(doc.email ?? ''),
       name: String(doc.username ?? ''),
-      role: (doc.role ?? '') as Role,
+      role: toRole(doc.role),
     },
     SESSION_TTL,
   );

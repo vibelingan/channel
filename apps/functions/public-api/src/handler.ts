@@ -8,6 +8,7 @@ import {
   canSeeVipPricing,
   err,
   ok,
+  toRole,
 } from '@vibelingan-channel/shared';
 
 const CATALOGS = ['products', 'overstock'] as const;
@@ -55,8 +56,16 @@ function bearerToken(authorization: string | undefined): string {
 /**
  * Resolve the caller's catalog entitlement from an `Authorization: Bearer …`
  * header. Fails closed to the anonymous viewer on every ambiguous input — no
- * secret configured, no/blank token, or an invalid/expired signature — so a
- * missing or forged token can never unlock gated pricing.
+ * secret configured, no/blank token, an invalid/expired signature, a missing
+ * or suspended users row, or a failed row lookup — so a missing, forged, or
+ * revoked token can never unlock gated pricing.
+ *
+ * Mirrors the admin function's `revalidateSession` (V3 revocation): the JWT
+ * proves identity for its TTL, but the entitlement comes from the users row
+ * as it exists NOW — a suspended/deleted account loses VIP visibility on its
+ * next request and a demoted (or promoted) user drops/gains the tier
+ * immediately. The row read costs one `get` per AUTHENTICATED request only;
+ * anonymous catalog traffic never touches the users collection.
  */
 export async function resolveCatalogViewer(
   authorization: string | undefined,
@@ -67,7 +76,15 @@ export async function resolveCatalogViewer(
   if (!token) return ANONYMOUS_VIEWER;
   const claims = await verifySession(config.jwtSecret, token);
   if (!claims) return ANONYMOUS_VIEWER;
-  return { canSeeVipPricing: canSeeVipPricing(claims.role) };
+  try {
+    const user = await get('users', claims.sub);
+    if (!user || user.status === 'suspended') return ANONYMOUS_VIEWER;
+    return { canSeeVipPricing: canSeeVipPricing(toRole(user.role)) };
+  } catch {
+    // The catalog must stay up even if the entitlement lookup fails; degrade
+    // to the anonymous projection rather than surfacing an error.
+    return ANONYMOUS_VIEWER;
+  }
 }
 
 export interface BinaryResult {
