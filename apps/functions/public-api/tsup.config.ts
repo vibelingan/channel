@@ -17,9 +17,11 @@ export default defineConfig({
   },
   noExternal: [
     '@vibelingan-channel/shared',
+    '@vibelingan-channel/auth',
     '@vibelingan-channel/db',
     '@vibelingan-channel/media-storage',
     '@cloudbase/node-sdk',
+    'jose',
     'wx-server-sdk',
     'zod',
   ],
