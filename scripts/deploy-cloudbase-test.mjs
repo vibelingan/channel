@@ -431,6 +431,10 @@ const functionDefs = [
       APP_ENV: appEnv,
       PUBLIC_API_BASE_URL: apiUrl,
       CORS_ALLOWED_ORIGINS: corsAllowedOrigins,
+      // Same secret the admin function signs sessions with — the public catalog
+      // verifies a presented Bearer token to attach role-gated VIP pricing.
+      // Absent → catalog is anonymous-only (feature no-ops, fails closed).
+      JWT_SECRET: requireEnv('JWT_SECRET'),
     }),
   },
 ];
