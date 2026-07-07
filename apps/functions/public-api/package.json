@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@vibelingan-channel/auth": "workspace:*",
     "@vibelingan-channel/db": "workspace:*",
     "@vibelingan-channel/media-storage": "workspace:*",
     "@vibelingan-channel/shared": "workspace:*"

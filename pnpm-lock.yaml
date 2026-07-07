@@ -54,6 +54,9 @@ importers:
 
   apps/functions/public-api:
     dependencies:
+      '@vibelingan-channel/auth':
+        specifier: workspace:*
+        version: link:../../../packages/auth
       '@vibelingan-channel/db':
         specifier: workspace:*
         version: link:../../../packages/db

@@ -1,5 +1,6 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
+import { signSession } from '@vibelingan-channel/auth/jwt';
 import {
   type AdapterListQuery,
   type DbAdapter,
@@ -11,12 +12,20 @@ import { type MediaStorageAdapter, setMediaStorage } from '@vibelingan-channel/m
 import {
   type CollectionDoc,
   type ListResult,
+  type Role,
   compareBySort,
   matchesFilter,
 } from '@vibelingan-channel/shared';
 import { type HttpResponse, handlePublicApiEvent } from './http-adapter.ts';
 
 type Store = Record<string, CollectionDoc[]>;
+
+const JWT_SECRET = 'test-public-api-secret';
+const authEvent = (path: string, token: string) => ({
+  httpMethod: 'GET',
+  path,
+  headers: { Authorization: `Bearer ${token}` },
+});
 
 /** Storage-backed bytes keyed by storageFileId; a missing key models an
  *  unfetchable object so getCatalogImage's fetch-failure branch is exercised. */
@@ -370,6 +379,78 @@ test('catalog detail ships only allowlisted public fields', async () => {
   assert.equal(json.data.wholesalePrice, 10);
   assert.equal('vipPrice' in json.data, false);
   assert.equal('imageIds' in json.data, false);
+});
+
+// --- Authenticated catalog path: server-side role-gated VIP pricing ----------
+
+async function memberToken(role: Role = 'member'): Promise<string> {
+  return signSession(JWT_SECRET, { sub: 'u-1', email: 'm@example.com', name: 'M', role });
+}
+
+test('authenticated catalog attaches vipPrice for an entitled (member) viewer', async () => {
+  setup();
+  const token = await memberToken('member');
+  const response = await handlePublicApiEvent(authEvent('/api/products?pageSize=1', token), {
+    jwtSecret: JWT_SECRET,
+  });
+  const json = body(response) as { ok: true; data: { items: CollectionDoc[] } };
+  const item = json.data.items[0] as CollectionDoc;
+  assert.equal(item.vipPrice, 8); // gated tier now present
+  assert.equal(item.wholesalePrice, 10); // public tiers still present
+  assert.equal('imageIds' in item, false); // internal fields still withheld
+});
+
+test('authenticated catalog DETAIL attaches vipPrice for an entitled viewer', async () => {
+  setup();
+  const token = await memberToken('admin');
+  const response = await handlePublicApiEvent(authEvent('/api/products/p-1', token), {
+    jwtSecret: JWT_SECRET,
+  });
+  const json = body(response) as { ok: true; data: CollectionDoc };
+  assert.equal(json.data.vipPrice, 8);
+});
+
+test('viewer role does NOT unlock vipPrice (canSeeVipPricing is false)', async () => {
+  setup();
+  const token = await memberToken('viewer');
+  const response = await handlePublicApiEvent(authEvent('/api/products?pageSize=1', token), {
+    jwtSecret: JWT_SECRET,
+  });
+  const item = (body(response) as { data: { items: CollectionDoc[] } }).data.items[0];
+  assert.equal('vipPrice' in (item ?? {}), false);
+});
+
+test('an invalid / forged token fails closed to the anonymous projection', async () => {
+  setup();
+  const response = await handlePublicApiEvent(authEvent('/api/products?pageSize=1', 'not.a.jwt'), {
+    jwtSecret: JWT_SECRET,
+  });
+  const item = (body(response) as { data: { items: CollectionDoc[] } }).data.items[0];
+  assert.equal('vipPrice' in (item ?? {}), false);
+});
+
+test('a token signed with the WRONG secret does not unlock vipPrice', async () => {
+  setup();
+  const token = await signSession('some-other-secret', {
+    sub: 'u-2',
+    email: 'x@example.com',
+    name: 'X',
+    role: 'member',
+  });
+  const response = await handlePublicApiEvent(authEvent('/api/products?pageSize=1', token), {
+    jwtSecret: JWT_SECRET,
+  });
+  const item = (body(response) as { data: { items: CollectionDoc[] } }).data.items[0];
+  assert.equal('vipPrice' in (item ?? {}), false);
+});
+
+test('a valid member token is ignored when the function has no jwtSecret configured', async () => {
+  setup();
+  const token = await memberToken('member');
+  // No jwtSecret in config → anonymous-only, even with a real token present.
+  const response = await handlePublicApiEvent(authEvent('/api/products?pageSize=1', token), {});
+  const item = (body(response) as { data: { items: CollectionDoc[] } }).data.items[0];
+  assert.equal('vipPrice' in (item ?? {}), false);
 });
 
 test('returns 404 for unpublished catalog detail', async () => {

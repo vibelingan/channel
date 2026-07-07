@@ -119,6 +119,34 @@ test.describe('public browser smoke', () => {
     ).toBe(true);
   });
 
+  test('signed-in member gets VIP pricing from the catalog; anonymous does not', async ({
+    request,
+  }) => {
+    // The public catalog is unauthenticated, but a valid session token unlocks
+    // the role-gated VIP tier server-side. Uses the local seed's member account;
+    // on a deployed env without that sample account, skip rather than fail.
+    const loginRes = await request.post(`${e2e.apiUrl}/api/admin`, {
+      data: { action: 'login', data: { email: 'member@channel.local', password: 'password' } },
+    });
+    const loginBody = (await loginRes.json()) as { ok: boolean; data?: { token?: string } };
+    const token = loginBody.data?.token;
+    test.skip(!loginBody.ok || !token, 'seeded member account unavailable in this environment');
+
+    const anon = await request.get(`${e2e.apiUrl}/api/products?pageSize=1`, {
+      headers: { Origin: e2e.siteUrl },
+    });
+    const anonItem = ((await anon.json()) as { data: { items: Record<string, unknown>[] } }).data
+      .items[0];
+    expect(anonItem, 'anonymous callers must not receive vipPrice').not.toHaveProperty('vipPrice');
+
+    const authed = await request.get(`${e2e.apiUrl}/api/products?pageSize=1`, {
+      headers: { Origin: e2e.siteUrl, Authorization: `Bearer ${token}` },
+    });
+    const authedItem = ((await authed.json()) as { data: { items: Record<string, unknown>[] } })
+      .data.items[0];
+    expect(typeof authedItem?.vipPrice, 'entitled member must receive vipPrice').toBe('number');
+  });
+
   test('Success Stories certificates open in an accessible lightbox', async ({ page }) => {
     await page.goto('/portfolio', { waitUntil: 'domcontentloaded' });
 

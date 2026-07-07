@@ -1,9 +1,11 @@
+import { verifySession } from '@vibelingan-channel/auth/jwt';
 import { get, list } from '@vibelingan-channel/db';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
 import {
   type ApiResult,
   type CollectionDoc,
   type FilterClause,
+  canSeeVipPricing,
   err,
   ok,
 } from '@vibelingan-channel/shared';
@@ -24,6 +26,48 @@ export interface CatalogQuery {
 
 export interface PublicApiConfig {
   apiBaseUrl?: string;
+  /**
+   * Portal session-signing secret (same value the admin function signs with).
+   * When set, the catalog routes verify a presented Bearer token and may attach
+   * role-gated pricing tiers. Absent → the catalog is anonymous-only (no gated
+   * tiers ever attached), which is the safe default.
+   */
+  jwtSecret?: string;
+}
+
+/**
+ * The pricing entitlement of the CURRENT catalog caller, resolved server-side
+ * from a verified session token. `canSeeVipPricing` is the ONLY gate that
+ * unlocks the VIP tier in the projection — never a client-supplied flag.
+ */
+export interface CatalogViewer {
+  canSeeVipPricing: boolean;
+}
+
+const ANONYMOUS_VIEWER: CatalogViewer = { canSeeVipPricing: false };
+
+function bearerToken(authorization: string | undefined): string {
+  if (!authorization) return '';
+  const match = /^Bearer\s+(.+)$/i.exec(authorization.trim());
+  return match?.[1]?.trim() ?? '';
+}
+
+/**
+ * Resolve the caller's catalog entitlement from an `Authorization: Bearer …`
+ * header. Fails closed to the anonymous viewer on every ambiguous input — no
+ * secret configured, no/blank token, or an invalid/expired signature — so a
+ * missing or forged token can never unlock gated pricing.
+ */
+export async function resolveCatalogViewer(
+  authorization: string | undefined,
+  config: PublicApiConfig,
+): Promise<CatalogViewer> {
+  if (!config.jwtSecret) return ANONYMOUS_VIEWER;
+  const token = bearerToken(authorization);
+  if (!token) return ANONYMOUS_VIEWER;
+  const claims = await verifySession(config.jwtSecret, token);
+  if (!claims) return ANONYMOUS_VIEWER;
+  return { canSeeVipPricing: canSeeVipPricing(claims.role) };
 }
 
 export interface BinaryResult {
@@ -57,12 +101,11 @@ function catalogImages(doc: CollectionDoc, config: PublicApiConfig): string[] {
 }
 
 /**
- * Fields a catalog document may expose through this UNAUTHENTICATED API.
- * Everything not listed (vipPrice, imageIds, timestamps, any future internal
- * field) is withheld by default. `unitPrice` and `clearancePrice` are here
- * because the storefront renders them ungated (spec sheet / strike-through
- * discount); `vipPrice` is role-gated in the UI, so it may only ever ship on
- * an authenticated catalog path that verifies the role server-side.
+ * Fields a catalog document may expose to ANY caller. Everything not listed
+ * (imageIds, timestamps, any future internal field) is withheld by default.
+ * `unitPrice` and `clearancePrice` are here because the storefront renders them
+ * ungated (spec sheet / strike-through discount). Role-gated tiers live in
+ * `GATED_CATALOG_FIELDS` and are attached only for an entitled viewer.
  */
 const PUBLIC_CATALOG_FIELDS = [
   '_id',
@@ -81,13 +124,29 @@ const PUBLIC_CATALOG_FIELDS = [
   'published',
 ] as const;
 
-function publicDoc(doc: CollectionDoc, config: PublicApiConfig): CollectionDoc {
+/**
+ * Role-gated pricing tiers. Attached ONLY when the resolved viewer is entitled
+ * (`canSeeVipPricing`). Never in `PUBLIC_CATALOG_FIELDS` — the anonymous path
+ * must never ship these.
+ */
+const GATED_CATALOG_FIELDS = ['vipPrice'] as const;
+
+function publicDoc(
+  doc: CollectionDoc,
+  config: PublicApiConfig,
+  viewer: CatalogViewer = ANONYMOUS_VIEWER,
+): CollectionDoc {
   // Constructed as a CollectionDoc with `_id` set unconditionally, so the
   // result is structurally guaranteed (no cast) — dropping `_id` from the
   // allowlist can never silently ship an id-less doc.
   const out: CollectionDoc = { _id: doc._id, images: catalogImages(doc, config) };
   for (const key of PUBLIC_CATALOG_FIELDS) {
     if (key !== '_id' && key in doc) out[key] = doc[key];
+  }
+  if (viewer.canSeeVipPricing) {
+    for (const key of GATED_CATALOG_FIELDS) {
+      if (key in doc) out[key] = doc[key];
+    }
   }
   return out;
 }
@@ -101,6 +160,7 @@ export async function listCatalog(
   collection: PublicCatalog,
   query: CatalogQuery,
   config: PublicApiConfig,
+  viewer: CatalogViewer = ANONYMOUS_VIEWER,
 ): Promise<ApiResult<unknown>> {
   const page = positiveInt(query.page, 1);
   const pageSize = Math.min(MAX_PUBLIC_PAGE_SIZE, positiveInt(query.pageSize, 24));
@@ -119,7 +179,7 @@ export async function listCatalog(
   });
 
   return ok({
-    items: result.items.map((doc) => publicDoc(doc, config)),
+    items: result.items.map((doc) => publicDoc(doc, config, viewer)),
     total: result.total,
     page: result.page,
     pageSize: result.pageSize,
@@ -130,12 +190,13 @@ export async function getCatalogItem(
   collection: PublicCatalog,
   id: string,
   config: PublicApiConfig,
+  viewer: CatalogViewer = ANONYMOUS_VIEWER,
 ): Promise<ApiResult<unknown>> {
   const doc = await get(collection, id);
   if (!doc || doc.published !== true) {
     return err('NOT_FOUND', 'Item not found');
   }
-  return ok(publicDoc(doc, config));
+  return ok(publicDoc(doc, config, viewer));
 }
 
 async function publishedCatalogReferencesImage(

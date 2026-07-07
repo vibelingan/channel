@@ -8,6 +8,7 @@ import {
   getCatalogItem,
   listCatalog,
   parseCatalogName,
+  resolveCatalogViewer,
 } from './handler.ts';
 
 export interface PublicHttpConfig extends PublicApiConfig {
@@ -233,14 +234,20 @@ async function routeGet(
 
   const collection = segments[0] ? parseCatalogName(segments[0]) : null;
   if (collection && segments.length === 1) {
-    return jsonResponse(event, config, await listCatalog(collection, catalogQuery(params), config));
-  }
-
-  if (collection && segments.length === 2) {
+    const viewer = await resolveCatalogViewer(headerValue(event.headers, 'authorization'), config);
     return jsonResponse(
       event,
       config,
-      await getCatalogItem(collection, decodeSegment(segments[1] ?? ''), config),
+      await listCatalog(collection, catalogQuery(params), config, viewer),
+    );
+  }
+
+  if (collection && segments.length === 2) {
+    const viewer = await resolveCatalogViewer(headerValue(event.headers, 'authorization'), config);
+    return jsonResponse(
+      event,
+      config,
+      await getCatalogItem(collection, decodeSegment(segments[1] ?? ''), config, viewer),
     );
   }
 

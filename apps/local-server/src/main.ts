@@ -14,8 +14,9 @@ import {
   getCatalogImage,
   getCatalogItem,
   listCatalog,
+  resolveCatalogViewer,
 } from '@vibelingan-channel/fn-public-api/handler';
-import type { PublicCatalog } from '@vibelingan-channel/fn-public-api/handler';
+import type { PublicApiConfig, PublicCatalog } from '@vibelingan-channel/fn-public-api/handler';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
 import { optionalEnv } from '@vibelingan-channel/shared';
@@ -149,11 +150,14 @@ app.get('/api/files/:id', async (req, res) => {
 
 // Catalog routes delegate to the SAME handler as production (`listCatalog` /
 // `getCatalogItem`) for the same parity reason as the image route above — in
-// particular the public field allowlist (no vipPrice / imageIds / internal
-// fields on the unauthenticated surface) must not drift between the two.
+// particular the public field allowlist and the server-side role-gated VIP
+// tier (verified from the Bearer token) must not drift between the two.
+const catalogConfig: PublicApiConfig = { jwtSecret: config.jwtSecret };
+
 function registerCatalog(collection: PublicCatalog, basePath: string): void {
   app.get(basePath, async (req, res) => {
     const categoriesParam = String(req.query.category ?? '').trim();
+    const viewer = await resolveCatalogViewer(req.headers.authorization, catalogConfig);
     const result = await listCatalog(
       collection,
       {
@@ -162,13 +166,15 @@ function registerCatalog(collection: PublicCatalog, basePath: string): void {
         page: Number.parseInt(String(req.query.page ?? '1'), 10) || 1,
         pageSize: Number.parseInt(String(req.query.pageSize ?? '24'), 10) || 24,
       },
-      {},
+      catalogConfig,
+      viewer,
     );
     res.json(result);
   });
 
   app.get(`${basePath}/:id`, async (req, res) => {
-    const result = await getCatalogItem(collection, req.params.id, {});
+    const viewer = await resolveCatalogViewer(req.headers.authorization, catalogConfig);
+    const result = await getCatalogItem(collection, req.params.id, catalogConfig, viewer);
     if (!result.ok) {
       res.status(404).json(result);
       return;

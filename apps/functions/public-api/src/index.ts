@@ -24,6 +24,10 @@ const config: PublicHttpConfig = {
   ...(optionalEnv('CORS_ALLOWED_ORIGINS')
     ? { corsAllowedOrigins: parseAllowedOrigins(optionalEnv('CORS_ALLOWED_ORIGINS')) }
     : {}),
+  // Same secret the admin function signs sessions with; enables the catalog
+  // routes to verify a Bearer token and attach role-gated pricing. Absent →
+  // anonymous-only catalog (no gated tiers), the safe default.
+  ...(optionalEnv('JWT_SECRET') ? { jwtSecret: optionalEnv('JWT_SECRET') } : {}),
 };
 
 export const main = async (event: unknown): Promise<unknown> => {
