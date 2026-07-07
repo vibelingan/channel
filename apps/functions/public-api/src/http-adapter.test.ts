@@ -381,6 +381,18 @@ test('catalog detail ships only allowlisted public fields', async () => {
   assert.equal('imageIds' in json.data, false);
 });
 
+test('catalog responses Vary on Authorization so a shared cache never leaks VIP data', async () => {
+  setup();
+  for (const path of ['/api/products?pageSize=1', '/api/products/p-1']) {
+    const response = await handlePublicApiEvent(
+      { httpMethod: 'GET', path },
+      { jwtSecret: JWT_SECRET },
+    );
+    assert.equal(response.headers.Vary, 'Origin, Authorization');
+    assert.equal(response.headers['Cache-Control'], 'private, no-cache');
+  }
+});
+
 // --- Authenticated catalog path: server-side role-gated VIP pricing ----------
 
 async function memberToken(role: Role = 'member'): Promise<string> {

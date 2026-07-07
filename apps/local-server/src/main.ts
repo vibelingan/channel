@@ -154,6 +154,13 @@ app.get('/api/files/:id', async (req, res) => {
 // tier (verified from the Bearer token) must not drift between the two.
 const catalogConfig: PublicApiConfig = { jwtSecret: config.jwtSecret };
 
+// The catalog responses vary by the caller's token (role-gated VIP tier), so a
+// shared cache must key on Authorization — mirrors the production http-adapter.
+function setCatalogCacheHeaders(res: express.Response): void {
+  res.setHeader('Vary', 'Origin, Authorization');
+  res.setHeader('Cache-Control', 'private, no-cache');
+}
+
 function registerCatalog(collection: PublicCatalog, basePath: string): void {
   app.get(basePath, async (req, res) => {
     const categoriesParam = String(req.query.category ?? '').trim();
@@ -169,12 +176,14 @@ function registerCatalog(collection: PublicCatalog, basePath: string): void {
       catalogConfig,
       viewer,
     );
+    setCatalogCacheHeaders(res);
     res.json(result);
   });
 
   app.get(`${basePath}/:id`, async (req, res) => {
     const viewer = await resolveCatalogViewer(req.headers.authorization, catalogConfig);
     const result = await getCatalogItem(collection, req.params.id, catalogConfig, viewer);
+    setCatalogCacheHeaders(res);
     if (!result.ok) {
       res.status(404).json(result);
       return;
