@@ -32,6 +32,20 @@ Distilled from all 220 commits across every branch plus the current code by a
 lessons were journaled to `~/.claude/lessons-journal/codex-fixes.jsonl` for
 consolidation into the cross-project engineering-craft skill.
 
+### Trigger index — read the group matching what your diff touches
+
+| Diff touches… | Group | Rules |
+|---|---|---|
+| `verifySession`, roles, `revalidateSession`, login, tokens | Auth & Session Security | 6 |
+| `publicDoc`, catalog fields, `PUBLIC_CATALOG_FIELDS`, refcount gating | Public API Projection | 2 |
+| `sniffMagicBytes`, mimeType, SVG/image response headers | Content Validation | 3 |
+| upload intents, `submitProject`/finalize, storage objects, rate caps | Upload Lifecycle & Concurrency | 6 |
+| `incrementField`, `publishedRefCount`, backfills, batch deletes | Counters & Data Integrity | 6 |
+| `tsup.config.ts`, function `package.json`, `deploy-cloudbase-test.mjs`, workflows, secrets | Deploy & CI/CD | 15 |
+| `ImageManager`, previews, blob URLs, async list state | Frontend Islands | 3 |
+| `tests/e2e/*`, env flags, CI smoke steps | E2E Testing | 6 |
+| review rounds, deferrals, doc status markers, hidden pages | Review Process & Knowledge | 8 |
+
 ### Auth & Session Security
 
 - **Single choke point revalidation over token generation** (`3a1ce3c`, `836c39a`): For session revocation (suspend/demote/delete), re-anchor every verified JWT to the CURRENT users row at ONE choke point immediately after token verification, so every downstream action authorizes against refreshed claims. Beats a tokenGeneration scheme: generation comparison still needs the row read, adds a bump-on-suspend invariant to every future role-mutation path, and handles deletes no better. Mirror revocation semantics with login (only explicit 'suspended' revokes; legacy status-less rows stay valid); promotion also applies without re-login. Cost: one get per authenticated request.

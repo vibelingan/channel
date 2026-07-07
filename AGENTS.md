@@ -4,9 +4,22 @@ These project rules apply in addition to the user's global Codex instructions.
 
 ## Engineering Craft
 
-Reusable engineering patterns live in `docs/ENGINEERING_CRAFT.md`. Read it before
-changing media preview, private asset delivery, browser upload UI, or CloudBase
-storage delivery code.
+Reusable engineering patterns live in `docs/ENGINEERING_CRAFT.md` — 55+ rules mined
+from this repo's own incident history, each citing its teaching commits. Before
+touching any area below, read the matching catalog group (the doc has a trigger
+index at the top of the catalog section):
+
+| You are changing… | Read group |
+|---|---|
+| JWT/session verification, roles, revocation, login | Auth & Session Security |
+| Public API response shapes, catalog fields | Public API Projection |
+| File type checks, mimeType, SVG/image delivery headers | Content Validation |
+| Upload intents, finalize, storage objects, rate caps | Upload Lifecycle & Concurrency |
+| refCounts, counters, backfills, batch deletes | Counters & Data Integrity |
+| tsup configs, function deps, deploy scripts, workflows, secrets | Deploy & CI/CD |
+| Admin islands, previews, async list state | Frontend Islands |
+| Playwright specs, e2e flags, CI smokes | E2E Testing |
+| Review rounds, deferrals, client questions, hidden pages | Review Process & Knowledge |
 
 ## CloudBase SDK Contract Gate
 
