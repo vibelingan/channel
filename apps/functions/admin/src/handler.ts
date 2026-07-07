@@ -220,6 +220,25 @@ function authenticate(req: AdminRequest, config: AdminConfig): Promise<SessionCl
   return verifySession(config.jwtSecret, req.token);
 }
 
+/**
+ * Re-anchor a verified token to the CURRENT users row (V3: revocation). The
+ * JWT proves identity for its 12h TTL, but authorization must reflect the row
+ * as it exists NOW: a deleted or suspended user loses access on their next
+ * request, and a demoted (or promoted) user drops/gains their current role
+ * immediately. Suspension mirrors `login` (only an explicit
+ * `status: 'suspended'` revokes — legacy rows without a status stay valid);
+ * a missing row means the account was removed, so the session dies with it.
+ * One `get` per authenticated request buys revocation without a
+ * token-generation scheme; every action below authorizes against the
+ * RETURNED claims' role, so this single choke point covers them all.
+ */
+async function revalidateSession(claims: SessionClaims): Promise<SessionClaims | null> {
+  const user = await get('users', claims.sub);
+  if (!user) return null;
+  if (user.status === 'suspended') return null;
+  return { ...claims, role: (user.role ?? '') as Role };
+}
+
 function issueToken(config: AdminConfig, doc: CollectionDoc): Promise<string> {
   return signSession(
     config.jwtSecret,
@@ -318,8 +337,11 @@ export async function handleAdminRequest(
     }
 
     // ---- Everything below requires a valid session --------------------
-    const claims = await authenticate(req, config);
-    if (!claims) return err('UNAUTHORIZED', 'Authentication required');
+    const tokenClaims = await authenticate(req, config);
+    if (!tokenClaims) return err('UNAUTHORIZED', 'Authentication required');
+    // V3: the token proves identity; the LIVE users row decides authorization.
+    const claims = await revalidateSession(tokenClaims);
+    if (!claims) return err('UNAUTHORIZED', 'This session is no longer valid.');
 
     switch (req.action) {
       case 'me':

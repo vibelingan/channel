@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
-import { signSession } from '@vibelingan-channel/auth/jwt';
+import { type SessionClaims, signSession } from '@vibelingan-channel/auth/jwt';
 import {
   type AdapterListQuery,
   type DbAdapter,
@@ -120,9 +120,40 @@ const config = {
   },
 } satisfies AdminConfig;
 
+/** The store wired into the adapter by the LAST `setup()` call. Token helpers
+ *  seed their matching users row here so sessions revalidate (V3). */
+let currentStore: Store = { users: [] };
+
 function setup(store: Store = { users: [] }): Store {
   setAdapter(new MemoryAdapter(store));
+  currentStore = store;
   return store;
+}
+
+/**
+ * Seed an ACTIVE users row for a session subject (idempotent). Session tokens
+ * are revalidated against the live row on every authenticated action, so a
+ * signed token alone no longer authenticates — the row must exist and not be
+ * suspended. Bootstrap tests never call the token helpers, so their "no admin
+ * exists yet" premise is unaffected.
+ */
+function seedSessionUser(claims: SessionClaims): void {
+  currentStore.users = currentStore.users ?? [];
+  if (!currentStore.users.some((u) => u._id === claims.sub)) {
+    currentStore.users.push({
+      _id: claims.sub,
+      username: claims.name,
+      email: claims.email,
+      role: claims.role,
+      status: 'active',
+    });
+  }
+}
+
+/** Seed the matching ACTIVE users row, then sign a session for it. */
+function sessionToken(claims: SessionClaims): Promise<string> {
+  seedSessionUser(claims);
+  return signSession('test-secret', claims);
 }
 
 function expectErr(result: ApiResult<unknown>, code: string): void {
@@ -271,6 +302,77 @@ test('bootstrapAdmin does not overwrite an existing account with the admin email
   assert.deepEqual(store.users, [existingUser]);
 });
 
+// --- V3: session revalidation (suspend / demote / delete take effect now) ----
+
+test('a valid token for a SUSPENDED user is rejected on every authenticated action', async () => {
+  const store = setup({ users: [], products: [] });
+  const token = await adminToken(); // seeds an active admin-1 row
+  const row = store.users?.find((u) => u._id === 'admin-1');
+  assert.ok(row);
+  row.status = 'suspended';
+  expectErr(await call('list', { collection: 'products' }, token), 'UNAUTHORIZED');
+  expectErr(
+    await call(
+      'create',
+      { collection: 'products', values: { name: 'X', category: 'wired' } },
+      token,
+    ),
+    'UNAUTHORIZED',
+  );
+});
+
+test('a valid token for a DELETED user is rejected (row gone → session dead)', async () => {
+  const store = setup({ users: [], products: [] });
+  const token = await adminToken();
+  store.users = store.users?.filter((u) => u._id !== 'admin-1') ?? [];
+  expectErr(await call('list', { collection: 'products' }, token), 'UNAUTHORIZED');
+});
+
+test('a DEMOTED admin immediately drops to the current role (users access revoked)', async () => {
+  const store = setup({ users: [], products: [] });
+  const token = await adminToken(); // token claims role admin
+  const row = store.users?.find((u) => u._id === 'admin-1');
+  assert.ok(row);
+  row.role = 'viewer'; // demoted after the token was issued
+  // Admin-only surface is gone…
+  expectErr(await call('list', { collection: 'users' }, token), 'FORBIDDEN');
+  // …and so are content edits (viewer cannot edit products).
+  expectErr(
+    await call(
+      'create',
+      { collection: 'products', values: { name: 'X', category: 'wired' } },
+      token,
+    ),
+    'FORBIDDEN',
+  );
+});
+
+test('a PROMOTED user gains the current role without re-login', async () => {
+  const store = setup({ users: [], products: [] });
+  const token = await sessionToken({
+    sub: 'c-9',
+    email: 'c9@example.com',
+    name: 'c9',
+    role: 'contributor',
+  });
+  expectErr(await call('list', { collection: 'users' }, token), 'FORBIDDEN'); // contributor: no users access
+  const row = store.users?.find((u) => u._id === 'c-9');
+  assert.ok(row);
+  row.role = 'admin'; // promoted after issuance
+  assert.equal((await call('list', { collection: 'users' }, token)).ok, true);
+});
+
+test('a legacy users row WITHOUT a status field still authenticates (not fail-locked)', async () => {
+  const store = setup({ users: [], products: [] });
+  const token = await adminToken();
+  // Replace the seeded row with a legacy shape (status field ABSENT) — only an
+  // explicit 'suspended' revokes; absence must not lock the account out.
+  store.users = (store.users ?? []).map((u) =>
+    u._id === 'admin-1' ? { _id: u._id, username: u.username, email: u.email, role: u.role } : u,
+  );
+  assert.equal((await call('list', { collection: 'products' }, token)).ok, true);
+});
+
 // --- MIU-04 Phase B: publishedRefCount visibility maintenance ----------------
 
 /** A store seeded with image docs (publishedRefCount 0) ready to be referenced. */
@@ -291,7 +393,7 @@ function refCount(store: Store, imageId: string): unknown {
 }
 
 function adminToken(): Promise<string> {
-  return signSession('test-secret', {
+  return sessionToken({
     sub: 'admin-1',
     email: 'admin@example.com',
     name: 'admin',
@@ -762,7 +864,7 @@ test('backfillPublishedRefCounts dryRun reports changes without writing', async 
 
 test('backfillImageRefCounts action is admin-only (contributor forbidden)', async () => {
   setup({ users: [], images: [] });
-  const token = await signSession('test-secret', {
+  const token = await sessionToken({
     sub: 'c-1',
     email: 'c@example.com',
     name: 'contributor',
@@ -951,7 +1053,7 @@ test('createUploadIntent rejects a disallowed mime (svg) and writes nothing', as
 test('createUploadIntent is forbidden for a non-editor role (viewer)', async () => {
   setup(imageStore([]));
   setMediaStorage(makeFakeMediaStorage());
-  const token = await signSession('test-secret', {
+  const token = await sessionToken({
     sub: 'v-1',
     email: 'v@example.com',
     name: 'viewer',
@@ -1052,7 +1154,7 @@ test('createUploadIntent allows a contributor (positive auth case)', async () =>
   const store = imageStore([]);
   setup(store);
   setMediaStorage(makeFakeMediaStorage());
-  const token = await signSession('test-secret', {
+  const token = await sessionToken({
     sub: 'c-1',
     email: 'c@example.com',
     name: 'contributor',
@@ -1266,7 +1368,7 @@ test('getImagePreview: viewer forbidden; unknown id → 404; unfetchable object 
   };
   setup(store);
   setMediaStorage(makeFakeMediaStorage({ objectBytes: null })); // object unfetchable
-  const viewer = await signSession('test-secret', {
+  const viewer = await sessionToken({
     sub: 'v-1',
     email: 'v@example.com',
     name: 'viewer',
@@ -1419,7 +1521,7 @@ test('cleanupOrphanImages keeps a doc whose storage delete fails (retryable) and
 test('cleanupOrphanImages is admin-only', async () => {
   setup(orphanStore());
   setMediaStorage(makeTrackingStorage());
-  const contributor = await signSession('test-secret', {
+  const contributor = await sessionToken({
     sub: 'c-1',
     email: 'c@example.com',
     name: 'contributor',
@@ -1523,6 +1625,7 @@ function setupFailingUpdate(store: Store, mode: 'null' | 'throw'): Store {
     },
   };
   setAdapter(adapter);
+  currentStore = store; // keep sessionToken seeding aimed at THIS store
   return store;
 }
 
@@ -1664,7 +1767,7 @@ test('migrateLegacyImages skips malformed base64 but continues the batch', async
 test('migrateLegacyImages is admin-only', async () => {
   setup(legacyStore());
   setMediaStorage(makeMigrationStorage());
-  const contributor = await signSession('test-secret', {
+  const contributor = await sessionToken({
     sub: 'c-1',
     email: 'c@example.com',
     name: 'contributor',
@@ -1799,7 +1902,7 @@ test('getOemFileDownloadUrl sanitizes a header-injecting filename', async () => 
 test('getOemFileDownloadUrl requires read permission', async () => {
   setup({ users: [], files: [activeOemFile()] });
   setMediaStorage(makeFakeMediaStorage());
-  const memberToken = await signSession('test-secret', {
+  const memberToken = await sessionToken({
     sub: 'member-1',
     email: 'member@example.com',
     name: 'member',
