@@ -1,6 +1,7 @@
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatPrice } from '../shop/api.ts';
-import { imageUrl } from './api.ts';
+import { getImagePreview } from './api.ts';
 
 interface Props {
   doc: CollectionDoc;
@@ -15,6 +16,68 @@ interface Props {
 export function PreviewModal({ doc, onClose, onEdit }: Props) {
   const imageIds = Array.isArray(doc.imageIds) ? (doc.imageIds as string[]) : [];
   const published = doc.published === true;
+
+  // Only the ids actually rendered (cover + up to four thumbnails). Memoized on
+  // the joined membership so the array reference is stable across renders — the
+  // fetch/revoke effect below depends on it directly and must re-run only when
+  // the shown set actually changes (e.g. re-opening on a different doc).
+  const shownKey = imageIds.slice(0, 5).join(',');
+  const shownIds = useMemo(() => (shownKey ? shownKey.split(',') : []), [shownKey]);
+
+  // Resolve each id through the admin-authenticated preview action into a blob
+  // object URL. The public `imageUrl` (`/api/images/:id`) is `publishedRefCount`-
+  // gated and 404s every UNPUBLISHED image — but previewing pre-publication is
+  // this modal's whole purpose — so we must source bytes the admin way instead.
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  // Mirror for the unmount cleanup, whose effect deps are [] (would otherwise
+  // close over a stale `urls`).
+  const urlsRef = useRef(urls);
+  urlsRef.current = urls;
+
+  // Fetch previews for newly-shown ids and revoke object URLs for ids that left
+  // the set. Keyed on the id list so re-opening the modal on a different doc
+  // refreshes correctly without leaking the previous doc's blobs.
+  useEffect(() => {
+    let cancelled = false;
+    for (const id of shownIds) {
+      if (urlsRef.current[id]) continue;
+      getImagePreview(id)
+        .then((dataUrl) => fetch(dataUrl))
+        .then((res) => res.blob())
+        .then((blob) => {
+          if (cancelled) return;
+          setUrls((m) => (m[id] ? m : { ...m, [id]: URL.createObjectURL(blob) }));
+        })
+        .catch(() => {
+          /* leave unset → "No image"/placeholder; e.g. a still-pending image */
+        });
+    }
+    // Revoke + drop any URL whose id is no longer shown.
+    setUrls((m) => {
+      let changed = false;
+      const next: Record<string, string> = {};
+      for (const [id, url] of Object.entries(m)) {
+        if (shownIds.includes(id)) {
+          next[id] = url;
+        } else {
+          URL.revokeObjectURL(url);
+          changed = true;
+        }
+      }
+      return changed ? next : m;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [shownIds]);
+
+  // Revoke every remaining object URL on unmount.
+  useEffect(
+    () => () => {
+      for (const url of Object.values(urlsRef.current)) URL.revokeObjectURL(url);
+    },
+    [],
+  );
   const num = (k: string) => (typeof doc[k] === 'number' ? (doc[k] as number) : undefined);
 
   const priceRows = [
@@ -64,28 +127,37 @@ export function PreviewModal({ doc, onClose, onEdit }: Props) {
           {/* Images */}
           <div>
             <div className="aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-              {imageIds[0] ? (
+              {imageIds[0] && urls[imageIds[0]] ? (
                 <img
-                  src={imageUrl(imageIds[0])}
+                  src={urls[imageIds[0]]}
                   alt={String(doc.name ?? '')}
                   className="h-full w-full object-cover"
                 />
               ) : (
                 <div className="grid h-full place-items-center text-sm text-slate-400">
-                  No image
+                  {imageIds[0] ? '…' : 'No image'}
                 </div>
               )}
             </div>
             {imageIds.length > 1 && (
               <div className="mt-3 flex gap-2">
-                {imageIds.slice(1, 5).map((id) => (
-                  <img
-                    key={id}
-                    src={imageUrl(id)}
-                    alt=""
-                    className="h-14 w-14 rounded-lg border border-slate-200 object-cover"
-                  />
-                ))}
+                {shownIds.slice(1).map((id) =>
+                  urls[id] ? (
+                    <img
+                      key={id}
+                      src={urls[id]}
+                      alt=""
+                      className="h-14 w-14 rounded-lg border border-slate-200 object-cover"
+                    />
+                  ) : (
+                    <span
+                      key={id}
+                      className="grid h-14 w-14 place-items-center rounded-lg border border-slate-200 bg-slate-50 text-[10px] text-slate-400"
+                    >
+                      …
+                    </span>
+                  ),
+                )}
               </div>
             )}
           </div>
