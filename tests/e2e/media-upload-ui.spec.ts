@@ -63,14 +63,39 @@ test.describe('MIU-09 admin UI upload (ImageManager) — deployed env', () => {
       // directly. This drives the real intent → COS multipart POST → completeUpload.
       const fileInput = page.locator('input[type="file"]');
       await fileInput.waitFor({ state: 'attached' });
+      // Scope preview assertions to the ImageManager's own tile row (the flex
+      // container that also holds the upload file input), NOT the whole page — the
+      // background CollectionView table always renders `img[alt=""]` row thumbnails,
+      // so a page-wide selector would pass vacuously without ever uploading.
+      const imageManager = page.locator('div.flex.flex-wrap', { has: fileInput });
       await fileInput.setInputFiles({ name: fileName, mimeType: 'image/png', buffer: onePixelPng });
 
       // The transient "Uploading…" tile clears and the uploaded image previews via an
-      // object URL <img>. A generous timeout covers the live round-trip.
-      await expect(page.getByText('Uploading…')).toHaveCount(0, { timeout: 30_000 });
-      await expect(page.locator('img[alt=""]').first()).toBeVisible({ timeout: 30_000 });
+      // object URL <img> inside the ImageManager. A generous timeout covers the round-trip.
+      await expect(imageManager.getByText('Uploading…')).toHaveCount(0, { timeout: 30_000 });
+      await expect(imageManager.locator('img[alt=""]').first()).toBeVisible({ timeout: 30_000 });
       // No per-file "Failed — retry" tile should appear.
-      await expect(page.getByText('Failed — retry')).toHaveCount(0);
+      await expect(imageManager.getByText('Failed — retry')).toHaveCount(0);
+
+      // Positively prove the upload persisted a real image doc (the UI preview alone
+      // could come from the local object URL). Query the images list for this run's
+      // file BEFORE the cleanup below deletes it, and assert at least one match.
+      const session = await loginAdmin(request);
+      const created = await adminAction<ListResult<CollectionDoc>>(
+        request,
+        'list',
+        {
+          collection: 'images',
+          page: 1,
+          pageSize: 10,
+          filter: { combinator: 'and', clauses: [{ field: 'name', op: 'eq', value: fileName }] },
+        },
+        session.token,
+      );
+      expect(
+        created.items.length,
+        `expected an images doc named ${fileName} after the UI upload`,
+      ).toBeGreaterThanOrEqual(1);
     } finally {
       // The completeUpload step created an active image doc (publishedRefCount 0);
       // remove it by its file name. The underlying COS object is left for MIU-06

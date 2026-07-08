@@ -12,10 +12,10 @@ import { e2e, hasAdminCredentials } from './helpers/env';
 test.describe.configure({ mode: 'serial' });
 
 test.describe('mutation e2e flows', () => {
-  test.skip(
-    !e2e.allowMutation || !hasAdminCredentials(),
-    'Set E2E_ALLOW_MUTATION=1 plus admin credentials to run DB-writing e2e.',
-  );
+  // Skip ONLY when the opt-in flag is off. When it IS on, missing admin creds must
+  // FAIL inside each test (below), never silently skip — same fail-fast rule as
+  // media-upload.spec.ts.
+  test.skip(!e2e.allowMutation, 'Set E2E_ALLOW_MUTATION=1 to run DB-writing e2e.');
 
   // SKIPPED until the admin-brokered direct-upload MIU lands. MIU-01 made the
   // `images` `data` field read-only, so this test's setup — creating renderable
@@ -130,6 +130,9 @@ test.describe('mutation e2e flows', () => {
     page,
     request,
   }) => {
+    if (!hasAdminCredentials()) {
+      throw new Error('E2E_ALLOW_MUTATION=1 requires E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD.');
+    }
     const session = await loginAdmin(request);
     const company = `${e2e.runId} OEM Company`;
     let projectId = '';

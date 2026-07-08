@@ -1,14 +1,20 @@
 import { expect, test } from '@playwright/test';
 import { adminAction, loginAdmin } from './helpers/admin-api';
-import { e2e, hasBootstrapCredentials } from './helpers/env';
+import { e2e, hasAdminCredentials } from './helpers/env';
 
 test.describe('one-shot admin bootstrap', () => {
-  test.skip(
-    !hasBootstrapCredentials(),
-    'Set E2E_ENABLE_BOOTSTRAP=1, E2E_BOOTSTRAP_ADMIN_TOKEN, E2E_ADMIN_EMAIL, and E2E_ADMIN_PASSWORD to run bootstrap.',
-  );
+  // Skip ONLY when the opt-in flag is off. When it IS on, a missing bootstrap token
+  // or admin creds must FAIL (below), never silently skip — same fail-fast rule as
+  // media-upload.spec.ts.
+  test.skip(!e2e.enableBootstrap, 'Set E2E_ENABLE_BOOTSTRAP=1 to run bootstrap.');
 
   test('creates the first admin and proves the credential can log in', async ({ request }) => {
+    if (e2e.bootstrapToken.length === 0 || !hasAdminCredentials()) {
+      throw new Error(
+        'E2E_ENABLE_BOOTSTRAP=1 requires E2E_BOOTSTRAP_ADMIN_TOKEN, E2E_ADMIN_EMAIL, and E2E_ADMIN_PASSWORD.',
+      );
+    }
+
     const result = await adminAction<{
       user: { email: string; role: string };
       bootstrap: { disableRequired: boolean };

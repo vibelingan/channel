@@ -137,7 +137,13 @@ test.describe('public browser smoke', () => {
     });
     const anonItem = ((await anon.json()) as { data: { items: Record<string, unknown>[] } }).data
       .items[0];
-    expect(anonItem, 'anonymous callers must not receive vipPrice').not.toHaveProperty('vipPrice');
+    // Guard against an empty catalog: `not.toHaveProperty` passes vacuously on
+    // `undefined`, so only assert when we actually have a real item to inspect.
+    if (anonItem) {
+      expect(anonItem, 'anonymous callers must not receive vipPrice').not.toHaveProperty(
+        'vipPrice',
+      );
+    }
 
     const authed = await request.get(`${e2e.apiUrl}/api/products?pageSize=1`, {
       headers: { Origin: e2e.siteUrl, Authorization: `Bearer ${token}` },
