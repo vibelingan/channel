@@ -93,7 +93,28 @@ function callTool(selector, args, options = {}) {
       return { success: false, message: `mcporter call failed for ${selector}` };
     }
   }
-  throw new Error(`mcporter call failed for ${selector}: ${lastError?.message ?? 'unknown error'}`);
+  throw new Error(`mcporter call failed for ${selector}: ${redactToolError(lastError)}`);
+}
+
+// execFileSync's error.message embeds the full argv, including `--args <json>`
+// with JWT_SECRET / ADMIN_PASSWORD_HASH / EMAIL_PASSWORD, etc. Never let that
+// reach a thrown message: drop the argv/args payload and surface only a
+// redacted exit-status + stderr slice.
+function redactToolError(error) {
+  if (!error || typeof error !== 'object') return 'unknown error';
+  const status = error.status ?? error.code ?? error.signal ?? 'unknown';
+  const stderr = redactSecretJson(String(error.stderr ?? '')).slice(0, 700);
+  const detail = stderr.trim() ? ` stderr: ${stderr.trim()}` : '';
+  return `exit ${status}${detail}`;
+}
+
+// Redact any JSON value whose key looks secret, so a stray `--args {...}`
+// payload in captured stderr cannot leak a credential.
+function redactSecretJson(text) {
+  return text.replace(
+    /("[^"]*(?:SECRET|PASSWORD|TOKEN|HASH|SECRETID|SECRETKEY|SESSIONTOKEN)[^"]*"\s*:\s*)"(?:[^"\\]|\\.)*"/gi,
+    '$1"***"',
+  );
 }
 
 function requestIdFrom(result) {
