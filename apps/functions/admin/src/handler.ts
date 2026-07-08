@@ -8,10 +8,11 @@
  * Protocol — a single POST endpoint receiving { action, data, token } and
  * returning an `ApiResult<T>`.
  *
- * Authorization is role-based and embedded in the session JWT, so most actions
- * authorize from the token alone with no extra database round-trip. The
- * trade-off: a role change only takes effect for a user once their current
- * token expires (12h) or they sign in again.
+ * Authorization is role-based. The session JWT carries the role, but every
+ * authenticated action re-anchors to the CURRENT users row via
+ * `revalidateSession` (V3): a suspended/deleted user is rejected and a
+ * demoted/promoted user's role takes effect on the NEXT request, not only at
+ * token expiry. Cost is one row read per authenticated request.
  */
 import { Buffer } from 'node:buffer';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -62,6 +63,7 @@ import {
   OEM_UPLOAD_RATE_WINDOW_MS,
   type Role,
   SIGNATURE_MIME,
+  SYSTEM_FIELDS,
   canEditCollection,
   canReadCollection,
   catalogImageUploadSchema,
@@ -163,7 +165,7 @@ const listSchema = z.object({
   collection: z.string(),
   page: z.number().int().positive().default(1),
   pageSize: z.number().int().positive().max(100).default(20),
-  search: z.string().default(''),
+  search: z.string().max(200).default(''),
   filter: filterModelSchema.optional(),
   sort: z.array(sortClauseSchema).optional(),
 });
@@ -193,6 +195,8 @@ const imagePreviewSchema = z.object({ id: z.string().min(1) });
 const oemFileDownloadSchema = z.object({ fileId: z.string().min(1) });
 
 const SESSION_TTL = 60 * 60 * 12;
+/** Min interval between password-recovery rotations for one account (DoS bound). */
+const RECOVER_COOLDOWN_MS = 15 * 60 * 1000;
 
 // --- Helpers ---------------------------------------------------------------
 
@@ -470,11 +474,16 @@ async function login(req: AdminRequest, config: AdminConfig): Promise<ApiResult<
   if (!user || !valid) return err('UNAUTHORIZED', 'Invalid email or password.');
   if (user.status === 'suspended') return err('FORBIDDEN', 'This account is suspended.');
 
-  // Record login (fire-and-forget; never blocks the response).
-  updateDoc('users', user._id, {
-    lastLoginAt: new Date().toISOString(),
-    loginCount: Number(user.loginCount ?? 0) + 1,
-  }).catch((e) => console.error('[login] recordLogin failed:', e));
+  // Record login (fire-and-forget; never blocks the response). loginCount goes
+  // through the atomic, integer-guarded incrementField rather than a
+  // read-modify-write — the latter loses counts under concurrent logins and
+  // would persist NaN forever if the stored value were ever a corrupt string.
+  updateDoc('users', user._id, { lastLoginAt: new Date().toISOString() }).catch((e) =>
+    console.error('[login] recordLogin failed:', e),
+  );
+  incrementField('users', user._id, 'loginCount', 1).catch((e) =>
+    console.error('[login] loginCount increment failed:', e),
+  );
 
   const token = await issueToken(config, user);
   return ok({ token, user: publicUser(user) });
@@ -486,15 +495,43 @@ async function recover(req: AdminRequest, config: AdminConfig): Promise<ApiResul
   const email = parsed.data.email.toLowerCase();
   const user = await findByField('users', 'email', email);
   if (user) {
-    const newPassword = generateRandomPassword(12);
-    const passwordHash = await hashPassword(newPassword);
-    await updateDoc('users', user._id, { passwordHash });
-    await sendRecoveryEmail({
-      to: email,
-      username: String(user.username ?? ''),
-      newPassword,
-      loginUrl: config.loginUrl ?? 'http://localhost:4321/login',
-    });
+    // Per-account cooldown: this endpoint is unauthenticated and rotates a live
+    // password, so an attacker who knows an address could loop it to repeatedly
+    // invalidate the victim's password (lockout DoS) and flood their inbox.
+    // After a successful rotation, further calls within the window are no-ops,
+    // bounding the damage to one rotation per window. (The structural fix is a
+    // time-limited reset TOKEN that never mutates the hash on an unauthenticated
+    // call; tracked as a follow-up.)
+    const lastRecoverMs =
+      typeof user.lastRecoverAt === 'string' ? Date.parse(user.lastRecoverAt) : Number.NaN;
+    const withinCooldown =
+      Number.isFinite(lastRecoverMs) && Date.now() - lastRecoverMs < RECOVER_COOLDOWN_MS;
+    if (!withinCooldown) {
+      const newPassword = generateRandomPassword(12);
+      const passwordHash = await hashPassword(newPassword);
+      // Send-then-commit: deliver the new password FIRST and only rotate the
+      // stored hash if delivery succeeded. Otherwise an unconfigured/failed SMTP
+      // (sendMail → false) would destroy the user's working password while
+      // telling them a new one was sent — a silent lockout. On send failure we
+      // leave the existing password intact and log for the operator.
+      const sent = await sendRecoveryEmail({
+        to: email,
+        username: String(user.username ?? ''),
+        newPassword,
+        loginUrl: config.loginUrl ?? 'http://localhost:4321/login',
+      }).catch((e) => {
+        console.error('[recover] send failed:', e);
+        return false;
+      });
+      if (sent) {
+        await updateDoc('users', user._id, {
+          passwordHash,
+          lastRecoverAt: new Date().toISOString(),
+        }).catch((e) => console.error('[recover] password rotation commit failed:', e));
+      } else {
+        console.error('[recover] recovery email not delivered — password NOT rotated.');
+      }
+    }
   }
   // Always return the same response so the endpoint cannot probe which emails
   // are registered.
@@ -818,6 +855,59 @@ function ensureKnown(collection: string): ApiResult<never> | null {
   return null;
 }
 
+/**
+ * Fields that must never appear in a filter/sort clause even though they exist
+ * in the registry: a `startsWith`/`contains`/`sort` probe over a redacted or
+ * secret value turns list results into a byte-by-byte extraction oracle. The
+ * projection allowlist (`redact`) hides these in responses; this closes the
+ * matching read-side gate (the mimeType-readOnly lesson applied to querying).
+ */
+const NON_QUERYABLE_FIELDS = new Set([
+  'passwordHash',
+  'uploadSecretHash',
+  'uploadSourceHash',
+  'checksumSha256',
+  'finalizeClaim',
+  'data',
+]);
+const MAX_FILTER_VALUE_LEN = 500;
+
+/**
+ * Validate that every filter/sort field names a real, non-sensitive column of
+ * the collection. Rejecting unknown names also removes the arbitrary-field
+ * surface (e.g. probing server-managed fields not in the UI). Returns an error
+ * result to short-circuit, or null when the clauses are safe.
+ */
+function validateQueryClauses(
+  collection: string,
+  filter: { clauses: { field: string; value?: unknown }[] } | undefined,
+  sort: { field: string }[] | undefined,
+): ApiResult<never> | null {
+  const def = getCollection(collection);
+  const queryable = new Set<string>([
+    ...SYSTEM_FIELDS.map((f) => f.name),
+    ...(def?.fields ?? []).map((f) => f.name),
+  ]);
+  const check = (field: string): ApiResult<never> | null => {
+    if (NON_QUERYABLE_FIELDS.has(field) || !queryable.has(field)) {
+      return err('BAD_REQUEST', `Cannot query on field "${field}".`);
+    }
+    return null;
+  };
+  for (const clause of filter?.clauses ?? []) {
+    const bad = check(clause.field);
+    if (bad) return bad;
+    if (typeof clause.value === 'string' && clause.value.length > MAX_FILTER_VALUE_LEN) {
+      return err('BAD_REQUEST', 'Filter value is too long.');
+    }
+  }
+  for (const s of sort ?? []) {
+    const bad = check(s.field);
+    if (bad) return bad;
+  }
+  return null;
+}
+
 async function listAction(req: AdminRequest, claims: SessionClaims): Promise<ApiResult<unknown>> {
   const parsed = listSchema.safeParse(req.data);
   if (!parsed.success) return err('BAD_REQUEST', 'Invalid list query');
@@ -827,6 +917,8 @@ async function listAction(req: AdminRequest, claims: SessionClaims): Promise<Api
     return err('FORBIDDEN', 'You do not have access to this collection.');
   }
   const { filter, sort, ...rest } = parsed.data;
+  const badClause = validateQueryClauses(parsed.data.collection, filter, sort);
+  if (badClause) return badClause;
   const result = await list({
     ...rest,
     ...(filter ? { filter } : {}),
@@ -1477,11 +1569,26 @@ async function completeUploadAction(
     byteSize,
     checksumSha256,
   });
+  if (!activated) {
+    // The row was removed between the pending-check and this activation, so the
+    // verified object is now orphaned with no doc pointer — invisible to
+    // cleanupOrphanImages. A null staging result must NEVER be reported as
+    // success (rule e603f34): best-effort delete the object and surface an error.
+    await mediaStorage()
+      .deleteObject(storageFileId)
+      .catch((e) =>
+        console.error(
+          `[fn-admin] completeUpload: LEAKED storage object ${storageFileId} for ${imageId} (compensating delete failed)`,
+          e,
+        ),
+      );
+    return err('CONFLICT', 'The image record was removed before it could be activated.');
+  }
   return ok({
     imageId,
     status: 'active',
     byteSize,
-    ...(activated ? { image: redact('images', activated) } : {}),
+    image: redact('images', activated),
   });
 }
 

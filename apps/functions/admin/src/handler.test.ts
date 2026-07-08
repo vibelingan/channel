@@ -1101,6 +1101,91 @@ test('completeUpload leaves the doc PENDING (retryable) when the object is not y
   assert.equal(store.images?.find((i) => i._id === intent.imageId)?.status, 'pending');
 });
 
+test('completeUpload: a null activation (row removed mid-flight) fails + deletes the object, never fabricates success', async () => {
+  const store = imageStore([]);
+  setup(store);
+  const bytes = jpegBytes('valid image');
+  const fake = makeFakeMediaStorage({ objectBytes: bytes });
+  setMediaStorage(fake);
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(
+    await call('createUploadIntent', { ...validUpload, byteSize: bytes.byteLength }, token),
+  );
+  const storageFileId = store.images?.find((i) => i._id === intent.imageId)
+    ?.storageFileId as string;
+  // Model the row vanishing between the pending-check and activation: update now
+  // returns null while get/media still resolve. A null activation must surface an
+  // error AND compensate the now-orphaned object (rule e603f34), not return ok.
+  setupFailingUpdate(store, 'null');
+  setMediaStorage(fake);
+  expectErr(await call('completeUpload', { imageId: intent.imageId }, token), 'CONFLICT');
+  assert.deepEqual(fake.deleted, [storageFileId]);
+});
+
+test('recover does NOT rotate the password when delivery fails (unconfigured SMTP must not lock the user out)', async () => {
+  const store = setup({
+    users: [
+      {
+        _id: 'users-1',
+        email: 'user@example.com',
+        username: 'user',
+        role: '',
+        status: 'active',
+        passwordHash: 'ORIGINAL-HASH',
+      },
+    ],
+  });
+  // No EMAIL_* env in the test env → sendRecoveryEmail returns false. The
+  // response stays uniform (anti-enumeration) but the stored hash is untouched.
+  const res = await call('recover', { email: 'user@example.com' }, '');
+  assert.equal(res.ok, true);
+  assert.equal(store.users?.[0]?.passwordHash, 'ORIGINAL-HASH');
+  assert.equal(store.users?.[0]?.lastRecoverAt, undefined);
+});
+
+test('list rejects a filter/sort on a redacted or unknown field (no extraction oracle)', async () => {
+  setup({ users: [] });
+  const token = await adminToken();
+  expectErr(
+    await call(
+      'list',
+      {
+        collection: 'users',
+        filter: { clauses: [{ field: 'passwordHash', op: 'contains', value: 'a' }] },
+      },
+      token,
+    ),
+    'BAD_REQUEST',
+  );
+  expectErr(
+    await call(
+      'list',
+      { collection: 'users', sort: [{ field: 'passwordHash', dir: 'asc' }] },
+      token,
+    ),
+    'BAD_REQUEST',
+  );
+  expectErr(
+    await call(
+      'list',
+      { collection: 'users', filter: { clauses: [{ field: 'nope', op: 'eq', value: 'x' }] } },
+      token,
+    ),
+    'BAD_REQUEST',
+  );
+  // A legitimate field still lists.
+  assert.equal(
+    (
+      await call(
+        'list',
+        { collection: 'users', filter: { clauses: [{ field: 'email', op: 'eq', value: 'x' }] } },
+        token,
+      )
+    ).ok,
+    true,
+  );
+});
+
 test('completeUpload rejects an over-cap landed object (server re-checks size)', async () => {
   const store = imageStore([]);
   setup(store);
