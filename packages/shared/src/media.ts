@@ -222,6 +222,16 @@ export const MARKETING_VIDEO_MIME_TYPES = ['video/mp4', 'video/webm'] as const;
 export const OEM_FILE_MAX_BYTES = 10 * 1024 * 1024;
 
 /**
+ * Max length of the LEGACY inline `drawingData` base64 string on `submitProject`.
+ * The storage-triad path caps attachments at `OEM_FILE_MAX_BYTES`; the legacy
+ * inline path must match it rather than admit an arbitrarily large body. base64
+ * encodes 3 bytes → 4 chars, so N bytes ⇒ ceil(N/3)*4 chars. This is the schema
+ * first-line guard; the handler additionally decodes and checks the real
+ * `byteLength` against `OEM_FILE_MAX_BYTES` for an exact cap.
+ */
+export const OEM_LEGACY_DRAWING_MAX_BASE64_CHARS = Math.ceil(OEM_FILE_MAX_BYTES / 3) * 4;
+
+/**
  * Accepted OEM attachment extensions (lowercase, no dot). Images + archives have
  * reliable magic bytes (cross-checked post-upload); CAD formats have no universal
  * signature and stay EXTENSION-gated here by policy.

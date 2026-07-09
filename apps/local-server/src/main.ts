@@ -82,7 +82,13 @@ app.get('/api/health', (_req, res) => {
 
 app.post('/api/admin', async (req, res) => {
   const body = req.body as AdminRequest;
-  const result = await handleAdminRequest(body ?? { action: '' }, config);
+  // Parity with the CloudBase HTTP adapter: derive a best-effort client IP so
+  // the public-endpoint rate limits (login/recover/submitProject) can key on it.
+  const forwarded = String(req.headers['x-forwarded-for'] ?? '')
+    .split(',')[0]
+    ?.trim();
+  const sourceIp = forwarded || req.ip || req.socket.remoteAddress || '';
+  const result = await handleAdminRequest(body ?? { action: '' }, config, { sourceIp });
   res.json(result);
 });
 
