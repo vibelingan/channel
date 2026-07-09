@@ -303,6 +303,12 @@ async function enforceRateLimit(opts: {
     // on every adapter (the in-memory test fake does not auto-stamp createdAt).
     createdAt: nowIso,
   });
+  // Best-effort rollback of a DENIED reservation. If the remove() fails (transient
+  // DB error), the rejected row lingers until the next window's sweep reaps it —
+  // which only makes the limiter STRICTER for the rest of the window (the lingering
+  // row inflates the count), never more permissive. So a failed rollback fails
+  // SAFE (over-reject, never over-admit); logging is enough, and returning a 500
+  // here would turn a self-healing transient into a hard error.
   const rollback = (): Promise<void> =>
     remove('rateLimitHits', reserved._id)
       .then(() => undefined)
@@ -1068,6 +1074,10 @@ const NON_QUERYABLE_FIELDS = new Set([
   'passwordHash',
   'uploadSecretHash',
   'uploadSourceHash',
+  // Same reasoning as `uploadSourceHash`: the abuse-control source hash must not
+  // be probeable via a startsWith/contains oracle (admin-only already, but keep
+  // the read-side gate consistent).
+  'sourceHash',
   'checksumSha256',
   'finalizeClaim',
   'data',

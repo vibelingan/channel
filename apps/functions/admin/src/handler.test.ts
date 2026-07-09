@@ -29,6 +29,7 @@ import {
   RECOVER_RATE_MAX_PER_SOURCE,
   SUBMIT_PROJECT_RATE_MAX_GLOBAL,
   SUBMIT_PROJECT_RATE_MAX_PER_SOURCE,
+  compareBySort,
   matchesFilter,
   ok,
 } from '@vibelingan-channel/shared';
@@ -49,6 +50,11 @@ class MemoryAdapter implements DbAdapter {
     if (query.filter) {
       const filter = query.filter;
       docs = docs.filter((doc) => matchesFilter(doc, filter));
+    }
+    // Honor sort so tests faithfully model production ordering (e.g. the
+    // oldest-first `rateLimitHits` sweep) instead of silently ignoring it.
+    if (query.sort && query.sort.length > 0) {
+      docs.sort((a, b) => compareBySort(a, b, query.sort ?? []));
     }
     const total = docs.length;
     const start = (query.page - 1) * query.pageSize;
@@ -2752,4 +2758,117 @@ test('submitProject rejects a max-length unpadded legacy drawingData that DECODE
     'VALIDATION_ERROR',
   );
   assert.equal(store.files?.length ?? 0, 0);
+});
+
+test('rate-limit counts a hit at the EXACT window boundary (gte, not gt — no over-admit)', async () => {
+  const store = setup({ users: [], files: [], oemProjects: [] });
+  setMediaStorage(makeFinalizeStorage());
+  const windowStart = new Date(Math.floor(Date.now() / 60_000) * 60_000).toISOString();
+  // Seed the whole global ceiling at EXACTLY the window-start timestamp.
+  store.rateLimitHits = [];
+  for (let i = 0; i < SUBMIT_PROJECT_RATE_MAX_GLOBAL; i += 1) {
+    store.rateLimitHits.push({
+      _id: `bnd-${i}`,
+      scope: 'submitProject',
+      sourceHash: '',
+      createdAt: windowStart,
+    });
+  }
+  // The next sourceless submit counts the boundary rows (createdAt >= windowStart)
+  // plus itself = max+1 -> 429. If the window filter were `gt`, the boundary rows
+  // would be excluded and this would be wrongly admitted.
+  expectErr(
+    await callPublic('submitProject', { company: 'A', contact: 'B', email: 'a@b.com' }),
+    'RATE_LIMITED',
+  );
+});
+
+test('the stale-hit sweep reaps the OLDEST expired rows first (oldest-first sort is honored)', async () => {
+  const store = setup({ users: [] });
+  const older = new Date(Date.now() - 5 * 60_000).toISOString();
+  const oldest = new Date(Date.now() - 10 * 60_000).toISOString();
+  // Insert 'older' BEFORE 'oldest' so insertion order != time order — a sweep that
+  // ignored sort would reap the (insertion-first) 'older' rows and KEEP the oldest.
+  store.rateLimitHits = [];
+  for (let i = 0; i < 20; i += 1) {
+    store.rateLimitHits.push({ _id: `older-${i}`, scope: 'x', sourceHash: '', createdAt: older });
+  }
+  for (let i = 0; i < 5; i += 1) {
+    store.rateLimitHits.push({ _id: `oldest-${i}`, scope: 'x', sourceHash: '', createdAt: oldest });
+  }
+  // Any public call runs the bounded sweep (<= RATE_LIMIT_HITS_SWEEP_LIMIT=20 oldest).
+  await callPublic('recover', { email: 'nobody@example.com' });
+  const remaining = store.rateLimitHits ?? [];
+  assert.equal(
+    remaining.some((r) => String(r._id).startsWith('oldest-')),
+    false,
+    'the 5 oldest rows must be reaped first',
+  );
+});
+
+test('a failed rollback still returns 429 (fail-safe: over-restrict, never 500 or over-admit)', async () => {
+  const store: Store = { users: [], files: [], oemProjects: [] };
+  const mem = new MemoryAdapter(store);
+  const adapter: DbAdapter = {
+    list: (q) => mem.list(q),
+    get: (c, i) => mem.get(c, i),
+    findByField: (c, f, v) => mem.findByField(c, f, v),
+    create: (c, d) => mem.create(c, d),
+    update: (c, i, d) => mem.update(c, i, d),
+    incrementField: (c, i, f, d) => mem.incrementField(c, i, f, d),
+    async remove(c, i) {
+      if (c === 'rateLimitHits') throw new Error('fake: remove rejected');
+      return mem.remove(c, i);
+    },
+  };
+  setAdapter(adapter);
+  setMediaStorage(makeFinalizeStorage());
+  seedRateHits(store, SUBMIT_PROJECT_RATE_MAX_GLOBAL, 'submitProject', ''); // already at ceiling
+  // The next submit is denied -> rollback -> remove() throws -> caught. The caller
+  // still gets a clean 429, not an INTERNAL_ERROR; the orphaned row lingers (a
+  // future window's sweep reaps it) and only over-restricts in the meantime.
+  const res = await callPublic('submitProject', { company: 'A', contact: 'B', email: 'a@b.com' });
+  expectErr(res, 'RATE_LIMITED');
+  const hits = (store.rateLimitHits ?? []).filter((h) => h.scope === 'submitProject');
+  assert.equal(hits.length, SUBMIT_PROJECT_RATE_MAX_GLOBAL + 1); // orphaned reservation persists
+});
+
+test('rateLimitHits is admin-only: a contributor cannot read or delete the abuse ledger', async () => {
+  setup({
+    users: [],
+    rateLimitHits: [
+      { _id: 'h1', scope: 'login', sourceHash: 'x', createdAt: new Date().toISOString() },
+    ],
+  });
+  const contributor = await sessionToken({
+    sub: 'c-rl',
+    email: 'crl@example.com',
+    name: 'crl',
+    role: 'contributor',
+  });
+  // Reading it would expose source hashes; deleting a row would reset a throttle.
+  expectErr(await call('list', { collection: 'rateLimitHits' }, contributor), 'FORBIDDEN');
+  expectErr(
+    await call('remove', { collection: 'rateLimitHits', id: 'h1' }, contributor),
+    'FORBIDDEN',
+  );
+  // An admin may still inspect it for debugging.
+  const admin = await adminToken();
+  assert.equal((await call('list', { collection: 'rateLimitHits' }, admin)).ok, true);
+});
+
+test('rateLimitHits sourceHash is not queryable (no startsWith/contains oracle)', async () => {
+  setup({ users: [] });
+  const admin = await adminToken();
+  expectErr(
+    await call(
+      'list',
+      {
+        collection: 'rateLimitHits',
+        filter: { clauses: [{ field: 'sourceHash', op: 'startsWith', value: 'a' }] },
+      },
+      admin,
+    ),
+    'BAD_REQUEST',
+  );
 });

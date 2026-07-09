@@ -39,17 +39,28 @@ export function canManageUsers(role: Role): boolean {
   return role === 'admin';
 }
 
+/**
+ * Collections that are pure server-internal plumbing — no role should reach them
+ * through the generic admin CRUD. `rateLimitHits` is the abuse-control ledger:
+ * letting a contributor `list` it exposes source hashes, and letting them
+ * `remove` rows would let them reset a throttle. Gated to admin only (and even
+ * then it is only inspected for debugging; the endpoints manage it themselves).
+ */
+function isAdminOnlyCollection(collection: string): boolean {
+  // `users` holds entitlement; `rateLimitHits` is internal abuse-control state.
+  return collection === 'users' || collection === 'rateLimitHits';
+}
+
 /** Can the role create/update/remove a given collection via the admin API? */
 export function canEditCollection(role: Role, collection: string): boolean {
-  // The users collection holds entitlement — only admins may touch it.
-  if (collection === 'users') return role === 'admin';
+  if (isAdminOnlyCollection(collection)) return role === 'admin';
   // Everything else (products, overstock, images, …) is open to contributors.
   return role === 'admin' || role === 'contributor';
 }
 
 /** Can the role read a given collection through the admin dashboard? */
 export function canReadCollection(role: Role, collection: string): boolean {
-  if (collection === 'users') return role === 'admin';
+  if (isAdminOnlyCollection(collection)) return role === 'admin';
   return role === 'admin' || role === 'contributor';
 }
 
