@@ -479,6 +479,23 @@ export const COLLECTIONS: readonly CollectionDef[] = [
       },
     ],
   },
+  {
+    name: 'rateLimitHits',
+    label: 'Rate-Limit Hits',
+    // Abuse-control ledger for the UNAUTHENTICATED endpoints (login / recover /
+    // submitProject). One row per admitted request within a fixed window; the
+    // handler counts rows per (scope, sourceHash) via the reserve-first limiter
+    // and reaps stale rows opportunistically. Every field is server-managed
+    // (readOnly) so it is never writable through generic CRUD; only the raw
+    // client IP's SHA-256 is stored, never the IP itself. Hidden from nav.
+    description: 'Server-managed abuse-control ledger for public endpoints.',
+    searchableFields: [],
+    hideFromNav: true,
+    fields: [
+      { name: 'scope', label: 'Scope', type: 'string', readOnly: true },
+      { name: 'sourceHash', label: 'Source Hash', type: 'string', readOnly: true },
+    ],
+  },
 ] as const;
 
 const COLLECTION_MAP = new Map(COLLECTIONS.map((c) => [c.name, c]));

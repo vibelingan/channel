@@ -51,18 +51,27 @@ import {
   type CollectionDoc,
   FILTER_OPERATORS,
   type FilterClause,
+  LOGIN_RATE_MAX_GLOBAL,
+  LOGIN_RATE_MAX_PER_SOURCE,
   type MediaSignature,
   type MediaStatus,
   OEM_DOWNLOAD_URL_TTL_SECONDS,
   OEM_FILE_MAX_BYTES,
+  OEM_LEGACY_DRAWING_MAX_BASE64_CHARS,
   OEM_MAX_PENDING_INTENTS_GLOBAL,
   OEM_MAX_PENDING_INTENTS_PER_SOURCE,
   OEM_UPLOAD_INTENT_TTL_MS,
   OEM_UPLOAD_RATE_MAX_PER_WINDOW,
   OEM_UPLOAD_RATE_MAX_PER_WINDOW_GLOBAL,
   OEM_UPLOAD_RATE_WINDOW_MS,
+  PUBLIC_RATE_WINDOW_MS,
+  RATE_LIMIT_HITS_SWEEP_LIMIT,
+  RECOVER_RATE_MAX_GLOBAL,
+  RECOVER_RATE_MAX_PER_SOURCE,
   type Role,
   SIGNATURE_MIME,
+  SUBMIT_PROJECT_RATE_MAX_GLOBAL,
+  SUBMIT_PROJECT_RATE_MAX_PER_SOURCE,
   SYSTEM_FIELDS,
   canEditCollection,
   canReadCollection,
@@ -141,7 +150,10 @@ const submitProjectSchema = z.object({
   uploadIntentId: z.string().min(1).max(200).optional(),
   uploadSecret: z.string().min(1).max(400).optional(),
   // Legacy base64 fallback (inline `data`); superseded by the storage path above.
-  drawingData: z.string().max(16_000_000).optional(),
+  // Capped at the base64-char equivalent of OEM_FILE_MAX_BYTES so this path
+  // cannot admit a larger body than the storage triad (the handler additionally
+  // checks the DECODED byteLength for an exact cap).
+  drawingData: z.string().max(OEM_LEGACY_DRAWING_MAX_BASE64_CHARS).optional(),
 });
 const updateProfileSchema = z.object({ username: z.string().min(2).max(40) });
 const changePasswordSchema = z.object({
@@ -197,6 +209,145 @@ const oemFileDownloadSchema = z.object({ fileId: z.string().min(1) });
 const SESSION_TTL = 60 * 60 * 12;
 /** Min interval between password-recovery rotations for one account (DoS bound). */
 const RECOVER_COOLDOWN_MS = 15 * 60 * 1000;
+
+// --- Public-endpoint abuse control -----------------------------------------
+
+/**
+ * SHA-256 of the client IP, or `undefined` when no source signal is available.
+ * The raw IP is never stored; an absent source falls through to the global
+ * ceiling only (mirrors the OEM `uploadSourceHash`).
+ */
+function hashSource(sourceIp: string | undefined): string | undefined {
+  const trimmed = sourceIp?.trim();
+  return trimmed ? createHash('sha256').update(trimmed).digest('hex') : undefined;
+}
+
+/** Total `rateLimitHits` rows matching `clauses` (count-only query). */
+async function countRateLimitHits(clauses: FilterClause[]): Promise<number> {
+  const res = await list({
+    collection: 'rateLimitHits',
+    page: 1,
+    pageSize: 1,
+    filter: { combinator: 'and', clauses },
+  });
+  return res.total;
+}
+
+/**
+ * Opportunistic, bounded GC: reap the oldest `rateLimitHits` rows whose window
+ * has already elapsed (`createdAt < windowStartIso` — they can never be counted
+ * again). Best-effort; a sweep failure never blocks the request that triggered
+ * it. Keeps the ledger from growing without a scheduler, the same way the OEM
+ * intent path self-heals expired pending rows.
+ */
+async function sweepExpiredRateLimitHits(windowStartIso: string): Promise<void> {
+  const stale = await list({
+    collection: 'rateLimitHits',
+    page: 1,
+    pageSize: RATE_LIMIT_HITS_SWEEP_LIMIT,
+    filter: {
+      combinator: 'and',
+      clauses: [{ field: 'createdAt', op: 'lt', value: windowStartIso }],
+    },
+    sort: [{ field: 'createdAt', dir: 'asc' }],
+  });
+  for (const row of stale.items) {
+    await remove('rateLimitHits', String(row._id)).catch((e) =>
+      console.error('[ratelimit] stale-hit reap failed', e),
+    );
+  }
+}
+
+/**
+ * Reserve-first per-source + global fixed-window rate limit for an
+ * UNAUTHENTICATED endpoint, over the dedicated `rateLimitHits` ledger. Returns a
+ * `RATE_LIMITED` `ApiResult` (with `Retry-After`) when over a ceiling, else
+ * `null` (the caller may proceed).
+ *
+ * Substrate choice: `login`/`recover`/`submitProject` write no natural
+ * reservation row, and the CloudBase adapter has no upsert/set-with-id primitive
+ * for an atomic per-bucket counter — so this reuses the SAME reserve-first
+ * pattern already proven for OEM intents: WRITE the hit, then COUNT it in, and
+ * ROLL BACK the reservation if any ceiling is exceeded. Because every admitted
+ * hit persists and is visible to concurrent counters, no ceiling can admit more
+ * than its limit even under a burst (fails SAFE — may over-reject under
+ * contention, never over-admit); rejected hits are rolled back so a flood does
+ * not accumulate rows.
+ *
+ * Per-source is the primary throttle (an attacker only limits their own IP); the
+ * global ceiling is a high self-healing backstop for the case where the platform
+ * exposes no trusted IP (source-less bucket) — it never locks an account.
+ */
+async function enforceRateLimit(opts: {
+  scope: string;
+  sourceHash: string | undefined;
+  maxPerSource: number;
+  maxGlobal: number;
+  nowMs: number;
+}): Promise<ApiResult<unknown> | null> {
+  const { scope, sourceHash, maxPerSource, maxGlobal, nowMs } = opts;
+  const windowStartIso = new Date(
+    Math.floor(nowMs / PUBLIC_RATE_WINDOW_MS) * PUBLIC_RATE_WINDOW_MS,
+  ).toISOString();
+  const nowIso = new Date(nowMs).toISOString();
+
+  await sweepExpiredRateLimitHits(windowStartIso).catch((e) =>
+    console.error(`[ratelimit] ${scope}: stale-hit sweep failed`, e),
+  );
+
+  // Reserve the hit BEFORE counting so concurrent requests all observe it.
+  const reserved = await createDoc('rateLimitHits', {
+    scope,
+    sourceHash: sourceHash ?? '',
+    // Stamp createdAt explicitly so the window query counts this hit identically
+    // on every adapter (the in-memory test fake does not auto-stamp createdAt).
+    createdAt: nowIso,
+  });
+  const rollback = (): Promise<void> =>
+    remove('rateLimitHits', reserved._id)
+      .then(() => undefined)
+      .catch((e) => console.error(`[ratelimit] ${scope}: reservation rollback failed`, e));
+
+  const inWindow: FilterClause[] = [
+    { field: 'scope', op: 'eq', value: scope },
+    { field: 'createdAt', op: 'gte', value: windowStartIso },
+  ];
+
+  const globalRate = evaluateFixedWindowRateLimit({
+    countInWindow: await countRateLimitHits(inWindow),
+    maxPerWindow: maxGlobal,
+    windowMs: PUBLIC_RATE_WINDOW_MS,
+    nowMs,
+  });
+  if (!globalRate.allowed) {
+    await rollback();
+    return rateLimited(
+      `Too many requests. Please retry in ${globalRate.retryAfterSeconds}s.`,
+      globalRate.retryAfterSeconds,
+    );
+  }
+
+  if (sourceHash) {
+    const sourceRate = evaluateFixedWindowRateLimit({
+      countInWindow: await countRateLimitHits([
+        ...inWindow,
+        { field: 'sourceHash', op: 'eq', value: sourceHash },
+      ]),
+      maxPerWindow: maxPerSource,
+      windowMs: PUBLIC_RATE_WINDOW_MS,
+      nowMs,
+    });
+    if (!sourceRate.allowed) {
+      await rollback();
+      return rateLimited(
+        `Too many requests. Please retry in ${sourceRate.retryAfterSeconds}s.`,
+        sourceRate.retryAfterSeconds,
+      );
+    }
+  }
+
+  return null;
+}
 
 // --- Helpers ---------------------------------------------------------------
 
@@ -328,15 +479,15 @@ export async function handleAdminRequest(
       case 'register':
         return await register(req, config);
       case 'login':
-        return await login(req, config);
+        return await login(req, config, context);
       case 'bootstrapAdmin':
         return await bootstrapAdmin(req, config);
       case 'recover':
-        return await recover(req, config);
+        return await recover(req, config, context);
       case 'health':
         return ok(releaseInfo('admin'));
       case 'submitProject':
-        return await submitProject(req);
+        return await submitProject(req, context);
       case 'createOemFileUploadIntent':
         return await createOemFileUploadIntentAction(req, context);
     }
@@ -464,9 +615,24 @@ async function bootstrapAdmin(req: AdminRequest, config: AdminConfig): Promise<A
   });
 }
 
-async function login(req: AdminRequest, config: AdminConfig): Promise<ApiResult<unknown>> {
+async function login(
+  req: AdminRequest,
+  config: AdminConfig,
+  context?: RequestContext,
+): Promise<ApiResult<unknown>> {
   const parsed = loginSchema.safeParse(req.data);
   if (!parsed.success) return err('BAD_REQUEST', 'Email and password are required.');
+  // Throttle brute force BEFORE the DB lookup + argon2 verify, so a flood cannot
+  // burn CPU on password hashing. Per-source is the real brake; the global
+  // ceiling is a high self-healing backstop that never locks an account.
+  const limited = await enforceRateLimit({
+    scope: 'login',
+    sourceHash: hashSource(context?.sourceIp),
+    maxPerSource: LOGIN_RATE_MAX_PER_SOURCE,
+    maxGlobal: LOGIN_RATE_MAX_GLOBAL,
+    nowMs: Date.now(),
+  });
+  if (limited) return limited;
   const email = parsed.data.email.toLowerCase();
   const user = await findByField('users', 'email', email);
   const hash = typeof user?.passwordHash === 'string' ? user.passwordHash : '';
@@ -489,9 +655,24 @@ async function login(req: AdminRequest, config: AdminConfig): Promise<ApiResult<
   return ok({ token, user: publicUser(user) });
 }
 
-async function recover(req: AdminRequest, config: AdminConfig): Promise<ApiResult<unknown>> {
+async function recover(
+  req: AdminRequest,
+  config: AdminConfig,
+  context?: RequestContext,
+): Promise<ApiResult<unknown>> {
   const parsed = recoverSchema.safeParse(req.data);
   if (!parsed.success) return err('BAD_REQUEST', 'A valid email is required.');
+  // Per-SOURCE throttle bounds an attacker's total recovery volume (spam / SMTP
+  // reputation) regardless of which address they target; the per-ACCOUNT
+  // cooldown below independently bounds churn of any one victim's password.
+  const limited = await enforceRateLimit({
+    scope: 'recover',
+    sourceHash: hashSource(context?.sourceIp),
+    maxPerSource: RECOVER_RATE_MAX_PER_SOURCE,
+    maxGlobal: RECOVER_RATE_MAX_GLOBAL,
+    nowMs: Date.now(),
+  });
+  if (limited) return limited;
   const email = parsed.data.email.toLowerCase();
   const user = await findByField('users', 'email', email);
   if (user) {
@@ -682,11 +863,25 @@ async function verifyAndClaimOemUpload(input: {
  * may be attached three ways: the MIU-08 storage-upload triad (verified + claimed
  * here), a legacy inline base64 `drawingData`, or none.
  */
-async function submitProject(req: AdminRequest): Promise<ApiResult<unknown>> {
+async function submitProject(
+  req: AdminRequest,
+  context?: RequestContext,
+): Promise<ApiResult<unknown>> {
   const parsed = submitProjectSchema.safeParse(req.data);
   if (!parsed.success) {
     return err('VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join('; '));
   }
+  // Unauthenticated + sends a confirmation email to a caller-CHOSEN address, so
+  // throttle per source (and a global backstop) BEFORE any DB write or send —
+  // this is what bounds the email/reputation bomb the review flagged.
+  const limited = await enforceRateLimit({
+    scope: 'submitProject',
+    sourceHash: hashSource(context?.sourceIp),
+    maxPerSource: SUBMIT_PROJECT_RATE_MAX_PER_SOURCE,
+    maxGlobal: SUBMIT_PROJECT_RATE_MAX_GLOBAL,
+    nowMs: Date.now(),
+  });
+  if (limited) return limited;
   const {
     company,
     contact,
@@ -722,12 +917,19 @@ async function submitProject(req: AdminRequest): Promise<ApiResult<unknown>> {
     claim = finalized.claim;
     drawingId = claim.fileId; // still `pending`; activated AFTER the project exists
   } else if (drawingData) {
+    // Exact size cap on the DECODED bytes — the storage triad enforces
+    // OEM_FILE_MAX_BYTES, so the legacy inline path must too (the schema's
+    // base64-length guard is the coarse first line; this is the precise one).
+    const bytes = Buffer.from(drawingData, 'base64');
+    if (bytes.byteLength > OEM_FILE_MAX_BYTES) {
+      return err('VALIDATION_ERROR', 'Attached drawing exceeds the maximum size.');
+    }
     // submitProject is UNAUTHENTICATED and files.mimeType is reflected by the
     // OEM download path, so the client-declared `drawingType` is NOT trusted:
     // derive the stored type from a byte sniff (a recognised signature → its
     // canonical MIME; anything else, incl. CAD, → octet-stream). This prevents
     // an anonymous caller persisting e.g. mimeType 'text/html' with HTML bytes.
-    const sig = sniffMagicBytes(Buffer.from(drawingData, 'base64'));
+    const sig = sniffMagicBytes(bytes);
     const fileDoc = await createDoc('files', {
       name: drawingName ?? 'drawing',
       mimeType: sig === 'unknown' ? 'application/octet-stream' : SIGNATURE_MIME[sig],

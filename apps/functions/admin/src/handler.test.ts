@@ -3,6 +3,7 @@ import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { type SessionClaims, signSession } from '@vibelingan-channel/auth/jwt';
+import { hashPassword } from '@vibelingan-channel/auth/password';
 import {
   type AdapterListQuery,
   type DbAdapter,
@@ -20,9 +21,14 @@ import {
   type ApiResult,
   CATALOG_IMAGE_MAX_BYTES,
   type CollectionDoc,
+  LOGIN_RATE_MAX_PER_SOURCE,
   type ListResult,
   OEM_FILE_MAX_BYTES,
+  OEM_LEGACY_DRAWING_MAX_BASE64_CHARS,
   OEM_MAX_PENDING_INTENTS_PER_SOURCE,
+  RECOVER_RATE_MAX_PER_SOURCE,
+  SUBMIT_PROJECT_RATE_MAX_GLOBAL,
+  SUBMIT_PROJECT_RATE_MAX_PER_SOURCE,
   matchesFilter,
   ok,
 } from '@vibelingan-channel/shared';
@@ -2596,4 +2602,154 @@ test('submitProject rejects missing/invalid required text fields', async () => {
     await callPublic('submitProject', { company: 'A', contact: 'B', email: 'not-an-email' }),
     'VALIDATION_ERROR',
   );
+});
+
+// --- Public-endpoint rate limiting (round-5 #1 submitProject / #2 recover / #6 login) ---
+
+/** Seed N admitted `rateLimitHits` for a scope in the CURRENT window (fast way to
+ *  approach a ceiling without making N real calls). */
+function seedRateHits(store: Store, count: number, scope: string, sourceHash = ''): void {
+  const now = new Date().toISOString();
+  store.rateLimitHits = store.rateLimitHits ?? [];
+  for (let i = 0; i < count; i += 1) {
+    store.rateLimitHits.push({ _id: `seed-${scope}-${i}`, scope, sourceHash, createdAt: now });
+  }
+}
+
+test('login throttles per source after the cap (before the credential check) and isolates other sources', async () => {
+  setup({
+    users: [
+      {
+        _id: 'rl-1',
+        email: 'rl@example.com',
+        username: 'rl',
+        role: '',
+        status: 'active',
+        passwordHash: 'not-a-valid-argon2-hash', // verifyPassword → false → UNAUTHORIZED
+      },
+    ],
+  });
+  const attempt = (ip: string) =>
+    callPublic('login', { email: 'rl@example.com', password: 'wrong' }, { sourceIp: ip });
+
+  for (let i = 0; i < LOGIN_RATE_MAX_PER_SOURCE; i += 1) {
+    expectErr(await attempt('1.1.1.1'), 'UNAUTHORIZED'); // within cap → reaches (failed) auth
+  }
+  // The limiter sits BEFORE the DB lookup + argon2, so the (cap+1)th is a 429 even
+  // though the credentials are wrong (no CPU spent hashing).
+  expectErr(await attempt('1.1.1.1'), 'RATE_LIMITED');
+  // A different source has its own budget — one hostile IP cannot lock others out.
+  expectErr(await attempt('2.2.2.2'), 'UNAUTHORIZED');
+});
+
+test('recover throttles per source and the 429 does not leak account existence', async () => {
+  setup({ users: [] }); // no accounts at all
+  const attempt = (ip: string) =>
+    callPublic('recover', { email: 'nobody@example.com' }, { sourceIp: ip });
+
+  for (let i = 0; i < RECOVER_RATE_MAX_PER_SOURCE; i += 1) {
+    assert.equal((await attempt('3.3.3.3')).ok, true); // uniform ok for an unknown email
+  }
+  // The limit is decided BEFORE the user lookup, so an unknown email is rate-limited
+  // exactly like a known one — the 429 cannot be used to probe which emails exist.
+  expectErr(await attempt('3.3.3.3'), 'RATE_LIMITED');
+  assert.equal((await attempt('4.4.4.4')).ok, true); // a different source is unaffected
+});
+
+test('submitProject throttles per source; the email/reputation bomb is bounded and rejected hits roll back', async () => {
+  const store = setup({ users: [], files: [], oemProjects: [] });
+  setMediaStorage(makeFinalizeStorage());
+  const submit = (ip: string) =>
+    callPublic(
+      'submitProject',
+      { company: 'A', contact: 'B', email: 'victim@example.com' },
+      { sourceIp: ip },
+    );
+
+  for (let i = 0; i < SUBMIT_PROJECT_RATE_MAX_PER_SOURCE; i += 1) {
+    assert.equal((await submit('5.5.5.5')).ok, true);
+  }
+  expectErr(await submit('5.5.5.5'), 'RATE_LIMITED');
+  expectErr(await submit('5.5.5.5'), 'RATE_LIMITED'); // still blocked in-window
+
+  // Only `max` projects were created (and `max` confirmation emails attempted) — the
+  // reputation bomb is bounded to the per-source cap.
+  assert.equal(store.oemProjects?.length, SUBMIT_PROJECT_RATE_MAX_PER_SOURCE);
+  // Denied reservations were rolled back: the ledger holds exactly `max` admitted
+  // hits for this source, not the two rejected ones.
+  const src = sha256('5.5.5.5');
+  const hits = (store.rateLimitHits ?? []).filter(
+    (h) => h.scope === 'submitProject' && h.sourceHash === src,
+  );
+  assert.equal(hits.length, SUBMIT_PROJECT_RATE_MAX_PER_SOURCE);
+});
+
+test('submitProject global backstop rejects a source-less flood (temporary 429, no account lock)', async () => {
+  const store = setup({ users: [], files: [], oemProjects: [] });
+  setMediaStorage(makeFinalizeStorage());
+  // Pre-fill the window to one below the global ceiling, then two real source-less calls.
+  seedRateHits(store, SUBMIT_PROJECT_RATE_MAX_GLOBAL - 1, 'submitProject', '');
+  const submit = () =>
+    callPublic('submitProject', { company: 'A', contact: 'B', email: 'a@b.com' });
+  assert.equal((await submit()).ok, true); // the (max)th sourceless request is admitted
+  expectErr(await submit(), 'RATE_LIMITED'); // the (max+1)th trips the global ceiling
+});
+
+test('a valid login still succeeds under the limiter (limiter is not fail-closed for normal traffic)', async () => {
+  setup({
+    users: [
+      {
+        _id: 'ok-1',
+        email: 'ok@example.com',
+        username: 'ok',
+        role: 'admin',
+        status: 'active',
+        passwordHash: await hashPassword('correct horse'),
+      },
+    ],
+  });
+  const res = await callPublic(
+    'login',
+    { email: 'ok@example.com', password: 'correct horse' },
+    { sourceIp: '6.6.6.6' },
+  );
+  const data = okData<{ token: string }>(res);
+  assert.equal(typeof data.token, 'string');
+});
+
+test('submitProject rejects a legacy drawingData whose base64 exceeds the char cap (schema)', async () => {
+  const store = setup({ users: [], files: [], oemProjects: [] });
+  setMediaStorage(makeFinalizeStorage());
+  const tooLong = 'A'.repeat(OEM_LEGACY_DRAWING_MAX_BASE64_CHARS + 4);
+  expectErr(
+    await callPublic('submitProject', {
+      company: 'A',
+      contact: 'B',
+      email: 'a@b.com',
+      drawingData: tooLong,
+    }),
+    'VALIDATION_ERROR',
+  );
+  assert.equal(store.oemProjects?.length ?? 0, 0);
+  assert.equal(store.files?.length ?? 0, 0);
+});
+
+test('submitProject rejects a max-length unpadded legacy drawingData that DECODES over the byte cap (handler belt)', async () => {
+  const store = setup({ users: [], files: [], oemProjects: [] });
+  setMediaStorage(makeFinalizeStorage());
+  // Exactly the schema char cap but with NO '=' padding, so it decodes to
+  // (cap/4)*3 bytes = OEM_FILE_MAX_BYTES + 2 — passes the schema, caught by the
+  // handler's exact decoded-byteLength check.
+  const maxUnpadded = 'A'.repeat(OEM_LEGACY_DRAWING_MAX_BASE64_CHARS);
+  assert.ok(Buffer.from(maxUnpadded, 'base64').byteLength > OEM_FILE_MAX_BYTES); // guard the guard
+  expectErr(
+    await callPublic('submitProject', {
+      company: 'A',
+      contact: 'B',
+      email: 'a@b.com',
+      drawingData: maxUnpadded,
+    }),
+    'VALIDATION_ERROR',
+  );
+  assert.equal(store.files?.length ?? 0, 0);
 });
