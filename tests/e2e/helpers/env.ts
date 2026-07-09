@@ -29,7 +29,3 @@ export const e2e = {
 export function hasAdminCredentials(): boolean {
   return e2e.adminEmail.length > 0 && e2e.adminPassword.length > 0;
 }
-
-export function hasBootstrapCredentials(): boolean {
-  return e2e.enableBootstrap && e2e.bootstrapToken.length > 0 && hasAdminCredentials();
-}
