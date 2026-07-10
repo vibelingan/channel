@@ -1,0 +1,56 @@
+---
+/**
+ * AI capability showcase — 4 cards on dark background.
+ */
+import type { SiteContent } from '../i18n/site.ts';
+import type { IconCard } from '../i18n/site.ts';
+
+interface Props {
+  showcase: SiteContent['aiShowcase'];
+}
+
+const { showcase } = Astro.props;
+
+const iconPaths: Record<string, string> = {
+  'chart-line': 'M3 13.5L9 7.5L13 11.5L21 3.5M21 3.5H15M21 3.5V9.5',
+  calculator:
+    'M9 7h6M9 12h6M9 17h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z',
+  network: 'M12 4v16M4 8h16M4 16h16M8 4l-4 4 4 4M16 4l4 4-4 4M8 20l-4-4 4-4M16 20l4-4-4-4',
+  truck:
+    'M3 7h11v8H3V7zm11 3h4l3 3v2h-7v-5zM7.5 18.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM17.5 18.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z',
+};
+---
+
+<section class="relative overflow-hidden bg-surface-dark text-white">
+  <div class="mx-auto max-w-[var(--width-container)] px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
+    <div class="reveal mx-auto max-w-2xl text-center">
+      <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-300">
+        {showcase.eyebrow}
+      </p>
+      <h2 class="mt-4 font-display text-3xl font-bold sm:text-4xl">
+        {showcase.heading}
+      </h2>
+    </div>
+
+    <div class="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      {showcase.cards.map((card: IconCard, i: number) => (
+        <div
+          class="reveal group relative rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur transition hover:border-brand-400/50 hover:bg-white/10"
+          style={`transition-delay: ${i * 80}ms`}
+        >
+          <div class="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-500/20 text-brand-300">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d={iconPaths[card.icon] || iconPaths['chart-line']} />
+            </svg>
+          </div>
+          <h3 class="font-display text-lg font-semibold text-white">
+            {card.title}
+          </h3>
+          <p class="mt-2 text-sm leading-relaxed text-slate-400">
+            {card.description}
+          </p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

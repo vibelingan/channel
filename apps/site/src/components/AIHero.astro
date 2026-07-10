@@ -1,0 +1,61 @@
+---
+/**
+ * AI-driven hero section with dark sci-tech gradient background.
+ */
+import type { SiteContent } from '../i18n/site.ts';
+
+interface Props {
+  hero: SiteContent['hero'];
+}
+
+const { hero } = Astro.props;
+---
+
+<section class="relative overflow-hidden bg-surface-dark text-white">
+  <!-- Animated grid background -->
+  <div class="pointer-events-none absolute inset-0 opacity-20" aria-hidden="true">
+    <div
+      class="absolute inset-0"
+      style="background-image: linear-gradient(rgba(99,102,241,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.3) 1px, transparent 1px); background-size: 60px 60px; mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black, transparent);"
+    >
+    </div>
+  </div>
+
+  <!-- Glow orbs -->
+  <div class="pointer-events-none absolute -left-20 top-1/4 h-72 w-72 rounded-full bg-brand-500/30 blur-3xl" aria-hidden="true"></div>
+  <div class="pointer-events-none absolute -right-20 bottom-1/4 h-96 w-96 rounded-full bg-accent-500/20 blur-3xl" aria-hidden="true"></div>
+
+  <div class="relative mx-auto max-w-[var(--width-container)] px-4 py-24 sm:px-6 sm:py-32 lg:px-8 lg:py-40">
+    <div class="mx-auto max-w-3xl text-center">
+      <p class="reveal text-sm font-semibold uppercase tracking-[0.2em] text-brand-300">
+        {hero.eyebrow}
+      </p>
+      <h1 class="reveal mt-6 font-display text-4xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
+        {hero.heading}
+      </h1>
+      <p class="reveal mt-6 text-lg leading-relaxed text-slate-300 sm:text-xl">
+        {hero.subheading}
+      </p>
+      <div class="reveal mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+        <a
+          href={hero.primaryCta.href}
+          class="inline-flex items-center justify-center rounded-full bg-brand-500 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-brand-500/30 transition hover:bg-brand-400 hover:shadow-xl hover:shadow-brand-500/40"
+        >
+          {hero.primaryCta.label}
+          <svg class="ml-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+          </svg>
+        </a>
+        <a
+          href={hero.secondaryCta.href}
+          class="inline-flex items-center justify-center rounded-full border border-white/20 bg-white/5 px-8 py-3.5 text-base font-semibold text-white backdrop-blur transition hover:bg-white/10"
+        >
+          {hero.secondaryCta.label}
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom gradient fade -->
+  <div class="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-surface to-transparent" aria-hidden="true"></div>
+</section>

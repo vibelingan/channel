@@ -1,24 +1,42 @@
 ---
-import ContentSection from '../components/ContentSection.astro';
-import HeroVideo from '../components/HeroVideo.astro';
+import AIHero from '../components/AIHero.astro';
+import AIShowcase from '../components/AIShowcase.astro';
+import BlueOceanTeaser from '../components/BlueOceanTeaser.astro';
+import CTASection from '../components/CTASection.astro';
+import FactorySection from '../components/FactorySection.astro';
+import ServiceGridSection from '../components/ServiceGridSection.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
+import TeardownTeaser from '../components/TeardownTeaser.astro';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
 import BaseLayout from '../layouts/BaseLayout.astro';
 
-// Region/language is fixed to en-US for now. Add more locale markdown files
-// under src/i18n/content/ to support additional regions.
 const content = getSiteContent(DEFAULT_LOCALE);
-const { brand, nav, hero, sections, footer } = content;
+const {
+  brand,
+  nav,
+  hero,
+  aiShowcase,
+  services,
+  teardownTeaser,
+  blueOceanTeaser,
+  factorySection,
+  ctaSection,
+  footer,
+} = content;
 ---
 
 <BaseLayout title={`${brand.name} — ${brand.tagline}`} description={hero.subheading} lang="en">
   <SiteHeader brand={brand} nav={nav} />
 
   <main>
-    <HeroVideo hero={hero} />
-
-    {sections.map((section, index) => <ContentSection section={section} index={index} />)}
+    <AIHero hero={hero} />
+    <AIShowcase showcase={aiShowcase} />
+    <ServiceGridSection services={services} />
+    <TeardownTeaser teaser={teardownTeaser} />
+    <BlueOceanTeaser teaser={blueOceanTeaser} />
+    <FactorySection factory={factorySection} />
+    <CTASection cta={ctaSection} />
   </main>
 
   <SiteFooter brand={brand} footer={footer} />

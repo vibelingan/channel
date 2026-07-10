@@ -1,0 +1,185 @@
+---
+import CaseStudyCard from '../../components/CaseStudyCard.astro';
+import PageHero from '../../components/PageHero.astro';
+import SiteFooter from '../../components/SiteFooter.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
+import { caseStudies, certifications, clientLogos } from '../../data/successStories.ts';
+import { DEFAULT_LOCALE, getSiteContent } from '../../i18n/site.ts';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const content = getSiteContent(DEFAULT_LOCALE);
+const { brand, nav, footer } = content;
+
+const totalCases = caseStudies.length;
+const totalClients = clientLogos.length;
+const totalCerts = certifications.length;
+---
+
+<BaseLayout
+  title={`Success Stories — ${brand.name}`}
+  description="Real OEM projects delivered by Diversity Technology — from concept to mass production. Explore case studies, trusted clients, and the certifications behind our manufacturing quality."
+  lang="en"
+>
+  <SiteHeader brand={brand} nav={nav} />
+
+  <main>
+    <PageHero
+      eyebrow="Proven Results"
+      heading="Success Stories"
+      subheading="Real OEM projects — from initial concept to retail-ready product. See how Diversity Technology transforms ideas into market-ready consumer products with end-to-end engineering, precision manufacturing, and rigorous quality control."
+    />
+
+    <!-- Stats strip -->
+    <section class="border-b border-slate-200 bg-surface-alt">
+      <div class="mx-auto max-w-[var(--width-container)] px-4 py-10 sm:px-6 lg:px-8">
+        <dl class="grid grid-cols-3 gap-6">
+          <div class="reveal">
+            <dt class="text-xs font-semibold uppercase tracking-wider text-ink-muted">Case Studies</dt>
+            <dd class="mt-1 font-display text-3xl font-bold text-brand-600">{totalCases}</dd>
+          </div>
+          <div class="reveal">
+            <dt class="text-xs font-semibold uppercase tracking-wider text-ink-muted">Trusted Clients</dt>
+            <dd class="mt-1 font-display text-3xl font-bold text-brand-600">{totalClients}</dd>
+          </div>
+          <div class="reveal">
+            <dt class="text-xs font-semibold uppercase tracking-wider text-ink-muted">Certifications</dt>
+            <dd class="mt-1 font-display text-3xl font-bold text-brand-600">{totalCerts}</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- Case study cards -->
+    <section class="py-16 sm:py-20">
+      <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
+        <div class="reveal mb-10 max-w-2xl">
+          <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
+            Featured Projects
+          </p>
+          <h2 class="mt-3 font-display text-2xl font-bold text-ink sm:text-3xl">
+            From concept to market-ready product
+          </h2>
+          <p class="mt-3 text-lg leading-relaxed text-ink-soft">
+            Each case study follows the STAR framework — Situation, Task, Action, Result —
+            to show exactly how we turned a client challenge into a shipping product. Expand any
+            card to read the full story.
+          </p>
+        </div>
+
+        <div class="grid gap-6 lg:grid-cols-2">
+          {caseStudies.map((study) => (
+            <CaseStudyCard study={study} />
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- Client logos -->
+    <section class="bg-surface-alt py-16 sm:py-20">
+      <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
+        <div class="reveal mb-10 max-w-2xl">
+          <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
+            Trusted Partners
+          </p>
+          <h2 class="mt-3 font-display text-2xl font-bold text-ink sm:text-3xl">
+            Brands that build with us
+          </h2>
+          <p class="mt-3 text-lg leading-relaxed text-ink-soft">
+            From established audio brands to education institutions, clients across
+            categories rely on Diversity Technology for OEM development and manufacturing.
+          </p>
+        </div>
+
+        <ul class="reveal grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          {clientLogos.map((client) => (
+            <li
+              class="flex min-h-[5.5rem] items-center justify-center rounded-[var(--radius-card)] border border-slate-200 bg-surface px-4 py-6 text-center shadow-[var(--shadow-card)]"
+            >
+              <span class="font-display text-lg font-semibold text-ink-soft">{client.name}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+
+    <!-- Certifications -->
+    <section class="py-16 sm:py-20">
+      <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
+        <div class="reveal mb-10 max-w-2xl">
+          <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
+            Quality Assured
+          </p>
+          <h2 class="mt-3 font-display text-2xl font-bold text-ink sm:text-3xl">
+            Certifications &amp; compliance
+          </h2>
+          <p class="mt-3 text-lg leading-relaxed text-ink-soft">
+            Every product we manufacture is backed by internationally recognised certifications
+            covering safety, electromagnetic compatibility, and category-specific performance.
+          </p>
+        </div>
+
+        <ul class="reveal grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {certifications.map((cert) => (
+            <li
+              class="flex h-full flex-col rounded-[var(--radius-card)] border border-slate-200 bg-surface p-5 shadow-[var(--shadow-card)]"
+            >
+              <span class="inline-flex items-center gap-1.5 rounded-full bg-accent-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-accent-700 self-start">
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  ></path>
+                </svg>
+                Certified
+              </span>
+              <h3 class="mt-3 font-display text-base font-bold text-ink">{cert.name}</h3>
+              <p class="mt-2 text-sm leading-relaxed text-ink-soft">{cert.description}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="bg-surface-dark text-white">
+      <div class="mx-auto max-w-[var(--width-container)] px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+        <div class="reveal grid gap-10 lg:grid-cols-2 lg:items-center">
+          <div>
+            <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-300">
+              Your Project Next
+            </p>
+            <h2 class="mt-4 font-display text-2xl font-bold sm:text-3xl">
+              Ready to build your success story?
+            </h2>
+            <p class="mt-5 text-base leading-relaxed text-slate-300">
+              Whether you have a finished concept or just a problem to solve, our team delivers
+              the same end-to-end OEM expertise — industrial design, engineering, tooling, mass
+              production, and packaging — to bring your product to market.
+            </p>
+          </div>
+          <div class="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-8 backdrop-blur">
+            <h3 class="font-display text-lg font-semibold text-white">
+              Start an OEM project
+            </h3>
+            <p class="mt-3 text-sm leading-relaxed text-slate-300">
+              Tell us about your product and we'll put together a development plan covering
+              design, tooling, manufacturing, and certification.
+            </p>
+            <a
+              href="/oem"
+              class="mt-6 inline-flex items-center gap-2 rounded-full bg-accent-500 px-6 py-3 text-base font-semibold text-brand-950 transition hover:bg-accent-400"
+            >
+              Start an OEM project
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <SiteFooter brand={brand} footer={footer} />
+</BaseLayout>

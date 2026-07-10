@@ -1,0 +1,44 @@
+---
+/**
+ * Factory capability section — heritage + stats.
+ */
+import type { SiteContent } from '../i18n/site.ts';
+import type { StatItem } from '../i18n/site.ts';
+
+interface Props {
+  factory: SiteContent['factorySection'];
+}
+
+const { factory } = Astro.props;
+---
+
+<section class="bg-surface-alt py-20 sm:py-28">
+  <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
+    <div class="grid gap-12 lg:grid-cols-2 lg:items-center">
+      <div class="reveal">
+        <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
+          {factory.eyebrow}
+        </p>
+        <h2 class="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl">
+          {factory.heading}
+        </h2>
+        <p class="mt-6 text-lg leading-relaxed text-ink-soft">
+          {factory.body}
+        </p>
+      </div>
+
+      <div class="reveal grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-2">
+        {factory.stats.map((stat: StatItem) => (
+          <div class="rounded-[var(--radius-card)] border border-black/5 bg-surface p-6 text-center shadow-[var(--shadow-card)]">
+            <div class="font-display text-3xl font-bold text-brand-600">
+              {stat.value}
+            </div>
+            <div class="mt-2 text-sm font-medium text-ink-soft">
+              {stat.label}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</section>

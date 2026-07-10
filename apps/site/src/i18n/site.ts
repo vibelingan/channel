@@ -32,6 +32,23 @@ export interface FooterColumn {
   links: CtaLink[];
 }
 
+export interface IconCard {
+  title: string;
+  description: string;
+  icon: string;
+}
+
+export interface StatItem {
+  value: string;
+  label: string;
+}
+
+export interface ProductTeaserItem {
+  name: string;
+  tagline: string;
+  msrp: string;
+}
+
 export interface SiteContent {
   locale: string;
   label: string;
@@ -53,7 +70,45 @@ export interface SiteContent {
     secondaryCta: CtaLink;
     scrollLabel: string;
   };
-  sections: ContentSection[];
+  aiShowcase: {
+    eyebrow: string;
+    heading: string;
+    cards: IconCard[];
+  };
+  services: {
+    eyebrow: string;
+    heading: string;
+    intro: string;
+    items: IconCard[];
+  };
+  teardownTeaser: {
+    eyebrow: string;
+    heading: string;
+    description: string;
+    stats: StatItem[];
+    cta: CtaLink;
+  };
+  blueOceanTeaser: {
+    eyebrow: string;
+    heading: string;
+    description: string;
+    products: ProductTeaserItem[];
+    cta: CtaLink;
+  };
+  factorySection: {
+    eyebrow: string;
+    heading: string;
+    body: string;
+    stats: StatItem[];
+  };
+  ctaSection: {
+    heading: string;
+    description: string;
+    primaryCta: CtaLink;
+    secondaryCta: CtaLink;
+  };
+  /** Legacy sections (kept for backward compat — not used on new homepage) */
+  sections?: ContentSection[];
   footer: {
     blurb: string;
     columns: FooterColumn[];
