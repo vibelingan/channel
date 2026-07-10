@@ -39,9 +39,10 @@ export const LOGIN_RATE_MAX_PER_SOURCE = 10;
 export const LOGIN_RATE_MAX_GLOBAL = 300;
 
 /**
- * Password recovery. Rotates a live credential + emails it, so it is kept tight
- * per source; the endpoint ALSO keeps a per-account cooldown (`lastRecoverAt`)
- * so a victim's password cannot be churned even from many sources.
+ * Password recovery (issues a single-use reset token; never mutates the account).
+ * Kept tight per source to bound reset-email volume / SMTP reputation. The token
+ * TTL + single-use consumption are the primary bounds — there is no per-account
+ * cooldown because nothing destructive happens on the unauthenticated call.
  */
 export const RECOVER_RATE_MAX_PER_SOURCE = 5;
 export const RECOVER_RATE_MAX_GLOBAL = 60;

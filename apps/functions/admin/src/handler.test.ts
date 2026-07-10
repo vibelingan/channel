@@ -1313,6 +1313,83 @@ test('passwordResets is admin-only and tokenHash is not queryable', async () => 
   );
 });
 
+/** Seed a live reset token bound to `resetUser()` and return the raw token. */
+function seedResetToken(rawToken: string, overrides: Partial<CollectionDoc> = {}): Store {
+  const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+  return setup({
+    users: [resetUser()],
+    passwordResets: [
+      {
+        _id: 'pr-seed',
+        userId: 'users-1',
+        tokenHash,
+        expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+        consumeClaim: 0,
+        ...overrides,
+      },
+    ],
+  });
+}
+
+test('resetPassword: the new password actually works in a subsequent login (end-to-end)', async () => {
+  const rawToken = 'e'.repeat(64);
+  seedResetToken(rawToken);
+  assert.equal(
+    (await callPublic('resetPassword', { token: rawToken, newPassword: 'new-pw-123' })).ok,
+    true,
+  );
+  // Prove the hash resetPassword wrote is a real, login-usable argon2id hash.
+  const loginRes = await callPublic('login', { email: 'user@example.com', password: 'new-pw-123' });
+  const data = okData<{ token: string; user: { id: string } }>(loginRes);
+  assert.equal(data.user.id, 'users-1');
+  assert.equal(typeof data.token, 'string');
+});
+
+test('resetPassword: a user deleted AFTER the token was issued is rejected (token burned, no write)', async () => {
+  const rawToken = 'f'.repeat(64);
+  const store = seedResetToken(rawToken);
+  store.users = []; // account removed after the token was minted
+  expectErr(
+    await callPublic('resetPassword', { token: rawToken, newPassword: 'x'.repeat(8) }),
+    'BAD_REQUEST',
+  );
+  // The claim was consumed (burned) so the token cannot be retried.
+  assert.equal(store.passwordResets?.[0]?.consumeClaim, 1);
+});
+
+test('resetPassword: two concurrent consumes of the same token — exactly one wins (CAS)', async () => {
+  // Both requests pass the advisory pre-check (consumeClaim 0) and race the atomic
+  // increment; only the winner (claim===1) sets a password. (The in-memory adapter
+  // is synchronous, so this exercises the pre-check→CAS ordering deterministically;
+  // the real single-winner guarantee lives in CloudBase's atomic db.command.inc.)
+  const rawToken = 'g'.repeat(64);
+  const store = seedResetToken(rawToken);
+  const results = await Promise.allSettled([
+    callPublic('resetPassword', { token: rawToken, newPassword: 'pw-alpha' }),
+    callPublic('resetPassword', { token: rawToken, newPassword: 'pw-beta' }),
+  ]);
+  const ok = results.filter((r) => r.status === 'fulfilled' && r.value.ok);
+  assert.equal(ok.length, 1, 'exactly one reset succeeds');
+  // consumeClaim ends >= 1 (winner flipped 0→1; the loser's increment bumps it
+  // further and is rejected on claim !== 1) — the point is that only the 0→1
+  // winner sets a password.
+  assert.ok((store.passwordResets?.[0]?.consumeClaim as number) >= 1);
+  // Exactly ONE of the two passwords is now active (not both).
+  const hash = store.users?.[0]?.passwordHash as string;
+  const alpha = await verifyPassword(hash, 'pw-alpha');
+  const beta = await verifyPassword(hash, 'pw-beta');
+  assert.equal(Number(alpha) + Number(beta), 1, 'exactly one password is active');
+});
+
+test('recover message says "reset link", not the old "new password" copy', async () => {
+  setup({ users: [resetUser()] });
+  const data = okData<{ message: string }>(
+    await callPublic('recover', { email: 'user@example.com' }),
+  );
+  assert.match(data.message, /reset link/i);
+  assert.doesNotMatch(data.message, /new password/i);
+});
+
 test('list rejects a filter/sort on a redacted or unknown field (no extraction oracle)', async () => {
   setup({ users: [] });
   const token = await adminToken();

@@ -781,10 +781,14 @@ async function resetPassword(
   const userId = typeof row.userId === 'string' ? row.userId : '';
   if (!Number.isFinite(expiresMs) || expiresMs <= Date.now()) return invalid;
   if (userId.length === 0) return invalid; // inert (unknown-email) token
-  if (typeof row.consumeClaim === 'number' && row.consumeClaim > 0) return invalid; // already used
+  // Advisory fast-path only (a corrupt/already-used row rejects cheaply). It does
+  // NOT provide the single-use guarantee — the atomic CAS below is the sole gate.
+  if (typeof row.consumeClaim === 'number' && row.consumeClaim > 0) return invalid;
 
-  // Consume-once ATOMIC single-winner claim: only the request that flips
-  // consumeClaim 0→1 proceeds; a concurrent replay gets >1 and loses.
+  // Consume-once ATOMIC single-winner claim — the ONLY enforcement of single use.
+  // Only the request that flips consumeClaim 0→1 proceeds to set the password; a
+  // concurrent replay increments to >1 and loses. A row deleted between the lookup
+  // and here returns null → reject. The password write happens ONLY after this.
   const claim = await incrementField('passwordResets', row._id, 'consumeClaim', 1);
   if (claim === null) return invalid;
   if (claim !== 1) return invalid;

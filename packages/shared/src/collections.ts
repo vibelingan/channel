@@ -393,6 +393,8 @@ export const COLLECTIONS: readonly CollectionDef[] = [
     // once via an atomic `consumeClaim` CAS. Only the token's SHA-256 is stored,
     // never the raw token. Every field is server-managed (readOnly) and the
     // collection is admin-only + hidden from nav (internal auth plumbing).
+    // NOTE (ops): `tokenHash` is looked up on every resetPassword — ensure a
+    // CloudBase index exists on it so consume latency doesn't grow with volume.
     description: 'Server-managed single-use password-reset tokens.',
     searchableFields: [],
     hideFromNav: true,
