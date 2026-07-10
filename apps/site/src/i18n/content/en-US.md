@@ -8,7 +8,7 @@ brand:
   logo: /media/logo-channel.svg
   logoInitials: DT
   minOrder: 'Minimum Order Amount: $500'
-  tagline: AI-Driven Supply Chain & Product Incubation
+  tagline: OEM / ODM Manufacturing Partner
 
 nav:
   items:
@@ -16,42 +16,25 @@ nav:
     - { label: Teardown Lab, href: '/teardown-lab' }
     - { label: Blue Ocean, href: '/blue-ocean' }
     - { label: OEM Development, href: '/oem' }
-    - { label: Sign In, href: '/admin', emphasis: true }
+    - { label: Sign In, href: '/login', emphasis: true }
 
 hero:
   eyebrow: Since 2004 · Hong Kong · Dongguan
-  heading: Empowering Global Brands via AI-Driven & Agile Supply Chain
+  heading: One-Stop OEM Manufacturing, From Idea to Shipment
   subheading: >-
-    From concept incubation to mass production — we transform ideas into
-    market-ready products with 20+ years of OEM/ODM expertise and cutting-edge
-    AI-driven supply chain intelligence.
-  primaryCta: { label: Explore Teardown Lab, href: '/teardown-lab' }
-  secondaryCta: { label: Blue Ocean Products, href: '/blue-ocean' }
-  scrollLabel: Discover more
-
-aiShowcase:
-  eyebrow: AI Core Capabilities
-  heading: Intelligence at every stage of your supply chain
-  cards:
-    - title: AI Trend Insight
-      description: Real-time analysis of crowdfunding data, market gaps, and consumer trends to identify blue-ocean opportunities before competitors.
-      icon: chart-line
-    - title: AI Cost Matrix
-      description: Precision BOM cost estimation powered by deep supply chain data from the Greater Bay Area manufacturing hub.
-      icon: calculator
-    - title: AI Supplier Optimization
-      description: Intelligent matching of components, materials, and manufacturers to optimize quality, cost, and lead time.
-      icon: network
-    - title: Agile Logistics
-      description: Low-MOQ market testing with flexible ODM models — from 2,000 units to full-scale mass production.
-      icon: truck
+    OEM/ODM Development | Factory Direct | Global Delivery.
+    Product design, engineering, tooling, production, quality control, and
+    global delivery — all managed by one accountable team.
+  primaryCta: { label: Start Your Project, href: '/oem' }
+  secondaryCta: { label: See Our Factory, href: '#factory' }
+  scrollLabel: Scroll to discover
 
 services:
   eyebrow: What We Do
-  heading: One-Stop OEM/ODM Development
+  heading: One-Stop OEM/ODM Development Services
   intro: From product concept to global delivery, we provide end-to-end manufacturing solutions across audio, smart toys, 3C electronics, and consumer goods.
   items:
-    - title: Product Development
+    - title: OEM Product Development
       description: Industrial design, mechanical engineering, circuit design, and prototyping
       icon: lightbulb
     - title: Mold & Manufacturing
@@ -64,6 +47,111 @@ services:
       description: Export logistics, customs clearance, and worldwide shipping from Hong Kong
       icon: globe
 
+oemProcess:
+  eyebrow: Our Process
+  heading: OEM Development Process
+  intro: A standardized 10-step workflow from initial sketches to quality-controlled mass production.
+  steps:
+    - label: Sketches
+      desc: Concept ideation
+    - label: Appearance Design
+      desc: Industrial design
+    - label: Mechanical Design
+      desc: Structural engineering
+    - label: Circuit Design
+      desc: PCBA schematic
+    - label: Prototyping
+      desc: First functional samples
+    - label: Mold Building
+      desc: Tooling development
+    - label: PCBA Mass Prod
+      desc: Board assembly
+    - label: Mold Test Shot
+      desc: First-article sampling
+    - label: Pilot Run
+      desc: Pre-production validation
+    - label: QC
+      desc: Quality control & sign-off
+
+factory:
+  eyebrow: Our Capability
+  heading: Factory & Team Strength
+  body: >-
+    Founded in 2004, Diversity Technology Limited is a trusted OEM/ODM
+    manufacturing partner with over 20 years of industry experience.
+    Headquartered in Hong Kong and supported by advanced production facilities
+    and engineering expertise in Dongguan, China, we deliver innovative and
+    reliable product solutions to customers worldwide.
+  stats:
+    - value: '20+'
+      label: Years Experience
+    - value: '40+'
+      label: Engineers
+    - value: '5000+'
+      label: m² Facility
+    - value: '40+'
+      label: Countries
+
+productCapability:
+  eyebrow: Product Capability
+  heading: Six Primary Product Families
+  intro: Two decades of manufacturing has built a deep, diversified supply chain. We develop across six primary product families — and the cross-pollination between them is exactly what lets us solve unusual briefs.
+  items:
+    - title: Plastic Products
+      description: Injection molding, tooling, and finishing for durable plastic parts
+      icon: cube
+    - title: Electronics
+      description: PCBA, embedded firmware, and full electronic device assembly
+      icon: chip
+    - title: Headphones
+      description: Acoustic tuning, wireless audio, and high-volume audio manufacturing
+      icon: headphone
+    - title: Consumer Goods
+      description: Home appliances, lifestyle products, and everyday consumer electronics
+      icon: home
+    - title: Hardware Products
+      description: Metal stamping, CNC machining, and precision hardware manufacturing
+      icon: wrench
+    - title: Promotional Products
+      description: Custom branded merchandise, giveaways, and promotional electronics
+      icon: gift
+
+whyChooseUs:
+  eyebrow: Why Choose Us
+  heading: A partner you can build on
+  intro: Choosing a manufacturer is choosing a long-term partner. Here is what makes brands trust us with their products year after year.
+  reasons:
+    - title: Flexible MOQ
+      description: Order quantities that scale with your stage, from pilot runs to volume production.
+      icon: scale
+    - title: Global Compliance Support
+      description: CE, FCC, RoHS, and market-specific certification guidance built in.
+      icon: certificate
+    - title: Dedicated Project Manager
+      description: One accountable contact from first quote to final shipment — no handoffs, no dropped balls.
+      icon: user-check
+
+certifications:
+  eyebrow: Certifications & Global Clients
+  heading: Trusted by brands worldwide
+  intro: Our products and processes are backed by international compliance certifications and product-level test reports.
+  complianceCerts:
+    - name: CE Certification
+      description: European conformity
+    - name: EMC Certification
+      description: Electromagnetic compatibility
+    - name: FCC Certification
+      description: U.S. Federal Communications Commission
+    - name: JD Certification
+      description: Quality & compliance verification
+  clientLogos:
+    - Artcoustic
+    - Audio Diversity
+    - CoreMee
+    - DI
+    - pabobo
+    - Education Institutions
+
 teardownTeaser:
   eyebrow: Market Insights
   heading: Teardown Lab — Reverse Engineering the Future
@@ -74,7 +162,7 @@ teardownTeaser:
   stats:
     - value: '3'
       label: Teardown Reports
-    - value: '78%'
+    - value: '67%'
       label: Avg. Hardware Margin
     - value: '20+'
       label: Years Supply Chain Data
@@ -99,25 +187,6 @@ blueOceanTeaser:
       msrp: '$229'
   cta: { label: Explore Concepts, href: '/blue-ocean' }
 
-factorySection:
-  eyebrow: Our Capability
-  heading: 20+ years of trusted manufacturing
-  body: >-
-    Founded in 2004, Diversity Technology Limited is a trusted OEM/ODM
-    manufacturing partner with over 20 years of industry experience.
-    Headquartered in Hong Kong and supported by advanced production facilities
-    and engineering expertise in Dongguan, China, we deliver innovative and
-    reliable product solutions to customers worldwide.
-  stats:
-    - value: '2004'
-      label: Founded
-    - value: '20+'
-      label: Years Experience
-    - value: '50+'
-      label: Global Clients
-    - value: '100%'
-      label: QC Tested
-
 ctaSection:
   heading: Ready to develop your next product?
   description: Send us your idea, drawing, or sample — our team will provide an OEM solution within 24 hours.
@@ -126,8 +195,8 @@ ctaSection:
 
 footer:
   blurb: >-
-    AI-driven supply chain & product incubation platform. Engineered in Hong
-    Kong, manufactured in Dongguan, China.
+    OEM/ODM manufacturing partner. Engineered in Hong Kong, manufactured in
+    Dongguan, China — from idea to shipment.
   columns:
     - heading: Company
       links:

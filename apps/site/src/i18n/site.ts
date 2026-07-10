@@ -43,10 +43,26 @@ export interface StatItem {
   label: string;
 }
 
+export interface WorkflowStepItem {
+  label: string;
+  desc?: string;
+}
+
 export interface ProductTeaserItem {
   name: string;
   tagline: string;
   msrp: string;
+}
+
+export interface ReasonItem {
+  title: string;
+  description: string;
+  icon: string;
+}
+
+export interface CertItem {
+  name: string;
+  description: string;
 }
 
 export interface SiteContent {
@@ -70,16 +86,42 @@ export interface SiteContent {
     secondaryCta: CtaLink;
     scrollLabel: string;
   };
-  aiShowcase: {
-    eyebrow: string;
-    heading: string;
-    cards: IconCard[];
-  };
   services: {
     eyebrow: string;
     heading: string;
     intro: string;
     items: IconCard[];
+  };
+  oemProcess: {
+    eyebrow: string;
+    heading: string;
+    intro: string;
+    steps: WorkflowStepItem[];
+  };
+  factory: {
+    eyebrow: string;
+    heading: string;
+    body: string;
+    stats: StatItem[];
+  };
+  productCapability: {
+    eyebrow: string;
+    heading: string;
+    intro: string;
+    items: IconCard[];
+  };
+  whyChooseUs: {
+    eyebrow: string;
+    heading: string;
+    intro: string;
+    reasons: ReasonItem[];
+  };
+  certifications: {
+    eyebrow: string;
+    heading: string;
+    intro: string;
+    complianceCerts: CertItem[];
+    clientLogos: string[];
   };
   teardownTeaser: {
     eyebrow: string;
@@ -94,12 +136,6 @@ export interface SiteContent {
     description: string;
     products: ProductTeaserItem[];
     cta: CtaLink;
-  };
-  factorySection: {
-    eyebrow: string;
-    heading: string;
-    body: string;
-    stats: StatItem[];
   };
   ctaSection: {
     heading: string;

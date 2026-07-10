@@ -2,14 +2,19 @@
  * Success Stories — case studies, client logos, and certifications.
  *
  * Each case study follows the STAR framework (Situation, Task, Action, Result)
- * and is displayed in full on the `/success-stories` listing page. Phase 1 keeps
- * the cases short enough that no dynamic detail pages are required.
+ * and is displayed in full on the `/success-stories` listing page.
+ *
+ * DATA INTEGRITY NOTE:
+ * - Client names are anonymised per the source materials ("a leading children's brand").
+ * - Metrics are marked as "Contact for details" where the client has not yet provided real numbers.
+ * - STAR Result sections reflect only what the source document states, without embellishment.
+ * - AS1/OP1/SC3/CS1 are product photos, NOT certifications — separated from compliance certs.
  */
 
 export interface Metric {
   /** Human-readable metric label, e.g. "Development Time". */
   label: string;
-  /** Metric value, e.g. "End-to-end" or "99.5%+ pass rate". */
+  /** Metric value, or "Contact for details" if not yet confirmed. */
   value: string;
 }
 
@@ -18,7 +23,7 @@ export interface CaseStudy {
   slug: string;
   /** Project / product display name. */
   title: string;
-  /** Client display name (may be anonymised). */
+  /** Client display name (anonymised unless client has approved public naming). */
   client: string;
   /** Product category for grouping/badging. */
   category: string;
@@ -56,7 +61,7 @@ export const caseStudies: CaseStudy[] = [
   {
     slug: 'childrens-sleep-training-clock',
     title: "Children's Sleep Training Clock",
-    client: 'Leading Children\u2019s Brand (pabobo)',
+    client: 'A leading children\u2019s brand',
     category: 'Consumer Goods',
     summary:
       'Complete OEM development of a sleep-training clock combining visual wake-up indicators, projection lighting, alarm functions, and a nightlight in a child-friendly design.',
@@ -67,7 +72,7 @@ export const caseStudies: CaseStudy[] = [
     action:
       'Our team provided complete OEM development services including industrial design, structural engineering, prototype validation, tooling development, mass production, and customized packaging. We managed the entire lifecycle from initial concept to retail-ready packaging through a seamless end-to-end development process.',
     result:
-      'The product successfully launched and is sold through major retail channels. The project demonstrated our ability to transform innovative concepts into market-ready consumer products.',
+      'The product was successfully developed and delivered. This project demonstrated our ability to transform innovative concepts into market-ready consumer products through comprehensive OEM development.',
     capabilities: [
       'Product Design',
       'Engineering Development',
@@ -77,11 +82,8 @@ export const caseStudies: CaseStudy[] = [
     ],
     metrics: [
       { label: 'Development Time', value: 'End-to-end' },
-      {
-        label: 'Functions',
-        value: '4-in-1 (Clock, Projector, Nightlight, Alarm)',
-      },
-      { label: 'Safety Compliance', value: 'CE/FCC certified' },
+      { label: 'Functions', value: '4-in-1 (Clock, Projector, Nightlight, Alarm)' },
+      { label: 'Safety Compliance', value: 'Contact for details' },
     ],
   },
   {
@@ -98,7 +100,7 @@ export const caseStudies: CaseStudy[] = [
     action:
       'Our scope included mechanical structure optimization, precision tooling, component production, assembly, quality control, and retail packaging. We applied precision engineering expertise to ensure the patented resurfacing mechanism worked flawlessly across thousands of units.',
     result:
-      'The successful launch demonstrated our capability to manufacture mechanically sophisticated consumer products with consistent quality and reliability at scale.',
+      'The product was successfully manufactured and delivered. This project demonstrated our capability to produce mechanically sophisticated consumer products with consistent quality and reliability at scale.',
     capabilities: [
       'Precision Engineering',
       'Mold Development',
@@ -109,7 +111,7 @@ export const caseStudies: CaseStudy[] = [
     metrics: [
       { label: 'Patented Mechanism', value: 'Yes' },
       { label: 'Disc Types', value: 'CD, DVD, Gaming Discs' },
-      { label: 'Quality Rate', value: '99.5%+ pass rate' },
+      { label: 'Quality Rate', value: 'Contact for details' },
     ],
   },
 ];
@@ -123,6 +125,7 @@ export const clientLogos: ClientLogo[] = [
   { name: 'Education Institutions' },
 ];
 
+/** Compliance certifications (not product photos). */
 export const certifications: Certification[] = [
   {
     name: 'CE Certification',
@@ -140,21 +143,25 @@ export const certifications: Certification[] = [
     name: 'JD Certification',
     description: 'Quality and compliance verification for retail channel distribution.',
   },
+];
+
+/** Product test reports / product photos (NOT compliance certifications). */
+export const productTestReports: Certification[] = [
   {
-    name: 'AS1 Speaker Product Cert',
-    description: 'Acoustic performance certification for speaker product lines.',
+    name: 'AS1 Speaker',
+    description: 'Acoustic performance test report for speaker product line.',
   },
   {
-    name: 'OP1 Gaming Headset Cert',
-    description: 'Performance and safety certification for gaming headset products.',
+    name: 'OP1 Gaming Headset',
+    description: 'Performance and safety test report for gaming headset product.',
   },
   {
-    name: 'SC3 Headphones Product Cert',
-    description: 'Product certification covering headphone electrical and acoustic specs.',
+    name: 'SC3 Headphones',
+    description: 'Product test report covering headphone electrical and acoustic specs.',
   },
   {
-    name: 'CS1 Speaker Product Cert',
-    description: 'Speaker product certification for component and system-level quality.',
+    name: 'CS1 Speaker',
+    description: 'Speaker product test report for component and system-level quality.',
   },
 ];
 

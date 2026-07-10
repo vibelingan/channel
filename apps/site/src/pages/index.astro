@@ -1,13 +1,16 @@
 ---
 import AIHero from '../components/AIHero.astro';
-import AIShowcase from '../components/AIShowcase.astro';
 import BlueOceanTeaser from '../components/BlueOceanTeaser.astro';
 import CTASection from '../components/CTASection.astro';
+import CertificationsSection from '../components/CertificationsSection.astro';
 import FactorySection from '../components/FactorySection.astro';
+import OemProcessSection from '../components/OemProcessSection.astro';
+import ProductCapabilitySection from '../components/ProductCapabilitySection.astro';
 import ServiceGridSection from '../components/ServiceGridSection.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import TeardownTeaser from '../components/TeardownTeaser.astro';
+import WhyChooseUsSection from '../components/WhyChooseUsSection.astro';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
 import BaseLayout from '../layouts/BaseLayout.astro';
 
@@ -16,11 +19,14 @@ const {
   brand,
   nav,
   hero,
-  aiShowcase,
   services,
+  oemProcess,
+  factory,
+  productCapability,
+  whyChooseUs,
+  certifications,
   teardownTeaser,
   blueOceanTeaser,
-  factorySection,
   ctaSection,
   footer,
 } = content;
@@ -30,12 +36,32 @@ const {
   <SiteHeader brand={brand} nav={nav} />
 
   <main>
+    {/* P2: Hero — One-stop OEM manufacturing */}
     <AIHero hero={hero} />
-    <AIShowcase showcase={aiShowcase} />
+
+    {/* P3: What We Do — 4 service modules */}
     <ServiceGridSection services={services} />
+
+    {/* P4: OEM Development Process — 10-step workflow */}
+    <OemProcessSection process={oemProcess} />
+
+    {/* P5: Factory & Team Strength */}
+    <FactorySection factory={factory} />
+
+    {/* P6: Product Capability — 6 product families */}
+    <ProductCapabilitySection capability={productCapability} />
+
+    {/* P7: Why Choose Us */}
+    <WhyChooseUsSection why={whyChooseUs} />
+
+    {/* P8: Certifications & Global Clients */}
+    <CertificationsSection certs={certifications} />
+
+    {/* Content teasers — Teardown Lab & Blue Ocean */}
     <TeardownTeaser teaser={teardownTeaser} />
     <BlueOceanTeaser teaser={blueOceanTeaser} />
-    <FactorySection factory={factorySection} />
+
+    {/* P9: CTA */}
     <CTASection cta={ctaSection} />
   </main>
 

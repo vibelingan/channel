@@ -1,6 +1,7 @@
 ---
 /**
- * AI-driven hero section with dark sci-tech gradient background.
+ * Hero section — OEM manufacturing, dark sci-tech gradient background.
+ * Per PPTX: "One-stop OEM manufacturing, from idea to shipment"
  */
 import type { SiteContent } from '../i18n/site.ts';
 
@@ -39,7 +40,7 @@ const { hero } = Astro.props;
       <div class="reveal mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
         <a
           href={hero.primaryCta.href}
-          class="inline-flex items-center justify-center rounded-full bg-brand-500 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-brand-500/30 transition hover:bg-brand-400 hover:shadow-xl hover:shadow-brand-500/40"
+          class="inline-flex items-center justify-center rounded-full bg-accent-500 px-8 py-3.5 text-base font-semibold text-brand-950 shadow-lg shadow-accent-500/30 transition hover:bg-accent-400 hover:shadow-xl hover:shadow-accent-500/40"
         >
           {hero.primaryCta.label}
           <svg class="ml-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">

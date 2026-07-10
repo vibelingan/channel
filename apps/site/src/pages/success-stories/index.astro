@@ -3,7 +3,12 @@ import CaseStudyCard from '../../components/CaseStudyCard.astro';
 import PageHero from '../../components/PageHero.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
-import { caseStudies, certifications, clientLogos } from '../../data/successStories.ts';
+import {
+  caseStudies,
+  certifications,
+  clientLogos,
+  productTestReports,
+} from '../../data/successStories.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../../i18n/site.ts';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 
@@ -135,6 +140,41 @@ const totalCerts = certifications.length;
               </span>
               <h3 class="mt-3 font-display text-base font-bold text-ink">{cert.name}</h3>
               <p class="mt-2 text-sm leading-relaxed text-ink-soft">{cert.description}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+
+    <!-- Product test reports (NOT compliance certifications) -->
+    <section class="bg-surface-alt py-16 sm:py-20">
+      <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
+        <div class="reveal mb-10 max-w-2xl">
+          <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
+            Product Validation
+          </p>
+          <h2 class="mt-3 font-display text-2xl font-bold text-ink sm:text-3xl">
+            Product test reports
+          </h2>
+          <p class="mt-3 text-lg leading-relaxed text-ink-soft">
+            Beyond compliance certifications, individual product lines undergo
+            rigorous testing for performance, safety, and reliability.
+          </p>
+        </div>
+
+        <ul class="reveal grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {productTestReports.map((report) => (
+            <li
+              class="flex h-full flex-col rounded-[var(--radius-card)] border border-slate-200 bg-surface p-5 shadow-[var(--shadow-card)]"
+            >
+              <span class="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-brand-700 self-start">
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Test Report
+              </span>
+              <h3 class="mt-3 font-display text-base font-bold text-ink">{report.name}</h3>
+              <p class="mt-2 text-sm leading-relaxed text-ink-soft">{report.description}</p>
             </li>
           ))}
         </ul>
