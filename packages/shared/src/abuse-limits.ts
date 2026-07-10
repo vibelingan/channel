@@ -55,8 +55,25 @@ export const SUBMIT_PROJECT_RATE_MAX_PER_SOURCE = 5;
 export const SUBMIT_PROJECT_RATE_MAX_GLOBAL = 60;
 
 /**
+ * Token-gated password reset (`resetPassword` consumes a reset token). Throttled
+ * per source so an attacker cannot brute-force reset tokens; the short token TTL
+ * + single-use consumption are the primary bounds, this is defense in depth.
+ */
+export const RESET_PASSWORD_RATE_MAX_PER_SOURCE = 5;
+export const RESET_PASSWORD_RATE_MAX_GLOBAL = 60;
+
+/**
  * How many stale `rateLimitHits` rows a single request may opportunistically
  * reap (rows whose window has already elapsed can never be counted again).
  * Bounded so the self-heal GC never turns one request into a large delete storm.
  */
 export const RATE_LIMIT_HITS_SWEEP_LIMIT = 20;
+
+/**
+ * Lifetime of a single-use password-reset token (`passwordResets`). Short so a
+ * leaked/guessed token has a small window; a real user resets promptly. 30 min.
+ */
+export const PASSWORD_RESET_TTL_MS = 30 * 60 * 1000;
+
+/** Bounded opportunistic GC of expired `passwordResets` rows per request. */
+export const PASSWORD_RESET_SWEEP_LIMIT = 20;

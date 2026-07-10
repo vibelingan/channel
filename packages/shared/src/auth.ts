@@ -47,8 +47,12 @@ export function canManageUsers(role: Role): boolean {
  * then it is only inspected for debugging; the endpoints manage it themselves).
  */
 function isAdminOnlyCollection(collection: string): boolean {
-  // `users` holds entitlement; `rateLimitHits` is internal abuse-control state.
-  return collection === 'users' || collection === 'rateLimitHits';
+  // `users` holds entitlement; `rateLimitHits` and `passwordResets` are internal
+  // auth/abuse-control state (source hashes, reset-token hashes) that no content
+  // role should read or mutate through generic CRUD.
+  return (
+    collection === 'users' || collection === 'rateLimitHits' || collection === 'passwordResets'
+  );
 }
 
 /** Can the role create/update/remove a given collection via the admin API? */

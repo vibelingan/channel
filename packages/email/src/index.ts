@@ -76,18 +76,23 @@ export async function sendMail(input: SendMailInput): Promise<boolean> {
   }
 }
 
-export interface RecoveryEmailData {
+export interface PasswordResetEmailData {
   to: string;
   username: string;
-  newPassword: string;
-  loginUrl: string;
+  /** Full reset link with the single-use token in the query string. */
+  resetUrl: string;
 }
 
-/** Send a password-recovery email containing the freshly generated password. */
-export function sendRecoveryEmail(data: RecoveryEmailData): Promise<boolean> {
-  const subject = 'Your Channel Portal password has been reset';
-  const text = `Hi ${data.username},\n\nYour password has been reset. Use the temporary password below to sign in, then change it from your account page.\n\n  Temporary password: ${data.newPassword}\n\nSign in: ${data.loginUrl}\n\nIf you did not request this, please contact us immediately.`;
-  const html = `<div style="font-family:system-ui,sans-serif;max-width:480px;margin:auto"><h2 style="color:#1f2a73">Password reset</h2><p>Hi ${escapeHtml(data.username)},</p><p>Your password has been reset. Use the temporary password below to sign in, then change it from your account page.</p><p style="font-size:18px;font-weight:700;background:#f6f8fc;padding:12px 16px;border-radius:8px;letter-spacing:1px">${escapeHtml(data.newPassword)}</p><p><a href="${data.loginUrl}" style="color:#3f51c4">Sign in to Channel Portal</a></p><p style="color:#64748b;font-size:13px">If you did not request this, please contact us immediately.</p></div>`;
+/**
+ * Send a password-reset email containing a time-limited, single-use LINK (never
+ * a password). The link carries the raw reset token; consuming it at
+ * `resetPassword` is what actually sets a new password — this endpoint never
+ * mutates the account, so a lost email is a harmless retry, not a lockout.
+ */
+export function sendPasswordResetEmail(data: PasswordResetEmailData): Promise<boolean> {
+  const subject = 'Reset your Channel Portal password';
+  const text = `Hi ${data.username},\n\nWe received a request to reset your Channel Portal password. Open the link below to choose a new password. It expires soon and can be used once.\n\n  ${data.resetUrl}\n\nIf you did not request this, you can safely ignore this email — your password stays unchanged.`;
+  const html = `<div style="font-family:system-ui,sans-serif;max-width:480px;margin:auto"><h2 style="color:#1f2a73">Reset your password</h2><p>Hi ${escapeHtml(data.username)},</p><p>We received a request to reset your Channel Portal password. Choose a new password using the button below — the link expires soon and can be used once.</p><p style="margin:24px 0"><a href="${escapeHtml(data.resetUrl)}" style="background:#3f51c4;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600">Choose a new password</a></p><p style="color:#64748b;font-size:13px">If you did not request this, you can safely ignore this email — your password stays unchanged.</p></div>`;
   return sendMail({ to: data.to, subject, html, text });
 }
 

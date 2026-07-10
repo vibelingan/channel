@@ -1,0 +1,18 @@
+---
+import AuthShell from '../components/AuthShell.astro';
+import { getSiteContent } from '../i18n/site.ts';
+import { ResetForm } from '../islands/auth/ResetForm.tsx';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const { brand } = getSiteContent();
+---
+
+<BaseLayout
+  title={`Reset password — ${brand.name}`}
+  description="Choose a new password for your Channel portal account."
+  lang="en"
+>
+  <AuthShell title={`© 2004–2026 ${brand.name}`}>
+    <ResetForm client:load />
+  </AuthShell>
+</BaseLayout>

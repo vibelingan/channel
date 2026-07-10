@@ -23,6 +23,9 @@ setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 const config: AdminHttpConfig = {
   jwtSecret: requireEnv('JWT_SECRET'),
   ...(optionalEnv('LOGIN_URL') ? { loginUrl: optionalEnv('LOGIN_URL') } : {}),
+  ...(optionalEnv('RESET_PASSWORD_URL')
+    ? { resetPasswordUrl: optionalEnv('RESET_PASSWORD_URL') }
+    : {}),
   bootstrap: {
     enabled: optionalEnv('BOOTSTRAP_ENABLED') === '1',
     adminToken: optionalEnv('BOOTSTRAP_ADMIN_TOKEN'),

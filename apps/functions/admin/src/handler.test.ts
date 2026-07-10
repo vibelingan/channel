@@ -3,7 +3,7 @@ import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { type SessionClaims, signSession } from '@vibelingan-channel/auth/jwt';
-import { hashPassword } from '@vibelingan-channel/auth/password';
+import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password';
 import {
   type AdapterListQuery,
   type DbAdapter,
@@ -27,6 +27,7 @@ import {
   OEM_LEGACY_DRAWING_MAX_BASE64_CHARS,
   OEM_MAX_PENDING_INTENTS_PER_SOURCE,
   RECOVER_RATE_MAX_PER_SOURCE,
+  RESET_PASSWORD_RATE_MAX_PER_SOURCE,
   SUBMIT_PROJECT_RATE_MAX_GLOBAL,
   SUBMIT_PROJECT_RATE_MAX_PER_SOURCE,
   compareBySort,
@@ -1134,25 +1135,182 @@ test('completeUpload: a null activation (row removed mid-flight) fails + deletes
   assert.deepEqual(fake.deleted, [storageFileId]);
 });
 
-test('recover does NOT rotate the password when delivery fails (unconfigured SMTP must not lock the user out)', async () => {
+// --- Password reset: token issuance + consume-once (timing-safe recover) -----
+
+function resetUser(overrides: Partial<CollectionDoc> = {}): CollectionDoc {
+  return {
+    _id: 'users-1',
+    email: 'user@example.com',
+    username: 'user',
+    role: '',
+    status: 'active',
+    passwordHash: 'ORIGINAL-HASH',
+    ...overrides,
+  };
+}
+
+test('recover NEVER mutates the password and issues a single-use token for a known email', async () => {
+  const store = setup({ users: [resetUser()] });
+  const res = await callPublic('recover', { email: 'user@example.com' });
+  assert.equal(res.ok, true);
+  assert.equal(store.users?.[0]?.passwordHash, 'ORIGINAL-HASH'); // never rotated
+  const rows = store.passwordResets ?? [];
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]?.userId, 'users-1');
+  assert.equal(rows[0]?.consumeClaim, 0);
+  assert.equal(typeof rows[0]?.tokenHash, 'string');
+  assert.equal((rows[0]?.tokenHash as string).length, 64); // sha256 hex, not the raw token
+});
+
+test('recover: known and unknown email do EQUAL observable work (no enumeration by side effect)', async () => {
+  // Known email.
+  const known = setup({ users: [resetUser()] });
+  const kres = await callPublic('recover', { email: 'user@example.com' });
+  // Unknown email — same store shape, no matching user.
+  const unknown = setup({ users: [resetUser({ email: 'someone@else.com' })] });
+  const ures = await callPublic('recover', { email: 'nobody@example.com' });
+
+  // Identical response…
+  assert.deepEqual(kres, ures);
+  // …identical side effect: exactly ONE passwordResets row written in BOTH cases,
+  // and no user mutated. The unknown-email row is inert (empty userId).
+  assert.equal((known.passwordResets ?? []).length, 1);
+  assert.equal((unknown.passwordResets ?? []).length, 1);
+  assert.equal((known.passwordResets ?? [])[0]?.userId, 'users-1');
+  assert.equal((unknown.passwordResets ?? [])[0]?.userId, ''); // inert token
+  assert.equal(unknown.users?.[0]?.passwordHash, 'ORIGINAL-HASH');
+});
+
+test('resetPassword consumes a valid token, sets the new hash, and rejects replay', async () => {
+  // Drive the token through a KNOWN sha256 by writing the row directly (the raw
+  // token → tokenHash mapping is what resetPassword verifies).
+  const rawToken = 'a'.repeat(64);
+  const tokenHash = createHash('sha256').update(rawToken).digest('hex');
   const store = setup({
-    users: [
+    users: [resetUser()],
+    passwordResets: [
       {
-        _id: 'users-1',
-        email: 'user@example.com',
-        username: 'user',
-        role: '',
-        status: 'active',
-        passwordHash: 'ORIGINAL-HASH',
+        _id: 'pr-1',
+        userId: 'users-1',
+        tokenHash,
+        expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+        consumeClaim: 0,
       },
     ],
   });
-  // No EMAIL_* env in the test env → sendRecoveryEmail returns false. The
-  // response stays uniform (anti-enumeration) but the stored hash is untouched.
-  const res = await call('recover', { email: 'user@example.com' }, '');
+  const res = await callPublic('resetPassword', { token: rawToken, newPassword: 'brand-new-pw' });
   assert.equal(res.ok, true);
+  const hash = store.users?.[0]?.passwordHash as string;
+  assert.notEqual(hash, 'ORIGINAL-HASH');
+  assert.equal(await verifyPassword(hash, 'brand-new-pw'), true);
+  assert.equal(store.passwordResets?.[0]?.consumeClaim, 1); // consumed
+  // Replay the SAME token → rejected by the consume-once CAS.
+  expectErr(
+    await callPublic('resetPassword', { token: rawToken, newPassword: 'second-attempt' }),
+    'BAD_REQUEST',
+  );
+});
+
+test('resetPassword rejects an expired token (TTL) without touching the password', async () => {
+  const rawToken = 'b'.repeat(64);
+  const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+  const store = setup({
+    users: [resetUser()],
+    passwordResets: [
+      {
+        _id: 'pr-x',
+        userId: 'users-1',
+        tokenHash,
+        expiresAt: new Date(Date.now() - 1000).toISOString(), // already expired
+        consumeClaim: 0,
+      },
+    ],
+  });
+  expectErr(
+    await callPublic('resetPassword', { token: rawToken, newPassword: 'x'.repeat(8) }),
+    'BAD_REQUEST',
+  );
   assert.equal(store.users?.[0]?.passwordHash, 'ORIGINAL-HASH');
-  assert.equal(store.users?.[0]?.lastRecoverAt, undefined);
+});
+
+test('resetPassword rejects an unknown token and an inert (empty-userId) token', async () => {
+  const rawToken = 'c'.repeat(64);
+  const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+  const store = setup({
+    users: [resetUser()],
+    passwordResets: [
+      {
+        _id: 'pr-inert',
+        userId: '', // inert token an unknown-email recover wrote
+        tokenHash,
+        expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+        consumeClaim: 0,
+      },
+    ],
+  });
+  // Unknown token.
+  expectErr(
+    await callPublic('resetPassword', { token: 'z'.repeat(64), newPassword: 'x'.repeat(8) }),
+    'BAD_REQUEST',
+  );
+  // Inert token (matches a row, but no user bound) → also rejected.
+  expectErr(
+    await callPublic('resetPassword', { token: rawToken, newPassword: 'x'.repeat(8) }),
+    'BAD_REQUEST',
+  );
+  assert.equal(store.users?.[0]?.passwordHash, 'ORIGINAL-HASH');
+});
+
+test('resetPassword is rate-limited per source', async () => {
+  setup({ users: [resetUser()], passwordResets: [] });
+  const attempt = () =>
+    callPublic(
+      'resetPassword',
+      { token: 'no-such-token', newPassword: 'x'.repeat(8) },
+      { sourceIp: '9.9.9.9' },
+    );
+  for (let i = 0; i < RESET_PASSWORD_RATE_MAX_PER_SOURCE; i += 1) {
+    expectErr(await attempt(), 'BAD_REQUEST'); // invalid token, but within the cap
+  }
+  expectErr(await attempt(), 'RATE_LIMITED'); // (cap+1)th from the same source
+});
+
+test('passwordResets is admin-only and tokenHash is not queryable', async () => {
+  setup({
+    users: [],
+    passwordResets: [
+      {
+        _id: 'p1',
+        userId: 'u',
+        tokenHash: 'h',
+        expiresAt: new Date().toISOString(),
+        consumeClaim: 0,
+      },
+    ],
+  });
+  const contributor = await sessionToken({
+    sub: 'c-pr',
+    email: 'cpr@example.com',
+    name: 'cpr',
+    role: 'contributor',
+  });
+  expectErr(await call('list', { collection: 'passwordResets' }, contributor), 'FORBIDDEN');
+  expectErr(
+    await call('remove', { collection: 'passwordResets', id: 'p1' }, contributor),
+    'FORBIDDEN',
+  );
+  const admin = await adminToken();
+  expectErr(
+    await call(
+      'list',
+      {
+        collection: 'passwordResets',
+        filter: { clauses: [{ field: 'tokenHash', op: 'startsWith', value: 'h' }] },
+      },
+      admin,
+    ),
+    'BAD_REQUEST',
+  );
 });
 
 test('list rejects a filter/sort on a redacted or unknown field (no extraction oracle)', async () => {

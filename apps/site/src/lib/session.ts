@@ -122,6 +122,12 @@ export async function recover(email: string): Promise<string> {
   return message;
 }
 
+/** Consume a single-use reset token and set a new password. */
+export async function resetPassword(token: string, newPassword: string): Promise<string> {
+  const { message } = await callApi<{ message: string }>('resetPassword', { token, newPassword });
+  return message;
+}
+
 export async function updateProfile(username: string): Promise<SessionUser> {
   const { token, user } = await callApi<AuthResult>('updateProfile', { username });
   setSession(token, user);
