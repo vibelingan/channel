@@ -57,7 +57,7 @@ export function AuthForm({ mode, returnTo }: Props) {
     : mode === 'register'
       ? 'Create your account'
       : 'Sign in';
-  const cta = forgot ? 'Send new password' : mode === 'register' ? 'Create account' : 'Sign in';
+  const cta = forgot ? 'Send reset link' : mode === 'register' ? 'Create account' : 'Sign in';
 
   return (
     <form onSubmit={handleSubmit} noValidate className="w-full">

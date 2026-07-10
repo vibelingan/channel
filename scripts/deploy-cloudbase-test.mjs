@@ -27,6 +27,7 @@ const apiUrl = trimSlash(
 );
 const corsAllowedOrigins = process.env.CORS_ALLOWED_ORIGINS || `${siteUrl},http://localhost:4321`;
 const loginUrl = process.env.LOGIN_URL || `${siteUrl}/login`;
+const resetPasswordUrl = process.env.RESET_PASSWORD_URL || `${siteUrl}/reset`;
 const adminEmail = process.env.ADMIN_EMAIL || 'admin@channel.local';
 
 function trimSlash(value) {
@@ -436,6 +437,7 @@ const functionDefs = [
       BOOTSTRAP_ADMIN_TOKEN: optionalEnv('BOOTSTRAP_ADMIN_TOKEN'),
       CORS_ALLOWED_ORIGINS: corsAllowedOrigins,
       LOGIN_URL: loginUrl,
+      RESET_PASSWORD_URL: resetPasswordUrl,
       EMAIL_HOST: optionalEnv('EMAIL_HOST'),
       EMAIL_PORT: optionalEnv('EMAIL_PORT'),
       EMAIL_SECURE: optionalEnv('EMAIL_SECURE'),

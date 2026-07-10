@@ -17,11 +17,7 @@
 import { Buffer } from 'node:buffer';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { type SessionClaims, signSession, verifySession } from '@vibelingan-channel/auth/jwt';
-import {
-  generateRandomPassword,
-  hashPassword,
-  verifyPassword,
-} from '@vibelingan-channel/auth/password';
+import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password';
 import {
   UnknownCollectionError,
   backfillPublishedRefCounts,
@@ -37,7 +33,7 @@ import {
   update,
   updateDoc,
 } from '@vibelingan-channel/db';
-import { sendOemConfirmationEmail, sendRecoveryEmail } from '@vibelingan-channel/email';
+import { sendOemConfirmationEmail, sendPasswordResetEmail } from '@vibelingan-channel/email';
 import {
   type StoredMediaObject,
   catalogStoragePath,
@@ -64,10 +60,14 @@ import {
   OEM_UPLOAD_RATE_MAX_PER_WINDOW,
   OEM_UPLOAD_RATE_MAX_PER_WINDOW_GLOBAL,
   OEM_UPLOAD_RATE_WINDOW_MS,
+  PASSWORD_RESET_SWEEP_LIMIT,
+  PASSWORD_RESET_TTL_MS,
   PUBLIC_RATE_WINDOW_MS,
   RATE_LIMIT_HITS_SWEEP_LIMIT,
   RECOVER_RATE_MAX_GLOBAL,
   RECOVER_RATE_MAX_PER_SOURCE,
+  RESET_PASSWORD_RATE_MAX_GLOBAL,
+  RESET_PASSWORD_RATE_MAX_PER_SOURCE,
   type Role,
   SIGNATURE_MIME,
   SUBMIT_PROJECT_RATE_MAX_GLOBAL,
@@ -96,8 +96,10 @@ import { z } from 'zod';
 
 export interface AdminConfig {
   jwtSecret: string;
-  /** Absolute URL of the login page, used in recovery emails. */
+  /** Absolute URL of the login page, used in emails. */
   loginUrl?: string;
+  /** Absolute URL of the password-reset page; the reset token is appended as `?token=`. */
+  resetPasswordUrl?: string;
   bootstrap?: {
     enabled: boolean;
     adminToken?: string;
@@ -134,6 +136,10 @@ const loginSchema = z.object({
 });
 const bootstrapAdminSchema = z.object({ token: z.string().min(1).max(4096) });
 const recoverSchema = z.object({ email: z.string().email() });
+const resetPasswordSchema = z.object({
+  token: z.string().min(1).max(400),
+  newPassword: z.string().min(6).max(200),
+});
 const submitProjectSchema = z.object({
   company: z.string().min(1).max(200),
   contact: z.string().min(1).max(200),
@@ -207,8 +213,6 @@ const imagePreviewSchema = z.object({ id: z.string().min(1) });
 const oemFileDownloadSchema = z.object({ fileId: z.string().min(1) });
 
 const SESSION_TTL = 60 * 60 * 12;
-/** Min interval between password-recovery rotations for one account (DoS bound). */
-const RECOVER_COOLDOWN_MS = 15 * 60 * 1000;
 
 // --- Public-endpoint abuse control -----------------------------------------
 
@@ -490,6 +494,8 @@ export async function handleAdminRequest(
         return await bootstrapAdmin(req, config);
       case 'recover':
         return await recover(req, config, context);
+      case 'resetPassword':
+        return await resetPassword(req, context);
       case 'health':
         return ok(releaseInfo('admin'));
       case 'submitProject':
@@ -661,6 +667,35 @@ async function login(
   return ok({ token, user: publicUser(user) });
 }
 
+/** Bounded opportunistic GC of EXPIRED reset tokens (they can never be consumed). */
+async function sweepExpiredPasswordResets(nowIso: string): Promise<void> {
+  const stale = await list({
+    collection: 'passwordResets',
+    page: 1,
+    pageSize: PASSWORD_RESET_SWEEP_LIMIT,
+    filter: { combinator: 'and', clauses: [{ field: 'expiresAt', op: 'lt', value: nowIso }] },
+    sort: [{ field: 'expiresAt', dir: 'asc' }],
+  });
+  for (const row of stale.items) {
+    await remove('passwordResets', String(row._id)).catch((e) =>
+      console.error('[recover] expired-token reap failed', e),
+    );
+  }
+}
+
+/**
+ * Issue a time-limited, single-use password-reset TOKEN. Unlike the old flow this
+ * NEVER mutates the account, so it is non-destructive on an unauthenticated call.
+ *
+ * Anti-enumeration by EQUAL WORK: the response and its observable side effects are
+ * identical whether or not the email is registered. Both branches run the same
+ * rate-limit, the same user lookup, and write exactly ONE `passwordResets` row
+ * (known → bound to the user; unknown → an inert row with an empty `userId` that
+ * `resetPassword` can never consume). The only branch-specific step — sending the
+ * email — is FIRE-AND-FORGET, so it never contributes to response timing; a lost
+ * send is a harmless retry, not a lockout. This closes the previous timing oracle
+ * (a known email used to `await` a ~200ms SMTP send while an unknown returned fast).
+ */
 async function recover(
   req: AdminRequest,
   config: AdminConfig,
@@ -668,9 +703,6 @@ async function recover(
 ): Promise<ApiResult<unknown>> {
   const parsed = recoverSchema.safeParse(req.data);
   if (!parsed.success) return err('BAD_REQUEST', 'A valid email is required.');
-  // Per-SOURCE throttle bounds an attacker's total recovery volume (spam / SMTP
-  // reputation) regardless of which address they target; the per-ACCOUNT
-  // cooldown below independently bounds churn of any one victim's password.
   const limited = await enforceRateLimit({
     scope: 'recover',
     sourceHash: hashSource(context?.sourceIp),
@@ -679,50 +711,88 @@ async function recover(
     nowMs: Date.now(),
   });
   if (limited) return limited;
+
+  const now = Date.now();
+  await sweepExpiredPasswordResets(new Date(now).toISOString()).catch((e) =>
+    console.error('[recover] expired-token sweep failed', e),
+  );
+
   const email = parsed.data.email.toLowerCase();
   const user = await findByField('users', 'email', email);
+
+  // Mint a token + hash it in BOTH branches (equal work). Only the hash is stored.
+  const rawToken = `${randomUUID()}${randomUUID()}`.replace(/-/g, '');
+  const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+  // Write exactly one row in BOTH branches. Unknown-email rows carry an empty
+  // userId so they are inert (resetPassword requires a real userId), matching the
+  // write cost of the known branch for timing parity.
+  await createDoc('passwordResets', {
+    userId: user ? user._id : '',
+    tokenHash,
+    expiresAt: new Date(now + PASSWORD_RESET_TTL_MS).toISOString(),
+    consumeClaim: 0,
+  });
+
   if (user) {
-    // Per-account cooldown: this endpoint is unauthenticated and rotates a live
-    // password, so an attacker who knows an address could loop it to repeatedly
-    // invalidate the victim's password (lockout DoS) and flood their inbox.
-    // After a successful rotation, further calls within the window are no-ops,
-    // bounding the damage to one rotation per window. (The structural fix is a
-    // time-limited reset TOKEN that never mutates the hash on an unauthenticated
-    // call; tracked as a follow-up.)
-    const lastRecoverMs =
-      typeof user.lastRecoverAt === 'string' ? Date.parse(user.lastRecoverAt) : Number.NaN;
-    const withinCooldown =
-      Number.isFinite(lastRecoverMs) && Date.now() - lastRecoverMs < RECOVER_COOLDOWN_MS;
-    if (!withinCooldown) {
-      const newPassword = generateRandomPassword(12);
-      const passwordHash = await hashPassword(newPassword);
-      // Send-then-commit: deliver the new password FIRST and only rotate the
-      // stored hash if delivery succeeded. Otherwise an unconfigured/failed SMTP
-      // (sendMail → false) would destroy the user's working password while
-      // telling them a new one was sent — a silent lockout. On send failure we
-      // leave the existing password intact and log for the operator.
-      const sent = await sendRecoveryEmail({
-        to: email,
-        username: String(user.username ?? ''),
-        newPassword,
-        loginUrl: config.loginUrl ?? 'http://localhost:4321/login',
-      }).catch((e) => {
-        console.error('[recover] send failed:', e);
-        return false;
-      });
-      if (sent) {
-        await updateDoc('users', user._id, {
-          passwordHash,
-          lastRecoverAt: new Date().toISOString(),
-        }).catch((e) => console.error('[recover] password rotation commit failed:', e));
-      } else {
-        console.error('[recover] recovery email not delivered — password NOT rotated.');
-      }
-    }
+    // Fire-and-forget: delivery never blocks (or times) the response, and because
+    // nothing was mutated, a failed/unconfigured send just means the user retries.
+    const resetBase = config.resetPasswordUrl ?? 'http://localhost:4321/reset';
+    const resetUrl = `${resetBase}?token=${encodeURIComponent(rawToken)}`;
+    sendPasswordResetEmail({ to: email, username: String(user.username ?? ''), resetUrl }).catch(
+      (e) => console.error('[recover] reset email send failed:', e),
+    );
   }
-  // Always return the same response so the endpoint cannot probe which emails
-  // are registered.
-  return ok({ message: 'If that email is registered, a new password has been sent.' });
+
+  // Uniform response — the endpoint can never reveal which emails are registered.
+  return ok({ message: 'If that email is registered, a reset link has been sent.' });
+}
+
+/**
+ * Consume a single-use password-reset token and set a new password. Public but
+ * token-gated (the raw token is a secret only the email recipient holds). The
+ * consume-once gate is an ATOMIC `incrementField` CAS on `consumeClaim` (mirrors
+ * the OEM single-winner claim), so a replay / concurrent double-submit cannot set
+ * the password twice. Failures return a UNIFORM error (never revealing whether the
+ * token was unknown, expired, already used, or bound to no user).
+ */
+async function resetPassword(
+  req: AdminRequest,
+  context?: RequestContext,
+): Promise<ApiResult<unknown>> {
+  const parsed = resetPasswordSchema.safeParse(req.data);
+  if (!parsed.success) {
+    return err('VALIDATION_ERROR', 'A reset token and a new password (min 6 chars) are required.');
+  }
+  const limited = await enforceRateLimit({
+    scope: 'resetPassword',
+    sourceHash: hashSource(context?.sourceIp),
+    maxPerSource: RESET_PASSWORD_RATE_MAX_PER_SOURCE,
+    maxGlobal: RESET_PASSWORD_RATE_MAX_GLOBAL,
+    nowMs: Date.now(),
+  });
+  if (limited) return limited;
+
+  const invalid = err('BAD_REQUEST', 'This reset link is invalid or has expired.');
+  const tokenHash = createHash('sha256').update(parsed.data.token).digest('hex');
+  const row = await findByField('passwordResets', 'tokenHash', tokenHash);
+  if (!row) return invalid;
+
+  const expiresMs = typeof row.expiresAt === 'string' ? Date.parse(row.expiresAt) : Number.NaN;
+  const userId = typeof row.userId === 'string' ? row.userId : '';
+  if (!Number.isFinite(expiresMs) || expiresMs <= Date.now()) return invalid;
+  if (userId.length === 0) return invalid; // inert (unknown-email) token
+  if (typeof row.consumeClaim === 'number' && row.consumeClaim > 0) return invalid; // already used
+
+  // Consume-once ATOMIC single-winner claim: only the request that flips
+  // consumeClaim 0→1 proceeds; a concurrent replay gets >1 and loses.
+  const claim = await incrementField('passwordResets', row._id, 'consumeClaim', 1);
+  if (claim === null) return invalid;
+  if (claim !== 1) return invalid;
+
+  const user = await get('users', userId);
+  if (!user) return invalid; // the account was removed after the token was issued
+  await updateDoc('users', userId, { passwordHash: await hashPassword(parsed.data.newPassword) });
+  return ok({ message: 'Your password has been reset. You can now sign in.' });
 }
 
 /**
@@ -1078,6 +1148,8 @@ const NON_QUERYABLE_FIELDS = new Set([
   // be probeable via a startsWith/contains oracle (admin-only already, but keep
   // the read-side gate consistent).
   'sourceHash',
+  // Reset-token hash — never probeable (admin-only already; keep it airtight).
+  'tokenHash',
   'checksumSha256',
   'finalizeClaim',
   'data',

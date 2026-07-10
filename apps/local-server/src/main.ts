@@ -34,6 +34,7 @@ const TCB_ENV = optionalEnv('TCB_ENV', '');
 const config: AdminConfig = {
   jwtSecret: optionalEnv('JWT_SECRET', 'dev-secret-do-not-use-in-production'),
   loginUrl: optionalEnv('LOGIN_URL', 'http://localhost:4321/login'),
+  resetPasswordUrl: optionalEnv('RESET_PASSWORD_URL', 'http://localhost:4321/reset'),
 };
 
 const adapter = new JsonFileAdapter(DB_FILE);

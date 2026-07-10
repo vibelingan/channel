@@ -385,6 +385,25 @@ export const COLLECTIONS: readonly CollectionDef[] = [
     ],
   },
   {
+    name: 'passwordResets',
+    label: 'Password Resets',
+    // Single-use password-reset tokens. `recover` writes one row per request
+    // (bound to a user, or inert with an empty userId for an unknown email so
+    // both branches do equal work — timing parity); `resetPassword` consumes it
+    // once via an atomic `consumeClaim` CAS. Only the token's SHA-256 is stored,
+    // never the raw token. Every field is server-managed (readOnly) and the
+    // collection is admin-only + hidden from nav (internal auth plumbing).
+    description: 'Server-managed single-use password-reset tokens.',
+    searchableFields: [],
+    hideFromNav: true,
+    fields: [
+      { name: 'userId', label: 'User', type: 'string', readOnly: true },
+      { name: 'tokenHash', label: 'Token Hash', type: 'string', readOnly: true },
+      { name: 'expiresAt', label: 'Expires', type: 'date', readOnly: true },
+      { name: 'consumeClaim', label: 'Consume Claim', type: 'number', readOnly: true },
+    ],
+  },
+  {
     name: 'rateLimitHits',
     label: 'Rate-Limit Hits',
     // Abuse-control ledger for the UNAUTHENTICATED endpoints (login / recover /
