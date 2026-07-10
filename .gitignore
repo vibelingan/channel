@@ -12,7 +12,7 @@ playwright-report/
 test-results/
 
 # Local DB (file-backed mock for development)
-data/
+apps/local-server/data/
 *.local.json
 
 # Env

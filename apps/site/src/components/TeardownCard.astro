@@ -13,7 +13,6 @@ interface Props {
 
 const { report } = Astro.props;
 
-const isTotal = (label: string) => label.toLowerCase() === 'total';
 const currency = (value: number) =>
   `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 ---
