@@ -33,25 +33,40 @@ const iconPaths: Record<string, string> = {
       </p>
     </div>
 
-    <div class="mt-14 grid gap-6 md:grid-cols-3">
-      {why.reasons.map((reason: ReasonItem, i: number) => (
-        <div
-          class="reveal group rounded-[var(--radius-card)] border border-slate-200 bg-surface p-8 shadow-sm transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
-          style={`transition-delay: ${i * 80}ms`}
-        >
-          <div class="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-700 transition group-hover:bg-brand-700 group-hover:text-white">
-            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d={iconPaths[reason.icon] || iconPaths['scale']} />
-            </svg>
-          </div>
-          <h3 class="font-display text-lg font-semibold text-ink">
-            {reason.title}
-          </h3>
-          <p class="mt-3 text-sm leading-relaxed text-ink-soft">
-            {reason.description}
-          </p>
-        </div>
-      ))}
+    <div class="mt-14 grid items-center gap-10 lg:grid-cols-2">
+      {/* PPTX P7: team photo on the left (replaces the removed 15+/100+ stat cards) */}
+      <div class="reveal overflow-hidden rounded-[var(--radius-card)] shadow-[var(--shadow-card)] ring-1 ring-black/5">
+        <img
+          src="/media/oem/team/team.jpg"
+          alt="The Diversity Technology sales and engineering team"
+          loading="lazy"
+          class="h-full w-full object-cover"
+        />
+      </div>
+
+      {/* Reasons on the right */}
+      <ul class="flex flex-col gap-5">
+        {why.reasons.map((reason: ReasonItem, i: number) => (
+          <li
+            class="reveal group flex items-start gap-4 rounded-[var(--radius-card)] border border-slate-200 bg-surface p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)]"
+            style={`transition-delay: ${i * 80}ms`}
+          >
+            <div class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700 transition group-hover:bg-brand-700 group-hover:text-white">
+              <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d={iconPaths[reason.icon] || iconPaths['scale']} />
+              </svg>
+            </div>
+            <div>
+              <h3 class="font-display text-lg font-semibold text-ink">
+                {reason.title}
+              </h3>
+              <p class="mt-2 text-sm leading-relaxed text-ink-soft">
+                {reason.description}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   </div>
 </section>
