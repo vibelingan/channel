@@ -74,6 +74,7 @@ export interface SiteContent {
     /** Optional logo image path (e.g. an SVG wordmark). Falls back to initials. */
     logo?: string;
     logoInitials: string;
+    minOrder: string;
     tagline: string;
   };
   nav: { items: NavItem[] };
