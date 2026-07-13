@@ -31,8 +31,11 @@ export function AccountMenu({ dark = false }: Props) {
   if (!loggedIn || !user) {
     const link = dark ? 'text-white/90 hover:text-white' : 'text-ink-soft hover:text-brand-700';
     return (
-      <div className="flex items-center gap-1">
-        <a href="/login" className={`rounded-lg px-3 py-2 text-sm font-medium transition ${link}`}>
+      <div className="flex shrink-0 items-center gap-1">
+        <a
+          href="/login"
+          className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition ${link}`}
+        >
           Sign in
         </a>
         <a
