@@ -1,0 +1,82 @@
+---
+/**
+ * Factory & Team Strength — heritage + factory video + photo strip + stats
+ * (PPTX P5: "工厂视频 + 工厂照片滚动").
+ */
+import type { SiteContent } from '../i18n/site.ts';
+import type { StatItem } from '../i18n/site.ts';
+
+interface Props {
+  factory: SiteContent['factory'];
+}
+
+const { factory } = Astro.props;
+
+// Real factory floor photos (client-supplied — apps/site/public/media/oem/factory).
+const factoryPhotos = [
+  { src: '/media/oem/factory/f01.jpg', alt: '3D design and product development' },
+  { src: '/media/oem/factory/f02.jpg', alt: 'Precision mold tooling' },
+  { src: '/media/oem/factory/f03.jpg', alt: 'Production line' },
+  { src: '/media/oem/factory/f04.jpg', alt: 'Assembly workshop' },
+  { src: '/media/oem/factory/f05.jpg', alt: 'Manufacturing floor' },
+  { src: '/media/oem/factory/f06.jpg', alt: 'Factory facility' },
+  { src: '/media/oem/factory/f07.jpg', alt: 'Production workshop' },
+  { src: '/media/oem/factory/f08.jpg', alt: 'Quality inspection area' },
+  { src: '/media/oem/factory/f09.jpg', alt: 'Assembly line detail' },
+  { src: '/media/oem/factory/f10.jpg', alt: 'Engineering team at work' },
+];
+---
+
+<section id="factory" class="bg-surface-alt py-20 sm:py-28">
+  <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
+    <div class="grid gap-12 lg:grid-cols-2 lg:items-center">
+      <div class="reveal">
+        <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
+          {factory.eyebrow}
+        </p>
+        <h2 class="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl">
+          {factory.heading}
+        </h2>
+        <p class="mt-6 text-lg leading-relaxed text-ink-soft">
+          {factory.body}
+        </p>
+
+        <dl class="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+          {factory.stats.map((stat: StatItem) => (
+            <div class="rounded-[var(--radius-card)] border border-black/5 bg-surface p-5 text-center shadow-[var(--shadow-card)]">
+              <dt class="sr-only">{stat.label}</dt>
+              <dd class="font-display text-3xl font-bold text-brand-600">{stat.value}</dd>
+              <dd class="mt-2 text-sm font-medium text-ink-soft">{stat.label}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+
+      <div class="reveal overflow-hidden rounded-[var(--radius-card)] shadow-[var(--shadow-card)] ring-1 ring-black/5">
+        <video
+          class="aspect-video h-full w-full object-cover"
+          autoplay
+          muted
+          loop
+          playsinline
+          preload="metadata"
+          poster="/media/oem/factory-video-poster.jpg"
+        >
+          <source src="/media/oem/factory-video.mp4" type="video/mp4" />
+        </video>
+      </div>
+    </div>
+
+    {/* Factory photo strip — horizontal scroll */}
+    <div class="reveal mt-10 flex snap-x gap-4 overflow-x-auto pb-4 [scrollbar-width:thin]">
+      {factoryPhotos.map((photo) => (
+        <img
+          src={photo.src}
+          alt={photo.alt}
+          loading="lazy"
+          class="h-40 w-64 shrink-0 snap-start rounded-[var(--radius-card)] object-cover shadow-sm ring-1 ring-black/5 sm:h-48 sm:w-80"
+        />
+      ))}
+    </div>
+  </div>
+</section>

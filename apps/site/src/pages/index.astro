@@ -1,24 +1,76 @@
 ---
-import ContentSection from '../components/ContentSection.astro';
-import HeroVideo from '../components/HeroVideo.astro';
+import AIHero from '../components/AIHero.astro';
+import BlueOceanTeaser from '../components/BlueOceanTeaser.astro';
+import CTASection from '../components/CTASection.astro';
+import CertificationsSection from '../components/CertificationsSection.astro';
+import FactorySection from '../components/FactorySection.astro';
+import OemProcessSection from '../components/OemProcessSection.astro';
+import OurTeamSection from '../components/OurTeamSection.astro';
+import ProductCapabilitySection from '../components/ProductCapabilitySection.astro';
+import QualityTestingSection from '../components/QualityTestingSection.astro';
+import ServiceGridSection from '../components/ServiceGridSection.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
+import TeardownTeaser from '../components/TeardownTeaser.astro';
+import WhyChooseUsSection from '../components/WhyChooseUsSection.astro';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
 import BaseLayout from '../layouts/BaseLayout.astro';
 
-// Region/language is fixed to en-US for now. Add more locale markdown files
-// under src/i18n/content/ to support additional regions.
 const content = getSiteContent(DEFAULT_LOCALE);
-const { brand, nav, hero, sections, footer } = content;
+const {
+  brand,
+  nav,
+  hero,
+  services,
+  oemProcess,
+  factory,
+  productCapability,
+  whyChooseUs,
+  certifications,
+  teardownTeaser,
+  blueOceanTeaser,
+  ctaSection,
+  footer,
+} = content;
 ---
 
 <BaseLayout title={`${brand.name} — ${brand.tagline}`} description={hero.subheading} lang="en">
   <SiteHeader brand={brand} nav={nav} />
 
   <main>
-    <HeroVideo hero={hero} />
+    {/* P2: Hero — One-stop OEM manufacturing */}
+    <AIHero hero={hero} />
 
-    {sections.map((section, index) => <ContentSection section={section} index={index} />)}
+    {/* P3: What We Do — 4 service modules */}
+    <ServiceGridSection services={services} />
+
+    {/* P4: OEM Development Process — 10-step workflow */}
+    <OemProcessSection process={oemProcess} />
+
+    {/* P5: Factory & Team Strength */}
+    <FactorySection factory={factory} />
+
+    {/* Our Team — people & global presence */}
+    <OurTeamSection />
+
+    {/* P6: Product Capability — 6 product families */}
+    <ProductCapabilitySection capability={productCapability} />
+
+    {/* P7: Why Choose Us */}
+    <WhyChooseUsSection why={whyChooseUs} />
+
+    {/* Quality & Testing — in-house reliability lab */}
+    <QualityTestingSection />
+
+    {/* P8: Certifications & Global Clients */}
+    <CertificationsSection certs={certifications} />
+
+    {/* Content teasers — Teardown Lab & Blue Ocean */}
+    <TeardownTeaser teaser={teardownTeaser} />
+    <BlueOceanTeaser teaser={blueOceanTeaser} />
+
+    {/* P9: CTA */}
+    <CTASection cta={ctaSection} />
   </main>
 
   <SiteFooter brand={brand} footer={footer} />

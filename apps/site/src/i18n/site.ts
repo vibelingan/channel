@@ -32,6 +32,39 @@ export interface FooterColumn {
   links: CtaLink[];
 }
 
+export interface IconCard {
+  title: string;
+  description: string;
+  icon: string;
+}
+
+export interface StatItem {
+  value: string;
+  label: string;
+}
+
+export interface WorkflowStepItem {
+  label: string;
+  desc?: string;
+}
+
+export interface ProductTeaserItem {
+  name: string;
+  tagline: string;
+  msrp: string;
+}
+
+export interface ReasonItem {
+  title: string;
+  description: string;
+  icon: string;
+}
+
+export interface CertItem {
+  name: string;
+  description: string;
+}
+
 export interface SiteContent {
   locale: string;
   label: string;
@@ -52,7 +85,65 @@ export interface SiteContent {
     secondaryCta: CtaLink;
     scrollLabel: string;
   };
-  sections: ContentSection[];
+  services: {
+    eyebrow: string;
+    heading: string;
+    intro: string;
+    items: IconCard[];
+  };
+  oemProcess: {
+    eyebrow: string;
+    heading: string;
+    intro: string;
+    steps: WorkflowStepItem[];
+  };
+  factory: {
+    eyebrow: string;
+    heading: string;
+    body: string;
+    stats: StatItem[];
+  };
+  productCapability: {
+    eyebrow: string;
+    heading: string;
+    intro: string;
+    items: IconCard[];
+  };
+  whyChooseUs: {
+    eyebrow: string;
+    heading: string;
+    intro: string;
+    reasons: ReasonItem[];
+  };
+  certifications: {
+    eyebrow: string;
+    heading: string;
+    intro: string;
+    complianceCerts: CertItem[];
+    clientLogos: string[];
+  };
+  teardownTeaser: {
+    eyebrow: string;
+    heading: string;
+    description: string;
+    stats: StatItem[];
+    cta: CtaLink;
+  };
+  blueOceanTeaser: {
+    eyebrow: string;
+    heading: string;
+    description: string;
+    products: ProductTeaserItem[];
+    cta: CtaLink;
+  };
+  ctaSection: {
+    heading: string;
+    description: string;
+    primaryCta: CtaLink;
+    secondaryCta: CtaLink;
+  };
+  /** Legacy sections (kept for backward compat — not used on new homepage) */
+  sections?: ContentSection[];
   footer: {
     blurb: string;
     columns: FooterColumn[];

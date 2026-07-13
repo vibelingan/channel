@@ -4,79 +4,217 @@ label: English (US)
 dir: ltr
 
 brand:
-  name: Diversity Innovations Limited
-  logo: /media/logo-diversity.svg
-  logoInitials: DI
+  name: Diversity Technology Limited
+  logo: /media/logo-channel.svg
+  logoInitials: DT
+  minOrder: 'Minimum Order Amount: $500'
   tagline: OEM / ODM Manufacturing Partner
 
 nav:
   items:
+    - { label: Success Stories, href: '/success-stories' }
+    - { label: Teardown Lab, href: '/teardown-lab' }
+    - { label: Blue Ocean, href: '/blue-ocean' }
     - { label: OEM Development, href: '/oem' }
-    - { label: Success Stories, href: '/portfolio' }
-    - { label: Sign In / Register, href: '/admin', emphasis: true }
+    - { label: Sign In, href: '/login', emphasis: true }
 
 hero:
   eyebrow: Since 2004 · Hong Kong · Dongguan
-  heading: OEM Manufacturing & Global Supply Chain Solutions
+  heading: One-Stop OEM Manufacturing, From Idea to Shipment
   subheading: >-
-    From Product Development to Bulk Supply
-  primaryCta: { label: Explore OEM Development, href: '/oem' }
-  secondaryCta: { label: View our work, href: '/portfolio' }
+    OEM/ODM Development | Factory Direct | Global Delivery.
+    Product design, engineering, tooling, production, quality control, and
+    global delivery — all managed by one accountable team.
+  primaryCta: { label: Start Your Project, href: '/oem' }
+  secondaryCta: { label: See Our Factory, href: '#factory' }
   scrollLabel: Scroll to discover
 
-sections:
-  - id: heritage
-    eyebrow: Who we are
-    heading: 20+ years of trusted manufacturing
-    body: >-
-      Founded in 2004, Diversity Innovations Limited is a trusted OEM/ODM
-      manufacturing partner with over 20 years of industry experience.
-      Headquartered in Hong Kong and supported by advanced production facilities
-      and engineering expertise in Dongguan, China, we deliver innovative and
-      reliable product solutions to customers worldwide.
-    image: /media/team-diversity.webp
-    imageAlt: The Diversity Innovations engineering and manufacturing team
-  - id: capabilities
-    eyebrow: What we make
-    heading: From audio devices to home products
-    body: >-
-      Our core product categories include audio devices, consumer electronics,
-      toys, and home products. Backed by a dedicated team of engineers,
-      designers, and technical specialists, we transform ideas into market-ready
-      products through comprehensive development, manufacturing, and quality
-      assurance services.
-    image: /media/section-capabilities.png
-    imageAlt: Illustration of product categories and engineering tools
-  - id: partnership
-    eyebrow: How we help
-    heading: Built for speed, quality, and growth
-    body: >-
-      Driven by innovation and customer-focused collaboration, we help brands
-      accelerate product development, reduce time-to-market, and achieve
-      sustainable growth through high-quality customized manufacturing solutions.
-    image: /media/section-partnership.png
-    imageAlt: Illustration of partnership and growth
+services:
+  eyebrow: What We Do
+  heading: One-Stop OEM/ODM Development Services
+  intro: From product concept to global delivery, we provide end-to-end manufacturing solutions across audio, smart toys, 3C electronics, and consumer goods.
+  items:
+    - title: OEM Product Development
+      description: Industrial design, mechanical engineering, circuit design, and prototyping
+      icon: lightbulb
+    - title: Mold & Manufacturing
+      description: Precision tooling, injection molding, PCBA mass production, and assembly
+      icon: gear
+    - title: Quality & Compliance
+      description: IQC/IPQC/OQC testing, CE/FCC/EMC certifications, and DFM optimization
+      icon: shield
+    - title: Global Delivery
+      description: Export logistics, customs clearance, and worldwide shipping from Hong Kong
+      icon: globe
+
+oemProcess:
+  eyebrow: Our Process
+  heading: OEM Development Process
+  intro: A standardized 10-step workflow from initial sketches to quality-controlled mass production.
+  steps:
+    - label: Sketches
+      desc: Concept ideation
+    - label: Appearance Design
+      desc: Industrial design
+    - label: Mechanical Design
+      desc: Structural engineering
+    - label: Circuit Design
+      desc: PCBA schematic
+    - label: Prototyping
+      desc: First functional samples
+    - label: Mold Building
+      desc: Tooling development
+    - label: PCBA Mass Prod
+      desc: Board assembly
+    - label: Mold Test Shot
+      desc: First-article sampling
+    - label: Pilot Run
+      desc: Pre-production validation
+    - label: QC
+      desc: Quality control & sign-off
+
+factory:
+  eyebrow: Our Capability
+  heading: Factory & Team Strength
+  body: >-
+    Founded in 2004, Diversity Technology Limited is a trusted OEM/ODM
+    manufacturing partner with over 20 years of industry experience.
+    Headquartered in Hong Kong and supported by advanced production facilities
+    and engineering expertise in Dongguan, China, we deliver innovative and
+    reliable product solutions to customers worldwide.
+  stats:
+    - value: '20+'
+      label: Years Experience
+    - value: '40+'
+      label: Engineers
+    - value: '5000+'
+      label: m² Facility
+    - value: '40+'
+      label: Countries
+
+productCapability:
+  eyebrow: Product Capability
+  heading: Six Primary Product Families
+  intro: Two decades of manufacturing has built a deep, diversified supply chain. We develop across six primary product families — and the cross-pollination between them is exactly what lets us solve unusual briefs.
+  items:
+    - title: Plastic Products
+      description: Injection molding, tooling, and finishing for durable plastic parts
+      icon: cube
+    - title: Electronics
+      description: PCBA, embedded firmware, and full electronic device assembly
+      icon: chip
+    - title: Headphones
+      description: Acoustic tuning, wireless audio, and high-volume audio manufacturing
+      icon: headphone
+    - title: Consumer Goods
+      description: Home appliances, lifestyle products, and everyday consumer electronics
+      icon: home
+    - title: Hardware Products
+      description: Metal stamping, CNC machining, and precision hardware manufacturing
+      icon: wrench
+    - title: Promotional Products
+      description: Custom branded merchandise, giveaways, and promotional electronics
+      icon: gift
+
+whyChooseUs:
+  eyebrow: Why Choose Us
+  heading: A partner you can build on
+  intro: Choosing a manufacturer is choosing a long-term partner. Here is what makes brands trust us with their products year after year.
+  reasons:
+    - title: Flexible MOQ
+      description: Order quantities that scale with your stage, from pilot runs to volume production.
+      icon: scale
+    - title: Global Compliance Support
+      description: CE, FCC, RoHS, and market-specific certification guidance built in.
+      icon: certificate
+    - title: Dedicated Project Manager
+      description: One accountable contact from first quote to final shipment — no handoffs, no dropped balls.
+      icon: user-check
+
+certifications:
+  eyebrow: Certifications & Global Clients
+  heading: Trusted by brands worldwide
+  intro: Our products and processes are backed by international compliance certifications and product-level test reports.
+  complianceCerts:
+    - name: CE Certification
+      description: European conformity
+    - name: EMC Certification
+      description: Electromagnetic compatibility
+    - name: FCC Certification
+      description: U.S. Federal Communications Commission
+    - name: JD Certification
+      description: Quality & compliance verification
+  clientLogos:
+    - Artcoustic
+    - Audio Diversity
+    - CoreMee
+    - DI
+    - pabobo
+    - Education Institutions
+
+teardownTeaser:
+  eyebrow: Market Insights
+  heading: Teardown Lab — Reverse Engineering the Future
+  description: >-
+    Weekly deep-dive reports analyzing Kickstarter and Indiegogo hardware
+    champions. We tear down the products, estimate BOM costs, and reveal
+    manufacturing risks — giving you the intelligence to build better products.
+  stats:
+    - value: '3'
+      label: Teardown Reports
+    - value: '67%'
+      label: Avg. Hardware Margin
+    - value: '20+'
+      label: Years Supply Chain Data
+  cta: { label: Read Latest Reports, href: '/teardown-lab' }
+
+blueOceanTeaser:
+  eyebrow: Concept Incubator
+  heading: Blue Ocean Products — Ready to Manufacture
+  description: >-
+    Three disruptive hardware concepts engineered with cutting-edge MEMS, Edge AI,
+    and mmWave radar technologies. Available for white-label, exclusive buyout,
+    or co-development partnerships.
+  products:
+    - name: SomniFlow AI Sleep Pods
+      tagline: MEMS micro-speaker + micro-cooling sleep earbuds
+      msrp: '$199'
+    - name: LumiCogni Desktop AI Hologram
+      tagline: Edge AI holographic study companion for kids
+      msrp: '$289'
+    - name: AeroSense AI Sports Headband
+      tagline: Spatial audio + blind-spot detection for cycling
+      msrp: '$229'
+  cta: { label: Explore Concepts, href: '/blue-ocean' }
+
+ctaSection:
+  heading: Ready to develop your next product?
+  description: Send us your idea, drawing, or sample — our team will provide an OEM solution within 24 hours.
+  primaryCta: { label: Start OEM Inquiry, href: '/oem' }
+  secondaryCta: { label: Explore Success Stories, href: '/success-stories' }
 
 footer:
   blurb: >-
-    Innovative and reliable OEM/ODM product solutions, engineered in Hong Kong
-    and manufactured in Dongguan, China.
+    OEM/ODM manufacturing partner. Engineered in Hong Kong, manufactured in
+    Dongguan, China — from idea to shipment.
   columns:
-    - heading: About Us
+    - heading: Company
       links:
-        - { label: Our Company, href: '#heritage' }
-        - { label: Capabilities, href: '#capabilities' }
-        - { label: Partnership, href: '#partnership' }
-        - { label: Quality Assurance, href: '#' }
-    - heading: Services
-      links:
+        - { label: Success Stories, href: '/success-stories' }
+        - { label: Teardown Lab, href: '/teardown-lab' }
+        - { label: Blue Ocean Products, href: '/blue-ocean' }
         - { label: OEM Development, href: '/oem' }
+    - heading: Account
+      links:
+        - { label: Sign In, href: '/login' }
+        - { label: Register, href: '/register' }
+        - { label: Admin Portal, href: '/admin' }
     - heading: Contact Us
       links:
-        - { label: 'Email: hello@example.com', href: 'mailto:hello@example.com' }
+        - { label: 'Email: hello@diversity-tech.com', href: 'mailto:hello@diversity-tech.com' }
         - { label: 'Phone: +852 0000 0000', href: '#' }
         - { label: 'Hong Kong · Dongguan, China', href: '#' }
-  legal: © 2004–2026 Diversity Innovations Limited. All rights reserved.
+  legal: © 2004–2026 Diversity Technology Limited. All rights reserved.
 ---
 
 <!--

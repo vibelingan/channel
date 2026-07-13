@@ -1,0 +1,122 @@
+---
+import PageHero from '../../components/PageHero.astro';
+import ProductConceptCard from '../../components/ProductConceptCard.astro';
+import SiteFooter from '../../components/SiteFooter.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
+import { getAllProducts } from '../../data/blueOceanProducts.ts';
+import { DEFAULT_LOCALE, getSiteContent } from '../../i18n/site.ts';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const content = getSiteContent(DEFAULT_LOCALE);
+const { brand, nav, footer } = content;
+const products = getAllProducts();
+
+const avgMargin =
+  products.reduce((sum, p) => sum + ((p.msrp - p.estBomCost) / p.msrp) * 100, 0) / products.length;
+const totalProducts = products.length;
+const minMoq = Math.min(...products.map((p) => p.moq));
+---
+
+<BaseLayout
+  title={`Blue Ocean Products — ${brand.name}`}
+  description="Original concept products incubated by Diversity Technology to fill underserved market gaps. Explore frontier-component designs with BOM estimates, tech specs, and partnership models."
+  lang="en"
+>
+  <SiteHeader brand={brand} nav={nav} />
+
+  <main>
+    <PageHero
+      eyebrow="Concept Incubation"
+      heading="Blue Ocean Products"
+      subheading="Original product concepts that fill untapped market gaps — combining frontier components like xMEMS, mmWave radar, and edge-AI NPUs with our 20+ years of manufacturing expertise. Each concept ships with full BOM estimates, tech specs, and flexible partnership models."
+    />
+
+    <!-- Stats strip -->
+    <section class="border-b border-slate-200 bg-surface-alt">
+      <div class="mx-auto max-w-[var(--width-container)] px-4 py-10 sm:px-6 lg:px-8">
+        <dl class="grid grid-cols-2 gap-6 sm:grid-cols-3">
+          <div class="reveal">
+            <dt class="text-xs font-semibold uppercase tracking-wider text-ink-muted">Concept Products</dt>
+            <dd class="mt-1 font-display text-3xl font-bold text-brand-600">{totalProducts}</dd>
+          </div>
+          <div class="reveal">
+            <dt class="text-xs font-semibold uppercase tracking-wider text-ink-muted">Avg. Gross Margin</dt>
+            <dd class="mt-1 font-display text-3xl font-bold text-brand-600">{avgMargin.toFixed(1)}%</dd>
+          </div>
+          <div class="reveal col-span-2 sm:col-span-1">
+            <dt class="text-xs font-semibold uppercase tracking-wider text-ink-muted">Starting MOQ</dt>
+            <dd class="mt-1 font-display text-3xl font-bold text-brand-600">{minMoq.toLocaleString('en-US')}</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- Product cards -->
+    <section class="py-16 sm:py-20">
+      <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
+        <div class="reveal mb-10 max-w-2xl">
+          <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
+            Concept Portfolio
+          </p>
+          <h2 class="mt-3 font-display text-2xl font-bold text-ink sm:text-3xl">
+            Products the market hasn't built yet
+          </h2>
+          <p class="mt-3 text-lg leading-relaxed text-ink-soft">
+            Each concept is validated against real supply-chain pricing and
+            manufacturing feasibility. Dive into the tech specs, BOM breakdown,
+            and three partnership models — from white-label to co-development.
+          </p>
+        </div>
+
+        <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {products.map((product) => (
+            <ProductConceptCard product={product} />
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- Partnership / CTA -->
+    <section class="bg-surface-dark text-white">
+      <div class="mx-auto max-w-[var(--width-container)] px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+        <div class="reveal grid gap-10 lg:grid-cols-2 lg:items-center">
+          <div>
+            <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-300">
+              Three Ways to Partner
+            </p>
+            <h2 class="mt-4 font-display text-2xl font-bold sm:text-3xl">
+              From white-label to co-development
+            </h2>
+            <p class="mt-5 text-base leading-relaxed text-slate-300">
+              Every concept ships with flexible partnership models. Start with
+              white-label at minimal MOQ for fast market entry, lock in
+              exclusive buyout for category ownership, or go deep with joint
+              development to co-create something entirely new.
+            </p>
+          </div>
+          <div class="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-8 backdrop-blur">
+            <h3 class="font-display text-lg font-semibold text-white">
+              Have a concept of your own?
+            </h3>
+            <p class="mt-3 text-sm leading-relaxed text-slate-300">
+              We incubate blue ocean concepts from the ground up — from
+              component sourcing and BOM estimation to EVT/DVT and mass
+              production. Bring us your idea and we'll make it shippable.
+            </p>
+            <a
+              href="/oem"
+              class="mt-6 inline-flex items-center gap-2 rounded-full bg-accent-500 px-6 py-3 text-base font-semibold text-brand-950 transition hover:bg-accent-400"
+            >
+              Start an OEM project
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <SiteFooter brand={brand} footer={footer} />
+</BaseLayout>

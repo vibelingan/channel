@@ -1,0 +1,53 @@
+---
+/**
+ * In-House Quality & Testing — real quality-lab / reliability-test photos
+ * (client Company Introduction · Quality Department). Reinforces the
+ * "Quality & Compliance" service and leads into the certifications wall.
+ */
+const tests = [
+  { img: '/media/oem/quality/q1.jpg', label: 'QC Inspection Lab' },
+  { img: '/media/oem/quality/q2.jpg', label: 'Burst / Pressure Test' },
+  { img: '/media/oem/quality/q3.jpg', label: 'Press-Force Test' },
+  { img: '/media/oem/quality/q4.jpg', label: 'Salt-Spray Corrosion Test' },
+  { img: '/media/oem/quality/q5.jpg', label: 'Vibration / Transport Test' },
+  { img: '/media/oem/quality/q6.jpg', label: 'Environmental Aging Chamber' },
+  { img: '/media/oem/quality/q7.jpg', label: 'Tensile / Pull Test' },
+  { img: '/media/oem/quality/q8.jpg', label: 'Drop Test' },
+];
+---
+
+<section class="bg-surface-alt py-20 sm:py-28">
+  <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
+    <div class="reveal mx-auto max-w-2xl text-center">
+      <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
+        Quality Assurance
+      </p>
+      <h2 class="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl">
+        In-House Testing &amp; Quality Control
+      </h2>
+      <p class="mt-4 text-lg text-ink-soft">
+        Every product is validated in our own reliability lab — from drop, vibration and
+        salt-spray to environmental aging — before it ships.
+      </p>
+    </div>
+
+    <div class="mt-14 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      {tests.map((t, i) => (
+        <figure
+          class="reveal group overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-surface shadow-sm transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
+          style={`transition-delay: ${i * 60}ms`}
+        >
+          <img
+            src={t.img}
+            alt={t.label}
+            loading="lazy"
+            class="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-[1.04]"
+          />
+          <figcaption class="px-3 py-2.5 text-center text-xs font-semibold text-ink-soft">
+            {t.label}
+          </figcaption>
+        </figure>
+      ))}
+    </div>
+  </div>
+</section>

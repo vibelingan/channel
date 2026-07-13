@@ -1,0 +1,384 @@
+---
+import SiteFooter from '../../components/SiteFooter.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
+import { type BlueOceanProduct, getAllProducts } from '../../data/blueOceanProducts.ts';
+import { DEFAULT_LOCALE, getSiteContent } from '../../i18n/site.ts';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+export function getStaticPaths() {
+  const products = getAllProducts();
+  return products.map((product) => ({
+    params: { slug: product.slug },
+    props: { product },
+  }));
+}
+
+interface Props {
+  product: BlueOceanProduct;
+}
+
+const { product } = Astro.props;
+
+const content = getSiteContent(DEFAULT_LOCALE);
+const { brand, nav, footer } = content;
+
+const currency = (value: number) =>
+  `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const margin = ((product.msrp - product.estBomCost) / product.msrp) * 100;
+
+// Split the BOM rows so the total can be rendered as a highlighted footer row.
+const bomLines = product.bomBreakdown.filter((line) => line.category.toLowerCase() !== 'total');
+const bomTotal = product.bomBreakdown.find((line) => line.category.toLowerCase() === 'total');
+
+// Tier styling — gives the three partnership cards visual distinction.
+const tierStyles = [
+  {
+    border: 'border-slate-200',
+    header: 'bg-surface-alt text-ink',
+    accent: 'text-brand-600',
+    badge: 'bg-brand-50 text-brand-700',
+  },
+  {
+    border: 'border-brand-200',
+    header: 'bg-brand-600 text-white',
+    accent: 'text-brand-700',
+    badge: 'bg-brand-100 text-brand-700',
+  },
+  {
+    border: 'border-accent-200',
+    header: 'bg-surface-dark text-white',
+    accent: 'text-accent-600',
+    badge: 'bg-accent-100 text-accent-700',
+  },
+];
+---
+
+<BaseLayout
+  title={`${product.name} — ${brand.name}`}
+  description={product.summary}
+  lang="en"
+>
+  <SiteHeader brand={brand} nav={nav} />
+
+  <main>
+    <!-- Hero -->
+    <section class="relative overflow-hidden bg-surface-dark text-white">
+      <div
+        class="absolute inset-0 bg-gradient-to-br from-brand-800 via-brand-950 to-brand-950"
+        aria-hidden="true"
+      >
+      </div>
+      <div
+        class="absolute inset-0 opacity-[0.15] [background-image:linear-gradient(var(--color-brand-400)_1px,transparent_1px),linear-gradient(90deg,var(--color-brand-400)_1px,transparent_1px)] [background-size:48px_48px]"
+        aria-hidden="true"
+      >
+      </div>
+      <div
+        class="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-accent-500/20 blur-3xl"
+        aria-hidden="true"
+      >
+      </div>
+
+      <div class="relative mx-auto max-w-[var(--width-container)] px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+        <!-- Breadcrumb -->
+        <nav class="reveal flex items-center gap-2 text-sm text-white/60" aria-label="Breadcrumb">
+          <a href="/blue-ocean" class="transition hover:text-white">Blue Ocean Products</a>
+          <span aria-hidden="true">/</span>
+          <span class="text-white/90">{product.name}</span>
+        </nav>
+
+        <span
+          class="reveal mt-6 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-brand-300 backdrop-blur"
+        >
+          {product.category}
+        </span>
+        <h1 class="reveal mt-4 font-display text-4xl font-bold leading-tight sm:text-5xl">
+          {product.name}
+        </h1>
+        <p class="reveal mt-3 text-lg font-medium text-brand-300">{product.tagline}</p>
+        <p class="reveal mt-5 max-w-3xl text-lg leading-relaxed text-white/80">
+          {product.summary}
+        </p>
+
+        <!-- Key economics -->
+        <dl class="reveal mt-10 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div class="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+            <dt class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">MSRP</dt>
+            <dd class="mt-1 font-display text-2xl font-bold text-white">{currency(product.msrp)}</dd>
+          </div>
+          <div class="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+            <dt class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Est. BOM Cost</dt>
+            <dd class="mt-1 font-display text-2xl font-bold text-white">{currency(product.estBomCost)}</dd>
+          </div>
+          <div class="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+            <dt class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Est. Margin</dt>
+            <dd class="mt-1 font-display text-2xl font-bold text-accent-300">{margin.toFixed(1)}%</dd>
+          </div>
+          <div class="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+            <dt class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">MOQ</dt>
+            <dd class="mt-1 font-display text-2xl font-bold text-white">{product.moq.toLocaleString('en-US')}</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- Body content -->
+    <section class="py-16 sm:py-20">
+      <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
+        <div class="grid gap-12 lg:grid-cols-3 lg:gap-16">
+          <!-- Main column -->
+          <div class="space-y-14 lg:col-span-2">
+            <!-- Summary -->
+            <article class="reveal">
+              <h2 class="font-display text-2xl font-bold text-ink">Concept Summary</h2>
+              <p class="mt-4 text-base leading-relaxed text-ink-soft">{product.summary}</p>
+            </article>
+
+            <!-- Market gap analysis -->
+            <article class="reveal">
+              <h2 class="font-display text-2xl font-bold text-ink">Market Gap Analysis</h2>
+              <div class="mt-4 rounded-[var(--radius-card)] border-l-4 border-brand-600 bg-brand-50/60 p-6">
+                <p class="text-base leading-relaxed text-ink-soft">{product.marketGap}</p>
+              </div>
+            </article>
+
+            <!-- Tech specs table -->
+            <article class="reveal">
+              <h2 class="font-display text-2xl font-bold text-ink">Technology Specifications</h2>
+              <p class="mt-2 text-sm text-ink-muted">
+                Frontier components powering each product — selected for performance, manufacturability, and unit economics.
+              </p>
+
+              <div class="mt-6 overflow-x-auto rounded-[var(--radius-card)] border border-slate-200 shadow-[var(--shadow-card)]">
+                <table class="w-full min-w-[40rem] border-collapse text-left text-sm">
+                  <thead>
+                    <tr class="bg-surface-alt text-ink">
+                      <th scope="col" class="px-5 py-4 font-display text-xs font-semibold uppercase tracking-wider whitespace-nowrap">
+                        Category
+                      </th>
+                      <th scope="col" class="px-5 py-4 font-display text-xs font-semibold uppercase tracking-wider">
+                        Specification
+                      </th>
+                      <th scope="col" class="px-5 py-4 font-display text-xs font-semibold uppercase tracking-wider">
+                        Benefit
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100">
+                    {product.techSpecs.map((spec) => (
+                      <tr class="bg-surface align-top transition hover:bg-brand-50/40">
+                        <th scope="row" class="px-5 py-4 font-semibold text-brand-700 whitespace-nowrap">
+                          {spec.category}
+                        </th>
+                        <td class="px-5 py-4 text-ink-soft">{spec.spec}</td>
+                        <td class="px-5 py-4 text-ink-soft">
+                          <span class="inline-flex items-start gap-1.5">
+                            <svg class="mt-0.5 h-4 w-4 shrink-0 text-accent-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            {spec.benefit}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+
+            <!-- BOM breakdown -->
+            <article class="reveal" id="bom">
+              <h2 class="font-display text-2xl font-bold text-ink">BOM Cost Breakdown</h2>
+              <p class="mt-2 text-sm text-ink-muted">
+                Estimated ex-work cost at {product.moq.toLocaleString('en-US')} unit MOQ, including tooling amortization. Figures are engineering estimates based on concept-stage BOM analysis and supply chain benchmarking — not final manufacturing quotes.
+              </p>
+
+              <div class="mt-6 overflow-x-auto rounded-[var(--radius-card)] border border-slate-200 shadow-[var(--shadow-card)]">
+                <table class="w-full min-w-[34rem] border-collapse text-left text-sm">
+                  <thead>
+                    <tr class="bg-surface-alt text-ink">
+                      <th scope="col" class="px-5 py-4 font-display text-xs font-semibold uppercase tracking-wider">
+                        Category
+                      </th>
+                      <th scope="col" class="px-5 py-4 font-display text-xs font-semibold uppercase tracking-wider">
+                        Description
+                      </th>
+                      <th scope="col" class="px-5 py-4 text-right font-display text-xs font-semibold uppercase tracking-wider">
+                        Cost (USD)
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100">
+                    {bomLines.map((line) => (
+                      <tr class="bg-surface align-top transition hover:bg-brand-50/40">
+                        <th scope="row" class="px-5 py-4 font-semibold text-ink">
+                          {line.category}
+                        </th>
+                        <td class="px-5 py-4 text-ink-soft">{line.description}</td>
+                        <td class="px-5 py-4 text-right font-semibold tabular-nums text-ink-soft">
+                          {currency(line.cost)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {bomTotal && (
+                    <tfoot>
+                      <tr class="border-t-2 border-brand-200 bg-brand-50">
+                        <th scope="row" class="px-5 py-4 font-display text-base font-bold text-brand-800">
+                          {bomTotal.category}
+                        </th>
+                        <td class="px-5 py-4 text-sm font-medium text-brand-700">{bomTotal.description}</td>
+                        <td class="px-5 py-4 text-right font-display text-lg font-bold tabular-nums text-brand-700">
+                          {currency(bomTotal.cost)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+
+              <!-- Margin callout -->
+              <div class="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-[var(--radius-card)] bg-accent-50 px-6 py-4 text-sm">
+                <span class="font-semibold text-accent-700">Estimated gross margin:</span>
+                <span class="font-display text-lg font-bold text-accent-600">
+                  {margin.toFixed(1)}%
+                </span>
+                <span class="text-ink-muted">
+                  ({currency(product.msrp)} MSRP − {currency(product.estBomCost)} BOM)
+                </span>
+              </div>
+            </article>
+          </div>
+
+          <!-- Sidebar -->
+          <aside class="lg:col-span-1">
+            <div class="sticky top-24 space-y-6">
+              <!-- Snapshot card -->
+              <div class="reveal rounded-[var(--radius-card)] border border-slate-200 bg-surface p-6 shadow-[var(--shadow-card)]">
+                <h3 class="font-display text-sm font-semibold uppercase tracking-wider text-ink-muted">
+                  Product Snapshot
+                </h3>
+                <dl class="mt-4 space-y-4 text-sm">
+                  <div class="flex items-center justify-between gap-4">
+                    <dt class="text-ink-muted">Category</dt>
+                    <dd class="text-right font-semibold text-ink">{product.category}</dd>
+                  </div>
+                  <div class="flex items-center justify-between gap-4 border-t border-slate-100 pt-4">
+                    <dt class="text-ink-muted">MSRP</dt>
+                    <dd class="text-right font-display text-lg font-bold text-ink">{currency(product.msrp)}</dd>
+                  </div>
+                  <div class="flex items-center justify-between gap-4">
+                    <dt class="text-ink-muted">Est. BOM Cost</dt>
+                    <dd class="text-right font-display text-lg font-bold text-ink-soft">{currency(product.estBomCost)}</dd>
+                  </div>
+                  <div class="flex items-center justify-between gap-4">
+                    <dt class="text-ink-muted">Est. Margin</dt>
+                    <dd class="text-right font-display text-lg font-bold text-accent-600">{margin.toFixed(1)}%</dd>
+                  </div>
+                  <div class="flex items-center justify-between gap-4 border-t border-slate-100 pt-4">
+                    <dt class="text-ink-muted">MOQ</dt>
+                    <dd class="text-right font-semibold text-ink">{product.moq.toLocaleString('en-US')}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <!-- CTA -->
+              <div class="reveal rounded-[var(--radius-card)] bg-surface-dark p-6 text-white">
+                <h3 class="font-display text-lg font-semibold">Build this concept</h3>
+                <p class="mt-2 text-sm leading-relaxed text-slate-300">
+                  Ready to bring this product to market? Our OEM team can take it
+                  from concept to mass production with flexible partnership models.
+                </p>
+                <a
+                  href="/oem"
+                  class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent-500 px-5 py-3 text-sm font-semibold text-brand-950 transition hover:bg-accent-400"
+                >
+                  Start an OEM project
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  </svg>
+                </a>
+              </div>
+
+              <!-- Back to listing -->
+              <a
+                href="/blue-ocean"
+                class="reveal inline-flex items-center gap-2 text-sm font-semibold text-brand-600 transition hover:text-brand-700"
+              >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M7 16l-4-4m0 0l4-4m-4 4h18" />
+                </svg>
+                Back to Blue Ocean Products
+              </a>
+            </div>
+          </aside>
+        </div>
+
+        <!-- Partnership tiers (full-width 3-column) -->
+        <div class="mt-20">
+          <div class="reveal mb-10 max-w-2xl">
+            <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
+              Partnership Models
+            </p>
+            <h2 class="mt-3 font-display text-2xl font-bold text-ink sm:text-3xl">
+              Three ways to bring this to market
+            </h2>
+            <p class="mt-3 text-base leading-relaxed text-ink-soft">
+              Whether you need fast market entry or full co-development, each
+              tier is designed to match your investment appetite and timeline.
+            </p>
+          </div>
+
+          <div class="grid gap-6 md:grid-cols-3">
+            {product.partnershipTiers.map((tier, i) => {
+              const style = tierStyles[i] ?? tierStyles[0];
+              return (
+                <div class={`reveal flex flex-col overflow-hidden rounded-[var(--radius-card)] border ${style.border} bg-surface shadow-[var(--shadow-card)]`}>
+                  {/* Tier header */}
+                  <div class={`px-6 py-5 ${style.header}`}>
+                    <span class={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${style.badge}`}>
+                      Tier {i + 1}
+                    </span>
+                    <h3 class="mt-3 font-display text-xl font-bold">{tier.tier}</h3>
+                  </div>
+
+                  {/* Tier body */}
+                  <div class="flex flex-1 flex-col px-6 py-5">
+                    <p class="text-sm leading-relaxed text-ink-soft">{tier.description}</p>
+
+                    <dl class="mt-6 space-y-4 border-t border-slate-100 pt-5 text-sm">
+                      <div>
+                        <dt class={`text-[11px] font-semibold uppercase tracking-wider ${style.accent}`}>Investment</dt>
+                        <dd class="mt-1 font-medium text-ink">{tier.investment}</dd>
+                      </div>
+                      <div>
+                        <dt class={`text-[11px] font-semibold uppercase tracking-wider ${style.accent}`}>MOQ</dt>
+                        <dd class="mt-1 font-medium text-ink">{tier.moq}</dd>
+                      </div>
+                      <div>
+                        <dt class={`text-[11px] font-semibold uppercase tracking-wider ${style.accent}`}>Timeline</dt>
+                        <dd class="mt-1 font-medium text-ink">{tier.timeline}</dd>
+                      </div>
+                    </dl>
+
+                    <a
+                      href="/oem"
+                      class="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 transition hover:gap-2.5 hover:text-brand-700"
+                    >
+                      Choose this model
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                      </svg>
+                    </a>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <SiteFooter brand={brand} footer={footer} />
+</BaseLayout>

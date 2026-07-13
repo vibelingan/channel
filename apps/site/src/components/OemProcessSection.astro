@@ -1,0 +1,54 @@
+---
+/**
+ * OEM Development Process — 10-step workflow chain.
+ * Uses the existing WorkflowChain component pattern.
+ */
+import type { SiteContent } from '../i18n/site.ts';
+import type { WorkflowStepItem } from '../i18n/site.ts';
+
+interface Props {
+  process: SiteContent['oemProcess'];
+}
+
+const { process } = Astro.props;
+---
+
+<section class="bg-surface-alt py-20 sm:py-28">
+  <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
+    <div class="reveal mx-auto max-w-2xl text-center">
+      <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
+        {process.eyebrow}
+      </p>
+      <h2 class="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl">
+        {process.heading}
+      </h2>
+      <p class="mt-4 text-lg text-ink-soft">
+        {process.intro}
+      </p>
+    </div>
+
+    <div class="mt-14">
+      <ol class="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5">
+        {process.steps.map((step: WorkflowStepItem, index: number) => (
+          <li class="reveal group overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-surface shadow-sm transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]">
+            <div class="relative">
+              <img
+                src={`/media/oem/process/p${String(index + 1).padStart(2, '0')}.jpg`}
+                alt={`Step ${index + 1}: ${step.label}`}
+                loading="lazy"
+                class="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+              />
+              <span class="absolute left-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-brand-700 font-display text-xs font-bold text-white shadow-md ring-2 ring-white">
+                {index + 1}
+              </span>
+            </div>
+            <div class="px-3 py-3 text-center">
+              <p class="font-display text-sm font-semibold text-ink">{step.label}</p>
+              {step.desc && <p class="mt-0.5 text-xs text-ink-muted">{step.desc}</p>}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </div>
+</section>

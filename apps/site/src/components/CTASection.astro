@@ -1,0 +1,47 @@
+---
+/**
+ * Final CTA section — dark gradient with two actions.
+ */
+import type { SiteContent } from '../i18n/site.ts';
+
+interface Props {
+  cta: SiteContent['ctaSection'];
+}
+
+const { cta } = Astro.props;
+---
+
+<section class="relative overflow-hidden bg-surface-dark text-white">
+  <div class="pointer-events-none absolute inset-0 opacity-10" aria-hidden="true">
+    <div
+      class="absolute inset-0"
+      style="background-image: linear-gradient(rgba(99,102,241,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.5) 1px, transparent 1px); background-size: 40px 40px;"
+    >
+    </div>
+  </div>
+
+  <div class="relative mx-auto max-w-[var(--width-container)] px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
+    <div class="reveal mx-auto max-w-2xl text-center">
+      <h2 class="font-display text-3xl font-bold sm:text-4xl">
+        {cta.heading}
+      </h2>
+      <p class="mt-4 text-lg text-slate-300">
+        {cta.description}
+      </p>
+      <div class="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+        <a
+          href={cta.primaryCta.href}
+          class="inline-flex items-center justify-center rounded-full bg-accent-500 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-accent-500/30 transition hover:bg-accent-400"
+        >
+          {cta.primaryCta.label}
+        </a>
+        <a
+          href={cta.secondaryCta.href}
+          class="inline-flex items-center justify-center rounded-full border border-white/20 bg-white/5 px-8 py-3.5 text-base font-semibold text-white backdrop-blur transition hover:bg-white/10"
+        >
+          {cta.secondaryCta.label}
+        </a>
+      </div>
+    </div>
+  </div>
+</section>

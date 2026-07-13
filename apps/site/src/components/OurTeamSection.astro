@@ -1,0 +1,47 @@
+---
+/**
+ * Our Team — the people and global presence behind the products
+ * (client 销售团队照片). Follows the Factory & Team Strength section.
+ */
+const photos = [
+  { img: '/media/oem/team/t01.jpg', alt: 'The Diversity Technology team' },
+  { img: '/media/oem/team/t02.jpg', alt: 'Sales and engineering team' },
+  { img: '/media/oem/team/t03.jpg', alt: 'At an international trade show' },
+  { img: '/media/oem/team/t04.jpg', alt: 'Exhibition booth' },
+  { img: '/media/oem/team/t05.jpg', alt: 'Team at work' },
+  { img: '/media/oem/team/t06.jpg', alt: 'Product showcase' },
+];
+---
+
+<section class="bg-surface py-20 sm:py-28">
+  <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
+    <div class="reveal mx-auto max-w-2xl text-center">
+      <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
+        Our People
+      </p>
+      <h2 class="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl">
+        The team behind your product
+      </h2>
+      <p class="mt-4 text-lg text-ink-soft">
+        A dedicated team of engineers, designers and sales specialists — serving brands
+        across the USA, Europe, Japan and worldwide.
+      </p>
+    </div>
+
+    <div class="mt-14 grid grid-cols-2 gap-4 sm:grid-cols-3">
+      {photos.map((p, i) => (
+        <div
+          class="reveal group overflow-hidden rounded-[var(--radius-card)] shadow-sm ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
+          style={`transition-delay: ${i * 70}ms`}
+        >
+          <img
+            src={p.img}
+            alt={p.alt}
+            loading="lazy"
+            class="aspect-[4/3] w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+          />
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
