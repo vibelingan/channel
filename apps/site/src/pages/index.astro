@@ -5,7 +5,9 @@ import CTASection from '../components/CTASection.astro';
 import CertificationsSection from '../components/CertificationsSection.astro';
 import FactorySection from '../components/FactorySection.astro';
 import OemProcessSection from '../components/OemProcessSection.astro';
+import OurTeamSection from '../components/OurTeamSection.astro';
 import ProductCapabilitySection from '../components/ProductCapabilitySection.astro';
+import QualityTestingSection from '../components/QualityTestingSection.astro';
 import ServiceGridSection from '../components/ServiceGridSection.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
@@ -48,11 +50,17 @@ const {
     {/* P5: Factory & Team Strength */}
     <FactorySection factory={factory} />
 
+    {/* Our Team — people & global presence */}
+    <OurTeamSection />
+
     {/* P6: Product Capability — 6 product families */}
     <ProductCapabilitySection capability={productCapability} />
 
     {/* P7: Why Choose Us */}
     <WhyChooseUsSection why={whyChooseUs} />
+
+    {/* Quality & Testing — in-house reliability lab */}
+    <QualityTestingSection />
 
     {/* P8: Certifications & Global Clients */}
     <CertificationsSection certs={certifications} />
