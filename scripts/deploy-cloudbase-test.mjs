@@ -532,7 +532,8 @@ const legacyHostingPaths = [
   { cloudPath: 'headphone-item', isDir: true },
   { cloudPath: 'overstock', isDir: true },
   { cloudPath: 'overstock-item', isDir: true },
-  { cloudPath: 'media/logo-channel.svg', isDir: false },
+  // NOTE: media/logo-channel.svg is the active OEM brand logo again (header +
+  // footer on every page) — do NOT prune it.
   { cloudPath: 'media/section-heritage.png', isDir: false },
   { cloudPath: 'media/portfolio/cases/tws-speaker-2.webp', isDir: false },
   { cloudPath: 'media/portfolio/cases/tws-speaker-3.webp', isDir: false },
