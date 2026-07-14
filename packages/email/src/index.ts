@@ -45,10 +45,13 @@ export interface SendMailInput {
 export async function sendMail(input: SendMailInput): Promise<boolean> {
   const config = loadEmailConfig();
   if (!config) {
-    console.log('\n[email:mock] SMTP not configured — email not sent. Contents:');
-    console.log(`  to:      ${input.to}`);
-    console.log(`  subject: ${input.subject}`);
-    console.log(`  text:    ${input.text}\n`);
+    // NEVER log the body: recovery emails carry a freshly-minted live password,
+    // and this branch runs in production whenever EMAIL_* is unset (the deploy
+    // provisions them via optionalEnv, so an unset secret silently lands here).
+    // Log only routing metadata so the misconfiguration is operator-visible.
+    console.error(
+      `[email] SMTP not configured — email NOT sent (to=${input.to}, subject=${input.subject}).`,
+    );
     return false;
   }
   try {

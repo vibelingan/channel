@@ -6,6 +6,7 @@ const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)))
 const envId = requireEnv('TCB_ENV_ID');
 const webAppServiceName = process.env.CLOUDBASE_WEBAPP_SERVICE || 'channel-test';
 const targetRuntime = process.env.CLOUDBASE_FUNCTION_RUNTIME || 'Nodejs20.19';
+const expectedReleaseId = process.env.CHANNEL_BUILD_SHA || process.env.GITHUB_SHA || 'local';
 const siteUrl = trimSlash(
   process.env.SITE_URL || `https://${webAppServiceName}-${envId}.webapps.tcloudbase.com`,
 );
@@ -59,6 +60,32 @@ async function expectHttp(method, url, expectedStatus, body) {
   return response;
 }
 
+async function expectJson(method, url, expectedStatus, body) {
+  const response = await expectHttp(method, url, expectedStatus, body);
+  return await response.json();
+}
+
+function assertRelease(service, body) {
+  if (body?.ok !== true) {
+    throw new Error(
+      `${service}: health response was not ok: ${JSON.stringify(body).slice(0, 300)}`,
+    );
+  }
+  const data = body.data ?? {};
+  if (data.status !== 'ok' || data.service !== service) {
+    throw new Error(`${service}: unexpected health payload: ${JSON.stringify(body).slice(0, 300)}`);
+  }
+  if (data.releaseId !== expectedReleaseId) {
+    throw new Error(
+      `${service}: expected release ${expectedReleaseId}, got ${data.releaseId ?? '<missing>'}`,
+    );
+  }
+  if (typeof data.buildTime !== 'string' || data.buildTime.length === 0) {
+    throw new Error(`${service}: missing buildTime in health payload`);
+  }
+  console.log(`${service}: release ${data.releaseId} (${data.buildTime})`);
+}
+
 function verifyFunctionRuntime(functionName) {
   const result = callTool('cloudbase.queryFunctions', {
     action: 'getFunctionDetail',
@@ -79,11 +106,19 @@ callTool('cloudbase.auth', { action: 'set_env', envId });
 verifyFunctionRuntime('admin');
 verifyFunctionRuntime('public-api');
 
-for (const path of ['/', '/admin', '/login', '/oem', '/headphones', '/overstock']) {
+for (const path of ['/', '/admin', '/login', '/oem', '/portfolio']) {
   await expectHttp('GET', `${siteUrl}${path}`, 200);
 }
 
-await expectHttp('GET', `${apiUrl}/api/health`, 200);
+// The headphones/overstock storefronts were retired in the OEM refresh. Static
+// hosting upload is additive, so deployWebApp() prunes them; assert they stay
+// gone. A 200 here means a stale page resurfaced and the prune regressed.
+for (const path of ['/headphones', '/overstock']) {
+  await expectHttp('GET', `${siteUrl}${path}`, 404);
+}
+
+assertRelease('public-api', await expectJson('GET', `${apiUrl}/api/health`, 200));
+assertRelease('admin', await expectJson('POST', `${apiUrl}/api/admin`, 200, { action: 'health' }));
 await expectHttp('GET', `${apiUrl}/api/products?pageSize=1`, 200);
 await expectHttp('GET', `${apiUrl}/api/overstock?pageSize=1`, 200);
 await expectHttp('GET', `${apiUrl}/api/files/__missing__`, 404);

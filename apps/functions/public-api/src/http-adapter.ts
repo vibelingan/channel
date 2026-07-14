@@ -1,4 +1,5 @@
 import { type ApiResult, err, ok } from '@vibelingan-channel/shared';
+import { releaseInfo } from '@vibelingan-channel/shared/release';
 import {
   type BinaryResult,
   type CatalogQuery,
@@ -7,6 +8,7 @@ import {
   getCatalogItem,
   listCatalog,
   parseCatalogName,
+  resolveCatalogViewer,
 } from './handler.ts';
 
 export interface PublicHttpConfig extends PublicApiConfig {
@@ -114,6 +116,8 @@ function statusFor(result: ApiResult<unknown>): number {
       return 404;
     case 'CONFLICT':
       return 409;
+    case 'RATE_LIMITED':
+      return 429;
     case 'INTERNAL_ERROR':
       return 500;
     default: {
@@ -128,16 +132,31 @@ function jsonResponse(
   config: PublicHttpConfig,
   result: ApiResult<unknown>,
   statusCode = statusFor(result),
+  extraHeaders: Record<string, string> = {},
 ): HttpResponse {
   return {
     statusCode,
     headers: responseHeaders(event, config, {
       'Content-Type': 'application/json; charset=utf-8',
+      ...extraHeaders,
     }),
     body: JSON.stringify(result),
     isBase64Encoded: false,
   };
 }
+
+/**
+ * Cache directives for the role-VARYING catalog routes. The same URL now returns
+ * different bodies depending on the session token, so a shared cache MUST key on
+ * `Authorization`. `Cache-Control: private, no-cache` goes further and forbids
+ * shared caches from storing ANY catalog variant — anonymous included — as a
+ * second lock against Vary-ignoring CDNs. Deliberate trade-off: no CDN caching
+ * of the catalog until an anonymous-only split is worth the added risk surface.
+ */
+const CATALOG_CACHE_HEADERS: Record<string, string> = {
+  Vary: 'Origin, Authorization',
+  'Cache-Control': 'private, no-cache',
+};
 
 function binaryResponse(
   event: Record<string, unknown>,
@@ -225,19 +244,29 @@ async function routeGet(
   const segments = apiSegments(path);
 
   if (segments.length === 1 && segments[0] === 'health') {
-    return jsonResponse(event, config, ok({ status: 'ok', service: 'public-api' }));
+    return jsonResponse(event, config, ok(releaseInfo('public-api')));
   }
 
   const collection = segments[0] ? parseCatalogName(segments[0]) : null;
   if (collection && segments.length === 1) {
-    return jsonResponse(event, config, await listCatalog(collection, catalogQuery(params), config));
-  }
-
-  if (collection && segments.length === 2) {
+    const viewer = await resolveCatalogViewer(headerValue(event.headers, 'authorization'), config);
     return jsonResponse(
       event,
       config,
-      await getCatalogItem(collection, decodeSegment(segments[1] ?? ''), config),
+      await listCatalog(collection, catalogQuery(params), config, viewer),
+      undefined,
+      CATALOG_CACHE_HEADERS,
+    );
+  }
+
+  if (collection && segments.length === 2) {
+    const viewer = await resolveCatalogViewer(headerValue(event.headers, 'authorization'), config);
+    return jsonResponse(
+      event,
+      config,
+      await getCatalogItem(collection, decodeSegment(segments[1] ?? ''), config, viewer),
+      undefined,
+      CATALOG_CACHE_HEADERS,
     );
   }
 

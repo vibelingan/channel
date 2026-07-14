@@ -9,6 +9,7 @@
  */
 import type { Role, SessionUser } from '@vibelingan-channel/shared';
 import { canAccessAdmin, canSeeVipPricing } from '@vibelingan-channel/shared';
+import { readApiEnvelope } from './api-envelope.ts';
 import { apiUrl } from './api-url.ts';
 
 export type { Role, SessionUser } from '@vibelingan-channel/shared';
@@ -18,11 +19,6 @@ const TOKEN_KEY = 'channel.token';
 const USER_KEY = 'channel.user';
 const AUTH_EVENT = 'channel:auth';
 const ENDPOINT = apiUrl('/api/admin');
-
-export interface ApiError {
-  code: string;
-  message: string;
-}
 
 export class SessionApiError extends Error {
   constructor(
@@ -86,8 +82,13 @@ export async function callApi<T>(action: string, data?: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, data, token: getToken() }),
   });
-  if (!res.ok) throw new SessionApiError('INTERNAL_ERROR', `Request failed (${res.status})`);
-  const json = (await res.json()) as { ok: true; data: T } | { ok: false; error: ApiError };
+  const json = await readApiEnvelope<T>(res);
+  if (!json) {
+    throw new SessionApiError(
+      res.status === 401 ? 'UNAUTHORIZED' : 'INTERNAL_ERROR',
+      `Request failed (${res.status})`,
+    );
+  }
   if (!json.ok) {
     if (json.error.code === 'UNAUTHORIZED') clearSession();
     throw new SessionApiError(json.error.code, json.error.message);

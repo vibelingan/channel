@@ -2,6 +2,10 @@ export * from './api.ts';
 export * from './errors.ts';
 export * from './env.ts';
 export * from './collections.ts';
+export * from './media.ts';
+export * from './media-content.ts';
+export * from './media-lifecycle.ts';
+export * from './media-ratelimit.ts';
 export * from './auth.ts';
 export * from './query.ts';
 

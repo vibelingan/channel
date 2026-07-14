@@ -128,9 +128,9 @@ submit:
         name: drawing,
         label: Upload Drawing or Files,
         type: file,
-        accept: '.pdf,.zip,.rar,.png,.jpg,.jpeg,.step,.stp,.igs,.dwg',
+        accept: '.pdf,.zip,.rar,.png,.jpg,.jpeg,.webp,.step,.stp,.igs,.iges,.dwg,.dxf',
         full: true,
-        hint: 'Have several files? Compress them into a single .zip and upload that one file.',
+        hint: 'PDF, ZIP/RAR, CAD, or images up to 10 MiB. Have several files? Compress them into a single .zip and upload that one file.',
       }
   submitLabel: Submit project
   disclaimer: >-
@@ -140,6 +140,16 @@ submit:
   successBody: >-
     Our engineering team will review your details and get back to you within one
     business day.
+
+# Real factory-scene video provided by the client (替换视频.zip / OEM.mp4),
+# compressed to a muted, web-optimized mp4 and served from public/media. The
+# poster shows until the muted autoplay loop starts.
+factoryVideo:
+  src: /media/oem-factory.mp4
+  poster: /media/factory-oem.webp
+  posterWidth: 1228
+  posterHeight: 718
+  caption: Inside our Dongguan engineering and production facility
 ---
 
 <!--

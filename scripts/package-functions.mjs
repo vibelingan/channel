@@ -20,8 +20,7 @@ for (const name of functions) {
   mkdirSync(target, { recursive: true });
   cpSync(indexFile, join(target, 'index.js'));
 
-  const sourceMap = join(source, 'index.js.map');
-  if (existsSync(sourceMap)) cpSync(sourceMap, join(target, 'index.js.map'));
+  // CloudBase MCP code upload is size-sensitive; deploy only runtime files.
 
   writeFileSync(
     join(target, 'package.json'),

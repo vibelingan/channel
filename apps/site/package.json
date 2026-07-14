@@ -8,7 +8,9 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "typecheck": "astro check"
+    "typecheck": "astro check",
+    "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
+    "test": "tsc -p tsconfig.test.json --noEmit && tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "@astrojs/react": "^5.0.6",
@@ -24,8 +26,10 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.4",
+    "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "tsx": "^4.22.4",
     "typescript": "^5.6.3",
     "vite": "^7.0.0"
   }

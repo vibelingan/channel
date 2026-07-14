@@ -204,10 +204,10 @@ footer:
         - { label: Teardown Lab, href: '/teardown-lab' }
         - { label: Blue Ocean Products, href: '/blue-ocean' }
         - { label: OEM Development, href: '/oem' }
-    - heading: Products
+    - heading: Account
       links:
-        - { label: Headphones, href: '/headphones' }
-        - { label: Overstock, href: '/overstock' }
+        - { label: Sign In, href: '/login' }
+        - { label: Register, href: '/register' }
         - { label: Admin Portal, href: '/admin' }
     - heading: Contact Us
       links:

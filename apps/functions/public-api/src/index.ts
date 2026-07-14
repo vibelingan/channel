@@ -5,7 +5,9 @@
  * Access / gateway routing is configured later in P0.9.
  */
 import { setAdapter } from '@vibelingan-channel/db';
-import { cloudBaseAdapter, initCloudBase } from '@vibelingan-channel/db/cloudbase';
+import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
+import { setMediaStorage } from '@vibelingan-channel/media-storage';
+import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
 import { optionalEnv, requireEnv } from '@vibelingan-channel/shared';
 import {
   type PublicHttpConfig,
@@ -15,12 +17,17 @@ import {
 
 initCloudBase(requireEnv('TCB_ENV'));
 setAdapter(cloudBaseAdapter);
+setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 
 const config: PublicHttpConfig = {
   ...(optionalEnv('PUBLIC_API_BASE_URL') ? { apiBaseUrl: optionalEnv('PUBLIC_API_BASE_URL') } : {}),
   ...(optionalEnv('CORS_ALLOWED_ORIGINS')
     ? { corsAllowedOrigins: parseAllowedOrigins(optionalEnv('CORS_ALLOWED_ORIGINS')) }
     : {}),
+  // Same secret the admin function signs sessions with; enables the catalog
+  // routes to verify a Bearer token and attach role-gated pricing. Absent →
+  // anonymous-only catalog (no gated tiers), the safe default.
+  ...(optionalEnv('JWT_SECRET') ? { jwtSecret: optionalEnv('JWT_SECRET') } : {}),
 };
 
 export const main = async (event: unknown): Promise<unknown> => {

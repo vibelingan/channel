@@ -9,7 +9,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { AdapterListQuery, DbAdapter } from '@vibelingan-channel/db';
+import { type AdapterListQuery, type DbAdapter, nextCounterValue } from '@vibelingan-channel/db';
 import {
   type CollectionDoc,
   type ListResult,
@@ -120,6 +120,22 @@ export class JsonFileAdapter implements DbAdapter {
     docs.splice(index, 1);
     this.persist();
     return true;
+  }
+
+  async incrementField(
+    collection: string,
+    id: string,
+    field: string,
+    delta: number,
+  ): Promise<number | null> {
+    const docs = this.docs(collection);
+    const index = docs.findIndex((d) => d._id === id);
+    if (index === -1) return null;
+    const existing = docs[index] as CollectionDoc;
+    const next = nextCounterValue(existing[field], delta);
+    docs[index] = { ...existing, [field]: next, updatedAt: new Date().toISOString() };
+    this.persist();
+    return next;
   }
 
   /** Seed a collection only when it is currently empty. */

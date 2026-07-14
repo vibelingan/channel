@@ -8,6 +8,16 @@ on:
         required: true
         type: boolean
         default: true
+      run_media_upload_smoke:
+        description: Run browser-origin media upload smoke after deploy
+        required: true
+        type: boolean
+        default: false
+      run_oem_upload_smoke:
+        description: Run browser-origin OEM ZIP upload smoke after deploy
+        required: true
+        type: boolean
+        default: false
   push:
     branches:
       - test
@@ -16,7 +26,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: cloudbase-deploy-${{ vars.TCB_ENV_ID || github.ref_name }}
+  # Static key: env-scoped vars (TCB_ENV_ID) are unavailable at workflow-level
+  # concurrency, so every writer to the shared test CloudBase env must serialize.
+  group: cloudbase-deploy-test
   cancel-in-progress: false
 
 jobs:
@@ -80,8 +92,18 @@ jobs:
 
       - name: Scan built site for server secret names
         run: |
-          if grep -R -I -n -E 'JWT_SECRET|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|TENCENTCLOUD_SECRET(ID|KEY)|TENCENTCLOUD_SESSIONTOKEN' apps/site/dist; then
+          if grep -R -I -n -E 'JWT_SECRET|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|EMAIL_PASSWORD|EMAIL_USER|TENCENTCLOUD_SECRET(ID|KEY)|TENCENTCLOUD_SESSIONTOKEN' apps/site/dist; then
             echo "Server secret names were found in the public site build." >&2
+            exit 1
+          fi
+
+      - name: Verify CloudBase deploy credentials
+        env:
+          TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
+          TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+        run: |
+          if [ -z "$TENCENTCLOUD_SECRETID" ] || [ -z "$TENCENTCLOUD_SECRETKEY" ]; then
+            echo "TENCENTCLOUD_SECRETID and TENCENTCLOUD_SECRETKEY must be set in the test environment" >&2
             exit 1
           fi
 
@@ -89,7 +111,6 @@ jobs:
         env:
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
           TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
-          TENCENTCLOUD_SESSIONTOKEN: ${{ secrets.TENCENTCLOUD_SESSIONTOKEN }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
           BOOTSTRAP_ADMIN_TOKEN: ${{ secrets.BOOTSTRAP_ADMIN_TOKEN }}
@@ -105,13 +126,38 @@ jobs:
         env:
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
           TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
-          TENCENTCLOUD_SESSIONTOKEN: ${{ secrets.TENCENTCLOUD_SESSIONTOKEN }}
         run: pnpm smoke:cloudbase
 
       - name: Install Playwright Chromium
-        if: ${{ github.event_name == 'push' || github.event.inputs.run_public_e2e == 'true' }}
+        if: ${{ github.event_name == 'push' || github.event.inputs.run_public_e2e == 'true' || github.event.inputs.run_media_upload_smoke == 'true' || github.event.inputs.run_oem_upload_smoke == 'true' }}
         run: npx playwright install --with-deps chromium
 
       - name: Run public browser E2E
         if: ${{ github.event_name == 'push' || github.event.inputs.run_public_e2e == 'true' }}
         run: pnpm test:e2e:public
+
+      - name: Run media upload smoke
+        if: ${{ github.event.inputs.run_media_upload_smoke == 'true' }}
+        env:
+          E2E_MEDIA_UPLOAD_SMOKE: '1'
+          E2E_ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL || 'admin@channel.local' }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+        run: |
+          if [ -z "$E2E_ADMIN_PASSWORD" ]; then
+            echo "E2E_ADMIN_PASSWORD secret is not set for the test environment" >&2
+            exit 1
+          fi
+          pnpm test:e2e:media-upload
+
+      - name: Run OEM upload smoke
+        if: ${{ github.event.inputs.run_oem_upload_smoke == 'true' }}
+        env:
+          E2E_OEM_UPLOAD_SMOKE: '1'
+          E2E_ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL || 'admin@channel.local' }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+        run: |
+          if [ -z "$E2E_ADMIN_PASSWORD" ]; then
+            echo "E2E_ADMIN_PASSWORD secret is not set for the test environment" >&2
+            exit 1
+          fi
+          pnpm test:e2e:oem-upload

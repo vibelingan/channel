@@ -21,13 +21,11 @@ export const e2e = {
   bootstrapToken: process.env.E2E_BOOTSTRAP_ADMIN_TOKEN ?? '',
   enableBootstrap: isEnabled(process.env.E2E_ENABLE_BOOTSTRAP),
   allowMutation: isEnabled(process.env.E2E_ALLOW_MUTATION),
+  mediaUploadSmoke: isEnabled(process.env.E2E_MEDIA_UPLOAD_SMOKE),
+  oemUploadSmoke: isEnabled(process.env.E2E_OEM_UPLOAD_SMOKE),
   runId: process.env.E2E_RUN_ID?.trim() || uniqueRunId(),
 } as const;
 
 export function hasAdminCredentials(): boolean {
   return e2e.adminEmail.length > 0 && e2e.adminPassword.length > 0;
-}
-
-export function hasBootstrapCredentials(): boolean {
-  return e2e.enableBootstrap && e2e.bootstrapToken.length > 0 && hasAdminCredentials();
 }

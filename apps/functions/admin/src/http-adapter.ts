@@ -1,5 +1,5 @@
 import { type ApiErr, type ApiResult, err } from '@vibelingan-channel/shared';
-import type { AdminConfig, AdminRequest } from './handler.ts';
+import type { AdminConfig, AdminRequest, RequestContext } from './handler.ts';
 
 export interface AdminHttpConfig extends AdminConfig {
   corsAllowedOrigins?: readonly string[];
@@ -15,6 +15,7 @@ export interface HttpResponse {
 export type AdminRequestHandler = (
   req: AdminRequest,
   config: AdminConfig,
+  context?: RequestContext,
 ) => Promise<ApiResult<unknown>>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -46,6 +47,29 @@ function requestMethod(event: Record<string, unknown>): string {
 
 function requestOrigin(event: Record<string, unknown>): string {
   return headerValue(event.headers, 'origin');
+}
+
+/**
+ * Best-effort client IP for public-endpoint abuse control. Prefers the first
+ * `x-forwarded-for` hop (the original client through the gateway/CDN), then the
+ * platform `requestContext` sourceIp. Returns '' when no signal is available, in
+ * which case the handler falls back to global-only caps.
+ */
+function clientIp(event: Record<string, unknown>): string {
+  const forwarded = headerValue(event.headers, 'x-forwarded-for');
+  if (forwarded) {
+    const first = forwarded.split(',')[0]?.trim();
+    if (first) return first;
+  }
+  const context = event.requestContext;
+  if (isRecord(context)) {
+    if (typeof context.sourceIp === 'string' && context.sourceIp) return context.sourceIp;
+    const identity = context.identity;
+    if (isRecord(identity) && typeof identity.sourceIp === 'string' && identity.sourceIp) {
+      return identity.sourceIp;
+    }
+  }
+  return '';
 }
 
 function isHttpEnvelope(event: unknown): event is Record<string, unknown> {
@@ -109,6 +133,8 @@ function errorStatus(result: ApiResult<unknown>): number {
       return 404;
     case 'CONFLICT':
       return 409;
+    case 'RATE_LIMITED':
+      return 429;
     case 'INTERNAL_ERROR':
       return 500;
     default: {
@@ -135,6 +161,7 @@ function responseHeaders(
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Origin': corsOrigin(event, config),
     'Access-Control-Max-Age': '86400',
+    'Access-Control-Expose-Headers': 'Retry-After',
     'Content-Type': 'application/json; charset=utf-8',
     Vary: 'Origin',
   };
@@ -146,9 +173,13 @@ function jsonResponse(
   result: ApiResult<unknown>,
   statusCode = errorStatus(result),
 ): HttpResponse {
+  const headers = responseHeaders(event, config);
+  if (!result.ok && typeof result.error.retryAfterSeconds === 'number') {
+    headers['Retry-After'] = String(result.error.retryAfterSeconds);
+  }
   return {
     statusCode,
-    headers: responseHeaders(event, config),
+    headers,
     body: JSON.stringify(result),
     isBase64Encoded: false,
   };
@@ -188,6 +219,6 @@ export async function handleAdminFunctionEvent(
   const req = parseHttpBody(event);
   if (isApiErr(req)) return jsonResponse(event, config, req);
 
-  const result = await handler(req, config);
+  const result = await handler(req, config, { sourceIp: clientIp(event) });
   return jsonResponse(event, config, result);
 }

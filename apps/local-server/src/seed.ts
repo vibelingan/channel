@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { hashPassword } from '@vibelingan-channel/auth/password';
+import { backfillPublishedRefCounts } from '@vibelingan-channel/db';
 import { optionalEnv } from '@vibelingan-channel/shared';
 import type { JsonFileAdapter } from './json-adapter.ts';
 
@@ -107,6 +108,12 @@ export async function seed(adapter: JsonFileAdapter): Promise<void> {
     'overstock',
     [...OVERSTOCK, ...generateOverstock(180)].map((p) => ({ ...p, published: true })),
   );
+
+  // Seeded image rows carry no publishedRefCount, but the published catalog above
+  // references them. Reconcile so the canonical visibility gate matches reality
+  // (idempotent — a no-op on subsequent boots). The db facade adapter is already
+  // wired by main.ts before seed() runs.
+  await backfillPublishedRefCounts();
 }
 
 /** Generate `count` synthetic user accounts (all share the password "password"). */

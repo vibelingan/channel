@@ -1,3 +1,8 @@
+/// <reference path="./wx-server-sdk.d.ts" />
+// Keep the ambient reference before imports. wx-server-sdk publishes no usable
+// .d.ts file, and cross-package consumers of this entry need the local shim.
+import * as cloudbase from '@cloudbase/node-sdk';
+import type { CloudBase } from '@cloudbase/node-sdk';
 import {
   type CollectionDoc,
   type FilterClause,
@@ -11,15 +16,32 @@ import {
  * load before the adapter is used.
  */
 import cloud from 'wx-server-sdk';
-import type { Command, Database } from 'wx-server-sdk';
+import type { Cloud, Command, Database } from 'wx-server-sdk';
 import type { DbAdapter } from './adapter.ts';
 
 let initialized = false;
+let storageApp: CloudBase | null = null;
 
 export function initCloudBase(envId: string): void {
   if (initialized) return;
   cloud.init({ env: envId });
+  storageApp = cloudbase.init({ env: envId });
   initialized = true;
+}
+
+/**
+ * The initialised CloudBase node-sdk instance, exposed for media-storage
+ * injection. `wx-server-sdk` wraps only part of the storage API and does not
+ * expose `getUploadMetadata`; upload-intent minting must use @cloudbase/node-sdk
+ * directly while the DB adapter still uses wx-server-sdk.
+ */
+export function cloudStorageSdk(): CloudBase {
+  if (!storageApp) {
+    throw new Error(
+      '@vibelingan-channel/db: initCloudBase(envId) must be called before using storage',
+    );
+  }
+  return storageApp;
 }
 
 function database() {
@@ -134,6 +156,28 @@ export const cloudBaseAdapter: DbAdapter = {
     const db = database();
     const res = await db.collection(collection).doc(id).remove();
     return (res.deleted ?? 0) > 0;
+  },
+
+  async incrementField(collection, id, field, delta): Promise<number | null> {
+    // The atomic increment MUST go through @cloudbase/node-sdk, NOT wx-server-sdk.
+    // In the Tencent CloudBase runtime, wx-server-sdk's command-based update
+    // (`.doc(id).update({ data: { f: db.command.inc(n) } })`) returns `updated: 0`
+    // and does not apply — while PLAIN wx updates work. That silently broke every
+    // `incrementField` caller: the OEM `finalizeClaim` single-winner claim (hard
+    // `NOT_FOUND` → all OEM submissions failed) and `images.publishedRefCount`
+    // (masked by the delivery legacy-scan fallback). Diagnosed live 2026-07-01.
+    // node-sdk is the native SDK for this runtime and its `command.inc` applies;
+    // its `.update(data)` takes the patch directly (no `data:` wrapper) and
+    // `.get()` returns `{ data: [doc] }`. Re-read via the SAME sdk so the returned
+    // counter value reflects this write (read-after-write).
+    const db = cloudStorageSdk().database();
+    const ref = db.collection(collection).doc(id);
+    const res = await ref.update({ [field]: db.command.inc(delta), updatedAt: new Date().toISOString() });
+    if ((res.updated ?? 0) === 0) return null;
+    const got = await ref.get();
+    const doc = (got.data as Record<string, unknown>[] | undefined)?.[0];
+    const value = doc ? Number(doc[field]) : Number.NaN;
+    return Number.isFinite(value) ? value : null;
   },
 };
 

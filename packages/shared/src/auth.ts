@@ -12,10 +12,22 @@
  *                 a viewer for pricing. `member`/`viewer` are reserved for
  *                 explicit assignment later.
  */
-export const ROLES = ['admin', 'contributor', 'member', 'viewer'] as const;
+// Ascending privilege — also the display order for admin role-select options.
+export const ROLES = ['viewer', 'member', 'contributor', 'admin'] as const;
 export type AssignableRole = (typeof ROLES)[number];
 /** A user's role; '' (blank) is the default base entitlement. */
 export type Role = AssignableRole | '';
+
+/**
+ * Narrow an untrusted value (DB row field, JWT payload claim) to a `Role`.
+ * Anything off the union collapses to `''` (base entitlement), so a corrupted
+ * or hand-edited role can only ever LOSE privileges, never gain them.
+ */
+export function toRole(value: unknown): Role {
+  return typeof value === 'string' && (ROLES as readonly string[]).includes(value)
+    ? (value as Role)
+    : '';
+}
 
 /** Can the role reach the admin dashboard at all? */
 export function canAccessAdmin(role: Role): boolean {

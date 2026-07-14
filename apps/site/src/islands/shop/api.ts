@@ -1,5 +1,17 @@
 /** Shared product types + API client for the storefront islands. */
 import { apiMediaUrl, apiUrl } from '../../lib/api-url.ts';
+import { getToken } from '../../lib/session.ts';
+
+/**
+ * Attach the session token so the catalog API can verify the caller's role and
+ * return role-gated pricing (VIP tier). Anonymous callers send no header and
+ * receive the public projection. The server is the sole authority — the token
+ * is verified there; the client never asserts entitlement.
+ */
+function catalogHeaders(): HeadersInit | undefined {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : undefined;
+}
 
 export interface Product {
   _id: string;
@@ -71,7 +83,9 @@ export async function fetchCatalog(
   if (query.page) params.set('page', String(query.page));
   if (query.pageSize) params.set('pageSize', String(query.pageSize));
   const qs = params.toString();
-  const res = await fetch(apiUrl(`${basePath}${qs ? `?${qs}` : ''}`));
+  const res = await fetch(apiUrl(`${basePath}${qs ? `?${qs}` : ''}`), {
+    headers: catalogHeaders(),
+  });
   if (!res.ok) throw new Error(`Failed to load catalog (${res.status})`);
   const json = (await res.json()) as ApiEnvelope<CatalogPage>;
   if (!json.ok || !json.data) throw new Error(json.error?.message ?? 'Failed to load catalog');
@@ -79,7 +93,9 @@ export async function fetchCatalog(
 }
 
 export async function fetchCatalogItem(basePath: string, id: string): Promise<Product> {
-  const res = await fetch(apiUrl(`${basePath}/${encodeURIComponent(id)}`));
+  const res = await fetch(apiUrl(`${basePath}/${encodeURIComponent(id)}`), {
+    headers: catalogHeaders(),
+  });
   if (res.status === 404) throw new Error('not-found');
   if (!res.ok) throw new Error(`Failed to load item (${res.status})`);
   const json = (await res.json()) as ApiEnvelope<Product>;

@@ -1,4 +1,4 @@
-import type { Role } from '@vibelingan-channel/shared';
+import { type Role, toRole } from '@vibelingan-channel/shared';
 import { SignJWT, jwtVerify } from 'jose';
 
 /** Claims carried inside a portal session token. */
@@ -42,13 +42,14 @@ export async function verifySession(secret: string, token: string): Promise<Sess
     const { payload } = await jwtVerify(token, secretKey(secret), {
       issuer: ISSUER,
       audience: AUDIENCE,
+      algorithms: [ALG],
     });
     if (typeof payload.sub !== 'string') return null;
     return {
       sub: payload.sub,
       email: typeof payload.email === 'string' ? payload.email : '',
       name: typeof payload.name === 'string' ? payload.name : '',
-      role: (typeof payload.role === 'string' ? payload.role : '') as Role,
+      role: toRole(payload.role),
     };
   } catch {
     return null;

@@ -10,14 +10,25 @@ import { resolve } from 'node:path';
 import { setAdapter } from '@vibelingan-channel/db';
 import { handleAdminRequest } from '@vibelingan-channel/fn-admin/handler';
 import type { AdminConfig, AdminRequest } from '@vibelingan-channel/fn-admin/handler';
+import {
+  getCatalogImage,
+  getCatalogItem,
+  listCatalog,
+  resolveCatalogViewer,
+} from '@vibelingan-channel/fn-public-api/handler';
+import type { PublicApiConfig, PublicCatalog } from '@vibelingan-channel/fn-public-api/handler';
+import { setMediaStorage } from '@vibelingan-channel/media-storage';
+import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
 import { optionalEnv } from '@vibelingan-channel/shared';
-import type { FilterClause } from '@vibelingan-channel/shared';
+import { releaseInfo } from '@vibelingan-channel/shared/release';
 import express from 'express';
 import { JsonFileAdapter } from './json-adapter.ts';
 import { seed } from './seed.ts';
 
 const PORT = Number(optionalEnv('PORT', '3002'));
 const DB_FILE = resolve(process.cwd(), optionalEnv('LOCAL_DB_FILE', './data/db.local.json'));
+const MEDIA_DIR = resolve(process.cwd(), optionalEnv('LOCAL_MEDIA_DIR', './data/media'));
+const TCB_ENV = optionalEnv('TCB_ENV', '');
 
 // Dev defaults so the server runs with zero configuration.
 const config: AdminConfig = {
@@ -27,6 +38,28 @@ const config: AdminConfig = {
 
 const adapter = new JsonFileAdapter(DB_FILE);
 setAdapter(adapter);
+
+// The DB stays file-backed locally, but media UPLOADS always mint a real
+// CloudBase pre-signed credential (project decision: one upload path
+// everywhere). When TCB_ENV is configured, wire the CloudBase media adapter so
+// createUploadIntent/completeUpload work locally too; the dynamic import keeps
+// wx-server-sdk out of the default (no-CloudBase) dev run. Otherwise fall back to
+// local-disk for byte DELIVERY only — uploads then fail loudly.
+if (TCB_ENV) {
+  const { cloudStorageSdk, initCloudBase } = await import('@vibelingan-channel/db/cloudbase');
+  const { createCloudBaseMediaStorage } = await import(
+    '@vibelingan-channel/media-storage/cloudbase'
+  );
+  initCloudBase(TCB_ENV);
+  setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
+  console.log(
+    `[local-server] media storage: CloudBase (TCB_ENV=${TCB_ENV}) — real uploads + delivery`,
+  );
+} else {
+  setMediaStorage(new LocalDiskMediaStorage(MEDIA_DIR));
+  console.log('[local-server] media storage: local-disk (delivery only; set TCB_ENV for uploads)');
+}
+
 await seed(adapter);
 
 const app = express();
@@ -41,8 +74,10 @@ app.use((_req, res, next) => {
 });
 app.options('/api/admin', (_req, res) => res.sendStatus(204));
 
+// Same envelope as the production public-api health (parity with the e2e
+// contract), plus local-only diagnostics.
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, mode: 'local', db: DB_FILE });
+  res.json({ ok: true, data: { ...releaseInfo('public-api'), mode: 'local', db: DB_FILE } });
 });
 
 app.post('/api/admin', async (req, res) => {
@@ -57,28 +92,42 @@ app.post('/api/admin', async (req, res) => {
 // serves any catalog-style collection (products, overstock, …).
 // ---------------------------------------------------------------------------
 
-/**
- * Resolve a catalog document's `imageIds` (references into the `images`
- * collection) into client-facing URLs that stream the stored bytes. Catalog
- * documents never persist file paths — only image ids — mirroring how
- * wx-server-sdk will store image binaries in production.
- */
-function resolveImages(doc: Record<string, unknown>): Record<string, unknown> {
-  const ids = Array.isArray(doc.imageIds) ? (doc.imageIds as unknown[]) : [];
-  return { ...doc, images: ids.map((id) => `/api/images/${String(id)}`) };
-}
-
-// Serve image bytes stored (base64) in the `images` collection.
+// PUBLIC image delivery — delegates to the SAME logic as production
+// (`getCatalogImage`): provider/refCount/status gating, the legacy catalog-scan
+// fallback, the placeholder special-case, and fail-closed behavior, all driven by
+// the wired `mediaStorage()` adapter. Sharing the helper keeps local dev from
+// masking the production public gate (no parity to drift). Admin previews of
+// unpublished images use the authed `getImagePreview` action, not this route.
+// Every header the handler sets (Content-Type allowlist, nosniff, caching) is
+// forwarded verbatim so local delivery matches production byte-for-byte.
 app.get('/api/images/:id', async (req, res) => {
-  const doc = await adapter.get('images', req.params.id);
-  if (!doc || typeof doc.data !== 'string') {
-    res.status(404).end();
+  const result = await getCatalogImage(req.params.id);
+  if (result.ok && 'body' in result) {
+    for (const [name, value] of Object.entries(result.headers)) {
+      res.setHeader(name, value);
+    }
+    res.send(Buffer.from(result.body, 'base64'));
     return;
   }
-  res.setHeader('Content-Type', String(doc.mimeType ?? 'application/octet-stream'));
-  res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.send(Buffer.from(doc.data, 'base64'));
+  res.status(404).end();
 });
+
+// Content-Type values the OEM file download may reflect. Same defense-in-depth
+// as the public image route: even though these bytes are served as an
+// `attachment` (never rendered inline) and `mimeType` is now readOnly, we still
+// gate the reflected type to a server allowlist and send `nosniff` so a corrupt
+// or legacy `text/html` row can never influence how a browser treats the bytes.
+const DOWNLOAD_MIME_TYPES: ReadonlySet<string> = new Set([
+  'application/pdf',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/x-rar-compressed',
+  'application/vnd.rar',
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'application/octet-stream',
+]);
 
 // Download file bytes stored (base64) in the `files` collection. Sent as an
 // attachment with the original filename so admins can save OEM drawings.
@@ -89,49 +138,57 @@ app.get('/api/files/:id', async (req, res) => {
     return;
   }
   const name = String(doc.name ?? 'file').replace(/["\r\n]/g, '');
-  res.setHeader('Content-Type', String(doc.mimeType ?? 'application/octet-stream'));
+  const declared = typeof doc.mimeType === 'string' ? doc.mimeType.trim().toLowerCase() : '';
+  res.setHeader(
+    'Content-Type',
+    DOWNLOAD_MIME_TYPES.has(declared) ? declared : 'application/octet-stream',
+  );
+  res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
   res.send(Buffer.from(doc.data, 'base64'));
 });
 
-function registerCatalog(collection: string, basePath: string): void {
+// Catalog routes delegate to the SAME handler as production (`listCatalog` /
+// `getCatalogItem`) for the same parity reason as the image route above — in
+// particular the public field allowlist and the server-side role-gated VIP
+// tier (verified from the Bearer token) must not drift between the two.
+const catalogConfig: PublicApiConfig = { jwtSecret: config.jwtSecret };
+
+// The catalog responses vary by the caller's token (role-gated VIP tier), so a
+// shared cache must key on Authorization — mirrors the production http-adapter.
+function setCatalogCacheHeaders(res: express.Response): void {
+  res.setHeader('Vary', 'Origin, Authorization');
+  res.setHeader('Cache-Control', 'private, no-cache');
+}
+
+function registerCatalog(collection: PublicCatalog, basePath: string): void {
   app.get(basePath, async (req, res) => {
     const categoriesParam = String(req.query.category ?? '').trim();
-    const categories = categoriesParam ? categoriesParam.split(',').filter(Boolean) : null;
-    const search = String(req.query.search ?? '').trim();
-    const page = Math.max(1, Number.parseInt(String(req.query.page ?? '1'), 10) || 1);
-    const pageSize = Math.min(
-      48,
-      Math.max(1, Number.parseInt(String(req.query.pageSize ?? '24'), 10) || 24),
-    );
-
-    // Public storefront only ever sees published items; optional category and
-    // free-text search are applied server-side so large catalogs paginate well.
-    const clauses: FilterClause[] = [{ field: 'published', op: 'eq', value: true }];
-    if (categories) {
-      clauses.push({ field: 'category', op: 'in', value: categories });
-    }
-    const result = await adapter.list({
+    const viewer = await resolveCatalogViewer(req.headers.authorization, catalogConfig);
+    const result = await listCatalog(
       collection,
-      page,
-      pageSize,
-      search,
-      filter: { combinator: 'and', clauses },
-    });
-    const items = result.items.map(resolveImages);
-    res.json({
-      ok: true,
-      data: { items, total: result.total, page: result.page, pageSize: result.pageSize },
-    });
+      {
+        ...(categoriesParam ? { categories: categoriesParam.split(',').filter(Boolean) } : {}),
+        search: String(req.query.search ?? '').trim(),
+        page: Number.parseInt(String(req.query.page ?? '1'), 10) || 1,
+        pageSize: Number.parseInt(String(req.query.pageSize ?? '24'), 10) || 24,
+      },
+      catalogConfig,
+      viewer,
+    );
+    setCatalogCacheHeaders(res);
+    res.json(result);
   });
 
   app.get(`${basePath}/:id`, async (req, res) => {
-    const doc = await adapter.get(collection, req.params.id);
-    if (!doc || doc.published !== true) {
-      res.status(404).json({ ok: false, error: { code: 'NOT_FOUND', message: 'Item not found' } });
+    const viewer = await resolveCatalogViewer(req.headers.authorization, catalogConfig);
+    const result = await getCatalogItem(collection, req.params.id, catalogConfig, viewer);
+    setCatalogCacheHeaders(res);
+    if (!result.ok) {
+      res.status(404).json(result);
       return;
     }
-    res.json({ ok: true, data: resolveImages(doc) });
+    res.json(result);
   });
 }
 
