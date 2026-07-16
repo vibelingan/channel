@@ -1,38 +1,40 @@
 ---
 import type { NavItem, SiteContent } from '../i18n/site.ts';
 import { AccountMenu } from '../islands/auth/AccountMenu.tsx';
+import { orderPrimaryNavItems } from '../lib/site-navigation.ts';
 
 interface Props {
   brand: SiteContent['brand'];
   nav: SiteContent['nav'];
-  /** When false, hide the company name and show only logo + min-order badge. */
+  /** Retained for hidden legacy route compatibility; the public header is logo-only. */
   showName?: boolean;
 }
 
-const { brand, nav, showName = true } = Astro.props;
+const { brand, nav } = Astro.props;
 
 // Auth-related nav entries are handled by the AccountMenu island instead.
 const AUTH_HREFS = ['/admin', '/login', '/register'];
 const menuItems: NavItem[] = nav.items.filter((item) => !AUTH_HREFS.includes(item.href));
+const orderedMenuItems = orderPrimaryNavItems(menuItems);
 ---
 
 <header
-  class="fixed inset-x-0 top-0 z-50 bg-white/85 backdrop-blur-md shadow-[var(--shadow-header)]"
+  class="fixed inset-x-0 top-0 z-50 border-b-2 border-brand-700 bg-white/95 backdrop-blur-md shadow-[var(--shadow-header)]"
   data-site-header
 >
   <div
     class="mx-auto flex h-[var(--spacing-header)] max-w-[96rem] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8"
   >
-    <!-- Brand: logo + company name + minimum-order highlight -->
-    <a href="/" class="flex shrink-0 items-center gap-3" aria-label={brand.name}>
+    <!-- Public brand: the approved CHANNEL wordmark only. -->
+    <a href="/" class="flex shrink-0 items-center" aria-label="Home">
       {
         brand.logo ? (
           <img
             src={brand.logo}
             alt={brand.name}
-            width="201"
-            height="40"
-            class="h-9 w-auto shrink-0 sm:h-10"
+            width="226"
+            height="30"
+            class="h-8 w-auto shrink-0 sm:h-9"
           />
         ) : (
           <span
@@ -43,33 +45,15 @@ const menuItems: NavItem[] = nav.items.filter((item) => !AUTH_HREFS.includes(ite
           </span>
         )
       }
-      {
-        showName ? (
-          <span class="hidden flex-col leading-tight sm:flex">
-            <span class="whitespace-nowrap font-display text-sm font-semibold text-ink sm:text-base">
-              {brand.name}
-            </span>
-            <span class="mt-0.5 inline-flex w-fit items-center gap-1 rounded-full bg-accent-100 px-2 py-0.5 text-[11px] font-semibold text-accent-700">
-              {brand.minOrder}
-            </span>
-          </span>
-        ) : (
-          <span class="hidden items-center sm:inline-flex">
-            <span class="inline-flex w-fit items-center gap-1 rounded-full bg-accent-100 px-2.5 py-1 text-xs font-semibold text-accent-700">
-              {brand.minOrder}
-            </span>
-          </span>
-        )
-      }
     </a>
 
     <!-- Primary navigation (centered on wide screens) -->
     <nav class="hidden items-center gap-1 xl:flex" aria-label="Primary">
       {
-        menuItems.map((item) => (
+        orderedMenuItems.map((item) => (
           <a
             href={item.href}
-            class="whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-ink-soft transition hover:bg-brand-50 hover:text-brand-700"
+            class="whitespace-nowrap rounded-lg px-3 py-2 text-base font-semibold text-ink-soft transition hover:bg-brand-50 hover:text-brand-700"
           >
             {item.label}
           </a>
@@ -103,7 +87,7 @@ const menuItems: NavItem[] = nav.items.filter((item) => !AUTH_HREFS.includes(ite
     data-mobile-menu
   >
     {
-      menuItems.map((item) => (
+      orderedMenuItems.map((item) => (
         <a
           href={item.href}
           class="block rounded-lg px-3 py-3 text-base font-medium text-ink-soft transition hover:bg-brand-50 hover:text-brand-700"
