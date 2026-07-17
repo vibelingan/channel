@@ -14,16 +14,16 @@ const { factory } = Astro.props;
 
 // Real factory floor photos (client-supplied — apps/site/public/media/oem/factory).
 const factoryPhotos = [
-  { src: '/media/oem/factory/f01.jpg', alt: '3D design and product development' },
-  { src: '/media/oem/factory/f02.jpg', alt: 'Precision mold tooling' },
-  { src: '/media/oem/factory/f03.jpg', alt: 'Production line' },
-  { src: '/media/oem/factory/f04.jpg', alt: 'Assembly workshop' },
-  { src: '/media/oem/factory/f05.jpg', alt: 'Manufacturing floor' },
-  { src: '/media/oem/factory/f06.jpg', alt: 'Factory facility' },
-  { src: '/media/oem/factory/f07.jpg', alt: 'Production workshop' },
-  { src: '/media/oem/factory/f08.jpg', alt: 'Quality inspection area' },
-  { src: '/media/oem/factory/f09.jpg', alt: 'Assembly line detail' },
-  { src: '/media/oem/factory/f10.jpg', alt: 'Engineering team at work' },
+  { src: '/media/oem/factory/f01.jpg', alt: 'Product design and 3D engineering' },
+  { src: '/media/oem/factory/f02.jpg', alt: 'Precision production mold' },
+  { src: '/media/oem/factory/f06.jpg', alt: 'Tooling detail and mold cavity' },
+  { src: '/media/oem/factory/f03.jpg', alt: 'Factory facility entrance' },
+  { src: '/media/oem/factory/f10.jpg', alt: 'ISO-certified factory campus' },
+  { src: '/media/oem/factory/f08.jpg', alt: 'Injection molding workshop' },
+  { src: '/media/oem/factory/f04.jpg', alt: 'Product assembly and packing line' },
+  { src: '/media/oem/factory/f09.jpg', alt: 'Product coating and finishing line' },
+  { src: '/media/oem/factory/f05.jpg', alt: 'Product printing and finishing' },
+  { src: '/media/oem/factory/f07.jpg', alt: 'Factory loading and dispatch area' },
 ];
 ---
 
@@ -68,7 +68,12 @@ const factoryPhotos = [
     </div>
 
     {/* Factory photo strip — horizontal scroll */}
-    <div class="reveal mt-10 flex snap-x gap-4 overflow-x-auto pb-4 [scrollbar-width:thin]">
+    <div
+      role="region"
+      aria-label="Factory development and production gallery"
+      tabindex="0"
+      class="reveal mt-10 flex snap-x gap-4 overflow-x-auto pb-4 [scrollbar-width:thin]"
+    >
       {factoryPhotos.map((photo) => (
         <img
           src={photo.src}

@@ -36,6 +36,17 @@ const qualitySource = readFileSync(
   fileURLToPath(new URL('../components/QualityTestingSection.astro', import.meta.url)),
   'utf8',
 );
+const factorySource = readFileSync(
+  fileURLToPath(new URL('../components/FactorySection.astro', import.meta.url)),
+  'utf8',
+);
+const oemContent = readFileSync(
+  fileURLToPath(new URL('./content/oem/en-US.md', import.meta.url)),
+  'utf8',
+);
+const productCapabilityComponent = fileURLToPath(
+  new URL('../components/ProductCapabilitySection.astro', import.meta.url),
+);
 
 test('brand.logo points to the configured client logo', () => {
   const match = enUS.match(/^\s*logo:\s*(\S+)\s*$/m);
@@ -221,7 +232,7 @@ test('Factory and Our People use the exact confirmed client copy', () => {
     assert.ok(normalizedContent.includes(copy), `missing confirmed Phase 3A copy: ${copy}`);
   }
 
-  const factoryBlock = enUS.match(/^factory:\n([\s\S]*?)^productCapability:/m);
+  const factoryBlock = enUS.match(/^factory:\n([\s\S]*?)^ourPeople:/m);
   assert.ok(factoryBlock, 'factory content exists');
   assert.equal([...factoryBlock[1].matchAll(/^ {4}- value:/gm)].length, 4);
   for (const value of ["'20+'", "'40+'", "'5000+'", "'40+'"]) {
@@ -288,4 +299,45 @@ test('homepage removes only the three confirmed sections and keeps the required 
   ]) {
     assert.ok(homepageSource.includes(retained), `homepage lost required section: ${retained}`);
   }
+});
+
+test('retired homepage Product Capability code is removed without affecting OEM capabilities', () => {
+  assert.ok(!existsSync(productCapabilityComponent));
+  assert.ok(!siteTypeSource.includes('export interface IconCard'));
+  assert.ok(!siteTypeSource.includes('productCapability: {'));
+  assert.ok(!/^productCapability:/m.test(enUS));
+  assert.ok(oemContent.includes('capabilities:'));
+  for (const category of [
+    'Plastic Products',
+    'Electronics',
+    'Headphones',
+    'Consumer Goods',
+    'Hardware Products',
+    'Promotional Products',
+  ]) {
+    assert.ok(oemContent.includes(category), `OEM capability remains available: ${category}`);
+  }
+});
+
+test('Factory photos follow the confirmed development-to-dispatch narrative', () => {
+  const factoryPhotos = [
+    ...factorySource.matchAll(/\{ src: '\/media\/oem\/factory\/(f\d{2}\.jpg)', alt: '([^']+)' \}/g),
+  ].map((match) => ({ file: match[1], alt: match[2] }));
+
+  assert.deepEqual(factoryPhotos, [
+    { file: 'f01.jpg', alt: 'Product design and 3D engineering' },
+    { file: 'f02.jpg', alt: 'Precision production mold' },
+    { file: 'f06.jpg', alt: 'Tooling detail and mold cavity' },
+    { file: 'f03.jpg', alt: 'Factory facility entrance' },
+    { file: 'f10.jpg', alt: 'ISO-certified factory campus' },
+    { file: 'f08.jpg', alt: 'Injection molding workshop' },
+    { file: 'f04.jpg', alt: 'Product assembly and packing line' },
+    { file: 'f09.jpg', alt: 'Product coating and finishing line' },
+    { file: 'f05.jpg', alt: 'Product printing and finishing' },
+    { file: 'f07.jpg', alt: 'Factory loading and dispatch area' },
+  ]);
+  assert.equal(new Set(factoryPhotos.map((photo) => photo.file)).size, 10);
+  assert.ok(factorySource.includes('role="region"'));
+  assert.ok(factorySource.includes('aria-label="Factory development and production gallery"'));
+  assert.ok(factorySource.includes('tabindex="0"'));
 });

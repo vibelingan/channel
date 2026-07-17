@@ -32,12 +32,6 @@ export interface FooterColumn {
   links: CtaLink[];
 }
 
-export interface IconCard {
-  title: string;
-  description: string;
-  icon: string;
-}
-
 export interface WorkflowComparisonStep {
   label: string;
   highlight?: boolean;
@@ -122,12 +116,6 @@ export interface SiteContent {
     eyebrow: string;
     heading: string;
     body: string;
-  };
-  productCapability: {
-    eyebrow: string;
-    heading: string;
-    intro: string;
-    items: IconCard[];
   };
   whyChooseUs: {
     eyebrow: string;

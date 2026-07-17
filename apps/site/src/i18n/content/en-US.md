@@ -115,30 +115,6 @@ ourPeople:
     distributors, and retailers across North America, Europe, the Middle East,
     Africa, and Asia.
 
-productCapability:
-  eyebrow: Product Capability
-  heading: Six Primary Product Families
-  intro: Two decades of manufacturing has built a deep, diversified supply chain. We develop across six primary product families — and the cross-pollination between them is exactly what lets us solve unusual briefs.
-  items:
-    - title: Plastic Products
-      description: Injection molding, tooling, and finishing for durable plastic parts
-      icon: cube
-    - title: Electronics
-      description: PCBA, embedded firmware, and full electronic device assembly
-      icon: chip
-    - title: Headphones
-      description: Acoustic tuning, wireless audio, and high-volume audio manufacturing
-      icon: headphone
-    - title: Consumer Goods
-      description: Home appliances, lifestyle products, and everyday consumer electronics
-      icon: home
-    - title: Hardware Products
-      description: Metal stamping, CNC machining, and precision hardware manufacturing
-      icon: wrench
-    - title: Promotional Products
-      description: Custom branded merchandise, giveaways, and promotional electronics
-      icon: gift
-
 whyChooseUs:
   eyebrow: Why Choose Us
   heading: A partner you can build on
