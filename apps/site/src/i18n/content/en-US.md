@@ -117,18 +117,49 @@ ourPeople:
 
 whyChooseUs:
   eyebrow: Why Choose Us
-  heading: A partner you can build on
-  intro: Choosing a manufacturer is choosing a long-term partner. Here is what makes brands trust us with their products year after year.
-  reasons:
-    - title: Flexible MOQ
-      description: Order quantities that scale with your stage, from pilot runs to volume production.
-      icon: scale
-    - title: Global Compliance Support
-      description: CE, FCC, RoHS, and market-specific certification guidance built in.
-      icon: certificate
-    - title: Dedicated Project Manager
-      description: One accountable contact from first quote to final shipment — no handoffs, no dropped balls.
-      icon: user-check
+  heading: More Than Manufacturing — Your AI-Powered Product Innovation & Supply Chain Partner
+  visualDisclaimer: Concept visuals are illustrative representations, not live system interfaces or performance guarantees.
+  stories:
+    - number: '01'
+      title: AI Proactive Incubation
+      scenario: >-
+        Turn client’s rough ideas & simple sketches into complete product
+        solutions, no finished technical drawings needed.
+      sellingPoint: Early-stage R&D empowerment, zero threshold for product innovation.
+      visual: incubation
+      visualSummary: A rough product sketch evolving into multiple product concepts alongside market trend insights.
+    - number: '02'
+      title: Smart R&D & Fast Iteration
+      scenario: >-
+        Replace repeated physical sampling with AI virtual simulation to
+        shorten development cycle.
+      sellingPoint: Drastically cut iteration time and R&D trial-and-error cost.
+      visual: iteration
+      visualSummary: A conceptual comparison between a 60-day traditional sample cycle and a 15-day AI-assisted virtual simulation cycle.
+    - number: '03'
+      title: Global AI Supply Chain
+      scenario: >-
+        AI material big data supports instant material selection, dynamic
+        cost optimization and global cross-border delivery.
+      sellingPoint: Transparent cost, stable supply and fast global shipping.
+      visual: supply-chain
+      visualSummary: A global supply network concept connecting material matching, cost optimization, manufacturing and delivery.
+    - number: '04'
+      title: Pre-QC Risk Control
+      scenario: >-
+        AI full-process pre-inspection replaces traditional post-production
+        quality check.
+      sellingPoint: Eliminate quality risks in advance, stabilize mass production yield.
+      visual: pre-qc
+      visualSummary: A conceptual pre-inspection scan identifying risks across tooling, production and assembly before final inspection.
+    - number: '05'
+      title: Long-Term Brand Co-Growth
+      scenario: >-
+        Continuous product iteration and cost optimization based on market
+        data, instead of one-time OEM manufacturing.
+      sellingPoint: Sustainable brand growth and long-term market competitiveness.
+      visual: co-growth
+      visualSummary: Three product generations improving alongside a conceptual upward market growth trend.
 
 quality:
   eyebrow: Quality Assurance

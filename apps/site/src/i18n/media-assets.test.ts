@@ -5,15 +5,21 @@ import { fileURLToPath } from 'node:url';
 
 const enUS = readFileSync(fileURLToPath(new URL('./content/en-US.md', import.meta.url)), 'utf8');
 
-test('home "Who we are" section uses the real team photo', () => {
+test('home keeps the real team gallery separate from Why Choose Us visuals', () => {
+  const ourTeam = readFileSync(
+    fileURLToPath(new URL('../components/OurTeamSection.astro', import.meta.url)),
+    'utf8',
+  );
   const whyChooseUs = readFileSync(
     fileURLToPath(new URL('../components/WhyChooseUsSection.astro', import.meta.url)),
     'utf8',
   );
-  assert.ok(
-    whyChooseUs.includes('/media/oem/team/team.jpg'),
-    '"Who we are" section uses the real team photo',
+  assert.equal(
+    (ourTeam.match(/\/media\/oem\/team\/t\d{2}\.jpg/g) ?? []).length,
+    6,
+    'Our People retains all six client team photos',
   );
+  assert.ok(!whyChooseUs.includes('/media/oem/team/team.jpg'), 'duplicate team photo removed');
   assert.ok(
     !whyChooseUs.includes('/media/section-heritage.png'),
     'placeholder heritage illustration no longer referenced',

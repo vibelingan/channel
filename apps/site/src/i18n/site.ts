@@ -56,10 +56,20 @@ export interface WorkflowStepItem {
   desc?: string;
 }
 
-export interface ReasonItem {
+export type AiAdvantageVisual =
+  | 'incubation'
+  | 'iteration'
+  | 'supply-chain'
+  | 'pre-qc'
+  | 'co-growth';
+
+export interface AiAdvantageStory {
+  number: string;
   title: string;
-  description: string;
-  icon: string;
+  scenario: string;
+  sellingPoint: string;
+  visual: AiAdvantageVisual;
+  visualSummary: string;
 }
 
 export interface CertItem {
@@ -114,8 +124,8 @@ export interface SiteContent {
   whyChooseUs: {
     eyebrow: string;
     heading: string;
-    intro: string;
-    reasons: ReasonItem[];
+    visualDisclaimer: string;
+    stories: AiAdvantageStory[];
   };
   quality: {
     eyebrow: string;

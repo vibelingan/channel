@@ -1,72 +1,232 @@
 ---
 /**
- * Why Choose Us — 3 reasons with icons.
+ * Why Choose Us — five AI-enabled product and supply-chain stories.
+ * Visuals are static marketing concepts, not interactive product interfaces.
  */
 import type { SiteContent } from '../i18n/site.ts';
-import type { ReasonItem } from '../i18n/site.ts';
 
 interface Props {
   why: SiteContent['whyChooseUs'];
 }
 
 const { why } = Astro.props;
-
-const iconPaths: Record<string, string> = {
-  scale: 'M3 6l6 6-6 6m18-12l-6 6 6 6M12 3v18',
-  certificate:
-    'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
-  'user-check': 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
-};
 ---
 
-<section class="bg-surface-alt py-20 sm:py-28">
-  <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
-    <div class="reveal mx-auto max-w-2xl text-center">
+<section class="relative overflow-hidden bg-surface-alt py-20 sm:py-28">
+  <div
+    class="pointer-events-none absolute -right-40 top-32 h-96 w-96 rounded-full bg-brand-100/60 blur-3xl"
+    aria-hidden="true"
+  ></div>
+  <div class="relative mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
+    <div class="reveal mx-auto max-w-4xl text-center">
       <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
         {why.eyebrow}
       </p>
-      <h2 class="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl">
+      <h2 class="mt-4 font-display text-3xl font-bold leading-tight text-ink sm:text-4xl lg:text-5xl">
         {why.heading}
       </h2>
-      <p class="mt-4 text-lg text-ink-soft">
-        {why.intro}
+      <p class="mx-auto mt-6 inline-flex max-w-3xl items-start gap-2 rounded-full border border-brand-200 bg-surface px-4 py-2 text-left text-xs font-medium leading-relaxed text-ink-soft shadow-sm sm:text-sm">
+        <svg class="mt-0.5 h-4 w-4 shrink-0 text-brand-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8.75-3.25a.75.75 0 011.5 0v.5a.75.75 0 01-1.5 0v-.5zM10 9a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 9z" clip-rule="evenodd" />
+        </svg>
+        {why.visualDisclaimer}
       </p>
     </div>
 
-    <div class="mt-14 grid items-center gap-10 lg:grid-cols-2">
-      {/* PPTX P7: team photo on the left (replaces the removed 15+/100+ stat cards) */}
-      <div class="reveal overflow-hidden rounded-[var(--radius-card)] shadow-[var(--shadow-card)] ring-1 ring-black/5">
-        <img
-          src="/media/oem/team/team.jpg"
-          alt="The Diversity Technology sales and engineering team"
-          loading="lazy"
-          class="h-full w-full object-cover"
-        />
-      </div>
+    <ol class="mt-16 space-y-10 sm:space-y-14 lg:mt-20 lg:space-y-20">
+      {why.stories.map((story, storyIndex) => (
+        <li
+          data-story-layout={storyIndex % 2 === 1 ? 'visual-first' : 'text-first'}
+          class="reveal grid items-center gap-8 lg:grid-cols-2 lg:gap-16"
+        >
+          <div class={storyIndex % 2 === 1 ? 'lg:order-2' : 'lg:order-1'}>
+            <div class="flex items-center gap-4">
+              <span class="font-display text-5xl font-bold text-brand-200 sm:text-6xl">
+                {story.number}
+              </span>
+              <span class="h-px flex-1 bg-gradient-to-r from-brand-300 to-transparent" aria-hidden="true"></span>
+            </div>
+            <h3 class="mt-5 font-display text-2xl font-bold text-ink sm:text-3xl">
+              {story.title}
+            </h3>
+            <dl class="mt-6 space-y-5">
+              <div>
+                <dt class="text-xs font-bold uppercase tracking-[0.14em] text-brand-600">Scenario</dt>
+                <dd class="mt-2 text-base leading-relaxed text-ink-soft sm:text-lg">{story.scenario}</dd>
+              </div>
+              <div class="rounded-xl border-l-4 border-accent-400 bg-accent-50 p-4 sm:p-5">
+                <dt class="text-xs font-bold uppercase tracking-[0.14em] text-accent-700">Core Selling Point</dt>
+                <dd class="mt-2 text-base font-semibold leading-relaxed text-ink sm:text-lg">
+                  {story.sellingPoint}
+                </dd>
+              </div>
+            </dl>
+          </div>
 
-      {/* Reasons on the right */}
-      <ul class="flex flex-col gap-5">
-        {why.reasons.map((reason: ReasonItem, i: number) => (
-          <li
-            class="reveal group flex items-start gap-4 rounded-[var(--radius-card)] border border-slate-200 bg-surface p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)]"
-            style={`transition-delay: ${i * 80}ms`}
+          <figure
+            role="img"
+            data-visual={story.visual}
+            aria-label={story.visualSummary}
+            class:list={[
+              'relative min-h-[22rem] overflow-hidden rounded-[var(--radius-card)] border border-brand-800 bg-surface-dark p-5 text-white shadow-[var(--shadow-card)] sm:min-h-[25rem] sm:p-7',
+              storyIndex % 2 === 1 ? 'lg:order-1' : 'lg:order-2',
+            ]}
           >
-            <div class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700 transition group-hover:bg-brand-700 group-hover:text-white">
-              <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d={iconPaths[reason.icon] || iconPaths['scale']} />
-              </svg>
+            <div class="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(91,110,225,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(91,110,225,0.08)_1px,transparent_1px)] bg-[size:32px_32px]" aria-hidden="true"></div>
+            <div class="relative flex items-center justify-between">
+              <span class="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-brand-200">Illustrative concept</span>
+              <span class="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[0.65rem] font-semibold text-white/70">Story {story.number}</span>
             </div>
-            <div>
-              <h3 class="font-display text-lg font-semibold text-ink">
-                {reason.title}
-              </h3>
-              <p class="mt-2 text-sm leading-relaxed text-ink-soft">
-                {reason.description}
-              </p>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
+
+            {story.visual === 'incubation' && (
+              <div class="relative mt-8 grid gap-4 sm:grid-cols-[0.85fr_1.15fr]">
+                <div class="rounded-xl border border-dashed border-white/25 bg-white/[0.05] p-4">
+                  <p class="text-[0.65rem] font-bold uppercase tracking-wider text-white/50">Rough sketch</p>
+                  <svg class="mx-auto mt-4 h-28 w-full text-brand-200" viewBox="0 0 180 110" fill="none" aria-hidden="true">
+                    <path d="M34 73c9-29 30-46 61-46 21 0 40 10 52 29l-11 30H49L34 73z" stroke="currentColor" stroke-width="2" stroke-dasharray="5 5" />
+                    <path d="M57 61h66M73 45l-8 34m50-31 7 31" stroke="currentColor" stroke-width="1.5" opacity=".7" />
+                    <circle cx="62" cy="86" r="9" stroke="currentColor" stroke-width="2" />
+                    <circle cx="125" cy="86" r="9" stroke="currentColor" stroke-width="2" />
+                  </svg>
+                  <p class="mt-3 text-center text-xs font-medium text-white/60">Idea + simple lines</p>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  {['Concept A', 'Concept B', 'Concept C'].map((label, conceptIndex) => (
+                    <div class:list={['rounded-xl border border-brand-400/25 bg-brand-500/10 p-3', conceptIndex === 2 && 'col-span-2']}>
+                      <div class="flex h-16 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500/25 to-accent-400/10">
+                        <svg class="h-11 w-16 text-brand-200" viewBox="0 0 64 44" fill="none" aria-hidden="true">
+                          <path d="M8 31c3-12 12-20 27-20 10 0 18 5 22 14l-4 10H14L8 31z" stroke="currentColor" stroke-width="1.5" />
+                          <circle cx="20" cy="35" r="4" fill="currentColor" opacity=".7" />
+                          <circle cx="46" cy="35" r="4" fill="currentColor" opacity=".7" />
+                        </svg>
+                      </div>
+                      <p class="mt-2 text-center text-[0.65rem] font-semibold text-white/70">{label}</p>
+                    </div>
+                  ))}
+                  <div class="col-span-2 flex items-center justify-between rounded-lg border border-accent-400/30 bg-accent-400/10 px-3 py-2">
+                    <span class="text-[0.65rem] font-semibold text-accent-200">Market trend</span>
+                    <svg class="h-5 w-20 text-accent-300" viewBox="0 0 80 20" fill="none" aria-hidden="true">
+                      <path d="M2 17l15-6 13 3 16-9 13 3L78 2" stroke="currentColor" stroke-width="2" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {story.visual === 'iteration' && (
+              <div class="relative mt-8 grid grid-cols-2 gap-3 sm:gap-5">
+                <div class="rounded-xl border border-white/10 bg-white/[0.05] p-4">
+                  <p class="text-[0.65rem] font-bold uppercase tracking-wider text-white/50">Physical sampling</p>
+                  <p class="mt-2 font-display text-3xl font-bold text-white/75">60 days</p>
+                  <div class="mt-5 space-y-3">
+                    {['Sample 01', 'Revision 02', 'Sample 03'].map((label, sampleIndex) => (
+                      <div class="flex items-center gap-3 rounded-lg bg-white/[0.05] p-2.5">
+                        <span class="flex h-7 w-7 items-center justify-center rounded-md border border-white/15 text-[0.65rem] font-bold text-white/50">{sampleIndex + 1}</span>
+                        <span class="text-xs font-medium text-white/60">{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div class="rounded-xl border border-brand-400/30 bg-brand-500/10 p-4 shadow-[inset_0_0_30px_rgba(91,110,225,0.08)]">
+                  <p class="text-[0.65rem] font-bold uppercase tracking-wider text-brand-200">Virtual simulation</p>
+                  <p class="mt-2 font-display text-3xl font-bold text-accent-300">15 days</p>
+                  <svg class="mx-auto mt-5 h-32 w-full text-brand-200" viewBox="0 0 150 120" fill="none" aria-hidden="true">
+                    <path d="M34 82c7-27 25-43 52-43 19 0 35 9 44 27l-9 28H45L34 82z" stroke="currentColor" stroke-width="2" />
+                    <path d="M27 27h96M20 100h112M75 18v91" stroke="currentColor" stroke-width="1" stroke-dasharray="4 5" opacity=".45" />
+                    <circle cx="55" cy="94" r="8" stroke="currentColor" />
+                    <circle cx="107" cy="94" r="8" stroke="currentColor" />
+                  </svg>
+                  <p class="mt-1 text-center text-xs font-semibold text-brand-100">One virtual validation path</p>
+                </div>
+              </div>
+            )}
+
+            {story.visual === 'supply-chain' && (
+              <div class="relative mt-7 min-h-[17rem] sm:min-h-[20rem]">
+                <svg class="absolute inset-0 h-full w-full text-brand-400/40" viewBox="0 0 520 300" fill="none" preserveAspectRatio="none" aria-hidden="true">
+                  <path d="M260 150L85 65m175 85L435 62M260 150L92 244m168-94 175 92" stroke="currentColor" stroke-width="2" stroke-dasharray="7 7" />
+                </svg>
+                <div class="absolute left-1/2 top-1/2 flex h-28 w-28 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-accent-300/40 bg-accent-400/10 text-center shadow-[0_0_40px_rgba(245,158,11,0.12)]">
+                  <svg class="h-7 w-7 text-accent-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" />
+                  </svg>
+                  <span class="mt-2 text-[0.65rem] font-bold uppercase tracking-wider text-white/75">AI Supply Chain</span>
+                </div>
+                {[
+                  { label: 'Material match', position: 'left-0 top-2' },
+                  { label: 'Dynamic cost', position: 'right-0 top-2' },
+                  { label: 'Stable production', position: 'bottom-2 left-0' },
+                  { label: 'Global delivery', position: 'bottom-2 right-0' },
+                ].map((node) => (
+                  <div class:list={['absolute w-[42%] rounded-xl border border-brand-400/25 bg-brand-500/10 p-3 text-center sm:w-40', node.position]}>
+                    <span class="text-xs font-semibold text-brand-100">{node.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {story.visual === 'pre-qc' && (
+              <div class="relative mt-7 grid gap-5 sm:grid-cols-[1.2fr_0.8fr]">
+                <div class="relative flex min-h-64 items-center justify-center overflow-hidden rounded-xl border border-brand-400/25 bg-brand-500/10">
+                  <div class="absolute inset-x-6 top-1/2 h-px bg-accent-300/70 shadow-[0_0_18px_rgba(255,201,77,0.5)]" aria-hidden="true"></div>
+                  <svg class="h-44 w-52 text-brand-100" viewBox="0 0 210 170" fill="none" aria-hidden="true">
+                    <path d="M40 115c8-38 35-63 76-63 27 0 49 14 61 40l-12 37H56l-16-14z" stroke="currentColor" stroke-width="2" />
+                    <path d="M68 89h76M86 66l-11 50m62-46 11 46" stroke="currentColor" stroke-width="1.5" opacity=".55" />
+                    <circle cx="75" cy="129" r="12" stroke="currentColor" stroke-width="2" />
+                    <circle cx="147" cy="129" r="12" stroke="currentColor" stroke-width="2" />
+                  </svg>
+                  <span class="absolute left-3 top-3 rounded-full border border-accent-300/30 bg-accent-300/10 px-3 py-1 text-[0.65rem] font-bold uppercase tracking-wider text-accent-200">Risk control</span>
+                </div>
+                <div class="space-y-3">
+                  {['Tooling scan', 'Production scan', 'Assembly scan'].map((label) => (
+                    <div class="rounded-xl border border-white/10 bg-white/[0.05] p-3.5">
+                      <div class="flex items-center gap-2">
+                        <svg class="h-4 w-4 text-accent-300" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                          <path fill-rule="evenodd" d="M16.704 5.293a1 1 0 010 1.414l-7.5 7.5a1 1 0 01-1.414 0l-3.5-3.5a1 1 0 011.414-1.414l2.793 2.793 6.793-6.793a1 1 0 011.414 0z" clip-rule="evenodd" />
+                        </svg>
+                        <span class="text-xs font-semibold text-white/75">{label}</span>
+                      </div>
+                      <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+                        <div class="h-full w-4/5 rounded-full bg-gradient-to-r from-brand-400 to-accent-300"></div>
+                      </div>
+                    </div>
+                  ))}
+                  <p class="rounded-lg border border-accent-300/20 bg-accent-300/10 p-3 text-center text-xs font-semibold text-accent-200">Early warning before mass production</p>
+                </div>
+              </div>
+            )}
+
+            {story.visual === 'co-growth' && (
+              <div class="relative mt-8 grid gap-5 sm:grid-cols-[0.9fr_1.1fr]">
+                <div class="space-y-3">
+                  {['Product V1', 'Product V2', 'Product V3'].map((label, versionIndex) => (
+                    <div class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.05] p-3">
+                      <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500/20 font-display text-sm font-bold text-brand-200">{versionIndex + 1}</span>
+                      <div>
+                        <p class="text-xs font-semibold text-white/80">{label}</p>
+                        <p class="mt-1 text-[0.65rem] text-white/45">{versionIndex === 0 ? 'Market feedback' : versionIndex === 1 ? 'Cost optimization' : 'Next growth cycle'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div class="relative min-h-60 rounded-xl border border-brand-400/25 bg-brand-500/10 p-4">
+                  <p class="text-[0.65rem] font-bold uppercase tracking-wider text-brand-200">Market growth</p>
+                  <svg class="mt-5 h-40 w-full" viewBox="0 0 240 145" fill="none" aria-hidden="true">
+                    <path d="M16 122h210M16 18v104" stroke="rgba(255,255,255,.18)" />
+                    <path d="M18 114c34-8 44-28 77-31 31-3 39-27 70-35 28-7 36-25 61-36" stroke="#ffc94d" stroke-width="3" />
+                    <path d="M18 114c34-8 44-28 77-31 31-3 39-27 70-35 28-7 36-25 61-36v110H18z" fill="url(#growth-fill)" opacity=".3" />
+                    <defs><linearGradient id="growth-fill" x1="120" y1="12" x2="120" y2="122" gradientUnits="userSpaceOnUse"><stop stop-color="#ffc94d" /><stop offset="1" stop-color="#5b6ee1" stop-opacity="0" /></linearGradient></defs>
+                    <circle cx="18" cy="114" r="4" fill="#a5b4fc" /><circle cx="95" cy="83" r="4" fill="#a5b4fc" /><circle cx="165" cy="48" r="4" fill="#ffc94d" /><circle cx="226" cy="12" r="4" fill="#ffc94d" />
+                  </svg>
+                  <div class="mt-1 flex justify-between text-[0.6rem] font-semibold uppercase tracking-wider text-white/40">
+                    <span>Launch</span><span>Iterate</span><span>Scale</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </figure>
+        </li>
+      ))}
+    </ol>
   </div>
 </section>

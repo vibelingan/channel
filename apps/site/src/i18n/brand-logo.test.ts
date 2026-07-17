@@ -40,6 +40,10 @@ const factorySource = readFileSync(
   fileURLToPath(new URL('../components/FactorySection.astro', import.meta.url)),
   'utf8',
 );
+const whyChooseUsSource = readFileSync(
+  fileURLToPath(new URL('../components/WhyChooseUsSection.astro', import.meta.url)),
+  'utf8',
+);
 const oemContent = readFileSync(
   fileURLToPath(new URL('./content/oem/en-US.md', import.meta.url)),
   'utf8',
@@ -373,4 +377,78 @@ test('retired homepage teaser code is removed while routes and data remain avail
       `retained route/data file exists: ${relativePath}`,
     );
   }
+});
+
+test('Why Choose Us defines the exact five AI advantage stories in client order', () => {
+  assert.ok(siteTypeSource.includes('export interface AiAdvantageStory'));
+  assert.ok(siteTypeSource.includes('stories: AiAdvantageStory[]'));
+
+  const whyBlock = enUS.match(/^whyChooseUs:\n([\s\S]*?)^quality:/m);
+  assert.ok(whyBlock, 'Why Choose Us content exists');
+  const normalizedWhy = whyBlock[1].replace(/\s+/g, ' ');
+  const requiredCopy = [
+    'More Than Manufacturing — Your AI-Powered Product Innovation & Supply Chain Partner',
+    'AI Proactive Incubation',
+    'Turn client’s rough ideas & simple sketches into complete product solutions, no finished technical drawings needed.',
+    'Early-stage R&D empowerment, zero threshold for product innovation.',
+    'Smart R&D & Fast Iteration',
+    'Replace repeated physical sampling with AI virtual simulation to shorten development cycle.',
+    'Drastically cut iteration time and R&D trial-and-error cost.',
+    'Global AI Supply Chain',
+    'AI material big data supports instant material selection, dynamic cost optimization and global cross-border delivery.',
+    'Transparent cost, stable supply and fast global shipping.',
+    'Pre-QC Risk Control',
+    'AI full-process pre-inspection replaces traditional post-production quality check.',
+    'Eliminate quality risks in advance, stabilize mass production yield.',
+    'Long-Term Brand Co-Growth',
+    'Continuous product iteration and cost optimization based on market data, instead of one-time OEM manufacturing.',
+    'Sustainable brand growth and long-term market competitiveness.',
+  ];
+  for (const copy of requiredCopy) {
+    assert.ok(normalizedWhy.includes(copy), `missing confirmed AI advantage copy: ${copy}`);
+  }
+
+  const storyBlocks = whyBlock[1].split(/^ {4}- number: /m).slice(1);
+  assert.equal(storyBlocks.length, 5, 'exactly five AI advantage stories');
+  assert.deepEqual(
+    storyBlocks.map((story) => story.match(/^'?(\d{2})'?/m)?.[1]),
+    ['01', '02', '03', '04', '05'],
+  );
+  assert.deepEqual(
+    storyBlocks.map((story) => story.match(/^ {6}visual: (\S+)/m)?.[1]),
+    ['incubation', 'iteration', 'supply-chain', 'pre-qc', 'co-growth'],
+  );
+});
+
+test('Why Choose Us renders five accessible static concept visuals, not a fake live system', () => {
+  assert.ok(whyChooseUsSource.includes('why.stories.map'));
+  assert.ok(whyChooseUsSource.includes('data-visual={story.visual}'));
+  assert.ok(whyChooseUsSource.includes('aria-label={story.visualSummary}'));
+  assert.ok(whyChooseUsSource.includes('{story.scenario}'));
+  assert.ok(whyChooseUsSource.includes('{story.sellingPoint}'));
+  assert.ok(whyChooseUsSource.includes('{why.visualDisclaimer}'));
+  assert.ok(whyChooseUsSource.includes('storyIndex % 2'));
+  assert.ok(
+    whyChooseUsSource.includes(
+      "data-story-layout={storyIndex % 2 === 1 ? 'visual-first' : 'text-first'}",
+    ),
+  );
+  assert.ok(whyChooseUsSource.includes("storyIndex % 2 === 1 ? 'lg:order-2' : 'lg:order-1'"));
+  assert.ok(whyChooseUsSource.includes("storyIndex % 2 === 1 ? 'lg:order-1' : 'lg:order-2'"));
+  assert.equal((whyChooseUsSource.match(/story\.visual ===/g) ?? []).length, 5);
+  for (const visualCopy of [
+    'Market trend',
+    '60 days',
+    '15 days',
+    'Material match',
+    'Risk control',
+    'Market growth',
+  ]) {
+    assert.ok(whyChooseUsSource.includes(visualCopy), `missing visual concept: ${visualCopy}`);
+  }
+  assert.ok(!whyChooseUsSource.includes('/media/oem/team/team.jpg'));
+  assert.ok(!whyChooseUsSource.includes('ReasonItem'));
+  assert.ok(!whyChooseUsSource.includes('<button'));
+  assert.ok(!whyChooseUsSource.includes('<input'));
+  assert.ok(!whyChooseUsSource.includes('animate-'));
 });
