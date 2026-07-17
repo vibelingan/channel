@@ -131,10 +131,17 @@ Final Phase 3 verification:
 - Teardown and Blue Ocean listing/detail routes returned HTTP 200.
 - Factory gallery accepted keyboard focus; `ArrowRight` scrolled it horizontally.
 
-### Phase 4 — Five AI visual stories
+### Phase 4 — Five AI visual stories (complete)
 
-- Replace current Why Choose Us with five responsive visual stories using the exact client scenarios/selling points and unified concept visuals.
-- No live-system affordances; visuals remain clearly illustrative.
+- Commit: `49a6b5c` (`feat(site): add five AI advantage visual stories`); exactly five files: `WhyChooseUsSection.astro`, `brand-logo.test.ts`, `en-US.md`, `media-assets.test.ts`, and `site.ts`.
+- Result: five typed stories render in client order with five unified CHANNEL navy/amber static concept visuals. The old three-reason/team-photo presentation was removed; the separate Our People section retains all six photos.
+- Safety/UX: an explicit disclaimer identifies every visual as illustrative, non-live, and not a guarantee. The stories contain no buttons, inputs, or live affordances.
+- Responsive behavior: mobile is text-first; desktop alternates, with stories 1/3/5 text-left and 2/4 visual-left.
+- Tests/validation: site tests 23/23; Biome clean; Astro check 0 errors with 6 pre-existing hints across 92 files; build 18 routes; root `tsc` and `git diff --check` green.
+- Browser validation at CSS widths 390 / 768 / 1440: all five figures were accessible and named, with no clipping or horizontal overflow and `controls=0`; screenshots reviewed.
+- Runtime correction: browser inspection caught both desktop elements receiving `order: 2`. Mutually exclusive parity classes fixed the conflict; revalidation confirmed 1/3/5 text-left and 2/4 visual-left.
+- Assumption audit: **PASS**.
+- Engineering rationale: typed shared content locks client order and wording, while static, non-interactive concept art communicates the scenarios without implying a live product or guaranteed output.
 
 ### Phase 5 — Homepage inquiry form + CTA routing
 
@@ -182,3 +189,4 @@ Final Phase 3 verification:
 - 2026-07-17: Phase 3 completed in four verified five-file subphases: 3A `fabdf47`, 3B `c18075e`, 3C `83d03a0`, and 3D `ea1cb70`; all four assumption audits passed.
 - 2026-07-17: Final Phase 3 gates passed — site tests 21/21, Biome clean, Astro check 0 errors with 6 pre-existing hints across 92 files, build 18 routes, root `tsc` green, and `git diff --check` green.
 - 2026-07-17: Browser verification at CSS widths 390 / 768 / 1440 found 9 homepage sections and no horizontal overflow; Teardown and Blue Ocean listing/detail routes returned HTTP 200; the Factory gallery accepted keyboard focus and scrolled on `ArrowRight`.
+- 2026-07-17: Phase 4 completed in `49a6b5c` (`feat(site): add five AI advantage visual stories`), exactly five files; site tests 23/23 and all static/browser gates passed. The assumption audit passed.
