@@ -118,6 +118,11 @@ export interface SiteContent {
     body: string;
     stats: StatItem[];
   };
+  ourPeople: {
+    eyebrow: string;
+    heading: string;
+    body: string;
+  };
   productCapability: {
     eyebrow: string;
     heading: string;

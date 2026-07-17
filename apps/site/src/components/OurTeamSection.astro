@@ -3,6 +3,14 @@
  * Our Team — the people and global presence behind the products
  * (client 销售团队照片). Follows the Factory & Team Strength section.
  */
+import type { SiteContent } from '../i18n/site.ts';
+
+interface Props {
+  people: SiteContent['ourPeople'];
+}
+
+const { people } = Astro.props;
+
 const photos = [
   { img: '/media/oem/team/t01.jpg', alt: 'The Diversity Technology team' },
   { img: '/media/oem/team/t02.jpg', alt: 'Sales and engineering team' },
@@ -17,14 +25,13 @@ const photos = [
   <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
     <div class="reveal mx-auto max-w-2xl text-center">
       <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
-        Our People
+        {people.eyebrow}
       </p>
       <h2 class="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl">
-        The team behind your product
+        {people.heading}
       </h2>
-      <p class="mt-4 text-lg text-ink-soft">
-        A dedicated team of engineers, designers and sales specialists — serving brands
-        across the USA, Europe, Japan and worldwide.
+      <p class="mt-4 text-lg leading-relaxed text-ink-soft">
+        {people.body}
       </p>
     </div>
 

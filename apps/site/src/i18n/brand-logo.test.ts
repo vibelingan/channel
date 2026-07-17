@@ -28,6 +28,10 @@ const homepageSource = readFileSync(
   fileURLToPath(new URL('../pages/index.astro', import.meta.url)),
   'utf8',
 );
+const ourPeopleSource = readFileSync(
+  fileURLToPath(new URL('../components/OurTeamSection.astro', import.meta.url)),
+  'utf8',
+);
 
 test('brand.logo points to the configured client logo', () => {
   const match = enUS.match(/^\s*logo:\s*(\S+)\s*$/m);
@@ -198,4 +202,37 @@ test('OEM page reuses the shared What We Do section and retains the execution pr
     oemPageSource.includes('document.getElementById(window.location.hash.slice(1))'),
     'initial fragment navigation does not wait for media load',
   );
+});
+
+test('Factory and Our People use the exact confirmed client copy', () => {
+  const normalizedContent = enUS.replace(/\s+/g, ' ');
+  const requiredCopy = [
+    'Founded in 2004, Diversity Technology Limited combines over 20 years of OEM manufacturing experience with AI-powered product development. By integrating market intelligence, material big data, and intelligent cost prediction into our engineering process, we help global brands launch smarter products faster—from concept to global delivery.',
+    'Our People',
+    'Global Trade Experts Behind Your Business',
+    'With over 20 years of international trade experience, our multilingual sales, sourcing, and engineering teams have successfully supported brands, importers, distributors, and retailers across North America, Europe, the Middle East, Africa, and Asia.',
+  ];
+
+  for (const copy of requiredCopy) {
+    assert.ok(normalizedContent.includes(copy), `missing confirmed Phase 3A copy: ${copy}`);
+  }
+
+  const factoryBlock = enUS.match(/^factory:\n([\s\S]*?)^productCapability:/m);
+  assert.ok(factoryBlock, 'factory content exists');
+  assert.equal([...factoryBlock[1].matchAll(/^ {4}- value:/gm)].length, 4);
+  for (const value of ["'20+'", "'40+'", "'5000+'", "'40+'"]) {
+    assert.ok(factoryBlock[1].includes(`value: ${value}`));
+  }
+});
+
+test('Our People consumes shared content while preserving all six client photos', () => {
+  assert.ok(siteTypeSource.includes('ourPeople: {'));
+  assert.ok(ourPeopleSource.includes("people: SiteContent['ourPeople']"));
+  assert.ok(ourPeopleSource.includes('{people.eyebrow}'));
+  assert.ok(ourPeopleSource.includes('{people.heading}'));
+  assert.ok(ourPeopleSource.includes('{people.body}'));
+  assert.equal((ourPeopleSource.match(/\/media\/oem\/team\/t\d{2}\.jpg/g) ?? []).length, 6);
+  assert.ok(homepageSource.includes('ourPeople,'));
+  assert.ok(homepageSource.includes('<OurTeamSection people={ourPeople} />'));
+  assert.ok(!ourPeopleSource.includes('The team behind your product'));
 });

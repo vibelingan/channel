@@ -91,11 +91,11 @@ factory:
   eyebrow: Our Capability
   heading: Factory & Team Strength
   body: >-
-    Founded in 2004, Diversity Technology Limited is a trusted OEM/ODM
-    manufacturing partner with over 20 years of industry experience.
-    Headquartered in Hong Kong and supported by advanced production facilities
-    and engineering expertise in Dongguan, China, we deliver innovative and
-    reliable product solutions to customers worldwide.
+    Founded in 2004, Diversity Technology Limited combines over 20 years of OEM
+    manufacturing experience with AI-powered product development. By integrating
+    market intelligence, material big data, and intelligent cost prediction into
+    our engineering process, we help global brands launch smarter products
+    faster—from concept to global delivery.
   stats:
     - value: '20+'
       label: Years Experience
@@ -105,6 +105,15 @@ factory:
       label: m² Facility
     - value: '40+'
       label: Countries
+
+ourPeople:
+  eyebrow: Our People
+  heading: Global Trade Experts Behind Your Business
+  body: >-
+    With over 20 years of international trade experience, our multilingual sales,
+    sourcing, and engineering teams have successfully supported brands, importers,
+    distributors, and retailers across North America, Europe, the Middle East,
+    Africa, and Asia.
 
 productCapability:
   eyebrow: Product Capability
