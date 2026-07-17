@@ -159,41 +159,6 @@ certifications:
     - pabobo
     - Education Institutions
 
-teardownTeaser:
-  eyebrow: Market Insights
-  heading: Teardown Lab — Reverse Engineering the Future
-  description: >-
-    Weekly deep-dive reports analyzing Kickstarter and Indiegogo hardware
-    champions. We tear down the products, estimate BOM costs, and reveal
-    manufacturing risks — giving you the intelligence to build better products.
-  stats:
-    - value: '3'
-      label: Teardown Reports
-    - value: '67%'
-      label: Avg. Hardware Margin
-    - value: '20+'
-      label: Years Supply Chain Data
-  cta: { label: Read Latest Reports, href: '/teardown-lab' }
-
-blueOceanTeaser:
-  eyebrow: Concept Incubator
-  heading: Blue Ocean Products — Ready to Manufacture
-  description: >-
-    Three disruptive hardware concepts engineered with cutting-edge MEMS, Edge AI,
-    and mmWave radar technologies. Available for white-label, exclusive buyout,
-    or co-development partnerships.
-  products:
-    - name: SomniFlow AI Sleep Pods
-      tagline: MEMS micro-speaker + micro-cooling sleep earbuds
-      msrp: '$199'
-    - name: LumiCogni Desktop AI Hologram
-      tagline: Edge AI holographic study companion for kids
-      msrp: '$289'
-    - name: AeroSense AI Sports Headband
-      tagline: Spatial audio + blind-spot detection for cycling
-      msrp: '$229'
-  cta: { label: Explore Concepts, href: '/blue-ocean' }
-
 ctaSection:
   heading: Ready to develop your next product?
   description: Send us your idea, drawing, or sample — our team will provide an OEM solution within 24 hours.

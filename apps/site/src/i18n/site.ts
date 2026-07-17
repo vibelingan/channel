@@ -56,12 +56,6 @@ export interface WorkflowStepItem {
   desc?: string;
 }
 
-export interface ProductTeaserItem {
-  name: string;
-  tagline: string;
-  msrp: string;
-}
-
 export interface ReasonItem {
   title: string;
   description: string;
@@ -134,20 +128,6 @@ export interface SiteContent {
     intro: string;
     complianceCerts: CertItem[];
     clientLogos: string[];
-  };
-  teardownTeaser: {
-    eyebrow: string;
-    heading: string;
-    description: string;
-    stats: StatItem[];
-    cta: CtaLink;
-  };
-  blueOceanTeaser: {
-    eyebrow: string;
-    heading: string;
-    description: string;
-    products: ProductTeaserItem[];
-    cta: CtaLink;
   };
   ctaSection: {
     heading: string;

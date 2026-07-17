@@ -47,6 +47,20 @@ const oemContent = readFileSync(
 const productCapabilityComponent = fileURLToPath(
   new URL('../components/ProductCapabilitySection.astro', import.meta.url),
 );
+const teardownTeaserComponent = fileURLToPath(
+  new URL('../components/TeardownTeaser.astro', import.meta.url),
+);
+const blueOceanTeaserComponent = fileURLToPath(
+  new URL('../components/BlueOceanTeaser.astro', import.meta.url),
+);
+const retainedContentPaths = [
+  '../pages/teardown-lab/index.astro',
+  '../pages/teardown-lab/[slug].astro',
+  '../pages/blue-ocean/index.astro',
+  '../pages/blue-ocean/[slug].astro',
+  '../data/teardownReports.ts',
+  '../data/blueOceanProducts.ts',
+];
 
 test('brand.logo points to the configured client logo', () => {
   const match = enUS.match(/^\s*logo:\s*(\S+)\s*$/m);
@@ -340,4 +354,23 @@ test('Factory photos follow the confirmed development-to-dispatch narrative', ()
   assert.ok(factorySource.includes('role="region"'));
   assert.ok(factorySource.includes('aria-label="Factory development and production gallery"'));
   assert.ok(factorySource.includes('tabindex="0"'));
+});
+
+test('retired homepage teaser code is removed while routes and data remain available', () => {
+  assert.ok(!existsSync(teardownTeaserComponent));
+  assert.ok(!existsSync(blueOceanTeaserComponent));
+  assert.ok(!siteTypeSource.includes('export interface ProductTeaserItem'));
+  assert.ok(!siteTypeSource.includes('teardownTeaser: {'));
+  assert.ok(!siteTypeSource.includes('blueOceanTeaser: {'));
+  assert.ok(!/^teardownTeaser:/m.test(enUS));
+  assert.ok(!/^blueOceanTeaser:/m.test(enUS));
+
+  assert.ok(enUS.includes("href: '/teardown-lab'"));
+  assert.ok(enUS.includes("href: '/blue-ocean'"));
+  for (const relativePath of retainedContentPaths) {
+    assert.ok(
+      existsSync(fileURLToPath(new URL(relativePath, import.meta.url))),
+      `retained route/data file exists: ${relativePath}`,
+    );
+  }
 });
