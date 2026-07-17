@@ -84,15 +84,52 @@ Done when:
 - Focused tests, Astro check/build, and browser viewport measurements pass.
 - Hero has no horizontal overflow and respects mobile viewport sizing.
 
-### Phase 2 — Shared What We Do + OEM anchor
+### Phase 2 — Shared What We Do + OEM anchor (complete)
 
 - Define the shared workflow contract/content, implement a responsive comparison component, render it on homepage and OEM page, rename the OEM anchor to `what-we-do`, change nav to `/oem#what-we-do`, and keep the 10-step process.
 - TDD covers exact client copy, shared source consumption, anchor existence, and nav target.
+- Commit: `c1fdc1c` (`feat(site): add shared AI OEM workflow comparison`); five files.
+- Result: one typed workflow source and one semantic comparison component now serve both pages, while the separate 10-step process remains intact.
+- Assumption audit: **WARN, non-blocking** — exact-contract and rendered-copy warnings were fixed; dormant, unrendered legacy `oneStop` source remained outside the five-file Phase 2 boundary.
 
-### Phase 3 — Homepage reductions and exact copy
+### Phase 3 — Homepage reductions and exact copy (complete)
 
 - Apply Factory and Our People exact copy, order factory media, remove Product Capability and homepage teasers, apply Quality exact copy, and keep the 10-step process.
 - TDD covers removed sections and exact-copy contracts.
+
+#### Phase 3A — Factory and Our People copy + typed content (complete)
+
+- Commit: `fabdf47`; five files: `OurTeamSection.astro`, `brand-logo.test.ts`, `en-US.md`, `site.ts`, and `index.astro`.
+- Result: exact confirmed Factory and Our People copy is held in typed shared content; the Our People section consumes it and retains all six photos.
+- Tests/validation: exact-copy, typed-consumer, four-stat, and six-photo contracts joined the final 21/21 site test run. Assumption audit: **PASS**.
+- Engineering rationale: shared typed content prevents component-local copy drift.
+
+#### Phase 3B — Quality copy + homepage-only removals (complete)
+
+- Commit: `c18075e`; five files: `QualityTestingSection.astro`, `brand-logo.test.ts`, `en-US.md`, `site.ts`, and `index.astro`.
+- Result: exact confirmed Quality copy is typed and rendered with all eight lab photos; Product Capability and both teasers were removed only from the homepage, with the required homepage flow retained.
+- Tests/validation: exact-copy, typed-consumer, photo-count, removal, and retained-section contracts joined the final 21/21 site test run. Assumption audit: **PASS**.
+- Engineering rationale: consumer removal was isolated from code deletion so independent surfaces could be proven before cleanup.
+
+#### Phase 3C — Product Capability cleanup + Factory gallery (complete)
+
+- Commit: `83d03a0`; five files: `FactorySection.astro`, deleted `ProductCapabilitySection.astro`, `brand-logo.test.ts`, `en-US.md`, and `site.ts`.
+- Result: history- and consumer-traced Product Capability dead code was removed; Factory photos now follow the development-to-dispatch narrative with accurate alt text, and the gallery is a named, keyboard-focusable region.
+- Tests/validation: dead-code, retained OEM-capability, exact photo-order/alt, and gallery semantics contracts joined the final 21/21 site test run. Assumption audit: **PASS**.
+- Engineering rationale: only the retired homepage capability surface was deleted; independent OEM capability content remains.
+
+#### Phase 3D — Retired teaser cleanup (complete)
+
+- Commit: `ea1cb70`; five files: deleted `BlueOceanTeaser.astro` and `TeardownTeaser.astro`, plus `brand-logo.test.ts`, `en-US.md`, and `site.ts`.
+- Result: history- and consumer-traced teaser dead code was removed while Teardown and Blue Ocean routes, data, and navigation remained.
+- Tests/validation: deleted-component/type/content and retained-route/data/nav contracts joined the final 21/21 site test run. Assumption audit: **PASS**.
+- Engineering rationale: homepage teaser ownership was removed without coupling it to the independent listing/detail products.
+
+Final Phase 3 verification:
+- Site tests 21/21; Biome clean; Astro check 0 errors with 6 pre-existing hints across 92 files; build 18 routes; root `tsc` and `git diff --check` green.
+- Browser checks at CSS widths 390 / 768 / 1440: homepage has 9 sections and no horizontal overflow.
+- Teardown and Blue Ocean listing/detail routes returned HTTP 200.
+- Factory gallery accepted keyboard focus; `ArrowRight` scrolled it horizontally.
 
 ### Phase 4 — Five AI visual stories
 
@@ -124,6 +161,12 @@ Done when:
 
 - Phase 1 test refinement: the legal company name remains as the logo `alt` text for accessibility, while all visual company/MOQ text is removed. This is the conservative interpretation of “logo only.”
 - The CHANNEL asset test pins semantic identity (historical dimensions, brand colors, two-path shape, no Diversity orange) rather than whitespace-sensitive SVG bytes, so harmless XML formatting cannot create a false failure.
+- Phase 3 was split into 3A–3D because the combined work exceeded the five-file phase rule; the approved scope and behavior did not expand.
+- A presentation-only source line break was normalized to `faster—from concept`; the confirmed wording was unchanged.
+
+## Lessons
+
+- Product Capability and teaser dead-code candidates were traced through history and consumers before removal. Independent OEM capability content and Teardown/Blue Ocean route data and navigation were preserved.
 
 ## Execution log
 
@@ -135,3 +178,7 @@ Done when:
 - 2026-07-16: Tooling errors encountered and resolved: corrected the local UI-design helper path; replaced same-path SVG via separate delete/create operations after the patch tool rejected a combined replacement.
 - 2026-07-16: First commit attempt was correctly blocked by `git diff --check` on Markdown trailing spaces; removed them and re-ran the gate rather than bypassing it.
 - 2026-07-16: Pre-push assumption review blocked exact `/oem` coupling in the OEM-first sort (Phase 2 will add `#what-we-do`). Added a pure `orderPrimaryNavItems()` helper and a red→green test against `/oem#what-we-do`; final Phase 1 test count 10/10, Astro check/build green.
+- 2026-07-17: Phase 2 completed in `c1fdc1c`; its assumption audit had no blockers after actionable warnings were fixed, with dormant unrendered `oneStop` source explicitly deferred.
+- 2026-07-17: Phase 3 completed in four verified five-file subphases: 3A `fabdf47`, 3B `c18075e`, 3C `83d03a0`, and 3D `ea1cb70`; all four assumption audits passed.
+- 2026-07-17: Final Phase 3 gates passed — site tests 21/21, Biome clean, Astro check 0 errors with 6 pre-existing hints across 92 files, build 18 routes, root `tsc` green, and `git diff --check` green.
+- 2026-07-17: Browser verification at CSS widths 390 / 768 / 1440 found 9 homepage sections and no horizontal overflow; Teardown and Blue Ocean listing/detail routes returned HTTP 200; the Factory gallery accepted keyboard focus and scrolled on `ArrowRight`.
