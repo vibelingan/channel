@@ -135,6 +135,11 @@ export interface SiteContent {
     intro: string;
     reasons: ReasonItem[];
   };
+  quality: {
+    eyebrow: string;
+    heading: string;
+    body: string;
+  };
   certifications: {
     eyebrow: string;
     heading: string;

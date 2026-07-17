@@ -154,6 +154,14 @@ whyChooseUs:
       description: One accountable contact from first quote to final shipment — no handoffs, no dropped balls.
       icon: user-check
 
+quality:
+  eyebrow: Quality Assurance
+  heading: From Risk Prevention to Final Inspection
+  body: >-
+    With our Pre-QC risk control system, potential risks are identified early.
+    Every product is then subject to strict quality inspections throughout
+    production and must pass final verification before export.
+
 certifications:
   eyebrow: Certifications & Global Clients
   heading: Trusted by brands worldwide

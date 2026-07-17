@@ -32,6 +32,10 @@ const ourPeopleSource = readFileSync(
   fileURLToPath(new URL('../components/OurTeamSection.astro', import.meta.url)),
   'utf8',
 );
+const qualitySource = readFileSync(
+  fileURLToPath(new URL('../components/QualityTestingSection.astro', import.meta.url)),
+  'utf8',
+);
 
 test('brand.logo points to the configured client logo', () => {
   const match = enUS.match(/^\s*logo:\s*(\S+)\s*$/m);
@@ -235,4 +239,53 @@ test('Our People consumes shared content while preserving all six client photos'
   assert.ok(homepageSource.includes('ourPeople,'));
   assert.ok(homepageSource.includes('<OurTeamSection people={ourPeople} />'));
   assert.ok(!ourPeopleSource.includes('The team behind your product'));
+});
+
+test('Quality Assurance uses the exact confirmed client copy and all eight lab photos', () => {
+  const normalizedContent = enUS.replace(/\s+/g, ' ');
+  const requiredCopy = [
+    'Quality Assurance',
+    'From Risk Prevention to Final Inspection',
+    'With our Pre-QC risk control system, potential risks are identified early. Every product is then subject to strict quality inspections throughout production and must pass final verification before export.',
+  ];
+  for (const copy of requiredCopy) {
+    assert.ok(normalizedContent.includes(copy), `missing confirmed Quality copy: ${copy}`);
+  }
+
+  assert.ok(siteTypeSource.includes('quality: {'));
+  assert.ok(qualitySource.includes("quality: SiteContent['quality']"));
+  assert.ok(qualitySource.includes('{quality.eyebrow}'));
+  assert.ok(qualitySource.includes('{quality.heading}'));
+  assert.ok(qualitySource.includes('{quality.body}'));
+  assert.equal((qualitySource.match(/\/media\/oem\/quality\/q\d\.jpg/g) ?? []).length, 8);
+  assert.ok(!qualitySource.includes('In-House Testing &amp; Quality Control'));
+});
+
+test('homepage removes only the three confirmed sections and keeps the required flow', () => {
+  for (const removed of [
+    'ProductCapabilitySection',
+    'TeardownTeaser',
+    'BlueOceanTeaser',
+    'productCapability,',
+    'teardownTeaser,',
+    'blueOceanTeaser,',
+  ]) {
+    assert.ok(
+      !homepageSource.includes(removed),
+      `homepage still includes removed section: ${removed}`,
+    );
+  }
+
+  assert.ok(homepageSource.includes('quality,'));
+  assert.ok(homepageSource.includes('<QualityTestingSection quality={quality} />'));
+  for (const retained of [
+    '<OemProcessSection process={oemProcess} />',
+    '<FactorySection factory={factory} />',
+    '<OurTeamSection people={ourPeople} />',
+    '<WhyChooseUsSection why={whyChooseUs} />',
+    '<CertificationsSection certs={certifications} />',
+    '<CTASection cta={ctaSection} />',
+  ]) {
+    assert.ok(homepageSource.includes(retained), `homepage lost required section: ${retained}`);
+  }
 });

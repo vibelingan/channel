@@ -4,6 +4,14 @@
  * (client Company Introduction · Quality Department). Reinforces the
  * "Quality & Compliance" service and leads into the certifications wall.
  */
+import type { SiteContent } from '../i18n/site.ts';
+
+interface Props {
+  quality: SiteContent['quality'];
+}
+
+const { quality } = Astro.props;
+
 const tests = [
   { img: '/media/oem/quality/q1.jpg', label: 'QC Inspection Lab' },
   { img: '/media/oem/quality/q2.jpg', label: 'Burst / Pressure Test' },
@@ -20,14 +28,13 @@ const tests = [
   <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
     <div class="reveal mx-auto max-w-2xl text-center">
       <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
-        Quality Assurance
+        {quality.eyebrow}
       </p>
       <h2 class="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl">
-        In-House Testing &amp; Quality Control
+        {quality.heading}
       </h2>
-      <p class="mt-4 text-lg text-ink-soft">
-        Every product is validated in our own reliability lab — from drop, vibration and
-        salt-spray to environmental aging — before it ships.
+      <p class="mt-4 text-lg leading-relaxed text-ink-soft">
+        {quality.body}
       </p>
     </div>
 
