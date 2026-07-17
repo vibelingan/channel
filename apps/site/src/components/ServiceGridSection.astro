@@ -1,59 +1,160 @@
 ---
 /**
- * Service grid section — What We Do (4 service modules).
+ * Shared What We Do section — Traditional versus AI-assisted OEM workflows.
  */
 import type { SiteContent } from '../i18n/site.ts';
-import type { IconCard } from '../i18n/site.ts';
 
 interface Props {
   services: SiteContent['services'];
+  sectionId?: string;
 }
 
-const { services } = Astro.props;
-
-const iconPaths: Record<string, string> = {
-  lightbulb: 'M9 18h6M10 21h4M12 3a6 6 0 00-4 10.5c.5.5 1 1.5 1 2.5h6c0-1 .5-2 1-2.5A6 6 0 0012 3z',
-  gear: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z',
-  shield:
-    'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
-  globe:
-    'M21 12a9 9 0 11-18 0 9 9 0 0118 0zM3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 010 18M12 3a15 15 0 000 18',
-};
+const { services, sectionId = 'what-we-do' } = Astro.props;
 ---
 
-<section class="bg-surface-alt py-20 sm:py-28">
-  <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
-    <div class="reveal mx-auto max-w-2xl text-center">
+<section
+  id={sectionId}
+  aria-labelledby={`${sectionId}-heading`}
+  class="relative scroll-mt-[var(--spacing-header)] overflow-hidden bg-surface py-20 sm:py-28"
+>
+  <div
+    class="pointer-events-none absolute -right-28 top-20 h-72 w-72 rounded-full bg-brand-100/60 blur-3xl"
+    aria-hidden="true"
+  ></div>
+  <div
+    class="pointer-events-none absolute -left-28 bottom-8 h-64 w-64 rounded-full bg-accent-100/50 blur-3xl"
+    aria-hidden="true"
+  ></div>
+
+  <div class="relative mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
+    <div class="reveal mx-auto max-w-3xl text-center">
       <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
         {services.eyebrow}
       </p>
-      <h2 class="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl">
+      <h2 id={`${sectionId}-heading`} class="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl lg:text-5xl">
         {services.heading}
       </h2>
-      <p class="mt-4 text-lg text-ink-soft">
+      <p class="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-ink-soft sm:text-lg">
         {services.intro}
       </p>
     </div>
 
-    <div class="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-      {services.items.map((item: IconCard, i: number) => (
-        <div
-          class="reveal group rounded-[var(--radius-card)] border border-black/5 bg-surface p-6 shadow-[var(--shadow-card)] transition hover:-translate-y-1 hover:shadow-lg"
-          style={`transition-delay: ${i * 80}ms`}
-        >
-          <div class="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
-            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d={iconPaths[item.icon] || iconPaths['lightbulb']} />
-            </svg>
-          </div>
-          <h3 class="font-display text-lg font-semibold text-ink">
-            {item.title}
-          </h3>
-          <p class="mt-2 text-sm leading-relaxed text-ink-soft">
-            {item.description}
-          </p>
-        </div>
-      ))}
+    <div class="mt-12 grid items-stretch gap-6 lg:mt-16 lg:grid-cols-2 lg:gap-8">
+      {services.workflows.map((workflow, workflowIndex) => {
+        const isAiWorkflow = workflow.mode === 'ai';
+
+        return (
+          <article
+            data-workflow-mode={workflow.mode}
+            class:list={[
+              'reveal relative flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border p-5 shadow-[var(--shadow-card)] sm:p-8',
+              isAiWorkflow
+                ? 'border-brand-700 bg-surface-dark text-white ring-1 ring-brand-500/20'
+                : 'border-slate-200 bg-surface text-ink',
+            ]}
+            style={`transition-delay: ${workflowIndex * 100}ms`}
+          >
+            {isAiWorkflow && (
+              <div
+                class="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-400 via-brand-500 to-accent-400"
+                aria-hidden="true"
+              ></div>
+            )}
+
+            <header class="flex flex-col gap-4 border-b border-current/10 pb-6 sm:flex-row sm:items-start sm:justify-between">
+              <div class="min-w-0">
+                <p
+                  class:list={[
+                    'text-xs font-semibold uppercase tracking-[0.16em]',
+                    isAiWorkflow ? 'text-brand-200' : 'text-ink-muted',
+                  ]}
+                >
+                  Workflow {String(workflowIndex + 1).padStart(2, '0')}
+                </p>
+                <h3 class="mt-2 font-display text-xl font-bold leading-snug sm:text-2xl">
+                  {workflow.title}
+                </h3>
+              </div>
+              <span
+                class:list={[
+                  'w-fit shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold',
+                  isAiWorkflow
+                    ? 'bg-accent-400 text-surface-dark'
+                    : 'border border-slate-200 bg-surface-alt text-ink-soft',
+                ]}
+              >
+                {workflow.badge}
+              </span>
+            </header>
+
+            <ol class="relative mt-7 flex flex-1 flex-col gap-3" aria-label={`${workflow.title} steps`}>
+              {workflow.steps.map((step, stepIndex) => (
+                <li
+                  class:list={[
+                    'relative flex min-h-16 items-start gap-4 rounded-xl border p-3.5 sm:p-4',
+                    step.highlight
+                      ? 'border-accent-300 bg-accent-50 text-ink shadow-sm'
+                      : isAiWorkflow
+                        ? 'border-white/10 bg-white/[0.06] text-white'
+                        : 'border-slate-200 bg-surface-alt/80 text-ink',
+                  ]}
+                >
+                  <span
+                    class:list={[
+                      'flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-display text-xs font-bold',
+                      step.highlight
+                        ? 'bg-accent-500 text-surface-dark'
+                        : isAiWorkflow
+                          ? 'bg-brand-500 text-white'
+                          : 'bg-slate-200 text-ink-soft',
+                    ]}
+                    aria-hidden="true"
+                  >
+                    {String(stepIndex + 1).padStart(2, '0')}
+                  </span>
+                  <div class="min-w-0 flex-1 self-center">
+                    {step.highlight && (
+                      <span class="mb-1.5 inline-flex items-center gap-1.5 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-accent-700">
+                        <svg
+                          class="h-3.5 w-3.5"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          aria-hidden="true"
+                        >
+                          <path d="M10 1.75a.75.75 0 01.69.456l1.316 3.087 3.34.3a.75.75 0 01.426 1.314l-2.53 2.2.75 3.273a.75.75 0 01-1.118.812L10 11.475l-2.873 1.717a.75.75 0 01-1.118-.812l.75-3.273-2.53-2.2a.75.75 0 01.426-1.314l3.34-.3L9.31 2.206A.75.75 0 0110 1.75z" />
+                        </svg>
+                        AI quotation & cost intelligence
+                      </span>
+                    )}
+                    <p class="text-sm font-medium leading-relaxed sm:text-[0.95rem]">
+                      {step.label}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+
+            <footer
+              aria-label={workflow.takeawayLabel}
+              class:list={[
+                'mt-7 rounded-xl border-l-4 p-4 sm:p-5',
+                isAiWorkflow
+                  ? 'border-accent-400 bg-white/[0.08]'
+                  : 'border-slate-400 bg-slate-100',
+              ]}
+            >
+              <p
+                class:list={[
+                  'text-sm font-semibold leading-relaxed sm:text-base',
+                  isAiWorkflow ? 'text-white' : 'text-ink-soft',
+                ]}
+              >
+                {workflow.takeaway}
+              </p>
+            </footer>
+          </article>
+        );
+      })}
     </div>
   </div>
 </section>

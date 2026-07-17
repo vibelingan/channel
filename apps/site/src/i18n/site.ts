@@ -38,6 +38,20 @@ export interface IconCard {
   icon: string;
 }
 
+export interface WorkflowComparisonStep {
+  label: string;
+  highlight?: boolean;
+}
+
+export interface WorkflowComparison {
+  mode: 'traditional' | 'ai';
+  title: string;
+  badge: string;
+  steps: WorkflowComparisonStep[];
+  takeawayLabel: string;
+  takeaway: string;
+}
+
 export interface StatItem {
   value: string;
   label: string;
@@ -90,7 +104,7 @@ export interface SiteContent {
     eyebrow: string;
     heading: string;
     intro: string;
-    items: IconCard[];
+    workflows: WorkflowComparison[];
   };
   oemProcess: {
     eyebrow: string;

@@ -15,7 +15,7 @@ nav:
     - { label: Success Stories, href: '/success-stories' }
     - { label: Teardown Lab, href: '/teardown-lab' }
     - { label: Blue Ocean, href: '/blue-ocean' }
-    - { label: OEM Development, href: '/oem' }
+    - { label: OEM Development, href: '/oem#what-we-do' }
     - { label: Sign In, href: '/login', emphasis: true }
 
 hero:
@@ -31,21 +31,35 @@ hero:
 
 services:
   eyebrow: What We Do
-  heading: One-Stop OEM/ODM Development Services
-  intro: From product concept to global delivery, we provide end-to-end manufacturing solutions across audio, smart toys, 3C electronics, and consumer goods.
-  items:
-    - title: OEM Product Development
-      description: Industrial design, mechanical engineering, circuit design, and prototyping
-      icon: lightbulb
-    - title: Mold & Manufacturing
-      description: Precision tooling, injection molding, PCBA mass production, and assembly
-      icon: gear
-    - title: Quality & Compliance
-      description: IQC/IPQC/OQC testing, CE/FCC/EMC certifications, and DFM optimization
-      icon: shield
-    - title: Global Delivery
-      description: Export logistics, customs clearance, and worldwide shipping from Hong Kong
-      icon: globe
+  heading: AI-Powered Product Development & Fast OEM Delivery
+  intro: From AI market insights and intelligent cost estimation to rapid prototyping and mass production, we help brands develop smarter products and launch them faster.
+  workflows:
+    - mode: traditional
+      title: Traditional Drawing-Based OEM Workflow
+      badge: Passive Mode
+      steps:
+        - { label: Client Full Drawings & Complete Requirements }
+        - { label: Manual Feasibility Check }
+        - { label: Manual ID & Engineering Design }
+        - { label: Multiple Rounds Physical Sampling & Validation }
+        - { label: Post-Sample Tooling & Fixture Making }
+        - { label: Mass Production + Manual QC }
+        - { label: Final Global Shipping }
+      takeawayLabel: Pain Points
+      takeaway: 'Pain Points: Passive service, long lead time, repeated rework, delayed cost assessment'
+    - mode: ai
+      title: AI Big Data Smart OEM Workflow
+      badge: Active Intelligent Mode
+      steps:
+        - { label: Client Simple Rough Ideas / Basic Sketches }
+        - { label: 'AI Big Data: Active Market Insight + Auto Feasibility Analysis + Multiple Concept Proposals' }
+        - { label: 'AI Auto Design & Engineering + Instant Material Database Matching + Upfront Cost Pre-Estimation', highlight: true }
+        - { label: 'AI Virtual Simulation Pre-Prototype (Minimize Physical Samples)' }
+        - { label: 'Advanced Accurate Tooling & Full Production Cost Evaluation', highlight: true }
+        - { label: 'Optimized Mass Production + AI Pre-QC Risk Control' }
+        - { label: 'Synchronized Global Logistics & Fast Delivery' }
+      takeawayLabel: Core Advantages
+      takeaway: 'Core Advantages: Proactive front-end service, shorter development cycle, fewer revisions, predictable & controllable costs'
 
 oemProcess:
   eyebrow: Our Process
