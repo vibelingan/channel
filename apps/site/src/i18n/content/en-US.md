@@ -193,8 +193,6 @@ certifications:
 ctaSection:
   heading: Ready to develop your next product?
   description: Send us your idea, drawing, or sample — our team will provide an OEM solution within 24 hours.
-  primaryCta: { label: Start OEM Inquiry, href: '/oem' }
-  secondaryCta: { label: Explore Success Stories, href: '/success-stories' }
 
 footer:
   blurb: >-

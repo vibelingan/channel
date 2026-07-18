@@ -142,8 +142,6 @@ export interface SiteContent {
   ctaSection: {
     heading: string;
     description: string;
-    primaryCta: CtaLink;
-    secondaryCta: CtaLink;
   };
   /** Legacy sections (kept for backward compat — not used on new homepage) */
   sections?: ContentSection[];

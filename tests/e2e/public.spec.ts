@@ -217,6 +217,15 @@ test.describe('public browser smoke', () => {
     await expect(oemForm).toHaveAttribute('data-result', '/oem_submit_result');
   });
 
+  test('Success Stories OEM CTA opens the homepage inquiry form', async ({ page }) => {
+    await page.goto('/success-stories', { waitUntil: 'domcontentloaded' });
+    const cta = page.getByRole('link', { name: 'Start an OEM project', exact: true });
+    await expect(cta).toHaveAttribute('href', '/#oem-inquiry');
+    await cta.click();
+    await expect(page).toHaveURL(/\/#oem-inquiry$/);
+    await expect(page.locator('#oem-inquiry form[data-project-form]')).toBeVisible();
+  });
+
   // Headphones storefront is hidden (un-routed) on the OEM-only site; this page
   // test moves to the future standalone headphones site. See docs/oem-refresh/DESIGN.md.
   test.skip('headphones page hydrates and resolves catalog loading state', async ({ page }) => {

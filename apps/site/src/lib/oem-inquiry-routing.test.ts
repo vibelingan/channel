@@ -20,6 +20,11 @@ const resultPage = readFileSync(
   fileURLToPath(new URL('../pages/oem_submit_result.astro', import.meta.url)),
   'utf8',
 );
+const siteTypes = readFileSync(fileURLToPath(new URL('../i18n/site.ts', import.meta.url)), 'utf8');
+const successStoriesPage = readFileSync(
+  fileURLToPath(new URL('../pages/success-stories/index.astro', import.meta.url)),
+  'utf8',
+);
 const routedPageSources = [
   { path: '../pages/blue-ocean/index.astro', expectedLinks: 1 },
   { path: '../pages/blue-ocean/[slug].astro', expectedLinks: 2 },
@@ -60,4 +65,21 @@ test('Blue Ocean and Teardown OEM-intent CTAs use the canonical homepage form ro
       `all OEM-intent CTAs routed in ${path}`,
     );
   }
+});
+
+test('Success Stories uses the canonical inquiry route and retired homepage CTA links are removed', () => {
+  assert.ok(
+    successStoriesPage.includes("import { OEM_INQUIRY_HREF } from '../../lib/site-navigation.ts'"),
+  );
+  assert.ok(!successStoriesPage.includes('href="/oem"'));
+  assert.equal((successStoriesPage.match(/href=\{OEM_INQUIRY_HREF\}/g) ?? []).length, 1);
+
+  const ctaContent = siteContent.match(/^ctaSection:\n([\s\S]*?)^footer:/m);
+  assert.ok(ctaContent, 'homepage CTA content exists');
+  assert.ok(!ctaContent[1].includes('primaryCta'));
+  assert.ok(!ctaContent[1].includes('secondaryCta'));
+  const ctaType = siteTypes.match(/ {2}ctaSection: \{([\s\S]*?)^ {2}\};/m);
+  assert.ok(ctaType, 'homepage CTA type exists');
+  assert.ok(!ctaType[1].includes('primaryCta'));
+  assert.ok(!ctaType[1].includes('secondaryCta'));
 });
