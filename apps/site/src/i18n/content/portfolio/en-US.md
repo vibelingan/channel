@@ -4,18 +4,25 @@ locale: en-US
 meta:
   title: Success Stories
   description: >-
-    Two decades of OEM/ODM projects — from children's electronics to portable
-    audio — taken from concept to retail-ready mass production.
+    Two decades of OEM/ODM projects — from children's electronics to precision
+    mechanical products — taken from concept to retail-ready mass production.
 
 hero:
   eyebrow: Our work
   heading: Products we've taken from idea to shelf
   subheading: >-
-    For 20+ years we've engineered and manufactured consumer electronics, audio,
-    and toys for brands worldwide — owning the full cycle from industrial design
-    to tooling, production, quality control, and retail packaging.
+    For 20+ years we've engineered and manufactured consumer products for brands
+    worldwide — owning the full cycle from industrial design to tooling,
+    production, quality control, and retail packaging.
   primaryCta: { label: Start your project, href: '/#oem-inquiry' }
   secondaryCta: { label: See our OEM process, href: '/oem#process' }
+
+stats:
+  items:
+    - { value: '50+', label: Case Studies }
+    - { value: '30+', label: Trusted Clients }
+    - { value: '100+', label: Certifications }
+  note: These are company-wide cumulative totals; the cases below are selected highlights.
 
 # NOTE (client Q8): confirm which brand names may be shown publicly vs. must be
 # anonymised (set `anonymized: true` and use an alias). Ambiguous/low-res logos
@@ -45,46 +52,57 @@ cases:
     first sketch to the packaged product leaving our line.
   items:
     - title: Children's Sleep Training Clock
+      client: A leading children’s brand
+      category: Consumer Goods
+      summary: >-
+        Complete OEM development of a sleep-training clock combining visual
+        wake-up indicators, projection lighting, alarm functions, and a
+        nightlight in a child-friendly design.
       image: /media/portfolio/cases/sleep-clock.webp
       imageAlt: Children's sleep-training clock with projection nightlight
+      imageWidth: 800
+      imageHeight: 800
       situation: >-
-        A leading children's brand had a concept for a bedside device that helps
-        toddlers learn when it's time to sleep and wake.
+        The client needed an innovative children’s product that combines multiple
+        functions — clock, projector, nightlight, and alarm — into a single
+        child-safe device that appeals to both children and parents.
       task: >-
-        Turn the concept into a market-ready product combining visual wake-up
-        indicators, projection lighting, an alarm, and a nightlight in a
-        child-friendly, child-safe design.
+        Transform the client’s concept into a market-ready consumer product with
+        child-friendly design, safety compliance, and reliable manufacturing at scale.
       action: >-
         We provided complete OEM development — industrial design, structural
         engineering, prototype validation, tooling development, mass production,
-        and customised packaging.
+        and customised packaging — managing the full lifecycle through one team.
       result: >-
-        A retail-ready product delivered through a single, seamless concept-to-
-        packaging process.
-      metrics:
-        - { value: End-to-end, label: Concept → retail packaging }
-        - { value: '1 team', label: One accountable partner }
-      capabilities: [Product Design, Engineering, Tooling, Manufacturing, Packaging]
-    - title: Character TWS Bluetooth Speaker
-      image: /media/portfolio/cases/tws-speaker-1.webp
-      imageAlt: Animal-shaped portable TWS Bluetooth speaker
+        The product was successfully developed and delivered, demonstrating our
+        ability to transform an innovative concept into a retail-ready product
+        through comprehensive OEM development.
+      capabilities: [Product Design, Engineering Development, Tooling, Manufacturing, Packaging Design]
+    - title: Disc Repair System
+      client: Precision Products Client
+      category: 3C Electronics
+      summary: >-
+        Precision mechanical product manufacturing featuring a patented manual
+        disc-repair mechanism designed to restore scratched CDs, DVDs, and gaming
+        discs through a carefully engineered resurfacing process.
+      image: /media/portfolio/cases/disc-repair.jpg
+      imageAlt: Manual disc repair system restoring a scratched optical disc
+      imageWidth: 825
+      imageHeight: 776
       situation: >-
-        A brand wanted a distinctive, character-shaped portable TWS speaker that
-        would stand out on the shelf.
+        The client had a patented disc-repair mechanism that required precision
+        manufacturing to function reliably across CDs, DVDs, and gaming discs.
       task: >-
-        Take the product from an industrial-design concept all the way to mass
-        production and retail-ready packaging.
+        Manufacture a mechanically sophisticated consumer product with precision
+        tooling, consistent quality, and reliable assembly at scale.
       action: >-
-        Full development chain in-house: ID and CMF, precision tooling, PCBA,
-        acoustic tuning, assembly, quality control, and retail packaging plus
-        marketing imagery.
+        Our scope included mechanical structure optimisation, precision tooling,
+        component production, assembly, quality control, and retail packaging.
       result: >-
-        A finished TWS speaker manufactured at volume with consistent quality and
-        launch-ready packaging.
-      metrics:
-        - { value: 'Design → mass production', label: Full OEM chain }
-        - { value: TWS + acoustic, label: Wireless audio tuning }
-      capabilities: [ID / CMF, Mold Development, PCBA, Assembly, Quality Control, Packaging]
+        The product was successfully manufactured and delivered, demonstrating
+        our capability to produce mechanically sophisticated consumer products
+        with consistent quality and reliability.
+      capabilities: [Precision Engineering, Mold Development, Assembly Manufacturing, Quality Control, OEM Production]
 
 # NOTE (client Q10): confirm whether company (system) certs and product test
 # reports should stay grouped separately, and whether any are confidential.
@@ -111,6 +129,6 @@ certificates:
 <!--
 en-US content for the Success Stories (portfolio) page. Copy this file to
 another locale (e.g. zh-CN.md) and translate the frontmatter to localise.
-Sources: OEM网页资料/2. 客户案例介绍 (合作客户 / 历史客制化案例 / 证书) and
-1. 主页/产品 (TWS speaker). Case copy adapted from 文案介绍.docx.
+Sources: OEM网页资料/2. 客户案例介绍 (合作客户 / 历史客制化案例 / 证书).
+Case copy adapted from 文案介绍.docx; product images are client-supplied.
 -->

@@ -19,8 +19,13 @@ export interface CustomerLogo {
 
 export interface StarCase {
   title: string;
+  client: string;
+  category: string;
+  summary: string;
   image: string;
   imageAlt: string;
+  imageWidth: number;
+  imageHeight: number;
   /** STAR framing. */
   situation: string;
   task: string;
@@ -29,6 +34,11 @@ export interface StarCase {
   /** Highlighted outcome metrics. */
   metrics?: { value: string; label: string }[];
   capabilities?: string[];
+}
+
+export interface PortfolioStat {
+  value: string;
+  label: string;
 }
 
 export interface Certificate {
@@ -49,6 +59,7 @@ export interface PortfolioContent {
     primaryCta: { label: string; href: string };
     secondaryCta: { label: string; href: string };
   };
+  stats: { items: PortfolioStat[]; note: string };
   customers: { id: string; eyebrow: string; heading: string; intro: string; logos: CustomerLogo[] };
   cases: { id: string; eyebrow: string; heading: string; intro: string; items: StarCase[] };
   certificates: {
