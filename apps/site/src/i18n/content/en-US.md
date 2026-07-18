@@ -25,7 +25,7 @@ hero:
     OEM/ODM Development | Factory Direct | Global Delivery.
     Product design, engineering, tooling, production, quality control, and
     global delivery — all managed by one accountable team.
-  primaryCta: { label: Start Your Project, href: '/oem' }
+  primaryCta: { label: Start Your Project, href: '/#oem-inquiry' }
   secondaryCta: { label: See Our Factory, href: '#factory' }
   scrollLabel: Scroll to discover
 

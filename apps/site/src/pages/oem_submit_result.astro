@@ -3,6 +3,7 @@ import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { OEM_INQUIRY_HREF } from '../lib/site-navigation.ts';
 
 const site = getSiteContent(DEFAULT_LOCALE);
 const { brand, nav, footer } = site;
@@ -57,7 +58,7 @@ const { brand, nav, footer } = site;
 
       <div class="mt-10 flex flex-wrap items-center justify-center gap-3">
         <a
-          href="/oem"
+          href={OEM_INQUIRY_HREF}
           class="inline-flex items-center justify-center rounded-lg bg-brand-700 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-800"
         >
           Submit another request

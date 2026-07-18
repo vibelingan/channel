@@ -14,7 +14,7 @@ hero:
     For 20+ years we've engineered and manufactured consumer electronics, audio,
     and toys for brands worldwide — owning the full cycle from industrial design
     to tooling, production, quality control, and retail packaging.
-  primaryCta: { label: Start your project, href: '/oem#submit' }
+  primaryCta: { label: Start your project, href: '/#oem-inquiry' }
   secondaryCta: { label: See our OEM process, href: '/oem#process' }
 
 # NOTE (client Q8): confirm which brand names may be shown publicly vs. must be
