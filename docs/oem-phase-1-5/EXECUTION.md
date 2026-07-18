@@ -143,10 +143,63 @@ Final Phase 3 verification:
 - Assumption audit: **PASS**.
 - Engineering rationale: typed shared content locks client order and wording, while static, non-interactive concept art communicates the scenarios without implying a live product or guaranteed output.
 
-### Phase 5 — Homepage inquiry form + CTA routing
+### Phase 5 — Homepage inquiry form + CTA routing (complete)
 
 - Embed the existing full `ProjectForm` at `#oem-inquiry`, preserve secure direct-upload behavior, keep `/oem#submit`, and route confirmed OEM-intent CTAs to the homepage form.
 - TDD/E2E covers validation, upload behavior, anchors, and URL targets.
+
+#### Phase 5A — Homepage inquiry form (complete)
+
+- Commit: `cf13702` (`feat(site): embed homepage OEM inquiry form`); four files.
+- Files: `CTASection.astro`, `brand-logo.test.ts`, `index.astro`, and `public.spec.ts`.
+- Result: the existing CTA heading and description remain, the former buttons were removed, and the existing full `ProjectForm` is reused at the unique `#oem-inquiry` anchor. It retains the same `/api/admin` endpoint and `/oem_submit_result` result target, while the independent OEM-page action at `/oem#submit` remains intact.
+- Build/Deploy/Runtime impact: homepage static output and browser form placement changed; no backend endpoint, dependency, or deployment configuration changed.
+- Tests/validation: site tests, Biome, Astro check/build, responsive browser checks, and focused E2E all passed; consolidated final evidence is below.
+- Assumption audit: **PASS**.
+- Deviations: none.
+- Engineering rationale: reusing the production form preserves one validation/upload/submission contract instead of creating a homepage-specific copy that could drift or weaken secure direct-upload behavior.
+
+#### Phase 5B — Primary OEM inquiry CTA routing (complete)
+
+- Commit: `eee2c46` (`feat(site): route primary OEM inquiry CTAs`); five files.
+- Files: `content/en-US.md`, `content/portfolio/en-US.md`, `oem-inquiry-routing.test.ts`, `site-navigation.ts`, and `oem_submit_result.astro`.
+- Result: `OEM_INQUIRY_HREF` establishes the canonical `/#oem-inquiry` target for the homepage Hero, Portfolio Hero, and result-page “Submit another request” action.
+- Preserved navigation: the Header continues to use `/oem#what-we-do`, the footer continues to use `/oem`, and the OEM page's `#submit` and `#process` anchors remain unchanged.
+- Build/Deploy/Runtime impact: generated site links changed; no dependency, backend, or deployment configuration changed.
+- Tests/validation: focused routing contracts and real browser clicks passed; consolidated final evidence is below.
+- Assumption audit: **PASS**.
+- Deviations: none.
+- Engineering rationale: one canonical constant prevents OEM-intent CTA drift without flattening page-navigation links and OEM-local anchors into a single destination.
+
+#### Phase 5C1 — Product CTA routing (complete)
+
+- Commit: `d812149` (`feat(site): route product CTAs to inquiry form`); five files.
+- Files: `oem-inquiry-routing.test.ts`, Blue Ocean listing/detail pages, and Teardown listing/detail pages.
+- Result: Blue Ocean listing/detail and Teardown listing/detail CTAs all route to `/#oem-inquiry`; each Blue Ocean detail renders one “Start” link plus three “Choose model” links.
+- Build/Deploy/Runtime impact: generated product-route links changed; no dependency, backend, or deployment configuration changed.
+- Tests/validation: focused source/routing contracts and real browser clicks passed; consolidated final evidence is below.
+- Assumption audit: **PASS**.
+- Deviations: none.
+- Engineering rationale: routing every product-level inquiry affordance through the shared target removes inconsistent dead ends while preserving the listing/detail information architecture.
+
+#### Phase 5C2 — Remaining CTA routing and cleanup (complete)
+
+- Commit: `07b1fba` (`feat(site): complete OEM inquiry CTA routing`); five files.
+- Files: `content/en-US.md`, `site.ts`, `oem-inquiry-routing.test.ts`, the Success Stories index page, and `public.spec.ts`.
+- Result: the Success Stories CTA routes to `/#oem-inquiry`, and retired CTA link fields were removed from the site type and frontmatter after their consumers migrated.
+- Build/Deploy/Runtime impact: generated Success Stories routing and the static content contract changed; no dependency, backend, or deployment configuration changed.
+- Tests/validation: the E2E suite now clicks the Success Stories CTA and confirms arrival at the form; consolidated final evidence is below.
+- Assumption audit: **PASS**.
+- Deviations: none.
+- Engineering rationale: removing the retired link fields closes the alternate-source path after migration, so future content edits cannot silently restore stale CTA destinations.
+
+Final Phase 5 verification:
+- Site tests 27/27; Biome clean; Astro check 0 errors with 6 existing hints across 92 files; build 18 routes; root and E2E TypeScript checks plus `git diff --check` green; focused Phase 5 E2E 2/2.
+- Browser checks at CSS widths 390 / 768 / 1440 confirmed one unique `#oem-inquiry`, all seven fields, secure endpoint/result attributes, required-field behavior, the full upload `accept` contract and hint, no clipping or horizontal overflow, and fixed-header clearance.
+- Real clicks from Home, Portfolio, the submission result page, Blue Ocean, Teardown, and Success Stories all reached the homepage form.
+- A production-source sweep found the footer page-navigation link as the only remaining bare `/oem`; built output contains 14 footer `/oem` links and 21 canonical inquiry links.
+- Phase 5A, 5B, 5C1, and 5C2 assumption audits all **PASS**.
+- The global `within 24 hours` SLA parity remains Phase 8 scope and was not partially changed in Phase 5.
 
 ### Phase 6 — Canonical portfolio content and redirect
 
@@ -169,6 +222,7 @@ Final Phase 3 verification:
 - Phase 1 test refinement: the legal company name remains as the logo `alt` text for accessibility, while all visual company/MOQ text is removed. This is the conservative interpretation of “logo only.”
 - The CHANNEL asset test pins semantic identity (historical dimensions, brand colors, two-path shape, no Diversity orange) rather than whitespace-sensitive SVG bytes, so harmless XML formatting cannot create a false failure.
 - Phase 3 was split into 3A–3D because the combined work exceeded the five-file phase rule; the approved scope and behavior did not expand.
+- Phase 5 was split into verified 5A, 5B, 5C1, and 5C2 subphases because the combined form and routing work exceeded the five-file phase rule; the approved scope and behavior did not expand, and no subphase had a material deviation.
 - A presentation-only source line break was normalized to `faster—from concept`; the confirmed wording was unchanged.
 
 ## Lessons
@@ -190,3 +244,10 @@ Final Phase 3 verification:
 - 2026-07-17: Final Phase 3 gates passed — site tests 21/21, Biome clean, Astro check 0 errors with 6 pre-existing hints across 92 files, build 18 routes, root `tsc` green, and `git diff --check` green.
 - 2026-07-17: Browser verification at CSS widths 390 / 768 / 1440 found 9 homepage sections and no horizontal overflow; Teardown and Blue Ocean listing/detail routes returned HTTP 200; the Factory gallery accepted keyboard focus and scrolled on `ArrowRight`.
 - 2026-07-17: Phase 4 completed in `49a6b5c` (`feat(site): add five AI advantage visual stories`), exactly five files; site tests 23/23 and all static/browser gates passed. The assumption audit passed.
+- 2026-07-18: Phase 5A completed in `cf13702` (`feat(site): embed homepage OEM inquiry form`), four files; the full existing form now replaces the old homepage CTA buttons at the unique `#oem-inquiry` anchor while preserving its secure submission contract and `/oem#submit`.
+- 2026-07-18: Phase 5B completed in `eee2c46` (`feat(site): route primary OEM inquiry CTAs`), five files; primary OEM-intent actions now share canonical `/#oem-inquiry` routing while Header, footer, and OEM-local navigation remain distinct.
+- 2026-07-18: Phase 5C1 completed in `d812149` (`feat(site): route product CTAs to inquiry form`), five files; all Blue Ocean and Teardown listing/detail inquiry links now reach the homepage form.
+- 2026-07-18: Phase 5C2 completed in `07b1fba` (`feat(site): complete OEM inquiry CTA routing`), five files; Success Stories routing, retired-field cleanup, and its E2E click contract completed the CTA migration. All four Phase 5 assumption audits passed.
+- 2026-07-18: Final Phase 5 gates passed — site tests 27/27, Biome clean, Astro check 0 errors with 6 existing hints across 92 files, build 18 routes, root/E2E TypeScript and `git diff --check` green, and focused E2E 2/2.
+- 2026-07-18: Browser verification at CSS widths 390 / 768 / 1440 confirmed the unique seven-field form, secure and required-field contracts, complete upload accept/hint content, fixed-header clearance, and no clipping or overflow; real clicks from every migrated CTA family reached it. The source/build sweep found only footer page-navigation uses of bare `/oem` (14 built links) alongside 21 canonical inquiry links.
+- 2026-07-18: Phase 5 intentionally left the global `within 24 hours` SLA parity untouched for Phase 8.
