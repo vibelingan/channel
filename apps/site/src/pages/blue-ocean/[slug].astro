@@ -4,6 +4,7 @@ import SiteHeader from '../../components/SiteHeader.astro';
 import { type BlueOceanProduct, getAllProducts } from '../../data/blueOceanProducts.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../../i18n/site.ts';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { OEM_INQUIRY_HREF } from '../../lib/site-navigation.ts';
 
 export function getStaticPaths() {
   const products = getAllProducts();
@@ -290,7 +291,7 @@ const tierStyles = [
                   from concept to mass production with flexible partnership models.
                 </p>
                 <a
-                  href="/oem"
+                  href={OEM_INQUIRY_HREF}
                   class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent-500 px-5 py-3 text-sm font-semibold text-brand-950 transition hover:bg-accent-400"
                 >
                   Start an OEM project
@@ -362,7 +363,7 @@ const tierStyles = [
                     </dl>
 
                     <a
-                      href="/oem"
+                      href={OEM_INQUIRY_HREF}
                       class="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 transition hover:gap-2.5 hover:text-brand-700"
                     >
                       Choose this model

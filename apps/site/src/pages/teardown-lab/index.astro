@@ -6,6 +6,7 @@ import TeardownCard from '../../components/TeardownCard.astro';
 import { getAllReports } from '../../data/teardownReports.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../../i18n/site.ts';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { OEM_INQUIRY_HREF } from '../../lib/site-navigation.ts';
 
 const content = getSiteContent(DEFAULT_LOCALE);
 const { brand, nav, footer } = content;
@@ -102,7 +103,7 @@ const totalReports = reports.length;
               confidence.
             </p>
             <a
-              href="/oem"
+              href={OEM_INQUIRY_HREF}
               class="mt-6 inline-flex items-center gap-2 rounded-full bg-accent-500 px-6 py-3 text-base font-semibold text-brand-950 transition hover:bg-accent-400"
             >
               Start an OEM project

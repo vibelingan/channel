@@ -4,6 +4,7 @@ import SiteHeader from '../../components/SiteHeader.astro';
 import { type TeardownReport, getAllReports } from '../../data/teardownReports.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../../i18n/site.ts';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { OEM_INQUIRY_HREF } from '../../lib/site-navigation.ts';
 
 export function getStaticPaths() {
   const reports = getAllReports();
@@ -238,7 +239,7 @@ const bomTotal = report.bomBreakdown.find((line) => line.category.toLowerCase() 
                   from teardown to mass production.
                 </p>
                 <a
-                  href="/oem"
+                  href={OEM_INQUIRY_HREF}
                   class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent-500 px-5 py-3 text-sm font-semibold text-brand-950 transition hover:bg-accent-400"
                 >
                   Start an OEM project

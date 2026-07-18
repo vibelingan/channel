@@ -20,6 +20,16 @@ const resultPage = readFileSync(
   fileURLToPath(new URL('../pages/oem_submit_result.astro', import.meta.url)),
   'utf8',
 );
+const routedPageSources = [
+  { path: '../pages/blue-ocean/index.astro', expectedLinks: 1 },
+  { path: '../pages/blue-ocean/[slug].astro', expectedLinks: 2 },
+  { path: '../pages/teardown-lab/index.astro', expectedLinks: 1 },
+  { path: '../pages/teardown-lab/[slug].astro', expectedLinks: 1 },
+].map(({ path, expectedLinks }) => ({
+  path,
+  expectedLinks,
+  source: readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8'),
+}));
 
 test('canonical OEM inquiry links target the homepage form without changing navigation links', () => {
   assert.equal(OEM_INQUIRY_HREF, '/#oem-inquiry');
@@ -35,4 +45,19 @@ test('canonical OEM inquiry links target the homepage form without changing navi
   assert.ok(siteContent.includes("href: '/oem#what-we-do'"));
   assert.ok(siteContent.includes("- { label: OEM Development, href: '/oem' }"));
   assert.ok(oemContent.includes("primaryCta: { label: Submit your project, href: '#submit' }"));
+});
+
+test('Blue Ocean and Teardown OEM-intent CTAs use the canonical homepage form route', () => {
+  for (const { path, expectedLinks, source } of routedPageSources) {
+    assert.ok(
+      source.includes("import { OEM_INQUIRY_HREF } from '../../lib/site-navigation.ts'"),
+      `canonical route imported by ${path}`,
+    );
+    assert.ok(!source.includes('href="/oem"'), `bare /oem CTA removed from ${path}`);
+    assert.equal(
+      (source.match(/href=\{OEM_INQUIRY_HREF\}/g) ?? []).length,
+      expectedLinks,
+      `all OEM-intent CTAs routed in ${path}`,
+    );
+  }
 });
