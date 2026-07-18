@@ -12,7 +12,7 @@ brand:
 
 nav:
   items:
-    - { label: Success Stories, href: '/success-stories' }
+    - { label: Success Stories, href: '/portfolio' }
     - { label: Teardown Lab, href: '/teardown-lab' }
     - { label: Blue Ocean, href: '/blue-ocean' }
     - { label: OEM Development, href: '/oem#what-we-do' }
@@ -201,7 +201,7 @@ footer:
   columns:
     - heading: Company
       links:
-        - { label: Success Stories, href: '/success-stories' }
+        - { label: Success Stories, href: '/portfolio' }
         - { label: Teardown Lab, href: '/teardown-lab' }
         - { label: Blue Ocean Products, href: '/blue-ocean' }
         - { label: OEM Development, href: '/oem' }

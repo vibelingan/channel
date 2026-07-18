@@ -13,7 +13,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 const site = getSiteContent(DEFAULT_LOCALE);
 const portfolio = getPortfolioContent(DEFAULT_LOCALE);
 const { brand, nav, footer } = site;
-const { meta, hero, customers, cases, certificates } = portfolio;
+const { meta, hero, stats, customers, cases, certificates } = portfolio;
 ---
 
 <BaseLayout title={`${meta.title} — ${brand.name}`} description={meta.description} lang="en">
@@ -27,6 +27,26 @@ const { meta, hero, customers, cases, certificates } = portfolio;
       primaryCta={hero.primaryCta}
       secondaryCta={hero.secondaryCta}
     />
+
+    <section data-portfolio-stats class="border-b border-slate-200 bg-surface-alt">
+      <div class="mx-auto max-w-[var(--width-container)] px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
+        <dl class="grid grid-cols-3 gap-4 sm:gap-8">
+          {stats.items.map((stat) => (
+            <div class="reveal flex flex-col text-center">
+              <dt class="order-2 mt-2 text-xs font-semibold uppercase tracking-wider text-ink-soft sm:text-sm">
+                {stat.label}
+              </dt>
+              <dd class="order-1 font-display text-3xl font-bold text-brand-600 sm:text-4xl">
+                {stat.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <p class="reveal mx-auto mt-6 max-w-2xl text-center text-xs leading-relaxed text-ink-muted sm:text-sm">
+          {stats.note}
+        </p>
+      </div>
+    </section>
 
     <!-- Case studies (STAR) -->
     <Section id={cases.id} eyebrow={cases.eyebrow} heading={cases.heading} intro={cases.intro} tone="surface">

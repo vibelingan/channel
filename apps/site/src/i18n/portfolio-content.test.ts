@@ -15,6 +15,14 @@ const showcaseSource = readFileSync(
   fileURLToPath(new URL('../components/CaseShowcase.astro', import.meta.url)),
   'utf8',
 );
+const portfolioPage = readFileSync(
+  fileURLToPath(new URL('../pages/portfolio.astro', import.meta.url)),
+  'utf8',
+);
+const siteContent = readFileSync(
+  fileURLToPath(new URL('./content/en-US.md', import.meta.url)),
+  'utf8',
+);
 
 test('portfolio defines audited cumulative stats independent of visible item counts', () => {
   assert.ok(portfolioTypes.includes('stats: { items: PortfolioStat[]; note: string };'));
@@ -32,6 +40,14 @@ test('portfolio defines audited cumulative stats independent of visible item cou
     ],
   );
   assert.ok(statsBlock[1].includes('company-wide cumulative totals'));
+  assert.ok(portfolioPage.includes('const { meta, hero, stats, customers, cases, certificates }'));
+  assert.ok(portfolioPage.includes('data-portfolio-stats'));
+  assert.ok(portfolioPage.includes('stats.items.map'));
+  assert.ok(portfolioPage.includes('{stat.value}'));
+  assert.ok(portfolioPage.includes('{stat.label}'));
+  assert.ok(portfolioPage.includes('{stats.note}'));
+  assert.equal((siteContent.match(/label: Success Stories, href: '\/portfolio'/g) ?? []).length, 2);
+  assert.ok(!siteContent.includes("label: Success Stories, href: '/success-stories'"));
 });
 
 test('portfolio uses the two confirmed image-backed cases in vertical order', () => {
