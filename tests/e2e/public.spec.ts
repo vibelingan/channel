@@ -181,6 +181,42 @@ test.describe('public browser smoke', () => {
     await expect(page.locator('video source[src*="oem-factory"]')).toHaveCount(1);
   });
 
+  test('homepage and OEM page expose separate full project forms at their approved anchors', async ({
+    page,
+  }) => {
+    await page.goto('/#oem-inquiry', { waitUntil: 'domcontentloaded' });
+    const homepageSection = page.locator('#oem-inquiry');
+    await expect(homepageSection).toHaveCount(1);
+    await expect(
+      homepageSection.getByRole('heading', { name: 'Ready to develop your next product?' }),
+    ).toBeVisible();
+    const homepageForm = homepageSection.locator('form[data-project-form]');
+    await expect(homepageForm).toHaveAttribute('data-endpoint', '/api/admin');
+    await expect(homepageForm).toHaveAttribute('data-result', '/oem_submit_result');
+    for (const fieldName of [
+      'company',
+      'contact',
+      'email',
+      'whatsapp',
+      'category',
+      'quantity',
+      'drawing',
+    ]) {
+      await expect(homepageForm.locator(`[name="${fieldName}"]`)).toHaveCount(1);
+    }
+    await expect(homepageSection.getByRole('button', { name: 'Submit project' })).toBeVisible();
+    await expect(homepageSection.getByRole('link', { name: 'Start OEM Inquiry' })).toHaveCount(0);
+    await expect(
+      homepageSection.getByRole('link', { name: 'Explore Success Stories' }),
+    ).toHaveCount(0);
+
+    await page.goto('/oem#submit', { waitUntil: 'domcontentloaded' });
+    const oemForm = page.locator('#submit form[data-project-form]');
+    await expect(oemForm).toHaveCount(1);
+    await expect(oemForm).toHaveAttribute('data-endpoint', '/api/admin');
+    await expect(oemForm).toHaveAttribute('data-result', '/oem_submit_result');
+  });
+
   // Headphones storefront is hidden (un-routed) on the OEM-only site; this page
   // test moves to the future standalone headphones site. See docs/oem-refresh/DESIGN.md.
   test.skip('headphones page hydrates and resolves catalog loading state', async ({ page }) => {

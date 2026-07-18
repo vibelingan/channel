@@ -10,10 +10,12 @@ import ServiceGridSection from '../components/ServiceGridSection.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import WhyChooseUsSection from '../components/WhyChooseUsSection.astro';
+import { getOemContent } from '../i18n/oem.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
 import BaseLayout from '../layouts/BaseLayout.astro';
 
 const content = getSiteContent(DEFAULT_LOCALE);
+const { submit } = getOemContent(DEFAULT_LOCALE);
 const {
   brand,
   nav,
@@ -59,7 +61,7 @@ const {
     <CertificationsSection certs={certifications} />
 
     {/* P9: CTA */}
-    <CTASection cta={ctaSection} />
+    <CTASection cta={ctaSection} submit={submit} />
   </main>
 
   <SiteFooter brand={brand} footer={footer} />

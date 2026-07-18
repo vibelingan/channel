@@ -44,6 +44,14 @@ const whyChooseUsSource = readFileSync(
   fileURLToPath(new URL('../components/WhyChooseUsSection.astro', import.meta.url)),
   'utf8',
 );
+const ctaSource = readFileSync(
+  fileURLToPath(new URL('../components/CTASection.astro', import.meta.url)),
+  'utf8',
+);
+const projectFormSource = readFileSync(
+  fileURLToPath(new URL('../components/ProjectForm.astro', import.meta.url)),
+  'utf8',
+);
 const oemContent = readFileSync(
   fileURLToPath(new URL('./content/oem/en-US.md', import.meta.url)),
   'utf8',
@@ -313,7 +321,7 @@ test('homepage removes only the three confirmed sections and keeps the required 
     '<OurTeamSection people={ourPeople} />',
     '<WhyChooseUsSection why={whyChooseUs} />',
     '<CertificationsSection certs={certifications} />',
-    '<CTASection cta={ctaSection} />',
+    '<CTASection cta={ctaSection} submit={submit} />',
   ]) {
     assert.ok(homepageSource.includes(retained), `homepage lost required section: ${retained}`);
   }
@@ -451,4 +459,35 @@ test('Why Choose Us renders five accessible static concept visuals, not a fake l
   assert.ok(!whyChooseUsSource.includes('<button'));
   assert.ok(!whyChooseUsSource.includes('<input'));
   assert.ok(!whyChooseUsSource.includes('animate-'));
+});
+
+test('homepage CTA embeds the existing full secure ProjectForm at #oem-inquiry', () => {
+  assert.ok(ctaSource.includes("import ProjectForm from './ProjectForm.astro'"));
+  assert.ok(ctaSource.includes("submit: OemContent['submit']"));
+  assert.ok(ctaSource.includes('id="oem-inquiry"'));
+  assert.ok(ctaSource.includes('scroll-mt-[var(--spacing-header)]'));
+  assert.ok(ctaSource.includes('fields={submit.fields}'));
+  assert.ok(ctaSource.includes('submitLabel={submit.submitLabel}'));
+  assert.ok(ctaSource.includes('disclaimer={submit.disclaimer}'));
+  assert.ok(ctaSource.includes('successTitle={submit.successTitle}'));
+  assert.ok(ctaSource.includes('successBody={submit.successBody}'));
+  assert.ok(ctaSource.includes('action="/api/admin"'));
+  assert.ok(ctaSource.includes('resultPath="/oem_submit_result"'));
+  assert.ok(!ctaSource.includes('cta.primaryCta'));
+  assert.ok(!ctaSource.includes('cta.secondaryCta'));
+
+  assert.ok(homepageSource.includes("import { getOemContent } from '../i18n/oem.ts'"));
+  assert.ok(homepageSource.includes('const { submit } = getOemContent(DEFAULT_LOCALE)'));
+  assert.ok(homepageSource.includes('<CTASection cta={ctaSection} submit={submit} />'));
+  assert.equal((ctaSource.match(/id="oem-inquiry"/g) ?? []).length, 1);
+
+  for (const secureContract of [
+    "'createOemFileUploadIntent'",
+    "'submitProject'",
+    'OEM_FILE_MAX_BYTES',
+    'isAllowedOemExtension',
+    "cos.append('file', file)",
+  ]) {
+    assert.ok(projectFormSource.includes(secureContract), `ProjectForm keeps: ${secureContract}`);
+  }
 });
