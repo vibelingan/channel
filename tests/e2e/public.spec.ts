@@ -223,6 +223,10 @@ test.describe('public browser smoke', () => {
   }) => {
     await page.goto('/success-stories', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/portfolio\/?$/);
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+      'href',
+      'https://channel.example.com/portfolio/',
+    );
 
     const sitemap = await request.get('/sitemap-0.xml');
     await expect(sitemap).toBeOK();

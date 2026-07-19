@@ -5,9 +5,13 @@ interface Props {
   title: string;
   description?: string;
   lang?: string;
+  canonicalPath?: string;
 }
 
-const { title, description = 'Channel portal', lang = 'en' } = Astro.props;
+const { title, description = 'Channel portal', lang = 'en', canonicalPath } = Astro.props;
+const canonicalUrl = canonicalPath
+  ? new URL(canonicalPath, Astro.site ?? Astro.url.origin)
+  : undefined;
 ---
 
 <!doctype html>
@@ -16,6 +20,7 @@ const { title, description = 'Channel portal', lang = 'en' } = Astro.props;
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
+    {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="mask-icon" href="/favicon.svg" color="#153687" />
     <meta name="theme-color" content="#153687" />

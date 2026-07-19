@@ -16,7 +16,12 @@ const { brand, nav, footer } = site;
 const { meta, hero, stats, customers, cases, certificates } = portfolio;
 ---
 
-<BaseLayout title={`${meta.title} — ${brand.name}`} description={meta.description} lang="en">
+<BaseLayout
+  title={`${meta.title} — ${brand.name}`}
+  description={meta.description}
+  lang="en"
+  canonicalPath="/portfolio/"
+>
   <SiteHeader brand={brand} nav={nav} />
 
   <main>
