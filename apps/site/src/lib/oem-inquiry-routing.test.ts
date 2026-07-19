@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { OEM_INQUIRY_HREF } from './site-navigation.ts';
@@ -21,9 +21,12 @@ const resultPage = readFileSync(
   'utf8',
 );
 const siteTypes = readFileSync(fileURLToPath(new URL('../i18n/site.ts', import.meta.url)), 'utf8');
-const successStoriesPage = readFileSync(
-  fileURLToPath(new URL('../pages/success-stories/index.astro', import.meta.url)),
+const astroConfig = readFileSync(
+  fileURLToPath(new URL('../../astro.config.ts', import.meta.url)),
   'utf8',
+);
+const legacySuccessStoriesPage = fileURLToPath(
+  new URL('../pages/success-stories/index.astro', import.meta.url),
 );
 const routedPageSources = [
   { path: '../pages/blue-ocean/index.astro', expectedLinks: 1 },
@@ -67,13 +70,10 @@ test('Blue Ocean and Teardown OEM-intent CTAs use the canonical homepage form ro
   }
 });
 
-test('Success Stories uses the canonical inquiry route and retired homepage CTA links are removed', () => {
-  assert.ok(
-    successStoriesPage.includes("import { OEM_INQUIRY_HREF } from '../../lib/site-navigation.ts'"),
-  );
-  assert.ok(!successStoriesPage.includes('href="/oem"'));
-  assert.equal((successStoriesPage.match(/href=\{OEM_INQUIRY_HREF\}/g) ?? []).length, 1);
-
+test('legacy Success Stories is a configured redirect and retired homepage CTA links are removed', () => {
+  assert.ok(!existsSync(legacySuccessStoriesPage));
+  assert.ok(astroConfig.includes("'/success-stories': '/portfolio'"));
+  assert.ok(astroConfig.includes("!== '/success-stories'"));
   const ctaContent = siteContent.match(/^ctaSection:\n([\s\S]*?)^footer:/m);
   assert.ok(ctaContent, 'homepage CTA content exists');
   assert.ok(!ctaContent[1].includes('primaryCta'));

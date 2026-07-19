@@ -11,10 +11,19 @@ const env = loadEnv(process.env.NODE_ENV ?? 'development', process.cwd(), '');
 // Enabled by default; set PUBLIC_CB_PROXY=0 to disable.
 const cbProxy = env.PUBLIC_CB_PROXY !== '0';
 const cbHost = env.PUBLIC_CB_HOST || 'localhost:3002';
+const site = 'https://channel.example.com';
 
 export default defineConfig({
-  site: 'https://channel.example.com',
-  integrations: [react(), sitemap()],
+  site,
+  redirects: {
+    '/success-stories': '/portfolio',
+  },
+  integrations: [
+    react(),
+    sitemap({
+      filter: (page) => new URL(page).pathname.replace(/\/$/, '') !== '/success-stories',
+    }),
+  ],
   vite: {
     plugins: [tailwindcss()],
     server: cbProxy

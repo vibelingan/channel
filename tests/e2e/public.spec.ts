@@ -217,9 +217,20 @@ test.describe('public browser smoke', () => {
     await expect(oemForm).toHaveAttribute('data-result', '/oem_submit_result');
   });
 
-  test('Success Stories OEM CTA opens the homepage inquiry form', async ({ page }) => {
+  test('legacy Success Stories redirects to canonical portfolio and keeps its inquiry CTA', async ({
+    page,
+    request,
+  }) => {
     await page.goto('/success-stories', { waitUntil: 'domcontentloaded' });
-    const cta = page.getByRole('link', { name: 'Start an OEM project', exact: true });
+    await expect(page).toHaveURL(/\/portfolio\/?$/);
+
+    const sitemap = await request.get('/sitemap-0.xml');
+    await expect(sitemap).toBeOK();
+    const sitemapXml = await sitemap.text();
+    expect(sitemapXml).toContain('<loc>https://channel.example.com/portfolio/</loc>');
+    expect(sitemapXml).not.toContain('/success-stories');
+
+    const cta = page.getByRole('link', { name: 'Start your project', exact: true });
     await expect(cta).toHaveAttribute('href', '/#oem-inquiry');
     await cta.click();
     await expect(page).toHaveURL(/\/#oem-inquiry$/);
