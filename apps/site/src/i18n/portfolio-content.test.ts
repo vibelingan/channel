@@ -23,6 +23,15 @@ const siteContent = readFileSync(
   fileURLToPath(new URL('./content/en-US.md', import.meta.url)),
   'utf8',
 );
+const deployScript = readFileSync(
+  fileURLToPath(new URL('../../../../scripts/deploy-cloudbase-test.mjs', import.meta.url)),
+  'utf8',
+);
+const retiredPortfolioPaths = [
+  '../components/CaseStudyCard.astro',
+  '../data/successStories.ts',
+  '../../public/media/portfolio/cases/tws-speaker-1.webp',
+];
 
 test('portfolio defines audited cumulative stats independent of visible item counts', () => {
   assert.ok(portfolioTypes.includes('stats: { items: PortfolioStat[]; note: string };'));
@@ -98,4 +107,22 @@ test('CaseShowcase renders full-width alternating product stories without croppi
   assert.ok(showcaseSource.includes("i % 2 === 1 && 'lg:order-2'"));
   assert.ok(showcaseSource.includes("i % 2 === 1 && 'lg:order-1'"));
   assert.ok(showcaseSource.includes('space-y-16'));
+});
+
+test('superseded Success Stories code and TWS asset are removed', () => {
+  for (const relativePath of retiredPortfolioPaths) {
+    assert.ok(
+      !existsSync(fileURLToPath(new URL(relativePath, import.meta.url))),
+      `retired portfolio path removed: ${relativePath}`,
+    );
+  }
+  assert.ok(portfolioTypes.includes('export interface StarCase'));
+  assert.ok(portfolioContent.includes('Disc Repair System'));
+  assert.ok(!portfolioContent.includes('Character TWS Bluetooth Speaker'));
+  assert.ok(
+    deployScript.includes(
+      "{ cloudPath: 'media/portfolio/cases/tws-speaker-1.webp', isDir: false }",
+    ),
+    'retired TWS asset is pruned from additive hosting',
+  );
 });

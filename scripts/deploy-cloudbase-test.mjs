@@ -537,6 +537,7 @@ const legacyHostingPaths = [
   // NOTE: media/logo-channel.svg is the active OEM brand logo again (header +
   // footer on every page) — do NOT prune it.
   { cloudPath: 'media/section-heritage.png', isDir: false },
+  { cloudPath: 'media/portfolio/cases/tws-speaker-1.webp', isDir: false },
   { cloudPath: 'media/portfolio/cases/tws-speaker-2.webp', isDir: false },
   { cloudPath: 'media/portfolio/cases/tws-speaker-3.webp', isDir: false },
 ];
