@@ -234,6 +234,30 @@ test.describe('public browser smoke', () => {
     expect(sitemapXml).toContain('<loc>https://channel.example.com/portfolio/</loc>');
     expect(sitemapXml).not.toContain('/success-stories');
 
+    const stats = page.locator('[data-portfolio-stats]');
+    await expect(stats.getByText('50+', { exact: true })).toBeVisible();
+    await expect(stats.getByText('Case Studies', { exact: true })).toBeVisible();
+    await expect(stats.getByText('30+', { exact: true })).toBeVisible();
+    await expect(stats.getByText('Trusted Clients', { exact: true })).toBeVisible();
+    await expect(stats.getByText('100+', { exact: true })).toBeVisible();
+    await expect(stats.getByText('Certifications', { exact: true })).toBeVisible();
+
+    const cases = page.locator('#cases article');
+    await expect(cases).toHaveCount(2);
+    await expect(
+      cases.nth(0).getByRole('heading', { name: "Children's Sleep Training Clock" }),
+    ).toBeVisible();
+    await expect(cases.nth(0).locator('img')).toHaveAttribute(
+      'src',
+      '/media/portfolio/cases/sleep-clock.webp',
+    );
+    await expect(cases.nth(1).getByRole('heading', { name: 'Disc Repair System' })).toBeVisible();
+    await expect(cases.nth(1).locator('img')).toHaveAttribute(
+      'src',
+      '/media/portfolio/cases/disc-repair.jpg',
+    );
+    await expect(page.getByText('Character TWS Bluetooth Speaker')).toHaveCount(0);
+
     const cta = page.getByRole('link', { name: 'Start your project', exact: true });
     await expect(cta).toHaveAttribute('href', '/#oem-inquiry');
     await cta.click();
