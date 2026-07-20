@@ -65,6 +65,14 @@ async function expectJson(method, url, expectedStatus, body) {
   return await response.json();
 }
 
+async function expectImage(url) {
+  const response = await expectHttp('GET', url, 200);
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.toLowerCase().startsWith('image/')) {
+    throw new Error(`GET ${url} expected an image response, got ${contentType || '<missing>'}`);
+  }
+}
+
 function assertRelease(service, body) {
   if (body?.ok !== true) {
     throw new Error(
@@ -116,6 +124,21 @@ for (const path of ['/', '/admin', '/login', '/oem', '/portfolio']) {
 for (const path of ['/headphones', '/overstock']) {
   await expectHttp('GET', `${siteUrl}${path}`, 404);
 }
+
+// The canonical portfolio must publish both current case images and retire the
+// superseded TWS object. Query strings bypass stale CDN cache entries so this
+// checks the just-deployed hosting state rather than a previous release.
+for (const path of [
+  '/media/portfolio/cases/sleep-clock.webp',
+  '/media/portfolio/cases/disc-repair.jpg',
+]) {
+  await expectImage(`${siteUrl}${path}?deployment-smoke=${encodeURIComponent(expectedReleaseId)}`);
+}
+await expectHttp(
+  'GET',
+  `${siteUrl}/media/portfolio/cases/tws-speaker-1.webp?deployment-smoke=${encodeURIComponent(expectedReleaseId)}`,
+  404,
+);
 
 assertRelease('public-api', await expectJson('GET', `${apiUrl}/api/health`, 200));
 assertRelease('admin', await expectJson('POST', `${apiUrl}/api/admin`, 200, { action: 'health' }));

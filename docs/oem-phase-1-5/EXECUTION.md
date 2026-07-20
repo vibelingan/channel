@@ -282,6 +282,32 @@ Final Phase 6 verification:
 - Explicit caveats: the static redirect returns HTTP 200 with meta-refresh rather than 301; Phase 9 must verify the retired TWS live URL returns 404; any future production workflow must require `SITE_URL` when introduced, while the existing test deployment already supplies it.
 - Delivery state: no push or deployment is claimed for Phase 6.
 
+#### Phase 6/Phase 9 pre-delivery review blocker and deployment-guard resolution (implemented locally; live verification pending)
+
+- Date: 2026-07-20.
+- Blocker evidence: before deploying this fix, the live baseline for `/media/portfolio/cases/tws-speaker-1.webp` still returned HTTP 200. This confirms that the retired object remained publicly reachable on additive hosting; it does not indicate that the current local fix has been deployed.
+- Independent assumption review: **BLOCKED**. The targeted prune could fail while deployment continued because its tool failure was tolerated, and the post-deploy smoke enforced neither retirement of the TWS object nor availability and media type of the two active portfolio images. A stale retired object or missing/non-image active asset could therefore survive a superficially green deployment.
+- Conservative fix implemented in `scripts/deploy-cloudbase-test.mjs`, `scripts/smoke-cloudbase-deploy.mjs`, and `apps/site/src/i18n/portfolio-content.test.ts`:
+  - Static-hosting upload and website-document configuration tool failures now block the deployment through explicit success assertions.
+  - Post-deploy smoke now requires `/media/portfolio/cases/sleep-clock.webp` and `/media/portfolio/cases/disc-repair.jpg` to return HTTP 200 with a `Content-Type` beginning with `image/`.
+  - Post-deploy smoke now requires the exact retired `/media/portfolio/cases/tws-speaker-1.webp` asset URL to return HTTP 404. Release-ID query strings bypass stale CDN cache entries for these checks.
+  - The portfolio source contract pins the upload guard and all three smoke paths, including the retired-asset HTTP 404 expectation.
+- Route contract clarification: `/success-stories` is not expected to return HTTP 404. It deliberately remains a static HTTP 200 meta-refresh compatibility route to canonical `/portfolio`; only the retired TWS media object must return HTTP 404.
+- Build/Deploy/Runtime impact: test-environment hosting deployment now fails closed for upload/configuration tool failures, and post-deploy acceptance fails unless active and retired portfolio media match the public HTTP contract. No application API, dependency, database, or production deployment contract changed.
+- Local validation after the fix:
+  - Site tests: 32/32.
+  - All workspace package tests passed: media-storage 26, shared 70, site 32, auth 2, public-api 37, and admin 135.
+  - Root and E2E TypeScript checks passed.
+  - Biome passed across 182 files.
+  - Astro check passed with 0 errors and 6 hints across 89 files.
+  - Astro build emitted 17 pages plus the static `/success-stories` redirect artifact.
+  - Playwright E2E discovery passed.
+  - `node --check` passed for both deployment scripts.
+  - `git diff --check` passed.
+- Deviations: the earlier Phase 6C contract assumed that listing an exact prune path was sufficient even though the delete tool result could be tolerated and no external HTTP outcome was enforced. The conservative correction retains the narrow path-level prune, makes must-succeed hosting operations fatal, and verifies the public result after deployment; a blanket portfolio-directory deletion was rejected because it could remove active media.
+- Engineering rationale: externally observed HTTP state is the authoritative retirement signal. Tool success alone cannot prove CDN state, while a broad cleanup increases blast radius; the narrow prune plus cache-busted active-media and retired-media smoke checks closes the silent-failure path without expanding deletion scope.
+- Delivery state: no push, deployment, or post-fix live HTTP 404 is claimed. Overall status remains **In progress** because Phases 7–9 remain; Phase 9 must run the deployment and verify the retired TWS URL is live at HTTP 404.
+
 ### Phase 7 — Certificates/logos responsive presentation
 
 - Process every source asset, classify compliance/design-patent/patent-record documents accurately, normalize logos, and implement small/medium automatic carousel plus large-screen grid/lightbox.
@@ -303,12 +329,14 @@ Final Phase 6 verification:
 - Phase 6 was split into verified 6A, 6B1, 6B2a, 6B2b, and 6C subphases, followed by one-file acceptance hardening and a four-file canonical-origin fix. Every commit touched no more than five files; the approved Slides 14–15 scope did not expand.
 - Phase 6C corrected an additive-hosting assumption: deleting the local TWS asset would not delete an already-hosted object. The conservative choice was one exact prune entry; a broad portfolio-directory prune was not taken.
 - The Phase 6 canonical audit rejected the placeholder `channel.example.com` origin. The conservative choice was a documented build-time `SITE_URL` contract with a local fallback and an opt-in portfolio canonical; a broader site-wide canonical change was not taken.
+- The Phase 6/Phase 9 pre-delivery review corrected a second hosting-retirement assumption: an exact prune entry was not sufficient while prune failure was tolerated and smoke omitted the public media outcomes. The conservative choice was to fail closed on hosting upload/configuration errors and make cache-busted HTTP checks enforce both active media and the exact retired TWS 404; a broad directory prune remained rejected.
 - A presentation-only source line break was normalized to `faster—from concept`; the confirmed wording was unchanged.
 
 ## Lessons
 
 - Product Capability and teaser dead-code candidates were traced through history and consumers before removal. Independent OEM capability content and Teardown/Blue Ocean route data and navigation were preserved.
 - Static source deletion is insufficient on additive hosting: retired public assets need a narrow deployment prune, and static canonical URLs need an explicit build-time public origin.
+- A deployment cleanup is not proven by configuration or a tolerated tool result: smoke the cache-busted public URL for the retired object's HTTP 404 and simultaneously prove that active replacement media return HTTP 200 with an image content type.
 
 ## Execution log
 
@@ -338,3 +366,7 @@ Final Phase 6 verification:
 - 2026-07-20: The canonical-origin audit blocked the placeholder `channel.example.com`; `fc98d38` (four files) established the `SITE_URL` build contract and environment/E2E parity. Both Phase 6 blocker audits then passed.
 - 2026-07-20: Final Phase 6 gates passed — site tests 32/32, Biome clean, root/E2E TypeScript green, deploy script syntax green, Astro check 0 errors with 6 existing hints across 89 files, build 17 content pages plus the static redirect artifact, and focused E2E 1/1.
 - 2026-07-20: Browser verification at CSS widths 390 / 1440 reviewed screenshots, found no horizontal overflow, and confirmed 800×800 Sleep Clock plus 825×776 Disc Repair images. No push or deployment was performed; Phase 9 retains live TWS 404 verification.
+- 2026-07-20: Phase 6/Phase 9 pre-delivery live-baseline review found the retired `/media/portfolio/cases/tws-speaker-1.webp` still returning HTTP 200 before deployment. Independent assumption review **BLOCKED** because targeted prune failure was tolerated and post-deploy smoke enforced neither retired-media removal nor active portfolio media.
+- 2026-07-20: The conservative local resolution added fatal hosting upload/website-configuration result checks, cache-busted smoke requirements for HTTP 200 plus `image/*` on Sleep Clock and Disc Repair, an exact retired-TWS HTTP 404 check, and source-contract coverage for those guards. `/success-stories` remains intentionally HTTP 200 as a static meta-refresh compatibility route to canonical `/portfolio`.
+- 2026-07-20: Post-fix local gates passed — site tests 32/32; all workspace package tests (media-storage 26, shared 70, site 32, auth 2, public-api 37, admin 135); root/E2E typecheck; Biome across 182 files; Astro check with 0 errors, 6 hints, and 89 files; build with 17 pages plus redirect; E2E discovery; `node --check` for both deployment scripts; and `git diff --check`.
+- 2026-07-20: No push, deployment, or post-fix live TWS HTTP 404 is claimed. Status remains in progress because Phases 7–9 remain.

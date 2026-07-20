@@ -27,6 +27,10 @@ const deployScript = readFileSync(
   fileURLToPath(new URL('../../../../scripts/deploy-cloudbase-test.mjs', import.meta.url)),
   'utf8',
 );
+const deploySmoke = readFileSync(
+  fileURLToPath(new URL('../../../../scripts/smoke-cloudbase-deploy.mjs', import.meta.url)),
+  'utf8',
+);
 const astroConfig = readFileSync(
   fileURLToPath(new URL('../../astro.config.ts', import.meta.url)),
   'utf8',
@@ -136,6 +140,24 @@ test('superseded Success Stories code and TWS asset are removed', () => {
       "{ cloudPath: 'media/portfolio/cases/tws-speaker-1.webp', isDir: false }",
     ),
     'retired TWS asset is pruned from additive hosting',
+  );
+  assert.ok(
+    deployScript.includes(
+      'assertToolSucceeded(uploaded, `${webAppServiceName}: static hosting upload`)',
+    ),
+    'hosting upload failures block deployment',
+  );
+  for (const mediaPath of [
+    '/media/portfolio/cases/sleep-clock.webp',
+    '/media/portfolio/cases/disc-repair.jpg',
+    '/media/portfolio/cases/tws-speaker-1.webp',
+  ]) {
+    assert.ok(deploySmoke.includes(mediaPath), `deploy smoke covers portfolio media: ${mediaPath}`);
+  }
+  assert.match(
+    deploySmoke,
+    /tws-speaker-1\.webp[\s\S]*?encodeURIComponent\(expectedReleaseId\)[\s\S]*?404/,
+    'retired TWS media must return 404 after deployment',
   );
 });
 

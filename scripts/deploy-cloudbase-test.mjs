@@ -574,6 +574,7 @@ function deployWebApp() {
     },
     { timeoutMs: 300_000 },
   );
+  assertToolSucceeded(uploaded, `${webAppServiceName}: static hosting upload`);
   const uploadRequestId = uploaded.data?.requestId ?? uploaded.data?.raw?.RequestId ?? 'unknown';
   console.log(`${webAppServiceName}: static hosting upload finished; request ${uploadRequestId}`);
 
@@ -584,6 +585,7 @@ function deployWebApp() {
     indexDocument: 'index.html',
     errorDocument: 'index.html',
   });
+  assertToolSucceeded(configured, `${webAppServiceName}: website document configuration`);
   const configRequestId =
     configured.data?.requestId ?? configured.data?.raw?.RequestId ?? 'unknown';
   console.log(`${webAppServiceName}: website document configured; request ${configRequestId}`);
