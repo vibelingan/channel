@@ -225,13 +225,13 @@ test.describe('public browser smoke', () => {
     await expect(page).toHaveURL(/\/portfolio\/?$/);
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
       'href',
-      'https://channel.example.com/portfolio/',
+      `${e2e.siteUrl}/portfolio/`,
     );
 
     const sitemap = await request.get('/sitemap-0.xml');
     await expect(sitemap).toBeOK();
     const sitemapXml = await sitemap.text();
-    expect(sitemapXml).toContain('<loc>https://channel.example.com/portfolio/</loc>');
+    expect(sitemapXml).toContain(`<loc>${e2e.siteUrl}/portfolio/</loc>`);
     expect(sitemapXml).not.toContain('/success-stories');
 
     const stats = page.locator('[data-portfolio-stats]');

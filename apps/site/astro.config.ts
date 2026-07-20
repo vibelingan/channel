@@ -11,7 +11,8 @@ const env = loadEnv(process.env.NODE_ENV ?? 'development', process.cwd(), '');
 // Enabled by default; set PUBLIC_CB_PROXY=0 to disable.
 const cbProxy = env.PUBLIC_CB_PROXY !== '0';
 const cbHost = env.PUBLIC_CB_HOST || 'localhost:3002';
-const site = 'https://channel.example.com';
+const siteUrl = env.SITE_URL?.trim() || 'http://localhost:4321';
+const site = new URL(siteUrl).href.replace(/\/$/, '');
 
 export default defineConfig({
   site,

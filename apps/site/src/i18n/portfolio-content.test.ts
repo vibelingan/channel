@@ -27,6 +27,18 @@ const deployScript = readFileSync(
   fileURLToPath(new URL('../../../../scripts/deploy-cloudbase-test.mjs', import.meta.url)),
   'utf8',
 );
+const astroConfig = readFileSync(
+  fileURLToPath(new URL('../../astro.config.ts', import.meta.url)),
+  'utf8',
+);
+const envExample = readFileSync(
+  fileURLToPath(new URL('../../../../.env.example', import.meta.url)),
+  'utf8',
+);
+const deployWorkflow = readFileSync(
+  fileURLToPath(new URL('../../../../.github/workflows/deploy-test.yml', import.meta.url)),
+  'utf8',
+);
 const retiredPortfolioPaths = [
   '../components/CaseStudyCard.astro',
   '../data/successStories.ts',
@@ -125,4 +137,12 @@ test('superseded Success Stories code and TWS asset are removed', () => {
     ),
     'retired TWS asset is pruned from additive hosting',
   );
+});
+
+test('portfolio canonical origin comes from the build-time SITE_URL contract', () => {
+  assert.ok(astroConfig.includes("env.SITE_URL?.trim() || 'http://localhost:4321'"));
+  assert.ok(!astroConfig.includes('channel.example.com'));
+  assert.ok(envExample.includes('SITE_URL=http://localhost:4321'));
+  assert.ok(deployWorkflow.includes('SITE_URL: ${{ vars.SITE_URL'));
+  assert.ok(deployWorkflow.includes('E2E_SITE_URL: ${{ vars.SITE_URL'));
 });
