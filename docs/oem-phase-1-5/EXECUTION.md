@@ -307,6 +307,8 @@ Final Phase 6 verification:
 - Deviations: the earlier Phase 6C contract assumed that listing an exact prune path was sufficient even though the delete tool result could be tolerated and no external HTTP outcome was enforced. The conservative correction retains the narrow path-level prune, makes must-succeed hosting operations fatal, and verifies the public result after deployment; a blanket portfolio-directory deletion was rejected because it could remove active media.
 - Engineering rationale: externally observed HTTP state is the authoritative retirement signal. Tool success alone cannot prove CDN state, while a broad cleanup increases blast radius; the narrow prune plus cache-busted active-media and retired-media smoke checks closes the silent-failure path without expanding deletion scope.
 - Delivery state: no push, deployment, or post-fix live HTTP 404 is claimed. Overall status remains **In progress** because Phases 7–9 remain; Phase 9 must run the deployment and verify the retired TWS URL is live at HTTP 404.
+- Final pre-push review on 2026-07-21 found one diff-induced documentation gap: the manual CloudBase setup/build path omitted `SITE_URL`, so following it could emit localhost canonical and sitemap URLs even though the automated test workflow was correctly wired. A red contract test first proved the omission; `docs/CLOUDBASE_DEPLOYMENT_EXECUTION.md` now sets `SITE_URL` for test/prod environment setup and the manual static build.
+- Review disposition: the deploy script's full-replacement function-env behavior is unchanged from `origin/test`, is documented as a test-only accepted limitation with a complete authoritative manifest, and has a separately implemented/live-verified read-merge hardening branch for production reuse. It is not folded into this OEM test delivery; no production/main deployment is in scope.
 
 ### Phase 7 — Certificates/logos responsive presentation
 
@@ -330,6 +332,7 @@ Final Phase 6 verification:
 - Phase 6C corrected an additive-hosting assumption: deleting the local TWS asset would not delete an already-hosted object. The conservative choice was one exact prune entry; a broad portfolio-directory prune was not taken.
 - The Phase 6 canonical audit rejected the placeholder `channel.example.com` origin. The conservative choice was a documented build-time `SITE_URL` contract with a local fallback and an opt-in portfolio canonical; a broader site-wide canonical change was not taken.
 - The Phase 6/Phase 9 pre-delivery review corrected a second hosting-retirement assumption: an exact prune entry was not sufficient while prune failure was tolerated and smoke omitted the public media outcomes. The conservative choice was to fail closed on hosting upload/configuration errors and make cache-busted HTTP checks enforce both active media and the exact retired TWS 404; a broad directory prune remained rejected.
+- The final Phase 9 review corrected manual-runbook parity for `SITE_URL`. The conservative choice was to wire the same public-origin input into documented GitHub variables and the manual build, backed by a source contract; no unrelated canonical rollout was added.
 - A presentation-only source line break was normalized to `faster—from concept`; the confirmed wording was unchanged.
 
 ## Lessons
@@ -337,6 +340,7 @@ Final Phase 6 verification:
 - Product Capability and teaser dead-code candidates were traced through history and consumers before removal. Independent OEM capability content and Teardown/Blue Ocean route data and navigation were preserved.
 - Static source deletion is insufficient on additive hosting: retired public assets need a narrow deployment prune, and static canonical URLs need an explicit build-time public origin.
 - A deployment cleanup is not proven by configuration or a tolerated tool result: smoke the cache-busted public URL for the retired object's HTTP 404 and simultaneously prove that active replacement media return HTTP 200 with an image content type.
+- Build-time URL inputs must stay aligned across automated workflows and manual runbooks; a green CI producer does not protect an operator following stale manual commands.
 
 ## Execution log
 
@@ -370,3 +374,4 @@ Final Phase 6 verification:
 - 2026-07-20: The conservative local resolution added fatal hosting upload/website-configuration result checks, cache-busted smoke requirements for HTTP 200 plus `image/*` on Sleep Clock and Disc Repair, an exact retired-TWS HTTP 404 check, and source-contract coverage for those guards. `/success-stories` remains intentionally HTTP 200 as a static meta-refresh compatibility route to canonical `/portfolio`.
 - 2026-07-20: Post-fix local gates passed — site tests 32/32; all workspace package tests (media-storage 26, shared 70, site 32, auth 2, public-api 37, admin 135); root/E2E typecheck; Biome across 182 files; Astro check with 0 errors, 6 hints, and 89 files; build with 17 pages plus redirect; E2E discovery; `node --check` for both deployment scripts; and `git diff --check`.
 - 2026-07-20: No push, deployment, or post-fix live TWS HTTP 404 is claimed. Status remains in progress because Phases 7–9 remain.
+- 2026-07-21: Final pre-push review found the manual `SITE_URL` producer gap. The new source contract failed red, the CloudBase execution guide was corrected for test/prod variables and manual build input, and the focused portfolio contract passed 5/5 with `git diff --check` green.

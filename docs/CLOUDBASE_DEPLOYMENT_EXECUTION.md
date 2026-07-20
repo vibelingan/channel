@@ -2,7 +2,7 @@
 
 Status: implementation plan for client availability
 Scope: concrete work order for deploying the Channel portal to CloudBase
-Last updated: 2026-06-25
+Last updated: 2026-07-21
 
 ## 1. Execution Principle
 
@@ -139,6 +139,7 @@ gh variable set TCB_ENV_ID --env test --body "diversity-123-d9grnqfux221323bb"
 gh variable set APP_ENV --env test --body "test"
 gh variable set CLOUDBASE_REGION --env test --body "ap-shanghai"
 gh variable set PUBLIC_CB_PROXY --env test --body "0"
+gh variable set SITE_URL --env test --body "https://channel-test-diversity-123-d9grnqfux221323bb.webapps.tcloudbase.com"
 ```
 
 Set production variables only after the real production CloudBase EnvId exists.
@@ -149,6 +150,7 @@ gh variable set TCB_ENV_ID --env prod --body "<prod-env-id>"
 gh variable set APP_ENV --env prod --body "prod"
 gh variable set CLOUDBASE_REGION --env prod --body "ap-shanghai"
 gh variable set PUBLIC_CB_PROXY --env prod --body "0"
+gh variable set SITE_URL --env prod --body "https://<prod-site-url>"
 ```
 
 Generate runtime secrets locally:
@@ -216,7 +218,9 @@ Acceptance:
 - `test` exists for test deploys and `main` remains the production branch.
 - GitHub Environments `test` and `prod` exist.
 - No `.env` file contains test or prod runtime secrets.
-- Static build job will receive only `PUBLIC_*` variables.
+- Static build job receives only public, non-secret inputs (`PUBLIC_*` and
+  `SITE_URL`); `SITE_URL` must match the deployed origin so generated canonical
+  and sitemap URLs never use the local fallback.
 - CloudBase function env receives runtime secrets after deploy or as part of
   function config update.
 - The `prod` GitHub Environment points only at the production CloudBase EnvId
@@ -548,7 +552,7 @@ Goal: publish the client-visible site.
 Build:
 
 ```bash
-PUBLIC_CB_PROXY=0 PUBLIC_API_BASE_URL=https://<api-origin> pnpm build
+SITE_URL=https://<site-url> PUBLIC_CB_PROXY=0 PUBLIC_API_BASE_URL=https://<api-origin> pnpm build
 ```
 
 Secret scan:

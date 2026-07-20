@@ -43,6 +43,10 @@ const deployWorkflow = readFileSync(
   fileURLToPath(new URL('../../../../.github/workflows/deploy-test.yml', import.meta.url)),
   'utf8',
 );
+const deploymentGuide = readFileSync(
+  fileURLToPath(new URL('../../../../docs/CLOUDBASE_DEPLOYMENT_EXECUTION.md', import.meta.url)),
+  'utf8',
+);
 const retiredPortfolioPaths = [
   '../components/CaseStudyCard.astro',
   '../data/successStories.ts',
@@ -167,4 +171,10 @@ test('portfolio canonical origin comes from the build-time SITE_URL contract', (
   assert.ok(envExample.includes('SITE_URL=http://localhost:4321'));
   assert.ok(deployWorkflow.includes('SITE_URL: ${{ vars.SITE_URL'));
   assert.ok(deployWorkflow.includes('E2E_SITE_URL: ${{ vars.SITE_URL'));
+  assert.ok(deploymentGuide.includes('gh variable set SITE_URL --env test'));
+  assert.ok(
+    deploymentGuide.includes(
+      'SITE_URL=https://<site-url> PUBLIC_CB_PROXY=0 PUBLIC_API_BASE_URL=https://<api-origin> pnpm build',
+    ),
+  );
 });
