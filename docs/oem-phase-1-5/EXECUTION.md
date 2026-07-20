@@ -201,9 +201,86 @@ Final Phase 5 verification:
 - Phase 5A, 5B, 5C1, and 5C2 assumption audits all **PASS**.
 - The global `within 24 hours` SLA parity remains Phase 8 scope and was not partially changed in Phase 5.
 
-### Phase 6 — Canonical portfolio content and redirect
+### Phase 6 — Canonical portfolio content and redirect (complete — Slides 14–15)
 
-- Keep the portfolio UI; migrate corrected Sleep Clock + Disc Repair content/images, replace TWS, add the 50+/30+/100+ stats strip, update nav/canonical/sitemap/E2E, and redirect `/success-stories`.
+- `/portfolio` is now the single Success Stories destination for Slides 14–15. It retains the portfolio UI, presents the corrected Sleep Clock and Disc Repair cases with real images, renders the 50+/30+/100+ cumulative stats, and removes the retired TWS story.
+- `/success-stories` now builds only as a static redirect artifact to `/portfolio`; it is excluded from the sitemap, while `/portfolio/` owns the canonical URL.
+- The work was divided into the following independently verified subphases and follow-up contracts so every commit remained within the five-file limit.
+
+#### Phase 6A — Real case-study content, schema, and media (complete)
+
+- Commit: `6de3f38` (`feat(site): migrate real portfolio case studies`); five files.
+- Files: `disc-repair.jpg`, `CaseShowcase.astro`, `content/portfolio/en-US.md`, `portfolio-content.test.ts`, and `portfolio.ts`.
+- Result: corrected Children's Sleep Training Clock and Disc Repair System content replaced the placeholder TWS case. The typed case schema now owns image URL, alt text, intrinsic dimensions, and the cumulative-stats contract; `CaseShowcase` renders those real image fields without changing the established STAR layout.
+- Tests written: content contracts pin the two case titles and order, approved source data, image paths and intrinsic dimensions, schema consumption, and absence of TWS from the active cases.
+- Build/Deploy/Runtime impact: one new portfolio image entered the static hosting artifact and the portfolio frontmatter/schema changed; no dependency, API, or backend contract changed.
+- Deviations: none.
+- Engineering rationale: keeping copy, media metadata, and stats in typed portfolio content avoids hard-coded component variants and reserves image layout space without duplicating case data in the view.
+
+#### Phase 6B1 — Portfolio stats and navigation (complete)
+
+- Commit: `f4b82da` (`feat(site): add portfolio cumulative stats`); three files.
+- Files: `content/en-US.md`, `portfolio-content.test.ts`, and `portfolio.astro`.
+- Result: the portfolio renders 50+ Case Studies, 30+ Trusted Clients, and 100+ Certifications from the typed stats contract; Success Stories links in both navigation surfaces now target `/portfolio`.
+- Tests written: exact value/label pairs, rendered stats consumption, and nav/footer `/portfolio` routing are contract-checked.
+- Build/Deploy/Runtime impact: generated portfolio markup and static navigation links changed; no runtime service or dependency changed.
+- Deviations: none.
+- Engineering rationale: the cumulative claims remain content-owned while one semantic `<dl>` renders them, preventing display copy from drifting away from its testable source.
+
+#### Phase 6B2a — Static legacy-route redirect (complete)
+
+- Commit: `f8b24de` (`feat(site): redirect legacy success stories`); four files.
+- Files: `astro.config.ts`, `oem-inquiry-routing.test.ts`, deleted `pages/success-stories/index.astro`, and `public.spec.ts`.
+- Result: the duplicate Success Stories page was deleted, Astro emits `/success-stories` as a static redirect to `/portfolio`, the legacy URL is explicitly filtered from the sitemap, and source/E2E contracts follow the new route topology.
+- Tests written: routing tests require the redirect declaration, deleted page, `/portfolio` navigation target, and sitemap exclusion; E2E begins at the legacy URL and follows it to the portfolio.
+- Build/Deploy/Runtime impact: static route generation and sitemap output changed. The generated redirect is an HTTP 200 meta-refresh artifact, not an origin-level 301.
+- Deviations: none.
+- Engineering rationale: deleting the duplicate page makes `/portfolio` the only maintainable content implementation; the static redirect preserves the legacy entry point within the current hosting model.
+
+#### Phase 6B2b — Opt-in portfolio canonical (complete)
+
+- Commit: `daec7ce` (`feat(site): canonicalize portfolio success stories`); three files.
+- Files: `BaseLayout.astro`, `portfolio.astro`, and `public.spec.ts`.
+- Result: `BaseLayout` accepts an optional canonical path and `/portfolio` opts into `/portfolio/`; pages that do not provide the prop remain unchanged.
+- Tests written: E2E requires the redirected destination to emit the portfolio canonical.
+- Build/Deploy/Runtime impact: portfolio `<head>` output changed; no route, API, dependency, or backend changed.
+- Deviations: none.
+- Engineering rationale: an optional layout contract avoids an unreviewed site-wide canonical rollout while allowing the one consolidated route to declare ownership.
+
+#### Phase 6C — Duplicate-code, data, and TWS retirement (complete)
+
+- Commit: `2c3ccdd` (`refactor(site): retire duplicate success story code`); five files.
+- Files: deleted `tws-speaker-1.webp`, deleted `CaseStudyCard.astro`, deleted `successStories.ts`, `portfolio-content.test.ts`, and `deploy-cloudbase-test.mjs`.
+- Result: the obsolete component, duplicate data source, and final retired TWS source asset were removed. The test deployment now explicitly prunes the retired TWS object so additive hosting cannot leave it publicly reachable.
+- Tests written: source contracts require the duplicate component/data and TWS asset to remain absent and pin the exact targeted hosting-prune entry.
+- Build/Deploy/Runtime impact: the site bundle loses dead code/data/media, and test-hosting cleanup gains one exact object deletion; no broad portfolio-directory prune was introduced.
+- Deviations: the initial source deletion did not cover additive hosting's retained object. The conservative correction prunes only the retired TWS path; a broad directory wipe was rejected because it could remove retained portfolio media.
+- Engineering rationale: source deletion and targeted remote cleanup are both necessary for retirement on additive static hosting, while path-level pruning limits blast radius.
+
+#### Phase 6 acceptance contract (complete)
+
+- Commit: `4f48db3` (`test(site): cover canonical success stories`); one file, `public.spec.ts`.
+- Result: one focused browser journey covers legacy redirect, canonical URL, sitemap inclusion/exclusion, all three stats, both real case images, TWS absence, and the surviving inquiry CTA through to the homepage form.
+- Engineering rationale: one end-to-end acceptance path verifies the route, metadata, content, media, removal, and conversion seams together without duplicating implementation assertions.
+
+#### Phase 6 canonical-origin blocker fix (complete)
+
+- Commit: `fc98d38` (`fix(site): derive canonical origin from SITE_URL`); four files.
+- Files: `.env.example`, `astro.config.ts`, `portfolio-content.test.ts`, and `public.spec.ts`.
+- Result: the placeholder `channel.example.com` origin was removed. Astro now derives canonical and sitemap origins from the build-time `SITE_URL` contract, with `http://localhost:4321` as the documented local fallback, and E2E asserts against its configured site URL.
+- Tests written: source contracts pin `SITE_URL` loading, documentation, and test-deploy parity; E2E rejects a hard-coded placeholder by deriving the expected canonical from the running test origin.
+- Build/Deploy/Runtime impact: site builds now have an explicit public-origin input. The existing test deployment already supplies `SITE_URL`; a future production workflow must require it when that workflow is added.
+- Deviations: the first canonical implementation exposed a placeholder origin. The conservative correction introduced one build-time origin contract and retained opt-in page canonicals; a speculative all-page canonical rollout was not taken.
+- Engineering rationale: a statically generated canonical must use the deployment's public origin at build time; a checked environment contract is reliable across local and hosted builds without coupling markup to a placeholder hostname.
+
+Final Phase 6 verification:
+- Site tests 32/32; Biome clean; root and E2E TypeScript checks green; `node --check scripts/deploy-cloudbase-test.mjs` green.
+- Astro check: 0 errors, 6 existing hints, 89 files. Astro build: 17 content pages plus the static `/success-stories` redirect artifact.
+- Final focused E2E: 1/1, covering redirect, canonical, sitemap, 50+/30+/100+ stats, both case images, no TWS content, and the inquiry journey.
+- Browser review at CSS widths 390 and 1440 confirmed the retained layout, reviewed screenshots, and no horizontal overflow. The rendered source images resolve at 800×800 for Sleep Clock and 825×776 for Disc Repair.
+- Assumption audits: **PASS** after resolving both blockers—the missing additive-hosting TWS prune and the placeholder `channel.example.com` canonical origin.
+- Explicit caveats: the static redirect returns HTTP 200 with meta-refresh rather than 301; Phase 9 must verify the retired TWS live URL returns 404; any future production workflow must require `SITE_URL` when introduced, while the existing test deployment already supplies it.
+- Delivery state: no push or deployment is claimed for Phase 6.
 
 ### Phase 7 — Certificates/logos responsive presentation
 
@@ -223,11 +300,15 @@ Final Phase 5 verification:
 - The CHANNEL asset test pins semantic identity (historical dimensions, brand colors, two-path shape, no Diversity orange) rather than whitespace-sensitive SVG bytes, so harmless XML formatting cannot create a false failure.
 - Phase 3 was split into 3A–3D because the combined work exceeded the five-file phase rule; the approved scope and behavior did not expand.
 - Phase 5 was split into verified 5A, 5B, 5C1, and 5C2 subphases because the combined form and routing work exceeded the five-file phase rule; the approved scope and behavior did not expand, and no subphase had a material deviation.
+- Phase 6 was split into verified 6A, 6B1, 6B2a, 6B2b, and 6C subphases, followed by one-file acceptance hardening and a four-file canonical-origin fix. Every commit touched no more than five files; the approved Slides 14–15 scope did not expand.
+- Phase 6C corrected an additive-hosting assumption: deleting the local TWS asset would not delete an already-hosted object. The conservative choice was one exact prune entry; a broad portfolio-directory prune was not taken.
+- The Phase 6 canonical audit rejected the placeholder `channel.example.com` origin. The conservative choice was a documented build-time `SITE_URL` contract with a local fallback and an opt-in portfolio canonical; a broader site-wide canonical change was not taken.
 - A presentation-only source line break was normalized to `faster—from concept`; the confirmed wording was unchanged.
 
 ## Lessons
 
 - Product Capability and teaser dead-code candidates were traced through history and consumers before removal. Independent OEM capability content and Teardown/Blue Ocean route data and navigation were preserved.
+- Static source deletion is insufficient on additive hosting: retired public assets need a narrow deployment prune, and static canonical URLs need an explicit build-time public origin.
 
 ## Execution log
 
@@ -251,3 +332,9 @@ Final Phase 5 verification:
 - 2026-07-18: Final Phase 5 gates passed — site tests 27/27, Biome clean, Astro check 0 errors with 6 existing hints across 92 files, build 18 routes, root/E2E TypeScript and `git diff --check` green, and focused E2E 2/2.
 - 2026-07-18: Browser verification at CSS widths 390 / 768 / 1440 confirmed the unique seven-field form, secure and required-field contracts, complete upload accept/hint content, fixed-header clearance, and no clipping or overflow; real clicks from every migrated CTA family reached it. The source/build sweep found only footer page-navigation uses of bare `/oem` (14 built links) alongside 21 canonical inquiry links.
 - 2026-07-18: Phase 5 intentionally left the global `within 24 hours` SLA parity untouched for Phase 8.
+- 2026-07-19: Phase 6A completed in `6de3f38` (five files), replacing the placeholder TWS case with corrected Sleep Clock and Disc Repair content, typed image/stats contracts, real media, and `CaseShowcase` consumption. Phase 6B1 completed in `f4b82da` (three files), rendering 50+/30+/100+ and routing nav/footer Success Stories links to `/portfolio`.
+- 2026-07-20: Phase 6B2a completed in `f8b24de` (four files), deleting the duplicate page and adding the static legacy redirect plus sitemap/E2E contracts. Phase 6B2b completed in `daec7ce` (three files), adding the opt-in portfolio canonical.
+- 2026-07-20: Phase 6C completed in `2c3ccdd` (five files), deleting duplicate component/data/TWS sources and adding the exact additive-hosting prune. Acceptance coverage landed in `4f48db3` (one file).
+- 2026-07-20: The canonical-origin audit blocked the placeholder `channel.example.com`; `fc98d38` (four files) established the `SITE_URL` build contract and environment/E2E parity. Both Phase 6 blocker audits then passed.
+- 2026-07-20: Final Phase 6 gates passed — site tests 32/32, Biome clean, root/E2E TypeScript green, deploy script syntax green, Astro check 0 errors with 6 existing hints across 89 files, build 17 content pages plus the static redirect artifact, and focused E2E 1/1.
+- 2026-07-20: Browser verification at CSS widths 390 / 1440 reviewed screenshots, found no horizontal overflow, and confirmed 800×800 Sleep Clock plus 825×776 Disc Repair images. No push or deployment was performed; Phase 9 retains live TWS 404 verification.
