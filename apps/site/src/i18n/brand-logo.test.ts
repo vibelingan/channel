@@ -48,6 +48,10 @@ const ctaSource = readFileSync(
   fileURLToPath(new URL('../components/CTASection.astro', import.meta.url)),
   'utf8',
 );
+const footerSource = readFileSync(
+  fileURLToPath(new URL('../components/SiteFooter.astro', import.meta.url)),
+  'utf8',
+);
 const projectFormSource = readFileSync(
   fileURLToPath(new URL('../components/ProjectForm.astro', import.meta.url)),
   'utf8',
@@ -140,6 +144,19 @@ test('homepage hero fills the viewport below the fixed header without changing i
   assert.ok(heroSource.includes('background-size: 60px 60px'), 'existing grid remains');
   assert.ok(heroSource.includes('bg-brand-500/30'), 'existing left glow remains');
   assert.ok(heroSource.includes('bg-accent-500/20'), 'existing right glow remains');
+});
+
+test('site footer renders the configured ICP filing as a safe MIIT homepage link', () => {
+  const footerBlock = enUS.match(/^footer:\n([\s\S]*?)^---$/m);
+  assert.ok(footerBlock, 'footer content exists');
+  assert.ok(footerBlock[1].includes('filingNumber: 粤ICP备2026092477号-1'));
+  assert.ok(footerBlock[1].includes("filingUrl: 'https://beian.miit.gov.cn/'"));
+  assert.ok(siteTypeSource.includes('filingNumber: string;'));
+  assert.ok(siteTypeSource.includes('filingUrl: string;'));
+  assert.ok(footerSource.includes('href={footer.filingUrl}'));
+  assert.ok(footerSource.includes('{footer.filingNumber}'));
+  assert.ok(footerSource.includes('target="_blank"'));
+  assert.ok(footerSource.includes('rel="noopener noreferrer"'));
 });
 
 test('site content defines the exact shared Traditional-versus-AI What We Do contract', () => {

@@ -22,6 +22,17 @@ test.describe('public browser smoke', () => {
     }
   });
 
+  test('public site footer links the ICP filing number to the MIIT homepage', async ({ page }) => {
+    for (const path of ['/', '/oem', '/portfolio']) {
+      await page.goto(path, { waitUntil: 'domcontentloaded' });
+      const filing = page.getByRole('link', { name: '粤ICP备2026092477号-1', exact: true });
+      await expect(filing, `ICP filing link on ${path}`).toHaveCount(1);
+      await expect(filing).toHaveAttribute('href', 'https://beian.miit.gov.cn/');
+      await expect(filing).toHaveAttribute('target', '_blank');
+      await expect(filing).toHaveAttribute('rel', 'noopener noreferrer');
+    }
+  });
+
   test('public API is reachable, CORS-enabled, and files stay private', async ({ request }) => {
     const health = await request.get(`${e2e.apiUrl}/api/health`, {
       headers: { Origin: e2e.siteUrl },

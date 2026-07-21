@@ -216,6 +216,8 @@ footer:
         - { label: 'Phone: +852 0000 0000', href: '#' }
         - { label: 'Hong Kong · Dongguan, China', href: '#' }
   legal: © 2004–2026 Diversity Technology Limited. All rights reserved.
+  filingNumber: 粤ICP备2026092477号-1
+  filingUrl: 'https://beian.miit.gov.cn/'
 ---
 
 <!--

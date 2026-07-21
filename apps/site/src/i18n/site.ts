@@ -149,6 +149,8 @@ export interface SiteContent {
     blurb: string;
     columns: FooterColumn[];
     legal: string;
+    filingNumber: string;
+    filingUrl: string;
   };
 }
 
