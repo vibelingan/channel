@@ -123,6 +123,7 @@ jobs:
         run: pnpm deploy:cloudbase:test
 
       - name: Smoke deployed CloudBase test
+        timeout-minutes: 12
         env:
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
           TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}

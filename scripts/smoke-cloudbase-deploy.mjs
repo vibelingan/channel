@@ -2,6 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { decodeUtf8, fetchFully } from './smoke-http.mjs';
+
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const envId = requireEnv('TCB_ENV_ID');
 const webAppServiceName = process.env.CLOUDBASE_WEBAPP_SERVICE || 'channel-test';
@@ -38,20 +40,19 @@ function callTool(selector, args, options = {}) {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: options.timeoutMs ?? 180_000,
+      timeout: options.timeoutMs ?? 90_000,
     },
   );
   return parseJsonWithNoise(output);
 }
 
 async function expectHttp(method, url, expectedStatus, body) {
-  const response = await fetch(url, {
-    method,
+  const response = await fetchFully(method, url, {
     headers: body ? { 'content-type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
   if (response.status !== expectedStatus) {
-    const text = await response.text();
+    const text = decodeUtf8(response.body);
     throw new Error(
       `${method} ${url} expected ${expectedStatus}, got ${response.status}: ${text.slice(0, 300)}`,
     );
@@ -62,7 +63,7 @@ async function expectHttp(method, url, expectedStatus, body) {
 
 async function expectJson(method, url, expectedStatus, body) {
   const response = await expectHttp(method, url, expectedStatus, body);
-  return await response.json();
+  return JSON.parse(decodeUtf8(response.body));
 }
 
 async function expectImage(url) {
