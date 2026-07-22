@@ -12,9 +12,9 @@ export interface CustomerLogo {
   name: string;
   /** When true, `name` is a category/alias, not a real brand (client-gated). */
   anonymized?: boolean;
-  /** Intrinsic pixel dimensions of `src` (omit for anonymised text-only logos). */
-  width?: number;
-  height?: number;
+  /** Intrinsic pixel dimensions of the normalized logo canvas. */
+  width: number;
+  height: number;
 }
 
 export interface StarCase {

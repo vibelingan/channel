@@ -24,9 +24,8 @@ stats:
     - { value: '100+', label: Certifications }
   note: These are company-wide cumulative totals; the cases below are selected highlights.
 
-# NOTE (client Q8): confirm which brand names may be shown publicly vs. must be
-# anonymised (set `anonymized: true` and use an alias). Ambiguous/low-res logos
-# from the source folder were left out pending clarification.
+# Education clients remain anonymised in public content and use identity-free
+# derivatives. Other supplied customer marks use their public brand names.
 customers:
   id: customers
   eyebrow: Trusted by
@@ -35,13 +34,19 @@ customers:
     A selection of the brands and buying offices we've partnered with across
     audio, children's products, and consumer electronics.
   logos:
-    - { src: /media/portfolio/customers/artcoustic-logo.webp, name: Artcoustic, width: 360, height: 58 }
-    - { src: /media/portfolio/customers/audio-diversity2.webp, name: Audio Diversity, width: 360, height: 112 }
-    - { src: /media/portfolio/customers/coremee-giik4.webp, name: CoreMee, width: 360, height: 78 }
-    - { src: /media/portfolio/customers/di.webp, name: Digital Innovations, width: 360, height: 108 }
-    - { src: /media/portfolio/customers/pabobo.webp, name: Pabobo, width: 360, height: 360 }
-    - { src: /media/portfolio/customers/as.webp, name: Allsop, width: 360, height: 360 }
-    - { src: /media/portfolio/customers/education-institution.webp, name: Leading education brand, anonymized: true }
+    - { src: /media/portfolio/customers/artcoustic-logo.webp, name: Artcoustic, width: 600, height: 240 }
+    - { src: /media/portfolio/customers/audio-diversity2.webp, name: Audio Diversity, width: 600, height: 240 }
+    - { src: /media/portfolio/customers/coremee-giik4.webp, name: CoreMee Giik, width: 600, height: 240 }
+    - { src: /media/portfolio/customers/di.webp, name: Digital Innovations, width: 600, height: 240 }
+    - { src: /media/portfolio/customers/pabobo.webp, name: Pabobo, width: 600, height: 240 }
+    - { src: /media/portfolio/customers/as.webp, name: Allsop, width: 600, height: 240 }
+    - { src: /media/portfolio/customers/education-institution.webp, name: Education Partner, anonymized: true, width: 600, height: 240 }
+    - { src: /media/portfolio/customers/aiwa.webp, name: Aiwa, width: 600, height: 240 }
+    - { src: /media/portfolio/customers/rockland-motors.webp, name: Rockland Motors, width: 600, height: 240 }
+    - { src: /media/portfolio/customers/forge.webp, name: Forge, width: 600, height: 240 }
+    - { src: /media/portfolio/customers/b3e.webp, name: B3E, width: 600, height: 240 }
+    - { src: /media/portfolio/customers/nucor.webp, name: Nucor, width: 600, height: 240 }
+    - { src: /media/portfolio/customers/education-institution-2.webp, name: Education Partner 02, anonymized: true, width: 600, height: 240 }
 
 cases:
   id: cases

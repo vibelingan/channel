@@ -130,6 +130,41 @@ test('CaseShowcase renders full-width alternating product stories without croppi
   assert.ok(showcaseSource.includes('space-y-16'));
 });
 
+test('portfolio publishes every normalized customer logo without exposing education identities', () => {
+  assert.ok(portfolioTypes.includes('width: number;'));
+  assert.ok(portfolioTypes.includes('height: number;'));
+  assert.ok(!portfolioTypes.includes('width?: number;'));
+  assert.ok(!portfolioTypes.includes('height?: number;'));
+
+  const customersBlock = portfolioContent.match(/^customers:\n([\s\S]*?)^cases:/m);
+  assert.ok(customersBlock, 'portfolio customer content exists');
+  const logoRows = [...customersBlock[1].matchAll(/^ {4}- \{ ([^}]+) \}$/gm)].map(
+    (match) => match[1],
+  );
+  assert.equal(logoRows.length, 13);
+
+  const sources = logoRows.map((row) => row.match(/src: ([^,]+)/)?.[1]);
+  assert.ok(sources.every((source): source is string => Boolean(source)));
+  assert.equal(new Set(sources).size, 13, 'customer logo paths are unique');
+  for (const source of sources) {
+    assert.match(source, /^\/media\/portfolio\/customers\/[a-z0-9-]+\.webp$/);
+    assert.ok(
+      existsSync(fileURLToPath(new URL(`../../public${source}`, import.meta.url))),
+      `customer logo exists: ${source}`,
+    );
+  }
+  for (const row of logoRows) {
+    assert.match(row, /width: 600, height: 240$/);
+  }
+
+  const anonymousRows = logoRows.filter((row) => row.includes('anonymized: true'));
+  assert.deepEqual(anonymousRows, [
+    'src: /media/portfolio/customers/education-institution.webp, name: Education Partner, anonymized: true, width: 600, height: 240',
+    'src: /media/portfolio/customers/education-institution-2.webp, name: Education Partner 02, anonymized: true, width: 600, height: 240',
+  ]);
+  assert.doesNotMatch(customersBlock[1], /Bialik|Crestwood|Hebrew Day School|crestwood\.webp/i);
+});
+
 test('portfolio classifies every supplied certificate and patent accurately', () => {
   assert.ok(portfolioTypes.includes("kind: 'compliance' | 'design-patent' | 'patent-record'"));
   const certificatesBlock = portfolioContent.match(/^certificates:\n([\s\S]*?)^---$/m);
