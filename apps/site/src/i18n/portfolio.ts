@@ -44,7 +44,7 @@ export interface PortfolioStat {
 export interface Certificate {
   src: string;
   label: string;
-  kind: 'company' | 'product';
+  kind: 'compliance' | 'design-patent' | 'patent-record';
   /** Intrinsic pixel dimensions of `src`, to reserve layout space (avoid CLS). */
   width: number;
   height: number;
@@ -67,8 +67,9 @@ export interface PortfolioContent {
     eyebrow: string;
     heading: string;
     intro: string;
-    companyLabel: string;
-    productLabel: string;
+    complianceLabel: string;
+    designPatentLabel: string;
+    patentRecordLabel: string;
     items: Certificate[];
   };
 }

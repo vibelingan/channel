@@ -129,6 +129,30 @@ test('CaseShowcase renders full-width alternating product stories without croppi
   assert.ok(showcaseSource.includes('space-y-16'));
 });
 
+test('portfolio classifies every supplied certificate and patent accurately', () => {
+  assert.ok(portfolioTypes.includes("kind: 'compliance' | 'design-patent' | 'patent-record'"));
+  const certificatesBlock = portfolioContent.match(/^certificates:\n([\s\S]*?)^---$/m);
+  assert.ok(certificatesBlock, 'portfolio certificate content exists');
+  assert.ok(certificatesBlock[1].includes('complianceLabel: Compliance & Testing'));
+  assert.ok(certificatesBlock[1].includes('designPatentLabel: Design Patents'));
+  assert.ok(certificatesBlock[1].includes('patentRecordLabel: Patent Record'));
+
+  const normalized = certificatesBlock[1].replace(/\s+/g, ' ');
+  for (const contract of [
+    "label: 'CE Certificate of Compliance — AS1 Bluetooth Speaker', kind: compliance",
+    "label: 'EMC Test Report — Kids Headphone KH4', kind: compliance",
+    "label: 'FCC Test Report — Headphone KH1', kind: compliance",
+    "label: 'JD Test Report — TS1 Bluetooth Headphone', kind: compliance",
+    "label: 'AS1 Speaker — Design Patent', kind: design-patent",
+    "label: 'CS1 Speaker — Design Patent', kind: design-patent",
+    "label: 'SC3 Headphone — Design Patent', kind: design-patent",
+    "label: 'A701 Gaming Headset — Patent Record', kind: patent-record",
+  ]) {
+    assert.ok(normalized.includes(contract), `missing accurate certificate contract: ${contract}`);
+  }
+  assert.ok(!normalized.includes('product test report'));
+});
+
 test('superseded Success Stories code and TWS asset are removed', () => {
   for (const relativePath of retiredPortfolioPaths) {
     assert.ok(

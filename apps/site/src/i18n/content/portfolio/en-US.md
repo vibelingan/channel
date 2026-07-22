@@ -109,21 +109,22 @@ cases:
 certificates:
   id: certificates
   eyebrow: Compliance
-  heading: Certifications & test reports
+  heading: Certifications, test reports & patents
   intro: >-
     Our products and processes are backed by international compliance
-    certifications and product-level test reports.
-  companyLabel: Company & compliance
-  productLabel: Product test reports
+    documents, product-level test reports, and registered design patents.
+  complianceLabel: Compliance & Testing
+  designPatentLabel: Design Patents
+  patentRecordLabel: Patent Record
   items:
-    - { src: /media/portfolio/certs/ce-certification.webp, label: CE Certificate of Compliance, kind: company, width: 614, height: 869 }
-    - { src: /media/portfolio/certs/emc-certification.webp, label: EMC Certification, kind: company, width: 700, height: 990 }
-    - { src: /media/portfolio/certs/fcc-certification.webp, label: FCC Certification, kind: company, width: 700, height: 991 }
-    - { src: /media/portfolio/certs/jd-certification.webp, label: JD Certification, kind: company, width: 700, height: 906 }
-    - { src: /media/portfolio/certs/as1.webp, label: 'AS1 Speaker — test report', kind: product, width: 700, height: 965 }
-    - { src: /media/portfolio/certs/cs1-001.webp, label: 'CS1 Speaker — test report', kind: product, width: 700, height: 965 }
-    - { src: /media/portfolio/certs/sc3-001.webp, label: 'SC3 Headphone — test report', kind: product, width: 700, height: 965 }
-    - { src: /media/portfolio/certs/op1.webp, label: 'OP1 Gaming Headphone — test report', kind: product, width: 700, height: 990 }
+    - { src: /media/portfolio/certs/ce-certification.webp, label: 'CE Certificate of Compliance — AS1 Bluetooth Speaker', kind: compliance, width: 614, height: 869 }
+    - { src: /media/portfolio/certs/emc-certification.webp, label: 'EMC Test Report — Kids Headphone KH4', kind: compliance, width: 700, height: 990 }
+    - { src: /media/portfolio/certs/fcc-certification.webp, label: 'FCC Test Report — Headphone KH1', kind: compliance, width: 700, height: 991 }
+    - { src: /media/portfolio/certs/jd-certification.webp, label: 'JD Test Report — TS1 Bluetooth Headphone', kind: compliance, width: 700, height: 906 }
+    - { src: /media/portfolio/certs/as1.webp, label: 'AS1 Speaker — Design Patent', kind: design-patent, width: 700, height: 965 }
+    - { src: /media/portfolio/certs/cs1-001.webp, label: 'CS1 Speaker — Design Patent', kind: design-patent, width: 700, height: 965 }
+    - { src: /media/portfolio/certs/sc3-001.webp, label: 'SC3 Headphone — Design Patent', kind: design-patent, width: 700, height: 965 }
+    - { src: /media/portfolio/certs/op1.webp, label: 'A701 Gaming Headset — Patent Record', kind: patent-record, width: 700, height: 990 }
 ---
 
 <!--

@@ -3,15 +3,20 @@ import type { Certificate } from '../i18n/portfolio.ts';
 
 interface Props {
   certs: Certificate[];
-  companyLabel: string;
-  productLabel: string;
+  complianceLabel: string;
+  designPatentLabel: string;
+  patentRecordLabel: string;
 }
 
-const { certs, companyLabel, productLabel } = Astro.props;
+const { certs, complianceLabel, designPatentLabel, patentRecordLabel } = Astro.props;
 
 const groups = [
-  { label: companyLabel, items: certs.filter((c) => c.kind === 'company') },
-  { label: productLabel, items: certs.filter((c) => c.kind === 'product') },
+  { label: complianceLabel, items: certs.filter((cert) => cert.kind === 'compliance') },
+  {
+    label: designPatentLabel,
+    items: certs.filter((cert) => cert.kind === 'design-patent'),
+  },
+  { label: patentRecordLabel, items: certs.filter((cert) => cert.kind === 'patent-record') },
 ].filter((g) => g.items.length > 0);
 ---
 
