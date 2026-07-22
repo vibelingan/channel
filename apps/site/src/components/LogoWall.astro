@@ -1,20 +1,36 @@
 ---
 import type { CustomerLogo } from '../i18n/portfolio.ts';
+import CarouselControls from './CarouselControls.astro';
 
 interface Props {
   logos: CustomerLogo[];
 }
 
 const { logos } = Astro.props;
+const trackId = 'customer-logo-carousel';
 ---
 
-<ul class="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
-  {
-    logos.map((logo) => (
-      <li class="reveal flex min-h-[6rem] items-center justify-center rounded-[var(--radius-card)] bg-surface p-6 shadow-[var(--shadow-card)] ring-1 ring-black/5">
-        {logo.anonymized ? (
-          <span class="text-center text-sm font-medium text-ink-soft">{logo.name}</span>
-        ) : (
+<div
+  data-carousel
+  role="region"
+  aria-roledescription="carousel"
+  aria-label="Customer logos"
+>
+  <ul
+    id={trackId}
+    class="flex snap-x snap-mandatory gap-5 overflow-x-auto scroll-smooth pb-2 [scrollbar-width:none] motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-4 lg:overflow-visible lg:snap-none lg:pb-0"
+    data-carousel-track
+    tabindex="0"
+  >
+    {
+      logos.map((logo, index) => (
+        <li
+          class="reveal flex min-h-32 basis-[82%] shrink-0 snap-start items-center justify-center rounded-[var(--radius-card)] bg-surface p-5 shadow-[var(--shadow-card)] ring-1 ring-black/5 sm:basis-[calc(50%-0.625rem)] lg:basis-auto"
+          data-carousel-slide
+          role="group"
+          aria-roledescription="slide"
+          aria-label={`${index + 1} of ${logos.length}`}
+        >
           <img
             src={logo.src}
             alt={logo.name}
@@ -22,10 +38,11 @@ const { logos } = Astro.props;
             height={logo.height}
             loading="lazy"
             decoding="async"
-            class="max-h-12 w-auto opacity-80 grayscale transition hover:opacity-100 hover:grayscale-0"
+            class="h-20 w-full object-contain transition duration-300 hover:scale-[1.03] motion-reduce:transition-none motion-reduce:hover:scale-100"
           />
-        )}
-      </li>
-    ))
-  }
-</ul>
+        </li>
+      ))
+    }
+  </ul>
+  <CarouselControls trackId={trackId} itemCount={logos.length} />
+</div>

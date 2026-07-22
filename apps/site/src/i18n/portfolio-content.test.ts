@@ -16,6 +16,20 @@ const showcaseSource = readFileSync(
   fileURLToPath(new URL('../components/CaseShowcase.astro', import.meta.url)),
   'utf8',
 );
+const logoWallSource = readFileSync(
+  fileURLToPath(new URL('../components/LogoWall.astro', import.meta.url)),
+  'utf8',
+);
+const certificateGallerySource = readFileSync(
+  fileURLToPath(new URL('../components/CertificateGallery.astro', import.meta.url)),
+  'utf8',
+);
+const carouselControlsPath = fileURLToPath(
+  new URL('../components/CarouselControls.astro', import.meta.url),
+);
+const carouselControlsSource = existsSync(carouselControlsPath)
+  ? readFileSync(carouselControlsPath, 'utf8')
+  : '';
 const portfolioPage = readFileSync(
   fileURLToPath(new URL('../pages/portfolio.astro', import.meta.url)),
   'utf8',
@@ -163,6 +177,46 @@ test('portfolio publishes every normalized customer logo without exposing educat
     'src: /media/portfolio/customers/education-institution-2.webp, name: Education Partner 02, anonymized: true, width: 600, height: 240',
   ]);
   assert.doesNotMatch(customersBlock[1], /Bialik|Crestwood|Hebrew Day School|crestwood\.webp/i);
+});
+
+test('portfolio galleries use an accessible small-screen carousel and desktop grid', () => {
+  assert.ok(carouselControlsSource, 'shared carousel controls exist');
+  for (const source of [logoWallSource, certificateGallerySource]) {
+    assert.ok(source.includes("import CarouselControls from './CarouselControls.astro'"));
+    assert.ok(source.includes('data-carousel'));
+    assert.ok(source.includes('data-carousel-track'));
+    assert.ok(source.includes('data-carousel-slide'));
+    assert.ok(source.includes('aria-roledescription="carousel"'));
+    assert.ok(source.includes('aria-roledescription="slide"'));
+    assert.ok(source.includes('snap-x'));
+    assert.ok(source.includes('snap-start'));
+    assert.ok(source.includes('lg:grid'));
+    assert.ok(source.includes('lg:grid-cols-4'));
+    assert.ok(source.includes('<CarouselControls'));
+  }
+
+  assert.ok(!logoWallSource.includes('logo.anonymized ?'));
+  assert.ok(logoWallSource.includes('src={logo.src}'));
+  assert.ok(certificateGallerySource.includes('dialog.showModal()'));
+  assert.ok(certificateGallerySource.includes('if (event.target === dialog) dialog.close()'));
+
+  for (const contract of [
+    'data-carousel-previous',
+    'data-carousel-next',
+    'data-carousel-toggle',
+    'aria-controls={trackId}',
+    'h-11 w-11',
+    "matchMedia('(prefers-reduced-motion: reduce)')",
+    "matchMedia('(min-width: 1024px)')",
+    "root.addEventListener('focusin'",
+    "root.addEventListener('pointerdown'",
+    "root.addEventListener('keydown'",
+    "event.key === 'ArrowLeft'",
+    "event.key === 'ArrowRight'",
+    'window.setInterval',
+  ]) {
+    assert.ok(carouselControlsSource.includes(contract), `missing carousel contract: ${contract}`);
+  }
 });
 
 test('portfolio classifies every supplied certificate and patent accurately', () => {

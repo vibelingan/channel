@@ -1,5 +1,6 @@
 ---
 import type { Certificate } from '../i18n/portfolio.ts';
+import CarouselControls from './CarouselControls.astro';
 
 interface Props {
   certs: Certificate[];
@@ -22,15 +23,31 @@ const groups = [
 
 <div class="space-y-12">
   {
-    groups.map((group) => (
-      <div>
+    groups.map((group, groupIndex) => (
+      <div
+        data-carousel
+        role="region"
+        aria-roledescription="carousel"
+        aria-label={group.label}
+      >
         <h3 class="font-display text-lg font-semibold text-ink">{group.label}</h3>
-        <ul class="mt-5 grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
-          {group.items.map((cert) => (
-            <li class="cert-item reveal">
+        <ul
+          id={`certificate-carousel-${groupIndex}`}
+          class="mt-5 flex snap-x snap-mandatory gap-5 overflow-x-auto scroll-smooth pb-2 [scrollbar-width:none] motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-4 lg:overflow-visible lg:snap-none lg:pb-0"
+          data-carousel-track
+          tabindex="0"
+        >
+          {group.items.map((cert, certIndex) => (
+            <li
+              class="cert-item reveal basis-[82%] shrink-0 snap-start sm:basis-[calc(50%-0.625rem)] lg:basis-auto"
+              data-carousel-slide
+              role="group"
+              aria-roledescription="slide"
+              aria-label={`${certIndex + 1} of ${group.items.length}`}
+            >
               <button
                 type="button"
-                class="cert-trigger group block w-full cursor-zoom-in overflow-hidden rounded-[var(--radius-card)] bg-white text-left shadow-[var(--shadow-card)] outline-none ring-1 ring-black/5 transition hover:ring-brand-500/40 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+                class="cert-trigger group flex h-full w-full cursor-zoom-in flex-col overflow-hidden rounded-[var(--radius-card)] bg-white text-left shadow-[var(--shadow-card)] outline-none ring-1 ring-black/5 transition hover:ring-brand-500/40 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
                 aria-haspopup="dialog"
                 aria-label={`Enlarge certificate: ${cert.label}`}
               >
@@ -41,9 +58,9 @@ const groups = [
                   height={cert.height}
                   loading="lazy"
                   decoding="async"
-                  class="aspect-[3/4] w-full bg-white object-contain p-2"
+                  class="aspect-[3/4] w-full flex-1 bg-white object-contain p-2"
                 />
-                <span class="block border-t border-black/5 px-3 py-2 text-center text-xs text-ink-soft">
+                <span class="flex min-h-14 items-center justify-center border-t border-black/5 px-3 py-2 text-center text-xs text-ink-soft">
                   {cert.label}
                 </span>
               </button>
@@ -55,7 +72,7 @@ const groups = [
                   <form method="dialog" class="absolute right-3 top-3 z-10">
                     <button
                       type="submit"
-                      class="flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white outline-none transition hover:bg-black/80 focus-visible:ring-2 focus-visible:ring-white"
+                      class="flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white outline-none transition hover:bg-black/80 focus-visible:ring-2 focus-visible:ring-white"
                       aria-label="Close"
                     >
                       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -79,6 +96,10 @@ const groups = [
             </li>
           ))}
         </ul>
+        <CarouselControls
+          trackId={`certificate-carousel-${groupIndex}`}
+          itemCount={group.items.length}
+        />
       </div>
     ))
   }

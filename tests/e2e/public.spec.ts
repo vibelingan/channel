@@ -164,18 +164,100 @@ test.describe('public browser smoke', () => {
     expect(typeof authedItem?.vipPrice, 'entitled member must receive vipPrice').toBe('number');
   });
 
-  test('Success Stories certificates open in an accessible lightbox', async ({ page }) => {
+  test('Success Stories galleries expose carousel controls on mobile and tablet', async ({
+    page,
+  }) => {
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 768, height: 1024 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/portfolio', { waitUntil: 'domcontentloaded' });
+
+      const logoCarousel = page.locator('#customers [data-carousel]');
+      await logoCarousel.scrollIntoViewIfNeeded();
+      await expect(logoCarousel.locator('[data-carousel-slide]')).toHaveCount(13);
+      await expect(logoCarousel.locator('[data-carousel-controls]')).toBeVisible();
+      await expect(
+        logoCarousel.getByRole('button', { name: 'Previous slide', exact: true }),
+      ).toBeVisible();
+      await expect(
+        logoCarousel.getByRole('button', { name: 'Next slide', exact: true }),
+      ).toBeVisible();
+      await expect(page.locator('#certificates [data-carousel]').first()).toBeVisible();
+      await expect(page.locator('#certificates [data-carousel-controls]').first()).toBeVisible();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+    }
+  });
+
+  test('Success Stories carousel auto-advances and pauses after keyboard input', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/portfolio', { waitUntil: 'domcontentloaded' });
 
-    // Both certificate groups render (company + product).
-    await expect(page.getByRole('heading', { name: 'Company & compliance' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Product test reports' })).toBeVisible();
+    const logoCarousel = page.locator('#customers [data-carousel]');
+    await logoCarousel.scrollIntoViewIfNeeded();
+    const position = logoCarousel.locator('[data-carousel-position]');
+    await expect(position).toHaveText('1 / 13');
+    await expect.poll(() => position.textContent(), { timeout: 7_000 }).not.toBe('1 / 13');
 
-    // Every certificate exposes an enlargement control.
+    const track = logoCarousel.locator('[data-carousel-track]');
+    await track.focus();
+    const positionBeforeInput = await position.textContent();
+    await page.keyboard.press('ArrowRight');
+    await expect(position).not.toHaveText(positionBeforeInput ?? '');
+    await expect(
+      logoCarousel.getByRole('button', { name: 'Resume automatic rotation', exact: true }),
+    ).toBeVisible();
+    await page.waitForTimeout(750);
+    const pausedPosition = await position.textContent();
+    await page.waitForTimeout(5_250);
+    await expect(position).toHaveText(pausedPosition ?? '');
+  });
+
+  test('Success Stories carousel disables autoplay for reduced motion', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/portfolio', { waitUntil: 'domcontentloaded' });
+
+    const logoCarousel = page.locator('#customers [data-carousel]');
+    await logoCarousel.scrollIntoViewIfNeeded();
+    await expect(logoCarousel.locator('[data-carousel-position]')).toHaveText('1 / 13');
+    await expect(
+      logoCarousel.getByRole('button', {
+        name: 'Automatic rotation disabled by reduced motion preference',
+        exact: true,
+      }),
+    ).toBeDisabled();
+  });
+
+  test('Success Stories keeps desktop logo grids and certificate lightboxes', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto('/portfolio', { waitUntil: 'domcontentloaded' });
+
+    const logoCarousel = page.locator('#customers [data-carousel]');
+    await expect(logoCarousel.locator('[data-carousel-slide]')).toHaveCount(13);
+    await expect(logoCarousel.locator('img')).toHaveCount(13);
+    await expect(logoCarousel.locator('[data-carousel-controls]')).toBeHidden();
+    expect(
+      await logoCarousel.locator('[data-carousel-track]').evaluate((track) => {
+        const rows = new Set(
+          Array.from(track.children, (child) => (child as HTMLElement).offsetTop),
+        );
+        return rows.size;
+      }),
+    ).toBeGreaterThanOrEqual(2);
+
+    await expect(page.getByRole('heading', { name: 'Compliance & Testing' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Design Patents' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Patent Record' })).toBeVisible();
+
     const triggers = page.getByRole('button', { name: /Enlarge certificate/i });
-    expect(await triggers.count()).toBeGreaterThan(0);
+    await expect(triggers).toHaveCount(8);
 
-    // Opening a certificate shows a modal <dialog>; Escape closes it.
     const dialog = page.locator('dialog.cert-dialog').first();
     await expect(dialog).toBeHidden();
     await triggers.first().click();
