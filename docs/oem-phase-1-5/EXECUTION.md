@@ -324,7 +324,14 @@ Final Phase 6 verification:
 
 ### Phase 7 — Certificates/logos responsive presentation
 
-- Process every source asset, classify compliance/design-patent/patent-record documents accurately, normalize logos, and implement small/medium automatic carousel plus large-screen grid/lightbox.
+- Status: **Complete locally; reviewed delivery pending**.
+- Seven commits, each touching no more than five files, implement the approved Slide 9 scope: `3951362`, `c2944a9`, `8ee8e2a`, `b6ae36a`, `bf104cf`, `347c26d`, and `56893ed`.
+- All eight supplied documents are classified by their actual role: four compliance/test reports, three design patents, and one patent record. Published patent derivatives redact designer/agent contact details, personal rights-holder fields, and QR codes while retaining patent identity, company ownership, and document context; source tests pin the reviewed SHA-256 hashes.
+- All 13 supplied customer marks are published as unique transparent 600×240 WebP canvases with optically normalized content. The two education clients use generic `Education Partner` derivatives and identity-free filenames; public content, alternative text, URLs, and image pixels do not expose the school names.
+- Customer logos and each certificate group use a shared small/medium snap carousel with automatic five-second rotation, previous/next and pause/resume controls, 44×44 touch targets, Arrow/Home/End keyboard navigation, interaction pause, visibility gating, and `prefers-reduced-motion` autoplay suppression. At the large breakpoint, controls are hidden and the existing four-column logo/certificate grids remain; certificate thumbnails retain the native dialog lightbox and Escape/backdrop close behavior.
+- Focused Playwright validation passed 5/5 scenarios: 390/768 carousel controls and no horizontal overflow, real autoplay followed by keyboard pause, reduced-motion disabling, 1440 multi-row logo grid, all eight certificate triggers, and the desktop lightbox. Exact Chromium screenshots at 390, 768, 1024, and 1440 confirmed complete logos, readable labels, stable controls, no overlap, and no horizontal overflow.
+- Full validation passed after implementation: Biome checked 185 files; all nine workspace typechecks and the E2E TypeScript project passed; the complete test suite passed (including site 37, admin 135, public API 37, shared 70, media storage 26, auth 2, and deploy smoke 5); Astro check reported 0 errors and 6 existing hints; and the final static build emitted 17 pages.
+- Independent exact-SHA assumption review passed at `56893edba2fa854cf56b6c8a04bb31fab7615114` with no blocking findings. Phase 8 listing/stat/SLA changes remain untouched. No push or deployment is claimed until the documentation commit receives the same review and delivery gates.
 
 ### Phase 8 — Listing cleanup and global claim parity
 
