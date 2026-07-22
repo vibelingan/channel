@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -151,6 +152,23 @@ test('portfolio classifies every supplied certificate and patent accurately', ()
     assert.ok(normalized.includes(contract), `missing accurate certificate contract: ${contract}`);
   }
   assert.ok(!normalized.includes('product test report'));
+});
+
+test('published patent derivatives remain the reviewed privacy-safe versions', () => {
+  const expectedHashes = new Map([
+    ['as1.webp', '2fd73a93f6d98b00689ab881cfdcf9af1a66b2692a39f41dcf2180715a61fa3c'],
+    ['cs1-001.webp', 'fbd6b116c4d29f0049624f9ecb60e829d3ab0dce383989f151fb2699b61aeaa0'],
+    ['sc3-001.webp', '456e10630365ffd58380e06b950b0e03dd5b869a43a54fc058def71d0f4588c3'],
+    ['op1.webp', '02dbf41379daa27e5095f74e73be2540dbbdfe249902296ee441b0ffe4938b33'],
+  ]);
+
+  for (const [fileName, expectedHash] of expectedHashes) {
+    const file = fileURLToPath(
+      new URL(`../../public/media/portfolio/certs/${fileName}`, import.meta.url),
+    );
+    const hash = createHash('sha256').update(readFileSync(file)).digest('hex');
+    assert.equal(hash, expectedHash, `${fileName} matches the reviewed redacted derivative`);
+  }
 });
 
 test('superseded Success Stories code and TWS asset are removed', () => {
