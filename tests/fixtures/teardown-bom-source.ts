@@ -13,8 +13,10 @@ export interface ReviewedTeardownSource {
 }
 
 /**
- * Reviewed transcription of the three client BOM tables in
- * channel-oem-review/extracted/02-teardown.txt.
+ * Human-reviewed snapshot of the three client BOM tables in
+ * channel-oem-review/extracted/02-teardown.txt. The external source is not part
+ * of this repository, so automated tests validate production and rendered DOM
+ * against this tracked snapshot; the digest below is provenance for re-audit.
  *
  * Source SHA-256: 6a06040b079ff8df6f4190a3f025ab7148b4a59a01a5738beccf3df89e522414
  */

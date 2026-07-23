@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
-import {
-  TEARDOWN_BOM_SOURCE_SHA256,
-  teardownBomSource,
-} from '../../../../tests/fixtures/teardown-bom-source.ts';
+import { teardownBomSource } from '../../../../tests/fixtures/teardown-bom-source.ts';
 import { teardownReports } from './teardownReports.ts';
 
 const expectedBomBySlug = new Map(
@@ -15,10 +12,14 @@ const expectedBomBySlug = new Map(
 );
 
 test('teardown BOM rows remain faithful to the client source tables', () => {
-  assert.equal(
-    TEARDOWN_BOM_SOURCE_SHA256,
-    '6a06040b079ff8df6f4190a3f025ab7148b4a59a01a5738beccf3df89e522414',
-  );
+  assert.equal(teardownBomSource.length, 3);
+  assert.equal(teardownBomSource.flatMap(({ rows }) => rows).length, 24);
+  for (const { rows } of teardownBomSource) {
+    for (const row of rows) {
+      assert.notEqual(row.sourceCategory.trim(), '');
+      assert.notEqual(row.sourceDescription.trim(), '');
+    }
+  }
   assert.deepEqual(
     teardownReports.map(({ slug, bomBreakdown }) => ({ slug, bomBreakdown })),
     teardownBomSource.map(({ slug }) => ({
