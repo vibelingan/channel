@@ -337,6 +337,15 @@ Final Phase 6 verification:
 
 - Remove Teardown/Blue Ocean listing stats, normalize 20+ years and 24-hour SLA across all source consumers and email templates, rebuild function artifacts, and update tests.
 
+#### Phase 8 MIU 1 — Teardown listing aggregate-band removal (complete)
+
+- Commit: `586899b` (`fix(site): remove teardown listing stats`); exactly three files.
+- Removed only the Teardown listing’s `avgMargin`, `totalReports`, and PPT-marked stats section. The reports data source, three cards, methodology, navigation, CTA, and all three generated detail routes remain unchanged.
+- TDD evidence: the new source contract first failed on the existing `<!-- Stats strip -->`; the pre-change browser test then failed on one visible `Teardown Reports` label. After implementation, the focused source contract passed 22/22.
+- Browser evidence: the focused Playwright contract passed at 390 / 768 / 1024 / 1440 with 1 / 2 / 3 / 3 rendered columns, three cards, direct PageHero-to-cards adjacency, no horizontal overflow, and all three detail routes returning HTTP 200 with BOM, margin, MOQ, CTA, and back links retained.
+- Build/quality evidence: Astro emitted 17 pages including all three Teardown details; Astro check reported 0 errors and 6 existing hints; touched-file Biome and `git diff --check` passed; pre-commit TypeScript passed.
+- Independent assumption audit and validator verdicts: **PASS**. No Blue Ocean, claim, email, API, data, route, or deployment change entered MIU 1.
+
 ### Phase 9 — Full validation, review, delivery, deploy
 
 - Lint, all package/function/site typechecks, unit tests, site build, function package smoke, CloudBase SDK contract gate if touched, Playwright local E2E, responsive screenshot review, diff review, blessing, branch push, fast-forward/merge to `test`, monitor CI + Deploy Test, and verify live URLs/assets/routes.
