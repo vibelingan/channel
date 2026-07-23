@@ -365,6 +365,15 @@ Final Phase 6 verification:
 - Build/quality evidence: Astro emitted 17 pages; Astro check reported 0 errors and 6 existing hints; touched-file Biome, editor diagnostics, pre-commit TypeScript, and `git diff --check` passed.
 - Independent assumption audit: **PASS**. The change is directly supported by PPT Slides 4–5 and 11.
 
+#### Phase 8 MIU 4 — Submission-result claim normalization (complete)
+
+- Commit: `254d841` (`fix(site): normalize submission result claim`); exactly three files.
+- Changed only the visible result-page response promise from `within one business day` to exact `within 24 hours`.
+- TDD evidence: focused source/browser assertions first failed on the missing approved sentence; the final routing source suite passed 4/4.
+- Browser evidence: the non-mutating result-page contract verified the exact full paragraph, visible `#phase8-check` reference card, retained “Submit another request” navigation to `/#oem-inquiry`, and zero POST requests to `/api/admin`.
+- Build/quality evidence: Astro emitted the result route within 17 pages; Astro check reported 0 errors and 6 existing hints; touched-file Biome, editor diagnostics, pre-commit TypeScript, and `git diff --check` passed.
+- Independent assumption audit: **PASS**. No email, hidden source, API, form, route-topology, dependency, or backend behavior entered MIU 4.
+
 ### Phase 9 — Full validation, review, delivery, deploy
 
 - Lint, all package/function/site typechecks, unit tests, site build, function package smoke, CloudBase SDK contract gate if touched, Playwright local E2E, responsive screenshot review, diff review, blessing, branch push, fast-forward/merge to `test`, monitor CI + Deploy Test, and verify live URLs/assets/routes.
