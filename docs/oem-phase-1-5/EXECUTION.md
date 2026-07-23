@@ -346,6 +346,15 @@ Final Phase 6 verification:
 - Build/quality evidence: Astro emitted 17 pages including all three Teardown details; Astro check reported 0 errors and 6 existing hints; touched-file Biome and `git diff --check` passed; pre-commit TypeScript passed.
 - Independent assumption audit and validator verdicts: **PASS**. No Blue Ocean, claim, email, API, data, route, or deployment change entered MIU 1.
 
+#### Phase 8 MIU 2 — Blue Ocean listing aggregate-band removal (complete)
+
+- Commit: `118e2bd` (`fix(site): remove blue ocean listing stats`); exactly three files.
+- Removed only the Blue Ocean listing’s `avgMargin`, `totalProducts`, `minMoq`, and PPT-marked stats section. The product data source, three concept cards, partnership section, navigation, CTA, and all three generated detail routes remain unchanged.
+- TDD evidence: source/browser assertions first failed on the existing stats section and visible `Concept Products` label. After implementation, the focused source contract passed 23/23.
+- Browser evidence: the focused Playwright contract passed at 390 / 768 / 1024 / 1440 with 1 / 2 / 3 / 3 rendered columns, three cards, direct PageHero-to-cards adjacency, no horizontal overflow, and all three details returning HTTP 200 with BOM, margin, MOQ, three partnership tiers, CTA, and back links retained.
+- Build/quality evidence: Astro emitted 17 pages including all three Blue Ocean details; Astro check reported 0 errors and 6 existing hints; touched-file Biome, editor diagnostics, and pre-commit TypeScript passed.
+- Independent assumption audit: **PASS**. No claim, email, API, dataset, route, or deployment change entered MIU 2.
+
 ### Phase 9 — Full validation, review, delivery, deploy
 
 - Lint, all package/function/site typechecks, unit tests, site build, function package smoke, CloudBase SDK contract gate if touched, Playwright local E2E, responsive screenshot review, diff review, blessing, branch push, fast-forward/merge to `test`, monitor CI + Deploy Test, and verify live URLs/assets/routes.
