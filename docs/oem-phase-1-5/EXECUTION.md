@@ -355,6 +355,16 @@ Final Phase 6 verification:
 - Build/quality evidence: Astro emitted 17 pages including all three Blue Ocean details; Astro check reported 0 errors and 6 existing hints; touched-file Biome, editor diagnostics, and pre-commit TypeScript passed.
 - Independent assumption audit: **PASS**. No claim, email, API, dataset, route, or deployment change entered MIU 2.
 
+#### Phase 8 MIU 3 — Active OEM claim normalization (complete)
+
+- Commit: `fb9b5a3` (`fix(site): normalize active OEM claims`); exactly three files.
+- Changed the one remaining OEM experience card from `15+` to PPT-approved `20+` and changed the shared ProjectForm success producer from `within one business day` to exact lowercase `within 24 hours`.
+- The homepage and OEM page continue consuming the same `submit.successBody`; no form field, upload, `/api/admin`, redirect, result page, email, hidden source, API, schema, auth, SDK, or environment behavior changed.
+- TDD evidence: source/browser tests first failed on the missing `20+`. After implementation, the focused source contract passed 24/24.
+- Browser evidence: the non-mutating Playwright contract verified visible `20+`, exact success copy in both hidden success DOMs, absence of stale variants, and zero POST requests to `/api/admin`.
+- Build/quality evidence: Astro emitted 17 pages; Astro check reported 0 errors and 6 existing hints; touched-file Biome, editor diagnostics, pre-commit TypeScript, and `git diff --check` passed.
+- Independent assumption audit: **PASS**. The change is directly supported by PPT Slides 4–5 and 11.
+
 ### Phase 9 — Full validation, review, delivery, deploy
 
 - Lint, all package/function/site typechecks, unit tests, site build, function package smoke, CloudBase SDK contract gate if touched, Playwright local E2E, responsive screenshot review, diff review, blessing, branch push, fast-forward/merge to `test`, monitor CI + Deploy Test, and verify live URLs/assets/routes.
