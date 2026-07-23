@@ -560,3 +560,19 @@ test('Blue Ocean listing removes only the aggregate stats band', () => {
     assert.ok(blueOceanListingSource.includes(retained), `Blue Ocean listing retains: ${retained}`);
   }
 });
+
+test('OEM content uses the approved experience and shared response-time claims', () => {
+  const normalizedOemContent = oemContent.replace(/\s+/g, ' ');
+  assert.ok(
+    normalizedOemContent.includes("stat: '20+', label: Years of Experience"),
+    'OEM experience stat uses the PPT-approved 20+',
+  );
+  assert.ok(
+    normalizedOemContent.includes(
+      'Our engineering team will review your details and get back to you within 24 hours.',
+    ),
+    'shared ProjectForm success copy uses the PPT-approved response time',
+  );
+  assert.doesNotMatch(normalizedOemContent, /15\+|business day/i);
+  assert.ok(oemPageSource.includes('successBody={submit.successBody}'));
+});

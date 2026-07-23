@@ -88,7 +88,7 @@ whyUs:
     Choosing a manufacturer is choosing a long-term partner. Here is what makes
     brands trust us with their products year after year.
   reasons:
-    - { icon: experience, stat: '15+', label: Years of Experience, desc: 'Two decades turning concepts into shipped, market-ready products.' }
+    - { icon: experience, stat: '20+', label: Years of Experience, desc: 'Two decades turning concepts into shipped, market-ready products.' }
     - { icon: partners, stat: '100+', label: Supply Chain Partners, desc: 'A vetted network that keeps sourcing flexible and lead times resilient.' }
     - { icon: moq, label: Flexible MOQ, desc: 'Order quantities that scale with your stage, from pilot runs to volume.' }
     - { icon: compliance, label: Global Compliance Support, desc: 'CE, FCC, RoHS, and market-specific certification guidance built in.' }
@@ -138,8 +138,8 @@ submit:
     confidential.
   successTitle: Thank you — your project has been received.
   successBody: >-
-    Our engineering team will review your details and get back to you within one
-    business day.
+    Our engineering team will review your details and get back to you within 24
+    hours.
 
 # Real factory-scene video provided by the client (替换视频.zip / OEM.mp4),
 # compressed to a muted, web-optimized mp4 and served from public/media. The

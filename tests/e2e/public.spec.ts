@@ -423,6 +423,34 @@ test.describe('public browser smoke', () => {
     );
   });
 
+  test('OEM Phase 8 renders approved active OEM claims without submitting', async ({ page }) => {
+    const adminPosts: string[] = [];
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().includes('/api/admin')) {
+        adminPosts.push(request.url());
+      }
+    });
+
+    await page.goto(`/oem?phase8=${e2e.runId}`, { waitUntil: 'domcontentloaded' });
+    const whyUs = page.locator('#why-us');
+    await expect(whyUs.getByText('20+', { exact: true })).toBeVisible();
+    await expect(whyUs.getByText('15+', { exact: true })).toHaveCount(0);
+
+    const oemForm = page.locator('#submit');
+    await expect(oemForm.locator('[data-success]')).toContainText(
+      'Our engineering team will review your details and get back to you within 24 hours.',
+    );
+    await expect(oemForm.locator('[data-success]')).not.toContainText(/business day/i);
+
+    await page.goto(`/?phase8=${e2e.runId}#oem-inquiry`, { waitUntil: 'domcontentloaded' });
+    const homepageForm = page.locator('#oem-inquiry');
+    await expect(homepageForm.locator('[data-success]')).toContainText(
+      'Our engineering team will review your details and get back to you within 24 hours.',
+    );
+    await expect(homepageForm.locator('[data-success]')).not.toContainText(/business day/i);
+    expect(adminPosts).toEqual([]);
+  });
+
   test('OEM factory block renders the facility video', async ({ page }) => {
     await page.goto('/oem', { waitUntil: 'domcontentloaded' });
     // The client-provided factory video is wired: /oem emits a muted autoplay
