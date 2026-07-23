@@ -56,6 +56,14 @@ const projectFormSource = readFileSync(
   fileURLToPath(new URL('../components/ProjectForm.astro', import.meta.url)),
   'utf8',
 );
+const teardownListingSource = readFileSync(
+  fileURLToPath(new URL('../pages/teardown-lab/index.astro', import.meta.url)),
+  'utf8',
+);
+const teardownDetailSource = readFileSync(
+  fileURLToPath(new URL('../pages/teardown-lab/[slug].astro', import.meta.url)),
+  'utf8',
+);
 const oemContent = readFileSync(
   fileURLToPath(new URL('./content/oem/en-US.md', import.meta.url)),
   'utf8',
@@ -506,5 +514,30 @@ test('homepage CTA embeds the existing full secure ProjectForm at #oem-inquiry',
     "cos.append('file', file)",
   ]) {
     assert.ok(projectFormSource.includes(secureContract), `ProjectForm keeps: ${secureContract}`);
+  }
+});
+
+test('Teardown listing removes only the aggregate stats band', () => {
+  assert.ok(!teardownListingSource.includes('<!-- Stats strip -->'));
+  assert.doesNotMatch(teardownListingSource, /\b(?:avgMargin|totalReports)\b/);
+  for (const retained of [
+    'const reports = getAllReports();',
+    'reports.map',
+    '<TeardownCard report={report} />',
+    'Latest Reports',
+    'Our Methodology',
+    'href={OEM_INQUIRY_HREF}',
+  ]) {
+    assert.ok(teardownListingSource.includes(retained), `Teardown listing retains: ${retained}`);
+  }
+
+  for (const retained of [
+    'export function getStaticPaths()',
+    'bomBreakdown',
+    'report.estMargin',
+    'report.moq',
+    'href={OEM_INQUIRY_HREF}',
+  ]) {
+    assert.ok(teardownDetailSource.includes(retained), `Teardown details retain: ${retained}`);
   }
 });

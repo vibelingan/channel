@@ -11,9 +11,6 @@ import { OEM_INQUIRY_HREF } from '../../lib/site-navigation.ts';
 const content = getSiteContent(DEFAULT_LOCALE);
 const { brand, nav, footer } = content;
 const reports = getAllReports();
-
-const avgMargin = reports.reduce((sum, r) => sum + r.estMargin, 0) / reports.length;
-const totalReports = reports.length;
 ---
 
 <BaseLayout
@@ -29,26 +26,6 @@ const totalReports = reports.length;
       heading="Teardown Lab"
       subheading="Weekly deep-dive reports reverse-engineering crowdfunded hardware champions. We tear down the products, estimate BOM costs, and reveal manufacturing risks — giving you the intelligence to build better products."
     />
-
-    <!-- Stats strip -->
-    <section class="border-b border-slate-200 bg-surface-alt">
-      <div class="mx-auto max-w-[var(--width-container)] px-4 py-10 sm:px-6 lg:px-8">
-        <dl class="grid grid-cols-2 gap-6 sm:grid-cols-3">
-          <div class="reveal">
-            <dt class="text-xs font-semibold uppercase tracking-wider text-ink-muted">Teardown Reports</dt>
-            <dd class="mt-1 font-display text-3xl font-bold text-brand-600">{totalReports}</dd>
-          </div>
-          <div class="reveal">
-            <dt class="text-xs font-semibold uppercase tracking-wider text-ink-muted">Avg. Hardware Margin</dt>
-            <dd class="mt-1 font-display text-3xl font-bold text-brand-600">{avgMargin.toFixed(2)}%</dd>
-          </div>
-          <div class="reveal col-span-2 sm:col-span-1">
-            <dt class="text-xs font-semibold uppercase tracking-wider text-ink-muted">Years Supply Chain Data</dt>
-            <dd class="mt-1 font-display text-3xl font-bold text-brand-600">20+</dd>
-          </div>
-        </dl>
-      </div>
-    </section>
 
     <!-- Report cards -->
     <section class="py-16 sm:py-20">

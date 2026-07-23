@@ -266,6 +266,78 @@ test.describe('public browser smoke', () => {
     await expect(dialog).toBeHidden();
   });
 
+  test('OEM Phase 8 removes Teardown listing stats and retains reports', async ({
+    page,
+    request,
+  }) => {
+    const viewports = [
+      { width: 390, height: 844, columns: 1 },
+      { width: 768, height: 1024, columns: 2 },
+      { width: 1024, height: 900, columns: 3 },
+      { width: 1440, height: 1000, columns: 3 },
+    ];
+
+    for (const viewport of viewports) {
+      await page.setViewportSize(viewport);
+      await page.goto(`/teardown-lab?phase8=${e2e.runId}`, {
+        waitUntil: 'domcontentloaded',
+      });
+
+      await expect(page.getByText('Teardown Reports', { exact: true })).toHaveCount(0);
+      await expect(page.getByText('Avg. Hardware Margin', { exact: true })).toHaveCount(0);
+      await expect(page.getByText('Years Supply Chain Data', { exact: true })).toHaveCount(0);
+
+      const cardsHeading = page.getByRole('heading', { name: "What's inside the lab" });
+      const cardsSection = page.locator('main > section').filter({ has: cardsHeading });
+      await cardsSection.scrollIntoViewIfNeeded();
+      await expect(cardsHeading).toBeVisible();
+      expect(
+        await cardsSection.evaluate((section) =>
+          section.previousElementSibling?.querySelector('h1')?.textContent?.trim(),
+        ),
+      ).toBe('Teardown Lab');
+
+      const cards = cardsSection.locator('a[href^="/teardown-lab/"]');
+      await expect(cards).toHaveCount(3);
+      expect(
+        await cards.evaluateAll(
+          (elements) =>
+            new Set(elements.map((element) => Math.round(element.getBoundingClientRect().left)))
+              .size,
+        ),
+      ).toBe(viewport.columns);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+    }
+
+    const detailPaths = await page
+      .locator('a[href^="/teardown-lab/"]')
+      .evaluateAll((links) => links.map((link) => link.getAttribute('href')));
+    expect(detailPaths.toSorted()).toEqual([
+      '/teardown-lab/clicbot-modular-robot',
+      '/teardown-lab/lofree-flow-2-keyboard',
+      '/teardown-lab/oladance-ows-pro',
+    ]);
+    for (const detailPath of detailPaths) {
+      if (!detailPath) throw new Error('Teardown detail path is missing');
+      const response = await request.get(detailPath);
+      expect(response.status(), detailPath).toBe(200);
+      const html = await response.text();
+      for (const retained of ['BOM Cost Breakdown', 'Est. Margin', 'MOQ', 'Start an OEM project']) {
+        expect(html, `${detailPath} retains ${retained}`).toContain(retained);
+      }
+      expect(html).toContain('href="/teardown-lab"');
+      expect(html).toContain('href="/#oem-inquiry"');
+    }
+
+    await expect(page.getByText('Our Methodology', { exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Start an OEM project' })).toHaveAttribute(
+      'href',
+      '/#oem-inquiry',
+    );
+  });
+
   test('OEM factory block renders the facility video', async ({ page }) => {
     await page.goto('/oem', { waitUntil: 'domcontentloaded' });
     // The client-provided factory video is wired: /oem emits a muted autoplay
