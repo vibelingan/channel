@@ -383,6 +383,20 @@ Final Phase 6 verification:
 - Build/quality evidence: Astro check reported 0 errors and 6 existing hints; the canonical-origin build emitted 17 pages, no Headphones/Overstock route directory, and no sitemap entry; touched-file Biome, editor diagnostics, pre-commit TypeScript, and `git diff --check` passed.
 - Independent assumption audit: **PASS**. No public route, navigation, API, catalog, loader, island, function, schema, environment, deployment, or runtime behavior changed.
 
+#### Phase 8 MIU 6 — OEM confirmation-email claim and packaged artifact (complete)
+
+- Commit: `e127071` (`fix(email): normalize OEM confirmation claim`); exactly two files.
+- Changed only the OEM confirmation email’s plain-text and HTML response promises to exact `within 24 hours`; SMTP, environment, Nodemailer, send behavior, and handler payload remain unchanged.
+- TDD evidence: the new admin-owned source contract first found zero approved occurrences while the best-effort handler payload guard was green. After implementation, both focused tests passed.
+- Artifact evidence: email/admin typechecks, the full 137-test admin suite, both CloudBase function builds, `package-functions.mjs`, packaged admin copy scan, and bare-directory cold-start smoke for admin/public-api passed. The admin artifact contains the approved phrase and no stale business-day variant.
+- Git hygiene: generated `dist/` and `.cloudbase-artifacts/` paths are ignored, untracked, and unstaged. A zsh loop variable named `path` briefly shadowed command lookup during this check; rerunning with `artifact_path` passed.
+- Independent assumption audit: **PASS**. No result-page, hidden source, API, dependency, SDK, environment, or deployment-topology change entered MIU 6.
+
+#### Phase 8 implementation boundary
+
+- MIUs 1–6 are complete. Phase 7.5 API contract verification is N/A because no endpoint, action, payload, response, status, schema, auth rule, SDK surface, upload flow, environment variable, or client/server contract changed.
+- Full G5 validation, visual review, exact-SHA review, OEM-first delivery, and live acceptance remain pending.
+
 ### Phase 9 — Full validation, review, delivery, deploy
 
 - Lint, all package/function/site typechecks, unit tests, site build, function package smoke, CloudBase SDK contract gate if touched, Playwright local E2E, responsive screenshot review, diff review, blessing, branch push, fast-forward/merge to `test`, monitor CI + Deploy Test, and verify live URLs/assets/routes.
