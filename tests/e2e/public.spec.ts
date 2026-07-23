@@ -463,9 +463,10 @@ test.describe('public browser smoke', () => {
     });
     const result = page.locator('main');
     await expect(result).toContainText(
-      'Thank you — we have logged your project enquiry. Our engineering team will review the details and get back to you within 24 hours. A confirmation email is on its way to the address you provided.',
+      'Thank you — we have logged your project enquiry. Our engineering team will review the details and get back to you within 24 hours. We’ll also attempt to send a confirmation email to the address you provided.',
     );
     await expect(result).not.toContainText(/business day/i);
+    await expect(result).not.toContainText('A confirmation email is on its way');
     const referenceCard = result.locator('[data-ref-card]');
     await expect(referenceCard).toBeVisible();
     await expect(referenceCard.locator('[data-ref-id]')).toHaveText('#phase8-check');

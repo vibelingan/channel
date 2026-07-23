@@ -58,7 +58,13 @@ test('canonical OEM inquiry links target the homepage form without changing navi
 test('OEM submission result uses the approved response-time claim and keeps its routing', () => {
   const normalizedResult = resultPage.replace(/\s+/g, ' ');
   assert.ok(normalizedResult.includes('details and get back to you within 24 hours.'));
+  assert.ok(
+    normalizedResult.includes(
+      'We’ll also attempt to send a confirmation email to the address you provided.',
+    ),
+  );
   assert.doesNotMatch(normalizedResult, /business day/i);
+  assert.ok(!normalizedResult.includes('A confirmation email is on its way'));
 });
 
 test('Blue Ocean and Teardown OEM-intent CTAs use the canonical homepage form route', () => {
