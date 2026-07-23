@@ -93,7 +93,8 @@ Steps:
    `channel-test` web app domain.
 8. Configure `index.html` as both index and error document for SPA routing.
 9. Run HTTP smoke:
-   - Site pages `/`, `/admin`, `/login`, `/oem`, `/headphones`, `/overstock`
+  - Active site pages `/`, `/admin`, `/login`, `/oem`, `/portfolio` return `200`
+  - Retired storefront routes `/headphones` and `/overstock` return `404`
    - `GET /api/health`
    - `GET /api/products?pageSize=1`
    - `GET /api/overstock?pageSize=1`

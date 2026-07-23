@@ -23,7 +23,8 @@ cannot yet serve `/api/admin` and `/api/products` from CloudBase.
 P0 is done when all of these are true:
 
 - A client-visible URL loads the Astro site from CloudBase.
-- `/`, `/admin`, `/login`, `/oem`, `/headphones`, and `/overstock` render.
+- `/`, `/admin`, `/login`, `/oem`, and `/portfolio` render.
+- Retired storefront routes `/headphones` and `/overstock` are pruned and return `404`.
 - Browser API calls reach CloudBase HTTP functions.
 - `GET /api/health` succeeds.
 - `GET /api/products?pageSize=1` succeeds with a valid JSON envelope.
