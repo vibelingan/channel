@@ -17,7 +17,8 @@ test('OEM confirmation email uses the approved response time in text and HTML', 
   const textLine = lines.find((line) => line.trimStart().startsWith('const text ='));
   const htmlLine = lines.find((line) => line.trimStart().startsWith('const html ='));
   assert.ok(textLine?.includes('respond within 24 hours.'));
-  assert.ok(htmlLine?.includes('respond within 24 hours.'));
+  assert.ok(htmlLine?.includes('respond within 24 hours.</p>'));
+  assert.equal((`${textLine}\n${htmlLine}`.match(/respond within 24 hours\./g) ?? []).length, 2);
   assert.doesNotMatch(`${textLine}\n${htmlLine}`, /business[-\s]+days?/i);
 });
 
