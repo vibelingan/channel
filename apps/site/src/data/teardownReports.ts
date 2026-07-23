@@ -66,47 +66,48 @@ export const teardownReports: TeardownReport[] = [
       {
         category: 'Plastic Structure & Shell',
         description:
-          'PC/ABS cavity, 8-layer ceramic coating, titanium alloy memory skeleton, medical LSR overmolding',
+          'PC/ABS cavity, 8-layer ceramic coating, titanium-alloy memory-metal skeleton, medical-grade LSR overmolding',
         cost: 8.5,
       },
       {
-        category: 'PCBA & Electronics',
+        category: 'PCBA & Electronic Components',
         description:
-          'BES2600YP BT SoC, Awinic AW86862 pressure IC, 6x MEMS mic array, audio amp, MCU',
+          'Bestechnic BES2600YP Bluetooth SoC, Awinic AW86862 pressure-sensing IC, 6x MEMS microphone array, independent audio amplifier module, CMS8S5887 MCU',
         cost: 15.2,
       },
       {
-        category: 'Acoustic Driver',
+        category: 'Acoustic Driver & Chamber',
         description:
-          '23x10mm custom dual-layer dynamic driver (paired), metal mesh & tuning filter',
+          'Paired 23x10mm custom high-precision dual-layer dynamic drivers, metal dust mesh and acoustic tuning filter',
         cost: 6.5,
       },
       {
-        category: 'Battery & Power',
+        category: 'Battery & Power Management',
         description:
-          '150mAh cylindrical battery (x2), 1150mAh Li-Po (case), SY8809 power management IC',
+          '2x MBT 150mAh steel-shell cylindrical batteries, Hengtai 1150mAh Li-polymer charging-case battery, Siyuan SY8809 power-management IC',
         cost: 4.8,
       },
       {
         category: 'Packaging & Accessories',
-        description: 'High-weight rigid box, Type-C cable, warranty card & manual',
+        description:
+          'High-grade rigid lid-and-base box, Type-C charging cable, anti-counterfeit warranty card and manual',
         cost: 2.0,
       },
       {
-        category: 'Assembly & Testing',
+        category: 'Assembly & Automated Testing',
         description:
-          'SMT, acoustic anechoic chamber pairing test, RF antenna calibration, IPX4 seal test',
+          'SMT, miniature anechoic-chamber pairing test, RF antenna calibration, liquid adhesive sealing and IPX4 airtightness test',
         cost: 3.5,
       },
       {
-        category: 'Tooling & Fixtures',
+        category: 'Tooling Amortization & Fixtures',
         description:
-          'Plastic injection mold, LSR cold-runner mold, precision CNC test fixtures (10K unit amortization)',
+          'Plastic injection steel mold, LSR cold-runner silicone mold, precision CNC test fixtures (amortized over 10,000 sets)',
         cost: 2.5,
       },
       {
         category: 'Total',
-        description: 'Estimated ex-work BOM cost per unit',
+        description: 'Estimated ex-work factory price',
         cost: 43.0,
       },
     ],
@@ -124,52 +125,57 @@ export const teardownReports: TeardownReport[] = [
     summary:
       'Modular STEM education robot with magnetic Pogo Pin connectors, 200+ emotional reactions, and programming from drag-to-code to Python. Raised $903K on Kickstarter.',
     overview:
-      'ClicBot by KEYi Tech represents a major leap in consumer-grade robotics. It\'s a modular educational robot with high emotional interaction and programming capability. The patented wire-free magnetic snap-on modules allow reconfiguration into bipedal robots, quadruped dogs, wheeled cars, multi-axis arms, and more. It attracted 1,600+ backers on Kickstarter raising $903,248.',
+      "ClicBot by KEYi Tech represents a major leap in consumer-grade robotics. It's a modular educational robot with high emotional interaction and programming capability. The patented wire-free magnetic snap-on modules allow reconfiguration into bipedal robots, quadruped dogs, wheeled cars, multi-axis arms, and more. It attracted 1,600+ backers on Kickstarter raising $903,248.",
     marketAnalysis:
       'ClicBot solves two pain points of traditional STEM toys: (1) assembly is too complex with wires, causing frustration in young children; (2) poor interactivity, becoming mere command executors. ClicBot combines a personality engine designed by Pixar WALL-E animator Carlos Baena with 200+ emotional reactions. Programming ranges from manual teaching to Google Blockly to Python.',
     hardwareTeardown:
       'All module shells use high-strength PC/ABS. Connectors use patented "inner-outer ring snap + magnetic guidance" with 4-5 gold-plated Pogo Pins per interface for power/ground/UART/CAN bus. Brain module features ARM Cortex-A7 SoC (Allwinner/Rockchip), 2.1" circular IPS touchscreen, 2MP camera, gesture sensor, microphone array. Joint modules use micro DC gear motors with absolute angle encoders. Distributed cluster control architecture.',
     bomBreakdown: [
       {
-        category: 'Brain Module',
+        category: 'Plastic Structure & Shell',
         description:
-          'ARM Cortex-A7 SoC, 2.1" IPS touchscreen, 2MP camera, gesture sensor, mic array, 3x capacitive touch sensors',
-        cost: 45.0,
+          'High-strength PC+ABS precision injection-molded parts for the brain, joints, skeletons and wheels (high multi-cavity requirements)',
+        cost: 22.0,
       },
       {
-        category: 'Joint Modules (x6)',
+        category: 'PCBA & Computing Core',
         description:
-          'Micro DC gear motor, precision gearbox, absolute encoder, Pogo Pin connector, PC/ABS shell per module',
-        cost: 54.0,
+          'ARM Cortex-A7 SoC system board, 2.1-inch IPS touchscreen, 2MP camera module, Wi-Fi/Bluetooth module and multidimensional sensors',
+        cost: 32.0,
       },
       {
-        category: 'Skeleton & Wheel Modules',
-        description: '3x skeleton, 4x wheel, base & gripper accessories, PC/ABS construction',
-        cost: 18.0,
+        category: 'Electromechanical Drive & Distributed Control',
+        description:
+          '6x micro DC geared servo motors, 6x STM32 joint driver boards, absolute angle encoders and patented magnetic Pogo Pin assemblies',
+        cost: 48.0,
       },
       {
-        category: 'PCBA & Electronics',
-        description: 'Distributed control boards, motor drivers, sensor ICs across all modules',
+        category: 'Battery & Power Management',
+        description:
+          '1550mAh high-discharge Li-polymer battery in the brain module, Type-C fast charging and multi-node power-distribution IC',
+        cost: 4.5,
+      },
+      {
+        category: 'Packaging & Accessories',
+        description:
+          'Large shock-resistant EPP/EVA insert tray, premium printed outer box, quick-release supports and manual',
+        cost: 6.5,
+      },
+      {
+        category: 'Assembly & Automated Testing',
+        description:
+          'Precision servo gearbox assembly, modular PCBA burn-in, visual UI calibration and multi-axis linked-load testing',
         cost: 12.0,
       },
       {
-        category: 'Battery & Power',
-        description: 'Li-Po batteries in brain and joint modules, power management ICs',
-        cost: 6.0,
-      },
-      {
-        category: 'Assembly & Testing',
-        description: 'SMT, module calibration, communication integrity test, drop test',
-        cost: 3.0,
-      },
-      {
-        category: 'Tooling & Fixtures',
-        description: 'Multi-cavity precision molds for snap-fit features (10K unit amortization)',
-        cost: 2.0,
+        category: 'Tooling Amortization & Fixtures',
+        description:
+          'More than 20 precision plastic and die-casting molds across the system (amortized over 10,000 sets)',
+        cost: 15.0,
       },
       {
         category: 'Total',
-        description: 'Estimated ex-work BOM cost per Standard Kit',
+        description: 'Estimated ex-work factory price',
         cost: 140.0,
       },
     ],
@@ -194,48 +200,49 @@ export const teardownReports: TeardownReport[] = [
       'Top and bottom shells use aerospace-grade aluminum alloy, fully CNC machined and anodized. Keycaps use PBT+PC double-shot injection with 0.23mm chamfered edges. PCBA features ARM Cortex-M wireless SoC (Nordic nRF52 series), dedicated LED matrix driver IC for per-key backlight and RGB side lighting. Switches are exclusive Kailh Cloud Series full POM low-profile switches. Sound structure: aluminum top plate → POM switch → positioning plate → Poron sandwich foam → IXPE switch pad → PCBA → Gasket silicone pad → aluminum bottom shell.',
     bomBreakdown: [
       {
-        category: 'Aluminum CNC Shell',
-        description: 'Full CNC aerospace aluminum top & bottom, anodized finish',
+        category: 'Metal Shell & Keycaps',
+        description:
+          'Full CNC forging/machining and anodizing of aerospace-aluminum top and bottom shells, plus 84 PBT/PC double-shot keycaps',
+        cost: 24.5,
+      },
+      {
+        category: 'PCBA & Electronic Components',
+        description:
+          'Tri-mode wireless MCU, high-frequency LED driver IC, Kailh metal hot-swap sockets, high-brightness SMD LEDs and ENIG PCB',
+        cost: 12.5,
+      },
+      {
+        category: 'Switches & Acoustic Structure Materials',
+        description:
+          '84 Kailh Cloud Series full-POM low-profile switches, Poron sandwich foam, IXPE switch pads and silicone gasket pads',
         cost: 22.0,
       },
       {
-        category: 'Switches (84x)',
-        description: 'Kailh Cloud Series full POM low-profile switches, hot-swap sockets',
-        cost: 16.8,
+        category: 'Battery & Power Module',
+        description: '3000mAh low-profile Li-polymer battery and independent Type-C daughterboard',
+        cost: 3.0,
       },
       {
-        category: 'Keycaps (84x)',
-        description: 'PBT+PC double-shot injection, 0.23mm chamfered edges',
-        cost: 8.4,
+        category: 'Packaging & Accessories',
+        description:
+          'Braided nylon Type-C data cable, metal 2-in-1 switch/keycap puller and high-density protective eco retail box',
+        cost: 3.5,
       },
       {
-        category: 'PCBA & Electronics',
-        description: 'ARM Cortex-M wireless SoC, LED matrix driver, 2.4GHz dongle, BT antenna',
-        cost: 9.5,
+        category: 'Assembly & Automated Testing',
+        description:
+          'SMT, automated key actuation and RF testing, VIA firmware flashing and switch-lubrication sampling inspection',
+        cost: 4.5,
       },
       {
-        category: 'Sound Dampening',
-        description: 'Poron sandwich foam, IXPE switch pads, Gasket silicone pads',
-        cost: 4.2,
-      },
-      {
-        category: 'Battery & Power',
-        description: 'Li-Po battery, power management IC, USB-C charging circuit',
-        cost: 3.6,
-      },
-      {
-        category: 'Assembly & Testing',
-        description: 'SMT, switch mounting, torque-controlled screw fastening, key feel QA',
-        cost: 5.0,
-      },
-      {
-        category: 'Tooling & Fixtures',
-        description: 'CNC fixtures, anodizing racks, assembly jigs (10K unit amortization)',
-        cost: 4.0,
+        category: 'Tooling Amortization & Fixtures',
+        description:
+          'Dedicated CNC machining fixtures, PBT double-shot keycap molds and POM switch molds (amortized over 10,000 sets)',
+        cost: 3.5,
       },
       {
         category: 'Total',
-        description: 'Estimated ex-work BOM cost per unit (84-key)',
+        description: 'Estimated ex-work factory price',
         cost: 73.5,
       },
     ],

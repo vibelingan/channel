@@ -319,6 +319,32 @@ test.describe('public browser smoke', () => {
       '/teardown-lab/lofree-flow-2-keyboard',
       '/teardown-lab/oladance-ows-pro',
     ]);
+    await expect(page.getByText('Our Methodology', { exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Start an OEM project' })).toHaveAttribute(
+      'href',
+      '/#oem-inquiry',
+    );
+
+    const sourceBomRows = new Map<string, { label: string; html: string }>([
+      [
+        '/teardown-lab/clicbot-modular-robot',
+        {
+          label: 'Electromechanical Drive & Distributed Control',
+          html: 'Electromechanical Drive &amp; Distributed Control',
+        },
+      ],
+      [
+        '/teardown-lab/lofree-flow-2-keyboard',
+        { label: 'Metal Shell & Keycaps', html: 'Metal Shell &amp; Keycaps' },
+      ],
+      [
+        '/teardown-lab/oladance-ows-pro',
+        {
+          label: 'PCBA & Electronic Components',
+          html: 'PCBA &amp; Electronic Components',
+        },
+      ],
+    ]);
     for (const detailPath of detailPaths) {
       const response = await request.get(detailPath);
       expect(response.status(), detailPath).toBe(200);
@@ -326,15 +352,27 @@ test.describe('public browser smoke', () => {
       for (const retained of ['BOM Cost Breakdown', 'Est. Margin', 'MOQ', 'Start an OEM project']) {
         expect(html, `${detailPath} retains ${retained}`).toContain(retained);
       }
+      expect(html, `${detailPath} renders its client-source BOM table`).toContain(
+        sourceBomRows.get(detailPath)?.html,
+      );
       expect(html).toContain('href="/teardown-lab"');
       expect(html).toContain('href="/#oem-inquiry"');
     }
 
-    await expect(page.getByText('Our Methodology', { exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Start an OEM project' })).toHaveAttribute(
-      'href',
-      '/#oem-inquiry',
-    );
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/teardown-lab/clicbot-modular-robot?phase8=${e2e.runId}`, {
+      waitUntil: 'domcontentloaded',
+    });
+    const bomTableScroller = page.locator('#bom .overflow-x-auto');
+    await expect(
+      page.getByRole('rowheader', { name: 'Electromechanical Drive & Distributed Control' }),
+    ).toBeAttached();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    expect(
+      await bomTableScroller.evaluate((element) => element.scrollWidth > element.clientWidth),
+    ).toBe(true);
   });
 
   test('OEM Phase 8 removes Blue Ocean listing stats and retains concepts', async ({
