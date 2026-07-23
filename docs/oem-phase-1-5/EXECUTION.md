@@ -408,6 +408,14 @@ Final Phase 6 verification:
 - Requirements traceability and blast-radius audits found no implementation scope drift. Remaining checks are delivery-only: exact-SHA review/blessing, OEM-first push, guarded `test` fast-forward, workflow completion, and canonical-domain live acceptance.
 - Validation-script correction: a combined heredoc command initially masked a failed over-broad text scan behind later successful commands. The result was rejected. Page-specific built-output scans and whitespace-normalized per-carrier source counts were then rerun as independent commands and passed.
 
+#### Phase 8 review fix — truthful confirmation-email status (complete)
+
+- Review finding: the result page unconditionally said `A confirmation email is on its way`, while email delivery is intentionally best-effort and `sendMail` may return `false` when SMTP is absent or delivery fails. The submission still succeeds, so the unconditional statement could be false.
+- Commit: `5dc2191` (`review-fix: make email status truthful`); exactly three files.
+- Conservative fix: keep the approved `within 24 hours` response promise and all submission/API behavior unchanged, but replace the email-delivery guarantee with `We’ll also attempt to send a confirmation email to the address you provided.`
+- TDD evidence: the source contract first failed on the new truthful wording. Final routing tests passed 4/4; site/E2E typechecks, touched-file Biome, 17-page build, focused browser result-page test, and pre-commit TypeScript passed.
+- No API response shape or email-delivery behavior was changed; the result copy now matches the existing best-effort runtime contract.
+
 ### Phase 9 — Full validation, review, delivery, deploy
 
 - Lint, all package/function/site typechecks, unit tests, site build, function package smoke, CloudBase SDK contract gate if touched, Playwright local E2E, responsive screenshot review, diff review, blessing, branch push, fast-forward/merge to `test`, monitor CI + Deploy Test, and verify live URLs/assets/routes.
