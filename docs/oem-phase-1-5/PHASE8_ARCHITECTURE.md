@@ -1,6 +1,6 @@
 # OEM Phase 8 — 要做什么、怎么做
 
-状态：G3/G4 已批准；MIU 1–6 已实现并通过本地 G5，等待 review、推送和 live acceptance
+状态：Phase 8 已完成 review、推送和 live acceptance；2026-07-24 完成 post-delivery BOM 真实性修正
 日期：2026-07-23
 需求来源：客户原始 PPT Slides 4–5、11、16
 
@@ -53,7 +53,7 @@
 
 ## 为什么采用这个做法
 
-最小做法就是在原位置删除两段 HTML、替换几处文案。新增组件或统一常量反而会让 Markdown、页面和邮件之间产生不必要的依赖。数据和详情页仍被 cards 使用，因此不碰数据文件或类型。
+Phase 8 的最小做法是在原位置删除两段 HTML、替换几处文案。新增组件或统一常量反而会让 Markdown、页面和邮件之间产生不必要的依赖。当时不需要为删除 stats 修改数据文件或类型；后续 B3 真实性修正单独按客户原表更新了 Teardown BOM 明细。
 
 以下内容是供实现和 review 使用的技术附录。
 
@@ -61,7 +61,7 @@
 
 | Boundary | Changed producers | Preserved consumers/contracts |
 |---|---|---|
-| Listing presentation | `apps/site/src/pages/teardown-lab/index.astro`, `apps/site/src/pages/blue-ocean/index.astro` | `PageHero`, eyebrow/intro, cards, datasets, detail templates, routes, CTA targets |
+| Listing presentation | `apps/site/src/pages/teardown-lab/index.astro`, `apps/site/src/pages/blue-ocean/index.astro` | `PageHero`, eyebrow/intro, cards, detail templates, routes, CTA targets；Teardown dataset 后来仅做 B3 BOM 真实性修正 |
 | Experience/shared SLA | `apps/site/src/i18n/content/oem/en-US.md`, `apps/site/src/pages/oem_submit_result.astro` | `OemContent`, `ReasonList`, homepage/OEM `ProjectForm`, existing form behavior |
 | Dormant SLA sources | `apps/site/src/i18n/content/headphones/en-US.md`, `apps/site/src/i18n/content/overstock/en-US.md` | Typed loaders and underscore-prefixed retained sources; no route restoration |
 | Email carrier | `packages/email/src/index.ts` | Admin handler, SMTP/env behavior, tsup packaging contract |
@@ -102,7 +102,7 @@ ADR: `.claude/docs/adr-phase8-oem-claim-parity.md`
 
 | Seam | Required guard |
 |---|---|
-| Dataset → listings → detail routes | Assert three cards per listing, all six detail routes, and retained BOM/margin/MOQ. |
+| Dataset → listings → detail routes | Assert three cards per listing, all six detail routes, reviewed Teardown BOM rows, and retained margin/MOQ. |
 | OEM Markdown → both ProjectForms | Assert the shared success producer reaches both existing consumers. |
 | Hidden Markdown → dormant loaders | Assert source parity without claiming retired routes are public. |
 | Email source → admin bundle → packaged artifact | Build functions, package, cold-start smoke, require new phrase present and old phrase absent. |
@@ -112,7 +112,7 @@ ADR: `.claude/docs/adr-phase8-oem-claim-parity.md`
 ## Trade-Offs
 
 - Do not add a shared SLA constant. Markdown, Astro, plain-text email, HTML email, and serverless packaging cross different build boundaries; a new import would add coupling without removing the need for parity tests.
-- Do not change datasets/types to remove stats. The aggregate display is obsolete, while the same data remains required by cards and detail economics.
+- Do not change datasets/types merely to remove stats. The aggregate display is obsolete, while the same data remains required by cards and detail economics. The later B3 correction is independently justified by source fidelity, not stats removal.
 - Use existing source-contract tests plus packaged-artifact inspection instead of creating an email-builder abstraction or a new verification framework.
 
 ## Level-1 Product Tasks
@@ -143,4 +143,4 @@ N/A. No third-party API, method, option, return shape, event, or configuration c
 
 Open architecture questions: none. Slide 1 AI customer service remains outside Phase 8.
 
-**G3/G4 APPROVED.** The first architecture presentation was too abstract for the user to judge; the user approved the plain-language execution plan and confirmed OEM branch → guarded `test` fast-forward → `supplychainsai.com` acceptance. MIUs 1–6 and local G5 are complete; exact-SHA review and delivery remain.
+**G3/G4 APPROVED AND DELIVERED.** The first architecture presentation was too abstract for the user to judge; the user approved the plain-language execution plan and confirmed OEM branch → guarded `test` fast-forward → `supplychainsai.com` acceptance. MIUs 1–6, G5, exact-SHA review, delivery, and live acceptance are complete. The B3 BOM correction is the post-delivery override recorded above.
