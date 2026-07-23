@@ -1,4 +1,5 @@
 import { type Page, expect, test } from '@playwright/test';
+import { teardownBomSource } from '../fixtures/teardown-bom-source.ts';
 import { e2e } from './helpers/env';
 
 function captureConsoleProblems(page: Page): string[] {
@@ -325,26 +326,6 @@ test.describe('public browser smoke', () => {
       '/#oem-inquiry',
     );
 
-    const sourceBomRows = new Map<string, { label: string; html: string }>([
-      [
-        '/teardown-lab/clicbot-modular-robot',
-        {
-          label: 'Electromechanical Drive & Distributed Control',
-          html: 'Electromechanical Drive &amp; Distributed Control',
-        },
-      ],
-      [
-        '/teardown-lab/lofree-flow-2-keyboard',
-        { label: 'Metal Shell & Keycaps', html: 'Metal Shell &amp; Keycaps' },
-      ],
-      [
-        '/teardown-lab/oladance-ows-pro',
-        {
-          label: 'PCBA & Electronic Components',
-          html: 'PCBA &amp; Electronic Components',
-        },
-      ],
-    ]);
     for (const detailPath of detailPaths) {
       const response = await request.get(detailPath);
       expect(response.status(), detailPath).toBe(200);
@@ -352,11 +333,27 @@ test.describe('public browser smoke', () => {
       for (const retained of ['BOM Cost Breakdown', 'Est. Margin', 'MOQ', 'Start an OEM project']) {
         expect(html, `${detailPath} retains ${retained}`).toContain(retained);
       }
-      expect(html, `${detailPath} renders its client-source BOM table`).toContain(
-        sourceBomRows.get(detailPath)?.html,
-      );
       expect(html).toContain('href="/teardown-lab"');
       expect(html).toContain('href="/#oem-inquiry"');
+
+      await page.goto(`${detailPath}?phase8=${e2e.runId}`, { waitUntil: 'domcontentloaded' });
+      const source = teardownBomSource.find(({ slug }) => detailPath.endsWith(`/${slug}`));
+      expect(source, `${detailPath} has a reviewed source fixture`).toBeDefined();
+      const expectedRows = source?.rows
+        .slice(0, -1)
+        .map(({ category, description, cost }) => [category, description, `$${cost.toFixed(2)}`]);
+      const renderedRows = await page
+        .locator('#bom tbody tr')
+        .evaluateAll((rows) =>
+          rows.map((row) =>
+            Array.from(row.querySelectorAll('th, td'), (cell) => cell.textContent?.trim() ?? ''),
+          ),
+        );
+      expect(renderedRows, `${detailPath} renders every reviewed BOM row`).toEqual(expectedRows);
+      const expectedTotal = source?.rows.at(-1);
+      await expect(page.locator('#bom tfoot tr')).toHaveText(
+        `${expectedTotal?.category} ${expectedTotal?.description} $${expectedTotal?.cost.toFixed(2)}`,
+      );
     }
 
     await page.setViewportSize({ width: 390, height: 844 });

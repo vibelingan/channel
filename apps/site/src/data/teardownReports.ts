@@ -72,7 +72,7 @@ export const teardownReports: TeardownReport[] = [
       {
         category: 'PCBA & Electronic Components',
         description:
-          'Bestechnic BES2600YP Bluetooth SoC, Awinic AW86862 pressure-sensing IC, 6x MEMS microphone array, independent audio amplifier module, CMS8S5887 MCU',
+          'Bestechnic BES2600YP Bluetooth SoC, Awinic AW86862 pressure-sensing IC, 6x MEMS microphone array, independent audio amplifier module, Cmsemicon MCU',
         cost: 15.2,
       },
       {
