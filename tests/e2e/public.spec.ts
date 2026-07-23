@@ -451,6 +451,34 @@ test.describe('public browser smoke', () => {
     expect(adminPosts).toEqual([]);
   });
 
+  test('OEM Phase 8 renders the approved submission result claim', async ({ page }) => {
+    const adminPosts: string[] = [];
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().includes('/api/admin')) {
+        adminPosts.push(request.url());
+      }
+    });
+
+    await page.goto(`/oem_submit_result?id=phase8-check&phase8=${e2e.runId}`, {
+      waitUntil: 'domcontentloaded',
+    });
+    const result = page.locator('main');
+    await expect(result).toContainText(
+      'Thank you — we have logged your project enquiry. Our engineering team will review the details and get back to you within 24 hours. A confirmation email is on its way to the address you provided.',
+    );
+    await expect(result).not.toContainText(/business day/i);
+    const referenceCard = result.locator('[data-ref-card]');
+    await expect(referenceCard).toBeVisible();
+    await expect(referenceCard.locator('[data-ref-id]')).toHaveText('#phase8-check');
+
+    const submitAgain = page.getByRole('link', { name: 'Submit another request' });
+    await expect(submitAgain).toHaveAttribute('href', '/#oem-inquiry');
+    await submitAgain.click();
+    await expect(page).toHaveURL(/\/#oem-inquiry$/);
+    await expect(page.locator('#oem-inquiry form[data-project-form]')).toBeVisible();
+    expect(adminPosts).toEqual([]);
+  });
+
   test('OEM factory block renders the facility video', async ({ page }) => {
     await page.goto('/oem', { waitUntil: 'domcontentloaded' });
     // The client-provided factory video is wired: /oem emits a muted autoplay
