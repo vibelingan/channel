@@ -70,8 +70,7 @@ export const blueOceanProducts: BlueOceanProduct[] = [
   {
     slug: 'somniflow-ai-sleep-pods',
     name: 'SomniFlow AI Sleep Pods',
-    tagline:
-      'AI sleep earbuds with micro-cooling and solid-state MEMS audio',
+    tagline: 'AI sleep earbuds with micro-cooling and solid-state MEMS audio',
     category: 'Wearables',
     msrp: 199,
     estBomCost: 48.5,
@@ -84,14 +83,13 @@ export const blueOceanProducts: BlueOceanProduct[] = [
       {
         category: 'Acoustic Driver',
         spec: 'xMEMS Sycamore full-silicon MEMS micro-speaker — 85mm³ volume, 150mg weight, 98% smaller than traditional 50mm drivers',
-        benefit:
-          'Enables <1mm earbud thickness for zero-pressure side sleeping',
+        benefit: 'Enables <1mm earbud thickness for zero-pressure side sleeping',
       },
       {
         category: 'Thermal Management',
         spec: 'xMEMS Cooling µCooling chip (Fan-on-a-Chip) based on inverse piezoelectric effect',
         benefit:
-          'Reduces ear canal humidity by 20% within 5 minutes — world\'s first active dehumidification in earbuds',
+          "Reduces ear canal humidity by 20% within 5 minutes — world's first active dehumidification in earbuds",
       },
       {
         category: 'Core SoC',
@@ -102,8 +100,7 @@ export const blueOceanProducts: BlueOceanProduct[] = [
       {
         category: 'Wireless',
         spec: 'Bluetooth 5.4 / LE Audio via Ceva-Waves IP, IBRT patent technology',
-        benefit:
-          'High throughput, low latency, extends battery life to 14 hours per charge',
+        benefit: 'High throughput, low latency, extends battery life to 14 hours per charge',
       },
     ],
     bomBreakdown: [
@@ -164,8 +161,7 @@ export const blueOceanProducts: BlueOceanProduct[] = [
   {
     slug: 'lumicogni-desktop-ai-hologram',
     name: 'LumiCogni Desktop AI Hologram',
-    tagline:
-      'Holographic AI study companion for kids with edge AI and mmWave radar',
+    tagline: 'Holographic AI study companion for kids with edge AI and mmWave radar',
     category: 'Education',
     msrp: 289,
     estBomCost: 115.0,
@@ -178,8 +174,7 @@ export const blueOceanProducts: BlueOceanProduct[] = [
       {
         category: 'Edge AI Processor',
         spec: 'Rockchip RK3588S 8nm SoC — 4x Cortex-A76 (2.4GHz) + 4x Cortex-A55, 6 TOPS NPU (INT4/8/16, FP16)',
-        benefit:
-          'Runs 7B-parameter LLM locally, ensuring children\'s privacy and instant responses',
+        benefit: "Runs 7B-parameter LLM locally, ensuring children's privacy and instant responses",
       },
       {
         category: 'Holographic Optical Engine',
@@ -196,8 +191,7 @@ export const blueOceanProducts: BlueOceanProduct[] = [
       {
         category: 'Memory & Storage',
         spec: '16GB LPDDR5 RAM (2400MHz), NVMe SSD interface, 8K hardware video decode',
-        benefit:
-          'Supports large AI model loading and rich holographic content',
+        benefit: 'Supports large AI model loading and rich holographic content',
       },
     ],
     bomBreakdown: [
@@ -262,8 +256,7 @@ export const blueOceanProducts: BlueOceanProduct[] = [
   {
     slug: 'aerosense-ai-sports-headband',
     name: 'AeroSense AI Sports Headband',
-    tagline:
-      'Spatial audio + blind-spot detection for cycling with automotive-grade radar',
+    tagline: 'Spatial audio + blind-spot detection for cycling with automotive-grade radar',
     category: 'Sports & Outdoor',
     msrp: 229,
     estBomCost: 65.0,
@@ -294,8 +287,7 @@ export const blueOceanProducts: BlueOceanProduct[] = [
       {
         category: 'Construction',
         spec: 'Titanium alloy frame + polymer elastomer composite, total weight <80g',
-        benefit:
-          'Ultra-lightweight, impact-resistant, comfortable for extended wear',
+        benefit: 'Ultra-lightweight, impact-resistant, comfortable for extended wear',
       },
     ],
     bomBreakdown: [
@@ -316,8 +308,7 @@ export const blueOceanProducts: BlueOceanProduct[] = [
       },
       {
         category: 'Structure & Battery',
-        description:
-          'Titanium alloy frame, polymer elastomer, high-discharge battery',
+        description: 'Titanium alloy frame, polymer elastomer, high-discharge battery',
         cost: 13.0,
       },
       {

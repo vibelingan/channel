@@ -6,7 +6,13 @@
     "useIgnoreFile": true
   },
   "files": {
-    "ignore": ["dist", "node_modules", ".astro", "data", "packages/db/src/cloudbase-adapter.ts"]
+    "ignore": [
+      "dist",
+      "node_modules",
+      ".astro",
+      "apps/local-server/data",
+      "packages/db/src/cloudbase-adapter.ts"
+    ]
   },
   "organizeImports": {
     "enabled": true
