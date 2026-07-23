@@ -186,3 +186,26 @@ Resolve workspace package exports in these tests with `createRequire(import.meta
 - Tags: tsx, import-meta, create-require, package-resolution
 
 ---
+
+## [ERR-20260723-009] heredoc-failure-masked-by-following-command
+
+**Logged**: 2026-07-23T00:00:00Z
+**Priority**: critical
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+A Node heredoc validation failed, but later shell commands still ran and printed a misleading final PASS.
+
+### Error
+The heredoc terminator was followed by another command on a new line without `&&` or an explicit exit-status guard. zsh continued after Node exited non-zero, so the overall terminal command returned success from the final check.
+
+### Suggested Fix
+Run high-risk validators as separate terminal calls, or explicitly capture and assert the heredoc exit code before any following command. Never accept a final PASS line without checking every preceding command result. Keep semantic scans carrier-specific: generic marketing terms may also appear in metadata, and raw Markdown may split one phrase across lines.
+
+### Metadata
+- Reproducible: yes
+- Related Files: docs/oem-phase-1-5/PHASE8_TEST_PLAN.md
+- Tags: heredoc, shell, exit-code, false-green, validation
+
+---

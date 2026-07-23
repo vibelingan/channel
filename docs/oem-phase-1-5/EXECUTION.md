@@ -397,6 +397,17 @@ Final Phase 6 verification:
 - MIUs 1–6 are complete. Phase 7.5 API contract verification is N/A because no endpoint, action, payload, response, status, schema, auth rule, SDK surface, upload flow, environment variable, or client/server contract changed.
 - Full G5 validation, visual review, exact-SHA review, OEM-first delivery, and live acceptance remain pending.
 
+#### Phase 8 local G5 validation (complete)
+
+- Repository-wide Biome passed across 188 files.
+- All nine workspace typechecks plus the E2E TypeScript project passed. Astro check reported 0 errors and 6 existing hints.
+- Full tests passed: deploy-smoke 5, media-storage 26, shared 70, site 42, auth 2, admin 137, and public-api 37.
+- Canonical `SITE_URL=https://supplychainsai.com` Astro build emitted 17 pages. Both function builds, packaging, packaged admin SLA scan, and bare-directory admin/public-api cold starts passed. Generated output remained ignored, untracked, and unstaged.
+- Final local Phase 8 Playwright contract passed 4/4 without mutation flags or a real inquiry submission.
+- Exact independent Chromium validation passed eight responsive states across Teardown and Blue Ocean at 390 / 768 / 1024 / 1440: zero horizontal overflow, three cards, direct PageHero-to-cards adjacency, no removed stats labels, and 1 / 2 / 3 / 3 columns. All eight screenshots passed visual review for clipping, overlap, spacing, card metrics, and CTA alignment.
+- Requirements traceability and blast-radius audits found no implementation scope drift. Remaining checks are delivery-only: exact-SHA review/blessing, OEM-first push, guarded `test` fast-forward, workflow completion, and canonical-domain live acceptance.
+- Validation-script correction: a combined heredoc command initially masked a failed over-broad text scan behind later successful commands. The result was rejected. Page-specific built-output scans and whitespace-normalized per-carrier source counts were then rerun as independent commands and passed.
+
 ### Phase 9 — Full validation, review, delivery, deploy
 
 - Lint, all package/function/site typechecks, unit tests, site build, function package smoke, CloudBase SDK contract gate if touched, Playwright local E2E, responsive screenshot review, diff review, blessing, branch push, fast-forward/merge to `test`, monitor CI + Deploy Test, and verify live URLs/assets/routes.
