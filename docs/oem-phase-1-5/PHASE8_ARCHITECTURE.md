@@ -141,4 +141,4 @@ N/A. No third-party API, method, option, return shape, event, or configuration c
 
 Open architecture questions: none. Slide 1 AI customer service remains outside Phase 8.
 
-**G3 APPROVED.** The first architecture presentation was too abstract for the user to judge; the user approved the plain-language execution plan and confirmed OEM branch → guarded `test` fast-forward → `supplychainsai.com` acceptance. Product code remains blocked until G4.
+**G3/G4 APPROVED.** The first architecture presentation was too abstract for the user to judge; the user approved the plain-language execution plan and confirmed OEM branch → guarded `test` fast-forward → `supplychainsai.com` acceptance. MIUs 1–6 and local G5 are complete; exact-SHA review and delivery remain.

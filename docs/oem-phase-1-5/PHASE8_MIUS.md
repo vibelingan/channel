@@ -235,4 +235,4 @@ N/A. No endpoint, action, request/response shape, status code, schema, auth rule
 
 ## Open questions
 
-None. Implementation remains blocked until the Phase 6 test plan is reviewed and G4 receives final approval.
+None. G4 was approved; MIUs 1–6 and local G5 are complete. Exact-SHA review and delivery remain.

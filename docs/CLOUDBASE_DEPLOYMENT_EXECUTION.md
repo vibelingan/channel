@@ -571,7 +571,8 @@ Deploy:
 Acceptance:
 
 - Site URL is returned.
-- `/`, `/admin`, `/login`, `/oem`, `/headphones`, `/overstock` load.
+- `/`, `/admin`, `/login`, `/oem`, and `/portfolio` load.
+- Retired storefront routes `/headphones` and `/overstock` return `404`.
 - Network calls go to the API origin.
 - At least one catalog image request succeeds from the API origin when the
   static site and API use different origins.
@@ -606,10 +607,8 @@ curl -f https://<site-url>/admin/
 Browser smoke:
 
 - Open site URL.
-- Open `/headphones`.
-- Confirm at least one product image renders and its network request targets the
-  API origin when `PUBLIC_API_BASE_URL` is set.
-- Open `/overstock`.
+- Open `/portfolio` and confirm case images render.
+- Confirm `/headphones` and `/overstock` return `404` and are absent from public navigation.
 - Open `/login`.
 - Log in as admin.
 - Open `/admin`.
