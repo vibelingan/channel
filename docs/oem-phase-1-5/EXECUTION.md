@@ -374,6 +374,15 @@ Final Phase 6 verification:
 - Build/quality evidence: Astro emitted the result route within 17 pages; Astro check reported 0 errors and 6 existing hints; touched-file Biome, editor diagnostics, pre-commit TypeScript, and `git diff --check` passed.
 - Independent assumption audit: **PASS**. No email, hidden source, API, form, route-topology, dependency, or backend behavior entered MIU 4.
 
+#### Phase 8 MIU 5 — Hidden storefront source parity (complete)
+
+- Commit: `10de195` (`fix(site): normalize hidden inquiry claims`); exactly three files.
+- Changed only the retained Headphones and Overstock Markdown response promises to exact `within 24 hours`.
+- TDD evidence: the new hidden-source contract first failed on the old Headphones phrase; after implementation it passed 3/3 while existing no-link/nav guards stayed green.
+- Retention hardening: tests now require all four underscore-prefixed storefront/item source pages to exist and reject both flat and directory-style public route counterparts. Stale-copy detection accepts whitespace/hyphen variants.
+- Build/quality evidence: Astro check reported 0 errors and 6 existing hints; the canonical-origin build emitted 17 pages, no Headphones/Overstock route directory, and no sitemap entry; touched-file Biome, editor diagnostics, pre-commit TypeScript, and `git diff --check` passed.
+- Independent assumption audit: **PASS**. No public route, navigation, API, catalog, loader, island, function, schema, environment, deployment, or runtime behavior changed.
+
 ### Phase 9 — Full validation, review, delivery, deploy
 
 - Lint, all package/function/site typechecks, unit tests, site build, function package smoke, CloudBase SDK contract gate if touched, Playwright local E2E, responsive screenshot review, diff review, blessing, branch push, fast-forward/merge to `test`, monitor CI + Deploy Test, and verify live URLs/assets/routes.
