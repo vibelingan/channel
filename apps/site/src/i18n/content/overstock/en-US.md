@@ -64,7 +64,7 @@ inquiry:
   title: Request batch quote
   intro: >-
     Tell us where to send your quote and catalog. We will price every lot in your
-    inquiry and reply within one business day.
+    inquiry and reply within 24 hours.
   emailLabel: Email
   companyLabel: Company
   countryLabel: Country

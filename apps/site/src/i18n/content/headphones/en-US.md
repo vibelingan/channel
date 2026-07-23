@@ -49,8 +49,8 @@ detail:
 inquiry:
   title: Request price & catalog
   intro: >-
-    Tell us where to send your quote. Our team typically replies within one
-    business day.
+    Tell us where to send your quote. Our team typically replies within 24
+    hours.
   emailLabel: Email
   companyLabel: Company
   countryLabel: Country
