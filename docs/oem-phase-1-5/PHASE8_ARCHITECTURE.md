@@ -23,9 +23,11 @@
 
 ## 什么绝对不改
 
+> 以下是 Phase 8 实施时的原始边界。2026-07-24 的 post-delivery legacy-review reconciliation 发现既有 BOM 明细并非客户原表转写；该真实性修正仅覆盖下面的 BOM 不改约束，margin、MOQ、其它产品资料和所有其它边界继续有效。详见 `EXECUTION.md` 的 B3 disposition。
+
 - 不删除或改写任何 report / concept card。
 - 不删除六个详情页。
-- 不改详情页中的 BOM、margin、MOQ 或产品资料。
+- 不改详情页中的 margin、MOQ 或其它产品资料；BOM 明细后来按客户原表做了真实性修正。
 - 不改导航、CTA 目的地、表单字段、上传或提交功能。
 - 不改 API、数据库、登录权限、CloudBase SDK 或环境变量。
 - 不新增 UI 组件、依赖或后端服务。
