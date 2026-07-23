@@ -1,6 +1,6 @@
 # OEM Phase 1.5 — Execution Plan & Living Log
 
-Status: In progress
+Status: Complete — Slides 2–16 are delivered to the CloudBase test environment; Slide 1 AI customer service remains deferred.
 Branch: `dev/albertli/oem-phase1-5-adjustments`
 Base: `origin/dev/albertli/oem-phase1@3d57384`
 Requirements: `channel-oem-review/client-revision-2026-07-15/06-CLIENT-REVISION-DETAILED-ANALYSIS.md`
@@ -324,14 +324,14 @@ Final Phase 6 verification:
 
 ### Phase 7 — Certificates/logos responsive presentation
 
-- Status: **Complete locally; reviewed delivery pending**.
+- Status: **Complete and delivered to the CloudBase test environment**.
 - Seven commits, each touching no more than five files, implement the approved Slide 9 scope: `3951362`, `c2944a9`, `8ee8e2a`, `b6ae36a`, `bf104cf`, `347c26d`, and `56893ed`.
 - All eight supplied documents are classified by their actual role: four compliance/test reports, three design patents, and one patent record. Published patent derivatives redact designer/agent contact details, personal rights-holder fields, and QR codes while retaining patent identity, company ownership, and document context; source tests pin the reviewed SHA-256 hashes.
 - All 13 supplied customer marks are published as unique transparent 600×240 WebP canvases with optically normalized content. The two education clients use generic `Education Partner` derivatives and identity-free filenames; public content, alternative text, URLs, and image pixels do not expose the school names.
 - Customer logos and each certificate group use a shared small/medium snap carousel with automatic five-second rotation, previous/next and pause/resume controls, 44×44 touch targets, Arrow/Home/End keyboard navigation, interaction pause, visibility gating, and `prefers-reduced-motion` autoplay suppression. At the large breakpoint, controls are hidden and the existing four-column logo/certificate grids remain; certificate thumbnails retain the native dialog lightbox and Escape/backdrop close behavior.
 - Focused Playwright validation passed 5/5 scenarios: 390/768 carousel controls and no horizontal overflow, real autoplay followed by keyboard pause, reduced-motion disabling, 1440 multi-row logo grid, all eight certificate triggers, and the desktop lightbox. Exact Chromium screenshots at 390, 768, 1024, and 1440 confirmed complete logos, readable labels, stable controls, no overlap, and no horizontal overflow.
 - Full validation passed after implementation: Biome checked 185 files; all nine workspace typechecks and the E2E TypeScript project passed; the complete test suite passed (including site 37, admin 135, public API 37, shared 70, media storage 26, auth 2, and deploy smoke 5); Astro check reported 0 errors and 6 existing hints; and the final static build emitted 17 pages.
-- Independent exact-SHA assumption review passed at `56893edba2fa854cf56b6c8a04bb31fab7615114` with no blocking findings. Phase 8 listing/stat/SLA changes remain untouched. No push or deployment is claimed until the documentation commit receives the same review and delivery gates.
+- Independent exact-SHA assumption review passed at `56893edba2fa854cf56b6c8a04bb31fab7615114` with no blocking findings. Phase 8 listing/stat/SLA changes remained untouched at that checkpoint. Phase 7 was subsequently included in the reviewed and live-accepted Phase 9 release recorded below.
 
 ### Phase 8 — Listing cleanup and global claim parity
 
@@ -395,7 +395,7 @@ Final Phase 6 verification:
 #### Phase 8 implementation boundary
 
 - MIUs 1–6 are complete. Phase 7.5 API contract verification is N/A because no endpoint, action, payload, response, status, schema, auth rule, SDK surface, upload flow, environment variable, or client/server contract changed.
-- Full G5 validation, visual review, exact-SHA review, OEM-first delivery, and live acceptance remain pending.
+- At this implementation checkpoint, full G5 validation, visual review, exact-SHA review, OEM-first delivery, and live acceptance remained pending. All five were subsequently completed under Phase 9 below.
 
 #### Phase 8 local G5 validation (complete)
 
@@ -405,7 +405,7 @@ Final Phase 6 verification:
 - Canonical `SITE_URL=https://supplychainsai.com` Astro build emitted 17 pages. Both function builds, packaging, packaged admin SLA scan, and bare-directory admin/public-api cold starts passed. Generated output remained ignored, untracked, and unstaged.
 - Final local Phase 8 Playwright contract passed 4/4 without mutation flags or a real inquiry submission.
 - Exact independent Chromium validation passed eight responsive states across Teardown and Blue Ocean at 390 / 768 / 1024 / 1440: zero horizontal overflow, three cards, direct PageHero-to-cards adjacency, no removed stats labels, and 1 / 2 / 3 / 3 columns. All eight screenshots passed visual review for clipping, overlap, spacing, card metrics, and CTA alignment.
-- Requirements traceability and blast-radius audits found no implementation scope drift. Remaining checks are delivery-only: exact-SHA review/blessing, OEM-first push, guarded `test` fast-forward, workflow completion, and canonical-domain live acceptance.
+- Requirements traceability and blast-radius audits found no implementation scope drift. At this checkpoint, the remaining checks were delivery-only; the exact-SHA review/blessing, OEM-first push, guarded `test` fast-forward, workflow completion, and canonical-domain live acceptance are now complete under Phase 9.
 - Validation-script correction: a combined heredoc command initially masked a failed over-broad text scan behind later successful commands. The result was rejected. Page-specific built-output scans and whitespace-normalized per-carrier source counts were then rerun as independent commands and passed.
 
 #### Phase 8 review fix — truthful confirmation-email status (complete)
@@ -416,9 +416,16 @@ Final Phase 6 verification:
 - TDD evidence: the source contract first failed on the new truthful wording. Final routing tests passed 4/4; site/E2E typechecks, touched-file Biome, 17-page build, focused browser result-page test, and pre-commit TypeScript passed.
 - No API response shape or email-delivery behavior was changed; the result copy now matches the existing best-effort runtime contract.
 
-### Phase 9 — Full validation, review, delivery, deploy
+### Phase 9 — Full validation, review, delivery, deploy (complete)
 
-- Lint, all package/function/site typechecks, unit tests, site build, function package smoke, CloudBase SDK contract gate if touched, Playwright local E2E, responsive screenshot review, diff review, blessing, branch push, fast-forward/merge to `test`, monitor CI + Deploy Test, and verify live URLs/assets/routes.
+- Final exact-SHA review passed at application commit `7024e33f49b66f53b1ad2857e86d7285b71dc6e0` with 0 P1, 0 P2, and 0 P3 findings. The review fix for the result page's unconditional email-delivery promise was included, re-reviewed, and the exact SHA was blessed before either push.
+- Fresh pre-push validation at that SHA passed Biome across 188 files, all workspace and E2E TypeScript checks, all workspace tests, the five deployment-smoke lifecycle tests, generated/staged-output hygiene, and editor diagnostics. The accepted application source tree remains exactly `7024e33`; this final execution-log close-out changes documentation only. Its required `test`-branch workflow may advance release metadata to the docs-only branch tip, but it does not introduce another application-code revision.
+- Delivery followed the required topology: `7024e33` was pushed first to `dev/albertli/oem-phase1-5-adjustments`; the remote OEM SHA was verified while `test` and `main` remained unchanged; then the same reviewed SHA was fast-forwarded to `test` after a fresh ancestor guard. `main` remained unchanged at `a9bedae2a7be3634427515e8d06d64080b24830d`.
+- Exact-commit GitHub Actions passed: CI run `29997899953` (`Build and smoke`) and Deploy Test run `29997899997` (`Build, deploy, and smoke test`) both completed successfully for `test@7024e33`.
+- Deploy Test's canonical-domain smoke passed for `https://supplychainsai.com`. It verified the active site routes, active portfolio media, retired storefront and TWS paths, read-only API boundaries, and both function health endpoints. The live `admin` and `public-api` services each reported release `7024e33f49b66f53b1ad2857e86d7285b71dc6e0` with build time `2026-07-23T10:05:19Z`.
+- Focused canonical-domain Playwright acceptance passed 4/4 without submitting an inquiry: Teardown and Blue Ocean had no aggregate stats at 390 / 768 / 1024 / 1440, retained three cards and all six HTTP-200 details, `/oem` rendered `20+` and the shared `within 24 hours` claim, and the result page rendered the approved response promise plus truthful best-effort confirmation-email wording.
+- Independent HTTP acceptance confirmed `/`, `/oem`, `/teardown-lab`, `/blue-ocean`, and `/oem_submit_result` returned 200; `/headphones` and `/overstock` returned 404; catalog reads returned 200; a missing private file returned 404; and an unauthenticated admin request returned 401.
+- Deployment scope remained the existing CloudBase test environment. No `main` or production-branch update occurred. Slides 2–16 are complete; Slide 1 AI customer service remains the sole deferred feature.
 
 ## Deviations
 
@@ -476,3 +483,7 @@ Final Phase 6 verification:
 - 2026-07-21: Reviewed `e1425ac` was pushed to the feature and `test` branches. CI `29761704375` passed; Deploy Test `29761700772` deployed successfully and all smoke assertions passed, but the smoke process retained unread image response bodies and did not exit. Its sole deploy job was canceled after 27m50s for diagnosis; live deployment health and expected 404s were independently confirmed.
 - 2026-07-21: `e55b4a1` added complete response draining, bounded HTTP/control-plane/step timeouts, a 5 MiB cap with stream cancellation, and five lifecycle regressions. Pre-push exact-SHA review found no P1/P2/P3 issues, and guarded fast-forwards advanced both remote branches.
 - 2026-07-21: CI `29801125280` and Deploy Test `29801125323` passed. The fixed smoke exited naturally in 23 seconds; public browser E2E completed with 8 passed, 2 skipped, and 0 failed; active portfolio media returned HTTP 200 with image MIME types; retired storefront/TWS paths returned HTTP 404; and both live functions reported `e55b4a1`. No production/main deployment occurred.
+- 2026-07-23: Phase 8 implementation, validation, HLD/LLD artifacts, and the truthful-email review fix completed across 23 commits from `586899b` through reviewed application SHA `7024e33`. Final review and assumption audits reported no open findings.
+- 2026-07-23: The reviewed SHA was pushed to the OEM branch first, independently verified, then fast-forwarded to `test` under an ancestor and blessing guard. `main` remained unchanged at `a9bedae2a7be3634427515e8d06d64080b24830d`.
+- 2026-07-23: CI `29997899953` and Deploy Test `29997899997` passed for `test@7024e33`. Canonical `https://supplychainsai.com` acceptance passed 4/4 Phase 8 browser scenarios plus route/API/release smoke; both functions reported exact release `7024e33`, retired `/headphones` and `/overstock` returned 404, and no real inquiry was submitted.
+- 2026-07-23: This documentation-only close-out reconciled the durable execution log with the verified delivery. It does not change the accepted application/runtime tree. Slides 2–16 are complete; Slide 1 AI customer service remains deferred.
