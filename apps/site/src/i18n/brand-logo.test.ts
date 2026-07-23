@@ -64,6 +64,10 @@ const teardownDetailSource = readFileSync(
   fileURLToPath(new URL('../pages/teardown-lab/[slug].astro', import.meta.url)),
   'utf8',
 );
+const blueOceanListingSource = readFileSync(
+  fileURLToPath(new URL('../pages/blue-ocean/index.astro', import.meta.url)),
+  'utf8',
+);
 const oemContent = readFileSync(
   fileURLToPath(new URL('./content/oem/en-US.md', import.meta.url)),
   'utf8',
@@ -539,5 +543,20 @@ test('Teardown listing removes only the aggregate stats band', () => {
     'href={OEM_INQUIRY_HREF}',
   ]) {
     assert.ok(teardownDetailSource.includes(retained), `Teardown details retain: ${retained}`);
+  }
+});
+
+test('Blue Ocean listing removes only the aggregate stats band', () => {
+  assert.ok(!blueOceanListingSource.includes('<!-- Stats strip -->'));
+  assert.doesNotMatch(blueOceanListingSource, /\b(?:avgMargin|totalProducts|minMoq)\b/);
+  for (const retained of [
+    'const products = getAllProducts();',
+    'products.map',
+    '<ProductConceptCard product={product} />',
+    'Concept Portfolio',
+    'Three Ways to Partner',
+    'href={OEM_INQUIRY_HREF}',
+  ]) {
+    assert.ok(blueOceanListingSource.includes(retained), `Blue Ocean listing retains: ${retained}`);
   }
 });

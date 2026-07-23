@@ -338,6 +338,91 @@ test.describe('public browser smoke', () => {
     );
   });
 
+  test('OEM Phase 8 removes Blue Ocean listing stats and retains concepts', async ({
+    page,
+    request,
+  }) => {
+    const viewports = [
+      { width: 390, height: 844, columns: 1 },
+      { width: 768, height: 1024, columns: 2 },
+      { width: 1024, height: 900, columns: 3 },
+      { width: 1440, height: 1000, columns: 3 },
+    ];
+
+    for (const viewport of viewports) {
+      await page.setViewportSize(viewport);
+      await page.goto(`/blue-ocean?phase8=${e2e.runId}`, {
+        waitUntil: 'domcontentloaded',
+      });
+
+      await expect(page.getByText('Concept Products', { exact: true })).toHaveCount(0);
+      await expect(page.getByText('Avg. Gross Margin', { exact: true })).toHaveCount(0);
+      await expect(page.getByText('Starting MOQ', { exact: true })).toHaveCount(0);
+
+      const cardsHeading = page.getByRole('heading', {
+        name: "Products the market hasn't built yet",
+      });
+      const cardsSection = page.locator('main > section').filter({ has: cardsHeading });
+      await cardsSection.scrollIntoViewIfNeeded();
+      await expect(cardsHeading).toBeVisible();
+      expect(
+        await cardsSection.evaluate((section) =>
+          section.previousElementSibling?.querySelector('h1')?.textContent?.trim(),
+        ),
+      ).toBe('Blue Ocean Products');
+
+      const cards = cardsSection.locator('a[href^="/blue-ocean/"]');
+      await expect(cards).toHaveCount(3);
+      expect(
+        await cards.evaluateAll(
+          (elements) =>
+            new Set(elements.map((element) => Math.round(element.getBoundingClientRect().left)))
+              .size,
+        ),
+      ).toBe(viewport.columns);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+    }
+
+    const cardsHeading = page.getByRole('heading', {
+      name: "Products the market hasn't built yet",
+    });
+    const cardsSection = page.locator('main > section').filter({ has: cardsHeading });
+    const detailPaths = await cardsSection
+      .locator('a[href^="/blue-ocean/"]')
+      .evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).pathname));
+    expect(detailPaths.toSorted()).toEqual([
+      '/blue-ocean/aerosense-ai-sports-headband',
+      '/blue-ocean/lumicogni-desktop-ai-hologram',
+      '/blue-ocean/somniflow-ai-sleep-pods',
+    ]);
+    for (const detailPath of detailPaths) {
+      const response = await request.get(detailPath);
+      expect(response.status(), detailPath).toBe(200);
+      const html = await response.text();
+      for (const retained of [
+        'BOM Cost Breakdown',
+        'Est. Margin',
+        'MOQ',
+        'White-label',
+        'Exclusive Buyout',
+        'Co-Development (JDM)',
+        'Start an OEM project',
+      ]) {
+        expect(html, `${detailPath} retains ${retained}`).toContain(retained);
+      }
+      expect(html).toContain('href="/blue-ocean"');
+      expect(html).toContain('href="/#oem-inquiry"');
+    }
+
+    await expect(page.getByText('Three Ways to Partner', { exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Start an OEM project' })).toHaveAttribute(
+      'href',
+      '/#oem-inquiry',
+    );
+  });
+
   test('OEM factory block renders the facility video', async ({ page }) => {
     await page.goto('/oem', { waitUntil: 'domcontentloaded' });
     // The client-provided factory video is wired: /oem emits a muted autoplay
