@@ -313,14 +313,13 @@ test.describe('public browser smoke', () => {
 
     const detailPaths = await page
       .locator('a[href^="/teardown-lab/"]')
-      .evaluateAll((links) => links.map((link) => link.getAttribute('href')));
-    expect(detailPaths.toSorted()).toEqual([
+      .evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).pathname));
+    expect([...detailPaths].sort()).toEqual([
       '/teardown-lab/clicbot-modular-robot',
       '/teardown-lab/lofree-flow-2-keyboard',
       '/teardown-lab/oladance-ows-pro',
     ]);
     for (const detailPath of detailPaths) {
-      if (!detailPath) throw new Error('Teardown detail path is missing');
       const response = await request.get(detailPath);
       expect(response.status(), detailPath).toBe(200);
       const html = await response.text();
@@ -392,7 +391,7 @@ test.describe('public browser smoke', () => {
     const detailPaths = await cardsSection
       .locator('a[href^="/blue-ocean/"]')
       .evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).pathname));
-    expect(detailPaths.toSorted()).toEqual([
+    expect([...detailPaths].sort()).toEqual([
       '/blue-ocean/aerosense-ai-sports-headband',
       '/blue-ocean/lumicogni-desktop-ai-hologram',
       '/blue-ocean/somniflow-ai-sleep-pods',
