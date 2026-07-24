@@ -8,7 +8,7 @@ AI customer service: Deferred; not part of this branch.
 
 ## Scope lock
 
-- Restore the historical CHANNEL wordmark from `6f73bfc`; remove company name and MOQ from the header.
+- Restore the historical CHANNEL wordmark from `6f73bfc`; retain `Diversity Technology Limited` beside it and remove only the MOQ from the header.
 - Keep the existing hero background, colors, and visual content; make the hero fill the viewport below the fixed header.
 - Put OEM Development first and route it to `/oem#what-we-do`.
 - Replace the old What We Do/One-Stop content with one shared Traditional-vs-AI workflow component on homepage and OEM page; retain the separate 10-step process.
@@ -43,8 +43,8 @@ Each phase touches no more than five files. A phase is verified and presented be
 - Depends on: none
 
 What it does:
-- Pins the approved historical CHANNEL asset by hash and renders only that wordmark in the header.
-- Removes company-name/MOQ presentation while retaining a compatibility-only `showName?` prop for hidden legacy route files.
+- Pins the approved historical CHANNEL asset by hash and renders it with the legal company name in the desktop header.
+- Removes the MOQ presentation while retaining a compatibility-only `showName?` prop for hidden legacy route files.
 - Adds a full-width brand-blue lower border; uses larger/semibold nav text; orders OEM Development first without mutating content data.
 
 Build/Deploy/Runtime impact:
@@ -53,7 +53,7 @@ Build/Deploy/Runtime impact:
 
 Test plan (TDD — write first):
 - Fails until `logo-channel.svg` hashes to the verified historical CHANNEL wordmark.
-- Fails while header source renders `brand.name` or `brand.minOrder`.
+- Fails until the desktop header renders `brand.name`; fails while it renders `brand.minOrder`.
 - Fails until the header uses the brand-blue border and OEM-first ordering logic.
 
 Done when:
@@ -416,6 +416,13 @@ Final Phase 6 verification:
 - TDD evidence: the source contract first failed on the new truthful wording. Final routing tests passed 4/4; site/E2E typechecks, touched-file Biome, 17-page build, focused browser result-page test, and pre-commit TypeScript passed.
 - No API response shape or email-delivery behavior was changed; the result copy now matches the existing best-effort runtime contract.
 
+#### Post-delivery Slide 2/4 correction — header identity and factory sequence
+
+- Latest client clarification supersedes the earlier interpretation that the Slide 2 `删除` annotation removed both company name and MOQ. The CHANNEL wordmark remains; `Diversity Technology Limited` is restored as visible responsive header text; only `Minimum Order Amount: $500` stays removed. Small screens use a compact wordmark and wrapping company label to preserve menu space.
+- The Factory gallery no longer follows the earlier Agent-selected design-to-dispatch order. The client-approved narrative is now exterior context first, then production lines, then product/design/tooling details: `f03 → f10 → f07 → f08 → f04 → f09 → f05 → f01 → f02 → f06`.
+- Source and browser contracts cover company-name visibility at 390/1024/1280/1440, mobile menu open/close state and links, desktop brand/nav/account non-overlap, absence of MOQ at every width, no horizontal overflow, and the exact ten-image DOM order with successful image loading.
+- Scope is presentation-only: no content claim, route, API, authentication, data model, SDK, environment, or deployment topology changes.
+
 ### Phase 9 — Full validation, review, delivery, deploy (complete)
 
 - Final exact-SHA review passed at application commit `7024e33f49b66f53b1ad2857e86d7285b71dc6e0` with 0 P1, 0 P2, and 0 P3 findings. The review fix for the result page's unconditional email-delivery promise was included, re-reviewed, and the exact SHA was blessed before either push.
@@ -454,7 +461,7 @@ The phrase “the last two optimisations are in progress” could not be traced 
 
 ## Deviations
 
-- Phase 1 test refinement: the legal company name remains as the logo `alt` text for accessibility, while all visual company/MOQ text is removed. This is the conservative interpretation of “logo only.”
+- Phase 1 initially treated the Slide 2 deletion annotation as removing both visual company name and MOQ. The client later clarified that the company name should remain, so the responsive header now shows it beside the CHANNEL wordmark at all widths while MOQ remains removed.
 - The CHANNEL asset test pins semantic identity (historical dimensions, brand colors, two-path shape, no Diversity orange) rather than whitespace-sensitive SVG bytes, so harmless XML formatting cannot create a false failure.
 - Phase 3 was split into 3A–3D because the combined work exceeded the five-file phase rule; the approved scope and behavior did not expand.
 - Phase 5 was split into verified 5A, 5B, 5C1, and 5C2 subphases because the combined form and routing work exceeded the five-file phase rule; the approved scope and behavior did not expand, and no subphase had a material deviation.

@@ -115,13 +115,21 @@ test('logo-channel.svg is the approved historical CHANNEL wordmark', () => {
   assert.equal((asset.match(/<path\b/g) ?? []).length, 2, 'historical two-path wordmark');
 });
 
-test('site header renders only the CHANNEL wordmark and prioritizes OEM Development', () => {
+test('site header renders the CHANNEL wordmark with company name but no MOQ', () => {
   assert.equal(
     headerSource.match(/\{brand\.name\}/g)?.length,
-    1,
-    'company name is present only as accessible logo text',
+    2,
+    'company name is present in the Home link label and visible header text',
   );
-  assert.ok(headerSource.includes('alt={brand.name}'), 'logo keeps accessible company text');
+  assert.ok(
+    headerSource.includes('aria-label={`${brand.name} home`}'),
+    'Home link has one descriptive accessible name',
+  );
+  assert.ok(headerSource.includes('alt=""'), 'decorative wordmark does not duplicate company name');
+  assert.ok(
+    headerSource.includes('data-company-name'),
+    'header exposes the visible company name for responsive browser verification',
+  );
   assert.ok(!headerSource.includes('{brand.minOrder}'), 'header does not render the MOQ badge');
   assert.ok(
     headerSource.includes('orderedMenuItems.map'),
@@ -374,22 +382,22 @@ test('retired homepage Product Capability code is removed without affecting OEM 
   }
 });
 
-test('Factory photos follow the confirmed development-to-dispatch narrative', () => {
+test('Factory photos move from exterior to production lines and making details', () => {
   const factoryPhotos = [
     ...factorySource.matchAll(/\{ src: '\/media\/oem\/factory\/(f\d{2}\.jpg)', alt: '([^']+)' \}/g),
   ].map((match) => ({ file: match[1], alt: match[2] }));
 
   assert.deepEqual(factoryPhotos, [
-    { file: 'f01.jpg', alt: 'Product design and 3D engineering' },
-    { file: 'f02.jpg', alt: 'Precision production mold' },
-    { file: 'f06.jpg', alt: 'Tooling detail and mold cavity' },
     { file: 'f03.jpg', alt: 'Factory facility entrance' },
     { file: 'f10.jpg', alt: 'ISO-certified factory campus' },
+    { file: 'f07.jpg', alt: 'Factory exterior and loading yard' },
     { file: 'f08.jpg', alt: 'Injection molding workshop' },
     { file: 'f04.jpg', alt: 'Product assembly and packing line' },
     { file: 'f09.jpg', alt: 'Product coating and finishing line' },
     { file: 'f05.jpg', alt: 'Product printing and finishing' },
-    { file: 'f07.jpg', alt: 'Factory loading and dispatch area' },
+    { file: 'f01.jpg', alt: 'Product design and 3D engineering' },
+    { file: 'f02.jpg', alt: 'Precision production mold' },
+    { file: 'f06.jpg', alt: 'Tooling detail and mold cavity' },
   ]);
   assert.equal(new Set(factoryPhotos.map((photo) => photo.file)).size, 10);
   assert.ok(factorySource.includes('role="region"'));

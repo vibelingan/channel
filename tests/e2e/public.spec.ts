@@ -23,6 +23,105 @@ test.describe('public browser smoke', () => {
     }
   });
 
+  test('Slide 2 header keeps the company name without restoring MOQ', async ({ page }) => {
+    for (const viewport of [
+      { width: 1280, height: 800 },
+      { width: 1440, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/', { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('[data-company-name]')).toHaveText('Diversity Technology Limited');
+      await expect(page.locator('[data-company-name]')).toBeVisible();
+      await expect(page.getByText('Minimum Order Amount: $500', { exact: true })).toHaveCount(0);
+      await expect(page.locator('[data-primary-nav]')).toBeVisible();
+      await expect(page.locator('[data-account-controls]')).toBeVisible();
+      const regions = await page.evaluate(() => {
+        const box = (selector: string) => {
+          const rect = document.querySelector(selector)?.getBoundingClientRect();
+          return rect ? { left: rect.left, right: rect.right } : undefined;
+        };
+        return {
+          brand: box('[data-brand-link]'),
+          nav: box('[data-primary-nav]'),
+          account: box('[data-account-controls]'),
+        };
+      });
+      expect(regions.brand?.right).toBeLessThanOrEqual(regions.nav?.left ?? 0);
+      expect(regions.nav?.right).toBeLessThanOrEqual(regions.account?.left ?? 0);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+    }
+
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 1024, height: 768 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/', { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('[data-company-name]')).toBeVisible();
+      await expect(page.locator('[data-company-name]')).toHaveText('Diversity Technology Limited');
+      await expect(page.locator('[data-site-header] img')).toBeVisible();
+      const toggle = page.getByRole('button', { name: 'Toggle menu' });
+      await expect(toggle).toBeVisible();
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+      await toggle.click();
+      await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      const mobileMenu = page.getByRole('navigation', { name: 'Mobile' });
+      await expect(mobileMenu).toBeVisible();
+      for (const label of ['OEM Development', 'Success Stories', 'Teardown Lab', 'Blue Ocean']) {
+        await expect(mobileMenu.getByRole('link', { name: label, exact: true })).toBeVisible();
+      }
+      await expect(mobileMenu.getByRole('link', { name: 'Sign in', exact: true })).toBeVisible();
+      await expect(mobileMenu.getByRole('link', { name: 'Register', exact: true })).toBeVisible();
+      await expect(page.getByText('Minimum Order Amount: $500', { exact: true })).toHaveCount(0);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+    }
+  });
+
+  test('Slide 4 factory gallery moves from exteriors to production and making details', async ({
+    page,
+  }) => {
+    await page.goto('/#factory', { waitUntil: 'domcontentloaded' });
+    const gallery = page.getByRole('region', {
+      name: 'Factory development and production gallery',
+    });
+    await gallery.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+    await expect(gallery.locator('img')).toHaveCount(10);
+    for (const image of await gallery.locator('img').all()) {
+      await expect(image).toHaveAttribute('loading', 'lazy');
+    }
+    expect(
+      await gallery
+        .locator('img')
+        .evaluateAll((images) => images.map((image) => image.getAttribute('src'))),
+    ).toEqual([
+      '/media/oem/factory/f03.jpg',
+      '/media/oem/factory/f10.jpg',
+      '/media/oem/factory/f07.jpg',
+      '/media/oem/factory/f08.jpg',
+      '/media/oem/factory/f04.jpg',
+      '/media/oem/factory/f09.jpg',
+      '/media/oem/factory/f05.jpg',
+      '/media/oem/factory/f01.jpg',
+      '/media/oem/factory/f02.jpg',
+      '/media/oem/factory/f06.jpg',
+    ]);
+    for (const image of await gallery.locator('img').all()) {
+      await image.scrollIntoViewIfNeeded();
+      await expect
+        .poll(() =>
+          image.evaluate((element) => {
+            const img = element as HTMLImageElement;
+            return img.complete && img.naturalWidth > 0;
+          }),
+        )
+        .toBe(true);
+    }
+  });
+
   test('public site footer links the ICP filing number to the MIIT homepage', async ({ page }) => {
     for (const path of ['/', '/oem', '/portfolio']) {
       await page.goto(path, { waitUntil: 'domcontentloaded' });

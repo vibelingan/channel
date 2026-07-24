@@ -6,7 +6,7 @@ import { orderPrimaryNavItems } from '../lib/site-navigation.ts';
 interface Props {
   brand: SiteContent['brand'];
   nav: SiteContent['nav'];
-  /** Retained for hidden legacy route compatibility; the public header is logo-only. */
+  /** Retained for hidden legacy route compatibility. */
   showName?: boolean;
 }
 
@@ -25,16 +25,22 @@ const orderedMenuItems = orderPrimaryNavItems(menuItems);
   <div
     class="mx-auto flex h-[var(--spacing-header)] max-w-[96rem] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8"
   >
-    <!-- Public brand: the approved CHANNEL wordmark only. -->
-    <a href="/" class="flex shrink-0 items-center" aria-label="Home">
+    <!-- Public brand: approved CHANNEL wordmark with the legal company name. -->
+    <a
+      href="/"
+      class="flex min-w-0 shrink-0 items-center gap-2 xl:max-w-[25rem]"
+      aria-label={`${brand.name} home`}
+      data-brand-link
+    >
       {
         brand.logo ? (
           <img
             src={brand.logo}
-            alt={brand.name}
+            alt=""
             width="226"
             height="30"
-            class="h-8 w-auto shrink-0 sm:h-9"
+            class="h-4 w-auto shrink-0 min-[360px]:h-5 sm:h-7 2xl:h-8"
+            aria-hidden="true"
           />
         ) : (
           <span
@@ -45,10 +51,17 @@ const orderedMenuItems = orderPrimaryNavItems(menuItems);
           </span>
         )
       }
+      <span
+        class="max-w-24 text-[10px] font-semibold leading-tight text-ink min-[360px]:max-w-28 sm:max-w-none sm:whitespace-nowrap sm:text-xs lg:text-sm xl:text-xs 2xl:text-sm"
+        aria-hidden="true"
+        data-company-name
+      >
+        {brand.name}
+      </span>
     </a>
 
     <!-- Primary navigation (centered on wide screens) -->
-    <nav class="hidden items-center gap-1 xl:flex" aria-label="Primary">
+    <nav class="hidden shrink-0 items-center gap-1 xl:flex" aria-label="Primary" data-primary-nav>
       {
         orderedMenuItems.map((item) => (
           <a
@@ -62,7 +75,7 @@ const orderedMenuItems = orderPrimaryNavItems(menuItems);
     </nav>
 
     <!-- Account controls (right) + mobile menu toggle -->
-    <div class="flex shrink-0 items-center gap-2">
+    <div class="flex shrink-0 items-center gap-2" data-account-controls>
       <span class="hidden xl:block"><AccountMenu client:only="react" /></span>
       <button
         type="button"
