@@ -1,0 +1,320 @@
+---
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { getHeadphonesContent } from '../i18n/headphones.ts';
+import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
+import { HeadphonesPage } from '../islands/shop/HeadphonesPage.tsx';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = getSiteContent(DEFAULT_LOCALE);
+const hp = getHeadphonesContent(DEFAULT_LOCALE);
+const { brand, nav, factory, quality, certifications, footer } = site;
+
+// Page-specific strings that extend the shared headphones i18n content.
+const pageStrings = {
+  heroEyebrow: 'Factory-Direct Headphones',
+  heroHeading: 'Premium OEM Headphones — Built in Our Factory, Shipped Worldwide',
+  heroBody:
+    'Direct from our ISO-certified Dongguan facility. Over-ear, TWS earbuds, kid-safe models — bulk pricing, custom branding, global delivery.',
+  heroBadges: [
+    'Factory Direct Pricing',
+    'MOQ from 500 Units',
+    'Global Shipping',
+    'OEM / ODM Customization',
+  ],
+
+  matrixEyebrow: 'Product Line',
+  matrixHeading: 'Explore Our Headphone Collection',
+  matrixSubheading:
+    'Every model is engineered and manufactured in-house. Click any product to view full specifications and request a quote.',
+
+  viewDetail: 'View Details',
+  moqLabel: 'MOQ',
+  unitPriceLabel: 'Unit Price',
+
+  detailHeading: 'Product Specifications',
+  backToMatrix: 'Back to all models',
+
+  advEyebrow: 'Why Source From Us',
+  advHeading: 'Factory Strength & Quality Assurance',
+  advItems: [
+    {
+      title: 'Factory Direct',
+      desc: '20+ years OEM experience. 5,000 m² ISO-certified facility in Dongguan with in-house tooling, molding, PCBA, and assembly.',
+      icon: '🏭',
+    },
+    {
+      title: 'Quality Certified',
+      desc: 'CE, FCC, EMC, RoHS certified. Full in-house QC lab with burst, drop, salt-spray, and vibration testing.',
+      icon: '✅',
+    },
+    {
+      title: 'OEM / ODM Customization',
+      desc: 'Custom branding, color, packaging, and firmware. Our engineering team delivers tailored solutions for your market.',
+      icon: '🎨',
+    },
+    {
+      title: 'Global Logistics',
+      desc: 'Reliable shipping to 40+ countries. Dedicated export documentation and international trade compliance.',
+      icon: '🚢',
+    },
+  ],
+
+  ctaEyebrow: 'Request a Quote',
+  ctaHeading: 'Ready to Stock Premium Headphones?',
+  ctaBody:
+    'Tell us your requirements — our team will send pricing, catalog, and samples within 24 hours.',
+  ctaButton: 'Send Enquiry →',
+};
+
+// SEO metadata
+const seoTitle = `Headphones Manufacturer — OEM Bluetooth & Wired Headphone Supplier | ${brand.name}`;
+const seoDescription =
+  'Factory-direct headphone manufacturer in Dongguan, China. OEM/ODM over-ear headphones, TWS earbuds, kid-safe headphones. MOQ from 500 units, CE/FCC certified, global shipping. Request a quote today.';
+---
+
+<BaseLayout title={seoTitle} description={seoDescription} lang="en" canonicalPath="/headphones">
+  <SiteHeader brand={brand} nav={nav} />
+
+  <main>
+    <!-- ===== Hero Banner ===== -->
+    <section class="relative overflow-hidden bg-gradient-to-br from-brand-950 via-brand-900 to-brand-800 text-white">
+      <!-- Background pattern -->
+      <div class="pointer-events-none absolute inset-0 opacity-[0.07]" aria-hidden="true">
+        <div
+          class="absolute inset-0"
+          style="background-image: radial-gradient(circle at 25% 25%, #818cf8 1px, transparent 1px), radial-gradient(circle at 75% 75%, #818cf8 1px, transparent 1px); background-size: 60px 60px;"
+        >
+        </div>
+      </div>
+
+      <div class="relative mx-auto max-w-[var(--width-container)] px-4 py-20 sm:px-6 sm:py-28 lg:px-8 lg:py-36">
+        <div class="grid items-center gap-12 lg:grid-cols-2">
+          <!-- Left: text -->
+          <div class="reveal">
+            <p class="text-sm font-semibold uppercase tracking-[0.15em] text-accent-300">
+              {pageStrings.heroEyebrow}
+            </p>
+            <h1 class="mt-4 font-display text-4xl font-bold leading-tight sm:text-5xl lg:text-5xl">
+              {pageStrings.heroHeading}
+            </h1>
+            <p class="mt-6 max-w-xl text-lg leading-relaxed text-slate-300">
+              {pageStrings.heroBody}
+            </p>
+
+            <!-- Badges -->
+            <div class="mt-8 flex flex-wrap gap-3">
+              {pageStrings.heroBadges.map((badge) => (
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-brand-600/50 bg-brand-800/50 px-4 py-2 text-sm font-medium text-slate-200 backdrop-blur-sm">
+                  <svg
+                    class="h-4 w-4 text-accent-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    aria-hidden="true"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  {badge}
+                </span>
+              ))}
+            </div>
+
+            <!-- Primary CTA -->
+            <div class="mt-10 flex flex-wrap gap-4">
+              <a
+                href="#headphones-inquiry"
+                class="inline-flex items-center gap-2 rounded-lg bg-accent-500 px-7 py-3.5 text-base font-semibold text-brand-950 shadow-lg transition hover:bg-accent-400"
+              >
+                <svg
+                  class="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  aria-hidden="true"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M3 8l9 6 9-6M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2z"
+                  />
+                </svg>
+                Request a Quote
+              </a>
+              <a
+                href="#product-matrix"
+                class="inline-flex items-center gap-2 rounded-lg border border-brand-500/40 bg-transparent px-7 py-3.5 text-base font-semibold text-white transition hover:bg-brand-700/50"
+              >
+                Browse Products
+                <svg
+                  class="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  aria-hidden="true"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </a>
+            </div>
+          </div>
+
+          <!-- Right: hero visual placeholder -- replace with actual headphone product image -->
+          <div class="reveal flex items-center justify-center">
+            <div class="relative">
+              <div
+                class="absolute -inset-4 rounded-2xl bg-gradient-to-br from-brand-400/20 to-accent-400/20 blur-2xl"
+                aria-hidden="true"
+              >
+              </div>
+              <div
+                class="relative flex aspect-square w-full max-w-sm items-center justify-center rounded-2xl border border-brand-600/30 bg-brand-900/50 p-8 backdrop-blur-sm sm:max-w-md"
+              >
+                <!-- Placeholder headphone icon — replace with product image -->
+                <svg
+                  class="h-40 w-40 text-brand-300/50 sm:h-56 sm:w-56"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1"
+                  aria-hidden="true"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M3 18v-6a9 9 0 0 1 18 0v6"
+                  />
+                  <path
+                    d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Product Matrix + Details + Advantages + CTA (React island) ===== -->
+    <div id="product-matrix" class="scroll-mt-[var(--spacing-header)]">
+      <HeadphonesPage content={hp} strings={pageStrings} client:only="react" />
+    </div>
+
+    <!-- ===== Quality & Testing (reuse existing data) ===== -->
+    <section class="bg-surface-alt py-16 sm:py-20">
+      <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
+        <div class="reveal mx-auto max-w-2xl text-center">
+          <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
+            {quality.eyebrow}
+          </p>
+          <h2 class="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl">
+            {quality.heading}
+          </h2>
+          <p class="mt-4 text-lg leading-relaxed text-ink-soft">
+            {quality.body}
+          </p>
+        </div>
+
+        <!-- QC test images from existing data -->
+        <div class="reveal mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          {[
+            { img: '/media/oem/quality/q1.jpg', label: 'QC Inspection Lab' },
+            { img: '/media/oem/quality/q2.jpg', label: 'Burst / Pressure Test' },
+            { img: '/media/oem/quality/q3.jpg', label: 'Press-Force Test' },
+            { img: '/media/oem/quality/q4.jpg', label: 'Salt-Spray Corrosion Test' },
+            { img: '/media/oem/quality/q5.jpg', label: 'Vibration / Transport Test' },
+            { img: '/media/oem/quality/q6.jpg', label: 'Environmental Aging Chamber' },
+            { img: '/media/oem/quality/q7.jpg', label: 'Tensile / Pull Test' },
+            { img: '/media/oem/quality/q8.jpg', label: 'Drop Test' },
+          ].map((t, i) => (
+            <figure
+              class="group overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-surface shadow-sm transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
+              style={`transition-delay: ${i * 60}ms`}
+            >
+              <img
+                src={t.img}
+                alt={t.label}
+                loading="lazy"
+                class="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-[1.04]"
+              />
+              <figcaption class="px-3 py-2.5 text-center text-xs font-semibold text-ink-soft">
+                {t.label}
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Certifications ===== -->
+    <section class="bg-white py-16 sm:py-20">
+      <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
+        <div class="reveal mx-auto max-w-2xl text-center">
+          <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
+            {certifications.eyebrow}
+          </p>
+          <h2 class="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl">
+            {certifications.heading}
+          </h2>
+          <p class="mt-4 text-lg text-ink-soft">
+            {certifications.intro}
+          </p>
+        </div>
+
+        <!-- Certificates -->
+        <div class="reveal mt-12 grid grid-cols-2 gap-6 sm:grid-cols-4">
+          {[
+            { name: 'CE', img: '/media/oem/certs/ce.jpg', desc: 'European conformity' },
+            { name: 'EMC', img: '/media/oem/certs/emc.jpg', desc: 'Electromagnetic compatibility' },
+            { name: 'FCC', img: '/media/oem/certs/fcc.jpg', desc: 'U.S. FCC compliance' },
+            { name: 'JD', img: '/media/oem/certs/jd.jpg', desc: 'Retail channel quality' },
+          ].map((cert) => (
+            <figure class="flex flex-col items-center rounded-[var(--radius-card)] border border-slate-200 bg-surface-alt p-4 text-center shadow-sm">
+              <img
+                src={cert.img}
+                alt={`${cert.name} certification`}
+                loading="lazy"
+                class="h-40 w-full rounded-md bg-white object-contain ring-1 ring-black/5"
+              />
+              <figcaption class="mt-3">
+                <p class="font-display text-sm font-semibold text-ink">{cert.name}</p>
+                <p class="mt-0.5 text-xs text-ink-muted">{cert.desc}</p>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+
+        <!-- Client logos -->
+        <div class="reveal mt-14">
+          <h3 class="text-center font-display text-lg font-semibold text-ink">
+            Global Clients
+          </h3>
+          <div class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            {[
+              { name: 'Artcoustic', img: '/media/oem/clients/artcoustic.png' },
+              { name: 'Audio Diversity', img: '/media/oem/clients/audio-diversity.png' },
+              { name: 'CoreMee', img: '/media/oem/clients/coremee.png' },
+              { name: 'DI', img: '/media/oem/clients/di.png' },
+              { name: 'pabobo', img: '/media/oem/clients/pabobo.jpg' },
+              { name: 'AS', img: '/media/oem/clients/as.png' },
+            ].map((client) => (
+              <div class="flex h-24 items-center justify-center rounded-[var(--radius-card)] border border-slate-200 bg-surface-alt px-4 py-6 shadow-sm">
+                <img
+                  src={client.img}
+                  alt={`${client.name} logo`}
+                  loading="lazy"
+                  class="max-h-12 w-auto max-w-full object-contain opacity-80 transition hover:opacity-100"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <SiteFooter brand={brand} footer={footer} />
+</BaseLayout>

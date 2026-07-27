@@ -12,6 +12,7 @@ brand:
 
 nav:
   items:
+    - { label: Headphones, href: '/headphones' }
     - { label: Success Stories, href: '/portfolio' }
     - { label: Teardown Lab, href: '/teardown-lab' }
     - { label: Blue Ocean, href: '/blue-ocean' }
@@ -201,6 +202,7 @@ footer:
   columns:
     - heading: Company
       links:
+        - { label: Headphones, href: '/headphones' }
         - { label: Success Stories, href: '/portfolio' }
         - { label: Teardown Lab, href: '/teardown-lab' }
         - { label: Blue Ocean Products, href: '/blue-ocean' }
