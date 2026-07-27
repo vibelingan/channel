@@ -19,6 +19,10 @@ const deploymentExecution = readFileSync(
   'utf8',
 );
 const cicdDesign = readFileSync(new URL('../docs/CICD_DESIGN.md', import.meta.url), 'utf8');
+const cicdProductionPlan = readFileSync(
+  new URL('../docs/CICD_PRODUCTION_PLAN.md', import.meta.url),
+  'utf8',
+);
 
 function listedIndex(index) {
   return {
@@ -273,6 +277,9 @@ test('deployment docs match restored routes and post-baseline resource contracts
   assert.match(cicdDesign, /Retired storefront route `\/overstock` returns `404`/);
   assert.doesNotMatch(cicdDesign, /Retired storefront routes `\/headphones` and `\/overstock`/);
   assert.match(deploymentDesign, /PD-1 \(superseded 2026-07-27\)/);
+  assert.match(cicdProductionPlan, /PD-1 \(superseded 2026-07-27\)/);
+  assert.match(cicdProductionPlan, /`\/headphones` → `200`; `\/overstock` → `404`/);
+  assert.doesNotMatch(deploySource, /retired \/headphones and \/overstock storefronts/);
 
   for (const contract of [
     '`passwordResets`',

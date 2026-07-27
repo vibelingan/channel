@@ -524,7 +524,7 @@ function ensureGateway(def) {
 // Static hosting `upload` is additive: it creates/overwrites files but never
 // deletes remote files that are absent from the new build. Pages and assets
 // intentionally removed from the site therefore linger on the CDN from earlier
-// deploys (e.g. the retired /headphones and /overstock storefronts). We prune
+// deploys (e.g. the retired /overstock storefront). We prune
 // the known legacy paths explicitly.
 //
 // This is a *targeted* prune, not a blanket "delete everything not in dist":
