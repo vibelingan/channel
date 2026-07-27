@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ensureNoSqlResources } from './cloudbase-nosql-resources.mjs';
+
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const functionRootPath = resolve(root, '.cloudbase-artifacts/functions');
 const siteRootPath = resolve(root, 'apps/site');
@@ -522,7 +524,7 @@ function ensureGateway(def) {
 // Static hosting `upload` is additive: it creates/overwrites files but never
 // deletes remote files that are absent from the new build. Pages and assets
 // intentionally removed from the site therefore linger on the CDN from earlier
-// deploys (e.g. the retired /headphones and /overstock storefronts). We prune
+// deploys (e.g. the retired /overstock storefront). We prune
 // the known legacy paths explicitly.
 //
 // This is a *targeted* prune, not a blanket "delete everything not in dist":
@@ -591,6 +593,7 @@ function deployWebApp() {
 
 console.log(`Deploying CloudBase test env ${envId} with function runtime ${targetRuntime}`);
 callTool('cloudbase.auth', { action: 'set_env', envId });
+ensureNoSqlResources(callTool);
 
 for (const def of functionDefs) {
   deployFunction(def);

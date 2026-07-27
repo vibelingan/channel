@@ -333,6 +333,8 @@ Collections:
 | `oemProjects` | Public OEM submissions | Admin function create/read/write |
 | `images` | Image metadata or temporary base64 image docs | Public function read only when published-linked |
 | `files` | OEM drawing metadata or temporary base64 file docs | Admin/contributor only |
+| `passwordResets` | Single-use password reset token hashes | Admin function only; direct clients denied |
+| `rateLimitHits` | Public-endpoint abuse-control ledger | Admin function only; direct clients denied |
 
 P0 may temporarily keep the current base64 storage model if the data set is
 small and file uploads are capped. That is acceptable only for test review.
@@ -358,6 +360,11 @@ Indexes:
 - `oemProjects.createdAt`
 - `images.name`
 - `files.name`
+- `passwordResets.expiresAt`
+- `passwordResets.tokenHash` (unique)
+- `rateLimitHits.createdAt`
+- `rateLimitHits.scope + rateLimitHits.createdAt`
+- `rateLimitHits.scope + rateLimitHits.sourceHash + rateLimitHits.createdAt`
 
 Database rules:
 
@@ -365,6 +372,14 @@ Database rules:
 - Server-side functions use CloudBase manager/server privileges.
 - Default collection client rules should deny direct write.
 - Sensitive collections should deny direct client read.
+- `passwordResets` and `rateLimitHits` use `ADMINONLY` because they contain
+  server-managed token/source hashes.
+
+Post-baseline runtime resources are declared in
+`scripts/cloudbase-nosql-resources.mjs`, provisioned before either function is
+deployed, and re-read for exact index/ACL verification. Missing resources are
+created additively; a same-name index with a different key order, direction, or
+uniqueness blocks deployment rather than being dropped or replaced implicitly.
 
 ### 5.5 Storage
 
@@ -958,7 +973,7 @@ installed package/source inspection.
 
 | # | Sev | Area | Issue | Required action |
 | --- | --- | --- | --- | --- |
-| PD-1 | P1 | Deployment acceptance / OEM refresh | The deployment docs still say `/headphones` and `/overstock` must render, but the current OEM refresh intentionally retires those routes. `scripts/smoke-cloudbase-deploy.mjs` now expects `/`, `/admin`, `/login`, `/oem`, and `/portfolio` to return 200, and `/headphones` / `/overstock` to return 404. | Update `docs/CLOUDBASE_DEPLOYMENT_EXECUTION.md`, `docs/CICD_DESIGN.md`, and this canonical design so production DoD says `/portfolio` is live and retired storefront routes are pruned/404. Keep product/overstock APIs only if they remain an admin/data reuse boundary. |
+| PD-1 (superseded 2026-07-27) | P1 | Deployment acceptance / OEM refresh | Historical finding: the OEM refresh retired both storefront routes. Commit `90bd06e` later restored `/headphones`; `/overstock` remains retired. | Current contract: `/headphones` is navigation-visible and returns 200; `/overstock` is pruned and returns 404. The execution plan, CI/CD design, and deployed smoke now pin that split outcome. |
 | PD-2 | P1 | GitHub Environment setup | Secret names drift across docs and implementation. This doc and the execution plan still use `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY`, while `.github/workflows/deploy-test.yml`, `scripts/deploy-cloudbase-test.mjs`, `scripts/set-cloudbase-github-secrets.mjs`, and `docs/CICD_DESIGN.md` require `TENCENTCLOUD_SECRETID` / `TENCENTCLOUD_SECRETKEY`. SMTP values also drift: the canonical docs describe most `EMAIL_*` values as variables, while the workflow injects all `EMAIL_*` through secrets. | Create one canonical GitHub Environment matrix and update every setup command to match it. Recommended current shape: `TENCENTCLOUD_SECRETID` / `TENCENTCLOUD_SECRETKEY` as GitHub Environment secrets for deploy, never function runtime env; decide whether non-sensitive SMTP settings are vars or secrets and make workflow/docs agree. |
 | PD-3 | P1 | CloudBase state baseline | Section 2 still records the pre-deploy live env state (`Cloud functions: none yet`, `CloudBase Web Apps: none yet`, no collections), but CI/CD docs and scripts assume an existing deployed `channel-test` path, gateway routes, functions, and static hosting/Web App URL. | Before production sign-off, run a fresh CloudBase inspection for `test` and the future `prod` EnvId. Replace the stale "Current Facts" block with dated "last verified" state, including functions, runtime, gateway routes, hosting/Web App mode, storage bucket/CORS, collections/indexes/rules, CLS status, and deploy ownership. |
 | PD-4 | P1 | Hosting mode / first prod deploy | The design correctly says first-time frontend deployment should use `manageApps`, but the implemented test deploy uses `manageHosting(action="upload")` for the already-proven `channel-test` path. CloudBase guidance treats first-time independent Web App deployment and static-hosting upload as different operational surfaces. | Document hosting mode per environment. Keep `manageHosting` only for the existing `channel-test` test path if that is the verified surface. For first production deploy, explicitly create/deploy the production Web App with `manageApps`/CloudBase App deploy, or consciously choose static hosting and record URL/version/prune tradeoffs before enabling `main -> prod`. |

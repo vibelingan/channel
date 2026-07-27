@@ -23,8 +23,8 @@ cannot yet serve `/api/admin` and `/api/products` from CloudBase.
 P0 is done when all of these are true:
 
 - A client-visible URL loads the Astro site from CloudBase.
-- `/`, `/admin`, `/login`, `/oem`, and `/portfolio` render.
-- Retired storefront routes `/headphones` and `/overstock` are pruned and return `404`.
+- `/`, `/admin`, `/login`, `/oem`, `/portfolio`, and `/headphones` render.
+- `/headphones` renders and `/overstock` returns `404` after targeted hosting prune.
 - Browser API calls reach CloudBase HTTP functions.
 - `GET /api/health` succeeds.
 - `GET /api/products?pageSize=1` succeeds with a valid JSON envelope.
@@ -432,6 +432,8 @@ overstock
 oemProjects
 images
 files
+passwordResets
+rateLimitHits
 ```
 
 Indexes:
@@ -453,14 +455,32 @@ oemProjects.email
 oemProjects.createdAt
 images.name
 files.name
+passwordResets.expiresAt
+passwordResets.tokenHash (unique)
+rateLimitHits.createdAt
+rateLimitHits.scope + rateLimitHits.createdAt
+rateLimitHits.scope + rateLimitHits.sourceHash + rateLimitHits.createdAt
 ```
 
 Permissions:
 
 - Deny direct client writes.
 - Deny direct client reads for `users`, `oemProjects`, and `files`.
+- Keep `passwordResets` and `rateLimitHits` `ADMINONLY`; they contain
+  server-managed token/source hashes.
 - If all browser reads go through functions, direct client reads can be denied
   for all collections in P0.
+
+`scripts/deploy-cloudbase-test.mjs` provisions and verifies the post-baseline
+runtime resources before deploying either function: `passwordResets` with its
+expiry/unique-token indexes, and `rateLimitHits` with its three query indexes.
+Both use `ADMINONLY`. The deployed smoke then sends a non-creating partial-upload
+submission and an invalid reset token; both must reach their post-database
+validation branches, so a missing collection or index fails the deploy.
+Each probe reserves one normal `rateLimitHits` row. Those rows consume one
+allowance only inside the existing 60-second window and are reaped by the normal
+bounded sweep; neither probe creates an OEM project, reset token, or password
+change.
 
 First write-permission test:
 
@@ -571,8 +591,8 @@ Deploy:
 Acceptance:
 
 - Site URL is returned.
-- `/`, `/admin`, `/login`, `/oem`, and `/portfolio` load.
-- Retired storefront routes `/headphones` and `/overstock` return `404`.
+- `/`, `/admin`, `/login`, `/oem`, `/portfolio`, and `/headphones` load.
+- The retired storefront route `/overstock` returns `404`.
 - Network calls go to the API origin.
 - At least one catalog image request succeeds from the API origin when the
   static site and API use different origins.
@@ -608,7 +628,7 @@ Browser smoke:
 
 - Open site URL.
 - Open `/portfolio` and confirm case images render.
-- Confirm `/headphones` and `/overstock` return `404` and are absent from public navigation.
+- Confirm `/headphones` loads from public navigation and `/overstock` returns `404`.
 - Open `/login`.
 - Log in as admin.
 - Open `/admin`.

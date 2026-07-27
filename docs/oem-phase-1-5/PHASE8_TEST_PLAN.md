@@ -1,6 +1,6 @@
 # OEM Phase 8 — Test Plan
 
-Status: G4 approved; local source/type/build/artifact/browser gates passed; live delivery checks pending
+Status: completed; route contract superseded 2026-07-27 by `90bd06e`
 Date: 2026-07-23
 MIUs: `docs/oem-phase-1-5/PHASE8_MIUS.md`
 
@@ -13,7 +13,7 @@ Before delivery, the tests must prove all of the following:
 3. All six detail pages still return 200 and retain BOM, margin, MOQ, CTA, and back links.
 4. `/oem` shows `20+`, not `15+`.
 5. Both hidden ProjectForm success states and the visible result page contain exact `within 24 hours` without submitting a real inquiry.
-6. Hidden headphones/overstock sources use the same promise but remain unrouted and unlinked.
+6. Headphones and Overstock sources use the same promise; `/headphones` is now restored while `/overstock` remains retired.
 7. Confirmation-email text and HTML use the same promise, and the packaged admin function contains it.
 8. Generated build/package output remains ignored and uncommitted.
 9. Delivery uses the exact reviewed SHA in the order OEM branch → `test` → `supplychainsai.com`; main/production remain unchanged.
@@ -62,9 +62,9 @@ Required RED before implementation: source and visible result-copy assertions fa
 
 | ID | Level | Required assertion | Retention / negative assertion | Proof command |
 |---|---|---|---|---|
-| P8-M5-SRC | Source/unit | Headphones and Overstock each contain their exact `within 24 hours` sentence. | No `business day`; no main-site links to either hidden section. | Focused `hidden-sections.test.ts` plus site typecheck. |
-| P8-M5-BUILD | Build | Site builds after both source changes. | No `dist/headphones`, `dist/overstock`, or sitemap entry is emitted. | Intended-origin site build plus filesystem/`grep` assertions. |
-| P8-M5-LIVE | Deployed smoke | Both hidden paths remain HTTP 404 on `supplychainsai.com`. | Any 200/redirect/restored link fails acceptance. | Cache-busted `curl` after deployment. |
+| P8-M5-SRC | Source/unit | Headphones and Overstock each contain their exact `within 24 hours` sentence. | No `business day`; restored Headphones navigation and retired Overstock routing remain explicit. | Focused `hidden-sections.test.ts` plus site typecheck. |
+| P8-M5-BUILD | Build | Site builds after both source changes. | `dist/headphones` is emitted; `dist/overstock` and its sitemap entry remain absent. | Intended-origin site build plus filesystem/`grep` assertions. |
+| P8-M5-LIVE | Deployed smoke | `/headphones` returns HTTP 200; `/overstock` remains HTTP 404 on `supplychainsai.com`. | Any opposite response fails current acceptance. | Cache-busted `curl` after deployment. |
 
 Required RED before implementation: both source-copy assertions fail. Existing hidden-route guards remain green.
 
@@ -157,7 +157,7 @@ The local Phase 8 browser test must not set mutation flags or submit a real inqu
 5. Fast-forward the exact same SHA to `test`, without force.
 6. Require CI and Deploy Test to pass; verify main/production did not move.
 7. Run the focused Phase 8 Playwright contract against `https://supplychainsai.com` with the reviewed SHA as cache key.
-8. Independently verify both hidden routes remain 404 and all six retained details return 200.
+8. Independently verify `/headphones` returns 200, `/overstock` returns 404, and all six retained details return 200.
 
 Provider test hostname alone is not final acceptance. No main push, production workflow, mutation flag, or real inquiry submission is authorized.
 
@@ -175,6 +175,6 @@ Approving G4 authorizes only:
 - rebuilding ignored artifacts for verification;
 - delivering OEM → `test` → `supplychainsai.com` after all gates pass.
 
-It does not authorize card/detail/data changes, route restoration, form/API changes, a real inquiry, Slide 1 work, or main/production deployment.
+At Phase 8 approval time it did not authorize route restoration. The later `90bd06e` change independently restored `/headphones`; `/overstock` remains retired.
 
 G4 blockers: none. Open questions: none.

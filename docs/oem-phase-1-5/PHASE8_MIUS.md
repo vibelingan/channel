@@ -1,7 +1,11 @@
 # OEM Phase 8 — Implementation Tasks (MIUs)
 
-Status: MIUs 1–6 implemented and locally validated; awaiting review and delivery
+Status: completed and delivered; route contract superseded 2026-07-27 by `90bd06e`
 Architecture: `docs/oem-phase-1-5/PHASE8_ARCHITECTURE.md`
+
+The MIUs below preserve the approved Phase 8 implementation history. Their
+Headphones/Overstock no-route-restoration boundary was later superseded only for
+`/headphones`: it is now public and HTTP 200; `/overstock` remains retired/404.
 
 ## Plain-language order
 

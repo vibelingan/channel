@@ -95,6 +95,12 @@ function assertRelease(service, body) {
   console.log(`${service}: release ${data.releaseId} (${data.buildTime})`);
 }
 
+function assertApiError(label, body, expectedCode) {
+  if (body?.ok !== false || body?.error?.code !== expectedCode) {
+    throw new Error(`${label}: unexpected response: ${JSON.stringify(body).slice(0, 300)}`);
+  }
+}
+
 function verifyFunctionRuntime(functionName) {
   const result = callTool('cloudbase.queryFunctions', {
     action: 'getFunctionDetail',
@@ -122,8 +128,6 @@ for (const path of ['/', '/admin', '/login', '/oem', '/portfolio']) {
 // The overstock storefront was retired in the OEM refresh. Static hosting upload
 // is additive, so deployWebApp() prunes it; assert it stays gone. A 200 here
 // means a stale page resurfaced and the prune regressed.
-// Headphones was restored — expect 200.
-assert.ok(true, '/headphones restored'); // placeholder — handled below
 for (const path of ['/overstock']) {
   await expectHttp('GET', `${siteUrl}${path}`, 404);
 }
@@ -148,6 +152,24 @@ await expectHttp(
 
 assertRelease('public-api', await expectJson('GET', `${apiUrl}/api/health`, 200));
 assertRelease('admin', await expectJson('POST', `${apiUrl}/api/admin`, 200, { action: 'health' }));
+const submitProbe = await expectJson('POST', `${apiUrl}/api/admin`, 400, {
+  action: 'submitProject',
+  data: {
+    company: 'Deployment smoke (no project created)',
+    contact: 'Deployment smoke',
+    email: 'deployment-smoke@example.test',
+    drawingFileId: '__deployment_smoke_partial_upload__',
+  },
+});
+assertApiError('admin: submitProject limiter probe', submitProbe, 'VALIDATION_ERROR');
+const passwordResetProbe = await expectJson('POST', `${apiUrl}/api/admin`, 400, {
+  action: 'resetPassword',
+  data: {
+    token: '__deployment_smoke_invalid_reset_token__',
+    newPassword: '__deployment_smoke_not_applied__',
+  },
+});
+assertApiError('admin: passwordResets query probe', passwordResetProbe, 'BAD_REQUEST');
 await expectHttp('GET', `${apiUrl}/api/products?pageSize=1`, 200);
 await expectHttp('GET', `${apiUrl}/api/overstock?pageSize=1`, 200);
 await expectHttp('GET', `${apiUrl}/api/files/__missing__`, 404);
