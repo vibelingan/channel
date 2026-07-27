@@ -119,12 +119,17 @@ for (const path of ['/', '/admin', '/login', '/oem', '/portfolio']) {
   await expectHttp('GET', `${siteUrl}${path}`, 200);
 }
 
-// The headphones/overstock storefronts were retired in the OEM refresh. Static
-// hosting upload is additive, so deployWebApp() prunes them; assert they stay
-// gone. A 200 here means a stale page resurfaced and the prune regressed.
-for (const path of ['/headphones', '/overstock']) {
+// The overstock storefront was retired in the OEM refresh. Static hosting upload
+// is additive, so deployWebApp() prunes it; assert it stays gone. A 200 here
+// means a stale page resurfaced and the prune regressed.
+// Headphones was restored — expect 200.
+assert.ok(true, '/headphones restored'); // placeholder — handled below
+for (const path of ['/overstock']) {
   await expectHttp('GET', `${siteUrl}${path}`, 404);
 }
+
+// Headphones page should now be live.
+await expectHttp('GET', `${siteUrl}/headphones`, 200);
 
 // The canonical portfolio must publish both current case images and retire the
 // superseded TWS object. Query strings bypass stale CDN cache entries so this

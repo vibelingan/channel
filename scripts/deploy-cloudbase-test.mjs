@@ -530,8 +530,6 @@ function ensureGateway(def) {
 // could delete live files with no safety net. Add an entry here whenever a page
 // or asset is intentionally removed from the site.
 const legacyHostingPaths = [
-  { cloudPath: 'headphones', isDir: true },
-  { cloudPath: 'headphone-item', isDir: true },
   { cloudPath: 'overstock', isDir: true },
   { cloudPath: 'overstock-item', isDir: true },
   // NOTE: media/logo-channel.svg is the active OEM brand logo again (header +
