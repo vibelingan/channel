@@ -333,6 +333,8 @@ Collections:
 | `oemProjects` | Public OEM submissions | Admin function create/read/write |
 | `images` | Image metadata or temporary base64 image docs | Public function read only when published-linked |
 | `files` | OEM drawing metadata or temporary base64 file docs | Admin/contributor only |
+| `passwordResets` | Single-use password reset token hashes | Admin function only; direct clients denied |
+| `rateLimitHits` | Public-endpoint abuse-control ledger | Admin function only; direct clients denied |
 
 P0 may temporarily keep the current base64 storage model if the data set is
 small and file uploads are capped. That is acceptable only for test review.
@@ -358,6 +360,11 @@ Indexes:
 - `oemProjects.createdAt`
 - `images.name`
 - `files.name`
+- `passwordResets.expiresAt`
+- `passwordResets.tokenHash` (unique)
+- `rateLimitHits.createdAt`
+- `rateLimitHits.scope + rateLimitHits.createdAt`
+- `rateLimitHits.scope + rateLimitHits.sourceHash + rateLimitHits.createdAt`
 
 Database rules:
 
@@ -365,6 +372,14 @@ Database rules:
 - Server-side functions use CloudBase manager/server privileges.
 - Default collection client rules should deny direct write.
 - Sensitive collections should deny direct client read.
+- `passwordResets` and `rateLimitHits` use `ADMINONLY` because they contain
+  server-managed token/source hashes.
+
+Post-baseline runtime resources are declared in
+`scripts/cloudbase-nosql-resources.mjs`, provisioned before either function is
+deployed, and re-read for exact index/ACL verification. Missing resources are
+created additively; a same-name index with a different key order, direction, or
+uniqueness blocks deployment rather than being dropped or replaced implicitly.
 
 ### 5.5 Storage
 
