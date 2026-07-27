@@ -591,8 +591,8 @@ Deploy:
 Acceptance:
 
 - Site URL is returned.
-- `/`, `/admin`, `/login`, `/oem`, and `/portfolio` load.
-- Retired storefront routes `/headphones` and `/overstock` return `404`.
+- `/`, `/admin`, `/login`, `/oem`, `/portfolio`, and `/headphones` load.
+- The retired storefront route `/overstock` returns `404`.
 - Network calls go to the API origin.
 - At least one catalog image request succeeds from the API origin when the
   static site and API use different origins.
@@ -628,7 +628,7 @@ Browser smoke:
 
 - Open site URL.
 - Open `/portfolio` and confirm case images render.
-- Confirm `/headphones` and `/overstock` return `404` and are absent from public navigation.
+- Confirm `/headphones` loads from public navigation and `/overstock` returns `404`.
 - Open `/login`.
 - Log in as admin.
 - Open `/admin`.
