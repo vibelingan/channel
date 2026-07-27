@@ -53,8 +53,46 @@ test.describe('public browser smoke', () => {
       ).toBe(true);
     }
 
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('[data-company-name]')).toBeVisible();
+    await expect(page.locator('[data-company-name]')).toHaveText('Diversity Technology Limited');
+    await expect(page.locator('[data-site-header] img')).toBeVisible();
+    const toggle = page.getByRole('button', { name: 'Toggle menu' });
+    await expect(toggle).toBeVisible();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    const mobileMenu = page.getByRole('navigation', { name: 'Mobile' });
+    await expect(mobileMenu).toBeHidden();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(mobileMenu).toBeVisible();
+    for (const label of [
+      'OEM Development',
+      'Headphones',
+      'Success Stories',
+      'Teardown Lab',
+      'Blue Ocean',
+    ]) {
+      await expect(mobileMenu.getByRole('link', { name: label, exact: true })).toBeVisible();
+    }
+    await expect(mobileMenu.getByRole('link', { name: 'Headphones', exact: true })).toHaveAttribute(
+      'href',
+      '/headphones',
+    );
+    await expect(mobileMenu.getByRole('link', { name: 'Sign in', exact: true })).toBeVisible();
+    await expect(mobileMenu.getByRole('link', { name: 'Register', exact: true })).toBeVisible();
+    await expect(page.getByText('Minimum Order Amount: $500', { exact: true })).toHaveCount(0);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+
+    await page.setViewportSize({ width: 767, height: 768 });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('[data-menu-toggle]')).toBeVisible();
+    await expect(page.locator('[data-primary-nav]')).toBeHidden();
+
     for (const viewport of [
-      { width: 390, height: 844 },
+      { width: 768, height: 768 },
       { width: 1024, height: 768 },
     ]) {
       await page.setViewportSize(viewport);
@@ -62,18 +100,14 @@ test.describe('public browser smoke', () => {
       await expect(page.locator('[data-company-name]')).toBeVisible();
       await expect(page.locator('[data-company-name]')).toHaveText('Diversity Technology Limited');
       await expect(page.locator('[data-site-header] img')).toBeVisible();
-      const toggle = page.getByRole('button', { name: 'Toggle menu' });
-      await expect(toggle).toBeVisible();
-      await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-      await toggle.click();
-      await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-      const mobileMenu = page.getByRole('navigation', { name: 'Mobile' });
-      await expect(mobileMenu).toBeVisible();
-      for (const label of ['OEM Development', 'Success Stories', 'Teardown Lab', 'Blue Ocean']) {
-        await expect(mobileMenu.getByRole('link', { name: label, exact: true })).toBeVisible();
-      }
-      await expect(mobileMenu.getByRole('link', { name: 'Sign in', exact: true })).toBeVisible();
-      await expect(mobileMenu.getByRole('link', { name: 'Register', exact: true })).toBeVisible();
+      await expect(page.locator('[data-menu-toggle]')).toBeHidden();
+      await expect(page.locator('[data-primary-nav]')).toBeVisible();
+      await expect(page.locator('[data-account-controls]')).toBeVisible();
+      const headphonesLink = page
+        .locator('[data-primary-nav]')
+        .getByRole('link', { name: 'Headphones', exact: true });
+      await expect(headphonesLink).toBeVisible();
+      await expect(headphonesLink).toHaveAttribute('href', '/headphones');
       await expect(page.getByText('Minimum Order Amount: $500', { exact: true })).toHaveCount(0);
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
