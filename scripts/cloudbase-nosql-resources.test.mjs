@@ -27,6 +27,14 @@ const phase8TestPlan = readFileSync(
   new URL('../docs/oem-phase-1-5/PHASE8_TEST_PLAN.md', import.meta.url),
   'utf8',
 );
+const phase8Mius = readFileSync(
+  new URL('../docs/oem-phase-1-5/PHASE8_MIUS.md', import.meta.url),
+  'utf8',
+);
+const phase8Architecture = readFileSync(
+  new URL('../docs/oem-phase-1-5/PHASE8_ARCHITECTURE.md', import.meta.url),
+  'utf8',
+);
 const oemRefreshDesign = readFileSync(
   new URL('../docs/oem-refresh/DESIGN.md', import.meta.url),
   'utf8',
@@ -295,6 +303,8 @@ test('deployment docs match restored routes and post-baseline resource contracts
   assert.match(phase8TestPlan, /Status: completed; route contract superseded 2026-07-27/);
   assert.match(phase8TestPlan, /`\/headphones` returns HTTP 200; `\/overstock` remains HTTP 404/);
   assert.doesNotMatch(phase8TestPlan, /Both hidden paths remain HTTP 404/);
+  assert.match(phase8Mius, /Status: completed and delivered; route contract superseded 2026-07-27/);
+  assert.match(phase8Architecture, /Route contract superseded 2026-07-27/);
   assert.match(oemRefreshDesign, /Route contract superseded 2026-07-27/);
   assert.match(oemExecution, /Route contract superseded 2026-07-27/);
 

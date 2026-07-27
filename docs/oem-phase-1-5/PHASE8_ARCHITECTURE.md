@@ -4,6 +4,10 @@
 日期：2026-07-23
 需求来源：客户原始 PPT Slides 4–5、11、16
 
+> **Route contract superseded 2026-07-27:** 本文中的 “no route restoration” 是
+> Phase 8 当时的实施边界。后续 `90bd06e` 独立恢复 `/headphones`（public navigation +
+> HTTP 200）；`/overstock` 继续保持 retired/404。其余 Phase 8 架构边界不变。
+
 ## 这是针对哪个 feature
 
 这是 **OEM Phase 1.5 的最后一组页面修改（Phase 8）**，不是新功能，也不是重新设计网站。
