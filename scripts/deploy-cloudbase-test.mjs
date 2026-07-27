@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ensureNoSqlResources } from './cloudbase-nosql-resources.mjs';
+
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const functionRootPath = resolve(root, '.cloudbase-artifacts/functions');
 const siteRootPath = resolve(root, 'apps/site');
@@ -591,6 +593,7 @@ function deployWebApp() {
 
 console.log(`Deploying CloudBase test env ${envId} with function runtime ${targetRuntime}`);
 callTool('cloudbase.auth', { action: 'set_env', envId });
+ensureNoSqlResources(callTool);
 
 for (const def of functionDefs) {
   deployFunction(def);
