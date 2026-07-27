@@ -125,7 +125,7 @@ settled verdict is recorded here.
 
 | PD | Sev | Finding (Codex) | Reconciled disposition |
 | --- | --- | --- | --- |
-| PD-1 | P1 | Deploy DoD still lists `/headphones` + `/overstock` as must-render, but the OEM refresh retires them (smoke now expects those `404`, `/portfolio` `200`). | **Accept.** Prod DoD = `/`, `/admin`, `/login`, `/oem`, `/portfolio` → `200`; `/headphones`, `/overstock` → `404`. Fix the stale DoD in `CLOUDBASE_DEPLOYMENT_*` when the OEM-refresh branch merges. |
+| PD-1 (superseded 2026-07-27) | P1 | Historical finding: the OEM refresh retired both storefront routes. Commit `90bd06e` later restored `/headphones`; `/overstock` remains retired. | Current prod DoD = `/`, `/admin`, `/login`, `/oem`, `/portfolio`, `/headphones` → `200`; `/overstock` → `404`. The deployment docs and smoke pin this split outcome. |
 | PD-2 | P1 | Secret-name drift: canonical/execution docs use `TENCENT_SECRET_ID/KEY`; workflow/scripts use `TENCENTCLOUD_SECRETID/SECRETKEY`; SMTP var-vs-secret drift. | **Accept.** This plan already standardizes on `TENCENTCLOUD_SECRETID/SECRETKEY` (§1) and `EMAIL_*` as secrets. Fix the stale `TENCENT_SECRET_ID/KEY` names in `CLOUDBASE_DEPLOYMENT_*` at merge. |
 | PD-3 | P1 | Section 2 "current facts" state baseline is stale (`none yet`). | **Accept.** Run a fresh CloudBase inspection for `test` + the new `prod` EnvId at prod bring-up (§6); replace with dated "last verified" state. |
 | PD-4 | P1 | Hosting mode: first prod deploy should use `manageApps`; test uses `manageHosting upload`. | **Already this plan's CB3 / §3** — independent agreement. Choose mode before first prod deploy; derive URLs from it. |
@@ -135,7 +135,7 @@ settled verdict is recorded here.
 
 **Net for the prod gate:** PD-4 (=CB3, §3) and PD-5's env-replace (=CB1, §4) are the two findings that
 change *this* plan; both are now folded in. PD-1/PD-2/PD-3/PD-7 are doc-consistency fixes for the
-CloudBase deploy docs (apply at branch merge); PD-6 is a media-policy decision outside CI/CD. Codex's
+CloudBase deploy docs (now applied); PD-6 is a media-policy decision outside CI/CD. Codex's
 "Verified Correct" items (Event-Function/HTTP-Access model, `TENCENTCLOUD_*` not copied into runtime
 env, storage SDK boundary, private-media delivery, retired-route pruning) corroborate MIU-01 + the
 storage design and need no action.
