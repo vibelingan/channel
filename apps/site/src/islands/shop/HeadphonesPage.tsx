@@ -1,15 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { HeadphonesContent } from '../../i18n/headphones.ts';
 import { Gallery } from './Gallery.tsx';
 import { InquiryForm } from './InquiryForm.tsx';
 import { PriceBlock } from './PriceBlock.tsx';
-import {
-  type CatalogPage,
-  type Product,
-  fetchCatalog,
-  formatPrice,
-} from './api.ts';
+import { type CatalogPage, type Product, fetchCatalog, formatPrice } from './api.ts';
 import { useSession } from './session.ts';
-import type { HeadphonesContent } from '../../i18n/headphones.ts';
 
 /** Strings the standalone headphones page needs beyond what HeadphonesContent provides. */
 interface PageStrings {
@@ -69,10 +64,7 @@ export function HeadphonesPage({ content, strings }: Props) {
         setProducts(result.items);
       })
       .catch((e: unknown) => {
-        if (active)
-          setError(
-            e instanceof Error ? e.message : 'Failed to load products',
-          );
+        if (active) setError(e instanceof Error ? e.message : 'Failed to load products');
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -89,13 +81,12 @@ export function HeadphonesPage({ content, strings }: Props) {
     for (const p of products) {
       const cat = p.category || 'uncategorized';
       if (!groups.has(cat)) groups.set(cat, []);
-      groups.get(cat)!.push(p);
+      groups.get(cat)?.push(p);
     }
     return groups;
   }, [products]);
 
-  const categoryLabel = (key: string) =>
-    list.categories.find((c) => c.key === key)?.label ?? key;
+  const categoryLabel = (key: string) => list.categories.find((c) => c.key === key)?.label ?? key;
 
   function scrollToDetail(productId: string) {
     setActiveProductId(productId);
@@ -114,7 +105,7 @@ export function HeadphonesPage({ content, strings }: Props) {
   }
 
   const activeProduct = activeProductId
-    ? products.find((p) => p._id === activeProductId) ?? null
+    ? (products.find((p) => p._id === activeProductId) ?? null)
     : null;
 
   return (
@@ -129,9 +120,7 @@ export function HeadphonesPage({ content, strings }: Props) {
             <h2 className="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl">
               {strings.matrixHeading}
             </h2>
-            <p className="mt-4 text-lg leading-relaxed text-ink-soft">
-              {strings.matrixSubheading}
-            </p>
+            <p className="mt-4 text-lg leading-relaxed text-ink-soft">{strings.matrixSubheading}</p>
           </div>
 
           {/* Loading state */}
@@ -171,8 +160,7 @@ export function HeadphonesPage({ content, strings }: Props) {
                     {categoryLabel(catKey)}
                   </h3>
                   <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700">
-                    {catProducts.length}{' '}
-                    {catProducts.length === 1 ? 'model' : 'models'}
+                    {catProducts.length} {catProducts.length === 1 ? 'model' : 'models'}
                   </span>
                 </div>
 
@@ -187,10 +175,7 @@ export function HeadphonesPage({ content, strings }: Props) {
                       {/* Product image — white background */}
                       <div className="relative aspect-square overflow-hidden bg-white">
                         <img
-                          src={
-                            product.images?.[0] ??
-                            '/api/images/_placeholder'
-                          }
+                          src={product.images?.[0] ?? '/api/images/_placeholder'}
                           alt={product.name}
                           loading="lazy"
                           className="h-full w-full object-contain p-6 transition duration-300 group-hover:scale-105"
@@ -217,8 +202,7 @@ export function HeadphonesPage({ content, strings }: Props) {
                           <div className="flex items-center justify-between text-xs text-ink-muted">
                             {product.moq !== undefined && (
                               <span>
-                                {strings.moqLabel}:{' '}
-                                <strong>{product.moq}</strong>
+                                {strings.moqLabel}: <strong>{product.moq}</strong>
                               </span>
                             )}
                             {product.unitPrice !== undefined && (
@@ -237,11 +221,7 @@ export function HeadphonesPage({ content, strings }: Props) {
                               strokeWidth="2.5"
                               aria-hidden="true"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M9 5l7 7-7 7"
-                              />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                             </svg>
                           </div>
                         </div>
@@ -277,11 +257,7 @@ export function HeadphonesPage({ content, strings }: Props) {
                   strokeWidth="2"
                   aria-hidden="true"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M15 19l-7-7 7-7"
-                  />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
                 {strings.backToMatrix}
               </button>
@@ -317,39 +293,25 @@ export function HeadphonesPage({ content, strings }: Props) {
                   <dl className="mt-6 divide-y divide-slate-100 rounded-[var(--radius-card)] border border-slate-200 bg-white">
                     {activeProduct.series && (
                       <div className="flex items-center justify-between px-4 py-3">
-                        <dt className="text-sm text-ink-muted">
-                          {content.detail.seriesLabel}
-                        </dt>
-                        <dd className="text-sm font-semibold text-ink">
-                          {activeProduct.series}
-                        </dd>
+                        <dt className="text-sm text-ink-muted">{content.detail.seriesLabel}</dt>
+                        <dd className="text-sm font-semibold text-ink">{activeProduct.series}</dd>
                       </div>
                     )}
                     {activeProduct.modType && (
                       <div className="flex items-center justify-between px-4 py-3">
-                        <dt className="text-sm text-ink-muted">
-                          {content.detail.typeLabel}
-                        </dt>
-                        <dd className="text-sm font-semibold text-ink">
-                          {activeProduct.modType}
-                        </dd>
+                        <dt className="text-sm text-ink-muted">{content.detail.typeLabel}</dt>
+                        <dd className="text-sm font-semibold text-ink">{activeProduct.modType}</dd>
                       </div>
                     )}
                     {activeProduct.moq !== undefined && (
                       <div className="flex items-center justify-between px-4 py-3">
-                        <dt className="text-sm text-ink-muted">
-                          {content.detail.moqLabel}
-                        </dt>
-                        <dd className="text-sm font-semibold text-ink">
-                          {activeProduct.moq}
-                        </dd>
+                        <dt className="text-sm text-ink-muted">{content.detail.moqLabel}</dt>
+                        <dd className="text-sm font-semibold text-ink">{activeProduct.moq}</dd>
                       </div>
                     )}
                     {activeProduct.unitPrice !== undefined && (
                       <div className="flex items-center justify-between px-4 py-3">
-                        <dt className="text-sm text-ink-muted">
-                          {content.detail.unitPriceLabel}
-                        </dt>
+                        <dt className="text-sm text-ink-muted">{content.detail.unitPriceLabel}</dt>
                         <dd className="font-display text-base font-bold text-brand-700">
                           {formatPrice(activeProduct.unitPrice)}
                         </dd>
@@ -357,9 +319,7 @@ export function HeadphonesPage({ content, strings }: Props) {
                     )}
                     {activeProduct.productCode && (
                       <div className="flex items-center justify-between px-4 py-3">
-                        <dt className="text-sm text-ink-muted">
-                          Product Code
-                        </dt>
+                        <dt className="text-sm text-ink-muted">Product Code</dt>
                         <dd className="text-sm font-medium text-ink">
                           {activeProduct.productCode}
                         </dd>
@@ -448,18 +408,14 @@ export function HeadphonesPage({ content, strings }: Props) {
           <div className="reveal mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {strings.advItems.map((item, i) => (
               <div
-                key={i}
+                key={item.title}
                 className="rounded-[var(--radius-card)] border border-slate-200 bg-surface-alt p-6 text-center shadow-sm transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
               >
                 <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-brand-50 text-2xl text-brand-600">
                   {item.icon}
                 </span>
-                <h3 className="mt-4 font-display text-base font-semibold text-ink">
-                  {item.title}
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-                  {item.desc}
-                </p>
+                <h3 className="mt-4 font-display text-base font-semibold text-ink">{item.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-ink-soft">{item.desc}</p>
               </div>
             ))}
           </div>
@@ -471,10 +427,7 @@ export function HeadphonesPage({ content, strings }: Props) {
         id="headphones-inquiry"
         className="relative scroll-mt-[var(--spacing-header)] overflow-hidden bg-surface-dark text-white"
       >
-        <div
-          className="pointer-events-none absolute inset-0 opacity-10"
-          aria-hidden="true"
-        >
+        <div className="pointer-events-none absolute inset-0 opacity-10" aria-hidden="true">
           <div
             className="absolute inset-0"
             style={{
@@ -492,9 +445,7 @@ export function HeadphonesPage({ content, strings }: Props) {
             <h2 className="mt-4 font-display text-3xl font-bold sm:text-4xl">
               {strings.ctaHeading}
             </h2>
-            <p className="mt-4 text-lg leading-relaxed text-slate-300">
-              {strings.ctaBody}
-            </p>
+            <p className="mt-4 text-lg leading-relaxed text-slate-300">{strings.ctaBody}</p>
             <div className="mt-8">
               {loggedIn ? (
                 <button
