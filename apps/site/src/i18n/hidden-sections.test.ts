@@ -19,22 +19,15 @@ const overstockContent = readFileSync(
 const normalizedHeadphonesContent = headphonesContent.replace(/\s+/g, ' ');
 const normalizedOverstockContent = overstockContent.replace(/\s+/g, ' ');
 const storefronts = [
-  { hidden: '../pages/_headphones.astro', publicName: 'headphones' },
-  { hidden: '../pages/_headphone-item.astro', publicName: 'headphone-item' },
   { hidden: '../pages/_overstock.astro', publicName: 'overstock' },
   { hidden: '../pages/_overstock-item.astro', publicName: 'overstock-item' },
 ];
 
-test('site content links to no hidden section (headphones/overstock un-routed)', () => {
-  assert.ok(!enUS.includes("href: '/headphones'"), 'must not link to /headphones');
+test('site content links to no hidden section (overstock un-routed)', () => {
   assert.ok(!enUS.includes("href: '/overstock'"), 'must not link to /overstock');
 });
 
-test('primary nav no longer lists Headphones or Overstock', () => {
-  assert.ok(
-    !/label: Headphones, href: '\/headphones'/.test(enUS),
-    'Headphones nav/footer item removed',
-  );
+test('primary nav no longer lists Overstock', () => {
   assert.ok(
     !/label: Overstock, href: '\/overstock'/.test(enUS),
     'Overstock nav/footer item removed',

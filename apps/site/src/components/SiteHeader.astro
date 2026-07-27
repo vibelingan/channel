@@ -1,6 +1,7 @@
 ---
 import type { NavItem, SiteContent } from '../i18n/site.ts';
 import { AccountMenu } from '../islands/auth/AccountMenu.tsx';
+import { NavOverflowMenu } from '../islands/NavOverflowMenu.tsx';
 import { orderPrimaryNavItems } from '../lib/site-navigation.ts';
 
 interface Props {
@@ -16,6 +17,12 @@ const { brand, nav } = Astro.props;
 const AUTH_HREFS = ['/admin', '/login', '/register'];
 const menuItems: NavItem[] = nav.items.filter((item) => !AUTH_HREFS.includes(item.href));
 const orderedMenuItems = orderPrimaryNavItems(menuItems);
+
+// Responsive nav: show first N items inline, overflow into a "More" dropdown.
+// md (≥768px): 3 items; lg (≥1024px): 4 items; xl (≥1280px): all items.
+const SHOW_MD = Math.min(3, orderedMenuItems.length);
+const SHOW_LG = Math.min(4, orderedMenuItems.length);
+const hasOverflow = orderedMenuItems.length > SHOW_MD;
 ---
 
 <header
@@ -60,26 +67,42 @@ const orderedMenuItems = orderPrimaryNavItems(menuItems);
       </span>
     </a>
 
-    <!-- Primary navigation (centered on wide screens) -->
-    <nav class="hidden shrink-0 items-center gap-1 xl:flex" aria-label="Primary" data-primary-nav>
+    <!-- Primary navigation (hidden on mobile, visible md+) -->
+    <nav class="hidden shrink-0 items-center gap-0.5 md:flex lg:gap-1" aria-label="Primary" data-primary-nav>
       {
-        orderedMenuItems.map((item) => (
-          <a
-            href={item.href}
-            class="whitespace-nowrap rounded-lg px-3 py-2 text-base font-semibold text-ink-soft transition hover:bg-brand-50 hover:text-brand-700"
-          >
-            {item.label}
-          </a>
-        ))
+        orderedMenuItems.map((item, i) => {
+          // Visibility: md (<lg) → first 3; lg (<xl) → first 4; xl → all
+          const hideClasses =
+            i >= SHOW_MD
+              ? i >= SHOW_LG
+                ? 'hidden xl:inline-flex'
+                : 'hidden lg:inline-flex'
+              : '';
+          return (
+            <a
+              href={item.href}
+              class={`whitespace-nowrap rounded-lg px-2 py-2 text-sm font-semibold text-ink-soft transition hover:bg-brand-50 hover:text-brand-700 lg:px-3 lg:text-base ${hideClasses}`}
+            >
+              {item.label}
+            </a>
+          );
+        })
       }
+
+      <!-- "More" dropdown (React island, hidden at xl) -->
+      {hasOverflow && (
+        <div class="xl:hidden">
+          <NavOverflowMenu items={orderedMenuItems} client:load />
+        </div>
+      )}
     </nav>
 
     <!-- Account controls (right) + mobile menu toggle -->
     <div class="flex shrink-0 items-center gap-2" data-account-controls>
-      <span class="hidden xl:block"><AccountMenu client:only="react" /></span>
+      <span class="hidden md:block"><AccountMenu client:only="react" /></span>
       <button
         type="button"
-        class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-ink-soft transition hover:bg-brand-50 xl:hidden"
+        class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-ink-soft transition hover:bg-brand-50 md:hidden"
         aria-label="Toggle menu"
         aria-controls="mobile-menu"
         aria-expanded="false"
@@ -95,7 +118,7 @@ const orderedMenuItems = orderPrimaryNavItems(menuItems);
   <!-- Mobile navigation panel -->
   <nav
     id="mobile-menu"
-    class="hidden border-t border-slate-200 bg-white px-4 pb-4 pt-2 xl:hidden"
+    class="hidden border-t border-slate-200 bg-white px-4 pb-4 pt-2 md:hidden"
     aria-label="Mobile"
     data-mobile-menu
   >
