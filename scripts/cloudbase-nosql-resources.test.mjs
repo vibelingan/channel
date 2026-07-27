@@ -23,6 +23,18 @@ const cicdProductionPlan = readFileSync(
   new URL('../docs/CICD_PRODUCTION_PLAN.md', import.meta.url),
   'utf8',
 );
+const phase8TestPlan = readFileSync(
+  new URL('../docs/oem-phase-1-5/PHASE8_TEST_PLAN.md', import.meta.url),
+  'utf8',
+);
+const oemRefreshDesign = readFileSync(
+  new URL('../docs/oem-refresh/DESIGN.md', import.meta.url),
+  'utf8',
+);
+const oemExecution = readFileSync(
+  new URL('../docs/oem-phase-1-5/EXECUTION.md', import.meta.url),
+  'utf8',
+);
 
 function listedIndex(index) {
   return {
@@ -280,6 +292,11 @@ test('deployment docs match restored routes and post-baseline resource contracts
   assert.match(cicdProductionPlan, /PD-1 \(superseded 2026-07-27\)/);
   assert.match(cicdProductionPlan, /`\/headphones` → `200`; `\/overstock` → `404`/);
   assert.doesNotMatch(deploySource, /retired \/headphones and \/overstock storefronts/);
+  assert.match(phase8TestPlan, /Status: completed; route contract superseded 2026-07-27/);
+  assert.match(phase8TestPlan, /`\/headphones` returns HTTP 200; `\/overstock` remains HTTP 404/);
+  assert.doesNotMatch(phase8TestPlan, /Both hidden paths remain HTTP 404/);
+  assert.match(oemRefreshDesign, /Route contract superseded 2026-07-27/);
+  assert.match(oemExecution, /Route contract superseded 2026-07-27/);
 
   for (const contract of [
     '`passwordResets`',

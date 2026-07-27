@@ -4,6 +4,10 @@
 > 目标分支: 基于**已更新的 `dev/albertli`** 开 `feat/oem-refresh`（当前 HEAD 在 `fix/image-upload-storage-design`，非本设计基线）。
 > 本文件是 **设计 + MIU 分解**，不含代码。实现走 dev-pipeline（plan→implement→review→test→deliver）。
 
+> **Route contract superseded 2026-07-27:** 本文记录 2026-07-02 OEM refresh 当时隐藏
+> `/headphones` 与 `/overstock` 的设计。后续 `90bd06e` 已恢复 `/headphones`（HTTP 200 +
+> public navigation）；`/overstock` 继续保持 retired/404。下文双路由隐藏与 404 内容仅作历史记录。
+
 ---
 
 ## 0. 一句话结论：是"替换"还是"技术设计"？
@@ -396,6 +400,9 @@ preview): the CloudBase **deploy did not prune** removed files, so the retired
 `/headphones` and `/overstock` pages kept serving on the test CDN.
 `deployWebApp()` now prunes retired paths after upload, and the deploy smoke
 asserts they return 404.
+
+Route contract superseded 2026-07-27 by `90bd06e`: `/headphones` was restored
+and is no longer pruned; `/overstock` remains the retired 404 route.
 
 ### 10.5 Review Round 2 (2026-07-02)
 
