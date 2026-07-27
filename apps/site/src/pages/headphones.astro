@@ -8,7 +8,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
 const site = getSiteContent(DEFAULT_LOCALE);
 const hp = getHeadphonesContent(DEFAULT_LOCALE);
-const { brand, nav, factory, quality, certifications, footer } = site;
+const { brand, nav, footer } = site;
 
 // Page-specific strings that extend the shared headphones i18n content.
 const pageStrings = {
@@ -203,117 +203,6 @@ const seoDescription =
       <HeadphonesPage content={hp} strings={pageStrings} client:only="react" />
     </div>
 
-    <!-- ===== Quality & Testing (reuse existing data) ===== -->
-    <section class="bg-surface-alt py-16 sm:py-20">
-      <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
-        <div class="reveal mx-auto max-w-2xl text-center">
-          <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
-            {quality.eyebrow}
-          </p>
-          <h2 class="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl">
-            {quality.heading}
-          </h2>
-          <p class="mt-4 text-lg leading-relaxed text-ink-soft">
-            {quality.body}
-          </p>
-        </div>
-
-        <!-- QC test images from existing data -->
-        <div class="reveal mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {[
-            { img: '/media/oem/quality/q1.jpg', label: 'QC Inspection Lab' },
-            { img: '/media/oem/quality/q2.jpg', label: 'Burst / Pressure Test' },
-            { img: '/media/oem/quality/q3.jpg', label: 'Press-Force Test' },
-            { img: '/media/oem/quality/q4.jpg', label: 'Salt-Spray Corrosion Test' },
-            { img: '/media/oem/quality/q5.jpg', label: 'Vibration / Transport Test' },
-            { img: '/media/oem/quality/q6.jpg', label: 'Environmental Aging Chamber' },
-            { img: '/media/oem/quality/q7.jpg', label: 'Tensile / Pull Test' },
-            { img: '/media/oem/quality/q8.jpg', label: 'Drop Test' },
-          ].map((t, i) => (
-            <figure
-              class="group overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-surface shadow-sm transition hover:-translate-y-1 hover:shadow-[var(--shadow-card)]"
-              style={`transition-delay: ${i * 60}ms`}
-            >
-              <img
-                src={t.img}
-                alt={t.label}
-                loading="lazy"
-                class="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-[1.04]"
-              />
-              <figcaption class="px-3 py-2.5 text-center text-xs font-semibold text-ink-soft">
-                {t.label}
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-      </div>
-    </section>
-
-    <!-- ===== Certifications ===== -->
-    <section class="bg-white py-16 sm:py-20">
-      <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
-        <div class="reveal mx-auto max-w-2xl text-center">
-          <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
-            {certifications.eyebrow}
-          </p>
-          <h2 class="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl">
-            {certifications.heading}
-          </h2>
-          <p class="mt-4 text-lg text-ink-soft">
-            {certifications.intro}
-          </p>
-        </div>
-
-        <!-- Certificates -->
-        <div class="reveal mt-12 grid grid-cols-2 gap-6 sm:grid-cols-4">
-          {[
-            { name: 'CE', img: '/media/oem/certs/ce.jpg', desc: 'European conformity' },
-            { name: 'EMC', img: '/media/oem/certs/emc.jpg', desc: 'Electromagnetic compatibility' },
-            { name: 'FCC', img: '/media/oem/certs/fcc.jpg', desc: 'U.S. FCC compliance' },
-            { name: 'JD', img: '/media/oem/certs/jd.jpg', desc: 'Retail channel quality' },
-          ].map((cert) => (
-            <figure class="flex flex-col items-center rounded-[var(--radius-card)] border border-slate-200 bg-surface-alt p-4 text-center shadow-sm">
-              <img
-                src={cert.img}
-                alt={`${cert.name} certification`}
-                loading="lazy"
-                class="h-40 w-full rounded-md bg-white object-contain ring-1 ring-black/5"
-              />
-              <figcaption class="mt-3">
-                <p class="font-display text-sm font-semibold text-ink">{cert.name}</p>
-                <p class="mt-0.5 text-xs text-ink-muted">{cert.desc}</p>
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-
-        <!-- Client logos -->
-        <div class="reveal mt-14">
-          <h3 class="text-center font-display text-lg font-semibold text-ink">
-            Global Clients
-          </h3>
-          <div class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            {[
-              { name: 'Artcoustic', img: '/media/oem/clients/artcoustic.png' },
-              { name: 'Audio Diversity', img: '/media/oem/clients/audio-diversity.png' },
-              { name: 'CoreMee', img: '/media/oem/clients/coremee.png' },
-              { name: 'DI', img: '/media/oem/clients/di.png' },
-              { name: 'pabobo', img: '/media/oem/clients/pabobo.jpg' },
-              { name: 'AS', img: '/media/oem/clients/as.png' },
-            ].map((client) => (
-              <div class="flex h-24 items-center justify-center rounded-[var(--radius-card)] border border-slate-200 bg-surface-alt px-4 py-6 shadow-sm">
-                <img
-                  src={client.img}
-                  alt={`${client.name} logo`}
-                  loading="lazy"
-                  class="max-h-12 w-auto max-w-full object-contain opacity-80 transition hover:opacity-100"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
   </main>
 
   <SiteFooter brand={brand} footer={footer} />
