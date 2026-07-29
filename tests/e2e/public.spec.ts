@@ -115,6 +115,69 @@ test.describe('public browser smoke', () => {
     }
   });
 
+  test('Headphones products remain visibly rendered after client catalog load', async ({
+    page,
+  }) => {
+    if (new URL(e2e.siteUrl).hostname === 'localhost') {
+      await page.route('**/api/products?**', async (route) => {
+        const response = await route.fetch();
+        await route.fulfill({
+          response,
+          headers: {
+            ...response.headers(),
+            'access-control-allow-origin': e2e.siteUrl,
+          },
+        });
+      });
+    }
+
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 1440, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/headphones', { waitUntil: 'domcontentloaded' });
+      const cloudBaseNotice = page.getByRole('button', { name: '确定访问', exact: true });
+      if (await cloudBaseNotice.isVisible()) await cloudBaseNotice.click();
+
+      const productCards = page.locator('[data-product-card]');
+      await expect.poll(() => productCards.count()).toBeGreaterThan(0);
+
+      for (const productCard of await productCards.all()) {
+        const rendered = await productCard.evaluate((element) => {
+          if (!(element instanceof HTMLElement)) throw new Error('Product card is not HTML');
+          const hiddenAncestors: string[] = [];
+          let current: HTMLElement | null = element;
+          while (current && current !== document.body) {
+            const style = getComputedStyle(current);
+            if (
+              Number(style.opacity) < 1 ||
+              style.visibility === 'hidden' ||
+              style.display === 'none'
+            ) {
+              hiddenAncestors.push(`${current.tagName.toLowerCase()}.${current.className}`);
+            }
+            current = current.parentElement;
+          }
+          const rect = element.getBoundingClientRect();
+          return { hiddenAncestors, width: rect.width, height: rect.height };
+        });
+
+        expect(rendered.hiddenAncestors, `hidden product ancestors at ${viewport.width}px`).toEqual(
+          [],
+        );
+        expect(rendered.width).toBeGreaterThan(0);
+        expect(rendered.height).toBeGreaterThan(0);
+      }
+
+      await productCards.first().click();
+      await expect(page.locator('[data-product-detail]')).toBeVisible();
+      await page.getByRole('button', { name: 'Back to all models', exact: true }).click();
+      await expect(page.locator('[data-product-detail]')).toHaveCount(0);
+      await expect(productCards.first()).toBeVisible();
+    }
+  });
+
   test('Slide 4 factory gallery moves from exteriors to production and making details', async ({
     page,
   }) => {

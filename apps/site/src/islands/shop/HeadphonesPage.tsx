@@ -113,7 +113,7 @@ export function HeadphonesPage({ content, strings }: Props) {
       {/* ========== Product Matrix ========== */}
       <section className="py-16 sm:py-20">
         <div className="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
-          <div className="reveal mx-auto max-w-2xl text-center">
+          <div className="mx-auto max-w-2xl text-center">
             <p className="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
               {strings.matrixEyebrow}
             </p>
@@ -154,7 +154,7 @@ export function HeadphonesPage({ content, strings }: Props) {
             !error &&
             products.length > 0 &&
             [...categoryGroups.entries()].map(([catKey, catProducts]) => (
-              <div key={catKey} className="reveal mt-12 first:mt-12">
+              <div key={catKey} className="mt-12 first:mt-12">
                 <div className="mb-6 flex items-center gap-3">
                   <h3 className="font-display text-xl font-semibold text-ink">
                     {categoryLabel(catKey)}
@@ -169,6 +169,7 @@ export function HeadphonesPage({ content, strings }: Props) {
                     <button
                       key={product._id}
                       type="button"
+                      data-product-card={product._id}
                       onClick={() => scrollToDetail(product._id)}
                       className="group relative flex flex-col overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-1 hover:border-brand-200 hover:shadow-[var(--shadow-card)]"
                     >
@@ -236,7 +237,10 @@ export function HeadphonesPage({ content, strings }: Props) {
 
       {/* ========== Product Detail Sections (expanded below matrix) ========== */}
       {activeProduct && (
-        <section className="border-t border-slate-200 bg-surface-alt py-16 sm:py-20">
+        <section
+          data-product-detail={activeProduct._id}
+          className="border-t border-slate-200 bg-surface-alt py-16 sm:py-20"
+        >
           <div className="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
             <div
               ref={(el) => {
@@ -397,7 +401,7 @@ export function HeadphonesPage({ content, strings }: Props) {
       {/* ========== Factory Advantages ========== */}
       <section className="bg-white py-16 sm:py-20">
         <div className="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
-          <div className="reveal mx-auto max-w-2xl text-center">
+          <div className="mx-auto max-w-2xl text-center">
             <p className="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
               {strings.advEyebrow}
             </p>
@@ -405,7 +409,7 @@ export function HeadphonesPage({ content, strings }: Props) {
               {strings.advHeading}
             </h2>
           </div>
-          <div className="reveal mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {strings.advItems.map((item, i) => (
               <div
                 key={item.title}
@@ -438,7 +442,7 @@ export function HeadphonesPage({ content, strings }: Props) {
           />
         </div>
         <div className="relative mx-auto max-w-[var(--width-container)] px-4 py-16 text-center sm:px-6 sm:py-24 lg:px-8">
-          <div className="reveal mx-auto max-w-2xl">
+          <div className="mx-auto max-w-2xl">
             <p className="text-sm font-semibold uppercase tracking-[0.15em] text-accent-300">
               {strings.ctaEyebrow}
             </p>
