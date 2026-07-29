@@ -303,6 +303,22 @@ The future Part B importer must add phase-aware upload retries, a finalize CAS, 
 compensation action for this state. Current `completeUpload` has no single-winner finalize claim;
 Part A therefore stops on every ambiguous upload result.
 
+### A4b. Existing product replacement
+
+When the customer package intentionally replaces media for one known existing product, do not
+create a shell or duplicate product. Follow `SY-T8-REUPLOAD-RUNBOOK.md` as the concrete pattern:
+
+1. record the known product ID and old reference snapshot;
+2. open a product-specific quiescent window and unpublish/read back the known product;
+3. canonically upload and bind the complete new image set to approved source hashes;
+4. while unpublished, submit one standard update replacing `imageIds` on that known product;
+5. obtain final approval and publish through a separate standard update;
+6. verify every new URL and browser interaction; on any failure, immediately unpublish while
+  retaining the new IDs;
+7. quarantine old objects/counter drift for a separately approved exact-list cleanup.
+
+Do not repair or adopt the old batch merely because its bytes exist in storage.
+
 ### A5. Draft verification
 
 Before publication:

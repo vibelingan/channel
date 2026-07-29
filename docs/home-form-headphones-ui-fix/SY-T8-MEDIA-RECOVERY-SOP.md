@@ -1,6 +1,19 @@
 # SY-T8 Media Recovery SOP
 
-Status: investigation complete; no database or storage mutation has been applied.
+Status: **SUPERSEDED - DO NOT EXECUTE THE BACKFILL/REPAIR STEPS BELOW.** The approved recovery is
+canonical re-upload and product-reference replacement; see `SY-T8-REUPLOAD-RUNBOOK.md`.
+
+Decision update, 2026-07-29:
+
+- Do not run global `backfillImageRefCounts` for this incident.
+- Do not implement or run a scoped counter-repair action.
+- Do not hand-create or patch old image metadata/refcounts.
+- Preserve the old batch as quarantined evidence until the newly uploaded batch is verified.
+- Re-upload the approved 18 source images through the portal upload/finalize API and update the
+  existing SY-T8 product once with the resulting new image IDs.
+
+Everything below this notice is retained only as forensic evidence explaining the rejected repair
+option. It is not an operational procedure.
 
 Branch: `fix/home-form-headphones-ui`
 
