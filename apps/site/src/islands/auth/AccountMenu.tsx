@@ -31,7 +31,7 @@ export function AccountMenu({ dark = false }: Props) {
   if (!loggedIn || !user) {
     const link = dark ? 'text-white/90 hover:text-white' : 'text-ink-soft hover:text-brand-700';
     return (
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1" data-account-menu>
         <a
           href="/login"
           className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition ${link}`}
@@ -51,13 +51,14 @@ export function AccountMenu({ dark = false }: Props) {
   const initial = (user.username || user.email || '?').charAt(0).toUpperCase();
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative" ref={ref} data-account-menu>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-3 text-sm font-medium text-ink shadow-sm transition hover:border-brand-300"
         aria-haspopup="menu"
         aria-expanded={open}
+        data-account-trigger
       >
         <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-700 text-xs font-bold text-white">
           {initial}

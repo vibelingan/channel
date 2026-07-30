@@ -207,12 +207,18 @@ export function HeadphonesPage({ content, strings }: Props) {
                               </span>
                             )}
                             {product.unitPrice !== undefined && (
-                              <span className="font-display text-sm font-bold text-brand-700">
+                              <span
+                                data-product-card-price
+                                className="text-sm font-semibold text-brand-700"
+                              >
                                 {formatPrice(product.unitPrice)}
                               </span>
                             )}
                           </div>
-                          <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-brand-600 transition group-hover:text-brand-700">
+                          <div
+                            data-product-card-action
+                            className="mt-3 flex items-center gap-1.5 text-xs font-medium text-brand-600 transition group-hover:text-brand-700"
+                          >
                             {strings.viewDetail}
                             <svg
                               className="h-3.5 w-3.5"

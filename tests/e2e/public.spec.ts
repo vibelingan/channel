@@ -1,6 +1,33 @@
-import { type Page, expect, test } from '@playwright/test';
+import { type Browser, type Page, expect, test } from '@playwright/test';
+import type { CatalogPage } from '../../apps/site/src/islands/shop/catalog-types.ts';
+import type { SessionUser } from '../../packages/shared/src/auth.ts';
 import { teardownBomSource } from '../fixtures/teardown-bom-source.ts';
 import { e2e } from './helpers/env';
+
+const cardTypographyCatalog = {
+  items: [
+    {
+      _id: 'e2e-card-typography',
+      name: 'E2E Headphone',
+      category: 'bluetooth',
+      modName: 'E2E-100',
+      description: 'Stable fixture for card hierarchy checks.',
+      moq: 500,
+      unitPrice: 12.5,
+      images: ['/api/images/_placeholder'],
+    },
+  ],
+  total: 1,
+  page: 1,
+  pageSize: 48,
+} satisfies CatalogPage;
+
+const longNameMember = {
+  id: 'e2e-long-header-user',
+  email: 'long-header-member@example.test',
+  username: 'Authenticated Header Identity With Long Name',
+  role: 'member',
+} satisfies SessionUser;
 
 function captureConsoleProblems(page: Page): string[] {
   const problems: string[] = [];
@@ -9,6 +36,90 @@ function captureConsoleProblems(page: Page): string[] {
   });
   page.on('pageerror', (error) => problems.push(error.message));
   return problems;
+}
+
+async function ensureApplicationPage(page: Page): Promise<void> {
+  const appHeader = page.locator('[data-site-header]');
+  const cloudBaseNotice = page.getByRole('button', { name: '确定访问', exact: true });
+  const firstSurface = await Promise.race([
+    appHeader.waitFor({ state: 'visible' }).then(() => 'app' as const),
+    cloudBaseNotice.waitFor({ state: 'visible' }).then(() => 'notice' as const),
+  ]);
+  if (firstSurface === 'notice') {
+    await cloudBaseNotice.click();
+    await appHeader.waitFor({ state: 'visible' });
+  }
+}
+
+async function trustedSiteStorage(browser: Browser) {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await page.goto(e2e.siteUrl, { waitUntil: 'domcontentloaded' });
+    await ensureApplicationPage(page);
+    return await context.storageState();
+  } finally {
+    await context.close();
+  }
+}
+
+async function readHeaderGeometry(page: Page) {
+  return page.evaluate(() => {
+    const bounds = (selector: string) => {
+      const rect = document.querySelector(selector)?.getBoundingClientRect();
+      return rect
+        ? { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }
+        : null;
+    };
+    const visibleLinks = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-primary-nav] > a'),
+    )
+      .filter((link) => getComputedStyle(link).display !== 'none')
+      .map((link) => ({
+        whiteSpace: getComputedStyle(link).whiteSpace,
+        height: link.getBoundingClientRect().height,
+      }));
+    const layout = document.querySelector<HTMLElement>('[data-site-header] > div');
+    const layoutStyle = layout ? getComputedStyle(layout) : null;
+    return {
+      brand: bounds('[data-brand-link]'),
+      nav: bounds('[data-primary-nav]'),
+      account: bounds('[data-account-controls]'),
+      header: bounds('[data-site-header]'),
+      layout: bounds('[data-site-header] > div'),
+      layoutPadding: layoutStyle
+        ? {
+            left: Number.parseFloat(layoutStyle.paddingLeft),
+            right: Number.parseFloat(layoutStyle.paddingRight),
+          }
+        : null,
+      visibleLinks,
+      noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth,
+    };
+  });
+}
+
+function expectDesktopHeaderContained(
+  geometry: Awaited<ReturnType<typeof readHeaderGeometry>>,
+): void {
+  expect(geometry.brand?.right).toBeLessThanOrEqual(geometry.nav?.left ?? 0);
+  expect(geometry.nav?.right).toBeLessThanOrEqual(geometry.account?.left ?? 0);
+  expect(geometry.noHorizontalOverflow).toBe(true);
+  expect(geometry.visibleLinks).toHaveLength(5);
+  const contentLeft = (geometry.layout?.left ?? 0) + (geometry.layoutPadding?.left ?? 0);
+  const contentRight = (geometry.layout?.right ?? 0) - (geometry.layoutPadding?.right ?? 0);
+  for (const region of [geometry.brand, geometry.nav, geometry.account]) {
+    expect(region?.left).toBeGreaterThanOrEqual(contentLeft);
+    expect(region?.right).toBeLessThanOrEqual(contentRight);
+    expect(region?.top).toBeGreaterThanOrEqual(geometry.layout?.top ?? 0);
+    expect(region?.bottom).toBeLessThanOrEqual(geometry.layout?.bottom ?? 0);
+  }
+  for (const link of geometry.visibleLinks) {
+    expect(link.whiteSpace).toBe('nowrap');
+    expect(link.height).toBeLessThanOrEqual(
+      (geometry.header?.bottom ?? 0) - (geometry.header?.top ?? 0),
+    );
+  }
 }
 
 test.describe('public browser smoke', () => {
@@ -25,7 +136,7 @@ test.describe('public browser smoke', () => {
 
   test('Slide 2 header keeps the company name without restoring MOQ', async ({ page }) => {
     for (const viewport of [
-      { width: 1280, height: 800 },
+      { width: 1360, height: 800 },
       { width: 1440, height: 900 },
     ]) {
       await page.setViewportSize(viewport);
@@ -58,13 +169,14 @@ test.describe('public browser smoke', () => {
     await expect(page.locator('[data-company-name]')).toBeVisible();
     await expect(page.locator('[data-company-name]')).toHaveText('Diversity Technology Limited');
     await expect(page.locator('[data-site-header] img')).toBeVisible();
-    const toggle = page.getByRole('button', { name: 'Toggle menu' });
+    const toggle = page.locator('[data-menu-toggle]');
     await expect(toggle).toBeVisible();
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    const disclosure = page.locator('[data-mobile-disclosure]');
+    await expect(disclosure).not.toHaveAttribute('open', '');
     const mobileMenu = page.getByRole('navigation', { name: 'Mobile' });
     await expect(mobileMenu).toBeHidden();
     await toggle.click();
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(disclosure).toHaveAttribute('open', '');
     await expect(mobileMenu).toBeVisible();
     for (const label of [
       'OEM Development',
@@ -86,14 +198,26 @@ test.describe('public browser smoke', () => {
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
 
-    await page.setViewportSize({ width: 767, height: 768 });
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('[data-menu-toggle]')).toBeVisible();
-    await expect(page.locator('[data-primary-nav]')).toBeHidden();
+    for (const viewport of [
+      { width: 767, height: 768 },
+      { width: 768, height: 768 },
+      { width: 1023, height: 768 },
+      { width: 1024, height: 768 },
+      { width: 1279, height: 800 },
+      { width: 1280, height: 800 },
+      { width: 1319, height: 800 },
+      { width: 1320, height: 800 },
+      { width: 1359, height: 800 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/', { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('[data-menu-toggle]')).toBeVisible();
+      await expect(page.locator('[data-primary-nav]')).toBeHidden();
+    }
 
     for (const viewport of [
-      { width: 768, height: 768 },
-      { width: 1024, height: 768 },
+      { width: 1360, height: 800 },
+      { width: 1440, height: 900 },
     ]) {
       await page.setViewportSize(viewport);
       await page.goto('/', { waitUntil: 'domcontentloaded' });
@@ -175,6 +299,234 @@ test.describe('public browser smoke', () => {
       await page.getByRole('button', { name: 'Back to all models', exact: true }).click();
       await expect(page.locator('[data-product-detail]')).toHaveCount(0);
       await expect(productCards.first()).toBeVisible();
+    }
+  });
+
+  test('Headphones header stays responsive and card pricing hierarchy is restrained', async ({
+    browser,
+    page,
+  }) => {
+    for (const viewport of [
+      { width: 1360, height: 800 },
+      { width: 1440, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/headphones', { waitUntil: 'domcontentloaded' });
+      await ensureApplicationPage(page);
+      await page.evaluate(() => document.fonts?.ready);
+      await expect(page.locator('[data-primary-nav]')).toBeVisible();
+      await expect(page.locator('[data-account-controls]')).toBeVisible();
+      await expect(
+        page.locator('[data-account-controls]').getByRole('link', { name: 'Sign in', exact: true }),
+      ).toBeVisible();
+
+      expectDesktopHeaderContained(await readHeaderGeometry(page));
+    }
+
+    await page.route('**/api/products?**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          data: cardTypographyCatalog,
+        }),
+      }),
+    );
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/headphones', { waitUntil: 'domcontentloaded' });
+    await ensureApplicationPage(page);
+    const productCards = page.locator('[data-product-card]');
+    await expect(productCards).toHaveCount(1);
+    await expect(page.locator('[data-product-card="e2e-card-typography"]')).toBeVisible();
+    await expect(page.locator('[data-product-card-price]').first()).toHaveCSS('font-weight', '600');
+    await expect(page.locator('[data-product-card-price]').first()).toHaveCSS(
+      'font-family',
+      /^Inter(?:,|$)/,
+    );
+    await expect(page.locator('[data-product-card-action]').first()).toHaveCSS(
+      'font-weight',
+      '500',
+    );
+    await page.unrouteAll({ behavior: 'wait' });
+
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 768, height: 768 },
+      { width: 1023, height: 768 },
+      { width: 1024, height: 768 },
+      { width: 1279, height: 800 },
+      { width: 1280, height: 800 },
+      { width: 1319, height: 800 },
+      { width: 1320, height: 800 },
+      { width: 1359, height: 800 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/headphones', { waitUntil: 'domcontentloaded' });
+      await ensureApplicationPage(page);
+      await expect(page.locator('[data-primary-nav]')).toBeHidden();
+      await expect(page.locator('.header-desktop-account')).toBeHidden();
+      const menuToggle = page.locator('[data-menu-toggle]');
+      await expect(menuToggle).toBeVisible();
+      await menuToggle.click();
+      await expect(page.locator('[data-mobile-disclosure]')).toHaveAttribute('open', '');
+      await expect(page.getByRole('navigation', { name: 'Mobile' })).toBeVisible();
+      const mobileGeometry = await page.evaluate(() => {
+        const brand = document.querySelector('[data-brand-link]')?.getBoundingClientRect();
+        const toggle = document.querySelector('[data-menu-toggle]')?.getBoundingClientRect();
+        return brand && toggle ? { brandRight: brand.right, toggleLeft: toggle.left } : null;
+      });
+      expect(mobileGeometry?.brandRight).toBeLessThanOrEqual(mobileGeometry?.toggleLeft ?? 0);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+    }
+
+    await page.setViewportSize({ width: 1359, height: 800 });
+    await page.goto('/headphones', { waitUntil: 'domcontentloaded' });
+    const transitionToggle = page.locator('[data-menu-toggle]');
+    await expect(transitionToggle).toBeVisible();
+    await transitionToggle.click();
+    await expect(page.locator('[data-mobile-disclosure]')).toHaveAttribute('open', '');
+    await expect(page.getByRole('navigation', { name: 'Mobile' })).toBeVisible();
+    await page
+      .getByRole('navigation', { name: 'Mobile' })
+      .getByRole('link', { name: 'Headphones', exact: true })
+      .focus();
+    await page.setViewportSize({ width: 1360, height: 800 });
+    await expect(page.locator('[data-site-header]')).toHaveAttribute('data-header-mode', 'desktop');
+    await expect(page.locator('[data-mobile-disclosure]')).not.toHaveAttribute('open', '');
+    await expect(
+      page.locator('[data-primary-nav]').getByRole('link', { name: 'Headphones', exact: true }),
+    ).toBeFocused();
+    await page.setViewportSize({ width: 1359, height: 800 });
+    await expect(page.locator('[data-mobile-disclosure]')).toHaveAttribute('open', '');
+    await expect(page.getByRole('navigation', { name: 'Mobile' })).toBeVisible();
+    await expect(
+      page
+        .getByRole('navigation', { name: 'Mobile' })
+        .getByRole('link', { name: 'Headphones', exact: true }),
+    ).toBeFocused();
+
+    await page.setViewportSize({ width: 568, height: 320 });
+    await page.goto('/headphones', { waitUntil: 'domcontentloaded' });
+    await page.locator('[data-menu-toggle]').click();
+    const shortMenu = page.getByRole('navigation', { name: 'Mobile' });
+    await expect(shortMenu).toBeVisible();
+    await expect(shortMenu).toHaveCSS('overflow-y', 'auto');
+    const shortSignIn = shortMenu.getByRole('link', { name: 'Sign in', exact: true });
+    await shortSignIn.click();
+    await expect(page).toHaveURL(/\/login\/?$/);
+
+    const trustedStorage = await trustedSiteStorage(browser);
+    const signedInContext = await browser.newContext({
+      storageState: trustedStorage,
+      viewport: { width: 1440, height: 900 },
+    });
+    try {
+      await signedInContext.addInitScript((user) => {
+        localStorage.setItem('channel.token', 'e2e-header-token');
+        localStorage.setItem('channel.user', JSON.stringify(user));
+      }, longNameMember);
+      const signedInPage = await signedInContext.newPage();
+      await signedInPage.goto(e2e.siteUrl, { waitUntil: 'domcontentloaded' });
+      await ensureApplicationPage(signedInPage);
+      await signedInPage.evaluate(() => document.fonts?.ready);
+      const desktopAccountTrigger = signedInPage
+        .locator('.header-desktop-account')
+        .getByRole('button', {
+          name: new RegExp(longNameMember.username),
+        });
+      await expect(desktopAccountTrigger).toBeVisible();
+      await expect(signedInPage.locator('[data-site-header]')).toHaveAttribute(
+        'data-header-mode',
+        'desktop',
+      );
+      expectDesktopHeaderContained(await readHeaderGeometry(signedInPage));
+      await desktopAccountTrigger.focus();
+      await signedInPage.evaluate(() => {
+        document.documentElement.style.fontSize = '125%';
+        window.dispatchEvent(new Event('resize'));
+      });
+      await expect(signedInPage.locator('[data-site-header]')).toHaveAttribute(
+        'data-header-mode',
+        'mobile',
+      );
+      await expect(signedInPage.locator('[data-menu-toggle]')).toBeVisible();
+      const mobileAccountTrigger = signedInPage
+        .locator('[data-mobile-menu]')
+        .getByRole('button', { name: new RegExp(longNameMember.username) });
+      await expect(mobileAccountTrigger).toBeFocused();
+      expect(
+        await signedInPage.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth,
+        ),
+      ).toBe(true);
+
+      await signedInPage.evaluate(() => {
+        document.documentElement.style.fontSize = '';
+        window.dispatchEvent(new Event('resize'));
+      });
+      await expect(signedInPage.locator('[data-site-header]')).toHaveAttribute(
+        'data-header-mode',
+        'desktop',
+      );
+      expectDesktopHeaderContained(await readHeaderGeometry(signedInPage));
+      await expect(desktopAccountTrigger).toBeFocused();
+
+      await desktopAccountTrigger.click();
+      const desktopAccountSettings = signedInPage
+        .locator('.header-desktop-account')
+        .getByRole('link', { name: 'Account settings', exact: true });
+      await desktopAccountSettings.focus();
+      await signedInPage.setViewportSize({ width: 1359, height: 800 });
+      await expect(signedInPage.locator('[data-site-header]')).toHaveAttribute(
+        'data-header-mode',
+        'mobile',
+      );
+      await expect(
+        signedInPage
+          .locator('[data-mobile-menu]')
+          .getByRole('button', { name: new RegExp(longNameMember.username) }),
+      ).toBeFocused();
+    } finally {
+      await signedInContext.close();
+    }
+
+    await page.setViewportSize({ width: 1359, height: 800 });
+    await page.goto('/headphones', { waitUntil: 'domcontentloaded' });
+    await page.locator('[data-menu-toggle]').click();
+    const mobileSignIn = page
+      .getByRole('navigation', { name: 'Mobile' })
+      .getByRole('link', { name: 'Sign in', exact: true });
+    await mobileSignIn.focus();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(
+      page.locator('.header-desktop-account').getByRole('link', { name: 'Sign in', exact: true }),
+    ).toBeFocused();
+  });
+
+  test('public navigation remains available without JavaScript', async ({ browser }) => {
+    const trustedStorage = await trustedSiteStorage(browser);
+    const context = await browser.newContext({
+      javaScriptEnabled: false,
+      storageState: trustedStorage,
+      viewport: { width: 1440, height: 900 },
+    });
+    try {
+      const page = await context.newPage();
+      await page.goto(`${e2e.siteUrl}/headphones`, { waitUntil: 'domcontentloaded' });
+      const disclosure = page.locator('[data-mobile-disclosure]');
+      await expect(disclosure).toBeVisible();
+      await disclosure.locator('summary').click();
+      const mobileMenu = page.getByRole('navigation', { name: 'Mobile' });
+      await expect(mobileMenu).toBeVisible();
+      await expect(
+        mobileMenu.getByRole('link', { name: 'Headphones', exact: true }),
+      ).toHaveAttribute('href', '/headphones');
+    } finally {
+      await context.close();
     }
   });
 

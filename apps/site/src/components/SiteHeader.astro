@@ -1,6 +1,5 @@
 ---
 import type { NavItem, SiteContent } from '../i18n/site.ts';
-import { NavOverflowMenu } from '../islands/NavOverflowMenu.tsx';
 import { AccountMenu } from '../islands/auth/AccountMenu.tsx';
 import { orderPrimaryNavItems } from '../lib/site-navigation.ts';
 
@@ -18,11 +17,10 @@ const AUTH_HREFS = ['/admin', '/login', '/register'];
 const menuItems: NavItem[] = nav.items.filter((item) => !AUTH_HREFS.includes(item.href));
 const orderedMenuItems = orderPrimaryNavItems(menuItems);
 
-// Responsive nav: show first N items inline, overflow into a "More" dropdown.
-// md (≥768px): 3 items; lg (≥1024px): 4 items; xl (≥1280px): all items.
-const SHOW_MD = Math.min(3, orderedMenuItems.length);
-const SHOW_LG = Math.min(4, orderedMenuItems.length);
-const hasOverflow = orderedMenuItems.length > SHOW_MD;
+// The server-rendered default is the native mobile disclosure, so navigation
+// remains available without JavaScript. The client enables the desktop lane
+// only after measuring the legal brand, all links, hydrated account controls,
+// fonts, and gutters.
 ---
 
 <header
@@ -67,94 +65,202 @@ const hasOverflow = orderedMenuItems.length > SHOW_MD;
       </span>
     </a>
 
-    <!-- Primary navigation (hidden on mobile, visible md+) -->
-    <nav class="hidden shrink-0 items-center gap-0.5 md:flex lg:gap-1" aria-label="Primary" data-primary-nav>
+    <!-- Primary navigation (hidden below the measured 1360px fit threshold) -->
+    <nav class="header-desktop-nav shrink-0 items-center gap-1" aria-label="Primary" data-primary-nav>
       {
-        orderedMenuItems.map((item, i) => {
-          // Visibility: md (<lg) → first 3; lg (<xl) → first 4; xl → all
-          const hideClasses =
-            i >= SHOW_MD
-              ? i >= SHOW_LG
-                ? 'hidden xl:inline-flex'
-                : 'hidden lg:inline-flex'
-              : '';
-          return (
-            <a
-              href={item.href}
-              class={`whitespace-nowrap rounded-lg px-2 py-2 text-sm font-semibold text-ink-soft transition hover:bg-brand-50 hover:text-brand-700 lg:px-3 lg:text-base ${hideClasses}`}
-            >
-              {item.label}
-            </a>
-          );
-        })
+        orderedMenuItems.map((item) => (
+          <a
+            href={item.href}
+            class="whitespace-nowrap rounded-lg px-3 py-2 text-base font-semibold text-ink-soft transition hover:bg-brand-50 hover:text-brand-700"
+          >
+            {item.label}
+          </a>
+        ))
       }
-
-      <!-- "More" dropdown (React island, hidden at xl) -->
-      {hasOverflow && (
-        <div class="xl:hidden">
-          <NavOverflowMenu items={orderedMenuItems} client:load />
-        </div>
-      )}
     </nav>
 
     <!-- Account controls (right) + mobile menu toggle -->
     <div class="flex shrink-0 items-center gap-2" data-account-controls>
-      <span class="hidden md:block"><AccountMenu client:only="react" /></span>
-      <button
-        type="button"
-        class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-ink-soft transition hover:bg-brand-50 md:hidden"
-        aria-label="Toggle menu"
-        aria-controls="mobile-menu"
-        aria-expanded="false"
-        data-menu-toggle
-      >
-        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
+      <span class="header-desktop-account"><AccountMenu client:only="react" /></span>
+      <details class="header-mobile-disclosure" data-mobile-disclosure>
+        <summary
+          class="header-mobile-toggle inline-flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-lg text-ink-soft transition hover:bg-brand-50"
+          aria-label="Toggle menu"
+          aria-controls="mobile-menu"
+          data-menu-toggle
+        >
+          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </summary>
+
+        <nav
+          id="mobile-menu"
+          class="header-mobile-menu absolute inset-x-0 top-full border-t border-slate-200 bg-white px-4 pb-4 pt-2"
+          aria-label="Mobile"
+          data-mobile-menu
+        >
+          {
+            orderedMenuItems.map((item) => (
+              <a
+                href={item.href}
+                class="block rounded-lg px-3 py-3 text-base font-medium text-ink-soft transition hover:bg-brand-50 hover:text-brand-700"
+              >
+                {item.label}
+              </a>
+            ))
+          }
+          <div class="mt-2 border-t border-slate-100 pt-3">
+            <AccountMenu client:only="react" />
+          </div>
+        </nav>
+      </details>
     </div>
   </div>
-
-  <!-- Mobile navigation panel -->
-  <nav
-    id="mobile-menu"
-    class="hidden border-t border-slate-200 bg-white px-4 pb-4 pt-2 md:hidden"
-    aria-label="Mobile"
-    data-mobile-menu
-  >
-    {
-      orderedMenuItems.map((item) => (
-        <a
-          href={item.href}
-          class="block rounded-lg px-3 py-3 text-base font-medium text-ink-soft transition hover:bg-brand-50 hover:text-brand-700"
-        >
-          {item.label}
-        </a>
-      ))
-    }
-    <div class="mt-2 border-t border-slate-100 pt-3">
-      <AccountMenu client:only="react" />
-    </div>
-  </nav>
 </header>
 
 <!-- Spacer so fixed header doesn't overlap page content -->
 <div class="h-[var(--spacing-header)]" aria-hidden="true"></div>
 
 <script>
-  const toggle = document.querySelector<HTMLButtonElement>('[data-menu-toggle]');
-  const menu = document.querySelector<HTMLElement>('[data-mobile-menu]');
+  const header = document.querySelector<HTMLElement>('[data-site-header]');
+  const layout = header?.firstElementChild as HTMLElement | null;
+  const brand = header?.querySelector<HTMLElement>('[data-brand-link]');
+  const desktopNav = header?.querySelector<HTMLElement>('[data-primary-nav]');
+  const desktopAccount = header?.querySelector<HTMLElement>('.header-desktop-account');
+  const mobileDisclosure = header?.querySelector<HTMLDetailsElement>('[data-mobile-disclosure]');
+  const mobileToggle = header?.querySelector<HTMLElement>('[data-menu-toggle]');
+  let fitFrame = 0;
 
-  toggle?.addEventListener('click', () => {
-    const open = menu?.classList.toggle('hidden') === false;
-    toggle.setAttribute('aria-expanded', String(open));
-  });
+  function focusForDesktop(previousFocus: Element | null) {
+    if (!(previousFocus instanceof HTMLElement) || !mobileDisclosure?.contains(previousFocus)) {
+      return;
+    }
+    const href = previousFocus.closest('a')?.getAttribute('href');
+    const target = href
+      ? (desktopNav?.querySelector<HTMLElement>(`a[href="${CSS.escape(href)}"]`) ??
+        desktopAccount?.querySelector<HTMLElement>(`a[href="${CSS.escape(href)}"]`) ??
+        desktopAccount?.querySelector<HTMLElement>('[data-account-trigger], a'))
+      : (desktopAccount?.querySelector<HTMLElement>('[data-account-trigger], a') ?? brand);
+    target?.focus({ preventScroll: true });
+  }
 
-  // Close the mobile menu after tapping a link.
-  menu?.querySelectorAll('a').forEach((link) => {
+  function focusForMobile(previousFocus: Element | null) {
+    if (!(previousFocus instanceof HTMLElement)) return;
+    if (!desktopNav?.contains(previousFocus) && !desktopAccount?.contains(previousFocus)) return;
+
+    const href = previousFocus.closest('a')?.getAttribute('href');
+    mobileDisclosure?.setAttribute('open', '');
+    const target = href
+      ? (mobileDisclosure?.querySelector<HTMLElement>(`a[href="${CSS.escape(href)}"]`) ??
+        mobileDisclosure?.querySelector<HTMLElement>('[data-account-trigger], [data-account-menu] a'))
+      : mobileDisclosure?.querySelector<HTMLElement>('[data-account-trigger], [data-account-menu] a');
+    (target ?? mobileToggle)?.focus({ preventScroll: true });
+  }
+
+  function desktopFits(): boolean {
+    if (!layout || !brand || !desktopNav || !desktopAccount || window.innerWidth < 1360) {
+      return false;
+    }
+    const style = getComputedStyle(layout);
+    const available =
+      layout.clientWidth -
+      Number.parseFloat(style.paddingLeft) -
+      Number.parseFloat(style.paddingRight);
+    const gap = Number.parseFloat(style.columnGap) || 0;
+    const required =
+      brand.getBoundingClientRect().width +
+      desktopNav.getBoundingClientRect().width +
+      desktopAccount.getBoundingClientRect().width +
+      gap * 2;
+    return required <= available;
+  }
+
+  function syncHeaderMode() {
+    if (!header || !mobileDisclosure) return;
+    const previousFocus = document.activeElement;
+    const nextMode = desktopFits() ? 'desktop' : 'mobile';
+    const previousMode = header.dataset.headerMode ?? 'mobile';
+    if (nextMode === previousMode) return;
+
+    if (nextMode === 'desktop') {
+      header.dataset.headerMode = 'desktop';
+      mobileDisclosure.open = false;
+      focusForDesktop(previousFocus);
+      return;
+    }
+
+    header.dataset.headerMode = 'mobile';
+    focusForMobile(previousFocus);
+  }
+
+  function scheduleHeaderFit() {
+    window.cancelAnimationFrame(fitFrame);
+    fitFrame = window.requestAnimationFrame(syncHeaderMode);
+  }
+
+  mobileDisclosure?.querySelectorAll('a').forEach((link) => {
     link.addEventListener('click', () => {
-      menu.classList.add('hidden');
-      toggle?.setAttribute('aria-expanded', 'false');
+      if (mobileDisclosure) mobileDisclosure.open = false;
     });
   });
+
+  const resizeObserver = new ResizeObserver(scheduleHeaderFit);
+  for (const element of [layout, brand, desktopNav, desktopAccount]) {
+    if (element) resizeObserver.observe(element);
+  }
+  if (desktopAccount) {
+    new MutationObserver(scheduleHeaderFit).observe(desktopAccount, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+  }
+  window.addEventListener('resize', scheduleHeaderFit, { passive: true });
+  window.addEventListener('channel:auth', scheduleHeaderFit);
+  document.fonts?.ready.then(scheduleHeaderFit);
+  scheduleHeaderFit();
 </script>
+
+<style>
+  .header-desktop-nav {
+    display: flex;
+    position: absolute;
+    visibility: hidden;
+    width: max-content;
+    pointer-events: none;
+  }
+
+  .header-desktop-account {
+    position: absolute;
+    visibility: hidden;
+    width: max-content;
+    pointer-events: none;
+  }
+
+  .header-mobile-disclosure summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .header-mobile-menu {
+    max-height: calc(100dvh - var(--spacing-header));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  [data-site-header][data-header-mode='desktop'] .header-desktop-nav {
+    position: static;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  [data-site-header][data-header-mode='desktop'] .header-desktop-account {
+    position: static;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  [data-site-header][data-header-mode='desktop'] .header-mobile-disclosure {
+    display: none;
+  }
+</style>
