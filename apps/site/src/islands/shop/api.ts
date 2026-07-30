@@ -1,6 +1,9 @@
 /** Shared product types + API client for the storefront islands. */
 import { apiMediaUrl, apiUrl } from '../../lib/api-url.ts';
 import { getToken } from '../../lib/session.ts';
+import type { CatalogPage, CatalogQuery, Product } from './catalog-types.ts';
+
+export type { CatalogPage, CatalogQuery, Product } from './catalog-types.ts';
 
 /**
  * Attach the session token so the catalog API can verify the caller's role and
@@ -13,47 +16,10 @@ function catalogHeaders(): HeadersInit | undefined {
   return token ? { Authorization: `Bearer ${token}` } : undefined;
 }
 
-export interface Product {
-  _id: string;
-  name: string;
-  category: string;
-  series?: string;
-  modName?: string;
-  modType?: string;
-  description?: string;
-  productCode?: string;
-  moq?: number;
-  unitPrice?: number;
-  wholesalePrice?: number;
-  vipPrice?: number;
-  /** Overstock-only fields. */
-  inventory?: number;
-  clearancePrice?: number;
-  /** Image references into the `images` byte collection. */
-  imageIds?: string[];
-  /** Resolved image URLs (built by the API from `imageIds`). */
-  images?: string[];
-}
-
 interface ApiEnvelope<T> {
   ok: boolean;
   data?: T;
   error?: { code: string; message: string };
-}
-
-/** A page of catalog results from the storefront API. */
-export interface CatalogPage {
-  items: Product[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-export interface CatalogQuery {
-  categories?: string[];
-  search?: string;
-  page?: number;
-  pageSize?: number;
 }
 
 function resolveProductMedia(product: Product): Product {
