@@ -8,11 +8,6 @@ import { useSession } from './session.ts';
 
 /** Strings the standalone headphones page needs beyond what HeadphonesContent provides. */
 interface PageStrings {
-  /** Hero banner */
-  heroEyebrow: string;
-  heroHeading: string;
-  heroBody: string;
-  heroBadges: string[];
   /** Product matrix */
   matrixEyebrow: string;
   matrixHeading: string;
@@ -20,9 +15,7 @@ interface PageStrings {
   /** Product cards */
   viewDetail: string;
   moqLabel: string;
-  unitPriceLabel: string;
   /** Detail section */
-  detailHeading: string;
   backToMatrix: string;
   /** Advantages */
   advEyebrow: string;
