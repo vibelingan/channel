@@ -81,6 +81,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Test deployment contracts
+        run: pnpm test:deploy-smoke
+
       - name: Package CloudBase functions
         run: pnpm package:functions
 
