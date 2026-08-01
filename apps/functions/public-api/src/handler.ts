@@ -196,6 +196,7 @@ export async function listCatalog(
     pageSize,
     search: query.search ?? '',
     filter: { combinator: 'and', clauses },
+    sort: [{ field: '_id', dir: 'asc' }],
   });
 
   return ok({

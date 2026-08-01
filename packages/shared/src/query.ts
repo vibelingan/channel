@@ -149,6 +149,12 @@ function compare(a: unknown, b: unknown): number {
   return String(a ?? '').localeCompare(String(b ?? ''));
 }
 
+function compareStringKey(a: unknown, b: unknown): number {
+  const left = String(a ?? '');
+  const right = String(b ?? '');
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 /** Multi-key comparator from a list of sort clauses. */
 export function compareBySort(
   a: Record<string, unknown>,
@@ -156,7 +162,10 @@ export function compareBySort(
   sort: SortClause[],
 ): number {
   for (const s of sort) {
-    const cmp = compare(a[s.field], b[s.field]);
+    const cmp =
+      s.field === '_id'
+        ? compareStringKey(a[s.field], b[s.field])
+        : compare(a[s.field], b[s.field]);
     if (cmp !== 0) return s.dir === 'desc' ? -cmp : cmp;
   }
   return 0;

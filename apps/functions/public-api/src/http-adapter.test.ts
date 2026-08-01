@@ -320,6 +320,12 @@ function seedStore(): Store {
     // token without a live row unlocks nothing.
     users: [
       { _id: 'u-member', email: 'm@example.com', role: 'member', status: 'active' },
+      {
+        _id: 'u-contributor',
+        email: 'c@example.com',
+        role: 'contributor',
+        status: 'active',
+      },
       { _id: 'u-admin', email: 'a@example.com', role: 'admin', status: 'active' },
       { _id: 'u-viewer', email: 'v@example.com', role: 'viewer', status: 'active' },
       // Legacy row predating the status field — stays valid, mirroring `login`.
@@ -356,6 +362,89 @@ test('lists only published catalog items and caps pageSize at 48', async () => {
   assert.deepEqual(json.data.items[0]?.images, [
     'https://api.example.test/api/images/linked-image',
   ]);
+});
+
+test('catalog pages use stable _id ascending order across the full fixture', async () => {
+  const store = seedStore();
+  const products = store.products ?? [];
+  products[53] = { ...(products[53] as CollectionDoc), _id: '1' };
+  products[54] = { ...(products[54] as CollectionDoc), _id: '01' };
+  setup(store);
+  const expectedIds = products
+    .filter((product) => product.published === true)
+    .map((product) => product._id)
+    .sort();
+  assert.equal(expectedIds.length, 55);
+
+  const responses = await Promise.all(
+    [1, 2].map((page) =>
+      handlePublicApiEvent(
+        {
+          httpMethod: 'GET',
+          path: '/api/products',
+          queryStringParameters: { page: String(page), pageSize: '30' },
+        },
+        {},
+      ),
+    ),
+  );
+  const pages = responses.map(
+    (response) =>
+      body(response) as {
+        ok: true;
+        data: { items: CollectionDoc[]; total: number; page: number; pageSize: number };
+      },
+  );
+  const pageIds = pages.map((page) => page.data.items.map((item) => item._id));
+
+  assert.deepEqual(pageIds[0], expectedIds.slice(0, 30));
+  assert.deepEqual(pageIds[1], expectedIds.slice(30));
+  assert.deepEqual(pageIds.flat(), expectedIds);
+  assert.deepEqual(
+    pages.map((page) => ({
+      total: page.data.total,
+      page: page.data.page,
+      pageSize: page.data.pageSize,
+    })),
+    [
+      { total: 55, page: 1, pageSize: 30 },
+      { total: 55, page: 2, pageSize: 30 },
+    ],
+  );
+});
+
+test('catalog order is role-invariant while vipPrice remains entitlement-gated', async () => {
+  setup();
+  const callers = [
+    { role: 'anonymous', token: '', entitled: false },
+    { role: 'viewer', token: await memberToken('viewer'), entitled: false },
+    { role: 'member', token: await memberToken('member'), entitled: true },
+    { role: 'contributor', token: await memberToken('contributor'), entitled: true },
+    { role: 'admin', token: await memberToken('admin'), entitled: true },
+  ] as const;
+  const expectedIds = Array.from({ length: 55 }, (_, index) => `p-${index + 1}`)
+    .sort()
+    .slice(0, 12);
+
+  for (const caller of callers) {
+    const path = '/api/products?pageSize=12';
+    const event = caller.token ? authEvent(path, caller.token) : { httpMethod: 'GET', path };
+    const response = await handlePublicApiEvent(event, { jwtSecret: JWT_SECRET });
+    const items = (body(response) as { ok: true; data: { items: CollectionDoc[] } }).data.items;
+
+    assert.deepEqual(
+      items.map((item) => item._id),
+      expectedIds,
+      `${caller.role} receives the canonical catalog order`,
+    );
+    assert.equal(
+      caller.entitled
+        ? items.every((item) => 'vipPrice' in item)
+        : items.every((item) => !('vipPrice' in item)),
+      true,
+      `${caller.role} VIP projection matches current entitlement`,
+    );
+  }
 });
 
 // --- Public projection: no role-gated pricing / internal fields --------------
