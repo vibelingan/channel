@@ -91,7 +91,7 @@ MIU.
 |---:|---|---|
 | 1 | Complete | Commit `800b9f4`; behavior-neutral dead-surface cleanup and source-contract test |
 | 2 | Complete | Node 22.12+ site-build floor; independently pinned Nodejs20.19 function runtime |
-| 3 | Not started | Stable catalog order |
+| 3 | Complete | Stable `_id asc` public catalog ordering with local/CloudBase parity |
 | 4 | Not started | Shared Product Category control |
 | 5 | Not started | Site-wide reveal hardening; keep P0 Headphones regression green |
 | 6 | Not started | Abortable catalog client |
@@ -219,6 +219,76 @@ execution record is the fifth and final file in the phase.
 
 Result: MIU 2 is locally complete and ready for isolated commit, immutable-SHA review, push, and
 Deploy Test verification before MIU 3 begins.
+
+## MIU 3 - Stable public catalog page ordering
+
+Status: Complete
+
+Commit: This record ships in the isolated `fix(api): stabilize catalog ordering` commit.
+
+What changed:
+
+- Added explicit `{ field: '_id', dir: 'asc' }` ordering to the shared `listCatalog` query used by
+  both public `products` and `overstock` list routes.
+- Kept the existing `{items,total,page,pageSize}` envelope, publication/category/search filters,
+  public-field allowlist, current-user role revalidation, cache headers, image URL projection, and
+  VIP attachment rules unchanged.
+- Made the in-memory shared comparator treat `_id` as a lexical string key, matching CloudBase's
+  native `orderBy('_id', 'asc')`; numeric coercion remains unchanged for every non-ID sort field.
+
+Why: offset pagination without an explicit total order can skip or duplicate records when the
+adapter's default sort ties. `_id` is unique, so it gives catalog pages a stable order. Local and
+test adapters also need string semantics for numeric-looking IDs such as `01` and `1`; otherwise
+they can tie under numeric coercion and diverge from CloudBase.
+
+Best-practice sources and exact rules:
+
+- Applied: Public API Projection allowlisting, Auth & Session optional-auth fail-closed behavior,
+  CloudBase SDK contract verification, cross-file sort tracing, and TDD boundary-value coverage.
+- Not applicable: schema/index/resource, route, environment, UI, media lifecycle, or response-shape
+  changes; no new CloudBase resource or compound index is introduced.
+- Rejected with reason: sorting projected response items after pagination. Ordering must happen in
+  the database query before `skip/limit`, or page membership remains unstable.
+
+Tests written first: two tests failed against insertion order before the production sort was added.
+Review then exposed numeric-looking string ID ties and a weak unauthorized VIP assertion; the final
+55-item fixture inserts `1` before `01` but requires lexical `01` then `1` across two pages, while
+the role matrix requires zero VIP fields for anonymous/viewer and all VIP fields for
+member/contributor/admin.
+
+Focused validation: 39/39 public API tests, 70/70 shared tests, both affected typechecks, focused
+Biome, and the CloudBase SDK contract passed.
+
+Full validation: frozen pnpm 11.5.0 install; all 333 workspace tests; all nine
+package/application typechecks plus E2E TypeScript with zero errors; 198-file Biome pass; both
+Node 20 function builds and cold-start artifact smokes; 18-page Astro production build.
+
+Assumption check: runtime/API contract PASS. The only warning was that the approved untracked MIU
+breakdown still lists the original two-file scope; it is deliberately not staged wholesale into
+this implementation commit. The required shared comparator deviation is recorded here.
+
+Independent review: no P1/P2 findings after both review corrections. Residual risks are the
+documented offset-pagination lack of snapshot consistency during concurrent writes and missing
+focused overstock/search/category combination coverage; both routes use the same owning query path.
+
+Cross-file traces:
+
+- Public route -> `listCatalog` -> DB facade sort -> CloudBase `orderBy('_id', 'asc')`.
+- Local/test route -> `listCatalog` -> Memory/JSON adapter -> shared `compareBySort` lexical `_id`.
+- Catalog viewer -> current users row -> unchanged `canSeeVipPricing` projection; ordered IDs are
+  identical for anonymous, viewer, member, contributor, and admin.
+
+Build/Deploy/Runtime result: changes the public-api artifact and user-visible default catalog order
+only. No schema, index, route, environment variable, response shape, or site pixel changes. Per the
+approved MIU contract, this backend unit is packaged and smoke-tested locally but is not deployed
+independently; it will ship with the assembled release.
+
+Deviations: review expanded the implementation from the two declared public-api files to include
+`packages/shared/src/query.ts`, because local/test `_id` ordering had to match CloudBase string
+semantics. Final implementation scope is three code/test files plus this tracked execution record.
+
+Result: MIU 3 is locally complete and ready for isolated commit and immutable-SHA review. MIU 4 may
+begin only after the reviewed commit is recorded; MIU 3 has no standalone visual screenshot.
 
 ## Per-MIU Record Template
 
