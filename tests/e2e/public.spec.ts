@@ -232,6 +232,148 @@ test.describe('public browser smoke', () => {
     }
   });
 
+  test('static reveal content is visible before observer class mutation', async ({ page }) => {
+    await page.goto('/oem#capabilities', { waitUntil: 'domcontentloaded' });
+    const reveal = page.locator('#capabilities .reveal').first();
+    await expect(reveal).toHaveCount(1);
+    await reveal.evaluate((element) => element.classList.remove('reveal-pending', 'is-visible'));
+
+    const state = await reveal.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        opacity: style.opacity,
+        transform: style.transform,
+        noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth,
+      };
+    });
+    expect(state.opacity).toBe('1');
+    expect(state.transform).toBe('none');
+    expect(state.noHorizontalOverflow).toBe(true);
+  });
+
+  test('static reveal content stays visible when IntersectionObserver is unavailable', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      Reflect.deleteProperty(window, 'IntersectionObserver');
+    });
+    await page.goto('/oem#capabilities', { waitUntil: 'domcontentloaded' });
+    const reveal = page.locator('#capabilities .reveal').first();
+    await expect(reveal).toBeVisible();
+    await expect(reveal).not.toHaveClass(/reveal-pending|is-visible/);
+    await expect(reveal).toHaveCSS('opacity', '1');
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+  });
+
+  test('static reveal content stays visible when observer registration fails', async ({ page }) => {
+    await page.addInitScript(() => {
+      class ThrowingIntersectionObserver {
+        observe() {
+          throw new Error('observer registration unavailable');
+        }
+
+        unobserve() {}
+      }
+      Object.defineProperty(window, 'IntersectionObserver', {
+        configurable: true,
+        value: ThrowingIntersectionObserver,
+      });
+    });
+    await page.goto('/oem', { waitUntil: 'domcontentloaded' });
+    const reveal = page.locator('#capabilities .reveal').first();
+    await expect(reveal).not.toHaveClass(/reveal-pending|is-visible/);
+    await expect(reveal).toHaveCSS('opacity', '1');
+    await expect(reveal).toHaveCSS('transform', 'none');
+  });
+
+  test('static reveal content stays visible without JavaScript and under reduced motion', async ({
+    browser,
+  }) => {
+    const trustedStorage = await trustedSiteStorage(browser);
+    for (const mode of ['no-js', 'reduced-motion'] as const) {
+      const context = await browser.newContext({
+        javaScriptEnabled: mode !== 'no-js',
+        reducedMotion: mode === 'reduced-motion' ? 'reduce' : 'no-preference',
+        storageState: trustedStorage,
+        viewport: { width: 390, height: 844 },
+      });
+      try {
+        const page = await context.newPage();
+        await page.goto(`${e2e.siteUrl}/oem#capabilities`, { waitUntil: 'domcontentloaded' });
+        const reveal = page.locator('#capabilities .reveal').first();
+        await expect(reveal).not.toHaveClass(/reveal-pending|is-visible/);
+        const state = await reveal.evaluate((element) => {
+          const style = getComputedStyle(element);
+          return {
+            opacity: style.opacity,
+            transform: style.transform,
+            transitionDuration: style.transitionDuration,
+            animationName: style.animationName,
+            noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth,
+          };
+        });
+        expect(state.opacity, mode).toBe('1');
+        expect(state.transform, mode).toBe('none');
+        expect(state.noHorizontalOverflow, mode).toBe(true);
+        if (mode === 'reduced-motion') {
+          expect(state.transitionDuration).toBe('0s');
+          expect(state.animationName).toBe('none');
+        }
+      } finally {
+        await context.close();
+      }
+    }
+  });
+
+  test('below-fold reveal animates once and releases transform resources', async ({ page }) => {
+    await page.goto('/oem', { waitUntil: 'domcontentloaded' });
+    const reveal = page.locator('#capabilities .reveal').first();
+    await expect(reveal).toHaveClass(/reveal-pending/);
+    await expect(reveal).not.toHaveClass(/is-visible/);
+    await expect(reveal).toHaveCSS('will-change', 'auto');
+
+    await reveal.scrollIntoViewIfNeeded();
+    await expect(reveal).toHaveClass(/reveal-pending.*is-visible|is-visible.*reveal-pending/);
+    await reveal.locator('*').first().dispatchEvent('transitionend', {
+      propertyName: 'opacity',
+    });
+    await expect(reveal).toHaveClass(/reveal-pending/);
+    await reveal.dispatchEvent('transitionend', {
+      propertyName: 'background-color',
+    });
+    await expect(reveal).toHaveClass(/reveal-pending/);
+    await expect(reveal).toHaveCSS('opacity', '1');
+    await expect(reveal).not.toHaveClass(/reveal-pending|is-visible/, { timeout: 2_000 });
+    const final = await reveal.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        opacity: style.opacity,
+        transform: style.transform,
+        willChange: style.willChange,
+      };
+    });
+    expect(final).toEqual({ opacity: '1', transform: 'none', willChange: 'auto' });
+  });
+
+  test('below-fold reveal timeout releases classes when transitionend is delayed', async ({
+    page,
+  }) => {
+    await page.goto('/oem', { waitUntil: 'domcontentloaded' });
+    const reveal = page.locator('#capabilities .reveal').first();
+    await expect(reveal).toHaveClass(/reveal-pending/);
+    await reveal.evaluate((element) => {
+      if (!(element instanceof HTMLElement)) throw new Error('Reveal is not HTML');
+      element.style.setProperty('transition-duration', '10s', 'important');
+    });
+
+    await reveal.scrollIntoViewIfNeeded();
+    await expect(reveal).toHaveClass(/reveal-pending.*is-visible|is-visible.*reveal-pending/);
+    await expect(reveal).not.toHaveClass(/reveal-pending|is-visible/, { timeout: 2_000 });
+    await expect(reveal).toHaveCSS('will-change', 'auto');
+  });
+
   test('Slide 2 header keeps the company name without restoring MOQ', async ({ page }) => {
     for (const viewport of [
       { width: 1360, height: 800 },
