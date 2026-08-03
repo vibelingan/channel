@@ -528,9 +528,10 @@ Status: Implementation committed; pending review follow-up blessing, push, and D
 
 Commits: `2a3fe65` (`feat(headphones): define storefront content contract`), `3fffbae`
 (`test(headphones): verify hero provenance policy`), and `3ed0c54`
-(`fix(headphones): preserve content rollout boundary`), plus the range-tip test/docs closure commit
-that hardens media metadata policy and the portable handoff. A subsequent docs-only record pins
-that closure SHA; record-only commits do not change runtime behavior.
+(`fix(headphones): preserve content rollout boundary`), plus `0a32b77`
+(`docs(headphones): close MIU 7 review findings`), the range-tip test/docs closure that hardens
+media metadata policy and the portable handoff. This record-only commit pins that closure SHA and
+does not change runtime behavior.
 
 What changed:
 
