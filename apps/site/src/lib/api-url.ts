@@ -1,4 +1,4 @@
-const API_BASE_URL = normalizeBaseUrl(import.meta.env.PUBLIC_API_BASE_URL);
+const API_BASE_URL = normalizeBaseUrl(import.meta.env?.PUBLIC_API_BASE_URL);
 
 function normalizeBaseUrl(value: string | undefined): string {
   return (value ?? '').trim().replace(/\/+$/, '');

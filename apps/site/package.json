@@ -10,7 +10,7 @@
     "astro": "astro",
     "typecheck": "astro check",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
-    "test": "tsc -p tsconfig.test.json --noEmit && tsx --test src/**/*.test.ts"
+    "test": "tsc -p tsconfig.test.json --noEmit && tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@astrojs/react": "^5.0.6",
