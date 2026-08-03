@@ -94,7 +94,7 @@ MIU.
 | 3 | Complete | Stable `_id asc` public catalog ordering with local/CloudBase parity |
 | 4 | Complete | Progressive native Product Category control shared by homepage and `/oem` |
 | 5 | Complete | Default-visible reveal baseline with bounded one-time animation cleanup |
-| 6 | Not started | Abortable catalog client |
+| 6 | Complete | Abortable catalog page client with fresh-session and media normalization tests |
 | 7 | Not started | Typed Headphones copy and hero provenance |
 | 8 | Not started | ProductMedia and bounded Gallery |
 | 9 | Not started | Load More state reducer |
@@ -457,6 +457,70 @@ file. This execution record is the fifth and final file in the phase.
 
 Result: MIU 5 requires the reviewed header follow-up commit and a green replacement Deploy Test
 before completion.
+
+Replacement deployment result: follow-up `05de95b` passed push CI `30799180670`, PR CI
+`30799183303`, and replacement Deploy Test `30799180632`, including public browser E2E. Live
+health reports the exact release; no-JavaScript and reduced-motion reveal content computes to
+opacity `1`/transform `none`, and the 390px document no longer overflows. A visual explanation with
+tracked before/fixed screenshots is available in [MIU5-REVEAL-EVIDENCE.md](MIU5-REVEAL-EVIDENCE.md).
+
+## Responsive Headphones detail note - planned ownership
+
+The reported medium-breakpoint product-detail overflow (long copy/spec rows and horizontal
+thumbnail strip extending beyond the detail band) is already inside the approved replacement
+architecture and is not hotfixed in the current monolith:
+
+- MIU 8 owns responsive contained media, the 520px frame cap, four-preview limit, bounded wrapping
+  `View All`, and browser overflow assertions at 390/768/1024/1440px.
+- MIU 11 replaces the current detail presentation with composed Gallery/spec/pricing structure.
+- MIU 13 wires the responsive detail controller and browser focus/overflow lifecycle.
+
+The screenshot symptom is now an explicit acceptance example for those MIUs: at medium widths,
+long product text must wrap within `min-width: 0` content tracks, spec values must wrap rather than
+widen the band, thumbnail previews must wrap or stay within their bounded container, and
+`scrollWidth <= clientWidth` must hold before and after `View All`. Fixing the soon-to-be-replaced
+monolith now would duplicate MIUs 8/11/13 and risk conflicting implementations.
+
+## MIU 6 - Abortable catalog page client
+
+Status: Complete
+
+Commit: code/test phase `7fa6d30` (`feat(catalog): support abortable page requests`); this tracked
+record and MIU 5 visual evidence ship in the following docs-only commit.
+
+What changed:
+
+- Added an optional trailing `AbortSignal` to `fetchCatalog` and forwarded the exact signal to the
+  native `fetch` call. Existing two-argument callers remain source-compatible.
+- Preserved exact category/search/page/pageSize query construction, current-token lookup on every
+  call, the existing `CatalogPage` envelope, and relative/absolute media URL normalization.
+- Added complete typed Product/CatalogPage factories and three API tests for page 2/page size 48,
+  signal identity, token replacement/removal, media normalization, and native AbortError
+  propagation without a successful result.
+- Made the existing relative API fallback importable under the Node test runner when Vite's
+  `import.meta.env` is absent; production Vite builds still embed the configured API origin.
+- Quoted the recursive site test glob so POSIX CI shells discover nested tests. The standard site
+  command now runs 53 tests, including all three MIU 6 tests, instead of silently stopping at 44.
+
+Tests written first: the client initially could not be imported outside Vite, then the signal test
+failed and the abort test remained pending because no signal reached the fetch mock. After the
+runtime fix, review added a 250ms watchdog so future missing-signal regressions fail promptly rather
+than hanging CI.
+
+Focused validation: standard `pnpm --filter @vibelingan-channel/site test` discovers and passes
+53/53 tests; Astro check reports zero errors; focused Biome, production build, and diff checks pass.
+
+Assumption/review result: behavioral contract PASS with no P1/P2. The five-file code/test boundary
+is a justified deviation from the original two-file modify-existing entry: `api.test.ts` and its
+typed factory were new, `api-url.ts` needed the Node-import seam, and `apps/site/package.json`
+needed shell-independent test discovery. No dependency, lockfile, backend, route, DTO, or wire-shape
+change occurred.
+
+Build/Deploy/Runtime result: site bundle and test-discovery change only. Superseded controller
+requests can now be aborted; generation/state rules remain MIU 9/13 responsibilities.
+
+Result: MIU 6 code is complete at `7fa6d30`, ready for docs record commit, immutable review, PR
+update, and test deployment.
 
 ## Per-MIU Record Template
 
