@@ -52,6 +52,7 @@ export interface HeadphonesContent {
     errorLabel: string;
     retryLabel: string;
     emptyLabel: string;
+    emptyStateLabel: string;
     emptyCtaLabel: string;
     loadMoreLabel: string;
     loadingMoreLabel: string;
@@ -65,6 +66,7 @@ export interface HeadphonesContent {
   };
   detail: {
     backLabel: string;
+    backToModelsLabel: string;
     seriesLabel: string;
     modelLabel: string;
     typeLabel: string;
@@ -74,6 +76,7 @@ export interface HeadphonesContent {
     vipLabel: string;
     vipLockedLabel: string;
     inquiryCta: string;
+    oemInquiryCta: string;
     viewAllLabel: string;
     imageUnavailableLabel: string;
     zoomHint: string;

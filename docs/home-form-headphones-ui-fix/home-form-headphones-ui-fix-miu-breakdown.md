@@ -1,14 +1,14 @@
 # Home Form And Headphones UI Repair - MIU Breakdown
 
-> Phase 4 tracked implementation contract. G3 follows approval of this architecture and breakdown. G4 follows the complete test plan. The repository-level phased-execution rule still requires an approval after every implementation phase listed below.
+> Phase 4 tracked implementation contract. G3/G4 are approved and implementation is in progress.
+> The repository-level phased-execution rule still requires an approval after every implementation
+> phase listed below.
 
 ## Current Status And Resume Boundary
 
-- G1 requirements and G2 UI design are approved.
-- G3 architecture approval is **pending**. This breakdown and the architecture are ready for
-  review, but G4 test-plan approval and runtime implementation must not start until the native
-  select trade-off, UI screen board, performance boundary, and this per-MIU guidance are explicitly
-  accepted.
+- G1 requirements, G2 UI design, G3 architecture, and G4 test plan are approved. The user's
+  2026-07-30 instruction to correct the reviewed screens and begin implementation is the gate
+  transition recorded in the canonical execution log.
 - The P0 visibility slice is already committed/deployed at `741b0af`: asynchronous Headphones
   groups no longer use `.reveal`, and browser coverage proves visible cards plus basic detail
   open/return. Do not reimplement or revert that slice.
@@ -16,8 +16,8 @@
   deployed P0; the runtime Headphones wrappers must remain free of `.reveal`.
 - The SY-T8 18-image publication is operational evidence, not completion of MIU 8. Gallery sizing,
   four-preview `View All`, fallback, focus, and request budgets remain pending.
-- Product Category and MIUs 1-4 plus 6-13 remain unimplemented unless the tracked execution log and
-  Git history prove otherwise at execution time.
+- Current per-MIU status is owned by the tracked execution log and Git history; this breakdown
+  defines scope, order, and acceptance criteria rather than duplicating progress state.
 - MIU 14 implementation exists across `ce19963` + `27c70c0`; MIU 15 at `3feeb60`; MIU 16 at `26a636a`.
   Treat them as pre-existing complete implementations whose assertions/docs must be revalidated
   after the assembled change. Edit them only if that revalidation exposes a real delta.
