@@ -94,7 +94,7 @@ MIU.
 | 4 | Complete | Progressive native Product Category control shared by homepage and `/oem` |
 | 5 | Complete | Default-visible reveal baseline with bounded one-time animation cleanup |
 | 6 | Complete | Abortable catalog page client with fresh-session and media normalization tests |
-| 7 | Implementation committed; delivery pending | Commits `2a3fe65` + review follow-ups |
+| 7 | Complete and deployed | Runtime/content release `9c126d5`; Deploy Test `30813825143` |
 | 8 | Not started | ProductMedia and bounded Gallery |
 | 9 | Not started | Load More state reducer |
 | 10 | Not started | Catalog/card async-state presentation |
@@ -524,7 +524,7 @@ public browser gate and exact live-release verification.
 
 ## MIU 7 - Typed Headphones content and gated hero provenance
 
-Status: Implementation committed; pending review follow-up blessing, push, and Deploy Test.
+Status: Complete and deployed.
 
 Commits: `2a3fe65` (`feat(headphones): define storefront content contract`), `3fffbae`
 (`test(headphones): verify hero provenance policy`), and `3ed0c54`
@@ -586,8 +586,9 @@ custom domain. That evidence was rejected as an environment mismatch. A fresh bu
 isolated local API on a temporary JSON database with the same public handlers and wildcard local
 CORS: all 30 runnable public browser tests passed, including Headphones hydration, catalog/public
 projection, media headers, and member VIP pricing; one CloudBase-only loading-state test skipped.
-The temporary services were stopped and the temporary database removed. Deploy Test remains the
-authoritative integrated CloudBase browser gate for the committed SHA.
+The temporary services were stopped and the temporary database removed. Deploy Test `30813825143`
+then passed on exact runtime/content SHA `9c126d5febe49587d4ce6094d274e10c43803547`, including
+CloudBase deployment, deployed smoke, Chromium installation, and public browser E2E.
 
 Live provenance validation: each gated image was downloaded independently after immutable review;
 all three returned `image/jpeg`, decoded at 800x800, and produced the exact recorded SHA-256 values:
@@ -629,9 +630,12 @@ also repaired to preserve a valid three-file core plan while explicitly retainin
 historical deviations and five-file implementation truth.
 
 Result: MIU 7 implementation/review code is complete across `2a3fe65`, `3fffbae`, `3ed0c54`, and
-the range-tip test/docs closure commit; the aggregate is ready for immutable review blessing,
-feature/test push, and Deploy Test. MIU 7 itself has no visible pixel change; later presentation
-MIUs may change the catalog, Gallery, detail, and hero independently.
+the pinned test/docs closure. Runtime/content SHA `9c126d5febe49587d4ce6094d274e10c43803547`
+passed push CI `30813825290`, PR CI `30813827434`, and Deploy Test `30813825143`. Live health
+reports that exact release; `/api/products?page=1&pageSize=12` preserves the catalog envelope; the
+custom-domain Headphones route returns 200 with its pre-MIU-7 visible copy unchanged. MIU 7 itself
+has no visible pixel change; later presentation MIUs may change the catalog, Gallery, detail, and
+hero independently.
 
 ## Per-MIU Record Template
 
