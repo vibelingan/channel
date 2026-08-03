@@ -39,22 +39,29 @@
  */
 @layer utilities {
   .reveal {
-    opacity: 0;
-    transform: translateY(24px);
-    transition: opacity 0.7s var(--ease-out-soft), transform 0.7s var(--ease-out-soft);
-    will-change: opacity, transform;
-  }
-
-  .reveal.is-visible {
     opacity: 1;
     transform: none;
   }
 
+  .reveal.reveal-pending {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  .reveal.reveal-pending.is-visible {
+    opacity: 1;
+    transform: none;
+    transition: opacity 0.7s var(--ease-out-soft), transform 0.7s var(--ease-out-soft);
+    will-change: opacity, transform;
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .reveal {
+    .reveal.reveal-pending,
+    .reveal.reveal-pending.is-visible {
       opacity: 1;
       transform: none;
       transition: none;
+      will-change: auto;
     }
   }
 }

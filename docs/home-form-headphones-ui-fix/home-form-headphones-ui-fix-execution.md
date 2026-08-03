@@ -93,7 +93,7 @@ MIU.
 | 2 | Complete | Node 22.12+ site-build floor; independently pinned Nodejs20.19 function runtime |
 | 3 | Complete | Stable `_id asc` public catalog ordering with local/CloudBase parity |
 | 4 | Complete | Progressive native Product Category control shared by homepage and `/oem` |
-| 5 | Not started | Site-wide reveal hardening; keep P0 Headphones regression green |
+| 5 | Complete | Default-visible reveal baseline with bounded one-time animation cleanup |
 | 6 | Not started | Abortable catalog client |
 | 7 | Not started | Typed Headphones copy and hero provenance |
 | 8 | Not started | ProductMedia and bounded Gallery |
@@ -372,6 +372,81 @@ replace MIU 5's site-wide reveal hardening.
 
 Result: MIU 4 is locally complete and ready for isolated commit, immutable-SHA review, PR update,
 and test deployment. Its visible result is the shared Product Category control on both forms.
+
+## MIU 5 - Default-visible reveal animation contract
+
+Status: Complete
+
+Commit: This record ships in the isolated `fix(site): make reveal content fail visible` commit.
+
+What changed:
+
+- Made every `.reveal` node visible by default (`opacity: 1`, no transform). No JavaScript,
+  unsupported observers, registration failures, reduced motion, and late client content therefore
+  fail visible instead of remaining transparent.
+- The BaseLayout controller now registers each existing static node before assigning
+  `reveal-pending`, and only below-fold nodes are armed. Initial-viewport content is never hidden.
+- Intersection starts one opacity/transform transition, unobserves immediately, ignores descendant
+  and non-opacity transition events, and removes pending/visible classes through the real opacity
+  completion or an 800ms timeout fallback.
+- `will-change` exists only during the active transition. Cleanup restores the plain reveal class,
+  so card hover transforms and compositor resources are not retained.
+
+Why: the previous CSS made content availability depend on a later observer class. That hid static
+content without JavaScript and created silent blank-page states when observers or lifecycle timing
+failed. Animation is now optional enhancement; visibility is the invariant.
+
+Best-practice sources and exact rules:
+
+- Applied: progressive enhancement, reduced-motion visibility, observer registration-before-hide,
+  one-time observer cleanup, transition lifecycle ownership, bounded timeout fallback, and
+  Headphones P0 computed-visibility regression protection.
+- Rejected with reason: `MutationObserver` support for dynamic nodes. The approved contract
+  explicitly keeps one initial static query; dynamic nodes remain visible by default.
+- Rejected with reason: animation-fill keyframes on `.is-visible`. Review proved this creates a
+  visible -> hidden -> visible flash, retains `will-change`, and overrides existing hover transforms.
+
+Tests written first: normal/pre-enhancement, observer-unavailable, and no-JavaScript tests failed at
+opacity `0`. The final six-test suite covers visible baseline, missing observer, throwing
+registration, no-JavaScript, reduced motion, one-time transition cleanup, independent descendant
+and property event guards, untouched pending `will-change: auto`, and timeout cleanup when native
+transition completion is delayed.
+
+Focused validation: six reveal lifecycle browser tests; 44/44 site tests; Astro and E2E typechecks;
+focused Biome; no reveal `MutationObserver`; `git diff --check`.
+
+Full validation: frozen pnpm 11.5.0 install; all 333 workspace tests; all nine
+package/application typechecks plus E2E TypeScript with zero errors; 199-file Biome pass; both
+Node 20 function builds and cold-start artifact smokes; 18-page Astro production build.
+
+Assumption/review result: final production-code review found no remaining P1/P2 after fixing
+visible-to-hidden flash, observer fallback animation, registration failure, descendant event
+cleanup, persistent `will-change`, and timeout coverage. The required controller update is recorded
+as a scope deviation below.
+
+Cross-file traces:
+
+- `BaseLayout` static query -> successful `IntersectionObserver.observe()` -> optional below-fold
+  `reveal-pending` -> one intersection -> opacity transition -> event/timeout cleanup.
+- Missing JavaScript/observer/registration and reduced motion -> untouched visible CSS baseline.
+- Existing Headphones product cards remain reveal-free and retain their deployed computed-ancestor
+  visibility test.
+
+Build/Deploy/Runtime result: site CSS/controller and public browser tests only; no dependency,
+lockfile, backend, route, environment, API, or payload change. After commit, PR #6 and `test` will
+receive the exact reviewed SHA and Deploy Test will verify static pages plus Headphones P0 live.
+
+Codex review status: PR #6 is open, clean, and mergeable. `@codex review` was posted twice, but as of
+this MIU boundary GitHub REST, GraphQL timeline/review threads, check runs, and the rendered PR page
+contain no Codex-authored review payload. No finding was invented or silently attributed to Codex;
+the request remains active for the updated PR head.
+
+Deviations: the approved MIU listed `global.css` and `public.spec.ts`. Review proved the existing
+BaseLayout controller was the owning lifecycle surface, so `BaseLayout.astro` became the necessary
+third implementation file. This execution record is the fourth file in the phase.
+
+Result: MIU 5 is locally complete and ready for isolated commit, immutable-SHA review, PR update,
+and test deployment.
 
 ## Per-MIU Record Template
 
