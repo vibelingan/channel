@@ -52,7 +52,8 @@ list:
   loadingLabel: Loading headphones…
   errorLabel: We could not load the headphone catalog.
   retryLabel: Try Again
-  emptyLabel: No published headphone models are available right now.
+  emptyLabel: No products match the selected categories.
+  emptyStateLabel: No published headphone models are available right now.
   emptyCtaLabel: Start an OEM Enquiry
   loadMoreLabel: Load More
   loadingMoreLabel: Loading More…
@@ -68,7 +69,8 @@ list:
   moqLabel: MOQ
 
 detail:
-  backLabel: Back to all models
+  backLabel: Back to headphones
+  backToModelsLabel: Back to all models
   seriesLabel: Series
   modelLabel: Model
   typeLabel: Type
@@ -77,7 +79,8 @@ detail:
   wholesaleLabel: Wholesale price
   vipLabel: VIP price
   vipLockedLabel: Sign in to view VIP price
-  inquiryCta: Start Your OEM Enquiry
+  inquiryCta: Price inquiry
+  oemInquiryCta: Start Your OEM Enquiry
   viewAllLabel: View All
   imageUnavailableLabel: Product image unavailable
   zoomHint: Hover image to zoom

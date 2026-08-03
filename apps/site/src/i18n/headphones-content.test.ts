@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { parseDocument } from 'yaml';
+import type { HeadphonesContent } from './headphones.ts';
 
 const headphonesContent = readFileSync(
   fileURLToPath(new URL('./content/headphones/en-US.md', import.meta.url)),
@@ -52,7 +53,89 @@ const expectedHero = {
       sha256: 'e4480b78b451261611e74a373ab84048dded0fe255803315247d444bf41c1de6',
     },
   ],
-};
+} satisfies HeadphonesContent['hero'];
+
+const expectedFrontmatter = {
+  locale: 'en-US',
+  meta: {
+    title: 'Headphones',
+    description:
+      'Wholesale headphones catalog — wired, office, and Bluetooth models. Request a quote for VIP pricing and full specifications.',
+  },
+  shopNav: [
+    { label: 'Login / Register', href: '/admin' },
+    { label: 'Your Cart', href: '/cart' },
+    { label: 'Contact Us', href: '/#contact' },
+  ],
+  hero: expectedHero,
+  list: {
+    eyebrow: 'Product Line',
+    heading: 'Explore Our Headphone Collection',
+    subheading:
+      'Compare published models, specifications, and order quantities, then request OEM pricing for your market.',
+    filterLabel: 'Categories',
+    allLabel: 'All categories',
+    resultsLabel: 'products',
+    loadingLabel: 'Loading headphones…',
+    errorLabel: 'We could not load the headphone catalog.',
+    retryLabel: 'Try Again',
+    emptyLabel: 'No products match the selected categories.',
+    emptyStateLabel: 'No published headphone models are available right now.',
+    emptyCtaLabel: 'Start an OEM Enquiry',
+    loadMoreLabel: 'Load More',
+    loadingMoreLabel: 'Loading More…',
+    resultProgressLabel: '{loaded} of {total} models',
+    categories: [
+      { key: 'wired', label: 'Wired Headphones' },
+      { key: 'office', label: 'Office Headphones' },
+      { key: 'bluetooth', label: 'Bluetooth Headphones' },
+    ],
+    wholesaleLabel: 'Wholesale',
+    vipLabel: 'VIP price',
+    vipLockedLabel: 'Sign in to view VIP price',
+    viewDetail: 'View details',
+    moqLabel: 'MOQ',
+  },
+  detail: {
+    backLabel: 'Back to headphones',
+    backToModelsLabel: 'Back to all models',
+    seriesLabel: 'Series',
+    modelLabel: 'Model',
+    typeLabel: 'Type',
+    moqLabel: 'Minimum Order Quantity',
+    unitPriceLabel: 'Unit price',
+    wholesaleLabel: 'Wholesale price',
+    vipLabel: 'VIP price',
+    vipLockedLabel: 'Sign in to view VIP price',
+    inquiryCta: 'Price inquiry',
+    oemInquiryCta: 'Start Your OEM Enquiry',
+    viewAllLabel: 'View All',
+    imageUnavailableLabel: 'Product image unavailable',
+    zoomHint: 'Hover image to zoom',
+    notFound: 'Product not found.',
+  },
+  oemCta: {
+    eyebrow: 'Request a Quote',
+    heading: 'Ready to Build Your Headphone Line?',
+    body: 'Share your target model, quantity, branding, and market requirements with our OEM team.',
+    primaryLabel: 'Start Your OEM Enquiry',
+    secondaryLabel: 'Explore OEM Capabilities',
+  },
+  inquiry: {
+    title: 'Request price & catalog',
+    intro: 'Tell us where to send your quote. Our team typically replies within 24 hours.',
+    emailLabel: 'Email',
+    companyLabel: 'Company',
+    countryLabel: 'Country',
+    downloadCatalog: 'Download catalog',
+    requestQuote: 'Request a quote',
+    submitLabel: 'Send inquiry',
+    cancelLabel: 'Cancel',
+    successTitle: 'Inquiry received',
+    successBody: 'Thank you — our sales team will email your quote and catalog shortly.',
+    disclaimer: 'Your details are used only to respond to this inquiry and are kept confidential.',
+  },
+} satisfies HeadphonesContent & { locale: string };
 
 test('Headphones content pins the reviewed gated hero media in fallback order', () => {
   assert.match(headphonesTypes, /export interface HeadphonesHeroSource/);
@@ -64,85 +147,7 @@ test('Headphones content pins the reviewed gated hero media in fallback order', 
 });
 
 test('Headphones content owns recovery, navigation, and persistent OEM CTA copy only', () => {
-  assert.deepEqual(frontmatter, {
-    locale: 'en-US',
-    meta: {
-      title: 'Headphones',
-      description:
-        'Wholesale headphones catalog — wired, office, and Bluetooth models. Request a quote for VIP pricing and full specifications.',
-    },
-    shopNav: [
-      { label: 'Login / Register', href: '/admin' },
-      { label: 'Your Cart', href: '/cart' },
-      { label: 'Contact Us', href: '/#contact' },
-    ],
-    hero: expectedHero,
-    list: {
-      eyebrow: 'Product Line',
-      heading: 'Explore Our Headphone Collection',
-      subheading:
-        'Compare published models, specifications, and order quantities, then request OEM pricing for your market.',
-      filterLabel: 'Categories',
-      allLabel: 'All categories',
-      resultsLabel: 'products',
-      loadingLabel: 'Loading headphones…',
-      errorLabel: 'We could not load the headphone catalog.',
-      retryLabel: 'Try Again',
-      emptyLabel: 'No published headphone models are available right now.',
-      emptyCtaLabel: 'Start an OEM Enquiry',
-      loadMoreLabel: 'Load More',
-      loadingMoreLabel: 'Loading More…',
-      resultProgressLabel: '{loaded} of {total} models',
-      categories: [
-        { key: 'wired', label: 'Wired Headphones' },
-        { key: 'office', label: 'Office Headphones' },
-        { key: 'bluetooth', label: 'Bluetooth Headphones' },
-      ],
-      wholesaleLabel: 'Wholesale',
-      vipLabel: 'VIP price',
-      vipLockedLabel: 'Sign in to view VIP price',
-      viewDetail: 'View details',
-      moqLabel: 'MOQ',
-    },
-    detail: {
-      backLabel: 'Back to all models',
-      seriesLabel: 'Series',
-      modelLabel: 'Model',
-      typeLabel: 'Type',
-      moqLabel: 'Minimum Order Quantity',
-      unitPriceLabel: 'Unit price',
-      wholesaleLabel: 'Wholesale price',
-      vipLabel: 'VIP price',
-      vipLockedLabel: 'Sign in to view VIP price',
-      inquiryCta: 'Start Your OEM Enquiry',
-      viewAllLabel: 'View All',
-      imageUnavailableLabel: 'Product image unavailable',
-      zoomHint: 'Hover image to zoom',
-      notFound: 'Product not found.',
-    },
-    oemCta: {
-      eyebrow: 'Request a Quote',
-      heading: 'Ready to Build Your Headphone Line?',
-      body: 'Share your target model, quantity, branding, and market requirements with our OEM team.',
-      primaryLabel: 'Start Your OEM Enquiry',
-      secondaryLabel: 'Explore OEM Capabilities',
-    },
-    inquiry: {
-      title: 'Request price & catalog',
-      intro: 'Tell us where to send your quote. Our team typically replies within 24 hours.',
-      emailLabel: 'Email',
-      companyLabel: 'Company',
-      countryLabel: 'Country',
-      downloadCatalog: 'Download catalog',
-      requestQuote: 'Request a quote',
-      submitLabel: 'Send inquiry',
-      cancelLabel: 'Cancel',
-      successTitle: 'Inquiry received',
-      successBody: 'Thank you — our sales team will email your quote and catalog shortly.',
-      disclaimer:
-        'Your details are used only to respond to this inquiry and are kept confidential.',
-    },
-  });
+  assert.deepEqual(frontmatter, expectedFrontmatter);
   const heroSource = JSON.stringify((frontmatter as { hero: unknown }).hero);
   assert.doesNotMatch(
     heroSource,

@@ -40,7 +40,7 @@ performance work is complete.
 - This proves media bytes/publication are healthy. It does not complete MIU 8: current Gallery
   still auto-pans a 200% hover background and mounts all thumbnails.
 
-## Pending Approval
+## Approved G3 Package
 
 The approved G3 package includes:
 
@@ -95,7 +95,7 @@ MIU.
 | 4 | Complete | Progressive native Product Category control shared by homepage and `/oem` |
 | 5 | Complete | Default-visible reveal baseline with bounded one-time animation cleanup |
 | 6 | Complete | Abortable catalog page client with fresh-session and media normalization tests |
-| 7 | Not started | Typed Headphones copy and hero provenance |
+| 7 | Implementation committed; delivery pending | Commits `2a3fe65` + review follow-ups |
 | 8 | Not started | ProductMedia and bounded Gallery |
 | 9 | Not started | Load More state reducer |
 | 10 | Not started | Catalog/card async-state presentation |
@@ -538,6 +538,10 @@ What changed:
 - Added concise product-led hero/proof copy and the loading, error, retry, empty, Load More, detail,
   and OEM-enquiry labels required by MIUs 8-13. No advantage, quality, certification, or client
   section was introduced.
+- Preserved the `79d8a99` values of the currently consumed `emptyLabel` and `inquiryCta`, plus
+  `backLabel` for the inactive shared detail path. Future presentation copy lives on the new
+  `emptyStateLabel`, `backToModelsLabel`, and `oemInquiryCta` keys until MIUs 10-11 migrate those
+  consumers.
 - Added a structured source-contract test that parses the complete YAML frontmatter with unique-key
   enforcement, deep-equals every section, and rejects unreviewed source count/order/fields plus
   URL/byte-bearing content.
@@ -620,8 +624,8 @@ also repaired to preserve a valid three-file core plan while explicitly retainin
 historical deviations and five-file implementation truth.
 
 Result: MIU 7 implementation is committed at `2a3fe65`; its review follow-up is ready for immutable
-review blessing, feature/test push, and Deploy Test. The deployed page should remain visually
-identical until MIU 12.
+review blessing, feature/test push, and Deploy Test. MIU 7 itself has no visible pixel change;
+later presentation MIUs may change the catalog, Gallery, detail, and hero independently.
 
 ## Per-MIU Record Template
 
