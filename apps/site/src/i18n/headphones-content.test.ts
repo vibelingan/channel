@@ -143,9 +143,10 @@ test('Headphones content owns recovery, navigation, and persistent OEM CTA copy 
         'Your details are used only to respond to this inquiry and are kept confidential.',
     },
   });
+  const heroSource = JSON.stringify((frontmatter as { hero: unknown }).hero);
   assert.doesNotMatch(
-    frontmatterSource[1],
-    /https?:|\/\/[^\s]+|!!binary|data:|base64|\b(?:src|url|bytes|buffer):/i,
+    heroSource,
+    /https?:|\/\/[^\s]+|!!binary|data:|base64|\b(?:src|url|href|path|file|bytes|buffer)\b/i,
   );
   assert.doesNotMatch(frontmatterSource[1], /^(?:advantages?|quality|certifications?|clients?):/im);
 });

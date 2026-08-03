@@ -524,9 +524,9 @@ canonical MIU metadata reconciliation, immutable review, PR update, and test dep
 
 ## MIU 7 - Typed Headphones content and gated hero provenance
 
-Status: Complete locally; pending isolated commit, immutable review blessing, and Deploy Test.
+Status: Implementation committed; pending review follow-up blessing, push, and Deploy Test.
 
-Commit: This record ships with the isolated MIU 7 content-contract commit.
+Commit: `2a3fe65` (`feat(headphones): define storefront content contract`) plus its review follow-up.
 
 What changed:
 
@@ -556,7 +556,8 @@ Best-practice sources and exact rules:
 - Not applicable: React render/effect/composition rules because this MIU adds no `.tsx` consumer or
   runtime interaction. MIUs 8-13 own rendering, fallback progression, pagination, and focus.
 - Rejected with reason: storing absolute service URLs, signed URLs, media bytes, static copies, or
-  route hrefs in the content source; URL construction and canonical navigation remain code-owned.
+  path/href fields in the hero object; URL construction remains code-owned. Existing `shopNav.href`
+  navigation values are legacy content outside the hero-media policy and remain unchanged.
 
 Tests written first: both focused tests failed before implementation because no typed `hero`
 contract or recovery/navigation/OEM CTA content existed. Review then found color-specific shared
@@ -578,6 +579,12 @@ CORS: all 30 runnable public browser tests passed, including Headphones hydratio
 projection, media headers, and member VIP pricing; one CloudBase-only loading-state test skipped.
 The temporary services were stopped and the temporary database removed. Deploy Test remains the
 authoritative integrated CloudBase browser gate for the committed SHA.
+
+Live provenance validation: each gated image was downloaded independently after immutable review;
+all three returned `image/jpeg`, decoded at 800x800, and produced the exact recorded SHA-256 values:
+`c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c`,
+`154a9b12ac090bcb8330c5ec968077caf90eaece14cbdc8ce87d8fc477062241`, and
+`e4480b78b451261611e74a373ab84048dded0fe255803315247d444bf41c1de6` in fallback order.
 
 Assumption check: final PASS with no P1/P2/P3. Independent code/test review also found no remaining
 P1/P2/P3 after exact tuple length, whole-frontmatter shape, duplicate-key, URL/bytes, alt-text, and
@@ -612,8 +619,9 @@ field unchanged; MIU 8 removes it together with automatic Gallery magnification.
 also repaired to preserve a valid three-file core plan while explicitly retaining its two reviewed
 historical deviations and five-file implementation truth.
 
-Result: MIU 7 is locally complete and ready for explicit-path commit, immutable review blessing,
-feature/test push, and Deploy Test. The deployed page should remain visually identical until MIU 12.
+Result: MIU 7 implementation is committed at `2a3fe65`; its review follow-up is ready for immutable
+review blessing, feature/test push, and Deploy Test. The deployed page should remain visually
+identical until MIU 12.
 
 ## Per-MIU Record Template
 
