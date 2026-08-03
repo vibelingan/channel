@@ -510,17 +510,110 @@ than hanging CI.
 Focused validation: standard `pnpm --filter @vibelingan-channel/site test` discovers and passes
 53/53 tests; Astro check reports zero errors; focused Biome, production build, and diff checks pass.
 
-Assumption/review result: behavioral contract PASS with no P1/P2. The five-file code/test boundary
-is a justified deviation from the original two-file modify-existing entry: `api.test.ts` and its
-typed factory were new, `api-url.ts` needed the Node-import seam, and `apps/site/package.json`
-needed shell-independent test discovery. No dependency, lockfile, backend, route, DTO, or wire-shape
-change occurred.
+Assumption/review result: behavioral contract PASS with no P1/P2. The canonical three-file core
+boundary is `api.ts`, `api.test.ts`, and its typed factory. The completed implementation also
+required two reviewed deviations: `api-url.ts` for the Node-import seam and `apps/site/package.json`
+for shell-independent nested test discovery. The resulting historical implementation touched five
+files. No dependency, lockfile, backend, route, DTO, or wire-shape change occurred.
 
 Build/Deploy/Runtime result: site bundle and test-discovery change only. Superseded controller
 requests can now be aborted; generation/state rules remain MIU 9/13 responsibilities.
 
 Result: MIU 6 code and its tracked execution/visual record are complete at `7f90685`, ready for
 canonical MIU metadata reconciliation, immutable review, PR update, and test deployment.
+
+## MIU 7 - Typed Headphones content and gated hero provenance
+
+Status: Complete locally; pending isolated commit, immutable review blessing, and Deploy Test.
+
+Commit: This record ships with the isolated MIU 7 content-contract commit.
+
+What changed:
+
+- Expanded `HeadphonesContent` with typed hero, catalog recovery/pagination, detail media/navigation,
+  and persistent OEM CTA copy so later Headphones presentation MIUs consume one content source.
+- Added a fixed three-source tuple for product `0e0afdc26a6820b900523bfb27a9a5cd` with the reviewed
+  ordered image IDs, 800x800 dimensions, and exact SHA-256 provenance. The content contains no media
+  URL, storage path, byte buffer, encoded image, or copied asset.
+- Added concise product-led hero/proof copy and the loading, error, retry, empty, Load More, detail,
+  and OEM-enquiry labels required by MIUs 8-13. No advantage, quality, certification, or client
+  section was introduced.
+- Added a structured source-contract test that parses the complete YAML frontmatter with unique-key
+  enforcement, deep-equals every section, and rejects unreviewed source count/order/fields plus
+  URL/byte-bearing content.
+
+Why: route-local copy and unconstrained media selection would let later hero/catalog/detail modules
+drift from the reviewed product identity, security-gated media order, and content-ownership design.
+The typed Markdown contract establishes those values before its consumers are decomposed.
+
+Best-practice sources and exact rules:
+
+- Applied: current TypeScript `readonly` tuple and `satisfies` guidance through Context7; current
+  Astro typed eager Markdown import guidance through Context7; `ui-ux-pro-max` product-led copy,
+  responsive hierarchy, meaningful alt, and content-ownership guidance.
+- Applied: repository-declared `yaml@2.9.0` for structured source-contract validation rather than
+  ad hoc frontmatter parsing; no new dependency or lockfile change was introduced.
+- Not applicable: React render/effect/composition rules because this MIU adds no `.tsx` consumer or
+  runtime interaction. MIUs 8-13 own rendering, fallback progression, pagination, and focus.
+- Rejected with reason: storing absolute service URLs, signed URLs, media bytes, static copies, or
+  route hrefs in the content source; URL construction and canonical navigation remain code-owned.
+
+Tests written first: both focused tests failed before implementation because no typed `hero`
+contract or recovery/navigation/OEM CTA content existed. Review then found color-specific shared
+alt text and source-regex false-green paths; the final test parses and deep-equals the complete
+frontmatter and the shared alt is source-neutral.
+
+Focused validation: 2/2 MIU 7 tests; 55/55 standard site tests; Astro check with zero errors;
+focused Biome; the 16-MIU mechanical validator; and the 18-page production Astro build pass.
+Full non-browser validation passes 344 tests (15 deployment contracts plus 329 workspace tests),
+all nine package/application typechecks plus E2E TypeScript, 202-file Biome, both Node 20 function
+builds, and both cold-start artifact smokes.
+
+Browser validation: the first 31-test run mixed a localhost site with the live allowlisted API;
+27 page tests passed, two credential-gated cases skipped, and the two expected cross-origin API/
+catalog cases failed because the live function returned `Access-Control-Allow-Origin` for the
+custom domain. That evidence was rejected as an environment mismatch. A fresh build then used an
+isolated local API on a temporary JSON database with the same public handlers and wildcard local
+CORS: all 30 runnable public browser tests passed, including Headphones hydration, catalog/public
+projection, media headers, and member VIP pricing; one CloudBase-only loading-state test skipped.
+The temporary services were stopped and the temporary database removed. Deploy Test remains the
+authoritative integrated CloudBase browser gate for the committed SHA.
+
+Assumption check: final PASS with no P1/P2/P3. Independent code/test review also found no remaining
+P1/P2/P3 after exact tuple length, whole-frontmatter shape, duplicate-key, URL/bytes, alt-text, and
+MIU 6 metadata-history corrections.
+
+Cross-file traces:
+
+```yaml
+cross-file-reasoning:
+  scope: headphones.ts -> content/headphones/en-US.md -> later MIUs 8-13
+  symbols-traced:
+    - name: HeadphonesHeroSource / HeadphonesContent
+      type: typed-content-contract
+      trace: exact Markdown frontmatter -> eager Astro loader -> existing route/island -> planned consumers
+      verdict: PASS
+  failure-mode-matches: []
+  verdict: PASS
+```
+
+No environment variable, route, SDK option, event, class mock, conditional effect, or async wrapper
+changed. Existing consumers compile because the additions are read from the complete locale object;
+the legacy `zoomHint` remains until MIU 8 removes its two current Gallery consumers.
+
+Build/Deploy/Runtime result: site content/build only; no currently rendered consumer reads the new
+hero/recovery/CTA fields, so this MIU intentionally has no visible pixel change. Hero bytes remain
+behind the existing public image gate when MIU 12 consumes the IDs. No API, schema, environment,
+authorization, media-gate, dependency, route, or static-asset change occurred.
+
+Deviations: the approved future contract removes hover zoom, but deleting `zoomHint` here broke the
+current `HeadphonesPage` and `ProductDetail` consumers. The conservative choice keeps that existing
+field unchanged; MIU 8 removes it together with automatic Gallery magnification. MIU 6 metadata was
+also repaired to preserve a valid three-file core plan while explicitly retaining its two reviewed
+historical deviations and five-file implementation truth.
+
+Result: MIU 7 is locally complete and ready for explicit-path commit, immutable review blessing,
+feature/test push, and Deploy Test. The deployed page should remain visually identical until MIU 12.
 
 ## Per-MIU Record Template
 
