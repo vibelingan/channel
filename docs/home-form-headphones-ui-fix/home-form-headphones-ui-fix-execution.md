@@ -519,8 +519,8 @@ change occurred.
 Build/Deploy/Runtime result: site bundle and test-discovery change only. Superseded controller
 requests can now be aborted; generation/state rules remain MIU 9/13 responsibilities.
 
-Result: MIU 6 code is complete at `7fa6d30`, ready for docs record commit, immutable review, PR
-update, and test deployment.
+Result: MIU 6 code and its tracked execution/visual record are complete at `7f90685`, ready for
+canonical MIU metadata reconciliation, immutable review, PR update, and test deployment.
 
 ## Per-MIU Record Template
 

@@ -47,6 +47,6 @@ Live release `05de95b9bee94878977d5704707848494bc6a356` reports:
 
 - no-JavaScript reveal opacity `1`;
 - transform `none`;
-- `scrollWidth === innerWidth` at 390px;
+- `scrollWidth <= innerWidth` at 390px;
 - reduced-motion reveal opacity `1` with no transition;
 - Headphones product cards remain visibly rendered.
