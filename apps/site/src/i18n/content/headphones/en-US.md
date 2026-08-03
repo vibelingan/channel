@@ -12,16 +12,51 @@ shopNav:
   - { label: Your Cart, href: '/cart' }
   - { label: Contact Us, href: '/#contact' }
 
+hero:
+  eyebrow: Factory-Direct Headphones
+  heading: OEM Headphones, Built for Your Brand
+  body: >-
+    Wired, wireless, and kid-safe models manufactured for custom branding,
+    packaging, and worldwide delivery.
+  proof: [MOQ from 500 units, OEM / ODM customization, Global delivery]
+  primaryCta: Request a Quote
+  secondaryCta: Browse Products
+  productId: 0e0afdc26a6820b900523bfb27a9a5cd
+  productName: High Quality Wired Headphones BT Noise Cancellation Foldable with pop-up Window Headphones
+  imageAlt: Foldable over-ear headphones for OEM customization
+  loadingLabel: Loading product image…
+  unavailableLabel: Product image unavailable
+  sources:
+      - imageId: 0e0afdc26a68209e00523aa031e56460
+        width: 800
+        height: 800
+        sha256: c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c
+      - imageId: 7b76ee416a68209d0110670520562928
+        width: 800
+        height: 800
+        sha256: 154a9b12ac090bcb8330c5ec968077caf90eaece14cbdc8ce87d8fc477062241
+      - imageId: 0e0afdc26a68209c00523a7b50cb8647
+        width: 800
+        height: 800
+        sha256: e4480b78b451261611e74a373ab84048dded0fe255803315247d444bf41c1de6
+
 list:
-  eyebrow: Wholesale catalog
-  heading: Headphones
+  eyebrow: Product Line
+  heading: Explore Our Headphone Collection
   subheading: >-
-    Browse our headphone range and request a quote for VIP pricing. Minimum order
-    amount $500.
+    Compare published models, specifications, and order quantities, then request
+    OEM pricing for your market.
   filterLabel: Categories
   allLabel: All categories
   resultsLabel: products
-  emptyLabel: No products match the selected categories.
+  loadingLabel: Loading headphones…
+  errorLabel: We could not load the headphone catalog.
+  retryLabel: Try Again
+  emptyLabel: No published headphone models are available right now.
+  emptyCtaLabel: Start an OEM Enquiry
+  loadMoreLabel: Load More
+  loadingMoreLabel: Loading More…
+  resultProgressLabel: '{loaded} of {total} models'
   categories:
     - { key: wired, label: Wired Headphones }
     - { key: office, label: Office Headphones }
@@ -33,7 +68,7 @@ list:
   moqLabel: MOQ
 
 detail:
-  backLabel: Back to headphones
+  backLabel: Back to all models
   seriesLabel: Series
   modelLabel: Model
   typeLabel: Type
@@ -42,9 +77,18 @@ detail:
   wholesaleLabel: Wholesale price
   vipLabel: VIP price
   vipLockedLabel: Sign in to view VIP price
-  inquiryCta: Price inquiry
+  inquiryCta: Start Your OEM Enquiry
+  viewAllLabel: View All
+  imageUnavailableLabel: Product image unavailable
   zoomHint: Hover image to zoom
   notFound: Product not found.
+
+oemCta:
+  eyebrow: Request a Quote
+  heading: Ready to Build Your Headphone Line?
+  body: Share your target model, quantity, branding, and market requirements with our OEM team.
+  primaryLabel: Start Your OEM Enquiry
+  secondaryLabel: Explore OEM Capabilities
 
 inquiry:
   title: Request price & catalog

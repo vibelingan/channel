@@ -1,9 +1,9 @@
 /**
  * Headphones storefront UI strings.
  *
- * Only static interface copy lives here (loaded from markdown). Product data
- * itself comes from the serverless API (`/api/products`), not this file.
- * Add a locale by dropping in `content/headphones/<locale>.md`.
+ * Static interface copy and reviewed hero-media provenance live here. Catalog
+ * product data comes from the serverless API (`/api/products`). Add a locale
+ * by dropping in `content/headphones/<locale>.md`.
  */
 
 export interface ShopNavItem {
@@ -17,9 +17,30 @@ export interface CategoryOption {
   label: string;
 }
 
+export interface HeadphonesHeroSource {
+  imageId: string;
+  width: number;
+  height: number;
+  sha256: string;
+}
+
 export interface HeadphonesContent {
   meta: { title: string; description: string };
   shopNav: ShopNavItem[];
+  hero: {
+    eyebrow: string;
+    heading: string;
+    body: string;
+    proof: readonly string[];
+    primaryCta: string;
+    secondaryCta: string;
+    productId: string;
+    productName: string;
+    imageAlt: string;
+    loadingLabel: string;
+    unavailableLabel: string;
+    sources: readonly [HeadphonesHeroSource, HeadphonesHeroSource, HeadphonesHeroSource];
+  };
   list: {
     eyebrow: string;
     heading: string;
@@ -27,7 +48,14 @@ export interface HeadphonesContent {
     filterLabel: string;
     allLabel: string;
     resultsLabel: string;
+    loadingLabel: string;
+    errorLabel: string;
+    retryLabel: string;
     emptyLabel: string;
+    emptyCtaLabel: string;
+    loadMoreLabel: string;
+    loadingMoreLabel: string;
+    resultProgressLabel: string;
     categories: CategoryOption[];
     wholesaleLabel: string;
     vipLabel: string;
@@ -46,8 +74,17 @@ export interface HeadphonesContent {
     vipLabel: string;
     vipLockedLabel: string;
     inquiryCta: string;
+    viewAllLabel: string;
+    imageUnavailableLabel: string;
     zoomHint: string;
     notFound: string;
+  };
+  oemCta: {
+    eyebrow: string;
+    heading: string;
+    body: string;
+    primaryLabel: string;
+    secondaryLabel: string;
   };
   inquiry: {
     title: string;

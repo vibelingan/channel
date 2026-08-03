@@ -340,7 +340,11 @@ Done when:
 
 Block: FRONTEND
 
-Files: apps/site/src/islands/shop/api.ts, apps/site/src/islands/shop/api.test.ts, apps/site/src/test/factories/catalog.ts, apps/site/src/lib/api-url.ts, apps/site/package.json
+Files: apps/site/src/islands/shop/api.ts, apps/site/src/islands/shop/api.test.ts, apps/site/src/test/factories/catalog.ts
+
+Completed implementation note: `apps/site/src/lib/api-url.ts` and `apps/site/package.json` were
+required as reviewed deviations for Node test imports and shell-independent nested test discovery;
+the execution log retains that exact five-file historical result.
 
 Type: modify-existing + new-test
 
