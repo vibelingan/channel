@@ -40,6 +40,7 @@ function resolveCatalogMedia(page: CatalogPage): CatalogPage {
 export async function fetchCatalog(
   basePath: string,
   query: CatalogQuery = {},
+  signal?: AbortSignal,
 ): Promise<CatalogPage> {
   const params = new URLSearchParams();
   if (query.categories && query.categories.length > 0) {
@@ -51,6 +52,7 @@ export async function fetchCatalog(
   const qs = params.toString();
   const res = await fetch(apiUrl(`${basePath}${qs ? `?${qs}` : ''}`), {
     headers: catalogHeaders(),
+    signal,
   });
   if (!res.ok) throw new Error(`Failed to load catalog (${res.status})`);
   const json = (await res.json()) as ApiEnvelope<CatalogPage>;
