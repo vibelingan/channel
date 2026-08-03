@@ -436,6 +436,14 @@ Build/Deploy/Runtime result: site CSS/controller and public browser tests only; 
 lockfile, backend, route, environment, API, or payload change. After commit, PR #6 and `test` will
 receive the exact reviewed SHA and Deploy Test will verify static pages plus Headphones P0 live.
 
+Deployment correction: initial MIU 5 SHA `1bcda25` built, deployed, and passed CloudBase smoke in
+Deploy Test run `30797599579`, but the authoritative public E2E failed the new no-JavaScript
+horizontal-overflow assertion. Live 390px diagnosis found the hidden, absolutely positioned
+desktop nav extended to 480px while the body itself fit at 374px. The header's measurement lanes
+now use fixed positioning while hidden, preserving their intrinsic widths for `desktopFits()` but
+removing them from document scroll overflow; desktop mode still restores static visible layout.
+The reveal plus calibrated header regression suite passes 9/9 after this correction.
+
 Codex review status: PR #6 is open, clean, and mergeable. `@codex review` was posted twice, but as of
 this MIU boundary GitHub REST, GraphQL timeline/review threads, check runs, and the rendered PR page
 contain no Codex-authored review payload. No finding was invented or silently attributed to Codex;
@@ -443,10 +451,12 @@ the request remains active for the updated PR head.
 
 Deviations: the approved MIU listed `global.css` and `public.spec.ts`. Review proved the existing
 BaseLayout controller was the owning lifecycle surface, so `BaseLayout.astro` became the necessary
-third implementation file. This execution record is the fourth file in the phase.
+third implementation file. The deployed no-JavaScript overflow gate then exposed a pre-existing
+SiteHeader measurement-lane defect, making `SiteHeader.astro` the required fourth implementation
+file. This execution record is the fifth and final file in the phase.
 
-Result: MIU 5 is locally complete and ready for isolated commit, immutable-SHA review, PR update,
-and test deployment.
+Result: MIU 5 requires the reviewed header follow-up commit and a green replacement Deploy Test
+before completion.
 
 ## Per-MIU Record Template
 
