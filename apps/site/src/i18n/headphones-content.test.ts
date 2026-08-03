@@ -137,6 +137,31 @@ const expectedFrontmatter = {
   },
 } satisfies HeadphonesContent & { locale: string };
 
+function assertMediaMetadataOnly(value: unknown, location: string): void {
+  if (typeof value === 'string') {
+    assert.doesNotMatch(
+      value,
+      /^(?:https?:|\/\/|\/api\/|\/media\/|data:)|!!binary|base64/i,
+      `${location} contains a media location or encoded bytes`,
+    );
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertMediaMetadataOnly(item, `${location}[${index}]`));
+    return;
+  }
+  if (!value || typeof value !== 'object') return;
+
+  for (const [key, child] of Object.entries(value)) {
+    assert.doesNotMatch(
+      key,
+      /(?:url|uri|href|path|file|src|bytes|buffer|binary|base64)/i,
+      `${location}.${key} is not approved hero metadata`,
+    );
+    assertMediaMetadataOnly(child, `${location}.${key}`);
+  }
+}
+
 test('Headphones content pins the reviewed gated hero media in fallback order', () => {
   assert.match(headphonesTypes, /export interface HeadphonesHeroSource/);
   assert.match(
@@ -144,14 +169,27 @@ test('Headphones content pins the reviewed gated hero media in fallback order', 
     /sources: readonly \[HeadphonesHeroSource, HeadphonesHeroSource, HeadphonesHeroSource\]/,
   );
   assert.deepEqual((frontmatter as { hero: unknown }).hero, expectedHero);
+  for (const source of expectedHero.sources) {
+    assert.match(source.imageId, /^[a-f0-9]{32}$/);
+    assert.equal(source.width, 800);
+    assert.equal(source.height, 800);
+    assert.match(source.sha256, /^[a-f0-9]{64}$/);
+  }
 });
 
 test('Headphones content owns recovery, navigation, and persistent OEM CTA copy only', () => {
   assert.deepEqual(frontmatter, expectedFrontmatter);
-  const heroSource = JSON.stringify((frontmatter as { hero: unknown }).hero);
-  assert.doesNotMatch(
-    heroSource,
-    /https?:|\/\/[^\s]+|!!binary|data:|base64|\b(?:src|url|href|path|file|bytes|buffer)\b/i,
-  );
+  const hero = (frontmatter as { hero: Record<string, unknown> }).hero;
+  assert.deepEqual(Object.keys(hero), Object.keys(expectedHero));
+  assert.ok(Array.isArray(hero.sources));
+  for (const [index, source] of expectedHero.sources.entries()) {
+    const parsedSource = hero.sources[index] as Record<string, unknown>;
+    assert.deepEqual(Object.keys(parsedSource), Object.keys(source));
+    assert.match(String(parsedSource.imageId), /^[a-f0-9]{32}$/);
+    assert.equal(parsedSource.width, 800);
+    assert.equal(parsedSource.height, 800);
+    assert.match(String(parsedSource.sha256), /^[a-f0-9]{64}$/);
+  }
+  assertMediaMetadataOnly(hero, 'hero');
   assert.doesNotMatch(frontmatterSource[1], /^(?:advantages?|quality|certifications?|clients?):/im);
 });

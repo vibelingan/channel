@@ -37,8 +37,10 @@ Before the first edit of each MIU, the executor must:
    `validate-miu-breakdown.sh`; a malformed MIU is fixed here, never improvised in code.
 2. Reconcile status against the tracked execution doc plus git history. Local `.claude/*.json` is
   only a pointer.
-3. Read `.claude/project-context.json` and invoke `skill-router`. Record the selected/absent sources
-   in `.claude/agent-events.jsonl` as required by the router.
+3. If `.claude/project-context.json` is absent in a fresh clone, rerun the project detector to
+  regenerate it; then read it and invoke `skill-router`. Create/append local
+  `.claude/agent-events.jsonl` with the selected/absent sources as required by the router. Neither
+  local file is durable feature evidence.
 4. Load every matching installed best-practice source **before writing code**. For this feature:
   - any `.tsx` React MIU: pinned invocation `vercel:react-best-practices` (the VS Code-discovered
     wrapper is named `vercel-react-best-practices`);
@@ -149,8 +151,9 @@ category/skill landing pages alone are insufficient.
 
 ### Visual And Performance Verification Contract
 
-- Visual source: [UI-SCREEN-BOARD.html](UI-SCREEN-BOARD.html), normative interaction details in
-  [ui-design.md](ui-design.md), tokens in root `DESIGN.md`.
+- This tracked section is the portable visual/performance contract: it names every required state,
+  viewport, request budget, media limit, and follow-up threshold without depending on local design
+  artifacts.
 - Every UI MIU must run focused behavior tests; assembled UI then runs
   `/dev-pipeline:verify-visual` against **all** spec states, not only the default success screen.
 - Required captures: Product Category default/focus/open/invalid/native fallback; hero desktop and
@@ -237,7 +240,7 @@ Block: INFRASTRUCTURE
 
 Files: package.json, scripts/runtime-contract.test.mjs
 
-Type: modify-existing
+Type: modify-existing + new-test
 
 Depends on: none
 
@@ -373,7 +376,7 @@ Block: FRONTEND
 
 Files: apps/site/src/i18n/headphones.ts, apps/site/src/i18n/content/headphones/en-US.md, apps/site/src/i18n/headphones-content.test.ts
 
-Type: modify-existing
+Type: modify-existing + new-test
 
 Depends on: MIU 2
 
@@ -654,7 +657,8 @@ Done when:
 | A - Step 0 | 1 | 3 | Separate cleanup commit, focused validation, explicit approval |
 | B - Runtime and API order | 2-3 | 4 | Full affected typecheck/package smoke, explicit approval |
 | C - Form and reveal | 4-5 | 4 | Focused Playwright + site validation, explicit approval |
-| D - Client and content | 6-7 | 5 | Unit/content tests + site validation, explicit approval |
+| D1 - Catalog client | 6 | 5 actual implementation files | Unit/API tests + site validation, explicit approval |
+| D2 - Typed content | 7 | 3 implementation files; 5 including tracked records | Content tests + site validation, explicit approval |
 | E - Media and state | 8-9 | 5 | Unit/render tests + site validation, explicit approval |
 | F - Catalog and detail presentation | 10-11 | 5 | SSR render tests + site validation, explicit approval |
 | G - Hero shell and controller | 12-13 | 3 | Exact-viewport Playwright + site validation, explicit approval |

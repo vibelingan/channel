@@ -4,10 +4,10 @@ Status: G3/G4 approved by the user's 2026-07-30 instruction to correct the revie
 start implementation. Runtime work proceeds one isolated MIU/test deployment at a time.
 
 This tracked document is the durable implementation-status source.
-`home-form-headphones-ui-fix-miu-breakdown.md` defines the technical units; `ARCHITECTURE.md`,
-`ui-design.md`, `PERFORMANCE.md`, and
-`UI-SCREEN-BOARD.html` define their approved intent after G3. Local `.claude/*.json` files are only
-disposable pointers.
+`home-form-headphones-ui-fix-miu-breakdown.md` defines the approved technical units, decisions,
+non-goals, tests, visual/performance contract, and execution loop. This log records their current
+results. Uncommitted worktree planning artifacts and local `.claude/*.json` files are not required
+for a fresh-clone handoff and are never treated as durable evidence.
 
 ## Completed Before Remaining MIUs
 
@@ -76,12 +76,11 @@ MIU.
 - Deploy Test: [run 30599832000](https://github.com/vibelingan/channel/actions/runs/30599832000),
   all lint/typecheck/build/deploy/smoke/public-E2E gates passed.
 - Custom-domain health returned the exact `41c5255` release ID.
-- Desktop evidence: [1440x900 full page](deployed-calibration-41c5255/desktop-1440x900.png)
-  and [product-card crop](deployed-calibration-41c5255/product-cards-1440.png).
-- Mobile evidence: [390x844 open native menu](deployed-calibration-41c5255/mobile-menu-390x844.png).
-- Measured evidence: [evidence.json](deployed-calibration-41c5255/evidence.json) records desktop
-  mode, non-overlapping regions, zero horizontal overflow, Inter price/action typography at
-  weights 600/500, and an independently scrollable mobile menu.
+- Recorded browser evidence at 1440x900 showed desktop mode, non-overlapping brand/nav/account
+  regions, zero horizontal overflow, and Inter price/action typography at weights 600/500.
+- Recorded browser evidence at 390x844 showed the native menu open, zero horizontal overflow, and
+  an independently scrollable menu region. The Deploy Test run above is the durable executable
+  source; local screenshots are optional worktree artifacts rather than fresh-clone dependencies.
 - Remaining blank/slow product-media states in the screenshot belong to the approved media and
   Gallery performance MIUs; this calibration did not claim to solve image delivery or loading.
 
@@ -519,14 +518,19 @@ files. No dependency, lockfile, backend, route, DTO, or wire-shape change occurr
 Build/Deploy/Runtime result: site bundle and test-discovery change only. Superseded controller
 requests can now be aborted; generation/state rules remain MIU 9/13 responsibilities.
 
-Result: MIU 6 code and its tracked execution/visual record are complete at `7f90685`, ready for
-canonical MIU metadata reconciliation, immutable review, PR update, and test deployment.
+Result: MIU 6 code and its tracked evidence were assembled and deployed at
+`79d8a998d9c792f140c60d13b1786db3c2cf9f17` through Deploy Test run `30803899603`, including the
+public browser gate and exact live-release verification.
 
 ## MIU 7 - Typed Headphones content and gated hero provenance
 
 Status: Implementation committed; pending review follow-up blessing, push, and Deploy Test.
 
-Commit: `2a3fe65` (`feat(headphones): define storefront content contract`) plus its review follow-up.
+Commits: `2a3fe65` (`feat(headphones): define storefront content contract`), `3fffbae`
+(`test(headphones): verify hero provenance policy`), and `3ed0c54`
+(`fix(headphones): preserve content rollout boundary`), plus the range-tip test/docs closure commit
+that hardens media metadata policy and the portable handoff. A subsequent docs-only record pins
+that closure SHA; record-only commits do not change runtime behavior.
 
 What changed:
 
@@ -623,9 +627,10 @@ field unchanged; MIU 8 removes it together with automatic Gallery magnification.
 also repaired to preserve a valid three-file core plan while explicitly retaining its two reviewed
 historical deviations and five-file implementation truth.
 
-Result: MIU 7 implementation is committed at `2a3fe65`; its review follow-up is ready for immutable
-review blessing, feature/test push, and Deploy Test. MIU 7 itself has no visible pixel change;
-later presentation MIUs may change the catalog, Gallery, detail, and hero independently.
+Result: MIU 7 implementation/review code is complete across `2a3fe65`, `3fffbae`, `3ed0c54`, and
+the range-tip test/docs closure commit; the aggregate is ready for immutable review blessing,
+feature/test push, and Deploy Test. MIU 7 itself has no visible pixel change; later presentation
+MIUs may change the catalog, Gallery, detail, and hero independently.
 
 ## Per-MIU Record Template
 
