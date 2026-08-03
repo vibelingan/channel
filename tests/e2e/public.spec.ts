@@ -134,6 +134,104 @@ test.describe('public browser smoke', () => {
     }
   });
 
+  test('shared Product Category control is native, required, and serialized once', async ({
+    page,
+  }) => {
+    const submissions: Array<{ action?: string; data?: Record<string, unknown> }> = [];
+    await page.route('**/api/admin', async (route) => {
+      const payload = route.request().postDataJSON() as {
+        action?: string;
+        data?: Record<string, unknown>;
+      };
+      if (payload.action === 'submitProject') submissions.push(payload);
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, data: {} }),
+      });
+    });
+
+    for (const path of ['/', '/oem#submit']) {
+      submissions.length = 0;
+      await page.goto(path, { waitUntil: 'domcontentloaded' });
+      await ensureApplicationPage(page);
+
+      const form = page.locator('form[data-project-form]');
+      const category = form.getByRole('combobox', { name: 'Product Category', exact: true });
+      await expect(form.locator('[data-public-select]')).toHaveCount(1);
+      await expect(form.locator('[name="category"]')).toHaveCount(1);
+      await expect(category).toBeVisible();
+      await expect(category).toHaveAttribute('name', 'category');
+      await expect(category).toHaveAttribute('required', '');
+      await expect(category).not.toHaveAttribute('aria-describedby', /category-error/);
+      await expect(category).not.toHaveAttribute('aria-invalid', 'true');
+      await expect(form.locator('#category-error')).not.toHaveAttribute('data-visible', '');
+      await expect(form.locator('#category-error')).toHaveText('');
+      await expect(category.locator('option[value=""]')).toHaveText('Select a product category…');
+      await expect(category.locator('option[value="Other"]')).toHaveCount(1);
+
+      await form.locator('[name="company"]').fill('E2E Category Control');
+      await form.locator('[name="contact"]').fill('E2E Contact');
+      await form.locator('[name="email"]').fill('category-control@example.test');
+      await form.getByRole('button', { name: /Submit project/i }).click();
+      await expect(category).toBeFocused();
+      await expect(category).toHaveAttribute('aria-describedby', 'category-error');
+      await expect(category).toHaveAttribute('aria-invalid', 'true');
+      await expect(form.locator('#category-error')).toHaveAttribute('data-visible', '');
+      await expect(form.locator('#category-error')).toHaveText('Select product category.');
+
+      await category.selectOption('Other');
+      await expect(category).toHaveValue('Other');
+      await expect(category).not.toHaveAttribute('aria-describedby', /category-error/);
+      await expect(category).not.toHaveAttribute('aria-invalid', 'true');
+      await expect(form.locator('#category-error')).not.toHaveAttribute('data-visible', '');
+      await expect(form.locator('#category-error')).toHaveText('');
+      await form.getByRole('button', { name: /Submit project/i }).click();
+      await expect.poll(() => submissions.length).toBe(1);
+      expect(submissions[0]?.data?.category).toBe('Other');
+      expect(Object.keys(submissions[0]?.data ?? {}).filter((key) => key === 'category')).toEqual([
+        'category',
+      ]);
+    }
+  });
+
+  test('Product Category stays usable as one native select without JavaScript', async ({
+    browser,
+  }) => {
+    const trustedStorage = await trustedSiteStorage(browser);
+    const context = await browser.newContext({
+      javaScriptEnabled: false,
+      storageState: trustedStorage,
+      viewport: { width: 390, height: 844 },
+    });
+    try {
+      const page = await context.newPage();
+      for (const path of ['/', '/oem#submit']) {
+        await page.goto(`${e2e.siteUrl}${path}`, { waitUntil: 'domcontentloaded' });
+        const form = page.locator('form[data-project-form]');
+        const category = form.getByRole('combobox', { name: 'Product Category', exact: true });
+        await expect(form.locator('[data-public-select]')).toHaveCount(1);
+        await expect(form.locator('select[name="category"]')).toHaveCount(1);
+        await expect(category).toBeVisible();
+        const opacity = await category.evaluate((element) => {
+          if (!(element instanceof HTMLElement)) throw new Error('Category is not HTML');
+          let current: HTMLElement | null = element;
+          let effectiveOpacity = 1;
+          while (current) {
+            effectiveOpacity *= Number(getComputedStyle(current).opacity);
+            current = current.parentElement;
+          }
+          return effectiveOpacity;
+        });
+        expect(opacity).toBe(1);
+        await category.selectOption('Other');
+        await expect(category).toHaveValue('Other');
+      }
+    } finally {
+      await context.close();
+    }
+  });
+
   test('Slide 2 header keeps the company name without restoring MOQ', async ({ page }) => {
     for (const viewport of [
       { width: 1360, height: 800 },

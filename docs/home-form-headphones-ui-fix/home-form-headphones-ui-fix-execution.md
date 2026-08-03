@@ -92,7 +92,7 @@ MIU.
 | 1 | Complete | Commit `800b9f4`; behavior-neutral dead-surface cleanup and source-contract test |
 | 2 | Complete | Node 22.12+ site-build floor; independently pinned Nodejs20.19 function runtime |
 | 3 | Complete | Stable `_id asc` public catalog ordering with local/CloudBase parity |
-| 4 | Not started | Shared Product Category control |
+| 4 | Complete | Progressive native Product Category control shared by homepage and `/oem` |
 | 5 | Not started | Site-wide reveal hardening; keep P0 Headphones regression green |
 | 6 | Not started | Abortable catalog client |
 | 7 | Not started | Typed Headphones copy and hero provenance |
@@ -289,6 +289,89 @@ semantics. Final implementation scope is three code/test files plus this tracked
 
 Result: MIU 3 is locally complete and ready for isolated commit and immutable-SHA review. MIU 4 may
 begin only after the reviewed commit is recorded; MIU 3 has no standalone visual screenshot.
+
+## MIU 4 - PublicSelect and ProjectForm native integration
+
+Status: Complete
+
+Commit: This record ships in the isolated `feat(form): add progressive product select` commit.
+
+What changed:
+
+- Added `PublicSelect.astro`, a reusable single-select primitive with one native named control,
+  label/required association, literal option values, 48px trigger, classic-picker styling, and
+  capability-gated `base-select` picker/option/open/selected states.
+- Replaced only `ProjectForm`'s inline select branch. Text/file controls, `form.elements`
+  serialization, direct COS upload, `submitProject`, redirect, and payload contracts are unchanged.
+- Removed the form card's `.reveal` visibility dependency so both homepage and `/oem` forms remain
+  fully visible without JavaScript; site-wide reveal hardening remains MIU 5.
+- Native validation uses one `reportValidity()` path. An empty screen-reader live region is present
+  from page load, then error text, `aria-invalid`, `aria-describedby`, and visible styling are
+  synchronized on invalid/change/reset without permanently describing a valid control as erroneous.
+
+Why: the product category field is a shared form primitive on two real consumers. Native select
+semantics retain browser keyboard, typeahead, touch, reset, validation, and no-JavaScript behavior;
+customizable-select CSS adds polish only where supported and never creates a second control/value.
+
+Best-practice sources and exact rules:
+
+- Applied: G2-approved Surface 1 design, current MDN customizable-select contract, current Web
+  Interface Guidelines, UI/UX Pro accessibility/touch guidance, native form semantics, reduced
+  motion, and cross-file form/payload tracing.
+- Applied review fixes: default-visible no-JS ancestor chain, disabled/muted/open states, trigger-
+  width picker anchoring, single invalid event, and live-region state synchronization.
+- Rejected with reason: a JavaScript ARIA listbox. It would duplicate native behavior and expand
+  keyboard, focus, touch, reset, and serialization risk with no product benefit.
+
+Tests written first: both focused Playwright tests failed on the missing shared primitive. The final
+tests cover homepage and `/oem`, exactly one labelled/named/required select, placeholder and literal
+`Other`, first-invalid focus, synchronized error lifecycle, exactly one serialized category value,
+and no-JavaScript effective opacity plus native selection.
+
+Focused validation: Chromium Product Category tests 2/2; one-invalid-event probe; 44/44 site tests;
+Astro and E2E typechecks; focused Biome; production build; existing deployed OEM upload test remains
+discoverable and its `selectOption('Headphones')` path is structurally unchanged.
+
+Cross-browser and visual evidence:
+
+- Chromium at 390px and 1440px on homepage and `/oem`: one named control/form element, 48px height,
+  selected `Other`, 2px focus outline, and no horizontal overflow. Four local screenshots are kept
+  under ignored `output/playwright/miu4-select/` and are not part of the commit.
+- Firefox no-JavaScript classic fallback on both pages: `appearance: none`, selected `Other`, one
+  named/form control, effective opacity `1`, and no horizontal overflow.
+- WebKit binary download failed because all Playwright CDN hosts returned DNS `ENOTFOUND`; Safari/
+  WebKit remains the explicit residual browser gap. The classic fallback contains only standard
+  `<label>`, `<select>`, and text `<option>` markup.
+
+Full validation: frozen pnpm 11.5.0 install; all 333 workspace tests; all nine
+package/application typechecks plus E2E TypeScript with zero errors; 199-file Biome pass; both
+Node 20 function builds and cold-start artifact smokes; 18-page Astro production build.
+
+Assumption/design/review result: final assumption check PASS; design check found no blocker/P1/P2;
+independent review found no remaining P1/P2 after no-JS opacity and live-region repairs. The full
+public suite's API/canonical failures against the site-only dev server were rejected as environment
+mismatch (no local API and wrong build-time SITE_URL); its 16 page-only checks and both MIU tests
+passed. Deploy Test is the authoritative integrated public-browser gate.
+
+Cross-file traces:
+
+- Homepage `CTASection` and `/oem` -> shared `ProjectForm` -> `PublicSelect` -> one
+  `form.elements.category` -> unchanged `submitProject` payload.
+- Existing OEM upload smoke -> `[name=category].selectOption('Headphones')` -> same native control.
+- CSS capability query -> enhanced Chromium picker; unsupported Firefox -> classic native picker.
+
+Build/Deploy/Runtime result: site-only component and browser-test change; no dependency, lockfile,
+backend, route, environment variable, or payload change. MIU 3 deployed successfully at `9e675ff`
+through Deploy Test run `30781616399`; PR #6 is open, clean, mergeable, and all checks are green.
+Pushing this MIU commit will update that PR, trigger CI/Deploy Test for its exact SHA, and receive an
+explicit `@codex review` request.
+
+Deviations: none from the approved three-file implementation boundary. Removing `.reveal` from the
+form card is a local prerequisite of MIU 4's explicit no-JavaScript visibility contract; it does not
+replace MIU 5's site-wide reveal hardening.
+
+Result: MIU 4 is locally complete and ready for isolated commit, immutable-SHA review, PR update,
+and test deployment. Its visible result is the shared Product Category control on both forms.
 
 ## Per-MIU Record Template
 

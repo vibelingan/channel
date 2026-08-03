@@ -8,6 +8,7 @@
  * backend (e.g. an `inquiries` collection) can be wired later.
  */
 import type { FormField } from '../i18n/oem.ts';
+import PublicSelect from './form/PublicSelect.astro';
 
 interface Props {
   fields: FormField[];
@@ -36,7 +37,7 @@ const fieldBase =
 ---
 
 <div
-  class="reveal overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-surface shadow-[var(--shadow-card)]"
+  class="overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-surface shadow-[var(--shadow-card)]"
 >
   <form
     class="grid grid-cols-1 gap-5 p-6 sm:grid-cols-2 sm:p-8"
@@ -46,21 +47,24 @@ const fieldBase =
     novalidate
   >
     {
-      fields.map((field) => (
-        <div class:list={[field.full ? 'sm:col-span-2' : '']}>
+      fields.map((field) =>
+        field.type === 'select' ? (
+          <PublicSelect
+            name={field.name}
+            label={field.label}
+            options={field.options ?? []}
+            required={field.required}
+            hint={field.hint}
+            wrapperClass={field.full ? 'sm:col-span-2' : ''}
+          />
+        ) : (
+          <div class:list={[field.full ? 'sm:col-span-2' : '']}>
           <label for={field.name} class="block text-sm font-medium text-ink">
             {field.label}
             {field.required && <span class="text-red-500"> *</span>}
           </label>
 
-          {field.type === 'select' ? (
-            <select id={field.name} name={field.name} class={fieldBase} required={field.required}>
-              <option value="" disabled selected>
-                Select…
-              </option>
-              {field.options?.map((option) => <option value={option}>{option}</option>)}
-            </select>
-          ) : field.type === 'file' ? (
+          {field.type === 'file' ? (
             <input
               id={field.name}
               name={field.name}
@@ -88,7 +92,8 @@ const fieldBase =
             </p>
           )}
         </div>
-      ))
+        ),
+      )
     }
 
     <div class="sm:col-span-2">
@@ -170,10 +175,7 @@ const fieldBase =
 
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (!form.checkValidity()) {
-      form.reportValidity();
-      return;
-    }
+    if (!form.reportValidity()) return;
     errorEl?.classList.add('hidden');
 
     // Collect text fields; capture the drawing file separately (never as base64).
