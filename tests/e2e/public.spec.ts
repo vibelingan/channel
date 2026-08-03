@@ -306,17 +306,20 @@ test.describe('public browser smoke', () => {
         await expect(reveal).not.toHaveClass(/reveal-pending|is-visible/);
         const state = await reveal.evaluate((element) => {
           const style = getComputedStyle(element);
+          const desktopNav = document.querySelector<HTMLElement>('.header-desktop-nav');
           return {
             opacity: style.opacity,
             transform: style.transform,
             transitionDuration: style.transitionDuration,
             animationName: style.animationName,
+            desktopNavPosition: desktopNav ? getComputedStyle(desktopNav).position : null,
             noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth,
           };
         });
         expect(state.opacity, mode).toBe('1');
         expect(state.transform, mode).toBe('none');
         expect(state.noHorizontalOverflow, mode).toBe(true);
+        if (mode === 'no-js') expect(state.desktopNavPosition).toBe('fixed');
         if (mode === 'reduced-motion') {
           expect(state.transitionDuration).toBe('0s');
           expect(state.animationName).toBe('none');

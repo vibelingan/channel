@@ -225,14 +225,16 @@ const orderedMenuItems = orderPrimaryNavItems(menuItems);
 <style>
   .header-desktop-nav {
     display: flex;
-    position: absolute;
+    position: fixed;
+    inset: 0 auto auto 0;
     visibility: hidden;
     width: max-content;
     pointer-events: none;
   }
 
   .header-desktop-account {
-    position: absolute;
+    position: fixed;
+    inset: 0 auto auto 0;
     visibility: hidden;
     width: max-content;
     pointer-events: none;
