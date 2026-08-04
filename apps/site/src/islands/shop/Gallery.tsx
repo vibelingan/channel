@@ -25,6 +25,34 @@ interface GalleryThumbnailListProps {
 
 const INITIAL_PREVIEW_COUNT = 4;
 
+export interface VisibleGalleryThumbnail {
+  image: string;
+  index: number;
+  key: string;
+}
+
+function galleryThumbnailIdentities(images: readonly string[]): VisibleGalleryThumbnail[] {
+  const occurrences = new Map<string, number>();
+  return images.map((image, index) => {
+    const occurrence = (occurrences.get(image) ?? 0) + 1;
+    occurrences.set(image, occurrence);
+    return { image, index, key: `${image}:${occurrence}` };
+  });
+}
+
+export function visibleGalleryThumbnails(
+  images: readonly string[],
+  activeIndex: number,
+  expanded: boolean,
+): VisibleGalleryThumbnail[] {
+  const identities = galleryThumbnailIdentities(images);
+  if (expanded || images.length <= INITIAL_PREVIEW_COUNT) {
+    return identities;
+  }
+  const indices = activeIndex < INITIAL_PREVIEW_COUNT ? [0, 1, 2, 3] : [0, 1, 2, activeIndex];
+  return indices.flatMap((index) => identities[index] ?? []);
+}
+
 export function boundedGalleryImages(images: readonly string[]): string[] {
   return images
     .map((image) => image.trim())
@@ -40,15 +68,6 @@ export function gallerySessionKey(
   return `${productId ?? ''}:${productMediaKey(images)}`;
 }
 
-function thumbnailKeys(images: readonly string[]): string[] {
-  const occurrences = new Map<string, number>();
-  return images.map((image) => {
-    const occurrence = (occurrences.get(image) ?? 0) + 1;
-    occurrences.set(image, occurrence);
-    return `${image}:${occurrence}`;
-  });
-}
-
 export function GalleryThumbnailList({
   images,
   activeIndex,
@@ -59,17 +78,16 @@ export function GalleryThumbnailList({
   onSelect,
   onToggle,
 }: GalleryThumbnailListProps) {
-  const visibleImages = expanded ? images : images.slice(0, INITIAL_PREVIEW_COUNT);
-  const keys = thumbnailKeys(visibleImages);
+  const visibleThumbnails = visibleGalleryThumbnails(images, activeIndex, expanded);
 
   if (images.length <= 1) return null;
 
   return (
     <div className="mt-4 min-w-0">
       <div id="gallery-thumbnails" className="flex min-w-0 flex-wrap justify-center gap-3">
-        {visibleImages.map((image, index) => (
+        {visibleThumbnails.map(({ image, index, key }) => (
           <button
-            key={keys[index]}
+            key={key}
             type="button"
             data-gallery-thumbnail={index}
             onClick={() => onSelect(index)}

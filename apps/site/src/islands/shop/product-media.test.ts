@@ -8,6 +8,7 @@ import {
   GalleryThumbnailList,
   boundedGalleryImages,
   gallerySessionKey,
+  visibleGalleryThumbnails,
 } from './Gallery.tsx';
 import { detailScrollBehavior } from './HeadphonesPage.tsx';
 import {
@@ -98,6 +99,40 @@ test('Gallery defensively clamps normalized media to the shared maximum', () => 
   assert.equal(bounded.length, 18);
   assert.equal(bounded[0], '/api/images/image-1');
   assert.equal(bounded.at(-1), '/api/images/image-18');
+});
+
+test('collapsed Gallery keeps an out-of-range active thumbnail visible and selected', () => {
+  const images = Array.from({ length: 6 }, (_, index) => `image-${index + 1}`);
+
+  assert.deepEqual(visibleGalleryThumbnails(images, 4, false), [
+    { image: 'image-1', index: 0, key: 'image-1:1' },
+    { image: 'image-2', index: 1, key: 'image-2:1' },
+    { image: 'image-3', index: 2, key: 'image-3:1' },
+    { image: 'image-5', index: 4, key: 'image-5:1' },
+  ]);
+  assert.deepEqual(
+    visibleGalleryThumbnails(images, 4, true).map(({ index }) => index),
+    [0, 1, 2, 3, 4, 5],
+  );
+});
+
+test('collapsed Gallery preserves full-list occurrence keys for duplicate URLs', () => {
+  const images = ['one', 'two', 'three', 'duplicate', 'duplicate', 'six'];
+
+  const expanded = visibleGalleryThumbnails(images, 4, true);
+  const collapsed = visibleGalleryThumbnails(images, 4, false);
+
+  assert.equal(expanded[3]?.key, 'duplicate:1');
+  assert.equal(expanded[4]?.key, 'duplicate:2');
+  assert.deepEqual(
+    collapsed.map(({ index, key }) => ({ index, key })),
+    [
+      { index: 0, key: 'one:1' },
+      { index: 1, key: 'two:1' },
+      { index: 2, key: 'three:1' },
+      { index: 4, key: 'duplicate:2' },
+    ],
+  );
 });
 
 test('Headphones detail uses reduced-motion scrolling and typed Gallery copy', () => {
