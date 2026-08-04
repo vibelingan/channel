@@ -1,6 +1,11 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
-import { buildWriteSchema, getCollection, writableFields } from './collections.ts';
+import {
+  PUBLIC_CATALOG_COLLECTIONS,
+  buildWriteSchema,
+  getCollection,
+  writableFields,
+} from './collections.ts';
 import {
   BLOCKED_IMAGE_MIME_TYPES,
   CATALOG_IMAGE_MAX_BYTES,
@@ -96,6 +101,10 @@ test('media constants expose the policy vocabulary', () => {
   assert.equal(CATALOG_IMAGE_MAX_COUNT, 18);
   assert.ok(CATALOG_IMAGE_MIME_TYPES.includes('image/webp'));
   assert.ok(BLOCKED_IMAGE_MIME_TYPES.includes('image/svg+xml'));
+});
+
+test('public catalog image policy is scoped to products and overstock', () => {
+  assert.deepEqual(PUBLIC_CATALOG_COLLECTIONS, ['products', 'overstock']);
 });
 
 test('storefront catalog writes enforce the shared 18-image limit', () => {

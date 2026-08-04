@@ -57,6 +57,10 @@ export interface CollectionDef {
   hideFromNav?: boolean;
 }
 
+/** Collections exposed through the public storefront and image visibility index. */
+export const PUBLIC_CATALOG_COLLECTIONS = ['products', 'overstock'] as const;
+export type PublicCatalogCollection = (typeof PUBLIC_CATALOG_COLLECTIONS)[number];
+
 /**
  * Fields every document gets automatically. They are server-managed and never
  * writable from the client.
