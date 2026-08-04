@@ -49,6 +49,8 @@ export type VariantRole = (typeof VARIANT_ROLES)[number];
  * once a transport is selected in MIU-00.
  */
 export const CATALOG_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+/** Maximum ordered source images accepted or exposed for one catalog document. */
+export const CATALOG_IMAGE_MAX_COUNT = 18;
 export const CATALOG_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 /**
  * SVG is active/vector content. Advisory/UX list only — enforcement is the
