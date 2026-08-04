@@ -651,7 +651,12 @@ Commits: `4f35201` (`feat(headphones): bound product gallery media`), `9aed7b0`
 (`feat(content): add gallery collapse label`), `7a1f3db`
 (`fix(gallery): reset and bound product media`), `3e1cb25`
 (`test(gallery): preserve bounded interactions`), and `4864f7c`
-(`fix(admin): enforce catalog image capacity`), plus this final tracked closure.
+(`fix(admin): enforce catalog image capacity`), `64c6b4f`
+(`docs(headphones): finalize MIU 8 closure`), `539be61`
+(`refactor(media): canonicalize catalog image ids`), `d5990da`
+(`refactor(catalog): define public collection boundary`), `3fdf598`
+(`fix(media): align catalog visibility counters`), and `59149aa`
+(`fix(gallery): preserve selected thumbnail`), plus this final tracked reconciliation.
 
 What changed:
 
@@ -673,8 +678,19 @@ What changed:
   preserving historical malformed-value compatibility; public list/detail projection filters
   malformed IDs before capping; Gallery clamps defensively; and `ImageManager` consumes the same
   registry metadata before minting uploads.
+- Centralized filtering, trimming, order preservation, duplicate preservation, and the 18-image cap
+  in `normalizeCatalogImageIds`; declared `PUBLIC_CATALOG_COLLECTIONS` once for products and
+  overstock. Public projection, legacy absent-counter scans, online admin refcount updates, and DB
+  reconciliation now consume the same contract, with per-document deduplication only after
+  normalization.
+- Stabilized legacy image-visibility pagination with `_id asc` and aligned both online and backfill
+  counters to the explicit public collection scope. This prevents fields outside the canonical
+  prefix, malformed IDs, or non-public collections from keeping media visible accidentally.
 - Keyed Gallery by product ID plus ordered media, added localized `Show Less`, and preserved focus
   through collapse/re-expand and same-media product reset.
+- Kept an active image beyond the first four represented by one selected thumbnail after collapse;
+  duplicate URL occurrence keys now derive from the full ordered list, so React cannot transfer a
+  prior occurrence's `ProductMedia` fallback state to the selected row.
 - Replaced fallback-only semantics with one persistent polite announcement that updates after
   source exhaustion while decorative thumbnail failures remain hidden.
 - Hardened admin capacity UX with whole-batch reservations, single-claim retries, stale-attempt
@@ -705,10 +721,11 @@ and `viewAllLabel` did not exist. Focused tests then exposed and closed a missin
 `object-contain` baseline, repeated-URL fallback stalls, fallback geometry, disclosure semantics,
 typed caller-copy wiring, reduced-motion scroll selection, and per-index image remount identity.
 
-Focused validation: 9/9 media/Gallery tests, 4/4 ImageManager state tests, and 68/68 site tests pass.
-Shared/public/admin boundary suites pass 71/40/137 tests respectively. Astro, all affected package,
-and E2E TypeScript checks report zero errors; focused Biome checks every phase; the CloudBase SDK
-contract passes; the public function and 18-page site builds pass.
+Focused validation: the exact `59149aa` code head passes 15/15 deploy-smoke tests, 75/75 shared,
+42/42 public-api, 139/139 admin, and 70/70 site tests. All nine package/application typechecks plus
+E2E TypeScript report zero errors; repository Biome checks 205 files; the CloudBase SDK contract
+passes; both Node 20 function artifacts build and cold-start from isolated packages; and the
+18-page production site build passes.
 
 Browser validation: an isolated Playwright catalog with six media sources passed at 390x844,
 768x1024, 1024x768, and 1440x900. Initial detail mounted one main image plus four previews; `View
@@ -724,6 +741,8 @@ request multiplicity. A second non-mutating browser scenario mounts the real Adm
 ImageManager with intercepted admin/storage calls and verifies a 19→17 keyboard recovery, exactly
 one preview request per persisted ID, 20-file admission capped at 18, duplicate retry suppression,
 failed-item discard, and replacement. Both scenarios pass locally and repeated review runs.
+The final assembled rerun executed both focused Chromium scenarios together at `59149aa`: 2/2
+passed in one worker against a fresh isolated Astro server.
 
 Assumption check: the first audit blocked duplicate-URL progression, fallback geometry, disclosure
 state/focus, reduced motion, and typed-copy wiring; all production findings were repaired. The
@@ -754,32 +773,48 @@ cross-file-reasoning:
       type: producer-consumer-policy
       trace: shared 18 -> products/overstock write metadata -> public projection -> Gallery -> ImageManager
       verdict: PASS
+    - name: normalizeCatalogImageIds / PUBLIC_CATALOG_COLLECTIONS
+      type: projection-counter-reconciliation-policy
+      trace: shared policy -> public projection + legacy scan -> admin online deltas -> DB backfill
+      verdict: PASS
     - name: productId / showLessLabel
       type: component-lifecycle-content
       trace: catalog identity + typed locale -> caller -> keyed Gallery session + disclosure
+      verdict: PASS
+    - name: VisibleGalleryThumbnail.key
+      type: react-list-lifecycle
+      trace: full ordered occurrence identity -> collapsed visible subset -> ProductMedia key/state
       verdict: PASS
   failure-mode-matches: []
   verdict: PASS
 ```
 
 No environment variable, route, SDK option, backend event, auth rule, API envelope, database
-migration, media authorization, or storage URL contract changed. The shared registry gained
-optional array-cardinality metadata; existing malformed legacy values remain compatible.
+migration, media-authentication mechanism, or storage URL contract changed. The visibility-gate
+policy intentionally narrows: malformed, over-cap, and non-public-collection references can now
+change `/api/images/:id` from 200 to 404. The shared registry gained optional array-cardinality
+metadata and an explicit public-catalog scope; existing malformed legacy values remain compatible
+but no longer extend public projection or refcounts beyond the canonical prefix.
 
-Build/Deploy/Runtime result: site bundle, shared validation, public projection, and browser contracts.
-Deployment remains pending until the final closure SHA passes push CI, Deploy Test, exact live-release
-verification, and the narrow Headphones Gallery/admin-capacity smokes.
+Build/Deploy/Runtime result: the assembled range changes the admin and public-api function artifacts,
+shared validation/reconciliation behavior, local parity server behavior through its delegated
+function/DB paths, the site bundle, and browser contracts. Deployment must therefore update both
+CloudBase functions and the site together. It remains pending until the final closure SHA passes
+push CI, Deploy Test, exact live-release verification, public projection/image visibility checks,
+and the narrow Headphones Gallery/admin-capacity smokes.
 
 Deviations: the approved MIU named a three-file core, but review proved two acceptance requirements
 lived at the existing caller: typed Gallery copy and reduced-motion detail scrolling. Immutable
 review then required durable public E2E coverage, removal of compatibility copy, enforcement of the
 documented 18-image maximum at every producer/consumer, reliable fallback announcements,
-product-aware reset/collapse, and admin capacity recovery. The work was split into ten committed
-phases with 5/5/5/3/5/3/3/5/1/4 files, as recorded in Git and the canonical breakdown. Later MIU 13
-still owns abort/generation pagination and the complete card/detail-heading/Back focus cycle.
+product-aware reset/collapse, admin capacity recovery, canonical normalization/scope, visibility
+counter parity, and duplicate-safe selected collapse. The work was split into fifteen committed
+phases with 5/5/5/3/5/3/3/5/1/4/3/2/2/5/3 files, as recorded in Git and the canonical breakdown.
+MIU 9 still owns pagination state, request generations, and stale-commit rejection; MIU 13 owns
+controller consumption, request abort wiring, and the complete card/detail-heading/Back focus cycle.
 
-Result: MIU 8 is locally complete across ten implementation/review commits. This final tracked
-closure is pending its isolated documentation commit; that resulting combined SHA must pass
+Result: MIU 8 is locally complete across fifteen implementation/review commits. This final tracked
+reconciliation is pending its isolated documentation commit; that resulting combined SHA must pass
 immutable review, push, Deploy Test, and live verification before MIU 9 begins.
 
 ## Per-MIU Record Template
