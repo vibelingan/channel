@@ -110,6 +110,7 @@ const expectedFrontmatter = {
     inquiryCta: 'Price inquiry',
     oemInquiryCta: 'Start Your OEM Enquiry',
     viewAllLabel: 'View All',
+    showLessLabel: 'Show Less',
     imageUnavailableLabel: 'Product image unavailable',
     notFound: 'Product not found.',
   },
