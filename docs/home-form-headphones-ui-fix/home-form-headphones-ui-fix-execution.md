@@ -95,7 +95,7 @@ MIU.
 | 5 | Complete | Default-visible reveal baseline with bounded one-time animation cleanup |
 | 6 | Complete | Abortable catalog page client with fresh-session and media normalization tests |
 | 7 | Complete and deployed | Runtime/content release `9c126d5`; Deploy Test `30813825143` |
-| 8 | Not started | ProductMedia and bounded Gallery |
+| 8 | Complete; deployment pending | ProductMedia and bounded Gallery |
 | 9 | Not started | Load More state reducer |
 | 10 | Not started | Catalog/card async-state presentation |
 | 11 | Not started | Product detail presentation |
@@ -636,6 +636,107 @@ reports that exact release; `/api/products?page=1&pageSize=12` preserves the cat
 custom-domain Headphones route returns 200 with its pre-MIU-7 visible copy unchanged. MIU 7 itself
 has no visible pixel change; later presentation MIUs may change the catalog, Gallery, detail, and
 hero independently.
+
+## MIU 8 - ProductMedia and bounded Gallery
+
+Status: Complete locally; immutable-SHA deployment pending.
+
+Commit: This record ships with the isolated `feat(headphones): bound product gallery media` commit.
+
+What changed:
+
+- Added `ProductMedia`, a keyed ordered-source session with a pure reducer. Each failed source
+  index advances once, repeated URLs remain distinct ordered attempts, stale/duplicate events are
+  ignored, and exhaustion renders a branded square fallback without another media request.
+- Replaced Gallery's pointer-driven 200% background zoom and eager full thumbnail row with a
+  contained square main frame capped at 520px, four lazy low-priority previews, and an inline
+  wrapping `View All` disclosure. No modal, transform URL, derivative, retry, or media-gate change
+  was introduced.
+- Added selected-state and keyboard contracts: thumbnails expose `aria-pressed`; `View All`
+  remains mounted, controls the thumbnail region with `aria-expanded`/`aria-controls`, retains
+  focus after expansion, and uses visible `focus-visible` rings.
+- Wired the existing typed `viewAllLabel` and `imageUnavailableLabel` content into the live
+  Headphones Gallery and made detail scrolling immediate under `prefers-reduced-motion: reduce`.
+
+Why: the previous Gallery cropped originals, mounted every thumbnail, and hid the main image behind
+a pointer-following 200% background. That produced the reported image-only scrolling sensation,
+unbounded requests for 18-image products, and no deterministic terminal state when media failed.
+
+Best-practice sources and exact rules:
+
+- Applied: `VR-derived`, `VR-event`, `VR-ref`, `VR-memo`, `VR-conditional`, `VC-variants`,
+  `EC-async`, `EC-aria`, `EC-e2e`, current Web Interface Guidelines, `ui-ux-pro-max`, and the
+  approved Gallery design/acceptance record.
+- Applied: keyed component reset rather than prop-mirroring effects; event-driven selection and
+  expansion; semantic buttons; intrinsic media dimensions; meaningful/decorative alt separation;
+  explicit reduced-motion behavior; stable occurrence keys for repeated image URLs.
+- Not applicable: bundle splitting, virtualization, image derivatives/transforms, RSC/Suspense,
+  memoization, pointer refs, modal focus trapping, or new dependencies. The approved maximum is 18
+  thumbnails and all expansion stays in the existing site bundle.
+- Rejected with reason: preserving hover magnification, fetching all thumbnails while hidden, or
+  bypassing `/api/images/:id`; each contradicts the reviewed interaction, request, or security
+  boundary.
+
+Tests written first: the initial compiler failed because `ProductMedia`, `GalleryThumbnailList`,
+and `viewAllLabel` did not exist. Focused tests then exposed and closed a missing intrinsic
+`object-contain` baseline, repeated-URL fallback stalls, fallback geometry, disclosure semantics,
+typed caller-copy wiring, reduced-motion scroll selection, and per-index image remount identity.
+
+Focused validation: 6/6 MIU 8 tests and 61/61 site tests pass. Astro check reports zero errors;
+focused Biome checks all four implementation/test files; and the 18-page production build passes.
+
+Browser validation: an isolated Playwright catalog with six media sources passed at 390x844,
+768x1024, 1024x768, and 1440x900. Initial detail mounted one main image plus four previews; `View
+All` exposed all six inline; frames measured 358/520/460/520px square respectively; every viewport
+retained `scrollWidth <= clientWidth`, `object-fit: contain`, keyboard focus/selection state, and no
+dialog. Fine-pointer movement changed no image geometry, opacity, transform, background, or scroll
+offset. A forced 404 reached the stable fallback with two bounded requests and no loop. Reduced
+motion computed `transition-property: none`. A separate mounted reset probe expanded product A,
+switched to a different six-source product B, and observed four collapsed previews, B's first
+source selected, and focus retained on the clicked B card.
+
+Assumption check: the first audit blocked duplicate-URL progression, fallback geometry, disclosure
+state/focus, reduced motion, and typed-copy wiring; all production findings were repaired. The
+final audit found no P1 production issue. Its remaining P2 concerned mounted reset/disclosure test
+durability and was closed by the mounted browser reset probe above.
+
+Cross-file traces:
+
+```yaml
+cross-file-reasoning:
+  scope: ProductMedia.tsx -> Gallery.tsx -> HeadphonesPage.tsx -> typed HeadphonesContent
+  symbols-traced:
+    - name: ProductMedia / productMediaReducer
+      type: component-state-contract
+      trace: ordered normalized URLs -> keyed session -> per-index error event -> terminal fallback
+      verdict: PASS
+    - name: viewAllLabel / imageUnavailableLabel
+      type: typed-content-consumer
+      trace: en-US Markdown -> HeadphonesContent -> HeadphonesPage -> Gallery
+      verdict: PASS
+    - name: detailScrollBehavior
+      type: conditional-effect
+      trace: card event -> current reduced-motion media query -> smooth|auto scrollIntoView
+      verdict: PASS
+  failure-mode-matches: []
+  verdict: PASS
+```
+
+No environment variable, route, SDK option, backend event, service mock, auth rule, API envelope,
+database schema, media authorization, or async wrapper changed.
+
+Build/Deploy/Runtime result: site bundle only. Deployment remains pending until the isolated commit
+passes push CI, Deploy Test, exact live-release verification, and the narrow public Headphones
+Gallery smoke.
+
+Deviations: the approved MIU named three files, but review proved two acceptance requirements lived
+at the existing caller: typed Gallery copy and reduced-motion detail scrolling. `HeadphonesPage.tsx`
+became the required fourth implementation file. This execution record is the fifth and final file
+in the phase; later MIU 13 still owns abort/generation pagination and the complete detail/card focus
+cycle.
+
+Result: MIU 8 is locally complete and ready for immutable-SHA review, commit, push, Deploy Test,
+and live Headphones verification before MIU 9 begins.
 
 ## Per-MIU Record Template
 
