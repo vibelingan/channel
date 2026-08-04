@@ -5,7 +5,6 @@ import { ProductMedia, productMediaKey } from './ProductMedia.tsx';
 interface Props {
   images: string[];
   alt: string;
-  zoomHint?: string;
   viewAllLabel?: string;
   unavailableLabel?: string;
 }
@@ -96,7 +95,7 @@ function GallerySession({
   alt,
   viewAllLabel = 'View All',
   unavailableLabel = 'Product image unavailable',
-}: Omit<Props, 'zoomHint'>) {
+}: Props) {
   const [active, setActive] = useState(0);
   const [expanded, setExpanded] = useState(false);
   const activeSource = images[active];

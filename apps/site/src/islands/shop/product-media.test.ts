@@ -88,6 +88,13 @@ test('Headphones detail uses reduced-motion scrolling and typed Gallery copy', (
   assert.doesNotMatch(source, /zoomHint=\{content\.detail\.zoomHint\}/);
 });
 
+test('Gallery and every detail caller remove the retired zoom API', () => {
+  for (const file of ['Gallery.tsx', 'ProductDetail.tsx', 'OverstockDetail.tsx']) {
+    const source = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /zoomHint/, file);
+  }
+});
+
 test('product media reserves square geometry and renders meaningful and empty alt text', () => {
   const meaningful = renderToStaticMarkup(
     createElement(ProductMedia, { sources: SOURCES, alt: 'Wireless headphones' }),
