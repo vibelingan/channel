@@ -15,7 +15,7 @@ function getId(): string {
   return new URLSearchParams(window.location.search).get('id') ?? '';
 }
 
-/** Product detail island: gallery with zoom + spec sheet + price inquiry. */
+/** Product detail island: bounded gallery + spec sheet + price inquiry. */
 export function ProductDetail({ content }: Props) {
   const { detail, list, inquiry } = content;
   const [product, setProduct] = useState<Product | null>(null);
@@ -98,7 +98,12 @@ export function ProductDetail({ content }: Props) {
       </div>
 
       <div className="mt-6 grid gap-10 lg:grid-cols-2">
-        <Gallery images={product.images ?? []} alt={product.name} zoomHint={detail.zoomHint} />
+        <Gallery
+          images={product.images ?? []}
+          alt={product.name}
+          viewAllLabel={detail.viewAllLabel}
+          unavailableLabel={detail.imageUnavailableLabel}
+        />
 
         <div>
           <span className="inline-flex rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">

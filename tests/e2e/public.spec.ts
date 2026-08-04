@@ -545,6 +545,249 @@ test.describe('public browser smoke', () => {
     }
   });
 
+  test('Headphones Gallery bounds media, falls back, and resets across products', async ({
+    page,
+  }) => {
+    const imageIdsA = Array.from({ length: 6 }, (_, index) => `miu8-a${index + 1}`);
+    const imageIdsB = Array.from({ length: 6 }, (_, index) => `miu8-b${index + 1}`);
+    const imagePath = (id: string) => `/api/images/${id}`;
+    const requestedImageIds: string[] = [];
+    let catalogMode: 'gallery' | 'fallback' = 'gallery';
+
+    await page.route('**/api/products?**', (route) => {
+      const items =
+        catalogMode === 'gallery'
+          ? [
+              {
+                _id: 'miu8-product-a',
+                name: 'MIU 8 Product A',
+                category: 'bluetooth',
+                images: imageIdsA.map(imagePath),
+              },
+              {
+                _id: 'miu8-product-b',
+                name: 'MIU 8 Product B',
+                category: 'bluetooth',
+                images: imageIdsB.map(imagePath),
+              },
+            ]
+          : [
+              {
+                _id: 'miu8-product-missing',
+                name: 'MIU 8 Missing Product',
+                category: 'bluetooth',
+                images: [imagePath('miu8-missing')],
+              },
+            ];
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          data: {
+            items,
+            total: items.length,
+            page: 1,
+            pageSize: 48,
+          },
+        }),
+      });
+    });
+    await page.route('**/api/images/miu8-*', (route) => {
+      const id = new URL(route.request().url()).pathname.split('/').at(-1) ?? '';
+      requestedImageIds.push(id);
+      if (id === 'miu8-missing') {
+        return route.fulfill({ status: 404, headers: { 'Cache-Control': 'no-store' }, body: '' });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'image/svg+xml',
+        headers: { 'Cache-Control': 'no-store' },
+        body: `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800"><rect width="800" height="800" fill="#315d78"/><text x="400" y="420" text-anchor="middle" font-size="56" fill="white">${id}</text></svg>`,
+      });
+    });
+
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 768, height: 1024 },
+      { width: 1024, height: 768 },
+      { width: 1440, height: 900 },
+    ]) {
+      catalogMode = 'gallery';
+      requestedImageIds.length = 0;
+      await page.setViewportSize(viewport);
+      await page.emulateMedia({
+        reducedMotion: viewport.width === 390 ? 'reduce' : 'no-preference',
+      });
+      await page.goto(`/headphones?miu8=${viewport.width}`, { waitUntil: 'domcontentloaded' });
+      await ensureApplicationPage(page);
+      await page.evaluate(() => {
+        const host = window as typeof window & {
+          __miu8ScrollOptions?: boolean | ScrollIntoViewOptions | undefined;
+        };
+        Element.prototype.scrollIntoView = function scrollIntoView(options) {
+          host.__miu8ScrollOptions = options;
+        };
+      });
+
+      const productA = page.locator('[data-product-card="miu8-product-a"]');
+      const productB = page.locator('[data-product-card="miu8-product-b"]');
+      await productA.click();
+
+      const gallery = page.locator('[data-gallery]');
+      const frame = gallery.locator('[data-gallery-frame]');
+      const thumbnails = gallery.locator('[data-gallery-thumbnail]');
+      const viewAll = gallery.locator('[data-gallery-view-all]');
+      await expect(gallery).toBeVisible();
+      await expect(thumbnails).toHaveCount(4);
+      await expect(gallery.locator('img')).toHaveCount(5);
+      await expect(viewAll).toHaveAttribute('aria-expanded', 'false');
+      await expect(frame.locator('img')).toHaveCSS('object-fit', 'contain');
+      const initialGeometry = await frame.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          width: rect.width,
+          height: rect.height,
+          noHorizontalOverflow:
+            document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        };
+      });
+      expect(initialGeometry.width).toBeLessThanOrEqual(520.5);
+      expect(Math.abs(initialGeometry.width - initialGeometry.height)).toBeLessThanOrEqual(1);
+      expect(initialGeometry.noHorizontalOverflow).toBe(true);
+      expect(requestedImageIds).not.toContain('miu8-a5');
+      expect(requestedImageIds).not.toContain('miu8-a6');
+
+      await frame.scrollIntoViewIfNeeded();
+      await page.mouse.move(1, 1);
+      await page.waitForTimeout(50);
+      const beforePointer = await frame.locator('img').evaluate((image) => {
+        const style = getComputedStyle(image);
+        const rect = image.getBoundingClientRect();
+        return {
+          x: rect.x + window.scrollX,
+          y: rect.y + window.scrollY,
+          width: rect.width,
+          height: rect.height,
+          opacity: style.opacity,
+          transform: style.transform,
+          objectPosition: style.objectPosition,
+          backgroundImage: style.backgroundImage,
+          scrollX: window.scrollX,
+          scrollY: window.scrollY,
+        };
+      });
+      await frame.hover({ position: { x: 5, y: 5 } });
+      const frameBox = await frame.boundingBox();
+      if (!frameBox) throw new Error('Gallery frame has no bounding box');
+      await page.mouse.move(frameBox.x + frameBox.width - 5, frameBox.y + frameBox.height - 5);
+      await page.waitForTimeout(250);
+      const afterPointer = await frame.locator('img').evaluate((image) => {
+        const style = getComputedStyle(image);
+        const rect = image.getBoundingClientRect();
+        return {
+          x: rect.x + window.scrollX,
+          y: rect.y + window.scrollY,
+          width: rect.width,
+          height: rect.height,
+          opacity: style.opacity,
+          transform: style.transform,
+          objectPosition: style.objectPosition,
+          backgroundImage: style.backgroundImage,
+          scrollX: window.scrollX,
+          scrollY: window.scrollY,
+        };
+      });
+      expect(afterPointer).toEqual(beforePointer);
+
+      await thumbnails.nth(3).focus();
+      await page.keyboard.press('Tab');
+      await expect(viewAll).toBeFocused();
+      const focusVisual = await viewAll.evaluate((element) => ({
+        focusVisible: element.matches(':focus-visible'),
+        boxShadow: getComputedStyle(element).boxShadow,
+      }));
+      expect(focusVisual.focusVisible).toBe(true);
+      expect(focusVisual.boxShadow).not.toBe('none');
+      await page.keyboard.press('Enter');
+      await expect(thumbnails).toHaveCount(6);
+      await expect(viewAll).toHaveAttribute('aria-expanded', 'true');
+      await expect(viewAll).toBeFocused();
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      ).toBe(true);
+
+      const selectedBorder = await thumbnails
+        .first()
+        .evaluate((element) => getComputedStyle(element).borderTopColor);
+      const unselectedBorder = await thumbnails
+        .nth(1)
+        .evaluate((element) => getComputedStyle(element).borderTopColor);
+      expect(selectedBorder).not.toBe(unselectedBorder);
+      await thumbnails.nth(4).click();
+      await expect(thumbnails.nth(4)).toHaveAttribute('aria-pressed', 'true');
+      await expect
+        .poll(() =>
+          thumbnails.nth(4).evaluate((element) => getComputedStyle(element).borderTopColor),
+        )
+        .toBe(selectedBorder);
+      await expect
+        .poll(() =>
+          thumbnails.first().evaluate((element) => getComputedStyle(element).borderTopColor),
+        )
+        .toBe(unselectedBorder);
+
+      await productB.click();
+      await expect(thumbnails).toHaveCount(4);
+      await expect(viewAll).toHaveAttribute('aria-expanded', 'false');
+      await expect(thumbnails.first()).toHaveAttribute('aria-pressed', 'true');
+      await expect(frame.locator('img')).toHaveAttribute('src', /\/api\/images\/miu8-b1$/);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      ).toBe(true);
+
+      const scrollBehavior = await page.evaluate(() => {
+        const host = window as typeof window & {
+          __miu8ScrollOptions?: boolean | ScrollIntoViewOptions;
+        };
+        const options = host.__miu8ScrollOptions;
+        return typeof options === 'object' ? options.behavior : undefined;
+      });
+      expect(scrollBehavior).toBe(viewport.width === 390 ? 'auto' : 'smooth');
+
+      catalogMode = 'fallback';
+      requestedImageIds.length = 0;
+      await page.goto(`/headphones?miu8-fallback=${viewport.width}`, {
+        waitUntil: 'domcontentloaded',
+      });
+      await ensureApplicationPage(page);
+      const missingProduct = page.locator('[data-product-card="miu8-product-missing"]');
+      await expect(missingProduct).toBeVisible();
+      await expect
+        .poll(() => requestedImageIds.filter((id) => id === 'miu8-missing').length)
+        .toBe(1);
+      await missingProduct.click();
+      const missingFrame = page.locator('[data-gallery-frame]');
+      await expect(missingFrame.locator('[data-product-media="fallback"]')).toContainText(
+        'Product image unavailable',
+      );
+      await expect
+        .poll(() => requestedImageIds.filter((id) => id === 'miu8-missing').length)
+        .toBe(2);
+      await page.waitForTimeout(150);
+      expect(requestedImageIds.filter((id) => id === 'miu8-missing')).toHaveLength(2);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      ).toBe(true);
+    }
+  });
+
   test('Headphones header stays responsive and card pricing hierarchy is restrained', async ({
     browser,
     page,
