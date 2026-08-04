@@ -111,7 +111,6 @@ const expectedFrontmatter = {
     oemInquiryCta: 'Start Your OEM Enquiry',
     viewAllLabel: 'View All',
     imageUnavailableLabel: 'Product image unavailable',
-    zoomHint: 'Hover image to zoom',
     notFound: 'Product not found.',
   },
   oemCta: {

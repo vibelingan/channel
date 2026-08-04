@@ -57,7 +57,6 @@ detail:
   inInquiry: Added to inquiry list
   inquiryCta: Request quote for this lot
   soldOutNote: This lot is sold out. Add it to your inquiry to be notified of restocks.
-  zoomHint: Hover image to zoom
   notFound: Overstock lot not found.
 
 inquiry:

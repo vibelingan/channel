@@ -34,7 +34,6 @@ export interface OverstockContent {
     inInquiry: string;
     inquiryCta: string;
     soldOutNote: string;
-    zoomHint: string;
     notFound: string;
   };
   inquiry: InquiryStrings;

@@ -79,7 +79,6 @@ export interface HeadphonesContent {
     oemInquiryCta: string;
     viewAllLabel: string;
     imageUnavailableLabel: string;
-    zoomHint: string;
     notFound: string;
   };
   oemCta: {
