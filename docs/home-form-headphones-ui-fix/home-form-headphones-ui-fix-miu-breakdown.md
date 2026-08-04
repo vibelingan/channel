@@ -404,13 +404,20 @@ Block: FRONTEND
 Files: apps/site/src/islands/shop/ProductMedia.tsx, apps/site/src/islands/shop/Gallery.tsx, apps/site/src/islands/shop/product-media.test.ts
 
 Reviewed closure boundary: the three files above remain the core component contract. Immutable
-review proved that completing the approved behavior also required three separately validated
-phases, each within the repository's five-file cap:
+review proved that completing the approved behavior required separately validated phases, each
+within the repository's five-file cap:
 
 1. core implementation plus `HeadphonesPage.tsx` caller wiring and the tracked execution record;
 2. durable browser coverage in `tests/e2e/public.spec.ts` plus Gallery compatibility cleanup in
   `ProductDetail.tsx` and `OverstockDetail.tsx`;
 3. removal of the retired `zoomHint` field from the Headphones/Overstock typed locale contracts.
+4. tracked Gallery design/execution closure;
+5. one shared 18-image policy enforced at products/overstock writes and public projection;
+6. a persistent polite fallback announcement with deterministic browser timing coverage;
+7. localized `Show Less` content followed by product-aware Gallery reset/clamping/toggle behavior;
+8. durable exact-request/reset/collapse browser coverage; and
+9. admin `ImageManager` capacity admission, retry/discard, preview de-duplication, keyboard recovery,
+   and mounted browser coverage.
 
 This is the explicit reviewed ownership waiver for MIU 8. It does not move pagination, request
 generation, detail-heading focus, Back focus restoration, or hero composition out of MIUs 9-13.
@@ -424,6 +431,8 @@ What it does:
 - Migrates Gallery main media and thumbnails to the same source/fallback contract without changing protected media URLs or authorization.
 - Caps the centered desktop main frame at 520px, removes automatic hover magnification/panning, and preserves responsive contained media without page-level overflow.
 - Mounts the active gallery image and at most four lazy, low-priority thumbnail previews on detail open; a `View All` control explicitly reveals any remaining thumbnails in a bounded wrapping layout rather than a viewer/modal.
+- Enforces one 18-image policy at catalog writes, public projection, Gallery rendering, and the admin uploader; malformed legacy rows are filtered and bounded without weakening media visibility gates.
+- Keys Gallery state by product identity as well as ordered media, and exposes a localized `View All` / `Show Less` disclosure that retains keyboard focus.
 - Uses existing gated original media only. No Data万象 URL transform or persistent derivative is introduced.
 - At medium detail widths, thumbnail previews and expanded `View All` media wrap inside a bounded `min-width: 0` track; they never widen the product-detail band.
 
