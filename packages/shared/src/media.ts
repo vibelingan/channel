@@ -52,6 +52,25 @@ export const CATALOG_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 /** Maximum ordered source images accepted or exposed for one catalog document. */
 export const CATALOG_IMAGE_MAX_COUNT = 18;
 export const CATALOG_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+
+/**
+ * Canonical ordered image references for storefront catalog documents.
+ * Historical rows may contain scalars, nulls, blank strings, or more than the
+ * supported maximum; every projection/refcount/visibility consumer must pass
+ * through this function before applying its own Set/deduplication semantics.
+ */
+export function normalizeCatalogImageIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const normalized: string[] = [];
+  for (const candidate of value) {
+    if (typeof candidate !== 'string') continue;
+    const id = candidate.trim();
+    if (!id) continue;
+    normalized.push(id);
+    if (normalized.length === CATALOG_IMAGE_MAX_COUNT) break;
+  }
+  return normalized;
+}
 /**
  * SVG is active/vector content. Advisory/UX list only — enforcement is the
  * `CATALOG_IMAGE_MIME_TYPES` allowlist: any value not on it (SVG included) is
