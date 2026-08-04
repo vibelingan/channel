@@ -14,8 +14,9 @@
   open/return. Do not reimplement or revert that slice.
 - MIU 5 below now means **site-wide reveal hardening only**. Its Headphones assertion protects the
   deployed P0; the runtime Headphones wrappers must remain free of `.reveal`.
-- The SY-T8 18-image publication is operational evidence, not completion of MIU 8. Gallery sizing,
-  four-preview `View All`, fallback, focus, and request budgets remain pending.
+- The SY-T8 18-image publication was operational evidence rather than MIU 8 completion. MIU 8 now
+  owns completed Gallery sizing, four-preview `View All`, fallback, selected/disclosure focus, and
+  request budgets. Detail-heading focus and Back-to-origin focus remain pending in MIU 13.
 - Current per-MIU status is owned by the tracked execution log and Git history; this breakdown
   defines scope, order, and acceptance criteria rather than duplicating progress state.
 - MIU 14 implementation exists across `ce19963` + `27c70c0`; MIU 15 at `3feeb60`; MIU 16 at `26a636a`.
@@ -402,6 +403,18 @@ Block: FRONTEND
 
 Files: apps/site/src/islands/shop/ProductMedia.tsx, apps/site/src/islands/shop/Gallery.tsx, apps/site/src/islands/shop/product-media.test.ts
 
+Reviewed closure boundary: the three files above remain the core component contract. Immutable
+review proved that completing the approved behavior also required three separately validated
+phases, each within the repository's five-file cap:
+
+1. core implementation plus `HeadphonesPage.tsx` caller wiring and the tracked execution record;
+2. durable browser coverage in `tests/e2e/public.spec.ts` plus Gallery compatibility cleanup in
+  `ProductDetail.tsx` and `OverstockDetail.tsx`;
+3. removal of the retired `zoomHint` field from the Headphones/Overstock typed locale contracts.
+
+This is the explicit reviewed ownership waiver for MIU 8. It does not move pagination, request
+generation, detail-heading focus, Back focus restoration, or hero composition out of MIUs 9-13.
+
 Type: new-file
 
 Depends on: MIU 2
@@ -420,14 +433,14 @@ Build/Deploy/Runtime impact:
 
 Test plan (TDD - write FIRST):
 - Unit-test the pure reducer: each failed source advances once, duplicate failures do not advance twice, and exhaustion reaches a terminal fallback.
-- Server-render the static branches and assert reserved geometry, alt semantics, empty-list fallback, and reset when the source list changes.
+- Server-render the static branches and assert reserved geometry, alt semantics, and empty-list fallback; use mounted browser coverage for source-list reset.
 - Render more than four gallery images and assert only four thumbnail previews are initially present, then all are available inline after `View All` without dialog semantics.
 - In browser coverage at 390, 768, 1024, and 1440 widths, assert the frame maximum, `object-contain`, visible focus/selected state, and `scrollWidth <= clientWidth` before and after expansion.
 - Move a fine pointer across the main frame and assert no image opacity, scale, position, background, or scroll offset changes; under reduced motion assert detail navigation is not smooth-scrolled.
 
 Done when:
 - Media unit tests, site tests, Astro check, Biome, and site build pass.
-- A later browser test can force a gated 404 and observe the terminal fallback without another request loop.
+- The public browser suite forces a gated-style 404, observes the terminal fallback without another request loop, and proves Gallery state resets when the ordered source list changes.
 
 ## MIU 9: Headphones Load More state reducer
 
