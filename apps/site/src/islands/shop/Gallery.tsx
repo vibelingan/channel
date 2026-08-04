@@ -1,101 +1,146 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { apiMediaUrl } from '../../lib/api-url.ts';
+import { ProductMedia, productMediaKey } from './ProductMedia.tsx';
 
 interface Props {
   images: string[];
   alt: string;
-  zoomHint: string;
+  zoomHint?: string;
+  viewAllLabel?: string;
+  unavailableLabel?: string;
 }
 
-/**
- * Product gallery with thumbnails and an eBay-style hover-zoom: moving the
- * cursor over the main image pans a magnified view via background-position.
- * Zoom is pointer-only (skipped on touch / coarse pointers).
- */
-export function Gallery({ images, alt, zoomHint }: Props) {
-  const list = (images.length > 0 ? images : ['/api/images/_placeholder']).map(apiMediaUrl);
-  const [active, setActive] = useState(0);
-  const [zoom, setZoom] = useState(false);
-  const [pos, setPos] = useState({ x: 50, y: 50 });
-  const frameRef = useRef<HTMLDivElement>(null);
+interface GalleryThumbnailListProps {
+  images: readonly string[];
+  activeIndex: number;
+  expanded: boolean;
+  viewAllLabel: string;
+  unavailableLabel?: string;
+  onSelect: (index: number) => void;
+  onExpand: () => void;
+}
 
-  function onMove(e: React.MouseEvent<HTMLDivElement>) {
-    const rect = frameRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    setPos({ x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
-  }
+const INITIAL_PREVIEW_COUNT = 4;
 
-  const src = list[active];
+function thumbnailKeys(images: readonly string[]): string[] {
+  const occurrences = new Map<string, number>();
+  return images.map((image) => {
+    const occurrence = (occurrences.get(image) ?? 0) + 1;
+    occurrences.set(image, occurrence);
+    return `${image}:${occurrence}`;
+  });
+}
+
+export function GalleryThumbnailList({
+  images,
+  activeIndex,
+  expanded,
+  viewAllLabel,
+  unavailableLabel,
+  onSelect,
+  onExpand,
+}: GalleryThumbnailListProps) {
+  const visibleImages = expanded ? images : images.slice(0, INITIAL_PREVIEW_COUNT);
+  const keys = thumbnailKeys(visibleImages);
+
+  if (images.length <= 1) return null;
 
   return (
-    <div>
-      <div
-        ref={frameRef}
-        className="relative aspect-square overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-surface-alt"
-        onMouseEnter={() => {
-          if (window.matchMedia('(pointer: fine)').matches) setZoom(true);
-        }}
-        onMouseLeave={() => setZoom(false)}
-        onMouseMove={onMove}
-      >
-        {/* Base image */}
-        <img
-          src={src}
-          alt={alt}
-          className={`h-full w-full object-cover transition-opacity duration-200 ${
-            zoom ? 'opacity-0' : 'opacity-100'
-          }`}
-        />
-        {/* Zoom layer */}
-        {zoom && (
-          <div
-            className="absolute inset-0 bg-no-repeat"
-            style={{
-              backgroundImage: `url(${src})`,
-              backgroundSize: '200%',
-              backgroundPosition: `${pos.x}% ${pos.y}%`,
-            }}
-            aria-hidden="true"
-          />
-        )}
-        {!zoom && (
-          <span className="pointer-events-none absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-medium text-ink-muted shadow-sm">
-            <svg
-              className="h-3.5 w-3.5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              aria-hidden="true"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="M21 21l-4.3-4.3M11 8v6M8 11h6" strokeLinecap="round" />
-            </svg>
-            {zoomHint}
-          </span>
-        )}
+    <div className="mt-4 min-w-0">
+      <div id="gallery-thumbnails" className="flex min-w-0 flex-wrap justify-center gap-3">
+        {visibleImages.map((image, index) => (
+          <button
+            key={keys[index]}
+            type="button"
+            data-gallery-thumbnail={index}
+            onClick={() => onSelect(index)}
+            className={`h-20 w-20 shrink-0 cursor-pointer overflow-hidden rounded-lg border-2 bg-surface-alt transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 ${
+              index === activeIndex ? 'border-brand-600' : 'border-slate-200 hover:border-slate-400'
+            }`}
+            aria-label={`View image ${index + 1}`}
+            aria-pressed={index === activeIndex}
+          >
+            <ProductMedia
+              sources={[image]}
+              alt=""
+              unavailableLabel={unavailableLabel}
+              width={80}
+              height={80}
+              fetchPriority="low"
+              imageClassName="h-full w-full object-contain"
+            />
+          </button>
+        ))}
       </div>
 
-      {list.length > 1 && (
-        <div className="mt-4 flex gap-3">
-          {list.map((img, i) => (
-            <button
-              // biome-ignore lint/suspicious/noArrayIndexKey: gallery order is fixed and images may repeat
-              key={i}
-              type="button"
-              onClick={() => setActive(i)}
-              className={`h-20 w-20 overflow-hidden rounded-lg border-2 bg-surface-alt transition ${
-                i === active ? 'border-brand-600' : 'border-transparent hover:border-slate-300'
-              }`}
-              aria-label={`View image ${i + 1}`}
-            >
-              <img src={img} alt="" className="h-full w-full object-cover" />
-            </button>
-          ))}
+      {images.length > INITIAL_PREVIEW_COUNT ? (
+        <div className="mt-4 text-center">
+          <button
+            type="button"
+            data-gallery-view-all
+            onClick={onExpand}
+            aria-expanded={expanded}
+            aria-controls="gallery-thumbnails"
+            className="min-h-11 cursor-pointer rounded-md px-4 text-sm font-semibold text-brand-700 underline decoration-brand-300 underline-offset-4 transition-colors motion-reduce:transition-none hover:text-brand-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2"
+          >
+            {viewAllLabel}
+          </button>
         </div>
-      )}
+      ) : null}
     </div>
+  );
+}
+
+function GallerySession({
+  images,
+  alt,
+  viewAllLabel = 'View All',
+  unavailableLabel = 'Product image unavailable',
+}: Omit<Props, 'zoomHint'>) {
+  const [active, setActive] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+  const activeSource = images[active];
+
+  return (
+    <div className="min-w-0" data-gallery>
+      <div
+        data-gallery-frame
+        className="mx-auto aspect-square w-full max-w-[520px] overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-surface-alt"
+      >
+        <ProductMedia
+          sources={activeSource ? [activeSource] : []}
+          alt={alt}
+          unavailableLabel={unavailableLabel}
+          loading="eager"
+          imageClassName="h-full w-full object-contain"
+        />
+      </div>
+
+      <GalleryThumbnailList
+        images={images}
+        activeIndex={active}
+        expanded={expanded}
+        viewAllLabel={viewAllLabel}
+        unavailableLabel={unavailableLabel}
+        onSelect={setActive}
+        onExpand={() => setExpanded(true)}
+      />
+    </div>
+  );
+}
+
+export function Gallery({ images, alt, viewAllLabel, unavailableLabel }: Props) {
+  const list = images
+    .map((image) => image.trim())
+    .filter(Boolean)
+    .map(apiMediaUrl);
+  return (
+    <GallerySession
+      key={productMediaKey(list)}
+      images={list}
+      alt={alt}
+      viewAllLabel={viewAllLabel}
+      unavailableLabel={unavailableLabel}
+    />
   );
 }

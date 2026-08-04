@@ -33,6 +33,10 @@ interface Props {
   strings: PageStrings;
 }
 
+export function detailScrollBehavior(reducedMotion: boolean): ScrollBehavior {
+  return reducedMotion ? 'auto' : 'smooth';
+}
+
 /** The main interactive island for the standalone Headphones product page. */
 export function HeadphonesPage({ content, strings }: Props) {
   const { list, inquiry } = content;
@@ -87,7 +91,12 @@ export function HeadphonesPage({ content, strings }: Props) {
     requestAnimationFrame(() => {
       const el = detailRefs.current.get(productId);
       if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        el.scrollIntoView({
+          behavior: detailScrollBehavior(
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+          ),
+          block: 'start',
+        });
       }
     });
   }
@@ -270,7 +279,8 @@ export function HeadphonesPage({ content, strings }: Props) {
                 <Gallery
                   images={activeProduct.images ?? []}
                   alt={activeProduct.name}
-                  zoomHint={content.detail.zoomHint}
+                  viewAllLabel={content.detail.viewAllLabel}
+                  unavailableLabel={content.detail.imageUnavailableLabel}
                 />
 
                 {/* Right: Specs + Inquiry */}
