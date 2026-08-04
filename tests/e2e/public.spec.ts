@@ -549,7 +549,6 @@ test.describe('public browser smoke', () => {
     page,
   }) => {
     const imageIdsA = Array.from({ length: 6 }, (_, index) => `miu8-a${index + 1}`);
-    const imageIdsB = Array.from({ length: 6 }, (_, index) => `miu8-b${index + 1}`);
     const imagePath = (id: string) => `/api/images/${id}`;
     const requestedImageIds: string[] = [];
     let catalogMode: 'gallery' | 'fallback' = 'gallery';
@@ -569,7 +568,7 @@ test.describe('public browser smoke', () => {
                 _id: 'miu8-product-b',
                 name: 'MIU 8 Product B',
                 category: 'bluetooth',
-                images: imageIdsB.map(imagePath),
+                images: imageIdsA.map(imagePath),
               },
             ]
           : [
@@ -661,8 +660,16 @@ test.describe('public browser smoke', () => {
       expect(initialGeometry.width).toBeLessThanOrEqual(520.5);
       expect(Math.abs(initialGeometry.width - initialGeometry.height)).toBeLessThanOrEqual(1);
       expect(initialGeometry.noHorizontalOverflow).toBe(true);
-      expect(requestedImageIds).not.toContain('miu8-a5');
-      expect(requestedImageIds).not.toContain('miu8-a6');
+      await expect
+        .poll(() => [...new Set(requestedImageIds)].sort())
+        .toEqual(imageIdsA.slice(0, 4).sort());
+      expect(requestedImageIds.length).toBeGreaterThanOrEqual(4);
+      expect(requestedImageIds.length).toBeLessThanOrEqual(5);
+      for (const id of imageIdsA.slice(0, 4)) {
+        const count = requestedImageIds.filter((requestedId) => requestedId === id).length;
+        expect(count, `${id} request multiplicity`).toBeGreaterThanOrEqual(1);
+        expect(count, `${id} request multiplicity`).toBeLessThanOrEqual(id === 'miu8-a1' ? 2 : 1);
+      }
 
       await frame.scrollIntoViewIfNeeded();
       await page.mouse.move(1, 1);
@@ -718,6 +725,7 @@ test.describe('public browser smoke', () => {
       await page.keyboard.press('Enter');
       await expect(thumbnails).toHaveCount(6);
       await expect(viewAll).toHaveAttribute('aria-expanded', 'true');
+      await expect(viewAll).toHaveText('Show Less');
       await expect(viewAll).toBeFocused();
       expect(
         await page.evaluate(
@@ -745,11 +753,22 @@ test.describe('public browser smoke', () => {
         )
         .toBe(unselectedBorder);
 
+      await viewAll.focus();
+      await page.keyboard.press('Enter');
+      await expect(thumbnails).toHaveCount(4);
+      await expect(viewAll).toHaveAttribute('aria-expanded', 'false');
+      await expect(viewAll).toHaveText('View All');
+      await expect(viewAll).toBeFocused();
+      await page.keyboard.press('Enter');
+      await expect(thumbnails).toHaveCount(6);
+      await expect(viewAll).toHaveText('Show Less');
+      await expect(viewAll).toBeFocused();
+
       await productB.click();
       await expect(thumbnails).toHaveCount(4);
       await expect(viewAll).toHaveAttribute('aria-expanded', 'false');
       await expect(thumbnails.first()).toHaveAttribute('aria-pressed', 'true');
-      await expect(frame.locator('img')).toHaveAttribute('src', /\/api\/images\/miu8-b1$/);
+      await expect(frame.locator('img')).toHaveAttribute('src', /\/api\/images\/miu8-a1$/);
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
