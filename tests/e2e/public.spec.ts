@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { type Browser, type Page, expect, test } from '@playwright/test';
 import type { CatalogPage } from '../../apps/site/src/islands/shop/catalog-types.ts';
 import type { SessionUser } from '../../packages/shared/src/auth.ts';
@@ -21,7 +22,6 @@ const cardTypographyCatalog = {
   page: 1,
   pageSize: 48,
 } satisfies CatalogPage;
-
 const longNameMember = {
   id: 'e2e-long-header-user',
   email: 'long-header-member@example.test',
@@ -820,6 +820,233 @@ test.describe('public browser smoke', () => {
         ),
       ).toBe(true);
     }
+  });
+
+  test('admin ImageManager enforces catalog capacity before upload', async ({ page }) => {
+    const adminUser = {
+      id: 'miu8-admin',
+      email: 'miu8-admin@example.test',
+      username: 'MIU 8 Admin',
+      role: 'admin',
+    } satisfies SessionUser;
+    const intentCounts = new Map<string, number>();
+    const previewCounts = new Map<string, number>();
+    let imageSequence = 0;
+    const existingImageIds = Array.from(
+      { length: 19 },
+      (_, index) => `existing-image-${index + 1}`,
+    );
+
+    await page.addInitScript((user) => {
+      localStorage.setItem('channel.token', 'miu8-admin-token');
+      localStorage.setItem('channel.user', JSON.stringify(user));
+    }, adminUser);
+    await page.route('**/api/admin', async (route) => {
+      const payload = route.request().postDataJSON() as {
+        action?: string;
+        data?: Record<string, unknown>;
+      };
+      let data: unknown;
+      switch (payload.action) {
+        case 'me':
+          data = { user: adminUser };
+          break;
+        case 'list':
+          data =
+            payload.data?.collection === 'products'
+              ? {
+                  items: [
+                    {
+                      _id: 'existing-over-limit-product',
+                      name: 'Existing Over-Limit Product',
+                      category: 'wired',
+                      imageIds: existingImageIds,
+                    },
+                  ],
+                  total: 1,
+                  page: 1,
+                  pageSize: 20,
+                }
+              : { items: [], total: 0, page: 1, pageSize: 20 };
+          break;
+        case 'getImagePreview':
+          {
+            const previewId = String(payload.data?.id ?? '');
+            previewCounts.set(previewId, (previewCounts.get(previewId) ?? 0) + 1);
+            const index = Number(previewId.split('-').at(-1) ?? '0');
+            await new Promise((resolve) => setTimeout(resolve, Math.max(1, index) * 5));
+          }
+          data = {
+            id: String(payload.data?.id ?? ''),
+            mimeType: 'image/png',
+            dataBase64:
+              'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+          };
+          break;
+        case 'createUploadIntent': {
+          const fileName = String(payload.data?.fileName ?? 'unknown.png');
+          const attempt = (intentCounts.get(fileName) ?? 0) + 1;
+          intentCounts.set(fileName, attempt);
+          imageSequence += 1;
+          data = {
+            imageId: `miu8-upload-${imageSequence}`,
+            uploadIntentId: `intent-${imageSequence}`,
+            storageFileId: `cloud://miu8/${imageSequence}`,
+            upload: {
+              method: 'POST',
+              url: `${e2e.siteUrl}/__miu8-upload?fileName=${encodeURIComponent(fileName)}&attempt=${attempt}`,
+              fields: {},
+            },
+          };
+          break;
+        }
+        case 'completeUpload':
+          data = {};
+          break;
+        default:
+          throw new Error(`Unexpected admin action: ${payload.action}`);
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, data }),
+      });
+    });
+    await page.route('**/__miu8-upload?**', (route) => {
+      const url = new URL(route.request().url());
+      const fileName = url.searchParams.get('fileName') ?? '';
+      const attempt = Number(url.searchParams.get('attempt') ?? '1');
+      const failsFirstAttempt = /miu8-cap-(?:0|1)\.png$/.test(fileName) && attempt === 1;
+      return route.fulfill({ status: failsFirstAttempt ? 500 : 204, body: '' });
+    });
+
+    await page.goto('/admin?miu8-capacity=1', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByText('Channel Admin', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Headphones', exact: true }).click();
+    await expect(page.getByText('Existing Over-Limit Product', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Edit', exact: true }).click();
+
+    const existingInput = page.locator('#imageIds');
+    const existingManager = page.locator('#imageIds-capacity').locator('..');
+    await expect
+      .poll(() => [...previewCounts.values()].reduce((sum, count) => sum + count, 0))
+      .toBe(19);
+    await expect(existingManager.locator('img[alt=""]')).toHaveCount(19);
+    expect(previewCounts.size).toBe(19);
+    expect([...previewCounts.values()].every((count) => count === 1)).toBe(true);
+    await expect(existingManager.locator('#imageIds-capacity')).toContainText('19 of 18 images');
+    await expect(existingInput).toBeDisabled();
+    const existingRemove = existingManager
+      .getByRole('button', { name: 'Remove image', exact: true })
+      .first();
+    await existingRemove.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(existingRemove).toBeFocused();
+    const existingActionBar = existingRemove.locator('..');
+    await expect(existingActionBar).toHaveCSS('opacity', '1');
+    expect(await existingRemove.evaluate((element) => element.matches(':focus-visible'))).toBe(
+      true,
+    );
+    const firstRemovalFocus = await existingRemove.evaluate((button) => {
+      if (!(button instanceof HTMLButtonElement)) throw new Error('Remove is not a button');
+      const manager = button.closest('[data-image-manager]');
+      button.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+      const active = document.activeElement;
+      return {
+        activeTag: active?.tagName,
+        activeLabel: active?.getAttribute('aria-label'),
+        activeImageId: active?.closest('[data-image-id]')?.getAttribute('data-image-id'),
+        survivingImageIds: Array.from(manager?.querySelectorAll('[data-image-id]') ?? []).map(
+          (item) => item.getAttribute('data-image-id'),
+        ),
+      };
+    });
+    expect(firstRemovalFocus).toEqual({
+      activeTag: 'BUTTON',
+      activeLabel: 'Remove image',
+      activeImageId: 'existing-image-2',
+      survivingImageIds: existingImageIds.slice(1),
+    });
+    const nextExistingRemove = existingManager
+      .getByRole('button', { name: 'Remove image', exact: true })
+      .first();
+    await expect(nextExistingRemove).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(
+      existingManager.getByRole('button', { name: 'Remove image', exact: true }).first(),
+    ).toBeFocused();
+    await expect(existingManager.locator('#imageIds-capacity')).toContainText('17 of 18 images');
+    await expect(existingManager.locator('output')).toContainText('17 of 18 images');
+    await expect(existingManager.locator('output')).toContainText('Image removed');
+    await expect(existingInput).toBeEnabled();
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+
+    await page.getByRole('button', { name: /^New / }).click();
+
+    const fileInput = page.locator('#imageIds');
+    const imageManager = page.locator('#imageIds-capacity').locator('..');
+    await expect(fileInput).toBeAttached();
+    await expect(fileInput).toHaveAccessibleName('Add product images');
+    await expect(fileInput).toHaveAttribute('aria-describedby', 'imageIds-capacity');
+    expect(await fileInput.evaluate((element) => element.getAttribute('id'))).toBe('imageIds');
+    await fileInput.focus();
+    await expect(fileInput).toBeFocused();
+    expect(
+      await fileInput.locator('..').evaluate((element) => getComputedStyle(element).boxShadow),
+    ).not.toBe('none');
+    await expect(imageManager.locator('#imageIds-capacity')).toContainText('0 of 18 images');
+
+    const payloads = Array.from({ length: 20 }, (_, index) => ({
+      name: `miu8-cap-${index}.png`,
+      mimeType: 'image/png',
+      buffer: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+        'base64',
+      ),
+    }));
+    await fileInput.setInputFiles(payloads);
+    await expect
+      .poll(() => [...intentCounts.values()].reduce((sum, count) => sum + count, 0))
+      .toBe(18);
+    await expect(imageManager.getByText('Uploading…')).toHaveCount(0);
+    await expect(imageManager.getByText('Upload failed', { exact: true })).toHaveCount(2);
+    await expect(imageManager.locator('output')).toContainText(
+      '2 uploads failed. Retry or remove them.',
+    );
+    await expect(imageManager.locator('img[alt=""]')).toHaveCount(16);
+    await expect(imageManager.locator('#imageIds-capacity')).toContainText('18 of 18 images');
+    await expect(imageManager.locator('output')).toContainText('2 files not selected');
+    await expect(fileInput).toBeDisabled();
+
+    const firstRetry = imageManager.getByRole('button', { name: 'Retry', exact: true }).first();
+    await firstRetry.evaluate((button) => {
+      if (!(button instanceof HTMLButtonElement)) throw new Error('Retry is not a button');
+      button.click();
+      button.click();
+    });
+    await expect.poll(() => intentCounts.get('miu8-cap-0.png') ?? 0).toBe(2);
+    await page.waitForTimeout(100);
+    expect(intentCounts.get('miu8-cap-0.png')).toBe(2);
+    await expect(imageManager.getByText('Upload failed', { exact: true })).toHaveCount(1);
+    await expect(imageManager.locator('img[alt=""]')).toHaveCount(17);
+
+    await imageManager.getByRole('button', { name: 'Remove', exact: true }).click();
+    await expect(imageManager.locator('#imageIds-capacity')).toContainText('17 of 18 images');
+    await expect(imageManager.locator('output')).toContainText('Failed upload removed');
+    await expect(fileInput).toBeEnabled();
+
+    await fileInput.setInputFiles({
+      name: 'miu8-cap-replacement.png',
+      mimeType: 'image/png',
+      buffer: payloads[0]?.buffer ?? Buffer.alloc(0),
+    });
+    await expect(imageManager.locator('img[alt=""]')).toHaveCount(18);
+    await expect(imageManager.locator('#imageIds-capacity')).toContainText('18 of 18 images');
+    await expect(fileInput).toBeDisabled();
+    expect(intentCounts.get('miu8-cap-replacement.png')).toBe(1);
   });
 
   test('Headphones header stays responsive and card pricing hierarchy is restrained', async ({

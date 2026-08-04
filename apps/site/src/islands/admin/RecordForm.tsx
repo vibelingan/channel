@@ -135,7 +135,12 @@ function Field({
       <div>
         {label}
         <div className="mt-1.5">
-          <ImageManager value={ids} onChange={(next) => onChange(JSON.stringify(next))} />
+          <ImageManager
+            value={ids}
+            inputId={field.name}
+            maxItems={field.maxItems}
+            onChange={(next) => onChange(JSON.stringify(next))}
+          />
         </div>
       </div>
     );
