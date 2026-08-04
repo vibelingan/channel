@@ -24,6 +24,7 @@ import {
   fileExtension,
   isAllowedOemExtension,
   isStorageBackedImage,
+  normalizeCatalogImageIds,
   oemFileUploadSchema,
 } from './media.ts';
 
@@ -111,6 +112,34 @@ test('storefront catalog writes enforce the shared 18-image limit', () => {
     assert.throws(() => schema.parse({ ...values, imageIds: [...imageIds, 'img-over-limit'] }));
     assert.throws(() => schema.partial().parse({ imageIds: [...imageIds, 'img-over-limit'] }));
   }
+});
+
+test('normalizeCatalogImageIds filters and trims before preserving the first 18 valid ids', () => {
+  const valid = Array.from(
+    { length: CATALOG_IMAGE_MAX_COUNT + 2 },
+    (_, index) => ` image-${index + 1} `,
+  );
+  const normalized = normalizeCatalogImageIds([null, 2, '', '  ', false, {}, ...valid]);
+
+  assert.deepEqual(
+    normalized,
+    Array.from({ length: CATALOG_IMAGE_MAX_COUNT }, (_, index) => `image-${index + 1}`),
+  );
+  assert.deepEqual(normalizeCatalogImageIds('image-1'), []);
+});
+
+test('normalizeCatalogImageIds preserves order and lets duplicates consume bounded slots', () => {
+  const normalized = normalizeCatalogImageIds([
+    'same-image',
+    'same-image',
+    ...Array.from({ length: CATALOG_IMAGE_MAX_COUNT }, (_, index) => `image-${index + 1}`),
+  ]);
+
+  assert.deepEqual(normalized, [
+    'same-image',
+    'same-image',
+    ...Array.from({ length: CATALOG_IMAGE_MAX_COUNT - 2 }, (_, index) => `image-${index + 1}`),
+  ]);
 });
 
 test('catalog image limits preserve legacy malformed-value compatibility and stay scoped', () => {
