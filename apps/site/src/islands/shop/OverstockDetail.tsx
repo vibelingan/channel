@@ -121,7 +121,7 @@ export function OverstockDetail({ content, apiPath }: Props) {
       </div>
 
       <div className="mt-6 grid gap-10 lg:grid-cols-2">
-        <Gallery images={product.images ?? []} alt={product.name} />
+        <Gallery images={product.images ?? []} alt={product.name} productId={product._id} />
 
         <div>
           <div className="flex items-center gap-3">

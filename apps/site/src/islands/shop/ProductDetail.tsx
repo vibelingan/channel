@@ -101,7 +101,9 @@ export function ProductDetail({ content }: Props) {
         <Gallery
           images={product.images ?? []}
           alt={product.name}
+          productId={product._id}
           viewAllLabel={detail.viewAllLabel}
+          showLessLabel={detail.showLessLabel}
           unavailableLabel={detail.imageUnavailableLabel}
         />
 
