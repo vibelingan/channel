@@ -3,7 +3,12 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { Gallery, GalleryThumbnailList } from './Gallery.tsx';
+import {
+  Gallery,
+  GalleryThumbnailList,
+  boundedGalleryImages,
+  gallerySessionKey,
+} from './Gallery.tsx';
 import { detailScrollBehavior } from './HeadphonesPage.tsx';
 import {
   ProductMedia,
@@ -76,6 +81,23 @@ test('product media identity changes when the ordered source list changes', () =
   assert.notEqual(productMediaKey(SOURCES), productMediaKey(SOURCES.slice(1)));
   assert.equal(productMediaKey(SOURCES), productMediaKey([...SOURCES]));
   assert.notEqual(productMediaImageKey(0, SOURCES[0]), productMediaImageKey(1, SOURCES[0]));
+});
+
+test('Gallery session identity includes the product even when media is identical', () => {
+  assert.notEqual(gallerySessionKey('product-a', SOURCES), gallerySessionKey('product-b', SOURCES));
+  assert.equal(
+    gallerySessionKey('product-a', SOURCES),
+    gallerySessionKey('product-a', [...SOURCES]),
+  );
+});
+
+test('Gallery defensively clamps normalized media to the shared maximum', () => {
+  const images = Array.from({ length: 25 }, (_, index) => ` /api/images/image-${index + 1} `);
+  const bounded = boundedGalleryImages(images);
+
+  assert.equal(bounded.length, 18);
+  assert.equal(bounded[0], '/api/images/image-1');
+  assert.equal(bounded.at(-1), '/api/images/image-18');
 });
 
 test('Headphones detail uses reduced-motion scrolling and typed Gallery copy', () => {
@@ -154,13 +176,14 @@ test('gallery renders four previews initially and expands all previews inline', 
       activeIndex: 0,
       expanded: true,
       viewAllLabel: 'View All',
+      showLessLabel: 'Show Less',
       onSelect: () => undefined,
-      onExpand: () => undefined,
+      onToggle: () => undefined,
     }),
   );
   assert.equal((expanded.match(/data-gallery-thumbnail=/g) ?? []).length, images.length);
   assert.match(expanded, /aria-expanded="true"/);
   assert.match(expanded, /aria-controls="gallery-thumbnails"/);
-  assert.match(expanded, />View All</);
+  assert.match(expanded, />Show Less</);
   assert.doesNotMatch(expanded, /role="dialog"/);
 });

@@ -279,7 +279,9 @@ export function HeadphonesPage({ content, strings }: Props) {
                 <Gallery
                   images={activeProduct.images ?? []}
                   alt={activeProduct.name}
+                  productId={activeProduct._id}
                   viewAllLabel={content.detail.viewAllLabel}
+                  showLessLabel={content.detail.showLessLabel}
                   unavailableLabel={content.detail.imageUnavailableLabel}
                 />
 
