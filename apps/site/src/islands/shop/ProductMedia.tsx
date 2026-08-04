@@ -1,4 +1,4 @@
-import { useReducer } from 'react';
+import { useEffect, useReducer, useState } from 'react';
 import { apiMediaUrl } from '../../lib/api-url.ts';
 
 export interface ProductMediaState {
@@ -76,39 +76,49 @@ function ProductMediaSession({
   fetchPriority = 'auto',
 }: ProductMediaProps) {
   const [state, dispatch] = useReducer(productMediaReducer, undefined, createProductMediaState);
+  const [unavailableAnnouncement, setUnavailableAnnouncement] = useState('');
   const source = sources[state.activeIndex];
 
-  if (source === undefined) {
-    return (
-      <div
-        data-product-media="fallback"
-        className={`flex aspect-square h-full w-full flex-col items-center justify-center bg-surface-alt px-4 text-center text-ink-muted ${className}`}
-        {...(alt ? { role: 'img', 'aria-label': alt } : { 'aria-hidden': true })}
-      >
-        <span className="font-display text-sm font-semibold uppercase tracking-[0.15em] text-brand-700">
-          Channel
-        </span>
-        <span className="mt-2 text-xs">{unavailableLabel}</span>
-      </div>
-    );
-  }
+  useEffect(() => {
+    setUnavailableAnnouncement(source === undefined && alt ? `${alt}. ${unavailableLabel}` : '');
+  }, [alt, source, unavailableLabel]);
 
   return (
-    <img
-      key={productMediaImageKey(state.activeIndex, source)}
-      data-product-media="image"
-      src={source}
-      alt={alt}
-      width={width}
-      height={height}
-      loading={loading}
-      fetchPriority={fetchPriority}
-      decoding="async"
-      className={`h-full w-full object-contain ${imageClassName} ${className}`}
-      onError={() =>
-        dispatch({ type: 'sourceFailed', sourceIndex: state.activeIndex, source, sources })
-      }
-    />
+    <>
+      {alt ? (
+        <output className="sr-only" aria-live="polite" aria-atomic="true">
+          {unavailableAnnouncement}
+        </output>
+      ) : null}
+      {source === undefined ? (
+        <div
+          data-product-media="fallback"
+          className={`flex aspect-square h-full w-full flex-col items-center justify-center bg-surface-alt px-4 text-center text-ink-muted ${className}`}
+          aria-hidden="true"
+        >
+          <span className="font-display text-sm font-semibold uppercase tracking-[0.15em] text-brand-700">
+            Channel
+          </span>
+          <span className="mt-2 text-xs">{unavailableLabel}</span>
+        </div>
+      ) : (
+        <img
+          key={productMediaImageKey(state.activeIndex, source)}
+          data-product-media="image"
+          src={source}
+          alt={alt}
+          width={width}
+          height={height}
+          loading={loading}
+          fetchPriority={fetchPriority}
+          decoding="async"
+          className={`h-full w-full object-contain ${imageClassName} ${className}`}
+          onError={() =>
+            dispatch({ type: 'sourceFailed', sourceIndex: state.activeIndex, source, sources })
+          }
+        />
+      )}
+    </>
   );
 }
 

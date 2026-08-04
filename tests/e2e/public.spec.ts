@@ -553,6 +553,7 @@ test.describe('public browser smoke', () => {
     const imagePath = (id: string) => `/api/images/${id}`;
     const requestedImageIds: string[] = [];
     let catalogMode: 'gallery' | 'fallback' = 'gallery';
+    let releaseDetailFallback: (() => void) | undefined;
 
     await page.route('**/api/products?**', (route) => {
       const items =
@@ -593,10 +594,15 @@ test.describe('public browser smoke', () => {
         }),
       });
     });
-    await page.route('**/api/images/miu8-*', (route) => {
+    await page.route('**/api/images/miu8-*', async (route) => {
       const id = new URL(route.request().url()).pathname.split('/').at(-1) ?? '';
       requestedImageIds.push(id);
       if (id === 'miu8-missing') {
+        if (requestedImageIds.filter((candidate) => candidate === id).length === 2) {
+          await new Promise<void>((resolve) => {
+            releaseDetailFallback = resolve;
+          });
+        }
         return route.fulfill({ status: 404, headers: { 'Cache-Control': 'no-store' }, body: '' });
       }
       return route.fulfill({
@@ -772,8 +778,17 @@ test.describe('public browser smoke', () => {
         .toBe(1);
       await missingProduct.click();
       const missingFrame = page.locator('[data-gallery-frame]');
+      const missingAnnouncement = page.locator('[data-gallery] output');
+      await expect(missingAnnouncement).toBeAttached();
+      await expect(missingAnnouncement).toHaveText('');
+      if (!releaseDetailFallback) throw new Error('Detail fallback request was not intercepted');
+      releaseDetailFallback();
+      releaseDetailFallback = undefined;
       await expect(missingFrame.locator('[data-product-media="fallback"]')).toContainText(
         'Product image unavailable',
+      );
+      await expect(missingAnnouncement).toHaveText(
+        'MIU 8 Missing Product. Product image unavailable',
       );
       await expect
         .poll(() => requestedImageIds.filter((id) => id === 'miu8-missing').length)

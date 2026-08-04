@@ -114,9 +114,19 @@ test('product media reserves square geometry and renders meaningful and empty al
     createElement(ProductMedia, { sources: [], alt: 'Wireless headphones' }),
   );
   assert.match(empty, /data-product-media="fallback"/);
-  assert.match(empty, /role="img"/);
-  assert.match(empty, /aria-label="Wireless headphones"/);
+  assert.match(empty, /<output/);
+  assert.match(empty, /aria-live="polite"/);
+  assert.match(empty, /<output[^>]*><\/output>/);
+  assert.doesNotMatch(empty, />Wireless headphones\. Product image unavailable<\/output>/);
+  assert.match(empty, /data-product-media="fallback"[^>]+aria-hidden="true"/);
+  assert.equal((empty.match(/Product image unavailable/g) ?? []).length, 1);
   assert.match(empty, /aspect-square/);
+
+  const decorativeFallback = renderToStaticMarkup(
+    createElement(ProductMedia, { sources: [], alt: '' }),
+  );
+  assert.match(decorativeFallback, /aria-hidden="true"/);
+  assert.doesNotMatch(decorativeFallback, /<output/);
 });
 
 test('gallery renders four previews initially and expands all previews inline', () => {
