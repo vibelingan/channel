@@ -3,16 +3,17 @@ import { get, list } from '@vibelingan-channel/db';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
 import {
   type ApiResult,
-  CATALOG_IMAGE_MAX_COUNT,
   type CollectionDoc,
   type FilterClause,
+  PUBLIC_CATALOG_COLLECTIONS,
   canSeeVipPricing,
   err,
+  normalizeCatalogImageIds,
   ok,
   toRole,
 } from '@vibelingan-channel/shared';
 
-const CATALOGS = ['products', 'overstock'] as const;
+const CATALOGS = PUBLIC_CATALOG_COLLECTIONS;
 const MAX_PUBLIC_PAGE_SIZE = 48;
 const IMAGE_SCAN_PAGE_SIZE = 100;
 const PLACEHOLDER_IMAGE_ID = '_placeholder';
@@ -117,13 +118,7 @@ function imageUrl(id: string, config: PublicApiConfig): string {
 }
 
 function catalogImages(doc: CollectionDoc, config: PublicApiConfig): string[] {
-  const ids = Array.isArray(doc.imageIds)
-    ? doc.imageIds
-        .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
-        .map((id) => id.trim())
-        .slice(0, CATALOG_IMAGE_MAX_COUNT)
-    : [];
-  return ids.map((id) => imageUrl(id, config));
+  return normalizeCatalogImageIds(doc.imageIds).map((id) => imageUrl(id, config));
 }
 
 /**
@@ -241,12 +236,9 @@ async function publishedCatalogReferencesImage(
         combinator: 'and',
         clauses: [{ field: 'published', op: 'eq', value: true }],
       },
+      sort: [{ field: '_id', dir: 'asc' }],
     });
-    if (
-      result.items.some(
-        (doc) => Array.isArray(doc.imageIds) && doc.imageIds.map(String).includes(imageId),
-      )
-    ) {
+    if (result.items.some((doc) => normalizeCatalogImageIds(doc.imageIds).includes(imageId))) {
       return true;
     }
     if (page * result.pageSize >= result.total || result.items.length === 0) return false;

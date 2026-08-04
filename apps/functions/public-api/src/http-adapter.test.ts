@@ -55,9 +55,12 @@ const fakeMediaStorage: MediaStorageAdapter = {
 };
 
 class MemoryAdapter implements DbAdapter {
+  readonly listQueries: AdapterListQuery[] = [];
+
   constructor(private readonly store: Store) {}
 
   async list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>> {
+    this.listQueries.push(query);
     let docs = [...(this.store[query.collection] ?? [])];
     if (query.search) {
       const needle = query.search.toLowerCase();
@@ -335,9 +338,11 @@ function seedStore(): Store {
   };
 }
 
-function setup(store: Store = seedStore()): void {
-  setAdapter(new MemoryAdapter(store));
+function setup(store: Store = seedStore()): MemoryAdapter {
+  const adapter = new MemoryAdapter(store);
+  setAdapter(adapter);
   setMediaStorage(fakeMediaStorage);
+  return adapter;
 }
 
 test('lists only published catalog items and caps pageSize at 48', async () => {
@@ -370,7 +375,7 @@ test('catalog pages use stable _id ascending order across the full fixture', asy
   const products = store.products ?? [];
   products[53] = { ...(products[53] as CollectionDoc), _id: '1' };
   products[54] = { ...(products[54] as CollectionDoc), _id: '01' };
-  setup(store);
+  const adapter = setup(store);
   const expectedIds = products
     .filter((product) => product.published === true)
     .map((product) => product._id)
@@ -499,6 +504,73 @@ test('catalog list and detail filter malformed image ids before applying the sha
     .map((id) => `https://api.example.test/api/images/${id.trim()}`);
 
   assert.deepEqual(imagesByRoute, [expected, expected]);
+});
+
+test('legacy visibility scan uses the same normalized first-18 image boundary as projection', async () => {
+  const store = seedStore();
+  const first = store.products?.find((product) => product._id === 'p-1');
+  assert.ok(first);
+  first.imageIds = [
+    ' linked-image ',
+    ...Array.from({ length: 17 }, (_, index) => `in-bound-${index + 2}`),
+    'out-of-bound-image',
+  ];
+  store.images = [
+    ...(store.images ?? []),
+    {
+      _id: 'out-of-bound-image',
+      name: 'out.svg',
+      mimeType: 'image/svg+xml',
+      data: Buffer.from('<svg/>').toString('base64'),
+    },
+  ];
+  setup(store);
+
+  const trimmed = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/images/linked-image' },
+    {},
+  );
+  const outside = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/images/out-of-bound-image' },
+    {},
+  );
+
+  assert.equal(trimmed.statusCode, 200);
+  assert.equal(outside.statusCode, 404);
+});
+
+test('legacy visibility scan pages on stable _id order across the 100-row boundary', async () => {
+  const store = seedStore();
+  store.products = Array.from({ length: 101 }, (_, index) => ({
+    _id: `p-${String(index).padStart(3, '0')}`,
+    name: `Product ${index}`,
+    category: 'wired',
+    published: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    imageIds: index === 100 ? ['page-two-image'] : [],
+  }));
+  store.images = [
+    ...(store.images ?? []),
+    {
+      _id: 'page-two-image',
+      name: 'page-two.svg',
+      mimeType: 'image/svg+xml',
+      data: Buffer.from('<svg/>').toString('base64'),
+    },
+  ];
+  const adapter = setup(store);
+
+  const response = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/images/page-two-image' },
+    {},
+  );
+
+  assert.equal(response.statusCode, 200);
+  const productScans = adapter.listQueries.filter((query) => query.collection === 'products');
+  assert.ok(productScans.length >= 2, 'legacy scan crossed the 100-row boundary');
+  for (const query of productScans) {
+    assert.deepEqual(query.sort, [{ field: '_id', dir: 'asc' }]);
+  }
 });
 
 test('catalog detail ships only allowlisted public fields', async () => {
