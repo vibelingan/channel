@@ -759,6 +759,17 @@ test.describe('public browser smoke', () => {
       await expect(viewAll).toHaveAttribute('aria-expanded', 'false');
       await expect(viewAll).toHaveText('View All');
       await expect(viewAll).toBeFocused();
+      const collapsedPressed = await thumbnails.evaluateAll((nodes) =>
+        nodes
+          .filter((node) => node.getAttribute('aria-pressed') === 'true')
+          .map((node) => ({
+            label: node.getAttribute('aria-label'),
+            pathname: new URL(node.querySelector('img')?.src ?? '', window.location.href).pathname,
+          })),
+      );
+      expect(collapsedPressed).toEqual([
+        { label: 'View image 5', pathname: '/api/images/miu8-a5' },
+      ]);
       await page.keyboard.press('Enter');
       await expect(thumbnails).toHaveCount(6);
       await expect(viewAll).toHaveText('Show Less');
