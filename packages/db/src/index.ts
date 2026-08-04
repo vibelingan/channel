@@ -4,13 +4,14 @@
  * injected via `setAdapter` at startup.
  */
 import {
-  COLLECTIONS,
   type CollectionDoc,
   type ListQuery,
   type ListResult,
+  PUBLIC_CATALOG_COLLECTIONS,
   type SortClause,
   buildWriteSchema,
   getCollection,
+  normalizeCatalogImageIds,
 } from '@vibelingan-channel/shared';
 import type { DbAdapter } from './adapter.ts';
 
@@ -230,10 +231,10 @@ export interface BackfillRefCountsReport {
 }
 
 /**
- * Recompute `images.publishedRefCount` from the current catalog: for each image,
- * the number of PUBLISHED catalog documents that reference it. "Catalog" is
- * derived from the registry (any collection with an `imageIds` field), so it
- * tracks products/overstock without hardcoding. Every image's counter is set to
+ * recompute `images.publishedRefCount` from the current public catalog: for each
+ * image, the number of PUBLISHED products/overstock documents that reference it.
+ * Scope comes from `PUBLIC_CATALOG_COLLECTIONS`, shared with routing and online
+ * counter maintenance. Every image's counter is set to
  * its tally (0 when unreferenced); duplicate ids within one document count once.
  *
  * This is the canonical reconciliation for MIU-04 (design §20.6 step 5): it
@@ -251,9 +252,7 @@ export async function backfillPublishedRefCounts(
   opts: { dryRun?: boolean } = {},
 ): Promise<BackfillRefCountsReport> {
   const dryRun = opts.dryRun ?? false;
-  const catalogCollections = COLLECTIONS.filter((def) =>
-    def.fields.some((field) => field.name === 'imageIds'),
-  ).map((def) => def.name);
+  const catalogCollections = PUBLIC_CATALOG_COLLECTIONS;
 
   // Tally published references per image id.
   const counts = new Map<string, number>();
@@ -269,8 +268,7 @@ export async function backfillPublishedRefCounts(
         sort: STABLE_PAGE_SORT,
       });
       for (const doc of res.items) {
-        if (!Array.isArray(doc.imageIds)) continue;
-        const ids = new Set(doc.imageIds.map((id) => String(id)).filter((id) => id.length > 0));
+        const ids = new Set(normalizeCatalogImageIds(doc.imageIds));
         for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
       }
       if (res.items.length === 0 || page * res.pageSize >= res.total) break;

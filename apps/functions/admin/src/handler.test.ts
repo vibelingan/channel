@@ -761,6 +761,47 @@ test('null / non-array / empty / empty-string imageIds are handled safely', asyn
   assert.equal(refCount(store, ''), undefined); // empty-string id was filtered out
 });
 
+test('publishing a legacy product normalizes and bounds online refcount changes', async () => {
+  const imageIds = [
+    ' linked-image ',
+    ...Array.from({ length: 17 }, (_, index) => `in-bound-${index + 2}`),
+    'out-of-bound-image',
+  ];
+  const store: Store = {
+    users: [],
+    images: [
+      { _id: 'linked-image', name: 'linked.png', mimeType: 'image/png', publishedRefCount: 0 },
+      {
+        _id: 'out-of-bound-image',
+        name: 'outside.png',
+        mimeType: 'image/png',
+        publishedRefCount: 0,
+      },
+    ],
+    products: [
+      {
+        _id: 'legacy-product',
+        name: 'Legacy Product',
+        category: 'wired',
+        imageIds,
+        published: false,
+      },
+    ],
+  };
+  setup(store);
+  const token = await adminToken();
+
+  const result = await call(
+    'update',
+    { collection: 'products', id: 'legacy-product', values: { published: true } },
+    token,
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(refCount(store, 'linked-image'), 1);
+  assert.equal(refCount(store, 'out-of-bound-image'), 0);
+});
+
 test('batchRemove with duplicate ids does not over-decrement', async () => {
   const store = imageStore(['imgA']);
   setup(store);
@@ -860,6 +901,36 @@ test('backfillPublishedRefCounts recomputes counters from the published catalog'
   assert.equal(refCount(store, 'imgA'), 2); // p1 (dup → 1) + p2
   assert.equal(refCount(store, 'imgB'), 2); // p2 + o1 (p3 unpublished ignored)
   assert.equal(refCount(store, 'imgC'), 0); // referenced only by an unpublished doc
+});
+
+test('backfill normalizes and bounds legacy imageIds identically to online updates', async () => {
+  const imageIds = [
+    ' linked-image ',
+    ...Array.from({ length: 17 }, (_, index) => `in-bound-${index + 2}`),
+    'out-of-bound-image',
+  ];
+  const store: Store = {
+    users: [],
+    images: [
+      { _id: 'linked-image', name: 'linked.png', mimeType: 'image/png' },
+      { _id: 'out-of-bound-image', name: 'outside.png', mimeType: 'image/png' },
+    ],
+    products: [
+      {
+        _id: 'legacy-product',
+        name: 'Legacy Product',
+        category: 'wired',
+        imageIds,
+        published: true,
+      },
+    ],
+  };
+  setup(store);
+
+  await backfillPublishedRefCounts();
+
+  assert.equal(refCount(store, 'linked-image'), 1);
+  assert.equal(refCount(store, 'out-of-bound-image'), 0);
 });
 
 test('backfillPublishedRefCounts dryRun reports changes without writing', async () => {

@@ -62,6 +62,7 @@ import {
   OEM_UPLOAD_RATE_WINDOW_MS,
   PASSWORD_RESET_SWEEP_LIMIT,
   PASSWORD_RESET_TTL_MS,
+  PUBLIC_CATALOG_COLLECTIONS,
   PUBLIC_RATE_WINDOW_MS,
   RATE_LIMIT_HITS_SWEEP_LIMIT,
   RECOVER_RATE_MAX_GLOBAL,
@@ -81,6 +82,7 @@ import {
   fileExtension,
   getCollection,
   isKnownCollection,
+  normalizeCatalogImageIds,
   oemFileUploadSchema,
   ok,
   rateLimited,
@@ -1227,14 +1229,12 @@ async function getAction(req: AdminRequest, claims: SessionClaims): Promise<ApiR
 }
 
 /**
- * Catalog collections (products, overstock) reference images by id and carry a
- * `published` flag; only they affect public image visibility. Gating on the
- * presence of an `imageIds` field means non-catalog mutations skip the extra
- * before-state read entirely.
+ * Public catalog collections (products, overstock) reference images by id and
+ * carry a `published` flag; only this explicit shared boundary affects public
+ * image visibility. Non-public imageIds collections skip the extra read.
  */
 function tracksImageVisibility(collection: string): boolean {
-  const def = getCollection(collection);
-  return def?.fields.some((field) => field.name === 'imageIds') ?? false;
+  return (PUBLIC_CATALOG_COLLECTIONS as readonly string[]).includes(collection);
 }
 
 /**
@@ -1244,8 +1244,8 @@ function tracksImageVisibility(collection: string): boolean {
  * reference.
  */
 function publishedImageIdSet(doc: CollectionDoc | null): Set<string> {
-  if (!doc || doc.published !== true || !Array.isArray(doc.imageIds)) return new Set();
-  return new Set(doc.imageIds.map((id) => String(id)).filter((id) => id.length > 0));
+  if (!doc || doc.published !== true) return new Set();
+  return new Set(normalizeCatalogImageIds(doc.imageIds));
 }
 
 /**
