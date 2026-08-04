@@ -399,7 +399,7 @@ Done when:
 
 ## MIU 8: ProductMedia and Gallery fallback reducer
 
-Block: FRONTEND
+Block: INTEGRATION
 
 Files: apps/site/src/islands/shop/ProductMedia.tsx, apps/site/src/islands/shop/Gallery.tsx, apps/site/src/islands/shop/product-media.test.ts
 
@@ -407,17 +407,24 @@ Reviewed closure boundary: the three files above remain the core component contr
 review proved that completing the approved behavior required separately validated phases, each
 within the repository's five-file cap:
 
-1. core implementation plus `HeadphonesPage.tsx` caller wiring and the tracked execution record;
-2. durable browser coverage in `tests/e2e/public.spec.ts` plus Gallery compatibility cleanup in
-  `ProductDetail.tsx` and `OverstockDetail.tsx`;
-3. removal of the retired `zoomHint` field from the Headphones/Overstock typed locale contracts.
-4. tracked Gallery design/execution closure;
-5. one shared 18-image policy enforced at products/overstock writes and public projection;
-6. a persistent polite fallback announcement with deterministic browser timing coverage;
-7. localized `Show Less` content followed by product-aware Gallery reset/clamping/toggle behavior;
-8. durable exact-request/reset/collapse browser coverage; and
-9. admin `ImageManager` capacity admission, retry/discard, preview de-duplication, keyboard recovery,
-   and mounted browser coverage.
+1. `4f35201`: core implementation, `HeadphonesPage.tsx` caller wiring, and execution record;
+2. `9aed7b0`: durable browser coverage plus Gallery compatibility cleanup in `ProductDetail.tsx`
+   and `OverstockDetail.tsx`;
+3. `3e0837a`: removal of retired `zoomHint` fields from Headphones/Overstock typed locale contracts;
+4. `5ad9036`: initial tracked Gallery design/execution closure;
+5. `ea4869e`: one shared 18-image policy at products/overstock writes and public projection;
+6. `688e35c`: persistent polite fallback announcement with deterministic browser timing coverage;
+7. `b559f7e`: localized `Show Less` content;
+8. `7a1f3db`: product-aware Gallery reset, clamping, collapse, and compatibility wiring;
+9. `3e1cb25`: durable exact-request/reset/collapse browser coverage;
+10. `4864f7c`: admin capacity admission, retry/discard, preview de-duplication, keyboard recovery,
+    and mounted browser coverage;
+11. `64c6b4f`: tracked Gallery design/execution reconciliation;
+12. `539be61`: define and test canonical ordered image-ID normalization;
+13. `d5990da`: define and test the explicit public catalog collection scope;
+14. `3fdf598`: adopt both shared contracts in public projection/legacy scan plus online and
+  backfill refcount paths; and
+15. `59149aa`: selected-thumbnail preservation and duplicate-safe occurrence keys across collapse.
 
 This is the explicit reviewed ownership waiver for MIU 8. It does not move pagination, request
 generation, detail-heading focus, Back focus restoration, or hero composition out of MIUs 9-13.
@@ -432,12 +439,21 @@ What it does:
 - Caps the centered desktop main frame at 520px, removes automatic hover magnification/panning, and preserves responsive contained media without page-level overflow.
 - Mounts the active gallery image and at most four lazy, low-priority thumbnail previews on detail open; a `View All` control explicitly reveals any remaining thumbnails in a bounded wrapping layout rather than a viewer/modal.
 - Enforces one 18-image policy at catalog writes, public projection, Gallery rendering, and the admin uploader; malformed legacy rows are filtered and bounded without weakening media visibility gates.
+- Uses `normalizeCatalogImageIds` and `PUBLIC_CATALOG_COLLECTIONS` across public projection,
+  legacy absent-counter scans, online admin refcount updates, and DB reconciliation. Legacy scans
+  page by `_id asc`, and every counter path deduplicates only after canonical filtering/order/cap.
 - Keys Gallery state by product identity as well as ordered media, and exposes a localized `View All` / `Show Less` disclosure that retains keyboard focus.
+- Keeps an active thumbnail visible when collapsing from an index beyond the first four and derives
+  duplicate occurrence keys from the full ordered list so fallback state cannot move between rows.
 - Uses existing gated original media only. No Data万象 URL transform or persistent derivative is introduced.
 - At medium detail widths, thumbnail previews and expanded `View All` media wrap inside a bounded `min-width: 0` track; they never widen the product-detail band.
 
 Build/Deploy/Runtime impact:
-- Site bundle only; no route, dependency, or media-gate change.
+- Changes both CloudBase function artifacts and the site bundle: the assembled test deployment must
+  deploy admin, public-api, and site together before exact-release and live behavior checks.
+- Narrows shared write/projection/refcount visibility policy for malformed, over-cap, and
+  non-public-collection references without adding a route, dependency, schema, index, environment
+  variable, authorization rule, or media-gate bypass.
 - Failed sources advance once and terminate, preventing error loops and layout collapse.
 
 Test plan (TDD - write FIRST):
@@ -446,9 +462,13 @@ Test plan (TDD - write FIRST):
 - Render more than four gallery images and assert only four thumbnail previews are initially present, then all are available inline after `View All` without dialog semantics.
 - In browser coverage at 390, 768, 1024, and 1440 widths, assert the frame maximum, `object-contain`, visible focus/selected state, and `scrollWidth <= clientWidth` before and after expansion.
 - Move a fine pointer across the main frame and assert no image opacity, scale, position, background, or scroll offset changes; under reduced motion assert detail navigation is not smooth-scrolled.
+- Assert products/overstock writes, public projection, legacy visibility scans, online refcount
+  updates, and DB reconciliation consume the same ordered/filter/deduplicate/cap policy.
 
 Done when:
 - Media unit tests, site tests, Astro check, Biome, and site build pass.
+- Shared and public-api suites, admin reconciliation tests, DB typecheck, both function
+  typechecks/builds, and the CloudBase SDK contract pass.
 - The public browser suite forces a gated-style 404, observes the terminal fallback without another request loop, and proves Gallery state resets when the ordered source list changes.
 
 ## MIU 9: Headphones Load More state reducer
