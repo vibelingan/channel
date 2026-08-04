@@ -4,6 +4,7 @@ import { buildWriteSchema, getCollection, writableFields } from './collections.t
 import {
   BLOCKED_IMAGE_MIME_TYPES,
   CATALOG_IMAGE_MAX_BYTES,
+  CATALOG_IMAGE_MAX_COUNT,
   CATALOG_IMAGE_MIME_TYPES,
   type FileMetadataDoc,
   IMAGE_STORAGE_PROVIDERS,
@@ -29,6 +30,12 @@ import {
 function imagesDef() {
   const def = getCollection('images');
   assert.ok(def, 'images collection must be registered');
+  return def;
+}
+
+function productsDef() {
+  const def = getCollection('products');
+  assert.ok(def, 'products collection must be registered');
   return def;
 }
 
@@ -85,8 +92,48 @@ test('media constants expose the policy vocabulary', () => {
   assert.ok(MEDIA_STATUSES.includes('pending'));
   assert.ok(MEDIA_STATUSES.includes('active'));
   assert.equal(CATALOG_IMAGE_MAX_BYTES, 10 * 1024 * 1024);
+  assert.equal(CATALOG_IMAGE_MAX_COUNT, 18);
   assert.ok(CATALOG_IMAGE_MIME_TYPES.includes('image/webp'));
   assert.ok(BLOCKED_IMAGE_MIME_TYPES.includes('image/svg+xml'));
+});
+
+test('storefront catalog writes enforce the shared 18-image limit', () => {
+  const base = { name: 'Bounded product', category: 'wired' };
+  const imageIds = Array.from({ length: CATALOG_IMAGE_MAX_COUNT }, (_, index) => `img-${index}`);
+
+  for (const collection of ['products', 'overstock']) {
+    const def = getCollection(collection);
+    assert.ok(def, `${collection} collection must be registered`);
+    const schema = buildWriteSchema(def);
+    const values =
+      collection === 'products' ? base : { name: 'Bounded overstock', category: 'electronics' };
+    assert.deepEqual(schema.parse({ ...values, imageIds }).imageIds, imageIds);
+    assert.throws(() => schema.parse({ ...values, imageIds: [...imageIds, 'img-over-limit'] }));
+    assert.throws(() => schema.partial().parse({ imageIds: [...imageIds, 'img-over-limit'] }));
+  }
+});
+
+test('catalog image limits preserve legacy malformed-value compatibility and stay scoped', () => {
+  const productSchema = buildWriteSchema(productsDef());
+  const base = { name: 'Legacy product', category: 'wired' };
+  for (const imageIds of [null, 'img-1', [], ['']]) {
+    assert.deepEqual(productSchema.parse({ ...base, imageIds }).imageIds, imageIds);
+  }
+
+  const successStories = getCollection('successStories');
+  assert.ok(successStories);
+  const unrelatedImageIds = Array.from(
+    { length: CATALOG_IMAGE_MAX_COUNT + 1 },
+    (_, index) => `story-image-${index}`,
+  );
+  assert.deepEqual(
+    buildWriteSchema(successStories).parse({
+      title: 'Story',
+      summary: 'Summary',
+      imageIds: unrelatedImageIds,
+    }).imageIds,
+    unrelatedImageIds,
+  );
 });
 
 test('catalog image upload schema accepts a valid request and defaults purpose', () => {

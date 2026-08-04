@@ -10,6 +10,7 @@ import {
 } from '@vibelingan-channel/db';
 import { type MediaStorageAdapter, setMediaStorage } from '@vibelingan-channel/media-storage';
 import {
+  CATALOG_IMAGE_MAX_COUNT,
   type CollectionDoc,
   type ListResult,
   type Role,
@@ -467,6 +468,37 @@ test('catalog list ships only allowlisted public fields (no vipPrice / imageIds 
   assert.equal('imageIds' in item, false);
   assert.equal('createdAt' in item, false);
   assert.equal('updatedAt' in item, false);
+});
+
+test('catalog list and detail filter malformed image ids before applying the shared limit', async () => {
+  const store = seedStore();
+  const first = store.products?.find((product) => product._id === 'p-1');
+  assert.ok(first);
+  const validImageIds = Array.from(
+    { length: CATALOG_IMAGE_MAX_COUNT + 2 },
+    (_, index) => ` legacy-image-${index + 1} `,
+  );
+  first.imageIds = [null, 2, '', false, {}, ...validImageIds];
+  setup(store);
+
+  const responses = await Promise.all(
+    ['/api/products?pageSize=1', '/api/products/p-1'].map((path) =>
+      handlePublicApiEvent({ httpMethod: 'GET', path }, { apiBaseUrl: 'https://api.example.test' }),
+    ),
+  );
+  const listJson = body(responses[0] as HttpResponse) as {
+    ok: true;
+    data: { items: CollectionDoc[] };
+  };
+  const detailJson = body(responses[1] as HttpResponse) as { ok: true; data: CollectionDoc };
+  const listDoc = listJson.data.items[0];
+  assert.ok(listDoc, 'list route returns a document');
+  const imagesByRoute = [listDoc.images as string[], detailJson.data.images as string[]];
+  const expected = validImageIds
+    .slice(0, CATALOG_IMAGE_MAX_COUNT)
+    .map((id) => `https://api.example.test/api/images/${id.trim()}`);
+
+  assert.deepEqual(imagesByRoute, [expected, expected]);
 });
 
 test('catalog detail ships only allowlisted public fields', async () => {

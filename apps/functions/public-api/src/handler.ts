@@ -3,6 +3,7 @@ import { get, list } from '@vibelingan-channel/db';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
 import {
   type ApiResult,
+  CATALOG_IMAGE_MAX_COUNT,
   type CollectionDoc,
   type FilterClause,
   canSeeVipPricing,
@@ -116,7 +117,12 @@ function imageUrl(id: string, config: PublicApiConfig): string {
 }
 
 function catalogImages(doc: CollectionDoc, config: PublicApiConfig): string[] {
-  const ids = Array.isArray(doc.imageIds) ? doc.imageIds.map(String) : [];
+  const ids = Array.isArray(doc.imageIds)
+    ? doc.imageIds
+        .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+        .map((id) => id.trim())
+        .slice(0, CATALOG_IMAGE_MAX_COUNT)
+    : [];
   return ids.map((id) => imageUrl(id, config));
 }
 

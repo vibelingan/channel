@@ -13,7 +13,7 @@
  */
 import { z } from 'zod';
 import { ROLES } from './auth.ts';
-import { MEDIA_PURPOSES, MEDIA_STATUSES } from './media.ts';
+import { CATALOG_IMAGE_MAX_COUNT, MEDIA_PURPOSES, MEDIA_STATUSES } from './media.ts';
 
 export type FieldType =
   | 'string'
@@ -39,6 +39,8 @@ export interface FieldDef {
   readOnly?: boolean;
   /** Hide from the table list view (still editable in the detail form). */
   hideInTable?: boolean;
+  /** Maximum entries for array-backed JSON fields such as catalog imageIds. */
+  maxItems?: number;
   placeholder?: string;
 }
 
@@ -171,7 +173,13 @@ export const COLLECTIONS: readonly CollectionDef[] = [
       { name: 'unitPrice', label: 'Unit Price', type: 'number' },
       { name: 'wholesalePrice', label: 'Wholesale Price', type: 'number' },
       { name: 'vipPrice', label: 'VIP Price', type: 'number' },
-      { name: 'imageIds', label: 'Image IDs', type: 'json', hideInTable: true },
+      {
+        name: 'imageIds',
+        label: 'Image IDs',
+        type: 'json',
+        hideInTable: true,
+        maxItems: CATALOG_IMAGE_MAX_COUNT,
+      },
       { name: 'published', label: 'Published', type: 'boolean' },
     ],
   },
@@ -204,7 +212,13 @@ export const COLLECTIONS: readonly CollectionDef[] = [
       { name: 'clearancePrice', label: 'Clearance Price', type: 'number' },
       { name: 'wholesalePrice', label: 'Wholesale Price', type: 'number' },
       { name: 'vipPrice', label: 'VIP Price', type: 'number' },
-      { name: 'imageIds', label: 'Image IDs', type: 'json', hideInTable: true },
+      {
+        name: 'imageIds',
+        label: 'Image IDs',
+        type: 'json',
+        hideInTable: true,
+        maxItems: CATALOG_IMAGE_MAX_COUNT,
+      },
       { name: 'published', label: 'Published', type: 'boolean' },
     ],
   },
@@ -556,7 +570,17 @@ function zodForField(field: FieldDef): z.ZodTypeAny {
           : z.string();
       break;
     case 'json':
-      schema = z.unknown();
+      schema =
+        field.maxItems === undefined
+          ? z.unknown()
+          : z.unknown().superRefine((value, ctx) => {
+              if (Array.isArray(value) && value.length > (field.maxItems ?? 0)) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  message: `${field.label} must contain at most ${field.maxItems} items`,
+                });
+              }
+            });
       break;
     default:
       schema = z.string();
