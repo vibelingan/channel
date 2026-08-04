@@ -93,9 +93,13 @@ gated `/api/images/:id` route. Do not add CloudBase transforms or generated vari
 
 MIU 8 resolved automatic hover zoom, the 520px/object-contain frame, four-preview request gating,
 inline `View All`, terminal fallback/intrinsic sizing, selected/disclosure focus visuals, and
-reduced-motion scrolling. The public Playwright suite preserves these behaviors across 390, 768,
-1024, and 1440px viewports. MIU 13 still owns detail-heading focus after card selection and Back
-focus restoration to the originating card.
+reduced-motion scrolling. It also enforces the reviewed 18-image maximum at writes, projection,
+Gallery, and the admin uploader; resets same-media Gallery state by product identity; announces
+terminal failures through a persistent polite output; and supports localized `Show Less` collapse.
+The public Playwright suite preserves these behaviors across 390, 768, 1024, and 1440px viewports,
+and mounts the real admin `ImageManager` to verify capacity, retry/discard, preview de-duplication,
+and keyboard over-limit recovery. MIU 13 still owns detail-heading focus after card selection and
+Back focus restoration to the originating card.
 
 ## Reviewed Design
 
@@ -138,9 +142,14 @@ weakening the publication/refcount gate.
 - Closed detail mounts no gallery media.
 - Initial detail mounts/requests no more than the active image plus four thumbnail previews.
 - Products with one to four images do not show `View All`; five or more do.
-- `View All` reveals every remaining thumbnail inline without widening the document.
+- `View All` reveals every remaining thumbnail inline without widening the document; `Show Less`
+  collapses the same disclosure and retains focus.
+- Product identity resets active/expanded/failure state even when two products share identical media.
+- Writes, projection, Gallery, and admin selection expose no more than 18 ordered images.
 - Thumbnails use lazy loading and async decoding; only the hero may use high fetch priority.
 - Failed media terminates at a stable fallback without a retry loop or frame collapse.
+- Meaningful fallback transitions update one persistent polite announcement; decorative thumbnail
+  fallbacks remain silent.
 
 ### Accessibility
 
