@@ -37,8 +37,9 @@ performance work is complete.
 
 - Existing product retained its ID and now references 18 canonical active images.
 - All 18 public image URLs and all 18 browser gallery switches were verified.
-- This proves media bytes/publication are healthy. It does not complete MIU 8: current Gallery
-  still auto-pans a 200% hover background and mounts all thumbnails.
+- This proved media bytes/publication were healthy but did not complete MIU 8. At that import
+  checkpoint, Gallery still auto-panned a 200% hover background and mounted all thumbnails; MIU 8
+  subsequently removed both behaviors.
 
 ## Approved G3 Package
 
@@ -639,9 +640,11 @@ hero independently.
 
 ## MIU 8 - ProductMedia and bounded Gallery
 
-Status: Complete locally; immutable-SHA deployment pending.
+Status: Complete locally; combined immutable-SHA deployment pending.
 
-Commit: This record ships with the isolated `feat(headphones): bound product gallery media` commit.
+Commits: `4f35201` (`feat(headphones): bound product gallery media`), `9aed7b0`
+(`test(headphones): preserve gallery behavior`), and `3e0837a`
+(`refactor(content): remove retired gallery zoom copy`), plus this documentation closure.
 
 What changed:
 
@@ -657,6 +660,8 @@ What changed:
   focus after expansion, and uses visible `focus-visible` rings.
 - Wired the existing typed `viewAllLabel` and `imageUnavailableLabel` content into the live
   Headphones Gallery and made detail scrolling immediate under `prefers-reduced-motion: reduce`.
+- Removed the retired `zoomHint` prop and locale/type fields from Gallery, its remaining detail
+  callers, and the Headphones/Overstock content contracts.
 
 Why: the previous Gallery cropped originals, mounted every thumbnail, and hid the main image behind
 a pointer-following 200% background. That produced the reported image-only scrolling sensation,
@@ -682,8 +687,9 @@ and `viewAllLabel` did not exist. Focused tests then exposed and closed a missin
 `object-contain` baseline, repeated-URL fallback stalls, fallback geometry, disclosure semantics,
 typed caller-copy wiring, reduced-motion scroll selection, and per-index image remount identity.
 
-Focused validation: 6/6 MIU 8 tests and 61/61 site tests pass. Astro check reports zero errors;
-focused Biome checks all four implementation/test files; and the 18-page production build passes.
+Focused validation: 7/7 MIU 8 tests and 62/62 site tests pass. Astro check and E2E TypeScript report
+zero errors; focused Biome checks each implementation/review phase; and the 18-page production
+build passes.
 
 Browser validation: an isolated Playwright catalog with six media sources passed at 390x844,
 768x1024, 1024x768, and 1440x900. Initial detail mounted one main image plus four previews; `View
@@ -691,14 +697,17 @@ All` exposed all six inline; frames measured 358/520/460/520px square respective
 retained `scrollWidth <= clientWidth`, `object-fit: contain`, keyboard focus/selection state, and no
 dialog. Fine-pointer movement changed no image geometry, opacity, transform, background, or scroll
 offset. A forced 404 reached the stable fallback with two bounded requests and no loop. Reduced
-motion computed `transition-property: none`. A separate mounted reset probe expanded product A,
-switched to a different six-source product B, and observed four collapsed previews, B's first
-source selected, and focus retained on the clicked B card.
+motion computed `transition-property: none`. The same scenario is now committed in
+`tests/e2e/public.spec.ts`: it uses real pointer movement, computed focus/selection visuals,
+CloudBase admission-page handling, exact two-request fallback accounting, and a mounted source-list
+reset from expanded product A to collapsed product B. The focused test passes locally and passed
+three repeated serial review runs.
 
 Assumption check: the first audit blocked duplicate-URL progression, fallback geometry, disclosure
 state/focus, reduced motion, and typed-copy wiring; all production findings were repaired. The
 final audit found no P1 production issue. Its remaining P2 concerned mounted reset/disclosure test
-durability and was closed by the mounted browser reset probe above.
+durability; immutable review rejected one-off probe evidence, so the complete scenario was added to
+the deployed public Playwright suite. Follow-up review found no P1/P2 issue.
 
 Cross-file traces:
 
@@ -725,18 +734,20 @@ cross-file-reasoning:
 No environment variable, route, SDK option, backend event, service mock, auth rule, API envelope,
 database schema, media authorization, or async wrapper changed.
 
-Build/Deploy/Runtime result: site bundle only. Deployment remains pending until the isolated commit
-passes push CI, Deploy Test, exact live-release verification, and the narrow public Headphones
-Gallery smoke.
+Build/Deploy/Runtime result: site bundle and browser contract only. Deployment remains pending until
+the combined closure SHA passes push CI, Deploy Test, exact live-release verification, and the
+narrow public Headphones Gallery smoke.
 
-Deviations: the approved MIU named three files, but review proved two acceptance requirements lived
-at the existing caller: typed Gallery copy and reduced-motion detail scrolling. `HeadphonesPage.tsx`
-became the required fourth implementation file. This execution record is the fifth and final file
-in the phase; later MIU 13 still owns abort/generation pagination and the complete detail/card focus
-cycle.
+Deviations: the approved MIU named a three-file core, but review proved two acceptance requirements
+lived at the existing caller: typed Gallery copy and reduced-motion detail scrolling. Immutable
+review then required durable public E2E coverage, removal of the compatibility prop from two legacy
+detail callers, and deletion of obsolete typed locale copy. The work was split into three reviewed
+phases of five files each, as recorded in the canonical breakdown. Later MIU 13 still owns
+abort/generation pagination and the complete card/detail-heading/Back focus cycle.
 
-Result: MIU 8 is locally complete and ready for immutable-SHA review, commit, push, Deploy Test,
-and live Headphones verification before MIU 9 begins.
+Result: MIU 8 is locally complete across the core, review-fix, and content-cleanup commits. This
+tracked closure is pending its isolated documentation commit; that resulting combined SHA must pass
+immutable review, push, Deploy Test, and live Headphones verification before MIU 9 begins.
 
 ## Per-MIU Record Template
 
