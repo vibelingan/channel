@@ -4,25 +4,24 @@ import SiteHeader from '../components/SiteHeader.astro';
 import { getHeadphonesContent } from '../i18n/headphones.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
 import { HeadphonesPage } from '../islands/shop/HeadphonesPage.tsx';
+import { ProductMedia } from '../islands/shop/ProductMedia.tsx';
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { apiMediaUrl } from '../lib/api-url.ts';
+import { OEM_INQUIRY_HREF } from '../lib/site-navigation.ts';
 
 const site = getSiteContent(DEFAULT_LOCALE);
 const hp = getHeadphonesContent(DEFAULT_LOCALE);
 const { brand, nav, footer } = site;
 
-// Page-specific strings that extend the shared headphones i18n content.
-const pageStrings = {
-  heroEyebrow: 'Factory-Direct Headphones',
-  heroHeading: 'Premium OEM Headphones — Built in Our Factory, Shipped Worldwide',
-  heroBody:
-    'Direct from our ISO-certified Dongguan facility. Over-ear, TWS earbuds, kid-safe models — bulk pricing, custom branding, global delivery.',
-  heroBadges: [
-    'Factory Direct Pricing',
-    'MOQ from 500 Units',
-    'Global Shipping',
-    'OEM / ODM Customization',
-  ],
+// The reviewed hero provenance: three gated 800x800 product images, tried in
+// order by ProductMedia. URLs stay behind the public image function — no
+// copied static asset, no authorization relaxation.
+const heroSources = hp.hero.sources.map((source) => apiMediaUrl(`/api/images/${source.imageId}`));
 
+// Page-specific strings that extend the shared headphones i18n content.
+// (Matrix/advantages/CTA wiring is retained until the MIU 13 controller
+// replaces the island composition.)
+const pageStrings = {
   matrixEyebrow: 'Product Line',
   matrixHeading: 'Explore Our Headphone Collection',
   matrixSubheading:
@@ -75,9 +74,9 @@ const seoDescription =
   <SiteHeader brand={brand} nav={nav} />
 
   <main>
-    <!-- ===== Hero Banner ===== -->
+    <!-- ===== Hero: real gated product media, 55/45 unframed on desktop,
+         media before the proof/CTA row on mobile ===== -->
     <section class="relative overflow-hidden bg-gradient-to-br from-brand-950 via-brand-900 to-brand-800 text-white">
-      <!-- Background pattern -->
       <div class="pointer-events-none absolute inset-0 opacity-[0.07]" aria-hidden="true">
         <div
           class="absolute inset-0"
@@ -86,23 +85,47 @@ const seoDescription =
         </div>
       </div>
 
-      <div class="relative mx-auto max-w-[var(--width-container)] px-4 py-20 sm:px-6 sm:py-28 lg:px-8 lg:py-36">
-        <div class="grid items-center gap-12 lg:grid-cols-2">
-          <!-- Left: text -->
-          <div class="reveal">
+      <div class="relative mx-auto max-w-[var(--width-container)] px-4 py-16 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
+        <div
+          class="grid grid-cols-1 gap-10 lg:grid-cols-[11fr_9fr] lg:items-center lg:gap-x-16 lg:[grid-template-areas:'copy_media'_'proof_media']"
+        >
+          <!-- Copy -->
+          <div class="reveal min-w-0 lg:[grid-area:copy]">
             <p class="text-sm font-semibold uppercase tracking-[0.15em] text-accent-300">
-              {pageStrings.heroEyebrow}
+              {hp.hero.eyebrow}
             </p>
-            <h1 class="mt-4 font-display text-4xl font-bold leading-tight sm:text-5xl lg:text-5xl">
-              {pageStrings.heroHeading}
+            <h1 class="mt-4 font-display text-[34px] font-bold leading-tight sm:text-5xl">
+              {hp.hero.heading}
             </h1>
             <p class="mt-6 max-w-xl text-lg leading-relaxed text-slate-300">
-              {pageStrings.heroBody}
+              {hp.hero.body}
             </p>
+          </div>
 
-            <!-- Badges -->
-            <div class="mt-8 flex flex-wrap gap-3">
-              {pageStrings.heroBadges.map((badge) => (
+          <!-- Real product media through the gated image function; ordered
+               fallback + terminal branding handled by ProductMedia. -->
+          <div class="reveal flex items-center justify-center lg:[grid-area:media]">
+            <div
+              data-hero-media
+              class="relative aspect-square w-44 sm:w-72 lg:w-full lg:max-w-md"
+            >
+              <ProductMedia
+                client:load
+                sources={heroSources}
+                alt={hp.hero.imageAlt}
+                unavailableLabel={hp.hero.unavailableLabel}
+                width={800}
+                height={800}
+                loading="eager"
+                fetchPriority="high"
+              />
+            </div>
+          </div>
+
+          <!-- Compact proof + CTA row (after media on mobile) -->
+          <div class="reveal min-w-0 lg:[grid-area:proof]">
+            <div data-hero-proof class="flex flex-wrap gap-3">
+              {hp.hero.proof.map((item) => (
                 <span class="inline-flex items-center gap-1.5 rounded-full border border-brand-600/50 bg-brand-800/50 px-4 py-2 text-sm font-medium text-slate-200 backdrop-blur-sm">
                   <svg
                     class="h-4 w-4 text-accent-400"
@@ -114,13 +137,12 @@ const seoDescription =
                   >
                     <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
-                  {badge}
+                  {item}
                 </span>
               ))}
             </div>
 
-            <!-- Primary CTA -->
-            <div class="mt-10 flex flex-wrap gap-4">
+            <div class="mt-8 flex flex-wrap gap-4">
               <a
                 href="#headphones-inquiry"
                 class="inline-flex items-center gap-2 rounded-lg bg-accent-500 px-7 py-3.5 text-base font-semibold text-brand-950 shadow-lg transition hover:bg-accent-400"
@@ -139,13 +161,13 @@ const seoDescription =
                     d="M3 8l9 6 9-6M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2z"
                   />
                 </svg>
-                Request a Quote
+                {hp.hero.primaryCta}
               </a>
               <a
                 href="#product-matrix"
                 class="inline-flex items-center gap-2 rounded-lg border border-brand-500/40 bg-transparent px-7 py-3.5 text-base font-semibold text-white transition hover:bg-brand-700/50"
               >
-                Browse Products
+                {hp.hero.secondaryCta}
                 <svg
                   class="h-5 w-5"
                   viewBox="0 0 24 24"
@@ -159,46 +181,23 @@ const seoDescription =
               </a>
             </div>
           </div>
-
-          <!-- Right: hero visual placeholder -- replace with actual headphone product image -->
-          <div class="reveal flex items-center justify-center">
-            <div class="relative">
-              <div
-                class="absolute -inset-4 rounded-2xl bg-gradient-to-br from-brand-400/20 to-accent-400/20 blur-2xl"
-                aria-hidden="true"
-              >
-              </div>
-              <div
-                class="relative flex aspect-square w-full max-w-sm items-center justify-center rounded-2xl border border-brand-600/30 bg-brand-900/50 p-8 backdrop-blur-sm sm:max-w-md"
-              >
-                <!-- Placeholder headphone icon — replace with product image -->
-                <svg
-                  class="h-40 w-40 text-brand-300/50 sm:h-56 sm:w-56"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1"
-                  aria-hidden="true"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M3 18v-6a9 9 0 0 1 18 0v6"
-                  />
-                  <path
-                    d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </section>
 
-    <!-- ===== Product Matrix + Details + Advantages + CTA (React island) ===== -->
+    <!-- ===== Product Matrix + Details (React island, SSR + hydrate) ===== -->
     <div id="product-matrix" class="scroll-mt-[var(--spacing-header)]">
-      <HeadphonesPage content={hp} strings={pageStrings} client:only="react" />
+      <noscript>
+        <div class="mx-auto max-w-[var(--width-container)] px-4 py-10 sm:px-6 lg:px-8">
+          <p class="rounded-lg border border-slate-200 bg-surface-alt p-6 text-center text-ink-muted">
+            {hp.list.emptyStateLabel}
+            <a class="ml-2 font-semibold text-brand-700 underline" href={OEM_INQUIRY_HREF}>
+              {hp.list.emptyCtaLabel}
+            </a>
+          </p>
+        </div>
+      </noscript>
+      <HeadphonesPage content={hp} strings={pageStrings} client:load />
     </div>
 
   </main>

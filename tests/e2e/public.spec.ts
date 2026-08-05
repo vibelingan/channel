@@ -673,7 +673,22 @@ test.describe('public browser smoke', () => {
 
       await frame.scrollIntoViewIfNeeded();
       await page.mouse.move(1, 1);
-      await page.waitForTimeout(50);
+      // The detail expansion smooth-scrolls into view; sample only after the
+      // scroll settles or the before/after comparison races the animation.
+      let lastScrollY = -1;
+      await expect
+        .poll(async () => {
+          const scrollY = await page.evaluate(() => window.scrollY);
+          const stable = scrollY === lastScrollY;
+          lastScrollY = scrollY;
+          return stable;
+        })
+        .toBe(true);
+      // Enter the frame FIRST: Playwright's hover may perform an actionability
+      // scroll to bring the frame fully into view, which is not the pointer
+      // behavior this invariant guards. Sample only once the pointer is
+      // already inside the frame, then compare after moving across it.
+      await frame.hover({ position: { x: 5, y: 5 } });
       const beforePointer = await frame.locator('img').evaluate((image) => {
         const style = getComputedStyle(image);
         const rect = image.getBoundingClientRect();
@@ -690,7 +705,6 @@ test.describe('public browser smoke', () => {
           scrollY: window.scrollY,
         };
       });
-      await frame.hover({ position: { x: 5, y: 5 } });
       const frameBox = await frame.boundingBox();
       if (!frameBox) throw new Error('Gallery frame has no bounding box');
       await page.mouse.move(frameBox.x + frameBox.width - 5, frameBox.y + frameBox.height - 5);
@@ -1058,6 +1072,89 @@ test.describe('public browser smoke', () => {
     await expect(imageManager.locator('#imageIds-capacity')).toContainText('18 of 18 images');
     await expect(fileInput).toBeDisabled();
     expect(intentCounts.get('miu8-cap-replacement.png')).toBe(1);
+  });
+
+  test('Headphones hero serves gated product media SSR-first with ordered fallback', async ({
+    page,
+  }) => {
+    // client:load SSR: the initial HTML document must already contain the
+    // hero media mount and the island's matrix heading region (client:only
+    // rendered nothing server-side).
+    const ssrResponse = await page.request.get(`${e2e.siteUrl}/headphones`);
+    expect(ssrResponse.ok()).toBe(true);
+    const ssrHtml = await ssrResponse.text();
+    expect(ssrHtml).toContain('data-hero-media');
+    expect(ssrHtml).toContain('Product Line');
+    // The focused shell omits the standalone quality/certification/client
+    // bands; canonical proof stays on /oem and /portfolio.
+    expect(ssrHtml).not.toContain('Global Clients');
+    expect(ssrHtml).not.toContain('data-certifications');
+
+    // Hero mobile order at 390x844: real media sits before the proof/CTA row,
+    // the Product Line hint is visible, and nothing overflows.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/headphones', { waitUntil: 'domcontentloaded' });
+    await ensureApplicationPage(page);
+    const heroMedia = page.locator('[data-hero-media]');
+    await expect(heroMedia).toBeVisible();
+    const heroImage = heroMedia.locator('[data-product-media="image"]');
+    await expect(heroImage).toBeVisible();
+    const mediaBox = await heroMedia.boundingBox();
+    const proofBox = await page.locator('[data-hero-proof]').boundingBox();
+    if (!mediaBox || !proofBox) throw new Error('hero media/proof geometry unavailable');
+    expect(mediaBox.y).toBeLessThan(proofBox.y);
+    const mediaHeight = mediaBox.height;
+    expect(mediaHeight).toBeGreaterThanOrEqual(150);
+    expect(mediaHeight).toBeLessThanOrEqual(200);
+    await expect(page.getByText('Product Line', { exact: true })).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+
+    // The reviewed hero provenance (i18n/content/headphones/en-US.md
+    // hero.sources): three gated 800x800 images, tried in order.
+    const heroSourceIds = [
+      '0e0afdc26a68209e00523aa031e56460',
+      '7b76ee416a68209d0110670520562928',
+      '0e0afdc26a68209c00523a7b50cb8647',
+    ] as const;
+
+    // Force ONLY the first reviewed source to 404: the second must render.
+    await page.route('**/api/images/**', (route) => {
+      const pathname = new URL(route.request().url()).pathname;
+      if (pathname.endsWith(heroSourceIds[0])) {
+        return route.fulfill({ status: 404, headers: { 'Cache-Control': 'no-store' }, body: '' });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'image/svg+xml',
+        headers: { 'Cache-Control': 'no-store' },
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800"><rect width="800" height="800" fill="#315d78"/></svg>',
+      });
+    });
+    await page.goto('/headphones', { waitUntil: 'domcontentloaded' });
+    await ensureApplicationPage(page);
+    const advancedImage = heroMedia.locator('[data-product-media="image"]');
+    await expect(advancedImage).toBeVisible();
+    await expect(advancedImage).toHaveAttribute('src', new RegExp(heroSourceIds[1]));
+    await page.unroute('**/api/images/**');
+
+    // Force ALL sources to 404: the terminal fallback must appear WITHOUT a
+    // request loop (each source tried at most once).
+    const heroRequestCounts = new Map<string, number>();
+    await page.route('**/api/images/**', (route) => {
+      const url = new URL(route.request().url());
+      heroRequestCounts.set(url.pathname, (heroRequestCounts.get(url.pathname) ?? 0) + 1);
+      return route.fulfill({ status: 404, contentType: 'text/plain', body: 'gone' });
+    });
+    await page.goto('/headphones', { waitUntil: 'domcontentloaded' });
+    await ensureApplicationPage(page);
+    await expect(heroMedia.locator('[data-product-media="fallback"]')).toBeVisible();
+    await expect(heroMedia.locator('[data-product-media="image"]')).toHaveCount(0);
+    for (const [pathname, count] of heroRequestCounts) {
+      expect(count, `no request loop for ${pathname}`).toBeLessThanOrEqual(1);
+    }
+    await page.unroute('**/api/images/**');
   });
 
   test('Headphones header stays responsive and card pricing hierarchy is restrained', async ({
