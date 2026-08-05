@@ -1,6 +1,3 @@
-/// <reference path="./wx-server-sdk.d.ts" />
-// Keep the ambient reference before imports. wx-server-sdk publishes no usable
-// .d.ts file, and cross-package consumers of this entry need the local shim.
 import * as cloudbase from '@cloudbase/node-sdk';
 import type { CloudBase } from '@cloudbase/node-sdk';
 import {
@@ -16,13 +13,73 @@ import {
  * load before the adapter is used.
  */
 import cloud from 'wx-server-sdk';
-import type { Cloud, Command, Database } from 'wx-server-sdk';
 import type {
   DbAdapter,
   ImageMutationAcquireResult,
   ImageMutationReleaseResult,
 } from './adapter.ts';
 import { transitionImageMutationAcquire, transitionImageMutationRelease } from './adapter.ts';
+
+/*
+ * wx-server-sdk@4 ships official types, but every terminal database call is
+ * typed for the dual callback/promise API (`Promise<T> | void | string`) and
+ * its IDatabaseConfig omits the runtime-honored `throwOnNotFound` flag. The
+ * adapter uses the promise style exclusively, so the exact surface it consumes
+ * is typed structurally here and asserted against the installed SDK at runtime
+ * by scripts/verify-cloudbase-sdk-contract.mjs.
+ */
+interface WxDocumentReference {
+  get(): Promise<{ data: Record<string, unknown> | Record<string, unknown>[] | null }>;
+  update(options: { data: Record<string, unknown> }): Promise<{ updated: number }>;
+  remove(): Promise<{ deleted: number }>;
+}
+
+interface WxQuery {
+  where(condition: Record<string, unknown>): WxQuery;
+  orderBy(field: string, order: 'asc' | 'desc'): WxQuery;
+  skip(offset: number): WxQuery;
+  limit(count: number): WxQuery;
+  get(): Promise<{ data: Record<string, unknown>[] }>;
+  count(): Promise<{ total: number }>;
+}
+
+interface WxCollectionReference extends WxQuery {
+  doc(id: string): WxDocumentReference;
+  add(options: { data: Record<string, unknown> }): Promise<{ _id: string }>;
+}
+
+interface WxCommand {
+  or(conditions: Record<string, unknown>[]): Record<string, unknown>;
+  and(conditions: Record<string, unknown>[]): Record<string, unknown>;
+  eq(value: unknown): unknown;
+  neq(value: unknown): unknown;
+  gt(value: unknown): unknown;
+  gte(value: unknown): unknown;
+  lt(value: unknown): unknown;
+  lte(value: unknown): unknown;
+  in(values: unknown[]): unknown;
+  nin(values: unknown[]): unknown;
+}
+
+interface WxDatabase {
+  collection(name: string): WxCollectionReference;
+  command: WxCommand;
+  RegExp(options: { regexp: string; options?: string }): unknown;
+}
+
+/**
+ * The @cloudbase/node-sdk transaction surface the lock methods use. node-sdk
+ * 3.x types the runTransaction callback parameter loosely, so the shape is
+ * pinned structurally here (and probed by the SDK contract script).
+ */
+interface NodeSdkTransaction {
+  collection(name: string): {
+    doc(id: string): {
+      get(): Promise<{ data: unknown }>;
+      update(patch: Record<string, unknown>): Promise<unknown>;
+    };
+  };
+}
 
 let initialized = false;
 let storageApp: CloudBase | null = null;
@@ -49,7 +106,7 @@ export function cloudStorageSdk(): CloudBase {
   return storageApp;
 }
 
-function database() {
+function database(): WxDatabase {
   if (!initialized) {
     throw new Error(
       '@vibelingan-channel/db: initCloudBase(envId) must be called before using the database',
@@ -59,7 +116,9 @@ function database() {
   // missing `doc(id).get()` rejects with "document with _id ... does not
   // exist" instead of resolving `{ data: null }`. Every `get() -> null`
   // missing-document contract in the handlers depends on this being false.
-  return cloud.database({ throwOnNotFound: false });
+  // (IDatabaseConfig omits the flag, hence the parameter cast.)
+  const config = { throwOnNotFound: false } as Parameters<typeof cloud.database>[0];
+  return cloud.database(config) as unknown as WxDatabase;
 }
 
 function normalize(raw: Record<string, unknown>): CollectionDoc {
@@ -191,7 +250,7 @@ export const cloudBaseAdapter: DbAdapter = {
 
   async acquireImageMutation(imageId, owner, startedAt): Promise<ImageMutationAcquireResult> {
     const db = cloudStorageSdk().database();
-    return db.runTransaction(async (transaction) => {
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
       const ref = transaction.collection('images').doc(imageId);
       const got = await ref.get();
       const doc = normalizeSingle(got.data);
@@ -208,7 +267,7 @@ export const cloudBaseAdapter: DbAdapter = {
 
   async releaseImageMutation(imageId, owner): Promise<ImageMutationReleaseResult> {
     const db = cloudStorageSdk().database();
-    return db.runTransaction(async (transaction) => {
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
       const ref = transaction.collection('images').doc(imageId);
       const got = await ref.get();
       const doc = normalizeSingle(got.data);
@@ -230,8 +289,8 @@ function escapeRegExp(input: string): string {
 
 /** Translate one filter clause into a wx-server-sdk `where` fragment. */
 function clauseToWhere(
-  db: Database,
-  _: Command,
+  db: WxDatabase,
+  _: WxCommand,
   clause: FilterClause,
 ): Record<string, unknown> | null {
   const { field, op, value } = clause;

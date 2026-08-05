@@ -6,8 +6,8 @@
  * stays browser-safe unless a cloud function explicitly imports the `./cloudbase`
  * entry (design §20.4 exit criterion).
  *
- * Storage signatures are verified against the installed @cloudbase/node-sdk@2.10.0.
- * `wx-server-sdk@3.0.4` does not expose `getUploadMetadata`, so upload credential
+ * Storage signatures are verified against the installed @cloudbase/node-sdk@3.17.2.
+ * `wx-server-sdk@4.0.2` does not expose `getUploadMetadata`, so upload credential
  * minting uses node-sdk directly via dependency injection.
  */
 import {
@@ -21,7 +21,7 @@ import {
 /**
  * The exact subset of the CloudBase server SDK this adapter uses. `wx-server-sdk`'s
  * default export structurally satisfies this; the signatures match the installed
- * `@cloudbase/node-sdk@2.10.0` (notably `getTempFileURL`'s `fileList` is a
+ * `@cloudbase/node-sdk@3.17.2` (notably `getTempFileURL`'s `fileList` is a
  * `(string | { fileID, maxAge? })[]` union — design §24.3 C1).
  */
 export interface CloudBaseStorageSdk {
@@ -33,9 +33,13 @@ export interface CloudBaseStorageSdk {
     fileList: (string | { fileID: string; maxAge?: number })[];
   }): Promise<{ fileList: { fileID: string; tempFileURL: string; code?: string }[] }>;
   // `fileContent` is optional to match the installed SDK (a failed download
-  // yields no content); getObjectAsBase64 guards it. `Cloud`'s narrower
-  // `{ fileContent: Buffer }` is still assignable here.
-  downloadFile(options: { fileID: string }): Promise<{ fileContent: Buffer | undefined }>;
+  // yields no content); getObjectAsBase64 guards it. node-sdk 3.x types the
+  // content as `string | Buffer` (string only when an encoding is requested —
+  // this adapter never requests one), so accept the wider type and validate
+  // the runtime shape at the call site.
+  downloadFile(options: {
+    fileID: string;
+  }): Promise<{ fileContent: Buffer | string | undefined }>;
   deleteFile(options: { fileList: string[] }): Promise<{ fileList: unknown[] }>;
   // Mints a single-object direct COS form credential. The node-sdk returns
   // `{ data: { url, authorization, token, fileId, cosFileId } }` and its own
@@ -129,6 +133,13 @@ export function createCloudBaseMediaStorage(sdk: CloudBaseStorageSdk): MediaStor
       const { fileContent } = await sdk.downloadFile({ fileID: fileId });
       if (!fileContent) {
         throw new Error(`media-storage(cloudbase): download returned no content for ${fileId}`);
+      }
+      if (!Buffer.isBuffer(fileContent)) {
+        // No encoding is ever requested, so a string here means the SDK
+        // contract shifted; fail loudly instead of base64-ing mojibake.
+        throw new Error(
+          `media-storage(cloudbase): download returned non-buffer content for ${fileId}`,
+        );
       }
       return { body: fileContent.toString('base64'), byteSize: fileContent.byteLength };
     },
