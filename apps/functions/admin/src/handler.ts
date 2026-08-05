@@ -20,6 +20,7 @@ import { type SessionClaims, signSession, verifySession } from '@vibelingan-chan
 import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password';
 import {
   UnknownCollectionError,
+  acquireImageMutation,
   backfillPublishedRefCounts,
   batchRemove,
   batchUpdate,
@@ -29,6 +30,7 @@ import {
   get,
   incrementField,
   list,
+  releaseImageMutation,
   remove,
   update,
   updateDoc,
@@ -210,6 +212,10 @@ const completeUploadSchema = z.object({
   imageId: z.string().min(1),
 });
 
+const abandonUploadSchema = z.object({
+  imageId: z.string().min(1),
+});
+
 const imagePreviewSchema = z.object({ id: z.string().min(1) });
 
 const oemFileDownloadSchema = z.object({ fileId: z.string().min(1) });
@@ -374,13 +380,24 @@ function publicUser(doc: CollectionDoc) {
   };
 }
 
-/** Redact sensitive fields from documents returned for the `users` collection. */
+/** Redact sensitive/server-only fields from documents returned to the admin UI. */
 function redact(collection: string, doc: CollectionDoc): CollectionDoc {
-  if (collection !== 'users') return doc;
-  const { passwordHash: _omit, ...rest } = doc as Record<string, unknown> & {
-    passwordHash?: string;
-  };
-  return rest as CollectionDoc;
+  if (collection === 'users') {
+    const { passwordHash: _omit, ...rest } = doc as Record<string, unknown> & {
+      passwordHash?: string;
+    };
+    return rest as CollectionDoc;
+  }
+  if (collection === 'images') {
+    const {
+      uploadedByUserId: _uploadedByUserId,
+      imageMutationOwner: _imageMutationOwner,
+      imageMutationStartedAt: _imageMutationStartedAt,
+      ...rest
+    } = doc;
+    return rest as CollectionDoc;
+  }
+  return doc;
 }
 
 function authenticate(req: AdminRequest, config: AdminConfig): Promise<SessionClaims | null> {
@@ -546,6 +563,8 @@ export async function handleAdminRequest(
         return await createUploadIntentAction(req, claims);
       case 'completeUpload':
         return await completeUploadAction(req, claims);
+      case 'abandonUpload':
+        return await abandonUploadAction(req, claims);
       case 'getImagePreview':
         return await getImagePreviewAction(req, claims);
       case 'getOemFileDownloadUrl':
@@ -1290,17 +1309,256 @@ async function applyImageVisibilityDelta(
   }
 }
 
+const IMAGE_REFERENCE_PAGE_SIZE = 100;
+const IMAGE_REFERENCE_SORT = [{ field: '_id', dir: 'asc' as const }];
+
+function collectionUsesImageIds(collection: string): boolean {
+  return getCollection(collection)?.fields.some((field) => field.name === 'imageIds') ?? false;
+}
+
+function imageIdsFromValue(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [
+    ...new Set(
+      value.flatMap((candidate) => {
+        if (typeof candidate !== 'string') return [];
+        const imageId = candidate.trim();
+        return imageId ? [imageId] : [];
+      }),
+    ),
+  ];
+}
+
+async function releaseImageReferenceLocks(
+  imageIds: readonly string[],
+  owner: string,
+): Promise<void> {
+  for (const imageId of [...imageIds].reverse()) {
+    try {
+      const result = await releaseImageMutation(imageId, owner);
+      if (result !== 'released') {
+        console.error(
+          `[fn-admin] image reference lock release returned ${result} for ${imageId}; admin recovery is required`,
+        );
+      }
+    } catch (error) {
+      // Never mask an already-committed catalog write with a false 500. An
+      // unreleased lock fails closed until an admin performs stale-lock recovery.
+      console.error(`[fn-admin] image reference lock release failed for ${imageId}`, error);
+    }
+  }
+}
+
+async function acquireImageReferenceLocks(
+  requestedImageIds: readonly string[],
+): Promise<{ imageIds: string[]; owner: string; error?: ApiResult<never> }> {
+  const imageIds = [...new Set(requestedImageIds)].sort();
+  const owner = randomUUID();
+  const acquired: string[] = [];
+  try {
+    for (const imageId of imageIds) {
+      const image = await get('images', imageId);
+      // Preserve the historical contract: catalog documents may retain dangling
+      // or legacy image IDs. Only images created by the managed upload flow are
+      // eligible for abandonment and therefore require mutual exclusion. Absent
+      // lock fields on those images read as free, so pre-existing rows need no
+      // backfill before their first lock.
+      if (!image || typeof image.uploadedByUserId !== 'string') continue;
+      if (image.status !== 'active') {
+        await releaseImageReferenceLocks(acquired, owner);
+        return {
+          imageIds: [],
+          owner,
+          error: err('CONFLICT', `Image ${imageId} is not ready for use.`),
+        };
+      }
+      const result = await acquireImageMutation(imageId, owner, new Date().toISOString());
+      if (result === 'missing') {
+        await releaseImageReferenceLocks(acquired, owner);
+        return {
+          imageIds: [],
+          owner,
+          error: err('CONFLICT', `Image ${imageId} no longer exists.`),
+        };
+      }
+      if (result === 'busy') {
+        await releaseImageReferenceLocks(acquired, owner);
+        return {
+          imageIds: [],
+          owner,
+          error: err('CONFLICT', `Image ${imageId} is being changed.`),
+        };
+      }
+      if (result === 'corrupt') {
+        await releaseImageReferenceLocks(acquired, owner);
+        return {
+          imageIds: [],
+          owner,
+          error: err('INTERNAL_ERROR', `Image ${imageId} has an invalid reference lock.`),
+        };
+      }
+      acquired.push(imageId);
+    }
+  } catch (error) {
+    // Any throw in the loop — a transport failure on the pre-read or the
+    // acquire itself — must not leak locks taken in earlier iterations: the
+    // owner UUID would be lost and the images stuck busy until the stale-lock
+    // takeover window elapses.
+    console.error('[fn-admin] image reference lock acquisition failed', error);
+    await releaseImageReferenceLocks(acquired, owner);
+    return {
+      imageIds: [],
+      owner,
+      error: err('INTERNAL_ERROR', 'Image reference integrity check failed.'),
+    };
+  }
+  return { imageIds: acquired, owner };
+}
+
+async function findImageReference(
+  imageId: string,
+): Promise<{ collection: string; documentId: string } | null> {
+  const collections = COLLECTIONS.filter((definition) =>
+    definition.fields.some((field) => field.name === 'imageIds'),
+  );
+  for (const definition of collections) {
+    // Cursor pagination by `_id`: documents can be removed concurrently
+    // (removeAction/batchRemoveAction take no image locks by design), and an
+    // offset/limit scan can shift a still-referencing document across an
+    // already-visited page boundary. A strict `_id > cursor` walk can never
+    // skip a surviving row.
+    let cursor = '';
+    for (;;) {
+      const result = await list({
+        collection: definition.name,
+        page: 1,
+        pageSize: IMAGE_REFERENCE_PAGE_SIZE,
+        search: '',
+        sort: IMAGE_REFERENCE_SORT,
+        ...(cursor
+          ? {
+              filter: {
+                combinator: 'and' as const,
+                clauses: [{ field: '_id', op: 'gt' as const, value: cursor }],
+              },
+            }
+          : {}),
+      });
+      for (const document of result.items) {
+        if (
+          Array.isArray(document.imageIds) &&
+          document.imageIds.some(
+            (candidate) => typeof candidate === 'string' && candidate.trim() === imageId,
+          )
+        ) {
+          return { collection: definition.name, documentId: String(document._id) };
+        }
+      }
+      const last = result.items.at(-1);
+      if (result.items.length < IMAGE_REFERENCE_PAGE_SIZE || last === undefined) break;
+      cursor = String(last._id);
+    }
+  }
+  return null;
+}
+
+async function abandonUploadAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  if (!canEditCollection(claims.role, 'images')) {
+    return err('FORBIDDEN', 'You do not have permission to remove uploaded images.');
+  }
+  const parsed = abandonUploadSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'imageId is required');
+  const imageId = parsed.data.imageId;
+  const image = await get('images', imageId);
+  if (!image) return ok({ deleted: true });
+  if (image.uploadedByUserId !== claims.sub) {
+    return err('FORBIDDEN', 'Only the uploader may abandon this image.');
+  }
+  if (image.status !== 'active') {
+    return err('CONFLICT', 'Only a completed upload may be abandoned.');
+  }
+
+  const locks = await acquireImageReferenceLocks([imageId]);
+  if (locks.error) return locks.error;
+  let deleted = false;
+  try {
+    const current = await get('images', imageId);
+    if (!current) return ok({ deleted: true });
+    if (current.uploadedByUserId !== claims.sub) {
+      return err('FORBIDDEN', 'Only the uploader may abandon this image.');
+    }
+    if (current.status !== 'active') {
+      return err('CONFLICT', 'Only a completed upload may be abandoned.');
+    }
+
+    const reference = await findImageReference(imageId);
+    if (reference) {
+      return err(
+        'CONFLICT',
+        `Image is still referenced by ${reference.collection}/${reference.documentId}.`,
+      );
+    }
+
+    if (
+      typeof current.publishedRefCount !== 'number' ||
+      !Number.isFinite(current.publishedRefCount) ||
+      current.publishedRefCount !== 0
+    ) {
+      return err('CONFLICT', 'Image reference count must be reconciled before abandonment.');
+    }
+
+    const provider = typeof current.storageProvider === 'string' ? current.storageProvider : '';
+    const storageFileId =
+      typeof current.storageFileId === 'string' ? current.storageFileId.trim() : '';
+    if (storageFileId && provider !== 'cloudbase-storage' && provider !== 'local-disk') {
+      return err('INTERNAL_ERROR', 'Image has an unsupported storage provider.');
+    }
+    const storageFileIds = new Set(
+      [current.storageFileId, current.migrationStorageFileId].flatMap((candidate) =>
+        typeof candidate === 'string' && candidate.trim() ? [candidate.trim()] : [],
+      ),
+    );
+    for (const fileId of storageFileIds) {
+      try {
+        await mediaStorage().deleteObject(fileId);
+      } catch (error) {
+        console.error(`[fn-admin] abandon upload: object delete failed for ${imageId}`, error);
+        return err('INTERNAL_ERROR', 'Image storage deletion failed; retry abandonment.');
+      }
+    }
+
+    deleted = await remove('images', imageId);
+    if (!deleted) return err('CONFLICT', 'Image changed before abandonment completed.');
+    return ok({ deleted: true });
+  } finally {
+    if (!deleted) await releaseImageReferenceLocks(locks.imageIds, locks.owner);
+  }
+}
+
 async function createAction(req: AdminRequest, claims: SessionClaims): Promise<ApiResult<unknown>> {
   const parsed = createSchema.safeParse(req.data);
   if (!parsed.success) return err('BAD_REQUEST', 'collection and values are required');
   if (!canEditCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have permission to modify this collection.');
   }
-  const doc = await create(parsed.data.collection, parsed.data.values);
-  if (tracksImageVisibility(parsed.data.collection)) {
-    await applyImageVisibilityDelta(null, doc);
+  const locks = await acquireImageReferenceLocks(
+    collectionUsesImageIds(parsed.data.collection)
+      ? imageIdsFromValue(parsed.data.values.imageIds)
+      : [],
+  );
+  if (locks.error) return locks.error;
+  try {
+    const doc = await create(parsed.data.collection, parsed.data.values);
+    if (tracksImageVisibility(parsed.data.collection)) {
+      await applyImageVisibilityDelta(null, doc);
+    }
+    return ok(redact(parsed.data.collection, doc));
+  } finally {
+    await releaseImageReferenceLocks(locks.imageIds, locks.owner);
   }
-  return ok(redact(parsed.data.collection, doc));
 }
 
 async function updateAction(req: AdminRequest, claims: SessionClaims): Promise<ApiResult<unknown>> {
@@ -1311,10 +1569,20 @@ async function updateAction(req: AdminRequest, claims: SessionClaims): Promise<A
   }
   const tracks = tracksImageVisibility(parsed.data.collection);
   const before = tracks ? await get(parsed.data.collection, parsed.data.id) : null;
-  const doc = await update(parsed.data.collection, parsed.data.id, parsed.data.values);
-  if (!doc) return err('NOT_FOUND', 'Document not found');
-  if (tracks) await applyImageVisibilityDelta(before, doc);
-  return ok(redact(parsed.data.collection, doc));
+  const changesImageIds =
+    collectionUsesImageIds(parsed.data.collection) && Object.hasOwn(parsed.data.values, 'imageIds');
+  const locks = await acquireImageReferenceLocks(
+    changesImageIds ? imageIdsFromValue(parsed.data.values.imageIds) : [],
+  );
+  if (locks.error) return locks.error;
+  try {
+    const doc = await update(parsed.data.collection, parsed.data.id, parsed.data.values);
+    if (!doc) return err('NOT_FOUND', 'Document not found');
+    if (tracks) await applyImageVisibilityDelta(before, doc);
+    return ok(redact(parsed.data.collection, doc));
+  } finally {
+    await releaseImageReferenceLocks(locks.imageIds, locks.owner);
+  }
 }
 
 async function removeAction(req: AdminRequest, claims: SessionClaims): Promise<ApiResult<unknown>> {
@@ -1322,6 +1590,9 @@ async function removeAction(req: AdminRequest, claims: SessionClaims): Promise<A
   if (!parsed.success) return err('BAD_REQUEST', 'collection and id are required');
   if (!canEditCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have permission to modify this collection.');
+  }
+  if (parsed.data.collection === 'images') {
+    return err('BAD_REQUEST', 'Images must be removed through abandonUpload.');
   }
   const tracks = tracksImageVisibility(parsed.data.collection);
   const before = tracks ? await get(parsed.data.collection, parsed.data.id) : null;
@@ -1354,17 +1625,27 @@ async function batchUpdateAction(
         ),
       )
     : null;
-  const docs = await batchUpdate(parsed.data.collection, parsed.data.ids, parsed.data.values);
-  if (befores) {
-    const applied = new Set<string>();
-    for (const after of docs) {
-      const id = String(after._id);
-      if (applied.has(id)) continue;
-      applied.add(id);
-      await applyImageVisibilityDelta(befores.get(id) ?? null, after);
+  const changesImageIds =
+    collectionUsesImageIds(parsed.data.collection) && Object.hasOwn(parsed.data.values, 'imageIds');
+  const locks = await acquireImageReferenceLocks(
+    changesImageIds ? imageIdsFromValue(parsed.data.values.imageIds) : [],
+  );
+  if (locks.error) return locks.error;
+  try {
+    const docs = await batchUpdate(parsed.data.collection, parsed.data.ids, parsed.data.values);
+    if (befores) {
+      const applied = new Set<string>();
+      for (const after of docs) {
+        const id = String(after._id);
+        if (applied.has(id)) continue;
+        applied.add(id);
+        await applyImageVisibilityDelta(befores.get(id) ?? null, after);
+      }
     }
+    return ok({ updated: docs.length, items: docs.map((d) => redact(parsed.data.collection, d)) });
+  } finally {
+    await releaseImageReferenceLocks(locks.imageIds, locks.owner);
   }
-  return ok({ updated: docs.length, items: docs.map((d) => redact(parsed.data.collection, d)) });
 }
 
 async function batchRemoveAction(
@@ -1377,6 +1658,9 @@ async function batchRemoveAction(
   if (unknown) return unknown;
   if (!canEditCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have permission to modify this collection.');
+  }
+  if (parsed.data.collection === 'images') {
+    return err('BAD_REQUEST', 'Images cannot be removed through batchRemove.');
   }
   const tracks = tracksImageVisibility(parsed.data.collection);
   // Capture before-states per unique id, then decrement only for ids this call
@@ -1751,6 +2035,7 @@ async function createUploadIntentAction(
     storageFileId: credential.storageFileId,
     status: 'pending',
     publishedRefCount: 0,
+    uploadedByUserId: claims.sub,
     uploadIntentId,
     byteSize: parsed.data.byteSize,
     ...(parsed.data.checksumSha256 ? { checksumSha256: parsed.data.checksumSha256 } : {}),
