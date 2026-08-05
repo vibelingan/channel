@@ -7,10 +7,14 @@ import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password'
 import {
   type AdapterListQuery,
   type DbAdapter,
+  type ImageMutationAcquireResult,
+  type ImageMutationReleaseResult,
   backfillPublishedRefCounts,
   incrementField,
   nextCounterValue,
   setAdapter,
+  transitionImageMutationAcquire,
+  transitionImageMutationRelease,
 } from '@vibelingan-channel/db';
 import {
   type MediaStorageAdapter,
@@ -120,6 +124,32 @@ class MemoryAdapter implements DbAdapter {
     const next = nextCounterValue(existing[field], delta);
     docs[index] = { ...existing, [field]: next };
     return next;
+  }
+
+  async acquireImageMutation(
+    imageId: string,
+    owner: string,
+    startedAt: string,
+  ): Promise<ImageMutationAcquireResult> {
+    const docs = this.store.images ?? [];
+    const index = docs.findIndex((doc) => doc._id === imageId);
+    if (index < 0) return 'missing';
+    const existing = docs[index] as CollectionDoc;
+    const transition = transitionImageMutationAcquire(existing, owner, startedAt);
+    if (transition.result !== 'acquired') return transition.result;
+    docs[index] = { ...existing, ...transition.patch };
+    return 'acquired';
+  }
+
+  async releaseImageMutation(imageId: string, owner: string): Promise<ImageMutationReleaseResult> {
+    const docs = this.store.images ?? [];
+    const index = docs.findIndex((doc) => doc._id === imageId);
+    if (index < 0) return 'missing';
+    const existing = docs[index] as CollectionDoc;
+    const transition = transitionImageMutationRelease(existing, owner);
+    if (transition.result !== 'released') return transition.result;
+    docs[index] = { ...existing, ...transition.patch };
+    return 'released';
   }
 }
 
@@ -1113,6 +1143,10 @@ test('createUploadIntent mints a credential and writes a pending image doc', asy
   assert.equal(doc?.status, 'pending');
   assert.equal(doc?.storageProvider, 'cloudbase-storage');
   assert.equal(doc?.publishedRefCount, 0);
+  // A fresh upload row carries no mutation-lock fields: absent reads as free.
+  assert.equal(doc?.imageMutationOwner, undefined);
+  assert.equal(doc?.imageMutationStartedAt, undefined);
+  assert.equal(doc?.uploadedByUserId, 'admin-1');
   assert.equal(doc?.uploadIntentId, data.uploadIntentId);
   assert.equal(doc?.storageFileId, data.storageFileId);
   assert.ok(
@@ -1171,6 +1205,214 @@ test('completeUpload verifies bytes, records size+checksum, flips pending → ac
   assert.equal(doc?.status, 'active');
   assert.equal(doc?.byteSize, bytes.byteLength);
   assert.equal(doc?.checksumSha256, createHash('sha256').update(bytes).digest('hex'));
+});
+
+test('abandonUpload deletes an owned unreferenced image storage-first', async () => {
+  const store = imageStore([]);
+  setup(store);
+  const storage = makeFakeMediaStorage();
+  setMediaStorage(storage);
+  const token = await adminToken();
+  const intent = okData<{ imageId: string; storageFileId: string }>(
+    await call('createUploadIntent', validUpload, token),
+  );
+  assert.equal((await call('completeUpload', { imageId: intent.imageId }, token)).ok, true);
+  const migratedStorageFileId = 'cloud://env.bucket/catalog/staged-copy.jpg';
+  store.images = (store.images ?? []).map((image) =>
+    image._id === intent.imageId
+      ? { ...image, migrationStorageFileId: migratedStorageFileId }
+      : image,
+  );
+
+  const removed = await call('abandonUpload', { imageId: intent.imageId }, token);
+
+  assert.equal(removed.ok, true);
+  assert.deepEqual(storage.deleted, [intent.storageFileId, migratedStorageFileId]);
+  assert.equal(
+    store.images?.some((image) => image._id === intent.imageId),
+    false,
+  );
+});
+
+test('abandonUpload is refused while any registered collection references the image', async () => {
+  const store = imageStore([]);
+  setup(store);
+  const storage = makeFakeMediaStorage();
+  setMediaStorage(storage);
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
+  assert.equal((await call('completeUpload', { imageId: intent.imageId }, token)).ok, true);
+  store.successStories = [
+    {
+      _id: 'story-1',
+      title: 'Referenced story',
+      summary: 'Uses the uploaded image outside the public catalog.',
+      imageIds: [intent.imageId],
+    },
+  ];
+
+  const result = await call('abandonUpload', { imageId: intent.imageId }, token);
+
+  expectErr(result, 'CONFLICT');
+  assert.deepEqual(storage.deleted, []);
+  assert.equal(
+    store.images?.some((image) => image._id === intent.imageId),
+    true,
+  );
+});
+
+test('abandonUpload keeps metadata retryable when storage deletion fails', async () => {
+  const store = imageStore([]);
+  setup(store);
+  const storageFileId = 'cloud://env.bucket/catalog/delete-fails.jpg';
+  const storage = makeFakeMediaStorage({
+    credential: { storageFileId },
+    deleteFailFor: [storageFileId],
+  });
+  setMediaStorage(storage);
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
+  assert.equal((await call('completeUpload', { imageId: intent.imageId }, token)).ok, true);
+
+  expectErr(await call('abandonUpload', { imageId: intent.imageId }, token), 'INTERNAL_ERROR');
+  assert.equal(
+    store.images?.some((image) => image._id === intent.imageId),
+    true,
+  );
+  // The failed abandonment must release its mutation lock: cleared fields
+  // (empty strings) read as free for the next caller.
+  assert.equal(store.images?.find((image) => image._id === intent.imageId)?.imageMutationOwner, '');
+});
+
+test('generic single and batch removal cannot bypass the image lifecycle', async () => {
+  const store = imageStore(['legacy-image']);
+  setup(store);
+  setMediaStorage(makeFakeMediaStorage());
+  const token = await adminToken();
+
+  expectErr(
+    await call('remove', { collection: 'images', id: 'legacy-image' }, token),
+    'BAD_REQUEST',
+  );
+  expectErr(
+    await call('batchRemove', { collection: 'images', ids: ['legacy-image'] }, token),
+    'BAD_REQUEST',
+  );
+  assert.equal(
+    store.images?.some((image) => image._id === 'legacy-image'),
+    true,
+  );
+});
+
+test('abandonUpload is owner-bound and scans references beyond the first page', async () => {
+  const store = imageStore([]);
+  setup(store);
+  const storage = makeFakeMediaStorage();
+  setMediaStorage(storage);
+  const ownerToken = await adminToken();
+  const intent = okData<{ imageId: string }>(
+    await call('createUploadIntent', validUpload, ownerToken),
+  );
+  assert.equal((await call('completeUpload', { imageId: intent.imageId }, ownerToken)).ok, true);
+  store.successStories = Array.from({ length: 101 }, (_, index) => ({
+    _id: `story-${String(index).padStart(3, '0')}`,
+    title: `Story ${index}`,
+    summary: 'Pagination fixture',
+    imageIds: index === 100 ? [intent.imageId] : [],
+  }));
+  const otherToken = await sessionToken({
+    sub: 'admin-2',
+    email: 'admin-2@example.com',
+    name: 'admin 2',
+    role: 'admin',
+  });
+
+  expectErr(await call('abandonUpload', { imageId: intent.imageId }, otherToken), 'FORBIDDEN');
+  expectErr(await call('abandonUpload', { imageId: intent.imageId }, ownerToken), 'CONFLICT');
+  assert.deepEqual(storage.deleted, []);
+});
+
+test('a deletion claim blocks a concurrent imageIds writer', async () => {
+  const store = imageStore([]);
+  setup(store);
+  let releaseDelete: (() => void) | undefined;
+  let signalDeleteStarted: (() => void) | undefined;
+  const deleteStarted = new Promise<void>((resolve) => {
+    signalDeleteStarted = resolve;
+  });
+  const continueDelete = new Promise<void>((resolve) => {
+    releaseDelete = resolve;
+  });
+  const storage = makeFakeMediaStorage();
+  const originalDelete = storage.deleteObject.bind(storage);
+  storage.deleteObject = async (fileId) => {
+    signalDeleteStarted?.();
+    await continueDelete;
+    await originalDelete(fileId);
+  };
+  setMediaStorage(storage);
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
+  assert.equal((await call('completeUpload', { imageId: intent.imageId }, token)).ok, true);
+
+  const abandonment = call('abandonUpload', { imageId: intent.imageId }, token);
+  await deleteStarted;
+  const createResult = await call(
+    'create',
+    {
+      collection: 'successStories',
+      values: {
+        title: 'Concurrent story',
+        summary: 'Must not commit a dangling image reference.',
+        imageIds: [intent.imageId],
+      },
+    },
+    token,
+  );
+  releaseDelete?.();
+
+  expectErr(createResult, 'CONFLICT');
+  assert.equal((await abandonment).ok, true);
+  assert.equal(store.successStories?.length ?? 0, 0);
+});
+
+test('abandonUpload refuses a pending upload so finalization cannot race deletion', async () => {
+  const store = imageStore([]);
+  setup(store);
+  setMediaStorage(makeFakeMediaStorage());
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
+
+  expectErr(await call('abandonUpload', { imageId: intent.imageId }, token), 'CONFLICT');
+  assert.equal(
+    store.images?.some((image) => image._id === intent.imageId),
+    true,
+  );
+});
+
+test('catalog writes reject managed uploads until they are active', async () => {
+  const store = imageStore([]);
+  setup(store);
+  setMediaStorage(makeFakeMediaStorage());
+  const token = await adminToken();
+  const intent = okData<{ imageId: string }>(await call('createUploadIntent', validUpload, token));
+
+  expectErr(
+    await call(
+      'create',
+      {
+        collection: 'successStories',
+        values: {
+          title: 'Pending image story',
+          summary: 'Must not retain a pending upload.',
+          imageIds: [intent.imageId],
+        },
+      },
+      token,
+    ),
+    'CONFLICT',
+  );
+  assert.equal(store.successStories?.length ?? 0, 0);
 });
 
 test('completeUpload leaves the doc PENDING (retryable) when the object is not yet retrievable', async () => {
