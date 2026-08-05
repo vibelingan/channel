@@ -1362,6 +1362,19 @@ test.describe('public browser smoke', () => {
       await page.locator('[data-detail-back]').click();
       await expect(page.locator('[data-product-detail]')).toHaveCount(0);
       await expect(originCard).toBeFocused();
+
+      // Re-activating the SAME card must move focus again, not dead-end: the
+      // open handler cannot rely on the active product changing identity.
+      await page.keyboard.press('Enter');
+      await expect(heading).toBeFocused();
+      await originCard.focus();
+      await page.keyboard.press('Enter');
+      await expect(
+        heading,
+        `re-activating the open card refocuses its heading at ${viewport.width}px`,
+      ).toBeFocused();
+      await page.locator('[data-detail-back]').click();
+      await expect(page.locator('[data-product-detail]')).toHaveCount(0);
     }
 
     await page.unroute('**/api/images/**');

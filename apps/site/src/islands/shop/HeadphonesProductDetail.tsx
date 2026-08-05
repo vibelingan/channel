@@ -44,7 +44,7 @@ export function HeadphonesProductDetail({
           type="button"
           data-detail-back
           onClick={onBack}
-          className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-ink-soft transition hover:text-brand-700"
+          className="mb-8 inline-flex items-center gap-2 rounded text-sm font-medium text-ink-soft transition hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2"
         >
           <svg
             className="h-4 w-4"

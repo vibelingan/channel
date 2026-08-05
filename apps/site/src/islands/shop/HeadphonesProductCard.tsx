@@ -34,7 +34,7 @@ export function HeadphonesProductCard({
       type="button"
       data-product-card={product._id}
       onClick={() => onOpen(product._id)}
-      className="group relative flex flex-col overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-1 hover:border-brand-200 hover:shadow-[var(--shadow-card)]"
+      className="group relative flex flex-col overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-1 hover:border-brand-200 hover:shadow-[var(--shadow-card)] motion-reduce:transition-none motion-reduce:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2"
     >
       <div className="relative aspect-square overflow-hidden bg-white">
         <ProductMedia
@@ -43,7 +43,7 @@ export function HeadphonesProductCard({
           unavailableLabel={imageUnavailableLabel}
           loading="lazy"
           fetchPriority="low"
-          imageClassName="p-6 transition duration-300 group-hover:scale-105"
+          imageClassName="p-6 transition duration-300 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
         />
       </div>
 

@@ -53,7 +53,7 @@ export function HeadphonesCatalog({
           {SKELETON_KEYS.map((key) => (
             <div
               key={key}
-              className="h-80 animate-pulse rounded-[var(--radius-card)] border border-slate-200 bg-slate-100"
+              className="h-80 animate-pulse rounded-[var(--radius-card)] border border-slate-200 bg-slate-100 motion-reduce:animate-none"
             />
           ))}
         </div>
@@ -71,7 +71,7 @@ export function HeadphonesCatalog({
         <button
           type="button"
           onClick={onRetryInitial}
-          className="mt-4 inline-flex items-center justify-center rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100"
+          className="mt-4 inline-flex items-center justify-center rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2"
         >
           {list.retryLabel}
         </button>
@@ -157,7 +157,7 @@ export function HeadphonesCatalog({
             disabled={loadingMore}
             aria-busy={loadingMore || undefined}
             onClick={onLoadMore}
-            className="mt-4 inline-flex items-center justify-center rounded-lg border border-brand-200 bg-white px-6 py-3 text-sm font-semibold text-brand-700 transition hover:border-brand-300 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-4 inline-flex items-center justify-center rounded-lg border border-brand-200 bg-white px-6 py-3 text-sm font-semibold text-brand-700 transition hover:border-brand-300 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2"
           >
             {loadingMore ? list.loadingMoreLabel : list.loadMoreLabel}
           </button>
