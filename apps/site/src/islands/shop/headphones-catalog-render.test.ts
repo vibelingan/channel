@@ -60,7 +60,7 @@ function product(id: string, over: Partial<Product> = {}): Product {
 }
 
 function readyState(products: Product[], total: number): HeadphonesCatalogState {
-  let state = beginInitialLoad(initialHeadphonesCatalogState());
+  const state = beginInitialLoad(initialHeadphonesCatalogState());
   return commitCatalogPage(state, state.generation, {
     items: products,
     total,
@@ -86,7 +86,8 @@ function renderCatalog(state: HeadphonesCatalogState): string {
 
 test('loading renders a polite status and no cards, error, or empty state', () => {
   const html = renderCatalog(beginInitialLoad(initialHeadphonesCatalogState()));
-  assert.ok(html.includes('role="status"'));
+  // <output> carries the implicit status role; announced politely.
+  assert.ok(/<output[^>]*aria-live="polite"/.test(html));
   assert.ok(html.includes(LIST.loadingLabel));
   assert.ok(!html.includes('data-product-card'));
   assert.ok(!html.includes('role="alert"'));
@@ -116,19 +117,23 @@ test('an empty catalog renders the OEM-linked empty state and no cards', () => {
 
 test('success groups cards under category headings from the content contract', () => {
   const html = renderCatalog(
-    readyState(
-      [product('w1'), product('t1', { category: 'tws' }), product('w2')],
-      3,
-    ),
+    readyState([product('w1'), product('t1', { category: 'tws' }), product('w2')], 3),
   );
-  assert.ok(html.includes('Wired'));
-  assert.ok(html.includes('True Wireless'));
-  assert.ok(html.indexOf('data-product-card="w1"') >= 0);
-  assert.ok(html.indexOf('data-product-card="t1"') >= 0);
-  assert.ok(html.indexOf('data-product-card="w2"') >= 0);
-  // Grouping: both wired cards sit inside the Wired section, before the TWS heading? No —
-  // groups follow first-seen category order: wired first, tws second.
-  assert.ok(html.indexOf('Wired') < html.indexOf('True Wireless'));
+  // Each category heading renders exactly once (grouped, not flat-with-repeats).
+  assert.equal(html.split('>Wired<').length - 1, 1);
+  assert.equal(html.split('>True Wireless<').length - 1, 1);
+  // The late-arriving wired card w2 must sit INSIDE the Wired group: after w1,
+  // but before the True Wireless heading — despite arriving after t1.
+  const w1 = html.indexOf('data-product-card="w1"');
+  const w2 = html.indexOf('data-product-card="w2"');
+  const t1 = html.indexOf('data-product-card="t1"');
+  const twsHeading = html.indexOf('>True Wireless<');
+  assert.ok(w1 >= 0 && w2 >= 0 && t1 >= 0 && twsHeading >= 0);
+  assert.ok(w1 < w2, 'w2 renders after w1 inside the Wired group');
+  assert.ok(w2 < twsHeading, 'w2 renders before the True Wireless heading');
+  assert.ok(twsHeading < t1, 't1 renders under the True Wireless heading');
+  // Group order follows first-seen category order: wired first, tws second.
+  assert.ok(html.indexOf('>Wired<') < twsHeading);
 });
 
 // --- Load More contract -----------------------------------------------------

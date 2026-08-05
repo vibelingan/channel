@@ -60,7 +60,10 @@ export function HeadphonesProductDetail({
         </button>
 
         <div className="grid gap-10 lg:grid-cols-2">
-          <div className="min-w-0">
+          {/* Both columns are min-w-0 tracks: a grid item's default min-width
+              is auto, so a long title/spec value would otherwise widen the
+              document at 768-1024px instead of wrapping. */}
+          <div data-detail-media-column className="min-w-0">
             <Gallery
               images={product.images ?? []}
               alt={product.name}
@@ -71,11 +74,11 @@ export function HeadphonesProductDetail({
             />
           </div>
 
-          <div className="min-w-0">
+          <div data-detail-info-column className="min-w-0">
             <span className="inline-flex rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
               {categoryLabel}
             </span>
-            {/* biome-ignore lint/a11y/noNoninteractiveTabindex: the MIU 13 controller moves focus here after in-page expansion. */}
+            {/* tabIndex -1: the MIU 13 controller moves focus here after in-page expansion. */}
             <h2
               tabIndex={-1}
               data-detail-heading
@@ -143,6 +146,7 @@ export function HeadphonesProductDetail({
                 wholesalePrice={product.wholesalePrice}
                 vipPrice={product.vipPrice}
                 registered={registered}
+                signInHref={null}
                 size="lg"
               />
             </div>
