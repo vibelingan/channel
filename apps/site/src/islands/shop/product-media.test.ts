@@ -139,10 +139,12 @@ test('Headphones detail uses reduced-motion scrolling and typed Gallery copy', (
   assert.equal(detailScrollBehavior(false), 'smooth');
   assert.equal(detailScrollBehavior(true), 'auto');
 
-  const source = readFileSync(new URL('./HeadphonesPage.tsx', import.meta.url), 'utf8');
-  assert.match(source, /viewAllLabel=\{content\.detail\.viewAllLabel\}/);
-  assert.match(source, /unavailableLabel=\{content\.detail\.imageUnavailableLabel\}/);
-  assert.doesNotMatch(source, /zoomHint=\{content\.detail\.zoomHint\}/);
+  // MIU 13 moved the Gallery mount out of the controller and into the detail
+  // presentation component, which consumes the same typed detail contract.
+  const source = readFileSync(new URL('./HeadphonesProductDetail.tsx', import.meta.url), 'utf8');
+  assert.match(source, /viewAllLabel=\{detail\.viewAllLabel\}/);
+  assert.match(source, /unavailableLabel=\{detail\.imageUnavailableLabel\}/);
+  assert.doesNotMatch(source, /zoomHint/);
 });
 
 test('Gallery and every detail caller remove the retired zoom API', () => {
