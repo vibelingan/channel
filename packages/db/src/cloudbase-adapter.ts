@@ -17,7 +17,12 @@ import {
  */
 import cloud from 'wx-server-sdk';
 import type { Cloud, Command, Database } from 'wx-server-sdk';
-import type { DbAdapter } from './adapter.ts';
+import type {
+  DbAdapter,
+  ImageMutationAcquireResult,
+  ImageMutationReleaseResult,
+} from './adapter.ts';
+import { transitionImageMutationAcquire, transitionImageMutationRelease } from './adapter.ts';
 
 let initialized = false;
 let storageApp: CloudBase | null = null;
@@ -50,7 +55,11 @@ function database() {
       '@vibelingan-channel/db: initCloudBase(envId) must be called before using the database',
     );
   }
-  return cloud.database();
+  // throwOnNotFound DEFAULTS TO TRUE in wx-server-sdk: without this config a
+  // missing `doc(id).get()` rejects with "document with _id ... does not
+  // exist" instead of resolving `{ data: null }`. Every `get() -> null`
+  // missing-document contract in the handlers depends on this being false.
+  return cloud.database({ throwOnNotFound: false });
 }
 
 function normalize(raw: Record<string, unknown>): CollectionDoc {
@@ -118,12 +127,12 @@ export const cloudBaseAdapter: DbAdapter = {
 
   async get(collection, id): Promise<CollectionDoc | null> {
     const db = database();
-    try {
-      const res = await db.collection(collection).doc(id).get();
-      return normalizeSingle(res.data);
-    } catch {
-      return null;
-    }
+    // With `throwOnNotFound: false` (set in database()), a missing document
+    // resolves `{ data: null }`. Do not catch transport/database failures as
+    // if they meant "missing"; destructive callers must fail closed on an
+    // uncertain read.
+    const res = await db.collection(collection).doc(id).get();
+    return normalizeSingle(res.data);
   },
 
   async findByField(collection, field, value): Promise<CollectionDoc | null> {
@@ -178,6 +187,40 @@ export const cloudBaseAdapter: DbAdapter = {
     const doc = (got.data as Record<string, unknown>[] | undefined)?.[0];
     const value = doc ? Number(doc[field]) : Number.NaN;
     return Number.isFinite(value) ? value : null;
+  },
+
+  async acquireImageMutation(imageId, owner, startedAt): Promise<ImageMutationAcquireResult> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction) => {
+      const ref = transaction.collection('images').doc(imageId);
+      const got = await ref.get();
+      const doc = normalizeSingle(got.data);
+      if (!doc) return 'missing';
+      const transition = transitionImageMutationAcquire(doc, owner, startedAt);
+      if (transition.result !== 'acquired') return transition.result;
+      await ref.update({
+        ...transition.patch,
+        updatedAt: new Date().toISOString(),
+      });
+      return 'acquired';
+    });
+  },
+
+  async releaseImageMutation(imageId, owner): Promise<ImageMutationReleaseResult> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction) => {
+      const ref = transaction.collection('images').doc(imageId);
+      const got = await ref.get();
+      const doc = normalizeSingle(got.data);
+      if (!doc) return 'missing';
+      const transition = transitionImageMutationRelease(doc, owner);
+      if (transition.result !== 'released') return transition.result;
+      await ref.update({
+        ...transition.patch,
+        updatedAt: new Date().toISOString(),
+      });
+      return 'released';
+    });
   },
 };
 

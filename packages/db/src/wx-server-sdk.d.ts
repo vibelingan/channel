@@ -71,7 +71,11 @@ declare module 'wx-server-sdk' {
 
   interface Cloud {
     init(options: { env: string }): void;
-    database(): Database;
+    /**
+     * `throwOnNotFound` defaults to TRUE: a missing `doc().get()` then rejects
+     * instead of resolving `{ data: null }`. The adapter always passes false.
+     */
+    database(config?: { throwOnNotFound?: boolean }): Database;
   }
 
   const cloud: Cloud;
