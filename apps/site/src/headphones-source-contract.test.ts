@@ -20,19 +20,29 @@ function sourceBetween(source: string, start: string, end: string): string {
   return source.slice(startAt, endAt);
 }
 
-test('HeadphonesPage props omit hero strings owned by the Astro route', () => {
+test('hero strings come from the content contract, not route-local declarations', () => {
   const pageStringsInterface = sourceBetween(
     islandSource,
     'interface PageStrings',
     'interface Props',
   );
   const pageStringsObject = sourceBetween(routeSource, 'const pageStrings = {', '// SEO metadata');
+  // MIU 12: the hero consumes `hp.hero` (typed HeadphonesContent) exclusively;
+  // neither the island props nor the route redeclare hero copy.
   for (const key of ['heroEyebrow', 'heroHeading', 'heroBody', 'heroBadges']) {
     const declaration = new RegExp(`\\b${key}\\s*:`);
     assert.doesNotMatch(pageStringsInterface, declaration);
-    assert.match(pageStringsObject, declaration);
-    assert.match(routeSource, new RegExp(`pageStrings\\.${key}\\b`));
+    assert.doesNotMatch(pageStringsObject, declaration);
   }
+  for (const field of ['eyebrow', 'heading', 'body', 'proof', 'primaryCta', 'secondaryCta']) {
+    assert.match(routeSource, new RegExp(`hp\\.hero\\.${field}\\b`));
+  }
+  // The gated hero media contract: ordered sources built through apiMediaUrl
+  // over the reviewed provenance, rendered by ProductMedia client:load.
+  assert.match(routeSource, /hp\.hero\.sources\.map/);
+  assert.match(routeSource, /apiMediaUrl\(`\/api\/images\/\$\{source\.imageId\}`\)/);
+  assert.match(routeSource, /data-hero-media/);
+  assert.match(routeSource, /<ProductMedia\s[^>]*client:load/);
 });
 
 test('Headphones route and island omit unused detail string declarations', () => {

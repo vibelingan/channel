@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 import { apiMediaUrl } from '../../lib/api-url.ts';
 
 export interface ProductMediaState {
@@ -77,11 +77,25 @@ function ProductMediaSession({
 }: ProductMediaProps) {
   const [state, dispatch] = useReducer(productMediaReducer, undefined, createProductMediaState);
   const [unavailableAnnouncement, setUnavailableAnnouncement] = useState('');
+  const imageRef = useRef<HTMLImageElement | null>(null);
   const source = sources[state.activeIndex];
 
   useEffect(() => {
     setUnavailableAnnouncement(source === undefined && alt ? `${alt}. ${unavailableLabel}` : '');
   }, [alt, source, unavailableLabel]);
+
+  // A server-rendered image can FAIL before hydration attaches onError, and
+  // the browser does not replay the error event — without this check an SSR
+  // hero/card whose first gated source 404s during page load would sit on a
+  // broken image forever instead of advancing through the ordered fallback.
+  const activeIndex = state.activeIndex;
+  useEffect(() => {
+    const image = imageRef.current;
+    if (!image || source === undefined) return;
+    if (image.complete && image.naturalWidth === 0) {
+      dispatch({ type: 'sourceFailed', sourceIndex: activeIndex, source, sources });
+    }
+  }, [activeIndex, source, sources]);
 
   return (
     <>
@@ -104,6 +118,7 @@ function ProductMediaSession({
       ) : (
         <img
           key={productMediaImageKey(state.activeIndex, source)}
+          ref={imageRef}
           data-product-media="image"
           src={source}
           alt={alt}
