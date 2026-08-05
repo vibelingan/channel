@@ -40,10 +40,7 @@ const FULL_PRODUCT: Product = {
   unitPrice: 18.9,
   wholesalePrice: 15.5,
   vipPrice: 13.2,
-  images: [
-    'https://media.example.test/sy-t8-1.jpg',
-    'https://media.example.test/sy-t8-2.jpg',
-  ],
+  images: ['https://media.example.test/sy-t8-1.jpg', 'https://media.example.test/sy-t8-2.jpg'],
 };
 
 function render(over: {
@@ -69,7 +66,12 @@ test('a complete product renders gallery, specs, pricing, focus heading, and Bac
   // Gallery media flows through the ProductMedia contract.
   assert.ok(html.includes('data-product-media='));
   // Spec sheet rows from the content contract.
-  for (const label of [DETAIL.seriesLabel, DETAIL.typeLabel, DETAIL.moqLabel, DETAIL.unitPriceLabel]) {
+  for (const label of [
+    DETAIL.seriesLabel,
+    DETAIL.typeLabel,
+    DETAIL.moqLabel,
+    DETAIL.unitPriceLabel,
+  ]) {
     assert.ok(html.includes(label), `missing spec label: ${label}`);
   }
   assert.ok(html.includes('SY-T8-BLK'));
@@ -79,14 +81,19 @@ test('a complete product renders gallery, specs, pricing, focus heading, and Bac
   // Focus-target heading: focusable programmatically, marked for the controller.
   assert.ok(/<h2[^>]*tabindex="-1"[^>]*data-detail-heading/.test(html));
   assert.ok(html.includes(FULL_PRODUCT.name));
-  // Back control is a button with the content label.
+  // Back is an in-page control: a BUTTON carrying data-detail-back, never a
+  // navigation anchor (which would reload the page and drop catalog state).
   assert.ok(html.includes(DETAIL.backToModelsLabel));
-  assert.ok(/data-detail-back[^>]*>|<button[^>]*type="button"/.test(html));
+  assert.ok(/<button[^>]*data-detail-back/.test(html));
+  assert.ok(!/<a[^>]*data-detail-back/.test(html));
 });
 
 test('unregistered viewers see the VIP entitlement lock, registered see VIP price', () => {
   const locked = render({ registered: false });
   assert.ok(locked.includes(DETAIL.vipLockedLabel));
+  // The locked chip is informational, not a login prerequisite: the detail
+  // output must never contain a /login anchor for any viewer.
+  assert.ok(!locked.includes('/login'));
   const unlocked = render({ registered: true });
   assert.ok(!unlocked.includes(DETAIL.vipLockedLabel));
   assert.ok(unlocked.includes('$13.20'));
@@ -110,7 +117,10 @@ test('every enquiry command is an anchor to the OEM enquiry section', () => {
 
 test('detail columns sit in min-width-0 tracks so long values wrap, not widen', () => {
   const html = render({});
-  assert.ok(html.includes('min-w-0'));
+  // Pin BOTH grid column wrappers, not merely any min-w-0 in the subtree
+  // (Gallery internals and spec dd cells carry their own).
+  assert.ok(/<div[^>]*data-detail-media-column[^>]*class="[^"]*min-w-0/.test(html));
+  assert.ok(/<div[^>]*data-detail-info-column[^>]*class="[^"]*min-w-0/.test(html));
 });
 
 // --- media fallback ----------------------------------------------------------

@@ -90,10 +90,18 @@ export function commitCatalogPage(
     seen.add(product._id);
     return true;
   });
+  const products = [...state.products, ...appended];
+  // A genuinely empty page is the terminal exhaustion signal. Under shifting
+  // offset windows a concurrently inserted document can land permanently
+  // behind the cursor while still being counted in the server total; without
+  // this clamp hasMore would stay true forever and Load More would live-loop
+  // on empty pages. (A fully-duplicate page still advances normally — the
+  // window can shift back into unseen territory.)
+  const total = page.items.length === 0 ? products.length : page.total;
   return {
     ...state,
-    products: [...state.products, ...appended],
-    total: page.total,
+    products,
+    total,
     nextPage: state.nextPage + 1,
     status: 'ready',
   };

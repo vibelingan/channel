@@ -43,9 +43,9 @@ export function HeadphonesCatalog({
   if (state.status === 'idle' || state.status === 'loading-initial') {
     return (
       <div className="mt-12">
-        <p role="status" className="sr-only">
+        <output aria-live="polite" className="sr-only">
           {list.loadingLabel}
-        </p>
+        </output>
         <div
           aria-hidden="true"
           className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"

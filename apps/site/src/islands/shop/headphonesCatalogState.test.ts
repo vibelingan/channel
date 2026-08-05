@@ -21,7 +21,8 @@ function page(ids: string[], total: number, pageNumber: number, pageSize = 12): 
   return { items: ids.map(product), total, page: pageNumber, pageSize };
 }
 
-const ids = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => `p${from + i}`);
+const ids = (from: number, to: number) =>
+  Array.from({ length: to - from + 1 }, (_, i) => `p${from + i}`);
 
 // --- initial load -----------------------------------------------------------
 
@@ -94,6 +95,22 @@ test('a fully duplicate page still advances the next page so loading can progres
   assert.equal(hasMoreProducts(state), true);
 });
 
+// An unreachable counted document (front-inserted behind the offset cursor)
+// must not leave Load More live-looping on empty pages forever.
+test('an empty page is terminal: total clamps to loaded so hasMore turns false', () => {
+  let state = beginInitialLoad(initialHeadphonesCatalogState());
+  state = commitCatalogPage(state, state.generation, page(ids(1, 12), 14, 1));
+  state = beginLoadMore(state);
+  state = commitCatalogPage(state, state.generation, page(ids(13, 13), 14, 2));
+  assert.equal(state.products.length, 13);
+  assert.equal(hasMoreProducts(state), true);
+  state = beginLoadMore(state);
+  state = commitCatalogPage(state, state.generation, page([], 14, 3));
+  assert.equal(state.status, 'ready');
+  assert.equal(state.total, 13);
+  assert.equal(hasMoreProducts(state), false);
+});
+
 test('hasMore follows loaded unique count versus the latest committed total', () => {
   let state = beginInitialLoad(initialHeadphonesCatalogState());
   state = commitCatalogPage(state, state.generation, page(ids(1, 12), 13, 1));
@@ -153,6 +170,43 @@ test('the fresh generation still works after a reset', () => {
   state = commitCatalogPage(state, state.generation, page(ids(1, 12), 12, 1));
   assert.equal(state.products.length, 12);
   assert.equal(hasMoreProducts(state), false);
+});
+
+// The generation guard is only load-bearing when the FRESH generation is
+// itself loading (the status guard alone cannot reject the stale response).
+// This is the exact race: auth changes while a response is in flight, the
+// controller starts a new initial load, then the orphaned response lands.
+test('a stale response cannot commit into a fresh generation that is loading', () => {
+  let state = beginInitialLoad(initialHeadphonesCatalogState());
+  const staleGeneration = state.generation;
+  state = resetCatalogGeneration(state);
+  state = beginInitialLoad(state);
+  assert.equal(state.status, 'loading-initial');
+  const loadingFresh = state;
+  assert.equal(commitCatalogPage(state, staleGeneration, page(ids(1, 12), 60, 1)), loadingFresh);
+  assert.equal(failInitialLoad(state, staleGeneration, 'stale failure'), loadingFresh);
+  // The fresh generation's own commit still lands.
+  state = commitCatalogPage(state, state.generation, page(ids(1, 12), 60, 1));
+  assert.equal(state.products.length, 12);
+});
+
+test('a stale load-more response cannot commit while the fresh generation loads more', () => {
+  let state = beginInitialLoad(initialHeadphonesCatalogState());
+  state = commitCatalogPage(state, state.generation, page(ids(1, 12), 60, 1));
+  state = beginLoadMore(state);
+  const staleGeneration = state.generation;
+  // Auth change mid-flight: reset, reload, advance to a fresh load-more.
+  state = resetCatalogGeneration(state);
+  state = beginInitialLoad(state);
+  state = commitCatalogPage(state, state.generation, page(ids(100, 111), 60, 1));
+  state = beginLoadMore(state);
+  const loadingFresh = state;
+  assert.equal(commitCatalogPage(state, staleGeneration, page(ids(13, 24), 60, 2)), loadingFresh);
+  assert.equal(failLoadMore(state, staleGeneration, 'stale failure'), loadingFresh);
+  // Only the fresh generation's page lands.
+  state = commitCatalogPage(state, state.generation, page(ids(112, 123), 60, 2));
+  assert.equal(state.products.length, 24);
+  assert.ok(state.products.every((item) => Number(item._id.slice(1)) >= 100));
 });
 
 // --- load-more errors keep loaded cards usable ------------------------------
