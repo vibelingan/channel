@@ -1,0 +1,1925 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Headphones UI Screen Board</title>
+    <style>
+      :root {
+        --brand-950: #172554;
+        --brand-900: #1e3a8a;
+        --brand-800: #1e40af;
+        --brand-700: #1d4ed8;
+        --brand-600: #2563eb;
+        --brand-100: #dbeafe;
+        --brand-50: #eff6ff;
+        --accent-500: #f59e0b;
+        --accent-400: #fbbf24;
+        --ink: #0f172a;
+        --ink-soft: #475569;
+        --ink-muted: #64748b;
+        --line: #e2e8f0;
+        --surface: #ffffff;
+        --surface-alt: #f8fafc;
+        --success: #047857;
+        --danger: #b91c1c;
+        --radius: 16px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        background:
+          linear-gradient(#e2e8f0 1px, transparent 1px),
+          linear-gradient(90deg, #e2e8f0 1px, transparent 1px),
+          #f1f5f9;
+        background-size: 32px 32px;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+      }
+
+      h1,
+      h2,
+      h3,
+      h4,
+      p {
+        margin: 0;
+      }
+
+      h1,
+      h2,
+      h3,
+      h4 {
+        font-family: "Poppins", "Avenir Next", sans-serif;
+        letter-spacing: 0;
+      }
+
+      img {
+        display: block;
+        max-width: 100%;
+      }
+
+      button,
+      select {
+        font: inherit;
+      }
+
+      .board-header {
+        padding: 44px max(32px, calc((100vw - 1480px) / 2));
+        border-bottom: 1px solid #cbd5e1;
+        background: rgba(248, 250, 252, 0.96);
+      }
+
+      .board-header h1 {
+        max-width: 900px;
+        font-size: 34px;
+        line-height: 1.15;
+      }
+
+      .board-header p {
+        max-width: 850px;
+        margin-top: 12px;
+        color: var(--ink-soft);
+        font-size: 15px;
+        line-height: 1.6;
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 20px;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 4px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 999px;
+        background: white;
+        color: #334155;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .tag.deployed {
+        border-color: #a7f3d0;
+        background: #ecfdf5;
+        color: #065f46;
+      }
+
+      .tag.planned {
+        border-color: #fde68a;
+        background: #fffbeb;
+        color: #92400e;
+      }
+
+      .board {
+        display: grid;
+        gap: 44px;
+        width: min(1480px, calc(100% - 48px));
+        margin: 48px auto 80px;
+      }
+
+      .sheet {
+        overflow: hidden;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #e2e8f0;
+        box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12);
+      }
+
+      .sheet-label {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 18px 22px;
+        border-bottom: 1px solid #cbd5e1;
+        background: white;
+      }
+
+      .sheet-label h2 {
+        font-size: 18px;
+      }
+
+      .sheet-label p {
+        max-width: 760px;
+        margin-top: 5px;
+        color: var(--ink-muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .screen {
+        position: relative;
+        overflow: hidden;
+        background: var(--surface);
+      }
+
+      .screen.desktop {
+        min-height: 760px;
+        min-width: 1360px;
+      }
+
+      .site-nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: nowrap;
+        height: 70px;
+        padding: 0 52px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        background: var(--brand-950);
+        color: white;
+      }
+
+      .brand {
+        font-family: "Poppins", "Avenir Next", sans-serif;
+        font-size: 17px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .site-links {
+        display: flex;
+        gap: 28px;
+        color: #cbd5e1;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .site-links span {
+        white-space: nowrap;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 46px;
+        padding: 0 20px;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .btn.accent {
+        background: var(--accent-500);
+        color: var(--brand-950);
+      }
+
+      .btn.brand-button {
+        background: var(--brand-700);
+        color: white;
+      }
+
+      .btn.outline {
+        border-color: #cbd5e1;
+        background: white;
+        color: var(--brand-700);
+      }
+
+      .btn.quiet-dark {
+        border-color: rgba(255, 255, 255, 0.3);
+        color: white;
+      }
+
+      .eyebrow {
+        color: var(--brand-600);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .hero {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1.08fr 0.92fr;
+        align-items: center;
+        min-height: 540px;
+        padding: 60px 70px 56px;
+        background-color: var(--brand-950);
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+        background-size: 44px 44px;
+        color: white;
+      }
+
+      .hero-copy {
+        position: relative;
+        z-index: 2;
+        max-width: 650px;
+      }
+
+      .hero .eyebrow {
+        color: var(--accent-400);
+      }
+
+      .hero h3 {
+        max-width: 620px;
+        margin-top: 14px;
+        font-size: 50px;
+        line-height: 1.08;
+      }
+
+      .hero-copy > p:not(.eyebrow) {
+        max-width: 590px;
+        margin-top: 20px;
+        color: #cbd5e1;
+        font-size: 18px;
+        line-height: 1.65;
+      }
+
+      .proof-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+        margin-top: 24px;
+        color: #e2e8f0;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .proof-row span::before {
+        content: "";
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin-right: 8px;
+        border-radius: 50%;
+        background: var(--accent-400);
+        vertical-align: 2px;
+      }
+
+      .hero-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 30px;
+      }
+
+      .hero-product {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        place-items: center;
+        min-height: 390px;
+      }
+
+      .hero-product img {
+        position: relative;
+        width: min(380px, 86%);
+        aspect-ratio: 1;
+        object-fit: contain;
+        border-radius: 20px;
+        mix-blend-mode: screen;
+      }
+
+      .next-section-hint {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 150px;
+        padding: 35px 70px;
+        background: white;
+      }
+
+      .next-section-hint h3 {
+        margin-top: 8px;
+        font-size: 28px;
+      }
+
+      .annotation {
+        position: absolute;
+        z-index: 10;
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border: 3px solid white;
+        border-radius: 50%;
+        background: var(--danger);
+        color: white;
+        font-size: 12px;
+        font-weight: 800;
+        box-shadow: 0 3px 12px rgba(15, 23, 42, 0.24);
+      }
+
+      .frame-pair {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 24px;
+        overflow-x: auto;
+        padding: 24px;
+      }
+
+      .phone-wrap {
+        display: grid;
+        place-items: center;
+        padding: 22px;
+        background: #dbe3ee;
+      }
+
+      .phone {
+        overflow: hidden;
+        width: 390px;
+        height: 844px;
+        border: 9px solid #0f172a;
+        border-radius: 34px;
+        background: white;
+        box-shadow: 0 20px 45px rgba(15, 23, 42, 0.22);
+      }
+
+      .mobile-nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 58px;
+        padding: 0 18px;
+        background: var(--brand-950);
+        color: white;
+      }
+
+      .menu-lines {
+        width: 22px;
+        height: 14px;
+        border-top: 2px solid white;
+        border-bottom: 2px solid white;
+      }
+
+      .mobile-hero {
+        min-height: 650px;
+        padding: 34px 20px 28px;
+        background: linear-gradient(150deg, var(--brand-950), var(--brand-900));
+        color: white;
+      }
+
+      .mobile-hero .eyebrow {
+        color: var(--accent-400);
+        font-size: 11px;
+      }
+
+      .mobile-hero h3 {
+        margin-top: 12px;
+        font-size: 34px;
+        line-height: 1.12;
+      }
+
+      .mobile-hero > p:not(.eyebrow) {
+        margin-top: 14px;
+        color: #cbd5e1;
+        font-size: 16px;
+        line-height: 1.55;
+      }
+
+      .mobile-stage {
+        display: grid;
+        place-items: center;
+        height: 174px;
+        margin-top: 18px;
+      }
+
+      .mobile-stage img {
+        width: 170px;
+        height: 170px;
+        border-radius: 16px;
+        object-fit: contain;
+        mix-blend-mode: screen;
+      }
+
+      .mobile-proof {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px 14px;
+        margin-top: 12px;
+        color: #e2e8f0;
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .mobile-actions {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-top: 18px;
+      }
+
+      .mobile-actions .btn {
+        min-height: 48px;
+        padding: 0 18px;
+        font-size: 13px;
+      }
+
+      .text-link {
+        color: white;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .mobile-next {
+        padding: 20px;
+        background: white;
+      }
+
+      .mobile-next h4 {
+        margin-top: 6px;
+        font-size: 22px;
+      }
+
+      .form-screen {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 50px;
+        min-height: 680px;
+        padding: 62px 72px;
+        background: white;
+      }
+
+      .form-intro {
+        padding-top: 36px;
+      }
+
+      .form-intro h3 {
+        max-width: 520px;
+        margin-top: 12px;
+        font-size: 40px;
+        line-height: 1.16;
+      }
+
+      .form-intro p:not(.eyebrow) {
+        max-width: 520px;
+        margin-top: 16px;
+        color: var(--ink-soft);
+        line-height: 1.65;
+      }
+
+      .form-panel {
+        padding: 28px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface-alt);
+      }
+
+      .field-demo {
+        position: relative;
+        margin-bottom: 22px;
+      }
+
+      .field-demo label {
+        display: block;
+        margin-bottom: 7px;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .required {
+        color: var(--danger);
+      }
+
+      .control {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        min-height: 48px;
+        padding: 0 14px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: white;
+        color: var(--ink);
+        font-size: 14px;
+      }
+
+      .control.focused {
+        border-color: var(--brand-600);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+      }
+
+      .control.open .chevron {
+        transform: rotate(225deg) translate(-2px, -2px);
+      }
+
+      .control.hovered {
+        border-color: #60a5fa;
+      }
+
+      .control.invalid {
+        border-color: #dc2626;
+        box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+      }
+
+      .control.disabled {
+        border-color: #e2e8f0;
+        background: #f1f5f9;
+        color: #94a3b8;
+      }
+
+      .state-samples {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 210px;
+      }
+
+      .state-sample {
+        min-width: 0;
+      }
+
+      .state-sample strong {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--ink-muted);
+        font-size: 11px;
+        text-transform: uppercase;
+      }
+
+      .native-select {
+        width: 100%;
+        min-height: 48px;
+        padding: 0 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: white;
+        color: var(--ink);
+      }
+
+      .chevron {
+        width: 9px;
+        height: 9px;
+        border-right: 2px solid #64748b;
+        border-bottom: 2px solid #64748b;
+        transform: rotate(45deg) translateY(-2px);
+      }
+
+      .picker {
+        position: absolute;
+        z-index: 4;
+        top: 77px;
+        right: 0;
+        left: 0;
+        overflow: hidden;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: white;
+        box-shadow: 0 16px 35px rgba(15, 23, 42, 0.15);
+      }
+
+      .option {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 44px;
+        padding: 0 14px;
+        color: #334155;
+        font-size: 14px;
+      }
+
+      .option.active {
+        background: var(--brand-50);
+        color: var(--brand-700);
+        font-weight: 700;
+      }
+
+      .option.selected {
+        color: var(--brand-700);
+        font-weight: 700;
+      }
+
+      .check {
+        color: var(--brand-700);
+        font-weight: 900;
+      }
+
+      .hint,
+      .error-text {
+        margin-top: 6px;
+        font-size: 12px;
+      }
+
+      .hint {
+        color: var(--ink-muted);
+      }
+
+      .error-text {
+        color: var(--danger);
+      }
+
+      .catalog-screen {
+        min-height: 760px;
+        padding: 52px 62px 62px;
+        background: white;
+      }
+
+      .catalog-heading {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 24px;
+      }
+
+      .catalog-heading h3 {
+        margin-top: 8px;
+        font-size: 34px;
+      }
+
+      .catalog-heading p:not(.eyebrow) {
+        max-width: 620px;
+        margin-top: 10px;
+        color: var(--ink-soft);
+        line-height: 1.55;
+      }
+
+      .progress-copy {
+        color: var(--ink-muted);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .group-heading {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 34px 0 18px;
+      }
+
+      .group-heading h4 {
+        font-size: 18px;
+      }
+
+      .count {
+        padding: 4px 9px;
+        border-radius: 999px;
+        background: var(--brand-50);
+        color: var(--brand-700);
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .product-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .product-card {
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: white;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+      }
+
+      .product-media {
+        display: grid;
+        place-items: center;
+        aspect-ratio: 1;
+        padding: 18px;
+        background: var(--surface-alt);
+      }
+
+      .product-media img {
+        width: 100%;
+        height: 100%;
+        border-radius: 10px;
+        object-fit: contain;
+      }
+
+      .card-copy {
+        min-height: 165px;
+        padding: 16px;
+        border-top: 1px solid #f1f5f9;
+      }
+
+      .card-copy h4 {
+        min-height: 48px;
+        font-size: 15px;
+        line-height: 1.5;
+      }
+
+      .description {
+        display: -webkit-box;
+        min-height: 38px;
+        margin-top: 8px;
+        overflow: hidden;
+        color: var(--ink-soft);
+        font-size: 12px;
+        line-height: 1.55;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+      }
+
+      .model {
+        margin-top: 4px;
+        color: var(--ink-muted);
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .commercial {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 18px;
+        color: var(--ink-muted);
+        font-size: 11px;
+      }
+
+      .price {
+        color: var(--brand-700);
+        font-size: 15px;
+        font-weight: 600;
+      }
+
+      .card-action {
+        margin-top: 12px;
+        color: var(--brand-700);
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .load-more {
+        display: grid;
+        place-items: center;
+        gap: 8px;
+        margin-top: 28px;
+      }
+
+      .load-more span {
+        color: var(--ink-muted);
+        font-size: 12px;
+      }
+
+      .states-screen {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 24px;
+        min-height: 500px;
+        padding: 44px;
+        background: var(--surface-alt);
+      }
+
+      .state-panel {
+        padding: 24px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: white;
+      }
+
+      .state-panel h3 {
+        font-size: 18px;
+      }
+
+      .state-panel > p {
+        margin-top: 7px;
+        color: var(--ink-muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .skeleton-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        margin-top: 24px;
+      }
+
+      .skeleton-card {
+        overflow: hidden;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+      }
+
+      .skeleton-image {
+        aspect-ratio: 1;
+        background: #e2e8f0;
+      }
+
+      .skeleton-copy {
+        height: 68px;
+        background:
+          linear-gradient(#e2e8f0 0 0) 12px 14px / 70% 9px no-repeat,
+          linear-gradient(#e2e8f0 0 0) 12px 35px / 48% 7px no-repeat,
+          white;
+      }
+
+      .status-band {
+        margin-top: 36px;
+        padding: 22px;
+        border: 1px solid #fecaca;
+        border-radius: 8px;
+        background: #fef2f2;
+      }
+
+      .status-band strong {
+        display: block;
+        color: #991b1b;
+      }
+
+      .status-band p {
+        margin: 7px 0 16px;
+        color: #7f1d1d;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .empty-state {
+        display: grid;
+        place-items: center;
+        min-height: 260px;
+        margin-top: 24px;
+        padding: 30px;
+        border: 1px dashed #cbd5e1;
+        border-radius: 12px;
+        background: var(--surface-alt);
+        text-align: center;
+      }
+
+      .empty-state p {
+        max-width: 280px;
+        margin: 8px 0 18px;
+        color: var(--ink-muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .detail-screen {
+        min-height: 780px;
+        padding: 38px 58px 54px;
+        background: var(--surface-alt);
+      }
+
+      .back-link {
+        color: var(--ink-soft);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .detail-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 520px) minmax(360px, 1fr);
+        align-items: start;
+        gap: 48px;
+        max-width: 1180px;
+        margin: 26px auto 0;
+      }
+
+      .main-frame {
+        display: grid;
+        place-items: center;
+        width: min(100%, 520px);
+        aspect-ratio: 1;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: white;
+      }
+
+      .main-frame img {
+        width: 100%;
+        height: 100%;
+        padding: 20px;
+        object-fit: contain;
+      }
+
+      .thumb-row {
+        display: grid;
+        grid-template-columns: repeat(4, 72px) auto;
+        align-items: center;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .thumb {
+        width: 72px;
+        height: 72px;
+        padding: 4px;
+        overflow: hidden;
+        border: 2px solid transparent;
+        border-radius: 8px;
+        background: white;
+      }
+
+      .thumb.active {
+        border-color: var(--brand-600);
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.14);
+      }
+
+      .thumb.focused {
+        outline: 3px solid var(--accent-400);
+        outline-offset: 2px;
+      }
+
+      .thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+      .view-all {
+        min-height: 44px;
+        padding: 0 14px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: white;
+        color: var(--brand-700);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .detail-copy .count {
+        display: inline-flex;
+      }
+
+      .detail-copy h3 {
+        margin-top: 12px;
+        font-size: 34px;
+        line-height: 1.2;
+      }
+
+      .detail-copy > p {
+        margin-top: 12px;
+        color: var(--ink-soft);
+        line-height: 1.65;
+      }
+
+      .spec-list {
+        margin: 24px 0 0;
+        padding: 0;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: white;
+      }
+
+      .spec-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 13px 16px;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 13px;
+      }
+
+      .spec-row:last-child {
+        border-bottom: 0;
+      }
+
+      .spec-row span:first-child {
+        color: var(--ink-muted);
+      }
+
+      .pricing-box {
+        margin-top: 18px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: white;
+      }
+
+      .pricing-box strong {
+        display: block;
+        color: var(--brand-700);
+        font-size: 21px;
+      }
+
+      .pricing-box span {
+        display: block;
+        margin-top: 4px;
+        color: var(--ink-muted);
+        font-size: 12px;
+      }
+
+      .detail-copy .btn {
+        margin-top: 20px;
+      }
+
+      .expanded-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 520px) minmax(0, 1fr);
+        gap: 34px;
+        min-height: 700px;
+        padding: 38px 54px 50px;
+        background: var(--surface-alt);
+      }
+
+      .thumb-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 15px;
+      }
+
+      .thumb-grid .thumb {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1;
+      }
+
+      .callout-panel {
+        padding: 28px;
+        border-left: 3px solid var(--brand-600);
+        background: white;
+      }
+
+      .callout-panel h3 {
+        font-size: 24px;
+      }
+
+      .callout-list {
+        display: grid;
+        gap: 18px;
+        margin-top: 24px;
+      }
+
+      .callout-item {
+        display: grid;
+        grid-template-columns: 30px 1fr;
+        gap: 12px;
+      }
+
+      .callout-num {
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--brand-700);
+        color: white;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .callout-item strong {
+        font-size: 13px;
+      }
+
+      .callout-item p {
+        margin-top: 4px;
+        color: var(--ink-muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .flow-screen {
+        min-height: 620px;
+        background: white;
+      }
+
+      .media-state-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 18px;
+        min-height: 440px;
+        padding: 42px;
+        background: var(--surface-alt);
+      }
+
+      .media-state {
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: white;
+      }
+
+      .media-state h3 {
+        padding: 16px 16px 4px;
+        font-size: 16px;
+      }
+
+      .media-state > p {
+        min-height: 52px;
+        padding: 0 16px 14px;
+        color: var(--ink-muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .media-demo {
+        display: grid;
+        place-items: center;
+        aspect-ratio: 1;
+        border-top: 1px solid var(--line);
+        background: #f8fafc;
+      }
+
+      .media-demo.loading {
+        background:
+          linear-gradient(110deg, #e2e8f0 8%, #f8fafc 18%, #e2e8f0 33%);
+        background-size: 220% 100%;
+      }
+
+      .fallback-mark {
+        display: grid;
+        gap: 10px;
+        place-items: center;
+        padding: 22px;
+        color: var(--ink-muted);
+        text-align: center;
+      }
+
+      .fallback-icon {
+        display: grid;
+        place-items: center;
+        width: 52px;
+        height: 52px;
+        border: 2px solid #94a3b8;
+        border-radius: 50%;
+        font-size: 22px;
+      }
+
+      .responsive-preview-grid {
+        display: grid;
+        grid-template-columns: 390px 1fr 1.25fr;
+        align-items: start;
+        gap: 22px;
+        padding: 34px;
+        background: #dbe3ee;
+      }
+
+      .viewport-preview {
+        overflow: hidden;
+        border: 6px solid #0f172a;
+        border-radius: 22px;
+        background: white;
+        box-shadow: 0 14px 35px rgba(15, 23, 42, 0.18);
+      }
+
+      .viewport-label {
+        padding: 10px 14px;
+        background: #0f172a;
+        color: white;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .mini-catalog {
+        padding: 16px;
+      }
+
+      .mini-catalog h3 {
+        margin-bottom: 12px;
+        font-size: 16px;
+      }
+
+      .mini-grid {
+        display: grid;
+        gap: 10px;
+      }
+
+      .mini-grid.one {
+        grid-template-columns: 1fr;
+      }
+
+      .mini-grid.two {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .mini-grid.three {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .mini-card {
+        display: grid;
+        place-items: end start;
+        min-height: 112px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background:
+          linear-gradient(#f1f5f9 0 0) center 10px / calc(100% - 20px) 62% no-repeat,
+          white;
+        color: var(--ink-soft);
+        font-size: 10px;
+        font-weight: 700;
+      }
+
+      .mini-detail {
+        margin-top: 14px;
+        padding: 12px;
+        border-top: 1px solid var(--line);
+        background: var(--surface-alt);
+      }
+
+      .mini-main {
+        aspect-ratio: 1;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: white;
+      }
+
+      .mini-thumbs {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 5px;
+        margin-top: 7px;
+      }
+
+      .mini-thumbs span {
+        aspect-ratio: 1;
+        border: 1px solid #cbd5e1;
+        border-radius: 5px;
+        background: white;
+      }
+
+      .focus-storyboard {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+        padding: 28px;
+        border-bottom: 1px solid var(--line);
+        background: var(--surface-alt);
+      }
+
+      .focus-step {
+        padding: 18px;
+        border: 2px solid var(--brand-600);
+        border-radius: 10px;
+        background: white;
+      }
+
+      .focus-step strong {
+        display: block;
+        font-size: 13px;
+      }
+
+      .focus-step p {
+        margin-top: 5px;
+        color: var(--ink-muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .flow-track {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        border-bottom: 1px solid var(--line);
+      }
+
+      .flow-step {
+        min-height: 210px;
+        padding: 28px;
+        border-right: 1px solid var(--line);
+      }
+
+      .flow-step:last-child {
+        border-right: 0;
+      }
+
+      .flow-step span {
+        color: var(--brand-600);
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .flow-step h3 {
+        margin-top: 8px;
+        font-size: 20px;
+      }
+
+      .flow-step p {
+        margin-top: 10px;
+        color: var(--ink-muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .flow-step.removed {
+        background: repeating-linear-gradient(
+          -45deg,
+          #fff,
+          #fff 10px,
+          #f8fafc 10px,
+          #f8fafc 20px
+        );
+      }
+
+      .removed-label {
+        display: inline-flex;
+        margin-top: 16px;
+        padding: 5px 9px;
+        border-radius: 999px;
+        background: #fee2e2;
+        color: #991b1b;
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .enquiry-band {
+        display: grid;
+        place-items: center;
+        min-height: 320px;
+        padding: 44px;
+        background: var(--brand-950);
+        color: white;
+        text-align: center;
+      }
+
+      .enquiry-band h3 {
+        max-width: 650px;
+        margin-top: 10px;
+        font-size: 34px;
+      }
+
+      .enquiry-band p:not(.eyebrow) {
+        max-width: 640px;
+        margin-top: 12px;
+        color: #cbd5e1;
+        line-height: 1.6;
+      }
+
+      .enquiry-actions {
+        display: flex;
+        gap: 14px;
+        margin-top: 24px;
+      }
+
+      .sheet-notes {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        padding: 18px;
+        border-top: 1px solid #cbd5e1;
+        background: white;
+      }
+
+      .note {
+        padding: 12px 14px;
+        border-left: 3px solid var(--brand-600);
+        background: var(--surface-alt);
+        color: var(--ink-soft);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .note strong {
+        color: var(--ink);
+      }
+
+      @media (max-width: 1023px) {
+        .board {
+          width: min(100% - 24px, 1480px);
+        }
+
+        .sheet-label,
+        .frame-pair,
+        .form-screen,
+        .states-screen,
+        .detail-layout,
+        .expanded-layout,
+        .sheet-notes,
+        .flow-track {
+          grid-template-columns: 1fr;
+        }
+
+        .sheet-label {
+          display: grid;
+        }
+
+        .product-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .media-state-grid,
+        .responsive-preview-grid,
+        .focus-storyboard {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .flow-step {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+      }
+
+      @media (min-width: 1024px) and (max-width: 1279px) {
+        .product-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 639px) {
+        .board-header {
+          padding: 28px 18px;
+        }
+
+        .board {
+          width: calc(100% - 16px);
+        }
+
+        .product-grid,
+        .media-state-grid,
+        .responsive-preview-grid,
+        .focus-storyboard,
+        .state-samples {
+          grid-template-columns: 1fr;
+        }
+
+        .catalog-screen,
+        .detail-screen,
+        .expanded-layout,
+        .states-screen {
+          padding: 24px 16px;
+        }
+
+        .thumb-row {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .thumb-row .thumb {
+          width: 100%;
+          height: auto;
+          aspect-ratio: 1;
+        }
+
+        .view-all {
+          grid-column: 1 / -1;
+        }
+
+        .phone {
+          width: min(390px, 100%);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="board-header">
+      <h1>Headphones UI Intent: Reviewable Screen Board</h1>
+      <p>
+        Non-runtime design artifact. These screens convert the approved UI prose into concrete
+        compositions. They show intended hierarchy and behavior, not a deployed implementation.
+        Red callouts identify the most important differences from the current page.
+      </p>
+      <div class="legend">
+        <span class="tag deployed">P0 deployed: products visible after React mount</span>
+        <span class="tag planned">Planned: visual and performance MIUs</span>
+        <span class="tag">Viewports: 1440 / 1024 / 768 / 390</span>
+        <span class="tag">No image variants in this delivery</span>
+      </div>
+    </header>
+
+    <main class="board">
+      <article class="sheet" id="screen-select">
+        <header class="sheet-label">
+          <div>
+            <h2>Screen 01 - Shared Product Category Field</h2>
+            <p>
+              MIU 4. One real native select, shared by homepage and /oem. The closed control is
+              branded; capable Chromium receives the customizable native picker and other browsers
+              retain their native picker.
+            </p>
+          </div>
+          <span class="tag planned">Planned</span>
+        </header>
+        <section class="screen form-screen">
+          <div class="form-intro">
+            <p class="eyebrow">Start Your OEM Project</p>
+            <h3>Tell us what you want to build.</h3>
+            <p>
+              The category control should feel like the surrounding form, retain native validation,
+              and remain usable before JavaScript enhancement.
+            </p>
+          </div>
+          <div class="form-panel">
+            <div class="field-demo">
+              <label>Product Category <span class="required">*</span></label>
+              <div class="control focused open">
+                <span>Headphones</span><span class="chevron"></span>
+              </div>
+              <div class="picker">
+                <div class="option selected"><span>Headphones</span><span class="check">&#10003;</span></div>
+                <div class="option active"><span>Wearable Technology</span></div>
+                <div class="option"><span>Smart Home</span></div>
+                <div class="option"><span>Other</span></div>
+              </div>
+              <p class="hint">Choose the closest product family.</p>
+            </div>
+            <div class="state-samples">
+              <div class="state-sample">
+                <strong>Default</strong>
+                <div class="control"><span style="color:#64748b">Select a category...</span><span class="chevron"></span></div>
+              </div>
+              <div class="state-sample">
+                <strong>Hover</strong>
+                <div class="control hovered"><span style="color:#64748b">Select a category...</span><span class="chevron"></span></div>
+              </div>
+              <div class="state-sample">
+                <strong>Focus visible (closed)</strong>
+                <div class="control focused"><span style="color:#64748b">Select a category...</span><span class="chevron"></span></div>
+              </div>
+              <div class="state-sample">
+                <strong>Closed selected</strong>
+                <div class="control"><span>Headphones</span><span class="chevron"></span></div>
+              </div>
+              <div class="state-sample">
+                <strong>Disabled</strong>
+                <div class="control disabled"><span>Headphones</span><span class="chevron"></span></div>
+              </div>
+              <div class="state-sample">
+                <strong>Invalid</strong>
+                <div class="control invalid"><span style="color: #64748b">Select a category...</span><span class="chevron"></span></div>
+                <p class="error-text">Choose a product category.</p>
+              </div>
+              <div class="state-sample">
+                <strong>Classic native fallback</strong>
+                <select class="native-select" aria-label="Product Category fallback">
+                  <option>Select a category...</option><option>Headphones</option><option>Other</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <span class="annotation" style="right: 62px; top: 104px">1</span>
+          <span class="annotation" style="right: 62px; bottom: 100px">2</span>
+        </section>
+        <footer class="sheet-notes">
+          <div class="note"><strong>1. One control:</strong> no hidden duplicate and no page-local listbox state machine.</div>
+          <div class="note"><strong>2. Full states:</strong> default, hover, closed focus, open, active, selected, invalid, disabled, and native fallback.</div>
+          <div class="note"><strong>Proof:</strong> keyboard, no-JS visibility, form.elements serialization, and native required focus.</div>
+        </footer>
+      </article>
+
+      <article class="sheet" id="screen-hero">
+        <header class="sheet-label">
+          <div>
+            <h2>Screen 02 - Product-Led Hero, Desktop and Mobile</h2>
+            <p>
+              MIUs 7, 8, and 12. This desktop canvas has a 1360px minimum so the shared header is
+              never squeezed in a narrow document preview. Mobile changes reading order so the next
+              Product Line section remains visible in the first 844px viewport.
+            </p>
+          </div>
+          <span class="tag planned">Planned</span>
+        </header>
+        <div class="frame-pair">
+          <section class="screen desktop">
+            <nav class="site-nav">
+              <div class="brand">Diversity Technology</div>
+              <div class="site-links"><span>Products</span><span>OEM Services</span><span>Portfolio</span><span>About</span></div>
+              <span class="btn accent" style="min-height: 38px; padding: 0 15px">Start a Project</span>
+            </nav>
+            <div class="hero">
+              <div class="hero-copy">
+                <p class="eyebrow">Factory-Direct Headphones</p>
+                <h3>OEM Headphones, Built for Your Brand</h3>
+                <p>
+                  From concept to mass production, source inspectable wired, office, and Bluetooth
+                  models with custom branding and dependable export support.
+                </p>
+                <div class="proof-row"><span>MOQ from 500</span><span>OEM / ODM</span><span>Global delivery</span></div>
+                <div class="hero-actions">
+                  <span class="btn accent">Request a Quote</span>
+                  <span class="btn quiet-dark">Browse Products</span>
+                </div>
+              </div>
+              <div class="hero-product">
+                <img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/0e0afdc26a68209e00523aa031e56460" alt="Reviewed hero headphone product" />
+              </div>
+              <span class="annotation" style="right: 28px; top: 55px">1</span>
+              <span class="annotation" style="left: 34px; bottom: 40px">2</span>
+            </div>
+            <div class="next-section-hint">
+              <div><p class="eyebrow">Product Line</p><h3>Explore Our Headphone Collection</h3></div>
+              <span class="progress-copy">5 published models</span>
+            </div>
+          </section>
+          <aside class="phone-wrap">
+            <div class="phone">
+              <nav class="mobile-nav"><span class="brand" style="font-size: 13px">Diversity</span><span class="menu-lines"></span></nav>
+              <section class="mobile-hero">
+                <p class="eyebrow">Factory-Direct Headphones</p>
+                <h3>OEM Headphones, Built for Your Brand</h3>
+                <p>Custom wired, office, and Bluetooth models from concept to mass production.</p>
+                <div class="mobile-stage">
+                  <img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/0e0afdc26a68209e00523aa031e56460" alt="Reviewed hero headphone product" />
+                </div>
+                <div class="mobile-proof"><span>MOQ 500</span><span>OEM / ODM</span><span>Global delivery</span></div>
+                <div class="mobile-actions"><span class="btn accent">Request a Quote</span><span class="text-link">Browse Products -></span></div>
+              </section>
+              <section class="mobile-next"><p class="eyebrow">Product Line</p><h4>Explore the collection</h4></section>
+            </div>
+          </aside>
+        </div>
+        <footer class="sheet-notes">
+          <div class="note"><strong>1. Real media:</strong> reviewed image ID through the gated API, no copied public derivative.</div>
+          <div class="note"><strong>2. Fewer claims:</strong> three compact facts replace four promotional badge cards.</div>
+          <div class="note"><strong>Shared header protected:</strong> desktop uses the real no-wrap/overflow contract; mobile keeps the existing menu lane.</div>
+        </footer>
+      </article>
+
+      <article class="sheet" id="screen-catalog">
+        <header class="sheet-label">
+          <div>
+            <h2>Screen 03 - Product Catalog Success and Load More</h2>
+            <p>
+              MIUs 9, 10, and 13. Twelve products per request, stable grouped cards, explicit result
+              progress, and a user-triggered next page instead of silently capping at 48.
+            </p>
+          </div>
+          <div class="legend" style="margin-top: 0"><span class="tag deployed">Visibility deployed: 741b0af</span><span class="tag planned">Catalog redesign planned</span></div>
+        </header>
+        <section class="screen catalog-screen">
+          <header class="catalog-heading">
+            <div><p class="eyebrow">Product Line</p><h3>Explore Our Headphone Collection</h3><p>Compare models, commercial details, and specifications before starting an OEM enquiry.</p></div>
+            <span class="progress-copy">Showing 12 of 18 models</span>
+          </header>
+          <div class="group-heading"><h4>Bluetooth Headphones</h4><span class="count">18 models</span></div>
+          <div class="product-grid">
+            <article class="product-card">
+              <div class="product-media"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/483207676a69b12900a5f0791337bc14" alt="SY-T8 Wireless Headphone" /></div>
+              <div class="card-copy"><h4>SY-T8 Wireless Headphone</h4><p class="model">SY-T8</p><p class="description">Foldable over-ear wireless model for OEM branding and bulk programs.</p><div class="commercial"><span>MOQ 500</span><span class="price">$12.50</span></div><p class="card-action">View details -></p></div>
+            </article>
+            <article class="product-card">
+              <div class="product-media"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/0e0afdc26a68209e00523aa031e56460" alt="Foldable wired headphones" /></div>
+              <div class="card-copy"><h4>Foldable Stereo Headphones</h4><p class="model">DT-H100</p><p class="description">Wired stereo design with compact folding hinges and replaceable cushions.</p><div class="commercial"><span>MOQ 500</span><span class="price">$9.80</span></div><p class="card-action">View details -></p></div>
+            </article>
+            <article class="product-card">
+              <div class="product-media"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/7b76ee416a68209d0110670520562928" alt="Black and white headphones" /></div>
+              <div class="card-copy"><h4>Office Call Headset</h4><p class="model">DT-O220</p><p class="description">Lightweight call headset with clear voice pickup for office programs.</p><div class="commercial"><span>MOQ 300</span><span class="price">$14.20</span></div><p class="card-action">View details -></p></div>
+            </article>
+            <article class="product-card">
+              <div class="product-media"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/0e0afdc26a68209c00523a7b50cb8647" alt="Red and white headphones" /></div>
+              <div class="card-copy"><h4>Kids Volume-Limited Headphones</h4><p class="model">DT-K80</p><p class="description">Volume-limited fit with durable headband options for education channels.</p><div class="commercial"><span>MOQ 500</span><span class="price">$8.60</span></div><p class="card-action">View details -></p></div>
+            </article>
+            <article class="product-card">
+              <div class="product-media"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/483207676a69b12900a5f0791337bc14" alt="Wireless headphone product" /></div>
+              <div class="card-copy"><h4>Wireless Travel Headphones</h4><p class="model">DT-T90</p><p class="description">Compact travel model with folding arms and configurable color finishes.</p><div class="commercial"><span>MOQ 500</span><span class="price">$11.40</span></div><p class="card-action">View details -></p></div>
+            </article>
+            <article class="product-card">
+              <div class="product-media"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/0e0afdc26a68209e00523aa031e56460" alt="Studio headphone product" /></div>
+              <div class="card-copy"><h4>Studio Monitoring Headphones</h4><p class="model">DT-S240</p><p class="description">Closed-back monitoring model for private-label studio and creator ranges.</p><div class="commercial"><span>MOQ 300</span><span class="price">$16.80</span></div><p class="card-action">View details -></p></div>
+            </article>
+            <article class="product-card">
+              <div class="product-media"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/7b76ee416a68209d0110670520562928" alt="Office wireless headset product" /></div>
+              <div class="card-copy"><h4>Wireless Office Headset</h4><p class="model">DT-O360</p><p class="description">Dual-mode office headset with boom microphone and charging stand options.</p><div class="commercial"><span>MOQ 300</span><span class="price">$18.20</span></div><p class="card-action">View details -></p></div>
+            </article>
+            <article class="product-card">
+              <div class="product-media"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/0e0afdc26a68209c00523a7b50cb8647" alt="Color headphone product" /></div>
+              <div class="card-copy"><h4>Color Edition Headphones</h4><p class="model">DT-C120</p><p class="description">Retail-ready platform with configurable plastics, cushions, logo, and packaging.</p><div class="commercial"><span>MOQ 500</span><span class="price">$10.10</span></div><p class="card-action">View details -></p></div>
+            </article>
+            <article class="product-card">
+              <div class="product-media"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/483207676a69b12900a5f0791337bc14" alt="Noise cancelling headphone product" /></div>
+              <div class="card-copy"><h4>ANC Wireless Headphones</h4><p class="model">DT-A500</p><p class="description">Active-noise-cancelling platform for travel, lifestyle, and loyalty programs.</p><div class="commercial"><span>MOQ 500</span><span class="price">$21.50</span></div><p class="card-action">View details -></p></div>
+            </article>
+            <article class="product-card">
+              <div class="product-media"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/0e0afdc26a68209e00523aa031e56460" alt="Wired headphone product" /></div>
+              <div class="card-copy"><h4>Entry Wired Headphones</h4><p class="model">DT-E60</p><p class="description">Dependable wired model for education, hospitality, and promotional programs.</p><div class="commercial"><span>MOQ 1000</span><span class="price">$6.90</span></div><p class="card-action">View details -></p></div>
+            </article>
+            <article class="product-card">
+              <div class="product-media"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/7b76ee416a68209d0110670520562928" alt="USB headset product" /></div>
+              <div class="card-copy"><h4>USB Training Headset</h4><p class="model">DT-U180</p><p class="description">Plug-and-play USB headset with replaceable pads and inline controls.</p><div class="commercial"><span>MOQ 300</span><span class="price">$13.40</span></div><p class="card-action">View details -></p></div>
+            </article>
+            <article class="product-card">
+              <div class="product-media"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/0e0afdc26a68209c00523a7b50cb8647" alt="Kids wireless headphone product" /></div>
+              <div class="card-copy"><h4>Kids Wireless Headphones</h4><p class="model">DT-K120</p><p class="description">Wireless volume-limited platform with durable controls and soft cushions.</p><div class="commercial"><span>MOQ 500</span><span class="price">$10.80</span></div><p class="card-action">View details -></p></div>
+            </article>
+          </div>
+          <div class="load-more"><span class="btn outline">Load 6 More Models</span><span>12 loaded - 6 remaining</span></div>
+          <span class="annotation" style="right: 38px; top: 52px">1</span>
+          <span class="annotation" style="left: 50%; bottom: 60px">2</span>
+        </section>
+        <footer class="sheet-notes">
+          <div class="note"><strong>1. Honest count:</strong> result progress and category counts remain visible.</div>
+          <div class="note"><strong>2. Explicit paging:</strong> next request happens only after Load More, with abort and ID dedupe.</div>
+          <div class="note"><strong>Performance:</strong> one lazy primary image per card; stable square geometry prevents layout shift.</div>
+        </footer>
+      </article>
+
+      <article class="sheet" id="screen-states">
+        <header class="sheet-label">
+          <div>
+            <h2>Screen 04 - Catalog Loading, Error, and Empty States</h2>
+            <p>MIU 10. Mutually exclusive states match final geometry and always offer a useful next action.</p>
+          </div>
+          <span class="tag planned">Planned</span>
+        </header>
+        <section class="screen states-screen">
+          <article class="state-panel">
+            <h3>Loading</h3><p>Reserved card geometry; animation turns off under reduced motion.</p>
+            <div class="skeleton-grid"><div class="skeleton-card"><div class="skeleton-image"></div><div class="skeleton-copy"></div></div><div class="skeleton-card"><div class="skeleton-image"></div><div class="skeleton-copy"></div></div></div>
+          </article>
+          <article class="state-panel">
+            <h3>Request failed</h3><p>Loaded content is retained for a later-page failure; initial failure shows this full-width recovery state.</p>
+            <div class="status-band"><strong>We could not load the product line.</strong><p>Check your connection and try the catalog request again.</p><span class="btn brand-button">Try Again</span></div>
+          </article>
+          <article class="state-panel">
+            <h3>No published models</h3><p>Empty is not rendered as broken cards or a blank page.</p>
+            <div class="empty-state"><div><strong>No models are available yet.</strong><p>Tell us what you need and our OEM team can prepare suitable options.</p><span class="btn outline">Start an OEM Enquiry</span></div></div>
+          </article>
+          <article class="state-panel">
+            <h3>Loading more</h3><p>Existing products stay usable while the next explicit page request is pending.</p>
+            <div class="status-band" style="border-color:#bfdbfe;background:#eff6ff"><strong style="color:#1d4ed8">Loading 6 more models...</strong><p style="color:#334155">The button is busy and disabled; cards already loaded remain visible.</p><span class="btn outline">Loading...</span></div>
+          </article>
+          <article class="state-panel">
+            <h3>Later page failed</h3><p>The 12 loaded models remain visible and the retry applies only to the failed page.</p>
+            <div class="status-band"><strong>More models could not be loaded.</strong><p>Keep browsing the current results or retry page 2.</p><span class="btn outline">Retry Load More</span></div>
+          </article>
+          <article class="state-panel">
+            <h3>All results loaded</h3><p>No disabled theatrical button remains after the final page.</p>
+            <div class="empty-state"><div><strong>All 18 models are shown.</strong><p>Continue comparing products or start an OEM enquiry.</p></div></div>
+          </article>
+        </section>
+        <footer class="sheet-notes">
+          <div class="note"><strong>Loading:</strong> geometry matches cards and does not hide behind .reveal.</div>
+          <div class="note"><strong>Error:</strong> specific recovery action and polite live-region announcement.</div>
+          <div class="note"><strong>Empty:</strong> explains the state and routes to a real next step.</div>
+        </footer>
+      </article>
+
+      <article class="sheet" id="screen-media-states">
+        <header class="sheet-label">
+          <div><h2>Screen 05 - Product Media States</h2><p>MIUs 8 and 12. Loading and terminal fallbacks reserve the same geometry as successful product media.</p></div>
+          <span class="tag planned">Planned</span>
+        </header>
+        <section class="screen media-state-grid">
+          <article class="media-state"><h3>Hero loading</h3><p>Reserved stage, low motion only, no layout jump.</p><div class="media-demo loading"></div></article>
+          <article class="media-state"><h3>Hero fallback</h3><p>All reviewed gated sources failed. The CTA and layout remain usable.</p><div class="media-demo"><div class="fallback-mark"><span class="fallback-icon">!</span><strong>Product image unavailable</strong></div></div></article>
+          <article class="media-state"><h3>Card fallback</h3><p>Product identity remains visible; failed media does not retry in a loop.</p><div class="media-demo"><div class="fallback-mark"><span class="fallback-icon">+</span><strong>SY-T8 image unavailable</strong></div></div></article>
+          <article class="media-state"><h3>Detail fallback</h3><p>The 520px inspection frame stays stable and thumbnails remain operable.</p><div class="media-demo"><div class="fallback-mark"><span class="fallback-icon">x</span><strong>Alternate view unavailable</strong></div></div></article>
+        </section>
+      </article>
+
+      <article class="sheet" id="screen-detail">
+        <header class="sheet-label">
+          <div>
+            <h2>Screen 06 - Compact In-Page Product Detail</h2>
+            <p>
+              MIUs 8, 11, and 13. This is not a viewer or modal. The main image is contained and
+              capped at 520px, with four initial thumbnails and an explicit View All command.
+            </p>
+          </div>
+          <span class="tag planned">Planned</span>
+        </header>
+        <section class="screen detail-screen">
+          <span class="back-link"><- Back to all models</span>
+          <div class="detail-layout">
+            <div>
+              <div class="main-frame"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/483207676a69b12900a5f0791337bc14" alt="SY-T8 Wireless Headphone" /></div>
+              <div class="thumb-row">
+                <div class="thumb active"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/483207676a69b12900a5f0791337bc14" alt="" /></div>
+                <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/179185b66a69b1330087ce9a7405bfe2" alt="" /></div>
+                <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/0e0afdc26a69b15b0076c13e2b788783" alt="" /></div>
+                <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/7b76ee416a69b172015a1519130d2ab2" alt="" /></div>
+                <button class="view-all" type="button">View All 18</button>
+              </div>
+            </div>
+            <div class="detail-copy">
+              <span class="count">Bluetooth</span><h3>SY-T8 Wireless Headphone</h3><p>Foldable over-ear wireless headphones prepared for OEM branding and bulk supply.</p>
+              <div class="spec-list"><div class="spec-row"><span>Series</span><strong>SY Series</strong></div><div class="spec-row"><span>Model</span><strong>SY-T8</strong></div><div class="spec-row"><span>Type</span><strong>Over-ear / Foldable</strong></div><div class="spec-row"><span>MOQ</span><strong>500 units</strong></div></div>
+              <div class="pricing-box"><strong>Contact for wholesale pricing</strong><span>VIP pricing remains server-projected and role-gated.</span></div>
+              <span class="btn accent">Start an OEM Enquiry</span>
+            </div>
+          </div>
+          <span class="annotation" style="left: 52px; top: 106px">1</span>
+          <span class="annotation" style="left: 492px; bottom: 74px">2</span>
+        </section>
+        <footer class="sheet-notes">
+          <div class="note"><strong>1. Stable inspection:</strong> object-contain, 520px max, no automatic hover pan.</div>
+          <div class="note"><strong>2. Four previews:</strong> images 5-18 do not mount until View All.</div>
+          <div class="note"><strong>Focus:</strong> card -> detail heading; Back closes and restores the originating card.</div>
+        </footer>
+      </article>
+
+      <article class="sheet" id="screen-expanded-gallery">
+        <header class="sheet-label">
+          <div>
+            <h2>Screen 07 - View All Expands Inline</h2>
+            <p>
+              MIU 8. Remaining thumbnails wrap inside the detail column. There is no backdrop,
+              body-scroll lock, focus trap, image-owned scrolling, or horizontal page overflow.
+            </p>
+          </div>
+          <span class="tag planned">Planned</span>
+        </header>
+        <section class="screen expanded-layout">
+          <div>
+            <div class="main-frame"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/483207676a69b12900a5f0791337bc14" alt="SY-T8 primary product view" /></div>
+            <div class="thumb-grid">
+              <div class="thumb active focused"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/483207676a69b12900a5f0791337bc14" alt="" /></div>
+              <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/179185b66a69b1330087ce9a7405bfe2" alt="" /></div>
+              <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/0e0afdc26a69b15b0076c13e2b788783" alt="" /></div>
+              <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/7b76ee416a69b172015a1519130d2ab2" alt="" /></div>
+              <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/179185b66a69b1810087d46f2ece2d26" alt="" /></div>
+              <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/179185b66a69b1950087d5d3707b7f25" alt="" /></div>
+              <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/483207676a69b1ae00a5fb0c28310349" alt="" /></div>
+              <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/483207676a69b1b700a5fbf53f4ff493" alt="" /></div>
+              <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/0e0afdc26a69b1c00076c93b7e2d9b4a" alt="" /></div>
+              <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/483207676a69b1c900a5fdb42ac3bc66" alt="" /></div>
+              <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/0e0afdc26a69b1ce0076ca2269250d20" alt="" /></div>
+              <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/0e0afdc26a69b1d50076ca8e0c941967" alt="" /></div>
+              <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/483207676a69b1ec00a600f83498ad10" alt="" /></div>
+              <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/179185b66a69b1f30087deeb43f3f7d8" alt="" /></div>
+              <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/7b76ee416a69b1fa015a7847291b3c37" alt="" /></div>
+              <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/179185b66a69b1ff0087dfd161209591" alt="" /></div>
+              <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/7b76ee416a69b203015a7eba627198e2" alt="" /></div>
+              <div class="thumb"><img src="https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/images/7b76ee416a69b207015a81180d53db5c" alt="" /></div>
+            </div>
+          </div>
+          <aside class="callout-panel">
+            <p class="eyebrow">Behavior Contract</p><h3>Expanded, not enlarged.</h3>
+            <div class="callout-list">
+              <div class="callout-item"><span class="callout-num">1</span><div><strong>Same 520px main frame</strong><p>View All never resizes the hero image or changes the details column.</p></div></div>
+              <div class="callout-item"><span class="callout-num">2</span><div><strong>Wrapped thumbnail grid</strong><p>Every remaining image becomes reachable without page-level horizontal scrolling.</p></div></div>
+              <div class="callout-item"><span class="callout-num">3</span><div><strong>Lazy discovery</strong><p>Only after this command may the browser discover images 5-18.</p></div></div>
+              <div class="callout-item"><span class="callout-num">4</span><div><strong>No hover zoom</strong><p>Pointer movement does not hide, magnify, or pan the active image.</p></div></div>
+            </div>
+          </aside>
+        </section>
+      </article>
+
+      <article class="sheet" id="screen-responsive-focus">
+        <header class="sheet-label">
+          <div><h2>Screen 08 - Responsive and Keyboard Contract</h2><p>MIU 13. Explicit 390/768/1024 layouts and the card-to-detail-to-card focus cycle.</p></div>
+          <span class="tag planned">Planned</span>
+        </header>
+        <section class="responsive-preview-grid">
+          <div class="viewport-preview"><div class="viewport-label">390px - one column</div><div class="mini-catalog"><h3>Product Line</h3><div class="mini-grid one"><div class="mini-card">Product card</div><div class="mini-card">Product card</div></div><div class="mini-detail"><div class="mini-main"></div><div class="mini-thumbs"><span></span><span></span><span></span><span></span></div><button class="view-all" style="width:100%;margin-top:7px">View All 18</button></div></div></div>
+          <div class="viewport-preview"><div class="viewport-label">768px - two columns</div><div class="mini-catalog"><h3>Product Line</h3><div class="mini-grid two"><div class="mini-card">Product card</div><div class="mini-card">Product card</div><div class="mini-card">Product card</div><div class="mini-card">Product card</div></div></div></div>
+          <div class="viewport-preview"><div class="viewport-label">1024px - three columns</div><div class="mini-catalog"><h3>Product Line</h3><div class="mini-grid three"><div class="mini-card">Product card</div><div class="mini-card">Product card</div><div class="mini-card">Product card</div><div class="mini-card">Product card</div><div class="mini-card">Product card</div><div class="mini-card">Product card</div></div></div></div>
+        </section>
+        <section class="focus-storyboard">
+          <div class="focus-step"><strong>1. Product card focused</strong><p>Enter activates in-page detail and records this exact origin.</p></div>
+          <div class="focus-step"><strong>2. Detail heading focused</strong><p>The expanded section is announced; selected thumbnail and keyboard focus are separate states.</p></div>
+          <div class="focus-step"><strong>3. Back restores card</strong><p>Closing detail returns focus to the originating card, including reduced-motion mode.</p></div>
+        </section>
+      </article>
+
+      <article class="sheet" id="screen-flow">
+        <header class="sheet-label">
+          <div>
+            <h2>Screen 09 - Focused Page Flow and Enquiry</h2>
+            <p>
+              MIUs 11-13. Headphones becomes a product discovery page. Generic factory, quality,
+              certification, and customer proof stays on /oem and /portfolio instead of repeating
+              as decorative cards here.
+            </p>
+          </div>
+          <span class="tag planned">Planned</span>
+        </header>
+        <section class="screen flow-screen">
+          <div class="flow-track">
+            <div class="flow-step"><span>01</span><h3>Product Hero</h3><p>Literal offer, real gated product image, three factual proof points, and two clear paths.</p></div>
+            <div class="flow-step"><span>02</span><h3>Product Matrix</h3><p>Grouped cards, four async states, result progress, explicit Load More, and role-safe pricing.</p></div>
+            <div class="flow-step"><span>03</span><h3>Optional Detail</h3><p>In-page inspection, bounded gallery, specifications, pricing, focus return, and enquiry navigation.</p></div>
+            <div class="flow-step removed"><span>REMOVED</span><h3>Duplicate Proof Cards</h3><p>Factory Strength, Quality, Certifications, and Global Clients are owned by canonical pages.</p><span class="removed-label">Not restyled - removed</span></div>
+          </div>
+          <div class="enquiry-band">
+            <div><p class="eyebrow" style="color: var(--accent-400)">Request a Quote</p><h3>Ready to discuss your headphone line?</h3><p>Share target markets, volume, branding, and compliance needs through the real OEM enquiry path.</p><div class="enquiry-actions"><span class="btn accent">Start an OEM Enquiry</span><span class="btn quiet-dark">Explore OEM Capabilities</span></div></div>
+          </div>
+        </section>
+        <footer class="sheet-notes">
+          <div class="note"><strong>Single purpose:</strong> discover -> inspect -> enquire.</div>
+          <div class="note"><strong>No simulated success:</strong> Headphones links to the real OEM form instead of the local delay-only modal.</div>
+          <div class="note"><strong>Content ownership:</strong> /oem owns capability; /portfolio owns proof.</div>
+        </footer>
+      </article>
+    </main>
+  </body>
+</html>

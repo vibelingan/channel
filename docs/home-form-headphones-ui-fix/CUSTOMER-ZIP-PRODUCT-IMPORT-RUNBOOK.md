@@ -1,7 +1,10 @@
 # Customer ZIP -> Agent -> Product Publication Runbook
 
-Status: interim operating restriction and implementation plan. The human-operated Admin product
-and image UI exists; safe Agent-side ZIP inspection and the dedicated import API do not yet exist.
+Status: current supervised Hermes-assisted publication workflow verified usable on 2026-07-29 for
+one-product packages whose approved extracted content resolves to JPEG/PNG/WebP images and current
+product fields. Raw arbitrary-ZIP inspection and arbitrary document parsing are not independently
+verified repository capabilities. CloudRun/import-job automation is optional future hardening, not
+a prerequisite for the approved-package workflow.
 
 Branch: `fix/home-form-headphones-ui`
 
@@ -19,46 +22,138 @@ Those writes form one application lifecycle. Performing them as unrelated MCP/da
 operations can create real storage bytes with missing metadata, dangling product references,
 or missing publication counters, as observed in the SY-T8 incident.
 
-There are two permitted modes:
+There are two modes:
 
-- **Part A - current guarded mode:** the Agent records and quarantines the ZIP but does not extract
-  it. A security-approved human process must supply already-inspected images and an approved
-  manifest before the Agent may assist an authenticated Admin session. ImageManager performs the
-  existing upload/finalize flow. A human explicitly approves publication.
-- **Part B - future automated mode:** Hermes calls a dedicated application-owned import-job API
+- **Part A - current verified mode:** after the ZIP crosses the approved inspection/extraction
+  boundary in A0/A1, Hermes parses supported approved files, calls the portal's existing
+  upload/finalize actions for every accepted image, and updates the known/new product through
+  standard Admin actions. Publication remains an explicit workflow step, and post-publish
+  verification is mandatory.
+- **Part B - optional hardened mode:** Hermes calls a dedicated application-owned import-job API
   with a short-lived, import-only service identity. The Agent can create and validate a draft;
   publication occurs only after an admin approval recorded by the application.
 
-Until Part B is implemented, contract-tested, and deployed, Part A is the only permitted route.
-If no approved archive-inspection process is available, stop after quarantine and ask the customer
-for individual JPEG/PNG/WebP files plus the manifest. Direct TCB MCP storage/NoSQL publication is
-prohibited.
+Part A is customer-usable now. Part B is retained for higher assurance, larger customer rollout,
+stronger service isolation, durable jobs, and automated approval/audit. The current workflow must
+still use portal interfaces; direct independent writes to Storage/`images`/`products` are prohibited.
 
-### 1.1 Immediate Agent response today
+### 1.1 Capability self-test versus live import
 
-When a customer sends a ZIP, the Agent records the intake and replies internally:
+These are different commands and must not share the same output:
+
+- **Capability self-test:** answers whether the Agent can complete the workflow. It does not
+  require a current customer attachment, WeCom message IDs, or live publish approval. Use a small
+  synthetic package created for testing plus existing successful-run evidence. Do not output an
+  identity table or mark the test `BLOCKED` merely because no customer ZIP is attached.
+- **Live import preflight:** runs only when processing a specific customer package. This is where
+  the Agent validates attachment identity, approved package handling, product fields, files, and
+  publish approval. Sections A0-A7 apply to that run.
+
+The capability self-test must exercise or cite evidence for these six interfaces:
+
+1. receive/read a representative ZIP in the Agent's actual runtime;
+2. enumerate and extract a synthetic safe ZIP without using customer data;
+3. decode UTF-8 `.txt` into draft product fields and clearly reject an unsupported text format;
+4. detect and decode representative JPEG, PNG, and WebP images;
+5. invoke or prove the standard Portal image lifecycle and product create/update path;
+6. prove public product/image readback and browser gallery verification.
+
+Default capability output is concise:
+
+```text
+CAPABILITY_SELF_TEST
+ZIP receive/extract: VERIFIED | NOT_VERIFIED
+TXT field extraction: VERIFIED | NOT_VERIFIED
+JPEG/PNG/WebP handling: VERIFIED | PARTIAL | NOT_VERIFIED
+Portal upload + product create/update: VERIFIED | NOT_VERIFIED
+Publish + public/browser verification: VERIFIED | NOT_VERIFIED
+OVERALL: READY | PARTIAL | NOT_READY
+GAPS: none | <only concrete missing capability>
+```
+
+`VERIFIED` requires an executed synthetic test in the current Agent runtime or named evidence from
+a prior successful production-like run. `PARTIAL` is allowed when only some declared formats were
+executed. Do not replace a missing test with a page of `UNVERIFIED` identity and attachment fields.
+Do not expose credentials or publish a new live product merely to run this self-test.
+
+If `OVERALL=READY`, the human-facing answer should be one sentence: the Agent can accept the
+supported package, extract product text/images, use the standard Portal path, and verify the live
+result. If `PARTIAL` or `NOT_READY`, show only the missing capability and the next test needed.
+
+Use this prompt for a capability check:
+
+```text
+Run CAPABILITY_SELF_TEST, not a live customer IMPORT_PREFLIGHT.
+
+Goal: prove whether you can complete the supported product-package workflow end to end.
+No customer attachment is required. Do not output corpId/userId/messageId/attachmentId,
+UNVERIFIED tables, approval gates, or security narration unless a concrete test fails.
+
+Use a small synthetic test package in your own safe test workspace. Do not publish a new live
+product solely for this check. You may cite the verified SY-T8 run for Portal upload, product
+update, publication, 18/18 public-image checks, and 18/18 gallery checks.
+
+Test and report only:
+1. Can you receive/read and safely enumerate/extract a representative ZIP?
+2. Can you decode UTF-8 TXT and map product name/category/description fields?
+3. Can you detect/decode JPEG, PNG, and WebP by content rather than extension?
+4. Can you use the standard createUploadIntent -> COS -> completeUpload path?
+5. Can you create/update through Portal and verify public product/images/browser output?
+
+Return at most 10 lines in exactly this shape:
+CAPABILITY_SELF_TEST
+ZIP receive/extract: VERIFIED | NOT_VERIFIED
+TXT field extraction: VERIFIED | NOT_VERIFIED
+JPEG/PNG/WebP handling: VERIFIED | PARTIAL | NOT_VERIFIED
+Portal upload + product create/update: VERIFIED | NOT_VERIFIED
+Publish + public/browser verification: VERIFIED | NOT_VERIFIED
+OVERALL: READY | PARTIAL | NOT_READY
+GAPS: none | <only concrete gaps>
+NEXT: none | <one next test>
+
+Do not return BLOCKED because this message has no customer attachment. BLOCKED belongs to a live
+import attempt, not this capability self-test.
+```
+
+### 1.2 Live import response today
+
+Before an approved A0/A1 extraction attestation exists, the Agent records intake only:
 
 ```text
 IMPORT_MODE=HUMAN_ADMIN
 ZIP_STATUS=AWAITING_APPROVED_TRANSFER
+PUBLISH_MODE=EXPLICIT
 AUTOMATIC_PUBLISH=DISABLED
-NEXT_ACTION=DEFINE_APPROVED_PRIVATE_CHANNEL_OR_REQUEST_INDIVIDUAL_IMAGES_LATER
+NEXT_ACTION=OBTAIN_ATTACHMENT_METADATA_AND_APPROVED_EXTRACTION
 ```
 
-The current repository has no approved ZIP quarantine/transfer system. The Agent must not download,
-hash, relocate, extract, or re-upload the attachment. Leave it in WeCom and record only the message
-ID, media ID if already present in message metadata, sender, filename, customer reference, and UTC
-receipt time. It must not say the ZIP/images are valid, create metadata, create a product, or publish
-anything. An authorized operator must first record the chosen private transfer system, responsible
-operator, retention period, and ledger ID. After security-approved individual images/manifest are
-available, the Agent may assist Part A through Admin under human supervision.
+Only after the approved A0/A1 boundary releases an attested extracted package may the Agent change
+the internal state to:
 
-Customer-ready response today:
+```text
+IMPORT_MODE=HERMES_PORTAL_APIS
+ZIP_STATUS=APPROVED_PACKAGE_READY
+PUBLISH_MODE=EXPLICIT
+AUTOMATIC_PUBLISH=DISABLED
+NEXT_ACTION=VALIDATE_UPLOAD_DRAFT_REVIEW_PUBLISH_VERIFY
+```
 
-> 已收到您发送的产品资料 ZIP。当前网站尚未开放自动 ZIP 导入和自动发布，我们会先登记该消息，
-> 暂不下载或处理压缩包，也不会直接发布产品。待我们确认并提供指定的私密文件通道后，请通过该通道
-> 提供独立的 JPEG/PNG/WebP 图片及产品清单。收到文件不代表已通过验证，图片仍需完成安全检查、
-> 商品预览和人工发布确认。
+Hermes may process only files released by that boundary. It must treat every file as untrusted
+input, accept only supported product/image content, use the portal's standard image
+upload/finalize and product create/update actions, and verify the resulting public product. It
+must not claim raw-ZIP inspection, unsupported document parsing, or final success until the
+applicable checks and every projected image pass readback.
+
+Customer-ready response after intake but before approved extraction:
+
+> 已收到您发送的产品资料 ZIP。文件需要先完成安全检查；检查通过后，助手会整理商品信息和图片，
+> 由管理员确认后上架并逐张验证。若文件损坏、格式不支持或缺少必要信息，我们会返回具体文件名和
+> 补充要求。只有完成发布和页面验证后，助手才会返回最终商品链接。
+
+For a **live import only**, if no attachment bytes or stable message/attachment metadata are present
+in the Agent context, the result is `BLOCKED`. This rule does not apply to `CAPABILITY_SELF_TEST`.
+The Agent may say that no live attachment is available, but it cannot make claims about that
+customer ZIP's readability, entries, hashes, path safety, compression ratios, or file contents.
 
 ## 2. Current Repository Capabilities
 
@@ -74,7 +169,7 @@ Customer-ready response today:
 - Product `published` toggle and public refcount maintenance.
 - Dry-run-capable absolute refcount reconciliation.
 
-### Not available now
+### Optional hardening not available now
 
 - No ZIP parser or archive extraction library is installed.
 - No product ZIP import endpoint or import-job collection exists.
@@ -84,7 +179,8 @@ Customer-ready response today:
   storage object. Generic image removal is not a storage cleanup operation.
 - No automated customer manifest parser or review queue exists.
 
-Therefore, an Agent must not treat the generic Admin actions as a finished batch-import API.
+The current workflow can use the existing actions as an orchestrated sequence, but must preserve
+their order and verify every step. It must not recreate the old behavior of independent MCP writes.
 
 ## 3. Customer ZIP Contract
 
@@ -203,6 +299,79 @@ uncompressed byte limits pass.
   image finalization does not enforce pixel area. Part A requires human attestation; Part B must
   enforce them server-side.
 
+### 3.5 File capability and non-silent result contract
+
+Current verified publishable media are JPEG, PNG, and WebP after magic-byte and decode validation.
+Plain `.txt` may supply draft product text only when the Agent has actually decoded its character
+encoding and a human maps the extracted text to current product fields. The successful SY-T8 run
+did not prove an arbitrary-document parser.
+
+CSV, PDF, DOC/DOCX, PPT/PPTX, XLS/XLSX, OCR, SVG, GIF, audio, and video are unsupported unless a
+pinned parser/decoder for that exact type is separately implemented, tested, and approved. A file
+being present in a ZIP or having a familiar extension is not evidence that Hermes parsed it.
+
+Every archive entry must appear exactly once in the import report with one status:
+
+```text
+USED
+IGNORED_WITH_REASON
+UNSUPPORTED
+CORRUPT
+MISSING_REQUIRED_DATA
+```
+
+For every non-`USED` file, report `filename`, detected type, and `ignored: reason` or blocking
+reason. Never silently drop a file. If an unreadable/unsupported file might change product name,
+model, category, description, price, MOQ, cover, image order, or another published field, mark the
+import `BLOCKED` and request a supported replacement. A clearly unrelated attachment may be
+preserved or marked `IGNORED_WITH_REASON`, but must still be listed in the final report.
+
+Before any **live customer upload**, the Agent performs these checks internally and receives human
+approval. Do not print the full checklist when every check passes; return the concise result and
+expand only failed or ambiguous items:
+
+```text
+IMPORT_PREFLIGHT
+- authorized sender/operator: PASS | BLOCKED
+- approved A0/A1 extraction attestation: PASS | BLOCKED
+- archive limits/path safety: PASS | BLOCKED
+- file-by-file capability report complete: PASS | BLOCKED
+- required product fields supported and evidenced: PASS | BLOCKED
+- image magic bytes/decode/hash/dimensions/order: PASS | BLOCKED
+- unsupported product-affecting files: NONE | BLOCKED
+- publication mode: EXPLICIT
+- conclusion: READY_FOR_DRAFT | BLOCKED
+```
+
+Only `READY_FOR_DRAFT` may continue to A2. Only A7 may produce `PUBLISHED_VERIFIED`.
+
+This `IMPORT_PREFLIGHT` is not the capability self-test in Section 1.1. A request such as “test
+whether you can perform the workflow” must return `CAPABILITY_SELF_TEST`, not an empty live-import
+form populated with `UNVERIFIED` values.
+
+The availability of Python stdlib `zipfile`, shell `unzip`, or another generic archive utility is
+not a passing capability result. No parser is approved until the exact pinned implementation and
+execution boundary prove every Section 3.3 control, including streamed actual-byte limits,
+local/central-header consistency, normalized-path collisions, links, encryption, Zip64, split
+archives, nested archives, and bounded extraction. Current Part A therefore records those raw-ZIP
+checks as `NOT_EXECUTED_AWAITING_APPROVED_BOUNDARY`, not `PASS`.
+
+### 3.6 Current and future state vocabularies
+
+Do not mix current Part A report fields with undeployed Part B job states:
+
+| Scope | Valid current values |
+|---|---|
+| Part A intake | `AWAITING_APPROVED_TRANSFER`, `BLOCKED` |
+| Part A approved package | `APPROVED_PACKAGE_READY`, `READY_FOR_DRAFT` |
+| Part A terminal report | `PUBLISHED_VERIFIED`, `FAILED`, `BLOCKED` |
+| File result | `USED`, `IGNORED_WITH_REASON`, `UNSUPPORTED`, `CORRUPT`, `MISSING_REQUIRED_DATA` |
+| Part B persisted job | States in Section 5.4 only; unavailable until Part B is deployed |
+
+`PROCESSING`, `RECEIVED`, `VALIDATING`, `DRAFT_READY`, and `APPROVED` must not be reported as a
+persisted current job state. Part A may describe an operator action in prose, but its machine-like
+report must use the values above.
+
 ## 4. Part A - Current Safe Operating Procedure
 
 ### A0. Intake and quarantine
@@ -216,6 +385,11 @@ uncompressed byte limits pass.
   responsible operator, retention period, and ledger ID before any transfer.
 6. If no approved system exists, stop. When a channel is approved, ask for individual images plus
   the manifest through that named channel; receipt still requires security attestation before A1.
+
+Do not infer authorization from a display name such as `sean`. Missing `corpId`, `userId`,
+`messageId`, or `attachmentId` stays `UNVERIFIED`; never invent or normalize a value. The Part B
+application-managed `corpId + userId` allowlist is not deployed and cannot be used as current Part A
+authorization evidence.
 
 ### A1. Obtain an approved extracted package
 
@@ -254,6 +428,11 @@ human must approve every product field, image mapping, cover, and order before u
 2. The Agent may drive the already-authenticated browser UI after explicit operator approval.
 3. The Agent must not read, print, copy, persist, or transmit `channel.token`.
 4. Do not call `/api/admin` from a model-visible terminal with a long-lived human JWT.
+
+The preflight must report `ADMIN_BROWSER_SESSION=AVAILABLE | UNAVAILABLE | UNVERIFIED`, never
+`session token held`, `token acquired`, or a token value. `AVAILABLE` means only that an operator
+confirmed an already-authenticated browser and explicitly approved browser automation for this
+run; it does not mean the Agent possesses the credential.
 
 ### A3. Create an empty unpublished product shell
 
@@ -355,8 +534,10 @@ then toggle `Published` once through Admin. A customer chat message alone is not
 1. Read the product back and require `published: true`.
 2. Require every image row's `publishedRefCount` to equal the number of distinct published catalog
    documents referencing it; normally `1` for a newly imported product.
-3. Run the refcount dry-run. It must have zero changes. If not, stop and follow the reviewed
-   refcount recovery gate; do not silently apply a global backfill.
+3. Run a product-scoped read-only reference check and require zero discrepancy for every image
+  referenced by this product. Record any pre-existing unrelated global dry-run changes as a
+  quarantined baseline; the import must add no new discrepancy. Do not block a healthy product on
+  known unrelated historical drift, and do not silently apply a global backfill during import.
 4. Request every projected `/api/images/:id` URL and require 200, `image/*`, and non-zero bytes.
 5. Open `/headphones`; require the new card, cover `naturalWidth > 0`, detail open/return, and all
    gallery images in approved order.
@@ -454,6 +635,7 @@ RECEIVED/PACKAGE_UPLOADED/VALIDATING/VALIDATED/DRAFTING/DRAFT_READY/APPROVED
 
 RECEIVED/PACKAGE_UPLOADED/VALIDATING/VALIDATED/DRAFTING/DRAFT_READY/APPROVED
   -> FAILED_RETRYABLE or FAILED_TERMINAL
+DRAFT_READY -> REJECTED_BY_ADMIN
 PUBLISHING/PUBLISHED_VERIFYING failure -> RECONCILIATION_REQUIRED
 COMPENSATING failure -> COMPENSATING (retry same recorded compensation phase)
 CANCEL_REQUESTED may transition only to COMPENSATING
@@ -466,8 +648,11 @@ same-state idempotency shortcut. Every transition uses a storage-layer compare-a
 Terminal states are immutable:
 
 ```text
-PUBLISHED_VERIFIED, CANCELLED, FAILED_TERMINAL
+PUBLISHED_VERIFIED, CANCELLED, FAILED_TERMINAL, REJECTED_BY_ADMIN
 ```
+
+`REJECTED_BY_ADMIN` records the admin actor, reason, time, and approved compensation/retention
+outcome. It cannot return to `DRAFT_READY`; a corrected package creates a new job.
 
 `RECONCILIATION_REQUIRED` can transition only through an admin-approved reconciliation command;
 it cannot return to DRAFTING or create another product. `FAILED_RETRYABLE` can resume only the
@@ -584,6 +769,7 @@ The Agent response to a customer ZIP request must be:
 
 ```text
 IMPORT_MODE=HUMAN_ADMIN
+ZIP_STATUS=AWAITING_APPROVED_TRANSFER
 AUTOMATIC_PUBLISH=DISABLED
 ```
 
@@ -639,7 +825,8 @@ Stop rather than publish if:
   without reconciling the original intent;
 - product save fails after image finalization and the image-ID ledger is incomplete;
 - draft fields/order differ from approval;
-- refcount dry-run is non-zero or contains unrelated drift;
+- the product-scoped reference check has any discrepancy, or the import adds new global refcount
+  drift beyond the recorded unrelated baseline;
 - any projected image is not 200 `image/*` with non-zero bytes;
 - an operation needs a browser JWT in Agent logs, public bucket access, direct MCP writes, or manual
   metadata/refcount repair;

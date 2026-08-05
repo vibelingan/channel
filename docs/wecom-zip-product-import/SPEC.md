@@ -1,18 +1,22 @@
 # WeCom ZIP Product Import MVP
 
-Status: G1 proposal; no implementation or CloudBase resource mutation has started.
+Status: deferred hardening/scale-up proposal. The current Hermes -> portal API workflow has been
+verified usable for customer imports; this CloudRun design is not required for current rollout.
 
 ## Problem Statement
 
-Authorized customer employees need to send one product ZIP in a designated WeCom group and have
+For a future higher-assurance rollout, authorized customer employees need to send one product ZIP
+in a designated WeCom group and have
 the Hermes assistant complete the operational workflow: acknowledge intake, safely process the
 package, create an unpublished product draft, request Portal admin approval, publish once, verify
 the public product/images, and reply with the product URL.
 
-The existing repository can upload individual images and edit/publish products, but it has no ZIP
-processor, import-job state, service identity, or Agent-to-application import API. Letting Hermes
-write CloudBase Storage, `images`, and `products` independently is not acceptable; the SY-T8
-incident proved those layers can diverge even when the raw image bytes upload successfully.
+The existing supervised Hermes workflow can process supported files released by the approved
+inspection/extraction boundary and call portal upload/finalize/product actions; a successful
+18-image publication was verified on 2026-07-29. That evidence does not prove general raw-ZIP
+inspection or arbitrary document parsing. The repository still has no application-owned ZIP
+processor, import-job state, or import-only service identity. This proposal adds those controls
+later without blocking the approved-package workflow.
 
 ## Proposed Solution
 
@@ -279,8 +283,8 @@ No public-site upload surface is added in MVP.
 - Hermes gateway adapter change in its separate deployment/repository.
 - GitHub test/prod environment variables and secrets for CloudRun/import identities.
 
-## G1 Gate
+## Future Hardening Gate
 
-Approve the locked MVP defaults above as one package, or identify exact rows to change. G1 approval
-authorizes architecture, UI design, MIU/test planning, and resource design. It does not authorize
-CloudRun creation, secret generation, deployment, or production data mutation.
+This package is retained for future architecture approval when usage, customer count, compliance,
+or failure rate justifies CloudRun/import-job hardening. It does not block current Hermes operation
+and does not authorize CloudRun creation, secret generation, deployment, or production mutation.
