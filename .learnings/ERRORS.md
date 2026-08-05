@@ -1,4 +1,91 @@
-# Errors
+# Resolved Errors
+
+## [ERR-20260729-002] worktree-playwright-module-resolution
+
+**Logged**: 2026-07-29T12:00:00Z
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+
+A standalone Node measurement script in the isolated worktree could not resolve the `playwright`
+package even though repository E2E and shared browser tooling are available elsewhere.
+
+### Error
+
+```text
+Error: Cannot find module 'playwright'
+Require stack:
+- /Users/SeanCai/Desktop/projects/channel-ui-headphones-fix/[stdin]
+```
+
+### Context
+
+- The command attempted a read-only deployed gallery measurement with `require('playwright')`.
+- The isolated worktree does not expose that package through Node's local resolution path.
+- Installing or changing dependencies merely for this design review would have changed scope.
+
+### Suggested Fix
+
+Use the repository's configured Playwright command/package boundary or the shared browser tool for
+future measurements. Do not assume a package used by repository tooling is directly require-able
+from every worktree.
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: `playwright.config.ts`, `tests/e2e/public.spec.ts`
+- Source: error
+
+### Resolution
+
+- **Resolved**: 2026-07-29T12:00:00Z
+- **Notes**: Did not repeat the command or alter dependencies. Used the existing shared-browser
+	18/18 interaction evidence and persisted exact viewport/style/network checks for implementation.
+
+---
+
+## [ERR-20260729-001] biome-project-context-eof
+
+**Logged**: 2026-07-29T02:14:11Z
+**Priority**: low
+**Status**: resolved
+**Area**: config
+
+### Summary
+
+Biome rejected the generated project context after its visible JSON formatting was corrected because the file retained a missing final newline.
+
+### Error
+
+```text
+.claude/project-context.json format
+Formatter would have added an empty final line after the closing brace.
+```
+
+### Context
+
+- `corepack pnpm exec biome check .` found one formatting error.
+- `apply_patch` corrected the array layout but retained the file's no-newline EOF attribute.
+- A second patch that touched the closing brace still did not change the EOF byte state.
+
+### Suggested Fix
+
+When a formatter reports only a missing EOF newline and `apply_patch` preserves it, use the repository formatter on that single file, then immediately rerun its focused check.
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: `.claude/project-context.json`
+- Source: error
+
+### Resolution
+
+- **Resolved**: 2026-07-29T02:14:11Z
+- **Notes**: `corepack pnpm exec biome format --write .claude/project-context.json` rewrote the EOF correctly; the subsequent focused Biome check passed.
+
+---# Errors
 
 ## [ERR-20260723-001] npx-pnpm-version-switch
 
@@ -207,5 +294,36 @@ Run high-risk validators as separate terminal calls, or explicitly capture and a
 - Reproducible: yes
 - Related Files: docs/oem-phase-1-5/PHASE8_TEST_PLAN.md
 - Tags: heredoc, shell, exit-code, false-green, validation
+
+---
+
+## [ERR-20260730-001] independent-review-agent-network-abort
+
+**Logged**: 2026-07-30
+**Priority**: medium
+**Status**: pending
+**Area**: process
+
+### Summary
+Both final read-only MIU review agents aborted with a network error before returning analysis.
+
+### Error
+```text
+Agent error: Sorry, there was a network error. Please try again later.
+Error Code: aborted.
+```
+
+### Context
+- Two parallel review requests failed through the same service path.
+- Local editor diagnostics and the complete executable validation suite remained green.
+- The failed calls were not treated as approval or as code findings.
+
+### Suggested Fix
+Use independent local mutation probes and the cross-file checklist as the immediate fallback, then retry one review agent after the service recovers.
+
+### Metadata
+- Reproducible: unknown
+- Related Files: `scripts/runtime-contract.test.mjs`, `.github/workflows/deploy-test.yml`
+- Tags: subagent, network, review-gate
 
 ---

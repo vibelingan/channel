@@ -32,3 +32,10 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# dev-pipeline review gate
+.claude/.last-reviewed-sha
+.claude/.last-reviewed-at
+.claude/.review-in-flight
+.claude/.review-overrides.log
+.claude/review-findings-*.md
