@@ -1164,6 +1164,210 @@ test.describe('public browser smoke', () => {
     await page.unroute('**/api/images/**');
   });
 
+  test('Headphones Load More paginates, dedupes, and recovers without losing cards', async ({
+    page,
+  }) => {
+    // Server pages overlap by one id (concurrent inserts shift offset windows)
+    // so the dedup contract is exercised, not just assumed.
+    const pageFor = (n: number) => {
+      const start = (n - 1) * 12 - (n - 1);
+      return Array.from({ length: 12 }, (_, i) => ({
+        _id: `miu13-p${start + i + 1}`,
+        name: `MIU13 Model ${start + i + 1}`,
+        category: 'bluetooth',
+        unitPrice: 10 + n,
+        moq: 500,
+        images: [],
+      }));
+    };
+    const catalogRequests: string[] = [];
+    let failNextLoadMore = false;
+
+    await page.route('**/api/products?**', (route) => {
+      const url = new URL(route.request().url());
+      catalogRequests.push(url.search);
+      const pageNumber = Number(url.searchParams.get('page') ?? '1');
+      if (pageNumber > 1 && failNextLoadMore) {
+        failNextLoadMore = false;
+        return route.fulfill({ status: 500, contentType: 'text/plain', body: 'boom' });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          data: { items: pageFor(pageNumber), total: 30, page: pageNumber, pageSize: 12 },
+        }),
+      });
+    });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/headphones', { waitUntil: 'domcontentloaded' });
+    await ensureApplicationPage(page);
+
+    const cards = page.locator('[data-product-card]');
+    const loadMore = page.locator('[data-load-more]');
+    await expect(cards).toHaveCount(12);
+    // Exactly one initial catalog call, and it asks for 12 items.
+    expect(catalogRequests).toHaveLength(1);
+    expect(catalogRequests[0]).toContain('pageSize=12');
+    expect(catalogRequests[0]).toContain('page=1');
+    await expect(page.locator('[data-result-progress]')).toContainText('12');
+
+    // A recoverable load-more failure keeps the loaded cards usable.
+    failNextLoadMore = true;
+    await loadMore.click();
+    await expect(page.getByRole('alert')).toBeVisible();
+    await expect(cards).toHaveCount(12);
+    await expect(loadMore).toBeEnabled();
+
+    // Retry: page 2 overlaps page 1 by one id, so 12 + 11 unique = 23.
+    await loadMore.click();
+    await expect(cards).toHaveCount(23);
+    expect(catalogRequests.at(-1)).toContain('page=2');
+    // Every rendered card id is unique.
+    const ids = await cards.evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute('data-product-card')),
+    );
+    expect(new Set(ids).size).toBe(ids.length);
+
+    await page.unroute('**/api/products?**');
+  });
+
+  test('Headphones keyboard flow moves focus card -> detail -> back to origin card', async ({
+    page,
+  }) => {
+    const items = Array.from({ length: 3 }, (_, i) => ({
+      _id: `miu13-focus-${i + 1}`,
+      name: `MIU13 Focus Model ${i + 1}`,
+      category: 'bluetooth',
+      description:
+        'A deliberately long product description used to prove that detail copy wraps inside its bounded column track instead of widening the document at medium widths.',
+      series: 'SERIES-WITH-A-VERY-LONG-UNBROKEN-IDENTIFIER-0123456789',
+      modType: 'TWS',
+      moq: 500,
+      unitPrice: 12.5,
+      images: Array.from({ length: 6 }, (_, n) => `/api/images/miu13-focus-${i + 1}-${n + 1}`),
+    }));
+    const imageRequests: string[] = [];
+
+    await page.route('**/api/products?**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          data: { items, total: items.length, page: 1, pageSize: 12 },
+        }),
+      }),
+    );
+    await page.route('**/api/images/**', (route) => {
+      imageRequests.push(new URL(route.request().url()).pathname);
+      return route.fulfill({
+        status: 200,
+        contentType: 'image/svg+xml',
+        headers: { 'Cache-Control': 'no-store' },
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800"><rect width="800" height="800" fill="#315d78"/></svg>',
+      });
+    });
+
+    for (const viewport of [
+      { width: 768, height: 1024 },
+      { width: 1024, height: 768 },
+    ]) {
+      await page.setViewportSize(viewport);
+      imageRequests.length = 0;
+      await page.goto('/headphones', { waitUntil: 'domcontentloaded' });
+      await ensureApplicationPage(page);
+
+      const originCard = page.locator('[data-product-card="miu13-focus-2"]');
+      await expect(originCard).toBeVisible();
+      // Interaction-gated gallery: a card may lazily request its OWN primary
+      // image (suffix -1), but no gallery thumbnail (-2..-6) may be fetched
+      // before a product is selected.
+      expect(
+        imageRequests.filter((path) => /miu13-focus-\d+-(?!1$)\d+$/.test(path)),
+        `no gallery thumbnail request before selection at ${viewport.width}px`,
+      ).toEqual([]);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      ).toBe(true);
+
+      // Keyboard: focus the card and activate it.
+      await originCard.focus();
+      await expect(originCard).toBeFocused();
+      await page.keyboard.press('Enter');
+
+      // Focus lands on the detail heading of the expanded band.
+      const heading = page.locator('[data-detail-heading]');
+      await expect(heading).toBeVisible();
+      await expect(heading).toBeFocused();
+      await expect(page.locator('[data-product-detail="miu13-focus-2"]')).toBeVisible();
+
+      // Request budget after selection: the active image plus at most four
+      // lazy thumbnail previews — never all six references.
+      const galleryRequests = imageRequests.filter((path) => path.includes('miu13-focus-2'));
+      expect(
+        new Set(galleryRequests).size,
+        `bounded gallery requests at ${viewport.width}px`,
+      ).toBeLessThanOrEqual(5);
+      // No HIGH-PRIORITY image other than the hero. (The gallery's active
+      // image is `eager` — the user explicitly asked for it — but must not
+      // compete with the hero for bandwidth priority; thumbnails are `low`.)
+      const highPriorityOutsideHero = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('img'))
+          .filter((img) => !img.closest('[data-hero-media]'))
+          .filter((img) => img.getAttribute('fetchpriority') === 'high')
+          .map((img) => img.getAttribute('src')),
+      );
+      expect(
+        highPriorityOutsideHero,
+        `no high-priority media outside the hero at ${viewport.width}px`,
+      ).toEqual([]);
+
+      // Long copy and long spec values wrap instead of widening the document.
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+        `no overflow with detail open at ${viewport.width}px`,
+      ).toBe(true);
+
+      // View All expands the bounded thumbnail track without overflow.
+      const viewAll = page.locator('[data-gallery-view-all]');
+      await expect(viewAll).toBeVisible();
+      await viewAll.click();
+      await expect(page.locator('[data-gallery-thumbnail]')).toHaveCount(6);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+        `no overflow after View All at ${viewport.width}px`,
+      ).toBe(true);
+
+      // Every enquiry command resolves to the OEM enquiry section, and the
+      // retired advantages band is gone.
+      const enquiryHrefs = await page
+        .locator('[data-product-detail] a')
+        .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('href')));
+      expect(enquiryHrefs.length).toBeGreaterThan(0);
+      for (const href of enquiryHrefs) {
+        expect(href).toBe('/#oem-inquiry');
+      }
+      await expect(page.getByText('Factory Strength & Quality Assurance')).toHaveCount(0);
+
+      // Back returns focus to the originating card.
+      await page.locator('[data-detail-back]').click();
+      await expect(page.locator('[data-product-detail]')).toHaveCount(0);
+      await expect(originCard).toBeFocused();
+    }
+
+    await page.unroute('**/api/images/**');
+    await page.unroute('**/api/products?**');
+  });
+
   test('Headphones header stays responsive and card pricing hierarchy is restrained', async ({
     browser,
     page,
