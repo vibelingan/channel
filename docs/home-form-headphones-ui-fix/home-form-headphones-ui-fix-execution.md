@@ -97,10 +97,10 @@ MIU.
 | 6 | Complete | Abortable catalog page client with fresh-session and media normalization tests |
 | 7 | Complete and deployed | Runtime/content release `9c126d5`; Deploy Test `30813825143` |
 | 8 | Complete; deployment pending | ProductMedia and bounded Gallery |
-| 9 | Not started | Load More state reducer |
-| 10 | Not started | Catalog/card async-state presentation |
-| 11 | Not started | Product detail presentation |
-| 12 | Not started | Product-led Astro hero and focused shell |
+| 9 | Complete; deployment pending | Commit `887ffac` + review closure `88d87dd` |
+| 10 | Complete; deployment pending | Commit `aa57434` + review closure `88d87dd` |
+| 11 | Complete; deployment pending | Commit `a94c55a` + review closure `88d87dd` |
+| 12 | Complete; deployment pending | Commit `c20a93a`; hero E2E + SSR fallback fix |
 | 13 | Not started | Thin page controller, pagination, focus lifecycle |
 | 14 | Complete; revalidate | Existing commits `ce19963` + `27c70c0` |
 | 15 | Complete; revalidate | Existing commit `3feeb60` |
@@ -816,6 +816,116 @@ controller consumption, request abort wiring, and the complete card/detail-headi
 Result: MIU 8 is locally complete across fifteen implementation/review commits. This final tracked
 reconciliation is pending its isolated documentation commit; that resulting combined SHA must pass
 immutable review, push, Deploy Test, and live verification before MIU 9 begins.
+
+## MIU 9 - Headphones Load More state reducer
+Status: complete (implementation); adversarial-review corrections closed in `88d87dd`.
+Commit: `887ffac`
+What changed: new pure module `headphonesCatalogState.ts` + unit suite. Deterministic state for
+loaded products, total, next page, request generation, initial/loading-more/error status, and
+active product id. Offset pagination modeled as eventual consistency: unseen ids append in
+first-seen order, duplicates are discarded, next page always advances, total follows the latest
+server report; an empty committed page is terminal (total clamps to loaded so `hasMore` ends
+rather than live-looping on an unreachable counted document — added by the review round).
+Why: MIU 9 spec; replaces the monolith's fetch-all snapshot claim.
+Best-practice sources and exact rules: engineering-craft request-generation/stale-commit-rejection
+group applied; react sources not applicable (no `.tsx`).
+Tests written first: yes — red run (missing module) preceded implementation.
+Focused validation: reducer suite green; site tests, `astro check`, Biome green at commit.
+Assumption check: generation guard proven load-bearing by mutation only AFTER the review round
+added the fresh-generation-loading stale-commit tests; original stale tests were status-guard
+vacuous (P1 test-quality finding, fixed).
+Cross-file traces: consumes `CatalogPage`/`Product` from `catalog-types.ts` only; no shape
+redeclared; controller consumption lands in MIU 13.
+Build/Deploy/Runtime result: site bundle only; not yet deployed (deploys with the assembled
+MIU 13 range).
+Deviations: exhaustion clamp added beyond the literal spec after the adversarial review proved the
+Load More live-loop scenario.
+Result: complete pending the assembled-range deploy.
+
+## MIU 10 - HeadphonesCatalog and HeadphonesProductCard render contract
+Status: complete (implementation); review corrections closed in `88d87dd`.
+Commit: `aa57434`
+What changed: presentational `HeadphonesCatalog.tsx` + `HeadphonesProductCard.tsx` +
+`headphones-catalog-render.test.ts`. Four mutually exclusive branches (polite-status loading
+skeleton, actionable initial-error alert with retry, OEM-linked empty state, category-grouped
+cards), result progress from the `{loaded} of {total}` content template, busy/disabled Load More
+gated on `hasMoreProducts`, recoverable load-more alert beside usable cards. Card is a semantic
+in-page expansion button using ProductMedia (lazy/low priority) with calibrated hierarchy
+(identity strongest, price `text-sm font-semibold` = 14px/600, action `text-xs font-medium` =
+12px/500) and the existing `data-product-card*` anchors.
+Why: MIU 10 spec.
+Best-practice sources and exact rules: vercel react-best-practices (presentational purity, key
+stability) and composition-patterns (contract props, no shape redeclaration) applied;
+ui-ux-pro-max hierarchy rules per DESIGN.md.
+Tests written first: yes — 12 render-contract tests.
+Focused validation: render suite green; full site suite, `astro check`, Biome green at commit.
+Assumption check: grouping order was under-pinned (review P2) — the suite now asserts
+single-heading-per-category and in-group placement of late-arriving cards.
+Cross-file traces: props typed as `HeadphonesContent['list']` + `HeadphonesCatalogState`;
+`OEM_INQUIRY_HREF` consumed from `site-navigation.ts`.
+Build/Deploy/Runtime result: site bundle only; components unmounted until MIU 13.
+Deviations: none beyond the strengthened tests.
+Result: complete pending the assembled-range deploy.
+
+## MIU 11 - HeadphonesProductDetail presentational contract
+Status: complete (implementation); review corrections closed in `88d87dd`.
+Commit: `a94c55a`
+What changed: presentational `HeadphonesProductDetail.tsx` + `headphones-detail-render.test.ts`.
+Gallery media contract, spec sheet, PriceBlock entitlement (locked VIP chip now renders with
+`signInHref={null}` per the MIU acceptance line "output contains no /login" — review P2), a
+programmatically focusable `data-detail-heading`, a `data-detail-back` BUTTON (pinned as a button,
+never a navigation anchor), and every enquiry command as an anchor to `/#oem-inquiry`. Both detail
+columns are `min-w-0` tracks, now carrying `data-detail-media-column`/`data-detail-info-column`
+so the wrap contract is pinned structurally.
+Why: MIU 11 spec.
+Best-practice sources and exact rules: as MIU 10, plus web-design-guidelines focus-target and
+in-page-disclosure semantics.
+Tests written first: yes — 5 render-contract tests (strengthened to 5-with-teeth by the review).
+Focused validation: detail suite green; full site suite, `astro check`, Biome green at commit.
+Assumption check: the /login-in-output conflict between "existing PriceBlock behavior" and the
+explicit no-/login acceptance line was adjudicated to the explicit line, using the established
+`signInHref={null}` suppression pattern from `ProductCard.tsx`.
+Cross-file traces: consumes `HeadphonesContent['detail']`, Gallery/PriceBlock props verified
+against their real prop types; category label resolved by the caller.
+Build/Deploy/Runtime result: site bundle only; unmounted until MIU 13.
+Deviations: `Product Code` spec-row label remains hardcoded (no matching content key exists);
+flagged for a content follow-up rather than inventing a semantic mismatch with `modelLabel`.
+Result: complete pending the assembled-range deploy.
+
+## MIU 12 - Headphones Astro hero and focused shell
+Status: complete; deployment pending (assembled range deploys after MIU 13).
+Commit: `c20a93a`
+What changed: `headphones.astro` hero now consumes `hp.hero` (content contract) exclusively —
+eyebrow/heading/body/proof/CTAs — and renders real product media through `ProductMedia
+client:load` over the three reviewed gated 800x800 sources built via
+`apiMediaUrl('/api/images/<id>')`, with reserved geometry, eager/high priority, ordered fallback,
+and terminal branding. Mobile: 34px H1, 160-180px media before a compact proof/CTA row; desktop:
+55/45 unframed grid-area composition. Island switched `client:only` -> `client:load` (SSR +
+hydrate) with a `noscript` recovery link to the OEM enquiry section. No standalone
+quality/certification/client band exists on the route. The source-contract test pins hero copy to
+the content contract and the gated media wiring.
+Why: MIU 12 spec + ui-design responsive acceptance matrix.
+Best-practice sources and exact rules: vercel react-best-practices (SSR hydration safety,
+resource priority), PERFORMANCE.md budgets (single eager hero request, no derivative), DESIGN.md
+hero composition.
+Tests written first: yes — the hero E2E block (SSR presence, mobile order, hint visibility
+without overflow, single-source 404 -> second source, all-404 -> terminal fallback without a
+request loop, no quality/cert/client bands) failed before the astro rewrite.
+Focused validation: hero E2E green; full public E2E green page-level (one pre-existing homepage
+carousel timing flake under zero-retry local runs, absent in CI's retry config); site suite 105,
+`astro check` 0 errors, Biome clean, production build 18 pages.
+Assumption check: the E2E exposed a REAL progressive-enhancement defect — a server-rendered image
+that fails before hydration attaches onError never advances the ordered fallback (the error event
+is not replayed). Fixed inside ProductMedia with a hydration-time `complete && naturalWidth === 0`
+check; this is a deliberate, reviewed touch on the MIU 8 component surface justified by MIU 12
+introducing its first SSR consumer.
+Cross-file traces: `hp.hero.sources` -> apiMediaUrl -> ProductMedia sources; hero copy keys exist
+in the locale content file; island props unchanged (advantages/CTA wiring retained until MIU 13).
+Build/Deploy/Runtime result: site bundle only; hero bytes stay behind the public image function
+with refcount revocation.
+Deviations: gallery E2E no-hover-zoom sampling hardened (settle scroll, hover before sampling) —
+its invariant was racing Playwright's own actionability scroll after the hero height change.
+Result: complete pending the assembled-range deploy; MIU 13 remains the final wiring unit.
 
 ## Per-MIU Record Template
 
