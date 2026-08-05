@@ -101,10 +101,10 @@ MIU.
 | 10 | Complete and deployed | Commit `aa57434` + review closure `88d87dd`; release `bbd6dcb` |
 | 11 | Complete and deployed | Commit `a94c55a` + review closure `88d87dd`; release `bbd6dcb` |
 | 12 | Complete and deployed | Commit `c20a93a` + review closure `bbd6dcb` |
-| 13 | Complete; deployment pending | Commits `01cd72f` + `199a00f` + review closure `7a844c2` |
-| 14 | Complete; revalidate | Existing commits `ce19963` + `27c70c0` |
-| 15 | Complete; revalidate | Existing commit `3feeb60` |
-| 16 | Complete; revalidate | Existing commit `26a636a` |
+| 13 | Complete and deployed | Commits `01cd72f` + `199a00f` + closure `7a844c2`; release `55937bd` |
+| 14 | Revalidated green at `55937bd` | Existing commits `ce19963` + `27c70c0`; no edit |
+| 15 | Revalidated green at `55937bd` | Existing commit `3feeb60`; no edit |
+| 16 | Revalidated green at `55937bd` | Existing commit `26a636a`; no edit |
 
 ## MIU 1 - Headphones dead-surface Step 0 cleanup
 
@@ -1006,6 +1006,43 @@ English literals with no content keys; the refactor orphaned `list.filterLabel`,
 `list.resultsLabel`, `list.emptyLabel`, `detail.backLabel`, `detail.modelLabel`,
 `detail.oemInquiryCta`, `detail.notFound` and the whole `inquiry.*` block as unread typed surface.
 Result: MIU 13 complete; MIUs 14-16 revalidation is the remaining work.
+
+## MIU 13 deployment and MIUs 14-16 revalidation
+Status: complete. Release `55937bd`; Deploy Test run `31033460480` passed every gate on the first
+attempt, including the full public browser E2E suite.
+Live verification (custom domain, test CloudBase env):
+- `GET /api/health` reports releaseId `55937bd...`, buildTime 2026-08-05T18:11:17Z.
+- `GET /headphones` raw HTML carries `client="load"` twice (hero media + catalog island), the
+  server-rendered hero `data-product-media="image"`, and the new `data-catalog-heading` focus
+  target — i.e. the MIU 13 controller is the one actually serving production.
+
+### MIU 14 - CloudBase Headphones route smoke revalidation: GREEN, no edit
+- `pnpm test:deploy-smoke`: 15 tests, 15 passed.
+- `node --check scripts/smoke-cloudbase-deploy.mjs` parses under the current Node.
+- Source contract intact: `/headphones` has a real 200 assertion (smoke-cloudbase-deploy.mjs:136)
+  and `/overstock` remains asserted 404 (:131).
+- The assembled deployed smoke ran inside run `31033460480` against the real routes, drained
+  response bodies, and exited naturally. No drift; per the MIU's own instruction no diff was
+  manufactured.
+
+### MIU 15 - Current deployment documentation revalidation: GREEN, no edit
+- `CLOUDBASE_DEPLOYMENT_DESIGN.md`, `CLOUDBASE_DEPLOYMENT_EXECUTION.md` and `CICD_DESIGN.md` each
+  already state `/headphones` 200 and `/overstock` 404, with the OEM-refresh dual-404 finding
+  explicitly labelled superseded rather than rewritten.
+- Scoped grep for contradictory current-route claims (headphones-404, public bucket access,
+  bypassed refcount gating) returned only the correct split-outcome statements.
+- Every referenced repository script resolves: `scripts/smoke-cloudbase-deploy.mjs`,
+  `deploy-cloudbase-test.mjs`, `cloudbase-nosql-resources.mjs`, `set-cloudbase-github-secrets.mjs`;
+  package scripts `test:deploy-smoke`, `smoke:cloudbase`, `deploy:cloudbase:test`,
+  `verify:cloudbase-sdk`, `test:e2e:public` all exist.
+- `git diff --check`: clean.
+
+### MIU 16 - Canonical production-readiness route revalidation: GREEN, no edit
+- `CICD_PRODUCTION_PLAN.md` already pins the current production definition of done as
+  `/`, `/admin`, `/login`, `/oem`, `/portfolio`, `/headphones` -> 200 and `/overstock` -> 404, and
+  classifies the earlier dual-404 record as superseded history (PD-1). It is consistent with the
+  MIU 14 smoke and the MIU 15 documents, so the canonical plan will not instruct a future operator
+  to re-retire Headphones.
 
 ## Per-MIU Record Template
 
