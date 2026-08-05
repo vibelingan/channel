@@ -14,8 +14,20 @@ import {
   normalizeCatalogImageIds,
 } from '@vibelingan-channel/shared';
 import type { DbAdapter } from './adapter.ts';
+import type { ImageMutationAcquireResult, ImageMutationReleaseResult } from './adapter.ts';
+export {
+  readImageMutationState,
+  transitionImageMutationAcquire,
+  transitionImageMutationRelease,
+} from './adapter.ts';
 
-export type { AdapterListQuery, DbAdapter } from './adapter.ts';
+export type {
+  AdapterListQuery,
+  DbAdapter,
+  ImageMutationAcquireResult,
+  ImageMutationReleaseResult,
+  ImageMutationState,
+} from './adapter.ts';
 
 /**
  * The active adapter is stored on `globalThis` rather than a plain module
@@ -152,6 +164,44 @@ export function incrementField(
     );
   }
   return db().incrementField(collection, id, field, delta);
+}
+
+function requireImageMutationInput(imageId: string, value: string, label: string): void {
+  if (imageId.trim().length === 0 || value.trim().length === 0) {
+    throw new Error(`@vibelingan-channel/db: invalid image mutation ${label}.`);
+  }
+}
+
+function requireCanonicalIso(value: string, label: string): void {
+  if (!Number.isFinite(Date.parse(value)) || new Date(value).toISOString() !== value) {
+    throw new Error(`@vibelingan-channel/db: invalid image mutation ${label}.`);
+  }
+}
+
+export function acquireImageMutation(
+  imageId: string,
+  owner: string,
+  startedAt: string,
+): Promise<ImageMutationAcquireResult> {
+  requireImageMutationInput(imageId, owner, 'owner');
+  requireCanonicalIso(startedAt, 'start time');
+  const adapter = db();
+  if (!adapter.acquireImageMutation) {
+    throw new Error('@vibelingan-channel/db: image mutation ownership is not implemented.');
+  }
+  return adapter.acquireImageMutation(imageId, owner, startedAt);
+}
+
+export function releaseImageMutation(
+  imageId: string,
+  owner: string,
+): Promise<ImageMutationReleaseResult> {
+  requireImageMutationInput(imageId, owner, 'owner');
+  const adapter = db();
+  if (!adapter.releaseImageMutation) {
+    throw new Error('@vibelingan-channel/db: image mutation ownership is not implemented.');
+  }
+  return adapter.releaseImageMutation(imageId, owner);
 }
 
 /**
