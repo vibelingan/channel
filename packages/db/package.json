@@ -9,14 +9,16 @@
     "./cloudbase": "./src/cloudbase-adapter.ts"
   },
   "scripts": {
+    "test": "tsx --test src/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@cloudbase/node-sdk": "2.10.0",
     "@vibelingan-channel/shared": "workspace:*",
-    "wx-server-sdk": "latest"
+    "wx-server-sdk": "3.0.4"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2"
+    "@types/node": "^22.10.2",
+    "tsx": "^4.22.4"
   }
 }
