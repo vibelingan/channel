@@ -18,52 +18,6 @@ const { brand, nav, footer } = site;
 // copied static asset, no authorization relaxation.
 const heroSources = hp.hero.sources.map((source) => apiMediaUrl(`/api/images/${source.imageId}`));
 
-// Page-specific strings that extend the shared headphones i18n content.
-// (Matrix/advantages/CTA wiring is retained until the MIU 13 controller
-// replaces the island composition.)
-const pageStrings = {
-  matrixEyebrow: 'Product Line',
-  matrixHeading: 'Explore Our Headphone Collection',
-  matrixSubheading:
-    'Every model is engineered and manufactured in-house. Click any product to view full specifications and request a quote.',
-
-  viewDetail: 'View Details',
-  moqLabel: 'MOQ',
-
-  backToMatrix: 'Back to all models',
-
-  advEyebrow: 'Why Source From Us',
-  advHeading: 'Factory Strength & Quality Assurance',
-  advItems: [
-    {
-      title: 'Factory Direct',
-      desc: '20+ years OEM experience. 5,000 m² ISO-certified facility in Dongguan with in-house tooling, molding, PCBA, and assembly.',
-      icon: '🏭',
-    },
-    {
-      title: 'Quality Certified',
-      desc: 'CE, FCC, EMC, RoHS certified. Full in-house QC lab with burst, drop, salt-spray, and vibration testing.',
-      icon: '✅',
-    },
-    {
-      title: 'OEM / ODM Customization',
-      desc: 'Custom branding, color, packaging, and firmware. Our engineering team delivers tailored solutions for your market.',
-      icon: '🎨',
-    },
-    {
-      title: 'Global Logistics',
-      desc: 'Reliable shipping to 40+ countries. Dedicated export documentation and international trade compliance.',
-      icon: '🚢',
-    },
-  ],
-
-  ctaEyebrow: 'Request a Quote',
-  ctaHeading: 'Ready to Stock Premium Headphones?',
-  ctaBody:
-    'Tell us your requirements — our team will send pricing, catalog, and samples within 24 hours.',
-  ctaButton: 'Send Enquiry →',
-};
-
 // SEO metadata
 const seoTitle = `Headphones Manufacturer — OEM Bluetooth & Wired Headphone Supplier | ${brand.name}`;
 const seoDescription =
@@ -201,7 +155,7 @@ const seoDescription =
           </p>
         </div>
       </noscript>
-      <HeadphonesPage content={hp} strings={pageStrings} client:load />
+      <HeadphonesPage content={hp} client:load />
     </div>
 
   </main>

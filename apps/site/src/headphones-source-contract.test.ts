@@ -21,18 +21,12 @@ function sourceBetween(source: string, start: string, end: string): string {
 }
 
 test('hero strings come from the content contract, not route-local declarations', () => {
-  const pageStringsInterface = sourceBetween(
-    islandSource,
-    'interface PageStrings',
-    'interface Props',
-  );
-  const pageStringsObject = sourceBetween(routeSource, 'const pageStrings = {', '// SEO metadata');
   // MIU 12: the hero consumes `hp.hero` (typed HeadphonesContent) exclusively;
-  // neither the island props nor the route redeclare hero copy.
+  // neither the island nor the route redeclares hero copy.
   for (const key of ['heroEyebrow', 'heroHeading', 'heroBody', 'heroBadges']) {
     const declaration = new RegExp(`\\b${key}\\s*:`);
-    assert.doesNotMatch(pageStringsInterface, declaration);
-    assert.doesNotMatch(pageStringsObject, declaration);
+    assert.doesNotMatch(islandSource, declaration);
+    assert.doesNotMatch(routeSource, declaration);
   }
   for (const field of ['eyebrow', 'heading', 'body', 'proof', 'primaryCta', 'secondaryCta']) {
     assert.match(routeSource, new RegExp(`hp\\.hero\\.${field}\\b`));
@@ -45,16 +39,21 @@ test('hero strings come from the content contract, not route-local declarations'
   assert.match(routeSource, /<ProductMedia\s[^>]*client:load/);
 });
 
-test('Headphones route and island omit unused detail string declarations', () => {
-  const pageStringsInterface = sourceBetween(
-    islandSource,
-    'interface PageStrings',
-    'interface Props',
-  );
-  const pageStringsObject = sourceBetween(routeSource, 'const pageStrings = {', '// SEO metadata');
-  for (const key of ['unitPriceLabel', 'detailHeading']) {
-    const declaration = new RegExp(`\\b${key}\\s*:`);
-    assert.doesNotMatch(pageStringsInterface, declaration);
-    assert.doesNotMatch(pageStringsObject, declaration);
-  }
+// MIU 13: the route declares no copy at all — the island takes only the typed
+// content contract, and route-local PageStrings are gone entirely.
+test('the route declares no page-local copy and the island takes only content', () => {
+  assert.doesNotMatch(routeSource, /const pageStrings\s*=/);
+  assert.doesNotMatch(islandSource, /interface PageStrings/);
+  assert.match(routeSource, /<HeadphonesPage content=\{hp\} client:load \/>/);
+});
+
+// MIU 13: the controller is thin — no enquiry form, no advantages band, and no
+// React `.reveal` (which is what hid asynchronously mounted products in P0).
+test('the Headphones island stays a thin controller', () => {
+  assert.doesNotMatch(islandSource, /InquiryForm/);
+  assert.doesNotMatch(islandSource, /advItems|advHeading|advEyebrow/);
+  assert.doesNotMatch(islandSource, /['"`][^'"`]*\breveal\b/);
+  // Presentation is delegated, not inlined.
+  assert.match(islandSource, /HeadphonesCatalog/);
+  assert.match(islandSource, /HeadphonesProductDetail/);
 });
