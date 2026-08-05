@@ -96,7 +96,7 @@ MIU.
 | 5 | Complete | Default-visible reveal baseline with bounded one-time animation cleanup |
 | 6 | Complete | Abortable catalog page client with fresh-session and media normalization tests |
 | 7 | Complete and deployed | Runtime/content release `9c126d5`; Deploy Test `30813825143` |
-| 8 | Complete; deployment pending | ProductMedia and bounded Gallery |
+| 8 | Complete and deployed | ProductMedia and bounded Gallery; shipped in release `eb8f9f2` |
 | 9 | Complete and deployed | Commit `887ffac` + review closure `88d87dd`; release `bbd6dcb` |
 | 10 | Complete and deployed | Commit `aa57434` + review closure `88d87dd`; release `bbd6dcb` |
 | 11 | Complete and deployed | Commit `a94c55a` + review closure `88d87dd`; release `bbd6dcb` |
