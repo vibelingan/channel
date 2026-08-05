@@ -61,8 +61,10 @@ export function HeadphonesPage({ content }: Props) {
 
   // The card that opened the current detail band; focus returns here on Back.
   const originCardIdRef = useRef<string | null>(null);
-  const pendingFocusRef = useRef<'detail' | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // Incremented on every card activation so the focus effect fires even when
+  // the same product is re-activated.
+  const [openToken, setOpenToken] = useState(0);
 
   /**
    * Load one page under `generation`. The caller has already moved the state
@@ -80,11 +82,14 @@ export function HeadphonesPage({ content }: Props) {
         .catch((error: unknown) => {
           // An abort is an intentional supersede, never a user-facing error.
           if (controller.signal.aborted) return;
-          const message = error instanceof Error ? error.message : list.errorLabel;
+          // Show AUTHORED copy. `error.message` is transport/server text
+          // ("Failed to load catalog (500)", "Load failed") that is neither
+          // localized nor in the content contract; keep it for diagnostics.
+          console.error('[headphones] catalog page failed', error);
           setState((current) =>
             initial
-              ? failInitialLoad(current, generation, message)
-              : failLoadMore(current, generation, message),
+              ? failInitialLoad(current, generation, list.errorLabel)
+              : failLoadMore(current, generation, list.errorLabel),
           );
         });
     },
@@ -103,14 +108,29 @@ export function HeadphonesPage({ content }: Props) {
 
   useEffect(() => {
     if (identity === null) return;
+    // A cross-tab sign-in/out wipes the catalog, which unmounts any open
+    // detail band. If focus was inside it, rescue focus to the catalog
+    // heading instead of letting it fall to <body>.
+    const focusWasInsideDetail =
+      typeof document !== 'undefined' &&
+      document.activeElement instanceof HTMLElement &&
+      document.activeElement.closest('[data-product-detail]') !== null;
+    originCardIdRef.current = null;
     const loading = beginInitialLoad(resetCatalogGeneration(stateRef.current));
     commit(loading);
+    if (focusWasInsideDetail) {
+      document.querySelector<HTMLElement>('[data-catalog-heading]')?.focus();
+    }
     loadPage(loading.generation, 1, true);
     return () => abortRef.current?.abort();
   }, [identity, loadPage, commit]);
 
   const handleRetryInitial = useCallback(() => {
-    const loading = beginInitialLoad(stateRef.current);
+    const current = stateRef.current;
+    // Symmetric with handleLoadMore: never start a second initial load on top
+    // of one already in flight. (beginInitialLoad has no status precondition.)
+    if (current.status === 'loading-initial' || current.status === 'loading-more') return;
+    const loading = beginInitialLoad(current);
     commit(loading);
     loadPage(loading.generation, 1, true);
   }, [loadPage, commit]);
@@ -128,7 +148,11 @@ export function HeadphonesPage({ content }: Props) {
   const handleOpenProduct = useCallback(
     (productId: string) => {
       originCardIdRef.current = productId;
-      pendingFocusRef.current = 'detail';
+      // Bump a token rather than relying on `activeProduct` changing:
+      // re-activating the ALREADY-open card resolves to the same product
+      // object, so an effect keyed on it alone would never re-run and the
+      // second activation would be a dead interaction.
+      setOpenToken((token) => token + 1);
       commit(setActiveProduct(stateRef.current, productId));
     },
     [commit],
@@ -140,7 +164,8 @@ export function HeadphonesPage({ content }: Props) {
     // Restore focus to the card that opened the detail band.
     requestAnimationFrame(() => {
       if (!originId) return;
-      const card = document.querySelector<HTMLElement>(`[data-product-card="${originId}"]`);
+      const selector = `[data-product-card="${CSS.escape(originId)}"]`;
+      const card = document.querySelector<HTMLElement>(selector);
       card?.focus();
       card?.scrollIntoView({
         behavior: detailScrollBehavior(
@@ -158,16 +183,16 @@ export function HeadphonesPage({ content }: Props) {
       : (state.products.find((product) => product._id === state.activeProductId) ?? null);
 
   // Move focus to the detail heading once the expanded band has mounted.
+  // Keyed on the open token so re-activating the same card still responds.
   useEffect(() => {
-    if (pendingFocusRef.current !== 'detail' || !activeProduct) return;
-    pendingFocusRef.current = null;
+    if (openToken === 0 || !activeProduct) return;
     const heading = document.querySelector<HTMLElement>('[data-detail-heading]');
     heading?.focus();
     heading?.scrollIntoView({
       behavior: detailScrollBehavior(window.matchMedia('(prefers-reduced-motion: reduce)').matches),
       block: 'start',
     });
-  }, [activeProduct]);
+  }, [openToken, activeProduct]);
 
   const categoryLabel = (key: string) =>
     list.categories.find((option) => option.key === key)?.label ?? key;
@@ -180,7 +205,11 @@ export function HeadphonesPage({ content }: Props) {
             <p className="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
               {list.eyebrow}
             </p>
-            <h2 className="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl">
+            <h2
+              tabIndex={-1}
+              data-catalog-heading
+              className="mt-4 font-display text-3xl font-bold text-ink outline-none sm:text-4xl"
+            >
               {list.heading}
             </h2>
             <p className="mt-4 text-lg leading-relaxed text-ink-soft">{list.subheading}</p>
