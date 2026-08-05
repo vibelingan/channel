@@ -101,7 +101,7 @@ MIU.
 | 10 | Complete and deployed | Commit `aa57434` + review closure `88d87dd`; release `bbd6dcb` |
 | 11 | Complete and deployed | Commit `a94c55a` + review closure `88d87dd`; release `bbd6dcb` |
 | 12 | Complete and deployed | Commit `c20a93a` + review closure `bbd6dcb` |
-| 13 | Not started | Thin page controller, pagination, focus lifecycle |
+| 13 | Complete; deployment pending | Commits `01cd72f` + `199a00f` + review closure `7a844c2` |
 | 14 | Complete; revalidate | Existing commits `ce19963` + `27c70c0` |
 | 15 | Complete; revalidate | Existing commit `3feeb60` |
 | 16 | Complete; revalidate | Existing commit `26a636a` |
@@ -961,6 +961,51 @@ Known follow-ups carried into MIU 13:
   MIU 13 removes route-local `PageStrings`.
 - The island still SSRs its loading skeleton (2 nodes) and still renders advantages + InquiryForm;
   MIU 13 owns removing them.
+
+## MIU 13 - HeadphonesPage Load More and focus controller
+Status: complete; deployment pending at time of writing (ships with this range).
+Commits: `01cd72f` (controller), `199a00f` (required browser coverage), `7a844c2` (review closure).
+What changed: the monolith became a thin controller owning fetching, request generations,
+abortion and the focus lifecycle, delegating all presentation to HeadphonesCatalog and
+HeadphonesProductDetail. Route-local `PageStrings`, InquiryForm, the advantages band and all React
+`.reveal` are gone; 12-item user-triggered pagination; generation reset on auth identity change
+with AbortController supersede; focus cycle card -> detail heading -> Back -> origin card;
+interaction-gated Gallery mounting.
+Why: MIU 13 spec.
+Tests written first: partially — the controller landed before its required browser coverage, which
+is a real deviation from the MIU's own test plan. Closed in `199a00f`: route-mocked pagination
+(one initial call at pageSize=12, recoverable load-more error keeping cards, page-2 retry,
+overlapping-page dedup 12+11=23) and a 768/1024px keyboard/budget test (focus round trip, no
+gallery thumbnail before selection, active image + <=4 previews after, no high-priority image
+outside the hero, every detail enquiry link to the OEM anchor, advantages absent, no horizontal
+overflow before or after View All).
+Focused validation: monorepo typecheck, e2e tsc, 105 site unit tests, Biome, site build, and the
+full public Playwright suite (34 passed / 2 skipped / 0 failed).
+Assumption check: implementation-time browser runs caught a real defect — `setState` updaters run
+asynchronously, so reading the new generation out of one handed the fetch a stale generation and
+the reducer's own guard rejected every commit (the catalog rendered zero cards). Transitions are
+now computed against a render-synchronised `stateRef` before dispatch.
+Review round (2 agents): the async core was attacked and CONFIRMED correct — stateRef mirror,
+abort-then-replace, cleanup-vs-next-effect ordering, identity-string stability (SessionUser.id is
+always populated, so no collision and no spurious reset), fetchCatalog abort semantics, nextPage
+arithmetic, and effect dependencies were each disproved as defects. Five real findings closed in
+`7a844c2`: raw transport error text rendered instead of authored copy; re-activating the
+already-open card was a dead interaction (focus effect keyed on an object identity that does not
+change — now an open token, with a browser assertion); a cross-tab auth change unmounted an open
+detail band and stranded focus on `<body>` (now rescued to the catalog heading); reduced motion
+not honoured on skeleton pulse, card lift and image zoom; missing explicit focus-visible rings on
+card/Back/Load More/Retry, plus `CSS.escape` on the origin-card selector and a retry guard
+symmetric with Load More.
+Cross-file traces: consumes `fetchCatalog`/`CatalogPage` from api.ts, reducer state from
+headphonesCatalogState.ts, content from i18n/headphones.ts, presentation from
+HeadphonesCatalog.tsx / HeadphonesProductDetail.tsx. No shape redeclared.
+Build/Deploy/Runtime result: site bundle only; no route, API, or authorization change.
+Deviations and known follow-ups: tests followed rather than preceded the controller (recorded
+above); `Product Code`, the `model`/`models` plural and Gallery's thumbnail `aria-label` remain
+English literals with no content keys; the refactor orphaned `list.filterLabel`, `list.allLabel`,
+`list.resultsLabel`, `list.emptyLabel`, `detail.backLabel`, `detail.modelLabel`,
+`detail.oemInquiryCta`, `detail.notFound` and the whole `inquiry.*` block as unread typed surface.
+Result: MIU 13 complete; MIUs 14-16 revalidation is the remaining work.
 
 ## Per-MIU Record Template
 
