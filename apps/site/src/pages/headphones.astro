@@ -114,8 +114,8 @@ const seoDescription =
                 sources={heroSources}
                 alt={hp.hero.imageAlt}
                 unavailableLabel={hp.hero.unavailableLabel}
-                width={800}
-                height={800}
+                width={hp.hero.sources[0].width}
+                height={hp.hero.sources[0].height}
                 loading="eager"
                 fetchPriority="high"
               />
@@ -188,9 +188,13 @@ const seoDescription =
     <!-- ===== Product Matrix + Details (React island, SSR + hydrate) ===== -->
     <div id="product-matrix" class="scroll-mt-[var(--spacing-header)]">
       <noscript>
+        <!-- The island server-renders its loading skeleton, which can never
+             resolve without JavaScript. Hide it and state the real reason
+             rather than claiming the catalog is empty. -->
+        <style>#product-matrix .animate-pulse { display: none; }</style>
         <div class="mx-auto max-w-[var(--width-container)] px-4 py-10 sm:px-6 lg:px-8">
           <p class="rounded-lg border border-slate-200 bg-surface-alt p-6 text-center text-ink-muted">
-            {hp.list.emptyStateLabel}
+            Browsing the model catalogue requires JavaScript. You can still reach us directly:
             <a class="ml-2 font-semibold text-brand-700 underline" href={OEM_INQUIRY_HREF}>
               {hp.list.emptyCtaLabel}
             </a>

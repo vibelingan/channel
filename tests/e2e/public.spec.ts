@@ -684,11 +684,12 @@ test.describe('public browser smoke', () => {
           return stable;
         })
         .toBe(true);
-      // Enter the frame FIRST: Playwright's hover may perform an actionability
-      // scroll to bring the frame fully into view, which is not the pointer
-      // behavior this invariant guards. Sample only once the pointer is
-      // already inside the frame, then compare after moving across it.
-      await frame.hover({ position: { x: 5, y: 5 } });
+      // Sample BEFORE the pointer ever enters the frame — otherwise :hover is
+      // active in both snapshots and a real hover-zoom cancels itself out.
+      // Read the box first (it can scroll), then move with RAW COORDINATES:
+      // page.mouse.move performs no actionability scroll, unlike locator.hover.
+      const frameBox = await frame.boundingBox();
+      if (!frameBox) throw new Error('Gallery frame has no bounding box');
       const beforePointer = await frame.locator('img').evaluate((image) => {
         const style = getComputedStyle(image);
         const rect = image.getBoundingClientRect();
@@ -699,14 +700,16 @@ test.describe('public browser smoke', () => {
           height: rect.height,
           opacity: style.opacity,
           transform: style.transform,
+          // Tailwind v4 `scale-*` sets the CSS `scale` property, NOT
+          // `transform`, so a transform-only snapshot misses hover zoom.
+          scale: style.scale,
           objectPosition: style.objectPosition,
           backgroundImage: style.backgroundImage,
           scrollX: window.scrollX,
           scrollY: window.scrollY,
         };
       });
-      const frameBox = await frame.boundingBox();
-      if (!frameBox) throw new Error('Gallery frame has no bounding box');
+      await page.mouse.move(frameBox.x + 5, frameBox.y + 5);
       await page.mouse.move(frameBox.x + frameBox.width - 5, frameBox.y + frameBox.height - 5);
       await page.waitForTimeout(250);
       const afterPointer = await frame.locator('img').evaluate((image) => {
@@ -719,6 +722,7 @@ test.describe('public browser smoke', () => {
           height: rect.height,
           opacity: style.opacity,
           transform: style.transform,
+          scale: style.scale,
           objectPosition: style.objectPosition,
           backgroundImage: style.backgroundImage,
           scrollX: window.scrollX,
@@ -1077,18 +1081,26 @@ test.describe('public browser smoke', () => {
   test('Headphones hero serves gated product media SSR-first with ordered fallback', async ({
     page,
   }) => {
-    // client:load SSR: the initial HTML document must already contain the
-    // hero media mount and the island's matrix heading region (client:only
-    // rendered nothing server-side).
+    // The reviewed hero provenance (i18n/content/headphones/en-US.md
+    // hero.sources): three gated 800x800 images, tried in order.
+    const heroSourceIds = [
+      '0e0afdc26a68209e00523aa031e56460',
+      '7b76ee416a68209d0110670520562928',
+      '0e0afdc26a68209c00523a7b50cb8647',
+    ] as const;
+
+    // client:load SSR. Assert ONLY on markup that client:load emits: the
+    // wrapper div and the island's serialized props exist under client:only
+    // too, so asserting those would pin nothing.
     const ssrResponse = await page.request.get(`${e2e.siteUrl}/headphones`);
     expect(ssrResponse.ok()).toBe(true);
     const ssrHtml = await ssrResponse.text();
-    expect(ssrHtml).toContain('data-hero-media');
-    expect(ssrHtml).toContain('Product Line');
-    // The focused shell omits the standalone quality/certification/client
-    // bands; canonical proof stays on /oem and /portfolio.
+    expect(ssrHtml).toContain('client="load"');
+    expect(ssrHtml).toContain('data-product-media="image"');
+    expect(ssrHtml).toContain(heroSourceIds[0]);
+    // The focused shell omits the standalone client-logo band; canonical
+    // proof stays on /oem and /portfolio.
     expect(ssrHtml).not.toContain('Global Clients');
-    expect(ssrHtml).not.toContain('data-certifications');
 
     // Hero mobile order at 390x844: real media sits before the proof/CTA row,
     // the Product Line hint is visible, and nothing overflows.
@@ -1099,25 +1111,20 @@ test.describe('public browser smoke', () => {
     await expect(heroMedia).toBeVisible();
     const heroImage = heroMedia.locator('[data-product-media="image"]');
     await expect(heroImage).toBeVisible();
+    // Unrouted load: the FIRST reviewed source is the one actually served.
+    await expect(heroImage).toHaveAttribute('src', new RegExp(heroSourceIds[0]));
     const mediaBox = await heroMedia.boundingBox();
     const proofBox = await page.locator('[data-hero-proof]').boundingBox();
     if (!mediaBox || !proofBox) throw new Error('hero media/proof geometry unavailable');
     expect(mediaBox.y).toBeLessThan(proofBox.y);
+    // ui-design responsive matrix: 160-180px real media at 375/390.
     const mediaHeight = mediaBox.height;
-    expect(mediaHeight).toBeGreaterThanOrEqual(150);
-    expect(mediaHeight).toBeLessThanOrEqual(200);
+    expect(mediaHeight).toBeGreaterThanOrEqual(160);
+    expect(mediaHeight).toBeLessThanOrEqual(180);
     await expect(page.getByText('Product Line', { exact: true })).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
-
-    // The reviewed hero provenance (i18n/content/headphones/en-US.md
-    // hero.sources): three gated 800x800 images, tried in order.
-    const heroSourceIds = [
-      '0e0afdc26a68209e00523aa031e56460',
-      '7b76ee416a68209d0110670520562928',
-      '0e0afdc26a68209c00523a7b50cb8647',
-    ] as const;
 
     // Force ONLY the first reviewed source to 404: the second must render.
     await page.route('**/api/images/**', (route) => {
