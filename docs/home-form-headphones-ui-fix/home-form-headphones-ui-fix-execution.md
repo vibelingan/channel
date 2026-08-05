@@ -97,10 +97,10 @@ MIU.
 | 6 | Complete | Abortable catalog page client with fresh-session and media normalization tests |
 | 7 | Complete and deployed | Runtime/content release `9c126d5`; Deploy Test `30813825143` |
 | 8 | Complete; deployment pending | ProductMedia and bounded Gallery |
-| 9 | Complete; deployment pending | Commit `887ffac` + review closure `88d87dd` |
-| 10 | Complete; deployment pending | Commit `aa57434` + review closure `88d87dd` |
-| 11 | Complete; deployment pending | Commit `a94c55a` + review closure `88d87dd` |
-| 12 | Complete; deployment pending | Commit `c20a93a`; hero E2E + SSR fallback fix |
+| 9 | Complete and deployed | Commit `887ffac` + review closure `88d87dd`; release `bbd6dcb` |
+| 10 | Complete and deployed | Commit `aa57434` + review closure `88d87dd`; release `bbd6dcb` |
+| 11 | Complete and deployed | Commit `a94c55a` + review closure `88d87dd`; release `bbd6dcb` |
+| 12 | Complete and deployed | Commit `c20a93a` + review closure `bbd6dcb` |
 | 13 | Not started | Thin page controller, pagination, focus lifecycle |
 | 14 | Complete; revalidate | Existing commits `ce19963` + `27c70c0` |
 | 15 | Complete; revalidate | Existing commit `3feeb60` |
@@ -926,6 +926,41 @@ with refcount revocation.
 Deviations: gallery E2E no-hover-zoom sampling hardened (settle scroll, hover before sampling) —
 its invariant was racing Playwright's own actionability scroll after the hero height change.
 Result: complete pending the assembled-range deploy; MIU 13 remains the final wiring unit.
+
+## MIUs 9-12 review closure and deployment
+Status: complete and deployed.
+Commit/release: `bbd6dcb` (`fix(shop): close adversarial review findings on MIU 12`).
+Deploy Test: run `31026614725`, all gates green on the first attempt, including the public
+browser E2E suite.
+Live verification (custom domain, test CloudBase env):
+- `GET /api/health` reports releaseId `bbd6dcb...`, buildTime 2026-08-05T16:44:15Z.
+- `GET /headphones` raw HTML contains `client="load"` and a server-rendered
+  `data-product-media="image"` whose `src` is the first reviewed gated source
+  (`0e0afdc26a68209e00523aa031e56460`) — i.e. the SSR hero contract holds in production.
+- That gated image returns HTTP 200, 63062 bytes, `image/jpeg` through the public image function,
+  so refcount-gated delivery still serves real product media.
+
+Review rounds behind this release:
+- MIUs 9-11: 20-agent adversarial review; 6 confirmed findings closed in `88d87dd` (P1 vacuous
+  generation-guard tests, Load More empty-page live-loop, `/login` leak in detail output, and three
+  under-pinned assertions).
+- MIU 12: 3 reviewers. The ProductMedia hydration-time broken-image check was probed across
+  chromium/firefox/webkit (dimensionless SVG, lazy-deferred, `display:none`, async-decode,
+  in-flight) and returned NO defect — no valid image can be misread as failed. Five real defects
+  closed in `bbd6dcb`: the hero SSR assertions could not fail (now assert `client="load"` plus a
+  server-rendered `data-product-media="image"`; mutating back to `client:only` was verified to fail
+  the test), a dead `data-certifications` assertion removed, source-0-first now pinned, the mobile
+  media band tightened to the matrix's 160-180px, the gallery no-hover-zoom invariant restored
+  (sample outside hover; raw `page.mouse.move` avoids the actionability-scroll race; snapshot now
+  records the CSS `scale` property because Tailwind v4 `scale-*` does not touch `transform`), the
+  noscript block's false "no models available" claim replaced and its never-resolving SSR skeleton
+  hidden, and hero width/height sourced from `hp.hero.sources[0]`.
+
+Known follow-ups carried into MIU 13:
+- The noscript recovery sentence is a route-local literal; fold it into the content contract when
+  MIU 13 removes route-local `PageStrings`.
+- The island still SSRs its loading skeleton (2 nodes) and still renders advantages + InquiryForm;
+  MIU 13 owns removing them.
 
 ## Per-MIU Record Template
 
