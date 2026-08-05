@@ -5,6 +5,9 @@ packages:
 
 allowBuilds:
   '@biomejs/biome': true
+  # Transitive dep of @cloudbase/node-sdk 3.x; its install script only prints
+  # a funding banner, so it stays blocked.
+  core-js-pure: false
   esbuild: true
   protobufjs: true
   sharp: true

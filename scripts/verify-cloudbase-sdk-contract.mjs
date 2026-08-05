@@ -45,11 +45,15 @@ const nodeSdkRequire = createRequire(nodeSdk.packagePath);
 const databasePackagePath = nodeSdkRequire.resolve('@cloudbase/database/package.json');
 const databasePackage = nodeSdkRequire(databasePackagePath);
 
-record(true, `resolved @cloudbase/node-sdk ${nodeSdk.meta.version}`, nodeSdk.packagePath);
-record(true, `resolved wx-server-sdk ${wxSdk.meta.version}`, wxSdk.packagePath);
 requireCheck(
-  databasePackage.version === '1.4.1',
-  'resolved @cloudbase/database 1.4.1',
+  nodeSdk.meta.version === '3.17.2',
+  'resolved @cloudbase/node-sdk 3.17.2',
+  nodeSdk.packagePath,
+);
+requireCheck(wxSdk.meta.version === '4.0.2', 'resolved wx-server-sdk 4.0.2', wxSdk.packagePath);
+requireCheck(
+  databasePackage.version === '1.4.3',
+  'resolved @cloudbase/database 1.4.3',
   databasePackagePath,
 );
 
@@ -89,15 +93,23 @@ requireCheck(
   'If this changes in a future SDK, update the design and integration intentionally.',
 );
 
-const nodeTypes = readPackageFile(nodeSdk, nodeSdk.meta.types ?? 'types/index.d.ts');
-const transactionTypeStart = nodeTypes.indexOf('export class Transaction');
-const transactionTypeEnd = nodeTypes.indexOf('export interface CommitResult', transactionTypeStart);
+const nodeTypes = readPackageFile(
+  nodeSdk,
+  nodeSdk.meta.types ?? nodeSdk.meta.typings ?? 'types/index.d.ts',
+);
+// node-sdk 3.x splits the database typings into types/db.d.ts.
+const nodeDbTypes = readPackageFile(nodeSdk, 'types/db.d.ts');
+const transactionTypeStart = nodeDbTypes.indexOf('export class Transaction');
+const transactionTypeEnd = nodeDbTypes.indexOf(
+  'export interface CommitResult',
+  transactionTypeStart,
+);
 const transactionTypes =
   transactionTypeStart >= 0 && transactionTypeEnd > transactionTypeStart
-    ? nodeTypes.slice(transactionTypeStart, transactionTypeEnd)
+    ? nodeDbTypes.slice(transactionTypeStart, transactionTypeEnd)
     : '';
 requireCheck(
-  nodeTypes.includes('runTransaction: (') &&
+  nodeDbTypes.includes('runTransaction: (') &&
     transactionTypes.includes('collection(collName: string)'),
   '@cloudbase/node-sdk types expose runTransaction transaction collections',
 );
@@ -182,7 +194,7 @@ try {
 }
 requireCheck(
   containsAll(nodeTypes, [
-    'IGetUploadMetadataItem',
+    'IGetUploadMetadataResult',
     'url: string',
     'token: string',
     'authorization: string',
@@ -193,7 +205,7 @@ requireCheck(
   '@cloudbase/node-sdk types define getUploadMetadata data.url/token/authorization/fileId/cosFileId',
 );
 
-const nodeStorage = readPackageFile(nodeSdk, 'lib/storage/index.js');
+const nodeStorage = readPackageFile(nodeSdk, 'dist/storage/index.js');
 requireCheck(
   containsAll(nodeStorage, [
     'getUploadMetadata',
@@ -207,16 +219,32 @@ requireCheck(
   '@cloudbase/node-sdk storage implementation uses upload metadata and multipart POST form fields',
 );
 
-const nodeCloudbase = readPackageFile(nodeSdk, 'lib/cloudbase.js');
+const nodeCloudbase = readPackageFile(nodeSdk, 'dist/cloudbase.js');
 requireCheck(
   nodeCloudbase.includes('getUploadMetadata({ cloudPath }'),
   '@cloudbase/node-sdk CloudBase class forwards getUploadMetadata',
 );
 
-const wxTypes = readFileSync(join(root, 'packages/db/src/wx-server-sdk.d.ts'), 'utf8');
+// wx-server-sdk 4.x ships real types, so the repository's ambient shim must
+// stay deleted — a `declare module 'wx-server-sdk'` beside package types is a
+// conflicting augmentation.
 requireCheck(
-  !wxTypes.includes('getUploadMetadata'),
-  'local wx-server-sdk.d.ts does not reintroduce fake getUploadMetadata',
+  !existsSync(join(root, 'packages/db/src/wx-server-sdk.d.ts')),
+  'legacy local wx-server-sdk.d.ts shim stays deleted (wx 4.x ships its own types)',
+);
+requireCheck(
+  readPackageFile(wxSdk, 'index.d.ts').includes('export function database'),
+  'wx-server-sdk ships usable official types',
+);
+
+// The adapter's missing-document contract: wx doc().get() defaults
+// throwOnNotFound=true and would REJECT for a missing row; the adapter must
+// keep configuring it off, and the installed bundle must keep honoring it.
+const wxBundle = readPackageFile(wxSdk, 'index.js');
+requireCheck(
+  wxBundle.includes('let throwOnNotFound = true') &&
+    wxBundle.includes("hasOwnProperty('throwOnNotFound')"),
+  'wx-server-sdk bundle defaults throwOnNotFound=true and honors the database config override',
 );
 
 const cloudbaseAdapter = readFileSync(join(root, 'packages/db/src/cloudbase-adapter.ts'), 'utf8');
@@ -302,6 +330,24 @@ requireCheck(
     ),
   'db cloudbase acquire/release methods invoke shared ownership transitions',
 );
+// The transition must execute INSIDE a database transaction — a text needle
+// alone would also match a non-transactional TOCTOU rewrite, so assert the
+// actual call expressions in each method body.
+requireCheck(
+  objectMethodCalls('cloudBaseAdapter', 'acquireImageMutation').includes('db.runTransaction') &&
+    objectMethodCalls('cloudBaseAdapter', 'releaseImageMutation').includes('db.runTransaction') &&
+    objectMethodCalls('cloudBaseAdapter', 'acquireImageMutation').includes(
+      'transaction.collection',
+    ) &&
+    objectMethodCalls('cloudBaseAdapter', 'releaseImageMutation').includes(
+      'transaction.collection',
+    ),
+  'db cloudbase acquire/release run their transitions inside runTransaction',
+);
+requireCheck(
+  cloudbaseAdapter.includes('throwOnNotFound: false'),
+  'db cloudbase adapter configures throwOnNotFound=false so missing doc reads resolve null',
+);
 const getMethodStart = cloudbaseAdapter.indexOf('  async get(collection, id)');
 const getMethodEnd = cloudbaseAdapter.indexOf('  async findByField', getMethodStart);
 const getMethod =
@@ -356,6 +402,10 @@ try {
       const image = await first.create('images', { name: 'lease.jpg', mimeType: 'image/jpeg' });
       const imageId = String(image._id);
       const startedAt = '2026-01-02T00:00:00.000Z';
+      // Construct "second" BEFORE first acquires so its in-memory snapshot
+      // genuinely predates the lock, and write through it before it performs
+      // any operation that would refresh that snapshot: a stale-cache writer
+      // must reload before persisting rather than clobber the on-disk lock.
       const second = new JsonFileAdapter(${JSON.stringify(localLeaseFile)});
       const secondProcess = spawnSync(
         ${JSON.stringify(process.execPath)},
@@ -364,12 +414,10 @@ try {
       );
       const secondProcessRejected =
         secondProcess.status !== 0 && secondProcess.stderr.includes('already owned by process');
-      const concurrent = await Promise.all([
-        first.acquireImageMutation(imageId, 'owner-1', startedAt),
-        second.acquireImageMutation(imageId, 'owner-2', startedAt),
-      ]);
+      const firstAcquire = await first.acquireImageMutation(imageId, 'owner-1', startedAt);
       await second.create('products', { name: 'stale writer', category: 'wired' });
       const ownerAfterStaleWrite = (await first.get('images', imageId))?.imageMutationOwner ?? null;
+      const concurrent = [firstAcquire, await second.acquireImageMutation(imageId, 'owner-2', startedAt)];
       const results = [
         await second.releaseImageMutation(imageId, 'owner-2'),
         await first.releaseImageMutation(imageId, 'owner-1'),

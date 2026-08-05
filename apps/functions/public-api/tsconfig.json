@@ -4,5 +4,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "../../../packages/db/src/wx-server-sdk.d.ts"]
+  "include": ["src/**/*.ts"]
 }
