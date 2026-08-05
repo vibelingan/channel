@@ -1,6 +1,6 @@
 # P0 Headphones Product Visibility
 
-Status: implementation, full local validation, review, and commit complete; pending test deployment.
+Status: deployed to test at `741b0af`; custom-domain visibility and interaction verified.
 
 Approved priority: restore visible products and existing product-detail interaction before every other UI or performance change.
 
@@ -58,3 +58,7 @@ Domain normalization and real test/prod separation are important, but neither ca
 - Site tests: 44 pass.
 - Production static build: 18 pages, including `/headphones`, pass with the current custom-domain/API-origin contract.
 - Temporary local dev server stopped and temporary `localhost:4322` CloudBase safe-domain entry removed after validation.
+- Deploy Test run `30419402071`: success; lint, typecheck, build, deploy smoke, and public E2E passed.
+- Deployed public E2E: 19 passed, 2 skipped, including `Headphones products remain visibly rendered after client catalog load`.
+- `https://supplychainsai.com/api/health` reports release `741b0af811f3675b989b586cc11834a86817998c`.
+- Custom-domain browser verification at 390px and 1440px: five cards, all ancestors visible, non-zero geometry, detail open and return both pass.
