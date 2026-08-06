@@ -14,7 +14,7 @@
  */
 
 /** Top-level storage namespaces; map to the path prefixes below. */
-export type MediaNamespace = 'catalog' | 'oem' | 'marketing' | 'smoke';
+export type MediaNamespace = 'catalog' | 'oem' | 'marketing' | 'smoke' | 'alibaba-raw';
 
 export interface PutMediaObjectInput {
   namespace: MediaNamespace;
@@ -147,19 +147,31 @@ function yearMonth(now: Date): { yyyy: string; mm: string } {
 
 /**
  * The storage key for a `PutMediaObjectInput`. Catalog/oem/marketing are
- * date-partitioned under their owning id; smoke is a flat `smoke/<name>`.
+ * date-partitioned under their owning id; smoke is a flat `smoke/<name>`;
+ * alibaba-raw is HASH-ADDRESSED (immutable raw API response bytes, deduped
+ * by content — docs/alibaba-linked-catalog-sync/ARCHITECTURE.md §3.5/§8):
  *   catalog/<yyyy>/<mm>/<logicalId>/<safeName>
  *   oem/<yyyy>/<mm>/<logicalId>/<safeName>
  *   marketing/<yyyy>/<mm>/<logicalId>/<safeName>
  *   smoke/<safeName>
+ *   alibaba-raw/<hh>/<sha256>.json        (hh = first two hash chars)
  */
 export function objectStoragePath(
   input: Pick<PutMediaObjectInput, 'namespace' | 'logicalId' | 'fileName'> & { now?: Date },
 ): string {
   const safe = safeFileName(input.fileName);
   if (input.namespace === 'smoke') return `smoke/${safe}`;
+  if (input.namespace === 'alibaba-raw') return alibabaRawStoragePath(input.logicalId);
   const { yyyy, mm } = yearMonth(input.now ?? new Date());
   return `${input.namespace}/${yyyy}/${mm}/${safeFileName(input.logicalId)}/${safe}`;
+}
+
+/** Hash-addressed key for exact raw Alibaba response bytes; id must be a sha256 hex. */
+export function alibabaRawStoragePath(responseSha256: string): string {
+  if (!/^[0-9a-f]{64}$/.test(responseSha256)) {
+    throw new Error('alibabaRawStoragePath requires a lowercase sha256 hex digest.');
+  }
+  return `alibaba-raw/${responseSha256.slice(0, 2)}/${responseSha256}.json`;
 }
 
 /**

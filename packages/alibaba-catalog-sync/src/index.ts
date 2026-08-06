@@ -56,3 +56,13 @@ export {
   isEnumerationComplete,
   nextEnumerationAction,
 } from './alibaba-enumeration.ts';
+export {
+  type NormalizeResult,
+  type NormalizedSourceProduct,
+  type NormalizedSupplierOffer,
+  PRODUCT_LEVEL_SKU_SENTINEL,
+  alibabaOfferKey,
+  alibabaSourceKey,
+  gmtLexemeToUtcIso,
+  normalizeProductDetail,
+} from './alibaba-normalizer.ts';
