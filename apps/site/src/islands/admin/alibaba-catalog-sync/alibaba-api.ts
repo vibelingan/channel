@@ -31,9 +31,20 @@ async function call<T>(action: string, data?: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, data, token: getToken() }),
   });
+  // VALIDATED, not cast: `res.json()` returns unknown, and a gateway error
+  // page or a proxy's own JSON would satisfy a cast while leaving `ok`
+  // undefined — which then reads as a failure with no error code, and the
+  // caller reports a blank message. Check the shape we actually rely on.
   let envelope: Envelope<T> | null = null;
   try {
-    envelope = (await res.json()) as Envelope<T>;
+    const parsed: unknown = await res.json();
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      typeof (parsed as { ok?: unknown }).ok === 'boolean'
+    ) {
+      envelope = parsed as Envelope<T>;
+    }
   } catch {
     envelope = null;
   }
