@@ -793,6 +793,23 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         hideInTable: true,
       },
       { name: 'sourceProductId', label: 'Source Product ID', type: 'string', readOnly: true },
+      // Content fingerprint + the run that last CHANGED it: ARCHITECTURE §12's
+      // surge guard counts changed candidates, not seen ones.
+      {
+        name: 'contentHash',
+        label: 'Content Hash',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'lastChangedRunId',
+        label: 'Last Changed Run',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'demotedAt', label: 'Demoted At', type: 'date', readOnly: true, hideInTable: true },
       { name: 'payloadId', label: 'Payload', type: 'string', readOnly: true, hideInTable: true },
       { name: 'sourceTitle', label: 'Title', type: 'string', readOnly: true },
       {

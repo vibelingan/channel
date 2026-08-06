@@ -505,6 +505,50 @@ test('a token failure while RESUMING keeps the run intact and burns no continuat
   assert.equal((store.alibabaSyncCheckpoints?.[0] as CollectionDoc).activeRunId, 'run-live');
 });
 
+test('a manual run MARKS ITSELF DUE — the timer-less test env can still sync', async () => {
+  setup();
+  // Nothing is due: push both watermarks into the future.
+  const checkpoint = store.alibabaSyncCheckpoints?.[0] as CollectionDoc;
+  checkpoint.nextIncrementalDueAt = '2026-08-09T00:00:00.000Z';
+  checkpoint.nextFullDueAt = '2026-08-09T18:30:00.000Z';
+
+  const timerTick = await runSyncTick({
+    deps: makeDeps(fakeBackend(() => []).fetchImpl),
+    trigger: 'timer',
+  });
+  assert.equal(timerTick.outcome, 'idle', 'a timer tick respects the schedule');
+
+  const backend = fakeBackend(() => [{ id: 'item-1', modifiedMs: ITEM_TIME, priceLexeme: '2.50' }]);
+  const manual = await runSyncTick({ deps: makeDeps(backend.fetchImpl), trigger: 'manual' });
+  assert.notEqual(manual.outcome, 'idle', 'a manual run starts one regardless');
+  assert.ok(backend.calls.length > 0, 'it actually reached the API');
+});
+
+test('drafts are created only AFTER the quarantine gate passes', async () => {
+  setup();
+  // An unlinked source with a category mapping would normally become a draft.
+  store.alibabaCategoryMappings = [
+    { _id: 'm-1', sourceCategoryId: '77', category: 'bluetooth' } as CollectionDoc,
+  ];
+  // Sabotage the detail response so the run quarantines on unsupported currency.
+  const backend = fakeBackend(() => [{ id: 'item-1', modifiedMs: ITEM_TIME, priceLexeme: '2.50' }]);
+  const originalFetch = backend.fetchImpl;
+  const sabotaged = (async (url: unknown, init?: RequestInit) => {
+    const response = await originalFetch(String(url), init);
+    const text = await response.text();
+    return new Response(text.replace('"USD"', '"EUR"'), { status: 200 });
+  }) as typeof fetch;
+
+  const report = await runSyncTick({ deps: makeDeps(sabotaged), trigger: 'timer' });
+  assert.equal(report.outcome, 'quarantined');
+  assert.equal(
+    store.products?.length ?? 0,
+    0,
+    'a quarantined run writes NO product rows — nothing would ever roll them back',
+  );
+  assert.equal(store.alibabaProductLinks?.length ?? 0, 0, 'and no links');
+});
+
 test('self-heal: a terminal run stuck in the checkpoint slot is cleared, not resumed', async () => {
   setup();
   const checkpoint = store.alibabaSyncCheckpoints?.[0] as CollectionDoc;

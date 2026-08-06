@@ -81,7 +81,7 @@ get/set/create/remove, upsert-style `doc.set`, retry only on
 lease TTL 180s / renew 60s spans the tick gap — with an explicit lease release
 at soft-deadline exit). Operational notes carried into MIUs 4/11: acquire
 lease → read checkpoint → single-winner run-row creation ordering; manual
-"run now" is mark-due + short HTTP response (the gateway envelope stays ~20s —
+"run now" is mark-due + short HTTP response (the gateway envelope stays ~20s — **(Superseded by ARCHITECTURE §10.1.)**
 the raised timeout applies to timer invocations, and interactive OAuth routes
 share the function); tombstone seen-set via `lastSeenRunId` stamping, not
 checkpoint accumulation.

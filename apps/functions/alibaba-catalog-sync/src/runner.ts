@@ -165,6 +165,14 @@ export async function runSyncTick(input: {
       });
     }
 
+    // MARK-DUE for a manual run (§10.1, and the original §10 intent): without
+    // it decideTick returns 'idle' whenever nothing happens to be scheduled,
+    // so runNow could only ever CONTINUE a run someone else started — and the
+    // test env, which has no timer by design, would never start one at all.
+    const manualStart =
+      input.trigger === 'manual' &&
+      (typeof checkpointDoc.activeRunId !== 'string' || checkpointDoc.activeRunId === '');
+
     const decision = decideTick(
       {
         ...(typeof checkpointDoc.activeRunId === 'string' && checkpointDoc.activeRunId !== ''
@@ -173,9 +181,11 @@ export async function runSyncTick(input: {
         ...(typeof checkpointDoc.nextFullDueAt === 'string'
           ? { nextFullDueAt: checkpointDoc.nextFullDueAt }
           : {}),
-        ...(typeof checkpointDoc.nextIncrementalDueAt === 'string'
-          ? { nextIncrementalDueAt: checkpointDoc.nextIncrementalDueAt }
-          : {}),
+        ...(manualStart
+          ? { nextIncrementalDueAt: now }
+          : typeof checkpointDoc.nextIncrementalDueAt === 'string'
+            ? { nextIncrementalDueAt: checkpointDoc.nextIncrementalDueAt }
+            : {}),
       },
       now,
     );
@@ -200,9 +210,12 @@ export async function runSyncTick(input: {
           runDoc.status === 'approved' ||
           runDoc.status === 'failed');
       if (terminal) {
-        // The run already reached a terminal state and advanced its own
-        // watermark then; clearing a stale slot must move nothing.
-        await clearActiveRun(guard, deps, null);
+        // This branch is reached ONLY when the terminal run's own completion
+        // failed to clear the slot — so its watermark may never have advanced
+        // either. Advance the DEAD run's own mode (blessing-gate P2); passing
+        // null would leave the mode due forever and hot-loop it.
+        const healedMode = runDoc?.mode === 'full' ? 'full' : 'incremental';
+        await clearActiveRun(guard, deps, healedMode);
         await release();
         return { outcome: 'idle', runId: decision.runId, detail: 'stale-active-run-cleared' };
       }
@@ -387,6 +400,7 @@ async function executeSlice(
       apiPath: LIST_PATH,
       params,
       accessToken,
+      ...callTuning,
     });
     if (!response.ok) return { ok: false, kind: 'transport' };
     const { storeRawPayload } = await import('./ingest.ts');
@@ -532,33 +546,33 @@ async function executeSlice(
       { field: 'lastSeenRunId', op: 'eq', value: state.activeRunId },
     ]);
     const linkedCandidates: { sourceKey: string }[] = [];
-    let draftsCreated = 0;
-    let draftsUnmapped = 0;
+    // Sources with no link yet. Drafts for these are created AFTER the
+    // quarantine gate — createDraftForSource writes `products` rows, and this
+    // stage's whole contract is that no product write happens before the gate
+    // (module docstring, ARCHITECTURE §12). They become candidates on the NEXT
+    // run, once their links exist, so this run's candidate hash stays stable.
+    const unlinkedSources: string[] = [];
+    // How many linked candidates actually CHANGED. Counting every linked
+    // source seen would trip the §12 candidate-surge guard on every real full
+    // run, now that the walk is no longer silently capped at 100 rows.
+    let changedCandidates = 0;
     for (const source of seenItems) {
-      let link = await getDoc('alibabaProductLinks', source._id);
-      if (!link || typeof link.productId !== 'string' || link.productId === '') {
-        // Category-mapped DRAFT creation (blessing-gate P2): createDraftForSource
-        // was implemented and tested but had no production caller, so an
-        // unlinked source never became a draft and the mapping feature never
-        // ran at all. A source with no mapping is skipped, not an error.
-        const draft = await createDraftForSource(source._id, { now: deps.now() });
-        if (draft.ok) {
-          draftsCreated += 1;
-          link = await getDoc('alibabaProductLinks', source._id);
-        } else if (draft.reason === 'no-category-mapping') {
-          draftsUnmapped += 1;
-        }
+      // Renew inside the walk: this loop is now unbounded (the 100-row clamp
+      // that used to mask it is gone) and does a round trip per source, so it
+      // can outlive the 180s lease TTL long before the first fenced write.
+      if (!(await keepLease())) return { outcome: 'lease-lost', runId: state.activeRunId };
+      if (budgetExhausted(budget, Date.parse(deps.now()))) {
+        if (!(await saveCheckpoint())) return { outcome: 'lease-lost', runId: state.activeRunId };
+        await release();
+        return { outcome: 'continued', runId: state.activeRunId };
       }
+      const link = await getDoc('alibabaProductLinks', source._id);
       if (link && typeof link.productId === 'string' && link.productId !== '') {
         linkedCandidates.push({ sourceKey: source._id });
+        if (String(source.lastChangedRunId ?? '') === state.activeRunId) changedCandidates += 1;
+      } else {
+        unlinkedSources.push(source._id);
       }
-    }
-    if (draftsUnmapped > 0) {
-      // Operators cannot act on what they cannot see: an unmapped category
-      // silently withholds every product behind it.
-      await deps.alert(
-        `Alibaba sync: ${draftsUnmapped} source product(s) have no category mapping and were skipped; ${draftsCreated} draft(s) created.`,
-      );
     }
 
     const allActive = await list({
@@ -572,7 +586,7 @@ async function executeSlice(
       state.mode === 'full' ? await listTombstoneCandidates(state.activeRunId) : [];
 
     const quarantine = evaluateQuarantine({
-      candidateChanges: linkedCandidates.length,
+      candidateChanges: changedCandidates,
       linkedProductCount: allLinks.total,
       tombstoneCandidates: tombstoneCandidates.length,
       activeSourceCount: allActive.total,
@@ -630,6 +644,29 @@ async function executeSlice(
       );
     }
 
+    // Drafts are created only AFTER the quarantine gate has passed: they write
+    // `products` rows, and this stage's contract is that no product write
+    // precedes the gate. A run whose mirror is untrustworthy must not leave
+    // drafts behind that no approval path would ever roll back. The new links
+    // become ordinary candidates on the next run, so this run's frozen
+    // candidate hash stays exactly what the approval path recomputes.
+    let draftsCreated = 0;
+    let draftsUnmapped = 0;
+    for (const sourceKey of unlinkedSources) {
+      if (!(await keepLease())) return { outcome: 'lease-lost', runId: state.activeRunId };
+      if (budgetExhausted(budget, Date.parse(deps.now()))) break;
+      const draft = await createDraftForSource(sourceKey, { now: deps.now() });
+      if (draft.ok) draftsCreated += 1;
+      else if (draft.reason === 'no-category-mapping') draftsUnmapped += 1;
+    }
+    if (draftsUnmapped > 0) {
+      // Operators cannot act on what they cannot see: an unmapped category
+      // silently withholds every product behind it.
+      await deps.alert(
+        `Alibaba sync: ${draftsUnmapped} source product(s) have no category mapping and were skipped; ${draftsCreated} draft(s) created.`,
+      );
+    }
+
     state.stage = state.mode === 'full' ? 'tombstone' : 'promote';
     if (state.mode !== 'full') {
       if (!(await completeRun(state, counters, guard, deps))) {
@@ -661,6 +698,7 @@ async function executeSlice(
       apiPath: DETAIL_PATH,
       params,
       accessToken,
+      ...callTuning,
     });
     if (!confirm.ok) {
       // A confirmation TRANSPORT error must not tombstone; quarantine the set.

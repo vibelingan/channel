@@ -187,7 +187,7 @@ evidence.
 - R1: run statuses + quarantine lifecycle per ARCHITECTURE §12 (lease
   release, slot vacating, stopped clocks, approval validity); due-based
   scheduling per §10; acquire-lease → read-checkpoint → single-winner
-  run-row ordering; manual "run now" only marks due and returns;
+  run-row ordering; manual "run now" only marks due and returns; **SUPERSEDED by ARCHITECTURE §10.1** — it now marks due and executes one bounded slice inline, because the test env has no timer to pick a marked-due run up;
   `lastSeenRunId` seen-set; per-candidate tombstone confirmation and the
   zero-item quarantine trigger per §11/§12; guarded writes through
   `updateDocWithAlibabaLease`.

@@ -104,6 +104,38 @@ export type IngestDetailResult =
     };
 
 /** Raw bytes first, then parse -> normalize -> deterministic mirror upserts. */
+/**
+ * Stable content fingerprint of a mirrored source product and its offers,
+ * excluding run/time stamps. ARCHITECTURE §12's candidate-surge guard is about
+ * how many linked products CHANGED, not how many were seen — without this the
+ * guard trips on every full run, since a full run sees the whole catalog.
+ */
+function contentFingerprint(product: Record<string, unknown>, offers: unknown[]): string {
+  const stamps = new Set([
+    'lastSeenRunId',
+    'firstSeenRunId',
+    'createdAt',
+    'updatedAt',
+    'tombstonedAt',
+    'demotedAt',
+    'contentHash',
+    'lastChangedRunId',
+  ]);
+  const canonical = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(canonical);
+    if (value && typeof value === 'object') {
+      const entries = Object.entries(value as Record<string, unknown>)
+        .filter(([key]) => !stamps.has(key))
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+      return entries.map(([key, entry]) => [key, canonical(entry)]);
+    }
+    return value;
+  };
+  return createHash('sha256')
+    .update(JSON.stringify(canonical({ product, offers })))
+    .digest('hex');
+}
+
 export async function ingestProductDetail(input: IngestDetailInput): Promise<IngestDetailResult> {
   const raw = await storeRawPayload(input);
   if (!raw.ok) return { ok: false, error: 'raw-write-failed' };
@@ -123,9 +155,18 @@ export async function ingestProductDetail(input: IngestDetailInput): Promise<Ing
 
   const { sourceProduct, offers } = normalized;
   const existingProduct = await getDoc('alibabaSourceProducts', sourceProduct.sourceKey);
+  const contentHash = contentFingerprint(
+    sourceProduct as unknown as Record<string, unknown>,
+    offers,
+  );
+  const changed = String(existingProduct?.contentHash ?? '') !== contentHash;
   await upsertDocWithId('alibabaSourceProducts', sourceProduct.sourceKey, {
     ...sourceProduct,
     lastSeenRunId: input.runId,
+    contentHash,
+    lastChangedRunId: changed
+      ? input.runId
+      : String(existingProduct?.lastChangedRunId ?? input.runId),
     // First-seen provenance is written once and never rewritten; tombstone
     // state clears because the product is demonstrably present again.
     ...(existingProduct ? {} : { firstSeenRunId: input.runId, createdAt: input.now }),

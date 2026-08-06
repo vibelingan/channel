@@ -99,6 +99,10 @@ export async function unlinkProduct(
   await updateDoc('products', productId, {
     alibabaPrimarySourceKey: null,
     alibabaPrimaryOfferKey: null,
+    // The operator pin must clear too (blessing-gate P2): unlink is the
+    // documented rollback command, and a surviving pin would silently rebind
+    // a stale offer if the product were ever linked again.
+    alibabaPinnedOfferKey: null,
     alibabaCatalogPricing: null,
     alibabaSourceStatus: null,
     alibabaSourceLastSyncedAt: context.now,

@@ -518,13 +518,19 @@ hard-fails on any timer trigger by design (§14) — so mark-due-and-return
 would leave `runNow` with nothing to drive it, and the feature would be
 unverifiable in the only environment available before production.
 
-`runNow` therefore executes ONE bounded slice inline and returns its report.
+`runNow` therefore MARKS THE RUN DUE (the original clause's intent) **and**
+executes ONE bounded slice inline, returning its report. Mark-due is not
+optional: without it `decideTick` answers `idle` whenever nothing happens to be
+scheduled, so `runNow` could only ever continue a run something else had
+started — and in the test env nothing else ever does.
+
 The bound is what keeps the gateway envelope honest:
 
 - `softDeadlineMs: 15_000`, `maxProducts: 20`, `maxApiCalls: 10`;
-- the interactive path passes `maxAttempts: 1` and a short per-call timeout
-  to the API client, so a stalled upstream cannot stretch one slice past the
-  gateway envelope through retry backoff;
+- the interactive path passes `maxAttempts: 1` and a 5-second per-call timeout
+  to the API client at EVERY call site in the slice (enumeration, detail fetch
+  and tombstone confirmation), so a stalled upstream cannot stretch one slice
+  past the gateway envelope through retry backoff;
 - the slice runs under the SAME fenced lease as a timer tick, so a manual run
   and a timer tick can never interleave;
 - a continuation is checkpointed exactly as a timer tick's would be, so

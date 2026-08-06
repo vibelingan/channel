@@ -569,3 +569,48 @@ biome clean, SDK contract verify (48 assertions), 3 artifact smokes, site build.
 Gates after the P2 fixes: 655 recursive + 21 script tests, 11 typechecks +
 astro (0 errors), biome clean, SDK contract verify (57 assertions), 3 artifact
 smokes, site build.
+
+## Blessing gate, round 2 — my own fixes regressed (2026-08-06)
+
+Re-running the gate on the fixed HEAD found **4 P1 + 9 P2**, almost all
+introduced by the round-1 fixes. This also ran the external-classes lens for
+the first time (its agent died mid-response last round — a crashed reviewer is
+not a pass).
+
+1. **HIGH — removing the pageSize clamp unbounded the promote stage.** The old
+   silent 100-row cap was *masking* a stage with no lease renewal and no budget
+   check: with the real set, a catalog at the documented 5,000-item scale needs
+   thousands of sequential round-trips before the first fenced write, so the
+   180s lease expires and every write fails. A verifier reproduced it — 9,064
+   round trips, 181s, `lease-lost`, zero promotions, no checkpoint, no release,
+   repeating every tick until the 24h overdue timer, then again each cycle.
+   `keepLease()` + `budgetExhausted()` now run inside the walk (mirroring the
+   fix this same commit applied to the enumerate stage, which the promote stage
+   was left out of).
+2. **HIGH — draft creation landed on the WRONG SIDE of the quarantine gate.**
+   `createDraftForSource` writes `products` rows, and I had put it before
+   `evaluateQuarantine` — contradicting the stage's own banner, the module
+   docstring and ARCHITECTURE §12. A run whose mirror was demonstrably
+   untrustworthy would have left drafts behind that no approval path rolls
+   back. Moved after the gate; the new links become ordinary candidates next
+   run, so the frozen candidate hash still matches what approval recomputes.
+3. **HIGH — the surge guard would trip on every full run.** `candidateChanges`
+   counted every linked source SEEN, which the 100-row clamp had been hiding.
+   §12 means candidates that CHANGED, so ingest now stores a content
+   fingerprint and stamps `lastChangedRunId` only when the mirrored content
+   actually differs.
+4. **`runNow` could not START a run** — `decideTick` answers `idle` unless
+   something is due, so §10.1's justification ("repeated runNow calls drive a
+   run to completion in the test env") was false. A manual trigger now marks
+   itself due, which is what the ORIGINAL §10 clause asked for; the amendment
+   text was corrected to match.
+5. Smaller: `callTuning` reached only 1 of 3 API call sites, so §10.1's bound
+   claim was also false (now all three); the terminal-run self-heal passed
+   `mode: null` on a premise that is false precisely in the case that reaches
+   it; `unlinkProduct` did not clear the new `alibabaPinnedOfferKey`, so a
+   relink could silently rebind a stale offer; and MIU_BREAKDOWN + REVISION_R1
+   still asserted the superseded mark-due-and-return behavior with no pointer
+   to §10.1.
+
+Gates: 657 recursive + 21 script tests, 11 typechecks + astro (0 errors),
+biome clean, SDK contract verify, 3 artifact smokes, site build.
