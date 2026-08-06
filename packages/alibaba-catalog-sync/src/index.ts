@@ -66,3 +66,14 @@ export {
   gmtLexemeToUtcIso,
   normalizeProductDetail,
 } from './alibaba-normalizer.ts';
+export {
+  type OfferForSelection,
+  type PromotionCandidate,
+  type PromotionInput,
+  PRICE_MOVE_ALERT_RATIO,
+  buildPromotionCandidate,
+  computeCandidateHash,
+  minimumUnitAmount,
+  priceMoveExceedsThreshold,
+  selectPrimaryOffer,
+} from './alibaba-merge-policy.ts';
