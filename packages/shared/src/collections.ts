@@ -648,6 +648,13 @@ export const COLLECTIONS: readonly CollectionDef[] = [
       { name: 'authorizedByUserId', label: 'Authorized By', type: 'string', readOnly: true },
       { name: 'authorizedAt', label: 'Authorized At', type: 'date', readOnly: true },
       {
+        name: 'firstAuthErrorAt',
+        label: 'Outage Started',
+        type: 'date',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
         name: 'lastAuthErrorAt',
         label: 'Last Auth Error',
         type: 'date',

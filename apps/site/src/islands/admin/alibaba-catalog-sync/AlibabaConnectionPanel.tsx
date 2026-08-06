@@ -54,6 +54,19 @@ export function AlibabaConnectionPanel({
               Access token valid until {status.accessTokenExpiresAt.slice(0, 16).replace('T', ' ')}
             </p>
           )}
+          {/* A connection can be 'active' and still not syncing: token refresh
+              may be failing without the credential having been refused. That
+              state is invisible on status alone, so surface the outage window
+              here (review R4-verify). */}
+          {connected && status?.firstAuthErrorAt && (
+            <p
+              className="mt-1 text-xs font-medium text-amber-700"
+              data-connection-refresh-outage={status.firstAuthErrorAt}
+            >
+              Token refresh failing since {status.firstAuthErrorAt.slice(0, 16).replace('T', ' ')} —
+              sync is paused.
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 gap-2">
           {connected ? (

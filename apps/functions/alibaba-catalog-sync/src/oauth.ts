@@ -236,14 +236,14 @@ export async function getConnectionAccessToken(deps: OAuthDeps): Promise<AccessT
   const refreshToken = typeof payload.refreshToken === 'string' ? payload.refreshToken : '';
   if (!refreshToken) return await markAuthorizationExpired(deps, 'no refresh token');
 
-  // Terminal on OUR OWN record, never on speculation: if the stored
-  // refresh-token expiry has elapsed, the grant is dead by the gateway's own
-  // earlier statement and no call can revive it.
+  // The stored refresh expiry is CORROBORATION ONLY, never a standalone
+  // verdict (review R4-verify): rotation can hand back a new refresh token
+  // without a new expiry, so this value goes stale by construction. Always
+  // attempt the call — the gateway is the authority on its own credential.
   const refreshExpiresAt =
     typeof connection.refreshTokenExpiresAt === 'string' ? connection.refreshTokenExpiresAt : '';
-  if (refreshExpiresAt !== '' && Date.parse(refreshExpiresAt) <= Date.parse(now)) {
-    return await markAuthorizationExpired(deps, 'refresh token expired');
-  }
+  const recordSaysExpired =
+    refreshExpiresAt !== '' && Date.parse(refreshExpiresAt) <= Date.parse(now);
 
   const result = await deps.client.callApi({
     apiPath: deps.endpoints.tokenRefreshPath,
@@ -251,16 +251,22 @@ export async function getConnectionAccessToken(deps: OAuthDeps): Promise<AccessT
     maxAttempts: 1,
   });
   if (!result.ok) {
-    // A TRANSPORT-level failure is never proof the credential is dead
-    // (review R3-verify). The client's `retryable()` predicate must NOT be
-    // reused here: there, "not retryable" means return a failure — harmless;
-    // here it would mean DESTROY connection state that only a human merchant
-    // re-authorization can restore. The /rest host and refresh path stay
-    // ASSUMED-UNVERIFIED until the MIU 15 live smoke, so a moved path, an edge
-    // 403, or a 408 would otherwise turn an infra fault into a permanent
-    // outage plus a recurring re-authorize page. Keep the current token if it
-    // is still valid; otherwise report the outage (alerted once, never
-    // silent) and retry next tick.
+    // Terminality needs EVIDENCE, and the gateway's own error code is the
+    // only direct evidence available (review R4-verify). A bare status code is
+    // not: the /rest host and refresh path stay ASSUMED-UNVERIFIED until the
+    // MIU 15 live smoke, so a 4xx is as likely to be a moved path or an edge
+    // rule as a revocation — and destroying state on that guess needs a human
+    // to undo. A rejection code, or a failure that CORROBORATES our stored
+    // expiry, is a different matter.
+    if (rejectsCredential(result.bodyText) || recordSaysExpired) {
+      return await markAuthorizationExpired(
+        deps,
+        recordSaysExpired ? 'refresh token expired' : 'refresh token rejected',
+      );
+    }
+    // Otherwise the credential is not proven dead. Keep serving the current
+    // token while it lasts; report the outage — escalating, never once-and
+    // silent — and retry next tick.
     if (Date.parse(expiresAt) > Date.parse(now)) {
       return { ok: true, accessToken: payload.accessToken };
     }
@@ -272,16 +278,22 @@ export async function getConnectionAccessToken(deps: OAuthDeps): Promise<AccessT
   // non-recoverable — the merchant must re-authorize.
   if (!grant) return await markAuthorizationExpired(deps, 'refresh rejected');
   const nextPayload: Record<string, unknown> = { accessToken: grant.accessToken };
-  if (grant.refreshToken !== undefined) nextPayload.refreshToken = grant.refreshToken;
-  else nextPayload.refreshToken = refreshToken;
+  const rotated = grant.refreshToken !== undefined && grant.refreshToken !== refreshToken;
+  nextPayload.refreshToken = grant.refreshToken ?? refreshToken;
   await updateDoc('alibabaConnections', PRIMARY_CONNECTION_ID, {
     tokenEnvelope: encryptTokenPayload(deps.tokenKey, nextPayload),
     accessTokenExpiresAt: grant.accessTokenExpiresAt ?? '',
     // A success ends any outage, so the next one pages again.
+    firstAuthErrorAt: '',
     lastAuthErrorAt: '',
+    // Keep the stored expiry DESCRIBING THE STORED TOKEN (review R4-verify):
+    // a rotation that omits the new expiry must clear the old one rather than
+    // leave the previous token's deadline attached to a fresh credential.
     ...(grant.refreshTokenExpiresAt !== undefined
       ? { refreshTokenExpiresAt: grant.refreshTokenExpiresAt }
-      : {}),
+      : rotated
+        ? { refreshTokenExpiresAt: '' }
+        : {}),
   });
   return { ok: true, accessToken: grant.accessToken };
 }
@@ -311,25 +323,83 @@ export async function probeConnection(deps: OAuthDeps): Promise<ConnectionProbe>
   return { ok: true };
 }
 
+/** Gateway error codes that mean the credential itself is refused. */
+const CREDENTIAL_REJECTION_CODES = [
+  'invalid_grant',
+  'invalid_token',
+  'invalid_refresh_token',
+  'expired_token',
+  'token_expired',
+  'unauthorized_client',
+  'access_denied',
+];
+
 /**
- * Record a refresh OUTAGE without touching `status`: the connection is still
- * authorized, the gateway is simply unreachable or answering oddly. Alerts
- * exactly once per outage (the stamp is cleared by the next success) so a
- * 15-minute timer cannot page operations 96 times a day — and so the failure
- * is never silent, which is the whole reason the terminal flip was reached
- * for in the first place.
+ * Does the gateway's own error body refuse the CREDENTIAL (as opposed to
+ * refusing the request, the path, or nothing at all)? Matching is on an
+ * allowlist of codes, so nothing from the response is ever echoed onward.
+ */
+function rejectsCredential(bodyText: string | undefined): boolean {
+  if (!bodyText) return false;
+  const haystack = bodyText.slice(0, 2048).toLowerCase();
+  return CREDENTIAL_REJECTION_CODES.some((code) => haystack.includes(code));
+}
+
+/**
+ * Re-page cadence for a persisting refresh outage: every 6h through the first
+ * day, then daily. Bounded either way — a 15-minute timer must never page 96
+ * times, and an outage must never go quiet.
+ */
+const OUTAGE_ESCALATION_MS = 6 * 3_600_000;
+const OUTAGE_REPEAT_MS = 24 * 3_600_000;
+
+/**
+ * Record a refresh OUTAGE without touching `status`: nothing here proves the
+ * credential is dead, and a status flip would need a human to undo. But an
+ * outage must not go quiet either (review R4-verify: a single "no action
+ * needed" page followed by permanent silence is how a real revocation hides
+ * behind a dashboard reading "Connected"). So: page on the first failure,
+ * again once it has persisted past OUTAGE_ESCALATION_MS with an explicit
+ * re-connect recommendation, then at most daily. `firstAuthErrorAt` is
+ * written ONCE per outage so the duration stays computable — and is what the
+ * admin panel renders.
  */
 async function noteRefreshOutage(
   deps: OAuthDeps,
   connection: Record<string, unknown>,
 ): Promise<void> {
-  const alreadyAlerted =
-    typeof connection.lastAuthErrorAt === 'string' && connection.lastAuthErrorAt !== '';
-  await updateDoc('alibabaConnections', PRIMARY_CONNECTION_ID, { lastAuthErrorAt: deps.now() });
-  if (alreadyAlerted) return;
-  await deps.alert(
-    'Alibaba token refresh is failing (transport). Sync is paused; the connection is still authorized — no action needed unless this persists.',
-  );
+  const now = deps.now();
+  const nowMs = Date.parse(now);
+  const firstAt =
+    typeof connection.firstAuthErrorAt === 'string' && connection.firstAuthErrorAt !== ''
+      ? connection.firstAuthErrorAt
+      : now;
+  const lastAlertAt =
+    typeof connection.lastAuthErrorAt === 'string' ? connection.lastAuthErrorAt : '';
+  const outageMs = nowMs - Date.parse(firstAt);
+  const isFirst = lastAlertAt === '';
+  const sinceLastAlert = lastAlertAt === '' ? 0 : nowMs - Date.parse(lastAlertAt);
+  const backoffMs = outageMs >= OUTAGE_REPEAT_MS ? OUTAGE_REPEAT_MS : OUTAGE_ESCALATION_MS;
+  const escalate = !isFirst && sinceLastAlert >= backoffMs;
+
+  await updateDoc('alibabaConnections', PRIMARY_CONNECTION_ID, {
+    firstAuthErrorAt: firstAt,
+    // Only advance the alert clock when we actually alerted, so the repeat
+    // window measures time between PAGES, not between ticks.
+    ...(isFirst || escalate ? { lastAuthErrorAt: now } : {}),
+  });
+  if (isFirst) {
+    await deps.alert(
+      'Alibaba token refresh is failing. Sync is paused; the credential has not been refused, so this may be an upstream outage. Escalates if it persists.',
+    );
+    return;
+  }
+  if (escalate) {
+    const hours = Math.floor(outageMs / 3_600_000);
+    await deps.alert(
+      `Alibaba token refresh has been failing for ${hours}h and sync is still paused. Check the connection and re-connect if the gateway keeps refusing.`,
+    );
+  }
 }
 
 async function markAuthorizationExpired(
@@ -355,6 +425,10 @@ export async function connectionStatusView(): Promise<Record<string, unknown>> {
     accessTokenExpiresAt: connection.accessTokenExpiresAt ?? '',
     refreshTokenExpiresAt: connection.refreshTokenExpiresAt ?? '',
     authorizedAt: connection.authorizedAt ?? '',
+    // The outage window is what makes a degraded-but-'active' connection
+    // visible in the panel (review R4-verify) — without it the operator sees
+    // "Connected" while sync is frozen.
+    firstAuthErrorAt: connection.firstAuthErrorAt ?? '',
     lastAuthErrorAt: connection.lastAuthErrorAt ?? '',
   };
 }

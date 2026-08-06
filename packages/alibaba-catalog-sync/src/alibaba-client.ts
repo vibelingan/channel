@@ -39,7 +39,20 @@ export type ApiCallFailureKind = 'network' | 'timeout' | 'http' | 'body-too-larg
 
 export type ApiCallResult =
   | { ok: true; status: number; bodyText: string }
-  | { ok: false; kind: ApiCallFailureKind; status?: number; error: string };
+  | {
+      ok: false;
+      kind: ApiCallFailureKind;
+      status?: number;
+      error: string;
+      /**
+       * Response body for an `http` failure, when the gateway sent one. GOP
+       * encodes a rejected credential as an error code in the body of a 4xx,
+       * so discarding it leaves callers unable to tell "your token is dead"
+       * from "wrong path / edge rule" — a distinction the OAuth layer needs to
+       * decide whether to destroy connection state. Never logged raw.
+       */
+      bodyText?: string;
+    };
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_ATTEMPTS = 3;
@@ -130,6 +143,7 @@ export function createAlibabaClient(config: AlibabaClientConfig): AlibabaClient 
           kind: 'http',
           status: response.status,
           error: `HTTP ${response.status} from ${input.apiPath}`,
+          bodyText,
         };
       }
       return { ok: true, status: response.status, bodyText };

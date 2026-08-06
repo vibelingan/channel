@@ -58,6 +58,7 @@ export interface ConnectionStatus {
   accessTokenExpiresAt?: string;
   refreshTokenExpiresAt?: string;
   authorizedAt?: string;
+  firstAuthErrorAt?: string;
   lastAuthErrorAt?: string;
   notConfigured: boolean;
   missing?: string[];

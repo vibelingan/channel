@@ -394,3 +394,48 @@ regressions (3 HIGH), that fix introduced 1 more (2 reports). Each round
 was strictly smaller; round 4's fix is confined to one function's failure
 policy and is the first that removes a state-destroying write rather than
 adding one.
+
+## Review round 5 — verification of the round-4 policy (2026-08-06)
+
+Round 4 swung too far the other way. 4 findings (2 HIGH):
+
+1. **HIGH — a real revocation went silent.** RFC 6749 §5.2 encodes a revoked
+   refresh token as HTTP 400 + `error=invalid_grant`, which round 4 had just
+   blessed as non-terminal. A revoked merchant grant therefore produced ONE
+   page that explicitly said "still authorized — no action needed", then
+   permanent silence, with the panel rendering "Connected" and an access-token
+   expiry already in the past. `lastAuthErrorAt` was the only moving field and
+   it had **zero render sites** in the admin UI.
+2. **HIGH — the "own record" evidence was stale by construction.** A refresh
+   that rotates the token but omits `refresh_expires_in` left the PREVIOUS
+   token's deadline attached to a brand-new credential; the round-4 terminal
+   branch then destroyed a healthy connection without even placing a call.
+   Every refresh fixture in our own suite omits that field.
+3. MEDIUM — the outage alert asserted "the connection is still authorized",
+   a claim the code had no evidence for (the mirror of round 3's error).
+4. MEDIUM — `lastAuthErrorAt` was overwritten every tick, destroying the
+   outage START, so no duration-based escalation was even constructible.
+
+**Final policy — the gateway is the authority, the record only corroborates:**
+- `alibaba-client` now PRESERVES the response body on an `http` failure
+  (previously discarded), because the error code is the only direct evidence
+  distinguishing "your credential is dead" from "wrong path / edge rule".
+- Terminal: an allowlisted rejection code in the body (`invalid_grant`,
+  `invalid_token`, …) at ANY status; a failed call that corroborates an
+  elapsed stored expiry; no refresh token; or a 2xx that is not a grant. The
+  call is now ALWAYS attempted — a working gateway always wins over our record.
+- A rotation that omits the new expiry CLEARS the stored one, so a deadline
+  never outlives the token it described.
+- Otherwise: retryable, status untouched, with `firstAuthErrorAt` written once
+  per outage (duration stays computable) and pages every 6h through the first
+  day then daily — bounded both ways: never 96 pages, never silent.
+- The admin panel now renders "Token refresh failing since X — sync is paused"
+  for an `active` connection, so a degraded state is visible at all.
+
+Gates: 649 recursive + 21 script tests green, 11 typechecks + astro (0
+errors), biome clean, SDK contract verify, 3 artifact smokes, site build.
+
+**Loop shape so far:** 12 findings → 6 regressions → 2 → 4. Round 5 is the
+first to change a package outside the function (the client's failure shape),
+because the real defect was upstream: the evidence needed to make this
+decision correctly was being thrown away before the decision was reached.
