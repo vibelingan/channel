@@ -506,6 +506,43 @@ Bounds per invocation:
   exits without touching anything);
 - manual run uses same runner and lease.
 
+### §14.1 Amendment — there is only ONE environment, and it is live
+
+**Supersedes every "test env vs production env" distinction in this document.**
+Recorded 2026-08-07 after confirming the deployment topology against the live
+CloudBase gateway.
+
+There is exactly one CloudBase environment, `diversity-123-d9grnqfux221323bb`.
+It serves the real public site: `supplychainsai.com` and
+`www.supplychainsai.com` are both bound to its HTTP gateway, and `SITE_URL`
+is `https://supplychainsai.com`. The GitHub environment is *named* `test`,
+which is what led the original design to assume a separate production
+environment existed. It does not.
+
+Two consequences, both load-bearing:
+
+1. **Sync never runs on its own.** `assertNoTimerTriggers` in
+   `scripts/deploy-cloudbase-test.mjs` HARD-FAILS the deploy if the function
+   carries any trigger. So a timer cannot be added through the console — the
+   next deploy would refuse. `PRODUCTION_DESIRED_TIMER_TRIGGERS` describes an
+   environment that does not exist. **Until this is decided, the only thing
+   that drives a run is an operator clicking "Run now".**
+2. **Deploying this feature touches the live site's environment.** The change
+   is additive — its own gateway route, its own collections, existing
+   functions and routes untouched — but it is not a rehearsal.
+
+**Deliberate position for the first rollout: keep it manual.** An operator
+clicking "Run now" and reading the run table is the tightest possible feedback
+loop for a first live connection, and it cannot surprise anyone at 3am. Enable
+the timer only once a manual run has completed cleanly against the real
+supplier account.
+
+**To enable the timer later** (one change, both halves required, or the next
+deploy breaks): apply `PRODUCTION_DESIRED_TIMER_TRIGGERS` in the deploy, and
+replace `assertNoTimerTriggers` with an assertion that the DESIRED trigger is
+present and no other. Do not simply delete the assertion — an unasserted
+trigger set is how a rehearsal timer survives unnoticed.
+
 ### §10.1 Amendment — `runNow` executes a bounded slice inline
 
 **Supersedes the "marks the run due and returns" clause in §10** (recorded

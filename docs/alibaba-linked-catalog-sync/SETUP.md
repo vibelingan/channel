@@ -3,6 +3,15 @@
 Everything here is done once, by a human, before anyone opens the admin page.
 Nothing in the feature works until all of it is done.
 
+> **There is ONE environment and it serves the live site.** The GitHub
+> environment is named `test`, but `diversity-123-d9grnqfux221323bb` is what
+> `supplychainsai.com` runs on. This is not a rehearsal — see ARCHITECTURE
+> §14.1. A consequence worth knowing before you start: sync runs **only** when
+> an operator clicks "Run now"; there is no timer, on purpose, for the first
+> rollout.
+>
+> Client-facing version of the Alibaba steps: `CLIENT_ALIBABA_SETUP.md`.
+
 ## The values you already have
 
 | Thing | Value | Where it came from |

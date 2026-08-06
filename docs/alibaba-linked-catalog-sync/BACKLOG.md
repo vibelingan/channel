@@ -6,7 +6,20 @@ deployment or the first Connect.
 
 ## Blocks production, not test
 
-### B1 — There is no production deployment at all
+### B1 — Sync never runs automatically (single live environment)
+**Re-scoped 2026-08-07 — see ARCHITECTURE §14.1.** The original entry assumed a
+missing *production* deploy. There is no separate production environment: the
+one environment, `diversity-123-d9grnqfux221323bb`, serves the live site.
+
+Because the deploy hard-fails on any function trigger, sync runs ONLY when an
+operator clicks "Run now". That is a deliberate choice for the first rollout,
+not an oversight — but it must be an explicit decision to change, and it needs
+both halves at once: apply the desired timer in the deploy AND flip the
+assertion from "no triggers" to "exactly the desired trigger".
+
+<details><summary>Original framing (superseded)</summary>
+
+#### There was no production deployment at all
 The 15-minute timer that drives sync in production is written down
 (`PRODUCTION_DESIRED_TIMER_TRIGGERS` in `scripts/cloudbase-function-manifest.mjs`)
 but **nothing applies it** — that constant is referenced only by a test, and
@@ -17,6 +30,8 @@ is the only driver there. That is by design and fine for now.
 
 *Needed before production:* a deploy workflow that applies the timer trigger
 and asserts it afterwards, mirroring how the test deploy asserts its absence.
+
+</details>
 
 ### B2 — The apply phase walks the whole catalog in one pass
 The phase that writes supplier prices onto your products reads every mirrored
