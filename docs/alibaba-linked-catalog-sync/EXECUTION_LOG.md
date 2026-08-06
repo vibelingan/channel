@@ -104,3 +104,160 @@ it requires live CloudBase access).
 
 **MIU 0 status: complete** except the explicitly-deferred external gates
 listed above (deferral is the documented R1 path, not a silent skip).
+
+## MIU 1 — Pricing types and money parser (commit b889378)
+
+**What:** `packages/alibaba-catalog-sync` created; `parseDecimalToMinorUnits`
+(BigInt string math, strict grammar, unsafe-integer rejection) and
+`validateAlibabaCatalogPricing` (R1 per-mode field matrix, optional currency
+for negotiable/unavailable, strict unknown-key rejection, tier
+ordering/overlap/open-ended/MOQ rules).
+**Tests:** 37 (golden, float-trap lexemes, MAX_SAFE_INTEGER boundary, matrix,
+tier edges). **Result:** green; typecheck/lint clean.
+**Rationale:** strictness serves canonical candidate hashing (§12) — two
+writers can never emit different shapes for the same commercial fact.
+
+## MIU 2 — Signature, client, contracts, enumeration (commit e7f5bf9)
+
+**What:** GOP signature canonicalization + pinned golden vector;
+lossless-JSON parser (numbers preserved as lexemes; hand-rolled, offline
+constraint documented); signed HTTP client (timeouts, caps, retry policy,
+secret redaction, delimiter-safe fingerprints); guarded endpoint resolution
+(HTTPS + *.alibaba.com overrides); table-driven tolerant list/detail
+extraction; serializable bisection work-stack (adjacent-second partition,
+BLOCKED_UNSTABLE_TIE, JSON round-trip for checkpoints).
+**Tests:** 82 package total. **Result:** green.
+**Notable fix during TDD:** adjacent-second window split previously
+non-terminating (midpoint aligned back to fromMs); caught by the 1-second
+block test.
+
+## MIU 3 — Registry collections + additive fields + adminAccess (commit af4d7b0)
+
+**What:** `adminAccess` on CollectionDef; ten collections registered; five
+read-only product fields; registry-aware gates
+`canRead/canEditRegisteredCollection` in collections.ts (auth.ts untouched —
+reverse import is a TDZ cycle; trio precedence regression-tested); admin
+handler switched at seven gate sites; `collections` dump filtered;
+NON_QUERYABLE_FIELDS additions; ten ADMINONLY provisioning entries.
+**Tests:** shared 84, admin 153, deploy-smoke 15, full repo green; full
+typecheck green.
+**Protected surfaces:** legacy pricing defs pinned byte-identical by snapshot
+test; overstock asserted Alibaba-free.
+
+## MIU 4 — Deterministic writes + fenced sync lease (commit 1fca497)
+
+**What:** pure fenced-lease state machine shared by all adapters;
+createDocWithId/upsertDocWithId; `updateDocWithAlibabaLease` (R1 E2 —
+lease recheck inside the transaction/critical section); CloudBase impl on
+in-transaction `doc.set` full-replace upsert (contract pinned from installed
+@cloudbase/database 1.4.3 source, static + runtime probes added to
+verify-cloudbase-sdk-contract.mjs); local JSON impl under withMutationLock;
+throwing facades with input validation.
+**Tests:** 38 db tests incl. exactly-one-winner races and fence-takeover
+stale-write rejection; SDK contract script green; full repo suite + 10
+package typechecks green.
+**Deviation noted:** existing adapters' `create()` caller-supplied-`_id`
+quirk left untouched (behavior-change risk); all new code uses the explicit
+`createDocWithId` path instead.
+
+## MIU 5 — OAuth + encrypted connection + new function (commit b8ca432)
+
+**What:** apps/functions/alibaba-catalog-sync created (package/tsup/tsconfig
+mirroring admin). R1 §8.1 flow: Bearer/JSON oauthStart returning
+{authorizeUrl}; unauthenticated state-bound GET callback with 302 back to
+the site admin page; sha256-hashed single-use states (incrementField CAS);
+AES-256-GCM envelope (64-hex key, lazy validation, not_configured
+fail-closed); live-admin-role gating; reserve-first callback rate limiting;
+lazy refresh + authorization_expired alerting; WeCom alert sender with
+visible console fallback; guarded endpoint overrides.
+**Tests:** 12 (flow end-to-end incl. replay, redaction, rate limit, refresh
+rotation); typecheck/lint green; tsup bundle builds.
+**.env.example** corrected: key is 64 hex chars (openssl rand -hex 32), not
+base64; endpoint-override placeholders added.
+
+## MIU 6 — Raw payload evidence + normalization (commit 2765799)
+
+**What:** hash-addressed `alibaba-raw` media-storage namespace; payload
+metadata row id = response sha256 (single-winner dedupe); raw-before-parse
+with abort-on-raw-failure; normalizeProductDetail (deterministic keys,
+SKU/ladder/fob pricing derivation, validate-or-degrade, CST→UTC, RMB→CNY,
+unsupported-currency flag); ingest with idempotent mirror upserts +
+product-scoped offer sweep. **Deviation (accepted per R1 E7):** mirror rows
+are last-write-wins; promotion is the fenced surface.
+**Tests:** 93 domain + 18 function green.
+
+## MIU 7 — Linking + unpublished drafts (commit 74cecec)
+
+**What:** link rows keyed by sourceKey with single-winner create-if-absent
+(race-tested one-source-one-product); admin link/unlink actions
+(live-admin-gated) touching only Alibaba-owned fields; unlink restores the
+legacy path byte-identically; category-mapped draft creation with
+claim-first crash repair; runtime published:false verification; no fuzzy
+matching, no auto images. **Tests:** 27 function green.
+
+## MIU 8 — Offer selection + fenced promotion (commit c618711)
+
+**What:** R1 M2 total-order selectPrimaryOffer; buildPromotionCandidate
+(Alibaba-fields-only patch; canonical unavailable on source deletion);
+>30% price-move audit; canonical candidate hash; promoteLinkedProduct with
+link-identity recheck + updateDocWithAlibabaLease fenced write.
+**Tests:** stale-fence rejection, byte-identical protected fields,
+determinism under permutation; 103 domain + 33 function green.
+
+**Task 3 (MIU 0-8) complete.** Remaining: MIU 9 (API), 10 (renderer),
+11 (runner), 12 (media import), 13 (admin UI), 14 (manifest/deploy),
+15 (activation — network-gated parts deferred).
+
+## MIU 9 — Public API projection (commit ccdb218)
+
+Allowlist gains the four public fields (never the offer key); nested pricing
+sub-projected (provenance stripped, R1 H1); site DTO + linked/unlinked
+factories. Contract tests: unlinked payloads alibaba-free, anon==auth
+deep-equality, VIP unchanged, overstock pinned. 46 public-api + 105 site
+tests green.
+
+## MIU 10 — Renderer + full-site routing (commit cb15587)
+
+AlibabaCatalogPricingBlock (5 modes, minor-unit CNY/USD formatter,
+quote-required for missing pricing); link-identity routing at ALL legacy
+price render sites (card badge/moq, spec-sheet unitPrice/moq, PriceBlock
+swap); PriceBlock ownership comment. Stage E matrix proven in render tests
+(117 site tests). i18n note: block ships EN defaults + label overrides —
+typed content group is a follow-up.
+
+## MIU 11 — Resumable runner (commit 84dc061)
+
+Missed-tick-proof due math; lease-first bounded slices; enumerate→promote→
+tombstone stages; quarantine gate BEFORE promotion with frozen-candidate
+hash + approval supersession check; per-candidate tombstone confirmation;
+runNow (interactive slice) + approveQuarantine actions; timer routing.
+TDD caught the mid-bucket budget-death item-loss bug. 113 domain + 39
+function tests green.
+
+## MIU 12 — SSRF-safe media import (commit 4520816)
+
+Full SSRF pipeline (allowlist, DNS matrix, hop-validated redirects,
+streaming cap, magic-byte MIME, sha256 dedupe); candidates land active+
+refcount-0+sentinel-owned; dedicated removal action. **Deviation:** the
+images.checksumSha256 provisioning index deferred to MIU 15 (live images
+collection permission risk vs unindexed lookup).
+
+## MIU 13 — Admin operations UI (commit 6cd6f29)
+
+Custom admin-only dashboard section (connection panel with callback banner,
+quarantine review/approve, explicit link/unlink, run table via generic
+list); alibaba-api client mirroring the admin envelope; category mappings as
+plain CRUD section; local-server route mirror for dev parity. 122 site
+tests green.
+
+## MIU 14 — Function manifest (commit 5fdcfb6)
+
+cloudbase-function-manifest.mjs owns names/routes/timeouts/env/timer
+desired-state; five consumers switched in lockstep; per-function timeout
+threaded through BOTH deploy paths (alibaba 900s/512MB); test-env
+trigger-absence hard-fail in deploy AND smoke; env byte-parity pinned by
+function-manifest.test.mjs; workflow secret pass-through + scan names.
+All three functions build/package/pass stub-env cold-start smoke; 21
+deploy-smoke tests green.
+
+**Tasks 3+4 (MIU 0-14) complete.**
