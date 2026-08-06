@@ -1,3 +1,10 @@
+/**
+ * LEGACY/MANUAL COMPATIBILITY RENDERER (docs/alibaba-linked-catalog-sync).
+ * This block renders the manually-maintained wholesale/VIP pricing for
+ * UNLINKED products and must not be removed or refactored by the Alibaba
+ * feature; products with `alibabaPrimarySourceKey` render
+ * AlibabaCatalogPricingBlock instead and never fall back here.
+ */
 import { formatPrice } from './api.ts';
 
 interface Props {

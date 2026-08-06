@@ -12,6 +12,7 @@
  * action 12px/500 (`text-xs font-medium`).
  */
 import type { HeadphonesContent } from '../../i18n/headphones.ts';
+import { alibabaPriceSummary } from './AlibabaCatalogPricingBlock.tsx';
 import { ProductMedia } from './ProductMedia.tsx';
 import { formatPrice } from './api.ts';
 import type { Product } from './catalog-types.ts';
@@ -64,15 +65,35 @@ export function HeadphonesProductCard({
 
         <div className="mt-auto pt-4">
           <div className="flex items-center justify-between text-xs text-ink-muted">
-            {product.moq !== undefined && (
-              <span>
-                {list.moqLabel}: <strong>{product.moq}</strong>
-              </span>
-            )}
-            {product.unitPrice !== undefined && (
-              <span data-product-card-price className="text-sm font-semibold text-brand-700">
-                {formatPrice(product.unitPrice)}
-              </span>
+            {/* Alibaba-linked cards (MIU 10) route by LINK IDENTITY: the
+                legacy moq/unitPrice values are suppressed and the live source
+                summary (or nothing, for quote-required states) renders. */}
+            {product.alibabaPrimarySourceKey ? (
+              <>
+                {product.alibabaCatalogPricing?.sourceMoq !== undefined && (
+                  <span data-alibaba-card-moq>
+                    {list.moqLabel}: <strong>{product.alibabaCatalogPricing.sourceMoq}</strong>
+                  </span>
+                )}
+                {alibabaPriceSummary(product.alibabaCatalogPricing) !== null && (
+                  <span data-alibaba-card-price className="text-sm font-semibold text-brand-700">
+                    {alibabaPriceSummary(product.alibabaCatalogPricing)}
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                {product.moq !== undefined && (
+                  <span>
+                    {list.moqLabel}: <strong>{product.moq}</strong>
+                  </span>
+                )}
+                {product.unitPrice !== undefined && (
+                  <span data-product-card-price className="text-sm font-semibold text-brand-700">
+                    {formatPrice(product.unitPrice)}
+                  </span>
+                )}
+              </>
             )}
           </div>
           <div
