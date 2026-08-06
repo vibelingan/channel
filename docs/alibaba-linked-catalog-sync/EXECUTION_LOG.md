@@ -479,3 +479,59 @@ were successive over-corrections of the same design decision (when is a
 credential dead?), while round 6 found only data/omission bugs in an
 otherwise settled design, each with a surgical, provably-narrowing fix. That
 is the signal to stop iterating on this surface.
+
+## Blessing gate (`/dev-pipeline:review`) — BLOCKED, then fixed (2026-08-06)
+
+The repo's pre-push hook refuses any SHA the pipeline's own review has not
+blessed. That gate ran 7 reviewer lenses over the whole 107-file diff and
+**blocked with 9 P1 + 11 P2 confirmed findings** — after seven self-directed
+adversarial rounds had come back clean. The lenses were different, and that is
+the entire lesson: my rounds were diff-scoped, so they could not see invariants
+carried by code the diff never touched.
+
+### P1 fixes
+
+1. **CloudBase nested-object writes were a MERGE, not a replace (4 findings,
+   one root cause).** `update` flattens `{pricing:{mode,amountMinor}}` into
+   dot-paths, so (a) writing over a field currently holding `null` never lands
+   and (b) a patch that omits a sub-key leaves the PREVIOUS value's keys
+   behind — a `tiered → fixed` transition yielded a document carrying both
+   modes. The local JSON adapter shallow-spreads, so **every test passed while
+   production would have diverged**. All three adapter write paths now wrap
+   plain objects in `command.set()`. Probed against the real driver: the raw
+   path emits `$set:{"pricing.mode":…}`, the wrapped path `$set:{"pricing":{…}}`.
+2. **`pageSize: 500` silently clamped to 100** at four call sites. `list()`
+   returns no truncation signal and echoes the clamped size back, so promotion
+   candidates, tombstone candidates and the quarantine recomputation all
+   silently truncated — and because the runner and the approval path must
+   produce byte-identical sets, a >100-row mirror could never be approved. All
+   four now share one `listAllDocs` cursor walk that throws rather than
+   truncates.
+3. **An incremental run clobbered the weekly full-run deadline.** Both
+   `completeRun` and `clearActiveRun` recomputed BOTH watermarks from `now`, so
+   an incremental run spanning the Sunday full-run time pushed it out another
+   week — indefinitely. Watermark advance is now scoped to the mode that ran.
+4. **Tombstone flip and product demotion were two writes with no repair
+   path.** A lease loss between them left the source tombstoned while the
+   storefront kept selling the removed offer forever. The flip now opens a
+   `demotedAt: ''` repair window that closes only after the demotion lands, and
+   `repairTombstones()` re-drives any pair left open by an earlier run.
+5. **The sync self-pinned.** `alibabaPrimaryOfferKey` was both the selection
+   OUTPUT and the pin INPUT, so run 1's auto-choice froze forever and §5's
+   total order never re-evaluated: a supplier re-pricing could never move the
+   storefront to the cheaper offer. Added the contract-mandated
+   `setAlibabaPrimaryOffer` action (MIU_BREAKDOWN R1 L4, previously
+   unimplemented) writing a DISTINCT `alibabaPinnedOfferKey`, validated to be
+   an ACTIVE offer on the product's own source; empty clears it.
+
+Gates: 654 recursive + 21 script tests, 11 typechecks + astro (0 errors),
+biome clean, SDK contract verify (48 assertions), 3 artifact smokes, site build.
+
+**P2s still open** (recorded, not yet fixed): `runNow` executes a slice inline
+where ARCHITECTURE §10 freezes it as mark-due-and-return;
+`createDraftForSource` has no production caller, so category-mapped drafts
+never actually get created; the OAuth rate-limit ledger omits the admin
+function's bounded GC sweep; the enumerate stage's inner detail loop can
+outlive the lease TTL without renewing; and three mutation-proven test gaps
+(the fenced write's production implementations, the candidate-hash
+recomputation arm, and the still-valid-token degradation arm).

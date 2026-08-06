@@ -46,6 +46,7 @@ import {
 } from '@vibelingan-channel/db';
 import type { AlertSender } from './alerts.ts';
 import { ingestProductDetail } from './ingest.ts';
+import { listAllDocs } from './list-all.ts';
 import { PRIMARY_CONNECTION_ID } from './oauth.ts';
 import { promoteLinkedProduct } from './promotion.ts';
 import { type CollectionDoc, createDocWithId, getDoc, updateDoc, upsertDocWithId } from './repo.ts';
@@ -198,15 +199,19 @@ export async function runSyncTick(input: {
           runDoc.status === 'approved' ||
           runDoc.status === 'failed');
       if (terminal) {
-        await clearActiveRun(guard, deps);
+        // The run already reached a terminal state and advanced its own
+        // watermark then; clearing a stale slot must move nothing.
+        await clearActiveRun(guard, deps, null);
         await release();
         return { outcome: 'idle', runId: decision.runId, detail: 'stale-active-run-cleared' };
       }
       if (!runDoc || runOverdue(String(runDoc.startedAt ?? now), continuationCount, now)) {
         await failRun(decision.runId, 'run-overdue', guard(deps.now()), deps);
         // Vacate the slot (review R2 HIGH): without this every later tick
-        // re-resumes the dead run forever and sync wedges permanently.
-        await clearActiveRun(guard, deps);
+        // re-resumes the dead run forever and sync wedges permanently. Advance
+        // the DEAD run's own watermark so the same mode does not hot-loop.
+        const deadMode = runDoc?.mode === 'full' ? 'full' : runDoc ? 'incremental' : null;
+        await clearActiveRun(guard, deps, deadMode);
         await release();
         return { outcome: 'failed', runId: decision.runId, detail: 'run-overdue' };
       }
@@ -420,7 +425,7 @@ async function executeSlice(
           guard(deps.now()),
           deps,
         );
-        await clearActiveRun(guard, deps);
+        await clearActiveRun(guard, deps, state.mode);
         await release();
         return { outcome: 'failed', runId: state.activeRunId, detail: 'BLOCKED_UNSTABLE_TIE' };
       }
@@ -439,7 +444,7 @@ async function executeSlice(
             counters,
             completedAt: deps.now(),
           });
-          await clearActiveRun(guard, deps);
+          await clearActiveRun(guard, deps, state.mode);
           await deps.alert(
             `Alibaba sync run ${state.activeRunId} quarantined: list response carried no total_item (response contract failed).`,
           );
@@ -505,17 +510,13 @@ async function executeSlice(
 
   // --- stage: promote (quarantine gate BEFORE any product write) -------------
   if (state.stage === 'promote') {
-    const seen = await list({
-      collection: 'alibabaSourceProducts',
-      page: 1,
-      pageSize: 500,
-      filter: {
-        combinator: 'and',
-        clauses: [{ field: 'lastSeenRunId', op: 'eq', value: state.activeRunId }],
-      },
-    });
+    // Complete walk, NOT a single 500-row page: list() clamps to 100 silently,
+    // which would drop candidates from both the promotion set and its hash.
+    const seenItems = await listAllDocs('alibabaSourceProducts', [
+      { field: 'lastSeenRunId', op: 'eq', value: state.activeRunId },
+    ]);
     const linkedCandidates: { sourceKey: string }[] = [];
-    for (const source of seen.items) {
+    for (const source of seenItems) {
       const link = await getDoc('alibabaProductLinks', source._id);
       if (link && typeof link.productId === 'string' && link.productId !== '') {
         linkedCandidates.push({ sourceKey: source._id });
@@ -564,7 +565,7 @@ async function executeSlice(
       });
       // Quarantine RELEASES the lease and vacates the active slot (R1 E4);
       // the frozen candidate awaits approval, new runs may start.
-      await clearActiveRun(guard, deps);
+      await clearActiveRun(guard, deps, state.mode);
       await deps.alert(
         `Alibaba sync run ${state.activeRunId} quarantined: ${quarantine.reasons.join(', ')}.`,
       );
@@ -603,6 +604,11 @@ async function executeSlice(
   }
 
   // --- stage: tombstone (full runs only; per-candidate confirmation, R1 E8) --
+  // Repair first: a tombstone/demotion pair interrupted by a lease loss in an
+  // earlier run would otherwise keep selling a removed offer indefinitely.
+  if (!(await repairTombstones(guard, deps))) {
+    return { outcome: 'lease-lost', runId: state.activeRunId };
+  }
   const candidates = await listTombstoneCandidates(state.activeRunId);
   for (const candidate of candidates) {
     if (budgetExhausted(budget, Date.parse(deps.now()))) {
@@ -626,7 +632,7 @@ async function executeSlice(
         counters,
         completedAt: deps.now(),
       });
-      await clearActiveRun(guard, deps);
+      await clearActiveRun(guard, deps, state.mode);
       await deps.alert(
         `Alibaba sync run ${state.activeRunId} quarantined: tombstone confirmation failed.`,
       );
@@ -650,20 +656,26 @@ async function executeSlice(
     // Fenced flip (R1 E7, review R2 #7): the tombstone DECISION input must not
     // be writable by a stale holder — the lease is re-verified inside the
     // same transaction as the write.
+    // `demotedAt: ''` opens a REPAIR WINDOW (blessing-gate P1): the flip and
+    // the product demotion that must follow it are two writes, and a lease
+    // loss or process death between them would otherwise leave the source
+    // tombstoned while the storefront keeps selling the removed offer forever.
+    // The stamp closes only after the demotion lands, and repairTombstones()
+    // re-drives any pair left open.
     const flipped = await updateDocWithAlibabaLease(
       'alibabaSourceProducts',
       candidate._id,
-      { active: false, tombstonedAt: deps.now(), lastSeenRunId: state.activeRunId },
+      {
+        active: false,
+        tombstonedAt: deps.now(),
+        demotedAt: '',
+        lastSeenRunId: state.activeRunId,
+      },
       guard(deps.now()),
     );
     if (!flipped) return { outcome: 'lease-lost', runId: state.activeRunId };
-    const link = await getDoc('alibabaProductLinks', candidate._id);
-    if (link && typeof link.productId === 'string' && link.productId !== '') {
-      await promoteLinkedProduct({
-        sourceKey: candidate._id,
-        guard: guard(deps.now()),
-        now: deps.now(),
-      });
+    if (!(await demoteTombstonedSource(candidate._id, guard, deps))) {
+      return { outcome: 'lease-lost', runId: state.activeRunId };
     }
   }
 
@@ -674,14 +686,59 @@ async function executeSlice(
   return { outcome: 'completed', runId: state.activeRunId };
 }
 
+/**
+ * Demote the product behind a tombstoned source and close the repair window.
+ * Returns false only when the LEASE is gone — the caller must then abandon the
+ * slice, leaving `demotedAt: ''` for the next run to repair.
+ */
+async function demoteTombstonedSource(
+  sourceKey: string,
+  guard: (at: string) => AlibabaLeaseGuard,
+  deps: RunnerDeps,
+): Promise<boolean> {
+  const link = await getDoc('alibabaProductLinks', sourceKey);
+  if (link && typeof link.productId === 'string' && link.productId !== '') {
+    const demoted = await promoteLinkedProduct({
+      sourceKey,
+      guard: guard(deps.now()),
+      now: deps.now(),
+    });
+    // A fence rejection means someone else owns the lease now; anything else
+    // (no product, unlinked mid-flight) leaves nothing to demote.
+    if (!demoted.ok && demoted.reason === 'fence-rejected') return false;
+  }
+  return await updateDocWithAlibabaLease(
+    'alibabaSourceProducts',
+    sourceKey,
+    { demotedAt: deps.now() },
+    guard(deps.now()),
+  );
+}
+
+/**
+ * Re-drive any tombstone whose demotion never landed (blessing-gate P1). Runs
+ * before the tombstone stage's own candidate walk, so a pair interrupted by a
+ * lease loss in an earlier run is repaired rather than stranded.
+ */
+async function repairTombstones(
+  guard: (at: string) => AlibabaLeaseGuard,
+  deps: RunnerDeps,
+): Promise<boolean> {
+  const open = await listAllDocs('alibabaSourceProducts', [
+    { field: 'active', op: 'eq', value: false },
+    { field: 'demotedAt', op: 'eq', value: '' },
+  ]);
+  for (const source of open) {
+    if (!(await demoteTombstonedSource(source._id, guard, deps))) return false;
+  }
+  return true;
+}
+
 async function listTombstoneCandidates(runId: string): Promise<CollectionDoc[]> {
-  const active = await list({
-    collection: 'alibabaSourceProducts',
-    page: 1,
-    pageSize: 500,
-    filter: { combinator: 'and', clauses: [{ field: 'active', op: 'eq', value: true }] },
-  });
-  return active.items.filter((doc) => doc.lastSeenRunId !== runId);
+  const active = await listAllDocs('alibabaSourceProducts', [
+    { field: 'active', op: 'eq', value: true },
+  ]);
+  return active.filter((doc) => doc.lastSeenRunId !== runId);
 }
 
 async function handlePageFailure(
@@ -717,19 +774,56 @@ async function failRun(
   await deps.alert(`Alibaba sync run ${runId} failed: ${reason}.`);
 }
 
+/**
+ * Advance ONLY the watermark belonging to the mode that just ran (blessing-gate
+ * P1). Recomputing both from `now` lets a long incremental run that spans the
+ * weekly full-run deadline push that deadline a further week — the missed-cycle
+ * failure the due-based scheduler was frozen to prevent (R1 E6, ARCHITECTURE
+ * §10). A watermark that is already in the past belongs to a run that is still
+ * owed and must never be moved forward by an unrelated mode.
+ */
+function dueWatermarkPatch(
+  mode: 'incremental' | 'full' | null,
+  checkpoint: CollectionDoc | null,
+  now: string,
+): Record<string, string> {
+  const patch: Record<string, string> = {};
+  const storedFull = typeof checkpoint?.nextFullDueAt === 'string' ? checkpoint.nextFullDueAt : '';
+  const storedIncremental =
+    typeof checkpoint?.nextIncrementalDueAt === 'string' ? checkpoint.nextIncrementalDueAt : '';
+  const overdue = (at: string) => at === '' || Date.parse(at) <= Date.parse(now);
+
+  if (mode === 'full') patch.nextFullDueAt = computeNextFullDueAt(now);
+  else if (storedFull === '') patch.nextFullDueAt = computeNextFullDueAt(now);
+
+  if (mode === 'incremental') patch.nextIncrementalDueAt = computeNextIncrementalDueAt(now);
+  else if (storedIncremental === '') patch.nextIncrementalDueAt = computeNextIncrementalDueAt(now);
+
+  // A null mode means no run owned this clear (self-heal / overdue cleanup):
+  // seed only watermarks that are missing or stale, never push a live one out.
+  if (mode === null) {
+    if (overdue(storedFull) && storedFull === '') patch.nextFullDueAt = computeNextFullDueAt(now);
+    if (overdue(storedIncremental) && storedIncremental === '') {
+      patch.nextIncrementalDueAt = computeNextIncrementalDueAt(now);
+    }
+  }
+  return patch;
+}
+
 async function clearActiveRun(
   guard: (at: string) => AlibabaLeaseGuard,
   deps: RunnerDeps,
+  mode: 'incremental' | 'full' | null = null,
 ): Promise<boolean> {
   const now = deps.now();
+  const checkpoint = await getDoc('alibabaSyncCheckpoints', PRIMARY_CONNECTION_ID);
   const applied = await updateDocWithAlibabaLease(
     'alibabaSyncCheckpoints',
     PRIMARY_CONNECTION_ID,
     {
       activeRunId: '',
       stage: 'enumerate',
-      nextFullDueAt: computeNextFullDueAt(now),
-      nextIncrementalDueAt: computeNextIncrementalDueAt(now),
+      ...dueWatermarkPatch(mode, checkpoint, now),
     },
     guard(now),
   );
@@ -749,6 +843,7 @@ async function completeRun(
   // FENCED checkpoint first (review R2 #8): the cursor advance + slot clear
   // must not be lost while the run row claims completion. Only after the
   // fenced write lands is the run marked completed.
+  const checkpoint = await getDoc('alibabaSyncCheckpoints', PRIMARY_CONNECTION_ID);
   const applied = await updateDocWithAlibabaLease(
     'alibabaSyncCheckpoints',
     PRIMARY_CONNECTION_ID,
@@ -756,8 +851,7 @@ async function completeRun(
       activeRunId: '',
       stage: 'enumerate',
       committedCursor: state.windowEnd,
-      nextFullDueAt: computeNextFullDueAt(now),
-      nextIncrementalDueAt: computeNextIncrementalDueAt(now),
+      ...dueWatermarkPatch(state.mode, checkpoint, now),
     },
     guard(now),
   );

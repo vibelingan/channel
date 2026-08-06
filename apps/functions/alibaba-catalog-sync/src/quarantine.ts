@@ -16,6 +16,7 @@ import {
   releaseAlibabaSyncLease,
 } from '@vibelingan-channel/db';
 import type { AlertSender } from './alerts.ts';
+import { listAllDocs } from './list-all.ts';
 import { PRIMARY_CONNECTION_ID } from './oauth.ts';
 import { promoteLinkedProduct } from './promotion.ts';
 import { getDoc, updateDoc } from './repo.ts';
@@ -36,14 +37,13 @@ export type ApproveResult =
     };
 
 async function recomputeCandidates(runId: string, mode: string) {
-  const seen = await list({
-    collection: 'alibabaSourceProducts',
-    page: 1,
-    pageSize: 500,
-    filter: { combinator: 'and', clauses: [{ field: 'lastSeenRunId', op: 'eq', value: runId }] },
-  });
+  // Must reproduce the runner's set EXACTLY — both sides now use the same
+  // complete cursor walk, or the frozen candidate hash can never match.
+  const seen = await listAllDocs('alibabaSourceProducts', [
+    { field: 'lastSeenRunId', op: 'eq', value: runId },
+  ]);
   const candidates: { sourceKey: string }[] = [];
-  for (const source of seen.items) {
+  for (const source of seen) {
     const link = await getDoc('alibabaProductLinks', source._id);
     if (link && typeof link.productId === 'string' && link.productId !== '') {
       candidates.push({ sourceKey: source._id });
@@ -54,13 +54,10 @@ async function recomputeCandidates(runId: string, mode: string) {
   // incremental run permanently unapprovable. Ids only — stable under stamps.
   let tombstones: string[] = [];
   if (mode === 'full') {
-    const active = await list({
-      collection: 'alibabaSourceProducts',
-      page: 1,
-      pageSize: 500,
-      filter: { combinator: 'and', clauses: [{ field: 'active', op: 'eq', value: true }] },
-    });
-    tombstones = active.items.filter((doc) => doc.lastSeenRunId !== runId).map((doc) => doc._id);
+    const active = await listAllDocs('alibabaSourceProducts', [
+      { field: 'active', op: 'eq', value: true },
+    ]);
+    tombstones = active.filter((doc) => doc.lastSeenRunId !== runId).map((doc) => doc._id);
   }
   return { candidates, tombstones };
 }

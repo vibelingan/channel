@@ -273,6 +273,92 @@ requireCheck(
     databaseModule.Db.reqClass = originalReqClass;
   }
 }
+// Nested-object update semantics (blessing-gate P1). CloudBase's `update`
+// FLATTENS a nested plain object into dot-paths, so a patch MERGES into the
+// previous value instead of replacing it — and cannot land at all over a field
+// currently holding null. The local JSON adapter shallow-spreads, so this
+// diverges ONLY in production. Prove both the raw driver behaviour and that
+// the adapter wraps object values in the `set` command.
+{
+  const flattenCalls = [];
+  class FakeFlattenProbeRequest {
+    async send(api, params) {
+      flattenCalls.push({ api, params });
+      if (api === 'database.startTransaction') return { transactionId: 'flatten-probe-tx' };
+      if (api === 'database.getDocument') {
+        return { requestId: 'r', data: { list: [JSON.stringify({ _id: 'p-1', pricing: null })] } };
+      }
+      if (api === 'database.modifyDocument') return { requestId: 'r', data: { updated: 1 } };
+      return { requestId: 'r' };
+    }
+  }
+  const originalReqClass = databaseModule.Db.reqClass;
+  try {
+    databaseModule.Db.reqClass = FakeFlattenProbeRequest;
+    const probeDb = new databaseModule.Db({});
+
+    // (a) RAW: a bare nested object flattens to a dot-path key.
+    await probeDb.runTransaction(async (transaction) => {
+      await transaction
+        .collection('products')
+        .doc('p-1')
+        .update({ pricing: { mode: 'fixed', amountMinor: 250 } });
+    });
+    const rawUpdate = flattenCalls.find(
+      (call) => call.api === 'database.modifyDocument' && call.params?.merge === true,
+    );
+    // `params.data` is a JSON STRING wrapping the operators: {"$set": {...}}.
+    const rawSet = JSON.parse(rawUpdate?.params?.data ?? '{}').$set ?? {};
+    requireCheck(
+      Object.hasOwn(rawSet, 'pricing.mode') && !Object.hasOwn(rawSet, 'pricing'),
+      '@cloudbase/database update FLATTENS a nested object to dot-paths (merge, not replace)',
+    );
+
+    // (b) WRAPPED: the `set` command the adapter applies keeps the field whole.
+    flattenCalls.length = 0;
+    await probeDb.runTransaction(async (transaction) => {
+      await transaction
+        .collection('products')
+        .doc('p-1')
+        .update({ pricing: probeDb.command.set({ mode: 'fixed', amountMinor: 250 }) });
+    });
+    const wrappedUpdate = flattenCalls.find(
+      (call) => call.api === 'database.modifyDocument' && call.params?.merge === true,
+    );
+    const wrappedSet = JSON.parse(wrappedUpdate?.params?.data ?? '{}').$set ?? {};
+    requireCheck(
+      Object.hasOwn(wrappedSet, 'pricing') &&
+        !Object.keys(wrappedSet).some((key) => key.startsWith('pricing.')) &&
+        wrappedSet.pricing?.mode === 'fixed',
+      '@cloudbase/database command.set REPLACES a nested field wholesale (no dot-paths)',
+    );
+  } finally {
+    databaseModule.Db.reqClass = originalReqClass;
+  }
+}
+
+// The adapter must route EVERY object-valued patch field through command.set —
+// otherwise a mode transition leaves the previous mode's keys behind.
+{
+  const adapterSource = readFileSync(
+    new URL('../packages/db/src/cloudbase-adapter.ts', import.meta.url),
+    'utf8',
+  );
+  const writeSites = [
+    /\.update\(\{ data: replaceNestedObjects\(patch, db\.command\) \}\)/,
+    /await ref\.update\(replaceNestedObjects\(merged, db\.command\)\)/,
+    /await targetRef\.update\(replaceNestedObjects\(/,
+  ];
+  requireCheck(
+    writeSites.every((pattern) => pattern.test(adapterSource)),
+    'cloudbase-adapter routes all three update paths through replaceNestedObjects',
+  );
+  requireCheck(
+    /proto === Object\.prototype \|\| proto === null/.test(adapterSource),
+    'replaceNestedObjects wraps PLAIN objects only, so update commands pass through intact',
+  );
+}
+
 requireCheck(
   containsAll(nodeTypes, [
     'IGetUploadMetadataResult',

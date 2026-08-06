@@ -9,6 +9,7 @@ import {
   compareBySort,
   matchesFilter,
 } from '@vibelingan-channel/shared';
+import { setPinnedOffer } from './linking.ts';
 import { promoteLinkedProduct } from './promotion.ts';
 
 type Store = Record<string, CollectionDoc[]>;
@@ -45,8 +46,17 @@ class FencedMemoryAdapter implements DbAdapter {
   async create(): Promise<CollectionDoc> {
     throw new Error('not used');
   }
-  async update(): Promise<CollectionDoc | null> {
-    throw new Error('not used');
+  async update(
+    collection: string,
+    id: string,
+    data: Record<string, unknown>,
+  ): Promise<CollectionDoc | null> {
+    const docs = this.docs(collection);
+    const index = docs.findIndex((d) => d._id === id);
+    if (index < 0) return null;
+    const next = { ...(docs[index] as CollectionDoc), ...data } as CollectionDoc;
+    docs[index] = next;
+    return next;
   }
   async remove(): Promise<boolean> {
     throw new Error('not used');
@@ -93,6 +103,22 @@ const basePricing = {
   amountMinor: 250,
   syncedAt: '2026-08-01T00:00:00.000Z',
 };
+
+/** Active fixed-price offer on the shared source, at a given minor amount. */
+function offerDoc(
+  id: string,
+  sourceKey: string,
+  skuId: string,
+  amountMinor: number,
+): CollectionDoc {
+  return {
+    _id: id,
+    sourceKey,
+    sourceSkuId: skuId,
+    active: true,
+    pricing: { ...basePricing, amountMinor },
+  } as CollectionDoc;
+}
 
 let store: Store = {};
 function setup(overrides: Partial<Store> = {}): Store {
@@ -220,4 +246,94 @@ test('source deletion demotes to removed + canonical unavailable while preservin
   assert.equal((after.alibabaCatalogPricing as { mode?: string }).mode, 'unavailable');
   assert.equal(after.unitPrice, 12.5, 'legacy pricing untouched');
   assert.equal(after.published, true, 'publication state untouched');
+});
+
+test('the sync NEVER self-pins: a re-price moves the storefront to the cheaper offer', async () => {
+  // Two active offers; run 1 picks the cheaper. If the run's own selection fed
+  // back in as a pin, run 2 would keep the now-expensive offer forever.
+  setup({
+    alibabaSupplierOffers: [
+      offerDoc('o-a', SOURCE_KEY, 'sku-a', 100),
+      offerDoc('o-b', SOURCE_KEY, 'sku-b', 900),
+    ],
+  });
+  const first = await promoteLinkedProduct({
+    sourceKey: SOURCE_KEY,
+    guard: GUARD,
+    now: NOW,
+  });
+  assert.equal(first.ok, true);
+  assert.equal(
+    (store.products?.[0] as CollectionDoc).alibabaPrimaryOfferKey,
+    'o-a',
+    'cheapest wins first',
+  );
+
+  // Supplier inverts the prices; BOTH offers stay active.
+  store.alibabaSupplierOffers = [
+    offerDoc('o-a', SOURCE_KEY, 'sku-a', 900),
+    offerDoc('o-b', SOURCE_KEY, 'sku-b', 100),
+  ];
+  const second = await promoteLinkedProduct({
+    sourceKey: SOURCE_KEY,
+    guard: GUARD,
+    now: NOW,
+  });
+  assert.equal(second.ok, true);
+  const product = store.products?.[0] as CollectionDoc;
+  assert.equal(product.alibabaPrimaryOfferKey, 'o-b', 'total order re-evaluates every run');
+  assert.equal(
+    (product.alibabaCatalogPricing as { amountMinor?: number })?.amountMinor,
+    100,
+    'the storefront follows the cheaper offer',
+  );
+});
+
+test('an OPERATOR pin holds against the total order, and clears', async () => {
+  setup({
+    alibabaSupplierOffers: [
+      offerDoc('o-a', SOURCE_KEY, 'sku-a', 100),
+      offerDoc('o-b', SOURCE_KEY, 'sku-b', 900),
+    ],
+  });
+  const pinned = await setPinnedOffer({ productId: 'p-1', offerKey: 'o-b', now: NOW });
+  assert.equal(pinned.ok, true);
+
+  await promoteLinkedProduct({ sourceKey: SOURCE_KEY, guard: GUARD, now: NOW });
+  assert.equal(
+    (store.products?.[0] as CollectionDoc).alibabaPrimaryOfferKey,
+    'o-b',
+    'the operator pin beats the cheaper offer',
+  );
+
+  const cleared = await setPinnedOffer({ productId: 'p-1', offerKey: '', now: NOW });
+  assert.equal(cleared.ok, true);
+  await promoteLinkedProduct({ sourceKey: SOURCE_KEY, guard: GUARD, now: NOW });
+  assert.equal(
+    (store.products?.[0] as CollectionDoc).alibabaPrimaryOfferKey,
+    'o-a',
+    'clearing hands selection back to the total order',
+  );
+});
+
+test('a pin is refused unless the offer is ACTIVE and belongs to this product', async () => {
+  setup({
+    alibabaSupplierOffers: [
+      offerDoc('o-a', SOURCE_KEY, 'sku-a', 100),
+      { ...offerDoc('o-dead', SOURCE_KEY, 'sku-c', 50), active: false } as CollectionDoc,
+      offerDoc('o-other', 'other-source', 'sku-x', 10),
+    ],
+  });
+  assert.deepEqual(await setPinnedOffer({ productId: 'p-1', offerKey: 'o-dead', now: NOW }), {
+    ok: false,
+    reason: 'offer-not-active',
+  });
+  assert.deepEqual(await setPinnedOffer({ productId: 'p-1', offerKey: 'o-other', now: NOW }), {
+    ok: false,
+    reason: 'offer-not-found',
+  });
+  assert.deepEqual(await setPinnedOffer({ productId: 'p-1', offerKey: 'nope', now: NOW }), {
+    ok: false,
+    reason: 'offer-not-found',
+  });
 });

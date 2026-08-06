@@ -172,3 +172,45 @@ export async function createDraftForSource(
   await updateDoc('alibabaProductLinks', sourceKey, { productId: product._id });
   return { ok: true, productId: product._id, created: true };
 }
+
+export type SetPinnedOfferResult =
+  | { ok: true; productId: string; pinnedOfferKey: string }
+  | {
+      ok: false;
+      reason: 'product-not-found' | 'not-linked' | 'offer-not-found' | 'offer-not-active';
+    };
+
+/**
+ * Operator pin for ARCHITECTURE §5 rule 1 (MIU_BREAKDOWN R1 L4). The field is
+ * readOnly in generic CRUD, so this action is its ONLY write path.
+ *
+ * The pin is validated against the product's OWN primary source: pinning an
+ * offer from another supplier product would silently materialize a price that
+ * belongs to a different listing. An empty offerKey clears the pin and hands
+ * selection back to §5's total order.
+ */
+export async function setPinnedOffer(input: {
+  productId: string;
+  offerKey: string;
+  now: string;
+}): Promise<SetPinnedOfferResult> {
+  const product = await getDoc('products', input.productId);
+  if (!product) return { ok: false, reason: 'product-not-found' };
+  const sourceKey =
+    typeof product.alibabaPrimarySourceKey === 'string' ? product.alibabaPrimarySourceKey : '';
+  if (sourceKey === '') return { ok: false, reason: 'not-linked' };
+
+  if (input.offerKey !== '') {
+    const offer = await getDoc('alibabaSupplierOffers', input.offerKey);
+    if (!offer) return { ok: false, reason: 'offer-not-found' };
+    if (String(offer.sourceKey ?? '') !== sourceKey)
+      return { ok: false, reason: 'offer-not-found' };
+    if (offer.active !== true) return { ok: false, reason: 'offer-not-active' };
+  }
+
+  await updateDoc('products', input.productId, {
+    alibabaPinnedOfferKey: input.offerKey,
+    updatedAt: input.now,
+  });
+  return { ok: true, productId: input.productId, pinnedOfferKey: input.offerKey };
+}

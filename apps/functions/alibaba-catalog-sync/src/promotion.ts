@@ -73,9 +73,13 @@ export async function promoteLinkedProduct(input: PromoteInput): Promise<Promote
 
   const source = await getDoc('alibabaSourceProducts', input.sourceKey);
   const offers = await activeOffers(input.sourceKey);
+  // Read the OPERATOR pin, never the sync's own previous selection
+  // (blessing-gate P1): feeding alibabaPrimaryOfferKey back in made the first
+  // run's auto-selection permanent, so a supplier re-pricing could never move
+  // the storefront to the cheaper offer §5 mandates.
   const pinned =
-    typeof product.alibabaPrimaryOfferKey === 'string' && product.alibabaPrimaryOfferKey !== ''
-      ? product.alibabaPrimaryOfferKey
+    typeof product.alibabaPinnedOfferKey === 'string' && product.alibabaPinnedOfferKey !== ''
+      ? product.alibabaPinnedOfferKey
       : undefined;
   const candidate = buildPromotionCandidate({
     sourceKey: input.sourceKey,

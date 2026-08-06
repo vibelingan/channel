@@ -18,7 +18,7 @@ import { type AlertSender, createAlertSender } from './alerts.ts';
 import { type AlibabaSyncFunctionConfig, resolveOAuthConfig } from './config.ts';
 
 export type { AlibabaSyncFunctionConfig } from './config.ts';
-import { linkExistingProduct, unlinkProduct } from './linking.ts';
+import { linkExistingProduct, setPinnedOffer, unlinkProduct } from './linking.ts';
 import { importCandidateImage, removeImportedCandidate } from './media-import.ts';
 import {
   type OAuthDeps,
@@ -185,6 +185,30 @@ export async function handleAlibabaSyncRequest(
       if (!result.ok) return err('NOT_FOUND', 'Product not found.');
       return ok(result);
     }
+    case 'setAlibabaPrimaryOffer': {
+      // ARCHITECTURE §5 rule 1 / MIU_BREAKDOWN R1 L4: the operator pin's only
+      // write path — the field is readOnly in generic CRUD.
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = pinOfferSchema.safeParse(parsed.data.data);
+      if (!payload.success) {
+        return err('VALIDATION_ERROR', 'productId is required; offerKey may be empty to clear.');
+      }
+      const result = await setPinnedOffer({
+        productId: payload.data.productId,
+        offerKey: payload.data.offerKey,
+        now: new Date().toISOString(),
+      });
+      if (!result.ok) {
+        return err(
+          result.reason === 'product-not-found' || result.reason === 'offer-not-found'
+            ? 'NOT_FOUND'
+            : 'CONFLICT',
+          `Pin rejected: ${result.reason}.`,
+        );
+      }
+      return ok(result);
+    }
     case 'runNow': {
       // Manual run (MIU 11): a SHORT bounded slice executes inline — the
       // gateway envelope stays interactive; the test env has no timer, so
@@ -280,6 +304,11 @@ export async function handleAlibabaSyncRequest(
 
 const linkSchema = z.object({ sourceKey: z.string().min(1), productId: z.string().min(1) });
 const unlinkSchema = z.object({ productId: z.string().min(1) });
+// An EMPTY offerKey clears the pin, so min(1) would make the pin one-way.
+const pinOfferSchema = z.object({
+  productId: z.string().min(1),
+  offerKey: z.string(),
+});
 const approveSchema = z.object({ runId: z.string().min(1), candidateHash: z.string().min(1) });
 const importImageSchema = z.object({ url: z.string().min(1) });
 const removeImageSchema = z.object({ imageId: z.string().min(1) });

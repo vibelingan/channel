@@ -68,6 +68,13 @@ interface WxCommand {
   lte(value: unknown): unknown;
   in(values: unknown[]): unknown;
   nin(values: unknown[]): unknown;
+  /**
+   * Update command: replace a field WHOLESALE instead of the default
+   * dot-path merge. Present on the installed wx-server-sdk 4.0.2 command
+   * (probed in scripts/verify-cloudbase-sdk-contract.mjs); the local
+   * interface simply had not declared it.
+   */
+  set(value: unknown): unknown;
 }
 
 interface WxDatabase {
@@ -233,7 +240,10 @@ export const cloudBaseAdapter: DbAdapter = {
   async update(collection, id, data): Promise<CollectionDoc | null> {
     const db = database();
     const patch = { ...data, updatedAt: new Date().toISOString() };
-    await db.collection(collection).doc(id).update({ data: patch });
+    await db
+      .collection(collection)
+      .doc(id)
+      .update({ data: replaceNestedObjects(patch, db.command) });
     return this.get(collection, id);
   },
 
@@ -331,7 +341,7 @@ export const cloudBaseAdapter: DbAdapter = {
       const { _id, ...patch } = data as Record<string, unknown> & { _id?: unknown };
       if (existing) {
         const merged = { ...patch, updatedAt: now };
-        await ref.update(merged);
+        await ref.update(replaceNestedObjects(merged, db.command));
         return normalize({ ...existing, ...merged, _id: id });
       }
       const created = { createdAt: now, updatedAt: now, ...patch };
@@ -406,11 +416,46 @@ export const cloudBaseAdapter: DbAdapter = {
       if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
       const targetRef = transaction.collection(collection).doc(id);
       if (!normalizeSingle((await targetRef.get()).data)) return false;
-      await targetRef.update({ ...patch, updatedAt: guard.now });
+      await targetRef.update(replaceNestedObjects({ ...patch, updatedAt: guard.now }, db.command));
       return true;
     });
   },
 };
+
+/**
+ * CloudBase's `update` FLATTENS a nested plain object into dot-paths
+ * (`UpdateSerializer.encodeUpdateObject` -> `flattenQueryObject`), which is a
+ * MERGE, not a replace. Two consequences the local JSON adapter never shows,
+ * because it shallow-spreads:
+ *   1. Writing `{a:{x:1}}` over a field currently holding `null` targets
+ *      `a.x` on a non-object and does not land.
+ *   2. A patch that omits a sub-key leaves the PREVIOUS value's sub-key in
+ *      place — `{mode:'tiered',tiers}` followed by `{mode:'fixed',amountMinor}`
+ *      yields a document carrying both, so a consumer reading by `mode` sees
+ *      fields that contradict it.
+ * Wrapping object values in the `set` update command replaces the field
+ * wholesale, which is the semantics every caller in this repo assumes.
+ *
+ * Arrays are left alone (CloudBase already replaces them wholesale), and so is
+ * anything that is not a PLAIN object — an update command such as
+ * `command.inc(n)` is a class instance and must reach the driver untouched.
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+function replaceNestedObjects(
+  patch: Record<string, unknown>,
+  command: { set(value: unknown): unknown },
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    out[key] = isPlainObject(value) ? command.set(value) : value;
+  }
+  return out;
+}
 
 function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

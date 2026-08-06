@@ -241,6 +241,19 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         hideInTable: true,
       },
       {
+        // OPERATOR pin, written only by the setAlibabaPrimaryOffer action.
+        // Kept DISTINCT from alibabaPrimaryOfferKey, which is the sync's own
+        // selection output: one field serving as both the input to a decision
+        // and its output is a feedback loop, not a pin — the first run's
+        // choice would freeze forever and ARCHITECTURE §5's total order would
+        // never re-evaluate (blessing-gate P1).
+        name: 'alibabaPinnedOfferKey',
+        label: 'Alibaba Pinned Offer',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
         name: 'alibabaCatalogPricing',
         label: 'Alibaba Pricing',
         type: 'json',
