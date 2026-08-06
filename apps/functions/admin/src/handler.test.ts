@@ -3560,7 +3560,10 @@ test('Alibaba hash/envelope fields are not filterable or sortable (query oracle 
       'list',
       {
         collection: 'alibabaSourcePayloads',
-        filter: { clauses: [{ field: 'responseSha256', op: 'eq', value: 'abc' }], combinator: 'and' },
+        filter: {
+          clauses: [{ field: 'responseSha256', op: 'eq', value: 'abc' }],
+          combinator: 'and',
+        },
       },
       token,
     ),

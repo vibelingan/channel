@@ -231,7 +231,7 @@ test('token envelope roundtrips and fails closed on tamper or wrong key', () => 
   assert.equal(envelope.v, 'v1');
   const decrypted = decryptTokenPayload(TOKEN_KEY, envelope);
   assert.deepEqual(decrypted, { accessToken: 't1', refreshToken: 'r1' });
-  const tampered = { ...envelope, data: envelope.data.slice(0, -4) + 'AAAA' };
+  const tampered = { ...envelope, data: `${envelope.data.slice(0, -4)}AAAA` };
   assert.equal(decryptTokenPayload(TOKEN_KEY, tampered), null);
   const otherKey = parseTokenEncryptionKey(randomBytes(32).toString('hex')) as Buffer;
   assert.equal(decryptTokenPayload(otherKey, envelope), null);

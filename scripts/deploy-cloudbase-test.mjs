@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ensureNoSqlResources } from './cloudbase-nosql-resources.mjs';
 import { buildFunctionDefs } from './cloudbase-function-manifest.mjs';
+import { ensureNoSqlResources } from './cloudbase-nosql-resources.mjs';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const functionRootPath = resolve(root, '.cloudbase-artifacts/functions');

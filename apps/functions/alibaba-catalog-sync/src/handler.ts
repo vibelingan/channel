@@ -145,7 +145,7 @@ export async function handleAlibabaSyncRequest(
       const view = await connectionStatusView();
       return ok({
         ...view,
-        notConfigured: runtime.ok ? false : true,
+        notConfigured: !runtime.ok,
         ...(runtime.ok ? {} : { missing: runtime.missing }),
       });
     }

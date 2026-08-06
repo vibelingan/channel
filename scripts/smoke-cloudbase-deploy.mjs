@@ -2,8 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { decodeUtf8, fetchFully } from './smoke-http.mjs';
 import { FUNCTION_NAMES } from './cloudbase-function-manifest.mjs';
+import { decodeUtf8, fetchFully } from './smoke-http.mjs';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const envId = requireEnv('TCB_ENV_ID');
@@ -130,7 +130,9 @@ for (const functionName of FUNCTION_NAMES) {
   }).data?.functionDetail;
   const triggers = detail?.Triggers ?? [];
   if (Array.isArray(triggers) && triggers.length > 0) {
-    throw new Error(`alibaba-catalog-sync: test env carries ${triggers.length} trigger(s); it must have none`);
+    throw new Error(
+      `alibaba-catalog-sync: test env carries ${triggers.length} trigger(s); it must have none`,
+    );
   }
   console.log('alibaba-catalog-sync: no triggers on test (as required)');
 }

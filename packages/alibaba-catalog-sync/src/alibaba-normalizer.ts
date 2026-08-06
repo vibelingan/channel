@@ -210,16 +210,11 @@ function tieredPricing(
   });
   // A source MOQ above the first tier start is inconsistent source data; keep
   // the tiers (commercially meaningful) and drop the MOQ rather than degrade.
-  const candidateContext = { ...context };
   const firstTier = tiers[0];
-  if (
-    candidateContext.sourceMoq !== undefined &&
-    firstTier &&
-    firstTier.minQuantity > candidateContext.sourceMoq
-  ) {
-    candidateContext.sourceMoq = undefined as unknown as number;
-    delete (candidateContext as { sourceMoq?: number }).sourceMoq;
-  }
+  const moqIncompatible =
+    context.sourceMoq !== undefined && firstTier && firstTier.minQuantity > context.sourceMoq;
+  const { sourceMoq: _dropped, ...withoutMoq } = context;
+  const candidateContext: PricingContext = moqIncompatible ? withoutMoq : context;
   return finalize({ ...baseFields(candidateContext), mode: 'tiered', tiers }, candidateContext);
 }
 
