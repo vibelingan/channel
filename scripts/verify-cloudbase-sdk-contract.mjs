@@ -256,12 +256,21 @@ requireCheck(
   /method:\s*'PUT'/.test(mediaIndex) && !/formFields/.test(mediaIndex),
   'media-storage UploadCredential is a PUT+headers contract, not multipart form fields',
 );
-const adminUploadClient = readFileSync(join(root, 'apps/site/src/islands/admin/api.ts'), 'utf8');
-requireCheck(
-  /headers:\s*intent\.upload\.headers/.test(adminUploadClient) &&
-    !/new FormData\(\)[\s\S]{0,400}intent\.upload/.test(adminUploadClient),
-  'browser upload client sends credential headers with a raw body (no multipart form)',
-);
+// EVERY browser upload client, not just one. The first pass pinned only the
+// admin client and the OEM client in ProjectForm.astro kept POSTing a form
+// against a PUT-scoped signature — caught by the deployed OEM smoke, not here.
+for (const clientPath of [
+  'apps/site/src/islands/admin/api.ts',
+  'apps/site/src/components/ProjectForm.astro',
+]) {
+  const client = readFileSync(join(root, clientPath), 'utf8');
+  requireCheck(
+    /headers:\s*intent\.upload\.headers/.test(client) &&
+      !/intent\.upload\.fields/.test(client) &&
+      !/new FormData\(\)[\s\S]{0,400}intent\.upload/.test(client),
+    `${clientPath} sends credential headers with a raw body (no multipart form)`,
+  );
+}
 
 const nodeCloudbase = readPackageFile(nodeSdk, 'dist/cloudbase.js');
 requireCheck(
