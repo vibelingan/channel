@@ -169,22 +169,29 @@ export function createCloudBaseMediaStorage(sdk: CloudBaseStorageSdk): MediaStor
         );
       }
       const fields = data as Record<string, unknown>;
-      // Every field is either a browser form field or the durable id the image
-      // doc depends on. Treat the SDK response as untrusted at runtime so a
-      // contract mismatch fails during mint instead of returning a half-credential.
+      // Every field is either a browser request header or the durable id the
+      // image doc depends on. Treat the SDK response as untrusted at runtime so
+      // a contract mismatch fails during mint instead of returning a
+      // half-credential.
       const uploadUrl = requireStringField(fields, 'url', cloudPath);
       const authorization = requireStringField(fields, 'authorization', cloudPath);
       const token = requireStringField(fields, 'token', cloudPath);
       const cosFileId = requireStringField(fields, 'cosFileId', cloudPath);
       const storageFileId = requireStringField(fields, 'fileId', cloudPath);
+      // Mirror the installed SDK's own `uploadFile` exactly: a raw PUT whose
+      // headers carry the credential (Signature + the lowercase `authorization`
+      // duplicate + the URI-encoded key). node-sdk 3.x requests the signature
+      // for `method: 'put'`, so a multipart POST is rejected 403
+      // SignatureDoesNotMatch.
       return {
         uploadUrl,
-        method: 'POST',
-        formFields: {
+        method: 'PUT',
+        headers: {
           Signature: authorization,
           'x-cos-security-token': token,
           'x-cos-meta-fileid': cosFileId,
-          key: cloudPath,
+          authorization,
+          key: encodeURIComponent(cloudPath),
         },
         storageFileId,
       };
