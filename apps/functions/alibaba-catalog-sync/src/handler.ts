@@ -19,6 +19,7 @@ import { type AlibabaSyncFunctionConfig, resolveOAuthConfig } from './config.ts'
 
 export type { AlibabaSyncFunctionConfig } from './config.ts';
 import { linkExistingProduct, unlinkProduct } from './linking.ts';
+import { importCandidateImage, removeImportedCandidate } from './media-import.ts';
 import {
   type OAuthDeps,
   connectionStatusView,
@@ -235,6 +236,31 @@ export async function handleAlibabaSyncRequest(
       }
       return ok(result);
     }
+    case 'importSourceImage': {
+      // Candidate-only import (MIU 12): fetches ONE allowlisted source image
+      // through the SSRF pipeline; never attaches it to a product.
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = importImageSchema.safeParse(parsed.data.data);
+      if (!payload.success) return err('VALIDATION_ERROR', 'url is required.');
+      const result = await importCandidateImage(payload.data.url);
+      if (!result.ok) return err('VALIDATION_ERROR', `Import rejected: ${result.reason}.`);
+      return ok(result);
+    }
+    case 'removeImportedImage': {
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = removeImageSchema.safeParse(parsed.data.data);
+      if (!payload.success) return err('VALIDATION_ERROR', 'imageId is required.');
+      const result = await removeImportedCandidate(payload.data.imageId);
+      if (!result.ok) {
+        return err(
+          result.reason === 'not-found' ? 'NOT_FOUND' : 'CONFLICT',
+          `Removal rejected: ${result.reason}.`,
+        );
+      }
+      return ok(result);
+    }
     default:
       return err('BAD_REQUEST', `Unknown action: ${action}`);
   }
@@ -243,6 +269,8 @@ export async function handleAlibabaSyncRequest(
 const linkSchema = z.object({ sourceKey: z.string().min(1), productId: z.string().min(1) });
 const unlinkSchema = z.object({ productId: z.string().min(1) });
 const approveSchema = z.object({ runId: z.string().min(1), candidateHash: z.string().min(1) });
+const importImageSchema = z.object({ url: z.string().min(1) });
+const removeImageSchema = z.object({ imageId: z.string().min(1) });
 
 export type CallbackRedirect = { location: string };
 
