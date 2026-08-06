@@ -3421,3 +3421,152 @@ test('rateLimitHits sourceHash is not queryable (no startsWith/contains oracle)'
     'BAD_REQUEST',
   );
 });
+
+// ---------------------------------------------------------------------------
+// Alibaba linked catalog sync — generic-CRUD access matrix (MIU 3, R1)
+// ---------------------------------------------------------------------------
+
+function contributorToken(): Promise<string> {
+  return sessionToken({
+    sub: 'contrib-alibaba',
+    email: 'contrib-alibaba@example.com',
+    name: 'contrib-alibaba',
+    role: 'contributor',
+  });
+}
+
+test('collections dump omits adminAccess:none defs for every role', async () => {
+  setup();
+  for (const token of [await adminToken(), await contributorToken()]) {
+    const data = okData<{ collections: { name: string }[] }>(await call('collections', {}, token));
+    const names = data.collections.map((c) => c.name);
+    for (const hidden of [
+      'alibabaConnections',
+      'alibabaOAuthStates',
+      'alibabaSyncLeases',
+      'alibabaSyncCheckpoints',
+    ]) {
+      assert.equal(names.includes(hidden), false, `${hidden} must not be dumped`);
+    }
+    assert.ok(names.includes('alibabaSyncRuns'), 'readOnly def stays visible');
+    assert.ok(names.includes('alibabaCategoryMappings'), 'crud def stays visible');
+    assert.ok(names.includes('products'));
+  }
+});
+
+test('adminAccess none blocks generic reads and writes for admin AND contributor', async () => {
+  setup({ users: [], alibabaConnections: [{ _id: 'conn-1', status: 'active' }] });
+  for (const token of [await adminToken(), await contributorToken()]) {
+    expectErr(await call('list', { collection: 'alibabaConnections' }, token), 'FORBIDDEN');
+    expectErr(
+      await call('get', { collection: 'alibabaConnections', id: 'conn-1' }, token),
+      'FORBIDDEN',
+    );
+    expectErr(
+      await call('create', { collection: 'alibabaConnections', values: {} }, token),
+      'FORBIDDEN',
+    );
+    expectErr(
+      await call('remove', { collection: 'alibabaConnections', id: 'conn-1' }, token),
+      'FORBIDDEN',
+    );
+  }
+});
+
+test('adminAccess readOnly allows reads but rejects every generic write', async () => {
+  setup({
+    users: [],
+    alibabaSyncRuns: [{ _id: 'run-1', mode: 'incremental', status: 'completed' }],
+  });
+  for (const token of [await adminToken(), await contributorToken()]) {
+    const listed = okData<{ items: { _id: string }[] }>(
+      await call('list', { collection: 'alibabaSyncRuns' }, token),
+    );
+    assert.equal(listed.items.length, 1);
+    expectErr(
+      await call('create', { collection: 'alibabaSyncRuns', values: {} }, token),
+      'FORBIDDEN',
+    );
+    expectErr(
+      await call('update', { collection: 'alibabaSyncRuns', id: 'run-1', values: {} }, token),
+      'FORBIDDEN',
+    );
+    expectErr(
+      await call('remove', { collection: 'alibabaSyncRuns', id: 'run-1' }, token),
+      'FORBIDDEN',
+    );
+  }
+});
+
+test('category mappings stay contributor-writable (crud) with enum validation', async () => {
+  const store = setup();
+  const token = await contributorToken();
+  const created = okData<{ _id: string }>(
+    await call(
+      'create',
+      {
+        collection: 'alibabaCategoryMappings',
+        values: { alibabaCategoryId: 'cat-100', channelCategory: 'bluetooth' },
+      },
+      token,
+    ),
+  );
+  assert.ok(created._id);
+  assert.equal(store.alibabaCategoryMappings?.length, 1);
+  expectErr(
+    await call(
+      'create',
+      {
+        collection: 'alibabaCategoryMappings',
+        values: { alibabaCategoryId: 'cat-101', channelCategory: 'not-a-category' },
+      },
+      token,
+    ),
+    'VALIDATION_ERROR',
+  );
+});
+
+test('generic product writes cannot touch Alibaba-owned fields (unknown-key rejection)', async () => {
+  const store = setup({
+    users: [],
+    products: [{ _id: 'p-1', name: 'Legacy', category: 'wired', unitPrice: 12.5 }],
+  });
+  const token = await adminToken();
+  expectErr(
+    await call(
+      'update',
+      {
+        collection: 'products',
+        id: 'p-1',
+        values: { alibabaPrimarySourceKey: 'forged-key' },
+      },
+      token,
+    ),
+    'VALIDATION_ERROR',
+  );
+  // Legacy pricing writes stay exactly as before.
+  const updated = okData<{ unitPrice: number }>(
+    await call('update', { collection: 'products', id: 'p-1', values: { unitPrice: 13 } }, token),
+  );
+  assert.equal(updated.unitPrice, 13);
+  assert.equal(store.products?.[0]?.alibabaPrimarySourceKey, undefined);
+});
+
+test('Alibaba hash/envelope fields are not filterable or sortable (query oracle gate)', async () => {
+  setup({ users: [], alibabaSourcePayloads: [{ _id: 'pl-1', responseSha256: 'abc' }] });
+  const token = await adminToken();
+  expectErr(
+    await call(
+      'list',
+      {
+        collection: 'alibabaSourcePayloads',
+        filter: {
+          clauses: [{ field: 'responseSha256', op: 'eq', value: 'abc' }],
+          combinator: 'and',
+        },
+      },
+      token,
+    ),
+    'BAD_REQUEST',
+  );
+});

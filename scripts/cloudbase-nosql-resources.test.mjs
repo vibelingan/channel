@@ -148,12 +148,16 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
   const messages = [];
   ensureNoSqlResources(callTool, (message) => messages.push(message));
 
+  // Anchor: a silent registry change must fail here, not slip through the
+  // derived expectations below (2 auth/abuse + 10 alibaba collections).
+  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 12);
   assert.equal(collections.size, REQUIRED_NOSQL_RESOURCES.length);
   assert.equal(
     [...indexesByCollection.values()].reduce((total, indexes) => total + indexes.size, 0),
-    5,
+    REQUIRED_NOSQL_RESOURCES.reduce((total, resource) => total + resource.indexes.length, 0),
   );
-  assert.deepEqual([...permissions.values()], ['ADMINONLY', 'ADMINONLY']);
+  assert.equal(permissions.size, REQUIRED_NOSQL_RESOURCES.length);
+  assert.ok([...permissions.values()].every((value) => value === 'ADMINONLY'));
   assert.equal(
     calls.filter(
       ({ selector, args }) =>
@@ -161,12 +165,13 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
     ).length,
     REQUIRED_NOSQL_RESOURCES.length,
   );
+  // updateCollection is only issued for collections that declare indexes.
   assert.equal(
     calls.filter(
       ({ selector, args }) =>
         selector === 'cloudbase.writeNoSqlDatabaseStructure' && args.action === 'updateCollection',
     ).length,
-    REQUIRED_NOSQL_RESOURCES.length,
+    REQUIRED_NOSQL_RESOURCES.filter((resource) => resource.indexes.length > 0).length,
   );
   assert.equal(
     calls.filter(({ selector }) => selector === 'cloudbase.managePermissions').length,
@@ -174,6 +179,7 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
   );
   assert.ok(messages.some((message) => message.includes('rateLimitHits: ready')));
   assert.ok(messages.some((message) => message.includes('passwordResets: ready')));
+  assert.ok(messages.some((message) => message.includes('alibabaSupplierOffers: ready')));
 });
 
 test('ensureNoSqlResources is idempotent when the collection and indexes exist', () => {

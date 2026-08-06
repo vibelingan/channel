@@ -1,10 +1,11 @@
 import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FUNCTION_NAMES } from './cloudbase-function-manifest.mjs';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const artifactRoot = join(root, '.cloudbase-artifacts', 'functions');
-const functions = ['admin', 'public-api'];
+const functions = FUNCTION_NAMES;
 
 rmSync(artifactRoot, { force: true, recursive: true });
 mkdirSync(artifactRoot, { recursive: true });

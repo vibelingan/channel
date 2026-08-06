@@ -76,8 +76,11 @@ import {
   SUBMIT_PROJECT_RATE_MAX_GLOBAL,
   SUBMIT_PROJECT_RATE_MAX_PER_SOURCE,
   SYSTEM_FIELDS,
+  adminVisibleCollections,
   canEditCollection,
+  canEditRegisteredCollection,
   canReadCollection,
+  canReadRegisteredCollection,
   catalogImageUploadSchema,
   err,
   evaluateFixedWindowRateLimit,
@@ -538,7 +541,9 @@ export async function handleAdminRequest(
       case 'changePassword':
         return await changePassword(req, claims);
       case 'collections':
-        return ok({ collections: COLLECTIONS });
+        // R1: adminAccess:'none' defs (token/lease/state internals) are never
+        // shipped to the browser, for any role.
+        return ok({ collections: adminVisibleCollections() });
       case 'list':
         return await listAction(req, claims);
       case 'get':
@@ -1178,6 +1183,13 @@ const NON_QUERYABLE_FIELDS = new Set([
   'checksumSha256',
   'finalizeClaim',
   'data',
+  // Alibaba sync internals (R1): hashes/fingerprints/envelopes on the
+  // readOnly-visible collections must not be probeable via filter/sort
+  // oracles, and the token envelope stays dark even in depth-defense.
+  'requestFingerprint',
+  'responseSha256',
+  'candidateHash',
+  'tokenEnvelope',
 ]);
 const MAX_FILTER_VALUE_LEN = 500;
 
@@ -1222,7 +1234,7 @@ async function listAction(req: AdminRequest, claims: SessionClaims): Promise<Api
   if (!parsed.success) return err('BAD_REQUEST', 'Invalid list query');
   const unknown = ensureKnown(parsed.data.collection);
   if (unknown) return unknown;
-  if (!canReadCollection(claims.role, parsed.data.collection)) {
+  if (!canReadRegisteredCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have access to this collection.');
   }
   const { filter, sort, ...rest } = parsed.data;
@@ -1239,7 +1251,7 @@ async function listAction(req: AdminRequest, claims: SessionClaims): Promise<Api
 async function getAction(req: AdminRequest, claims: SessionClaims): Promise<ApiResult<unknown>> {
   const parsed = idSchema.safeParse(req.data);
   if (!parsed.success) return err('BAD_REQUEST', 'collection and id are required');
-  if (!canReadCollection(claims.role, parsed.data.collection)) {
+  if (!canReadRegisteredCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have access to this collection.');
   }
   const doc = await get(parsed.data.collection, parsed.data.id);
@@ -1541,7 +1553,7 @@ async function abandonUploadAction(
 async function createAction(req: AdminRequest, claims: SessionClaims): Promise<ApiResult<unknown>> {
   const parsed = createSchema.safeParse(req.data);
   if (!parsed.success) return err('BAD_REQUEST', 'collection and values are required');
-  if (!canEditCollection(claims.role, parsed.data.collection)) {
+  if (!canEditRegisteredCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have permission to modify this collection.');
   }
   const locks = await acquireImageReferenceLocks(
@@ -1564,7 +1576,7 @@ async function createAction(req: AdminRequest, claims: SessionClaims): Promise<A
 async function updateAction(req: AdminRequest, claims: SessionClaims): Promise<ApiResult<unknown>> {
   const parsed = updateSchema.safeParse(req.data);
   if (!parsed.success) return err('BAD_REQUEST', 'collection, id and values are required');
-  if (!canEditCollection(claims.role, parsed.data.collection)) {
+  if (!canEditRegisteredCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have permission to modify this collection.');
   }
   const tracks = tracksImageVisibility(parsed.data.collection);
@@ -1588,7 +1600,7 @@ async function updateAction(req: AdminRequest, claims: SessionClaims): Promise<A
 async function removeAction(req: AdminRequest, claims: SessionClaims): Promise<ApiResult<unknown>> {
   const parsed = idSchema.safeParse(req.data);
   if (!parsed.success) return err('BAD_REQUEST', 'collection and id are required');
-  if (!canEditCollection(claims.role, parsed.data.collection)) {
+  if (!canEditRegisteredCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have permission to modify this collection.');
   }
   if (parsed.data.collection === 'images') {
@@ -1610,7 +1622,7 @@ async function batchUpdateAction(
   if (!parsed.success) return err('BAD_REQUEST', 'collection, ids and values are required');
   const unknown = ensureKnown(parsed.data.collection);
   if (unknown) return unknown;
-  if (!canEditCollection(claims.role, parsed.data.collection)) {
+  if (!canEditRegisteredCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have permission to modify this collection.');
   }
   const tracks = tracksImageVisibility(parsed.data.collection);
@@ -1656,7 +1668,7 @@ async function batchRemoveAction(
   if (!parsed.success) return err('BAD_REQUEST', 'collection and ids are required');
   const unknown = ensureKnown(parsed.data.collection);
   if (unknown) return unknown;
-  if (!canEditCollection(claims.role, parsed.data.collection)) {
+  if (!canEditRegisteredCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have permission to modify this collection.');
   }
   if (parsed.data.collection === 'images') {

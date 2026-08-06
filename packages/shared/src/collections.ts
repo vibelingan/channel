@@ -12,7 +12,7 @@
  * No other file needs to change to support CRUD on a brand new collection.
  */
 import { z } from 'zod';
-import { ROLES } from './auth.ts';
+import { ROLES, type Role, canEditCollection, canReadCollection } from './auth.ts';
 import { CATALOG_IMAGE_MAX_COUNT, MEDIA_PURPOSES, MEDIA_STATUSES } from './media.ts';
 
 export type FieldType =
@@ -44,6 +44,19 @@ export interface FieldDef {
   placeholder?: string;
 }
 
+/**
+ * Generic-admin exposure policy for a collection (DESIGN_CHARTER §7, R1):
+ *   - 'crud'     default — the existing role gate applies unchanged
+ *   - 'readOnly' admin/contributor may list/get; ALL generic writes rejected
+ *   - 'none'     invisible to generic admin CRUD (reads AND writes rejected;
+ *                omitted from the `collections` registry dump)
+ * Dedicated function actions — never generic CRUD — are the operator surface
+ * for 'none'/'readOnly' collections. The hardcoded admin-only trio in
+ * auth.ts (users/rateLimitHits/passwordResets) is unaffected and takes
+ * precedence.
+ */
+export type CollectionAdminAccess = 'crud' | 'readOnly' | 'none';
+
 export interface CollectionDef {
   /** Database collection name (wx-server-sdk collection id). */
   name: string;
@@ -55,11 +68,35 @@ export interface CollectionDef {
   fields: readonly FieldDef[];
   /** Hide from the dashboard navigation (managed indirectly, e.g. images). */
   hideFromNav?: boolean;
+  /** Generic-admin exposure policy; absent means 'crud'. */
+  adminAccess?: CollectionAdminAccess;
 }
 
 /** Collections exposed through the public storefront and image visibility index. */
 export const PUBLIC_CATALOG_COLLECTIONS = ['products', 'overstock'] as const;
 export type PublicCatalogCollection = (typeof PUBLIC_CATALOG_COLLECTIONS)[number];
+
+/** Channel product categories — shared by the products def and the Alibaba category mapping. */
+export const PRODUCT_CATEGORY_OPTIONS = ['wired', 'office', 'bluetooth'] as const;
+
+/** Source-availability states an Alibaba-linked product can carry (ARCHITECTURE §3.10). */
+export const ALIBABA_SOURCE_STATUS_OPTIONS = [
+  'available',
+  'limited',
+  'unavailable',
+  'removed',
+  'unknown',
+] as const;
+
+/** Run lifecycle states for alibabaSyncRuns (ARCHITECTURE §12, R1). */
+export const ALIBABA_SYNC_RUN_STATUS_OPTIONS = [
+  'running',
+  'continuing',
+  'quarantined',
+  'approved',
+  'failed',
+  'completed',
+] as const;
 
 /**
  * Fields every document gets automatically. They are server-managed and never
@@ -166,7 +203,7 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         name: 'category',
         label: 'Category',
         type: 'select',
-        options: ['wired', 'office', 'bluetooth'],
+        options: PRODUCT_CATEGORY_OPTIONS,
         required: true,
       },
       { name: 'series', label: 'Series', type: 'string' },
@@ -185,6 +222,59 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         maxItems: CATALOG_IMAGE_MAX_COUNT,
       },
       { name: 'published', label: 'Published', type: 'boolean' },
+      // Alibaba-owned additive fields (ARCHITECTURE §3.10). All server-managed:
+      // the sync worker writes them via the trusted repository path; readOnly
+      // excludes them from buildWriteSchema so generic admin CRUD rejects them
+      // as unknown keys. Legacy pricing fields above remain untouched.
+      {
+        name: 'alibabaPrimarySourceKey',
+        label: 'Alibaba Source Key',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'alibabaPrimaryOfferKey',
+        label: 'Alibaba Offer Key',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        // OPERATOR pin, written only by the setAlibabaPrimaryOffer action.
+        // Kept DISTINCT from alibabaPrimaryOfferKey, which is the sync's own
+        // selection output: one field serving as both the input to a decision
+        // and its output is a feedback loop, not a pin — the first run's
+        // choice would freeze forever and ARCHITECTURE §5's total order would
+        // never re-evaluate (blessing-gate P1).
+        name: 'alibabaPinnedOfferKey',
+        label: 'Alibaba Pinned Offer',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'alibabaCatalogPricing',
+        label: 'Alibaba Pricing',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'alibabaSourceStatus',
+        label: 'Alibaba Source Status',
+        type: 'select',
+        options: ALIBABA_SOURCE_STATUS_OPTIONS,
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'alibabaSourceLastSyncedAt',
+        label: 'Alibaba Last Synced',
+        type: 'date',
+        readOnly: true,
+        hideInTable: true,
+      },
     ],
   },
   {
@@ -535,6 +625,390 @@ export const COLLECTIONS: readonly CollectionDef[] = [
       { name: 'sourceHash', label: 'Source Hash', type: 'string', readOnly: true },
     ],
   },
+  // ==================================================================
+  // Alibaba Open Platform linked catalog sync (docs/alibaba-linked-
+  // catalog-sync/). All ten collections are provider-prefixed; every
+  // field is server-managed (the sync function writes via the trusted
+  // repository path). adminAccess gates generic admin CRUD exposure:
+  // 'none' for secret/coordination state, 'readOnly' for audit mirrors,
+  // 'crud' only for the operator-owned category mapping.
+  // ==================================================================
+  {
+    name: 'alibabaConnections',
+    label: 'Alibaba Connections',
+    description: 'Encrypted Alibaba OAuth token envelopes and connection state.',
+    searchableFields: [],
+    hideFromNav: true,
+    adminAccess: 'none',
+    fields: [
+      {
+        name: 'status',
+        label: 'Status',
+        type: 'select',
+        options: ['active', 'authorization_expired', 'disconnected'],
+        readOnly: true,
+      },
+      { name: 'accountLabel', label: 'Account', type: 'string', readOnly: true },
+      {
+        name: 'tokenEnvelope',
+        label: 'Token Envelope',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'accessTokenExpiresAt', label: 'Access Expires', type: 'date', readOnly: true },
+      { name: 'refreshTokenExpiresAt', label: 'Refresh Expires', type: 'date', readOnly: true },
+      { name: 'authorizedByUserId', label: 'Authorized By', type: 'string', readOnly: true },
+      { name: 'authorizedAt', label: 'Authorized At', type: 'date', readOnly: true },
+      {
+        name: 'firstAuthErrorAt',
+        label: 'Outage Started',
+        type: 'date',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'lastAuthErrorAt',
+        label: 'Last Auth Error',
+        type: 'date',
+        readOnly: true,
+        hideInTable: true,
+      },
+    ],
+  },
+  {
+    name: 'alibabaOAuthStates',
+    label: 'Alibaba OAuth States',
+    description: 'Hashed single-use OAuth state records (10-minute TTL).',
+    searchableFields: [],
+    hideFromNav: true,
+    adminAccess: 'none',
+    fields: [
+      { name: 'requestedByUserId', label: 'Requested By', type: 'string', readOnly: true },
+      { name: 'intent', label: 'Intent', type: 'string', readOnly: true },
+      { name: 'consumeClaim', label: 'Consume Claim', type: 'number', readOnly: true },
+      { name: 'expiresAt', label: 'Expires', type: 'date', readOnly: true },
+      { name: 'consumedAt', label: 'Consumed', type: 'date', readOnly: true },
+    ],
+  },
+  {
+    name: 'alibabaSyncLeases',
+    label: 'Alibaba Sync Leases',
+    description: 'Fencing lease per connection: holder, heartbeat, expiry, fence token.',
+    searchableFields: [],
+    hideFromNav: true,
+    adminAccess: 'none',
+    fields: [
+      { name: 'holder', label: 'Holder', type: 'string', readOnly: true },
+      { name: 'fence', label: 'Fence', type: 'number', readOnly: true },
+      { name: 'acquiredAt', label: 'Acquired', type: 'date', readOnly: true },
+      { name: 'heartbeatAt', label: 'Heartbeat', type: 'date', readOnly: true },
+      { name: 'expiresAt', label: 'Expires', type: 'date', readOnly: true },
+      { name: 'releasedAt', label: 'Released', type: 'date', readOnly: true },
+    ],
+  },
+  {
+    name: 'alibabaSyncCheckpoints',
+    label: 'Alibaba Sync Checkpoints',
+    description: 'Resumable run cursor and due-schedule state per connection.',
+    searchableFields: [],
+    hideFromNav: true,
+    adminAccess: 'none',
+    fields: [
+      { name: 'connectionId', label: 'Connection', type: 'string', readOnly: true },
+      { name: 'activeRunId', label: 'Active Run', type: 'string', readOnly: true },
+      {
+        name: 'mode',
+        label: 'Mode',
+        type: 'select',
+        options: ['incremental', 'full'],
+        readOnly: true,
+      },
+      { name: 'stage', label: 'Stage', type: 'string', readOnly: true },
+      {
+        name: 'enumerationState',
+        label: 'Enumeration State',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'committedCursor', label: 'Committed Cursor', type: 'string', readOnly: true },
+      { name: 'nextFullDueAt', label: 'Next Full Due', type: 'date', readOnly: true },
+      { name: 'nextIncrementalDueAt', label: 'Next Incremental Due', type: 'date', readOnly: true },
+      { name: 'continuationCount', label: 'Continuations', type: 'number', readOnly: true },
+    ],
+  },
+  {
+    name: 'alibabaSourcePayloads',
+    label: 'Alibaba Raw Payloads',
+    description: 'Immutable metadata for exact raw API response bytes in private storage.',
+    searchableFields: [],
+    hideFromNav: true,
+    adminAccess: 'readOnly',
+    fields: [
+      { name: 'connectionId', label: 'Connection', type: 'string', readOnly: true },
+      { name: 'runId', label: 'Run', type: 'string', readOnly: true },
+      { name: 'endpointId', label: 'Endpoint', type: 'string', readOnly: true },
+      {
+        name: 'requestFingerprint',
+        label: 'Request Fingerprint',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'responseSha256',
+        label: 'Response SHA-256',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'byteLength', label: 'Bytes', type: 'number', readOnly: true },
+      { name: 'contentType', label: 'Content Type', type: 'string', readOnly: true },
+      {
+        name: 'storageFileId',
+        label: 'Storage Object',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'status', label: 'Status', type: 'string', readOnly: true },
+      { name: 'fetchedAt', label: 'Fetched', type: 'date', readOnly: true },
+    ],
+  },
+  {
+    name: 'alibabaSourceProducts',
+    label: 'Alibaba Source Products',
+    description: 'Current parsed mirror of the authorized Alibaba source catalog.',
+    searchableFields: ['sourceTitle', 'sourceProductId'],
+    hideFromNav: true,
+    adminAccess: 'readOnly',
+    fields: [
+      { name: 'sourceKey', label: 'Source Key', type: 'string', readOnly: true, hideInTable: true },
+      {
+        name: 'connectionId',
+        label: 'Connection',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'sourceProductId', label: 'Source Product ID', type: 'string', readOnly: true },
+      // Content fingerprint + the run that last CHANGED it: ARCHITECTURE §12's
+      // surge guard counts changed candidates, not seen ones.
+      {
+        name: 'contentHash',
+        label: 'Content Hash',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'lastChangedRunId',
+        label: 'Last Changed Run',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'demotedAt', label: 'Demoted At', type: 'date', readOnly: true, hideInTable: true },
+      { name: 'payloadId', label: 'Payload', type: 'string', readOnly: true, hideInTable: true },
+      { name: 'sourceTitle', label: 'Title', type: 'string', readOnly: true },
+      {
+        name: 'sourceDescription',
+        label: 'Description',
+        type: 'text',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'sourceCategoryId', label: 'Source Category', type: 'string', readOnly: true },
+      {
+        name: 'sourceCategoryPath',
+        label: 'Category Path',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'sourceImageUrls',
+        label: 'Image URLs',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'sourceUpdatedAt', label: 'Source Updated', type: 'string', readOnly: true },
+      { name: 'fetchedAt', label: 'Fetched', type: 'date', readOnly: true },
+      { name: 'active', label: 'Active', type: 'boolean', readOnly: true },
+      {
+        name: 'firstSeenRunId',
+        label: 'First Seen Run',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'lastSeenRunId',
+        label: 'Last Seen Run',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'tombstonedAt',
+        label: 'Tombstoned',
+        type: 'date',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'parseVersion',
+        label: 'Parse Version',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+    ],
+  },
+  {
+    name: 'alibabaProductLinks',
+    label: 'Alibaba Product Links',
+    description:
+      'Deterministic one-to-one mapping from an Alibaba source product to a Channel product.',
+    searchableFields: ['sourceProductId', 'productId'],
+    hideFromNav: true,
+    adminAccess: 'readOnly',
+    fields: [
+      { name: 'sourceKey', label: 'Source Key', type: 'string', readOnly: true, hideInTable: true },
+      {
+        name: 'connectionId',
+        label: 'Connection',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'sourceProductId', label: 'Source Product ID', type: 'string', readOnly: true },
+      { name: 'productId', label: 'Channel Product', type: 'string', readOnly: true },
+      { name: 'linkedByUserId', label: 'Linked By', type: 'string', readOnly: true },
+      { name: 'linkedAt', label: 'Linked At', type: 'date', readOnly: true },
+    ],
+  },
+  {
+    name: 'alibabaSupplierOffers',
+    label: 'Alibaba Supplier Offers',
+    description: 'Normalized product/SKU commercial truth from the Alibaba source.',
+    searchableFields: ['sourceProductId', 'sourceSkuId'],
+    hideFromNav: true,
+    adminAccess: 'readOnly',
+    fields: [
+      { name: 'offerKey', label: 'Offer Key', type: 'string', readOnly: true, hideInTable: true },
+      { name: 'sourceKey', label: 'Source Key', type: 'string', readOnly: true, hideInTable: true },
+      {
+        name: 'connectionId',
+        label: 'Connection',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'sourceProductId', label: 'Source Product ID', type: 'string', readOnly: true },
+      { name: 'sourceSkuId', label: 'Source SKU', type: 'string', readOnly: true },
+      { name: 'active', label: 'Active', type: 'boolean', readOnly: true },
+      {
+        name: 'sourceAttributes',
+        label: 'Attributes',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'sourceAvailability', label: 'Availability', type: 'number', readOnly: true },
+      { name: 'pricing', label: 'Pricing', type: 'json', readOnly: true, hideInTable: true },
+      { name: 'sourceUpdatedAt', label: 'Source Updated', type: 'string', readOnly: true },
+      { name: 'syncedAt', label: 'Synced', type: 'date', readOnly: true },
+      {
+        name: 'lastSeenRunId',
+        label: 'Last Seen Run',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+    ],
+  },
+  {
+    name: 'alibabaSyncRuns',
+    label: 'Alibaba Sync Runs',
+    description: 'Run lifecycle, counters, diffs, quarantine and approval audit.',
+    searchableFields: [],
+    hideFromNav: true,
+    adminAccess: 'readOnly',
+    fields: [
+      {
+        name: 'connectionId',
+        label: 'Connection',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'mode',
+        label: 'Mode',
+        type: 'select',
+        options: ['incremental', 'full'],
+        readOnly: true,
+      },
+      {
+        name: 'trigger',
+        label: 'Trigger',
+        type: 'select',
+        options: ['timer', 'manual', 'continuation'],
+        readOnly: true,
+      },
+      {
+        name: 'status',
+        label: 'Status',
+        type: 'select',
+        options: ALIBABA_SYNC_RUN_STATUS_OPTIONS,
+        readOnly: true,
+      },
+      { name: 'holder', label: 'Holder', type: 'string', readOnly: true, hideInTable: true },
+      { name: 'fence', label: 'Fence', type: 'number', readOnly: true, hideInTable: true },
+      {
+        name: 'candidateHash',
+        label: 'Candidate Hash',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'startedAt', label: 'Started', type: 'date', readOnly: true },
+      { name: 'completedAt', label: 'Completed', type: 'date', readOnly: true },
+      { name: 'counters', label: 'Counters', type: 'json', readOnly: true, hideInTable: true },
+      { name: 'alerts', label: 'Alerts', type: 'json', readOnly: true, hideInTable: true },
+      { name: 'approval', label: 'Approval', type: 'json', readOnly: true, hideInTable: true },
+      {
+        name: 'errorSummary',
+        label: 'Error Summary',
+        type: 'text',
+        readOnly: true,
+        hideInTable: true,
+      },
+    ],
+  },
+  {
+    name: 'alibabaCategoryMappings',
+    label: 'Alibaba Category Mappings',
+    description:
+      'Operator-owned mapping from Alibaba source categories to Channel categories; drafts are created only for mapped categories.',
+    searchableFields: ['alibabaCategoryId', 'alibabaCategoryLabel'],
+    adminAccess: 'crud',
+    fields: [
+      { name: 'alibabaCategoryId', label: 'Alibaba Category ID', type: 'string', required: true },
+      { name: 'alibabaCategoryLabel', label: 'Alibaba Category Label', type: 'string' },
+      {
+        name: 'channelCategory',
+        label: 'Channel Category',
+        type: 'select',
+        options: PRODUCT_CATEGORY_OPTIONS,
+        required: true,
+      },
+      { name: 'notes', label: 'Notes', type: 'text', hideInTable: true },
+    ],
+  },
 ] as const;
 
 const COLLECTION_MAP = new Map(COLLECTIONS.map((c) => [c.name, c]));
@@ -545,6 +1019,34 @@ export function getCollection(name: string): CollectionDef | undefined {
 
 export function isKnownCollection(name: string): boolean {
   return COLLECTION_MAP.has(name);
+}
+
+/** Effective generic-admin policy for a registered collection ('crud' when absent). */
+export function collectionAdminAccess(name: string): CollectionAdminAccess {
+  return COLLECTION_MAP.get(name)?.adminAccess ?? 'crud';
+}
+
+/**
+ * Registry-aware generic-CRUD gates (R1). These — not the bare role gates in
+ * auth.ts — are what the admin handler consults, so the adminAccess policy is
+ * enforced at one seam. They live here rather than in auth.ts because
+ * collections.ts already imports auth.ts at module init (ROLES); the reverse
+ * import would be a TDZ cycle, and auth.ts stays dependency-free by design.
+ * The hardcoded admin-only trio keeps precedence via the underlying gates.
+ */
+export function canReadRegisteredCollection(role: Role, name: string): boolean {
+  if (collectionAdminAccess(name) === 'none') return false;
+  return canReadCollection(role, name);
+}
+
+export function canEditRegisteredCollection(role: Role, name: string): boolean {
+  if (collectionAdminAccess(name) !== 'crud') return false;
+  return canEditCollection(role, name);
+}
+
+/** Registry defs visible to the generic admin `collections` dump (R1: 'none' omitted). */
+export function adminVisibleCollections(): readonly CollectionDef[] {
+  return COLLECTIONS.filter((def) => (def.adminAccess ?? 'crud') !== 'none');
 }
 
 /** All writable (non-readOnly, non-system) fields for a collection. */

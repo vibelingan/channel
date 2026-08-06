@@ -2,6 +2,7 @@ import { getCollection } from '@vibelingan-channel/shared';
 import { useMemo, useState } from 'react';
 import { canManageUsers, getUser } from '../../lib/session.ts';
 import { CollectionView } from './CollectionView.tsx';
+import { AlibabaCatalogSyncPage } from './alibaba-catalog-sync/AlibabaCatalogSyncPage.tsx';
 import { DASHBOARD_SECTIONS, type DashboardSection } from './sections.ts';
 
 export function DashboardShell({ onLogout }: { onLogout: () => void }) {
@@ -61,7 +62,11 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
       </aside>
 
       <main className="flex-1 overflow-auto">
-        {section && collection ? (
+        {section?.custom === 'alibaba-sync' ? (
+          <div className="p-6">
+            <AlibabaCatalogSyncPage />
+          </div>
+        ) : section && collection ? (
           <CollectionView key={collection.name} collection={collection} section={section} />
         ) : (
           <p className="p-8 text-slate-500">No collections available.</p>

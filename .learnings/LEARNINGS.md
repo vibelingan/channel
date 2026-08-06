@@ -280,3 +280,52 @@ Every architecture or final-approval artifact starts with four plain-language se
 - Tags: architecture, approval, communication, gate
 
 ---
+
+## LRN-2026-08-06-explain-mechanism-not-process
+
+**Priority**: critical
+**Status**: new
+**Area**: communication
+**Pattern-Key**: approval-artifact-plain-language
+
+### Summary
+Third recurrence. When explaining a bug or a decision, describe the MECHANISM
+in the product's own nouns. Do not narrate the review process, and never
+introduce a coined term (a "twin", a "class", a "lens") as if the reader
+shares it.
+
+### Details
+Throughout the alibaba-linked-catalog-sync session I reported findings as
+process narration — "the sibling-twin class", "a fix that does not fix",
+"round 3 found the twin" — and quoted a checklist's section titles back at the
+user. The user twice said they could not follow it and had to open a side chat
+to get a plain explanation. The version they produced there is the target: it
+said what the feature does for the store, defined "lease" as a key on a hook
+that only one run can hold, explained that a second bug had been capping the
+work at 100 products so the missing renewal never mattered, and stated the
+visible symptom — prices silently freeze, no error, discovered only when a
+customer orders at a stale price.
+
+The failure is not vocabulary alone. It is choosing the wrong SUBJECT: I made
+my own workflow the topic when the topic should have been the store's prices.
+
+### Suggested Action
+Rules for every user-facing explanation:
+1. Lead with what it means for the running system — what a user or customer
+   would see or not see.
+2. Define any domain term inline, in one clause, the first time it appears
+   ("a lease — a key on a hook only one run can hold").
+3. Prefer the product's nouns (products, prices, supplier, admin page) over
+   the code's nouns (stage, guard, projection, invariant).
+4. Never use a self-coined label as shorthand. Say "I fixed one of two
+   identical spots", not "the twin".
+5. Explain WHY it stayed hidden — the reader's real question is usually "how
+   did this survive testing?"
+6. Report the process only when the user asks about the process.
+
+### Metadata
+- Source: user_feedback (repeated, 3rd occurrence)
+- Related Files: docs/alibaba-linked-catalog-sync/EXECUTION_LOG.md
+- Tags: communication, explanation, jargon, promotion-candidate
+
+---

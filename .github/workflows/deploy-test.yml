@@ -95,7 +95,7 @@ jobs:
 
       - name: Scan built site for server secret names
         run: |
-          if grep -R -I -n -E 'JWT_SECRET|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|EMAIL_PASSWORD|EMAIL_USER|TENCENTCLOUD_SECRET(ID|KEY)|TENCENTCLOUD_SESSIONTOKEN' apps/site/dist; then
+          if grep -R -I -n -E 'JWT_SECRET|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|EMAIL_PASSWORD|EMAIL_USER|TENCENTCLOUD_SECRET(ID|KEY)|TENCENTCLOUD_SESSIONTOKEN|ALI_APP_KEY|ALI_APP_SECRET|ALI_OAUTH_CALLBACK_URL|ALI_TOKEN_ENCRYPTION_KEY_V1|WECOM_WEBHOOK_URL' apps/site/dist; then
             echo "Server secret names were found in the public site build." >&2
             exit 1
           fi
@@ -123,6 +123,11 @@ jobs:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          ALI_APP_KEY: ${{ secrets.ALI_APP_KEY }}
+          ALI_APP_SECRET: ${{ secrets.ALI_APP_SECRET }}
+          ALI_OAUTH_CALLBACK_URL: ${{ secrets.ALI_OAUTH_CALLBACK_URL }}
+          ALI_TOKEN_ENCRYPTION_KEY_V1: ${{ secrets.ALI_TOKEN_ENCRYPTION_KEY_V1 }}
+          WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
         run: pnpm deploy:cloudbase:test
 
       - name: Smoke deployed CloudBase test

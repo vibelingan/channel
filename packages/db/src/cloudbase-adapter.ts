@@ -14,11 +14,20 @@ import {
  */
 import cloud from 'wx-server-sdk';
 import type {
+  AlibabaLeaseGrant,
   DbAdapter,
   ImageMutationAcquireResult,
   ImageMutationReleaseResult,
 } from './adapter.ts';
-import { transitionImageMutationAcquire, transitionImageMutationRelease } from './adapter.ts';
+import {
+  ALIBABA_SYNC_LEASE_COLLECTION,
+  holdsAlibabaLease,
+  transitionAlibabaLeaseAcquire,
+  transitionAlibabaLeaseRelease,
+  transitionAlibabaLeaseRenew,
+  transitionImageMutationAcquire,
+  transitionImageMutationRelease,
+} from './adapter.ts';
 
 /*
  * wx-server-sdk@4 ships official types, but every terminal database call is
@@ -59,6 +68,13 @@ interface WxCommand {
   lte(value: unknown): unknown;
   in(values: unknown[]): unknown;
   nin(values: unknown[]): unknown;
+  /**
+   * Update command: replace a field WHOLESALE instead of the default
+   * dot-path merge. Present on the installed wx-server-sdk 4.0.2 command
+   * (probed in scripts/verify-cloudbase-sdk-contract.mjs); the local
+   * interface simply had not declared it.
+   */
+  set(value: unknown): unknown;
 }
 
 interface WxDatabase {
@@ -77,6 +93,14 @@ interface NodeSdkTransaction {
     doc(id: string): {
       get(): Promise<{ data: unknown }>;
       update(patch: Record<string, unknown>): Promise<unknown>;
+      /**
+       * Full-replace upsert: `database.modifyDocument` with
+       * `{merge:false, upsert:true, transactionId, query:{_id}}`. The data
+       * object must NOT contain `_id` (the SDK rejects it). Verified against
+       * the installed @cloudbase/database 1.4.3 source and probed by
+       * scripts/verify-cloudbase-sdk-contract.mjs.
+       */
+      set(data: Record<string, unknown>): Promise<{ updated?: number }>;
     };
   };
 }
@@ -216,7 +240,10 @@ export const cloudBaseAdapter: DbAdapter = {
   async update(collection, id, data): Promise<CollectionDoc | null> {
     const db = database();
     const patch = { ...data, updatedAt: new Date().toISOString() };
-    await db.collection(collection).doc(id).update({ data: patch });
+    await db
+      .collection(collection)
+      .doc(id)
+      .update({ data: replaceNestedObjects(patch, db.command) });
     return this.get(collection, id);
   },
 
@@ -281,7 +308,154 @@ export const cloudBaseAdapter: DbAdapter = {
       return 'released';
     });
   },
+
+  // -------------------------------------------------------------------------
+  // Deterministic-id writes + Alibaba sync lease (ARCHITECTURE §9).
+  // Every method is ONE runTransaction whose callback is a pure
+  // read-check-write: runTransaction re-executes the callback on
+  // DATABASE_TRANSACTION_CONFLICT, so callbacks must have no side effects
+  // outside the transaction.
+  // -------------------------------------------------------------------------
+
+  async createDocWithId(collection, id, data): Promise<'created' | 'exists'> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection(collection).doc(id);
+      const got = await ref.get();
+      if (normalizeSingle(got.data)) return 'exists';
+      // set() is a full-replace upsert keyed by the doc id; _id must not
+      // appear in the payload (SDK contract, probed in CI).
+      const { _id, ...payload } = data as Record<string, unknown> & { _id?: unknown };
+      await ref.set(payload);
+      return 'created';
+    });
+  },
+
+  async upsertDocWithId(collection, id, data): Promise<CollectionDoc> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection(collection).doc(id);
+      const got = await ref.get();
+      const existing = normalizeSingle(got.data);
+      const now = new Date().toISOString();
+      const { _id, ...patch } = data as Record<string, unknown> & { _id?: unknown };
+      if (existing) {
+        const merged = { ...patch, updatedAt: now };
+        await ref.update(replaceNestedObjects(merged, db.command));
+        return normalize({ ...existing, ...merged, _id: id });
+      }
+      const created = { createdAt: now, updatedAt: now, ...patch };
+      await ref.set(created);
+      return normalize({ _id: id, ...created });
+    });
+  },
+
+  async acquireAlibabaSyncLease(connectionId, holder, now, ttlMs): Promise<AlibabaLeaseGrant> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(connectionId);
+      const got = await ref.get();
+      const transition = transitionAlibabaLeaseAcquire(
+        normalizeSingle(got.data),
+        holder,
+        now,
+        ttlMs,
+      );
+      if (transition.result !== 'granted') return { result: transition.result };
+      await ref.set({ ...transition.doc, updatedAt: now });
+      return { result: 'granted', fence: transition.fence };
+    });
+  },
+
+  async renewAlibabaSyncLease(connectionId, holder, fence, now, ttlMs): Promise<boolean> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(connectionId);
+      const got = await ref.get();
+      const transition = transitionAlibabaLeaseRenew(
+        normalizeSingle(got.data),
+        holder,
+        fence,
+        now,
+        ttlMs,
+      );
+      if (transition.result !== 'applied') return false;
+      await ref.update({ ...transition.patch, updatedAt: now });
+      return true;
+    });
+  },
+
+  async releaseAlibabaSyncLease(connectionId, holder, fence, now): Promise<boolean> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(connectionId);
+      const got = await ref.get();
+      const transition = transitionAlibabaLeaseRelease(
+        normalizeSingle(got.data),
+        holder,
+        fence,
+        now,
+      );
+      if (transition.result !== 'applied') return false;
+      if (Object.keys(transition.patch).length > 0) {
+        await ref.update({ ...transition.patch, updatedAt: now });
+      }
+      return true;
+    });
+  },
+
+  async updateDocWithAlibabaLease(collection, id, patch, guard): Promise<boolean> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      // The fence recheck lives INSIDE the same transaction as the write —
+      // assert-then-update at the caller would be check-then-act (R1 E2).
+      const leaseRef = transaction
+        .collection(ALIBABA_SYNC_LEASE_COLLECTION)
+        .doc(guard.connectionId);
+      const lease = normalizeSingle((await leaseRef.get()).data);
+      if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+      const targetRef = transaction.collection(collection).doc(id);
+      if (!normalizeSingle((await targetRef.get()).data)) return false;
+      await targetRef.update(replaceNestedObjects({ ...patch, updatedAt: guard.now }, db.command));
+      return true;
+    });
+  },
 };
+
+/**
+ * CloudBase's `update` FLATTENS a nested plain object into dot-paths
+ * (`UpdateSerializer.encodeUpdateObject` -> `flattenQueryObject`), which is a
+ * MERGE, not a replace. Two consequences the local JSON adapter never shows,
+ * because it shallow-spreads:
+ *   1. Writing `{a:{x:1}}` over a field currently holding `null` targets
+ *      `a.x` on a non-object and does not land.
+ *   2. A patch that omits a sub-key leaves the PREVIOUS value's sub-key in
+ *      place — `{mode:'tiered',tiers}` followed by `{mode:'fixed',amountMinor}`
+ *      yields a document carrying both, so a consumer reading by `mode` sees
+ *      fields that contradict it.
+ * Wrapping object values in the `set` update command replaces the field
+ * wholesale, which is the semantics every caller in this repo assumes.
+ *
+ * Arrays are left alone (CloudBase already replaces them wholesale), and so is
+ * anything that is not a PLAIN object — an update command such as
+ * `command.inc(n)` is a class instance and must reach the driver untouched.
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+function replaceNestedObjects(
+  patch: Record<string, unknown>,
+  command: { set(value: unknown): unknown },
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    out[key] = isPlainObject(value) ? command.set(value) : value;
+  }
+  return out;
+}
 
 function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

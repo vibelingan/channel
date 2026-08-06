@@ -192,6 +192,173 @@ try {
 } finally {
   databaseModule.Db.reqClass = originalRequestClass;
 }
+
+// ---------------------------------------------------------------------------
+// Alibaba sync lease surfaces (docs/alibaba-linked-catalog-sync, MIU 4):
+// the fenced lease and createDocWithId/upsertDocWithId rely on in-transaction
+// doc.get() (missing -> {data: null}) and doc.set() acting as a full-replace
+// upsert routed through database.modifyDocument with the transactionId.
+// Static probe: the installed @cloudbase/database source must implement set()
+// with exactly that contract.
+// ---------------------------------------------------------------------------
+const documentRuntime = readFileSync(join(dirname(databaseEntry), 'document.js'), 'utf8');
+requireCheck(
+  containsAll(documentRuntime, [
+    "await this.request.send('database.modifyDocument'",
+    'upsert: true',
+    'merge: false',
+    'transactionId: this._transactionId',
+  ]),
+  '@cloudbase/database doc.set is a transaction-aware full-replace upsert via database.modifyDocument',
+);
+requireCheck(
+  containsAll(documentRuntime, [
+    "await this.request.send('database.getDocument'",
+    'data: documents[0] || null',
+  ]),
+  '@cloudbase/database in-transaction doc.get resolves {data: doc|null} for missing documents',
+);
+// Runtime probe: drive a transaction through get(miss) -> set -> update and
+// pin the API sequence + upsert/merge params actually sent.
+{
+  const txCalls = [];
+  class FakeLeaseProbeRequest {
+    async send(api, params) {
+      txCalls.push({ api, params });
+      if (api === 'database.startTransaction') return { transactionId: 'lease-probe-tx' };
+      if (api === 'database.getDocument') return { requestId: 'r', data: { list: [] } };
+      if (api === 'database.modifyDocument') {
+        return { requestId: 'r', data: { updated: 1, upsert_id: 'conn-1' } };
+      }
+      return { requestId: 'r' };
+    }
+  }
+  const originalReqClass = databaseModule.Db.reqClass;
+  try {
+    databaseModule.Db.reqClass = FakeLeaseProbeRequest;
+    const probeDb = new databaseModule.Db({});
+    const probeResult = await probeDb.runTransaction(async (transaction) => {
+      const ref = transaction.collection('alibabaSyncLeases').doc('conn-1');
+      const missing = await ref.get();
+      const setResult = await ref.set({ holder: 'h', fence: 1 });
+      await ref.update({ heartbeatAt: 'x' });
+      return { missing: missing.data, updated: setResult.updated };
+    });
+    const apiSequence = txCalls.map((call) => call.api);
+    const setCall = txCalls.find(
+      (call) => call.api === 'database.modifyDocument' && call.params?.upsert === true,
+    );
+    const updateCall = txCalls.find(
+      (call) => call.api === 'database.modifyDocument' && call.params?.upsert === false,
+    );
+    requireCheck(
+      probeResult.missing === null &&
+        probeResult.updated === 1 &&
+        JSON.stringify(apiSequence) ===
+          JSON.stringify([
+            'database.startTransaction',
+            'database.getDocument',
+            'database.modifyDocument',
+            'database.modifyDocument',
+            'database.commitTransaction',
+          ]) &&
+        setCall?.params?.merge === false &&
+        setCall?.params?.transactionId === 'lease-probe-tx' &&
+        setCall?.params?.query?.includes('conn-1') &&
+        updateCall?.params?.merge === true &&
+        updateCall?.params?.transactionId === 'lease-probe-tx',
+      '@cloudbase/database transaction get-miss/set-upsert/update probe matches the lease write contract',
+    );
+  } finally {
+    databaseModule.Db.reqClass = originalReqClass;
+  }
+}
+// Nested-object update semantics (blessing-gate P1). CloudBase's `update`
+// FLATTENS a nested plain object into dot-paths, so a patch MERGES into the
+// previous value instead of replacing it — and cannot land at all over a field
+// currently holding null. The local JSON adapter shallow-spreads, so this
+// diverges ONLY in production. Prove both the raw driver behaviour and that
+// the adapter wraps object values in the `set` command.
+{
+  const flattenCalls = [];
+  class FakeFlattenProbeRequest {
+    async send(api, params) {
+      flattenCalls.push({ api, params });
+      if (api === 'database.startTransaction') return { transactionId: 'flatten-probe-tx' };
+      if (api === 'database.getDocument') {
+        return { requestId: 'r', data: { list: [JSON.stringify({ _id: 'p-1', pricing: null })] } };
+      }
+      if (api === 'database.modifyDocument') return { requestId: 'r', data: { updated: 1 } };
+      return { requestId: 'r' };
+    }
+  }
+  const originalReqClass = databaseModule.Db.reqClass;
+  try {
+    databaseModule.Db.reqClass = FakeFlattenProbeRequest;
+    const probeDb = new databaseModule.Db({});
+
+    // (a) RAW: a bare nested object flattens to a dot-path key.
+    await probeDb.runTransaction(async (transaction) => {
+      await transaction
+        .collection('products')
+        .doc('p-1')
+        .update({ pricing: { mode: 'fixed', amountMinor: 250 } });
+    });
+    const rawUpdate = flattenCalls.find(
+      (call) => call.api === 'database.modifyDocument' && call.params?.merge === true,
+    );
+    // `params.data` is a JSON STRING wrapping the operators: {"$set": {...}}.
+    const rawSet = JSON.parse(rawUpdate?.params?.data ?? '{}').$set ?? {};
+    requireCheck(
+      Object.hasOwn(rawSet, 'pricing.mode') && !Object.hasOwn(rawSet, 'pricing'),
+      '@cloudbase/database update FLATTENS a nested object to dot-paths (merge, not replace)',
+    );
+
+    // (b) WRAPPED: the `set` command the adapter applies keeps the field whole.
+    flattenCalls.length = 0;
+    await probeDb.runTransaction(async (transaction) => {
+      await transaction
+        .collection('products')
+        .doc('p-1')
+        .update({ pricing: probeDb.command.set({ mode: 'fixed', amountMinor: 250 }) });
+    });
+    const wrappedUpdate = flattenCalls.find(
+      (call) => call.api === 'database.modifyDocument' && call.params?.merge === true,
+    );
+    const wrappedSet = JSON.parse(wrappedUpdate?.params?.data ?? '{}').$set ?? {};
+    requireCheck(
+      Object.hasOwn(wrappedSet, 'pricing') &&
+        !Object.keys(wrappedSet).some((key) => key.startsWith('pricing.')) &&
+        wrappedSet.pricing?.mode === 'fixed',
+      '@cloudbase/database command.set REPLACES a nested field wholesale (no dot-paths)',
+    );
+  } finally {
+    databaseModule.Db.reqClass = originalReqClass;
+  }
+}
+
+// The adapter must route EVERY object-valued patch field through command.set —
+// otherwise a mode transition leaves the previous mode's keys behind.
+{
+  const adapterSource = readFileSync(
+    new URL('../packages/db/src/cloudbase-adapter.ts', import.meta.url),
+    'utf8',
+  );
+  const writeSites = [
+    /\.update\(\{ data: replaceNestedObjects\(patch, db\.command\) \}\)/,
+    /await ref\.update\(replaceNestedObjects\(merged, db\.command\)\)/,
+    /await targetRef\.update\(replaceNestedObjects\(/,
+  ];
+  requireCheck(
+    writeSites.every((pattern) => pattern.test(adapterSource)),
+    'cloudbase-adapter routes all three update paths through replaceNestedObjects',
+  );
+  requireCheck(
+    /proto === Object\.prototype \|\| proto === null/.test(adapterSource),
+    'replaceNestedObjects wraps PLAIN objects only, so update commands pass through intact',
+  );
+}
+
 requireCheck(
   containsAll(nodeTypes, [
     'IGetUploadMetadataResult',
@@ -409,6 +576,36 @@ requireCheck(
     ),
   'db cloudbase acquire/release run their transitions inside runTransaction',
 );
+// The FENCED conditional write (R1 E2) is the branch's one architecture
+// amendment, and its PRODUCTION implementations had zero coverage — every
+// lease assertion runs against a test-only adapter that re-implements the
+// guard (blessing-gate P2). Assert the real methods here: each must re-verify
+// the lease INSIDE the same transaction as its write, or a stale holder can
+// promote after a fence takeover.
+for (const method of [
+  'acquireAlibabaSyncLease',
+  'renewAlibabaSyncLease',
+  'releaseAlibabaSyncLease',
+  'updateDocWithAlibabaLease',
+  'createDocWithId',
+  'upsertDocWithId',
+]) {
+  const calls = objectMethodCalls('cloudBaseAdapter', method);
+  requireCheck(
+    calls.includes('db.runTransaction') && calls.includes('transaction.collection'),
+    `db cloudbase ${method} performs its read-and-write inside runTransaction`,
+  );
+}
+requireCheck(
+  objectMethodCalls('cloudBaseAdapter', 'updateDocWithAlibabaLease').includes(
+    'holdsAlibabaLease',
+  ) &&
+    objectMethodCalls('cloudBaseAdapter', 'updateDocWithAlibabaLease').includes(
+      'replaceNestedObjects',
+    ),
+  'db cloudbase updateDocWithAlibabaLease re-verifies the fence and replaces nested fields',
+);
+
 requireCheck(
   cloudbaseAdapter.includes('throwOnNotFound: false'),
   'db cloudbase adapter configures throwOnNotFound=false so missing doc reads resolve null',

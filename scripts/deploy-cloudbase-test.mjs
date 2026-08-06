@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { buildFunctionDefs } from './cloudbase-function-manifest.mjs';
 import { ensureNoSqlResources } from './cloudbase-nosql-resources.mjs';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
@@ -219,8 +220,8 @@ function writeCloudBaseCliConfig(def) {
             name: def.name,
             runtime: targetRuntime,
             handler: 'index.main',
-            timeout: 20,
-            memorySize: 256,
+            timeout: def.timeout,
+            memorySize: def.memorySize,
             envVariables: def.envVariables,
           },
         ],
@@ -406,7 +407,7 @@ function updateFunctionConfig(def) {
       action: 'updateFunctionConfig',
       functionName: def.name,
       handler: 'index.main',
-      timeout: 20,
+      timeout: def.timeout,
       envVariables: def.envVariables,
     });
     if (
@@ -425,44 +426,22 @@ function updateFunctionConfig(def) {
   return requestIdFrom(configResult) ?? 'unknown';
 }
 
-const functionDefs = [
-  {
-    name: 'admin',
-    routePath: '/api/admin',
-    envVariables: envEntries({
-      TCB_ENV: envId,
-      APP_ENV: appEnv,
-      ADMIN_EMAIL: adminEmail,
-      JWT_SECRET: requireEnv('JWT_SECRET'),
-      ADMIN_PASSWORD_HASH: requireEnv('ADMIN_PASSWORD_HASH'),
-      BOOTSTRAP_ENABLED: process.env.BOOTSTRAP_ENABLED || '0',
-      BOOTSTRAP_ADMIN_TOKEN: optionalEnv('BOOTSTRAP_ADMIN_TOKEN'),
-      CORS_ALLOWED_ORIGINS: corsAllowedOrigins,
-      LOGIN_URL: loginUrl,
-      RESET_PASSWORD_URL: resetPasswordUrl,
-      EMAIL_HOST: optionalEnv('EMAIL_HOST'),
-      EMAIL_PORT: optionalEnv('EMAIL_PORT'),
-      EMAIL_SECURE: optionalEnv('EMAIL_SECURE'),
-      EMAIL_USER: optionalEnv('EMAIL_USER'),
-      EMAIL_PASSWORD: optionalEnv('EMAIL_PASSWORD'),
-      EMAIL_FROM: optionalEnv('EMAIL_FROM'),
-    }),
-  },
-  {
-    name: 'public-api',
-    routePath: '/api',
-    envVariables: envEntries({
-      TCB_ENV: envId,
-      APP_ENV: appEnv,
-      PUBLIC_API_BASE_URL: apiUrl,
-      CORS_ALLOWED_ORIGINS: corsAllowedOrigins,
-      // Same secret the admin function signs sessions with — the public catalog
-      // verifies a presented Bearer token to attach role-gated VIP pricing.
-      // Absent → catalog is anonymous-only (feature no-ops, fails closed).
-      JWT_SECRET: requireEnv('JWT_SECRET'),
-    }),
-  },
-];
+// Function definitions come from THE manifest (ARCHITECTURE §14, MIU 14);
+// scripts/function-manifest.test.mjs pins admin/public-api env parity with
+// the pre-manifest literals so a manifest edit can never silently un-set
+// live env vars (deploys replace env wholesale).
+const functionDefs = buildFunctionDefs({
+  envId,
+  appEnv,
+  adminEmail,
+  apiUrl,
+  siteUrl,
+  corsAllowedOrigins,
+  loginUrl,
+  resetPasswordUrl,
+  requireEnv,
+  optionalEnv,
+});
 
 function deployFunction(def) {
   const artifactDir = resolve(functionRootPath, def.name);
@@ -595,9 +574,26 @@ console.log(`Deploying CloudBase test env ${envId} with function runtime ${targe
 callTool('cloudbase.auth', { action: 'set_env', envId });
 ensureNoSqlResources(callTool);
 
+// Test env must NEVER carry a timer trigger (ARCHITECTURE §14): the deploy
+// hard-fails on any trigger found so a manually-created or rehearsal timer
+// cannot survive. Production trigger application is MIU 15 activation scope.
+function assertNoTimerTriggers(def) {
+  const result = callTool('cloudbase.queryFunctions', {
+    action: 'getFunctionDetail',
+    functionName: def.name,
+  });
+  const triggers = result.data?.functionDetail?.Triggers ?? [];
+  if (Array.isArray(triggers) && triggers.length > 0) {
+    throw new Error(
+      `${def.name}: the TEST environment must not carry function triggers; found ${triggers.length}. Remove them in the CloudBase console and redeploy.`,
+    );
+  }
+}
+
 for (const def of functionDefs) {
   deployFunction(def);
   ensureGateway(def);
+  assertNoTimerTriggers(def);
 }
 
 deployWebApp();

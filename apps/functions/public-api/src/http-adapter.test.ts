@@ -972,3 +972,99 @@ test('legacy row with a present-but-corrupt refCount does NOT fall back to the s
   setup(store);
   assert.equal((await imageReq('legacy-corrupt')).statusCode, 404);
 });
+
+// --- Alibaba linked catalog projection (docs/alibaba-linked-catalog-sync, MIU 9)
+
+const LINKED_PRICING = {
+  schemaVersion: 'alibaba-catalog-pricing-v1',
+  source: 'alibaba',
+  currency: 'USD',
+  mode: 'fixed',
+  amountMinor: 250,
+  sourceMoq: 100,
+  // Offer provenance — must be stripped by the public sub-projection.
+  sourceOfferKey: 'offer-key-secret',
+  sourceProductId: 'source-987',
+  sourceSkuId: 'sku-1',
+  sourceUpdatedAt: '2026-08-01T02:00:00.000Z',
+  syncedAt: '2026-08-06T12:00:00.000Z',
+};
+
+function seedLinkedStore(): Store {
+  const store = seedStore();
+  const linked = store.products?.find((product) => product._id === 'p-1');
+  if (linked) {
+    linked.alibabaPrimarySourceKey = 'a'.repeat(64);
+    linked.alibabaPrimaryOfferKey = 'internal-offer-key';
+    linked.alibabaCatalogPricing = { ...LINKED_PRICING };
+    linked.alibabaSourceStatus = 'available';
+    linked.alibabaSourceLastSyncedAt = '2026-08-06T12:00:00.000Z';
+  }
+  return store;
+}
+
+test('unlinked products ship ZERO alibaba keys (legacy payload byte-stable)', async () => {
+  setup();
+  const response = await handlePublicApiEvent({ httpMethod: 'GET', path: '/api/products/p-2' }, {});
+  const json = body(response) as { ok: true; data: CollectionDoc };
+  assert.equal(
+    Object.keys(json.data).some((key) => key.startsWith('alibaba')),
+    false,
+    'no alibaba keys on an unlinked payload',
+  );
+});
+
+test('linked products ship the additive fields with offer provenance STRIPPED', async () => {
+  setup(seedLinkedStore());
+  const response = await handlePublicApiEvent({ httpMethod: 'GET', path: '/api/products/p-1' }, {});
+  const json = body(response) as { ok: true; data: CollectionDoc };
+  const item = json.data;
+  // The REAL sourceKey hash never ships (review R2 #10) — link identity only.
+  assert.equal(item.alibabaPrimarySourceKey, 'linked');
+  assert.equal(item.alibabaSourceStatus, 'available');
+  assert.equal('alibabaPrimaryOfferKey' in item, false, 'offer key never ships');
+  const pricing = item.alibabaCatalogPricing as Record<string, unknown>;
+  assert.equal(pricing.mode, 'fixed');
+  assert.equal(pricing.amountMinor, 250);
+  assert.equal(pricing.sourceMoq, 100);
+  assert.equal('sourceOfferKey' in pricing, false, 'provenance stripped');
+  assert.equal('sourceProductId' in pricing, false, 'provenance stripped');
+  assert.equal('sourceSkuId' in pricing, false, 'provenance stripped');
+  // Legacy fields still present in the payload (compatibility invariant 1) —
+  // the UI branch decides what renders, the API never drops them.
+  assert.equal(item.unitPrice, 12);
+});
+
+test('anonymous and authenticated callers receive IDENTICAL alibaba pricing; VIP gating unchanged', async () => {
+  setup(seedLinkedStore());
+  const anonymous = body(
+    await handlePublicApiEvent(
+      { httpMethod: 'GET', path: '/api/products/p-1' },
+      { jwtSecret: JWT_SECRET },
+    ),
+  ) as { ok: true; data: CollectionDoc };
+  const token = await memberToken('member');
+  const authenticated = body(
+    await handlePublicApiEvent(authEvent('/api/products/p-1', token), { jwtSecret: JWT_SECRET }),
+  ) as { ok: true; data: CollectionDoc };
+  assert.deepEqual(
+    authenticated.data.alibabaCatalogPricing,
+    anonymous.data.alibabaCatalogPricing,
+    'identical alibaba pricing for all viewers',
+  );
+  assert.equal('vipPrice' in anonymous.data, false, 'VIP stays gated for anonymous');
+  assert.equal(authenticated.data.vipPrice, 8, 'VIP still attaches for the entitled viewer');
+});
+
+test('overstock payloads never carry alibaba keys (shared allowlist, unchanged surface)', async () => {
+  setup(seedLinkedStore());
+  const response = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/overstock/o-1' },
+    {},
+  );
+  const json = body(response) as { ok: true; data: CollectionDoc };
+  assert.equal(
+    Object.keys(json.data).some((key) => key.startsWith('alibaba')),
+    false,
+  );
+});

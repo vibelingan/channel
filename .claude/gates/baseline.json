@@ -1,0 +1,28 @@
+{
+  "recordedAt": "2026-08-06T16:29:55Z",
+  "sha": "a3912c68797d6279335db97c55834bf0cee5147d",
+  "accepted": [
+    "async-child-busy-contract\tapps/site/src/islands/admin/ImageManager.tsx:5",
+    "form-degradation\tapps/site/src/components/ProjectForm.astro:42",
+    "form-degradation\tapps/site/src/islands/admin/CollectionView.tsx:291",
+    "form-degradation\tapps/site/src/islands/admin/RecordForm.tsx:65",
+    "form-degradation\tapps/site/src/islands/auth/AuthForm.tsx:63",
+    "form-degradation\tapps/site/src/islands/auth/ProfilePanel.tsx:105",
+    "form-degradation\tapps/site/src/islands/auth/ProfilePanel.tsx:74",
+    "form-degradation\tapps/site/src/islands/auth/ResetForm.tsx:57",
+    "form-degradation\tapps/site/src/islands/shop/InquiryForm.tsx:86",
+    "pipeline-causality\tdeploy-test.yml:deploy",
+    "skip-policy\ttests/e2e/admin-auth.spec.ts:6",
+    "skip-policy\ttests/e2e/bootstrap.spec.ts:9",
+    "skip-policy\ttests/e2e/media-upload-ui.spec.ts:38",
+    "skip-policy\ttests/e2e/media-upload.spec.ts:137",
+    "skip-policy\ttests/e2e/mutation.spec.ts:18",
+    "skip-policy\ttests/e2e/mutation.spec.ts:27",
+    "skip-policy\ttests/e2e/oem-upload.spec.ts:66",
+    "skip-policy\ttests/e2e/public.spec.ts:1772",
+    "trust-boundary-decoding\tapps/site/src/islands/shop/api.ts:58",
+    "trust-boundary-decoding\tapps/site/src/islands/shop/api.ts:69",
+    "trust-boundary-decoding\tapps/site/src/islands/shop/inquiryCart.ts:23",
+    "trust-boundary-decoding\tapps/site/src/lib/session.ts:43"
+  ]
+}

@@ -13,6 +13,7 @@
  */
 import type { HeadphonesContent } from '../../i18n/headphones.ts';
 import { OEM_INQUIRY_HREF } from '../../lib/site-navigation.ts';
+import { AlibabaCatalogPricingBlock } from './AlibabaCatalogPricingBlock.tsx';
 import { Gallery } from './Gallery.tsx';
 import { PriceBlock } from './PriceBlock.tsx';
 import { formatPrice } from './api.ts';
@@ -34,6 +35,13 @@ export function HeadphonesProductDetail({
   registered,
   onBack,
 }: HeadphonesProductDetailProps) {
+  // Alibaba-linked branch (docs/alibaba-linked-catalog-sync, MIU 10): the
+  // branch is LINK IDENTITY, never price presence. A linked product renders
+  // AlibabaCatalogPricingBlock and suppresses EVERY legacy price surface —
+  // spec-sheet unitPrice row, legacy moq row (sourceMoq renders instead), and
+  // PriceBlock — with no fallback when Alibaba pricing is missing. Unlinked
+  // products render byte-identically to the pre-feature page.
+  const alibabaLinked = Boolean(product.alibabaPrimarySourceKey);
   return (
     <section
       data-product-detail={product._id}
@@ -114,13 +122,21 @@ export function HeadphonesProductDetail({
                   </dd>
                 </div>
               )}
-              {product.moq !== undefined && (
+              {!alibabaLinked && product.moq !== undefined && (
                 <div className="flex items-center justify-between gap-4 px-4 py-3">
                   <dt className="text-sm text-ink-muted">{detail.moqLabel}</dt>
                   <dd className="text-sm font-semibold text-ink">{product.moq}</dd>
                 </div>
               )}
-              {product.unitPrice !== undefined && (
+              {alibabaLinked && product.alibabaCatalogPricing?.sourceMoq !== undefined && (
+                <div className="flex items-center justify-between gap-4 px-4 py-3">
+                  <dt className="text-sm text-ink-muted">{detail.moqLabel}</dt>
+                  <dd className="text-sm font-semibold text-ink" data-alibaba-source-moq>
+                    {product.alibabaCatalogPricing.sourceMoq}
+                  </dd>
+                </div>
+              )}
+              {!alibabaLinked && product.unitPrice !== undefined && (
                 <div className="flex items-center justify-between gap-4 px-4 py-3">
                   <dt className="text-sm text-ink-muted">{detail.unitPriceLabel}</dt>
                   <dd className="font-display text-base font-bold text-brand-700">
@@ -139,16 +155,20 @@ export function HeadphonesProductDetail({
             </dl>
 
             <div className="mt-6 rounded-[var(--radius-card)] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-              <PriceBlock
-                wholesaleLabel={detail.wholesaleLabel}
-                vipLabel={detail.vipLabel}
-                vipLockedLabel={detail.vipLockedLabel}
-                wholesalePrice={product.wholesalePrice}
-                vipPrice={product.vipPrice}
-                registered={registered}
-                signInHref={null}
-                size="lg"
-              />
+              {alibabaLinked ? (
+                <AlibabaCatalogPricingBlock pricing={product.alibabaCatalogPricing} size="lg" />
+              ) : (
+                <PriceBlock
+                  wholesaleLabel={detail.wholesaleLabel}
+                  vipLabel={detail.vipLabel}
+                  vipLockedLabel={detail.vipLockedLabel}
+                  wholesalePrice={product.wholesalePrice}
+                  vipPrice={product.vipPrice}
+                  registered={registered}
+                  signInHref={null}
+                  size="lg"
+                />
+              )}
             </div>
 
             <div className="mt-6">
