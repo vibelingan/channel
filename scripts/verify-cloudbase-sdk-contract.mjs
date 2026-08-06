@@ -228,9 +228,21 @@ requireCheck(
  * multipart form against a PUT-scoped signature and COS rejected every upload
  * with 403 SignatureDoesNotMatch — with CI green. Anchor on the function body.
  */
+/**
+ * Extract ONE function body by name. THROWS when the function is absent rather
+ * than returning '': an empty string makes every `/regex/.test(body)` below
+ * return false, which a reviewer reads as "assertion failed for a real reason"
+ * — but an upstream RENAME would then look identical to a genuine protocol
+ * change, and (worse) any `!/.../.test(body)` negative assertion would pass
+ * vacuously forever. Fail loudly at the extraction, not silently at the match.
+ */
 function sdkFunctionBody(source, name) {
   const start = source.indexOf(`async function ${name}(`);
-  if (start < 0) return '';
+  if (start < 0) {
+    throw new Error(
+      `SDK contract: function ${name}() not found in the installed package — it was renamed, removed, or the module layout changed. Re-derive the wire contract from the installed source before touching this assertion.`,
+    );
+  }
   const end = source.indexOf(`exports.${name} =`, start);
   return end > start ? source.slice(start, end) : source.slice(start);
 }

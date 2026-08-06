@@ -523,10 +523,21 @@ test('homepage CTA embeds the existing full secure ProjectForm at #oem-inquiry',
     "'submitProject'",
     'OEM_FILE_MAX_BYTES',
     'isAllowedOemExtension',
-    "cos.append('file', file)",
+    // Bytes go straight to COS as a raw PUT carrying the server-minted
+    // credential headers. This previously pinned the multipart form
+    // (`cos.append('file', file)`) — i.e. it defended the exact protocol
+    // @cloudbase/node-sdk 3.x had stopped signing for. Pin verb + credential
+    // placement instead of the encoding that happened to be in use.
+    'headers: intent.upload.headers',
+    'body: file',
   ]) {
     assert.ok(projectFormSource.includes(secureContract), `ProjectForm keeps: ${secureContract}`);
   }
+  // And must never regress to a multipart form against a PUT-scoped signature.
+  assert.ok(
+    !projectFormSource.includes('new FormData()'),
+    'ProjectForm must not rebuild a multipart upload form',
+  );
 });
 
 test('Teardown listing removes only the aggregate stats band', () => {
