@@ -85,7 +85,10 @@ test('Blue Ocean and Teardown OEM-intent CTAs use the canonical homepage form ro
 test('legacy Success Stories is a configured redirect and retired homepage CTA links are removed', () => {
   assert.ok(!existsSync(legacySuccessStoriesPage));
   assert.ok(astroConfig.includes("'/success-stories': '/portfolio'"));
-  assert.ok(astroConfig.includes("!== '/success-stories'"));
+  // Sitemap exclusion goes through the shared NOINDEX_PATHS set (auth/admin
+  // pages are excluded too); pin both the membership and the filter wiring.
+  assert.ok(astroConfig.includes("'/success-stories',"));
+  assert.ok(astroConfig.includes('NOINDEX_PATHS.has('));
   const ctaContent = siteContent.match(/^ctaSection:\n([\s\S]*?)^footer:/m);
   assert.ok(ctaContent, 'homepage CTA content exists');
   assert.ok(!ctaContent[1].includes('primaryCta'));

@@ -11,11 +11,12 @@ const env = loadEnv(process.env.NODE_ENV ?? 'development', process.cwd(), '');
 // Enabled by default; set PUBLIC_CB_PROXY=0 to disable.
 const cbProxy = env.PUBLIC_CB_PROXY !== '0';
 const cbHost = env.PUBLIC_CB_HOST || 'localhost:3002';
-// Canonical origin for sitemap/canonical/schema. Deploy sets SITE_URL explicitly
-// (GitHub env var = https://supplychainsai.com); the fallback must be the
-// production domain, never localhost — a build without env would otherwise
-// emit unusable sitemap URLs.
-const siteUrl = env.SITE_URL?.trim() || 'https://supplychainsai.com';
+// Canonical origin for sitemap/canonical/schema comes from build-time SITE_URL
+// (deploy sets vars.SITE_URL=https://supplychainsai.com). The localhost fallback
+// is a deliberate, test-pinned contract (portfolio-content.test.ts): no
+// production domain is baked into build config — non-deploy builds stay visibly
+// local instead of silently stamping production canonicals.
+const siteUrl = env.SITE_URL?.trim() || 'http://localhost:4321';
 const site = new URL(siteUrl).href.replace(/\/$/, '');
 
 // Pages that must stay out of the sitemap (auth, admin, form results, redirects).
