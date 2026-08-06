@@ -45,6 +45,12 @@ export const DASHBOARD_SECTIONS: readonly DashboardSection[] = [
     custom: 'alibaba-sync',
   },
   { label: 'Alibaba Categories', collection: 'alibabaCategoryMappings' },
+  // The MIRROR itself, read-only (blessing-gate P2). Both collections are
+  // adminAccess 'readOnly' and therefore listable, and the ops page links
+  // products BY source key — an operator who cannot browse the mirror has no
+  // way to discover the key they are asked to supply.
+  { label: 'Alibaba Sources', collection: 'alibabaSourceProducts' },
+  { label: 'Alibaba Offers', collection: 'alibabaSupplierOffers' },
 ];
 
 /** Field used to gate public visibility of catalog items. */
