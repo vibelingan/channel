@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { test } from 'node:test';
 import ts from 'typescript';
 import { parse } from 'yaml';
+import { FUNCTION_NAMES } from './cloudbase-function-manifest.mjs';
 
 const buildFloor = '22.12.0';
 const functionRequire = createRequire(
@@ -27,13 +28,10 @@ const ciJob = buildWorkflows[0][1].jobs?.checks;
 const deployJob = buildWorkflows[1][1].jobs?.deploy;
 const deploySource = readFileSync(new URL('./deploy-cloudbase-test.mjs', import.meta.url), 'utf8');
 const smokeSource = readFileSync(new URL('./smoke-cloudbase-deploy.mjs', import.meta.url), 'utf8');
-const functionBuildConfigs = [
-  ['admin', tsxRequire('../apps/functions/admin/tsup.config.ts', import.meta.url).default],
-  [
-    'public-api',
-    tsxRequire('../apps/functions/public-api/tsup.config.ts', import.meta.url).default,
-  ],
-];
+const functionBuildConfigs = FUNCTION_NAMES.map((name) => [
+  name,
+  tsxRequire(`../apps/functions/${name}/tsup.config.ts`, import.meta.url).default,
+]);
 const scriptTrees = [
   [
     'deploy',

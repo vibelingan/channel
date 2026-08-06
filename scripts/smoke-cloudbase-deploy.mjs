@@ -3,6 +3,7 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { decodeUtf8, fetchFully } from './smoke-http.mjs';
+import { FUNCTION_NAMES } from './cloudbase-function-manifest.mjs';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const envId = requireEnv('TCB_ENV_ID');
@@ -118,8 +119,21 @@ function verifyFunctionRuntime(functionName) {
 }
 
 callTool('cloudbase.auth', { action: 'set_env', envId });
-verifyFunctionRuntime('admin');
-verifyFunctionRuntime('public-api');
+for (const functionName of FUNCTION_NAMES) {
+  verifyFunctionRuntime(functionName);
+}
+// ARCHITECTURE §14: the test environment must never carry a timer trigger.
+{
+  const detail = callTool('cloudbase.queryFunctions', {
+    action: 'getFunctionDetail',
+    functionName: 'alibaba-catalog-sync',
+  }).data?.functionDetail;
+  const triggers = detail?.Triggers ?? [];
+  if (Array.isArray(triggers) && triggers.length > 0) {
+    throw new Error(`alibaba-catalog-sync: test env carries ${triggers.length} trigger(s); it must have none`);
+  }
+  console.log('alibaba-catalog-sync: no triggers on test (as required)');
+}
 
 for (const path of ['/', '/admin', '/login', '/oem', '/portfolio']) {
   await expectHttp('GET', `${siteUrl}${path}`, 200);
@@ -151,6 +165,10 @@ await expectHttp(
 );
 
 assertRelease('public-api', await expectJson('GET', `${apiUrl}/api/health`, 200));
+assertRelease(
+  'alibaba-catalog-sync',
+  await expectJson('GET', `${apiUrl}/api/alibaba-catalog-sync/health`, 200),
+);
 assertRelease('admin', await expectJson('POST', `${apiUrl}/api/admin`, 200, { action: 'health' }));
 const submitProbe = await expectJson('POST', `${apiUrl}/api/admin`, 400, {
   action: 'submitProject',

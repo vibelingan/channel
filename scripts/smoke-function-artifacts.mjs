@@ -3,10 +3,11 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FUNCTION_NAMES } from './cloudbase-function-manifest.mjs';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const artifactRoot = join(root, '.cloudbase-artifacts', 'functions');
-const functions = ['admin', 'public-api'];
+const functions = FUNCTION_NAMES;
 
 function assertNoUnresolvedImports(name, indexFile) {
   const js = readFileSync(indexFile, 'utf8');
