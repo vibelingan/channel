@@ -62,8 +62,13 @@ Contract tests must show:
 
 - legacy unlinked payload unchanged;
 - linked payload includes Alibaba pricing;
-- authenticated/anonymous Alibaba pricing identical;
-- existing VIP gating remains unchanged.
+- authenticated/anonymous Alibaba pricing identical (R1: deep-equality
+  assertion on `alibabaCatalogPricing` between an anonymous and a
+  bearer-token call);
+- existing VIP gating remains unchanged;
+- R1: overstock payloads pinned unchanged (the public allowlist is shared);
+- R1: the public `alibabaCatalogPricing` shape contains no
+  `sourceOfferKey`/`sourceProductId`/`sourceSkuId`.
 
 ### Stage E — UI compatibility routing
 
@@ -77,6 +82,12 @@ Acceptance matrix:
 | Linked | fixed/range/tiered/negotiable | Alibaba renderer |
 | Linked | unavailable/missing | Alibaba unavailable/quote-required state |
 | Link removed explicitly | any retained legacy fields | existing legacy renderer restored |
+
+R1 — the matrix applies at EVERY legacy price render site enumerated in
+ARCHITECTURE §6.2 (card unit-price badge, detail spec-sheet unit-price row,
+spec-sheet MOQ row, PriceBlock), not just the renderer choice: a linked
+product shows no legacy `unitPrice`/`moq` value anywhere, and an unlinked
+product's page stays byte-identical.
 
 ### Stage F — test deployment and controlled activation
 

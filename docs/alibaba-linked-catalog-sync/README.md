@@ -23,13 +23,17 @@ It is intentionally **additive and compatibility-preserving**:
 
 1. `START_HERE.md` — exact instructions for the implementation agent.
 2. `REVIEW_REPORT.md` — final review decisions and corrections from the prior version.
-3. `DESIGN_CHARTER.md` — frozen scope, invariants, and ownership boundaries.
-4. `ARCHITECTURE.md` — exact modules, collections, data contracts, workflows, security, and deployment.
-5. `COMPATIBILITY_AND_ACTIVATION_PLAN.md` — additive rollout, precedence rules, rollback, and legacy protection.
-6. `ISSUE.md` — implementation objective and acceptance criteria.
-7. `MIU_BREAKDOWN.md` — ordered implementation units with dependencies and done conditions.
-8. `EXECUTION_HANDOFF.md` — branch setup, commands, evidence, review, and deployment loop.
-9. `AGENT_REVIEW_CHECKLIST.md` — independent review lenses.
+3. `REVISION_R1.md` — independent review of the frozen contract against the
+   actual repository (2026-08-06); every R1-marked amendment in the files
+   below traces to a finding here.
+4. `DESIGN_CHARTER.md` — frozen scope, invariants, and ownership boundaries.
+5. `ARCHITECTURE.md` — exact modules, collections, data contracts, workflows, security, and deployment.
+6. `COMPATIBILITY_AND_ACTIVATION_PLAN.md` — additive rollout, precedence rules, rollback, and legacy protection.
+7. `ISSUE.md` — implementation objective and acceptance criteria.
+8. `MIU_BREAKDOWN.md` — ordered implementation units with dependencies and done conditions.
+9. `EXECUTION_HANDOFF.md` — branch setup, commands, evidence, review, and deployment loop.
+10. `AGENT_REVIEW_CHECKLIST.md` — independent review lenses.
+11. `EXECUTION_LOG.md` — per-MIU execution record (live document).
 
 ## Frozen headline decisions
 

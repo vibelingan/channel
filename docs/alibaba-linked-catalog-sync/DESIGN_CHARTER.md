@@ -3,6 +3,7 @@
 **Status:** IMPLEMENTATION-READY; ARCHITECTURE FROZEN  
 **Feature name:** Channel Alibaba Open Platform Linked Catalog Sync  
 **Reviewed baseline:** `vibelingan/channel main@5c14193b93cf023ed791086902bc4423fd077198`  
+**Revision:** R1 (2026-08-06) — see `REVISION_R1.md`; actual starting baseline `main@2f79a61`  
 **Document language:** English only
 
 ## 1. Mission
@@ -27,6 +28,8 @@ Use these names consistently:
 | Product pricing field | `alibabaCatalogPricing` |
 | Primary source field | `alibabaPrimarySourceKey` |
 | Primary offer field | `alibabaPrimaryOfferKey` |
+| Gateway route path (R1) | `/api/alibaba-catalog-sync` |
+| OAuth callback route (R1) | `/api/alibaba-catalog-sync/oauth/callback` |
 
 Do not introduce generic `integration-*`, `source-*`, or `catalogPrice` names for provider-owned artifacts in this phase unless the file is an existing cross-provider repository primitive.
 
@@ -101,7 +104,7 @@ export interface AlibabaPriceTier {
 export interface AlibabaCatalogPricing {
   schemaVersion: 'alibaba-catalog-pricing-v1';
   source: 'alibaba';
-  currency: 'CNY' | 'USD';
+  currency?: 'CNY' | 'USD'; // R1: optional — see per-mode matrix below
   mode: AlibabaPriceMode;
   amountMinor?: number;
   minAmountMinor?: number;
@@ -126,6 +129,23 @@ Validation rules:
 - Phase 2 accepts only CNY and USD;
 - decimal source strings are parsed losslessly; floating-point multiplication is forbidden;
 - missing/malformed current source price produces `unavailable` in `alibabaCatalogPricing` without mutating legacy fields.
+
+Per-mode field matrix (R1 — every cell not listed as allowed is REQUIRED-ABSENT,
+not merely ignored; canonical objects feed candidate hashing):
+
+| mode | currency | amountMinor | minAmountMinor / maxAmountMinor | tiers |
+|---|---|---|---|---|
+| `fixed` | required | required | absent | absent |
+| `range` | required | absent | both required | absent |
+| `tiered` | required | absent | absent | required (non-empty) |
+| `negotiable` | optional | absent | absent | absent |
+| `unavailable` | optional | absent | absent | absent |
+
+`sourceMoq`, provenance fields, `sourceUpdatedAt`, and `syncedAt` are allowed in
+every mode. Source deletion has ONE canonical representation (R1): the
+materialized object is retained with `mode: 'unavailable'` (provenance and
+`syncedAt` survive); renderers must treat an absent object identically as
+defense in depth.
 
 ### 6.3 Update policy
 
@@ -161,6 +181,24 @@ Required collections:
 | `alibabaCategoryMappings` | crud | explicit Alibaba category to Channel category mapping |
 
 Existing `products` receives additive Alibaba-owned fields. Existing price fields remain unchanged.
+
+`adminAccess` semantics (R1):
+
+- Enforcement seam: `canReadCollection` / `canEditCollection` in
+  `packages/shared/src/auth.ts` consult `getCollection(name)?.adminAccess`;
+  all generic admin handler gate call sites inherit the policy transitively.
+- Role matrix: `crud` and `readOnly` grant the same roles the existing gate
+  grants today (admin and contributor); `readOnly` blocks all generic writes
+  for every role; `none` blocks generic reads and writes for every role.
+- The existing hardcoded admin-only gating for `users`, `rateLimitHits`, and
+  `passwordResets` (`isAdminOnlyCollection`) is preserved unchanged and takes
+  precedence; a regression test pins those three collections' behavior.
+- The admin `collections` registry-dump action must filter defs by
+  `adminAccess`: `none` collections are omitted entirely from the response.
+- Dedicated actions on the `alibaba-catalog-sync` function (never generic
+  CRUD) provide the operator surface for `none`/`readOnly` state: connection
+  status, quarantine review/approval, manual runs, link/unlink, and the
+  `setAlibabaPrimaryOffer` pin action.
 
 ## 8. Product fields and ownership
 

@@ -63,6 +63,31 @@ apps/site/src/islands/shop/
 scripts/cloudbase-function-manifest.mjs
 ```
 
+R1 — shared surfaces this feature additionally extends (repo-reality
+completions of the layout above; each stays on its existing shared facade):
+
+- `packages/shared/src/collections.ts` — `adminAccess` on `CollectionDef`, ten
+  new collection defs, additive read-only product fields.
+- `packages/shared/src/auth.ts` — `canReadCollection`/`canEditCollection`
+  consult `adminAccess` (hardcoded admin-only trio preserved).
+- `packages/db/src/adapter.ts` + `cloudbase-adapter.ts` +
+  `apps/local-server/src/json-adapter.ts` — deterministic-ID writes, Alibaba
+  sync lease, fenced conditional write (§9).
+- `packages/media-storage` — `alibaba-raw` namespace and a hash-addressed
+  object path rule beside the existing date-partitioned rule.
+- `apps/local-server/src/main.ts` — mounts the new function's handler under
+  `/api/alibaba-catalog-sync` for local dev parity (repo convention).
+- `apps/site/src/islands/shop/catalog-types.ts` + `apps/site/src/test/factories/catalog.ts`
+  — Product DTO and factory gain the five additive fields.
+- `scripts/cloudbase-nosql-resources.mjs` — provisioning entries for the ten
+  collections (+ an `images.checksumSha256` index for media dedupe).
+- `scripts/verify-cloudbase-sdk-contract.mjs` — probes for the new
+  transactional SDK surfaces (§9, MIU 4).
+- `scripts/package-functions.mjs`, `scripts/smoke-function-artifacts.mjs`,
+  `scripts/deploy-cloudbase-test.mjs`, `scripts/smoke-cloudbase-deploy.mjs`,
+  `scripts/runtime-contract.test.mjs`, `.github/workflows/ci.yml`,
+  `.github/workflows/deploy-test.yml` — manifest consumers (§14).
+
 No generic integration framework is introduced. Shared repository primitives are extended only where required.
 
 ## 3. Data model
@@ -198,11 +223,18 @@ Tier rules:
 
 ## 5. Primary offer and price materialization
 
-Across active offers linked to one Channel product:
+Across active offers linked to one Channel product (R1 — total order; the
+prior wording was undefined for mixed-currency and amount-less offer sets):
 
 1. use operator-pinned `alibabaPrimaryOfferKey` when still valid;
-2. otherwise choose the lowest valid minimum unit amount;
-3. tie-break by source key then SKU ID lexically.
+2. otherwise consider only amount-bearing offers (`fixed`/`range`/`tiered`)
+   in the highest-priority currency present (priority `USD` > `CNY`; FX
+   conversion remains banned, so amounts are never compared across
+   currencies) and choose the lowest valid minimum unit amount;
+3. if no amount-bearing offer exists, `negotiable` offers rank above
+   `unavailable`;
+4. final tie-break by source key then SKU ID lexically. An all-`negotiable`
+   set materializes the tie-break winner's negotiable pricing.
 
 Materialize the selected offer into `products.alibabaCatalogPricing`.
 
@@ -213,9 +245,20 @@ Never write `unitPrice`, `wholesalePrice`, or `vipPrice`. Never fabricate a fixe
 ### 6.1 API
 
 - Keep existing public fields and VIP gating unchanged.
-- Add `alibabaPrimarySourceKey`, `alibabaCatalogPricing`, and safe source status/timestamp fields to the product allowlist.
+- Add `alibabaPrimarySourceKey`, `alibabaCatalogPricing`, `alibabaSourceStatus`,
+  and `alibabaSourceLastSyncedAt` to the ungated public allowlist
+  (`PUBLIC_CATALOG_FIELDS`); never add `alibabaPrimaryOfferKey`.
+- R1 — public sub-projection: before attaching to a public payload,
+  `alibabaCatalogPricing` is stripped of `sourceOfferKey`, `sourceProductId`,
+  and `sourceSkuId` (offer provenance stays in the admin-read-only
+  `alibabaSupplierOffers`/`alibabaProductLinks` records). The public shape
+  keeps `schemaVersion`, `source`, `currency`, `mode`, amounts/tiers,
+  `sourceMoq`, `sourceUpdatedAt`, `syncedAt`.
 - Do not expose connection IDs, raw payload IDs, run IDs, private source URLs, or offer internals.
 - Anonymous and authenticated users receive identical Alibaba pricing for a linked product.
+- R1 — the allowlist is shared by `products` and `overstock`; overstock rows
+  can never carry Alibaba fields (strict write schema), and a contract test
+  pins overstock payloads unchanged.
 
 ### 6.2 UI
 
@@ -234,6 +277,25 @@ Rules:
 - never fall back to legacy fields while linked;
 - unlinked behavior remains unchanged;
 - existing `PriceBlock` may receive a comment identifying it as the legacy/manual compatibility renderer, but no code is removed.
+
+R1 — complete legacy price render-site enumeration for `products` (the branch
+above covers only the `PriceBlock` site; the live page renders legacy values
+at two more sites that must also respect link identity):
+
+| Render site | Unlinked product | Linked product |
+|---|---|---|
+| `HeadphonesProductCard` unit-price badge | unchanged (`unitPrice`) | Alibaba price summary or unavailable state — never `unitPrice` |
+| `HeadphonesProductDetail` spec-sheet unit-price row | unchanged | suppressed (Alibaba pricing renders via `AlibabaCatalogPricingBlock`) |
+| `HeadphonesProductDetail` spec-sheet MOQ row | unchanged (`product.moq`) | shows `alibabaCatalogPricing.sourceMoq` (legacy `moq` row suppressed) |
+| `PriceBlock` (wholesale/VIP) | unchanged | replaced by `AlibabaCatalogPricingBlock` |
+
+Dormant/unrouted islands (`ProductGrid`, `ProductCard`, `ProductDetail`,
+overstock underscore pages) are out of scope. The admin `PreviewModal` price
+rows are an admin-only cosmetic surface; linked products may additionally show
+an Alibaba pricing row there, and the legacy rows remain (admin sees both).
+Alibaba amounts render with a dedicated minor-unit formatter parameterized by
+`currency` (`CNY`/`USD`); the existing `formatPrice` (major-unit, hardcoded
+USD) is never reused for Alibaba values.
 
 ## 7. Merge policy
 
@@ -261,7 +323,9 @@ Rules:
 - tombstone source/offers after complete full pass;
 - keep Channel product and legacy fields;
 - set Alibaba source status to removed/unavailable;
-- set `alibabaCatalogPricing.mode = 'unavailable'` or omit it with linked status driving unavailable UI;
+- R1 (canonical form): retain the materialized object with
+  `alibabaCatalogPricing.mode = 'unavailable'` (provenance and `syncedAt`
+  survive); renderers treat an absent object identically as defense in depth;
 - never auto-unpublish/delete;
 - alert operations.
 
@@ -273,15 +337,81 @@ Rules:
 - OAuth start requires valid Channel admin session;
 - generate 32 random bytes for state, store only SHA-256, 10-minute TTL, consume once;
 - AES-256-GCM token envelope uses `ALI_TOKEN_ENCRYPTION_KEY_V1`;
-- proactively refresh; mark `authorization_expired` and alert on non-recoverable auth failure.
+- proactively refresh where a timer exists; on the test environment (no
+  timer, R1) refresh lazily — at manual-run start and on auth-failure
+  responses; mark `authorization_expired` and alert on non-recoverable auth
+  failure.
 
-Required secrets:
+Function environment (R1 — complete; deploys REPLACE a function's env
+wholesale, so this list is the whole contract):
 
-- `ALI_APP_KEY`
-- `ALI_APP_SECRET`
-- `ALI_OAUTH_CALLBACK_URL`
-- `ALI_TOKEN_ENCRYPTION_KEY_V1`
-- `WECOM_WEBHOOK_URL`
+| Variable | Kind | Notes |
+|---|---|---|
+| `TCB_ENV` | shared, required | CloudBase env id (DB/storage init) |
+| `JWT_SECRET` | shared, required | same value as admin/public-api; admin-session verification |
+| `CORS_ALLOWED_ORIGINS` | shared, required | site origin(s), admin-function convention |
+| `APP_ENV` | shared | environment tag (`test`/`prod`), mirrors existing functions |
+| `ALI_APP_KEY` | feature | Alibaba app key |
+| `ALI_APP_SECRET` | feature | Alibaba app secret |
+| `ALI_OAUTH_CALLBACK_URL` | feature | exact registered callback URL (§8.1) |
+| `ALI_TOKEN_ENCRYPTION_KEY_V1` | feature | 64 lowercase hex chars = 32 bytes |
+| `WECOM_WEBHOOK_URL` | feature, optional | alerts fall back to structured logs |
+
+R1 — all feature vars are read via `optionalEnv` and validated lazily in the
+code paths that need them (public-api optional-`JWT_SECRET` precedent): cold
+start and `/health` never require them; unconfigured state surfaces as an
+explicit `not_configured` connection status, never a crash. The encryption
+key's format is validated (exactly 32 bytes from hex) at first use; the `_V1`
+suffix is the rotation version.
+
+### 8.1 OAuth flow contract (R1)
+
+Sessions live only in `localStorage` (no cookie) and the site and API origins
+differ, so the flow is:
+
+1. **Start** — `AlibabaConnectionPanel` sends an admin-authenticated JSON
+   action (`{action:'oauthStart', token}` POST, admin-function convention) to
+   the `alibaba-catalog-sync` function. The handler revalidates the session
+   against the live users row and requires role === `'admin'` (not
+   `canAccessAdmin`, which admits contributors) for every connection
+   lifecycle action (start, disconnect, and the connection panel's state
+   reads). It generates the 32-byte state, stores `sha256(state)` with the
+   requesting user + intent + 10-minute expiry via `createDocWithId`, and
+   RETURNS `{authorizeUrl}`. The browser performs `window.location =
+   authorizeUrl`. The function's HTTP adapter replicates the admin adapter's
+   CORS/OPTIONS handling driven by `CORS_ALLOWED_ORIGINS`.
+2. **Callback** — Alibaba redirects to
+   `ALI_OAUTH_CALLBACK_URL = https://<TCB_ENV_ID>.service.tcloudbase.com/api/alibaba-catalog-sync/oauth/callback`
+   (test env shape; the path is the frozen gateway route + `/oauth/callback`).
+   The callback is an unauthenticated GET bound solely by the stored state
+   record: consume the state single-use via the `incrementField` CAS 0→1
+   precedent (claim !== 1 → replay, reject), check expiry, exchange the code
+   server-side, encrypt and store the token envelope, then 302 to the admin
+   UI on the site origin with a status query parameter (the operator never
+   strands on the API origin).
+3. **Abuse control** — the callback and failed starts are rate-limited with
+   the reserve-first `rateLimitHits` ledger pattern (per-source SHA-256 of IP
+   + global fixed windows), matching the login/recover convention.
+4. OAuth token responses are never raw-mirrored (§3.5); token values never
+   appear in logs, alerts, API responses, or the browser.
+
+### 8.2 Alibaba platform endpoints (R1)
+
+Platform: **Alibaba.com International Station Open Platform**
+(`open.alibaba.com`) — pinned by the verified 2026-07-28 research in
+`docs/accio-alibaba-integration/REPORT.md` (ICBU product APIs
+`alibaba.icbu.product.list/get/schema.render`, OAuth 2.0 authorization-code
+with server-side token create/refresh, HMAC-signed calls). NOT 1688/Taobao.
+
+Endpoint base URLs live in ONE module (`alibaba-endpoints.ts`) as documented
+defaults, overridable via optional env (`ALI_AUTHORIZE_BASE_URL`,
+`ALI_API_BASE_URL`) that must be HTTPS on an `*.alibaba.com` host — the
+override exists because official endpoint docs were unreachable at revision
+time (network outage); the live values are re-verified against the official
+console/docs as a mandatory MIU 15 smoke gate before the flow is declared
+working, and the defaults are corrected in a follow-up doc revision if they
+differ. Signature canonicalization ships with golden-vector tests from the
+documented spec; the signature module is endpoint-agnostic.
 
 ## 9. Lease and fencing
 
@@ -294,15 +424,35 @@ releaseAlibabaSyncLease(connectionId, holder, fence): Promise<boolean>;
 assertAlibabaSyncLease(connectionId, holder, fence, now): Promise<boolean>;
 createDocWithId(collection, id, data): Promise<'created' | 'exists'>;
 upsertDocWithId(collection, id, data): Promise<CollectionDoc>;
+// R1 (architecture amendment, see REVISION_R1.md E2): fenced conditional
+// write — the lease recheck happens INSIDE the same transaction/critical
+// section as the write. assert-then-update at the facade is check-then-act
+// and is forbidden for guarded writes; assertAlibabaSyncLease remains only
+// as a cheap pre-check optimization.
+updateDocWithAlibabaLease(collection, id, patch,
+  guard: { connectionId, holder, fence, now }): Promise<boolean>;
 ```
 
-CloudBase uses `@cloudbase/node-sdk` transactions. Local JSON uses one synchronous critical section.
+CloudBase implements the lease methods and `updateDocWithAlibabaLease` as
+single `@cloudbase/node-sdk` `runTransaction` calls (read lease doc → verify
+holder + fence + non-expiry → write target doc). The local JSON adapter
+implements each as ONE `withMutationLock` critical section (its per-process
+promise-chain mutex; cross-process access is already excluded by the
+owner-pid file). Transaction callbacks stay pure read-check-write — no side
+effects outside the transaction (retries re-execute the callback on
+`DATABASE_TRANSACTION_CONFLICT`).
 
 - TTL 180 seconds;
 - renew every 60 seconds and before long operations;
 - fence increments on acquisition after release/expiry;
-- every public product promotion transaction rechecks holder/fence/non-expiry;
+- R1 — ALL lease-guarded writes go through `updateDocWithAlibabaLease`:
+  public product promotion, offer upserts on linked flows, source tombstone
+  flips, and checkpoint advances (stale-seen stamps on mirror rows during
+  page ingestion are accepted as last-write-wins — they only ever suppress a
+  tombstone, and the next run repairs them);
 - lost lease stops promotion immediately;
+- release the lease explicitly at soft-deadline exit so the next tick resumes
+  immediately instead of waiting out the TTL;
 - existing image-mutation ownership remains unchanged.
 
 ## 10. Scheduling and bounded execution
@@ -313,21 +463,34 @@ Function timer expression:
 0 */15 * * * * *
 ```
 
-UTC scheduler tick:
+UTC scheduler tick (R1 — due-based, missed-tick-proof; never wall-clock
+equality):
 
-- resume active run first;
-- otherwise full sync Sunday 18:30 UTC;
-- otherwise incremental every four hours at minute 15;
-- otherwise exit without Alibaba API calls.
+- the checkpoint persists `nextFullDueAt` and `nextIncrementalDueAt`;
+- each tick: resume the active run first; otherwise start the
+  highest-priority job whose `dueAt <= now` (full sync outranks incremental);
+  otherwise exit without Alibaba API calls;
+- on completion the next due time is recomputed FROM THE SCHEDULE (full:
+  next Sunday 18:30 UTC; incremental: next 4-hour boundary at minute :15),
+  not from `now`;
+- the weekly/4-hourly schedule lives in code as UTC computations and never
+  migrates into the cron expression (SCF evaluates cron in UTC+8; the
+  15-minute expression is timezone-agnostic and stays as-is).
 
 Bounds per invocation:
 
-- 720-second soft deadline;
+- 720-second soft deadline (the function's deployed timeout is 900 seconds —
+  §14; interactive HTTP routes sharing the function still answer fast, and
+  the manual "run now" admin action only marks the run due / creates the run
+  row and returns — it never executes the sync loop synchronously behind the
+  gateway);
 - at most 200 source products or 50 API calls;
 - checkpoint after every durable page;
 - continuation resumes next tick;
-- fail and alert after 24 hours or 96 continuations;
-- one active run per connection;
+- fail and alert after 24 hours from run start or 96 continuations;
+- one active run per connection (lease first, then checkpoint read, then
+  single-winner run-row creation via `createDocWithId` — the lease loser
+  exits without touching anything);
 - manual run uses same runner and lease.
 
 No timer in test environment.
@@ -345,16 +508,37 @@ Incremental:
 Full:
 
 - enumerate full authorized catalog using the documented 5,000-item bisection algorithm;
-- record every seen source key;
-- tombstone only after complete successful enumeration.
+- record every seen source key by stamping `lastSeenRunId` on mirror rows
+  during the pass (R1 — never accumulate the seen-set in the checkpoint
+  document); tombstone candidates are `active && lastSeenRunId !== runId`
+  after the completion flag;
+- tombstone only after complete successful enumeration;
+- R1 — a resumed multi-tick enumeration over a mutating catalog is not a
+  consistent snapshot: before flipping any tombstone, confirm each candidate
+  individually with a product-detail fetch returning not-found/removed; a
+  confirmation fetch that errors (rather than confirming absence) quarantines
+  the tombstone set instead of flipping it;
+- R1 — a "complete" enumeration that saw zero items while the mirror has
+  active sources quarantines instead of tombstoning (see §12).
 
 ## 12. Safety and quarantine
 
-Quarantine before product promotion when:
+Run statuses (R1): `running | continuing | quarantined | approved | failed |
+completed`. A run that enters `quarantined` RELEASES the lease and vacates
+the active-run slot; new incremental runs may start while the quarantine is
+pending (the quarantined candidate stays frozen); the 24-hour/96-continuation
+clock stops at quarantine entry; an approval is valid until the next
+completed run for the same connection supersedes the candidate (approving a
+superseded candidate is rejected).
 
-- candidate linked-product changes `>= 20` and ratio `> 30%`;
-- tombstones `>= 5` and ratio `> 10%`;
-- parse failures `>= 5` and ratio `> 5%`;
+Quarantine before product promotion when (R1 — denominators pinned; a ratio
+whose denominator is 0 never trips that guard, the absolute floor still can):
+
+- candidate linked-product changes `>= 20` and ratio `> 30%` of the
+  linked-product count at run start;
+- tombstones `>= 5` and ratio `> 10%` of the active source count at run start;
+- parse failures `>= 5` and ratio `> 5%` of items processed this run;
+- full enumeration completed with zero items while active sources `> 0` (R1);
 - signature vector fails;
 - response contract fails;
 - unsupported currency;
@@ -376,6 +560,27 @@ Quarantine preserves raw and normalized candidates. Approval records actor, time
 - import through existing media lifecycle as candidate media;
 - never set public product image IDs automatically.
 
+R1 — "candidate media" mapped onto the actual lifecycle (`pending` would be
+reaped by the 24h orphan sweep):
+
+- imported candidate = server-verified bytes written with status `active`,
+  `publishedRefCount 0`, and NO product `imageIds` attachment — admin-visible
+  via preview, public-invisible by the existing refcount gate; `pending`
+  remains reserved for in-flight browser uploads;
+- verification mirrors `completeUpload`: recompute byteSize + SHA-256 from
+  the fetched bytes, magic-byte sniff against the declared MIME, enforce the
+  catalog image MIME allowlist and byte cap; write the `images` row via the
+  trusted create path; on any compensation path delete the storage object
+  first, then the doc;
+- ownership: imported images set the fixed sentinel
+  `uploadedByUserId: 'alibaba-catalog-sync'` so reference locks engage; a
+  dedicated admin-only action removes UNREFERENCED imported candidates
+  (mirroring abandonUpload's checks minus the uploader-identity gate), since
+  no admin's user id can match the sentinel;
+- raw payloads use the new hash-addressed `alibaba-raw` media-storage
+  namespace; image dedupe queries `images.checksumSha256` server-side (new
+  provisioned index).
+
 ## 14. Deployment manifest
 
 Replace duplicated hardcoded function arrays with one repository manifest that includes existing functions plus `alibaba-catalog-sync`.
@@ -386,12 +591,51 @@ The manifest must drive:
 - artifact packaging;
 - cold-start smoke;
 - environment variables;
+- per-function `timeout` and `memorySize` (R1 — the deploy path currently
+  hardcodes `timeout: 20, memorySize: 256` for every function in BOTH the
+  generated cloudbaserc and `updateFunctionConfig`, which re-applies on every
+  deploy; `alibaba-catalog-sync` requires 900s / 512MB, existing functions
+  keep their current values);
 - test/prod deployment;
-- gateway route;
+- gateway route (frozen: `/api/alibaba-catalog-sync`; route creation stays
+  create-if-missing and additive — existing admin/public-api routes are
+  never updated or deleted);
 - timer trigger desired state;
 - drift tests.
 
 This is the only intended shared deployment refactor. It must preserve existing `admin` and `public-api` behavior exactly.
+
+R1 — repo-reality obligations for the refactor:
+
+- Known manifest consumers updated in lockstep: `scripts/package-functions.mjs`,
+  `scripts/smoke-function-artifacts.mjs`, `scripts/deploy-cloudbase-test.mjs`
+  (functionDefs env maps + cloudbaserc generation + `updateFunctionConfig` +
+  gateway ensure), `scripts/smoke-cloudbase-deploy.mjs`, and
+  `scripts/runtime-contract.test.mjs` (whose AST/step-string assertions must
+  stay green — keep the runtime literal singular and the pinned workflow step
+  strings unchanged).
+- Env preservation proof: a contract test snapshots the manifest-derived
+  `envVariables` for `admin` and `public-api` and asserts byte-equality with
+  the pre-refactor maps (including optional-var drop behavior) BEFORE the
+  deploy script switches to the manifest — deploys replace function env
+  wholesale, so any drift silently un-sets live vars.
+- Secret plumbing: `.github/workflows/deploy-test.yml` Deploy-step env gains
+  the five ALI_*/WECOM_* names (provisioned in the GitHub `test`
+  environment); both workflows' built-site secret-name scan regexes gain
+  `ALI_APP_KEY|ALI_APP_SECRET|ALI_OAUTH_CALLBACK_URL|ALI_TOKEN_ENCRYPTION_KEY_V1|WECOM_WEBHOOK_URL`;
+  the deploy script's redaction helpers survive the refactor.
+- Trigger reconciliation is NEW tooling (nothing in the repo manages
+  triggers today): the test deploy lists timer triggers for
+  `alibaba-catalog-sync` and deletes any found (or hard-fails); the
+  production deploy applies the manifest's declared trigger; the deploy smoke
+  asserts trigger absence on test. The concrete mechanism (CLI, cloudbaserc
+  `triggers`, or MCP tool) is probed and recorded before MIU 14 freezes it.
+- Production deployment is NEW SCOPE: the repo has a test-env path only.
+  MIU 15's production activation is performed manually with recorded
+  evidence unless a prod workflow is explicitly added first.
+- Artifact cold-start smoke runs every function with stub env only — the
+  ALI_*/WECOM_* vars are therefore optional at cold start by construction
+  (§8).
 
 ## 15. Future Medusa seam
 

@@ -35,11 +35,15 @@ Before every MIU touching catalog pricing, run a source inventory for:
 unitPrice
 wholesalePrice
 vipPrice
+clearancePrice
 PriceBlock
 canSeeVipPricing
 JWT_SECRET
 Authorization
 ```
+
+(R1 adds `clearancePrice` — it is a legacy pricing field in the shared public
+allowlist and the overstock registry def, rendered by the overstock islands.)
 
 Record the relevant consumers. Do not remove or rewrite them.
 

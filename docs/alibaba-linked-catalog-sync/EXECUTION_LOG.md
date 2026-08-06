@@ -68,3 +68,39 @@ which under this machine's corepack resolves a pnpm newer than the repo's
 ```bash
 corepack pnpm -r --filter "./packages/**" --filter "./apps/**" typecheck && corepack pnpm typecheck:e2e
 ```
+
+### Independent design review (MIU 0 gate) — 2026-08-06
+
+Six review lenses ran against the actual repo at `2f79a61` (12 agents total:
+6 subsystem mappers + 6 reviewers with file:line evidence requirements).
+Result: **40 findings, all accepted, one architecture amendment** (the fenced
+conditional-write primitive). Full traceability in `REVISION_R1.md`; every
+amendment is folded into the doc set with R1 markers.
+
+Protected-surface inventory (EXECUTION_HANDOFF §3) was performed as part of
+lens A: live render sites for legacy prices are HeadphonesProductCard
+(unitPrice badge), HeadphonesProductDetail (moq + unitPrice spec rows,
+PriceBlock), admin PreviewModal (all four price rows); the public allowlist
+`PUBLIC_CATALOG_FIELDS` is shared products+overstock; `canSeeVipPricing` gates
+only the additive `vipPrice` projection; `clearancePrice` added to the grep
+list (R1).
+
+External gates that could NOT be exercised in this session (total network
+outage on the dev machine — only the agent API tunnel was up): live Alibaba
+OAuth endpoint verification and official-doc confirmation of the GOP
+endpoints. Handled per ARCHITECTURE §8.2: endpoint constants centralized with
+env override; live verification is a mandatory MIU 15 smoke gate. The
+platform variant itself IS pinned (Alibaba.com International) by the verified
+2026-07-28 research in `docs/accio-alibaba-integration/REPORT.md`.
+
+CloudBase contract evidence at the real baseline: wx-server-sdk 4.0.2 +
+@cloudbase/node-sdk 3.17.2 installed and probed by CI
+(`scripts/verify-cloudbase-sdk-contract.mjs`); node-sdk `runTransaction`
+supports in-transaction get/set/create/remove (create is runtime-only,
+unprobed — MIU 4 extends the probes); deploy path hardcodes
+`timeout: 20, memorySize: 256` (MIU 14 manifest owns these per R1); no timer
+tooling exists in-repo (MIU 0 probe deferred to MIU 14 implementation since
+it requires live CloudBase access).
+
+**MIU 0 status: complete** except the explicitly-deferred external gates
+listed above (deferral is the documented R1 path, not a silent skip).
