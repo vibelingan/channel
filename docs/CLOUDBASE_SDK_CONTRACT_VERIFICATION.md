@@ -13,14 +13,24 @@ so. The deployed runtime then failed at the first real mint with
 
 The real contract is split:
 
-- `wx-server-sdk@3.0.4` exposes the DB surface and storage helpers such as
+- `wx-server-sdk@4.0.2` exposes the DB surface and storage helpers such as
   `uploadFile`, `downloadFile`, `getTempFileURL`, and `deleteFile`, but not
   `getUploadMetadata`.
-- `@cloudbase/node-sdk@2.10.0` exposes `getUploadMetadata({ cloudPath })`.
+- `@cloudbase/node-sdk@3.17.2` exposes `getUploadMetadata({ cloudPath })`.
 - The node-sdk wrapper returns `{ data: { url, authorization, token, fileId,
   cosFileId, download_url } }`.
-- The node-sdk's own upload path uses multipart `POST` form fields
-  `Signature`, `x-cos-security-token`, `x-cos-meta-fileid`, `key`, and `file`.
+- **The upload verb is PUT, and the verb is the whole contract.** node-sdk 3.x
+  asks the control plane to sign the upload for `method: 'put'`, then sends the
+  raw bytes with `PUT` carrying `Signature`, `x-cos-security-token`,
+  `x-cos-meta-fileid`, a lowercase `authorization` duplicate of `Signature`, and
+  a URI-encoded `key` as request HEADERS — no multipart form, no `file` part.
+
+  Under node-sdk 2.10.0 this was a multipart `POST` with those same names as
+  FORM FIELDS. Upgrading to 3.17.2 while still sending the multipart POST makes
+  COS reject every upload with `403 SignatureDoesNotMatch`: the signature is
+  scoped to the verb. This is not hypothetical — it shipped, and it was caught
+  only by a deployed upload smoke (Deploy Test run 31063836951), never by
+  `tsc`, unit tests, or the public read-only browser suite.
 
 Raw CloudBase Storage OpenAPI docs are still useful, but they are not a
 substitute for checking the installed SDK wrapper. The raw OpenAPI upload-info
@@ -77,12 +87,21 @@ whenever CloudBase SDKs, storage contracts, or ambient SDK types are touched.
 - `wx-server-sdk` does not expose `getUploadMetadata`.
 - node-sdk declarations include `url`, `authorization`, `token`, `fileId`, and
   `cosFileId` inside the upload metadata data item.
-- node-sdk storage implementation uses multipart `POST` with the expected COS
-  form fields.
+- node-sdk `uploadFile` sends the BYTES with `PUT`, carries the credential in
+  headers, and uses no multipart form. This assertion is extracted from the
+  `uploadFile` FUNCTION BODY, never grepped from the whole module: the earlier
+  probe scanned the entire file for a POST and matched the control-plane
+  `storage.getUploadMetadata` request — which is legitimately a POST — so it
+  certified a multipart upload contract while the SDK was PUTting bytes.
+- node-sdk requests the upload signature scoped to `put`.
 - the local `wx-server-sdk.d.ts` does not reintroduce a fake
   `getUploadMetadata`.
 - `packages/media-storage/src/cloudbase.ts` consumes the node-sdk data shape and
-  emits POST form credentials, not stale PUT/header credentials.
+  emits `PUT` + header credentials matching the installed SDK.
+- the application's own two sides are pinned so they cannot drift apart
+  silently: `UploadCredential` is a PUT/headers contract with no `formFields`,
+  and the browser client sends `intent.upload.headers` with a raw body rather
+  than a `FormData`.
 
 ## Review Standard
 
@@ -91,7 +110,10 @@ The reviewer must look for these failure modes:
 
 - hand-written declarations claiming runtime methods that do not exist;
 - raw OpenAPI response shapes copied into SDK-wrapper code without wrapper proof;
-- method/transport confusion such as raw `PUT` versus signed multipart `POST`;
+- method/transport confusion such as raw `PUT` versus signed multipart `POST`
+  — and, just as important, a CONTRACT PROBE that matches the wrong request:
+  assert the verb inside the specific function that sends the bytes, because a
+  module-wide grep will happily match an unrelated control-plane call;
 - one SDK object used as a structural substitute for another SDK object;
 - direct browser auth assumptions that are not proven in the current CloudBase
   environment.
