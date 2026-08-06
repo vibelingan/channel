@@ -16,6 +16,8 @@
 | Customizable native select | Browser platform; no package | MDN documents `appearance: base-select`, `::picker(select)`, `:open`, `::picker-icon`, `::checkmark`, anchor positioning and classic-select progressive fallback. | Chrome/Edge 135+ support; Firefox has no stable support and Safari remains preview as of the probe date. | Use progressively; classic fallback is required |
 | Headless UI Listbox | Published `@headlessui/react@2.2.10`; not installed | Official docs provide accessible React Listbox behavior and Tailwind styling; no visible no-JavaScript fallback/native-required contract was found. | React 19 peer support; minimal Listbox import measured 34.7KB gzip excluding React. | Reject for this control |
 | React Aria Components Select | Published `react-aria-components@1.19.0`; not installed | Official docs provide hidden native select submission/autofill/mobile navigation and native/ARIA validation modes. | Minimal Select composition measured 55.1KB gzip excluding React; visible no-JavaScript fallback is not provided by React rendering. | Reject as disproportionate here |
+| `@cloudbase/node-sdk@3.17.2` `getUploadMetadata` | Installed `3.17.2` (resolved via Node from `packages/media-storage`) | Context7 CloudBase storage docs: server mints a scoped upload credential; the SDK's own sender performs the transfer. | `types/index.d.ts:360-369` declares `IGetUploadMetadataResult = { data: { url, token, authorization, fileId, cosFileId, download_url } }`. **Wire effect** read from `dist/storage/index.js` `uploadFile()` body: `method: 'put'`, credential carried as HEADERS, no multipart form. | Verified — consumption reads `data.*` (not top-level) and clients PUT with headers |
+| `wx-server-sdk@4.0.2` `database().collection().doc().get()` | Installed `4.0.2` | Official wx-server-sdk docs: `throwOnNotFound` governs missing-document behaviour. | Installed bundle `index.js` defaults `throwOnNotFound = true` and honours a database-config override; adapter passes `{ throwOnNotFound: false }` so a missing doc RESOLVES `{ data: null }` instead of rejecting. | Verified — asserted by `scripts/verify-cloudbase-sdk-contract.mjs` |
 
 ## Commands And Sources
 
@@ -30,10 +32,24 @@
 
 Astro `client:load` is safe for the Headphones shell because browser-only session and network access run in effects. Radix, Headless UI, and React Aria are technically viable React options, but each would introduce hydration to otherwise-static form consumers and none supplies the required visible pre-hydration control by itself. The current delivery therefore uses a progressively customizable native select and adds no dependency. This preserves no-JavaScript control visibility, not no-JavaScript submission of the existing JSON/upload form.
 
+## Re-Probe History
+
+- **2026-08-06 — CloudBase SDK majors.** The 2026-08-05 upgrade (`wx-server-sdk` 3.0.4 -> 4.0.2,
+  `@cloudbase/node-sdk` 2.10.0 -> 3.17.2) matched this document's own Re-Probe Trigger and was
+  NOT re-probed at the time. The consequence was a production upload outage: node-sdk 3.x signs
+  and sends the object with `PUT` + credential headers, where 2.10.0 built a multipart `POST`
+  with credential form fields, while `getUploadMetadata`'s signature and return shape stayed
+  byte-identical — so types and unit tests were structurally blind to the change. The rows above
+  now record the WIRE EFFECT (verb, credential placement, body encoding) read out of the SDK's
+  own sender body, not just the declared shape, because the declared shape is exactly what did
+  not move.
+
 ## Re-Probe Trigger
 
 Re-run this probe if any of the following change:
 
+- `wx-server-sdk` or `@cloudbase/node-sdk` version change (ANY segment) — re-read the sender
+  body, not only the declared types; a protocol change leaves the type surface untouched
 - Astro or `@astrojs/react` major/minor version
 - React major version
 - Product Category requires pixel-identical custom popup rendering
