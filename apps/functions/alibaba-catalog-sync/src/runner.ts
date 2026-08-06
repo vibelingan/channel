@@ -169,31 +169,15 @@ export async function runSyncTick(input: {
     // it decideTick returns 'idle' whenever nothing happens to be scheduled,
     // so runNow could only ever CONTINUE a run someone else started — and the
     // test env, which has no timer by design, would never start one at all.
-    // A quarantined run's candidate set is frozen against the mirror AS IT WAS.
-    // Starting a new run re-ingests those sources and rewrites lastSeenRunId,
-    // so the approval path's recomputation no longer matches and the pending
-    // quarantine becomes permanently unapprovable. Never force a manual start
-    // over one — the operator must resolve it first.
-    //
-    // The probe is a single-row existence check, and it runs ONLY on the manual
-    // path with a free slot: alibabaSyncRuns grows one row per run, so querying
-    // it on every 15-minute tick would be an unbounded cost on the idle path.
-    const manualSlotFree =
+    // Deliberately NO guard against a pending quarantine here. ARCHITECTURE §12
+    // states it directly: "new incremental runs may start while the quarantine
+    // is pending (the quarantined candidate stays frozen)... approving a
+    // superseded candidate is rejected". Supersession is the designed outcome,
+    // not a bug to prevent — and blocking manual starts would deadlock the test
+    // environment, where "Run now" is the ONLY way to drive a run.
+    const manualStart =
       input.trigger === 'manual' &&
       (typeof checkpointDoc.activeRunId !== 'string' || checkpointDoc.activeRunId === '');
-    const manualStart =
-      manualSlotFree &&
-      (
-        await list({
-          collection: 'alibabaSyncRuns',
-          page: 1,
-          pageSize: 1,
-          filter: {
-            combinator: 'and',
-            clauses: [{ field: 'status', op: 'eq', value: 'quarantined' }],
-          },
-        })
-      ).total === 0;
 
     const decision = decideTick(
       {

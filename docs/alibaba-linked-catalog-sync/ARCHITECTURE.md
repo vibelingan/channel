@@ -528,9 +528,12 @@ The bound is what keeps the gateway envelope honest:
 
 - `softDeadlineMs: 15_000`, `maxProducts: 20`, `maxApiCalls: 10`;
 - the interactive path passes `maxAttempts: 1` and a 5-second per-call timeout
-  to the API client at EVERY call site in the slice (enumeration, detail fetch
-  and tombstone confirmation), so a stalled upstream cannot stretch one slice
-  past the gateway envelope through retry backoff;
+  to the API client for **enumeration and detail fetch**, so a stalled upstream
+  cannot stretch one slice past the gateway envelope through retry backoff.
+  The **tombstone confirmation keeps the client's default retry budget** on
+  purpose: it is the one call whose failure is terminal for the whole run
+  (§12), so absorbing a transient blip there is worth more than shaving
+  seconds off an interactive slice;
 - the slice runs under the SAME fenced lease as a timer tick, so a manual run
   and a timer tick can never interleave;
 - a continuation is checkpointed exactly as a timer tick's would be, so

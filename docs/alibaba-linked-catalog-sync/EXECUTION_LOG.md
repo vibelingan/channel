@@ -666,3 +666,48 @@ promote stage missing the lease renewal its sibling enumerate stage carried, in
 the same file, added in the same commit) is section 1 verbatim. The knowledge
 was on disk, indexed, and derived from 1,011 external findings. It was not
 consulted at the point it was written for.
+
+## Blessing gate, round 4 (2026-08-07)
+
+The run reported 0 P1 / 0 P2, but one verifier died on a network error and the
+lens it was checking had raised a P1 and a contract contradiction. A crashed
+agent is not a pass, so those were assessed directly.
+
+1. **My round-3 manual-start guard contradicted the frozen contract and was
+   reverted.** ARCHITECTURE §12 says plainly: *"new incremental runs may start
+   while the quarantine is pending (the quarantined candidate stays frozen)...
+   approving a superseded candidate is rejected."* Supersession is the DESIGNED
+   outcome. A round-3 reviewer described it as a bug ("Run now destroys a
+   pending quarantine") and I implemented the fix without checking §12. The
+   guard also blocked on ANY quarantined row with no reject/dismiss path, so a
+   single unapprovable quarantine would have permanently blocked "Run now" —
+   the only way to drive a run in the test environment, which has no timer.
+   **Lesson: check a review finding against the frozen contract before acting
+   on it. A reviewer can describe intended behavior as a defect.**
+2. **`payloadId` excluded from the content fingerprint.** It is the sha256 of
+   the ENTIRE raw response body, i.e. provenance, not content. Any per-response
+   request id or server timestamp the real gateway includes would change it on
+   every call and make the fingerprint a no-op again — the exact defect round 3
+   caught, surviving in a second form. New test proves two responses with
+   different request ids but identical product content do not advance the
+   change stamp.
+3. **ARCHITECTURE §10.1 corrected.** It claimed the interactive per-call bound
+   applies at every call site; the tombstone confirmation deliberately keeps
+   the client's default retry budget, because it is the one call whose failure
+   is terminal for the whole run. The text now says so and gives the reason.
+
+Gates: 9/9 suites, 0 type errors, biome clean, 21 script tests, SDK contract
+verify, 3 artifact smokes, site build.
+
+### Known, unfixed — carried forward deliberately
+
+- **The tombstone-confirmation quarantine branch writes no `candidateHash`**,
+  so `approveQuarantinedRun` always answers `superseded` and that particular
+  quarantine cannot be approved. Pre-existing since MIU 11, out of scope for
+  the fix rounds, and no longer able to deadlock anything now that the manual
+  guard is gone. Needs its own change.
+- **The promote stage has no durable progress cursor.** It walks to completion
+  under lease renewal, which is correct at test-environment scale but is a real
+  limit at the 5,000-product catalog size §11 targets.
+- **No production deploy exists.** `PRODUCTION_DESIRED_TIMER_TRIGGERS` is
+  referenced only by a test; nothing applies the 15-minute timer.

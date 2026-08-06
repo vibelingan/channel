@@ -127,6 +127,12 @@ function contentFingerprint(product: Record<string, unknown>, offers: unknown[])
     // also drops the copy nested inside each offer's `pricing`.
     'fetchedAt',
     'syncedAt',
+    // Provenance, not content: payloadId is the sha256 of the ENTIRE raw
+    // response body, so any per-response request id or server timestamp the
+    // gateway includes would change it on every call — and the fingerprint
+    // would be a no-op again against the real endpoint. Two different raw
+    // responses can carry identical product content.
+    'payloadId',
   ]);
   const canonical = (value: unknown): unknown => {
     if (Array.isArray(value)) return value.map(canonical);

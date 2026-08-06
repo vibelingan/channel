@@ -335,6 +335,50 @@ test('content fingerprint ignores wall-clock stamps: a re-ingest is NOT a change
   assert.equal(afterSecond.lastSeenRunId, 'run-2', 'but it IS seen by the new run');
 });
 
+test('a per-response id from the gateway is NOT a content change', async () => {
+  // Real gateways stamp a request id or server timestamp into each response.
+  // That changes the raw bytes, hence payloadId (their sha256) — but the
+  // PRODUCT is identical. If payloadId counted, the change stamp would move on
+  // every call and the surge guard would trip on every full run again.
+  setup();
+  const withId = (id: string) =>
+    JSON.stringify({
+      request_id: id,
+      result: {
+        product: {
+          product_id: 987,
+          subject: 'Headphones',
+          fob_currency: 'USD',
+          sku_infos: [{ sku_id: 'sku-1', price: 2.5 }],
+        },
+      },
+    });
+
+  await ingestProductDetail({
+    bodyText: withId('req-aaa'),
+    endpointId: 'product.get',
+    requestFingerprint: 'fp-1',
+    connectionId: 'primary',
+    runId: 'run-1',
+    now: NOW,
+  });
+  const first = store.alibabaSourceProducts?.[0] as CollectionDoc;
+
+  await ingestProductDetail({
+    bodyText: withId('req-bbb'),
+    endpointId: 'product.get',
+    requestFingerprint: 'fp-2',
+    connectionId: 'primary',
+    runId: 'run-2',
+    now: '2026-08-06T18:30:00.000Z',
+  });
+  const second = store.alibabaSourceProducts?.[0] as CollectionDoc;
+
+  assert.notEqual(first.payloadId, second.payloadId, 'the raw bytes DID differ');
+  assert.equal(second.contentHash, first.contentHash, 'but the product did not');
+  assert.equal(second.lastChangedRunId, 'run-1', 'so the change stamp holds');
+});
+
 test('a real content change DOES advance the change stamp', async () => {
   setup();
   await ingestProductDetail({
