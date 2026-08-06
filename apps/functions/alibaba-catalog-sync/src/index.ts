@@ -42,6 +42,42 @@ const config: AlibabaSyncFunctionConfig = {
   },
 };
 
+/** CloudBase timer trigger envelope ({Type:'Timer', TriggerName, Time}). */
+function isTimerEvent(event: unknown): boolean {
+  return (
+    typeof event === 'object' &&
+    event !== null &&
+    ((event as { Type?: unknown }).Type === 'Timer' ||
+      typeof (event as { TriggerName?: unknown }).TriggerName === 'string')
+  );
+}
+
 export const main = async (event: unknown): Promise<unknown> => {
+  if (isTimerEvent(event)) {
+    // Timer tick (production only — the test env never receives a timer,
+    // MIU 14): full 720s budget under the fenced lease.
+    const { resolveRuntime } = await import('./handler.ts');
+    const { getConnectionAccessToken } = await import('./oauth.ts');
+    const { runSyncTick } = await import('./runner.ts');
+    const runtime = resolveRuntime(config);
+    if (!runtime.ok) {
+      console.warn('[alibaba-catalog-sync] timer tick skipped: not configured');
+      return { outcome: 'not-connected' };
+    }
+    const access = await getConnectionAccessToken(runtime.runtime.deps);
+    if (!access.ok) {
+      console.warn('[alibaba-catalog-sync] timer tick skipped:', access.reason);
+      return { outcome: 'not-connected' };
+    }
+    return runSyncTick({
+      deps: {
+        client: runtime.runtime.deps.client,
+        accessToken: access.accessToken,
+        now: runtime.runtime.deps.now,
+        alert: runtime.runtime.deps.alert,
+      },
+      trigger: 'timer',
+    });
+  }
   return handleAlibabaSyncFunctionEvent(event, config);
 };

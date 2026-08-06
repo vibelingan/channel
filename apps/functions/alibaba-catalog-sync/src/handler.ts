@@ -23,11 +23,14 @@ import {
   type OAuthDeps,
   connectionStatusView,
   disconnectConnection,
+  getConnectionAccessToken,
   handleOAuthCallback,
   startOAuth,
 } from './oauth.ts';
+import { approveQuarantinedRun } from './quarantine.ts';
 import { enforceOAuthRateLimit, hashSourceIp } from './rate-limit.ts';
 import { getDoc } from './repo.ts';
+import { runSyncTick } from './runner.ts';
 
 export interface AlibabaSyncRequest {
   action?: unknown;
@@ -180,6 +183,58 @@ export async function handleAlibabaSyncRequest(
       if (!result.ok) return err('NOT_FOUND', 'Product not found.');
       return ok(result);
     }
+    case 'runNow': {
+      // Manual run (MIU 11): a SHORT bounded slice executes inline — the
+      // gateway envelope stays interactive; the test env has no timer, so
+      // repeated runNow calls drive continuations to completion there.
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const runtime = resolveRuntime(config, runtimeOverrides);
+      if (!runtime.ok) {
+        return err('CONFLICT', NOT_CONFIGURED_MESSAGE + runtime.missing.join(', '));
+      }
+      const access = await getConnectionAccessToken(runtime.runtime.deps);
+      if (!access.ok) {
+        return err('CONFLICT', `Alibaba connection unavailable: ${access.reason}.`);
+      }
+      const report = await runSyncTick({
+        deps: {
+          client: runtime.runtime.deps.client,
+          accessToken: access.accessToken,
+          now: runtime.runtime.deps.now,
+          alert: runtime.runtime.deps.alert,
+        },
+        trigger: 'manual',
+        budgetOverrides: { softDeadlineMs: 15_000, maxProducts: 20, maxApiCalls: 10 },
+      });
+      return ok(report);
+    }
+    case 'approveQuarantine': {
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = approveSchema.safeParse(parsed.data.data);
+      if (!payload.success) {
+        return err('VALIDATION_ERROR', 'runId and candidateHash are required.');
+      }
+      const runtime = resolveRuntime(config, runtimeOverrides);
+      if (!runtime.ok) {
+        return err('CONFLICT', NOT_CONFIGURED_MESSAGE + runtime.missing.join(', '));
+      }
+      const result = await approveQuarantinedRun({
+        runId: payload.data.runId,
+        candidateHash: payload.data.candidateHash,
+        approvedByUserId: admin.data.userId,
+        now: runtime.runtime.deps.now,
+        alert: runtime.runtime.deps.alert,
+      });
+      if (!result.ok) {
+        return err(
+          result.reason === 'superseded' ? 'CONFLICT' : 'NOT_FOUND',
+          `Quarantine approval failed: ${result.reason}.`,
+        );
+      }
+      return ok(result);
+    }
     default:
       return err('BAD_REQUEST', `Unknown action: ${action}`);
   }
@@ -187,6 +242,7 @@ export async function handleAlibabaSyncRequest(
 
 const linkSchema = z.object({ sourceKey: z.string().min(1), productId: z.string().min(1) });
 const unlinkSchema = z.object({ productId: z.string().min(1) });
+const approveSchema = z.object({ runId: z.string().min(1), candidateHash: z.string().min(1) });
 
 export type CallbackRedirect = { location: string };
 

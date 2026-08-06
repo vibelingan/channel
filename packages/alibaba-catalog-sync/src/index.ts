@@ -77,3 +77,21 @@ export {
   priceMoveExceedsThreshold,
   selectPrimaryOffer,
 } from './alibaba-merge-policy.ts';
+export {
+  type QuarantineDecision,
+  type QuarantineInput,
+  type RunBudget,
+  type SchedulerCheckpointView,
+  type TickDecision,
+  RUN_MAX_API_CALLS_PER_INVOCATION,
+  RUN_MAX_CONTINUATIONS,
+  RUN_MAX_PRODUCTS_PER_INVOCATION,
+  RUN_SOFT_DEADLINE_MS,
+  budgetExhausted,
+  computeNextFullDueAt,
+  computeNextIncrementalDueAt,
+  decideTick,
+  evaluateQuarantine,
+  newRunBudget,
+  runOverdue,
+} from './alibaba-run-state.ts';
