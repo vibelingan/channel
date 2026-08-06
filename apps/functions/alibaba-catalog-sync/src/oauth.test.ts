@@ -210,12 +210,16 @@ function overrides(fetchImpl: typeof fetch, now = NOW) {
   };
 }
 
-async function startAndExtractState(token: string, fetchImpl: typeof fetch): Promise<string> {
+async function startAndExtractState(
+  token: string,
+  fetchImpl: typeof fetch,
+  at?: string,
+): Promise<string> {
   const result = await handleAlibabaSyncRequest(
     { action: 'oauthStart', token },
     baseConfig,
     {},
-    overrides(fetchImpl),
+    overrides(fetchImpl, at),
   );
   assert.equal(result.ok, true, `oauthStart failed: ${JSON.stringify(result)}`);
   const authorizeUrl = (result as { ok: true; data: { authorizeUrl: string } }).data.authorizeUrl;
@@ -659,6 +663,83 @@ test('a REJECTION CODE in the error body is terminal, whatever the status', asyn
   assert.equal(alerts.length, 1);
   assert.ok(alerts[0]?.includes('Re-connect required'), 'ops is told to re-authorize');
   assert.ok(!alerts[0]?.includes('invalid_grant'), 'no gateway text echoed into the alert');
+});
+
+test('APP-scoped errors are never terminal — re-authorizing cannot fix provisioning', async () => {
+  setup();
+  alerts.length = 0;
+  const token = await adminToken();
+  const log: FetchLogEntry[] = [];
+  const fetchImpl = fakeAlibabaFetch(log);
+  const state = await startAndExtractState(token, fetchImpl);
+  await handleOAuthCallbackRequest({ code: 'c', state }, baseConfig, {}, overrides(fetchImpl));
+
+  const { getConnectionAccessToken } = await import('./oauth.ts');
+
+  // `access_denied` / `unauthorized_client` name the APP (unprovisioned API
+  // path, IP allowlist, wrong grant type), not the merchant's grant. Treating
+  // them as terminal creates a destroy -> re-authorize -> destroy loop that
+  // re-authorization can never break, because the fault is provisioning.
+  for (const code of ['access_denied', 'unauthorized_client', 'isv.access_denied']) {
+    const deniedFetch = (async () =>
+      new Response(JSON.stringify({ error: code }), { status: 403 })) as typeof fetch;
+    const runtime = resolveRuntime(baseConfig, overrides(deniedFetch, '2026-08-07T09:00:00.000Z'));
+    if (!runtime.ok) return;
+    const result = await getConnectionAccessToken(runtime.runtime.deps);
+    assert.deepEqual(result, { ok: false, reason: 'refresh-unavailable' }, code);
+    assert.equal(currentStore.alibabaConnections?.[0]?.status, 'active', code);
+  }
+  // It is still reported, and still escalates if the gateway keeps refusing.
+  assert.equal(alerts.length, 1);
+  assert.ok(!alerts[0]?.includes('Re-connect required'));
+});
+
+test('re-connecting clears the whole outage window (no false alarm, no lost escalation)', async () => {
+  setup();
+  alerts.length = 0;
+  const token = await adminToken();
+  const log: FetchLogEntry[] = [];
+  const fetchImpl = fakeAlibabaFetch(log);
+  const state = await startAndExtractState(token, fetchImpl);
+  await handleOAuthCallbackRequest({ code: 'c', state }, baseConfig, {}, overrides(fetchImpl));
+
+  const { getConnectionAccessToken, connectionStatusView } = await import('./oauth.ts');
+
+  // Drive an outage so the window is populated.
+  const downFetch = (async () => {
+    throw new Error('ECONNRESET');
+  }) as typeof fetch;
+  const down = resolveRuntime(baseConfig, overrides(downFetch, '2026-08-07T09:00:00.000Z'));
+  if (!down.ok) return;
+  await getConnectionAccessToken(down.runtime.deps);
+  assert.equal(currentStore.alibabaConnections?.[0]?.firstAuthErrorAt, '2026-08-07T09:00:00.000Z');
+
+  // The operator re-connects. upsertDocWithId MERGES, so the window must be
+  // explicitly cleared or the panel keeps crying wolf over a healthy link.
+  const reconnectFetch = fakeAlibabaFetch(log, {
+    access_token: 'fresh-access',
+    refresh_token: 'fresh-refresh',
+    expires_in: 36_000,
+  });
+  const state2 = await startAndExtractState(token, reconnectFetch, '2026-08-07T10:00:00.000Z');
+  await handleOAuthCallbackRequest(
+    { code: 'c2', state: state2 },
+    baseConfig,
+    {},
+    overrides(reconnectFetch, '2026-08-07T10:00:00.000Z'),
+  );
+  const view = await connectionStatusView();
+  assert.equal(view.status, 'active');
+  assert.equal(view.firstAuthErrorAt, '', 'no false "refresh failing" banner');
+  assert.equal(view.lastAuthErrorAt, '');
+
+  // A NEW outage therefore starts its own escalation ladder from zero.
+  alerts.length = 0;
+  const down2 = resolveRuntime(baseConfig, overrides(downFetch, '2026-08-07T21:00:00.000Z'));
+  if (!down2.ok) return;
+  await getConnectionAccessToken(down2.runtime.deps);
+  assert.equal(currentStore.alibabaConnections?.[0]?.firstAuthErrorAt, '2026-08-07T21:00:00.000Z');
+  assert.equal(alerts.length, 1, 'the new outage pages immediately, not on an inherited clock');
 });
 
 test('a rotated refresh token never inherits the OLD token expiry', async () => {

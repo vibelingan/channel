@@ -439,3 +439,43 @@ errors), biome clean, SDK contract verify, 3 artifact smokes, site build.
 first to change a package outside the function (the client's failure shape),
 because the real defect was upstream: the evidence needed to make this
 decision correctly was being thrown away before the decision was reached.
+
+## Review round 6 — verification of the round-5 policy (2026-08-06)
+
+5 reports, **2 distinct defects** — and, unlike rounds 3→5, both are
+localized implementation errors *inside* the agreed design rather than
+another reversal of it. The design (evidence-based terminality + escalating,
+visible outages) was not challenged.
+
+1. **HIGH — two entries on the rejection allowlist name the APP, not the
+   credential.** RFC 6749 §5.2 defines `unauthorized_client` as the
+   authenticated *client* being unauthorized for the grant type, and
+   `access_denied` is an authorization-endpoint code that a signed gateway
+   overloads for "this app lacks permission for this API path". Both describe
+   provisioning faults a merchant re-authorization cannot repair — so
+   treating them as terminal recreated round 3's destroy → re-authorize →
+   destroy loop, this time through two strings in a list. A verifier
+   reproduced it, including the control case proving the status code alone
+   was not doing the work. Removed; they now fall through to the outage path,
+   which still escalates within 6h if the gateway keeps refusing. Removing
+   them costs nothing: a real revocation is `invalid_grant` per spec.
+2. **HIGH (reported by 3 lenses) — `firstAuthErrorAt` outlived its outage.**
+   It was cleared on a successful refresh but not by `handleOAuthCallback`
+   (whose `upsertDocWithId` MERGES) or `markAuthorizationExpired`. So the one
+   indicator added in round 5 to make a degraded connection visible
+   false-alarmed on a freshly reconnected healthy one — "Token refresh
+   failing since X — sync is paused" under "Connected", clearable only by the
+   next successful lazy refresh up to an access-token lifetime away. Worse,
+   the next genuine outage inherited the stale start time, which skipped the
+   6h escalation band straight to 24h and misreported the duration. Both
+   paths now clear the whole window.
+
+Gates: 651 recursive + 21 script tests green, 11 typechecks + astro (0
+errors), biome clean, SDK contract verify, 3 artifact smokes, site build.
+
+**Loop assessment.** Finding counts: 12 → 6 → 2 → 4 → 5. The count did not
+fall monotonically, but the *kind* changed decisively at round 6: rounds 3-5
+were successive over-corrections of the same design decision (when is a
+credential dead?), while round 6 found only data/omission bugs in an
+otherwise settled design, each with a surgical, provably-narrowing fix. That
+is the signal to stop iterating on this surface.

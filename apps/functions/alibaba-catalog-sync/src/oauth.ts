@@ -189,6 +189,11 @@ export async function handleOAuthCallback(
     refreshTokenExpiresAt: grant.refreshTokenExpiresAt ?? '',
     authorizedByUserId: requestedBy,
     authorizedAt: now,
+    // Clear the WHOLE outage window (review R5-verify): upsertDocWithId
+    // merges, so a surviving firstAuthErrorAt would render a false "refresh
+    // failing" banner on a freshly reconnected connection and would rob the
+    // next real outage of its 6h escalation band.
+    firstAuthErrorAt: '',
     lastAuthErrorAt: '',
   });
   return { ok: true };
@@ -323,15 +328,25 @@ export async function probeConnection(deps: OAuthDeps): Promise<ConnectionProbe>
   return { ok: true };
 }
 
-/** Gateway error codes that mean the credential itself is refused. */
+/**
+ * Gateway error codes that refuse the CREDENTIAL itself — the only codes that
+ * justify destroying connection state.
+ *
+ * Deliberately EXCLUDED (review R5-verify): `unauthorized_client` names the
+ * app, not the grant (RFC 6749 §5.2: the authenticated client may not use this
+ * grant type), and `access_denied` is an authorization-endpoint code that a
+ * signed gateway overloads for "this app lacks permission for this API path".
+ * Both describe app provisioning, which a merchant re-authorization cannot
+ * repair — treating them as terminal produced a destroy → re-authorize →
+ * destroy loop. They fall through to the outage path, which still escalates
+ * within 6h if the gateway keeps refusing.
+ */
 const CREDENTIAL_REJECTION_CODES = [
   'invalid_grant',
   'invalid_token',
   'invalid_refresh_token',
   'expired_token',
   'token_expired',
-  'unauthorized_client',
-  'access_denied',
 ];
 
 /**
@@ -408,6 +423,9 @@ async function markAuthorizationExpired(
 ): Promise<AccessTokenResult> {
   await updateDoc('alibabaConnections', PRIMARY_CONNECTION_ID, {
     status: 'authorization_expired',
+    // The outage window ends here too — this state is terminal, and a stale
+    // start time would survive into the next connection's first outage.
+    firstAuthErrorAt: '',
     lastAuthErrorAt: deps.now(),
   });
   // The cause is an internal category, never token material.
