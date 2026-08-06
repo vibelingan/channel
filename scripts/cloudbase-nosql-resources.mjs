@@ -23,6 +23,81 @@ export const REQUIRED_NOSQL_RESOURCES = [
       ]),
     ],
   },
+  // Alibaba linked catalog sync (docs/alibaba-linked-catalog-sync/, MIU 3).
+  // All ADMINONLY: every read/write goes through the functions, never the
+  // client SDK. Deterministic document ids (sourceKey/offerKey/connectionId)
+  // provide uniqueness without extra unique indexes.
+  {
+    collectionName: 'alibabaConnections',
+    permission: 'ADMINONLY',
+    indexes: [],
+  },
+  {
+    collectionName: 'alibabaOAuthStates',
+    permission: 'ADMINONLY',
+    indexes: [index('alibaba_oauth_state_expires_at', [['expiresAt', '1']])],
+  },
+  {
+    collectionName: 'alibabaSyncLeases',
+    permission: 'ADMINONLY',
+    indexes: [],
+  },
+  {
+    collectionName: 'alibabaSyncCheckpoints',
+    permission: 'ADMINONLY',
+    indexes: [],
+  },
+  {
+    collectionName: 'alibabaSourcePayloads',
+    permission: 'ADMINONLY',
+    indexes: [
+      index('alibaba_payload_response_sha256', [['responseSha256', '1']]),
+      index('alibaba_payload_run', [['runId', '1']]),
+    ],
+  },
+  {
+    collectionName: 'alibabaSourceProducts',
+    permission: 'ADMINONLY',
+    indexes: [
+      index('alibaba_source_connection_active', [
+        ['connectionId', '1'],
+        ['active', '1'],
+      ]),
+      index('alibaba_source_last_seen_run', [['lastSeenRunId', '1']]),
+    ],
+  },
+  {
+    collectionName: 'alibabaProductLinks',
+    permission: 'ADMINONLY',
+    indexes: [index('alibaba_link_product', [['productId', '1']])],
+  },
+  {
+    collectionName: 'alibabaSupplierOffers',
+    permission: 'ADMINONLY',
+    indexes: [
+      index('alibaba_offer_source_key', [['sourceKey', '1']]),
+      index('alibaba_offer_connection_active', [
+        ['connectionId', '1'],
+        ['active', '1'],
+      ]),
+    ],
+  },
+  {
+    collectionName: 'alibabaSyncRuns',
+    permission: 'ADMINONLY',
+    indexes: [
+      index('alibaba_run_connection_started', [
+        ['connectionId', '1'],
+        ['startedAt', '-1'],
+      ]),
+      index('alibaba_run_status', [['status', '1']]),
+    ],
+  },
+  {
+    collectionName: 'alibabaCategoryMappings',
+    permission: 'ADMINONLY',
+    indexes: [index('alibaba_category_mapping_source', [['alibabaCategoryId', '1']], true)],
+  },
 ];
 
 function index(IndexName, keys, MgoIsUnique = false) {
