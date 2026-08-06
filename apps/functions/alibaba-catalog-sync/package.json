@@ -1,0 +1,29 @@
+{
+  "name": "@vibelingan-channel/fn-alibaba-catalog-sync",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Alibaba Open Platform linked catalog sync: OAuth connection, resumable sync runner, and admin operations API.",
+  "main": "dist/index.js",
+  "exports": {
+    ".": "./src/index.ts",
+    "./handler": "./src/handler.ts"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "tsx --test src/**/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vibelingan-channel/alibaba-catalog-sync": "workspace:*",
+    "@vibelingan-channel/auth": "workspace:*",
+    "@vibelingan-channel/db": "workspace:*",
+    "@vibelingan-channel/media-storage": "workspace:*",
+    "@vibelingan-channel/shared": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsup": "^8.3.5",
+    "tsx": "^4.22.4"
+  }
+}

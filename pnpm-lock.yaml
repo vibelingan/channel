@@ -55,6 +55,37 @@ importers:
         specifier: ^4.22.4
         version: 4.22.4
 
+  apps/functions/alibaba-catalog-sync:
+    dependencies:
+      '@vibelingan-channel/alibaba-catalog-sync':
+        specifier: workspace:*
+        version: link:../../../packages/alibaba-catalog-sync
+      '@vibelingan-channel/auth':
+        specifier: workspace:*
+        version: link:../../../packages/auth
+      '@vibelingan-channel/db':
+        specifier: workspace:*
+        version: link:../../../packages/db
+      '@vibelingan-channel/media-storage':
+        specifier: workspace:*
+        version: link:../../../packages/media-storage
+      '@vibelingan-channel/shared':
+        specifier: workspace:*
+        version: link:../../../packages/shared
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.21
+      tsup:
+        specifier: ^8.3.5
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.9.0)
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+
   apps/functions/public-api:
     dependencies:
       '@vibelingan-channel/auth':
