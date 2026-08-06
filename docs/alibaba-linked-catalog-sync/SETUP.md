@@ -9,12 +9,48 @@ Nothing in the feature works until all of it is done.
 |---|---|---|
 | Tencent CloudBase env id | `diversity-123-d9grnqfux221323bb` | GitHub → repo → Settings → Environments → `test` → Variables → `TCB_ENV_ID` |
 | Region | `ap-shanghai` | same place, `CLOUDBASE_REGION` |
-| Callback URL | `https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/alibaba-catalog-sync/oauth/callback` | built from the env id — see below |
+| Callback URL | `https://supplychainsai.com/api/alibaba-catalog-sync/oauth/callback` | branded domain — see "Which host" below |
 | Alibaba app key | `511630` | Alibaba Open Platform console, your app |
 
-The callback URL is just `https://<env-id>.service.tcloudbase.com` +
-`/api/alibaba-catalog-sync/oauth/callback`. Same host the public catalog API
-already uses, so no new domain or certificate is involved.
+### Which host the callback should use
+
+**Use the branded domain.** `supplychainsai.com` and `www.supplychainsai.com`
+are both bound to this environment's HTTP gateway (CNAME to
+`diversity-123-d9grnqfux221323bb.service.tcloudbase.com`, shared certificate
+`ZM06VcYG`), and the gateway carries WILDCARD API routes — `*` `/api` and `*`
+`/api/admin` — which take precedence over the site's `/*` static route.
+
+Verified empirically rather than assumed:
+
+```
+$ curl https://supplychainsai.com/api/admin
+405 {"ok":false,"error":{"code":"BAD_REQUEST","message":"Method not allowed."}}
+```
+
+That is the cloud function answering, byte-identical to the response from the
+raw CloudBase host — not the static site. So `/api/alibaba-catalog-sync/...`
+will resolve on the branded domain too, once the deploy creates that route.
+
+Why prefer it over `https://<env-id>.service.tcloudbase.com/...`:
+
+- The merchant stays on your domain for the whole authorization round trip.
+  Approving a supplier connection that bounces through an unfamiliar
+  `*.tcloudbase.com` address looks like a phishing step.
+- The admin page it returns to is already on `supplychainsai.com` (`SITE_URL`),
+  so the branded callback keeps the entire flow same-origin instead of hopping
+  hosts mid-flight.
+
+The raw CloudBase host keeps working and remains the fallback if the branded
+domain's DNS or certificate is ever in flux. Both can be registered with
+Alibaba at the same time if the console allows multiple entries — do that if
+you can, since it costs nothing and removes a single point of failure.
+
+**The route does not exist until the deploy runs.** Verify it before the client
+attempts a connection:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://supplychainsai.com/api/alibaba-catalog-sync/health
+```
 
 ## Step 1 — five secrets in the GitHub `test` environment
 
@@ -26,8 +62,12 @@ gh secret set ALI_APP_KEY --env test --body '511630'
 ```
 
 ```bash
-gh secret set ALI_OAUTH_CALLBACK_URL --env test --body 'https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/alibaba-catalog-sync/oauth/callback'
+gh secret set ALI_OAUTH_CALLBACK_URL --env test --body 'https://supplychainsai.com/api/alibaba-catalog-sync/oauth/callback'
 ```
+
+> This secret is currently set to the raw CloudBase host. Re-run the command
+> above to switch it to the branded domain — it must match what you register
+> with Alibaba EXACTLY, or the final redirect is rejected.
 
 ```bash
 read -rs -p "Alibaba app secret: " V && printf '%s' "$V" | gh secret set ALI_APP_SECRET --env test && unset V && echo " set"
@@ -85,7 +125,7 @@ URI", or "回调地址" in the app's authorization or basic-information page.
 Add exactly:
 
 ```
-https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/alibaba-catalog-sync/oauth/callback
+https://supplychainsai.com/api/alibaba-catalog-sync/oauth/callback
 ```
 
 It must match character for character — no trailing slash, `https`, no
@@ -115,7 +155,7 @@ wires `/api/alibaba-catalog-sync`. No servers to provision.
 ## Sanity check before you start
 
 ```bash
-curl -s https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com/api/alibaba-catalog-sync/health
+curl -s https://supplychainsai.com/api/alibaba-catalog-sync/health
 ```
 
 Returns release info when the function is deployed and booting cleanly. This
