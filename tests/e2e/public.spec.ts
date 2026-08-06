@@ -2233,26 +2233,36 @@ test.describe('public browser smoke', () => {
     await expect(page.locator('#oem-inquiry form[data-project-form]')).toBeVisible();
   });
 
-  // Headphones storefront is hidden (un-routed) on the OEM-only site; this page
-  // test moves to the future standalone headphones site. See docs/oem-refresh/DESIGN.md.
-  test.skip('headphones page hydrates and resolves catalog loading state', async ({ page }) => {
+  // Was permanently skipped with a stale justification ("headphones is
+  // un-routed on the OEM-only site") and assertions written against a retired
+  // UI. Headphones is live, so this now runs against the shipped catalog: the
+  // island hydrates against the REAL API, resolves out of its skeleton, and
+  // does so without console errors or unhandled rejections.
+  test('headphones page hydrates and resolves catalog loading state', async ({ page }) => {
     const problems = captureConsoleProblems(page);
     const productsResponse = page.waitForResponse(
       (response) => response.url().includes('/api/products') && response.status() === 200,
     );
 
     await page.goto('/headphones', { waitUntil: 'domcontentloaded' });
+    await ensureApplicationPage(page);
     await productsResponse;
 
-    await expect(page.getByRole('heading', { name: 'Headphones' })).toBeVisible();
+    // The catalog heading is server-rendered; the skeleton must clear once the
+    // island hydrates and commits its first page.
+    await expect(page.locator('[data-catalog-heading]')).toBeVisible();
     await expect(page.locator('.animate-pulse')).toHaveCount(0, { timeout: 15_000 });
+
+    // Terminal state is either real cards or the authored empty state — never
+    // an indefinite skeleton and never a blocking error.
     await expect
       .poll(async () => {
-        const emptyStates = await page.getByText(/No products match/i).count();
-        const cards = await page.locator('a[href^="/headphone-item"]').count();
-        return emptyStates + cards;
+        const cards = await page.locator('[data-product-card]').count();
+        const empty = await page.getByText('No published headphone models are available').count();
+        return cards + empty;
       })
       .toBeGreaterThan(0);
+    await expect(page.getByRole('alert')).toHaveCount(0);
     expect(problems).toEqual([]);
   });
 });
