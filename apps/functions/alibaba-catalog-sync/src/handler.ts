@@ -18,6 +18,7 @@ import { type AlertSender, createAlertSender } from './alerts.ts';
 import { type AlibabaSyncFunctionConfig, resolveOAuthConfig } from './config.ts';
 
 export type { AlibabaSyncFunctionConfig } from './config.ts';
+import { linkExistingProduct, unlinkProduct } from './linking.ts';
 import {
   type OAuthDeps,
   connectionStatusView,
@@ -150,10 +151,42 @@ export async function handleAlibabaSyncRequest(
       const existed = await disconnectConnection({ now: () => new Date().toISOString() });
       return ok({ disconnected: existed });
     }
+    case 'linkProduct': {
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = linkSchema.safeParse(parsed.data.data);
+      if (!payload.success) return err('VALIDATION_ERROR', 'sourceKey and productId are required.');
+      const result = await linkExistingProduct(payload.data.sourceKey, payload.data.productId, {
+        now: new Date().toISOString(),
+        userId: admin.data.userId,
+      });
+      if (!result.ok) {
+        if (result.reason === 'source-linked-elsewhere') {
+          return err('CONFLICT', 'This source product is already linked to another product.');
+        }
+        return err('NOT_FOUND', `Link failed: ${result.reason}.`);
+      }
+      return ok(result);
+    }
+    case 'unlinkProduct': {
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = unlinkSchema.safeParse(parsed.data.data);
+      if (!payload.success) return err('VALIDATION_ERROR', 'productId is required.');
+      const result = await unlinkProduct(payload.data.productId, {
+        now: new Date().toISOString(),
+        userId: admin.data.userId,
+      });
+      if (!result.ok) return err('NOT_FOUND', 'Product not found.');
+      return ok(result);
+    }
     default:
       return err('BAD_REQUEST', `Unknown action: ${action}`);
   }
 }
+
+const linkSchema = z.object({ sourceKey: z.string().min(1), productId: z.string().min(1) });
+const unlinkSchema = z.object({ productId: z.string().min(1) });
 
 export type CallbackRedirect = { location: string };
 
