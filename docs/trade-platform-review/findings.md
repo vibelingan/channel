@@ -1,5 +1,11 @@
 # Channel Trade Platform Review Findings
 
+> **Status:** Phase 1/5 complete (baseline and proposal audit). Phases 2–5 — official
+> capability research, target operating model and architecture, phased delivery and
+> economics, and adversarial review — are in progress or not started. The design
+> consequences below are interim conclusions from Phase 1 only and have not been through
+> the adversarial review this plan calls for; treat as a working hypothesis, not a decision.
+
 ## Request Interpretation
 
 The decision needed is not merely “Medusa or CloudBase.” It is how Channel can operate two commercial models without building payment infrastructure, duplicating the current portal, or confusing inventory ownership and settlement liability.
