@@ -120,6 +120,13 @@ function contentFingerprint(product: Record<string, unknown>, offers: unknown[])
     'demotedAt',
     'contentHash',
     'lastChangedRunId',
+    // WALL-CLOCK stamps the normalizer injects on every ingest. Omitting them
+    // made the fingerprint differ every run, so `changed` was always true and
+    // this whole mechanism was a no-op — the surge guard still counted every
+    // source SEEN. The canonical() recursion filters at every depth, so this
+    // also drops the copy nested inside each offer's `pricing`.
+    'fetchedAt',
+    'syncedAt',
   ]);
   const canonical = (value: unknown): unknown => {
     if (Array.isArray(value)) return value.map(canonical);

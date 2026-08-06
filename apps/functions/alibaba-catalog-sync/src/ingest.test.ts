@@ -291,3 +291,73 @@ test('api-error envelopes keep raw evidence and report the failure', async () =>
   assert.deepEqual(result, { ok: false, error: 'api-error' });
   assert.equal(store.alibabaSourcePayloads?.length, 1);
 });
+
+const BODY = detailBody([{ id: 'sku-1', price: 2.5 }]);
+
+test('content fingerprint ignores wall-clock stamps: a re-ingest is NOT a change', async () => {
+  // The surge guard counts CHANGED candidates. The normalizer stamps
+  // fetchedAt/syncedAt with the caller's clock on every ingest, so a
+  // fingerprint that included them made every re-ingest look changed and the
+  // guard tripped on every full run. The existing tests all pass one frozen
+  // NOW, which is precisely why that shipped — this one varies the clock.
+  setup();
+  const first = await ingestProductDetail({
+    bodyText: BODY,
+    endpointId: 'product.get',
+    requestFingerprint: 'fp-1',
+    connectionId: 'primary',
+    runId: 'run-1',
+    now: NOW,
+  });
+  assert.equal(first.ok, true);
+  const afterFirst = store.alibabaSourceProducts?.[0] as CollectionDoc;
+  const hashAfterFirst = afterFirst.contentHash;
+  assert.equal(afterFirst.lastChangedRunId, 'run-1');
+  assert.ok(typeof hashAfterFirst === 'string' && hashAfterFirst.length === 64);
+
+  // Same bytes, LATER clock, different run.
+  const second = await ingestProductDetail({
+    bodyText: BODY,
+    endpointId: 'product.get',
+    requestFingerprint: 'fp-2',
+    connectionId: 'primary',
+    runId: 'run-2',
+    now: '2026-08-06T18:30:00.000Z',
+  });
+  assert.equal(second.ok, true);
+  const afterSecond = store.alibabaSourceProducts?.[0] as CollectionDoc;
+  assert.equal(afterSecond.contentHash, hashAfterFirst, 'identical content, identical hash');
+  assert.equal(
+    afterSecond.lastChangedRunId,
+    'run-1',
+    'an unchanged re-ingest must NOT advance the change stamp',
+  );
+  assert.equal(afterSecond.lastSeenRunId, 'run-2', 'but it IS seen by the new run');
+});
+
+test('a real content change DOES advance the change stamp', async () => {
+  setup();
+  await ingestProductDetail({
+    bodyText: BODY,
+    endpointId: 'product.get',
+    requestFingerprint: 'fp-1',
+    connectionId: 'primary',
+    runId: 'run-1',
+    now: NOW,
+  });
+  const changedBody = detailBody([{ id: 'sku-1', price: 9.9 }]);
+  const second = await ingestProductDetail({
+    bodyText: changedBody,
+    endpointId: 'product.get',
+    requestFingerprint: 'fp-2',
+    connectionId: 'primary',
+    runId: 'run-2',
+    now: '2026-08-06T18:30:00.000Z',
+  });
+  assert.equal(second.ok, true);
+  assert.equal(
+    (store.alibabaSourceProducts?.[0] as CollectionDoc).lastChangedRunId,
+    'run-2',
+    'a price move is a real change',
+  );
+});

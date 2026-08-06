@@ -169,9 +169,31 @@ export async function runSyncTick(input: {
     // it decideTick returns 'idle' whenever nothing happens to be scheduled,
     // so runNow could only ever CONTINUE a run someone else started — and the
     // test env, which has no timer by design, would never start one at all.
-    const manualStart =
+    // A quarantined run's candidate set is frozen against the mirror AS IT WAS.
+    // Starting a new run re-ingests those sources and rewrites lastSeenRunId,
+    // so the approval path's recomputation no longer matches and the pending
+    // quarantine becomes permanently unapprovable. Never force a manual start
+    // over one — the operator must resolve it first.
+    //
+    // The probe is a single-row existence check, and it runs ONLY on the manual
+    // path with a free slot: alibabaSyncRuns grows one row per run, so querying
+    // it on every 15-minute tick would be an unbounded cost on the idle path.
+    const manualSlotFree =
       input.trigger === 'manual' &&
       (typeof checkpointDoc.activeRunId !== 'string' || checkpointDoc.activeRunId === '');
+    const manualStart =
+      manualSlotFree &&
+      (
+        await list({
+          collection: 'alibabaSyncRuns',
+          page: 1,
+          pageSize: 1,
+          filter: {
+            combinator: 'and',
+            clauses: [{ field: 'status', op: 'eq', value: 'quarantined' }],
+          },
+        })
+      ).total === 0;
 
     const decision = decideTick(
       {
@@ -560,12 +582,12 @@ async function executeSlice(
       // Renew inside the walk: this loop is now unbounded (the 100-row clamp
       // that used to mask it is gone) and does a round trip per source, so it
       // can outlive the 180s lease TTL long before the first fenced write.
+      // Lease renewal only — NO budget exit here. This stage has no durable
+      // progress cursor (saveCheckpoint persists stage + enumerationState,
+      // nothing about how far this walk got), so a mid-walk 'continued' exit
+      // would replay the same prefix every tick and never finish. The walk is
+      // read-only and cheap per item; renewing keeps it inside the lease.
       if (!(await keepLease())) return { outcome: 'lease-lost', runId: state.activeRunId };
-      if (budgetExhausted(budget, Date.parse(deps.now()))) {
-        if (!(await saveCheckpoint())) return { outcome: 'lease-lost', runId: state.activeRunId };
-        await release();
-        return { outcome: 'continued', runId: state.activeRunId };
-      }
       const link = await getDoc('alibabaProductLinks', source._id);
       if (link && typeof link.productId === 'string' && link.productId !== '') {
         linkedCandidates.push({ sourceKey: source._id });
@@ -653,8 +675,10 @@ async function executeSlice(
     let draftsCreated = 0;
     let draftsUnmapped = 0;
     for (const sourceKey of unlinkedSources) {
+      // Runs to completion for the same reason as the walk above: breaking
+      // here and then falling through to completeRun would advance
+      // committedCursor past sources that never got a draft.
       if (!(await keepLease())) return { outcome: 'lease-lost', runId: state.activeRunId };
-      if (budgetExhausted(budget, Date.parse(deps.now()))) break;
       const draft = await createDraftForSource(sourceKey, { now: deps.now() });
       if (draft.ok) draftsCreated += 1;
       else if (draft.reason === 'no-category-mapping') draftsUnmapped += 1;
@@ -698,7 +722,10 @@ async function executeSlice(
       apiPath: DETAIL_PATH,
       params,
       accessToken,
-      ...callTuning,
+      // NOT callTuning: a single transient timeout here quarantines the
+      // entire run into an unapprovable state, so this call keeps the
+      // client default retry budget (§10.1 bounds slice wall-clock, and the
+      // tombstone loop already exits cleanly on budget exhaustion).
     });
     if (!confirm.ok) {
       // A confirmation TRANSPORT error must not tombstone; quarantine the set.

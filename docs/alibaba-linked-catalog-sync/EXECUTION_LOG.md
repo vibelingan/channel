@@ -614,3 +614,55 @@ not a pass).
 
 Gates: 657 recursive + 21 script tests, 11 typechecks + astro (0 errors),
 biome clean, SDK contract verify, 3 artifact smokes, site build.
+
+## Blessing gate, round 3 — my round-2 fixes were defective again (2026-08-06)
+
+3 P1 (2 unique) + 7 P2, essentially all in code written during the round-2
+fixes. Recorded plainly because the PATTERN now matters more than the bugs.
+
+1. **The content fingerprint was a no-op.** It excluded run/time stamps but
+   NOT `fetchedAt` and `syncedAt`, which the normalizer writes with the
+   caller's clock on every ingest — so the hash never repeated, `changed` was
+   always true, and `changedCandidates` was bit-for-bit the value it replaced.
+   The §12 surge guard still tripped on every full run. A fix that did not fix,
+   and the log claimed otherwise. Every existing ingest test passes ONE frozen
+   `NOW`, which is exactly why it shipped; the new tests vary the clock.
+2. **The promote stage's mid-walk budget exit had no cursor.** `saveCheckpoint`
+   persists stage + enumerationState and nothing about walk position, so a
+   continuation replayed the same prefix and the stage could never finish —
+   burning continuations until the 24h overdue timer, forever. REVERTED rather
+   than patched: `keepLease()` (which fixed the real lease-expiry P1) stays;
+   the budget exit goes. Same for the deferred draft loop, whose `break` then
+   fell through to `completeRun` and advanced `committedCursor` past sources
+   that never got a draft.
+3. **`callTuning` on the tombstone confirmation was actively harmful.** One
+   transient 5s timeout on a manual slice quarantined an entire full run — into
+   a branch that writes no `candidateHash`, making that quarantine
+   *unapprovable*. That call keeps the client's default retry budget; §10.1 is
+   about slice wall-clock, and the tombstone loop already exits on budget.
+4. **`manualStart` could destroy a pending quarantine.** "Run now" over a
+   quarantined run re-ingests its frozen sources, rewrites `lastSeenRunId`, and
+   makes the approval recomputation mismatch forever. Manual starts now refuse
+   while a quarantine awaits approval — via a single-row existence probe on the
+   MANUAL path only (querying `alibabaSyncRuns` on every 15-minute tick would
+   be an unbounded cost on the idle path; the idle-tick test caught that).
+
+Gates: 661 recursive + 21 script tests, 11 typechecks + astro (0 errors),
+biome clean, SDK contract verify, 3 artifact smokes, site build.
+
+### Process finding — the real root cause of this whole loop
+
+`~/.claude/skills/engineering-craft/checklists/impl-time-gates.md` was
+consulted only as a REVIEW filter (blessing-gate STEP 1.5), never while
+implementing. Its section 1 is "Sibling twins — did you join a family?" and its
+closing section is titled *"Why this is a one-pass gate, not a review loop"*:
+
+> the same classes recur *within* a single PR across review rounds — a reviewer
+> finds one instance, the fix lands, the next round finds the twin. That is the
+> signature of a class-level defect being handled instance-by-instance.
+
+That is a precise description of rounds 2-9 here. The worst single defect (the
+promote stage missing the lease renewal its sibling enumerate stage carried, in
+the same file, added in the same commit) is section 1 verbatim. The knowledge
+was on disk, indexed, and derived from 1,011 external findings. It was not
+consulted at the point it was written for.
