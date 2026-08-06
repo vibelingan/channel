@@ -12,6 +12,7 @@ const returnTo = Astro.url.searchParams.get('returnTo') ?? undefined;
   title={`Create account — ${brand.name}`}
   description="Register for the Channel portal."
   lang="en"
+  noindex
 >
   <AuthShell title={`© 2004–2026 ${brand.name}`}>
     <AuthForm mode="register" returnTo={returnTo} client:load />

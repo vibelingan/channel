@@ -9,7 +9,7 @@ const site = getSiteContent();
 const { brand, nav, footer } = site;
 ---
 
-<BaseLayout title={`Account — ${brand.name}`} description="Manage your account." lang="en">
+<BaseLayout title={`Account — ${brand.name}`} description="Manage your account." lang="en" noindex>
   <SiteHeader brand={brand} nav={nav} />
 
   <main>
