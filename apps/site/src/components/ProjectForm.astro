@@ -141,7 +141,7 @@ const fieldBase =
     fileId: string;
     uploadIntentId: string;
     uploadSecret: string;
-    upload: { method: string; url: string; fields: Record<string, string> };
+    upload: { method: string; url: string; headers: Record<string, string> };
   }
 
   function resetButton() {
@@ -222,15 +222,18 @@ const fieldBase =
             mimeType: file.type || 'application/octet-stream',
             byteSize: file.size,
           });
-          // Multipart POST straight to COS: the server-minted fields FIRST, then
-          // the file part. The browser never holds a storage identity.
-          const cos = new FormData();
-          for (const [key, value] of Object.entries(intent.upload.fields)) cos.append(key, value);
-          cos.append('file', file);
-          const post = await fetch(intent.upload.url, { method: intent.upload.method, body: cos });
-          if (!post.ok) {
+          // Raw PUT straight to COS with the server-minted credential headers.
+          // The browser never holds a storage identity. NOT a multipart POST:
+          // @cloudbase/node-sdk 3.x signs the upload for `put`, so a form POST
+          // is rejected 403 SignatureDoesNotMatch.
+          const put = await fetch(intent.upload.url, {
+            method: intent.upload.method,
+            headers: intent.upload.headers,
+            body: file,
+          });
+          if (!put.ok) {
             // Leave the pending row for expiry/cleanup; surface a clear error.
-            throw new Error(`File upload failed (${post.status}). Please try again.`);
+            throw new Error(`File upload failed (${put.status}). Please try again.`);
           }
           data.drawingName = file.name;
           data.drawingFileId = intent.fileId;
