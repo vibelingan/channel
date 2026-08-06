@@ -235,26 +235,36 @@ export async function getConnectionAccessToken(deps: OAuthDeps): Promise<AccessT
 
   const refreshToken = typeof payload.refreshToken === 'string' ? payload.refreshToken : '';
   if (!refreshToken) return await markAuthorizationExpired(deps, 'no refresh token');
+
+  // Terminal on OUR OWN record, never on speculation: if the stored
+  // refresh-token expiry has elapsed, the grant is dead by the gateway's own
+  // earlier statement and no call can revive it.
+  const refreshExpiresAt =
+    typeof connection.refreshTokenExpiresAt === 'string' ? connection.refreshTokenExpiresAt : '';
+  if (refreshExpiresAt !== '' && Date.parse(refreshExpiresAt) <= Date.parse(now)) {
+    return await markAuthorizationExpired(deps, 'refresh token expired');
+  }
+
   const result = await deps.client.callApi({
     apiPath: deps.endpoints.tokenRefreshPath,
     params: { refresh_token: refreshToken },
     maxAttempts: 1,
   });
   if (!result.ok) {
-    // Classify the failure (review R2 #4 + R2-verify): an HTTP 4xx other than
-    // 429 is the gateway REJECTING the refresh token (revoked app, elapsed
-    // refresh_expires_in) — non-recoverable, so ARCHITECTURE §8 demands the
-    // terminal state plus an alert. Everything else (network, timeout, 429,
-    // 5xx, oversized body) is transport noise: keep the current token if it is
-    // still valid this instant, otherwise report an outage and retry next tick.
-    const rejected =
-      result.kind === 'http' &&
-      result.status !== undefined &&
-      result.status >= 400 &&
-      result.status < 500 &&
-      result.status !== 429;
-    if (rejected) return await markAuthorizationExpired(deps, 'refresh rejected by gateway');
-    if (expiresAt > now) return { ok: true, accessToken: payload.accessToken };
+    // A TRANSPORT-level failure is never proof the credential is dead
+    // (review R3-verify). The client's `retryable()` predicate must NOT be
+    // reused here: there, "not retryable" means return a failure — harmless;
+    // here it would mean DESTROY connection state that only a human merchant
+    // re-authorization can restore. The /rest host and refresh path stay
+    // ASSUMED-UNVERIFIED until the MIU 15 live smoke, so a moved path, an edge
+    // 403, or a 408 would otherwise turn an infra fault into a permanent
+    // outage plus a recurring re-authorize page. Keep the current token if it
+    // is still valid; otherwise report the outage (alerted once, never
+    // silent) and retry next tick.
+    if (Date.parse(expiresAt) > Date.parse(now)) {
+      return { ok: true, accessToken: payload.accessToken };
+    }
+    await noteRefreshOutage(deps, connection);
     return { ok: false, reason: 'refresh-unavailable' };
   }
   const grant = readTokenResponse(result.bodyText, now);
@@ -267,6 +277,8 @@ export async function getConnectionAccessToken(deps: OAuthDeps): Promise<AccessT
   await updateDoc('alibabaConnections', PRIMARY_CONNECTION_ID, {
     tokenEnvelope: encryptTokenPayload(deps.tokenKey, nextPayload),
     accessTokenExpiresAt: grant.accessTokenExpiresAt ?? '',
+    // A success ends any outage, so the next one pages again.
+    lastAuthErrorAt: '',
     ...(grant.refreshTokenExpiresAt !== undefined
       ? { refreshTokenExpiresAt: grant.refreshTokenExpiresAt }
       : {}),
@@ -297,6 +309,27 @@ export async function probeConnection(deps: OAuthDeps): Promise<ConnectionProbe>
     return { ok: false, reason: 'decrypt-failed' };
   }
   return { ok: true };
+}
+
+/**
+ * Record a refresh OUTAGE without touching `status`: the connection is still
+ * authorized, the gateway is simply unreachable or answering oddly. Alerts
+ * exactly once per outage (the stamp is cleared by the next success) so a
+ * 15-minute timer cannot page operations 96 times a day — and so the failure
+ * is never silent, which is the whole reason the terminal flip was reached
+ * for in the first place.
+ */
+async function noteRefreshOutage(
+  deps: OAuthDeps,
+  connection: Record<string, unknown>,
+): Promise<void> {
+  const alreadyAlerted =
+    typeof connection.lastAuthErrorAt === 'string' && connection.lastAuthErrorAt !== '';
+  await updateDoc('alibabaConnections', PRIMARY_CONNECTION_ID, { lastAuthErrorAt: deps.now() });
+  if (alreadyAlerted) return;
+  await deps.alert(
+    'Alibaba token refresh is failing (transport). Sync is paused; the connection is still authorized — no action needed unless this persists.',
+  );
 }
 
 async function markAuthorizationExpired(

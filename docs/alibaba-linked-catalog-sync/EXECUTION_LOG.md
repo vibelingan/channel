@@ -350,3 +350,47 @@ cold-start smokes, site build (18 pages).
 the original implementation — 3 of the 6 regressions were HIGH and every
 one of them was introduced by a correct-in-isolation fix that moved an
 operation across a state-mutation boundary.
+
+## Review round 4 — verification of the round-3 fixes (2026-08-06)
+
+A 3-lens pass over commit 69c4b20 confirmed the runner restructure and the
+`Map` notice fix clean, but found **2 findings (one root cause)** in the
+refresh classifier that round 3 introduced — with a diagnosis worth
+recording verbatim:
+
+> Copying a retry-policy predicate into a state-destruction predicate is a
+> category error. In the client, "not retryable" means return a failure —
+> harmless. In `getConnectionAccessToken` the same predicate means destroy
+> connection state and require a human merchant re-authorization.
+
+Round 3 had made every non-429 4xx on the refresh endpoint terminal. But
+`apiBaseUrl` + `tokenRefreshPath` are ASSUMED-UNVERIFIED until the MIU 15
+live smoke, so a moved path, an edge 403, or a 408 would irreversibly kill
+a healthy authorization — and because reconnect uses a *different* path
+(`tokenCreatePath`), it would succeed, run for one access-token lifetime,
+and die again: a daily page loop from a config fault that fixes itself the
+moment the endpoint is corrected. A verifying agent reproduced exactly
+that: statuses 400/403/404/408/425/451 each destroyed the connection, and
+three reconnect cycles each produced another page.
+
+**Final policy — terminality now requires evidence, never inference:**
+- Terminal (`authorization_expired` + re-connect page): no refresh token at
+  all; the stored `refreshTokenExpiresAt` has ELAPSED (the gateway's own
+  earlier statement, so no call is even attempted); or a 2xx whose body is
+  not a grant (the gateway parsed the request and refused).
+- Retryable (`refresh-unavailable`, status untouched): every transport-level
+  failure, whatever the status code. The current access token is still used
+  if valid; otherwise the outage is recorded and alerted EXACTLY ONCE per
+  outage (`lastAuthErrorAt`, cleared by the next success), so a 15-minute
+  timer cannot page 96 times a day and the failure is never silent — which
+  was the legitimate concern behind the terminal flip.
+
+Gates after round 4: 647 recursive + 21 script tests green, 11 typechecks +
+astro (0 errors), biome clean, SDK contract verify, 3 artifact cold-start
+smokes, site build (18 pages).
+
+**Rounds 2→4 summary:** 12 findings fixed, those fixes introduced 6
+regressions (3 HIGH), that fix introduced 1 more (2 reports). Each round
+was strictly smaller; round 4's fix is confined to one function's failure
+policy and is the first that removes a state-destroying write rather than
+adding one.

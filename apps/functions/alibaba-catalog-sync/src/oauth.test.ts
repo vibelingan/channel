@@ -571,7 +571,7 @@ test('access token refreshes lazily near expiry and expires the connection on fa
   assert.ok(!alerts[0]?.includes('rotated'), 'alert carries no token material');
 });
 
-test('a refresh REJECTED with HTTP 4xx is terminal: expired + alert', async () => {
+test('an HTTP 4xx on the refresh endpoint is NOT terminal (infra fault != revocation)', async () => {
   setup();
   alerts.length = 0;
   const token = await adminToken();
@@ -582,21 +582,68 @@ test('a refresh REJECTED with HTTP 4xx is terminal: expired + alert', async () =
 
   const { getConnectionAccessToken } = await import('./oauth.ts');
 
-  // The merchant revoked the app (or refresh_expires_in elapsed): the gateway
-  // answers 401. That is NOT transport noise — only re-authorization recovers
-  // it, so the connection must reach the terminal state and page operations.
+  // The refresh HOST + PATH are ASSUMED-UNVERIFIED until the MIU 15 live
+  // smoke, so a 4xx is at least as likely to be a moved path or an edge rule
+  // as a revocation. Destroying the connection on that guess would need a
+  // human re-authorization to undo — and would repeat every access-token
+  // lifetime. Stay authorized, page ONCE, recover by itself.
   const afterFullExpiry = '2026-08-07T09:00:00.000Z';
-  const rejectingFetch = (async () =>
-    new Response(JSON.stringify({ error_code: 'invalid_grant' }), {
-      status: 401,
-    })) as typeof fetch;
-  const runtime = resolveRuntime(baseConfig, overrides(rejectingFetch, afterFullExpiry));
-  assert.equal(runtime.ok, true);
-  if (!runtime.ok) return;
-  const rejected = await getConnectionAccessToken(runtime.runtime.deps);
-  assert.deepEqual(rejected, { ok: false, reason: 'authorization-expired' });
+  for (const status of [400, 401, 403, 404, 408]) {
+    const rejectingFetch = (async () =>
+      new Response(JSON.stringify({ error_code: 'whatever' }), { status })) as typeof fetch;
+    const runtime = resolveRuntime(baseConfig, overrides(rejectingFetch, afterFullExpiry));
+    if (!runtime.ok) return;
+    const result = await getConnectionAccessToken(runtime.runtime.deps);
+    assert.deepEqual(result, { ok: false, reason: 'refresh-unavailable' }, `status ${status}`);
+    assert.equal(currentStore.alibabaConnections?.[0]?.status, 'active', `status ${status}`);
+  }
+  assert.equal(alerts.length, 1, 'exactly one page for the whole outage, not one per tick');
+  assert.ok(alerts[0]?.includes('still authorized'), 'the page states no re-auth is needed');
+
+  // The endpoint is corrected: the SAME stored refresh token works again and
+  // the outage stamp clears, with no human involvement.
+  const recoveredFetch = fakeAlibabaFetch(log, {
+    access_token: 'post-outage-token',
+    refresh_token: 'post-outage-refresh',
+    expires_in: 36_000,
+  });
+  const recovered = resolveRuntime(baseConfig, overrides(recoveredFetch, afterFullExpiry));
+  if (!recovered.ok) return;
+  assert.deepEqual(await getConnectionAccessToken(recovered.runtime.deps), {
+    ok: true,
+    accessToken: 'post-outage-token',
+  });
+  assert.equal(currentStore.alibabaConnections?.[0]?.lastAuthErrorAt, '', 'outage stamp cleared');
+});
+
+test('an ELAPSED stored refresh expiry is terminal — our own record, not a guess', async () => {
+  setup();
+  alerts.length = 0;
+  const token = await adminToken();
+  const log: FetchLogEntry[] = [];
+  // The grant states refresh_expires_in = 1h; the access token lasts 10h.
+  const fetchImpl = fakeAlibabaFetch(log, {
+    access_token: 'live-access-token',
+    refresh_token: 'live-refresh-token',
+    expires_in: 36_000,
+    refresh_expires_in: 3_600,
+  });
+  const state = await startAndExtractState(token, fetchImpl);
+  await handleOAuthCallbackRequest({ code: 'c', state }, baseConfig, {}, overrides(fetchImpl));
+  const callsAfterConnect = log.length;
+
+  const { getConnectionAccessToken } = await import('./oauth.ts');
+  // Past BOTH expiries: the refresh token is dead by the gateway's own earlier
+  // statement, so no call is even attempted.
+  const late = resolveRuntime(baseConfig, overrides(fetchImpl, '2026-08-07T09:00:00.000Z'));
+  assert.equal(late.ok, true);
+  if (!late.ok) return;
+  const result = await getConnectionAccessToken(late.runtime.deps);
+  assert.deepEqual(result, { ok: false, reason: 'authorization-expired' });
   assert.equal(currentStore.alibabaConnections?.[0]?.status, 'authorization_expired');
-  assert.equal(alerts.length, 1, 'operations is paged');
+  assert.equal(log.length, callsAfterConnect, 'no pointless refresh call');
+  assert.equal(alerts.length, 1, 'operations is paged to re-connect');
+  assert.ok(alerts[0]?.includes('Re-connect required'));
 });
 
 test('a refresh 5xx / 429 is transport noise — retryable, connection stays active', async () => {
@@ -619,7 +666,8 @@ test('a refresh 5xx / 429 is transport noise — retryable, connection stays act
     assert.deepEqual(result, { ok: false, reason: 'refresh-unavailable' }, `status ${status}`);
     assert.equal(currentStore.alibabaConnections?.[0]?.status, 'active', `status ${status}`);
   }
-  assert.equal(alerts.length, 0, 'no expiry alert for upstream noise');
+  assert.equal(alerts.length, 1, 'one outage page, and never an expiry alert');
+  assert.ok(!alerts[0]?.includes('Re-connect required'));
 });
 
 test('probeConnection is read-only: reports health without any refresh call', async () => {
@@ -682,7 +730,8 @@ test('a refresh TRANSPORT outage is retryable — never authorization_expired', 
   const outage = await getConnectionAccessToken(downRuntime.runtime.deps);
   assert.deepEqual(outage, { ok: false, reason: 'refresh-unavailable' });
   assert.equal(currentStore.alibabaConnections?.[0]?.status, 'active', 'stays active');
-  assert.equal(alerts.length, 0, 'no expiry alert for a transient outage');
+  assert.equal(alerts.length, 1, 'the outage is reported, never silently');
+  assert.ok(!alerts[0]?.includes('Re-connect required'), 'but not as an expiry');
 
   // Network back: the SAME refresh token still rotates successfully.
   const recoveredFetch = fakeAlibabaFetch(log, {
