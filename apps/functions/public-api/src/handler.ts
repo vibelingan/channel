@@ -143,7 +143,35 @@ const PUBLIC_CATALOG_FIELDS = [
   'wholesalePrice',
   'clearancePrice',
   'published',
+  // Alibaba-linked catalog fields (docs/alibaba-linked-catalog-sync, MIU 9).
+  // Ungated by design: anonymous and authenticated callers receive IDENTICAL
+  // Alibaba pricing (never in GATED_CATALOG_FIELDS). alibabaPrimaryOfferKey
+  // is deliberately absent. The nested pricing object is sub-projected below
+  // — offer provenance never ships. Overstock rows can never carry these
+  // keys (strict write schema), so the shared allowlist leaves overstock
+  // payloads byte-identical.
+  'alibabaPrimarySourceKey',
+  'alibabaCatalogPricing',
+  'alibabaSourceStatus',
+  'alibabaSourceLastSyncedAt',
 ] as const;
+
+/**
+ * Public sub-projection of `alibabaCatalogPricing` (R1 H1): the supplier
+ * offer identifiers stay server-side — a visitor must not be able to locate
+ * the source listing and buy direct.
+ */
+const ALIBABA_PRICING_PRIVATE_KEYS = ['sourceOfferKey', 'sourceProductId', 'sourceSkuId'] as const;
+
+function publicAlibabaCatalogPricing(value: unknown): unknown {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if ((ALIBABA_PRICING_PRIVATE_KEYS as readonly string[]).includes(key)) continue;
+    out[key] = entry;
+  }
+  return out;
+}
 
 /**
  * Role-gated pricing tiers. Attached ONLY when the resolved viewer is entitled
@@ -162,7 +190,9 @@ function publicDoc(
   // allowlist can never silently ship an id-less doc.
   const out: CollectionDoc = { _id: doc._id, images: catalogImages(doc, config) };
   for (const key of PUBLIC_CATALOG_FIELDS) {
-    if (key !== '_id' && key in doc) out[key] = doc[key];
+    if (key !== '_id' && key in doc) {
+      out[key] = key === 'alibabaCatalogPricing' ? publicAlibabaCatalogPricing(doc[key]) : doc[key];
+    }
   }
   if (viewer.canSeeVipPricing) {
     for (const key of GATED_CATALOG_FIELDS) {

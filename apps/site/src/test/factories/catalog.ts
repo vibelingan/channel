@@ -1,5 +1,13 @@
-import type { CatalogPage, Product } from '../../islands/shop/catalog-types.ts';
+import type {
+  AlibabaCatalogPricing,
+  CatalogPage,
+  Product,
+} from '../../islands/shop/catalog-types.ts';
 
+/**
+ * Default fixture is an UNLINKED (legacy) product — the Alibaba fields flip
+ * the render branch, so they live in the dedicated linked factory below.
+ */
 export function createProduct(overrides: Partial<Product> = {}): Product {
   return {
     _id: 'product-1',
@@ -20,6 +28,33 @@ export function createProduct(overrides: Partial<Product> = {}): Product {
     images: ['/api/images/image-1'],
     ...overrides,
   };
+}
+
+export function createAlibabaCatalogPricing(
+  overrides: Partial<AlibabaCatalogPricing> = {},
+): AlibabaCatalogPricing {
+  return {
+    schemaVersion: 'alibaba-catalog-pricing-v1',
+    source: 'alibaba',
+    currency: 'USD',
+    mode: 'fixed',
+    amountMinor: 250,
+    sourceMoq: 100,
+    sourceUpdatedAt: '2026-08-01T02:00:00.000Z',
+    syncedAt: '2026-08-06T12:00:00.000Z',
+    ...overrides,
+  };
+}
+
+/** An Alibaba-LINKED product: every additive field populated per the public projection. */
+export function createAlibabaLinkedProduct(overrides: Partial<Product> = {}): Product {
+  return createProduct({
+    alibabaPrimarySourceKey: 'a'.repeat(64),
+    alibabaCatalogPricing: createAlibabaCatalogPricing(),
+    alibabaSourceStatus: 'available',
+    alibabaSourceLastSyncedAt: '2026-08-06T12:00:00.000Z',
+    ...overrides,
+  });
 }
 
 export function createCatalogPage(overrides: Partial<CatalogPage> = {}): CatalogPage {
