@@ -11,6 +11,7 @@ import { list, remove } from '@vibelingan-channel/db';
 import {
   type FilterClause,
   PUBLIC_RATE_WINDOW_MS,
+  RATE_LIMIT_HITS_SWEEP_LIMIT,
   evaluateFixedWindowRateLimit,
 } from '@vibelingan-channel/shared';
 import { createDoc } from './repo.ts';
@@ -33,6 +34,36 @@ async function countHits(clauses: FilterClause[]): Promise<number> {
   return result.total;
 }
 
+/**
+ * Bounded opportunistic GC of expired ledger rows (blessing-gate P2), mirroring
+ * the admin function's sweep. Without it this ledger only ever GROWS: every
+ * callback hit is a permanent row, and since the counting query is a filtered
+ * `total` over the same collection, an unbounded ledger degrades the very
+ * check that gates the unauthenticated endpoint. Best-effort — a sweep failure
+ * must never block or fail the request.
+ */
+async function sweepExpiredHits(windowStartIso: string): Promise<void> {
+  try {
+    const stale = await list({
+      collection: 'rateLimitHits',
+      page: 1,
+      pageSize: RATE_LIMIT_HITS_SWEEP_LIMIT,
+      filter: {
+        combinator: 'and',
+        clauses: [{ field: 'createdAt', op: 'lt', value: windowStartIso }],
+      },
+      sort: [{ field: 'createdAt', dir: 'asc' }],
+    });
+    for (const row of stale.items) {
+      await remove('rateLimitHits', String(row._id)).catch((e) =>
+        console.error('[alibaba-catalog-sync] stale rate-limit row reap failed', e),
+      );
+    }
+  } catch (error) {
+    console.error('[alibaba-catalog-sync] rate-limit sweep failed', error);
+  }
+}
+
 export interface RateLimitDenied {
   denied: true;
   retryAfterSeconds: number;
@@ -48,6 +79,8 @@ export async function enforceOAuthRateLimit(opts: {
   const windowStartIso = new Date(
     Math.floor(nowMs / PUBLIC_RATE_WINDOW_MS) * PUBLIC_RATE_WINDOW_MS,
   ).toISOString();
+  // Sweep BEFORE reserving, exactly as the admin ledger does.
+  await sweepExpiredHits(windowStartIso);
   const reserved = await createDoc('rateLimitHits', {
     scope,
     sourceHash: sourceHash ?? '',

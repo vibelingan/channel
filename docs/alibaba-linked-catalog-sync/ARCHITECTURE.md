@@ -496,7 +496,7 @@ Bounds per invocation:
   §14; interactive HTTP routes sharing the function still answer fast, and
   the manual "run now" admin action only marks the run due / creates the run
   row and returns — it never executes the sync loop synchronously behind the
-  gateway);
+  gateway) — **AMENDED, see §10.1**;
 - at most 200 source products or 50 API calls;
 - checkpoint after every durable page;
 - continuation resumes next tick;
@@ -505,6 +505,34 @@ Bounds per invocation:
   single-winner run-row creation via `createDocWithId` — the lease loser
   exits without touching anything);
 - manual run uses same runner and lease.
+
+### §10.1 Amendment — `runNow` executes a bounded slice inline
+
+**Supersedes the "marks the run due and returns" clause in §10** (recorded
+after the blessing-gate review flagged the divergence; three reviewers read
+the original clause and correctly called the code a deviation).
+
+The original design assumed a timer would always exist to pick up a
+marked-due run. It does not in the **test environment**, where the deploy
+hard-fails on any timer trigger by design (§14) — so mark-due-and-return
+would leave `runNow` with nothing to drive it, and the feature would be
+unverifiable in the only environment available before production.
+
+`runNow` therefore executes ONE bounded slice inline and returns its report.
+The bound is what keeps the gateway envelope honest:
+
+- `softDeadlineMs: 15_000`, `maxProducts: 20`, `maxApiCalls: 10`;
+- the interactive path passes `maxAttempts: 1` and a short per-call timeout
+  to the API client, so a stalled upstream cannot stretch one slice past the
+  gateway envelope through retry backoff;
+- the slice runs under the SAME fenced lease as a timer tick, so a manual run
+  and a timer tick can never interleave;
+- a continuation is checkpointed exactly as a timer tick's would be, so
+  repeated `runNow` calls drive a large run to completion in the test env.
+
+Production keeps the 15-minute timer as the primary driver; `runNow` remains
+an operator escape hatch there.
+
 
 No timer in test environment.
 

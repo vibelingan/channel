@@ -46,6 +46,7 @@ import {
 } from '@vibelingan-channel/db';
 import type { AlertSender } from './alerts.ts';
 import { ingestProductDetail } from './ingest.ts';
+import { createDraftForSource } from './linking.ts';
 import { listAllDocs } from './list-all.ts';
 import { PRIMARY_CONNECTION_ID } from './oauth.ts';
 import { promoteLinkedProduct } from './promotion.ts';
@@ -324,7 +325,11 @@ export async function runSyncTick(input: {
 async function executeSlice(
   state: CheckpointState,
   counters: RunCounters,
-  input: { deps: RunnerDeps; budgetOverrides?: Partial<RunBudget> },
+  input: {
+    deps: RunnerDeps;
+    trigger: 'timer' | 'manual';
+    budgetOverrides?: Partial<RunBudget>;
+  },
   accessToken: string,
   guard: (at: string) => AlibabaLeaseGuard,
   release: () => Promise<boolean>,
@@ -333,6 +338,10 @@ async function executeSlice(
 ): Promise<TickReport> {
   const { deps } = input;
   const budget = newRunBudget(Date.parse(deps.now()), input.budgetOverrides);
+  // §10.1: a MANUAL slice answers behind the API gateway, so a stalled
+  // upstream must not stretch it through retry backoff.
+  const callTuning: { maxAttempts?: number; timeoutMs?: number } =
+    input.trigger === 'manual' ? { maxAttempts: 1, timeoutMs: 5_000 } : {};
   let lastRenewMs = budget.startedAtMs;
 
   const keepLease = async (): Promise<boolean> => {
@@ -472,6 +481,12 @@ async function executeSlice(
           bucketComplete = false;
           break;
         }
+        // Renew INSIDE the loop (blessing-gate P2): a bucket of up to 30
+        // detail calls, each retrying with backoff, can outlast the lease TTL
+        // between bucket-level renewals — after which every fenced write in
+        // this slice fails and the run makes no progress. keepLease()
+        // self-throttles, so the extra transactions are cheap.
+        if (!(await keepLease())) return { outcome: 'lease-lost', runId: state.activeRunId };
         budget.apiCalls += 1;
         budget.productsProcessed += 1;
         const params = { product_id: sourceProductId };
@@ -479,6 +494,7 @@ async function executeSlice(
           apiPath: DETAIL_PATH,
           params,
           accessToken,
+          ...callTuning,
         });
         if (!detailResponse.ok) {
           counters.parseFailures += 1;
@@ -516,11 +532,33 @@ async function executeSlice(
       { field: 'lastSeenRunId', op: 'eq', value: state.activeRunId },
     ]);
     const linkedCandidates: { sourceKey: string }[] = [];
+    let draftsCreated = 0;
+    let draftsUnmapped = 0;
     for (const source of seenItems) {
-      const link = await getDoc('alibabaProductLinks', source._id);
+      let link = await getDoc('alibabaProductLinks', source._id);
+      if (!link || typeof link.productId !== 'string' || link.productId === '') {
+        // Category-mapped DRAFT creation (blessing-gate P2): createDraftForSource
+        // was implemented and tested but had no production caller, so an
+        // unlinked source never became a draft and the mapping feature never
+        // ran at all. A source with no mapping is skipped, not an error.
+        const draft = await createDraftForSource(source._id, { now: deps.now() });
+        if (draft.ok) {
+          draftsCreated += 1;
+          link = await getDoc('alibabaProductLinks', source._id);
+        } else if (draft.reason === 'no-category-mapping') {
+          draftsUnmapped += 1;
+        }
+      }
       if (link && typeof link.productId === 'string' && link.productId !== '') {
         linkedCandidates.push({ sourceKey: source._id });
       }
+    }
+    if (draftsUnmapped > 0) {
+      // Operators cannot act on what they cannot see: an unmapped category
+      // silently withholds every product behind it.
+      await deps.alert(
+        `Alibaba sync: ${draftsUnmapped} source product(s) have no category mapping and were skipped; ${draftsCreated} draft(s) created.`,
+      );
     }
 
     const allActive = await list({

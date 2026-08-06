@@ -576,6 +576,36 @@ requireCheck(
     ),
   'db cloudbase acquire/release run their transitions inside runTransaction',
 );
+// The FENCED conditional write (R1 E2) is the branch's one architecture
+// amendment, and its PRODUCTION implementations had zero coverage — every
+// lease assertion runs against a test-only adapter that re-implements the
+// guard (blessing-gate P2). Assert the real methods here: each must re-verify
+// the lease INSIDE the same transaction as its write, or a stale holder can
+// promote after a fence takeover.
+for (const method of [
+  'acquireAlibabaSyncLease',
+  'renewAlibabaSyncLease',
+  'releaseAlibabaSyncLease',
+  'updateDocWithAlibabaLease',
+  'createDocWithId',
+  'upsertDocWithId',
+]) {
+  const calls = objectMethodCalls('cloudBaseAdapter', method);
+  requireCheck(
+    calls.includes('db.runTransaction') && calls.includes('transaction.collection'),
+    `db cloudbase ${method} performs its read-and-write inside runTransaction`,
+  );
+}
+requireCheck(
+  objectMethodCalls('cloudBaseAdapter', 'updateDocWithAlibabaLease').includes(
+    'holdsAlibabaLease',
+  ) &&
+    objectMethodCalls('cloudBaseAdapter', 'updateDocWithAlibabaLease').includes(
+      'replaceNestedObjects',
+    ),
+  'db cloudbase updateDocWithAlibabaLease re-verifies the fence and replaces nested fields',
+);
+
 requireCheck(
   cloudbaseAdapter.includes('throwOnNotFound: false'),
   'db cloudbase adapter configures throwOnNotFound=false so missing doc reads resolve null',

@@ -857,6 +857,38 @@ test('a refresh 5xx / 429 is transport noise — retryable, connection stays act
   assert.equal(currentStore.alibabaConnections?.[0]?.firstAuthErrorAt !== '', true);
 });
 
+test('a still-valid access token keeps serving through a refresh outage', async () => {
+  // The graceful-degradation arm: inside the refresh margin but BEFORE expiry,
+  // a failing refresh must return the current token and NOT page anyone.
+  // (Deleting that branch previously left the whole suite green.)
+  setup();
+  alerts.length = 0;
+  const token = await adminToken();
+  const log: FetchLogEntry[] = [];
+  const fetchImpl = fakeAlibabaFetch(log);
+  const state = await startAndExtractState(token, fetchImpl);
+  await handleOAuthCallbackRequest({ code: 'c', state }, baseConfig, {}, overrides(fetchImpl));
+
+  const { getConnectionAccessToken } = await import('./oauth.ts');
+  // Connected at 09:00 with expires_in 10h -> expiry 19:00. 18:55 is inside
+  // the 10-minute margin, so a refresh fires, but the token is still valid.
+  const downFetch = (async () => {
+    throw new Error('ECONNRESET');
+  }) as typeof fetch;
+  const runtime = resolveRuntime(baseConfig, overrides(downFetch, '2026-08-06T18:55:00.000Z'));
+  assert.equal(runtime.ok, true);
+  if (!runtime.ok) return;
+  const result = await getConnectionAccessToken(runtime.runtime.deps);
+  assert.deepEqual(result, { ok: true, accessToken: 'live-access-token' }, 'keeps serving');
+  assert.equal(currentStore.alibabaConnections?.[0]?.status, 'active');
+  assert.equal(alerts.length, 0, 'no page while the current token still works');
+  assert.equal(
+    currentStore.alibabaConnections?.[0]?.firstAuthErrorAt ?? '',
+    '',
+    'no outage window opened — nothing is degraded yet',
+  );
+});
+
 test('probeConnection is read-only: reports health without any refresh call', async () => {
   setup();
   const token = await adminToken();

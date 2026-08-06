@@ -527,11 +527,45 @@ carried by code the diff never touched.
 Gates: 654 recursive + 21 script tests, 11 typechecks + astro (0 errors),
 biome clean, SDK contract verify (48 assertions), 3 artifact smokes, site build.
 
-**P2s still open** (recorded, not yet fixed): `runNow` executes a slice inline
-where ARCHITECTURE §10 freezes it as mark-due-and-return;
-`createDraftForSource` has no production caller, so category-mapped drafts
-never actually get created; the OAuth rate-limit ledger omits the admin
-function's bounded GC sweep; the enumerate stage's inner detail loop can
-outlive the lease TTL without renewing; and three mutation-proven test gaps
-(the fenced write's production implementations, the candidate-hash
-recomputation arm, and the still-valid-token degradation arm).
+### P2 fixes (the gate blocks at 4+, and two were already closed by the P1 work)
+
+6. **`runNow` deviated from the frozen §10 clause** — three reviewers read the
+   doc and correctly called the code wrong. Resolved as a RECORDED AMENDMENT
+   (§10.1) rather than a silent deviation: mark-due-and-return cannot work in
+   the test env, which hard-fails on any timer trigger by design, so `runNow`
+   would have nothing to drive it and the feature would be unverifiable before
+   production. The amendment also makes its own claim true — the interactive
+   path now passes `maxAttempts: 1` and a 5s per-call timeout, so retry
+   backoff cannot stretch a manual slice past the gateway envelope.
+7. **`createDraftForSource` had no production caller.** It was fully
+   implemented and tested, but nothing invoked it — so an unlinked source
+   never became a draft and the whole category-mapping feature never ran.
+   Wired into the promote stage, with an alert naming how many sources were
+   skipped for want of a mapping (operators cannot act on what they cannot
+   see).
+8. **The OAuth rate-limit ledger never GC'd.** It was a faithful copy of the
+   admin limiter minus its bounded sweep, so every callback hit was a
+   permanent row — and since the ceiling check is a filtered `total` over that
+   same collection, unbounded growth degrades the check guarding an
+   unauthenticated endpoint. Sweep restored.
+9. **The enumerate stage could outlive its own lease.** Up to 30 detail calls
+   run between bucket-level renewals; at the client's worst-case ~46.5s per
+   call, four slow items exceed the 180s TTL, after which every fenced write
+   fails and the run makes no progress. `keepLease()` now runs inside the
+   detail loop (it self-throttles, so the extra transactions are cheap).
+10. **Three test gaps, each proven by mutation** — the reviewer broke the
+    source and the suite stayed green:
+    - the fenced conditional write's PRODUCTION implementations had zero
+      coverage (every lease assertion ran against a test-only adapter that
+      re-implements the guard); the SDK contract script now asserts by AST
+      that all six lease/write methods do their read-and-write inside
+      `runTransaction`, and that the fenced write re-verifies `holdsAlibabaLease`;
+    - the candidate-hash supersession check's RECOMPUTE arm was unbound —
+      only the operator-submitted-hash arm was tested;
+    - the still-valid-token degradation arm was unbound: deleting the branch
+      that keeps serving a valid token through a refresh outage changed
+      nothing.
+
+Gates after the P2 fixes: 655 recursive + 21 script tests, 11 typechecks +
+astro (0 errors), biome clean, SDK contract verify (57 assertions), 3 artifact
+smokes, site build.

@@ -616,6 +616,25 @@ test('unsupported currency quarantines BEFORE promotion; approval promotes the f
     },
   });
   assert.deepEqual(wrong, { ok: false, reason: 'superseded' });
+  // The RECOMPUTE arm of the supersession check: a later run that touched the
+  // mirror must invalidate the frozen candidate set even when the operator
+  // submits the run's OWN recorded hash. (Reducing the check to the operator
+  // arm alone previously left the whole suite green.)
+  const mirrorRow = store.alibabaSourceProducts?.[0] as CollectionDoc;
+  const originalSeen = mirrorRow.lastSeenRunId;
+  mirrorRow.lastSeenRunId = 'a-later-run';
+  const superseded = await approveQuarantinedRun({
+    runId: String(run._id),
+    candidateHash: String(run.candidateHash),
+    approvedByUserId: 'admin-1',
+    now,
+    alert: async (m) => {
+      alerts.push(m);
+    },
+  });
+  assert.deepEqual(superseded, { ok: false, reason: 'superseded' }, 'a moved mirror invalidates');
+  mirrorRow.lastSeenRunId = originalSeen;
+
   const approved = await approveQuarantinedRun({
     runId: String(run._id),
     candidateHash: String(run.candidateHash),
