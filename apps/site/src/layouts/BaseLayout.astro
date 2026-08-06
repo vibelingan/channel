@@ -6,12 +6,94 @@ interface Props {
   description?: string;
   lang?: string;
   canonicalPath?: string;
+  noindex?: boolean;
 }
 
-const { title, description = 'Channel portal', lang = 'en', canonicalPath } = Astro.props;
-const canonicalUrl = canonicalPath
-  ? new URL(canonicalPath, Astro.site ?? Astro.url.origin)
-  : undefined;
+const {
+  title,
+  description = 'OEM/ODM manufacturing partner. Engineered in Hong Kong, manufactured in Dongguan, China — from idea to shipment.',
+  lang = 'en',
+  canonicalPath,
+  noindex = false,
+} = Astro.props;
+
+// Every public page self-canonicalizes by default; pass canonicalPath to override
+// (e.g. /portfolio/ is the canonical home of the old /success-stories content).
+const siteOrigin = Astro.site ?? Astro.url.origin;
+const canonicalUrl = new URL(canonicalPath ?? Astro.url.pathname, siteOrigin);
+
+const homeUrl = new URL('/', siteOrigin).href;
+const orgId = `${homeUrl}#organization`;
+const websiteId = `${homeUrl}#website`;
+
+// Global structured data. Facts must match src/i18n/content/en-US.md — do not
+// add claims (street address, social profiles, awards) until the client
+// supplies them. TODO: add `logo` once a PNG logo exists (Google ignores SVG).
+const schemaGraph = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': orgId,
+      name: 'Diversity Technology',
+      legalName: 'Diversity Technology Limited',
+      url: homeUrl,
+      description:
+        'OEM/ODM manufacturing partner. Product design, engineering, tooling, production, quality control, and global delivery — engineered in Hong Kong, manufactured in Dongguan, China.',
+      foundingDate: '2004',
+      slogan: 'OEM / ODM Manufacturing Partner',
+      email: 'hello@diversity-tech.com',
+      address: {
+        '@type': 'PostalAddress',
+        addressLocality: 'Hong Kong',
+        addressCountry: 'HK',
+      },
+      location: {
+        '@type': 'Place',
+        name: 'Dongguan Production Facility',
+        address: {
+          '@type': 'PostalAddress',
+          addressLocality: 'Dongguan',
+          addressRegion: 'Guangdong',
+          addressCountry: 'CN',
+        },
+      },
+      contactPoint: {
+        '@type': 'ContactPoint',
+        contactType: 'sales',
+        email: 'hello@diversity-tech.com',
+        availableLanguage: ['English'],
+      },
+      knowsAbout: [
+        'OEM manufacturing',
+        'ODM product development',
+        'Consumer electronics engineering',
+        'Tooling and injection molding',
+        'Quality control and testing',
+        'Export logistics and global delivery',
+      ],
+      areaServed: 'Worldwide',
+    },
+    {
+      '@type': 'WebSite',
+      '@id': websiteId,
+      url: homeUrl,
+      name: 'Diversity Technology',
+      publisher: { '@id': orgId },
+      inLanguage: 'en',
+    },
+    {
+      '@type': 'WebPage',
+      '@id': `${canonicalUrl.href}#webpage`,
+      url: canonicalUrl.href,
+      name: title,
+      description,
+      isPartOf: { '@id': websiteId },
+      about: { '@id': orgId },
+      inLanguage: 'en',
+    },
+  ],
+};
 ---
 
 <!doctype html>
@@ -20,7 +102,9 @@ const canonicalUrl = canonicalPath
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
-    {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+    <link rel="canonical" href={canonicalUrl} />
+    {!noindex && <script type="application/ld+json" set:html={JSON.stringify(schemaGraph)} />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="mask-icon" href="/favicon.svg" color="#153687" />
     <meta name="theme-color" content="#153687" />

@@ -3,6 +3,6 @@ import { AdminApp } from '../islands/admin/AdminApp.tsx';
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
-<BaseLayout title="Channel Admin" description="Channel portal administration">
+<BaseLayout title="Channel Admin" description="Channel portal administration" noindex>
   <AdminApp client:only="react" />
 </BaseLayout>

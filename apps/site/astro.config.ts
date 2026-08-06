@@ -11,8 +11,24 @@ const env = loadEnv(process.env.NODE_ENV ?? 'development', process.cwd(), '');
 // Enabled by default; set PUBLIC_CB_PROXY=0 to disable.
 const cbProxy = env.PUBLIC_CB_PROXY !== '0';
 const cbHost = env.PUBLIC_CB_HOST || 'localhost:3002';
-const siteUrl = env.SITE_URL?.trim() || 'http://localhost:4321';
+// Canonical origin for sitemap/canonical/schema. Deploy sets SITE_URL explicitly
+// (GitHub env var = https://supplychainsai.com); the fallback must be the
+// production domain, never localhost — a build without env would otherwise
+// emit unusable sitemap URLs.
+const siteUrl = env.SITE_URL?.trim() || 'https://supplychainsai.com';
 const site = new URL(siteUrl).href.replace(/\/$/, '');
+
+// Pages that must stay out of the sitemap (auth, admin, form results, redirects).
+// Mirrored by robots.txt Disallow rules and per-page noindex meta.
+const NOINDEX_PATHS = new Set([
+  '/admin',
+  '/login',
+  '/register',
+  '/account',
+  '/reset',
+  '/oem_submit_result',
+  '/success-stories',
+]);
 
 export default defineConfig({
   site,
@@ -22,7 +38,7 @@ export default defineConfig({
   integrations: [
     react(),
     sitemap({
-      filter: (page) => new URL(page).pathname.replace(/\/$/, '') !== '/success-stories',
+      filter: (page) => !NOINDEX_PATHS.has(new URL(page).pathname.replace(/\/$/, '')),
     }),
   ],
   vite: {
