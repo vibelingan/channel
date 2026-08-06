@@ -122,6 +122,9 @@ importers:
       '@vibelingan-channel/fn-admin':
         specifier: workspace:*
         version: link:../functions/admin
+      '@vibelingan-channel/fn-alibaba-catalog-sync':
+        specifier: workspace:*
+        version: link:../functions/alibaba-catalog-sync
       '@vibelingan-channel/fn-public-api':
         specifier: workspace:*
         version: link:../functions/public-api

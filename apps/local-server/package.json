@@ -13,6 +13,7 @@
     "@vibelingan-channel/auth": "workspace:*",
     "@vibelingan-channel/db": "workspace:*",
     "@vibelingan-channel/fn-admin": "workspace:*",
+    "@vibelingan-channel/fn-alibaba-catalog-sync": "workspace:*",
     "@vibelingan-channel/fn-public-api": "workspace:*",
     "@vibelingan-channel/media-storage": "workspace:*",
     "@vibelingan-channel/shared": "workspace:*",

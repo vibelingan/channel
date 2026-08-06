@@ -11,6 +11,11 @@ import { setAdapter } from '@vibelingan-channel/db';
 import { handleAdminRequest } from '@vibelingan-channel/fn-admin/handler';
 import type { AdminConfig, AdminRequest } from '@vibelingan-channel/fn-admin/handler';
 import {
+  type AlibabaSyncFunctionConfig,
+  handleAlibabaSyncRequest,
+  handleOAuthCallbackRequest,
+} from '@vibelingan-channel/fn-alibaba-catalog-sync/handler';
+import {
   getCatalogImage,
   getCatalogItem,
   listCatalog,
@@ -91,6 +96,59 @@ app.post('/api/admin', async (req, res) => {
   const sourceIp = forwarded || req.ip || req.socket.remoteAddress || '';
   const result = await handleAdminRequest(body ?? { action: '' }, config, { sourceIp });
   res.json(result);
+});
+
+// ---------------------------------------------------------------------------
+// Alibaba catalog sync (docs/alibaba-linked-catalog-sync, MIU 13): mirrors the
+// production function's routes so the connect flow, run controls, and linking
+// are exercisable against local dev. Feature env is optional — unconfigured
+// local runs surface the not_configured state exactly like production.
+// ---------------------------------------------------------------------------
+const alibabaConfig: AlibabaSyncFunctionConfig = {
+  jwtSecret: config.jwtSecret,
+  siteUrl: optionalEnv('SITE_URL', 'http://localhost:4321'),
+  ...(optionalEnv('ALI_APP_KEY') ? { appKey: optionalEnv('ALI_APP_KEY') as string } : {}),
+  ...(optionalEnv('ALI_APP_SECRET') ? { appSecret: optionalEnv('ALI_APP_SECRET') as string } : {}),
+  ...(optionalEnv('ALI_OAUTH_CALLBACK_URL')
+    ? { callbackUrl: optionalEnv('ALI_OAUTH_CALLBACK_URL') as string }
+    : {}),
+  ...(optionalEnv('ALI_TOKEN_ENCRYPTION_KEY_V1')
+    ? { tokenKeyHex: optionalEnv('ALI_TOKEN_ENCRYPTION_KEY_V1') as string }
+    : {}),
+  ...(optionalEnv('WECOM_WEBHOOK_URL')
+    ? { wecomWebhookUrl: optionalEnv('WECOM_WEBHOOK_URL') as string }
+    : {}),
+};
+
+app.options('/api/alibaba-catalog-sync', (_req, res) => res.sendStatus(204));
+app.post('/api/alibaba-catalog-sync', async (req, res) => {
+  const forwarded = String(req.headers['x-forwarded-for'] ?? '')
+    .split(',')[0]
+    ?.trim();
+  const sourceIp = forwarded || req.ip || req.socket.remoteAddress || '';
+  const result = await handleAlibabaSyncRequest(
+    (req.body ?? { action: '' }) as Record<string, unknown>,
+    alibabaConfig,
+    { sourceIp },
+  );
+  res.json(result);
+});
+app.get('/api/alibaba-catalog-sync/health', (_req, res) => {
+  res.json({ ok: true, data: { ...releaseInfo('alibaba-catalog-sync'), mode: 'local' } });
+});
+app.get('/api/alibaba-catalog-sync/oauth/callback', async (req, res) => {
+  const forwarded = String(req.headers['x-forwarded-for'] ?? '')
+    .split(',')[0]
+    ?.trim();
+  const redirect = await handleOAuthCallbackRequest(
+    {
+      ...(typeof req.query.code === 'string' ? { code: req.query.code } : {}),
+      ...(typeof req.query.state === 'string' ? { state: req.query.state } : {}),
+    },
+    alibabaConfig,
+    { sourceIp: forwarded || req.ip || req.socket.remoteAddress || '' },
+  );
+  res.redirect(302, redirect.location);
 });
 
 // ---------------------------------------------------------------------------
