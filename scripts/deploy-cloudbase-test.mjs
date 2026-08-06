@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { buildFunctionDefs } from './cloudbase-function-manifest.mjs';
+import { buildFunctionDefs, desiredTriggersFor } from './cloudbase-function-manifest.mjs';
 import { ensureNoSqlResources } from './cloudbase-nosql-resources.mjs';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
@@ -574,18 +574,72 @@ console.log(`Deploying CloudBase test env ${envId} with function runtime ${targe
 callTool('cloudbase.auth', { action: 'set_env', envId });
 ensureNoSqlResources(callTool);
 
-// Test env must NEVER carry a timer trigger (ARCHITECTURE §14): the deploy
-// hard-fails on any trigger found so a manually-created or rehearsal timer
-// cannot survive. Production trigger application is MIU 15 activation scope.
-function assertNoTimerTriggers(def) {
-  const result = callTool('cloudbase.queryFunctions', {
+/**
+ * RECONCILE triggers to the manifest's desired state (ARCHITECTURE §14.1).
+ *
+ * This replaced a hard-fail on any trigger found. That rule assumed a separate
+ * production environment applied its own timer; with a single live
+ * environment it was a booby trap — anyone adding a timer in the console broke
+ * every future deploy, and the fix was undocumented. Desired state is strictly
+ * better: it converges instead of refusing, and it still guarantees no
+ * unintended trigger survives, because anything not declared is removed.
+ */
+function reconcileTriggers(def) {
+  const desired = desiredTriggersFor(def.name);
+  const detail = callTool('cloudbase.queryFunctions', {
     action: 'getFunctionDetail',
     functionName: def.name,
   });
-  const triggers = result.data?.functionDetail?.Triggers ?? [];
-  if (Array.isArray(triggers) && triggers.length > 0) {
+  const existing = (detail.data?.functionDetail?.Triggers ?? []).filter(Boolean);
+  const desiredByName = new Map(desired.map((trigger) => [trigger.name, trigger]));
+
+  for (const trigger of existing) {
+    const name = trigger.TriggerName ?? trigger.name;
+    const want = desiredByName.get(name);
+    // Remove anything undeclared, and anything whose schedule has drifted —
+    // re-created below from the manifest rather than edited in place.
+    if (!want || String(trigger.TriggerDesc ?? '') !== `${want.config}`) {
+      console.log(`  trigger: removing ${def.name}/${name}`);
+      callTool('cloudbase.manageFunctions', {
+        action: 'deleteFunctionTrigger',
+        functionName: def.name,
+        triggerName: name,
+      });
+    }
+  }
+
+  const remaining = new Set(
+    (
+      callTool('cloudbase.queryFunctions', {
+        action: 'getFunctionDetail',
+        functionName: def.name,
+      }).data?.functionDetail?.Triggers ?? []
+    )
+      .filter(Boolean)
+      .map((trigger) => trigger.TriggerName ?? trigger.name),
+  );
+  for (const trigger of desired) {
+    if (remaining.has(trigger.name)) continue;
+    console.log(`  trigger: creating ${def.name}/${trigger.name} (${trigger.config})`);
+    callTool('cloudbase.manageFunctions', {
+      action: 'createFunctionTrigger',
+      functionName: def.name,
+      triggers: [trigger],
+    });
+  }
+
+  // VERIFY the outcome. A reconcile that is not asserted is a wish.
+  const finalTriggers = (
+    callTool('cloudbase.queryFunctions', {
+      action: 'getFunctionDetail',
+      functionName: def.name,
+    }).data?.functionDetail?.Triggers ?? []
+  ).filter(Boolean);
+  const finalNames = finalTriggers.map((trigger) => trigger.TriggerName ?? trigger.name).sort();
+  const wantNames = desired.map((trigger) => trigger.name).sort();
+  if (JSON.stringify(finalNames) !== JSON.stringify(wantNames)) {
     throw new Error(
-      `${def.name}: the TEST environment must not carry function triggers; found ${triggers.length}. Remove them in the CloudBase console and redeploy.`,
+      `${def.name}: trigger reconcile failed — wanted [${wantNames.join(', ')}], found [${finalNames.join(', ')}]`,
     );
   }
 }
@@ -593,7 +647,7 @@ function assertNoTimerTriggers(def) {
 for (const def of functionDefs) {
   deployFunction(def);
   ensureGateway(def);
-  assertNoTimerTriggers(def);
+  reconcileTriggers(def);
 }
 
 deployWebApp();

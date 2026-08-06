@@ -98,14 +98,35 @@ export function buildFunctionDefs(ctx) {
 }
 
 /**
- * Timer desired-state (ARCHITECTURE §14): the TEST environment must NEVER
- * carry a timer — the deploy hard-fails and the smoke asserts absence.
- * Production's declared trigger is applied through the MIU 15 activation
- * (production deployment is NEW SCOPE — manual with recorded evidence until a
- * prod workflow exists).
+ * Timer DESIRED STATE (ARCHITECTURE §14.1).
+ *
+ * There is ONE environment and it serves the live site, so the old
+ * "test must never carry a timer / production applies its own" split does not
+ * exist. This object is the single source of truth the deploy RECONCILES
+ * against: a trigger listed here is created if missing, and any trigger NOT
+ * listed here is removed. Same desired-state model the manifest already uses
+ * for routes, timeouts and env.
+ *
+ * Currently EMPTY for every function — deliberately. Sync runs only when an
+ * operator clicks "Run now" until a manual run has completed cleanly against
+ * the real supplier account (§14.1). This is a rollout decision, not a
+ * limitation: enabling the timer is now a one-line change here plus a redeploy,
+ * and the deploy verifies the result instead of forbidding it.
+ *
+ * To turn sync on automatically, move the entry below into DESIRED and deploy.
  */
-export const PRODUCTION_DESIRED_TIMER_TRIGGERS = {
-  'alibaba-catalog-sync': [
-    { name: 'alibaba-sync-tick', type: 'timer', config: '0 */15 * * * * *' },
-  ],
+export const DESIRED_TIMER_TRIGGERS = {
+  // 'alibaba-catalog-sync': [ALIBABA_SYNC_TIMER],
 };
+
+/** The 15-minute tick §10 specifies, kept declared so enabling it is one edit. */
+export const ALIBABA_SYNC_TIMER = {
+  name: 'alibaba-sync-tick',
+  type: 'timer',
+  config: '0 */15 * * * * *',
+};
+
+/** Triggers this function should carry; [] means "none, and remove any found". */
+export function desiredTriggersFor(functionName) {
+  return DESIRED_TIMER_TRIGGERS[functionName] ?? [];
+}

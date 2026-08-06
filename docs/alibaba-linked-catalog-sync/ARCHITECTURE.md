@@ -537,11 +537,22 @@ loop for a first live connection, and it cannot surprise anyone at 3am. Enable
 the timer only once a manual run has completed cleanly against the real
 supplier account.
 
-**To enable the timer later** (one change, both halves required, or the next
-deploy breaks): apply `PRODUCTION_DESIRED_TIMER_TRIGGERS` in the deploy, and
-replace `assertNoTimerTriggers` with an assertion that the DESIRED trigger is
-present and no other. Do not simply delete the assertion — an unasserted
-trigger set is how a rehearsal timer survives unnoticed.
+**RESOLVED 2026-08-07 — the deploy now reconciles instead of refusing.**
+`DESIRED_TIMER_TRIGGERS` in `scripts/cloudbase-function-manifest.mjs` is the
+single source of truth: the deploy creates any declared trigger that is
+missing, removes any trigger that is not declared (including one whose schedule
+has drifted), and then VERIFIES the result. The smoke asserts the same desired
+state rather than asserting absence — otherwise enabling the timer would deploy
+cleanly and then fail its own smoke.
+
+The old rule was a booby trap under a single environment: anyone adding a timer
+in the console broke every future deploy, with no documented way out.
+
+**To turn automatic sync on:** uncomment the `alibaba-catalog-sync` entry in
+`DESIRED_TIMER_TRIGGERS` (the 15-minute `ALIBABA_SYNC_TIMER` stays declared for
+exactly this purpose) and deploy. `scripts/function-manifest.test.mjs` pins the
+current manual-only state, so that test failing is the intended signal that
+someone changed this deliberately — update it, do not delete it.
 
 ### §10.1 Amendment — `runNow` executes a bounded slice inline
 

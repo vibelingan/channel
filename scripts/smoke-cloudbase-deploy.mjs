@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { FUNCTION_NAMES } from './cloudbase-function-manifest.mjs';
+import { FUNCTION_NAMES, desiredTriggersFor } from './cloudbase-function-manifest.mjs';
 import { decodeUtf8, fetchFully } from './smoke-http.mjs';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
@@ -122,19 +122,32 @@ callTool('cloudbase.auth', { action: 'set_env', envId });
 for (const functionName of FUNCTION_NAMES) {
   verifyFunctionRuntime(functionName);
 }
-// ARCHITECTURE §14: the test environment must never carry a timer trigger.
+// ARCHITECTURE §14.1: triggers must match the manifest's DESIRED state — not
+// "none". Asserting absence here would make enabling the timer deploy cleanly
+// and then fail its own smoke, which is how a correct change gets reverted for
+// the wrong reason.
 {
   const detail = callTool('cloudbase.queryFunctions', {
     action: 'getFunctionDetail',
     functionName: 'alibaba-catalog-sync',
   }).data?.functionDetail;
-  const triggers = detail?.Triggers ?? [];
-  if (Array.isArray(triggers) && triggers.length > 0) {
+  const found = (detail?.Triggers ?? [])
+    .filter(Boolean)
+    .map((trigger) => trigger.TriggerName ?? trigger.name)
+    .sort();
+  const want = desiredTriggersFor('alibaba-catalog-sync')
+    .map((trigger) => trigger.name)
+    .sort();
+  if (JSON.stringify(found) !== JSON.stringify(want)) {
     throw new Error(
-      `alibaba-catalog-sync: test env carries ${triggers.length} trigger(s); it must have none`,
+      `alibaba-catalog-sync: triggers [${found.join(', ')}] do not match desired [${want.join(', ')}]`,
     );
   }
-  console.log('alibaba-catalog-sync: no triggers on test (as required)');
+  console.log(
+    want.length === 0
+      ? 'alibaba-catalog-sync: no triggers, as declared (sync is manual-only)'
+      : `alibaba-catalog-sync: triggers match desired [${want.join(', ')}]`,
+  );
 }
 
 for (const path of ['/', '/admin', '/login', '/oem', '/portfolio']) {
