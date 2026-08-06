@@ -138,16 +138,21 @@ interface UploadIntentResponse {
   imageId: string;
   uploadIntentId: string;
   storageFileId: string;
-  upload: { method: 'POST'; url: string; fields: Record<string, string> };
+  upload: { method: 'PUT'; url: string; headers: Record<string, string> };
 }
 
 /**
  * Upload an image via the admin-brokered direct-upload flow (MIU-Upload):
  *   1. ask the server for a single-object pre-signed credential (createUploadIntent);
- *   2. `POST` the bytes straight to COS as multipart/form-data — bypassing the function byte cap;
+ *   2. `PUT` the raw bytes straight to COS — bypassing the function byte cap;
  *   3. have the server verify + activate (completeUpload).
  * Returns the new image id. The browser never holds a storage identity — only the
  * custom JWT (carried by `call`); the COS signature is server-minted.
+ *
+ * PUT with credential HEADERS, never a multipart POST: the signature is minted
+ * through @cloudbase/node-sdk 3.x, which asks the control plane to sign for
+ * `put`. A multipart POST against that signature is rejected by COS with 403
+ * SignatureDoesNotMatch.
  */
 export async function uploadImage(file: File): Promise<string> {
   const intent = await call<UploadIntentResponse>('createUploadIntent', {
@@ -156,17 +161,14 @@ export async function uploadImage(file: File): Promise<string> {
     byteSize: file.size,
   });
 
-  const form = new FormData();
-  for (const [key, value] of Object.entries(intent.upload.fields)) form.append(key, value);
-  form.append('file', file);
-
-  const post = await fetch(intent.upload.url, {
+  const put = await fetch(intent.upload.url, {
     method: intent.upload.method,
-    body: form,
+    headers: intent.upload.headers,
+    body: file,
   });
-  if (!post.ok) {
+  if (!put.ok) {
     // Leave the pending doc for orphan cleanup; surface a clear error.
-    throw new AdminApiError('UPLOAD_FAILED', `Storage upload failed (${post.status})`);
+    throw new AdminApiError('UPLOAD_FAILED', `Storage upload failed (${put.status})`);
   }
 
   await call('completeUpload', { imageId: intent.imageId });

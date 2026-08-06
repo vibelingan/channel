@@ -152,11 +152,16 @@ test('cloudbase getUploadCredential maps the SDK upload metadata to the clean sh
   const cred = await store.getUploadCredential('catalog/2026/06/img1/original-p.jpg');
   assert.deepEqual(sdk.uploadMetaPaths.at(-1), 'catalog/2026/06/img1/original-p.jpg');
   assert.equal(cred.uploadUrl, 'https://cos.example/post');
-  assert.equal(cred.method, 'POST');
-  assert.equal(cred.formFields.Signature, 'q-sign-algorithm=...');
-  assert.equal(cred.formFields['x-cos-security-token'], 'sts-token');
-  assert.equal(cred.formFields['x-cos-meta-fileid'], 'cos-meta');
-  assert.equal(cred.formFields.key, 'catalog/2026/06/img1/original-p.jpg');
+  // PUT, not multipart POST: node-sdk 3.x signs the metadata for `put`, so the
+  // credential must travel as request HEADERS on a raw-body PUT.
+  assert.equal(cred.method, 'PUT');
+  assert.equal(cred.headers.Signature, 'q-sign-algorithm=...');
+  assert.equal(cred.headers['x-cos-security-token'], 'sts-token');
+  assert.equal(cred.headers['x-cos-meta-fileid'], 'cos-meta');
+  // The SDK duplicates the signature into a lowercase `authorization` header
+  // and URI-encodes the key; mirror it exactly.
+  assert.equal(cred.headers.authorization, 'q-sign-algorithm=...');
+  assert.equal(cred.headers.key, encodeURIComponent('catalog/2026/06/img1/original-p.jpg'));
   assert.equal(cred.storageFileId, 'cloud://env.bucket/catalog/2026/06/img1/original-p.jpg');
 });
 

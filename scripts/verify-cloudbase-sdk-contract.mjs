@@ -215,8 +215,52 @@ requireCheck(
     'x-cos-meta-fileid',
     'fileId',
     'cosFileId',
-  ]) && /method:\s*['"]post['"]/.test(nodeStorage),
-  '@cloudbase/node-sdk storage implementation uses upload metadata and multipart POST form fields',
+  ]),
+  '@cloudbase/node-sdk storage implementation mints upload metadata with the expected fields',
+);
+
+/*
+ * THE UPLOAD VERB IS THE WHOLE CONTRACT — and it must be read from the
+ * uploadFile BODY, never from a whole-file grep. The previous probe scanned the
+ * entire module for /method: 'post'/ and matched the CONTROL-PLANE metadata
+ * request (which is legitimately a POST), so it reported "multipart POST upload"
+ * while the installed SDK actually PUT the bytes. The browser kept POSTing a
+ * multipart form against a PUT-scoped signature and COS rejected every upload
+ * with 403 SignatureDoesNotMatch — with CI green. Anchor on the function body.
+ */
+function sdkFunctionBody(source, name) {
+  const start = source.indexOf(`async function ${name}(`);
+  if (start < 0) return '';
+  const end = source.indexOf(`exports.${name} =`, start);
+  return end > start ? source.slice(start, end) : source.slice(start);
+}
+const uploadFileBody = sdkFunctionBody(nodeStorage, 'uploadFile');
+requireCheck(
+  uploadFileBody.length > 0 && /method:\s*['"]put['"]/.test(uploadFileBody),
+  '@cloudbase/node-sdk uploadFile sends the BYTES with PUT (not multipart POST)',
+);
+requireCheck(
+  !/formData/.test(uploadFileBody) &&
+    containsAll(uploadFileBody, ['Signature', 'x-cos-security-token', 'x-cos-meta-fileid']),
+  '@cloudbase/node-sdk uploadFile carries the credential in HEADERS, with no multipart form',
+);
+const uploadMetadataBody = sdkFunctionBody(nodeStorage, 'getUploadMetadata');
+requireCheck(
+  /method:\s*['"]put['"]/.test(uploadMetadataBody),
+  '@cloudbase/node-sdk requests the upload signature scoped to PUT',
+);
+
+// The application's own credential + browser client must match that verb.
+const mediaIndex = readFileSync(join(root, 'packages/media-storage/src/index.ts'), 'utf8');
+requireCheck(
+  /method:\s*'PUT'/.test(mediaIndex) && !/formFields/.test(mediaIndex),
+  'media-storage UploadCredential is a PUT+headers contract, not multipart form fields',
+);
+const adminUploadClient = readFileSync(join(root, 'apps/site/src/islands/admin/api.ts'), 'utf8');
+requireCheck(
+  /headers:\s*intent\.upload\.headers/.test(adminUploadClient) &&
+    !/new FormData\(\)[\s\S]{0,400}intent\.upload/.test(adminUploadClient),
+  'browser upload client sends credential headers with a raw body (no multipart form)',
 );
 
 const nodeCloudbase = readPackageFile(nodeSdk, 'dist/cloudbase.js');
@@ -368,13 +412,15 @@ requireCheck(
     "requireStringField(fields, 'token'",
     "requireStringField(fields, 'cosFileId'",
     "requireStringField(fields, 'fileId'",
-    "method: 'POST'",
-    'formFields',
+    "method: 'PUT'",
+    'headers',
     'Signature',
     'x-cos-security-token',
     'x-cos-meta-fileid',
-  ]),
-  'media-storage maps node-sdk upload metadata to POST form credentials',
+    // The SDK duplicates the signature lowercase and URI-encodes the key.
+    'encodeURIComponent(cloudPath)',
+  ]) && !mediaCloudbase.includes('formFields'),
+  'media-storage maps node-sdk upload metadata to PUT header credentials',
 );
 requireCheck(
   !mediaCloudbase.includes('cloudObjectMeta') && !mediaCloudbase.includes('cloudObjectId'),

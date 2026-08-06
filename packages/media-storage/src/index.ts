@@ -37,19 +37,31 @@ export interface StoredMediaObject {
 /**
  * A short-lived, single-object credential that lets the BROWSER write bytes
  * straight to storage (bypassing the function byte cap). The server mints it; the
- * browser posts a multipart form directly to COS, then reports back so the
+ * browser PUTs the raw bytes directly to COS, then reports back so the
  * server can verify + activate. `storageFileId` is the durable id to persist.
  * See docs/IMAGE_UPLOAD_EXECUTION.md §"Upload-credential mechanism".
+ *
+ * PUT, NOT multipart POST. `@cloudbase/node-sdk` 3.x mints this signature by
+ * asking the control plane for `method: 'put'` (dist/storage/index.js
+ * getUploadMetadata), so the signature only validates for a raw PUT whose
+ * headers carry the credential. Sending the old multipart POST against a 3.x
+ * signature is rejected by COS with `SignatureDoesNotMatch` (HTTP 403) — the
+ * exact regression the 2.10.0 -> 3.17.2 upgrade introduced.
  */
 export interface UploadCredential {
-  /** Direct COS form POST target for the bytes. */
+  /** Direct COS PUT target for the raw bytes. */
   uploadUrl: string;
-  method: 'POST';
-  /** Required multipart fields; append these before the `file` part. */
-  formFields: {
+  method: 'PUT';
+  /**
+   * Required request headers, mirroring the installed SDK's own upload call.
+   * `authorization` duplicates `Signature` and `key` is URI-encoded, both
+   * exactly as `uploadFile` sends them.
+   */
+  headers: {
     Signature: string;
     'x-cos-security-token': string;
     'x-cos-meta-fileid': string;
+    authorization: string;
     key: string;
   };
   /** Durable storage id to persist on the image doc (e.g. `cloud://env.bucket/path`). */

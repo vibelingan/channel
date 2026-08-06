@@ -14,7 +14,7 @@ interface UploadIntent {
   imageId: string;
   uploadIntentId: string;
   storageFileId: string;
-  upload: { method: 'POST'; url: string; fields: Record<string, string> };
+  upload: { method: 'PUT'; url: string; headers: Record<string, string> };
 }
 
 interface ImagePreview {
@@ -104,18 +104,18 @@ async function browserFetchStatus(
   );
 }
 
-async function browserPostObject(page: Page, intent: UploadIntent): Promise<BrowserFetchResult> {
+async function browserPutObject(page: Page, intent: UploadIntent): Promise<BrowserFetchResult> {
   return page.evaluate(
-    async ({ uploadUrl, method, fields, bodyBase64 }) => {
+    async ({ uploadUrl, method, headers, bodyBase64 }) => {
       const raw = atob(bodyBase64);
       const bytes = new Uint8Array(raw.length);
       for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
-      const form = new FormData();
-      for (const [key, value] of Object.entries(fields)) form.append(key, value);
-      form.append('file', new Blob([bytes], { type: 'image/png' }), 'miu09.png');
+      // Raw PUT with credential headers — the shape @cloudbase/node-sdk 3.x
+      // signs for. A multipart POST here returns 403 SignatureDoesNotMatch.
       const response = await fetch(uploadUrl, {
         method,
-        body: form,
+        headers,
+        body: new Blob([bytes], { type: 'image/png' }),
       });
       const text = await response.text();
       return {
@@ -127,7 +127,7 @@ async function browserPostObject(page: Page, intent: UploadIntent): Promise<Brow
     {
       uploadUrl: intent.upload.url,
       method: intent.upload.method,
-      fields: intent.upload.fields,
+      headers: intent.upload.headers,
       bodyBase64: onePixelPng.toString('base64'),
     },
   );
@@ -176,15 +176,16 @@ test.describe('MIU-09 deployed media upload smoke', () => {
       );
       imageId = intent.imageId;
       expect(intent.upload.url).toMatch(/^https:\/\//);
-      expect(intent.upload.method).toBe('POST');
-      expect(intent.upload.fields.Signature).toBeTruthy();
-      expect(intent.upload.fields['x-cos-security-token']).toBeTruthy();
-      expect(intent.upload.fields['x-cos-meta-fileid']).toBeTruthy();
-      expect(intent.upload.fields.key).toBeTruthy();
+      expect(intent.upload.method).toBe('PUT');
+      expect(intent.upload.headers.Signature).toBeTruthy();
+      expect(intent.upload.headers['x-cos-security-token']).toBeTruthy();
+      expect(intent.upload.headers['x-cos-meta-fileid']).toBeTruthy();
+      expect(intent.upload.headers.key).toBeTruthy();
+      expect(intent.upload.headers.authorization).toBeTruthy();
 
-      const post = await browserPostObject(page, intent);
-      expect(post.status, `COS POST failed: ${post.bodySnippet}`).toBeGreaterThanOrEqual(200);
-      expect(post.status, `COS POST failed: ${post.bodySnippet}`).toBeLessThan(300);
+      const post = await browserPutObject(page, intent);
+      expect(post.status, `COS PUT failed: ${post.bodySnippet}`).toBeGreaterThanOrEqual(200);
+      expect(post.status, `COS PUT failed: ${post.bodySnippet}`).toBeLessThan(300);
 
       await browserAdminAction(page, 'completeUpload', { imageId }, token);
 

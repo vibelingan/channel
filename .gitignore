@@ -39,3 +39,7 @@ Thumbs.db
 .claude/.review-in-flight
 .claude/.review-overrides.log
 .claude/review-findings-*.md
+
+# dev-pipeline local bookkeeping (durable record lives in docs/)
+.claude/archive/
+.claude/pipeline-state.json

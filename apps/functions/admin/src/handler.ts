@@ -2048,8 +2048,8 @@ async function createUploadIntentAction(
     upload: {
       method: credential.method,
       url: credential.uploadUrl,
-      // Browser appends these to multipart/form-data before the file part.
-      fields: credential.formFields,
+      // Browser sends these as request headers with the raw bytes as the body.
+      headers: credential.headers,
     },
   });
 }
@@ -2555,7 +2555,7 @@ async function createOemFileUploadIntentAction(
     upload: {
       method: credential.method,
       url: credential.uploadUrl,
-      fields: credential.formFields,
+      headers: credential.headers,
     },
   });
 }

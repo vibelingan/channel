@@ -1089,13 +1089,14 @@ function makeFakeMediaStorage(
     async getUploadCredential(cloudPath: string): Promise<UploadCredential> {
       if (opts.uploadThrows) throw new Error('fake: credential mint failed');
       return {
-        uploadUrl: 'https://cos.example/post',
-        method: 'POST',
-        formFields: {
+        uploadUrl: 'https://cos.example/put',
+        method: 'PUT',
+        headers: {
           Signature: 'q-sign-algorithm=...',
           'x-cos-security-token': 'sts-token',
           'x-cos-meta-fileid': 'cos-meta',
-          key: cloudPath,
+          authorization: 'q-sign-algorithm=...',
+          key: encodeURIComponent(cloudPath),
         },
         storageFileId: `cloud://env.bucket/${cloudPath}`,
         ...opts.credential,
@@ -1129,15 +1130,15 @@ test('createUploadIntent mints a credential and writes a pending image doc', asy
     imageId: string;
     uploadIntentId: string;
     storageFileId: string;
-    upload: { method: 'POST'; url: string; fields: Record<string, string> };
+    upload: { method: 'PUT'; url: string; headers: Record<string, string> };
   }>(res);
 
   assert.ok(data.imageId);
-  assert.equal(data.upload.method, 'POST');
-  assert.equal(data.upload.url, 'https://cos.example/post');
-  assert.equal(data.upload.fields.Signature, 'q-sign-algorithm=...');
-  assert.equal(data.upload.fields['x-cos-security-token'], 'sts-token');
-  assert.equal(data.upload.fields['x-cos-meta-fileid'], 'cos-meta');
+  assert.equal(data.upload.method, 'PUT');
+  assert.equal(data.upload.url, 'https://cos.example/put');
+  assert.equal(data.upload.headers.Signature, 'q-sign-algorithm=...');
+  assert.equal(data.upload.headers['x-cos-security-token'], 'sts-token');
+  assert.equal(data.upload.headers['x-cos-meta-fileid'], 'cos-meta');
 
   const doc = store.images?.find((i) => i._id === data.imageId);
   assert.equal(doc?.status, 'pending');
@@ -2609,14 +2610,14 @@ test('createOemFileUploadIntent mints a credential, writes a pending row, return
     fileId: string;
     uploadIntentId: string;
     uploadSecret: string;
-    upload: { method: string; url: string; fields: Record<string, string> };
+    upload: { method: string; url: string; headers: Record<string, string> };
   }>(await callPublic('createOemFileUploadIntent', validOemIntent, { sourceIp: '1.2.3.4' }));
 
   assert.ok(data.fileId);
   assert.ok(data.uploadIntentId);
   assert.ok(data.uploadSecret.length >= 32);
-  assert.equal(data.upload.method, 'POST');
-  assert.equal(data.upload.url, 'https://cos.example/post');
+  assert.equal(data.upload.method, 'PUT');
+  assert.equal(data.upload.url, 'https://cos.example/put');
 
   const doc = store.files?.find((f) => f._id === data.fileId);
   assert.ok(doc);
