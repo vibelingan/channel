@@ -1,6 +1,7 @@
 # Learnings
 
 ## [LRN-20260806-001] correction
+<!-- consolidated: 2026-08-06 verdict=new-pattern target=verification-integrity/run-the-composed-gate-not-your-own -->
 
 **Logged**: 2026-08-06T02:40:00Z
 **Priority**: critical
@@ -29,6 +30,7 @@ Invoke the composed pipeline command rather than its constituent commands. Where
 ---
 
 ## [LRN-20260806-002] correction
+<!-- consolidated: 2026-08-06 verdict=new-pattern target=silent-no-op-integrations/forked-sdk-transport -->
 
 **Logged**: 2026-08-06T02:40:00Z
 **Priority**: critical
@@ -59,6 +61,7 @@ Register forked minter/sender pairs and assert verb, credential placement and bo
 ---
 
 ## [LRN-20260806-003] best_practice
+<!-- consolidated: 2026-08-06 verdict=refinement target=verification-integrity/probe-must-fail-on-injected-defect -->
 
 **Logged**: 2026-08-06T02:40:00Z
 **Priority**: high
