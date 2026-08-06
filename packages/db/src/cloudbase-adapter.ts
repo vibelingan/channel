@@ -14,11 +14,20 @@ import {
  */
 import cloud from 'wx-server-sdk';
 import type {
+  AlibabaLeaseGrant,
   DbAdapter,
   ImageMutationAcquireResult,
   ImageMutationReleaseResult,
 } from './adapter.ts';
-import { transitionImageMutationAcquire, transitionImageMutationRelease } from './adapter.ts';
+import {
+  ALIBABA_SYNC_LEASE_COLLECTION,
+  holdsAlibabaLease,
+  transitionAlibabaLeaseAcquire,
+  transitionAlibabaLeaseRelease,
+  transitionAlibabaLeaseRenew,
+  transitionImageMutationAcquire,
+  transitionImageMutationRelease,
+} from './adapter.ts';
 
 /*
  * wx-server-sdk@4 ships official types, but every terminal database call is
@@ -77,6 +86,14 @@ interface NodeSdkTransaction {
     doc(id: string): {
       get(): Promise<{ data: unknown }>;
       update(patch: Record<string, unknown>): Promise<unknown>;
+      /**
+       * Full-replace upsert: `database.modifyDocument` with
+       * `{merge:false, upsert:true, transactionId, query:{_id}}`. The data
+       * object must NOT contain `_id` (the SDK rejects it). Verified against
+       * the installed @cloudbase/database 1.4.3 source and probed by
+       * scripts/verify-cloudbase-sdk-contract.mjs.
+       */
+      set(data: Record<string, unknown>): Promise<{ updated?: number }>;
     };
   };
 }
@@ -279,6 +296,118 @@ export const cloudBaseAdapter: DbAdapter = {
         updatedAt: new Date().toISOString(),
       });
       return 'released';
+    });
+  },
+
+  // -------------------------------------------------------------------------
+  // Deterministic-id writes + Alibaba sync lease (ARCHITECTURE §9).
+  // Every method is ONE runTransaction whose callback is a pure
+  // read-check-write: runTransaction re-executes the callback on
+  // DATABASE_TRANSACTION_CONFLICT, so callbacks must have no side effects
+  // outside the transaction.
+  // -------------------------------------------------------------------------
+
+  async createDocWithId(collection, id, data): Promise<'created' | 'exists'> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection(collection).doc(id);
+      const got = await ref.get();
+      if (normalizeSingle(got.data)) return 'exists';
+      // set() is a full-replace upsert keyed by the doc id; _id must not
+      // appear in the payload (SDK contract, probed in CI).
+      const { _id, ...payload } = data as Record<string, unknown> & { _id?: unknown };
+      await ref.set(payload);
+      return 'created';
+    });
+  },
+
+  async upsertDocWithId(collection, id, data): Promise<CollectionDoc> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection(collection).doc(id);
+      const got = await ref.get();
+      const existing = normalizeSingle(got.data);
+      const now = new Date().toISOString();
+      const { _id, ...patch } = data as Record<string, unknown> & { _id?: unknown };
+      if (existing) {
+        const merged = { ...patch, updatedAt: now };
+        await ref.update(merged);
+        return normalize({ ...existing, ...merged, _id: id });
+      }
+      const created = { createdAt: now, updatedAt: now, ...patch };
+      await ref.set(created);
+      return normalize({ _id: id, ...created });
+    });
+  },
+
+  async acquireAlibabaSyncLease(connectionId, holder, now, ttlMs): Promise<AlibabaLeaseGrant> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(connectionId);
+      const got = await ref.get();
+      const transition = transitionAlibabaLeaseAcquire(
+        normalizeSingle(got.data),
+        holder,
+        now,
+        ttlMs,
+      );
+      if (transition.result !== 'granted') return { result: transition.result };
+      await ref.set({ ...transition.doc, updatedAt: now });
+      return { result: 'granted', fence: transition.fence };
+    });
+  },
+
+  async renewAlibabaSyncLease(connectionId, holder, fence, now, ttlMs): Promise<boolean> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(connectionId);
+      const got = await ref.get();
+      const transition = transitionAlibabaLeaseRenew(
+        normalizeSingle(got.data),
+        holder,
+        fence,
+        now,
+        ttlMs,
+      );
+      if (transition.result !== 'applied') return false;
+      await ref.update({ ...transition.patch, updatedAt: now });
+      return true;
+    });
+  },
+
+  async releaseAlibabaSyncLease(connectionId, holder, fence, now): Promise<boolean> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(connectionId);
+      const got = await ref.get();
+      const transition = transitionAlibabaLeaseRelease(
+        normalizeSingle(got.data),
+        holder,
+        fence,
+        now,
+      );
+      if (transition.result !== 'applied') return false;
+      if (Object.keys(transition.patch).length > 0) {
+        await ref.update({ ...transition.patch, updatedAt: now });
+      }
+      return true;
+    });
+  },
+
+  async updateDocWithAlibabaLease(collection, id, patch, guard): Promise<boolean> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      // The fence recheck lives INSIDE the same transaction as the write —
+      // assert-then-update at the caller would be check-then-act (R1 E2).
+      const leaseRef = transaction
+        .collection(ALIBABA_SYNC_LEASE_COLLECTION)
+        .doc(guard.connectionId);
+      const lease = normalizeSingle((await leaseRef.get()).data);
+      if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+      const targetRef = transaction.collection(collection).doc(id);
+      if (!normalizeSingle((await targetRef.get()).data)) return false;
+      await targetRef.update({ ...patch, updatedAt: guard.now });
+      return true;
     });
   },
 };

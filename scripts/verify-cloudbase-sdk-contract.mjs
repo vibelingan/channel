@@ -192,6 +192,87 @@ try {
 } finally {
   databaseModule.Db.reqClass = originalRequestClass;
 }
+
+// ---------------------------------------------------------------------------
+// Alibaba sync lease surfaces (docs/alibaba-linked-catalog-sync, MIU 4):
+// the fenced lease and createDocWithId/upsertDocWithId rely on in-transaction
+// doc.get() (missing -> {data: null}) and doc.set() acting as a full-replace
+// upsert routed through database.modifyDocument with the transactionId.
+// Static probe: the installed @cloudbase/database source must implement set()
+// with exactly that contract.
+// ---------------------------------------------------------------------------
+const documentRuntime = readFileSync(join(dirname(databaseEntry), 'document.js'), 'utf8');
+requireCheck(
+  containsAll(documentRuntime, [
+    "await this.request.send('database.modifyDocument'",
+    'upsert: true',
+    'merge: false',
+    'transactionId: this._transactionId',
+  ]),
+  '@cloudbase/database doc.set is a transaction-aware full-replace upsert via database.modifyDocument',
+);
+requireCheck(
+  containsAll(documentRuntime, [
+    "await this.request.send('database.getDocument'",
+    'data: documents[0] || null',
+  ]),
+  '@cloudbase/database in-transaction doc.get resolves {data: doc|null} for missing documents',
+);
+// Runtime probe: drive a transaction through get(miss) -> set -> update and
+// pin the API sequence + upsert/merge params actually sent.
+{
+  const txCalls = [];
+  class FakeLeaseProbeRequest {
+    async send(api, params) {
+      txCalls.push({ api, params });
+      if (api === 'database.startTransaction') return { transactionId: 'lease-probe-tx' };
+      if (api === 'database.getDocument') return { requestId: 'r', data: { list: [] } };
+      if (api === 'database.modifyDocument') {
+        return { requestId: 'r', data: { updated: 1, upsert_id: 'conn-1' } };
+      }
+      return { requestId: 'r' };
+    }
+  }
+  const originalReqClass = databaseModule.Db.reqClass;
+  try {
+    databaseModule.Db.reqClass = FakeLeaseProbeRequest;
+    const probeDb = new databaseModule.Db({});
+    const probeResult = await probeDb.runTransaction(async (transaction) => {
+      const ref = transaction.collection('alibabaSyncLeases').doc('conn-1');
+      const missing = await ref.get();
+      const setResult = await ref.set({ holder: 'h', fence: 1 });
+      await ref.update({ heartbeatAt: 'x' });
+      return { missing: missing.data, updated: setResult.updated };
+    });
+    const apiSequence = txCalls.map((call) => call.api);
+    const setCall = txCalls.find(
+      (call) => call.api === 'database.modifyDocument' && call.params?.upsert === true,
+    );
+    const updateCall = txCalls.find(
+      (call) => call.api === 'database.modifyDocument' && call.params?.upsert === false,
+    );
+    requireCheck(
+      probeResult.missing === null &&
+        probeResult.updated === 1 &&
+        JSON.stringify(apiSequence) ===
+          JSON.stringify([
+            'database.startTransaction',
+            'database.getDocument',
+            'database.modifyDocument',
+            'database.modifyDocument',
+            'database.commitTransaction',
+          ]) &&
+        setCall?.params?.merge === false &&
+        setCall?.params?.transactionId === 'lease-probe-tx' &&
+        setCall?.params?.query?.includes('conn-1') &&
+        updateCall?.params?.merge === true &&
+        updateCall?.params?.transactionId === 'lease-probe-tx',
+      '@cloudbase/database transaction get-miss/set-upsert/update probe matches the lease write contract',
+    );
+  } finally {
+    databaseModule.Db.reqClass = originalReqClass;
+  }
+}
 requireCheck(
   containsAll(nodeTypes, [
     'IGetUploadMetadataResult',

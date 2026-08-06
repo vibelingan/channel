@@ -97,6 +97,157 @@ export function transitionImageMutationRelease(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Alibaba sync lease (docs/alibaba-linked-catalog-sync/ARCHITECTURE.md §9)
+//
+// Same architecture as the image-mutation lock above: ONE pure transition
+// state machine shared by every adapter, with each adapter supplying only its
+// atomicity envelope (CloudBase runTransaction / local JSON withMutationLock).
+// Unlike the image lock, this lease is FENCED: every acquisition after a
+// release/expiry increments a fence token, and guarded writes re-verify
+// holder+fence+expiry INSIDE the same transaction as the write
+// (updateDocWithAlibabaLease) — assert-then-write is forbidden for guarded
+// state (REVISION_R1 E2).
+// ---------------------------------------------------------------------------
+
+/** Lease TTL; a holder that stops heartbeating loses the lease after this. */
+export const ALIBABA_SYNC_LEASE_TTL_MS = 180_000;
+/** Heartbeat cadence; renew this often and before long operations. */
+export const ALIBABA_SYNC_LEASE_RENEW_MS = 60_000;
+/** Collection the lease documents live in (doc id = connectionId). */
+export const ALIBABA_SYNC_LEASE_COLLECTION = 'alibabaSyncLeases';
+
+export interface AlibabaLeaseGuard {
+  connectionId: string;
+  holder: string;
+  fence: number;
+  /** Canonical ISO instant used for the expiry comparison. */
+  now: string;
+}
+
+export type AlibabaLeaseGrant =
+  | { result: 'granted'; fence: number }
+  | { result: 'busy' }
+  | { result: 'corrupt' };
+
+export type AlibabaLeaseState =
+  | { state: 'absent' }
+  | { state: 'held'; holder: string; fence: number; expiresAt: string; released: boolean }
+  | { state: 'corrupt' };
+
+function isCanonicalIso(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    Number.isFinite(Date.parse(value)) &&
+    new Date(value).toISOString() === value
+  );
+}
+
+export function readAlibabaLeaseState(doc: CollectionDoc | null): AlibabaLeaseState {
+  if (doc === null) return { state: 'absent' };
+  const { holder, fence, expiresAt, releasedAt } = doc;
+  if (
+    typeof holder === 'string' &&
+    holder.length > 0 &&
+    typeof fence === 'number' &&
+    Number.isSafeInteger(fence) &&
+    fence >= 1 &&
+    isCanonicalIso(expiresAt) &&
+    (releasedAt === undefined || releasedAt === '' || isCanonicalIso(releasedAt))
+  ) {
+    const released = typeof releasedAt === 'string' && releasedAt.length > 0;
+    return { state: 'held', holder, fence, expiresAt, released };
+  }
+  return { state: 'corrupt' };
+}
+
+export type AlibabaLeaseAcquireTransition =
+  | { result: 'granted'; fence: number; doc: Record<string, unknown> }
+  | { result: 'busy' }
+  | { result: 'corrupt' };
+
+export function transitionAlibabaLeaseAcquire(
+  existing: CollectionDoc | null,
+  holder: string,
+  now: string,
+  ttlMs: number,
+): AlibabaLeaseAcquireTransition {
+  const lease = readAlibabaLeaseState(existing);
+  if (lease.state === 'corrupt') return { result: 'corrupt' };
+  let fence = 1;
+  if (lease.state === 'held') {
+    // Canonical ISO compares lexicographically; a live, unreleased lease that
+    // has not reached its expiry instant blocks acquisition.
+    if (!lease.released && lease.expiresAt > now) return { result: 'busy' };
+    fence = lease.fence + 1;
+  }
+  const expiresAt = new Date(Date.parse(now) + ttlMs).toISOString();
+  return {
+    result: 'granted',
+    fence,
+    doc: {
+      holder,
+      fence,
+      acquiredAt: now,
+      heartbeatAt: now,
+      expiresAt,
+      releasedAt: '',
+    },
+  };
+}
+
+export type AlibabaLeaseUpdateTransition =
+  | { result: 'applied'; patch: Record<string, unknown> }
+  | { result: 'rejected' };
+
+export function transitionAlibabaLeaseRenew(
+  existing: CollectionDoc | null,
+  holder: string,
+  fence: number,
+  now: string,
+  ttlMs: number,
+): AlibabaLeaseUpdateTransition {
+  if (!holdsAlibabaLease(existing, holder, fence, now)) return { result: 'rejected' };
+  return {
+    result: 'applied',
+    patch: { heartbeatAt: now, expiresAt: new Date(Date.parse(now) + ttlMs).toISOString() },
+  };
+}
+
+export function transitionAlibabaLeaseRelease(
+  existing: CollectionDoc | null,
+  holder: string,
+  fence: number,
+  now: string,
+): AlibabaLeaseUpdateTransition {
+  const lease = readAlibabaLeaseState(existing);
+  if (lease.state !== 'held' || lease.holder !== holder || lease.fence !== fence) {
+    return { result: 'rejected' };
+  }
+  // Idempotent: releasing an already-released lease you owned succeeds without
+  // rewriting the release instant. Expiry does NOT block release — a holder
+  // that overran its TTL but has not been fenced over may still clean up.
+  if (lease.released) return { result: 'applied', patch: {} };
+  return { result: 'applied', patch: { releasedAt: now } };
+}
+
+/** True iff `holder`+`fence` currently hold a live, unreleased, unexpired lease. */
+export function holdsAlibabaLease(
+  existing: CollectionDoc | null,
+  holder: string,
+  fence: number,
+  now: string,
+): boolean {
+  const lease = readAlibabaLeaseState(existing);
+  return (
+    lease.state === 'held' &&
+    lease.holder === holder &&
+    lease.fence === fence &&
+    !lease.released &&
+    lease.expiresAt > now
+  );
+}
+
 export interface DbAdapter {
   list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>>;
   get(collection: string, id: string): Promise<CollectionDoc | null>;
@@ -132,6 +283,57 @@ export interface DbAdapter {
   ): Promise<ImageMutationAcquireResult>;
   /** Release only when the caller still owns the image mutation lock. */
   releaseImageMutation?(imageId: string, owner: string): Promise<ImageMutationReleaseResult>;
+  /**
+   * Create a document with a caller-chosen deterministic id; 'exists' when the
+   * id is already taken (single-winner create-if-absent). Optional surface —
+   * the facade throws when the adapter lacks it (acquireImageMutation
+   * precedent).
+   */
+  createDocWithId?(
+    collection: string,
+    id: string,
+    data: Record<string, unknown>,
+  ): Promise<'created' | 'exists'>;
+  /** Create-or-patch by deterministic id; returns the resulting document. */
+  upsertDocWithId?(
+    collection: string,
+    id: string,
+    data: Record<string, unknown>,
+  ): Promise<CollectionDoc>;
+  /** Transactionally acquire the per-connection sync lease (fence increments on takeover). */
+  acquireAlibabaSyncLease?(
+    connectionId: string,
+    holder: string,
+    now: string,
+    ttlMs: number,
+  ): Promise<AlibabaLeaseGrant>;
+  /** Extend the lease's expiry; false when holder/fence no longer hold it. */
+  renewAlibabaSyncLease?(
+    connectionId: string,
+    holder: string,
+    fence: number,
+    now: string,
+    ttlMs: number,
+  ): Promise<boolean>;
+  /** Release the lease held by holder+fence (idempotent); false on mismatch. */
+  releaseAlibabaSyncLease?(
+    connectionId: string,
+    holder: string,
+    fence: number,
+    now: string,
+  ): Promise<boolean>;
+  /**
+   * Fenced conditional write (REVISION_R1 E2): verify the lease INSIDE the
+   * same transaction/critical section as the target-document patch. Returns
+   * false — writing nothing — when the guard no longer holds or the target is
+   * missing.
+   */
+  updateDocWithAlibabaLease?(
+    collection: string,
+    id: string,
+    patch: Record<string, unknown>,
+    guard: AlibabaLeaseGuard,
+  ): Promise<boolean>;
 }
 
 // Re-exported so callers building queries can reference the input shape.

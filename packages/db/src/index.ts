@@ -13,16 +13,28 @@ import {
   getCollection,
   normalizeCatalogImageIds,
 } from '@vibelingan-channel/shared';
-import type { DbAdapter } from './adapter.ts';
+import type { AlibabaLeaseGrant, AlibabaLeaseGuard, DbAdapter } from './adapter.ts';
 import type { ImageMutationAcquireResult, ImageMutationReleaseResult } from './adapter.ts';
+import { ALIBABA_SYNC_LEASE_COLLECTION, holdsAlibabaLease } from './adapter.ts';
 export {
   readImageMutationState,
   transitionImageMutationAcquire,
   transitionImageMutationRelease,
+  ALIBABA_SYNC_LEASE_COLLECTION,
+  ALIBABA_SYNC_LEASE_RENEW_MS,
+  ALIBABA_SYNC_LEASE_TTL_MS,
+  holdsAlibabaLease,
+  readAlibabaLeaseState,
+  transitionAlibabaLeaseAcquire,
+  transitionAlibabaLeaseRelease,
+  transitionAlibabaLeaseRenew,
 } from './adapter.ts';
 
 export type {
   AdapterListQuery,
+  AlibabaLeaseGrant,
+  AlibabaLeaseGuard,
+  AlibabaLeaseState,
   DbAdapter,
   ImageMutationAcquireResult,
   ImageMutationReleaseResult,
@@ -224,6 +236,165 @@ export function nextCounterValue(current: unknown, delta: number): number {
 export function remove(collection: string, id: string): Promise<boolean> {
   assertKnown(collection);
   return db().remove(collection, id);
+}
+
+// ---------------------------------------------------------------------------
+// Deterministic-id writes + Alibaba sync lease facades (ARCHITECTURE §9).
+// Trusted server-side surfaces: they bypass the registry write-schema exactly
+// like createDoc/updateDoc, and throw when the wired adapter has not
+// implemented the optional methods (acquireImageMutation precedent).
+// ---------------------------------------------------------------------------
+
+function requireNonEmpty(value: string, label: string): void {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`@vibelingan-channel/db: ${label} must be a non-empty string.`);
+  }
+}
+
+function requireCanonicalIsoInstant(value: string, label: string): void {
+  if (!Number.isFinite(Date.parse(value)) || new Date(value).toISOString() !== value) {
+    throw new Error(`@vibelingan-channel/db: ${label} must be a canonical ISO instant.`);
+  }
+}
+
+function requireLeaseNumbers(fence: number | undefined, ttlMs: number | undefined): void {
+  if (fence !== undefined && (!Number.isSafeInteger(fence) || fence < 1)) {
+    throw new Error('@vibelingan-channel/db: lease fence must be a positive integer.');
+  }
+  if (ttlMs !== undefined && (!Number.isSafeInteger(ttlMs) || ttlMs <= 0)) {
+    throw new Error('@vibelingan-channel/db: lease ttlMs must be a positive integer.');
+  }
+}
+
+/**
+ * Single-winner create-if-absent with a deterministic id. Stamps
+ * createdAt/updatedAt unless the caller supplied explicit instants
+ * (deterministic replay), matching the reserve-first rate-limiter precedent.
+ */
+export function createDocWithId(
+  collection: string,
+  id: string,
+  data: Record<string, unknown>,
+): Promise<'created' | 'exists'> {
+  assertKnown(collection);
+  requireNonEmpty(id, 'document id');
+  const adapter = db();
+  if (!adapter.createDocWithId) {
+    throw new Error('@vibelingan-channel/db: createDocWithId is not implemented by this adapter.');
+  }
+  const now = new Date().toISOString();
+  return adapter.createDocWithId(collection, id, {
+    createdAt: now,
+    updatedAt: now,
+    ...data,
+  });
+}
+
+/** Create-or-patch with a deterministic id; returns the resulting document. */
+export function upsertDocWithId(
+  collection: string,
+  id: string,
+  data: Record<string, unknown>,
+): Promise<CollectionDoc> {
+  assertKnown(collection);
+  requireNonEmpty(id, 'document id');
+  const adapter = db();
+  if (!adapter.upsertDocWithId) {
+    throw new Error('@vibelingan-channel/db: upsertDocWithId is not implemented by this adapter.');
+  }
+  return adapter.upsertDocWithId(collection, id, data);
+}
+
+export function acquireAlibabaSyncLease(
+  connectionId: string,
+  holder: string,
+  now: string,
+  ttlMs: number,
+): Promise<AlibabaLeaseGrant> {
+  requireNonEmpty(connectionId, 'connectionId');
+  requireNonEmpty(holder, 'lease holder');
+  requireCanonicalIsoInstant(now, 'lease acquire time');
+  requireLeaseNumbers(undefined, ttlMs);
+  const adapter = db();
+  if (!adapter.acquireAlibabaSyncLease) {
+    throw new Error('@vibelingan-channel/db: the Alibaba sync lease is not implemented.');
+  }
+  return adapter.acquireAlibabaSyncLease(connectionId, holder, now, ttlMs);
+}
+
+export function renewAlibabaSyncLease(
+  connectionId: string,
+  holder: string,
+  fence: number,
+  now: string,
+  ttlMs: number,
+): Promise<boolean> {
+  requireNonEmpty(connectionId, 'connectionId');
+  requireNonEmpty(holder, 'lease holder');
+  requireCanonicalIsoInstant(now, 'lease renew time');
+  requireLeaseNumbers(fence, ttlMs);
+  const adapter = db();
+  if (!adapter.renewAlibabaSyncLease) {
+    throw new Error('@vibelingan-channel/db: the Alibaba sync lease is not implemented.');
+  }
+  return adapter.renewAlibabaSyncLease(connectionId, holder, fence, now, ttlMs);
+}
+
+export function releaseAlibabaSyncLease(
+  connectionId: string,
+  holder: string,
+  fence: number,
+  now: string,
+): Promise<boolean> {
+  requireNonEmpty(connectionId, 'connectionId');
+  requireNonEmpty(holder, 'lease holder');
+  requireCanonicalIsoInstant(now, 'lease release time');
+  requireLeaseNumbers(fence, undefined);
+  const adapter = db();
+  if (!adapter.releaseAlibabaSyncLease) {
+    throw new Error('@vibelingan-channel/db: the Alibaba sync lease is not implemented.');
+  }
+  return adapter.releaseAlibabaSyncLease(connectionId, holder, fence, now);
+}
+
+/**
+ * Cheap read-only pre-check: does holder+fence still hold the lease right
+ * now? NEVER a substitute for the fenced write — guarded mutations go through
+ * `updateDocWithAlibabaLease`, which re-verifies inside the transaction
+ * (REVISION_R1 E2).
+ */
+export async function assertAlibabaSyncLease(
+  connectionId: string,
+  holder: string,
+  fence: number,
+  now: string,
+): Promise<boolean> {
+  requireNonEmpty(connectionId, 'connectionId');
+  requireNonEmpty(holder, 'lease holder');
+  requireCanonicalIsoInstant(now, 'lease assert time');
+  requireLeaseNumbers(fence, undefined);
+  const doc = await db().get(ALIBABA_SYNC_LEASE_COLLECTION, connectionId);
+  return holdsAlibabaLease(doc, holder, fence, now);
+}
+
+/** Fenced conditional write — see `DbAdapter.updateDocWithAlibabaLease`. */
+export function updateDocWithAlibabaLease(
+  collection: string,
+  id: string,
+  patch: Record<string, unknown>,
+  guard: AlibabaLeaseGuard,
+): Promise<boolean> {
+  assertKnown(collection);
+  requireNonEmpty(id, 'document id');
+  requireNonEmpty(guard.connectionId, 'connectionId');
+  requireNonEmpty(guard.holder, 'lease holder');
+  requireCanonicalIsoInstant(guard.now, 'guard time');
+  requireLeaseNumbers(guard.fence, undefined);
+  const adapter = db();
+  if (!adapter.updateDocWithAlibabaLease) {
+    throw new Error('@vibelingan-channel/db: fenced writes are not implemented by this adapter.');
+  }
+  return adapter.updateDocWithAlibabaLease(collection, id, patch, guard);
 }
 
 /**

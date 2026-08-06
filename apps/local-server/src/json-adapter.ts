@@ -10,11 +10,18 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import {
+  ALIBABA_SYNC_LEASE_COLLECTION,
   type AdapterListQuery,
+  type AlibabaLeaseGrant,
+  type AlibabaLeaseGuard,
   type DbAdapter,
   type ImageMutationAcquireResult,
   type ImageMutationReleaseResult,
+  holdsAlibabaLease,
   nextCounterValue,
+  transitionAlibabaLeaseAcquire,
+  transitionAlibabaLeaseRelease,
+  transitionAlibabaLeaseRenew,
   transitionImageMutationAcquire,
   transitionImageMutationRelease,
 } from '@vibelingan-channel/db';
@@ -385,6 +392,128 @@ export class JsonFileAdapter implements DbAdapter {
       docs[index] = { ...existing, ...transition.patch };
       this.persist();
       return 'released';
+    });
+  }
+
+  // Deterministic-id writes + Alibaba sync lease (ARCHITECTURE §9). Each
+  // method is ONE withMutationLock critical section — the local analogue of
+  // the CloudBase runTransaction envelope — sharing the same pure transition
+  // functions, so all adapters run one state machine.
+
+  async createDocWithId(
+    collection: string,
+    id: string,
+    data: Record<string, unknown>,
+  ): Promise<'created' | 'exists'> {
+    return this.withMutationLock(() => {
+      const docs = this.docs(collection);
+      if (docs.some((document) => document._id === id)) return 'exists';
+      const { _id, ...payload } = data as Record<string, unknown> & { _id?: unknown };
+      docs.push({ _id: id, ...payload } as CollectionDoc);
+      this.persist();
+      return 'created';
+    });
+  }
+
+  async upsertDocWithId(
+    collection: string,
+    id: string,
+    data: Record<string, unknown>,
+  ): Promise<CollectionDoc> {
+    return this.withMutationLock(() => {
+      const docs = this.docs(collection);
+      const index = docs.findIndex((document) => document._id === id);
+      const now = new Date().toISOString();
+      const { _id, ...patch } = data as Record<string, unknown> & { _id?: unknown };
+      if (index >= 0) {
+        const next = { ...(docs[index] as CollectionDoc), ...patch, updatedAt: now };
+        docs[index] = next;
+        this.persist();
+        return next;
+      }
+      const created = { _id: id, createdAt: now, updatedAt: now, ...patch } as CollectionDoc;
+      docs.push(created);
+      this.persist();
+      return created;
+    });
+  }
+
+  async acquireAlibabaSyncLease(
+    connectionId: string,
+    holder: string,
+    now: string,
+    ttlMs: number,
+  ): Promise<AlibabaLeaseGrant> {
+    return this.withMutationLock(() => {
+      const docs = this.docs(ALIBABA_SYNC_LEASE_COLLECTION);
+      const index = docs.findIndex((document) => document._id === connectionId);
+      const existing = index >= 0 ? (docs[index] as CollectionDoc) : null;
+      const transition = transitionAlibabaLeaseAcquire(existing, holder, now, ttlMs);
+      if (transition.result !== 'granted') return { result: transition.result };
+      const next = { _id: connectionId, ...transition.doc, updatedAt: now } as CollectionDoc;
+      if (index >= 0) docs[index] = next;
+      else docs.push(next);
+      this.persist();
+      return { result: 'granted', fence: transition.fence };
+    });
+  }
+
+  async renewAlibabaSyncLease(
+    connectionId: string,
+    holder: string,
+    fence: number,
+    now: string,
+    ttlMs: number,
+  ): Promise<boolean> {
+    return this.withMutationLock(() => {
+      const docs = this.docs(ALIBABA_SYNC_LEASE_COLLECTION);
+      const index = docs.findIndex((document) => document._id === connectionId);
+      const existing = index >= 0 ? (docs[index] as CollectionDoc) : null;
+      const transition = transitionAlibabaLeaseRenew(existing, holder, fence, now, ttlMs);
+      if (transition.result !== 'applied') return false;
+      docs[index] = { ...(existing as CollectionDoc), ...transition.patch, updatedAt: now };
+      this.persist();
+      return true;
+    });
+  }
+
+  async releaseAlibabaSyncLease(
+    connectionId: string,
+    holder: string,
+    fence: number,
+    now: string,
+  ): Promise<boolean> {
+    return this.withMutationLock(() => {
+      const docs = this.docs(ALIBABA_SYNC_LEASE_COLLECTION);
+      const index = docs.findIndex((document) => document._id === connectionId);
+      const existing = index >= 0 ? (docs[index] as CollectionDoc) : null;
+      const transition = transitionAlibabaLeaseRelease(existing, holder, fence, now);
+      if (transition.result !== 'applied') return false;
+      if (Object.keys(transition.patch).length > 0) {
+        docs[index] = { ...(existing as CollectionDoc), ...transition.patch, updatedAt: now };
+        this.persist();
+      }
+      return true;
+    });
+  }
+
+  async updateDocWithAlibabaLease(
+    collection: string,
+    id: string,
+    patch: Record<string, unknown>,
+    guard: AlibabaLeaseGuard,
+  ): Promise<boolean> {
+    return this.withMutationLock(() => {
+      // Lease recheck + target write in ONE critical section (R1 E2).
+      const leases = this.docs(ALIBABA_SYNC_LEASE_COLLECTION);
+      const lease = leases.find((document) => document._id === guard.connectionId) ?? null;
+      if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+      const docs = this.docs(collection);
+      const index = docs.findIndex((document) => document._id === id);
+      if (index < 0) return false;
+      docs[index] = { ...(docs[index] as CollectionDoc), ...patch, updatedAt: guard.now };
+      this.persist();
+      return true;
     });
   }
 
