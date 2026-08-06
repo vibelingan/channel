@@ -1044,6 +1044,65 @@ Live verification (custom domain, test CloudBase env):
   MIU 14 smoke and the MIU 15 documents, so the canonical plan will not instruct a future operator
   to re-retire Headphones.
 
+## External review of the assembled release (2026-08-06)
+
+An independent external review of the merged branch raised 5 P1 and 7 P2
+findings. The first correction lands in `8af9030`; the rest are tracked below.
+
+### P1-1 upload verb mismatch - CONFIRMED, fixed in `8af9030`
+The node-sdk 2.10.0 -> 3.17.2 upgrade in `eb8f9f2` changed the storage upload
+protocol from a signed multipart `POST` to a signed raw `PUT`, and only half of
+that change shipped. Every browser-origin upload was rejected by COS with
+`403 SignatureDoesNotMatch`.
+
+Verified empirically rather than by reading: Deploy Test run `31063836951`, the
+first run with `run_media_upload_smoke` and `run_oem_upload_smoke` enabled,
+failed on exactly that error. Both earlier releases (`bbd6dcb`, `55937bd`) had
+those smokes switched OFF, which is precisely why a broken upload path reached
+the deployed environment behind green gates.
+
+Root cause of the missed detection: the SDK contract probe asserted the upload
+verb by grepping the WHOLE storage module for `method: 'post'`, which matched
+the control-plane `storage.getUploadMetadata` request — legitimately a POST —
+and therefore certified a multipart upload contract while the SDK was PUTting
+bytes. A probe that matches the wrong request is worse than no probe: it
+converts an unverified assumption into a green check.
+
+Correction: the credential contract is PUT + headers end to end (mint, both
+admin intent payloads, browser client, deployed smoke helper, unit fakes),
+mirroring the installed SDK's own `uploadFile` including the lowercase
+`authorization` duplicate and URI-encoded `key`. The probe now extracts the
+`uploadFile` function body and asserts the verb there, asserts headers-not-form,
+asserts the signature is PUT-scoped, and additionally pins the application's own
+credential shape and browser client so the two sides cannot drift apart again.
+
+### Remaining findings - accepted, not yet fixed
+- **P1-2** `abandonUpload` partial deletion can leave an `active` image whose
+  primary bytes are gone. Requires a durable non-referenceable `deleting` state
+  before storage deletion. (An earlier review round separately established that
+  COS delete IS idempotent, so the "retry fails permanently" sub-claim does not
+  hold; the active-metadata-with-missing-bytes window is real.)
+- **P1-3** admin `RecordForm` can save/close while `ImageManager` uploads are
+  still in flight, silently omitting image ids.
+- **P1-4** `ProjectForm.astro` has no `action`/`method`, so a no-JavaScript
+  submit becomes a GET that puts customer details in the URL. Confirmed by
+  reading the component: the form carries only `data-endpoint` and `novalidate`.
+- **P1-5** `completeUpload` has no atomic `pending -> finalizing` claim, so two
+  finalizers can both pass the pending check. Same class as the OEM
+  `finalizeClaim` single-winner pattern already in this codebase.
+- **P2** deploy not causally gated on CI for the exact SHA; skip-instead-of-fail
+  smoke policy; unvalidated catalog JSON casts; `Product.imageIds` exposed in a
+  DTO the server withholds; entitlement presentation derived from cached role
+  rather than the server contract; focus loss when Retry/Load More replace the
+  focused control; and the one-hour public image cache versus strict immediate
+  revocation.
+
+Process note: the upload regression was reachable only through a real deployed
+upload. Unit tests, type checks, and the public read-only browser suite all
+passed against it. The durable lesson is that a smoke covering the exact
+integration a change touches must be MANDATORY for that change, not an optional
+dispatch input.
+
 ## Per-MIU Record Template
 
 `doc-writer` appends one section at every completed MIU boundary:
