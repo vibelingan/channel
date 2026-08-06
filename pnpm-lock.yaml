@@ -169,6 +169,15 @@ importers:
         specifier: ^7.0.0
         version: 7.3.5(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0)
 
+  packages/alibaba-catalog-sync:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.21
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+
   packages/auth:
     dependencies:
       '@vibelingan-channel/shared':
