@@ -305,3 +305,48 @@ deploy-smoke tests green.
 Post-fix gates: 640 recursive tests + 16 script tests green, all
 typechecks + astro clean, biome clean, SDK contract verify pass, 3
 artifact cold-start smokes pass, site builds (18 pages).
+
+## Review round 3 — verification of the round-2 fixes (2026-08-06)
+
+A 4-lens adversarial pass over commit 47d64ee alone (does the fix commit
+break anything?) found **6 confirmed regressions, 3 HIGH — introduced by
+the round-2 fixes themselves**. All fixed:
+
+1. **HIGH phantom run (3 findings, one root cause).** Moving token
+   resolution under the lease put it AFTER the run row + checkpoint slot
+   were written, so a disconnected/expired connection created a run that
+   held the slot for the full 24h run-age window, then died as a false
+   `run-overdue` with an operator page — every cycle, forever. The token
+   now resolves at the last point before real work in each branch: after
+   the resume pre-checks (self-heal and overdue cleanup need no token, so
+   a dead connection must not block them) and BEFORE the start branch
+   writes anything. Reproduced and pinned by two tests, including a
+   101-tick loop asserting zero run rows and zero alerts.
+2. **HIGH refresh 4xx misclassified as transient.** `callApi` returns
+   `{ok:false, kind:'http', status}` for every non-2xx, so treating all
+   `!result.ok` as retryable orphaned the entire HTTP-rejection class: a
+   revoked app or elapsed `refresh_expires_in` left the connection
+   reporting `active` forever with no alert. Now mirrors the client's own
+   retry rule — 4xx except 429 is terminal (`authorization_expired` +
+   alert); network/timeout/429/5xx/oversized-body stay retryable.
+3. **HIGH prototype-chain lookup in `callbackNotice`.** The closed-set
+   object literal resolved `?alibaba=__proto__` through
+   `Object.prototype`, putting a non-string into React's children and
+   blanking the whole (unguarded) dashboard island; `?alibaba=toString`
+   silently rendered nothing. Now a `Map`, pinned by a test over the five
+   inherited keys.
+4. **MEDIUM `runNow` reported `idle` for a dead credential.** The runner
+   short-circuits before the token when nothing is due, so a broken
+   connection returned a success-shaped tick — the primary diagnostic in
+   the timer-less test env. `runNow` now runs a READ-ONLY `probeConnection`
+   first (reads the doc, verifies the envelope decrypts, never refreshes,
+   so it cannot race the rotating refresh token outside the lease).
+
+Gates after round 3: 646 recursive + 21 script tests green, 11 typechecks
++ astro (0 errors), biome clean, SDK contract verify, 3 artifact
+cold-start smokes, site build (18 pages).
+
+**Lesson recorded:** a fix commit deserves the same adversarial review as
+the original implementation — 3 of the 6 regressions were HIGH and every
+one of them was introduced by a correct-in-isolation fix that moved an
+operation across a state-mutation boundary.

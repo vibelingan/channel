@@ -241,10 +241,19 @@ export async function getConnectionAccessToken(deps: OAuthDeps): Promise<AccessT
     maxAttempts: 1,
   });
   if (!result.ok) {
-    // Transport failure is RETRYABLE, never terminal (review R2 #4): keep the
-    // current token if it is still valid this instant, otherwise report an
-    // outage and let the caller retry next tick — the ARCHITECTURE §8
-    // authorization_expired state is reserved for NON-RECOVERABLE failures.
+    // Classify the failure (review R2 #4 + R2-verify): an HTTP 4xx other than
+    // 429 is the gateway REJECTING the refresh token (revoked app, elapsed
+    // refresh_expires_in) — non-recoverable, so ARCHITECTURE §8 demands the
+    // terminal state plus an alert. Everything else (network, timeout, 429,
+    // 5xx, oversized body) is transport noise: keep the current token if it is
+    // still valid this instant, otherwise report an outage and retry next tick.
+    const rejected =
+      result.kind === 'http' &&
+      result.status !== undefined &&
+      result.status >= 400 &&
+      result.status < 500 &&
+      result.status !== 429;
+    if (rejected) return await markAuthorizationExpired(deps, 'refresh rejected by gateway');
     if (expiresAt > now) return { ok: true, accessToken: payload.accessToken };
     return { ok: false, reason: 'refresh-unavailable' };
   }
@@ -263,6 +272,31 @@ export async function getConnectionAccessToken(deps: OAuthDeps): Promise<AccessT
       : {}),
   });
   return { ok: true, accessToken: grant.accessToken };
+}
+
+export type ConnectionProbe =
+  | { ok: true }
+  | { ok: false; reason: 'not-connected' | 'authorization-expired' | 'decrypt-failed' };
+
+/**
+ * READ-ONLY connection health probe (review R2-verify #4): reads the doc and
+ * verifies the envelope decrypts, but NEVER refreshes — so it is safe outside
+ * the sync lease, where a refresh would race the rotating refresh token. The
+ * interactive runNow path uses it so a dead credential reports a conflict
+ * instead of a success-shaped 'idle' when nothing happens to be due.
+ */
+export async function probeConnection(deps: OAuthDeps): Promise<ConnectionProbe> {
+  const connection = await getDoc('alibabaConnections', PRIMARY_CONNECTION_ID);
+  if (!connection) return { ok: false, reason: 'not-connected' };
+  if (connection.status === 'authorization_expired') {
+    return { ok: false, reason: 'authorization-expired' };
+  }
+  if (connection.status !== 'active') return { ok: false, reason: 'not-connected' };
+  const payload = decryptTokenPayload(deps.tokenKey, connection.tokenEnvelope);
+  if (!payload || typeof payload.accessToken !== 'string') {
+    return { ok: false, reason: 'decrypt-failed' };
+  }
+  return { ok: true };
 }
 
 async function markAuthorizationExpired(

@@ -571,6 +571,93 @@ test('access token refreshes lazily near expiry and expires the connection on fa
   assert.ok(!alerts[0]?.includes('rotated'), 'alert carries no token material');
 });
 
+test('a refresh REJECTED with HTTP 4xx is terminal: expired + alert', async () => {
+  setup();
+  alerts.length = 0;
+  const token = await adminToken();
+  const log: FetchLogEntry[] = [];
+  const fetchImpl = fakeAlibabaFetch(log);
+  const state = await startAndExtractState(token, fetchImpl);
+  await handleOAuthCallbackRequest({ code: 'c', state }, baseConfig, {}, overrides(fetchImpl));
+
+  const { getConnectionAccessToken } = await import('./oauth.ts');
+
+  // The merchant revoked the app (or refresh_expires_in elapsed): the gateway
+  // answers 401. That is NOT transport noise — only re-authorization recovers
+  // it, so the connection must reach the terminal state and page operations.
+  const afterFullExpiry = '2026-08-07T09:00:00.000Z';
+  const rejectingFetch = (async () =>
+    new Response(JSON.stringify({ error_code: 'invalid_grant' }), {
+      status: 401,
+    })) as typeof fetch;
+  const runtime = resolveRuntime(baseConfig, overrides(rejectingFetch, afterFullExpiry));
+  assert.equal(runtime.ok, true);
+  if (!runtime.ok) return;
+  const rejected = await getConnectionAccessToken(runtime.runtime.deps);
+  assert.deepEqual(rejected, { ok: false, reason: 'authorization-expired' });
+  assert.equal(currentStore.alibabaConnections?.[0]?.status, 'authorization_expired');
+  assert.equal(alerts.length, 1, 'operations is paged');
+});
+
+test('a refresh 5xx / 429 is transport noise — retryable, connection stays active', async () => {
+  setup();
+  alerts.length = 0;
+  const token = await adminToken();
+  const log: FetchLogEntry[] = [];
+  const fetchImpl = fakeAlibabaFetch(log);
+  const state = await startAndExtractState(token, fetchImpl);
+  await handleOAuthCallbackRequest({ code: 'c', state }, baseConfig, {}, overrides(fetchImpl));
+
+  const { getConnectionAccessToken } = await import('./oauth.ts');
+  const afterFullExpiry = '2026-08-07T09:00:00.000Z';
+
+  for (const status of [429, 503]) {
+    const failingFetch = (async () => new Response('upstream busy', { status })) as typeof fetch;
+    const runtime = resolveRuntime(baseConfig, overrides(failingFetch, afterFullExpiry));
+    if (!runtime.ok) return;
+    const result = await getConnectionAccessToken(runtime.runtime.deps);
+    assert.deepEqual(result, { ok: false, reason: 'refresh-unavailable' }, `status ${status}`);
+    assert.equal(currentStore.alibabaConnections?.[0]?.status, 'active', `status ${status}`);
+  }
+  assert.equal(alerts.length, 0, 'no expiry alert for upstream noise');
+});
+
+test('probeConnection is read-only: reports health without any refresh call', async () => {
+  setup();
+  const token = await adminToken();
+  const log: FetchLogEntry[] = [];
+  const fetchImpl = fakeAlibabaFetch(log);
+
+  const { probeConnection } = await import('./oauth.ts');
+  const before = resolveRuntime(baseConfig, overrides(fetchImpl));
+  assert.equal(before.ok, true);
+  if (!before.ok) return;
+  assert.deepEqual(await probeConnection(before.runtime.deps), {
+    ok: false,
+    reason: 'not-connected',
+  });
+
+  const state = await startAndExtractState(token, fetchImpl);
+  await handleOAuthCallbackRequest({ code: 'c', state }, baseConfig, {}, overrides(fetchImpl));
+  const callsAfterConnect = log.length;
+
+  // Connected and healthy — even PAST full expiry the probe never refreshes.
+  const late = resolveRuntime(baseConfig, overrides(fetchImpl, '2026-08-07T09:00:00.000Z'));
+  if (!late.ok) return;
+  assert.deepEqual(await probeConnection(late.runtime.deps), { ok: true });
+  assert.equal(log.length, callsAfterConnect, 'zero network calls from the probe');
+
+  // A rotated encryption key is caught without touching the network.
+  const wrongKeyConfig = { ...baseConfig, tokenKeyHex: 'b'.repeat(64) };
+  const rotated = resolveRuntime(wrongKeyConfig, overrides(fetchImpl));
+  if (!rotated.ok) return;
+  assert.deepEqual(await probeConnection(rotated.runtime.deps), {
+    ok: false,
+    reason: 'decrypt-failed',
+  });
+  assert.equal(log.length, callsAfterConnect, 'still zero network calls');
+});
+
 test('a refresh TRANSPORT outage is retryable — never authorization_expired', async () => {
   setup();
   alerts.length = 0;

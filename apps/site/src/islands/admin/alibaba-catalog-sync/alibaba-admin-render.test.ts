@@ -160,3 +160,13 @@ test('callback notices map a CLOSED status set and never echo the query value', 
   assert.equal(crafted, 'Authorization failed. Start the flow again.');
   assert.ok(!crafted?.includes('injected'));
 });
+
+test('callbackNotice never resolves through Object.prototype', () => {
+  // A plain-object lookup would return Object.prototype / a Function here and
+  // put a non-string into React's children, blanking the dashboard island.
+  for (const key of ['__proto__', 'toString', 'constructor', 'valueOf', 'hasOwnProperty']) {
+    const notice = callbackNotice(`?alibaba=${encodeURIComponent(key)}`);
+    assert.equal(typeof notice, 'string', `${key} must resolve to a string`);
+    assert.equal(notice, 'Authorization failed. Start the flow again.');
+  }
+});

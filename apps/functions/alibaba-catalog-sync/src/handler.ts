@@ -26,6 +26,7 @@ import {
   disconnectConnection,
   getConnectionAccessToken,
   handleOAuthCallback,
+  probeConnection,
   startOAuth,
 } from './oauth.ts';
 import { approveQuarantinedRun } from './quarantine.ts';
@@ -193,6 +194,14 @@ export async function handleAlibabaSyncRequest(
       const runtime = resolveRuntime(config, runtimeOverrides);
       if (!runtime.ok) {
         return err('CONFLICT', NOT_CONFIGURED_MESSAGE + runtime.missing.join(', '));
+      }
+      // READ-ONLY health probe first (review R2-verify #4): the runner short
+      // circuits to 'idle' when nothing is due, which would report a dead
+      // credential as a success. The probe never refreshes, so it cannot race
+      // the rotating refresh token outside the lease.
+      const health = await probeConnection(runtime.runtime.deps);
+      if (!health.ok) {
+        return err('CONFLICT', `Alibaba connection unavailable: ${health.reason}.`);
       }
       const report = await runSyncTick({
         deps: {

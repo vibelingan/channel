@@ -429,6 +429,82 @@ test('continuation: an exhausted budget checkpoints durably and the next tick co
   assert.equal((store.alibabaSyncCheckpoints?.[0] as CollectionDoc).activeRunId, '');
 });
 
+test('a token failure at start leaves NO phantom run and NO claimed slot', async () => {
+  setup();
+  const backend = fakeBackend(() => [{ id: 'item-1', modifiedMs: ITEM_TIME, priceLexeme: '2.50' }]);
+  const deps = {
+    ...makeDeps(backend.fetchImpl),
+    getAccessToken: async () => ({ ok: false as const, reason: 'not-connected' }),
+  };
+
+  // An incremental run IS due, so the tick gets past decideTick — the token
+  // must be resolved before anything is written.
+  const report = await runSyncTick({ deps, trigger: 'timer' });
+  assert.deepEqual(report, { outcome: 'not-connected', detail: 'not-connected' });
+  assert.equal(backend.calls.length, 0, 'no API calls');
+  assert.equal(store.alibabaSyncRuns?.length ?? 0, 0, 'no phantom run row');
+  assert.equal(
+    (store.alibabaSyncCheckpoints?.[0] as CollectionDoc).activeRunId,
+    '',
+    'slot never claimed — a dead credential cannot wedge sync for 24h',
+  );
+  assert.equal(alerts.length, 0, 'no spurious run-overdue alert');
+
+  // Ticking 100 more times (past RUN_MAX_CONTINUATIONS) still leaves no trace.
+  for (let i = 0; i < 100; i += 1) {
+    clockMs += 15 * 60_000;
+    await runSyncTick({ deps, trigger: 'timer' });
+  }
+  assert.equal(store.alibabaSyncRuns?.length ?? 0, 0, 'still no run rows');
+  assert.equal(alerts.length, 0, 'still no alerts');
+
+  // The connection recovers: the very next due tick runs normally.
+  clockMs = Date.parse(T0);
+  const recovered = await runSyncTick({
+    deps: makeDeps(
+      fakeBackend(() => [{ id: 'item-1', modifiedMs: ITEM_TIME, priceLexeme: '2.50' }]).fetchImpl,
+    ),
+    trigger: 'timer',
+  });
+  assert.equal(recovered.outcome, 'completed');
+});
+
+test('a token failure while RESUMING keeps the run intact and burns no continuation', async () => {
+  setup();
+  const checkpoint = store.alibabaSyncCheckpoints?.[0] as CollectionDoc;
+  checkpoint.activeRunId = 'run-live';
+  checkpoint.continuationCount = 3;
+  checkpoint.enumerationState = initialEnumerationState({
+    fromMs: Date.parse('2026-08-06T08:15:00.000Z'),
+    toMs: Date.parse('2026-08-06T12:00:00.000Z'),
+  });
+  store.alibabaSyncRuns = [
+    {
+      _id: 'run-live',
+      status: 'running',
+      mode: 'incremental',
+      startedAt: '2026-08-06T12:00:00.000Z',
+    } as CollectionDoc,
+  ];
+
+  const backend = fakeBackend(() => []);
+  const report = await runSyncTick({
+    deps: {
+      ...makeDeps(backend.fetchImpl),
+      getAccessToken: async () => ({ ok: false as const, reason: 'refresh-unavailable' }),
+    },
+    trigger: 'timer',
+  });
+  assert.deepEqual(report, { outcome: 'not-connected', detail: 'refresh-unavailable' });
+  assert.equal((store.alibabaSyncRuns?.[0] as CollectionDoc).status, 'running', 'run untouched');
+  assert.equal(
+    (store.alibabaSyncCheckpoints?.[0] as CollectionDoc).continuationCount,
+    3,
+    'no continuation burned by a tick that did no work',
+  );
+  assert.equal((store.alibabaSyncCheckpoints?.[0] as CollectionDoc).activeRunId, 'run-live');
+});
+
 test('self-heal: a terminal run stuck in the checkpoint slot is cleared, not resumed', async () => {
   setup();
   const checkpoint = store.alibabaSyncCheckpoints?.[0] as CollectionDoc;

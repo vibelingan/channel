@@ -133,6 +133,22 @@ export async function runSyncTick(input: {
   });
   const release = async () =>
     releaseAlibabaSyncLease(PRIMARY_CONNECTION_ID, holder, fence, deps.now());
+  /**
+   * Token resolution under the lease (single-flight refresh, review R2 #3),
+   * called at the LAST point before real work in each branch: never before a
+   * run row exists (a token failure would strand a phantom run holding the
+   * checkpoint slot for the full 24h run-age window) and never before the
+   * resume pre-checks (self-heal and overdue cleanup need no token, so a dead
+   * connection must not block them).
+   */
+  const resolveToken = async (): Promise<
+    { ok: true; accessToken: string } | { ok: false; report: TickReport }
+  > => {
+    const access = await deps.getAccessToken();
+    if (access.ok) return { ok: true, accessToken: access.accessToken };
+    await release();
+    return { ok: false, report: { outcome: 'not-connected', detail: access.reason } };
+  };
 
   try {
     // Checkpoint bootstrap (upsert is safe: we hold the lease).
@@ -168,6 +184,7 @@ export async function runSyncTick(input: {
 
     let state: CheckpointState;
     let runDoc: CollectionDoc | null;
+    let accessToken: string;
     if (decision.action === 'resume') {
       runDoc = await getDoc('alibabaSyncRuns', decision.runId);
       const continuationCount = Number(checkpointDoc.continuationCount ?? 0);
@@ -193,6 +210,10 @@ export async function runSyncTick(input: {
         await release();
         return { outcome: 'failed', runId: decision.runId, detail: 'run-overdue' };
       }
+      // Both no-token exits are behind us; the slice below needs the API.
+      const resumed = await resolveToken();
+      if (!resumed.ok) return resumed.report;
+      accessToken = resumed.accessToken;
       state = {
         activeRunId: decision.runId,
         mode: runDoc.mode === 'full' ? 'full' : 'incremental',
@@ -217,6 +238,10 @@ export async function runSyncTick(input: {
         fence,
       });
     } else {
+      // Nothing has been written yet — a token failure here leaves NO trace.
+      const started = await resolveToken();
+      if (!started.ok) return started.report;
+      accessToken = started.accessToken;
       const mode = decision.action === 'start-full' ? 'full' : 'incremental';
       const windowStart =
         mode === 'full'
@@ -274,19 +299,11 @@ export async function runSyncTick(input: {
       );
     }
 
-    // Token AFTER the lease (single-flight refresh, review R2 #3). A refresh
-    // outage keeps the run active and retries next tick — never terminal here.
-    const access = await deps.getAccessToken();
-    if (!access.ok) {
-      await release();
-      return { outcome: 'not-connected', detail: access.reason };
-    }
-
     return await executeSlice(
       state,
       readCounters(runDoc),
       input,
-      access.accessToken,
+      accessToken,
       guard,
       release,
       holder,
