@@ -25,7 +25,12 @@ export interface AlibabaEndpoints {
 }
 
 export const DEFAULT_ALIBABA_ENDPOINTS: AlibabaEndpoints = {
-  authorizeBaseUrl: 'https://openapi-auth.alibaba.com/oauth/authorize',
+  // CONFIRMED from the official seller-authorization docs (2026-08-06): the
+  // Alibaba.com (ICBU) authorize page is oauth.alibaba.com/authorize with
+  // sp=ICBU. The /rest gateway host below matches the GOP family convention
+  // but remains ASSUMED-UNVERIFIED until the MIU 15 live smoke — hence the
+  // env override.
+  authorizeBaseUrl: 'https://oauth.alibaba.com/authorize',
   apiBaseUrl: 'https://openapi-api.alibaba.com/rest',
   tokenCreatePath: '/auth/token/create',
   tokenRefreshPath: '/auth/token/refresh',
@@ -83,6 +88,13 @@ export function buildAuthorizeUrl(
   url.searchParams.set('force_auth', 'true');
   url.searchParams.set('client_id', input.appKey);
   url.searchParams.set('redirect_uri', input.redirectUri);
+  // The official ICBU example writes `State=` in the request while the
+  // callback returns lowercase `state=`; send BOTH casings so either server
+  // behavior echoes our value (the callback binds on the stored hash anyway).
   url.searchParams.set('state', input.state);
+  url.searchParams.set('State', input.state);
+  // Platform selector + web view per the official Alibaba.com example.
+  url.searchParams.set('sp', 'ICBU');
+  url.searchParams.set('view', 'web');
   return url.toString();
 }

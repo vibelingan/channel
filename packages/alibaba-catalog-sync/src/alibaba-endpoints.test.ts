@@ -51,7 +51,11 @@ test('suffix check is dot-anchored (no evil-alibaba.com bypass)', () => {
   );
 });
 
-test('buildAuthorizeUrl carries the OAuth params and encodes the redirect', () => {
+test('the confirmed ICBU authorize host is the default', () => {
+  assert.equal(DEFAULT_ALIBABA_ENDPOINTS.authorizeBaseUrl, 'https://oauth.alibaba.com/authorize');
+});
+
+test('buildAuthorizeUrl carries the ICBU OAuth params and encodes the redirect', () => {
   const url = buildAuthorizeUrl(DEFAULT_ALIBABA_ENDPOINTS, {
     appKey: '511630',
     redirectUri: 'https://env-id.service.tcloudbase.com/api/alibaba-catalog-sync/oauth/callback',
@@ -65,5 +69,10 @@ test('buildAuthorizeUrl carries the OAuth params and encodes the redirect', () =
     parsed.searchParams.get('redirect_uri'),
     'https://env-id.service.tcloudbase.com/api/alibaba-catalog-sync/oauth/callback',
   );
+  // Both state casings ride the request (the official example sends State=,
+  // the callback returns state=); the platform selector pins Alibaba.com.
   assert.equal(parsed.searchParams.get('state'), 'abc123');
+  assert.equal(parsed.searchParams.get('State'), 'abc123');
+  assert.equal(parsed.searchParams.get('sp'), 'ICBU');
+  assert.equal(parsed.searchParams.get('view'), 'web');
 });

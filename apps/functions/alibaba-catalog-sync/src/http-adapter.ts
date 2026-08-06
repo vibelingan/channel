@@ -227,14 +227,15 @@ export async function handleAlibabaSyncFunctionEvent(
       } as ApiResult<unknown>);
     }
     if (segments.length === 2 && segments[0] === 'oauth' && segments[1] === 'callback') {
+      // Alibaba's docs show the callback echoing lowercase `state`; accept
+      // the capitalized variant too (the request carries both casings).
+      const stateValue = queryValue(event, url, 'state') ?? queryValue(event, url, 'State');
       const redirect = await handleOAuthCallbackRequest(
         {
           ...(queryValue(event, url, 'code') !== undefined
             ? { code: queryValue(event, url, 'code') as string }
             : {}),
-          ...(queryValue(event, url, 'state') !== undefined
-            ? { state: queryValue(event, url, 'state') as string }
-            : {}),
+          ...(stateValue !== undefined ? { state: stateValue } : {}),
         },
         config,
         { ...(sourceIp(event) !== undefined ? { sourceIp: sourceIp(event) as string } : {}) },

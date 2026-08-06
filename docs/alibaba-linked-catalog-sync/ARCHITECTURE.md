@@ -405,12 +405,25 @@ with server-side token create/refresh, HMAC-signed calls). NOT 1688/Taobao.
 
 Endpoint base URLs live in ONE module (`alibaba-endpoints.ts`) as documented
 defaults, overridable via optional env (`ALI_AUTHORIZE_BASE_URL`,
-`ALI_API_BASE_URL`) that must be HTTPS on an `*.alibaba.com` host — the
-override exists because official endpoint docs were unreachable at revision
-time (network outage); the live values are re-verified against the official
-console/docs as a mandatory MIU 15 smoke gate before the flow is declared
-working, and the defaults are corrected in a follow-up doc revision if they
-differ. Signature canonicalization ships with golden-vector tests from the
+`ALI_API_BASE_URL`) that must be HTTPS on an `*.alibaba.com` host.
+
+Verification status (updated 2026-08-06 once connectivity returned):
+
+- **CONFIRMED from official docs** — the ICBU authorize page:
+  `https://oauth.alibaba.com/authorize?response_type=code&client_id=<appKey>&redirect_uri=<cb>&sp=ICBU&view=web&state=…`
+  (the official example writes `State=` in the request while the callback
+  echoes `state=`; the implementation sends BOTH casings and the callback
+  accepts both). The GOP token protocol is also confirmed across the
+  platform family: POST `/auth/token/create` `{code}` and
+  `/auth/token/refresh` `{refresh_token}` on the signed `/rest` gateway,
+  returning `access_token`/`refresh_token`/`expires_in` (seconds)/
+  `refresh_expires_in`/`account`.
+- **Still override-guarded** — the exact ICBU `/rest` gateway host (default
+  `openapi-api.alibaba.com`) is behind the doc portal's login; the MIU 15
+  live smoke confirms it, with `ALI_API_BASE_URL` as the no-redeploy
+  correction path.
+
+Signature canonicalization ships with golden-vector tests from the
 documented spec; the signature module is endpoint-agnostic.
 
 ## 9. Lease and fencing
