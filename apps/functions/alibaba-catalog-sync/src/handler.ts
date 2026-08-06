@@ -194,20 +194,20 @@ export async function handleAlibabaSyncRequest(
       if (!runtime.ok) {
         return err('CONFLICT', NOT_CONFIGURED_MESSAGE + runtime.missing.join(', '));
       }
-      const access = await getConnectionAccessToken(runtime.runtime.deps);
-      if (!access.ok) {
-        return err('CONFLICT', `Alibaba connection unavailable: ${access.reason}.`);
-      }
       const report = await runSyncTick({
         deps: {
           client: runtime.runtime.deps.client,
-          accessToken: access.accessToken,
+          // Resolved inside the runner AFTER the lease (review R2 #3).
+          getAccessToken: () => getConnectionAccessToken(runtime.runtime.deps),
           now: runtime.runtime.deps.now,
           alert: runtime.runtime.deps.alert,
         },
         trigger: 'manual',
         budgetOverrides: { softDeadlineMs: 15_000, maxProducts: 20, maxApiCalls: 10 },
       });
+      if (report.outcome === 'not-connected') {
+        return err('CONFLICT', `Alibaba connection unavailable: ${report.detail ?? 'unknown'}.`);
+      }
       return ok(report);
     }
     case 'approveQuarantine': {
@@ -254,10 +254,13 @@ export async function handleAlibabaSyncRequest(
       if (!payload.success) return err('VALIDATION_ERROR', 'imageId is required.');
       const result = await removeImportedCandidate(payload.data.imageId);
       if (!result.ok) {
-        return err(
-          result.reason === 'not-found' ? 'NOT_FOUND' : 'CONFLICT',
-          `Removal rejected: ${result.reason}.`,
-        );
+        const code =
+          result.reason === 'not-found'
+            ? 'NOT_FOUND'
+            : result.reason === 'delete-failed'
+              ? 'INTERNAL_ERROR'
+              : 'CONFLICT';
+        return err(code, `Removal rejected: ${result.reason}.`);
       }
       return ok(result);
     }

@@ -1,8 +1,17 @@
 import { strict as assert } from 'node:assert';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
-import type { AdapterListQuery, DbAdapter } from '@vibelingan-channel/db';
-import { setAdapter } from '@vibelingan-channel/db';
+import type {
+  AdapterListQuery,
+  DbAdapter,
+  ImageMutationAcquireResult,
+  ImageMutationReleaseResult,
+} from '@vibelingan-channel/db';
+import {
+  setAdapter,
+  transitionImageMutationAcquire,
+  transitionImageMutationRelease,
+} from '@vibelingan-channel/db';
 import {
   type MediaStorageAdapter,
   type PutMediaObjectInput,
@@ -28,8 +37,19 @@ class MemoryAdapter implements DbAdapter {
     this.store[collection] ??= [];
     return this.store[collection] as CollectionDoc[];
   }
-  async list(_query: AdapterListQuery): Promise<ListResult<CollectionDoc>> {
-    throw new Error('not used');
+  async list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>> {
+    // Just enough for the reference scan: `_id > cursor` walk, `_id` asc.
+    let items = [...this.docs(query.collection)];
+    for (const clause of query.filter?.clauses ?? []) {
+      if (clause.op === 'gt') {
+        items = items.filter((doc) => String(doc[clause.field]) > String(clause.value));
+      } else if (clause.op === 'eq') {
+        items = items.filter((doc) => doc[clause.field] === clause.value);
+      }
+    }
+    items.sort((a, b) => String(a._id).localeCompare(String(b._id)));
+    const page = items.slice(0, query.pageSize);
+    return { items: page, total: items.length, page: 1, pageSize: query.pageSize };
   }
   async get(collection: string, id: string): Promise<CollectionDoc | null> {
     return this.docs(collection).find((d) => d._id === id) ?? null;
@@ -59,6 +79,30 @@ class MemoryAdapter implements DbAdapter {
   }
   async incrementField(): Promise<number | null> {
     throw new Error('not used');
+  }
+  async acquireImageMutation(
+    imageId: string,
+    owner: string,
+    startedAt: string,
+  ): Promise<ImageMutationAcquireResult> {
+    const docs = this.docs('images');
+    const index = docs.findIndex((doc) => doc._id === imageId);
+    if (index < 0) return 'missing';
+    const existing = docs[index] as CollectionDoc;
+    const transition = transitionImageMutationAcquire(existing, owner, startedAt);
+    if (transition.result !== 'acquired') return transition.result;
+    docs[index] = { ...existing, ...transition.patch };
+    return 'acquired';
+  }
+  async releaseImageMutation(imageId: string, owner: string): Promise<ImageMutationReleaseResult> {
+    const docs = this.docs('images');
+    const index = docs.findIndex((doc) => doc._id === imageId);
+    if (index < 0) return 'missing';
+    const existing = docs[index] as CollectionDoc;
+    const transition = transitionImageMutationRelease(existing, owner);
+    if (transition.result !== 'released') return transition.result;
+    docs[index] = { ...existing, ...transition.patch };
+    return 'released';
   }
 }
 
@@ -334,5 +378,87 @@ test('removal deletes only unreferenced sentinel-owned candidates (object first)
   assert.deepEqual(await removeImportedCandidate('user-img'), {
     ok: false,
     reason: 'not-imported',
+  });
+});
+
+test('removal is blocked by an UNPUBLISHED document reference (refCount 0)', async () => {
+  setup();
+  const { fetchImpl } = fakeImageFetch();
+  const imported = await importCandidateImage('https://sc04.alicdn.com/a.png', {
+    fetchImpl,
+    resolveDns: PUBLIC_DNS,
+  });
+  assert.equal(imported.ok, true);
+  if (!imported.ok) return;
+
+  // An unpublished product holds the image: publishedRefCount stays 0 (only
+  // published refs count), but removal would dangle the draft's imageIds.
+  store.products = [
+    { _id: 'p-draft', published: false, imageIds: [imported.imageId] } as CollectionDoc,
+  ];
+  assert.deepEqual(await removeImportedCandidate(imported.imageId), {
+    ok: false,
+    reason: 'still-referenced',
+  });
+  assert.equal(store.images?.length, 1, 'doc survives');
+  assert.equal(storage.deletes.length, 0, 'object survives');
+
+  store.products = [];
+  const removed = await removeImportedCandidate(imported.imageId);
+  assert.equal(removed.ok, true);
+});
+
+test('a storage delete failure is TERMINAL: the doc survives and a retry succeeds', async () => {
+  setup();
+  const { fetchImpl } = fakeImageFetch();
+  const imported = await importCandidateImage('https://sc04.alicdn.com/a.png', {
+    fetchImpl,
+    resolveDns: PUBLIC_DNS,
+  });
+  assert.equal(imported.ok, true);
+  if (!imported.ok) return;
+
+  const originalDelete = storage.deleteObject.bind(storage);
+  let failNext = true;
+  storage.deleteObject = async (fileId: string) => {
+    if (failNext) {
+      failNext = false;
+      throw new Error('simulated storage outage');
+    }
+    return originalDelete(fileId);
+  };
+
+  assert.deepEqual(await removeImportedCandidate(imported.imageId), {
+    ok: false,
+    reason: 'delete-failed',
+  });
+  assert.equal(store.images?.length, 1, 'doc NEVER removed before the object');
+
+  // The mutation lock was released on failure — the retry can acquire it.
+  const retried = await removeImportedCandidate(imported.imageId);
+  assert.deepEqual(retried, { ok: true, imageId: imported.imageId });
+  assert.equal(store.images?.length, 0);
+});
+
+test('a held mutation lock refuses removal as busy', async () => {
+  setup();
+  const { fetchImpl } = fakeImageFetch();
+  const imported = await importCandidateImage('https://sc04.alicdn.com/a.png', {
+    fetchImpl,
+    resolveDns: PUBLIC_DNS,
+  });
+  assert.equal(imported.ok, true);
+  if (!imported.ok) return;
+
+  const adapter = new MemoryAdapter(store);
+  const held = await adapter.acquireImageMutation(
+    imported.imageId,
+    'other-owner',
+    new Date().toISOString(),
+  );
+  assert.equal(held, 'acquired');
+  assert.deepEqual(await removeImportedCandidate(imported.imageId), {
+    ok: false,
+    reason: 'busy',
   });
 });

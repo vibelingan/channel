@@ -147,10 +147,16 @@ test('link action renders inputs and both explicit actions', () => {
   assert.ok(html.includes('Linked source to product p-1.'));
 });
 
-test('callback notices map every redirect status to operator copy', () => {
+test('callback notices map a CLOSED status set and never echo the query value', () => {
   assert.equal(callbackNotice(''), null);
   assert.ok(callbackNotice('?alibaba=connected')?.includes('connected successfully'));
   assert.ok(callbackNotice('?alibaba=rate-limited')?.includes('Too many'));
   assert.ok(callbackNotice('?alibaba=not-configured')?.includes('not configured'));
-  assert.ok(callbackNotice('?alibaba=error-replayed-state')?.includes('replayed-state'));
+  assert.ok(callbackNotice('?alibaba=error-replayed-state')?.includes('already used'));
+  assert.ok(callbackNotice('?alibaba=error-expired-state')?.includes('expired'));
+  assert.ok(callbackNotice('?alibaba=error-exchange-failed')?.includes('token exchange'));
+  // Attacker-crafted values collapse to the generic line — NO echo (R2 #12).
+  const crafted = callbackNotice('?alibaba=error-%3Cimg%20src%3Dx%3E-injected');
+  assert.equal(crafted, 'Authorization failed. Start the flow again.');
+  assert.ok(!crafted?.includes('injected'));
 });

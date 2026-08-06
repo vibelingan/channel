@@ -16,10 +16,16 @@
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
-import { findByField } from '@vibelingan-channel/db';
+import {
+  acquireImageMutation,
+  findByField,
+  list,
+  releaseImageMutation,
+} from '@vibelingan-channel/db';
 import { mediaStorage, objectStoragePath } from '@vibelingan-channel/media-storage';
 import {
   CATALOG_IMAGE_MAX_BYTES,
+  COLLECTIONS,
   SIGNATURE_MIME,
   sniffMagicBytes,
 } from '@vibelingan-channel/shared';
@@ -251,12 +257,74 @@ export async function importCandidateImage(
 
 export type RemoveImportResult =
   | { ok: true; imageId: string }
-  | { ok: false; reason: 'not-found' | 'not-imported' | 'still-referenced' };
+  | {
+      ok: false;
+      reason:
+        | 'not-found'
+        | 'not-imported'
+        | 'not-active'
+        | 'busy'
+        | 'still-referenced'
+        | 'delete-failed';
+    };
+
+const REFERENCE_SCAN_PAGE_SIZE = 100;
+
+/**
+ * Any registered document (published or NOT — publishedRefCount only counts
+ * published refs) still holding the image in `imageIds` blocks removal; an
+ * unpublished draft would otherwise dangle. Cursor-paginated by `_id` for the
+ * same never-skip guarantee as the admin function's reference scan.
+ */
+async function findCandidateReference(
+  imageId: string,
+): Promise<{ collection: string; documentId: string } | null> {
+  const collections = COLLECTIONS.filter((definition) =>
+    definition.fields.some((field) => field.name === 'imageIds'),
+  );
+  for (const definition of collections) {
+    let cursor = '';
+    for (;;) {
+      const result = await list({
+        collection: definition.name,
+        page: 1,
+        pageSize: REFERENCE_SCAN_PAGE_SIZE,
+        search: '',
+        sort: [{ field: '_id', dir: 'asc' as const }],
+        ...(cursor
+          ? {
+              filter: {
+                combinator: 'and' as const,
+                clauses: [{ field: '_id', op: 'gt' as const, value: cursor }],
+              },
+            }
+          : {}),
+      });
+      for (const document of result.items) {
+        if (
+          Array.isArray(document.imageIds) &&
+          document.imageIds.some(
+            (candidate) => typeof candidate === 'string' && candidate.trim() === imageId,
+          )
+        ) {
+          return { collection: definition.name, documentId: String(document._id) };
+        }
+      }
+      const last = result.items.at(-1);
+      if (result.items.length < REFERENCE_SCAN_PAGE_SIZE || last === undefined) break;
+      cursor = String(last._id);
+    }
+  }
+  return null;
+}
 
 /**
  * Admin-only removal of an UNREFERENCED imported candidate — the sentinel
  * owner means no admin's own uploader-identity delete path can ever match
- * (R1 M13). Storage object first, then the doc.
+ * (R1 M13). Mirrors abandonUpload's lifecycle discipline (review R2 #1):
+ * mutation lock, re-read under the lock, full reference scan, and a storage
+ * delete failure is TERMINAL — the doc survives so the object is never
+ * orphaned. Object first, then the doc.
  */
 export async function removeImportedCandidate(imageId: string): Promise<RemoveImportResult> {
   const image = await getDoc('images', imageId);
@@ -264,16 +332,49 @@ export async function removeImportedCandidate(imageId: string): Promise<RemoveIm
   if (image.uploadedByUserId !== ALIBABA_IMAGE_IMPORT_OWNER) {
     return { ok: false, reason: 'not-imported' };
   }
-  if (Number(image.publishedRefCount ?? 0) > 0) {
-    return { ok: false, reason: 'still-referenced' };
-  }
-  if (typeof image.storageFileId === 'string' && image.storageFileId !== '') {
-    await mediaStorage()
-      .deleteObject(image.storageFileId)
-      .catch((e) =>
-        console.error('[alibaba-catalog-sync] imported-candidate object delete failed:', e),
+  if (image.status !== 'active') return { ok: false, reason: 'not-active' };
+
+  const owner = randomUUID();
+  const lock = await acquireImageMutation(imageId, owner, new Date().toISOString());
+  if (lock === 'missing') return { ok: false, reason: 'not-found' };
+  if (lock !== 'acquired') return { ok: false, reason: 'busy' };
+  let deleted = false;
+  try {
+    // Re-read under the lock: the pre-read raced other mutations.
+    const current = await getDoc('images', imageId);
+    if (!current) return { ok: false, reason: 'not-found' };
+    if (current.uploadedByUserId !== ALIBABA_IMAGE_IMPORT_OWNER) {
+      return { ok: false, reason: 'not-imported' };
+    }
+    if (current.status !== 'active') return { ok: false, reason: 'not-active' };
+    if (
+      typeof current.publishedRefCount !== 'number' ||
+      !Number.isFinite(current.publishedRefCount) ||
+      current.publishedRefCount !== 0
+    ) {
+      return { ok: false, reason: 'still-referenced' };
+    }
+    const reference = await findCandidateReference(imageId);
+    if (reference) return { ok: false, reason: 'still-referenced' };
+
+    const storageFileId =
+      typeof current.storageFileId === 'string' ? current.storageFileId.trim() : '';
+    if (storageFileId) {
+      try {
+        await mediaStorage().deleteObject(storageFileId);
+      } catch (error) {
+        console.error('[alibaba-catalog-sync] imported-candidate object delete failed:', error);
+        return { ok: false, reason: 'delete-failed' };
+      }
+    }
+    await removeDoc('images', imageId);
+    deleted = true;
+    return { ok: true, imageId };
+  } finally {
+    if (!deleted) {
+      await releaseImageMutation(imageId, owner).catch((e) =>
+        console.error('[alibaba-catalog-sync] imported-candidate lock release failed:', e),
       );
+    }
   }
-  await removeDoc('images', imageId);
-  return { ok: true, imageId };
 }

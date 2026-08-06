@@ -24,13 +24,28 @@ import {
 } from './alibaba-api.ts';
 
 /** Reads the ?alibaba= status the OAuth callback redirect carries. */
+/**
+ * CLOSED status set only (review R2 #12): the query value is
+ * attacker-controllable (anyone can craft ?alibaba=...), so nothing from the
+ * URL is ever echoed into the page — unknown values collapse to the generic
+ * failure line.
+ */
+const CALLBACK_NOTICES: Record<string, string> = {
+  connected: 'Alibaba account connected successfully.',
+  'rate-limited': 'Too many authorization attempts — try again shortly.',
+  'not-configured': 'The Alibaba connection is not configured on the server.',
+  'error-missing-params':
+    'Authorization failed: the callback was incomplete. Start the flow again.',
+  'error-replayed-state': 'Authorization failed: this link was already used. Start the flow again.',
+  'error-unknown-state': 'Authorization failed: unrecognized request. Start the flow again.',
+  'error-expired-state': 'Authorization failed: the request expired. Start the flow again.',
+  'error-exchange-failed': 'Authorization failed at the token exchange. Start the flow again.',
+};
+
 export function callbackNotice(search: string): string | null {
   const value = new URLSearchParams(search).get('alibaba');
   if (!value) return null;
-  if (value === 'connected') return 'Alibaba account connected successfully.';
-  if (value === 'rate-limited') return 'Too many authorization attempts — try again shortly.';
-  if (value === 'not-configured') return 'The Alibaba connection is not configured on the server.';
-  return `Authorization failed (${value.replace(/^error-/, '')}). Start the flow again.`;
+  return CALLBACK_NOTICES[value] ?? 'Authorization failed. Start the flow again.';
 }
 
 export function AlibabaCatalogSyncPage() {

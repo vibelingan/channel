@@ -58,7 +58,12 @@ const INCREMENTAL_LOOKBACK_MS = 4 * 3_600_000;
 
 export interface RunnerDeps {
   client: AlibabaClient;
-  accessToken: string;
+  /**
+   * Resolved AFTER the lease is acquired (review R2 finding: pre-fetching
+   * outside the lease let two concurrent ticks race the rotating refresh
+   * token; under the lease, refresh is single-flight).
+   */
+  getAccessToken: () => Promise<{ ok: true; accessToken: string } | { ok: false; reason: string }>;
   now: () => string;
   alert: AlertSender;
 }
@@ -166,8 +171,25 @@ export async function runSyncTick(input: {
     if (decision.action === 'resume') {
       runDoc = await getDoc('alibabaSyncRuns', decision.runId);
       const continuationCount = Number(checkpointDoc.continuationCount ?? 0);
+      // Self-heal (review R2): a lost lease during a previous completion can
+      // leave a terminal run still named in the checkpoint — clear it instead
+      // of resuming a finished/quarantined run.
+      const terminal =
+        runDoc &&
+        (runDoc.status === 'completed' ||
+          runDoc.status === 'quarantined' ||
+          runDoc.status === 'approved' ||
+          runDoc.status === 'failed');
+      if (terminal) {
+        await clearActiveRun(guard, deps);
+        await release();
+        return { outcome: 'idle', runId: decision.runId, detail: 'stale-active-run-cleared' };
+      }
       if (!runDoc || runOverdue(String(runDoc.startedAt ?? now), continuationCount, now)) {
         await failRun(decision.runId, 'run-overdue', guard(deps.now()), deps);
+        // Vacate the slot (review R2 HIGH): without this every later tick
+        // re-resumes the dead run forever and sync wedges permanently.
+        await clearActiveRun(guard, deps);
         await release();
         return { outcome: 'failed', runId: decision.runId, detail: 'run-overdue' };
       }
@@ -252,7 +274,24 @@ export async function runSyncTick(input: {
       );
     }
 
-    return await executeSlice(state, readCounters(runDoc), input, guard, release, holder, fence);
+    // Token AFTER the lease (single-flight refresh, review R2 #3). A refresh
+    // outage keeps the run active and retries next tick — never terminal here.
+    const access = await deps.getAccessToken();
+    if (!access.ok) {
+      await release();
+      return { outcome: 'not-connected', detail: access.reason };
+    }
+
+    return await executeSlice(
+      state,
+      readCounters(runDoc),
+      input,
+      access.accessToken,
+      guard,
+      release,
+      holder,
+      fence,
+    );
   } catch (error) {
     console.error('[alibaba-catalog-sync] tick failed:', error);
     await release();
@@ -264,6 +303,7 @@ async function executeSlice(
   state: CheckpointState,
   counters: RunCounters,
   input: { deps: RunnerDeps; budgetOverrides?: Partial<RunBudget> },
+  accessToken: string,
   guard: (at: string) => AlibabaLeaseGuard,
   release: () => Promise<boolean>,
   holder: string,
@@ -315,7 +355,7 @@ async function executeSlice(
     const response = await deps.client.callApi({
       apiPath: LIST_PATH,
       params,
-      accessToken: deps.accessToken,
+      accessToken,
     });
     if (!response.ok) return { ok: false, kind: 'transport' };
     const { storeRawPayload } = await import('./ingest.ts');
@@ -372,10 +412,28 @@ async function executeSlice(
         if (!result.ok) {
           return await handlePageFailure(result.kind, state, counters, guard, release, deps);
         }
-        state.enumerationState = applyCountResult(
-          state.enumerationState,
-          result.totalItems ?? result.ids.length,
-        );
+        if (result.totalItems === undefined) {
+          // §12 response-contract failure (review R2 #9): a page-size-1 count
+          // without total_item would silently collapse the whole window into
+          // one bucket. Quarantine instead of guessing.
+          await updateDoc('alibabaSyncRuns', state.activeRunId, {
+            status: 'quarantined',
+            alerts: ['response-contract-failed'],
+            counters,
+            completedAt: deps.now(),
+          });
+          await clearActiveRun(guard, deps);
+          await deps.alert(
+            `Alibaba sync run ${state.activeRunId} quarantined: list response carried no total_item (response contract failed).`,
+          );
+          await release();
+          return {
+            outcome: 'quarantined',
+            runId: state.activeRunId,
+            detail: 'response-contract-failed',
+          };
+        }
+        state.enumerationState = applyCountResult(state.enumerationState, result.totalItems);
         continue;
       }
       // action.type === 'list': fetch the terminal bucket then each detail.
@@ -398,7 +456,7 @@ async function executeSlice(
         const detailResponse = await deps.client.callApi({
           apiPath: DETAIL_PATH,
           params,
-          accessToken: deps.accessToken,
+          accessToken,
         });
         if (!detailResponse.ok) {
           counters.parseFailures += 1;
@@ -473,10 +531,12 @@ async function executeSlice(
       leaseOrFenceInvalid: false,
     });
     if (quarantine.quarantine) {
+      // Hash STABLE identifiers only (review R2 #6): full docs carry mutable
+      // stamps that would make approval's recomputation spuriously mismatch.
       const candidateHash = computeCandidateHash({
         runId: state.activeRunId,
         candidates: linkedCandidates,
-        tombstones: tombstoneCandidates,
+        tombstones: tombstoneCandidates.map((doc) => doc._id),
       });
       await updateDoc('alibabaSyncRuns', state.activeRunId, {
         status: 'quarantined',
@@ -516,7 +576,9 @@ async function executeSlice(
 
     state.stage = state.mode === 'full' ? 'tombstone' : 'promote';
     if (state.mode !== 'full') {
-      await completeRun(state, counters, guard, deps);
+      if (!(await completeRun(state, counters, guard, deps))) {
+        return { outcome: 'lease-lost', runId: state.activeRunId };
+      }
       await release();
       return { outcome: 'completed', runId: state.activeRunId };
     }
@@ -537,7 +599,7 @@ async function executeSlice(
     const confirm = await deps.client.callApi({
       apiPath: DETAIL_PATH,
       params,
-      accessToken: deps.accessToken,
+      accessToken,
     });
     if (!confirm.ok) {
       // A confirmation TRANSPORT error must not tombstone; quarantine the set.
@@ -568,11 +630,16 @@ async function executeSlice(
       });
       continue;
     }
-    await updateDoc('alibabaSourceProducts', candidate._id, {
-      active: false,
-      tombstonedAt: deps.now(),
-      lastSeenRunId: state.activeRunId,
-    });
+    // Fenced flip (R1 E7, review R2 #7): the tombstone DECISION input must not
+    // be writable by a stale holder — the lease is re-verified inside the
+    // same transaction as the write.
+    const flipped = await updateDocWithAlibabaLease(
+      'alibabaSourceProducts',
+      candidate._id,
+      { active: false, tombstonedAt: deps.now(), lastSeenRunId: state.activeRunId },
+      guard(deps.now()),
+    );
+    if (!flipped) return { outcome: 'lease-lost', runId: state.activeRunId };
     const link = await getDoc('alibabaProductLinks', candidate._id);
     if (link && typeof link.productId === 'string' && link.productId !== '') {
       await promoteLinkedProduct({
@@ -583,7 +650,9 @@ async function executeSlice(
     }
   }
 
-  await completeRun(state, counters, guard, deps);
+  if (!(await completeRun(state, counters, guard, deps))) {
+    return { outcome: 'lease-lost', runId: state.activeRunId };
+  }
   await release();
   return { outcome: 'completed', runId: state.activeRunId };
 }
@@ -634,9 +703,9 @@ async function failRun(
 async function clearActiveRun(
   guard: (at: string) => AlibabaLeaseGuard,
   deps: RunnerDeps,
-): Promise<void> {
+): Promise<boolean> {
   const now = deps.now();
-  await updateDocWithAlibabaLease(
+  const applied = await updateDocWithAlibabaLease(
     'alibabaSyncCheckpoints',
     PRIMARY_CONNECTION_ID,
     {
@@ -647,6 +716,10 @@ async function clearActiveRun(
     },
     guard(now),
   );
+  // A lost lease here is tolerable: the run row already carries its terminal
+  // status, and the resume path's terminal-run self-heal clears the slot on
+  // the next tick. Callers that must NOT claim success check the boolean.
+  return applied;
 }
 
 async function completeRun(
@@ -654,15 +727,12 @@ async function completeRun(
   counters: RunCounters,
   guard: (at: string) => AlibabaLeaseGuard,
   deps: RunnerDeps,
-): Promise<void> {
+): Promise<boolean> {
   const now = deps.now();
-  await updateDoc('alibabaSyncRuns', state.activeRunId, {
-    status: 'completed',
-    counters,
-    completedAt: now,
-  });
-  // Cursor advances ONLY at completion; dues recompute FROM THE SCHEDULE.
-  await updateDocWithAlibabaLease(
+  // FENCED checkpoint first (review R2 #8): the cursor advance + slot clear
+  // must not be lost while the run row claims completion. Only after the
+  // fenced write lands is the run marked completed.
+  const applied = await updateDocWithAlibabaLease(
     'alibabaSyncCheckpoints',
     PRIMARY_CONNECTION_ID,
     {
@@ -674,4 +744,11 @@ async function completeRun(
     },
     guard(now),
   );
+  if (!applied) return false;
+  await updateDoc('alibabaSyncRuns', state.activeRunId, {
+    status: 'completed',
+    counters,
+    completedAt: now,
+  });
+  return true;
 }

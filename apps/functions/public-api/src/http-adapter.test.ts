@@ -1019,7 +1019,8 @@ test('linked products ship the additive fields with offer provenance STRIPPED', 
   const response = await handlePublicApiEvent({ httpMethod: 'GET', path: '/api/products/p-1' }, {});
   const json = body(response) as { ok: true; data: CollectionDoc };
   const item = json.data;
-  assert.equal(item.alibabaPrimarySourceKey, 'a'.repeat(64));
+  // The REAL sourceKey hash never ships (review R2 #10) — link identity only.
+  assert.equal(item.alibabaPrimarySourceKey, 'linked');
   assert.equal(item.alibabaSourceStatus, 'available');
   assert.equal('alibabaPrimaryOfferKey' in item, false, 'offer key never ships');
   const pricing = item.alibabaCatalogPricing as Record<string, unknown>;

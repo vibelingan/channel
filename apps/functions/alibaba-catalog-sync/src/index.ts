@@ -64,15 +64,12 @@ export const main = async (event: unknown): Promise<unknown> => {
       console.warn('[alibaba-catalog-sync] timer tick skipped: not configured');
       return { outcome: 'not-connected' };
     }
-    const access = await getConnectionAccessToken(runtime.runtime.deps);
-    if (!access.ok) {
-      console.warn('[alibaba-catalog-sync] timer tick skipped:', access.reason);
-      return { outcome: 'not-connected' };
-    }
+    // Token resolves INSIDE the runner, after the lease (review R2 #3):
+    // refresh is single-flight and a transport outage is never terminal.
     return runSyncTick({
       deps: {
         client: runtime.runtime.deps.client,
-        accessToken: access.accessToken,
+        getAccessToken: () => getConnectionAccessToken(runtime.runtime.deps),
         now: runtime.runtime.deps.now,
         alert: runtime.runtime.deps.alert,
       },

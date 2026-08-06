@@ -35,7 +35,7 @@ export type ApproveResult =
       reason: 'run-not-found' | 'not-quarantined' | 'superseded' | 'lease-busy';
     };
 
-async function recomputeCandidates(runId: string) {
+async function recomputeCandidates(runId: string, mode: string) {
   const seen = await list({
     collection: 'alibabaSourceProducts',
     page: 1,
@@ -49,13 +49,19 @@ async function recomputeCandidates(runId: string) {
       candidates.push({ sourceKey: source._id });
     }
   }
-  const active = await list({
-    collection: 'alibabaSourceProducts',
-    page: 1,
-    pageSize: 500,
-    filter: { combinator: 'and', clauses: [{ field: 'active', op: 'eq', value: true }] },
-  });
-  const tombstones = active.items.filter((doc) => doc.lastSeenRunId !== runId);
+  // MODE-AWARE (review R2 #6): incremental runs freeze an EMPTY tombstone set
+  // (they never tombstone); recomputing one here would make every quarantined
+  // incremental run permanently unapprovable. Ids only — stable under stamps.
+  let tombstones: string[] = [];
+  if (mode === 'full') {
+    const active = await list({
+      collection: 'alibabaSourceProducts',
+      page: 1,
+      pageSize: 500,
+      filter: { combinator: 'and', clauses: [{ field: 'active', op: 'eq', value: true }] },
+    });
+    tombstones = active.items.filter((doc) => doc.lastSeenRunId !== runId).map((doc) => doc._id);
+  }
   return { candidates, tombstones };
 }
 
@@ -64,7 +70,7 @@ export async function approveQuarantinedRun(input: ApproveInput): Promise<Approv
   if (!run) return { ok: false, reason: 'run-not-found' };
   if (run.status !== 'quarantined') return { ok: false, reason: 'not-quarantined' };
 
-  const { candidates, tombstones } = await recomputeCandidates(input.runId);
+  const { candidates, tombstones } = await recomputeCandidates(input.runId, String(run.mode ?? ''));
   const recomputedHash = computeCandidateHash({
     runId: input.runId,
     candidates,

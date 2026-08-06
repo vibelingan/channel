@@ -261,3 +261,47 @@ All three functions build/package/pass stub-env cold-start smoke; 21
 deploy-smoke tests green.
 
 **Tasks 3+4 (MIU 0-14) complete.**
+
+## Review round 2 — pre-push adversarial branch review (2026-08-06)
+
+26-agent adversarial workflow over the finished branch: 21 raw findings,
+12 CONFIRMED (3 HIGH), 9 refuted. All 12 fixed in one hardening commit:
+
+1. **HIGH media-import removal lifecycle**: `removeImportedCandidate` now
+   mirrors abandonUpload — image mutation lock, re-read under lock,
+   status must be `active`, full cursor-paginated `imageIds` reference
+   scan across registered collections (an UNPUBLISHED draft blocks
+   removal even at refcount 0), and a storage-delete failure is TERMINAL
+   (doc survives; retry-able) instead of silently orphaning the object.
+2. **HIGH runner slot wedge**: the run-overdue / missing-run failure path
+   now vacates `activeRunId` (previously every later tick re-resumed the
+   dead run forever); plus self-heal — a terminal run stuck in the slot
+   (lease lost during completion) is cleared, not resumed.
+3. **HIGH quarantine approvability**: `recomputeCandidates` is mode-aware
+   (incremental runs freeze an EMPTY tombstone set) and both sides hash
+   stable `_id` lists instead of full mutable docs — quarantined
+   incremental runs were permanently unapprovable.
+4. Tombstone flips ride `updateDocWithAlibabaLease` (fence re-verified in
+   the write tx), not unfenced `updateDoc` after a keepLease check.
+5. `completeRun`/`clearActiveRun` order the fenced checkpoint write FIRST
+   and surface `lease-lost` instead of discarding the boolean.
+6. Token refresh is single-flight: the runner resolves the access token
+   AFTER lease acquisition via a `getAccessToken` thunk (two concurrent
+   ticks could race the rotating refresh token).
+7. A refresh TRANSPORT outage returns retryable `refresh-unavailable` —
+   never flips the terminal `authorization_expired` state (that is
+   reserved for an actual refresh rejection).
+8. A count response missing `total_item` quarantines as
+   `response-contract-failed` instead of silently degrading the count.
+9. Public API ships constant `'linked'` for `alibabaPrimarySourceKey` —
+   the real value is an unsalted sha256 over a small input space
+   (brute-forceable back to the supplier listing).
+10. Linked cards with a null price summary render the explicit
+    quote-required label (`data-alibaba-card-unavailable`) instead of an
+    empty slot.
+11. Admin callback notice maps a CLOSED status set — attacker-crafted
+    `?alibaba=` values collapse to a generic line, never echoed.
+
+Post-fix gates: 640 recursive tests + 16 script tests green, all
+typechecks + astro clean, biome clean, SDK contract verify pass, 3
+artifact cold-start smokes pass, site builds (18 pages).

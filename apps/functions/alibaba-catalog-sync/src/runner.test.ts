@@ -5,6 +5,7 @@ import {
   DEFAULT_ALIBABA_ENDPOINTS,
   alibabaSourceKey,
   createAlibabaClient,
+  initialEnumerationState,
 } from '@vibelingan-channel/alibaba-catalog-sync';
 import type {
   AdapterListQuery,
@@ -302,7 +303,7 @@ function makeDeps(fetchImpl: typeof fetch): Parameters<typeof runSyncTick>[0]['d
   });
   return {
     client,
-    accessToken: 'live-token',
+    getAccessToken: async () => ({ ok: true as const, accessToken: 'live-token' }),
     now,
     alert: async (message: string) => {
       alerts.push(message);
@@ -426,6 +427,70 @@ test('continuation: an exhausted budget checkpoints durably and the next tick co
   const run = store.alibabaSyncRuns?.[0] as CollectionDoc;
   assert.equal(run.status, 'completed');
   assert.equal((store.alibabaSyncCheckpoints?.[0] as CollectionDoc).activeRunId, '');
+});
+
+test('self-heal: a terminal run stuck in the checkpoint slot is cleared, not resumed', async () => {
+  setup();
+  const checkpoint = store.alibabaSyncCheckpoints?.[0] as CollectionDoc;
+  checkpoint.activeRunId = 'run-done';
+  store.alibabaSyncRuns = [
+    {
+      _id: 'run-done',
+      status: 'completed',
+      mode: 'incremental',
+      startedAt: '2026-08-06T11:00:00.000Z',
+    } as CollectionDoc,
+  ];
+
+  const backend = fakeBackend(() => []);
+  const report = await runSyncTick({ deps: makeDeps(backend.fetchImpl), trigger: 'timer' });
+  assert.equal(report.outcome, 'idle');
+  assert.equal(report.detail, 'stale-active-run-cleared');
+  assert.equal(backend.calls.length, 0, 'no API calls to resume a finished run');
+  assert.equal(
+    (store.alibabaSyncCheckpoints?.[0] as CollectionDoc).activeRunId,
+    '',
+    'slot vacated',
+  );
+  assert.equal((store.alibabaSyncRuns?.[0] as CollectionDoc).status, 'completed', 'run untouched');
+});
+
+test('overdue run: failed AND the slot is vacated so the next tick starts fresh', async () => {
+  setup();
+  const checkpoint = store.alibabaSyncCheckpoints?.[0] as CollectionDoc;
+  checkpoint.activeRunId = 'run-stuck';
+  checkpoint.enumerationState = initialEnumerationState({
+    fromMs: Date.parse('2026-08-06T08:15:00.000Z'),
+    toMs: Date.parse('2026-08-06T12:00:00.000Z'),
+  });
+  store.alibabaSyncRuns = [
+    {
+      _id: 'run-stuck',
+      status: 'running',
+      mode: 'incremental',
+      // Two days old — far past the max run age.
+      startedAt: '2026-08-04T12:00:00.000Z',
+    } as CollectionDoc,
+  ];
+
+  const backend = fakeBackend(() => []);
+  const report = await runSyncTick({ deps: makeDeps(backend.fetchImpl), trigger: 'timer' });
+  assert.equal(report.outcome, 'failed');
+  assert.equal(report.detail, 'run-overdue');
+  assert.equal((store.alibabaSyncRuns?.[0] as CollectionDoc).status, 'failed');
+  assert.equal(
+    (store.alibabaSyncCheckpoints?.[0] as CollectionDoc).activeRunId,
+    '',
+    'slot vacated — sync can never wedge on a dead run',
+  );
+
+  // The NEXT tick is free to start the due incremental run.
+  const next = await runSyncTick({
+    deps: makeDeps(fakeBackend(() => []).fetchImpl),
+    trigger: 'timer',
+  });
+  assert.notEqual(next.outcome, 'lease-busy');
+  assert.notEqual(next.runId, 'run-stuck');
 });
 
 test('unsupported currency quarantines BEFORE promotion; approval promotes the frozen candidate', async () => {

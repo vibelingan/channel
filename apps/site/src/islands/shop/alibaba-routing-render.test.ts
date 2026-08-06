@@ -142,6 +142,9 @@ test('MATRIX linked+missing: quote-required state renders and legacy values stay
   const card = renderCard(product);
   assert.ok(!card.includes('$18.90'), 'no legacy fallback on the card');
   assert.ok(!card.includes('data-product-card-price'));
+  // The card is never silently price-less (review R2 #2): the quote-required
+  // marker renders where the price would.
+  assert.ok(card.includes('data-alibaba-card-unavailable'), 'card renders the unavailable label');
 
   const detail = renderDetail(product, true);
   assert.ok(detail.includes('data-alibaba-unavailable'), 'quote-required state renders');

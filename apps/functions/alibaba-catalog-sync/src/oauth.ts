@@ -209,7 +209,10 @@ export async function disconnectConnection(deps: Pick<OAuthDeps, 'now'>): Promis
 
 export type AccessTokenResult =
   | { ok: true; accessToken: string }
-  | { ok: false; reason: 'not-connected' | 'authorization-expired' | 'decrypt-failed' };
+  | {
+      ok: false;
+      reason: 'not-connected' | 'authorization-expired' | 'decrypt-failed' | 'refresh-unavailable';
+    };
 
 /**
  * Current access token with LAZY refresh (test env has no timer — R1): refresh
@@ -238,12 +241,16 @@ export async function getConnectionAccessToken(deps: OAuthDeps): Promise<AccessT
     maxAttempts: 1,
   });
   if (!result.ok) {
-    // Transport failure is retryable; keep the current token if it is still
-    // valid at this instant, otherwise surface expiry.
+    // Transport failure is RETRYABLE, never terminal (review R2 #4): keep the
+    // current token if it is still valid this instant, otherwise report an
+    // outage and let the caller retry next tick — the ARCHITECTURE §8
+    // authorization_expired state is reserved for NON-RECOVERABLE failures.
     if (expiresAt > now) return { ok: true, accessToken: payload.accessToken };
-    return await markAuthorizationExpired(deps, 'refresh transport failure');
+    return { ok: false, reason: 'refresh-unavailable' };
   }
   const grant = readTokenResponse(result.bodyText, now);
+  // A successful HTTP exchange whose body rejects the refresh token IS
+  // non-recoverable — the merchant must re-authorize.
   if (!grant) return await markAuthorizationExpired(deps, 'refresh rejected');
   const nextPayload: Record<string, unknown> = { accessToken: grant.accessToken };
   if (grant.refreshToken !== undefined) nextPayload.refreshToken = grant.refreshToken;

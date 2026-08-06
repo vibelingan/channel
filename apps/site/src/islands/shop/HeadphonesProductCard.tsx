@@ -12,7 +12,10 @@
  * action 12px/500 (`text-xs font-medium`).
  */
 import type { HeadphonesContent } from '../../i18n/headphones.ts';
-import { alibabaPriceSummary } from './AlibabaCatalogPricingBlock.tsx';
+import {
+  DEFAULT_ALIBABA_PRICING_LABELS,
+  alibabaPriceSummary,
+} from './AlibabaCatalogPricingBlock.tsx';
 import { ProductMedia } from './ProductMedia.tsx';
 import { formatPrice } from './api.ts';
 import type { Product } from './catalog-types.ts';
@@ -75,9 +78,16 @@ export function HeadphonesProductCard({
                     {list.moqLabel}: <strong>{product.alibabaCatalogPricing.sourceMoq}</strong>
                   </span>
                 )}
-                {alibabaPriceSummary(product.alibabaCatalogPricing) !== null && (
+                {alibabaPriceSummary(product.alibabaCatalogPricing) !== null ? (
                   <span data-alibaba-card-price className="text-sm font-semibold text-brand-700">
                     {alibabaPriceSummary(product.alibabaCatalogPricing)}
+                  </span>
+                ) : (
+                  /* Quote-required states still render an EXPLICIT marker
+                     (review R2 #2): silence here reads as a broken card and
+                     invites falling back to the suppressed legacy price. */
+                  <span data-alibaba-card-unavailable className="text-sm font-medium text-ink-soft">
+                    {DEFAULT_ALIBABA_PRICING_LABELS.unavailableLabel}
                   </span>
                 )}
               </>

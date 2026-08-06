@@ -163,6 +163,16 @@ const PUBLIC_CATALOG_FIELDS = [
  */
 const ALIBABA_PRICING_PRIVATE_KEYS = ['sourceOfferKey', 'sourceProductId', 'sourceSkuId'] as const;
 
+/**
+ * The storefront only needs link-IDENTITY, never the key itself (review R2
+ * #10): the stored value is sha256(supplier identifiers) and the input space
+ * is small enough to brute-force offline, which would let a visitor locate
+ * the source listing. Ship a constant marker instead.
+ */
+function publicAlibabaSourceKey(value: unknown): unknown {
+  return typeof value === 'string' && value !== '' ? 'linked' : value;
+}
+
 function publicAlibabaCatalogPricing(value: unknown): unknown {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
   const out: Record<string, unknown> = {};
@@ -191,7 +201,12 @@ function publicDoc(
   const out: CollectionDoc = { _id: doc._id, images: catalogImages(doc, config) };
   for (const key of PUBLIC_CATALOG_FIELDS) {
     if (key !== '_id' && key in doc) {
-      out[key] = key === 'alibabaCatalogPricing' ? publicAlibabaCatalogPricing(doc[key]) : doc[key];
+      out[key] =
+        key === 'alibabaCatalogPricing'
+          ? publicAlibabaCatalogPricing(doc[key])
+          : key === 'alibabaPrimarySourceKey'
+            ? publicAlibabaSourceKey(doc[key])
+            : doc[key];
     }
   }
   if (viewer.canSeeVipPricing) {

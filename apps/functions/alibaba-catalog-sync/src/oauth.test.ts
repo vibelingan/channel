@@ -570,3 +570,41 @@ test('access token refreshes lazily near expiry and expires the connection on fa
   assert.equal(alerts.length, 1);
   assert.ok(!alerts[0]?.includes('rotated'), 'alert carries no token material');
 });
+
+test('a refresh TRANSPORT outage is retryable — never authorization_expired', async () => {
+  setup();
+  alerts.length = 0;
+  const token = await adminToken();
+  const log: FetchLogEntry[] = [];
+  const fetchImpl = fakeAlibabaFetch(log);
+  const state = await startAndExtractState(token, fetchImpl);
+  await handleOAuthCallbackRequest({ code: 'c', state }, baseConfig, {}, overrides(fetchImpl));
+
+  const { getConnectionAccessToken } = await import('./oauth.ts');
+
+  // Network down PAST full expiry: report an outage, keep the connection
+  // active — flipping to the terminal state would demand a needless
+  // re-authorization for a transient failure (review R2 #4).
+  const afterFullExpiry = '2026-08-07T09:00:00.000Z';
+  const downFetch = (async () => {
+    throw new Error('ECONNRESET');
+  }) as typeof fetch;
+  const downRuntime = resolveRuntime(baseConfig, overrides(downFetch, afterFullExpiry));
+  assert.equal(downRuntime.ok, true);
+  if (!downRuntime.ok) return;
+  const outage = await getConnectionAccessToken(downRuntime.runtime.deps);
+  assert.deepEqual(outage, { ok: false, reason: 'refresh-unavailable' });
+  assert.equal(currentStore.alibabaConnections?.[0]?.status, 'active', 'stays active');
+  assert.equal(alerts.length, 0, 'no expiry alert for a transient outage');
+
+  // Network back: the SAME refresh token still rotates successfully.
+  const recoveredFetch = fakeAlibabaFetch(log, {
+    access_token: 'recovered-access-token',
+    refresh_token: 'recovered-refresh-token',
+    expires_in: 36_000,
+  });
+  const recoveredRuntime = resolveRuntime(baseConfig, overrides(recoveredFetch, afterFullExpiry));
+  if (!recoveredRuntime.ok) return;
+  const recovered = await getConnectionAccessToken(recoveredRuntime.runtime.deps);
+  assert.deepEqual(recovered, { ok: true, accessToken: 'recovered-access-token' });
+});
