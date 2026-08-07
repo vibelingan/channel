@@ -410,10 +410,19 @@ defaults, overridable via optional env (`ALI_AUTHORIZE_BASE_URL`,
 Verification status (updated 2026-08-06 once connectivity returned):
 
 - **CONFIRMED from official docs** — the ICBU authorize page:
-  `https://oauth.alibaba.com/authorize?response_type=code&client_id=<appKey>&redirect_uri=<cb>&sp=ICBU&view=web&state=…`
-  (the official example writes `State=` in the request while the callback
-  echoes `state=`; the implementation sends BOTH casings and the callback
-  accepts both). The GOP token protocol is also confirmed across the
+  `https://oauth.alibaba.com/authorize?response_type=code&client_id=<appKey>&redirect_uri=<cb>&sp=icbu&view=web&state=…`
+- **AMENDED 2026-08-07 — the parameter shape above is the MINIMAL set, with
+  lowercase `sp=icbu`.** The originally shipped URL sent `sp=ICBU` (uppercase),
+  `force_auth=true`, and both `state`/`State` casings; the live gateway
+  answered the first real Connect with `param-appkey.not.exists`. `sp` is a
+  platform selector validated BEFORE login (probe: `sp=FOO` is rejected with
+  `param-sp.unsupported` without a login redirect, while both `icbu` spellings
+  pass), so an unrecognized selector variant routes to an authorization
+  registry that does not know this app key — the observed error. `force_auth`
+  is not in the standard example (ISV examples use `force_login`) and the
+  dual-casing `state` hedge was dropped with it. The callback keeps accepting
+  an echoed `State` either way. The GOP token protocol is also confirmed
+  across the
   platform family: POST `/auth/token/create` `{code}` and
   `/auth/token/refresh` `{refresh_token}` on the signed `/rest` gateway,
   returning `access_token`/`refresh_token`/`expires_in` (seconds)/
