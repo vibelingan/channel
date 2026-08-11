@@ -23,7 +23,7 @@ green.
 |---|---|---|---|
 | Unit | Pure functions | Transitions, authorization, retention decisions, redaction | `packages/*/src/*.test.ts` |
 | Store | Real PostgreSQL | Primitives, constraints, sequence integrity | `packages/ai-store/src/*.test.ts` |
-| Race | Real PostgreSQL + barriers | The four takeover windows, invariants I1–I8 | `packages/ai-store/src/race/*.test.ts` |
+| Race | Real PostgreSQL + barriers | The takeover windows and invariants I1–I10 | `packages/ai-store/src/race/*.test.ts` |
 | Conformance | Each engine adapter | Port contract, error taxonomy, idempotency | `packages/ai-engine/src/conformance.ts` |
 | Contract / probe | Live pinned dependencies | Toolsets, Runs semantics, credential scope | `scripts/verify-ai-*.mjs` |
 | Integration | Fake engine + real PostgreSQL | API routes, SSE, outbox, workers end to end | `apps/functions/*/src/*.test.ts` |
@@ -171,10 +171,10 @@ settle. Each becomes a recorded probe (following the SDK-probe discipline in
 
 | Probe | Question it answers | Consumed by |
 |---|---|---|
-| Runs create replay | Does one operation id yield one run? | LLD-002 `supportsIdempotentCreate`; decides whether the mapping adapter is needed |
+| Runs create replay | Does one operation id yield one run? | LLD-002 `supportsIdempotentCreate`; decides whether the mapping layer is needed |
 | Run metadata + list | Can an orphaned run be found after a crash? | LLD-001 §7 reconciler feasibility |
 | Stop semantics | Double stop, unknown id, finished run | `EngineCancelResult` mapping |
-| Store transaction | `SELECT … FOR UPDATE`, rollback, pool behaviour in the target environment | Whether LLD-001's primitives exist at all |
+| Store transaction | Conditional `UPDATE … RETURNING`, `READ COMMITTED`, rollback, pool behaviour in the target environment | Whether LLD-001's primitives exist at all |
 | Knowledge credential scope | Can the public token reach internal material? | Gate 2 |
 | SSE through the real proxy | Does streaming survive the production path? | MIU 7 |
 

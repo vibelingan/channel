@@ -94,9 +94,9 @@ export interface ConversationEngine {
 }
 ```
 
-`createRun` and `streamRun` are separate on purpose. LLD-001 §5 must register the
-vendor run id under a version check *between* the two, and a single
-`create-and-stream` call would make that fence impossible to insert.
+`createRun` and `streamRun` are separate on purpose. LLD-001 §5 must record the
+vendor run id and then authorize the run under a version check *between* the two,
+and a single `create-and-stream` call would leave nowhere to put either write.
 
 ## 5. Types
 

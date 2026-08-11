@@ -22,8 +22,8 @@ image-storage mode enum.
 So this is not a feature added to an existing service. It introduces a second
 runtime and a second database engine to the project. Two consequences:
 
-1. **MIU 0 must settle the runtime before MIU 2 writes a schema.** If the answer
-   turns out to be "no PostgreSQL", LLD-001's `SELECT … FOR UPDATE` fence does not
+1. **MIU 0 must settle the runtime before MIU 2c writes a schema.** If the answer
+   turns out to be "no PostgreSQL", LLD-001's conditional-`UPDATE` fence does not
    exist and the takeover design needs a different primitive and a new ADR. That
    is a re-architecture, not a refactor.
 2. The person-week estimate in the architecture (22–38) is dominated by this,
@@ -42,14 +42,27 @@ runtime and a second database engine to the project. Two consequences:
 | M5 Knowledge & quality | 13a, 13b | Public corpus, evaluation harness |
 | M6 Operations | 14, 14b, 15, 16 | Observability, budget enforcement, deploy, drills |
 
-Dependency spine: `0 → 2a → 2b → 2c → 2d → 3 → 5 → 6 → 7 → 11`.
+Dependency spine, matching the per-MIU `Depends on:` lines exactly:
+
+```text
+0 ──► 2a ──► 2b ──► 2c ──► 2d ──► 3 ──► 5b ──► 5c ──► 6 ──► 7 ──► 11
+1 ──────────────────────────────► 5a ──┘              ▲      ▲
+2c ─────────────────────────────► 14b ────────────────┘      │
+3  ─────────────────────────────► 8  ─────────────────┘      │
+12a ─────────────────────────────────────────────────────────┘
+```
 
 **MIU 1 depends on nothing** and starts on day zero, in parallel with MIU 0 —
 the whole argument of LLD-002 is that the port is written before any vendor
-knowledge exists. MIU 4 needs 0 and 1. MIU 5 needs **1 and 3**, not 4: its
-acceptance runs against the fake engine, and serializing the critical path behind
-a live-vendor MIU that is itself blocked on external provisioning costs weeks of
-idle time. MIU 5 is re-run against the real adapter in MIU 16.
+knowledge exists. MIU 4 needs 0 and 1. The start-run handler (5c) needs **1, 3,
+5a and 5b**, not the Hermes adapter: its acceptance runs against the fake engine,
+and serializing the critical path behind a live-vendor MIU that is itself blocked
+on external provisioning costs weeks of idle time. It is re-run against the real
+adapter in MIU 16.
+
+MIU 6 additionally needs 14b (budget enforcement must exist before the public API
+it protects) and 8 (for the handoff and close routes). MIU 11 needs 12a, because
+the allowlist data has to exist before anything mounts against it.
 
 ---
 
@@ -64,10 +77,10 @@ observation. No runtime code changes.
 - Probe Runs create replay semantics with a repeated operation id. Record whether
   it is natively replay-safe (LLD-002 `supportsIdempotentCreate`).
 - Probe whether runs accept metadata and can be listed — this decides whether the
-  operation-id mapping adapter of LLD-001 §7 is buildable as designed.
+  operation-id mapping layer of LLD-001 §7 is buildable as designed.
 - Probe stop semantics: stop twice, stop an unknown id, stop a finished run.
 - **Settle the runtime and store.** CloudRun + `pg`, CloudBase PostgreSQL, or
-  database-side RPCs. Prove a transaction, a `SELECT … FOR UPDATE`, a rollback,
+  database-side RPCs. Prove a transaction, a conditional `UPDATE … RETURNING`, a rollback,
   and pool behaviour in the target environment. Follow the CloudBase SDK Contract
   Gate in `AGENTS.md` for anything SDK-shaped.
 - Confirm the Lexiang public space can exist as a separate space with a
@@ -211,9 +224,10 @@ transaction and the POST route, so it belongs to MIU 5's acceptance.
 
 **Depends on:** 2d.
 
-- Transitions T1–T5 of LLD-001 §2.3, each as a single transaction.
+- Transitions T1–T6 of LLD-001 §2.3, each as a single transaction.
 - Run lifecycle transitions and `cancel_requested_at` handling.
-- Invariants I1–I8 asserted, including the four race windows (R1–R4) driven
+- Invariants I1–I10 asserted, including the four takeover windows (R1–R4) and
+  the intra-append window, driven
   through injectable barriers rather than timing.
 
 **Done:** race suite green and deterministic (no `sleep`-based tests); no HTTP,
@@ -227,8 +241,10 @@ no engine, no vendor.
 
 - `packages/ai-engine-hermes` implementing the port against the pinned digest.
 - Capability descriptor populated from MIU 0's observations, not from optimism.
-- Operation-id mapping adapter **only if** MIU 0 proved it necessary and
-  buildable; its own table, intent-before-call ordering, startup reconciler.
+- The operation-id mapping layer is **MIU 5c's**, not this MIU's — LLD-002
+  forbids database access inside an adapter, so it lives in the BFF and wraps the
+  port rather than implementing it. This MIU only reports the capability
+  truthfully so the BFF knows whether the layer is required.
 - Vendor error → category mapping with fixtures for each category.
 - Toolset assertion as an exact-set contract test (SECURITY.md §5).
 
@@ -516,8 +532,9 @@ ship without it — an anonymous stranger with no cap is an unbounded model bill
 
 - Daily and monthly spend caps, evaluated on the request path.
 - The degradation signal that MIU 11e consumes to show the inquiry form.
-- Caps on turns per conversation and concurrent runs per conversation
-  (the latter enforced by the MIU 2c index).
+- A cap on turns per conversation. Concurrency needs no cap: the MIU 2c index
+  admits exactly one live run, and MIU 6b queues the visitor's next message
+  rather than starting a second.
 
 **Done:** with the cap exhausted, every public route degrades rather than
 serving; the widget shows the inquiry path.

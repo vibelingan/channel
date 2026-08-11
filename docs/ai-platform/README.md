@@ -21,7 +21,7 @@ the architecture above wins and the specifying document is corrected.
 | Document | Specifies | Read before |
 |---|---|---|
 | [MIU_BREAKDOWN.md](./MIU_BREAKDOWN.md) | The architecture decomposed into independently verifiable units, with a gate coverage map and an estimate reconciliation | Starting any implementation work |
-| [LLD-001-HUMAN-TAKEOVER-STATE-MACHINE.md](./LLD-001-HUMAN-TAKEOVER-STATE-MACHINE.md) | Architecture §8 — states, compare-and-set, the ordered-event fence, and the four race windows | Writing any conversation state or streaming code |
+| [LLD-001-HUMAN-TAKEOVER-STATE-MACHINE.md](./LLD-001-HUMAN-TAKEOVER-STATE-MACHINE.md) | Architecture §8 — states, the authorization epoch, run-level cancellation, the ordered-event fence, and the race windows | Writing any conversation state or streaming code |
 | [LLD-002-CONVERSATION-ENGINE-INTERFACE.md](./LLD-002-CONVERSATION-ENGINE-INTERFACE.md) | The provider-neutral `ConversationEngine` boundary that keeps Hermes swappable | Writing the engine adapter, and before it |
 | [SECURITY.md](./SECURITY.md) | Architecture §9 — trust zones, the credential inventory, the public-only knowledge space, and the tool surface contract | Provisioning any credential |
 | [TEST_STRATEGY.md](./TEST_STRATEGY.md) | Architecture §11 — which test proves each gate, and which claims cannot be proven offline | Planning any MIU's verification |
