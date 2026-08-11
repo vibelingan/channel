@@ -42,15 +42,41 @@ runtime and a second database engine to the project. Two consequences:
 | M5 Knowledge & quality | 13a, 13b | Public corpus, evaluation harness |
 | M6 Operations | 14, 14b, 15, 16 | Observability, budget enforcement, deploy, drills |
 
-Dependency spine, matching the per-MIU `Depends on:` lines exactly:
+Dependency edges, which are the per-MIU `Depends on:` lines restated — if the two
+ever disagree, the per-MIU lines win:
 
-```text
-0 ──► 2a ──► 2b ──► 2c ──► 2d ──► 3 ──► 5b ──► 5c ──► 6 ──► 7 ──► 11
-1 ──────────────────────────────► 5a ──┘              ▲      ▲
-2c ─────────────────────────────► 14b ────────────────┘      │
-3  ─────────────────────────────► 8  ─────────────────┘      │
-12a ─────────────────────────────────────────────────────────┘
-```
+| MIU | Depends on |
+|---|---|
+| 0 | — (starts immediately) |
+| 1 | — (starts immediately) |
+| 2a | 0 |
+| 2b | 2a |
+| 2c | 2b |
+| 2d | 2c |
+| 3 | 2d |
+| 4 | 0, 1 |
+| 5a | 1 |
+| 5b | 2d, 3 |
+| 5c | 5a, 5b |
+| 5d | 5c |
+| 5e | 5b |
+| 6 | 5c, 14b, 8 |
+| 7 | 6 |
+| 8 | 3 |
+| 9r | 0 |
+| 9 | 3, 9r |
+| 10 | 9 |
+| 11 | 7, 12a |
+| 12a | — (allowlist data; must precede 11) |
+| 12b | 11 |
+| 13a | 0 |
+| 13b | 1, 4, 5a |
+| 14 | 5b |
+| 14b | 2c |
+| 15 | 14 |
+| 16 | all |
+
+Longest path: `0 → 2a → 2b → 2c → 2d → 3 → 5b → 5c → 6 → 7 → 11 → 12b`.
 
 **MIU 1 depends on nothing** and starts on day zero, in parallel with MIU 0 —
 the whole argument of LLD-002 is that the port is written before any vendor
@@ -89,7 +115,7 @@ observation. No runtime code changes.
   streams engine events and appends per event, which is a long-lived process. The
   repo's only scheduling primitive is CloudBase timer triggers, and prior work
   established the test environment has none. This is a decision, not a detail —
-  MIU 5 cannot be built without it.
+  MIU 5b and 5c cannot be built without it.
 - **Decide the context-assembly and redaction rule**: how many prior turns go
   into a run, whether a returned-to-AI conversation replays the salesperson's
   messages, and what is redacted. LLD-001 open question 3 and LLD-002 open
@@ -307,8 +333,10 @@ PostgreSQL; I4, I5, I8, I9, I10 proven.
 **Depends on:** 5c.
 
 Idempotent stop; resolution for runs cancelled before authorization; reconciler
-for orphans, for runs stuck in `CREATING` past the age limit, and for operations
-stranded in `CALL_IN_FLIGHT`.
+for orphans, for runs stuck in `CREATING` past the age limit, for `RUNNING` runs
+whose `last_append_at` is past the stall limit, and for operations stranded in
+`CALL_IN_FLIGHT`. Also the terminalization path's **drain**: when a run reaches a
+terminal status, a visitor message queued behind it gets a run.
 
 **Done:** a forced stop-API failure produces zero visitor-visible bytes (I7); a
 crash between the vendor call and recording produces no second vendor run.
@@ -532,9 +560,10 @@ ship without it — an anonymous stranger with no cap is an unbounded model bill
 
 - Daily and monthly spend caps, evaluated on the request path.
 - The degradation signal that MIU 11e consumes to show the inquiry form.
-- A cap on turns per conversation. Concurrency needs no cap: the MIU 2c index
-  admits exactly one live run, and MIU 6b queues the visitor's next message
-  rather than starting a second.
+- A cap on turns per conversation, and on concurrent conversations per visitor
+  and per IP. Concurrency *within* a conversation needs no cap — the MIU 2c index
+  admits exactly one live run and MIU 6b queues the next message — but nothing
+  stops one visitor opening many conversations, which is the unbounded-bill case.
 
 **Done:** with the cap exhausted, every public route degrades rather than
 serving; the widget shows the inquiry path.

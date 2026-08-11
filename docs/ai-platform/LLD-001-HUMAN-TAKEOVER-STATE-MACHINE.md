@@ -3,7 +3,7 @@
 **Status:** Proposed; specifies §8 of [CHANNEL_AI_ASSISTANT_ARCHITECTURE.md](./CHANNEL_AI_ASSISTANT_ARCHITECTURE.md)
 **Owning architecture:** Channel public AI assistant
 **Depends on:** [ADR-001](./ADR-001-HERMES-LEXIANG-CONTROL-PLANE.md) "Human Handoff Consistency Decision"
-**Diagrams:** `.claude/diagrams/lld-state-conversation-control.excalidraw`, `.claude/diagrams/lld-sequence-human-takeover.excalidraw`
+**Diagrams:** `.claude/diagrams/lld-state-conversation-control.excalidraw`, `.claude/diagrams/lld-sequence-human-takeover.excalidraw` — both predate this document. Where they differ, this document wins: the sequence diagram still shows the run id being registered *conditionally* (now split into an unconditional record plus a fenced authorization, §5) and labels a discarded run `DISCARDED`, which is not a status in §3. Redraw them before they are used to brief anyone.
 **Last reviewed:** 2026-08-11
 
 ## 1. What this document specifies
@@ -102,7 +102,7 @@ The epoch advances on `HUMAN_ACTIVE` (T2), on an authorized return to
 | T3 | `HUMAN_ACTIVE` | `BOT_ACTIVE` | sales (explicit) | status is `HUMAN_ACTIVE` **and** caller is assignee or admin | `mode_version += 1`; clear `assigned_to`; append `handoff.returned` |
 | T4 | `HUMAN_ACTIVE` | `HUMAN_ACTIVE` | sales (reassign) | status **is** `HUMAN_ACTIVE` **and** `assigned_to = $current` **and** caller is assignee or admin | change `assigned_to`; append `assignment.changed`; **no** epoch change |
 | T5 | `BOT_ACTIVE`, `HANDOFF_REQUESTED`, `HUMAN_ACTIVE` | `CLOSED` | visitor, sales, or retention job | status in that explicit set **and** `mode_version = expected` | `mode_version += 1`; append `conversation.closed`; set `cancel_requested_at` on live runs; enqueue cancels; start retention clock |
-| T6 | — | — | visitor (Stop) or sales | run belongs to this conversation **and** run status in (`CREATING`, `RUNNING`) | set `ai_runs.cancel_requested_at`; append `run.stopped`; enqueue cancel-run. **Run-level only** — no status or epoch change |
+| T6 | — | — | visitor (Stop) or sales | run belongs to this conversation **and** run status in (`CREATING`, `RUNNING`) | lock the conversation first (§4.4 order), then set `ai_runs.cancel_requested_at`; append `run.stopped`; enqueue cancel-run. **Run-level only** — no status or epoch change |
 
 T4 carries a status predicate and the expected current assignee, so a reassign
 cannot fire on a closed conversation, cannot fire while the assistant is still
@@ -138,6 +138,7 @@ CREATING ──► RUNNING ──► COMPLETED
 | `expected_mode_version` | The epoch this run was authorized under |
 | `claim_epoch` | Incremented on every worker claim; the fencing token for §4.3 |
 | `claimed_by`, `lease_expires_at` | Current worker and its lease |
+| `last_append_at` | Set by every append (§4.2 step 2). Doubles as the liveness signal the stall reaper reads — a `RUNNING` run whose last append is older than the stall limit is dead, whatever its lease says |
 | `status` | `CREATING`, `RUNNING`, `COMPLETED`, `FAILED`, `CANCELLED` |
 | `cancel_requested_at` | Set by takeover, close, or the visitor's Stop, even while `engine_run_id` is `NULL` |
 | `attempts` | Bounded; exhaustion is a terminal `FAILED`, never an endless retry |
@@ -168,10 +169,14 @@ a terminal status — marking it `cancel_requested_at` is not enough, so the can
 handler must terminalize it promptly or the next message is stuck behind a run
 nobody is streaming.
 
-**`CREATING` is bounded.** A run older than the `CREATING` age limit, or whose
-outbox item dead-letters, or whose attempts are exhausted, transitions to
-`FAILED` and appends a terminal event. This is the mechanism behind I4 — without
-it, "never indefinitely `CREATING`" is an aspiration rather than a guarantee.
+**Both live statuses are bounded.** A run older than the `CREATING` age limit, or
+whose outbox item dead-letters, or whose attempts are exhausted, transitions to
+`FAILED` and appends a terminal event. A `RUNNING` run whose `last_append_at` is
+older than the stall limit is reaped the same way — and that reaper is not
+optional, because a live run is what the §3 index counts: one wedged `RUNNING`
+run would otherwise block every further answer in that conversation forever.
+The reaper is exempt from the `attempts < $max` predicate; exhausted attempts
+must still be terminalizable.
 
 ## 4. The two primitives
 
@@ -218,9 +223,12 @@ RETURNING next_event_seq - 1 AS allocated_seq, mode_version;
 --    terms live on ai_runs and a joined read in step 1 would be evaluated from
 --    the statement snapshot rather than re-checked under contention — which
 --    would leave the visitor's Stop and lease expiry unfenced.
---    This statement is what takes the ai_runs row lock. Zero rows = abort.
+--    This statement takes the ai_runs row lock, and the same write renews the
+--    lease and records liveness, so a healthy long answer never loses its claim
+--    mid-stream and a stalled one is visible to the reaper. Zero rows = abort.
 UPDATE ai_runs
-   SET last_append_at = now()
+   SET last_append_at   = now(),
+       lease_expires_at = now() + $lease
  WHERE id                  = $run
    AND claim_epoch         = $my_claim_epoch
    AND cancel_requested_at IS NULL
@@ -238,15 +246,16 @@ Both gates are conditional writes, both take row locks held to commit, and they
 are taken in the order §4.4 fixes. Either returning zero rows aborts the
 transaction and appends nothing.
 
-**Why it is written as one statement.** An earlier draft of this document did the
-obvious thing — `SELECT … FOR UPDATE`, check the fence in application code, then
+**Why each gate is a conditional write.** An earlier draft of this document did
+the obvious thing — `SELECT … FOR UPDATE`, check the fence in application code, then
 allocate and insert. That is correct *only* if the transaction is explicit, the
 lock is held to commit, and the sequence comes from the locked read. Written as
 prose, it also permits the implementation where the fence is checked, the lock is
 released, a takeover commits, and the append then lands at a sequence **above**
 `handoff.started` — the exact byte this whole document exists to prevent. The
-form above cannot be refactored into that shape: the predicate and the allocation
-are the same write, so there is no window between them.
+form above cannot be refactored into that shape: in step 1 the predicate and the
+allocation are the same write, and step 2's predicate is likewise inseparable
+from the write that takes the run's lock.
 
 This is the storage-layer gate the project's own concurrency rules require. An
 application-side `if` between a read and a write is advisory; a `WHERE` clause is
@@ -264,12 +273,12 @@ model to stop in a prompt. Each of these has a window where a token escapes.
 referenced everywhere. Four spellings of the same question is how a status added
 later gets admitted by one path and rejected by another.
 
-| Writer | `$allowed_statuses` (step 1) | Step 2 | Event types it may write |
-|---|---|---|---|
-| AI (run output) | `BOT_ACTIVE`, `HANDOFF_REQUESTED` | required — the run gate | `ai.token`, `ai.citation`, `ai.final`, `ai.error` |
-| Human | `HUMAN_ACTIVE` **and** `assigned_to = $actor` | — | `human.message` |
-| Visitor | `BOT_ACTIVE`, `HANDOFF_REQUESTED`, `HUMAN_ACTIVE` | — | `visitor.message`, `handoff.requested` |
-| System | `BOT_ACTIVE`, `HANDOFF_REQUESTED`, `HUMAN_ACTIVE`, **and `CLOSED` for the closing event only** | — | `handoff.started`, `handoff.returned`, `assignment.changed`, `conversation.closed`, `run.stopped`, `run.abandoned`, `run.failed` |
+| Writer | `$allowed_statuses` (step 1) | Additional step-1 terms | Step 2 | Event types it may write |
+|---|---|---|---|---|
+| AI (run output) | `BOT_ACTIVE`, `HANDOFF_REQUESTED` | — | required — the run gate | `ai.token`, `ai.citation`, `ai.final`, `ai.error` |
+| Human | `HUMAN_ACTIVE` | `assigned_to = $actor` | — | `human.message` |
+| Visitor | `BOT_ACTIVE`, `HANDOFF_REQUESTED`, `HUMAN_ACTIVE` | — | — | `visitor.message`, `handoff.requested` |
+| System | all four, `CLOSED` included | **`$expected_epoch` is the epoch this transaction just wrote**, not the one it read on entry | — | `handoff.started`, `handoff.returned`, `assignment.changed`, `conversation.closed`, `run.stopped`, `run.abandoned`, `run.failed` |
 
 `HANDOFF_REQUESTED` appears in the AI row so an in-flight answer can finish; it
 blocks new runs, not the current one, and the epoch is unchanged so no control
@@ -284,14 +293,24 @@ from interleaving its tokens into the stream of the worker that replaced it.
 
 The **system** row carries the control and lifecycle events that belong to no
 participant: the transitions themselves, and the terminal run events that stop
-the widget waiting forever. It must admit `CLOSED` for `conversation.closed`,
-because T5 sets the status and appends the event in one transaction — a system
-class restricted to non-terminal statuses would see its own write and reject it,
-leaving every closed conversation with no closing event.
+the widget waiting forever. Its status set is all four, `CLOSED` included, for
+two reasons that both bite in practice:
 
-It is also the most likely future route to a leak, since it is the one class
-whose status set is wide. Two rules keep it safe, and both are enforced by a
-check constraint on event type rather than by a code-review habit: the allowed
+- T5 sets the status **and** appends `conversation.closed` in one transaction, so
+  a class restricted to non-terminal statuses would see its own write and reject
+  it — every closed conversation would end with no closing event.
+- A run can outlive its conversation. When a run ages out or dead-letters after
+  the conversation is already closed, its terminal event still has to land, or
+  the reaper has nowhere to record what it did.
+
+The epoch rule in the third column is equally load-bearing and easy to miss:
+T2, T3 and T5 bump `mode_version` before appending, so a system writer passing
+the epoch it read on entry would get zero rows and abort the entire takeover.
+It passes the epoch it just wrote.
+
+The system class is also the most likely future route to a leak, since it is the
+one class whose status set is wide. Two rules keep it safe, and both belong in a
+check constraint on event type rather than in a code-review habit: the allowed
 event types are exactly the list above, and **none of them may carry
 assistant-authored text**. Assistant output has one writer class and one gate.
 
@@ -322,10 +341,14 @@ Visitor POST /messages
      │     insert ai_runs (CREATING, operation_id, expected_mode_ver.) │
      │     insert outbox 'start-run'                                   │
      │ if status = BOT_ACTIVE and a live run exists:                   │
-     │     store the message, start NO run, return "still answering".  │
+     │     store the message with answered_by_run = NULL, start NO     │
+     │     run, return "still answering".                              │
      │     The one-live-run index (§3) would otherwise raise a unique  │
      │     violation and roll back the whole transaction, losing the   │
      │     visitor's message — a failed POST instead of a queued one.  │
+     │     Because TX1 holds the conversation lock and TX1 is the only │
+     │     writer of ai_runs rows, this check is race-free rather than │
+     │     merely narrow.                                              │
      │ if status = HANDOFF_REQUESTED or HUMAN_ACTIVE:                  │
      │     store the message only — a human will answer it             │
      └─────────────────────────────────────────────────────────────────┘
@@ -344,10 +367,18 @@ Worker picks up 'start-run'
   │        AND (claimed_by IS NULL OR lease_expires_at < now())
   │        AND attempts < $max
   │     RETURNING claim_epoch, status;    -- zero rows = not ours; stop
-  │     A reclaim that finds status RUNNING resumes streaming; it does not
-  │     re-create. Only a CREATING claim proceeds to the create call below.
+  │     Only a CREATING claim proceeds to the create call below.
+  │     A claim that finds status RUNNING is a RECLAIM of an abandoned run:
+  │     terminalize it as FAILED, append a terminal event, enqueue cancel-run.
+  │     It does NOT resume streaming — streamRun takes a handle and no offset
+  │     (LLD-002 §4), so "resuming" would replay the answer from token zero and
+  │     append the whole thing again at new sequences. The visitor sees an
+  │     interrupted answer and a retry affordance, which is honest and cheap;
+  │     a resume protocol would need an engine capability nobody has proven.
   │     Every later write by this worker carries the returned claim_epoch.
-  ├─ re-read conversation: status in RUN_START_STATUSES and epoch unchanged?
+  ├─ re-read conversation: status = BOT_ACTIVE and epoch unchanged?
+  │     (BOT_ACTIVE only — HANDOFF_REQUESTED lets an in-flight answer finish
+  │      but starts no new run, §2.2)
   │     no  -> mark run CANCELLED, append a terminal run event so the widget
   │            never dead-ends, drop the outbox item, done
   ├─ engine.createRun({ operationId, ... })          [external, replay-safe]
@@ -369,6 +400,15 @@ Sales POST /takeover
 Cancel worker
   └─ engine.cancelRun(handle) — idempotent; unknown/finished runs are success.
      Runs with engine_run_id NULL are reconciled by operation_id first.
+
+Run terminalization (every path: completed, failed, cancelled, reaped)
+  └─ TX: set the terminal status, append the terminal event, and THEN drain —
+     if the conversation is BOT_ACTIVE and an unanswered visitor message
+     exists (answered_by_run IS NULL), reserve a new run for it and enqueue
+     'start-run'. Without this drain the message TX1 queued above is stored
+     and never answered: the visitor typed a follow-up mid-answer and gets
+     silence. The one-live-run index is satisfied because the old run has
+     just left the live set in this same transaction.
 ```
 
 ## 6. The race windows
@@ -484,8 +524,25 @@ delivery after a *successful* create refused instead of resuming — the exact
 replay this layer exists to serve.
 
 `DO UPDATE` resets `state` to `CLAIMED` so a reclaimed `FAILED` row does not stay
-marked failed. Then set `CALL_IN_FLIGHT` immediately before the external call,
-create the run tagged with the operation id in vendor metadata, and record
+marked failed.
+
+Then set `CALL_IN_FLIGHT` immediately before the external call — **conditionally
+on still holding the claim**:
+
+```sql
+UPDATE engine_operations
+   SET state = 'CALL_IN_FLIGHT'
+ WHERE operation_id     = $op
+   AND claimed_by       = $worker
+   AND lease_expires_at > now()
+RETURNING operation_id;     -- zero rows = superseded; do not call the vendor
+```
+
+Without that predicate the whole layer leaks: a worker that stalls past its
+lease, gets superseded, and then wakes up would write `CALL_IN_FLIGHT` and call
+the vendor anyway, producing the second run this layer exists to prevent.
+
+Then create the run tagged with the operation id in vendor metadata, and record
 `engine_run_id` with state `CREATED`.
 
 `CALL_IN_FLIGHT` is a **terminal refusal for every other worker**, including
