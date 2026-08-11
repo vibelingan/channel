@@ -74,6 +74,7 @@ a new conversation.
 | `conversations.assigned_to` | user id, nullable | Current human owner |
 | `ai_runs.expected_mode_version` | integer | The epoch this run was authorized under |
 | `ai_runs.claim_epoch` | integer | Incremented on every worker claim; fences a zombie holder (§4.3) |
+| `conversation_messages.answered_by_run` | run id, nullable | The run reserved to answer this visitor message. `NULL` means queued behind a live run; the drain (§5) picks the oldest and stamps it. Every reserve path must stamp it, or the drain re-answers the same message forever |
 
 Read `mode_version` as *the epoch in which the assistant may write*, not as a
 count of human takeovers. Three events end an epoch: a human takes control, a
@@ -138,7 +139,7 @@ CREATING ──► RUNNING ──► COMPLETED
 | `expected_mode_version` | The epoch this run was authorized under |
 | `claim_epoch` | Incremented on every worker claim; the fencing token for §4.3 |
 | `claimed_by`, `lease_expires_at` | Current worker and its lease |
-| `last_append_at` | Set by every append (§4.2 step 2). Doubles as the liveness signal the stall reaper reads — a `RUNNING` run whose last append is older than the stall limit is dead, whatever its lease says |
+| `last_append_at` | Set at authorization (TX2b) and by every append (§4.2 step 2). Never `NULL` for a `RUNNING` run — a run that is authorized and then emits nothing at all is the commonest wedge, and a `NULL` here would make it invisible to the reaper forever. Doubles as the liveness signal: a `RUNNING` run whose last append is older than the stall limit is dead, whatever its lease says |
 | `status` | `CREATING`, `RUNNING`, `COMPLETED`, `FAILED`, `CANCELLED` |
 | `cancel_requested_at` | Set by takeover, close, or the visitor's Stop, even while `engine_run_id` is `NULL` |
 | `attempts` | Bounded; exhaustion is a terminal `FAILED`, never an endless retry |
@@ -175,8 +176,27 @@ whose outbox item dead-letters, or whose attempts are exhausted, transitions to
 older than the stall limit is reaped the same way — and that reaper is not
 optional, because a live run is what the §3 index counts: one wedged `RUNNING`
 run would otherwise block every further answer in that conversation forever.
-The reaper is exempt from the `attempts < $max` predicate; exhausted attempts
-must still be terminalizable.
+**The reaper is not a worker.** It is a separate path with its own statement —
+it terminalizes and drains (§5), and it must not bump `claim_epoch` or set
+`claimed_by`, because it is not going to stream anything. It is also exempt from
+`attempts < $max`: an exhausted run must still be closeable, and a reaper that
+inherits the claim statement's predicates cannot close the runs that need it most.
+
+### 3.1 The three clocks
+
+Three timers now bear on "is this run alive", and they must be ordered or they
+fight:
+
+```text
+stall limit  ≥  outbox item lease  ≥  run lease  >  max inter-token gap
+```
+
+The run lease has to exceed the longest legitimate gap between tokens — which a
+tool call produces routinely — or a healthy answer loses its claim and, because a
+reclaim now terminalizes rather than resumes, gets destroyed rather than merely
+duplicated. And the stall limit has to be the longest, or the reaper kills runs
+that the outbox would still have retried. State the three values together in
+configuration, not in three unrelated places.
 
 ## 4. The two primitives
 
@@ -278,7 +298,8 @@ later gets admitted by one path and rejected by another.
 | AI (run output) | `BOT_ACTIVE`, `HANDOFF_REQUESTED` | — | required — the run gate | `ai.token`, `ai.citation`, `ai.final`, `ai.error` |
 | Human | `HUMAN_ACTIVE` | `assigned_to = $actor` | — | `human.message` |
 | Visitor | `BOT_ACTIVE`, `HANDOFF_REQUESTED`, `HUMAN_ACTIVE` | — | — | `visitor.message`, `handoff.requested` |
-| System | all four, `CLOSED` included | **`$expected_epoch` is the epoch this transaction just wrote**, not the one it read on entry | — | `handoff.started`, `handoff.returned`, `assignment.changed`, `conversation.closed`, `run.stopped`, `run.abandoned`, `run.failed` |
+| System, in an epoch-changing transaction (T2, T3, T5) | all four, `CLOSED` included | **`$expected_epoch` is the epoch this transaction just wrote**, not the one it read on entry | — | `handoff.started`, `handoff.returned`, `conversation.closed` |
+| System, otherwise (T4, T6, run lifecycle) | all four, `CLOSED` included | `$expected_epoch` is the conversation's **current** epoch, read in this transaction | — | `assignment.changed`, `run.stopped`, `run.abandoned`, `run.failed` |
 
 `HANDOFF_REQUESTED` appears in the AI row so an in-flight answer can finish; it
 blocks new runs, not the current one, and the epoch is unchanged so no control
@@ -303,10 +324,14 @@ two reasons that both bite in practice:
   the conversation is already closed, its terminal event still has to land, or
   the reaper has nowhere to record what it did.
 
-The epoch rule in the third column is equally load-bearing and easy to miss:
-T2, T3 and T5 bump `mode_version` before appending, so a system writer passing
-the epoch it read on entry would get zero rows and abort the entire takeover.
-It passes the epoch it just wrote.
+The epoch rule in the third column is equally load-bearing and easy to miss, and
+it splits the system class in two. T2, T3 and T5 bump `mode_version` **before**
+appending, so passing the epoch read on entry would return zero rows and abort
+the entire takeover. Everything else the system writes — reassignment, the
+visitor's Stop, and every terminal run event — changes no epoch, so it passes the
+current one. Guessing `mode_version + 1` there aborts silently, and the symptoms
+are the ones this class exists to prevent: Stop appears to do nothing, and
+terminal run events never land, so the widget waits forever.
 
 The system class is also the most likely future route to a leak, since it is the
 one class whose status set is wide. Two rules keep it safe, and both belong in a
@@ -339,6 +364,7 @@ Visitor POST /messages
      │ append visitor message event via Primitive B                    │
      │ if status = BOT_ACTIVE and no live run exists:                  │
      │     insert ai_runs (CREATING, operation_id, expected_mode_ver.) │
+     │     set this message's answered_by_run = that run  ◄─ REQUIRED  │
      │     insert outbox 'start-run'                                   │
      │ if status = BOT_ACTIVE and a live run exists:                   │
      │     store the message with answered_by_run = NULL, start NO     │
@@ -346,9 +372,10 @@ Visitor POST /messages
      │     The one-live-run index (§3) would otherwise raise a unique  │
      │     violation and roll back the whole transaction, losing the   │
      │     visitor's message — a failed POST instead of a queued one.  │
-     │     Because TX1 holds the conversation lock and TX1 is the only │
-     │     writer of ai_runs rows, this check is race-free rather than │
-     │     merely narrow.                                              │
+     │     This check is race-free, not merely narrow: TX1 holds the   │
+     │     conversation lock, and the only other path that reserves a  │
+     │     run — the drain below — holds it too. Any reserver that     │
+     │     skipped that lock would race TX1.                           │
      │ if status = HANDOFF_REQUESTED or HUMAN_ACTIVE:                  │
      │     store the message only — a human will answer it             │
      └─────────────────────────────────────────────────────────────────┘
@@ -387,7 +414,11 @@ Worker picks up 'start-run'
   │        thrown away — otherwise the only way to stop it is run-listing,
   │        which the pinned release may not support.
   ├─ TX2b: authorize CREATING -> RUNNING, conditional on the epoch AND
-  │        claim_epoch AND cancel_requested_at IS NULL
+  │        claim_epoch AND cancel_requested_at IS NULL.
+  │        Set last_append_at = now() here too — a run authorized and then
+  │        wedged before its first token would otherwise carry NULL, and
+  │        `last_append_at < now() - $stall` is never true of NULL, so the
+  │        reaper would never see the commonest wedge of all.
   │     fence lost -> enqueue cancel-run (engine_run_id is already recorded),
   │                   do not stream
   └─ stream engine events; append each via Primitive B (TX per event or small
@@ -402,13 +433,26 @@ Cancel worker
      Runs with engine_run_id NULL are reconciled by operation_id first.
 
 Run terminalization (every path: completed, failed, cancelled, reaped)
-  └─ TX: set the terminal status, append the terminal event, and THEN drain —
-     if the conversation is BOT_ACTIVE and an unanswered visitor message
-     exists (answered_by_run IS NULL), reserve a new run for it and enqueue
-     'start-run'. Without this drain the message TX1 queued above is stored
-     and never answered: the visitor typed a follow-up mid-answer and gets
-     silence. The one-live-run index is satisfied because the old run has
-     just left the live set in this same transaction.
+  └─ TX, in this order — the lock order of §4.4 applies here too:
+     1. append the terminal run event via Primitive B  (locks conversations)
+     2. UPDATE ai_runs SET status = $terminal
+          WHERE id = $run AND status IN ('CREATING','RUNNING')  ◄─ CAS, so
+          a reaper and a reclaiming worker cannot both terminalize the same
+          run and both drain. Zero rows = someone else finished it; stop.
+     3. drain: if the conversation is BOT_ACTIVE and the OLDEST visitor
+        message with answered_by_run IS NULL exists, reserve a run for it,
+        set that message's answered_by_run, and enqueue 'start-run'. The new
+        run's expected_mode_version is the epoch returned by step 1.
+
+     The drain is what answers the message TX1 queued above; without it the
+     visitor typed a follow-up mid-answer and got silence. `answered_by_run`
+     is what stops it running away: every reserve path stamps it, so a
+     message is drained at most once. Leave it unstamped and an ordinary
+     one-message conversation loops forever — run completes, finds the same
+     message unanswered, starts another.
+
+     The one-live-run index is satisfied because the old run left the live
+     set in step 2 of this same transaction.
 ```
 
 ## 6. The race windows
@@ -592,8 +636,13 @@ TEST_STRATEGY.md §4.
   lost on a stale epoch while the conversation is still `BOT_ACTIVE` is told the
   epoch moved, because there is no owner to name.
 - **I4** Every run that reaches `CREATING` ends in `COMPLETED`, `FAILED`, or
-  `CANCELLED` within the `CREATING` age limit, and produces at most one vendor
+  `CANCELLED` — within the `CREATING` age limit if it never started, within the
+  stall limit after its last append if it did — and produces at most one vendor
   run.
+- **I11** Every visitor message accepted while the conversation is bot-controlled
+  is eventually answered by exactly one run, or the conversation leaves
+  `BOT_ACTIVE` first. No message is stored and forgotten, and none is answered
+  twice.
 - **I5** A run that fails its authorization fence has a cancel request enqueued
   in the same transaction that rejected it, and its `engine_run_id` was already
   recorded.
@@ -614,7 +663,7 @@ TEST_STRATEGY.md §4.
 | Failure | Behaviour |
 |---|---|
 | Vendor stop endpoint fails | The fence still blocks all output (I7) — `cancel_requested_at` is a fence term, not just a work item. Retry with backoff; alert on repeated failure; the visitor is unaffected. |
-| Worker crashes mid-stream | Lease expires; the run is reclaimed with a new `claim_epoch`, or aged out to `FAILED`. The zombie cannot commit (I10). The visitor sees an error event and a retry affordance. |
+| Worker crashes mid-stream | The lease expires and the run is terminalized as `FAILED` — by a reclaiming worker or by the stall reaper, whichever arrives first, and the CAS in §5 makes sure only one of them does it. The zombie cannot commit (I10). The visitor sees an interrupted answer and a retry affordance. |
 | Worker stalls but stays alive past its lease | Same as above. This is the case a lease alone does not cover and `claim_epoch` does. |
 | Database unavailable | Fail closed. No streaming, no run creation; widget falls back to the inquiry form. |
 | Engine unavailable | Run is `FAILED` with a normalized category; the visitor is offered a human or the inquiry form. |

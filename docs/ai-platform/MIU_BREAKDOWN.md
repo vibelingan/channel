@@ -60,7 +60,7 @@ ever disagree, the per-MIU lines win:
 | 5c | 5a, 5b |
 | 5d | 5c |
 | 5e | 5b |
-| 6 | 5c, 14b, 8 |
+| 6 | 5c, 5d, 14b, 8 |
 | 7 | 6 |
 | 8 | 3 |
 | 9r | 0 |
@@ -76,7 +76,7 @@ ever disagree, the per-MIU lines win:
 | 15 | 14 |
 | 16 | all |
 
-Longest path: `0 → 2a → 2b → 2c → 2d → 3 → 5b → 5c → 6 → 7 → 11 → 12b`.
+Longest path to a shippable surface: `0 → 2a → 2b → 2c → 2d → 3 → 5b → 5c → 6 → 7 → 11 → 12b`. MIU 16 depends on everything and closes the plan.
 
 **MIU 1 depends on nothing** and starts on day zero, in parallel with MIU 0 —
 the whole argument of LLD-002 is that the port is written before any vendor

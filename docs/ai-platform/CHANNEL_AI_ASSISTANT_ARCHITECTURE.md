@@ -97,7 +97,7 @@ The standalone Hermes messaging gateway documented in `HERMES_OPS_SOP.md` is ope
 | Method | Route | Purpose |
 |---|---|---|
 | `POST` | `/api/ai/conversations` | Create an anonymous conversation and short-lived conversation credential |
-| `POST` | `/api/ai/conversations/:id/messages` | Append a visitor message and reserve an AI run using an idempotency key |
+| `POST` | `/api/ai/conversations/:id/messages` | Append a visitor message using an idempotency key, and reserve an AI run when the conversation is bot-controlled and none is live (see §8) |
 | `GET` | `/api/ai/conversations/:id/events` | Stream committed ordered events over SSE |
 | `POST` | `/api/ai/conversations/:id/handoff` | Request a human and optionally submit consented lead fields |
 | `POST` | `/api/ai/runs/:id/cancel` | Cancel the caller's current run |

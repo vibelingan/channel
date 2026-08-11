@@ -144,7 +144,7 @@ disabled within a month.
 | `close-mid-stream` | T5 during an open run | I7: same guarantee as takeover; run `CANCELLED` |
 | `return-to-ai-then-late-token` | T3 while an old run still streams | I2: the twice-bumped epoch keeps the old run unauthorized |
 | `visitor-stop-then-tokens` | Stop, then engine keeps emitting | I7: `cancel_requested_at` alone blocks every further append, with the vendor stop call forced to fail |
-| `lease-expiry-live-holder` | Reclaim while the original worker still streams | I10: the zombie's `claim_epoch` no longer matches; no interleaved tokens **and no duplicated ones** — the reclaim terminalizes rather than resuming |
+| `lease-expiry-live-holder` | Worker stops appending, its lease expires, then it wakes and tries to append | I10: the zombie's `claim_epoch` no longer matches; no interleaved tokens **and no duplicated ones** — the reclaim terminalizes rather than resuming |
 | `concurrent-takeover` | Two callers, same epoch | I3: exactly one winner; loser gets a conflict |
 | `concurrent-reassign` | T4 racing T3 and T5 | T4's status and assignee predicates hold; no reassign on a closed conversation |
 | `two-messages-one-conversation` | Two visitor POSTs in flight | I9: one live run. The second message is **committed**, starts no run, and the POST succeeds — the unique index must never actually fire |
@@ -152,8 +152,10 @@ disabled within a month.
 | `stop-api-fails` | Engine stop always errors | I7: zero visitor-visible bytes; alert raised |
 | `replayed-post` | Same idempotency key twice | I8: one message, one run |
 | `crash-after-create` | Kill worker between the vendor call and recording | I4: no second vendor run is created on retry — `CALL_IN_FLIGHT` refuses it. Includes the superseded-worker variant: a stalled worker that wakes after losing its lease must not call the vendor |
-| `queued-message-drained` | Second message queued behind a live run, then that run terminalizes | The queued message gets a run and an answer — it is not stored and forgotten |
-| `running-stall-reaped` | A `RUNNING` run stops appending | It is terminalized within the stall limit, and the conversation accepts a new run afterwards |
+| `queued-message-drained` | Second message queued behind a live run, then that run terminalizes | I11: the queued message gets exactly one run and an answer |
+| `drain-does-not-loop` | An ordinary one-message conversation whose run completes | I11: no second run is reserved — `answered_by_run` was stamped at reserve time |
+| `concurrent-terminalize` | Reaper and reclaiming worker terminalize the same run | Exactly one succeeds; exactly one drain happens |
+| `running-stall-reaped` | A `RUNNING` run stops appending, **and** one authorized that never appends at all | Both are terminalized within the stall limit, and the conversation accepts a new run afterwards |
 | `deadlock-order` | Takeover and worker contending on both tables | Lock order holds; a serialization failure retries and then returns a conflict, never a success |
 
 The coverage rule is **one test per transition pair**, not one per named window.
