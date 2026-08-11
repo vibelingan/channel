@@ -13,6 +13,19 @@ This directory contains the AI architecture for the Diversity Technology Channel
 | Clean-session transfer | [AI_ASSISTANT_CLEAN_SESSION_HANDOFF.md](../AI_ASSISTANT_CLEAN_SESSION_HANDOFF.md) | Start a new AI-assistant session without relying on the contaminated conversation |
 | Enterprise Brain platform | [ARCHITECTURE_BASELINE_AND_RAG.md](../enterprise-brain/ARCHITECTURE_BASELINE_AND_RAG.md) | Separate product lineage, Task Hub architecture, and staged RAG decision |
 
+### Implementation-level documents
+
+These specify the architecture; they do not replace it. Where wording differs,
+the architecture above wins and the specifying document is corrected.
+
+| Document | Specifies | Read before |
+|---|---|---|
+| [MIU_BREAKDOWN.md](./MIU_BREAKDOWN.md) | The architecture decomposed into 17 independently verifiable units, with a gate coverage map | Starting any implementation work |
+| [LLD-001-HUMAN-TAKEOVER-STATE-MACHINE.md](./LLD-001-HUMAN-TAKEOVER-STATE-MACHINE.md) | Architecture §8 — states, compare-and-set, the ordered-event fence, and the four race windows | Writing any conversation state or streaming code |
+| [LLD-002-CONVERSATION-ENGINE-INTERFACE.md](./LLD-002-CONVERSATION-ENGINE-INTERFACE.md) | The provider-neutral `ConversationEngine` boundary that keeps Hermes swappable | Writing the engine adapter, and before it |
+| [SECURITY.md](./SECURITY.md) | Architecture §9 — trust zones, the credential inventory, the public-only knowledge space, and the tool surface contract | Provisioning any credential |
+| [TEST_STRATEGY.md](./TEST_STRATEGY.md) | Architecture §11 — which test proves each gate, and which claims cannot be proven offline | Planning any MIU's verification |
+
 ## Historical and Supporting Documents
 
 | Document | Classification | Rule |

@@ -1,0 +1,246 @@
+# LLD-002: The `ConversationEngine` Port
+
+**Status:** Proposed; specifies the boundary named in [CHANNEL_AI_ASSISTANT_ARCHITECTURE.md](./CHANNEL_AI_ASSISTANT_ARCHITECTURE.md) §1
+**Owning architecture:** Channel public AI assistant
+**Depends on:** [ADR-001](./ADR-001-HERMES-LEXIANG-CONTROL-PLANE.md) (Anti-Corruption Layer decision)
+**Last reviewed:** 2026-08-11
+
+## 1. Why this shape must be pinned first
+
+The architecture promises that Hermes can be replaced by direct Lexiang Q&A,
+Tencent ADP, or a CloudBase Agent through a later ADR. That promise is only real
+if the interface is written before the Hermes adapter. Written after, the
+adapter's assumptions leak into it — a Hermes run id in the type, a Hermes error
+string in a branch, a Hermes tool name in a config field — and the boundary
+becomes a Hermes-shaped hole that only Hermes fits.
+
+Plain statement: this file defines what the assistant's brain must be able to do,
+in words that do not name a vendor. Swapping vendors then means writing one new
+file that satisfies this contract and passing the shared conformance suite.
+
+## 2. What the port owns and what it must never own
+
+| The port owns | The port must never own |
+|---|---|
+| Turning a request into a vendor call | Conversation state, control version, sequences |
+| Streaming vendor output as normalized events | Any database access whatsoever |
+| Normalizing vendor errors into a closed category set | Deciding whether to retry a business operation |
+| Transport-level retry, timeout, and backpressure | Deciding whether to refuse an answer |
+| Declaring what the vendor can and cannot guarantee | Holding request-scoped visitor identity or PII |
+| Holding vendor credentials, never exposing them | Writing to the HTTP response |
+
+The last row on each side is the one that gets violated first. If an adapter ever
+receives a `Response` object or a database handle, the boundary is gone.
+
+## 3. Placement
+
+```text
+packages/ai-engine/            # the port, types, and conformance suite — no vendor code
+  src/port.ts                  # ConversationEngine, request/response/event types
+  src/errors.ts                # EngineErrorCategory and the mapping rules
+  src/capabilities.ts          # EngineCapabilities descriptor
+  src/conformance.ts           # the suite every adapter must pass
+  src/fake-engine.ts           # deterministic in-memory adapter for BFF tests
+
+packages/ai-engine-hermes/     # the first adapter — the only place "Hermes" appears
+  src/hermes-engine.ts
+  src/hermes-engine.test.ts    # runs the shared conformance suite
+```
+
+Separate packages, not folders. A dependency-direction test asserts that
+`packages/ai-engine` imports nothing from any adapter, and that the BFF imports
+the port but never an adapter type. This mirrors how `packages/db` keeps its
+CloudBase adapter behind `DbAdapter`.
+
+## 4. The port
+
+```ts
+export interface ConversationEngine {
+  /** Static description of what this engine guarantees. Read at startup. */
+  readonly capabilities: EngineCapabilities;
+
+  /**
+   * Create a run. MUST be replay-safe with respect to `operationId` when
+   * `capabilities.supportsIdempotentCreate` is true: calling twice with the
+   * same operationId yields one run and the same handle.
+   */
+  createRun(request: EngineRunRequest, signal: AbortSignal): Promise<EngineRunHandle>;
+
+  /**
+   * Stream normalized events for a run. The caller commits each event to the
+   * ordered log before it becomes visible; the engine never writes to a
+   * response. Must terminate on `signal` abort.
+   */
+  streamRun(handle: EngineRunHandle, signal: AbortSignal): AsyncIterable<EngineEvent>;
+
+  /** Idempotent. An unknown or already-finished run is success, not an error. */
+  cancelRun(handle: EngineRunHandle): Promise<EngineCancelResult>;
+
+  /**
+   * Resolve a handle from an operationId alone — needed to reconcile a run
+   * created just before a crash. Present only when
+   * `capabilities.supportsRunLookupByOperationId` is true.
+   */
+  findRunByOperationId?(operationId: string): Promise<EngineRunHandle | null>;
+
+  /** Safe status for readiness. Never returns credentials, hosts, or versions. */
+  health(): Promise<EngineHealth>;
+}
+```
+
+`createRun` and `streamRun` are separate on purpose. LLD-001 §5 must register the
+vendor run id under a version check *between* the two, and a single
+`create-and-stream` call would make that fence impossible to insert.
+
+## 5. Types
+
+```ts
+export interface EngineRunRequest {
+  /** Stable id for replay-safe creation. Derived from the run row; see LLD-001 §3. */
+  operationId: string;
+  /** Opaque correlation id for logs and vendor metadata. Never the visitor's id. */
+  conversationRef: string;
+  /** Ordered turns. Content only — no visitor identity, no contact fields. */
+  turns: EngineTurn[];
+  /** Named, versioned server-side profile. Never raw prompt text from a client. */
+  profileId: string;
+  locale: string;
+  limits: {
+    maxOutputTokens: number;
+    maxStreamDurationMs: number;
+    maxToolCalls: number;
+  };
+}
+
+export interface EngineTurn {
+  role: 'visitor' | 'assistant';
+  text: string;
+}
+
+export interface EngineRunHandle {
+  operationId: string;
+  /** Vendor run id, opaque to every caller. Never leaves the BFF. */
+  engineRunId: string;
+}
+
+export type EngineEvent =
+  | { type: 'token';    text: string }
+  | { type: 'citation'; citation: EngineCitation }
+  | { type: 'final';    text: string; citations: EngineCitation[]; usage?: EngineUsage }
+  | { type: 'error';    category: EngineErrorCategory; retriable: boolean; safeDetail?: string };
+
+export interface EngineCitation {
+  /** Stable id in the knowledge space. Not a vendor-internal document handle. */
+  sourceId: string;
+  title: string;
+  url?: string;
+  snippet?: string;
+  retrievedAt: string; // ISO 8601
+}
+
+export interface EngineUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export type EngineCancelResult = 'stopped' | 'already_finished' | 'unknown_run';
+```
+
+Deliberate omissions, each of which would break the boundary if added: vendor
+session ids, raw vendor payloads, tool names, model ids in the request (the
+profile pins the model server-side), system prompt text, and anything
+PII-shaped. A visitor's name and email travel to the lead store, never to a run.
+
+## 6. Error taxonomy
+
+Adapters map every vendor failure into this closed set. The BFF branches on the
+category and never on a vendor message.
+
+| Category | Meaning | BFF behaviour |
+|---|---|---|
+| `transient` | Network blip, 5xx, stream reset | Adapter already retried its transport; BFF fails the run and offers retry |
+| `timeout` | Exceeded `maxStreamDurationMs` | Fail the run; visitor sees a retry affordance |
+| `quota` | Budget or rate ceiling at the vendor | Fail closed; degrade to inquiry form; alert |
+| `unavailable` | Engine or knowledge source down | Fail closed; degrade to inquiry form; readiness turns red |
+| `invalid_request` | The BFF built a bad request | Fail the run; alert — this is a bug, not a visitor problem |
+| `content_filtered` | Vendor refused to produce output | Present the standard refusal and the human path |
+| `knowledge_empty` | No grounding evidence found | Refuse and offer inquiry or human help, per answer policy |
+
+`safeDetail` is a short, non-sensitive string for operators. Vendor stack traces,
+prompts, credentials, hostnames, and retrieved document bodies must not appear in
+it — the log rules in [SECURITY.md](./SECURITY.md) §7 apply to it verbatim.
+
+## 7. Capabilities — making unproven gates visible in code
+
+```ts
+export interface EngineCapabilities {
+  engineId: string;          // 'hermes'
+  engineVersion: string;     // pinned release
+  imageDigest?: string;      // recorded on every run row for audit
+  supportsIdempotentCreate: boolean;
+  supportsRunLookupByOperationId: boolean;
+  supportsStop: boolean;
+  supportsCitations: boolean;
+}
+```
+
+This descriptor is the mechanism that stops an unproven assumption from becoming
+a silent one. At startup the BFF refuses to serve if:
+
+- `supportsStop` is false — cancellation is not optional;
+- `supportsIdempotentCreate` is false **and** the operation-id mapping adapter of
+  LLD-001 §7 is not configured;
+- `supportsCitations` is false while the active answer policy requires citations.
+
+Refusing at startup rather than at the first visitor is the point. Gate 7 of the
+architecture stops being a line in a checklist and becomes a boolean the process
+reads before it opens a port.
+
+## 8. Rules that keep the boundary real
+
+1. **One vendor per adapter package.** The string `hermes` appears in exactly one
+   package. A grep test enforces it.
+2. **No database, no HTTP response, no clock-based business logic** inside an
+   adapter. Injected clock only.
+3. **Transport retry belongs to the adapter; business retry belongs to the BFF.**
+   An adapter may retry a failed socket. It may never re-create a run — that
+   would duplicate work the fence is counting.
+4. **Configuration through the external configuration store; secrets through the
+   secret manager.** An adapter reads its own credentials and exposes none.
+5. **Tool policy is the adapter's problem to enforce and the BFF's to verify.**
+   The adapter configures the restricted profile; a contract test asserts the
+   live tool surface (SECURITY.md §5). The port itself has no "tools" concept —
+   which is exactly why a future direct-knowledge adapter fits without change.
+6. **Every run row records `engineId`, `engineVersion`, and `imageDigest`** so an
+   incident can be scoped to a runtime version without guessing.
+7. **The fake adapter is a first-class artifact.** BFF integration tests run
+   against `fake-engine.ts` with real PostgreSQL, so state-machine tests are
+   deterministic and need no vendor.
+
+## 9. Conformance suite
+
+Every adapter — including the fake — must pass one shared suite. An adapter that
+cannot pass it is not swappable, whatever its README claims.
+
+| Case | Asserts |
+|---|---|
+| Replayed `createRun` with one `operationId` | One vendor run; identical handle (skipped, with a recorded reason, when `supportsIdempotentCreate` is false) |
+| `cancelRun` twice | Both succeed; second returns `already_finished` or `stopped` |
+| `cancelRun` on an unknown id | `unknown_run`, not a thrown error |
+| Abort the signal mid-stream | Iterator terminates promptly; no further events |
+| Vendor 500 / socket reset / malformed frame | Surfaces as `error` with the right category; never throws raw vendor objects |
+| Exceeding `maxOutputTokens` / `maxStreamDurationMs` | Stream ends; run is failed with `timeout` |
+| Every event | Matches the schema exactly; unknown vendor fields are dropped, not passed through |
+| `health()` output | Contains no credential, host, or path |
+| Package boundary | Port package imports no adapter; BFF imports no adapter type |
+
+## 10. Open questions this design does not settle
+
+1. Whether the pinned Hermes release satisfies `supportsIdempotentCreate` and
+   `supportsRunLookupByOperationId` (architecture gate 7).
+2. Whether Lexiang returns a stable `sourceId` suitable for citation identity
+   across re-indexing — if not, citations need a resolution table.
+3. Whether tool-call visibility is ever surfaced to the visitor. Current answer:
+   no, so `EngineEvent` has no `tool_call` variant. Adding one later is additive.
+4. Multi-turn context window policy: how many prior turns are sent, and whether
+   summarization is the BFF's job or the profile's.
