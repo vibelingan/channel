@@ -121,7 +121,7 @@ The Chat BFF owns all `/api/admin/ai/*` routes. It validates the shared JWT, re-
 Minimum logical entities:
 
 - `conversations`: owner credential hash, status, `modeVersion`, assignment, retention state, next event sequence.
-- `conversationMessages`: immutable visitor, assistant, and human messages with visibility and provenance.
+- `conversationMessages`: visitor, assistant, and human messages with visibility and provenance. Message **content** is immutable once written; a small set of assignment fields (which run was reserved to answer a visitor message, and the epoch it arrived in) is set by the owning transaction. Content is edited only by a retention tombstone.
 - `aiRuns`: internal operation ID, engine run ID, expected mode version, status, timestamps, error category.
 - `conversationEvents`: monotonically sequenced committed events used by SSE.
 - `leads`: consented contact fields, source, assignment, status, and audit linkage.

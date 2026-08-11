@@ -76,7 +76,7 @@ ever disagree, the per-MIU lines win:
 | 15 | 14 |
 | 16 | all |
 
-Longest path to a shippable surface: `0 → 2a → 2b → 2c → 2d → 3 → 5b → 5c → 6 → 7 → 11 → 12b`. MIU 16 depends on everything and closes the plan.
+Longest path to a shippable surface: `0 → 2a → 2b → 2c → 2d → 3 → 5b → 5c → 5d → 6 → 7 → 11 → 12b`. MIU 16 depends on everything and closes the plan.
 
 **MIU 1 depends on nothing** and starts on day zero, in parallel with MIU 0 —
 the whole argument of LLD-002 is that the port is written before any vendor
@@ -220,6 +220,9 @@ environment.
   messages; unique `operation_id` on runs; the partial unique index enforcing one
   live run per conversation (I9); `run_id` on events; foreign keys with an
   explicit delete policy.
+- `conversation_messages` carries `answered_by_run`, `accepted_in_epoch`, and an
+  ordering column the drain's "oldest unanswered" scan can use, with an index
+  supporting that scan. These three are what make I11 enforceable.
 - **Decide where AI rate limits live.** MIU 6 reuses the reserve-first
   `rateLimitHits` pattern, but that ledger is CloudBase NoSQL. A CloudRun BFF
   either reimplements it in SQL — a new concurrency-sensitive component needing
@@ -252,7 +255,8 @@ transaction and the POST route, so it belongs to MIU 5's acceptance.
 
 - Transitions T1–T6 of LLD-001 §2.3, each as a single transaction.
 - Run lifecycle transitions and `cancel_requested_at` handling.
-- Invariants I1–I10 asserted, including the four takeover windows (R1–R4) and
+- Invariants I1–I10 asserted (I11 belongs to 5d, which owns the drain),
+  including the four takeover windows (R1–R4) and
   the intra-append window, driven
   through injectable barriers rather than timing.
 
@@ -339,7 +343,9 @@ whose `last_append_at` is past the stall limit, and for operations stranded in
 terminal status, a visitor message queued behind it gets a run.
 
 **Done:** a forced stop-API failure produces zero visitor-visible bytes (I7); a
-crash between the vendor call and recording produces no second vendor run.
+crash between the vendor call and recording produces no second vendor run; **I11**
+holds — a queued message is answered exactly once, a message from a human-handled
+epoch is never drained, and a wedged run is reaped within the stall limit.
 
 ---
 
@@ -359,7 +365,10 @@ approved channel; deletion propagates.
 
 ## MIU 6 — Public API
 
-**Depends on:** 5c, 14b (budget), and — for the handoff and close routes — 8.
+**Depends on:** 5c, 5d, 14b (budget), and — for the handoff and close routes — 8.
+5d is required, not optional: 6b queues a message behind a live run, and 5d owns
+both the drain that answers it and the reaper that stops one wedged run blocking
+the conversation forever.
 
 Six routes plus a credential subsystem is too much for one unit; implement and
 commit in this order, each independently verifiable:
@@ -652,8 +661,9 @@ parallel team** — mixing the two units is how a plan gets agreed at a quarter 
 its real cost.
 
 **Knowledge-only pilot (~4 calendar weeks, parallel team, prerequisites ready).**
-MIUs 0, 1, **2a, 2b, 2c (reduced), 2d**, 4, **5a, 5b, 5c (reduced)**, 6a, 6b, 6f,
-7, 11, 12a, 12b, 13a, 13b, 14b, 15. No sales queue, no takeover, no leads.
+MIUs 0, 1, **2a, 2b, 2c (reduced), 2d**, 4, **5a, 5b, 5c (reduced), 5d**, 6a, 6b,
+**6c**, 6f, 7, 11, 12a, 12b, 13a, 13b, 14b, 15. No sales queue, no takeover, no
+leads.
 
 The store and the start-run path are **not** optional in this subset, even though
 the first draft of this plan listed them as excluded. MIU 7 is defined as a
@@ -663,7 +673,9 @@ straight into the HTTP response — which is LLD-001's explicitly forbidden shap
 throws away the operation-id work, and would be rewritten entirely for the
 production pilot. The reduced form of 2c is four tables (`conversations`,
 `conversation_messages`, `conversation_events`, `ai_runs`); the reduced 6 is
-create, append, and cancel.
+create, append, and cancel — 6c included, because MIU 11c ships a Stop button
+and a Stop button with no route behind it is worse than none. 5d is in for the
+reason its dependency row gives.
 
 The floor is non-negotiable: MIU 15's standing credential probe and MIU 12's
 route allowlist ship even in the smallest version. An over-scoped knowledge token

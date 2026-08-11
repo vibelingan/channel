@@ -23,7 +23,7 @@ green.
 |---|---|---|---|
 | Unit | Pure functions | Transitions, authorization, retention decisions, redaction | `packages/*/src/*.test.ts` |
 | Store | Real PostgreSQL | Primitives, constraints, sequence integrity | `packages/ai-store/src/*.test.ts` |
-| Race | Real PostgreSQL + barriers | The takeover windows and invariants I1–I10 | `packages/ai-store/src/race/*.test.ts` |
+| Race | Real PostgreSQL + barriers | The takeover windows and invariants I1–I11 | `packages/ai-store/src/race/*.test.ts` |
 | Conformance | Each engine adapter | Port contract, error taxonomy, idempotency | `packages/ai-engine/src/conformance.ts` |
 | Contract / probe | Live pinned dependencies | Toolsets, Runs semantics, credential scope | `scripts/verify-ai-*.mjs` |
 | Integration | Fake engine + real PostgreSQL | API routes, SSE, outbox, workers end to end | `apps/functions/*/src/*.test.ts` |
@@ -153,6 +153,7 @@ disabled within a month.
 | `replayed-post` | Same idempotency key twice | I8: one message, one run |
 | `crash-after-create` | Kill worker between the vendor call and recording | I4: no second vendor run is created on retry — `CALL_IN_FLIGHT` refuses it. Includes the superseded-worker variant: a stalled worker that wakes after losing its lease must not call the vendor |
 | `queued-message-drained` | Second message queued behind a live run, then that run terminalizes | I11: the queued message gets exactly one run and an answer |
+| `drain-skips-human-era-messages` | Message stored during `HUMAN_ACTIVE`, then return-to-AI, then a later run terminalizes | I11: the human-era message is never drained — the epoch scope holds |
 | `drain-does-not-loop` | An ordinary one-message conversation whose run completes | I11: no second run is reserved — `answered_by_run` was stamped at reserve time |
 | `concurrent-terminalize` | Reaper and reclaiming worker terminalize the same run | Exactly one succeeds; exactly one drain happens |
 | `running-stall-reaped` | A `RUNNING` run stops appending, **and** one authorized that never appends at all | Both are terminalized within the stall limit, and the conversation accepts a new run afterwards |
