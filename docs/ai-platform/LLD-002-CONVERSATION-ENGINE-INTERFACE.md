@@ -15,8 +15,14 @@ string in a branch, a Hermes tool name in a config field — and the boundary
 becomes a Hermes-shaped hole that only Hermes fits.
 
 Plain statement: this file defines what the assistant's brain must be able to do,
-in words that do not name a vendor. Swapping vendors then means writing one new
-file that satisfies this contract and passing the shared conformance suite.
+in words that do not name a vendor.
+
+What this port does **not** do is lower the bar for swapping one. The
+architecture requires a later ADR plus equivalent security, cancellation,
+evaluation, and operations evidence before any replacement ships. Passing the
+conformance suite is necessary and nowhere near sufficient — it proves the new
+adapter fits the socket, not that the vendor behind it is fit to answer
+customers.
 
 ## 2. What the port owns and what it must never own
 
@@ -113,6 +119,18 @@ export interface EngineRunRequest {
 }
 
 export interface EngineTurn {
+  /**
+   * No 'human' role, deliberately. `conversationMessages` stores visitor,
+   * assistant AND human-agent messages, but whether a returned-to-AI
+   * conversation replays the salesperson's turns — and under what redaction
+   * rule — is LLD-001 open question 3. Human turns routinely contain contact
+   * details the visitor gave a person, so replaying them unredacted would
+   * cross the PII boundary this file draws below.
+   *
+   * Until that question is answered, human turns are excluded and the model
+   * sees a gap. Adding the role later is additive; adding it now would decide
+   * a privacy question by accident.
+   */
   role: 'visitor' | 'assistant';
   text: string;
 }
@@ -188,9 +206,19 @@ This descriptor is the mechanism that stops an unproven assumption from becoming
 a silent one. At startup the BFF refuses to serve if:
 
 - `supportsStop` is false — cancellation is not optional;
-- `supportsIdempotentCreate` is false **and** the operation-id mapping adapter of
+- `supportsIdempotentCreate` is false **and** the operation-id mapping layer of
   LLD-001 §7 is not configured;
-- `supportsCitations` is false while the active answer policy requires citations.
+- `supportsRunLookupByOperationId` is false **and** no other route exists to stop
+  a run whose id was never recorded — without this check a legal, startup-
+  approved configuration exists in which an orphaned run can never be found or
+  stopped, burning tokens against a single engine instance;
+- `supportsCitations` is false while the active answer policy requires citations;
+- the knowledge source is not configured at all. **Absent is not the same as
+  unreachable**, and this codebase has precedent for the wrong behaviour: the
+  public catalog API treats a missing `JWT_SECRET` as "anonymous viewer" and
+  serves on. Applied here, a missing knowledge credential would produce an
+  assistant with no retrieval that answers from the model's own memory — the one
+  outcome SECURITY.md forbids outright.
 
 Refusing at startup rather than at the first visitor is the point. Gate 7 of the
 architecture stops being a line in a checklist and becomes a boolean the process
@@ -224,7 +252,7 @@ cannot pass it is not swappable, whatever its README claims.
 
 | Case | Asserts |
 |---|---|
-| Replayed `createRun` with one `operationId` | One vendor run; identical handle (skipped, with a recorded reason, when `supportsIdempotentCreate` is false) |
+| Replayed `createRun` with one `operationId` | One vendor run; identical handle. **When `supportsIdempotentCreate` is false this case becomes mandatory, not skipped** — it runs against the composed stack (mapping layer + adapter) and adds a crash-between-call-and-record variant. Skipping it there would disable the only test of the hand-built replacement, in exactly the configuration that has no vendor guarantee behind it |
 | `cancelRun` twice | Both succeed; second returns `already_finished` or `stopped` |
 | `cancelRun` on an unknown id | `unknown_run`, not a thrown error |
 | Abort the signal mid-stream | Iterator terminates promptly; no further events |

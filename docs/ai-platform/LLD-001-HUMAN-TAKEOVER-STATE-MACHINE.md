@@ -20,15 +20,19 @@ not a final message that was half-written when the click landed, and not a
 message from a run that was created a millisecond earlier. The visitor sees the
 salesperson's reply and nothing else.
 
-The two mechanisms that deliver this:
+The three mechanisms that deliver this:
 
-1. **Control version** — a counter on the conversation that changes every time
-   control moves between the assistant and a human. Every AI write carries the
-   version it was authorized under, and a write whose version is stale is
+1. **Authorization epoch** — a counter on the conversation that changes whenever
+   the assistant's authority to write is transferred or revoked. Every AI write
+   carries the epoch it was authorized under, and a write whose epoch is stale is
    rejected by the database, not by the application's good intentions.
-2. **Ordered event log** — the visitor's stream is fed only from committed,
+2. **Run-level cancellation** — the epoch covers control changes, but the visitor
+   pressing **Stop** is not a control change. A separate term in the same
+   conditional write covers it, so a stopped answer stops even if the vendor's
+   stop call never lands.
+3. **Ordered event log** — the visitor's stream is fed only from committed,
    sequentially numbered rows. Nothing reaches the browser that did not first
-   survive the version check.
+   survive both checks.
 
 Nothing here relies on the model obeying an instruction, on the vendor's stop
 endpoint succeeding, or on the browser filtering what it renders. Those are all
@@ -65,10 +69,19 @@ a new conversation.
 | Field | Type | Meaning |
 |---|---|---|
 | `conversations.status` | enum | `BOT_ACTIVE`, `HANDOFF_REQUESTED`, `HUMAN_ACTIVE`, `CLOSED` |
-| `conversations.mode_version` | integer, starts at 1 | Incremented on **every** transfer of control between AI and human |
-| `conversations.next_event_seq` | bigint, starts at 1 | Next sequence number to hand out; allocated only under the row lock |
+| `conversations.mode_version` | integer, starts at 1 | **Authorization epoch.** Incremented whenever the assistant's authority to write is transferred or revoked |
+| `conversations.next_event_seq` | bigint, starts at 1 | Next sequence number to hand out; allocated only by the conditional update in §4.2 |
 | `conversations.assigned_to` | user id, nullable | Current human owner |
-| `ai_runs.expected_mode_version` | integer | The version this run was authorized under |
+| `ai_runs.expected_mode_version` | integer | The epoch this run was authorized under |
+| `ai_runs.claim_epoch` | integer | Incremented on every worker claim; fences a zombie holder (§4.3) |
+
+Read `mode_version` as *the epoch in which the assistant may write*, not as a
+count of human takeovers. Three events end an epoch: a human takes control, a
+human hands control back, and the conversation closes. Closing counts because it
+revokes the assistant's authority just as surely as a takeover does — the fence
+then rejects a late token for the same reason, without needing a second
+mechanism. Reassignment between two salespeople (T4) is not an epoch change: the
+assistant's authority did not change, and no run's authorization moved.
 
 `HANDOFF_REQUESTED` does **not** increment `mode_version`, because control has
 not moved yet. It changes one thing: **no new AI run may be reserved.** A run
@@ -77,8 +90,8 @@ a human* mid-answer sees that answer complete rather than stop mid-sentence.
 A further visitor message in this state is stored and shown to the salesperson,
 but starts no run.
 
-Control moves, and the version increments, only on `HUMAN_ACTIVE` and on an
-authorized return to `BOT_ACTIVE`.
+The epoch advances on `HUMAN_ACTIVE` (T2), on an authorized return to
+`BOT_ACTIVE` (T3), and on close (T5) — see §2.2's reading of `mode_version`.
 
 ### 2.3 Transition table
 
@@ -87,20 +100,32 @@ authorized return to `BOT_ACTIVE`.
 | T1 | `BOT_ACTIVE` | `HANDOFF_REQUESTED` | visitor | status is `BOT_ACTIVE` | append `handoff.requested`; enqueue sales notification; **no new run may be reserved from here on**, in-flight run may finish |
 | T2 | `BOT_ACTIVE`, `HANDOFF_REQUESTED` | `HUMAN_ACTIVE` | sales | status in set **and** `mode_version = expected` | `mode_version += 1`; set `assigned_to`, `taken_over_at`; append `handoff.started`; mark all live runs `CANCEL_REQUESTED`; enqueue one cancel-run outbox item per live run |
 | T3 | `HUMAN_ACTIVE` | `BOT_ACTIVE` | sales (explicit) | status is `HUMAN_ACTIVE` **and** caller is assignee or admin | `mode_version += 1`; clear `assigned_to`; append `handoff.returned` |
-| T4 | `HUMAN_ACTIVE` | `HUMAN_ACTIVE` | sales (reassign) | caller is assignee or admin | change `assigned_to`; append `assignment.changed`; **no** version change |
-| T5 | any non-terminal | `CLOSED` | visitor, sales, or retention job | status ≠ `CLOSED` | `mode_version += 1`; append `conversation.closed`; mark live runs `CANCEL_REQUESTED`; enqueue cancels; start retention clock |
+| T4 | `HUMAN_ACTIVE` | `HUMAN_ACTIVE` | sales (reassign) | status **is** `HUMAN_ACTIVE` **and** `assigned_to = $current` **and** caller is assignee or admin | change `assigned_to`; append `assignment.changed`; **no** epoch change |
+| T5 | `BOT_ACTIVE`, `HANDOFF_REQUESTED`, `HUMAN_ACTIVE` | `CLOSED` | visitor, sales, or retention job | status in that explicit set **and** `mode_version = expected` | `mode_version += 1`; append `conversation.closed`; mark live runs `CANCEL_REQUESTED`; enqueue cancels; start retention clock |
+| T6 | — | — | visitor (Stop) or sales | run belongs to this conversation **and** run status in (`CREATING`, `RUNNING`) | set `ai_runs.cancel_requested_at`; append `run.stopped`; enqueue cancel-run. **Run-level only** — no status or epoch change |
 
-T4 does not change the version because control did not move between AI and
-human — one salesperson handed to another, and no AI run's authorization
-changed. T5 increments because closing revokes the assistant's authorization to
-write, and the same fence must reject a late-arriving token.
+T4 carries a status predicate and the expected current assignee, so a reassign
+cannot fire on a closed conversation, cannot fire while the assistant is still
+answering, and cannot silently overwrite a colleague who claimed it first. It
+does not change the epoch because the assistant's authority did not change.
+
+T5's guard is an explicit **allow-list of source states**, not `status ≠ CLOSED`.
+A denylist silently admits every status added later, which is how a future
+`PAUSED` or `ESCALATED` becomes closable by accident.
+
+T6 is the visitor's Stop button (`POST /api/ai/runs/:id/cancel`) and the
+architecture's widget Stop control. It is a **run-level** transition — the
+conversation stays `BOT_ACTIVE` and the epoch does not move, because the visitor
+stopping one answer is not a transfer of control. That is precisely why the
+epoch alone cannot enforce it, and why §4.2's fence carries a separate
+run-level term.
 
 ## 3. Run model
 
 ```text
 CREATING ──► RUNNING ──► COMPLETED
-   │            │
-   │            ├──────► FAILED
+   │  │         │
+   │  └─────────┼──────► FAILED      (crash, dead-letter, or CREATING age limit)
    │            │
    └────────────┴──────► CANCELLED
 ```
@@ -109,15 +134,37 @@ CREATING ──► RUNNING ──► COMPLETED
 |---|---|
 | `id` | Internal run id (the only id the public API exposes) |
 | `operation_id` | Stable, deterministic id sent to the engine so a replayed create returns the same run |
-| `engine_run_id` | The vendor's run id; `NULL` until registration succeeds |
-| `expected_mode_version` | The control version this run was authorized under |
+| `engine_run_id` | The vendor's run id; recorded unconditionally as soon as it is known (§5) |
+| `expected_mode_version` | The epoch this run was authorized under |
+| `claim_epoch` | Incremented on every worker claim; the fencing token for §4.3 |
+| `claimed_by`, `lease_expires_at` | Current worker and its lease |
 | `status` | `CREATING`, `RUNNING`, `COMPLETED`, `FAILED`, `CANCELLED` |
-| `cancel_requested_at` | Set by takeover/close even if `engine_run_id` is still `NULL` |
+| `cancel_requested_at` | Set by takeover, close, or the visitor's Stop, even while `engine_run_id` is `NULL` |
+| `attempts` | Bounded; exhaustion is a terminal `FAILED`, never an endless retry |
 | `error_category` | Normalized category from the engine port (see [LLD-002](./LLD-002-CONVERSATION-ENGINE-INTERFACE.md) §6) |
 
 `operation_id` is derived deterministically from the run row (`uuidv5` of the run
 id under a fixed namespace), so a retried outbox delivery computes the same value
 without storing extra state.
+
+**At most one live run per conversation**, enforced in the schema rather than by
+policy:
+
+```sql
+CREATE UNIQUE INDEX one_live_run_per_conversation
+    ON ai_runs (conversation_id)
+ WHERE status IN ('CREATING', 'RUNNING');
+```
+
+Without it an impatient visitor sending two messages gets two concurrent runs,
+both passing the fence, and their tokens interleave into one sequence stream that
+the widget cannot separate. `conversation_events.run_id` exists so that a stream
+can always be attributed even if this constraint is ever relaxed.
+
+**`CREATING` is bounded.** A run older than the `CREATING` age limit, or whose
+outbox item dead-letters, or whose attempts are exhausted, transitions to
+`FAILED` and appends a terminal event. This is the mechanism behind I4 — without
+it, "never indefinitely `CREATING`" is an aspiration rather than a guarantee.
 
 ## 4. The two primitives
 
@@ -145,42 +192,91 @@ clicking **Take over** at the same instant produce exactly one winner and one
 
 ### 4.2 Primitive B — fenced, sequenced event append
 
-Every visitor-visible byte goes through this, inside one transaction:
+Every visitor-visible byte goes through this, inside one explicit transaction at
+`READ COMMITTED` (§4.4):
 
 ```sql
--- 1. take the conversation row lock; this is the linearization point
-SELECT status, mode_version, next_event_seq
-  FROM conversations
- WHERE id = $conversation
-   FOR UPDATE;
+BEGIN;
 
--- 2. the fence: abort unless the writer's authorization is still current
---    (application-side check on the row just locked)
---    AI writer   : require mode_version = run.expected_mode_version
---                  AND status IN ('BOT_ACTIVE', 'HANDOFF_REQUESTED')
---                  -- HANDOFF_REQUESTED is included so an in-flight answer can
---                  -- finish; it blocks new runs, not the current one, and the
---                  -- version is unchanged so no control has moved
---    human writer: require status = 'HUMAN_ACTIVE' AND assigned_to = actor
-
--- 3. allocate the sequence and append
+-- One statement that fences AND allocates. Zero rows returned = authorization
+-- lost; roll back and append nothing.
 UPDATE conversations
    SET next_event_seq = next_event_seq + 1
- WHERE id = $conversation;
+ WHERE id           = $conversation
+   AND mode_version = $expected_epoch
+   AND status       = ANY($allowed_statuses)   -- per writer class, §4.3
+RETURNING next_event_seq - 1 AS allocated_seq, mode_version;
 
 INSERT INTO conversation_events
-       (conversation_id, sequence, type, mode_version, payload, created_at)
-VALUES ($conversation, $allocated_seq, $type, $mode_version, $payload, now());
+       (conversation_id, sequence, run_id, type, mode_version, payload, created_at)
+VALUES ($conversation, $allocated_seq, $run, $type, $mode_version, $payload, now());
+
+COMMIT;
 ```
 
-Because both Primitive A and Primitive B take the same row lock, a takeover and a
-token append can never overlap — one of them is second, and if the second is the
-AI writer, its fence check fails and its transaction aborts. This is the whole
-design. Everything else is bookkeeping around it.
+**Why it is written as one statement.** An earlier draft of this document did the
+obvious thing — `SELECT … FOR UPDATE`, check the fence in application code, then
+allocate and insert. That is correct *only* if the transaction is explicit, the
+lock is held to commit, and the sequence comes from the locked read. Written as
+prose, it also permits the implementation where the fence is checked, the lock is
+released, a takeover commits, and the append then lands at a sequence **above**
+`handoff.started` — the exact byte this whole document exists to prevent. The
+form above cannot be refactored into that shape: the predicate and the allocation
+are the same write, so there is no window between them.
+
+This is the storage-layer gate the project's own concurrency rules require. An
+application-side `if` between a read and a write is advisory; a `WHERE` clause is
+not.
 
 **Forbidden shapes.** Read status, then `res.write()`. Read status, then a
-non-conditional `UPDATE`. Filter old events in the browser only. Ask the model to
-stop in a prompt. Each of these has a window where a token escapes.
+non-conditional `UPDATE`. Allocate the sequence from a separate statement or a
+Postgres `SEQUENCE` object (see §8 on why gaplessness depends on the counter
+being a column that rolls back). Filter old events in the browser only. Ask the
+model to stop in a prompt. Each of these has a window where a token escapes.
+
+### 4.3 Writer classes
+
+`$allowed_statuses` and the fence terms are defined once, per writer class, and
+referenced everywhere. Four spellings of the same question is how a status added
+later gets admitted by one path and rejected by another.
+
+| Writer | `$allowed_statuses` | Additional terms |
+|---|---|---|
+| AI (run output) | `BOT_ACTIVE`, `HANDOFF_REQUESTED` | `ai_runs.claim_epoch = $my_epoch` **and** `ai_runs.cancel_requested_at IS NULL` **and** `ai_runs.status = 'RUNNING'` |
+| Human | `HUMAN_ACTIVE` | `assigned_to = $actor` |
+| Visitor | `BOT_ACTIVE`, `HANDOFF_REQUESTED`, `HUMAN_ACTIVE` | none |
+| System | any non-terminal | must carry the epoch read in the same statement; **must never carry assistant-authored text** |
+
+`HANDOFF_REQUESTED` appears in the AI row so an in-flight answer can finish; it
+blocks new runs, not the current one, and the epoch is unchanged so no control
+has moved.
+
+The two run-level terms in the AI row are what make the visitor's Stop button
+(T6) and worker fencing real. `cancel_requested_at` is not decoration — without
+it in the fence, a visitor presses Stop and the assistant keeps typing until a
+cancel worker happens to catch up, which may be never if the vendor's stop call
+fails. `claim_epoch` stops a worker whose lease expired while it was still alive
+from interleaving its tokens into the stream of the worker that replaced it.
+
+The **system** row is deliberately narrow. It exists for `conversation.closed`
+written by the retention job and for run-error events, and it is the most likely
+future route to a leak: anything that writes assistant text through it has
+bypassed the fence. Enforce the "no assistant-authored text" rule with a check
+constraint on event type, not a code review habit.
+
+### 4.4 Isolation, lock order, and retries
+
+- **`READ COMMITTED`.** The design needs no more, and needs the specific
+  behaviour that a conditional `UPDATE` re-reads the latest committed row and
+  returns zero rows on a lost fence. Under `REPEATABLE READ` or `SERIALIZABLE`
+  the same statement raises a serialization failure instead, which turns "someone
+  else took over first" into a 500. Assert the level at connection setup rather
+  than inheriting a pooler default, and probe it in MIU 0.
+- **Lock order is always `conversations` before `ai_runs`.** Takeover marks runs
+  after updating the conversation; the worker must not do the reverse. Without a
+  stated order the two paths deadlock exactly when tokens are streaming.
+- **Retry `40001` and `40P01`** with bounded backoff on both paths, and map an
+  exhausted retry to a conflict response, never to a success.
 
 ## 5. Required sequence for one visitor message
 
@@ -200,15 +296,30 @@ Visitor POST /messages
         The public request ends here. It never calls the engine.
 
 Worker picks up 'start-run'
-  ├─ claim the run row conditionally (CREATING -> CREATING, claimed_by, lease)
-  ├─ re-read conversation: still BOT_ACTIVE and mode_version unchanged?
-  │     no  -> mark run CANCELLED, drop the outbox item, done
+  ├─ claim the run and take a fencing token:
+  │     UPDATE ai_runs
+  │        SET claim_epoch = claim_epoch + 1,
+  │            claimed_by = $worker, lease_expires_at = now() + $lease,
+  │            attempts = attempts + 1
+  │      WHERE id = $run AND status = 'CREATING'
+  │        AND (claimed_by IS NULL OR lease_expires_at < now())
+  │        AND attempts < $max
+  │     RETURNING claim_epoch;            -- zero rows = not ours; stop
+  │     Every later write by this worker carries the returned claim_epoch.
+  ├─ re-read conversation: status in RUN_START_STATUSES and epoch unchanged?
+  │     no  -> mark run CANCELLED, append a terminal run event so the widget
+  │            never dead-ends, drop the outbox item, done
   ├─ engine.createRun({ operationId, ... })          [external, replay-safe]
-  ├─ TX2: register engine_run_id CONDITIONALLY on the same mode_version
-  │     success -> status RUNNING
-  │     fence lost -> leave CANCEL_REQUESTED, enqueue cancel-run, stop streaming
-  └─ stream engine events; append each one via Primitive B (TX per event or
-     per small batch). First failed fence aborts the stream and requests cancel.
+  ├─ TX2a: record engine_run_id UNCONDITIONALLY the moment it is known.
+  │        A pointer to a resource that already exists at the vendor is never
+  │        thrown away — otherwise the only way to stop it is run-listing,
+  │        which the pinned release may not support.
+  ├─ TX2b: authorize CREATING -> RUNNING, conditional on the epoch AND
+  │        claim_epoch AND cancel_requested_at IS NULL
+  │     fence lost -> enqueue cancel-run (engine_run_id is already recorded),
+  │                   do not stream
+  └─ stream engine events; append each via Primitive B (TX per event or small
+     batch). The first zero-row append aborts the stream and requests cancel.
 
 Sales POST /takeover
   └─ TX3: Primitive A; append handoff.started; mark live runs CANCEL_REQUESTED;
@@ -231,13 +342,18 @@ The worker's re-read (step 2 of the start-run handler) sees `HUMAN_ACTIVE` or a
 bumped version and abandons the run before any external call. **No engine run
 exists.** Cost of the race: one wasted worker cycle.
 
-### R2 — Takeover between external creation and registration
+### R2 — Takeover between external creation and authorization
 
-The run exists at the vendor but the BFF has not recorded its id. Registration is
-conditional on the version, so it fails. The run row keeps
-`cancel_requested_at`, and a cancel-run item is enqueued carrying the
-`operation_id`. The cancel worker resolves `operation_id → engine_run_id`
-(§7) and stops it.
+The run exists at the vendor. TX2a records its id **unconditionally**, so the
+BFF always holds the pointer needed to stop it; only the `CREATING → RUNNING`
+authorization in TX2b is fenced, and it fails. A cancel-run item is enqueued
+carrying the recorded `engine_run_id`.
+
+Splitting the write this way is what removes R2's dependence on vendor
+run-listing. An earlier draft fenced the id-recording itself, which threw away
+the pointer at exactly the moment it was needed and left `operation_id →
+engine_run_id` resolution as the only route — a capability the pinned release may
+not have.
 
 Meanwhile the run may already be emitting tokens. **None of them can reach the
 visitor**, because every append goes through Primitive B and the fence rejects
@@ -269,25 +385,55 @@ same operation id yields one run. Two outcomes:
 **If the pinned engine release provides it natively** — the adapter passes
 `operationId` through and declares `supportsIdempotentCreate: true`.
 
-**If it does not** — interpose a persistent operation-id mapping adapter, and the
+**If it does not** — interpose a persistent operation-id mapping layer, and the
 port's capability descriptor must report `supportsIdempotentCreate: false` so the
-BFF refuses to run without the adapter present. The adapter owns one table:
+BFF refuses to run without it. It lives in the BFF, as a component that *wraps*
+the engine port rather than an adapter that implements it: LLD-002 forbids any
+database access inside an adapter, and this layer owns a table.
 
 ```sql
 CREATE TABLE engine_operations (
-  operation_id   uuid PRIMARY KEY,
-  engine_run_id  text,
-  state          text NOT NULL,      -- INTENT | CREATED | FAILED
-  created_at     timestamptz NOT NULL DEFAULT now()
+  operation_id    uuid PRIMARY KEY,
+  engine_run_id   text,
+  state           text NOT NULL,     -- CLAIMED | CALL_IN_FLIGHT | CREATED | FAILED
+  claimed_by      text,
+  lease_expires_at timestamptz,
+  created_at      timestamptz NOT NULL DEFAULT now()
 );
 ```
 
-Order of operations, and why: write `INTENT` **before** the external call
-(`ON CONFLICT DO NOTHING`; a row that already has `engine_run_id` short-circuits
-and returns it), then create the run tagging it with the operation id in vendor
-metadata, then update to `CREATED`. A crash between the call and the update
-leaves an `INTENT` row and a possibly-orphaned vendor run; a startup reconciler
-lists vendor runs, matches the metadata tag, and completes or stops them.
+The state that matters is **`CALL_IN_FLIGHT`: called, outcome unknown.** An
+earlier draft had a single `INTENT` marker and short-circuited only on a row that
+already carried `engine_run_id`. That is not enough. Walk it: worker 1 writes
+`INTENT`, calls the vendor, the vendor creates run X, and the response is lost.
+Worker 2 retries the same outbox item, finds `INTENT` with a null
+`engine_run_id`, and — having no rule that stops it — creates run Y. Two vendor
+runs for one operation, which is the exact thing this layer exists to prevent.
+
+The corrected order:
+
+```sql
+-- claim, or refuse. Zero rows = someone else owns this operation.
+INSERT INTO engine_operations (operation_id, state, claimed_by, lease_expires_at)
+VALUES ($op, 'CLAIMED', $worker, now() + $lease)
+ON CONFLICT (operation_id) DO UPDATE
+   SET claimed_by = $worker, lease_expires_at = now() + $lease
+ WHERE engine_operations.engine_run_id IS NULL
+   AND engine_operations.state <> 'CALL_IN_FLIGHT'
+   AND engine_operations.lease_expires_at < now()
+RETURNING operation_id;
+```
+
+Then set `CALL_IN_FLIGHT` immediately before the external call, create the run
+tagged with the operation id in vendor metadata, and record `engine_run_id` with
+state `CREATED`. A row already carrying `engine_run_id` short-circuits and
+returns it.
+
+`CALL_IN_FLIGHT` is a **terminal refusal for every other worker**, including
+after its lease expires. An operation stuck there is resolved by lookup or
+escalated by alert — never by creating a second run. Trading a stalled answer for
+a possible duplicate is the right trade: the visitor sees an error and can retry,
+whereas a duplicate run is unstoppable output and double billing.
 
 This narrows but does not eliminate the hole — it depends on the engine
 supporting (a) attaching metadata to a run and (b) listing runs. **Both are
@@ -308,9 +454,13 @@ anything from the engine directly.
   client drops any AI event whose version is below the last `handoff.started` it
   saw. **This filter is defence in depth.** If it is ever the thing preventing a
   leak, the fence has already failed and that is the bug to fix.
-- Sequence allocation happens only under the row lock, so the log is gapless.
-  A gap means a transaction committed the sequence bump without the insert, which
-  is impossible in one transaction and is therefore an integrity alarm.
+- The sequence counter is a **column on the conversation row that rolls back**,
+  which is the only reason the log is gapless: an aborted transaction un-does the
+  bump and the insert together. Replacing it with a Postgres `SEQUENCE` object —
+  the obvious optimization when the row becomes a hot spot — produces a gap on
+  every rollback and turns the alarm below into a false alarm on each one. Do not
+  make that change without replacing the gapless invariant first.
+- A gap is therefore an integrity alarm, not a normal event.
 
 ## 9. Invariants
 
@@ -319,43 +469,56 @@ TEST_STRATEGY.md §4.
 
 - **I1** For one conversation, `sequence` values are unique, strictly increasing,
   and gapless.
-- **I2** If `handoff.started` commits at sequence *N* with version *V+1*, no event
+- **I2** If `handoff.started` commits at sequence *N* in epoch *V+1*, no event
   written by a run whose `expected_mode_version ≤ V` exists at a sequence > *N*.
 - **I3** Under concurrent takeover attempts, exactly one succeeds; every other
-  caller receives a conflict naming the current owner.
+  caller receives a conflict. Where an owner exists it is named; a caller that
+  lost on a stale epoch while the conversation is still `BOT_ACTIVE` is told the
+  epoch moved, because there is no owner to name.
 - **I4** Every run that reaches `CREATING` ends in `COMPLETED`, `FAILED`, or
-  `CANCELLED` — never indefinitely `CREATING` — and produces at most one vendor
+  `CANCELLED` within the `CREATING` age limit, and produces at most one vendor
   run.
-- **I5** A run whose registration lost the fence has a cancel request recorded in
-  the same transaction that rejected it.
+- **I5** A run that fails its authorization fence has a cancel request enqueued
+  in the same transaction that rejected it, and its `engine_run_id` was already
+  recorded.
 - **I6** No assistant-authored event is visible to the visitor at a sequence
-  after a committed `handoff.started` of a later version.
-- **I7** A failed vendor stop call never allows a visitor-visible byte; it raises
-  a cost and observability alarm only.
+  after a committed `handoff.started` of a later epoch.
+- **I7** After a cancellation is recorded — by takeover, by close, or by the
+  visitor's Stop — no further assistant-authored event is committed, regardless
+  of whether the vendor stop call succeeds. A failed stop raises a cost and
+  observability alarm only.
 - **I8** A replayed visitor POST with the same idempotency key produces zero
   additional runs and zero additional messages.
+- **I9** At most one run per conversation is in `CREATING` or `RUNNING`.
+- **I10** A worker whose lease expired and was reclaimed cannot commit an event:
+  its `claim_epoch` no longer matches.
 
 ## 10. Failure behaviour
 
 | Failure | Behaviour |
 |---|---|
-| Vendor stop endpoint fails | Fence still blocks all output (I7). Retry with backoff; alert on repeated failure; the visitor is unaffected. |
-| Worker crashes mid-stream | Lease expires; run is reclaimed or marked `FAILED`; the visitor sees an error event and a retry affordance. |
+| Vendor stop endpoint fails | The fence still blocks all output (I7) — `cancel_requested_at` is a fence term, not just a work item. Retry with backoff; alert on repeated failure; the visitor is unaffected. |
+| Worker crashes mid-stream | Lease expires; the run is reclaimed with a new `claim_epoch`, or aged out to `FAILED`. The zombie cannot commit (I10). The visitor sees an error event and a retry affordance. |
+| Worker stalls but stays alive past its lease | Same as above. This is the case a lease alone does not cover and `claim_epoch` does. |
 | Database unavailable | Fail closed. No streaming, no run creation; widget falls back to the inquiry form. |
 | Engine unavailable | Run is `FAILED` with a normalized category; the visitor is offered a human or the inquiry form. |
 | Takeover arrives for a `CLOSED` conversation | Primitive A returns zero rows; the API returns a conflict. |
+| Deadlock or serialization failure | Bounded retry (§4.4); an exhausted retry returns a conflict, never a success. |
+| Outbox item dead-letters | The run transitions to `FAILED` and a terminal event is appended, so the widget never waits forever on a run nobody will run. |
 | Clock skew between BFF and workers | No logic depends on wall-clock ordering; ordering comes from the sequence, and leases use database time. |
 
 ## 11. Open questions this design does not settle
 
 1. Whether the pinned engine release supports replay-safe create, run metadata
-   tagging, and run listing (gate 7; determines whether §7's adapter is needed).
+   tagging, and run listing (gate 7; determines whether §7's mapping layer is
+   needed).
 2. Whether the operational store is CloudBase PostgreSQL over the `pg` protocol
    or database-side RPCs — ADR-001 §"Human Handoff Consistency Decision" requires
    live verification in the target environment, and **the repository has no
-   PostgreSQL dependency today**. Every `SELECT … FOR UPDATE` above assumes a
-   transactional store; a NoSQL fallback would need a different primitive and a
-   new ADR.
+   PostgreSQL dependency today**. Every conditional `UPDATE … RETURNING` above
+   assumes a transactional store with that return contract; a NoSQL fallback
+   would need a different primitive and a new ADR. This probe runs **first** in
+   MIU 0 — if it fails, most of the plan that follows does not survive.
 3. Whether a returned-to-AI conversation replays prior human messages to the
    model as context, and under what redaction rule.
 4. The retention rule for events belonging to cancelled runs.

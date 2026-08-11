@@ -13,8 +13,11 @@ its own is too big and must be split.
 
 The architecture specifies a Chat BFF on CloudRun with an AI operational
 PostgreSQL. **This repository has neither today** — it is CloudBase functions
-(`apps/functions/*`, wx-server-sdk) over NoSQL, and the only occurrence of
-"postgres" anywhere in the source is an image-storage mode name.
+(`apps/functions/*`, wx-server-sdk) over NoSQL. There is no PostgreSQL client, no
+Dockerfile, no container tooling, no `services:` block in CI, and no way to run a
+database locally; `apps/local-server` is a JSON-file adapter. The nearest thing
+to "postgres" in the source is the string `'pg-storage'`, one value of an
+image-storage mode enum.
 
 So this is not a feature added to an existing service. It introduces a second
 runtime and a second database engine to the project. Two consequences:
@@ -33,14 +36,20 @@ runtime and a second database engine to the project. Two consequences:
 |---|---|---|
 | M0 Evidence | 0 | The unknowns turned into recorded facts |
 | M1 Engine boundary | 1, 4 | Provider-neutral port, fake, Hermes adapter |
-| M2 Operational core | 2, 3, 5 | Store, state machine, workers |
+| M2 Operational core | 2a–2d, 3, 5a–5e | Runtime, store, state machine, policy, workers |
 | M3 Public surface | 6, 7, 11, 12 | Public API, SSE, widget, route allowlist |
-| M4 Business surface | 8, 9, 10 | Consent/leads/retention, sales API, sales UI |
-| M5 Knowledge & quality | 13 | Public corpus and evaluation harness |
-| M6 Operations | 14, 15, 16 | Observability, deploy, drills and gate closure |
+| M4 Business surface | 8, 9, 9r, 10 | Consent/leads/retention, sales role, sales API, sales UI |
+| M5 Knowledge & quality | 13a, 13b | Public corpus, evaluation harness |
+| M6 Operations | 14, 14b, 15, 16 | Observability, budget enforcement, deploy, drills |
 
-Dependency spine: `0 → 1 → 2 → 3 → 5 → 6 → 7 → 11`. MIU 4 needs 0 and 1. The
-M4 and M5 modules run in parallel with M3 once 3 is done.
+Dependency spine: `0 → 2a → 2b → 2c → 2d → 3 → 5 → 6 → 7 → 11`.
+
+**MIU 1 depends on nothing** and starts on day zero, in parallel with MIU 0 —
+the whole argument of LLD-002 is that the port is written before any vendor
+knowledge exists. MIU 4 needs 0 and 1. MIU 5 needs **1 and 3**, not 4: its
+acceptance runs against the fake engine, and serializing the critical path behind
+a live-vendor MIU that is itself blocked on external provisioning costs weeks of
+idle time. MIU 5 is re-run against the real adapter in MIU 16.
 
 ---
 
@@ -63,6 +72,24 @@ observation. No runtime code changes.
   Gate in `AGENTS.md` for anything SDK-shaped.
 - Confirm the Lexiang public space can exist as a separate space with a
   read-only, space-scoped token, and record the negative-access result.
+- **Decide the worker runtime and its trigger.** LLD-001's start-run handler
+  streams engine events and appends per event, which is a long-lived process. The
+  repo's only scheduling primitive is CloudBase timer triggers, and prior work
+  established the test environment has none. This is a decision, not a detail —
+  MIU 5 cannot be built without it.
+- **Decide the context-assembly and redaction rule**: how many prior turns go
+  into a run, whether a returned-to-AI conversation replays the salesperson's
+  messages, and what is redacted. LLD-001 open question 3 and LLD-002 open
+  question 4. Human turns routinely contain contact details the visitor gave a
+  person, so this is a privacy decision, and leaving it to whoever writes MIU 5
+  means it gets made silently.
+- **Decide the language set.** Gate 9 requires approved supported languages and
+  MIU 13b's golden set includes multilingual queries, but the site is English-only
+  today. Either scope a locale MIU or record "English-only pilot" here and strip
+  multilingual from the golden set.
+- Record the model provider, data-processing terms, and region decisions
+  (gates 4 and 5) — the architecture lists them unproven and no later MIU
+  produces them.
 - Record the current repo baseline: commit sha, test counts, existing rate-limit
   and lease patterns worth reusing (`apps/functions/alibaba-catalog-sync/src/rate-limit.ts`,
   `packages/db/src/alibaba-lease.test.ts`).
@@ -70,13 +97,24 @@ observation. No runtime code changes.
 **Done:** an evidence file in `docs/ai-platform/` where each item is an
 observation with a date and a command or screenshot, not a claim. Any item that
 cannot be observed is listed as explicitly deferred with the MIU that will close
-it. Closes gate 1 evidence; informs gates 2, 6, 7, 8.
+it. Closes gate 1 evidence; informs gates 2, 4, 5, 6, 7, 8.
 
-**Blocking output:** if the store is not transactional, stop and re-open ADR-001.
+**Run the store probe first, before anything else in this MIU.** If the store is
+not transactional, stop and re-open ADR-001. That branch is not a setback to
+absorb quietly: LLD-001's entire design is conditional `UPDATE … RETURNING`, and
+ADR-001 already concedes the CloudBase PostgreSQL SDK exposes no full transaction
+API, so the BFF must use the `pg` protocol or database-side RPCs. On that branch
+MIU 1 and the widget survive; the operational core, the public API, and the sales
+surface all need re-design. Name the decision owner and the re-plan budget here
+rather than discovering both mid-implementation.
 
 ---
 
 ## MIU 1 — `packages/ai-engine`: port, fake, conformance suite
+
+**Depends on:** nothing. Starts day zero, in parallel with MIU 0 — the argument
+of LLD-002 is precisely that the port is written before any vendor knowledge
+exists, so blocking it on evidence would defeat its purpose.
 
 **Files:** new package per LLD-002 §3.
 
@@ -90,29 +128,88 @@ it. Closes gate 1 evidence; informs gates 2, 6, 7, 8.
 
 ---
 
-## MIU 2 — Operational store: schema, migrations, and the two primitives
+## MIU 2a — BFF service skeleton, runtime, and deploy path
 
-**Depends on:** 0.
+**Depends on:** 0. **Nothing else in M2 can be verified until this exists.**
+
+This MIU was missing from the first draft of this plan, and its absence is the
+kind that stops work in week one: MIUs 2c and 2d require "concurrency tests
+against real PostgreSQL", and nothing made a PostgreSQL exist for a test to talk
+to.
+
+- The BFF service itself: container image, service definition, health route,
+  gateway route, CORS origin, secret and environment plumbing.
+- PostgreSQL in CI (`services:` in the workflow) and locally (compose file), plus
+  the connection, pool, and transaction harness — with the isolation level
+  asserted at connection setup per LLD-001 §4.4.
+- Local development parity: how a developer runs site + local-server + BFF +
+  database together. The prior Alibaba work treated route mirroring in
+  `apps/local-server` as mandatory; here the BFF is a separate runtime, so the
+  answer is a compose file and a documented proxy, not a route copy.
+- Deploy wiring and its drift tests, mirroring the existing function manifest
+  discipline (`scripts/cloudbase-function-manifest.mjs` and its lockstep
+  consumers) so a new deployable does not silently fall out of the manifest.
+
+**Done:** a trivial route is reachable in CI, locally, and in the test
+environment; a transaction and a rollback are proven against real PostgreSQL in
+all three.
+
+---
+
+## MIU 2b — Migration tooling and rollback
+
+**Depends on:** 2a.
+
+Forward and backward migrations, applied in CI, with a documented rollback
+runbook. Separate from the schema so that the tooling is proven before the first
+real table depends on it.
+
+**Done:** a migration applies and rolls back cleanly in CI and in the test
+environment.
+
+---
+
+## MIU 2c — Schema and constraints
+
+**Depends on:** 2b.
 
 - Tables: `conversations`, `conversation_messages`, `ai_runs`,
-  `conversation_events`, `leads`, `outbox`, `audit_events`.
+  `conversation_events`, `leads`, `outbox`, `audit_events`, plus the AI rate-limit
+  ledger (see below).
 - Constraints that carry invariants, not just shape: unique
   `(conversation_id, sequence)`; unique `(conversation_id, idempotency_key)` on
-  messages; unique `operation_id` on runs; foreign keys with explicit delete
-  policy.
-- Primitive A (compare-and-set on control) and Primitive B (fenced, sequenced
-  append) as tested functions — the only two ways any code writes control state
-  or visitor-visible output.
-- Migration tooling and a rollback path.
+  messages; unique `operation_id` on runs; the partial unique index enforcing one
+  live run per conversation (I9); `run_id` on events; foreign keys with an
+  explicit delete policy.
+- **Decide where AI rate limits live.** MIU 6 reuses the reserve-first
+  `rateLimitHits` pattern, but that ledger is CloudBase NoSQL. A CloudRun BFF
+  either reimplements it in SQL — a new concurrency-sensitive component needing
+  its own tests, not "reuse" — or talks to two databases per request. Pick one
+  here and put the table in this MIU if it is SQL.
 
-**Done:** primitives covered by concurrency tests against real PostgreSQL;
-I1 (gapless sequences) and I8 (idempotent replay) proven here.
+**Done:** one constraint-violation test per invariant the schema is supposed to
+carry.
+
+---
+
+## MIU 2d — Primitive A and Primitive B
+
+**Depends on:** 2c.
+
+Compare-and-set on control, and the fenced sequenced append, as the only two ways
+any code writes control state or visitor-visible output. Both are single
+conditional statements per LLD-001 §4; a fence-then-write shape is a review
+rejection.
+
+**Done:** concurrency tests against real PostgreSQL prove I1 (gapless sequences).
+**I8 is not proven here** — idempotent replay also needs TX1's message/run/outbox
+transaction and the POST route, so it belongs to MIU 5's acceptance.
 
 ---
 
 ## MIU 3 — State machine core
 
-**Depends on:** 2.
+**Depends on:** 2d.
 
 - Transitions T1–T5 of LLD-001 §2.3, each as a single transaction.
 - Run lifecycle transitions and `cancel_requested_at` handling.
@@ -140,36 +237,105 @@ startup refusal proven when a required capability is false.
 
 ---
 
-## MIU 5 — Outbox, workers, and reconciliation
+## MIU 5a — Answer policy and the versioned engine profile
 
-**Depends on:** 3, 4.
+**Depends on:** 1.
 
-- Outbox dispatcher with leases, bounded retry, backoff, and a dead-letter path.
-- `start-run` handler: conditional claim, version re-read, create, conditional
-  registration, stream-and-append via Primitive B.
-- `cancel-run` handler: idempotent stop; resolve `operation_id → engine_run_id`
-  for runs that lost the fence before registration.
-- Reconciler for orphans and for runs stuck in `CREATING`.
+The architecture's answer policy — what may be said about MOQ, price, lead time,
+certificates, OEM availability, and customer projects, and what must be refused —
+is a whole table that no MIU built. LLD-002 explicitly forbids the port from
+deciding refusals, so this is BFF work, and without it MIU 5b has no `profileId`
+to send and MIU 13b measures refusal quality against a policy nobody wrote.
 
-**Done:** R1–R4 pass end-to-end with the fake engine and real PostgreSQL;
-I4, I5, I7 proven; a forced stop-API failure produces zero visitor-visible bytes.
+- The policy as versioned data, not scattered conditionals.
+- The grounding and refusal decision function, including the `knowledge_empty`
+  and `content_filtered` paths.
+- The server-side engine profile that pins model, prompt, and tool configuration,
+  versioned and referenced by id.
+- The context-assembly and redaction rule decided in MIU 0.
+
+**Done:** the policy table has a test per row; a refusal is produced for each
+forbidden case. This is the control that keeps an invented price off the public
+site.
+
+---
+
+## MIU 5b — Outbox dispatcher
+
+**Depends on:** 2d, 3.
+
+Leases with a fencing token, bounded retry and attempt cap, backoff, dead-letter
+path, and the rule that a dead-lettered item transitions its run to a terminal
+state rather than leaving it `CREATING` forever.
+
+**Done:** a dead-lettered item leaves no run in a non-terminal state.
+
+---
+
+## MIU 5c — Start-run handler
+
+**Depends on:** 5a, 5b.
+
+Conditional claim with `claim_epoch`, epoch re-read, create, unconditional
+recording of `engine_run_id`, fenced authorization, and stream-and-append via
+Primitive B. The operation-id mapping layer of LLD-001 §7 lives here — in the
+BFF, not in the adapter — if MIU 0 proved it necessary.
+
+**Done:** R1–R4 and the intra-append window pass with the fake engine and real
+PostgreSQL; I4, I5, I8, I9, I10 proven.
+
+---
+
+## MIU 5d — Cancel-run handler and reconciliation
+
+**Depends on:** 5c.
+
+Idempotent stop; resolution for runs cancelled before authorization; reconciler
+for orphans, for runs stuck in `CREATING` past the age limit, and for operations
+stranded in `CALL_IN_FLIGHT`.
+
+**Done:** a forced stop-API failure produces zero visitor-visible bytes (I7); a
+crash between the vendor call and recording produces no second vendor run.
+
+---
+
+## MIU 5e — Notification, email, and CRM handlers
+
+**Depends on:** 5b.
+
+The outbox carries four work types and the first draft of this plan built two.
+This MIU builds the rest: the sales-notification handler into the approved
+channel (gate 3), the email handler reusing `packages/email`, and the CRM adapter
+with its contract test and the deletion-propagation hook MIU 8 depends on.
+
+**Done:** adapter contracts green for email and CRM; a notification reaches the
+approved channel; deletion propagates.
 
 ---
 
 ## MIU 6 — Public API
 
-**Depends on:** 5.
+**Depends on:** 5c, 14b (budget), and — for the handoff and close routes — 8.
 
-- The six public routes of the architecture §6.
-- Conversation credential: short-lived, scoped to one conversation, hashed at
-  rest; rejection tests for cross-conversation and expired use.
-- Idempotency keys on message append; input validation and length caps.
-- Rate limits by IP, conversation, and global budget, reusing the reserve-first
-  `rateLimitHits` ledger pattern already proven in this repo; `429` with
-  `Retry-After`.
+Six routes plus a credential subsystem is too much for one unit; implement and
+commit in this order, each independently verifiable:
+
+| Sub-unit | Contents |
+|---|---|
+| 6a | Conversation credential: mint, hash at rest, TTL, single-conversation scope, verify. Rejection tests for cross-conversation and expired use |
+| 6b | Create conversation; append message (TX1) with idempotency key, validation, and length caps |
+| 6c | Cancel route (the visitor's Stop, LLD-001 T6) |
+| 6d | Handoff route — needs MIU 8's consent model for the optional lead fields |
+| 6e | Close route — needs MIU 8's retention policy |
+| 6f | Rate-limit and abuse layer by IP, conversation, and global budget, per the store decision in MIU 2c; `429` with `Retry-After` |
+
+6d and 6e depend on MIU 8 because both carry business rules that live there.
+Building them first means building against a consent and retention model that
+does not exist, then reworking them.
 
 **Done:** contract tests per route; abuse tests; no route accepts a credential
-scoped to another conversation.
+scoped to another conversation; every route refuses when the budget is exhausted
+rather than serving unmetered.
 
 ---
 
@@ -192,19 +358,46 @@ during an open stream delivers `handoff.started` and then no AI event.
 
 **Depends on:** 3.
 
+Two sub-units with different shapes: **8a** consent and leads, **8b** retention
+and deletion.
+
 - Lead creation only on an explicit consent action, with consent text version
   recorded; an anonymous conversation is not a lead.
-- Contact fields stored separately from transcript data.
-- Retention and deletion jobs, with propagation to derived stores.
+- Contact fields stored separately from transcript data, plus the write-path
+  redaction that keeps contact details out of the turns sent to the engine.
+- Retention and deletion jobs implemented as **tombstoning** — payload replaced
+  in place, sequence retained — because removing event rows would break the
+  gapless-sequence invariant (LLD-001 I1).
+- Propagation enumerated as a checklist with one assertion per target store: the
+  existing NoSQL leads and OEM inquiries, media storage, the CRM (via MIU 5e),
+  queues, and backups within their stated window.
+- The job's execution model comes from MIU 0's worker-runtime decision.
 - Log-redaction rules enforced by a test, not by convention.
 
-**Done:** deletion proven to propagate; no PII in default logs.
+**Done:** deletion proven to propagate to each enumerated store; I1 still holds
+after a deletion; no PII in default logs.
+
+---
+
+## MIU 9r — Sales role in the existing admin
+
+**Depends on:** 0.
+
+The plan assumed a sales role that does not exist. This repo's roles are
+`viewer | member | contributor | admin`, documented as an **ascending privilege
+ladder**; "sales" is orthogonal to that ladder, so it cannot simply be inserted.
+This MIU covers the role itself, its grant path in user management,
+`canAccessAdmin`/`canReadCollection`/`canEditCollection`, and regression tests
+pinning existing role behaviour.
+
+**Done:** existing role behaviour is provably unchanged; a sales user reaches the
+AI queue and nothing else new.
 
 ---
 
 ## MIU 9 — Sales API and authorization
 
-**Depends on:** 3.
+**Depends on:** 3, 9r.
 
 - The six `/api/admin/ai/*` routes, owned by the BFF — not the generic
   collection CRUD API.
@@ -223,8 +416,14 @@ is rejected on the very next request.
 **Depends on:** 9.
 
 - Queue, conversation view, take over, reply, return to AI, assign, close.
-- Optimistic-conflict handling: a losing takeover shows who won.
-- Notification into the approved channel (gate 3).
+- Optimistic-conflict handling: a losing takeover shows who won; a reassigned
+  salesperson whose in-flight reply is rejected gets an explicit conflict rather
+  than a vanished message.
+- Lives in `apps/site/src/pages/admin.astro` and `islands/admin/*`, as a custom
+  page rather than a generic collection view, using the existing session.
+
+Notification delivery is **not** here — it is MIU 5e. A frontend MIU should not
+own a backend integration.
 
 **Done:** two operators racing produce one owner and a clear message for the
 other.
@@ -233,38 +432,50 @@ other.
 
 ## MIU 11 — Public widget
 
-**Depends on:** 7.
+**Depends on:** 7, 12a (the allowlist data must exist before anything mounts).
 
-- Astro/React client island on the site's design tokens.
-- Full-height mobile drawer, bounded desktop surface that never covers
-  navigation, forms, or consent UI.
-- Keyboard open/close, focus containment, `Escape`, ARIA live regions, reduced
-  motion.
-- Streaming with Stop, Retry, reconnect, and interrupted-message rendering.
-- Markdown sanitization; no raw HTML, scripts, styles, or iframes.
-- Visible AI labelling, stated limits, and an always-available human path.
+Five sub-units — the sanitizer is a security control and must not be reviewed in
+the same diff as drawer CSS:
 
-**Done:** axe-clean; XSS corpus renders inert; keyboard-only operation complete.
+| Sub-unit | Contents |
+|---|---|
+| 11a | Island shell, full-height mobile drawer, bounded desktop surface that never covers navigation, forms, or consent UI. Mounted **per page** per SECURITY.md §9, never in a shared layout. Includes the no-JS fallback: a server-rendered inquiry link inside the island, so a visitor without JavaScript still reaches a human |
+| 11b | Accessibility contract: keyboard open/close, focus containment, `Escape`, ARIA live regions, reduced motion |
+| 11c | SSE client: streaming, Stop, Retry, reconnect, interrupted-message rendering |
+| 11d | Sanitizing Markdown renderer plus the XSS corpus; no raw HTML, scripts, styles, or iframes; citation URLs scheme-allowlisted |
+| 11e | Consent and lead form, AI labelling and stated limits, and the fallback-to-inquiry path wired to the existing surfaces (`islands/shop/InquiryForm.tsx`, `components/ProjectForm.astro`) and driven by the degradation signal from MIU 14b |
+
+**Done:** axe-clean; XSS corpus renders inert; keyboard-only operation complete;
+the assistant degrades to the inquiry form when the degradation signal is set,
+and with JavaScript disabled.
 
 ---
 
 ## MIU 12 — Route allowlist and its enforcement
 
-**Depends on:** 11.
+**12a — the allowlist as data**, with the product and security owners named,
+comes **before** MIU 11. The MIU that carries a contract precedes its consumer;
+otherwise the widget gets mounted somewhere provisional and the allowlist is
+retrofitted around wherever it landed.
 
-- The approved allowlist as data, with the product and security owners named.
-- A build/route-level test enumerating rendered routes and asserting presence on
-  exactly the allowlist and absence on admin, account, auth, customer-project,
-  and preview routes.
+**12b — enforcement**, after MIU 11: a build/route-level test enumerating routes
+from the built output and asserting presence on exactly the allowlist and absence
+on admin, account, auth, customer-project, and preview routes. Fails on an empty
+enumeration.
 
 **Done:** adding a new admin route without touching the allowlist keeps the
-widget off it, proven by test. Closes gate 10.
+widget off it, proven by test. Closes gate 10 **for widget placement only** —
+SECURITY.md §9 records that this gate does not close session theft, because the
+session token is origin-scoped and reachable from allowlisted public pages.
 
 ---
 
-## MIU 13 — Public knowledge corpus and evaluation harness
+## MIU 13a / 13b — Public knowledge corpus, and the evaluation harness
 
-**Depends on:** 4.
+Two deliverables with different blockers, so they are two units: **13a** is
+largely non-code and gated on a named owner's approval and the Lexiang space
+(depends on 0); **13b** is code, gated on the pinned runtime and the answer
+policy (depends on 1, 4, 5a).
 
 - The approved public FAQ corpus published into the isolated space through the
   reviewed publication path (SECURITY.md §4).
@@ -280,34 +491,64 @@ run is repeatable by one command. Closes gate 9.
 
 ---
 
-## MIU 14 — Observability, budget, and health
+## MIU 14 — Observability and health
 
-**Depends on:** 5.
+**Depends on:** 5b.
 
 - Liveness (unauthenticated) and readiness (safe status only) endpoints;
-  each integration reports `LIVE`/`DISABLED` at startup.
+  each integration reports `LIVE`/`DISABLED` at startup and feeds readiness.
 - Metrics: run outcomes by category, fence rejections, queue depth and age,
-  stop failures, tokens and spend, SSE connection counts.
+  stop failures, tokens and spend, SSE connection counts, connection-pool
+  saturation.
 - Alerts: budget threshold, stop-failure rate, orphaned runs, DLQ depth,
   fence-rejection spike (a spike means either an attack or a bug).
-- Daily and monthly spend caps with automatic degradation to the inquiry form.
 
 **Done:** each alert has been fired once deliberately in staging.
 
 ---
 
-## MIU 15 — Deployment and secrets
+## MIU 14b — Budget and quota enforcement
+
+**Depends on:** 2c. **Sequenced before MIU 6**, not after.
+
+Enforcement is request-path work, not observability, and the public API cannot
+ship without it — an anonymous stranger with no cap is an unbounded model bill.
+
+- Daily and monthly spend caps, evaluated on the request path.
+- The degradation signal that MIU 11e consumes to show the inquiry form.
+- Caps on turns per conversation and concurrent runs per conversation
+  (the latter enforced by the MIU 2c index).
+
+**Done:** with the cap exhausted, every public route degrades rather than
+serving; the widget shows the inquiry path.
+
+---
+
+## MIU 15 — Engine deployment, secrets, and the standing security probes
 
 **Depends on:** 14.
 
+MIU 2a deployed the BFF; this MIU deploys the engine and installs the gates that
+keep the security boundary closed over time.
+
 - Pinned digest deployment; `latest` and `main` are rejected by the deploy check.
-- Private network path for the engine; a test proves it is not publicly routable.
-- Secret management with no secret in build output; a bundle scan in CI.
-- Toolset assertion and capability check as pre-traffic deploy gates.
+- Private network path for the engine, with empty or BFF-origin-only CORS; a test
+  proves it is not publicly routable **and** that the BFF's own path works.
+- Secret management with no secret in build output. The existing CI scan is a
+  hand-maintained list of names — extend it so new AI secrets are covered by
+  construction, not by remembering to add them.
+- Toolset + MCP exact-set assertion and the capability check as pre-traffic
+  deploy gates, keyed to the config hash of SECURITY.md §5.
+- **The standing knowledge-credential scope probe** of SECURITY.md §4: the
+  three-assertion form, run pre-deploy against the deployed credential, with its
+  fingerprint asserted at BFF startup, plus the sensitivity run that must go red.
+  This is the control that keeps gate 2 closed after the day it is opened.
+- Production data region recorded (part of gate 4).
 - Migration and rollback runbook.
 
-**Done:** a deploy that changes the engine version and fails the toolset
-assertion is blocked before receiving traffic.
+**Done:** a deploy that changes the engine version, its profile, or its MCP
+server list and fails the assertions is blocked before receiving traffic; the
+credential probe's sensitivity run has been observed failing.
 
 ---
 
@@ -328,35 +569,86 @@ a decision made against this table, not a feeling about readiness.
 
 ## 2. Gate coverage map
 
-| Architecture gate | Closed by |
-|---|---|
-| 1. Pinned release, digest, negative toolset assertions | 0, 4, 15 |
-| 2. Isolated read-only public Lexiang space | 0, 13 |
-| 3. Sales workplace, roles, notification channel | 10 |
-| 4. Consent, PII, retention, data region | 8 |
-| 5. Model provider, terms, budget, quota alerts | 14 |
-| 6. PostgreSQL CAS and ordered-event handoff design | 2, 3 |
-| 7. Runs create replay semantics or mapping adapter | 0, 4 |
-| 8. Production PostgreSQL connectivity and failure behaviour | 0, 15, 16 |
-| 9. FAQ corpus, thresholds, golden set, release evaluation | 13 |
-| 10. Widget route allowlist with named owners and a test | 12 |
+Split by sub-claim, because a gate row with one owner and three claims reads as
+covered while part of it has none.
+
+| Architecture gate | Sub-claim | Closed by |
+|---|---|---|
+| 1 | Pinned release and digest | 0, 15 |
+| 1 | Negative toolset assertions (incl. MCP surface) | 4, 15 |
+| 2 | Isolated public space exists, read-only credential | 0, 13a |
+| 2 | **Standing** proof it cannot reach internal knowledge | 15 |
+| 3 | Sales workplace | 10 |
+| 3 | Role model | 9r |
+| 3 | Notification channel | 5e |
+| 4 | Consent and PII | 8a |
+| 4 | Retention and deletion | 8b |
+| 4 | Production data region | 0 (decision), 15 (deployment) |
+| 5 | Model provider and data-processing terms | 0 |
+| 5 | Budget and quota alerts | 14, 14b |
+| 6 | CAS and ordered-event design | 2c, 2d, 3 |
+| 7 | Replay semantics, or the mapping layer | 0, 5c |
+| 8 | Connectivity, transactions, pooling | 0, 2a |
+| 8 | Failure behaviour under load | 14, 16 |
+| 9 | Corpus, languages, thresholds | 0 (languages), 13a |
+| 9 | Golden set and release evaluation | 13b |
+| 10 | Allowlist data with named owners | 12a |
+| 10 | Enforcement test | 12b |
+
+Gate 10 closes widget *placement* only. SECURITY.md §9 records why it does not
+close session theft in this codebase, and what would.
 
 ## 3. Scope subsets
 
-The architecture offers two smaller shapes. They map to MIU subsets, and both
-have a hard floor.
+The architecture offers two smaller shapes. Note that its 22–38 figure is
+**person-weeks** while the 4 and 6–8 figures below are **calendar weeks for a
+parallel team** — mixing the two units is how a plan gets agreed at a quarter of
+its real cost.
 
-**Knowledge-only pilot (~4 weeks, parallel team, prerequisites ready).**
-MIUs 0, 1, 4, 6 (reduced), 7, 11, 12, 13. No sales queue, no takeover, no leads.
-The floor is non-negotiable: MIU 0's credential isolation and MIU 12's route
-allowlist ship even in the smallest version, because an over-scoped knowledge
-token and a widget on an authenticated page are the two failures that are not
+**Knowledge-only pilot (~4 calendar weeks, parallel team, prerequisites ready).**
+MIUs 0, 1, **2a, 2b, 2c (reduced), 2d**, 4, **5a, 5b, 5c (reduced)**, 6a, 6b, 6f,
+7, 11, 12a, 12b, 13a, 13b, 14b, 15. No sales queue, no takeover, no leads.
+
+The store and the start-run path are **not** optional in this subset, even though
+the first draft of this plan listed them as excluded. MIU 7 is defined as a
+reader of the committed event log; without MIU 2c there is no log, and the only
+way to build the pilot without it is a synchronous route that streams the engine
+straight into the HTTP response — which is LLD-001's explicitly forbidden shape,
+throws away the operation-id work, and would be rewritten entirely for the
+production pilot. The reduced form of 2c is four tables (`conversations`,
+`conversation_messages`, `conversation_events`, `ai_runs`); the reduced 6 is
+create, append, and cancel.
+
+The floor is non-negotiable: MIU 15's standing credential probe and MIU 12's
+route allowlist ship even in the smallest version. An over-scoped knowledge token
+and a widget on an authenticated page are the two failures that are not
 recoverable by shipping the next increment.
 
-**Production pilot (~6–8 weeks).** All MIUs. Takeover, persistence, consent and
-retention, monitoring, and race and security acceptance are what separate the two
-numbers — and they are the MIUs (2, 3, 5, 9) that carry the concurrency risk.
+**Production pilot (~6–8 calendar weeks).** All MIUs. Takeover, persistence,
+consent and retention, monitoring, and race and security acceptance are what
+separate the two numbers — and MIUs 2d, 3, 5b–5d, and 9 carry the concurrency
+risk.
 
 A one-week demo is neither of these. It is MIU 11 wired to MIU 1's fake engine,
 and it must be labelled a demo in writing, because a working demo is the single
 most effective way to lose an argument about a 22–38 person-week estimate.
+
+## 4. Estimate reconciliation
+
+Sizing the units above sums to roughly **44–50 person-weeks**, against the
+architecture's 22–38 ceiling. The gap is not new work invented here — it is work
+the architecture implies and the first draft of this breakdown left unowned: the
+BFF's own runtime and deploy path, PostgreSQL in CI and locally, the answer
+policy and engine profile, the notification/email/CRM handlers, the sales role,
+budget enforcement, and the no-JS and degradation paths.
+
+Two honest options, and the choice belongs to the product owner:
+
+1. **Move the ceiling** to ~45 person-weeks and keep the scope.
+2. **Cut scope** — the knowledge-only pilot above is the natural cut, and it
+   lands inside the original range because it drops takeover, leads, the sales
+   surface, and retention.
+
+What is not available is the original ceiling with the original scope. Recording
+that here, rather than discovering it in week nine, is the point of decomposing
+before implementing.
