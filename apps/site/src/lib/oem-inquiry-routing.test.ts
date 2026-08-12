@@ -29,10 +29,12 @@ const legacySuccessStoriesPage = fileURLToPath(
   new URL('../pages/success-stories/index.astro', import.meta.url),
 );
 const routedPageSources = [
-  { path: '../pages/blue-ocean/index.astro', expectedLinks: 1 },
-  { path: '../pages/blue-ocean/[slug].astro', expectedLinks: 2 },
-  { path: '../pages/teardown-lab/index.astro', expectedLinks: 1 },
-  { path: '../pages/teardown-lab/[slug].astro', expectedLinks: 1 },
+  // Teardown Lab / Blue Ocean are temporarily hidden (un-routed via `_` prefix,
+  // 2026-08) but their sources still carry the canonical inquiry links.
+  { path: '../pages/_blue-ocean/index.astro', expectedLinks: 1 },
+  { path: '../pages/_blue-ocean/[slug].astro', expectedLinks: 2 },
+  { path: '../pages/_teardown-lab/index.astro', expectedLinks: 1 },
+  { path: '../pages/_teardown-lab/[slug].astro', expectedLinks: 1 },
 ].map(({ path, expectedLinks }) => ({
   path,
   expectedLinks,

@@ -27,7 +27,9 @@ export interface AlibabaEndpoints {
 export const DEFAULT_ALIBABA_ENDPOINTS: AlibabaEndpoints = {
   // CONFIRMED from the official seller-authorization docs (2026-08-06): the
   // Alibaba.com (ICBU) authorize page is oauth.alibaba.com/authorize with
-  // sp=ICBU. The /rest gateway host below matches the GOP family convention
+  // sp=icbu — LOWERCASE, corrected 2026-08-07 after the live gateway answered
+  // `param-appkey.not.exists` to the uppercase variant (see ARCHITECTURE §8
+  // amendment). The /rest gateway host below matches the GOP family convention
   // but remains ASSUMED-UNVERIFIED until the MIU 15 live smoke — hence the
   // env override.
   authorizeBaseUrl: 'https://oauth.alibaba.com/authorize',
@@ -85,16 +87,16 @@ export function buildAuthorizeUrl(
 ): string {
   const url = new URL(endpoints.authorizeBaseUrl);
   url.searchParams.set('response_type', 'code');
-  url.searchParams.set('force_auth', 'true');
   url.searchParams.set('client_id', input.appKey);
   url.searchParams.set('redirect_uri', input.redirectUri);
-  // The official ICBU example writes `State=` in the request while the
-  // callback returns lowercase `state=`; send BOTH casings so either server
-  // behavior echoes our value (the callback binds on the stored hash anyway).
+  // Minimal official ICBU parameter set (corrected 2026-08-07): lowercase
+  // `sp=icbu`, lowercase `state` only, and NO `force_auth`. The uppercase
+  // `sp=ICBU` + `force_auth` + dual-casing `state`/`State` variant was
+  // answered by the live gateway with `param-appkey.not.exists` — the
+  // platform selector routes to the authorization registry, and the
+  // non-documented shape landed in one that does not know this app key.
   url.searchParams.set('state', input.state);
-  url.searchParams.set('State', input.state);
-  // Platform selector + web view per the official Alibaba.com example.
-  url.searchParams.set('sp', 'ICBU');
+  url.searchParams.set('sp', 'icbu');
   url.searchParams.set('view', 'web');
   return url.toString();
 }

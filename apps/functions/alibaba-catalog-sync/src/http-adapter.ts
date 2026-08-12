@@ -227,8 +227,8 @@ export async function handleAlibabaSyncFunctionEvent(
       } as ApiResult<unknown>);
     }
     if (segments.length === 2 && segments[0] === 'oauth' && segments[1] === 'callback') {
-      // Alibaba's docs show the callback echoing lowercase `state`; accept
-      // the capitalized variant too (the request carries both casings).
+      // The request sends lowercase `state` only (2026-08-07 correction), but
+      // keep accepting the capitalized echo — Alibaba's docs have shown both.
       const stateValue = queryValue(event, url, 'state') ?? queryValue(event, url, 'State');
       const redirect = await handleOAuthCallbackRequest(
         {
