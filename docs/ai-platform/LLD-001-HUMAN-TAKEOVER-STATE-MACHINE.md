@@ -75,7 +75,8 @@ a new conversation.
 | `ai_runs.expected_mode_version` | integer | The epoch this run was authorized under |
 | `ai_runs.claim_epoch` | integer | Incremented on every worker claim; fences a zombie holder (§4.3) |
 | `conversation_messages.answered_by_run` | run id, nullable | The run reserved to answer this visitor message. `NULL` means nobody has been assigned to it. Every reserve path must stamp it, or the drain re-answers the same message forever |
-| `conversation_messages.accepted_in_epoch` | integer | The epoch in which the message arrived. Scopes the drain (§5) so it cannot answer a question a human already handled |
+| `conversation_messages.accepted_in_epoch` | integer, NOT NULL | The epoch in which the message arrived. Scopes the drain (§5) so it cannot answer a question a human already handled. `NOT NULL` matters: a nullable column with no default makes the drain's equality test silently never match |
+| `conversation_messages.event_sequence` | bigint | The sequence of the `visitor.message` event appended for this message. Gives "oldest unanswered" a defined meaning without a second counter |
 
 Read `mode_version` as *the epoch in which the assistant may write*, not as a
 count of human takeovers. Three events end an epoch: a human takes control, a
@@ -183,28 +184,32 @@ it terminalizes and drains (§5), and it must not bump `claim_epoch` or set
 `attempts < $max`: an exhausted run must still be closeable, and a reaper that
 inherits the claim statement's predicates cannot close the runs that need it most.
 
-### 3.1 The three clocks
+### 3.1 The five clocks
 
-Three timers now bear on "is this run alive", and they must be ordered or they
-fight:
+Five timers bear on "is this run alive", and they must be ordered or they fight:
 
 ```text
-CREATING age limit ─┐
-stall limit  ≥  outbox item lease  ≥  run lease  >  max inter-token gap
-engine-operation claim lease ─┘  (independent; bounds CALL_IN_FLIGHT alerting)
+CREATING age limit  ≥  stall limit  ≥  outbox item lease
+                                    ≥  run lease
+                                    >  max inter-token gap
+
+engine-operation claim lease  ≥  vendor create timeout
 ```
 
-Five, not three, and the two leases must not share one configured value: the
-run lease bounds a streaming worker, the engine-operation lease bounds a vendor
-call. `$lease` appears as a placeholder in §4.2, §5 and §7 and means a different
-number in each.
+The `CREATING` age limit is the longest for a reason: fail a run before its
+outbox item's lease has run out and you strand the operation in
+`CALL_IN_FLIGHT`, which §7 makes a terminal refusal resolvable only by alert.
+The run lease must exceed the longest legitimate inter-token gap — a tool call
+produces one routinely — or a healthy answer loses its claim and, since a
+reclaim terminalizes rather than resumes, is destroyed rather than duplicated.
 
-The run lease has to exceed the longest legitimate gap between tokens — which a
-tool call produces routinely — or a healthy answer loses its claim and, because a
-reclaim now terminalizes rather than resumes, gets destroyed rather than merely
-duplicated. And the stall limit has to be the longest, or the reaper kills runs
-that the outbox would still have retried. State the three values together in
-configuration, not in three unrelated places.
+The two leases are different numbers and must not share a configured value: one
+bounds a streaming worker, the other a single vendor call. `$lease` is a
+placeholder in §4.2, §5 and §7 and means something different in each.
+
+State all five together in configuration, not in five unrelated places. Five
+numbers chosen independently in five files is how the ordering above stops
+holding without anyone noticing.
 
 ## 4. The two primitives
 
@@ -307,7 +312,7 @@ later gets admitted by one path and rejected by another.
 | Human | `HUMAN_ACTIVE` | `assigned_to = $actor` | — | `human.message` |
 | Visitor | `BOT_ACTIVE`, `HANDOFF_REQUESTED`, `HUMAN_ACTIVE` | — | — | `visitor.message`, `handoff.requested` |
 | System, in an epoch-changing transaction (T2, T3, T5) | all four, `CLOSED` included | **`$expected_epoch` is the epoch this transaction just wrote**, not the one it read on entry | — | `handoff.started`, `handoff.returned`, `conversation.closed` |
-| System, otherwise (T4, T6, run lifecycle) | all four, `CLOSED` included | `$expected_epoch` is the conversation's **current** epoch, read in this transaction | — | `assignment.changed`, `run.stopped`, `run.completed`, `run.cancelled`, `run.abandoned`, `run.failed` |
+| System, otherwise (T4, T6, run lifecycle) | all four, `CLOSED` included | `$expected_epoch` is the conversation's **current** epoch, read in this transaction | — | `assignment.changed`, `run.stopped`, `run.completed`, `run.cancelled`, `run.failed` |
 
 Every run status has exactly one terminal event type, because §5 requires one on
 every path and §4.3's list is meant to become a check constraint — a status with
@@ -316,10 +321,15 @@ no type would abort the terminalization and wedge the run:
 | Terminal status | Event | Written when |
 |---|---|---|
 | `COMPLETED` | `run.completed` | the engine's final message committed |
-| `CANCELLED` | `run.cancelled` | takeover, close, or the cancel worker acting on a Stop |
+| `CANCELLED` | `run.cancelled` | every cancellation path: takeover, close, the cancel worker acting on a Stop, **and R1** — the worker abandoning a run before it created anything |
 | `FAILED` | `run.failed` | engine error, exhausted attempts, dead-letter, or the stall reaper |
-| — | `run.stopped` | T6 only: the visitor's Stop is *recorded*; `run.cancelled` follows when the run actually ends |
-| — | `run.abandoned` | the worker gave up before creating anything (R1) |
+| *no status change* | `run.stopped` | T6 only: the visitor's Stop is *recorded* the moment it is requested. `run.cancelled` follows when the run actually ends, so a Stop legitimately produces two events — one acknowledging the request, one reporting the outcome |
+
+One status, one terminal event, no exceptions — that is what makes the event-type
+list safe to encode as a check constraint. There is deliberately no separate
+`run.abandoned`: R1 ends in `CANCELLED` like every other cancellation, and a
+second event name for the same status is how a constraint gets violated on a path
+nobody tested.
 
 `HANDOFF_REQUESTED` appears in the AI row so an in-flight answer can finish; it
 blocks new runs, not the current one, and the epoch is unchanged so no control
@@ -382,6 +392,10 @@ Visitor POST /messages
      │ insert conversation_messages (unique on conversation +          │
      │   idempotency_key — a retried POST is a no-op, not a second run)│
      │ append visitor message event via Primitive B                    │
+     │ every branch: set accepted_in_epoch = the epoch read above      │
+     │     ◄─ REQUIRED. Left NULL, the drain's equality test never     │
+     │        matches and the drain becomes a silent no-op, which in   │
+     │        production reads as "typed a follow-up, got silence".    │
      │ if status = BOT_ACTIVE and no live run exists:                  │
      │     insert ai_runs (CREATING, operation_id, expected_mode_ver.) │
      │     set this message's answered_by_run = that run  ◄─ REQUIRED  │
@@ -462,7 +476,7 @@ Run terminalization (every path: completed, failed, cancelled, reaped)
           the whole transaction, including the event appended in step 1.
           Committing here lands two terminal events for one run.
      3. drain: if the conversation is BOT_ACTIVE, take the oldest visitor
-        message (by sequence) with answered_by_run IS NULL **and
+        message (by `event_sequence`) with answered_by_run IS NULL **and
         accepted_in_epoch = the conversation's current epoch**, reserve a run
         for it, stamp its answered_by_run, and enqueue 'start-run'. The new
         run's expected_mode_version is the epoch returned by step 1.
@@ -473,8 +487,17 @@ Run terminalization (every path: completed, failed, cancelled, reaped)
         control returns to the assistant would pick the globally oldest
         unstamped message and answer a question the salesperson dealt with
         two turns ago, out of order. T2 and T3 both change the epoch, so a
-        message taken under human control can never be drained, and a message
-        genuinely queued behind a live run always can.
+        message taken under human control can never be drained.
+
+        **The orphan case, stated because it is a product decision and not an
+        oversight:** a message queued behind a live run in epoch 1, followed by
+        a takeover before that run ends, is never drained — the epoch it was
+        accepted in is gone. The salesperson sees it in the transcript and
+        answers it, which is why this is acceptable; a human is in the
+        conversation precisely because one was asked for. What is not
+        acceptable is silence, so the widget must show a queued message as
+        awaiting a reply rather than as sent-and-handled, and returning control
+        to the assistant does not resurrect it.
 
      The drain is what answers the message TX1 queued above; without it the
      visitor typed a follow-up mid-answer and got silence. `answered_by_run`
@@ -671,10 +694,11 @@ TEST_STRATEGY.md §4.
   `CANCELLED` — within the `CREATING` age limit if it never started, within the
   stall limit after its last append if it did — and produces at most one vendor
   run.
-- **I11** Every visitor message accepted in an epoch where the assistant may
-  write is assigned to exactly one run, whose outcome is an answer, a terminal
-  error, or a cancellation. No message is stored and forgotten, none is assigned
-  twice, and no message accepted under human control is ever assigned to a run.
+- **I11** A visitor message accepted in an epoch where the assistant may write is
+  assigned to at most one run, whose outcome is an answer, a terminal error, or a
+  cancellation — **unless control leaves that epoch first**, in which case it is
+  never assigned to any run. No message is assigned twice, and no message
+  accepted under human control is ever assigned to a run.
 - **I5** A run that fails its authorization fence has a cancel request enqueued
   in the same transaction that rejected it, and its `engine_run_id` was already
   recorded.

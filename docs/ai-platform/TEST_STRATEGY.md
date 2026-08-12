@@ -154,8 +154,9 @@ disabled within a month.
 | `crash-after-create` | Kill worker between the vendor call and recording | I4: no second vendor run is created on retry — `CALL_IN_FLIGHT` refuses it. Includes the superseded-worker variant: a stalled worker that wakes after losing its lease must not call the vendor |
 | `queued-message-drained` | Second message queued behind a live run, then that run terminalizes | I11: the queued message gets exactly one run and an answer |
 | `drain-skips-human-era-messages` | Message stored during `HUMAN_ACTIVE`, then return-to-AI, then a later run terminalizes | I11: the human-era message is never drained — the epoch scope holds |
+| `queued-message-orphaned-by-takeover` | Message queued behind a live run, takeover before that run ends, then return-to-AI | I11's escape clause: the message is never assigned to a run, and the widget shows it as awaiting a reply rather than answered |
 | `drain-does-not-loop` | An ordinary one-message conversation whose run completes | I11: no second run is reserved — `answered_by_run` was stamped at reserve time |
-| `concurrent-terminalize` | Reaper and reclaiming worker terminalize the same run | Exactly one succeeds; exactly one drain happens |
+| `concurrent-terminalize` | Reaper and reclaiming worker terminalize the same run | Exactly one succeeds; **exactly one terminal event is appended** — the loser rolls back its own append — and exactly one drain happens |
 | `running-stall-reaped` | A `RUNNING` run stops appending, **and** one authorized that never appends at all | Both are terminalized within the stall limit, and the conversation accepts a new run afterwards |
 | `deadlock-order` | Takeover and worker contending on both tables | Lock order holds; a serialization failure retries and then returns a conflict, never a success |
 

@@ -86,9 +86,10 @@ and serializing the critical path behind a live-vendor MIU that is itself blocke
 on external provisioning costs weeks of idle time. It is re-run against the real
 adapter in MIU 16.
 
-MIU 6 additionally needs 14b (budget enforcement must exist before the public API
-it protects) and 8 (for the handoff and close routes). MIU 11 needs 12a, because
-the allowlist data has to exist before anything mounts against it.
+MIU 6 additionally needs 5d (the drain and reaper behind its message queue), 14b
+(budget enforcement must exist before the public API it protects), and 8 (for the
+handoff and close routes). MIU 11 needs 12a, because the allowlist data has to
+exist before anything mounts against it.
 
 ---
 
@@ -220,9 +221,10 @@ environment.
   messages; unique `operation_id` on runs; the partial unique index enforcing one
   live run per conversation (I9); `run_id` on events; foreign keys with an
   explicit delete policy.
-- `conversation_messages` carries `answered_by_run`, `accepted_in_epoch`, and an
-  ordering column the drain's "oldest unanswered" scan can use, with an index
-  supporting that scan. These three are what make I11 enforceable.
+- `conversation_messages` carries `answered_by_run` (nullable), `accepted_in_epoch`
+  (**NOT NULL**), and `event_sequence`, with an index supporting the drain's
+  "oldest unanswered in this epoch" scan. These three are what make I11
+  enforceable; a nullable `accepted_in_epoch` turns the drain into a silent no-op.
 - **Decide where AI rate limits live.** MIU 6 reuses the reserve-first
   `rateLimitHits` pattern, but that ledger is CloudBase NoSQL. A CloudRun BFF
   either reimplements it in SQL — a new concurrency-sensitive component needing
@@ -661,9 +663,9 @@ parallel team** — mixing the two units is how a plan gets agreed at a quarter 
 its real cost.
 
 **Knowledge-only pilot (~4 calendar weeks, parallel team, prerequisites ready).**
-MIUs 0, 1, **2a, 2b, 2c (reduced), 2d**, 4, **5a, 5b, 5c (reduced), 5d**, 6a, 6b,
-**6c**, 6f, 7, 11, 12a, 12b, 13a, 13b, 14b, 15. No sales queue, no takeover, no
-leads.
+MIUs 0, 1, **2a, 2b, 2c (reduced), 2d, 3 (reduced)**, 4, **5a, 5b, 5c (reduced),
+5d**, 6a, 6b, **6c**, 6f, 7, 11, 12a, 12b, 13a, 13b, 14b, 15. No sales queue, no
+takeover, no leads.
 
 The store and the start-run path are **not** optional in this subset, even though
 the first draft of this plan listed them as excluded. MIU 7 is defined as a
@@ -673,9 +675,11 @@ straight into the HTTP response — which is LLD-001's explicitly forbidden shap
 throws away the operation-id work, and would be rewritten entirely for the
 production pilot. The reduced form of 2c is four tables (`conversations`,
 `conversation_messages`, `conversation_events`, `ai_runs`); the reduced 6 is
-create, append, and cancel — 6c included, because MIU 11c ships a Stop button
-and a Stop button with no route behind it is worse than none. 5d is in for the
-reason its dependency row gives.
+6a, 6b, 6c and 6f — create, append, cancel, and the abuse layer. 6c is in
+because MIU 11c ships a Stop button, and a Stop button with no route behind it
+is worse than none. That in turn puts **3 (reduced)** in: T6 and the run
+lifecycle live there, so a cancel route without it has no state machine to call.
+5d is in for the reason its dependency row gives.
 
 The floor is non-negotiable: MIU 15's standing credential probe and MIU 12's
 route allowlist ship even in the smallest version. An over-scoped knowledge token
