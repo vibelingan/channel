@@ -104,7 +104,9 @@ function expectDesktopHeaderContained(
   expect(geometry.brand?.right).toBeLessThanOrEqual(geometry.nav?.left ?? 0);
   expect(geometry.nav?.right).toBeLessThanOrEqual(geometry.account?.left ?? 0);
   expect(geometry.noHorizontalOverflow).toBe(true);
-  expect(geometry.visibleLinks).toHaveLength(5);
+  // Primary nav currently has 3 visible links (OEM Development, Headphones,
+  // Success Stories) — Teardown Lab and Blue Ocean are temporarily hidden.
+  expect(geometry.visibleLinks).toHaveLength(3);
   const contentLeft = (geometry.layout?.left ?? 0) + (geometry.layoutPadding?.left ?? 0);
   const contentRight = (geometry.layout?.right ?? 0) - (geometry.layoutPadding?.right ?? 0);
   for (const region of [geometry.brand, geometry.nav, geometry.account]) {
@@ -1523,7 +1525,10 @@ test.describe('public browser smoke', () => {
       expectDesktopHeaderContained(await readHeaderGeometry(signedInPage));
       await desktopAccountTrigger.focus();
       await signedInPage.evaluate(() => {
-        document.documentElement.style.fontSize = '125%';
+        // 3 nav links (Teardown/Blue Ocean hidden) leave more headroom than the
+        // original 5-link header did — 150% font is what reliably overflows the
+        // measured desktop lane now.
+        document.documentElement.style.fontSize = '150%';
         window.dispatchEvent(new Event('resize'));
       });
       await expect(signedInPage.locator('[data-site-header]')).toHaveAttribute(
