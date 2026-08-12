@@ -14,8 +14,6 @@ nav:
   items:
     - { label: Headphones, href: '/headphones' }
     - { label: Success Stories, href: '/portfolio' }
-    - { label: Teardown Lab, href: '/teardown-lab' }
-    - { label: Blue Ocean, href: '/blue-ocean' }
     - { label: OEM Development, href: '/oem#what-we-do' }
     - { label: Sign In, href: '/login', emphasis: true }
 
@@ -204,8 +202,6 @@ footer:
       links:
         - { label: Headphones, href: '/headphones' }
         - { label: Success Stories, href: '/portfolio' }
-        - { label: Teardown Lab, href: '/teardown-lab' }
-        - { label: Blue Ocean Products, href: '/blue-ocean' }
         - { label: OEM Development, href: '/oem' }
     - heading: Account
       links:
