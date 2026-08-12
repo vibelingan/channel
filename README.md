@@ -64,6 +64,12 @@ The admin function (`apps/functions/admin`) deploys to CloudBase. It requires:
 
 Build all functions with `pnpm build:functions`.
 
+## Active SEO work
+
+The current SEO/GEO branch handoff, scope boundary, verified state, and exact next steps are in
+[docs/seo/README.md](docs/seo/README.md). Business and brand changes are explicitly excluded from
+that workflow.
+
 ## Useful scripts
 
 | Command | Description |
