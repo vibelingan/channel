@@ -513,6 +513,10 @@ function ensureGateway(def) {
 const legacyHostingPaths = [
   { cloudPath: 'overstock', isDir: true },
   { cloudPath: 'overstock-item', isDir: true },
+  // Teardown Lab and Blue Ocean are temporarily hidden (un-routed, 2026-08):
+  // prune their previously deployed pages so they stop answering 200.
+  { cloudPath: 'teardown-lab', isDir: true },
+  { cloudPath: 'blue-ocean', isDir: true },
   // NOTE: media/logo-channel.svg is the active OEM brand logo again (header +
   // footer on every page) — do NOT prune it.
   { cloudPath: 'media/section-heritage.png', isDir: false },
