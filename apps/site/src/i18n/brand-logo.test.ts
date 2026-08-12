@@ -57,15 +57,15 @@ const projectFormSource = readFileSync(
   'utf8',
 );
 const teardownListingSource = readFileSync(
-  fileURLToPath(new URL('../pages/teardown-lab/index.astro', import.meta.url)),
+  fileURLToPath(new URL('../pages/_teardown-lab/index.astro', import.meta.url)),
   'utf8',
 );
 const teardownDetailSource = readFileSync(
-  fileURLToPath(new URL('../pages/teardown-lab/[slug].astro', import.meta.url)),
+  fileURLToPath(new URL('../pages/_teardown-lab/[slug].astro', import.meta.url)),
   'utf8',
 );
 const blueOceanListingSource = readFileSync(
-  fileURLToPath(new URL('../pages/blue-ocean/index.astro', import.meta.url)),
+  fileURLToPath(new URL('../pages/_blue-ocean/index.astro', import.meta.url)),
   'utf8',
 );
 const oemContent = readFileSync(
@@ -82,12 +82,18 @@ const blueOceanTeaserComponent = fileURLToPath(
   new URL('../components/BlueOceanTeaser.astro', import.meta.url),
 );
 const retainedContentPaths = [
+  '../pages/_teardown-lab/index.astro',
+  '../pages/_teardown-lab/[slug].astro',
+  '../pages/_blue-ocean/index.astro',
+  '../pages/_blue-ocean/[slug].astro',
+  '../data/teardownReports.ts',
+  '../data/blueOceanProducts.ts',
+];
+const hiddenRoutePaths = [
   '../pages/teardown-lab/index.astro',
   '../pages/teardown-lab/[slug].astro',
   '../pages/blue-ocean/index.astro',
   '../pages/blue-ocean/[slug].astro',
-  '../data/teardownReports.ts',
-  '../data/blueOceanProducts.ts',
 ];
 
 test('brand.logo points to the configured client logo', () => {
@@ -405,7 +411,7 @@ test('Factory photos move from exterior to production lines and making details',
   assert.ok(factorySource.includes('tabindex="0"'));
 });
 
-test('retired homepage teaser code is removed while routes and data remain available', () => {
+test('retired homepage teaser code is removed and Teardown/Blue Ocean routes are hidden', () => {
   assert.ok(!existsSync(teardownTeaserComponent));
   assert.ok(!existsSync(blueOceanTeaserComponent));
   assert.ok(!siteTypeSource.includes('export interface ProductTeaserItem'));
@@ -414,12 +420,21 @@ test('retired homepage teaser code is removed while routes and data remain avail
   assert.ok(!/^teardownTeaser:/m.test(enUS));
   assert.ok(!/^blueOceanTeaser:/m.test(enUS));
 
-  assert.ok(enUS.includes("href: '/teardown-lab'"));
-  assert.ok(enUS.includes("href: '/blue-ocean'"));
+  // Teardown Lab and Blue Ocean are temporarily hidden (2026-08): un-routed via
+  // the `_` prefix convention (same as overstock), so they are not built, not in
+  // the sitemap, and ship zero bytes. Content/data stay in the repo for re-enable.
+  assert.ok(!enUS.includes("href: '/teardown-lab'"), 'site content must not link to /teardown-lab');
+  assert.ok(!enUS.includes("href: '/blue-ocean'"), 'site content must not link to /blue-ocean');
   for (const relativePath of retainedContentPaths) {
     assert.ok(
       existsSync(fileURLToPath(new URL(relativePath, import.meta.url))),
-      `retained route/data file exists: ${relativePath}`,
+      `hidden source/data file retained: ${relativePath}`,
+    );
+  }
+  for (const relativePath of hiddenRoutePaths) {
+    assert.ok(
+      !existsSync(fileURLToPath(new URL(relativePath, import.meta.url))),
+      `public route must stay un-routed: ${relativePath}`,
     );
   }
 });

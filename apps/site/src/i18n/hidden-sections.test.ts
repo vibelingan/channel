@@ -27,6 +27,13 @@ test('site content links to no hidden section (overstock un-routed)', () => {
   assert.ok(!enUS.includes("href: '/overstock'"), 'must not link to /overstock');
 });
 
+test('site content links to no hidden Teardown Lab / Blue Ocean route', () => {
+  // Both sections are temporarily hidden (2026-08): pages un-routed via the `_`
+  // prefix, so no nav/footer link anywhere may point at them.
+  assert.ok(!enUS.includes("href: '/teardown-lab'"), 'must not link to /teardown-lab');
+  assert.ok(!enUS.includes("href: '/blue-ocean'"), 'must not link to /blue-ocean');
+});
+
 test('primary nav no longer lists Overstock', () => {
   assert.ok(
     !/label: Overstock, href: '\/overstock'/.test(enUS),
