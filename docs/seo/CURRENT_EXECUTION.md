@@ -5,8 +5,9 @@
 ## Delivery preflight
 
 - Branch: `feat/seo-phase-3-metadata`
-- Implementation range: `origin/test..677564f` audited on 2026-08-13; this delivery record is a
-	documentation-only follow-up and therefore lands after that endpoint.
+- Original MIU implementation range: `origin/test..677564f`, audited on 2026-08-13.
+- Final delivery range: `origin/test..HEAD`; it includes the tracked delivery record and PR review
+	hardening documented below.
 - Included checkpoints: MIU-03, MIU-04A, and MIU-04B-1 through MIU-04B-5
 - Result: all included checkpoints are implemented and locally validated; no blocker prevents delivery to
 	`test`.
@@ -166,10 +167,10 @@
 	not the production bundle or runtime. The lockfile install, site tests, type checks, Biome, and
 	production-origin build covered the affected contexts.
 
-No other material behavior, scope, or implementation deviation was found in the implementation range
-`origin/test..677564f`. This delivery record is the only follow-up after that audited endpoint. The
-branch-point merge `7978369` contributes no file delta over `origin/test`, and `566f218` only refreshes
-an accepted gate finding after a line-number shift.
+No other material behavior, scope, or implementation deviation was found in the original MIU range
+`origin/test..677564f` or its delivery/review follow-ups. The branch-point merge `7978369` contributes
+no file delta over `origin/test`, and `566f218` only refreshes an accepted gate finding after a
+line-number shift.
 
 ## Remaining blockers
 

@@ -100,6 +100,10 @@ const assertBaseLayoutBindings = async (
   };
   visit(ast);
   assert.equal(layouts.length, 1, `${relativePath} renders one BaseLayout`);
+  assert.ok(
+    layouts[0].attributes.every((attribute) => attribute.kind !== 'spread'),
+    `${relativePath} BaseLayout does not allow attribute spreads`,
+  );
   const attributes = new Map(
     layouts[0].attributes.map((attribute) => [
       attribute.name,

@@ -176,6 +176,10 @@ const assertMappedImageRenderer = async (
     'map expression renders one registry-backed image template',
   );
   const image = matchingImages[0];
+  assert.ok(
+    image.node.attributes.every((attribute) => attribute.kind !== 'spread'),
+    'registry-backed image does not allow attribute spreads',
+  );
   const attributes = new Map(
     image.node.attributes.map((attribute) => [
       attribute.name,
