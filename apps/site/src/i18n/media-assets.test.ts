@@ -2,10 +2,109 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { parse } from '@astrojs/compiler';
+import type { Node as AstroNode, ElementNode, ExpressionNode } from '@astrojs/compiler/types';
 import ts from 'typescript';
 import { parseDocument } from 'yaml';
 
 const enUS = readFileSync(fileURLToPath(new URL('./content/en-US.md', import.meta.url)), 'utf8');
+
+const extractLiteralObjectArray = (
+  componentSource: string,
+  componentName: string,
+  variableName: string,
+  propertyNames: string[],
+) => {
+  const frontmatter = componentSource.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  assert.ok(frontmatter, `${componentName} has Astro frontmatter`);
+  const script = ts.createSourceFile(
+    `${componentName}.ts`,
+    frontmatter[1],
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  let result: Array<Record<string, string | number>> | undefined;
+
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === variableName
+    ) {
+      assert.equal(result, undefined, `${variableName} is declared once`);
+      const initializer = node.initializer;
+      assert.ok(initializer && ts.isArrayLiteralExpression(initializer));
+      result = initializer.elements.map((element) => {
+        assert.ok(ts.isObjectLiteralExpression(element));
+        const properties = new Map(
+          element.properties.map((property) => {
+            assert.ok(ts.isPropertyAssignment(property));
+            assert.ok(ts.isIdentifier(property.name));
+            return [property.name.text, property.initializer] as const;
+          }),
+        );
+        assert.deepEqual([...properties.keys()], propertyNames);
+        return Object.fromEntries(
+          propertyNames.map((propertyName) => {
+            const value = properties.get(propertyName);
+            assert.ok(value);
+            if (ts.isStringLiteral(value)) return [propertyName, value.text];
+            assert.ok(ts.isNumericLiteral(value));
+            return [propertyName, Number(value.text)];
+          }),
+        );
+      });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(script);
+  assert.ok(result, `${componentName} declares ${variableName}`);
+  return {
+    items: result,
+  };
+};
+
+const assertMappedImageRenderer = async (
+  componentSource: string,
+  mapExpressionStart: string,
+  expectedBindings: Record<string, string>,
+) => {
+  const { ast, diagnostics } = await parse(componentSource);
+  assert.deepEqual(diagnostics, []);
+  const images: Array<{ node: ElementNode; expression?: ExpressionNode }> = [];
+
+  const visit = (node: AstroNode, expression?: ExpressionNode) => {
+    const currentExpression = node.type === 'expression' ? node : expression;
+    if (node.type === 'element' && node.name === 'img') {
+      images.push({ node, expression: currentExpression });
+    }
+    if ('children' in node) {
+      for (const child of node.children) visit(child, currentExpression);
+    }
+  };
+  visit(ast);
+
+  assert.equal(images.length, 1, 'component renders one registry-backed image template');
+  const image = images[0];
+  assert.ok(image.expression, 'gallery image is rendered by a collection expression');
+  const attributes = new Map(
+    image.node.attributes.map((attribute) => [
+      attribute.name,
+      { kind: attribute.kind, value: attribute.value },
+    ]),
+  );
+  assert.equal(attributes.size, image.node.attributes.length, 'image attributes are unique');
+  for (const [name, value] of Object.entries(expectedBindings)) {
+    assert.deepEqual(attributes.get(name), { kind: 'expression', value });
+  }
+
+  const firstExpressionChild = image.expression.children[0];
+  const lastExpressionChild = image.expression.children.at(-1);
+  assert.ok(firstExpressionChild?.type === 'text');
+  assert.equal(firstExpressionChild.value.trim(), mapExpressionStart);
+  assert.ok(lastExpressionChild?.type === 'text');
+  assert.equal(lastExpressionChild.value.trim(), '))');
+};
 
 test('home keeps the real team gallery separate from Why Choose Us visuals', () => {
   const ourTeam = readFileSync(
@@ -139,59 +238,11 @@ test('OEM process images expose reviewed intrinsic dimensions to the renderer', 
   assert.match(processComponent, /height=\{step\.imageHeight\}/);
 });
 
-test('factory gallery images expose reviewed intrinsic dimensions to the renderer', () => {
+test('factory gallery images expose reviewed intrinsic dimensions to the renderer', async () => {
   const factoryComponent = readFileSync(
     fileURLToPath(new URL('../components/FactorySection.astro', import.meta.url)),
     'utf8',
   );
-  const frontmatter = factoryComponent.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  assert.ok(frontmatter, 'factory component has Astro frontmatter');
-  const script = ts.createSourceFile(
-    'FactorySection.astro.ts',
-    frontmatter[1],
-    ts.ScriptTarget.Latest,
-    true,
-  );
-  let factoryPhotos: Array<{ src: string; alt: string; width: number; height: number }> | undefined;
-
-  const visit = (node: ts.Node) => {
-    if (
-      ts.isVariableDeclaration(node) &&
-      ts.isIdentifier(node.name) &&
-      node.name.text === 'factoryPhotos'
-    ) {
-      const initializer = node.initializer;
-      assert.ok(initializer && ts.isArrayLiteralExpression(initializer));
-      factoryPhotos = initializer.elements.map((element) => {
-        assert.ok(ts.isObjectLiteralExpression(element));
-        const properties = new Map(
-          element.properties.map((property) => {
-            assert.ok(ts.isPropertyAssignment(property));
-            assert.ok(ts.isIdentifier(property.name));
-            return [property.name.text, property.initializer] as const;
-          }),
-        );
-        assert.deepEqual([...properties.keys()], ['src', 'alt', 'width', 'height']);
-        const src = properties.get('src');
-        const alt = properties.get('alt');
-        const width = properties.get('width');
-        const height = properties.get('height');
-        assert.ok(src && ts.isStringLiteral(src));
-        assert.ok(alt && ts.isStringLiteral(alt));
-        assert.ok(width && ts.isNumericLiteral(width));
-        assert.ok(height && ts.isNumericLiteral(height));
-        return {
-          src: src.text,
-          alt: alt.text,
-          width: Number(width.text),
-          height: Number(height.text),
-        };
-      });
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(script);
-
   const expectedPhotos = [
     {
       src: '/media/oem/factory/f03.jpg',
@@ -254,14 +305,74 @@ test('factory gallery images expose reviewed intrinsic dimensions to the rendere
       height: 720,
     },
   ];
-  assert.deepEqual(factoryPhotos, expectedPhotos);
+  const { items } = extractLiteralObjectArray(
+    factoryComponent,
+    'FactorySection.astro',
+    'factoryPhotos',
+    ['src', 'alt', 'width', 'height'],
+  );
+  assert.deepEqual(items, expectedPhotos);
+  await assertMappedImageRenderer(factoryComponent, 'factoryPhotos.map((photo) => (', {
+    src: 'photo.src',
+    alt: 'photo.alt',
+    width: 'photo.width',
+    height: 'photo.height',
+  });
+});
 
-  const template = factoryComponent
-    .slice(frontmatter[0].length)
-    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
-    .replace(/<!--[\s\S]*?-->/g, '');
-  assert.match(template, /src=\{photo\.src\}/);
-  assert.match(template, /alt=\{photo\.alt\}/);
-  assert.match(template, /width=\{photo\.width\}/);
-  assert.match(template, /height=\{photo\.height\}/);
+test('team gallery images expose reviewed intrinsic dimensions to the renderer', async () => {
+  const teamComponent = readFileSync(
+    fileURLToPath(new URL('../components/OurTeamSection.astro', import.meta.url)),
+    'utf8',
+  );
+  const { items } = extractLiteralObjectArray(teamComponent, 'OurTeamSection.astro', 'photos', [
+    'img',
+    'alt',
+    'width',
+    'height',
+  ]);
+  assert.deepEqual(items, [
+    {
+      img: '/media/oem/team/t01.jpg',
+      alt: 'The Diversity Technology team',
+      width: 1100,
+      height: 749,
+    },
+    {
+      img: '/media/oem/team/t02.jpg',
+      alt: 'Sales and engineering team',
+      width: 1100,
+      height: 850,
+    },
+    {
+      img: '/media/oem/team/t03.jpg',
+      alt: 'At an international trade show',
+      width: 1100,
+      height: 822,
+    },
+    {
+      img: '/media/oem/team/t04.jpg',
+      alt: 'Exhibition booth',
+      width: 1100,
+      height: 822,
+    },
+    {
+      img: '/media/oem/team/t05.jpg',
+      alt: 'Team at work',
+      width: 1100,
+      height: 618,
+    },
+    {
+      img: '/media/oem/team/t06.jpg',
+      alt: 'Product showcase',
+      width: 1100,
+      height: 825,
+    },
+  ]);
+  await assertMappedImageRenderer(teamComponent, 'photos.map((p, i) => (', {
+    src: 'p.img',
+    alt: 'p.alt',
+    width: 'p.width',
+    height: 'p.height',
+  });
 });

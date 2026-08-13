@@ -12,12 +12,32 @@ interface Props {
 const { people } = Astro.props;
 
 const photos = [
-  { img: '/media/oem/team/t01.jpg', alt: 'The Diversity Technology team' },
-  { img: '/media/oem/team/t02.jpg', alt: 'Sales and engineering team' },
-  { img: '/media/oem/team/t03.jpg', alt: 'At an international trade show' },
-  { img: '/media/oem/team/t04.jpg', alt: 'Exhibition booth' },
-  { img: '/media/oem/team/t05.jpg', alt: 'Team at work' },
-  { img: '/media/oem/team/t06.jpg', alt: 'Product showcase' },
+  {
+    img: '/media/oem/team/t01.jpg',
+    alt: 'The Diversity Technology team',
+    width: 1100,
+    height: 749,
+  },
+  {
+    img: '/media/oem/team/t02.jpg',
+    alt: 'Sales and engineering team',
+    width: 1100,
+    height: 850,
+  },
+  {
+    img: '/media/oem/team/t03.jpg',
+    alt: 'At an international trade show',
+    width: 1100,
+    height: 822,
+  },
+  {
+    img: '/media/oem/team/t04.jpg',
+    alt: 'Exhibition booth',
+    width: 1100,
+    height: 822,
+  },
+  { img: '/media/oem/team/t05.jpg', alt: 'Team at work', width: 1100, height: 618 },
+  { img: '/media/oem/team/t06.jpg', alt: 'Product showcase', width: 1100, height: 825 },
 ];
 ---
 
@@ -44,6 +64,8 @@ const photos = [
           <img
             src={p.img}
             alt={p.alt}
+            width={p.width}
+            height={p.height}
             loading="lazy"
             class="aspect-[4/3] w-full object-cover transition duration-500 group-hover:scale-[1.04]"
           />

@@ -184,6 +184,9 @@ importers:
       '@astrojs/check':
         specifier: ^0.9.4
         version: 0.9.9(prettier@3.8.4)(typescript@5.9.3)
+      '@astrojs/compiler':
+        specifier: 4.0.0
+        version: 4.0.0
       '@types/node':
         specifier: ^22.10.2
         version: 22.19.21
