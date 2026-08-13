@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>SupplyChainsAI SEO/GEO 状态更新与 14/28 天跟进计划</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; color: #1f2937; line-height: 1.65; margin: 42px; }
+    h1 { color: #123a52; font-size: 26px; margin-bottom: 4px; }
+    h2 { color: #175c72; font-size: 19px; border-bottom: 1px solid #b7d4dc; padding-bottom: 5px; margin-top: 28px; }
+    h3 { color: #274c5b; font-size: 16px; margin-top: 20px; }
+    .meta { color: #64748b; margin-top: 0; }
+    .summary { background: #eef7f8; border-left: 5px solid #27869a; padding: 12px 16px; }
+    .warning { background: #fff8e7; border-left: 5px solid #d59b2d; padding: 12px 16px; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0 20px; font-size: 12px; }
+    th, td { border: 1px solid #b8c6cc; padding: 7px 8px; vertical-align: top; }
+    th { background: #dfeff2; color: #163f4c; }
+    .done { color: #176b43; font-weight: 700; }
+    .partial { color: #9a6400; font-weight: 700; }
+    .pending { color: #a33a2b; font-weight: 700; }
+    .hold { color: #475569; font-weight: 700; }
+    ul { padding-left: 22px; }
+    .small { font-size: 11px; color: #64748b; }
+  </style>
+</head>
+<body>
+  <h1>SupplyChainsAI SEO/GEO 状态更新与 14/28 天跟进计划</h1>
+  <p class="meta">基于《网站修正与升级方案 v1.2》更新｜证据日期：2026-08-13｜文档性质：状态与规划，不修改页面</p>
+
+  <div class="summary">
+    <strong>结论：</strong>SEO 技术基础已经完成大部分，但 v1.2 中的 SEO/GEO 项目并非全部完成。当前已具备可抓取、规范 URL、基础结构化数据、页面元数据、图片语义与布局稳定性；仍待完成的重点是 Search Console/Bing 监控、OG/Twitter、可信 lastmod、页面级 Schema，以及需要审批的 CDN/跳转安全配置。Headphones 内容增强属于客户内容决策，本阶段只列建议，不修改内容、结构或 UI。
+  </div>
+
+  <h2>一、图片稳定性与 CDN 的关系</h2>
+  <p>本轮通过真实 <code>width</code>/<code>height</code>、正确 <code>alt</code>、标准 <code>&lt;img src&gt;</code> 和自动回归测试，做到：</p>
+  <ul>
+    <li>图片下载前浏览器已经知道宽高比，可预留空间，降低布局跳动（CLS）。</li>
+    <li>Google 与辅助技术可以从 alt 和附近正文理解图片内容。</li>
+    <li>44 张首页业务图片的声明尺寸与真实文件尺寸一致，避免错误占位。</li>
+    <li>即使图片加载慢，文字和页面结构也不会因图片尺寸未知而大幅移动。</li>
+  </ul>
+  <p><strong>CDN 不是以上能力的前提。</strong>CDN 主要通过就近传输、压缩和缓存改善首屏加载速度并降低服务器负载；它不会替代图片说明文字、首选网址声明、正文质量或真实图片尺寸。</p>
+  <div class="warning">
+    当前线上网页正文（约 94 KB）与主样式文件（约 80 KB）未使用常见网页压缩格式，带版本号的样式文件仍只缓存 5 分钟。CDN/缓存优化有价值，但涉及 CloudBase 费用、域名结构、缓存更新和回滚，必须单独审批后实施。
+  </div>
+
+  <h2>二、v1.2 SEO/GEO 项目最新状态</h2>
+  <table>
+    <tr><th>v1.2 项目</th><th>最新状态</th><th>已验证结果 / 剩余条件</th></tr>
+    <tr><td>基础 JSON-LD</td><td class="done">已完成</td><td>公开页已有 Organization、WebSite、WebPage；页面级 Article/Product/Breadcrumb 尚未实施。</td></tr>
+    <tr><td>OG / Twitter Card</td><td class="pending">待完成</td><td>四个公开页目前均未观察到 og:title、og:image、twitter:card；需要获批的 1200×630 位图与共享布局协调。</td></tr>
+    <tr><td>Title / Meta Description</td><td class="done">已完成</td><td>首页、OEM、Portfolio、Headphones 唯一且在审查长度内；已验证真实传入页面布局。</td></tr>
+    <tr><td>Canonical URL</td><td class="done">已完成</td><td>四个公开页与 sitemap 一致；Headphones 尾斜杠已上线。</td></tr>
+    <tr><td>HTML lang / Viewport</td><td class="done">已完成</td><td>英文站点语言与移动 viewport 已设置；未发布多语言前不添加 hreflang。</td></tr>
+    <tr><td>Sitemap / Robots</td><td class="done">基础完成</td><td>robots.txt 为 200；sitemap 当前包含 4 个公开 URL并排除私有页。</td></tr>
+    <tr><td>Sitemap 内容更新时间</td><td class="hold">等待可信数据源</td><td>当前没有内容更新时间；不能把程序构建日期伪装成页面更新时间，需要内容负责人和经确认的更新时间字段。</td></tr>
+    <tr><td>H1 与标题层级</td><td class="done">公开页完成</td><td>四个可索引页面均为一个 H1；明确不参与搜索收录的私有页面不作为搜索落地页优化。</td></tr>
+    <tr><td>图片 alt 与尺寸</td><td class="done">已完成</td><td>构建路由所有图片都有 alt/width/height；44 张首页业务图尺寸与真实文件一致。</td></tr>
+    <tr><td>/headphones 可抓取性</td><td class="done">基础完成</td><td>核心 OEM、MOQ、Bluetooth、Inquiry 文本在静态 HTML 中；产品目录在浏览器加载后可用。</td></tr>
+    <tr><td>Search Console / Bing</td><td class="pending">状态未验证</td><td>需由账号负责人确认是否已有站点、权限和 sitemap提交记录；只补缺失项，不重复创建。</td></tr>
+    <tr><td>Article / Product / Breadcrumb Schema</td><td class="pending">未实施</td><td>只对页面可见、可证明的字段实施；不为获得富结果而编造数据。</td></tr>
+    <tr><td>llms.txt / GEO 可提取内容</td><td class="pending">待后续</td><td>llms.txt 当前 404；问答、来源标注、可引用事实需要客户确认内容和 owner。</td></tr>
+    <tr><td>品牌统一为 SupplyChainsAI</td><td class="hold">客户决策</td><td>线上标题仍使用 Diversity Technology Limited；涉及公开品牌与法定公司名策略，不作纯 SEO 修改。</td></tr>
+    <tr><td>邮箱切换</td><td class="partial">与 v1.2 目标不同</td><td>线上为 info@supplychainsai.com，不是 v1.2 的 hello@supplychainsai.com；需确认邮箱负责人和收信能力。</td></tr>
+    <tr><td>FB / IG / YT 页脚链接</td><td class="pending">待客户确认链接</td><td>线上页脚未发现相关社媒链接。</td></tr>
+    <tr><td>独立认证佐证页</td><td class="pending">未实施</td><td>首页/Portfolio 已有认证图片，但 v1.2 描述的独立证据页和逐项佐证未实施。</td></tr>
+    <tr><td>Success Stories Article Schema</td><td class="pending">未实施</td><td>当前为 Portfolio 汇总页和 WebPage Schema；案例日期、作者、来源需先确认。</td></tr>
+    <tr><td>301 / HSTS</td><td class="hold">需基础设施批准</td><td>HTTP、www 当前均返回 200且无 HSTS；canonical 已缓解重复信号，但 301/HSTS 需明确主域和回滚入口。</td></tr>
+  </table>
+
+  <h2>三、页面质量与客户内容机会</h2>
+  <table>
+    <tr><th>页面</th><th>当前技术/内容基础</th><th>下一阶段可讨论内容（本阶段不实施）</th></tr>
+    <tr><td>首页</td><td>强：流程、工厂、团队、质量、认证图片与客户参考信息均可见。</td><td>补充可公开产能、设备、交期范围和正文内部链接；所有数字需客户证据。</td></tr>
+    <tr><td>/oem/</td><td>强：能力、流程、优势、工厂与询盘闭环明确。</td><td>材料、工艺、打样周期、质量标准、可公开案例链接。</td></tr>
+    <tr><td>/portfolio/</td><td>中上：案例、客户、认证和专利资料丰富。</td><td>选择 3–5 个案例制作独立详情；补问题、过程、结果、日期、作者和审核负责人。</td></tr>
+    <tr><td>/headphones/</td><td>技术合格但内容深度最弱：主题明确，静态核心内容可抓取。</td><td>客户选择并提供：产品类型、材料、驱动单元、测试、定制、合规范围、MOQ/交期、采购 FAQ。未确认前不扩写。</td></tr>
+  </table>
+
+  <h2>四、监控与决策时间表</h2>
+  <p><strong>不建议等到第 14 天才开始监控。</strong>但当前无法确认 Search Console/Bing 是否已接入。先由账号负责人核实；将“权限可用且首次完整基线记录完成”的日期定义为 D0，后续日期从真实 D0 顺延。</p>
+  <table>
+    <tr><th>时间</th><th>动作</th><th>判断范围</th></tr>
+    <tr><td>确认与 D0</td><td>核实 Search Console/Bing 现有站点、权限、sitemap和历史数据；只补缺失项。完成首次完整基线记录的日期为 D0。</td><td>建立观测，不做排名结论。</td></tr>
+    <tr><td>D+14</td><td>第一次健康检查：Google是否重抓、canonical是否被采纳、是否出现“已抓取未索引”、结构化数据错误、页面体验异常。</td><td>只修确定的技术错误；不因两周排名波动改内容。</td></tr>
+    <tr><td>D+28</td><td>第一轮绩效分析：页面/查询曝光、点击、点击率、平均位置；识别已有曝光但表现不足或被错误页面承接的查询。</td><td>形成第一批优化建议；任何 CDN、跳转和内容项仍走各自审批门。</td></tr>
+    <tr><td>D+56</td><td>复核趋势，比较两个 28 天窗口；评估已批准优化的效果。</td><td>判断是否扩大内容建设、外链和 GEO 工作。</td></tr>
+  </table>
+
+  <h2>五、D+28 前可以准备但不应盲目上线的技术项</h2>
+  <ol>
+    <li>Search Console/Bing 状态核对清单、URL检查记录和月度报告模板。</li>
+    <li>CDN 压缩、带版本号资源的长期缓存、缓存更新与回滚设计；获费用和域名结构批准后才实施。</li>
+    <li>HTTP→HTTPS、www→主域 301与HSTS设计；获主域/回滚批准后才实施。</li>
+    <li>可信内容更新时间模型设计；有明确内容负责人后实施。</li>
+    <li>OG/Twitter技术方案；获批 1200×630图片且并发工作合并后实施。</li>
+    <li>页面级结构化数据字段清单与 Google 富结果测试计划；只标记可见事实。</li>
+    <li>图片 sitemap、响应式图片与压缩候选审计；先用 Google 速度实验室数据与真实用户数据确定瓶颈。</li>
+  </ol>
+
+  <h2>六、本阶段边界与客户需要提供的内容</h2>
+  <ul>
+    <li>本阶段不修改 Slogan、Hero、页面结构、导航、UI、产品范围或文案。</li>
+    <li>不创建未经确认的 FAQ、认证范围、交期、MOQ、产能或案例结果。</li>
+    <li>客户后续可选择提供：Headphones规格/测试/定制资料、案例详情与日期、认证适用范围、品牌名称策略、社媒链接、邮箱负责人、OG分享图。</li>
+    <li>下一次实施以 D+14/D+28数据和客户选择为输入，从最新生产分支新开，不直接在本规划分支改代码。</li>
+  </ul>
+
+  <h2>七、客户确认清单</h2>
+  <table>
+    <tr><th>需要确认</th><th>建议负责人</th><th>需要时间</th><th>不确认的影响</th></tr>
+    <tr><td>Search Console/Bing 是否已有站点、权限和 sitemap</td><td>网站/营销账号负责人</td><td>尽快，用于确定 D0</td><td>无法建立可靠的 14/28 天基线</td></tr>
+    <tr><td>公开品牌名与法定公司名策略</td><td>客户管理层/品牌负责人</td><td>D+28 内容决策前</td><td>保持现有 Diversity Technology Limited 展示</td></tr>
+    <tr><td>官方邮箱与 FB/IG/YT 链接</td><td>品牌/运营负责人</td><td>D+28 前</td><td>不修改页脚联系方式和社媒入口</td></tr>
+    <tr><td>OG 分享图（1200×630）</td><td>品牌/设计负责人</td><td>OG实施前</td><td>OG/Twitter继续等待</td></tr>
+    <tr><td>CDN费用、域名和回滚方案</td><td>技术/财务/域名负责人</td><td>性能实施前</td><td>仅保留设计，不启用压缩/长缓存</td></tr>
+    <tr><td>Headphones与案例可公开事实</td><td>产品/销售/质量负责人</td><td>D+28 决策时</td><td>不扩写页面内容，不新增 FAQ/案例详情</td></tr>
+  </table>
+
+  <p class="small">术语说明：JSON-LD 是提供给搜索引擎的结构化页面说明；canonical 是页面声明的首选网址；sitemap 是提交给搜索引擎的公开页面清单；OG/Twitter Card 是社交平台分享预览信息；HSTS 是浏览器会记忆一段时间的强制 HTTPS策略。Google通常需要数天到数周重抓和重处理页面；请求抓取不保证立即或一定收录。D+14用于健康检查，D+28用于第一轮数据决策，不构成排名或流量承诺。</p>
+</body>
+</html>
