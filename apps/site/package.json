@@ -26,11 +26,14 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.4",
+    "@astrojs/compiler": "4.0.0",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "sharp": "0.34.5",
     "tsx": "^4.22.4",
     "typescript": "^5.6.3",
-    "vite": "^7.0.0"
+    "vite": "^7.0.0",
+    "yaml": "2.9.0"
   }
 }

@@ -35,6 +35,8 @@ const { process } = Astro.props;
               <img
                 src={`/media/oem/process/p${String(index + 1).padStart(2, '0')}.jpg`}
                 alt={`Step ${index + 1}: ${step.label}`}
+                width={step.imageWidth}
+                height={step.imageHeight}
                 loading="lazy"
                 class="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-[1.03]"
               />

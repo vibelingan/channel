@@ -184,6 +184,9 @@ importers:
       '@astrojs/check':
         specifier: ^0.9.4
         version: 0.9.9(prettier@3.8.4)(typescript@5.9.3)
+      '@astrojs/compiler':
+        specifier: 4.0.0
+        version: 4.0.0
       '@types/node':
         specifier: ^22.10.2
         version: 22.19.21
@@ -193,6 +196,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.2
         version: 19.2.3(@types/react@19.2.17)
+      sharp:
+        specifier: 0.34.5
+        version: 0.34.5
       tsx:
         specifier: ^4.22.4
         version: 4.22.4
@@ -202,6 +208,9 @@ importers:
       vite:
         specifier: ^7.0.0
         version: 7.3.5(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0)
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
 
   packages/alibaba-catalog-sync:
     devDependencies:
@@ -3939,8 +3948,7 @@ snapshots:
   '@esbuild/win32-x64@0.28.1':
     optional: true
 
-  '@img/colour@1.1.0':
-    optional: true
+  '@img/colour@1.1.0': {}
 
   '@img/sharp-darwin-arm64@0.34.5':
     optionalDependencies:
@@ -6175,7 +6183,6 @@ snapshots:
       '@img/sharp-win32-arm64': 0.34.5
       '@img/sharp-win32-ia32': 0.34.5
       '@img/sharp-win32-x64': 0.34.5
-    optional: true
 
   shiki@4.2.0:
     dependencies:
