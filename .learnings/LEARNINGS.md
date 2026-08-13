@@ -329,3 +329,89 @@ Rules for every user-facing explanation:
 - Tags: communication, explanation, jargon, promotion-candidate
 
 ---
+
+## [LRN-20260814-001] correction
+
+**Logged**: 2026-08-14T00:00:00Z
+**Priority**: critical
+**Status**: new
+**Area**: review-discipline
+**Pattern-Key**: edit-the-losing-copy
+
+### Summary
+When one decision is stated on several surfaces — an explaining paragraph, a normative table, the SQL, an invariant, a test row, a plan's dependency line — changing only the readable one leaves the system specified as before. Two external review rounds returned 19 then 15 P1s against the same design docs; the second round was almost entirely this single mistake repeated.
+
+### Details
+The docs themselves declared which copy wins ("the per-MIU `Depends on:` lines win if the two disagree", "the architecture wins"). Fixes were then applied to the summary table and to the architecture's *explanation*, while six per-MIU declarations and four specifying documents still carried the old behaviour. Each fix read as complete in its own diff.
+
+Three sub-shapes, all of which produced P1s:
+
+1. **Losing-copy edit.** A doc names an authoritative copy, and the change lands on the restatement. The restatement then looks current, so nobody re-checks the authority.
+2. **Restated rule drift.** The same policy written inline at N sites ("zero rows → cancel") diverges the moment one site is corrected. The fix is one *named* rule the sites reference — §5.1 replaced four inline copies.
+3. **Partial enumeration.** A table covering "the interesting cases" invites under-specification of the rest: terminalization specified 4 of 9 paths, so a stale observer could end a healthy run and an engine error could report failure after the user pressed Stop. Make enumerations total and state that absence means prohibition.
+
+The prior round had already diagnosed the ancestor of this — "fixed instances, not classes" — and the next round repeated it one level up. Naming a failure class does not prevent it; only a mechanical checklist does.
+
+### Suggested Action
+For any change to a specification that is spread across surfaces, write the propagation list BEFORE editing, and treat a change present on fewer than all of them as not made. Land the normative artifact first and the prose second. Where a doc declares an authoritative copy, edit that copy or the change is cosmetic. Concretely: this repo now carries a "Normative Surface Index" in `docs/ai-platform/README.md` mapping each kind of change to every surface it must appear on.
+
+### Metadata
+- Source: external_review
+- Related Files: docs/ai-platform/README.md, docs/ai-platform/REVIEW-CYCLE.md
+- Tags: review, specification, propagation, documentation, cross-file
+
+---
+
+## [LRN-20260814-002] correction
+
+**Logged**: 2026-08-14T00:00:00Z
+**Priority**: high
+**Status**: new
+**Area**: review-discipline
+**Pattern-Key**: self-review-lens-ceiling
+
+### Summary
+Six self-review rounds converged to "no findings"; an external reviewer then found 19 P1s immediately. The rounds were not low quality — they were structurally blind. Self-review tends to check self-consistency; it does not check predicate completeness, platform semantics, or claims against the actual repository.
+
+### Details
+The six internal rounds found real defects and genuinely converged. What they never found: a missing `WHERE` term binding two gated rows; that PostgreSQL `now()` is transaction-start time, so a renewal committed after a lock wait is already expired; that a claimed deletion target (`leads`) does not exist in this codebase at all (`oemProjects` does); that a named test could not fail because the barrier sat where the lock was already held. Each needs a lens the author does not naturally apply to their own work — enumerate the predicate, know the platform footgun, check the claim against the repo, ask whether the test can fail.
+
+Convergence within one lens is not evidence of correctness. It is evidence that lens is exhausted.
+
+### Suggested Action
+For high-stakes specifications, budget an external or explicitly re-lensed pass and treat it as required, not as a bonus round. When commissioning it, ask for the lenses the author cannot self-apply: predicate completeness, platform semantics, claims-vs-repository, and can-this-test-fail. Do not read internal convergence as a stopping condition.
+
+### Metadata
+- Source: external_review
+- Related Files: docs/ai-platform/REVIEW-CYCLE.md
+- Tags: review, self-review, lens, verification-integrity
+
+---
+
+## [LRN-20260814-003] correction
+
+**Logged**: 2026-08-14T00:00:00Z
+**Priority**: high
+**Status**: new
+**Area**: verification-integrity
+**Pattern-Key**: claim-exceeds-mechanism
+
+### Summary
+A spec that promises more than its mechanism delivers produces tests that cannot be written and metrics that cannot be met. Two examples in one document, both caught externally.
+
+### Details
+The design promised "the visitor never sees another word after takeover". The database can only guarantee that no event is *committed* after the handoff — text committed earlier is legitimately part of the transcript and is still delivered, possibly moments later. The overclaim propagated into two test rows and a pilot metric, none of which were satisfiable.
+
+Separately, a security test required that a session token "never leaves the page" on a site where the storefront legitimately sends that token to its own API. The assertion was unsatisfiable, and its absence-only form was additionally satisfied by a renderer that never ran.
+
+Both were fixed by narrowing the claim to what the mechanism proves, and by stating explicitly what is *not* promised, so a stronger guarantee becomes a separate, owned piece of work rather than an assumption.
+
+### Suggested Action
+For every guarantee in a spec, name the mechanism that enforces it and check the claim is not broader. Where a stronger guarantee is genuinely wanted, record it as a distinct requirement with its own owner. Phrase security assertions as bounded egress ("no request carrying X reaches an origin outside this approved set"), never as absence ("X never leaves"), and pair every detector with a positive control proving it fires. Withdrawing an unimplementable requirement is a legitimate fix — a deletion requirement was removed against a store the feature never writes.
+
+### Metadata
+- Source: external_review
+- Related Files: docs/ai-platform/LLD-001-HUMAN-TAKEOVER-STATE-MACHINE.md, docs/ai-platform/SECURITY.md, docs/ai-platform/TEST_STRATEGY.md
+- Tags: claims, tests, security, metrics, overclaiming
+
+---
