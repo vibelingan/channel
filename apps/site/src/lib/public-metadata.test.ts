@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { parse } from '@astrojs/compiler';
+import type { Node as AstroNode, ComponentNode } from '@astrojs/compiler/types';
 import ts from 'typescript';
 import { parseDocument } from 'yaml';
 
@@ -83,7 +85,35 @@ const extractPageMetadata = (relativePath: string, brandName: string) => {
   return { title, description };
 };
 
-test('public pages keep dedicated SEO metadata within review limits', () => {
+const assertBaseLayoutBindings = async (
+  relativePath: string,
+  expected: { title: string; description: string },
+) => {
+  const { ast, diagnostics } = await parse(read(relativePath));
+  assert.deepEqual(diagnostics, []);
+  const layouts: ComponentNode[] = [];
+  const visit = (node: AstroNode) => {
+    if (node.type === 'component' && node.name === 'BaseLayout') layouts.push(node);
+    if ('children' in node) {
+      for (const child of node.children) visit(child);
+    }
+  };
+  visit(ast);
+  assert.equal(layouts.length, 1, `${relativePath} renders one BaseLayout`);
+  const attributes = new Map(
+    layouts[0].attributes.map((attribute) => [
+      attribute.name,
+      { kind: attribute.kind, value: attribute.value },
+    ]),
+  );
+  assert.deepEqual(attributes.get('title'), { kind: 'expression', value: expected.title });
+  assert.deepEqual(attributes.get('description'), {
+    kind: 'expression',
+    value: expected.description,
+  });
+};
+
+test('public pages keep dedicated SEO metadata within review limits', async () => {
   const routableTopLevelPages = readdirSync(fileURLToPath(new URL('../pages', import.meta.url)))
     .filter((fileName) => fileName.endsWith('.astro') && !fileName.startsWith('_'))
     .filter((fileName) => !noindexTopLevelPages.has(fileName))
@@ -101,6 +131,10 @@ test('public pages keep dedicated SEO metadata within review limits', () => {
   assert.ok(site.brand);
   assert.ok(oem.meta);
   assert.ok(portfolio.meta);
+  assert.ok(oem.meta.title.trim());
+  assert.ok(oem.meta.description.trim());
+  assert.ok(portfolio.meta.title.trim());
+  assert.ok(portfolio.meta.description.trim());
   const brandName = site.brand.name;
 
   const metadata = [
@@ -131,4 +165,23 @@ test('public pages keep dedicated SEO metadata within review limits', () => {
 
   assert.equal(new Set(metadata.map(({ title }) => title)).size, metadata.length);
   assert.equal(new Set(metadata.map(({ description }) => description)).size, metadata.length);
+
+  await Promise.all([
+    assertBaseLayoutBindings('../pages/index.astro', {
+      title: 'seoTitle',
+      description: 'seoDescription',
+    }),
+    assertBaseLayoutBindings('../pages/headphones.astro', {
+      title: 'seoTitle',
+      description: 'seoDescription',
+    }),
+    assertBaseLayoutBindings('../pages/oem.astro', {
+      title: '`${meta.title} — ${brand.name}`',
+      description: 'meta.description',
+    }),
+    assertBaseLayoutBindings('../pages/portfolio.astro', {
+      title: '`${meta.title} — ${brand.name}`',
+      description: 'meta.description',
+    }),
+  ]);
 });

@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { parse } from '@astrojs/compiler';
 import type { Node as AstroNode, ElementNode, ExpressionNode } from '@astrojs/compiler/types';
+import sharp from 'sharp';
 import ts from 'typescript';
 import { parseDocument } from 'yaml';
 
@@ -43,7 +44,9 @@ const extractLiteralObjectArray = (
             return [property.name.text, property.initializer] as const;
           }),
         );
-        assert.deepEqual([...properties.keys()], propertyNames);
+        assert.equal(element.properties.length, propertyNames.length);
+        assert.equal(properties.size, element.properties.length, 'object properties are unique');
+        assert.deepEqual([...properties.keys()].sort(), [...propertyNames].sort());
         return Object.fromEntries(
           propertyNames.map((propertyName) => {
             const value = properties.get(propertyName);
@@ -64,11 +67,69 @@ const extractLiteralObjectArray = (
   };
 };
 
+type MapContext = {
+  itemName: string;
+  indexName?: string;
+};
+
+const extractMapContext = (expression: ExpressionNode) => {
+  const firstChild = expression.children[0];
+  const lastChild = expression.children.at(-1);
+  assert.ok(firstChild?.type === 'text');
+  assert.ok(lastChild?.type === 'text');
+  const source = ts.createSourceFile(
+    'mapped-image.ts',
+    `${firstChild.value}null${lastChild.value}`,
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  assert.equal(source.statements.length, 1);
+  const statement = source.statements[0];
+  assert.ok(ts.isExpressionStatement(statement));
+  const call = statement.expression;
+  assert.ok(ts.isCallExpression(call));
+  assert.ok(ts.isPropertyAccessExpression(call.expression));
+  assert.equal(call.expression.name.text, 'map');
+  assert.equal(call.arguments.length, 1);
+  const callback = call.arguments[0];
+  assert.ok(ts.isArrowFunction(callback));
+  assert.ok(callback.parameters.length === 1 || callback.parameters.length === 2);
+  const parameters = callback.parameters.map((parameter) => {
+    assert.ok(ts.isIdentifier(parameter.name));
+    return parameter.name.text;
+  });
+  return {
+    registryExpression: call.expression.expression.getText(source),
+    context: { itemName: parameters[0], indexName: parameters[1] } satisfies MapContext,
+  };
+};
+
+const assertImageMetadata = async (
+  items: Array<Record<string, string | number>>,
+  pathProperty: string,
+  widthProperty: string,
+  heightProperty: string,
+) => {
+  for (const item of items) {
+    const path = item[pathProperty];
+    const width = item[widthProperty];
+    const height = item[heightProperty];
+    assert.equal(typeof path, 'string');
+    assert.equal(typeof width, 'number');
+    assert.equal(typeof height, 'number');
+    const file = fileURLToPath(new URL(`../../public${path}`, import.meta.url));
+    assert.ok(existsSync(file), `referenced asset missing on disk: ${path}`);
+    const metadata = await sharp(file).metadata();
+    assert.equal(metadata.autoOrient.width, width, `${path} width matches its source bytes`);
+    assert.equal(metadata.autoOrient.height, height, `${path} height matches its source bytes`);
+  }
+};
+
 const assertMappedImageRenderer = async (
   componentSource: string,
-  mapExpressionStart: string,
-  expectedBindings: Record<string, string>,
-  expectedMappedText?: { elementName: string; value: string },
+  registryExpression: string,
+  expectedBindings: (context: MapContext) => Record<string, string>,
+  expectedMappedText?: { elementName: string; value: (context: MapContext) => string },
   expectedImageTemplates = 1,
   expectedSectionHeading?: string,
 ) => {
@@ -102,17 +163,19 @@ const assertMappedImageRenderer = async (
   visit(ast);
 
   assert.equal(images.length, expectedImageTemplates, 'component renders expected image templates');
-  const matchingImages = images.filter(({ expression }) => {
-    const firstChild = expression?.children[0];
-    return firstChild?.type === 'text' && firstChild.value.trim() === mapExpressionStart;
+  const mappedImages = images.map((image) => {
+    assert.ok(image.expression, 'gallery image is rendered by a collection expression');
+    return { ...image, map: extractMapContext(image.expression) };
   });
+  const matchingImages = mappedImages.filter(
+    ({ map }) => map.registryExpression === registryExpression,
+  );
   assert.equal(
     matchingImages.length,
     1,
     'map expression renders one registry-backed image template',
   );
   const image = matchingImages[0];
-  assert.ok(image.expression, 'gallery image is rendered by a collection expression');
   const attributes = new Map(
     image.node.attributes.map((attribute) => [
       attribute.name,
@@ -120,16 +183,9 @@ const assertMappedImageRenderer = async (
     ]),
   );
   assert.equal(attributes.size, image.node.attributes.length, 'image attributes are unique');
-  for (const [name, value] of Object.entries(expectedBindings)) {
+  for (const [name, value] of Object.entries(expectedBindings(image.map.context))) {
     assert.deepEqual(attributes.get(name), { kind: 'expression', value });
   }
-
-  const firstExpressionChild = image.expression.children[0];
-  const lastExpressionChild = image.expression.children.at(-1);
-  assert.ok(firstExpressionChild?.type === 'text');
-  assert.equal(firstExpressionChild.value.trim(), mapExpressionStart);
-  assert.ok(lastExpressionChild?.type === 'text');
-  assert.equal(lastExpressionChild.value.trim(), '))');
 
   if (expectedSectionHeading) {
     const sectionContainer = image.elementAncestors.findLast((ancestor) =>
@@ -177,7 +233,7 @@ const assertMappedImageRenderer = async (
           ? { type: child.type, value: child.value.trim() }
           : { type: child.type },
       ),
-      [{ type: 'text', value: expectedMappedText.value }],
+      [{ type: 'text', value: expectedMappedText.value(image.map.context) }],
     );
   }
 };
@@ -219,7 +275,7 @@ test('every /media asset referenced by site + OEM + portfolio content exists in 
   }
 });
 
-test('OEM process images expose reviewed intrinsic dimensions to the renderer', () => {
+test('OEM process images expose reviewed intrinsic dimensions to the renderer', async () => {
   const frontmatterSource = enUS.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   assert.ok(frontmatterSource, 'site content has YAML frontmatter');
   const document = parseDocument(frontmatterSource[1], { uniqueKeys: true });
@@ -230,88 +286,91 @@ test('OEM process images expose reviewed intrinsic dimensions to the renderer', 
     };
   };
   assert.ok(content.oemProcess?.steps);
-  assert.deepEqual(
-    content.oemProcess.steps.map(({ label, imageWidth, imageHeight }, index) => ({
+  const processImages = content.oemProcess.steps.map(
+    ({ label, imageWidth, imageHeight }, index) => ({
       src: `/media/oem/process/p${String(index + 1).padStart(2, '0')}.jpg`,
       alt: `Step ${index + 1}: ${label}`,
       imageWidth,
       imageHeight,
-    })),
-    [
-      {
-        src: '/media/oem/process/p01.jpg',
-        alt: 'Step 1: Sketches',
-        imageWidth: 720,
-        imageHeight: 518,
-      },
-      {
-        src: '/media/oem/process/p02.jpg',
-        alt: 'Step 2: Appearance Design',
-        imageWidth: 720,
-        imageHeight: 690,
-      },
-      {
-        src: '/media/oem/process/p03.jpg',
-        alt: 'Step 3: Mechanical Design',
-        imageWidth: 720,
-        imageHeight: 623,
-      },
-      {
-        src: '/media/oem/process/p04.jpg',
-        alt: 'Step 4: Circuit Design',
-        imageWidth: 540,
-        imageHeight: 720,
-      },
-      {
-        src: '/media/oem/process/p05.jpg',
-        alt: 'Step 5: Prototyping',
-        imageWidth: 662,
-        imageHeight: 720,
-      },
-      {
-        src: '/media/oem/process/p06.jpg',
-        alt: 'Step 6: Mold Building',
-        imageWidth: 720,
-        imageHeight: 412,
-      },
-      {
-        src: '/media/oem/process/p07.jpg',
-        alt: 'Step 7: PCBA Mass Prod',
-        imageWidth: 720,
-        imageHeight: 549,
-      },
-      {
-        src: '/media/oem/process/p08.jpg',
-        alt: 'Step 8: Mold Test Shot',
-        imageWidth: 720,
-        imageHeight: 657,
-      },
-      {
-        src: '/media/oem/process/p09.jpg',
-        alt: 'Step 9: Pilot Run',
-        imageWidth: 720,
-        imageHeight: 697,
-      },
-      {
-        src: '/media/oem/process/p10.jpg',
-        alt: 'Step 10: QC',
-        imageWidth: 720,
-        imageHeight: 464,
-      },
-    ],
+    }),
   );
+  assert.deepEqual(processImages, [
+    {
+      src: '/media/oem/process/p01.jpg',
+      alt: 'Step 1: Sketches',
+      imageWidth: 720,
+      imageHeight: 518,
+    },
+    {
+      src: '/media/oem/process/p02.jpg',
+      alt: 'Step 2: Appearance Design',
+      imageWidth: 720,
+      imageHeight: 690,
+    },
+    {
+      src: '/media/oem/process/p03.jpg',
+      alt: 'Step 3: Mechanical Design',
+      imageWidth: 720,
+      imageHeight: 623,
+    },
+    {
+      src: '/media/oem/process/p04.jpg',
+      alt: 'Step 4: Circuit Design',
+      imageWidth: 540,
+      imageHeight: 720,
+    },
+    {
+      src: '/media/oem/process/p05.jpg',
+      alt: 'Step 5: Prototyping',
+      imageWidth: 662,
+      imageHeight: 720,
+    },
+    {
+      src: '/media/oem/process/p06.jpg',
+      alt: 'Step 6: Mold Building',
+      imageWidth: 720,
+      imageHeight: 412,
+    },
+    {
+      src: '/media/oem/process/p07.jpg',
+      alt: 'Step 7: PCBA Mass Prod',
+      imageWidth: 720,
+      imageHeight: 549,
+    },
+    {
+      src: '/media/oem/process/p08.jpg',
+      alt: 'Step 8: Mold Test Shot',
+      imageWidth: 720,
+      imageHeight: 657,
+    },
+    {
+      src: '/media/oem/process/p09.jpg',
+      alt: 'Step 9: Pilot Run',
+      imageWidth: 720,
+      imageHeight: 697,
+    },
+    {
+      src: '/media/oem/process/p10.jpg',
+      alt: 'Step 10: QC',
+      imageWidth: 720,
+      imageHeight: 464,
+    },
+  ]);
+  await assertImageMetadata(processImages, 'src', 'imageWidth', 'imageHeight');
 
   const processComponent = readFileSync(
     fileURLToPath(new URL('../components/OemProcessSection.astro', import.meta.url)),
     'utf8',
   );
-  assert.match(
-    processComponent,
-    /src=\{`\/media\/oem\/process\/p\$\{String\(index \+ 1\)\.padStart\(2, '0'\)\}\.jpg`\}/,
-  );
-  assert.match(processComponent, /alt=\{`Step \$\{index \+ 1\}: \$\{step\.label\}`\}/);
-  assert.match(processComponent, /width=\{step\.imageWidth\}/);
-  assert.match(processComponent, /height=\{step\.imageHeight\}/);
+  await assertMappedImageRenderer(processComponent, 'process.steps', ({ itemName, indexName }) => {
+    assert.ok(indexName);
+    return {
+      src: `\`/media/oem/process/p\${String(${indexName} + 1).padStart(2, '0')}.jpg\``,
+      alt: `\`Step \${${indexName} + 1}: \${${itemName}.label}\``,
+      width: `${itemName}.imageWidth`,
+      height: `${itemName}.imageHeight`,
+    };
+  });
 });
 
 test('factory gallery images expose reviewed intrinsic dimensions to the renderer', async () => {
@@ -388,11 +447,14 @@ test('factory gallery images expose reviewed intrinsic dimensions to the rendere
     ['src', 'alt', 'width', 'height'],
   );
   assert.deepEqual(items, expectedPhotos);
-  await assertMappedImageRenderer(factoryComponent, 'factoryPhotos.map((photo) => (', {
-    src: 'photo.src',
-    alt: 'photo.alt',
-    width: 'photo.width',
-    height: 'photo.height',
+  await assertImageMetadata(items, 'src', 'width', 'height');
+  await assertMappedImageRenderer(factoryComponent, 'factoryPhotos', ({ itemName }) => {
+    return {
+      src: `${itemName}.src`,
+      alt: `${itemName}.alt`,
+      width: `${itemName}.width`,
+      height: `${itemName}.height`,
+    };
   });
 });
 
@@ -445,11 +507,14 @@ test('team gallery images expose reviewed intrinsic dimensions to the renderer',
       height: 825,
     },
   ]);
-  await assertMappedImageRenderer(teamComponent, 'photos.map((p, i) => (', {
-    src: 'p.img',
-    alt: 'p.alt',
-    width: 'p.width',
-    height: 'p.height',
+  await assertImageMetadata(items, 'img', 'width', 'height');
+  await assertMappedImageRenderer(teamComponent, 'photos', ({ itemName }) => {
+    return {
+      src: `${itemName}.img`,
+      alt: `${itemName}.alt`,
+      width: `${itemName}.width`,
+      height: `${itemName}.height`,
+    };
   });
 });
 
@@ -514,16 +579,17 @@ test('quality images expose reviewed intrinsic dimensions to the renderer', asyn
       height: 285,
     },
   ]);
+  await assertImageMetadata(items, 'img', 'width', 'height');
   await assertMappedImageRenderer(
     qualityComponent,
-    'tests.map((t, i) => (',
-    {
-      src: 't.img',
-      alt: 't.label',
-      width: 't.width',
-      height: 't.height',
-    },
-    { elementName: 'figcaption', value: 't.label' },
+    'tests',
+    ({ itemName }) => ({
+      src: `${itemName}.img`,
+      alt: `${itemName}.label`,
+      width: `${itemName}.width`,
+      height: `${itemName}.height`,
+    }),
+    { elementName: 'figcaption', value: ({ itemName }) => `${itemName}.label` },
   );
 });
 
@@ -568,15 +634,16 @@ test('certificate and client images expose reviewed intrinsic dimensions to the 
       height: 1000,
     },
   ]);
+  await assertImageMetadata(certificates.items, 'img', 'width', 'height');
   await assertMappedImageRenderer(
     certificationsComponent,
-    'complianceCerts.map((cert) => (',
-    {
-      src: 'cert.img',
-      alt: '`${cert.name} certification`',
-      width: 'cert.width',
-      height: 'cert.height',
-    },
+    'complianceCerts',
+    ({ itemName }) => ({
+      src: `${itemName}.img`,
+      alt: `\`\${${itemName}.name} certification\``,
+      width: `${itemName}.width`,
+      height: `${itemName}.height`,
+    }),
     undefined,
     2,
     'Company &amp; Compliance',
@@ -626,15 +693,16 @@ test('certificate and client images expose reviewed intrinsic dimensions to the 
       height: 400,
     },
   ]);
+  await assertImageMetadata(clients.items, 'img', 'width', 'height');
   await assertMappedImageRenderer(
     certificationsComponent,
-    'clientLogos.map((client) => (',
-    {
-      src: 'client.img',
-      alt: '`${client.name} logo`',
-      width: 'client.width',
-      height: 'client.height',
-    },
+    'clientLogos',
+    ({ itemName }) => ({
+      src: `${itemName}.img`,
+      alt: `\`\${${itemName}.name} logo\``,
+      width: `${itemName}.width`,
+      height: `${itemName}.height`,
+    }),
     undefined,
     2,
     'Global Clients',
