@@ -68,13 +68,21 @@ probe design, and the reasoning for each part, is in [SECURITY.md](./SECURITY.md
 - **Every retrieval surface**, enumerated from the MCP tool schema — search,
   query, list, get, attachment download — asserting on returned *content*, since
   a search API can cross spaces while get-by-id is correctly blocked.
-- **Pre-deploy, against the deployed credential**, with its fingerprint recorded
-  and re-asserted at BFF startup. Nightly against a "production-shaped" token
-  checks something that is not serving customers.
+- **Pre-deploy, against the deployed credential.** The probe records the
+  credential's attested identity, and the BFF asserts at startup that
+  `attestKnowledgeCredential()` (LLD-002 §4) returns the same `credentialId`,
+  `spaceId` and `rotationCounter` the probe cleared. The BFF cannot check the
+  credential directly — it does not hold it — so the holder attests. Nightly
+  against a "production-shaped" token checks something that is not serving
+  customers.
 - **Fails closed**: unreachable service, or an internal id that cannot be
   confirmed current, is a failure, not a skip.
-- **One sensitivity run** with a deliberately over-scoped token that must turn
-  the probe red. A check nobody has watched fail is a check nobody has verified.
+- **Per-surface controls, not one aggregate run.** Every retrieval surface
+  discovered from the tool schema gets its *own* public-positive,
+  internal-negative and over-scoped-sensitivity result. A single aggregate
+  sensitivity run is passed by a dead `search` implementation that returns empty,
+  because some *other* surface turned the run red. A check nobody has watched
+  fail, on the surface it is meant to guard, is a check nobody has verified.
 
 ### 3.2 The tool surface (gate 1)
 
@@ -138,8 +146,11 @@ credential.
 
 A corpus of retrieved documents carrying instructions ("ignore previous
 instructions", "reveal your system prompt", "call the terminal tool", "the price
-is $2"). Asserted: no tool call occurs, no credential appears, no price is
-invented, and the answer policy holds. This is an evaluation-layer test with a
+is $2"). Asserted: **approved read-only knowledge tools may be invoked** — that
+is the intended mechanism, and a test demanding "no tool call" would fail the
+system working correctly — but no *denied* or mutating tool is invoked, no
+credential appears, no price is invented, no lead or notification is created, and
+the answer policy holds. This is an evaluation-layer test with a
 threshold, not a pass/fail unit test.
 
 The structural claim behind it — that no capability is granted by text — needs a
@@ -165,7 +176,7 @@ disabled within a month.
 | Test | Interleaving | Asserts |
 |---|---|---|
 | `takeover-before-create` | Barrier before `createRun` | R1: no vendor run created; run `CANCELLED`; a terminal event is appended so the widget does not hang |
-| `takeover-between-create-and-authorize` | Barrier between create and TX2b | R2: `engine_run_id` **is** recorded; authorization rejected; cancel enqueued; zero visitor-visible AI events after `handoff.started` |
+| `takeover-between-create-and-authorize` | Barrier between create and TX2b | R2: `engine_run_id` **is** recorded; authorization rejected; cancel enqueued; **no AI event committed at a sequence after `handoff.started`** |
 | `takeover-mid-stream` | Barrier between two token appends | R3: earlier tokens remain; no later AI event |
 | `takeover-before-final` | Barrier before the final append | R4: final message never committed; run `CANCELLED` |
 | `takeover-before-append-gate` | Takeover commits **before** Primitive B's step 1 runs | I2/I6: step 1 returns zero rows; nothing is appended |
@@ -178,7 +189,7 @@ disabled within a month.
 | `concurrent-reassign` | T4 racing T3 and T5 | T4's status and assignee predicates hold; no reassign on a closed conversation |
 | `two-messages-one-conversation` | Two visitor POSTs in flight | I9: one live run. The second message is **committed**, starts no run, and the POST succeeds — the unique index must never actually fire |
 | `sequence-integrity` | N concurrent appends, **plus a forced rollback after allocation** | I1: unique, increasing, gapless. The concurrent half alone also passes against a Postgres `SEQUENCE`, which is exactly the implementation §8 forbids — only the rollback case distinguishes them, by requiring the next commit to reuse the abandoned number |
-| `stop-api-fails` | Engine stop always errors | I7: zero visitor-visible bytes; alert raised |
+| `stop-api-fails` | Engine stop always errors | I7: **no AI event committed after the cancellation is recorded**; alert raised |
 | `replayed-post` | Same idempotency key twice | I8: one message, one run |
 | `crash-after-create` | Kill worker between the vendor call and recording | I4: no second vendor run is created on retry — `CALL_IN_FLIGHT` refuses it. Includes the superseded-worker variant: a stalled worker that wakes after losing its lease must not call the vendor |
 | `queued-message-drained` | Second message queued behind a live run, then that run terminalizes | I11: the queued message gets exactly one run and an answer |
@@ -194,9 +205,15 @@ The four windows the architecture happens to name are a starting point; the
 transition table has six rows, and a suite that only exercises takeover leaves
 close, return-to-AI, reassign, and visitor-stop untested.
 
-Each test asserts on **committed database state and the SSE byte stream**, not on
-mock call counts. "The cancel function was called" is not the property; "the
-visitor never saw another word" is.
+Each test asserts on **committed database state and the delivered SSE stream**,
+not on mock call counts. "The cancel function was called" is not the property.
+
+The property is stated as *commitment*, not as pixels: **no AI event is committed
+at a sequence after the handoff or cancellation**. Events committed before it are
+still delivered and may render moments later (LLD-001 §1), so a test asserting
+"the visitor never saw another word" would be asserting something the design does
+not promise and cannot deliver. A stronger pixel-level guarantee, if the product
+wants one, is a widget delivery barrier with its own E2E test in MIU 11.
 
 ## 5. Contract probes — what cannot be faked
 

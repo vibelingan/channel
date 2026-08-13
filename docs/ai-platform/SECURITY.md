@@ -142,9 +142,9 @@ Three further requirements, each of which the naive version misses:
 - **The deployed credential, before traffic.** A "production-shaped" token
   checked nightly is not the token serving customers. The probe runs pre-deploy
   against the real credential in the real environment and records its
-  fingerprint.
+  attested identity.
 
-  The BFF cannot check that fingerprint against "the credential it holds" — it
+  The BFF cannot check that identity against "the credential it holds" — it
   does not hold the knowledge token, and must not; that token lives only in the
   engine profile (§2), and an earlier draft of this document contradicted its own
   trust diagram by implying otherwise. Instead the **credential holder attests**:
@@ -275,12 +275,20 @@ schemes, no `javascript:`, no `data:`).
   lead row intact, which is the whole of the PII.
 - Transcript retention and deletion are approved before launch (gate 4), and
   deletion propagates to every derived store, each named with its own assertion.
-  The real list in this repository is: PostgreSQL `conversationMessages`,
-  `conversationEvents`, `leads`, and `auditEvents`; the NoSQL `oemProjects`
-  collection (there is **no** NoSQL `leads` collection — an earlier draft of this
-  document invented one); media storage; queues; the CRM; and backups within
-  their stated window. "Propagates to derived stores" without a list is
-  unfalsifiable.
+  The AI assistant's own stores are: PostgreSQL `conversationMessages`,
+  `conversationEvents`, `leads`, and `auditEvents`; plus the CRM and queues it
+  actually writes to, and backups within their stated window.
+
+  **`oemProjects` and media storage are deliberately NOT on this list.** An
+  earlier draft added them while correcting a different error, but the assistant
+  has no producer that writes either one, and no linkage key to a conversation —
+  they are the existing OEM inquiry flow's data, under the existing NoSQL
+  ownership the architecture assigns. A deletion requirement against a store the
+  assistant never writes is unimplementable, and it would quietly pull an
+  unrelated collection into this feature's consent and retention scope. If a
+  later increment makes the assistant create OEM projects, the derivation, the
+  linkage key, and the consent contract are specified **then**, and this list
+  grows with them.
 - Region and data-processing terms are approved before launch (gates 4 and 5).
 
 ## 8. Availability and abuse
@@ -391,9 +399,13 @@ time pressure.
 3. The knowledge credential is read-only and scoped to the public space, proven
    by a standing negative test.
 4. The tool surface is asserted as an exact set against the pinned release.
-5. Model output never selects a tool, credential, database query, or recipient,
-   and never triggers a side effect. The single navigable surface it influences
-   is a citation URL, which is scheme-allowlisted and rendered as external.
+5. Model output may **invoke** only the fixed, deploy-time set of approved
+   read-only knowledge tools — that is the mechanism the architecture chose, and
+   forbidding it outright would forbid retrieval. It may never **expand** that
+   set, select a credential, choose a database query or recipient, or cause a
+   lead, notification, or any other mutating business effect. The single
+   navigable surface it influences is a citation URL, which is scheme-allowlisted
+   and rendered as external.
 6. Authorization decisions happen only in the BFF, and sales routes re-read the
    current user row on every request so suspension takes effect immediately.
 7. Fail closed. An assistant that cannot ground an answer refuses it.

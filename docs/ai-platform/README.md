@@ -72,6 +72,31 @@ Enterprise Brain is a different product with a Task Hub, enrolled agents, task-s
 5. Do not infer architecture ancestry from a version number. Verify the body against the declared canonical source.
 6. A production gate or mandatory migration trigger can be deferred only through explicit, time-bounded risk acceptance with named owners and compensating controls.
 
+## Normative Surface Index
+
+Two consecutive external review rounds found the same failure: a decision changed
+in the paragraph that explains it, while the artifact that *specifies* it still
+said the old thing. Fifteen findings in one round were one mistake repeated.
+
+So before a design change in this directory is called done, check it against
+every surface below that the change touches. A change present in fewer than all
+of them is not made — it is half-made, which reads as done and behaves as before.
+
+| If you change… | It must also change in… |
+|---|---|
+| A state transition | LLD-001 §2.3 table, the SQL that implements it, the invariant in §9, its row in TEST_STRATEGY §4, the owning MIU's "Done" |
+| A conditional write's predicate | The SQL block, the sibling paths that share its shape, MIU 2c's schema if a constraint backs it, its test row |
+| A run terminal status | LLD-001 §3.2 matrix (which is total — add a row), the event-type list in §4.3, the status→event table, its test row |
+| A field | LLD-001 §2.2 or §3 field table, every SQL block that reads or writes it, MIU 2c's schema list, the constraint tests |
+| An MIU dependency | The per-MIU `Depends on:` line **first** — that is what wins — then the §1 table, the pilot subset, the longest path |
+| A test's claim | TEST_STRATEGY row, the invariant it cites, and any metric in the architecture that restates it |
+| A security claim | SECURITY.md, its proof row in the credential inventory, its TEST_STRATEGY section, the owning MIU, and the non-negotiables list in §11 |
+| An engine capability | LLD-002 port interface, its type, the conformance table, the startup-refusal list, and every consumer that reads it |
+| Anything the architecture states | The architecture **first** (it wins), then every specifying document that repeats it |
+
+The last two rows are where the recurrence concentrated: a claim restated in four
+places, corrected in one.
+
 ## Change Procedure
 
 - Update the owning English canonical document first.

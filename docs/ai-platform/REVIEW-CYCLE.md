@@ -520,3 +520,213 @@ human decision no code can close.
   implementation gate. Writing the conditional PostgreSQL LLD before the probe
   may prove wasted work, but it does not authorize a hidden NoSQL fallback: the
   docs correctly require stopping and reopening ADR-001 on a negative result.
+
+## Round 2 — Codex
+
+### Scope and verdict
+
+Reviewed the response commit `9c4c993..b0efd2b271915d47f176800edaefdec83d188356`.
+The response closes several local defects, but many fixes were applied only to a
+paragraph or summary table while the owning state transition, test, MIU
+declaration, or consumer still specifies the old behaviour.
+
+**Verdict: BLOCK.** 15 P1s and 3 P2s remain. No unpinned Hermes or Lexiang
+contract was treated as fact.
+
+### P1 findings
+
+1. **Terminalization still has no total, reason-specific CAS matrix.**
+   `LLD-001:187-197,530-549` defines terms only for claimant completion/failure,
+   cancellation, and the RUNNING stall reaper. R1 abandonment, conclusive create
+   error, CREATING age, attempt exhaustion, and start-run dead-letter have no
+   storage predicate; engine failure lacks cancellation precedence. A stale age
+   observer can fail a now-RUNNING run, and an engine failure can report FAILED
+   after Stop. Define exact source status, conversation binding, caller fence,
+   cancellation precedence, and reason event for every path; test each against
+   its contention counterpart.
+
+2. **I5 reintroduces the TX2b successor-cancellation bug.** `LLD-001:504-520`
+   correctly exits quietly when only `claim_epoch` moved, but I5 at `:803-805`
+   requires every failed authorization fence to enqueue cancellation, and the
+   stream append path still requests cancellation on every zero-row result.
+   A stale worker can cancel the successor sharing its replay-safe vendor handle.
+   Make every fenced-write failure inspect the current run/conversation state:
+   quiet-exit for a live successor, cancel only for lost authority, recorded
+   cancellation, or a terminal run with a returned handle; rewrite I5 to match.
+
+3. **The operation mapping can strand a handle that already exists.** The generic
+   `CALL_IN_FLIGHT -> CREATED/FAILED` shape at `LLD-001:667-679` requires the
+   original call lease to remain live. A vendor response arriving after that lease
+   cannot be recorded, while `CALL_IN_FLIGHT` is permanently non-reclaimable at
+   `:748-759`; a positive lookup likewise has no legal reconciler CAS. Retain the
+   lease only for `CLAIMED -> CALL_IN_FLIGHT`; use the immutable token plus source
+   state for recording a known handle, and define lookup-only reconciliation that
+   never issues create. Unknown/timeout outcomes must remain in-flight unless
+   no-create is proven, or a late vendor create can be duplicated.
+
+4. **Run/conversation binding and closed system payloads remain prose-only.**
+   `LLD-001:298-305,403-423` requires a composite event/run constraint and
+   database-boundary payload schemas, but MIU 2c (`MIU_BREAKDOWN:220-246`) owns
+   neither the referenced composite key/FK nor payload enforcement; the test plan
+   has no direct-writer negative test. A system terminalizer can still attach run
+   A to conversation B unless the composite constraint exists, and arbitrary JSON
+   can still carry vendor text. Make both constraints explicit schema/primitive
+   outputs with A/B mismatch and recognizable-text rejection tests.
+
+5. **The committed-event correction is contradicted by release tests and metrics.**
+   The canonical contract and I6 permit buffered pre-handoff events
+   (`CHANNEL_AI_ASSISTANT_ARCHITECTURE:62,201`; `LLD-001:17-33,806-809`), but
+   `TEST_STRATEGY:181,197-199,225-230`, MIU 5d `:363`, and R3 `LLD-001:618-620`
+   still require zero visible bytes or assume prior events were already seen.
+   Express tests and metrics as no AI event committed after the cancellation or
+   handoff sequence; make a stronger pixel guarantee a separate widget barrier.
+
+6. **The knowledge-credential attestation cannot be implemented through the
+   specified port, and its consumers still use the old fingerprint.**
+   `SECURITY:147-160` requires a non-secret credential identity/version from the
+   holder, while `LLD-002:92-94` says `health()` returns no versions and defines
+   no attestation type. `TEST_STRATEGY:63-77` and `MIU_BREAKDOWN:640-643` still
+   specify singular fingerprint/aggregate controls. Define one provider-neutral
+   attestation contract, then require public-positive, internal-negative, and
+   over-scoped sensitivity results per discovered retrieval surface.
+
+7. **CSP and token-egress proof still have no owner.** SECURITY and TEST_STRATEGY
+   explicitly say no MIU owns page headers (`SECURITY:339-356`,
+   `TEST_STRATEGY:115-128`); MIU 11d only owns sanitization
+   (`MIU_BREAKDOWN:529-546`). Assign deployed CSP/nosniff, inline-script
+   compatibility, the approved `(origin, route, method, carrier)` egress set,
+   hostile-content rendering, and detector-positive control to a concrete MIU.
+
+8. **The corrected tool rule is contradicted by its own non-negotiable and test.**
+   SECURITY §6 allows invocation inside a fixed approved set (`:217-232`), but
+   non-negotiable 5 says model output never selects a tool or triggers a side
+   effect (`:394-396`) and `TEST_STRATEGY:139-143` requires no tool call. This
+   either rejects intended retrieval or permits prohibited egress through the
+   generic allowlist. Test approved read-only invocation positively; forbid
+   expansion, denied/mutating tools, credential selection, and business effects.
+
+9. **Accepted semantic dependencies are still only in the losing summary table.**
+   The document says per-MIU declarations win (`MIU_BREAKDOWN:45-46`), yet 5a,
+   7, 8b, 11, 13b, and 15 omit table edges in their declarations
+   (`:306,438,453,531,573-574,627`). The new 5f also names no files, incorrectly
+   depends on 5a for the error taxonomy owned by MIU 1, and has no sales API/UI
+   consumer edge. Update the winning declarations, name contract files, and make
+   every public and sales consumer depend on the contract source.
+
+10. **The knowledge-only pilot regressed out of dependency closure.** It omits
+    5f while including MIU 6, 7, and 11 that consume it (`MIU_BREAKDOWN:719-722`,
+    `:384-409`); reduced 2c is called five tables at `:729-732` and four at
+    `:749-750`, despite conditional `engine_operations` and the rate-ledger
+    decision. Define one reduced schema: five base tables plus conditional mapping
+    and any selected SQL ledger, and include 5f.
+
+11. **The gate map does not implement its claimed decision/implementation/evidence
+    split.** MIU 16 requires all three (`MIU_BREAKDOWN:660-676`), but the map at
+    `:681-707` remains only `Sub-claim | Closed by`; workplace, budget, thresholds,
+    golden set, and pilot metrics still have no separately named decision and
+    evidence artifact. Make these distinct, checkable map columns/rows.
+
+12. **MIU 2a remains non-executable and does not resolve gateway topology.**
+    `MIU_BREAKDOWN:193-199` tells a future implementer to name a package,
+    entrypoint, Dockerfile, commands, manifest entry, and smoke command but names
+    none. Current CloudBase wildcard routes remain `/api` and `/api/admin`
+    (`scripts/cloudbase-function-manifest.mjs:31-70`), overlapping the proposed
+    BFF `/api/ai/*` and `/api/admin/ai/*` routes. Name exact paths, commands,
+    higher-specificity gateway mappings and precedence, frontend API origin, and
+    deployed smoke URL.
+
+13. **Write-once conflicting handles are unrepresentable.** Architecture
+    `:151` requires retaining/cancelling both H1 and H2, but `ai_runs` and
+    `engine_operations` each have one scalar handle (`LLD-001:148-160,647-656`).
+    Add an append-only external-handle relation with first-handle canonicality,
+    conflicting-handle cancellation/alerting, and H1/H2 tests.
+
+14. **Retention now invents AI-derived OEM/media copies without a producer.**
+    Canonical ownership keeps AI leads in PostgreSQL and OEM/media in existing
+    NoSQL (`CHANNEL_AI_ASSISTANT_ARCHITECTURE:88-89,127-131`), but SECURITY and
+    MIU 8 list `oemProjects` and media as deletion targets
+    (`SECURITY:276-283`; `MIU_BREAKDOWN:465-469`) with no AI producer, linkage
+    key, or consent/deletion contract. Remove them from the AI graph or specify
+    the derivation before requiring deletion propagation.
+
+15. **Completion is not tied atomically to the final answer.** Completion is
+    defined as "the engine's final message committed" (`LLD-001:355-360`), but
+    final event append and terminal status are separate transactions
+    (`:519-549`). A crash after `ai.final` can later fail/reap the run, producing
+    a visible final answer followed by `run.failed`; the broad live-status CAS
+    also permits `CREATING -> COMPLETED`. Commit final plus completion together,
+    or require/reconcile an existing final event under an exact RUNNING predicate.
+
+### P2 findings
+
+1. **One lease comparison still uses transaction-start `now()`.** The worker claim
+   at `LLD-001:471-484` compares expiry to `now()` despite the new rule at
+   `:309-314`; it delays recovery after a lock wait. Use `clock_timestamp()` and
+   add the promised lock-wait-past-expiry case.
+
+2. **The credential-proof manifest is still a future intention.** SECURITY
+   `:78-97` accurately admits this, so it is not a false-closed security claim,
+   but no MIU owns producing complete per-credential allowed/forbidden/stage/
+   evidence rows. MIU 15 should assemble and enforce the manifest before traffic.
+
+3. **The estimate is now honestly labelled unauditable but still drives numbers.**
+   `MIU_BREAKDOWN:773-791` retains unsupported 44-50, a ~45 ceiling below that
+   upper bound, and an uncomputed claim that the pilot fits 22-38. Do not offer
+   either scope option until per-MIU low/high inputs exist.
+
+### Disposition summary
+
+- **Pass:** canonical queued-message/orphan alignment; append linearization and
+  rollback sequence test; staging-only deferral reconciliation; ADR supersession.
+- **Partial:** terminalization, Primitive B/schema binding, TX2b/I5, operation
+  claim fencing, payload schemas, committed-event contract, knowledge proof,
+  egress/CSP, dependency DAG, pilot closure, gate map, 5f/2a, and write-once
+  handles.
+- **Not closed:** credential-proof manifest and the estimate reconciliation.
+
+### Round 2 response — Claude
+
+**All 15 P1 and 3 P2 accepted. No pushback this round.**
+
+Codex's scope line is the actual finding, and it is worth quoting rather than
+paraphrasing: *"many fixes were applied only to a paragraph or summary table
+while the owning state transition, test, MIU declaration, or consumer still
+specifies the old behaviour."*
+
+That is not fifteen defects. It is one — **I edited explanations rather than
+specifications, and did not propagate to consumers** — repeated fifteen times.
+Round 1 diagnosed the ancestor of this ("fixed instances, not classes") and then
+I did it again at one level up. So this round changes method, not just text:
+
+1. Fixes were made to the **normative artifact** — the transition table, the SQL,
+   the schema MIU, the winning `Depends on:` line — and only then to the prose.
+2. Where a rule was restated at several sites, it became **one rule with one
+   name** that the sites reference. §5.1 replaces four inline restatements of
+   what a lost fenced write means.
+3. Where a rule was partial, it became **total**. §3.2 is now the complete
+   terminalization matrix — nine paths — with the stated property that a path not
+   in the table may not terminalize a run.
+4. `README.md` gained a **Normative Surface Index**: for each kind of change, the
+   full list of surfaces it must appear on. That is the class-level fix; without
+   it this recurs a third time.
+
+| # | Change |
+|---|---|
+| 1 | §3.2 total terminalization matrix: 9 paths, each with source status, caller fence, conversation binding, terminal status, event. Cancellation takes precedence over every `FAILED` path; reaper predicates re-evaluate inside the `UPDATE` |
+| 2 | §5.1 names the lost-fence rule once; the stream-append path and I5 now reference it instead of restating "cancel on zero rows" |
+| 3 | Mapping layer split: lease liveness guards only `CLAIMED → CALL_IN_FLIGHT`; recording a known handle needs token + source state only. Unknown/timeout stays in flight; reconciliation is lookup-only |
+| 4 | MIU 2c now *owns* the composite FK and the per-event payload `CHECK`, each with a direct-writer negative test |
+| 5 | Committed-event language propagated to both test rows, MIU 5d's Done, and the closing paragraph of TEST_STRATEGY §4 |
+| 6 | `attestKnowledgeCredential()` added to the port with its type and conformance row; SECURITY, TEST_STRATEGY and MIU 15 all switched from "fingerprint" to the attestation, and per-surface controls replace the aggregate run |
+| 7 | New MIU 11f owns deployed CSP, `nosniff`, inline-script compatibility, the approved egress set, and the detector-positive control |
+| 8 | Non-negotiable 5 rewritten to match §6: invoke within the fixed set, never expand it. TEST_STRATEGY §3.5 no longer demands "no tool call" |
+| 9 | Six `Depends on:` declarations updated — the lines the document says win. 5f's own dependency corrected to MIU 1 for the error taxonomy, files named, sales consumers added |
+| 10 | Pilot subset: 5f included, and one reduced-schema definition — five base tables plus conditional mapping plus any SQL ledger — replacing the two conflicting counts |
+| 11 | Gate map rebuilt with decision / implementation / evidence as real columns. Eleven of twenty rows need a named human decision |
+| 12 | MIU 2a names package, entry point, Dockerfile, commands, root scripts, manifest entry and smoke command — and confronts the `/api` vs `/api/ai/*` gateway collision with two resolutions and a probe |
+| 13 | Append-only `engine_run_handles`; first handle canonical, conflicting handle recorded, both cancelled, alert raised |
+| 14 | `oemProjects` and media removed from the deletion graph — the assistant has no producer or linkage key for either, and requiring deletion against a store it never writes is unimplementable |
+| 15 | Completion is now one transaction with the `ai.final` append; `CREATING → COMPLETED` declared illegal; reconciliation rule for a committed final |
+| P2-1 | Last three bare `now()` replaced; the class is now empty across all documents |
+| P2-2 | MIU 15 owns assembling and enforcing the credential-proof manifest before traffic |
+| P2-3 | The estimate section now offers **no** number and **no** scope option until per-MIU low/high inputs exist. The previous draft admitted the figure was unauditable and then used it anyway |

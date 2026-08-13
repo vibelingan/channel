@@ -149,7 +149,7 @@ CREATING ──► RUNNING ──► COMPLETED
 |---|---|
 | `id` | Internal run id (the only id the public API exposes) |
 | `operation_id` | Stable, deterministic id sent to the engine so a replayed create returns the same run |
-| `engine_run_id` | The vendor's run id; recorded unconditionally as soon as it is known (§5) |
+| `engine_run_id` | The **canonical** vendor run id — the first one recorded. Write-once (§3.4); every observed handle, including a conflicting second one, is recorded in `engine_run_handles` |
 | `expected_mode_version` | The epoch this run was authorized under |
 | `claim_epoch` | Incremented on every worker claim; the fencing token for §4.3 |
 | `claimed_by`, `lease_expires_at` | Current worker and its lease |
@@ -222,6 +222,90 @@ placeholder in §4.2, §5 and §7 and means something different in each.
 State all five together in configuration, not in five unrelated places. Five
 numbers chosen independently in five files is how the ordering above stops
 holding without anyone noticing.
+
+### 3.2 Terminalization matrix — the total function
+
+Every path that may write a terminal status, with the exact predicate it carries.
+This table is normative and exhaustive: **a path not listed here may not
+terminalize a run.** Earlier drafts specified four of these nine and left the
+rest to judgement, which is how a stale observer ends a healthy run.
+
+Every row additionally carries `conversation_id = $conversation` (the same
+binding Primitive B requires, §4.2) and runs inside the terminalization
+transaction of §5.
+
+| # | Path | Source status | Caller fence | Terminal | Event |
+|---|---|---|---|---|---|
+| 1 | Claimant completes | `RUNNING` | `claim_epoch = $mine` **and** `cancel_requested_at IS NULL` **and** the `ai.final` event is appended in **this same transaction** (§3.3) | `COMPLETED` | `run.completed` |
+| 2 | Claimant hits an engine error | `RUNNING` | `claim_epoch = $mine`; **cancellation takes precedence** (see below) | `FAILED` | `run.failed` |
+| 3 | Worker abandons before creating (R1) | `CREATING` | `claim_epoch = $mine` | `CANCELLED` | `run.cancelled` |
+| 4 | Conclusive create error — vendor rejected, no run exists | `CREATING` | `claim_epoch = $mine`; **only** when the mapping layer proves no vendor run was created. An ambiguous or timed-out create is *not* conclusive and stays in flight (§7) | `FAILED` | `run.failed` |
+| 5 | Cancel worker acts on a recorded cancellation | `CREATING`, `RUNNING` | `cancel_requested_at IS NOT NULL` — **no** claim fence; cancellation is authorised by the record, not by ownership | `CANCELLED` | `run.cancelled` |
+| 6 | `CREATING` age limit | `CREATING` | `created_at < clock_timestamp() - $creating_age` re-evaluated **inside this UPDATE** | `FAILED` | `run.failed` |
+| 7 | `RUNNING` stall | `RUNNING` | `last_append_at < clock_timestamp() - $stall` re-evaluated **inside this UPDATE** | `FAILED` | `run.failed` |
+| 8 | Attempts exhausted | `CREATING` | `attempts >= $max` re-evaluated inside the `UPDATE` | `FAILED` | `run.failed` |
+| 9 | Start-run item dead-letters | `CREATING` | the dead-letter record for this run exists | `FAILED` | `run.failed` |
+
+**Cancellation precedence, and why it is a rule rather than a preference.** Rows
+2, 4, 6, 7, 8 and 9 all write `FAILED`. Each must first re-check
+`cancel_requested_at` *in the same statement*: if a cancellation is recorded, the
+run terminalizes as `CANCELLED` instead. Without this an engine error can land
+after the visitor pressed Stop and the transcript reports a failure the visitor
+never caused — and worse, the drain then reads a `FAILED` run as an ordinary
+outcome and starts the next answer against a conversation the visitor was trying
+to interrupt.
+
+**Re-evaluate, never observe-then-write.** Rows 6, 7 and 8 are the reaper paths,
+and each is a fresh predicate inside the terminal `UPDATE`. A reaper that
+`SELECT`s a stale `last_append_at`, waits on the row lock, and then writes
+unconditionally will fail a run that became healthy while it waited — the same
+observe-then-act shape §4.2 rejects for appends.
+
+Each row's contention counterpart is a named test in TEST_STRATEGY §4.
+
+### 3.3 Completion is atomic with the final answer
+
+Row 1 says the `ai.final` append and the `COMPLETED` write happen in **one**
+transaction. They were two in an earlier draft, and the gap between them is
+visible to the visitor: a crash after `ai.final` commits leaves a `RUNNING` run
+holding a complete, displayed answer, which the stall reaper then terminalizes as
+`FAILED` — so the transcript shows a finished answer followed by a failure
+notice.
+
+Reconciliation, if the two ever are separated: a run may only be reaped while a
+committed `ai.final` for it does **not** exist; if one does, the correct repair is
+`COMPLETED`, not `FAILED`. And `CREATING → COMPLETED` is not a legal transition
+at all — a run that never streamed cannot have completed.
+
+### 3.4 Write-once handles, and the conflicting-handle case
+
+The architecture requires that a *different* handle never overwrites the first,
+and that both are retained and cancelled. A single scalar column cannot express
+"both" — it can only hold the winner — so the pair of scalar columns an earlier
+draft specified made the rule unimplementable as written.
+
+```sql
+CREATE TABLE engine_run_handles (
+  run_id        uuid NOT NULL REFERENCES ai_runs(id),
+  engine_run_id text NOT NULL,
+  is_canonical  boolean NOT NULL,
+  observed_at   timestamptz NOT NULL DEFAULT clock_timestamp(),
+  PRIMARY KEY (run_id, engine_run_id)
+);
+```
+
+Append-only. The first handle observed for a run is inserted with
+`is_canonical = true` and is also written to `ai_runs.engine_run_id`; that column
+is never updated afterwards. Re-observing the same handle is a no-op (the primary
+key makes the replay idempotent). Observing a **second, different** handle
+inserts it with `is_canonical = false`, raises an alert, and enqueues cancel-run
+for *both* — because two vendor runs exist and the design's whole premise is that
+at most one should.
+
+A conflicting handle means replay safety failed somewhere upstream, so the
+alert matters as much as the cancellation. Tests cover: same handle twice
+(idempotent), H1 then H2 (both recorded, both cancelled, alert fired), and
+`ai_runs.engine_run_id` still holding H1.
 
 ## 4. The two primitives
 
@@ -479,7 +563,7 @@ Worker picks up 'start-run'
   │        AND status IN ('CREATING', 'RUNNING')   -- RUNNING is required:
   │            -- reclaiming a stalled streamer is the case claim_epoch exists
   │            -- for, and that run is RUNNING, not CREATING
-  │        AND (claimed_by IS NULL OR lease_expires_at < now())
+  │        AND (claimed_by IS NULL OR lease_expires_at < clock_timestamp())
   │        AND attempts < $max
   │     RETURNING claim_epoch, status;    -- zero rows = not ours; stop
   │     Only a CREATING claim proceeds to the create call below.
@@ -505,19 +589,12 @@ Worker picks up 'start-run'
   │        claim_epoch AND cancel_requested_at IS NULL.
   │        Set last_append_at = clock_timestamp() here too — a run authorized
   │        and then wedged before its first token would carry NULL, and
-  │        `last_append_at < now() - $stall` is never true of NULL, so the
+  │        `last_append_at < clock_timestamp() - $stall` is never true of NULL,
   │        reaper would never see the commonest wedge of all.
-  │     zero rows -> BRANCH ON WHICH TERM FAILED. Do not blanket-cancel.
-  │        • epoch changed, or cancel_requested_at set (takeover, close, Stop)
-  │            -> enqueue cancel-run; the run is genuinely unwanted.
-  │        • only claim_epoch moved -> another worker legitimately took this
-  │            run over and may already be streaming it. EXIT QUIETLY. Cancelling
-  │            here would kill the successor's valid run: worker 1 creates and
-  │            records handle H, loses its lease, worker 2 claims a new
-  │            claim_epoch, replay-safe-creates the same H and authorizes it —
-  │            and worker 1's late TX2b then cancels the run worker 2 is serving.
+  │     zero rows -> apply §5.1. Do NOT blanket-cancel.
   └─ stream engine events; append each via Primitive B (TX per event or small
-     batch). The first zero-row append aborts the stream and requests cancel.
+     batch). The first zero-row append aborts the stream, then applies the SAME
+     three-way branch as TX2b (§5.1) — it does NOT unconditionally cancel.
 
 Sales POST /takeover
   └─ TX3: Primitive A; append handoff.started; set cancel_requested_at on live runs;
@@ -537,16 +614,10 @@ Run terminalization (every path: completed, failed, cancelled, reaped)
         including the event appended in step 1. Committing lands two terminal
         events for one run.
 
-        A status-only CAS is NOT sufficient, and this was a real defect in an
-        earlier draft. It proves the run is live; it does not prove the caller
-        still has the authority to end it. Each reason carries its own term:
-
-        | Caller | Additional term | Without it |
-        |---|---|---|
-        | claimant (completed/failed) | `claim_epoch = $my_claim_epoch` | a worker superseded at epoch 1 wakes and terminalizes the epoch-2 owner's run |
-        | completion specifically | `cancel_requested_at IS NULL` | a completion lands *after* the visitor pressed Stop and reports success |
-        | cancel worker | `cancel_requested_at IS NOT NULL` | a cancel path ends a run nobody asked to cancel |
-        | stall reaper | `last_append_at < clock_timestamp() - $stall` re-evaluated **inside this UPDATE** | the reaper reads a stale timestamp, waits on the lock, and fails a run that has since become healthy |
+        A status-only CAS is NOT sufficient. It proves the run is live; it does
+        not prove the caller still has the authority to end it. §3.2 is the
+        **total** list of paths that may terminalize a run — if a code path is
+        not in that table it has no right to write a terminal status.
      3. drain: if the conversation is BOT_ACTIVE, take the oldest visitor
         message (by `event_sequence`) with answered_by_run IS NULL **and
         accepted_in_epoch = the conversation's current epoch**, reserve a run
@@ -581,6 +652,29 @@ Run terminalization (every path: completed, failed, cancelled, reaped)
      The one-live-run index is satisfied because the old run left the live
      set in step 2 of this same transaction.
 ```
+
+### 5.1 What a lost fenced write means
+
+Every fenced write in this document can return zero rows: TX2b, each streaming
+append, and each terminalization. **All of them resolve it the same way**, and
+the rule lives here once rather than being restated — and drifting — at each
+site. On zero rows, re-read the current run and conversation state and branch:
+
+| Observed | Meaning | Action |
+|---|---|---|
+| Epoch moved, or `cancel_requested_at` is set | Authority was genuinely lost — takeover, close, or Stop | Enqueue cancel-run. The vendor run is unwanted |
+| Only `claim_epoch` moved, run still live | A successor worker legitimately owns this run and may be streaming it now | **Exit quietly. Enqueue nothing.** |
+| Run already terminal, handle recorded | Someone finished it | Exit quietly; the cancel path already ran if it was needed |
+
+The middle row is the one that costs money if it is got wrong, and it is not
+hypothetical: worker 1 creates and records handle H, loses its lease; worker 2
+claims a new `claim_epoch`, replay-safe-creates the *same* H and authorizes it;
+worker 1's late write then loses on `claim_epoch` alone. Cancelling there kills
+the answer worker 2 is actively streaming to the visitor.
+
+"Zero rows means cancel" is the intuitive rule and it is wrong. Zero rows means
+*this writer is not the authority any more* — which says nothing about whether
+anyone else is.
 
 ## 6. The race windows
 
@@ -660,23 +754,48 @@ CREATE TABLE engine_operations (
 for one round because the earlier fix was applied to the instance in front of me
 rather than to the class. `claimed_by` is a *reusable* worker identity: if the
 same worker id reclaims the row after its own stalled invocation, a stale
-invocation still satisfies `claimed_by = $worker AND lease_expires_at > now()`
+invocation still satisfies `claimed_by = $worker AND lease_expires_at > clock_timestamp()`
 and calls the vendor alongside the new one. A token minted fresh on every
 acquisition cannot be satisfied by the invocation it replaced.
 
 Every subsequent write by an invocation carries its token **and** the exact
 state it expects to be leaving:
 
+The lease and the token do different jobs, and conflating them strands handles:
+
 ```sql
--- CALL_IN_FLIGHT, CREATED and FAILED all take this shape
-UPDATE engine_operations
-   SET state = $next, ...
- WHERE operation_id = $op
-   AND claim_token  = $my_token
-   AND state        = $expected_source_state
-   AND lease_expires_at > clock_timestamp()
-RETURNING operation_id;    -- zero rows = superseded; do not call the vendor
+-- (a) TAKING the risky step: CLAIMED -> CALL_IN_FLIGHT.
+--     Lease liveness matters here, because this authorises a vendor call.
+UPDATE engine_operations SET state = 'CALL_IN_FLIGHT'
+ WHERE operation_id = $op AND claim_token = $my_token
+   AND state = 'CLAIMED' AND lease_expires_at > clock_timestamp()
+RETURNING operation_id;    -- zero rows = superseded; DO NOT call the vendor
+
+-- (b) RECORDING what the vendor already did: CALL_IN_FLIGHT -> CREATED/FAILED.
+--     Token + exact source state only. NO lease liveness term.
+UPDATE engine_operations SET state = $next, engine_run_id = $handle
+ WHERE operation_id = $op AND claim_token = $my_token
+   AND state = 'CALL_IN_FLIGHT'
+RETURNING operation_id;
 ```
+
+**Why (b) must not require a live lease.** The vendor response can arrive after
+the call lease has elapsed — that is the normal case for a slow create. If
+recording required liveness, the response would be unrecordable, and
+`CALL_IN_FLIGHT` is deliberately non-reclaimable (§7's terminal refusal), so the
+operation would be stranded forever with a real vendor run behind it that nothing
+can find or stop. Recording a fact the vendor has already established is not a
+privileged action; issuing a *new* call is.
+
+**Unknown and timeout outcomes stay `CALL_IN_FLIGHT`.** Only an outcome that
+proves no vendor run exists may move to `FAILED` — a rejection with no run id, or
+a lookup that authoritatively reports none. A network timeout proves nothing, and
+treating it as failure is how a late vendor create becomes a duplicate.
+
+**Reconciliation is lookup-only.** The reconciler may resolve a stranded
+`CALL_IN_FLIGHT` by *looking up* the operation and recording what it finds, via
+(b). It may never issue a create. A reconciler that can create is a second
+creator, which is precisely what this layer exists to prevent.
 
 The state that matters is **`CALL_IN_FLIGHT`: called, outcome unknown.** An
 earlier draft had a single `INTENT` marker and short-circuited only on a row that
@@ -800,9 +919,11 @@ TEST_STRATEGY.md §4.
   cancellation — **unless control leaves that epoch first**, in which case it is
   never assigned to any run. No message is assigned twice, and no message
   accepted under human control is ever assigned to a run.
-- **I5** A run that fails its authorization fence has a cancel request enqueued
-  in the same transaction that rejected it, and its `engine_run_id` was already
-  recorded.
+- **I5** A run that fails a fenced write has its `engine_run_id` already
+  recorded, and the failing transaction resolves it by §5.1's branch: it enqueues
+  cancellation **only** when authority was genuinely lost or a cancellation is
+  already recorded. A write that lost only to a newer `claim_epoch` enqueues
+  nothing, because a live successor is serving that run.
 - **I6** No assistant-authored event is *committed* at a sequence after a
   committed `handoff.started` of a later epoch. This is a statement about the
   event log, not about pixels: events committed before the handoff are still

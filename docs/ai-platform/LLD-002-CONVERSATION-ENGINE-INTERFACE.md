@@ -89,8 +89,20 @@ export interface ConversationEngine {
    */
   findRunByOperationId?(operationId: string): Promise<EngineRunHandle | null>;
 
-  /** Safe status for readiness. Never returns credentials, hosts, or versions. */
+  /** Safe status for readiness. Never returns credentials, hosts, or paths. */
   health(): Promise<EngineHealth>;
+
+  /**
+   * Non-secret attestation of the knowledge credential this engine is actually
+   * configured with. SECURITY.md §4 requires the BFF to confirm at startup that
+   * the credential which passed the pre-deploy scope probe is the one now
+   * serving traffic — and the BFF cannot inspect that credential itself,
+   * because it does not hold it and must not.
+   *
+   * The holder attests instead. This carries NO secret material: an opaque
+   * stable identity plus a rotation counter, both safe to log.
+   */
+  attestKnowledgeCredential(): Promise<KnowledgeAttestation>;
 }
 ```
 
@@ -146,6 +158,15 @@ export type EngineEvent =
   | { type: 'citation'; citation: EngineCitation }
   | { type: 'final';    text: string; citations: EngineCitation[]; usage?: EngineUsage }
   | { type: 'error';    category: EngineErrorCategory; retriable: boolean; safeDetail?: string };
+
+export interface KnowledgeAttestation {
+  /** Stable, opaque identity of the credential — a hash or key id, never the key. */
+  credentialId: string;
+  /** Increments on rotation, so a silent swap is detectable. */
+  rotationCounter: number;
+  /** The knowledge space the credential is scoped to, by its public identifier. */
+  spaceId: string;
+}
 
 export interface EngineCitation {
   /** Stable id in the knowledge space. Not a vendor-internal document handle. */
@@ -260,6 +281,7 @@ cannot pass it is not swappable, whatever its README claims.
 | Exceeding `maxOutputTokens` / `maxStreamDurationMs` | Stream ends; run is failed with `timeout` |
 | Every event | Matches the schema exactly; unknown vendor fields are dropped, not passed through |
 | `health()` output | Contains no credential, host, or path |
+| `attestKnowledgeCredential()` | Returns a stable id and space id, contains no secret material, and changes its rotation counter when the credential is rotated |
 | Package boundary | Port package imports no adapter; BFF imports no adapter type |
 
 ## 10. Open questions this design does not settle
