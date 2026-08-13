@@ -21,20 +21,29 @@ Read [CURRENT_EXECUTION.md](CURRENT_EXECUTION.md) first, then use
 - Completed:
   - `/headphones/` canonical fix merged through PR #9.
   - MIU-03 public metadata implemented on `feat/seo-phase-3-metadata`.
+  - MIU-04A OEM factory video poster intrinsic dimensions.
+  - MIU-04B-1 through MIU-04B-5 homepage process, factory, team, quality, certificate, and client
+    image dimensions.
 - In progress elsewhere:
-  - Open Graph / Twitter Card metadata (concurrent agent; shared layout is off-limits here).
+  - Open Graph / Twitter Card metadata (concurrent agent; shared layout is off-limits here). No
+    corresponding remote branch or landed commit was visible after the 2026-08-13 fetch.
 - Verified locally on 2026-08-13 (re-run the commands below before merge):
-  - Site tests: 126 passed, 0 failed.
+  - Site tests: 132 passed, 0 failed.
   - Full workspace TypeScript/Astro checks: 0 errors; E2E TypeScript passed.
-  - Biome: 277 files passed.
-  - Production-origin build: four public pages have unique titles/descriptions within reviewed
-    limits and one H1 each.
+  - Biome: 280 files passed.
+  - Production-origin build: public metadata contracts are green; all images across the ten built
+    routes have alt text and numeric intrinsic dimensions.
+  - Homepage assembly: all 44 process, factory, team, quality, certificate, and client images emit
+    dimensions measured from the committed assets.
 
 ## Next action
 
-Review and merge `feat/seo-phase-3-metadata`. After the concurrent OG/Twitter MIU lands, rebase
-before starting page-specific structured data so the next MIU designs against the merged layout
-contract.
+Deliver the reviewed `feat/seo-phase-3-metadata` checkpoints to `test`. After the concurrent
+OG/Twitter MIU lands, rebase before starting page-specific structured data so the next MIU designs
+against the merged layout contract.
+
+Sitemap `lastmod` is blocked on a trustworthy content-update field and owner; the current content
+model exposes neither. Search Console and Bing submission are blocked on external webmaster access.
 
 ## Validation commands
 
@@ -72,6 +81,7 @@ Deferred business materials are intentionally not part of this SEO branch commit
 
 ## Current MIU boundary
 
-MIU-03 changes only the home and Headphones page metadata, its source-contract test, and
-[MIU-03-PUBLIC-METADATA.md](MIU-03-PUBLIC-METADATA.md). It does not modify `BaseLayout`, OG/Twitter,
-Schema, content frontmatter, navigation, or URL topology.
+This branch contains MIU-03, MIU-04A, and MIU-04B-1 through MIU-04B-5. The image series adds
+measured dimensions and executable source/rendering contracts without changing image bytes, paths,
+alt copy, layout classes, visible text, navigation, or URL topology. It does not modify
+`BaseLayout`, OG/Twitter, or shared Schema.
