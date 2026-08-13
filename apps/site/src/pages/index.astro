@@ -30,9 +30,12 @@ const {
   ctaSection,
   footer,
 } = content;
+const seoTitle = `OEM/ODM Manufacturing | ${brand.name}`;
+const seoDescription =
+  'OEM/ODM product design, engineering, tooling, production, quality control, and global delivery managed by one accountable manufacturing team.';
 ---
 
-<BaseLayout title={`${brand.name} — ${brand.tagline}`} description={hero.subheading} lang="en">
+<BaseLayout title={seoTitle} description={seoDescription} lang="en">
   <SiteHeader brand={brand} nav={nav} />
 
   <main>

@@ -67,24 +67,44 @@ oemProcess:
   steps:
     - label: Sketches
       desc: Concept ideation
+      imageWidth: 720
+      imageHeight: 518
     - label: Appearance Design
       desc: Industrial design
+      imageWidth: 720
+      imageHeight: 690
     - label: Mechanical Design
       desc: Structural engineering
+      imageWidth: 720
+      imageHeight: 623
     - label: Circuit Design
       desc: PCBA schematic
+      imageWidth: 540
+      imageHeight: 720
     - label: Prototyping
       desc: First functional samples
+      imageWidth: 662
+      imageHeight: 720
     - label: Mold Building
       desc: Tooling development
+      imageWidth: 720
+      imageHeight: 412
     - label: PCBA Mass Prod
       desc: Board assembly
+      imageWidth: 720
+      imageHeight: 549
     - label: Mold Test Shot
       desc: First-article sampling
+      imageWidth: 720
+      imageHeight: 657
     - label: Pilot Run
       desc: Pre-production validation
+      imageWidth: 720
+      imageHeight: 697
     - label: QC
       desc: Quality control & sign-off
+      imageWidth: 720
+      imageHeight: 464
 
 factory:
   eyebrow: Our Capability

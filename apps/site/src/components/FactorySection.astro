@@ -14,16 +14,56 @@ const { factory } = Astro.props;
 
 // Real factory floor photos (client-supplied — apps/site/public/media/oem/factory).
 const factoryPhotos = [
-  { src: '/media/oem/factory/f03.jpg', alt: 'Factory facility entrance' },
-  { src: '/media/oem/factory/f10.jpg', alt: 'ISO-certified factory campus' },
-  { src: '/media/oem/factory/f07.jpg', alt: 'Factory exterior and loading yard' },
-  { src: '/media/oem/factory/f08.jpg', alt: 'Injection molding workshop' },
-  { src: '/media/oem/factory/f04.jpg', alt: 'Product assembly and packing line' },
-  { src: '/media/oem/factory/f09.jpg', alt: 'Product coating and finishing line' },
-  { src: '/media/oem/factory/f05.jpg', alt: 'Product printing and finishing' },
-  { src: '/media/oem/factory/f01.jpg', alt: 'Product design and 3D engineering' },
-  { src: '/media/oem/factory/f02.jpg', alt: 'Precision production mold' },
-  { src: '/media/oem/factory/f06.jpg', alt: 'Tooling detail and mold cavity' },
+  { src: '/media/oem/factory/f03.jpg', alt: 'Factory facility entrance', width: 1280, height: 817 },
+  {
+    src: '/media/oem/factory/f10.jpg',
+    alt: 'ISO-certified factory campus',
+    width: 1280,
+    height: 588,
+  },
+  {
+    src: '/media/oem/factory/f07.jpg',
+    alt: 'Factory exterior and loading yard',
+    width: 1280,
+    height: 590,
+  },
+  {
+    src: '/media/oem/factory/f08.jpg',
+    alt: 'Injection molding workshop',
+    width: 1280,
+    height: 916,
+  },
+  {
+    src: '/media/oem/factory/f04.jpg',
+    alt: 'Product assembly and packing line',
+    width: 1280,
+    height: 713,
+  },
+  {
+    src: '/media/oem/factory/f09.jpg',
+    alt: 'Product coating and finishing line',
+    width: 1280,
+    height: 587,
+  },
+  {
+    src: '/media/oem/factory/f05.jpg',
+    alt: 'Product printing and finishing',
+    width: 1280,
+    height: 918,
+  },
+  {
+    src: '/media/oem/factory/f01.jpg',
+    alt: 'Product design and 3D engineering',
+    width: 1280,
+    height: 651,
+  },
+  { src: '/media/oem/factory/f02.jpg', alt: 'Precision production mold', width: 1280, height: 568 },
+  {
+    src: '/media/oem/factory/f06.jpg',
+    alt: 'Tooling detail and mold cavity',
+    width: 1280,
+    height: 720,
+  },
 ];
 ---
 
@@ -78,6 +118,8 @@ const factoryPhotos = [
         <img
           src={photo.src}
           alt={photo.alt}
+          width={photo.width}
+          height={photo.height}
           loading="lazy"
           class="h-40 w-64 shrink-0 snap-start rounded-[var(--radius-card)] object-cover shadow-sm ring-1 ring-black/5 sm:h-48 sm:w-80"
         />

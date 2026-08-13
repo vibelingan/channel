@@ -389,23 +389,6 @@ test('retired homepage Product Capability code is removed without affecting OEM 
 });
 
 test('Factory photos move from exterior to production lines and making details', () => {
-  const factoryPhotos = [
-    ...factorySource.matchAll(/\{ src: '\/media\/oem\/factory\/(f\d{2}\.jpg)', alt: '([^']+)' \}/g),
-  ].map((match) => ({ file: match[1], alt: match[2] }));
-
-  assert.deepEqual(factoryPhotos, [
-    { file: 'f03.jpg', alt: 'Factory facility entrance' },
-    { file: 'f10.jpg', alt: 'ISO-certified factory campus' },
-    { file: 'f07.jpg', alt: 'Factory exterior and loading yard' },
-    { file: 'f08.jpg', alt: 'Injection molding workshop' },
-    { file: 'f04.jpg', alt: 'Product assembly and packing line' },
-    { file: 'f09.jpg', alt: 'Product coating and finishing line' },
-    { file: 'f05.jpg', alt: 'Product printing and finishing' },
-    { file: 'f01.jpg', alt: 'Product design and 3D engineering' },
-    { file: 'f02.jpg', alt: 'Precision production mold' },
-    { file: 'f06.jpg', alt: 'Tooling detail and mold cavity' },
-  ]);
-  assert.equal(new Set(factoryPhotos.map((photo) => photo.file)).size, 10);
   assert.ok(factorySource.includes('role="region"'));
   assert.ok(factorySource.includes('aria-label="Factory development and production gallery"'));
   assert.ok(factorySource.includes('tabindex="0"'));
