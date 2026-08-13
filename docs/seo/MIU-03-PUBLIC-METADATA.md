@@ -36,7 +36,8 @@ This MIU does not touch:
 
 - `BaseLayout.astro`
 - Open Graph or Twitter Card metadata
-- shared Schema/JSON-LD
+- shared Schema/JSON-LD implementation (the existing `WebPage` output consumes page metadata, so its
+  rendered `name` and `description` follow these values)
 - navigation, branding, Slogan, Hero, or product scope
 - sitemap configuration or URL topology
 
@@ -68,7 +69,8 @@ SITE_URL=https://supplychainsai.com PUBLIC_CB_PROXY=0 \
   corepack pnpm --filter @vibelingan-channel/site build
 ```
 
-The production-origin build must be inspected independently; the source-contract test does not claim to validate rendered HTML.
+The source contract verifies that each page passes its audited values into `BaseLayout`. The
+production-origin build must still be inspected independently for final rendered HTML and H1 output.
 
 ## Next non-OG MIU
 

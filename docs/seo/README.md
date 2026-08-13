@@ -84,4 +84,6 @@ Deferred business materials are intentionally not part of this SEO branch commit
 This branch contains MIU-03, MIU-04A, and MIU-04B-1 through MIU-04B-5. The image series adds
 measured dimensions and executable source/rendering contracts without changing image bytes, paths,
 alt copy, layout classes, visible text, navigation, or URL topology. It does not modify
-`BaseLayout`, OG/Twitter, or shared Schema.
+`BaseLayout`, OG/Twitter, or Schema implementation. The existing `WebPage` JSON-LD reads each
+page's title and description, so its rendered `name` / `description` values follow the MIU-03
+metadata changes.

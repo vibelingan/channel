@@ -44,15 +44,17 @@
 	160-character description review limits without changing visible Hero copy or the concurrent shared
 	layout surface.
 - **Tests written:** `public-metadata.test.ts` enumerates the four routable public pages, parses the
-	actual YAML and TypeScript metadata sources, enforces title/description limits, and rejects duplicate
-	titles or descriptions.
+	actual YAML and TypeScript metadata sources, enforces non-empty title/description limits, rejects
+	duplicates, and uses the Astro AST to verify each page passes those values into `BaseLayout`.
 - **Validation:** The site suite passed as part of the 132-test branch run. The production-origin build
 	independently confirmed one visible H1 per page and unique rendered metadata for `/`, `/oem/`,
 	`/portfolio/`, and `/headphones/`.
 - **Result:** Implemented in `69fcb7e`; the four public pages satisfy the audited metadata contract.
 - **Engineering rationale:** Page-local SEO values preserve visible copy and avoid changing
 	`BaseLayout` while the OG/Twitter work owns that shared layout. Parsing the real YAML and TypeScript
-	sources is stricter than maintaining a second hand-copied metadata table.
+	sources is stricter than maintaining a second hand-copied metadata table. The existing `WebPage`
+	JSON-LD consumes the same page metadata, so its rendered `name` / `description` values change even
+	though no shared Schema implementation file is edited.
 
 ### MIU-04A: OEM factory poster dimensions
 
@@ -143,6 +145,16 @@
 	intrinsic sizes, completing the 44-image series.
 - **Engineering rationale:** Separate registry-to-template checks prevent a certificate dimension from
 	being accepted on a client logo or vice versa while retaining one reusable parser-backed contract.
+
+### PR review hardening
+
+- `media-assets.test.ts` now opens all 44 target image files with Sharp and compares EXIF-oriented
+	width / height from the source bytes to the declared registry/content values.
+- The process renderer now uses the same Astro-AST binding checks as the component-local galleries;
+	commented or detached attribute text cannot satisfy it.
+- `sharp` and `yaml` are direct site test dependencies rather than relying on workspace hoisting.
+- Registry extraction compares property sets, and map extraction follows TypeScript AST semantics, so
+	harmless property reordering or callback-parameter renaming does not fail the contract.
 
 ## Deviations
 
