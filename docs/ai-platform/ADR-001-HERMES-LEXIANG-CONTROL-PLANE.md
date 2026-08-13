@@ -87,6 +87,20 @@
 
 ## Human Handoff Consistency Decision
 
+> **部分废止 / Partially superseded (2026-08-13).** 本节关于 `engineRunId`
+> "条件登记" 的形状已被
+> [CHANNEL_AI_ASSISTANT_ARCHITECTURE.md](./CHANNEL_AI_ASSISTANT_ARCHITECTURE.md)
+> §8 与 [LLD-001](./LLD-001-HUMAN-TAKEOVER-STATE-MACHINE.md) §5 取代：`engineRunId`
+> 改为 **write-once 无条件记录**，只有 run 的串流授权仍受 epoch fence 约束。
+> 原因是条件登记会在最需要该指针停止外部 run 的时刻把它丢弃。本节其余内容
+> （CAS、事件顺序、fence、禁止 `res.write()` 等）仍然有效。
+>
+> This section's *conditional registration* shape for `engineRunId` is superseded
+> by architecture §8 and LLD-001 §5: the id is recorded write-once and
+> unconditionally, and only the authorization to stream is fenced. Everything
+> else in this section still stands.
+
+
 `conversation.status` 和 `modeVersion` 是控制权真相源。接管必须在 PostgreSQL 使用单条条件更新或事务完成：
 
 - `BOT_ACTIVE/HANDOFF_REQUESTED → HUMAN_ACTIVE`

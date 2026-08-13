@@ -59,7 +59,7 @@ The first production pilot must:
 - Refuse and offer inquiry or human help when evidence is absent, stale, contradictory, or outside policy.
 - Create a lead only after the visitor requests follow-up or an estimate, submits contact information, and consents.
 - Synchronize eligible conversations and leads into a sales queue.
-- Stop all old AI output after a human takes control.
+- Stop all old AI output after a human takes control: once takeover commits, no further assistant text is written to the conversation. Text committed before the takeover remains part of the transcript and may still be delivered — see `LLD-001` §1 for what this does and does not promise about the visitor's screen.
 - Fall back to a contact or inquiry form when the model, Hermes, knowledge source, or operational store is unavailable.
 
 An anonymous conversation is not automatically a lead.
@@ -145,10 +145,10 @@ Every change of AI/human control increments `modeVersion` atomically.
 
 ### Required sequence
 
-1. A visitor-message transaction writes the message and, **only when the conversation is bot-controlled and no run is already live**, reserves `aiRun(CREATING, operationId, expectedModeVersion)` and writes a start-run outbox item. A message arriving while an answer is in flight is stored and answered when that run terminalizes; at most one run per conversation is live at a time. The public request does not create an external run directly.
+1. A visitor-message transaction writes the message and, **only when the conversation is bot-controlled and no run is already live**, reserves `aiRun(CREATING, operationId, expectedModeVersion)` and writes a start-run outbox item. A message arriving while an answer is in flight is stored, and is answered when that run terminalizes **provided the conversation is still bot-controlled in the epoch the message arrived in**; if a human takes over first, the message is left for that person and is never assigned to an AI run, including after control returns. At most one run per conversation is live at a time. The public request does not create an external run directly.
 2. A worker locks or conditionally claims the run, rechecks `BOT_ACTIVE` and the expected version, then creates the Hermes run with a stable operation ID.
 3. The pinned Hermes version must prove replay-safe creation. If it does not, interpose a persistent operation-ID mapping layer. It belongs to the BFF and wraps the engine boundary; it is not an engine adapter, because `LLD-002` forbids database access inside one and this layer owns a table.
-4. The external run ID is recorded unconditionally as soon as it is known; only the run's authorization to stream is conditional on the same mode version. A lost fence immediately requests cancellation, using the ID just recorded. Recording and authorizing were a single conditional step in an earlier revision of this document; splitting them keeps the pointer needed to stop an already-created run, instead of discarding it at the one moment it is required and depending on vendor run-listing to recover. `LLD-001` §5 specifies the two writes. Note that `ADR-001` still describes the earlier single-step form; this document is canonical.
+4. The external run ID is recorded **write-once** as soon as it is known — no mode or status fence, `NULL` becomes the handle, a replay of the same handle succeeds, and a *different* handle never overwrites the first (retain both, cancel both, alert). Only the run's authorization to stream is conditional on the same mode version. A lost fence immediately requests cancellation, using the ID just recorded. Recording and authorizing were a single conditional step in an earlier revision of this document; splitting them keeps the pointer needed to stop an already-created run, instead of discarding it at the one moment it is required and depending on vendor run-listing to recover. `LLD-001` §5 specifies the two writes. Note that `ADR-001` still describes the earlier single-step form; this document is canonical.
 5. Every AI token, citation, error, and final message is first appended as a committed `conversationEvents.sequence` under the conversation lock. Hermes events never write directly to the HTTP response.
 6. Human takeover uses the same lock or compare-and-set transaction to change status, increment the version, mark old runs for cancellation, append `handoff.started`, and write cancellation outbox items.
 7. The SSE dispatcher emits only committed events in sequence. Once `handoff.started(sequence=N)` commits, no old-version AI event may be appended with a sequence greater than `N`.
@@ -198,7 +198,7 @@ Suggested pilot targets, subject to product approval:
 | Grounded-answer rate on approved FAQ set | at least 90% |
 | Citation coverage when knowledge is required | at least 95% |
 | Secret, internal-cost, or cross-conversation leakage | 0 |
-| Old AI events visible after committed takeover | 0 |
+| Old AI events **committed** after a committed takeover | 0 |
 | Correct refusal or escalation on unsupported questions | at least 95% |
 | Pilot availability | 99.5% |
 

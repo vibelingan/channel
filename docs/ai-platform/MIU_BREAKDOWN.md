@@ -36,7 +36,7 @@ runtime and a second database engine to the project. Two consequences:
 |---|---|---|
 | M0 Evidence | 0 | The unknowns turned into recorded facts |
 | M1 Engine boundary | 1, 4 | Provider-neutral port, fake, Hermes adapter |
-| M2 Operational core | 2a–2d, 3, 5a–5e | Runtime, store, state machine, policy, workers |
+| M2 Operational core | 2a–2d, 3, 5a–5f | Runtime, store, state machine, policy, workers, wire contracts |
 | M3 Public surface | 6, 7, 11, 12 | Public API, SSE, widget, route allowlist |
 | M4 Business surface | 8, 9, 9r, 10 | Consent/leads/retention, sales role, sales API, sales UI |
 | M5 Knowledge & quality | 13a, 13b | Public corpus, evaluation harness |
@@ -55,25 +55,26 @@ ever disagree, the per-MIU lines win:
 | 2d | 2c |
 | 3 | 2d |
 | 4 | 0, 1 |
-| 5a | 1 |
+| 5a | 0 (the context/redaction decision), 1 |
 | 5b | 2d, 3 |
 | 5c | 5a, 5b |
 | 5d | 5c |
 | 5e | 5b |
-| 6 | 5c, 5d, 14b, 8 |
-| 7 | 6 |
-| 8 | 3 |
+| 5f | 3, 5a |
+| 6 | 5c, 5d, 5f, 14b, 8 |
+| 7 | 6, 5f |
+| 8 | 3; **8b also needs 5e** (CRM deletion has nothing to propagate to without it) |
 | 9r | 0 |
 | 9 | 3, 9r |
 | 10 | 9 |
-| 11 | 7, 12a |
+| 11 | 7, 12a, 5f |
 | 12a | — (allowlist data; must precede 11) |
 | 12b | 11 |
 | 13a | 0 |
-| 13b | 1, 4, 5a |
+| 13b | 1, 4, 5a, **13a** (evaluate against the approved corpus, not a hypothetical one) |
 | 14 | 5b |
 | 14b | 2c |
-| 15 | 14 |
+| 15 | 14, **4, 5a, 13a** — it deploys the adapter, the serving profile, and the published corpus |
 | 16 | all |
 
 Longest path to a shippable surface: `0 → 2a → 2b → 2c → 2d → 3 → 5b → 5c → 5d → 6 → 7 → 11 → 12b`. MIU 16 depends on everything and closes the plan.
@@ -189,6 +190,13 @@ to.
 - Deploy wiring and its drift tests, mirroring the existing function manifest
   discipline (`scripts/cloudbase-function-manifest.mjs` and its lockstep
   consumers) so a new deployable does not silently fall out of the manifest.
+- **Name the artifacts, do not describe them.** "Introduce a second runtime" is
+  not actionable; this MIU is not done until each of these exists and is
+  referenced by path: the workspace package and its `package.json` name, the
+  service entry point, the `Dockerfile`, the build and start commands (the root
+  `package.json` currently has script paths only for the site and the CloudBase
+  functions), the deploy manifest entry, and the smoke command that proves the
+  deployed service answers.
 
 **Done:** a trivial route is reachable in CI, locally, and in the test
 environment; a transaction and a rollback are proven against real PostgreSQL in
@@ -225,6 +233,9 @@ environment.
   (**NOT NULL**), and `event_sequence`, with an index supporting the drain's
   "oldest unanswered in this epoch" scan. These three are what make I11
   enforceable; a nullable `accepted_in_epoch` turns the drain into a silent no-op.
+- **Conditional on MIU 0:** if native create is not replay-safe, this MIU also
+  creates the `engine_operations` table that MIU 5c's mapping layer needs. It is
+  a conditional output of the schema MIU, not an afterthought inside 5c.
 - **Decide where AI rate limits live.** MIU 6 reuses the reserve-first
   `rateLimitHits` pattern, but that ledger is CloudBase NoSQL. A CloudRun BFF
   either reimplements it in SQL — a new concurrency-sensitive component needing
@@ -257,10 +268,12 @@ transaction and the POST route, so it belongs to MIU 5's acceptance.
 
 - Transitions T1–T6 of LLD-001 §2.3, each as a single transaction.
 - Run lifecycle transitions and `cancel_requested_at` handling.
-- Invariants I1–I10 asserted (I11 belongs to 5d, which owns the drain),
-  including the four takeover windows (R1–R4) and
-  the intra-append window, driven
-  through injectable barriers rather than timing.
+- The **storage half** of I1–I10, plus the exact T1–T6 guard / effect / rollback
+  matrix, driven through injectable barriers rather than timing.
+- **Not** the full race windows R1–R4: those exercise worker paths, vendor calls
+  and cancellation that MIUs 5c and 5d introduce. Claiming them here would assign
+  evidence to a unit that has no engine, no worker and no HTTP surface. See
+  TEST_STRATEGY §2 for the layer-by-layer split.
 
 **Done:** race suite green and deterministic (no `sleep`-based tests); no HTTP,
 no engine, no vendor.
@@ -281,7 +294,10 @@ no engine, no vendor.
 - Toolset assertion as an exact-set contract test (SECURITY.md §5).
 
 **Done:** shared conformance suite green against a real pinned instance;
-startup refusal proven when a required capability is false.
+startup refusal proven when a required capability is false. The **composed**
+replay case that LLD-002 §9 makes mandatory when native idempotency is absent
+runs in MIU 5c, not here — it needs the mapping layer, which does not exist yet
+at this point in the plan.
 
 ---
 
@@ -365,9 +381,32 @@ approved channel; deletion propagates.
 
 ---
 
+## MIU 5f — Wire contracts for every seam
+
+**Depends on:** 3 (the event types), 5a (the error taxonomy).
+
+The canonical route table gives each endpoint a *purpose* and no contract. MIUs 6
+and 7 then add routes and an SSE stream, and MIU 11 consumes them — three units
+agreeing on a shape that is written down nowhere. The seam gets an owner before
+its consumers exist, not after:
+
+- Request and response DTOs for all six public and six sales routes.
+- The error envelope and its codes, mapped from LLD-002's taxonomy.
+- The conversation-credential wire format: where it travels, its TTL, and its
+  renewal or expiry behaviour.
+- The **SSE event union** — every `type` the dispatcher can emit and its payload,
+  matching LLD-001 §4.3's closed schemas exactly, so the widget and the server
+  cannot drift.
+- Generated or shared types, so a change breaks the build rather than a browser.
+
+**Done:** the widget and the BFF import the same contract; a field renamed on one
+side fails to compile on the other.
+
+---
+
 ## MIU 6 — Public API
 
-**Depends on:** 5c, 5d, 14b (budget), and — for the handoff and close routes — 8.
+**Depends on:** 5c, 5d, 5f (wire contracts), 14b (budget), and — for the handoff and close routes — 8.
 5d is required, not optional: 6b queues a message behind a live run, and 5d owns
 both the drain that answers it and the reaper that stops one wedged run blocking
 the conversation forever.
@@ -424,8 +463,10 @@ and deletion.
   in place, sequence retained — because removing event rows would break the
   gapless-sequence invariant (LLD-001 I1).
 - Propagation enumerated as a checklist with one assertion per target store: the
-  existing NoSQL leads and OEM inquiries, media storage, the CRM (via MIU 5e),
-  queues, and backups within their stated window.
+  the PostgreSQL `conversation_messages`, `conversation_events`, `leads` and
+  `audit_events` tables; the NoSQL `oemProjects` collection (this repo has **no**
+  NoSQL `leads` collection); media storage; the CRM (via MIU 5e); queues; and
+  backups within their stated window.
 - The job's execution model comes from MIU 0's worker-runtime decision.
 - Log-redaction rules enforced by a test, not by convention.
 
@@ -616,11 +657,24 @@ credential probe's sensitivity run has been observed failing.
 - Drills: database down, engine down, model down, knowledge down, queue backed
   up, email down, timeout, restart mid-stream, quota exhausted.
 - Full architecture §11 validation contract executed and recorded.
-- Each of the ten production gates marked closed with evidence, or deferred with
-  a named owner, a compensating control, and an expiry date.
+- Each of the ten production gates marked closed with **decision + implementation
+  + fresh evidence** for every sub-claim.
 
-**Done:** the gate table has no unexplained blanks. Public production approval is
-a decision made against this table, not a feeling about readiness.
+**On deferral, reconciling two rules that appear to conflict.** The architecture
+§12 says public production is blocked until all ten gates close. README rule 6
+says a gate may be deferred through explicit, time-bounded risk acceptance with
+named owners and compensating controls. Both are pre-existing and both stand,
+because they answer different questions: **a deferral authorises continued
+isolated staging; it never authorises public production.** A deferred gate
+remains a production blocker with an expiry date attached. Reading rule 6 as a
+route to launch would make §12 unenforceable.
+
+**Done:** the gate table has no unexplained blanks, and every row distinguishes
+the *approved decision* from the *implementation* from the *evidence* — several
+gates (workplace, consent and retention, budget thresholds, corpus thresholds,
+golden set, pilot metrics) require a human decision that no amount of code
+closes. Public production approval is a decision made against this table, not a
+feeling about readiness.
 
 ---
 
@@ -664,8 +718,27 @@ its real cost.
 
 **Knowledge-only pilot (~4 calendar weeks, parallel team, prerequisites ready).**
 MIUs 0, 1, **2a, 2b, 2c (reduced), 2d, 3 (reduced)**, 4, **5a, 5b, 5c (reduced),
-5d**, 6a, 6b, **6c**, 6f, 7, 11, 12a, 12b, 13a, 13b, 14b, 15. No sales queue, no
-takeover, no leads.
+5d**, 6a, 6b, **6c**, 6f, 7, 11 (reduced), 12a, 12b, 13a, 13b, **14**, 14b, 15.
+No sales queue, no takeover, no leads.
+
+This subset has been wrong three times, so its closure rules are written out
+rather than left to inspection:
+
+- **14 is in**, because 15 declares it as a dependency. A pilot that deploys
+  without observability deploys blind.
+- **`outbox` is in the reduced schema** — the reduced 2c is five tables, not
+  four: `conversations`, `conversation_messages`, `conversation_events`,
+  `ai_runs`, `outbox`. 5b *is* the outbox dispatcher; omitting its table while
+  including it was incoherent.
+- **The rate-ledger decision from 2c is made, not deferred**, because 6f enforces
+  against it.
+- **MIU 11 is reduced to 11a–11d.** Full 11 includes 11e, which builds the
+  consent and lead form — and this pilot says "no leads". The reduced widget
+  keeps the shell, accessibility, streaming and sanitizing renderer, and swaps
+  11e's consent form for a plain link to the existing inquiry page.
+- **The reduced 5c** is the start-run handler without the operation-id mapping
+  layer, if and only if MIU 0 proved native replay safety. If it did not, the
+  mapping layer is in, because the alternative is duplicate vendor runs.
 
 The store and the start-run path are **not** optional in this subset, even though
 the first draft of this plan listed them as excluded. MIU 7 is defined as a
@@ -698,7 +771,13 @@ most effective way to lose an argument about a 22–38 person-week estimate.
 ## 4. Estimate reconciliation
 
 Sizing the units above sums to roughly **44–50 person-weeks**, against the
-architecture's 22–38 ceiling. The gap is not new work invented here — it is work
+architecture's 22–38 ceiling. That range is currently an assertion, not a
+computation: **before this section is used to make a scope decision, add a
+low/high estimate and its stated assumptions to every MIU heading, and recompute
+the total from those inputs.** The architecture's own 22–38 is auditable — its
+component ranges sum to exactly 22 low and 38 high — and this figure should meet
+the same bar. Until it does, treat 44–50 as a directional signal that the plan
+exceeds the ceiling, not as a number to plan against. The gap is not new work invented here — it is work
 the architecture implies and the first draft of this breakdown left unowned: the
 BFF's own runtime and deploy path, PostgreSQL in CI and locally, the answer
 policy and engine profile, the notification/email/CRM handlers, the sales role,

@@ -14,11 +14,23 @@ document specifies the exact states, the exact conditional writes, the ordering
 rule that makes "old output" unrepresentable, and the behaviour at each point
 where a takeover can interleave with an in-flight AI run.
 
-Plain statement of the goal: when a salesperson clicks **Take over**, the visitor
-must never see another word from the assistant — not a token already in flight,
-not a final message that was half-written when the click landed, and not a
-message from a run that was created a millisecond earlier. The visitor sees the
-salesperson's reply and nothing else.
+Plain statement of the goal, stated as precisely as the design can actually
+deliver: **once a takeover commits, the assistant writes nothing further.** No
+token, no final message, nothing from a run created a millisecond earlier. From
+`handoff.started` onward the transcript contains only the salesperson.
+
+What that does *not* claim, and cannot: that the visitor's screen freezes at the
+instant of the click. Assistant text committed *before* the takeover is part of
+the transcript and is still delivered — it may be in a socket buffer, or arrive
+after a reconnect — so a visitor can watch a few more words land a moment after
+the salesperson took over. Those words were authorised when they were written.
+Erasing them would rewrite history, and a design that promised otherwise would be
+promising something the browser cannot be held to.
+
+The guarantee is therefore about **what is written, not about what has finished
+painting**. If the product needs the stronger version — nothing new appears after
+the visitor observes the handoff — that is a delivery barrier in the widget, and
+it must be specified as such rather than assumed from this document.
 
 The three mechanisms that deliver this:
 
@@ -223,7 +235,7 @@ UPDATE conversations
    SET status       = 'HUMAN_ACTIVE',
        mode_version = mode_version + 1,
        assigned_to  = $actor,
-       taken_over_at = now()
+       taken_over_at = clock_timestamp()
  WHERE id = $conversation
    AND status IN ('BOT_ACTIVE', 'HANDOFF_REQUESTED')
    AND mode_version = $expected_version
@@ -260,17 +272,21 @@ RETURNING next_event_seq - 1 AS allocated_seq, mode_version;
 --    lease and records liveness, so a healthy long answer never loses its claim
 --    mid-stream and a stalled one is visible to the reaper. Zero rows = abort.
 UPDATE ai_runs
-   SET last_append_at   = now(),
-       lease_expires_at = now() + $lease
- WHERE id                  = $run
-   AND claim_epoch         = $my_claim_epoch
+   SET last_append_at   = clock_timestamp(),
+       lease_expires_at = clock_timestamp() + $run_lease
+ WHERE id                    = $run
+   AND conversation_id       = $conversation      -- binds the two gated rows
+   AND expected_mode_version = $expected_epoch    -- …and to the same epoch
+   AND claim_epoch           = $my_claim_epoch
    AND cancel_requested_at IS NULL
-   AND status              = 'RUNNING'
+   AND status                = 'RUNNING'
 RETURNING id;
 
+-- The epoch written on the event is the one RETURNED by step 1, never an
+-- application argument that was not re-read under the lock.
 INSERT INTO conversation_events
        (conversation_id, sequence, run_id, type, mode_version, payload, created_at)
-VALUES ($conversation, $allocated_seq, $run, $type, $mode_version, $payload, now());
+VALUES ($conversation, $allocated_seq, $run, $type, $returned_epoch, $payload, clock_timestamp());
 
 COMMIT;
 ```
@@ -278,6 +294,24 @@ COMMIT;
 Both gates are conditional writes, both take row locks held to commit, and they
 are taken in the order §4.4 fixes. Either returning zero rows aborts the
 transaction and appends nothing.
+
+Three details in step 2 are load-bearing and easy to drop:
+
+- **`conversation_id = $conversation` binds the two gated rows to each other.**
+  Without it the statement fences *some* conversation and renews *some* run, and
+  nothing says they are related — a token from run A could be appended to
+  conversation B whenever their epoch numbers happen to coincide. Foreign keys
+  do not catch this; both ids are individually valid. Add the matching composite
+  constraint on `conversation_events` so the database rejects it too.
+- **`expected_mode_version = $expected_epoch`** ties the run's own authorization
+  to the epoch just verified, rather than trusting the caller to pass a matching
+  pair.
+- **`clock_timestamp()`, not `now()`.** In PostgreSQL `now()` is the
+  *transaction start* time. A transaction that waits on a contended row lock for
+  longer than the lease would commit a "renewal" that is already expired,
+  instantly admitting a replacement worker — which is exactly the state §3.1's
+  clock ordering exists to prevent. Every deadline in this document is sampled
+  after the relevant lock is taken.
 
 **Why each gate is a conditional write.** An earlier draft of this document did
 the obvious thing — `SELECT … FOR UPDATE`, check the fence in application code, then
@@ -364,10 +398,29 @@ are the ones this class exists to prevent: Stop appears to do nothing, and
 terminal run events never land, so the widget waits forever.
 
 The system class is also the most likely future route to a leak, since it is the
-one class whose status set is wide. Two rules keep it safe, and both belong in a
-check constraint on event type rather than in a code-review habit: the allowed
-event types are exactly the list above, and **none of them may carry
-assistant-authored text**. Assistant output has one writer class and one gate.
+one class whose status set is wide.
+
+**An event-type allowlist does not by itself keep it safe.** Primitive B inserts
+an unrestricted JSON `payload`, so a permitted `run.failed` or `run.cancelled`
+could legitimately carry a vendor error string containing the partial answer —
+and that event is emitted by SSE *after* the takeover, because it is a system
+event written in the new epoch. The name is on the allowlist; the text still
+reaches the visitor.
+
+So each system event type gets a **closed payload schema**, enforced at the
+database write boundary rather than by the code that happens to build it today:
+
+| Event | Payload |
+|---|---|
+| `handoff.started`, `handoff.returned` | actor id, timestamp |
+| `assignment.changed` | new assignee id |
+| `conversation.closed` | reason code |
+| `run.stopped`, `run.cancelled`, `run.completed` | run id only |
+| `run.failed` | run id and a normalized `error_category` from LLD-002 §6 — **a category, never a vendor message** |
+
+No system payload has a free-text field. Assistant output has exactly one writer
+class and one gate, and the negative test feeds a vendor error containing
+recognisable answer text and asserts it never reaches the event log.
 
 ### 4.4 Isolation, lock order, and retries
 
@@ -419,7 +472,8 @@ Worker picks up 'start-run'
   ├─ claim the run and take a fencing token:
   │     UPDATE ai_runs
   │        SET claim_epoch = claim_epoch + 1,
-  │            claimed_by = $worker, lease_expires_at = now() + $lease,
+  │            claimed_by = $worker,
+  │            lease_expires_at = clock_timestamp() + $run_lease,
   │            attempts = attempts + 1
   │      WHERE id = $run
   │        AND status IN ('CREATING', 'RUNNING')   -- RUNNING is required:
@@ -449,12 +503,19 @@ Worker picks up 'start-run'
   │        which the pinned release may not support.
   ├─ TX2b: authorize CREATING -> RUNNING, conditional on the epoch AND
   │        claim_epoch AND cancel_requested_at IS NULL.
-  │        Set last_append_at = now() here too — a run authorized and then
-  │        wedged before its first token would otherwise carry NULL, and
+  │        Set last_append_at = clock_timestamp() here too — a run authorized
+  │        and then wedged before its first token would carry NULL, and
   │        `last_append_at < now() - $stall` is never true of NULL, so the
   │        reaper would never see the commonest wedge of all.
-  │     fence lost -> enqueue cancel-run (engine_run_id is already recorded),
-  │                   do not stream
+  │     zero rows -> BRANCH ON WHICH TERM FAILED. Do not blanket-cancel.
+  │        • epoch changed, or cancel_requested_at set (takeover, close, Stop)
+  │            -> enqueue cancel-run; the run is genuinely unwanted.
+  │        • only claim_epoch moved -> another worker legitimately took this
+  │            run over and may already be streaming it. EXIT QUIETLY. Cancelling
+  │            here would kill the successor's valid run: worker 1 creates and
+  │            records handle H, loses its lease, worker 2 claims a new
+  │            claim_epoch, replay-safe-creates the same H and authorizes it —
+  │            and worker 1's late TX2b then cancels the run worker 2 is serving.
   └─ stream engine events; append each via Primitive B (TX per event or small
      batch). The first zero-row append aborts the stream and requests cancel.
 
@@ -469,12 +530,23 @@ Cancel worker
 Run terminalization (every path: completed, failed, cancelled, reaped)
   └─ TX, in this order — the lock order of §4.4 applies here too:
      1. append the terminal run event via Primitive B  (locks conversations)
-     2. UPDATE ai_runs SET status = $terminal
-          WHERE id = $run AND status IN ('CREATING','RUNNING')  ◄─ CAS, so
-          a reaper and a reclaiming worker cannot both terminalize the same
-          run and both drain. Zero rows = someone else finished it: ROLL BACK
-          the whole transaction, including the event appended in step 1.
-          Committing here lands two terminal events for one run.
+     2. UPDATE ai_runs SET status = $terminal WHERE id = $run
+          AND status IN ('CREATING','RUNNING')
+          AND <the reason-specific term below>          ◄─ REQUIRED
+        Zero rows = not ours to terminalize: ROLL BACK the whole transaction,
+        including the event appended in step 1. Committing lands two terminal
+        events for one run.
+
+        A status-only CAS is NOT sufficient, and this was a real defect in an
+        earlier draft. It proves the run is live; it does not prove the caller
+        still has the authority to end it. Each reason carries its own term:
+
+        | Caller | Additional term | Without it |
+        |---|---|---|
+        | claimant (completed/failed) | `claim_epoch = $my_claim_epoch` | a worker superseded at epoch 1 wakes and terminalizes the epoch-2 owner's run |
+        | completion specifically | `cancel_requested_at IS NULL` | a completion lands *after* the visitor pressed Stop and reports success |
+        | cancel worker | `cancel_requested_at IS NOT NULL` | a cancel path ends a run nobody asked to cancel |
+        | stall reaper | `last_append_at < clock_timestamp() - $stall` re-evaluated **inside this UPDATE** | the reaper reads a stale timestamp, waits on the lock, and fails a run that has since become healthy |
      3. drain: if the conversation is BOT_ACTIVE, take the oldest visitor
         message (by `event_sequence`) with answered_by_run IS NULL **and
         accepted_in_epoch = the conversation's current epoch**, reserve a run
@@ -574,13 +646,36 @@ database access inside an adapter, and this layer owns a table.
 
 ```sql
 CREATE TABLE engine_operations (
-  operation_id    uuid PRIMARY KEY,
-  engine_run_id   text,
-  state           text NOT NULL,     -- CLAIMED | CALL_IN_FLIGHT | CREATED | FAILED
-  claimed_by      text,
+  operation_id     uuid PRIMARY KEY,
+  engine_run_id    text,
+  state            text NOT NULL,    -- CLAIMED | CALL_IN_FLIGHT | CREATED | FAILED
+  claimed_by       text,
+  claim_token      uuid,             -- fresh per acquisition; NOT the worker id
   lease_expires_at timestamptz,
-  created_at      timestamptz NOT NULL DEFAULT now()
+  created_at       timestamptz NOT NULL DEFAULT clock_timestamp()
 );
+```
+
+`claim_token` is the same fix as `ai_runs.claim_epoch`, and it was missing here
+for one round because the earlier fix was applied to the instance in front of me
+rather than to the class. `claimed_by` is a *reusable* worker identity: if the
+same worker id reclaims the row after its own stalled invocation, a stale
+invocation still satisfies `claimed_by = $worker AND lease_expires_at > now()`
+and calls the vendor alongside the new one. A token minted fresh on every
+acquisition cannot be satisfied by the invocation it replaced.
+
+Every subsequent write by an invocation carries its token **and** the exact
+state it expects to be leaving:
+
+```sql
+-- CALL_IN_FLIGHT, CREATED and FAILED all take this shape
+UPDATE engine_operations
+   SET state = $next, ...
+ WHERE operation_id = $op
+   AND claim_token  = $my_token
+   AND state        = $expected_source_state
+   AND lease_expires_at > clock_timestamp()
+RETURNING operation_id;    -- zero rows = superseded; do not call the vendor
 ```
 
 The state that matters is **`CALL_IN_FLIGHT`: called, outcome unknown.** An
@@ -595,15 +690,17 @@ The corrected order:
 
 ```sql
 -- Claim, or fall through to the three-way branch below.
-INSERT INTO engine_operations (operation_id, state, claimed_by, lease_expires_at)
-VALUES ($op, 'CLAIMED', $worker, now() + $lease)
+-- $my_token is minted fresh for THIS invocation, never reused.
+INSERT INTO engine_operations (operation_id, state, claimed_by, claim_token, lease_expires_at)
+VALUES ($op, 'CLAIMED', $worker, $my_token, clock_timestamp() + $op_lease)
 ON CONFLICT (operation_id) DO UPDATE
    SET state            = 'CLAIMED',
        claimed_by       = $worker,
-       lease_expires_at = now() + $lease
+       claim_token      = $my_token,
+       lease_expires_at = clock_timestamp() + $op_lease
  WHERE engine_operations.engine_run_id IS NULL
    AND engine_operations.state <> 'CALL_IN_FLIGHT'
-   AND engine_operations.lease_expires_at < now()
+   AND engine_operations.lease_expires_at < clock_timestamp()
 RETURNING operation_id, state, engine_run_id;
 ```
 
@@ -632,14 +729,18 @@ on still holding the claim**:
 UPDATE engine_operations
    SET state = 'CALL_IN_FLIGHT'
  WHERE operation_id     = $op
-   AND claimed_by       = $worker
-   AND lease_expires_at > now()
+   AND claim_token      = $my_token      -- this invocation, not merely this worker
+   AND state            = 'CLAIMED'      -- exact source state
+   AND lease_expires_at > clock_timestamp()
 RETURNING operation_id;     -- zero rows = superseded; do not call the vendor
 ```
 
-Without that predicate the whole layer leaks: a worker that stalls past its
+Without those predicates the whole layer leaks: a worker that stalls past its
 lease, gets superseded, and then wakes up would write `CALL_IN_FLIGHT` and call
-the vendor anyway, producing the second run this layer exists to prevent.
+the vendor anyway, producing the second run this layer exists to prevent. Note
+that `claimed_by` alone does not close it — the same worker id can hold the
+replacement lease, so a stalled invocation would still match. The token is what
+distinguishes the invocation from its replacement.
 
 Then create the run tagged with the operation id in vendor metadata, and record
 `engine_run_id` with state `CREATED`.
@@ -702,8 +803,10 @@ TEST_STRATEGY.md §4.
 - **I5** A run that fails its authorization fence has a cancel request enqueued
   in the same transaction that rejected it, and its `engine_run_id` was already
   recorded.
-- **I6** No assistant-authored event is visible to the visitor at a sequence
-  after a committed `handoff.started` of a later epoch.
+- **I6** No assistant-authored event is *committed* at a sequence after a
+  committed `handoff.started` of a later epoch. This is a statement about the
+  event log, not about pixels: events committed before the handoff are still
+  delivered, and may render shortly after it (§1).
 - **I7** After a cancellation is recorded — by takeover, by close, or by the
   visitor's Stop — no further assistant-authored event is committed, regardless
   of whether the vendor stop call succeeds. A failed stop raises a cost and

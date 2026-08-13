@@ -75,6 +75,27 @@ browser JavaScript, in a build artifact, in an Astro island prop, in a public AP
 response, or in a prompt. The build must fail if a secret-shaped string appears
 in the site bundle.
 
+**Every row needs a falsifiable owner, and most of these do not have one yet.**
+A proof phrased only as an allowed operation is passed by a broken credential: a
+zero-privilege database role passes "`SELECT` on a non-AI table is refused", and
+a NoSQL credential that has been revoked passes "a write is refused". The
+inventory above is therefore not yet a set of proofs — it is a set of intentions
+with test-shaped wording.
+
+Before launch it becomes a one-to-one **credential-proof manifest**, in which
+every row carries all five of:
+
+| Column | Why |
+|---|---|
+| The **allowed** operation, asserted to succeed | Proves the credential is live; without it every negative assertion is vacuous |
+| The **nearest forbidden** operation, asserted to fail with a scope or permission error | Proves the boundary, not the absence of a target |
+| Owning MIU | An unowned proof is not scheduled |
+| CI stage | Pre-deploy, nightly, or release — a probe in the wrong stage checks something that is not serving traffic |
+| Evidence artifact | What a reviewer reads to believe it ran |
+
+A row that cannot be given all five is a row whose isolation nobody has actually
+worked out yet, and that is worth discovering before launch rather than after.
+
 ## 4. The public-only knowledge space
 
 This is architecture gate 2 and it deserves more than one line.
@@ -120,9 +141,23 @@ Three further requirements, each of which the naive version misses:
   document returns zero hits), not on status codes.
 - **The deployed credential, before traffic.** A "production-shaped" token
   checked nightly is not the token serving customers. The probe runs pre-deploy
-  against the real credential in the real environment, records that credential's
-  fingerprint, and the BFF asserts at startup that the fingerprint matches the
-  credential it holds.
+  against the real credential in the real environment and records its
+  fingerprint.
+
+  The BFF cannot check that fingerprint against "the credential it holds" — it
+  does not hold the knowledge token, and must not; that token lives only in the
+  engine profile (§2), and an earlier draft of this document contradicted its own
+  trust diagram by implying otherwise. Instead the **credential holder attests**:
+  the engine profile exposes a non-secret identity/version for its knowledge
+  credential on a health surface, and the BFF asserts at startup that this
+  matches the identity the probe cleared. The attestation carries no secret
+  material.
+- **Every surface gets its own three controls, not one aggregate run.** With a
+  single get-by-id positive control and one overall sensitivity run, a `search`,
+  `list`, or attachment implementation that is simply dead returns empty, passes
+  the negative assertion, and never fails the sensitivity run because another
+  surface turns it red. Each surface discovered from the tool schema needs its
+  own public-positive, internal-negative, and over-scoped-sensitivity result.
 - **A sensitivity run.** Once, with a deliberately over-scoped token, the probe
   must go red. A check that has never failed is a check nobody has verified.
 
@@ -179,9 +214,20 @@ a document is data, never an instruction. The rule that follows is structural:
 > by text. The tool surface is fixed at deploy time, the knowledge credential is
 > scoped at issue time, and neither reads the conversation.
 
-Concretely: no tool is enabled or selected based on message content; no
-credential is chosen by the model; no database query or recipient is derived from
-model output. Lead creation and the request for a human both originate from the
+The precise form of the rule, because a loose version of it would forbid the
+architecture's own design — the assistant profile exists in order to make
+knowledge-tool calls in response to what the visitor asked, and engine events do
+cause fenced database writes:
+
+> Text may **invoke** capabilities within a fixed, deploy-time set. Text may
+> never **expand** that set, and engine events may cause only the enumerated
+> event-log and state writes.
+
+So: the tool surface and the credential are fixed before any conversation
+starts, no tool is enabled or selected *outside that set* by message content, no
+credential is chosen by the model, and no database query, recipient,
+notification, lead, or other mutating business action is derived from model
+output. Lead creation and the request for a human both originate from the
 visitor's own actions, never from an engine event — that is closed by
 construction, since the engine's event types carry no side effect.
 
@@ -222,11 +268,19 @@ schemes, no `javascript:`, no `data:`).
   Replace the payload in place, keep the sequence, and let the dispatcher render
   a tombstone. The test asserts all three: content gone, I1 intact, tombstone
   rendered.
+- **Tombstone every content-bearing primary copy, not just the event.** Visitor
+  text is written twice — into `conversationMessages` and into the
+  `conversationEvents` payload — and contact fields live in the PostgreSQL
+  `leads` table. Replacing only the event payload leaves the message row and the
+  lead row intact, which is the whole of the PII.
 - Transcript retention and deletion are approved before launch (gate 4), and
-  deletion propagates to every derived store — the existing NoSQL leads and OEM
-  inquiries, media storage, search indexes, queues, the CRM, and backups within
-  their stated window. Enumerate them as a checklist with one assertion each;
-  "propagates to derived stores" without a list is unfalsifiable.
+  deletion propagates to every derived store, each named with its own assertion.
+  The real list in this repository is: PostgreSQL `conversationMessages`,
+  `conversationEvents`, `leads`, and `auditEvents`; the NoSQL `oemProjects`
+  collection (there is **no** NoSQL `leads` collection — an earlier draft of this
+  document invented one); media storage; queues; the CRM; and backups within
+  their stated window. "Propagates to derived stores" without a list is
+  unfalsifiable.
 - Region and data-processing terms are approved before launch (gates 4 and 5).
 
 ## 8. Availability and abuse
@@ -280,10 +334,26 @@ it cannot — but it is not the control that protects the credential.
 The controls that would actually confine the token are an `httpOnly`,
 `SameSite` cookie, or rendering the assistant inside a sandboxed cross-origin
 iframe. Until one of them exists, gate 10 must not be recorded as closing the
-session-theft risk, and the risk sits on the sanitizer and CSP instead. The
-missing test is an end-to-end one that seeds `channel.token`, drives a hostile
-Markdown payload through the assistant on an allowlisted route, and asserts the
-token never leaves the page.
+session-theft risk, and the risk sits on the sanitizer and CSP instead.
+
+**The test has to be phrased as egress, not absence.** "The token never leaves
+the page" is unsatisfiable here: the storefront legitimately reads
+`channel.token` and sends it as a `Bearer` header to the catalog API. An
+absence-only assertion is also satisfied by a renderer that silently failed to
+run. So the test seeds `channel.token`, drives a hostile Markdown payload through
+the assistant on an *allowlisted* route, and asserts three things: the hostile
+content actually rendered, no request carrying the token reached any origin or
+sink outside the approved first-party list, and — proving the detector itself —
+an intentional exfiltration control **is** caught.
+
+**CSP is load-bearing here and currently owned by nobody.** This paragraph makes
+it the control standing between a sanitizer escape and the session, but MIU 11d
+owns only sanitization, no MIU delivers page-level security headers, and
+`apps/site/src/layouts/BaseLayout.astro` ships two inline scripts that a strict
+policy would have to account for. The only CSP in the repository today is on a
+media response (`default-src 'none'; sandbox`), not on any page. Assign header
+delivery and inline-script compatibility to an MIU, and assert the policy on the
+deployed allowlisted pages rather than in a unit test.
 
 Enforcement of the allowlist itself is a build/route-level test that enumerates
 rendered routes and asserts the widget is present on exactly the allowlist and

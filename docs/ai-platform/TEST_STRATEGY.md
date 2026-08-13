@@ -23,12 +23,27 @@ green.
 |---|---|---|---|
 | Unit | Pure functions | Transitions, authorization, retention decisions, redaction | `packages/*/src/*.test.ts` |
 | Store | Real PostgreSQL | Primitives, constraints, sequence integrity | `packages/ai-store/src/*.test.ts` |
-| Race | Real PostgreSQL + barriers | The takeover windows and invariants I1–I11 | `packages/ai-store/src/race/*.test.ts` |
+| Race | Real PostgreSQL + barriers | SQL predicates, allocation, rollback — the *storage* half of I1–I11 | `packages/ai-store/src/race/*.test.ts` |
 | Conformance | Each engine adapter | Port contract, error taxonomy, idempotency | `packages/ai-engine/src/conformance.ts` |
 | Contract / probe | Live pinned dependencies | Toolsets, Runs semantics, credential scope | `scripts/verify-ai-*.mjs` |
 | Integration | Fake engine + real PostgreSQL | API routes, SSE, outbox, workers end to end | `apps/functions/*/src/*.test.ts` |
 | E2E | Browser + running stack | Layout, keyboard, XSS, reconnect, cancel, consent, takeover | `tests/e2e/ai-*.spec.ts` |
 | Evaluation | Pinned runtime + golden set | Grounding, citation, refusal, injection resistance | `scripts/eval-ai-assistant.mjs` |
+
+**No invariant is proven by one layer alone, and the race table below is not all
+under `packages/ai-store`.** An earlier draft located every I1–I11 row there
+while those rows assert vendor calls, HTTP replay, SSE bytes, alerts and widget
+state — none of which a store test can see. Ownership splits:
+
+| What is asserted | Layer | Owning MIU |
+|---|---|---|
+| Conditional-write predicates, sequence allocation, rollback | Store | 2d |
+| Transition guards, effects, rollback matrix for T1–T6 | Store + unit | 3 |
+| Worker claim, fencing, mapping layer, drain, reaper | Integration | 5c, 5d |
+| Replay, Stop, idempotency over HTTP | Integration | 6 |
+| Delivered SSE bytes and resume | Integration | 7 |
+| Alerts actually firing | Integration | 14 |
+| Interrupted rendering, queued-message affordance | E2E | 11 |
 
 The split that matters: **integration tests use the fake engine and a real
 database.** The database is where the correctness lives, so it is never faked;
@@ -95,9 +110,22 @@ the same run.
 
 **This gate does not close session theft.** See SECURITY.md §9: the session JWT
 lives in origin-scoped `localStorage` and is read from public pages, so route
-exclusion is defence in depth here. The test that addresses the real risk seeds
-`channel.token`, drives a hostile Markdown payload through the assistant on an
-*allowlisted* route, and asserts the token never leaves the page.
+exclusion is defence in depth here.
+
+The test that addresses the real risk cannot be phrased as "the token never
+leaves the page" — the storefront legitimately sends it as a `Bearer` header to
+the catalog API, so that assertion is unsatisfiable, and an absence-only version
+of it is satisfied by a renderer that never ran. Phrase it as egress: seed
+`channel.token`, drive a hostile Markdown payload through the assistant on an
+*allowlisted* route, then assert (a) the hostile content rendered, (b) no request
+carrying the token reached any origin or sink outside the approved first-party
+list, and (c) an intentional exfiltration control **is** caught, proving the
+detector works.
+
+Pair it with a **deployed page-CSP assertion** on the allowlisted routes. CSP is
+what stands between a sanitizer escape and the session, no MIU currently owns
+header delivery, and `BaseLayout.astro` ships inline scripts a strict policy must
+account for.
 
 ### 3.4 Secrets
 
@@ -140,7 +168,8 @@ disabled within a month.
 | `takeover-between-create-and-authorize` | Barrier between create and TX2b | R2: `engine_run_id` **is** recorded; authorization rejected; cancel enqueued; zero visitor-visible AI events after `handoff.started` |
 | `takeover-mid-stream` | Barrier between two token appends | R3: earlier tokens remain; no later AI event |
 | `takeover-before-final` | Barrier before the final append | R4: final message never committed; run `CANCELLED` |
-| `takeover-inside-append` | Barrier **between the fence and the insert** | I2/I6: the conditional update returns zero rows; nothing is appended. This is the window a fence-then-insert implementation opens and no other test in this table can see |
+| `takeover-before-append-gate` | Takeover commits **before** Primitive B's step 1 runs | I2/I6: step 1 returns zero rows; nothing is appended |
+| `takeover-during-append` | Takeover attempts **after** step 1 has returned | The takeover *waits* — step 1 holds the conversation lock to commit — and applies after the append. A barrier placed after step 1 cannot produce a zero-row result, so a test written that way proves nothing; both legal linearizations must be exercised instead |
 | `close-mid-stream` | T5 during an open run | I7: same guarantee as takeover; run `CANCELLED` |
 | `return-to-ai-then-late-token` | T3 while an old run still streams | I2: the twice-bumped epoch keeps the old run unauthorized |
 | `visitor-stop-then-tokens` | Stop, then engine keeps emitting | I7: `cancel_requested_at` alone blocks every further append, with the vendor stop call forced to fail |
@@ -148,7 +177,7 @@ disabled within a month.
 | `concurrent-takeover` | Two callers, same epoch | I3: exactly one winner; loser gets a conflict |
 | `concurrent-reassign` | T4 racing T3 and T5 | T4's status and assignee predicates hold; no reassign on a closed conversation |
 | `two-messages-one-conversation` | Two visitor POSTs in flight | I9: one live run. The second message is **committed**, starts no run, and the POST succeeds — the unique index must never actually fire |
-| `sequence-integrity` | N concurrent appends | I1: unique, increasing, gapless |
+| `sequence-integrity` | N concurrent appends, **plus a forced rollback after allocation** | I1: unique, increasing, gapless. The concurrent half alone also passes against a Postgres `SEQUENCE`, which is exactly the implementation §8 forbids — only the rollback case distinguishes them, by requiring the next commit to reuse the abandoned number |
 | `stop-api-fails` | Engine stop always errors | I7: zero visitor-visible bytes; alert raised |
 | `replayed-post` | Same idempotency key twice | I8: one message, one run |
 | `crash-after-create` | Kill worker between the vendor call and recording | I4: no second vendor run is created on retry — `CALL_IN_FLIGHT` refuses it. Includes the superseded-worker variant: a stalled worker that wakes after losing its lease must not call the vendor |
