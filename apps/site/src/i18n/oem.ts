@@ -108,8 +108,8 @@ export interface OemContent {
     src: string;
     poster: string;
     /** Intrinsic pixel dimensions of `poster`, to reserve layout space (avoid CLS). */
-    posterWidth?: number;
-    posterHeight?: number;
+    posterWidth: number;
+    posterHeight: number;
     caption?: string;
   };
 }
