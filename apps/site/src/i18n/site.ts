@@ -54,6 +54,8 @@ export interface StatItem {
 export interface WorkflowStepItem {
   label: string;
   desc?: string;
+  imageWidth: number;
+  imageHeight: number;
 }
 
 export type AiAdvantageVisual =
