@@ -68,15 +68,20 @@ const assertMappedImageRenderer = async (
   componentSource: string,
   mapExpressionStart: string,
   expectedBindings: Record<string, string>,
+  expectedMappedText?: { elementName: string; value: string },
 ) => {
   const { ast, diagnostics } = await parse(componentSource);
   assert.deepEqual(diagnostics, []);
   const images: Array<{ node: ElementNode; expression?: ExpressionNode }> = [];
+  const mappedTextElements: Array<{ node: ElementNode; expression?: ExpressionNode }> = [];
 
   const visit = (node: AstroNode, expression?: ExpressionNode) => {
     const currentExpression = node.type === 'expression' ? node : expression;
     if (node.type === 'element' && node.name === 'img') {
       images.push({ node, expression: currentExpression });
+    }
+    if (node.type === 'element' && node.name === expectedMappedText?.elementName) {
+      mappedTextElements.push({ node, expression: currentExpression });
     }
     if ('children' in node) {
       for (const child of node.children) visit(child, currentExpression);
@@ -104,6 +109,34 @@ const assertMappedImageRenderer = async (
   assert.equal(firstExpressionChild.value.trim(), mapExpressionStart);
   assert.ok(lastExpressionChild?.type === 'text');
   assert.equal(lastExpressionChild.value.trim(), '))');
+
+  if (expectedMappedText) {
+    assert.equal(
+      mappedTextElements.length,
+      1,
+      `component renders one ${expectedMappedText.elementName}`,
+    );
+    const textElement = mappedTextElements[0];
+    assert.equal(
+      textElement.expression,
+      image.expression,
+      'image and text use the same map expression',
+    );
+    const meaningfulChildren = textElement.node.children.filter(
+      (child) => child.type !== 'text' || child.value.trim() !== '',
+    );
+    assert.equal(meaningfulChildren.length, 1);
+    const valueExpression = meaningfulChildren[0];
+    assert.ok(valueExpression.type === 'expression');
+    assert.deepEqual(
+      valueExpression.children.map((child) =>
+        child.type === 'text'
+          ? { type: child.type, value: child.value.trim() }
+          : { type: child.type },
+      ),
+      [{ type: 'text', value: expectedMappedText.value }],
+    );
+  }
 };
 
 test('home keeps the real team gallery separate from Why Choose Us visuals', () => {
@@ -375,4 +408,78 @@ test('team gallery images expose reviewed intrinsic dimensions to the renderer',
     width: 'p.width',
     height: 'p.height',
   });
+});
+
+test('quality images expose reviewed intrinsic dimensions to the renderer', async () => {
+  const qualityComponent = readFileSync(
+    fileURLToPath(new URL('../components/QualityTestingSection.astro', import.meta.url)),
+    'utf8',
+  );
+  const { items } = extractLiteralObjectArray(
+    qualityComponent,
+    'QualityTestingSection.astro',
+    'tests',
+    ['img', 'label', 'width', 'height'],
+  );
+  assert.deepEqual(items, [
+    {
+      img: '/media/oem/quality/q1.jpg',
+      label: 'QC Inspection Lab',
+      width: 545,
+      height: 345,
+    },
+    {
+      img: '/media/oem/quality/q2.jpg',
+      label: 'Burst / Pressure Test',
+      width: 205,
+      height: 345,
+    },
+    {
+      img: '/media/oem/quality/q3.jpg',
+      label: 'Press-Force Test',
+      width: 205,
+      height: 345,
+    },
+    {
+      img: '/media/oem/quality/q4.jpg',
+      label: 'Salt-Spray Corrosion Test',
+      width: 322,
+      height: 345,
+    },
+    {
+      img: '/media/oem/quality/q5.jpg',
+      label: 'Vibration / Transport Test',
+      width: 325,
+      height: 285,
+    },
+    {
+      img: '/media/oem/quality/q6.jpg',
+      label: 'Environmental Aging Chamber',
+      width: 285,
+      height: 285,
+    },
+    {
+      img: '/media/oem/quality/q7.jpg',
+      label: 'Tensile / Pull Test',
+      width: 368,
+      height: 285,
+    },
+    {
+      img: '/media/oem/quality/q8.jpg',
+      label: 'Drop Test',
+      width: 305,
+      height: 285,
+    },
+  ]);
+  await assertMappedImageRenderer(
+    qualityComponent,
+    'tests.map((t, i) => (',
+    {
+      src: 't.img',
+      alt: 't.label',
+      width: 't.width',
+      height: 't.height',
+    },
+    { elementName: 'figcaption', value: 't.label' },
+  );
 });
