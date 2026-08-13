@@ -69,28 +69,49 @@ const assertMappedImageRenderer = async (
   mapExpressionStart: string,
   expectedBindings: Record<string, string>,
   expectedMappedText?: { elementName: string; value: string },
+  expectedImageTemplates = 1,
+  expectedSectionHeading?: string,
 ) => {
   const { ast, diagnostics } = await parse(componentSource);
   assert.deepEqual(diagnostics, []);
-  const images: Array<{ node: ElementNode; expression?: ExpressionNode }> = [];
+  const images: Array<{
+    node: ElementNode;
+    expression?: ExpressionNode;
+    elementAncestors: ElementNode[];
+  }> = [];
   const mappedTextElements: Array<{ node: ElementNode; expression?: ExpressionNode }> = [];
 
-  const visit = (node: AstroNode, expression?: ExpressionNode) => {
+  const visit = (
+    node: AstroNode,
+    expression?: ExpressionNode,
+    elementAncestors: ElementNode[] = [],
+  ) => {
     const currentExpression = node.type === 'expression' ? node : expression;
     if (node.type === 'element' && node.name === 'img') {
-      images.push({ node, expression: currentExpression });
+      images.push({ node, expression: currentExpression, elementAncestors });
     }
     if (node.type === 'element' && node.name === expectedMappedText?.elementName) {
       mappedTextElements.push({ node, expression: currentExpression });
     }
     if ('children' in node) {
-      for (const child of node.children) visit(child, currentExpression);
+      const childAncestors =
+        node.type === 'element' ? [...elementAncestors, node] : elementAncestors;
+      for (const child of node.children) visit(child, currentExpression, childAncestors);
     }
   };
   visit(ast);
 
-  assert.equal(images.length, 1, 'component renders one registry-backed image template');
-  const image = images[0];
+  assert.equal(images.length, expectedImageTemplates, 'component renders expected image templates');
+  const matchingImages = images.filter(({ expression }) => {
+    const firstChild = expression?.children[0];
+    return firstChild?.type === 'text' && firstChild.value.trim() === mapExpressionStart;
+  });
+  assert.equal(
+    matchingImages.length,
+    1,
+    'map expression renders one registry-backed image template',
+  );
+  const image = matchingImages[0];
   assert.ok(image.expression, 'gallery image is rendered by a collection expression');
   const attributes = new Map(
     image.node.attributes.map((attribute) => [
@@ -109,6 +130,28 @@ const assertMappedImageRenderer = async (
   assert.equal(firstExpressionChild.value.trim(), mapExpressionStart);
   assert.ok(lastExpressionChild?.type === 'text');
   assert.equal(lastExpressionChild.value.trim(), '))');
+
+  if (expectedSectionHeading) {
+    const sectionContainer = image.elementAncestors.findLast((ancestor) =>
+      ancestor.children.some((child) => child.type === 'element' && child.name === 'h3'),
+    );
+    assert.ok(sectionContainer, 'mapped image has a section heading ancestor');
+    const headings = sectionContainer.children.filter(
+      (child): child is ElementNode => child.type === 'element' && child.name === 'h3',
+    );
+    assert.equal(headings.length, 1);
+    const headingChildren = headings[0].children.filter(
+      (child) => child.type !== 'text' || child.value.trim() !== '',
+    );
+    assert.deepEqual(
+      headingChildren.map((child) =>
+        child.type === 'text'
+          ? { type: child.type, value: child.value.trim() }
+          : { type: child.type },
+      ),
+      [{ type: 'text', value: expectedSectionHeading }],
+    );
+  }
 
   if (expectedMappedText) {
     assert.equal(
@@ -481,5 +524,119 @@ test('quality images expose reviewed intrinsic dimensions to the renderer', asyn
       height: 't.height',
     },
     { elementName: 'figcaption', value: 't.label' },
+  );
+});
+
+test('certificate and client images expose reviewed intrinsic dimensions to the renderer', async () => {
+  const certificationsComponent = readFileSync(
+    fileURLToPath(new URL('../components/CertificationsSection.astro', import.meta.url)),
+    'utf8',
+  );
+  const certificates = extractLiteralObjectArray(
+    certificationsComponent,
+    'CertificationsSection.astro',
+    'complianceCerts',
+    ['name', 'img', 'description', 'width', 'height'],
+  );
+  assert.deepEqual(certificates.items, [
+    {
+      name: 'CE',
+      img: '/media/oem/certs/ce.jpg',
+      description: 'European conformity',
+      width: 706,
+      height: 1000,
+    },
+    {
+      name: 'EMC',
+      img: '/media/oem/certs/emc.jpg',
+      description: 'Electromagnetic compatibility',
+      width: 707,
+      height: 1000,
+    },
+    {
+      name: 'FCC',
+      img: '/media/oem/certs/fcc.jpg',
+      description: 'U.S. FCC compliance',
+      width: 706,
+      height: 1000,
+    },
+    {
+      name: 'JD',
+      img: '/media/oem/certs/jd.jpg',
+      description: 'Retail channel quality',
+      width: 772,
+      height: 1000,
+    },
+  ]);
+  await assertMappedImageRenderer(
+    certificationsComponent,
+    'complianceCerts.map((cert) => (',
+    {
+      src: 'cert.img',
+      alt: '`${cert.name} certification`',
+      width: 'cert.width',
+      height: 'cert.height',
+    },
+    undefined,
+    2,
+    'Company &amp; Compliance',
+  );
+
+  const clients = extractLiteralObjectArray(
+    certificationsComponent,
+    'CertificationsSection.astro',
+    'clientLogos',
+    ['name', 'img', 'width', 'height'],
+  );
+  assert.deepEqual(clients.items, [
+    {
+      name: 'Artcoustic',
+      img: '/media/oem/clients/artcoustic.png',
+      width: 400,
+      height: 65,
+    },
+    {
+      name: 'Audio Diversity',
+      img: '/media/oem/clients/audio-diversity.png',
+      width: 400,
+      height: 124,
+    },
+    {
+      name: 'CoreMee',
+      img: '/media/oem/clients/coremee.png',
+      width: 400,
+      height: 87,
+    },
+    {
+      name: 'DI',
+      img: '/media/oem/clients/di.png',
+      width: 400,
+      height: 120,
+    },
+    {
+      name: 'pabobo',
+      img: '/media/oem/clients/pabobo.jpg',
+      width: 400,
+      height: 400,
+    },
+    {
+      name: 'AS',
+      img: '/media/oem/clients/as.png',
+      width: 400,
+      height: 400,
+    },
+  ]);
+  await assertMappedImageRenderer(
+    certificationsComponent,
+    'clientLogos.map((client) => (',
+    {
+      src: 'client.img',
+      alt: '`${client.name} logo`',
+      width: 'client.width',
+      height: 'client.height',
+    },
+    undefined,
+    2,
+    'Global Clients',
   );
 });
