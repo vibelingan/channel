@@ -190,12 +190,20 @@ def package(document_xml: str) -> None:
   <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:outlineLvl w:val="0"/><w:qFormat/></w:style>
   <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:outlineLvl w:val="1"/><w:qFormat/></w:style>
 </w:styles>'''
+    entries = [
+        ('[Content_Types].xml', content_types),
+        ('_rels/.rels', relationships),
+        ('word/document.xml', document_xml),
+        ('word/styles.xml', styles),
+        ('word/_rels/document.xml.rels', document_relationships),
+    ]
     with zipfile.ZipFile(OUTPUT, 'w', zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr('[Content_Types].xml', content_types)
-        archive.writestr('_rels/.rels', relationships)
-        archive.writestr('word/document.xml', document_xml)
-        archive.writestr('word/styles.xml', styles)
-        archive.writestr('word/_rels/document.xml.rels', document_relationships)
+        for name, content in entries:
+            info = zipfile.ZipInfo(name, date_time=(2026, 8, 13, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.create_system = 3
+            info.external_attr = 0o100644 << 16
+            archive.writestr(info, content.encode('utf-8'))
 
 
 def main() -> None:
