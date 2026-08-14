@@ -1,6 +1,6 @@
 {
-  "recordedAt": "2026-08-06T16:29:55Z",
-  "sha": "a3912c68797d6279335db97c55834bf0cee5147d",
+  "recordedAt": "2026-08-14T08:40:22Z",
+  "sha": "8269fa1e9f5cc76dab550bfc2d173cb5ba25397e",
   "accepted": [
     "async-child-busy-contract\tapps/site/src/islands/admin/ImageManager.tsx:5",
     "form-degradation\tapps/site/src/components/ProjectForm.astro:42",
@@ -19,7 +19,7 @@
     "skip-policy\ttests/e2e/mutation.spec.ts:18",
     "skip-policy\ttests/e2e/mutation.spec.ts:27",
     "skip-policy\ttests/e2e/oem-upload.spec.ts:66",
-    "skip-policy\ttests/e2e/public.spec.ts:1772",
+    "skip-policy\ttests/e2e/public.spec.ts:1775",
     "trust-boundary-decoding\tapps/site/src/islands/shop/api.ts:58",
     "trust-boundary-decoding\tapps/site/src/islands/shop/api.ts:69",
     "trust-boundary-decoding\tapps/site/src/islands/shop/inquiryCart.ts:23",
