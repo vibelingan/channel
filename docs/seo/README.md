@@ -7,7 +7,7 @@ This directory is the source of truth for the current SEO/GEO sequence.
 Only SEO/GEO technical work is active:
 
 1. Keep the deployed `/headphones/` canonical trailing-slash contract green.
-2. Deliver and keep the locally implemented Open Graph / Twitter Card default and per-page override
+2. Keep the deployed Open Graph / Twitter Card default and per-page override
   contract green.
 3. Keep public-page title, description, canonical, H1, and index intent within the audited contract.
 4. Add page-specific structured data only where visible fields support it.
@@ -26,8 +26,14 @@ Read [CURRENT_EXECUTION.md](CURRENT_EXECUTION.md) first, then use
   - MIU-04B-1 through MIU-04B-5 homepage process, factory, team, quality, certificate, and client
     image dimensions.
   - Metadata/image MIUs through MIU-04B-5.
-- Implemented locally, pending delivery:
+- Deployed and verified on the sole current CloudBase environment (`test`):
   - Phase 2 Open Graph / Twitter Card metadata and reviewed 1200×630 default image.
+  - Four public pages expose complete, unique metadata; six noindex pages expose no social tags.
+  - The production-visible image URL returns `200 image/png` with the reviewed bytes.
+- Pending main promotion:
+  - Independent review and merge of `feat/seo-phase-2-main-delivery` into the authoritative `main`
+    branch. The promotion branch is based on `main` and contains the two reviewed Phase 2
+    implementation commits plus one promotion-status documentation commit.
 - Verified locally on 2026-08-14 (re-run the commands below before merge):
   - Site tests: 135 passed, 0 failed.
   - Full workspace TypeScript/Astro checks: 0 errors; E2E TypeScript passed.
@@ -39,8 +45,9 @@ Read [CURRENT_EXECUTION.md](CURRENT_EXECUTION.md) first, then use
 
 ## Next action
 
-Review, merge, deploy, and verify Phase 2 social cards in production. Mark Phase 2 complete only
-after production pages and the image URL pass the recorded checks.
+Independently review the Phase 2 promotion pull request and merge it into `main` when approved.
+The sole deployed environment has already passed CI, CloudBase smoke, public E2E, direct page-tag
+checks, and social-image HTTP verification.
 Page-specific structured data remains a separate follow-up that must use visible, owned facts.
 
 Sitemap `lastmod` is blocked on a trustworthy content-update field and owner; the current content
