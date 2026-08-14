@@ -327,7 +327,12 @@ test('callback exchanges the code, encrypts tokens, activates the connection, re
   assert.equal(redirect.location, 'https://site.example/admin?alibaba=connected');
 
   assert.equal(log.length, 1, 'exactly one token exchange');
-  assert.ok(log[0]?.url.endsWith('/auth/token/create'));
+  // TOP: one router URL, the operation in the signed body.
+  assert.equal(log[0]?.url, 'https://eco.taobao.com/router/rest');
+  assert.equal(
+    new URLSearchParams(log[0]?.body ?? '').get('method'),
+    'taobao.top.auth.token.create',
+  );
   const sentParams = new URLSearchParams(log[0]?.body ?? '');
   assert.equal(sentParams.get('code'), 'auth-code-1');
   assert.equal(sentParams.get('app_key'), '511630');
@@ -555,7 +560,11 @@ test('access token refreshes lazily near expiry and expires the connection on fa
   if (!refreshRuntime.ok) return;
   const rotated = await getConnectionAccessToken(refreshRuntime.runtime.deps);
   assert.deepEqual(rotated, { ok: true, accessToken: 'rotated-access-token' });
-  assert.ok(log[log.length - 1]?.url.endsWith('/auth/token/refresh'));
+  assert.equal(log[log.length - 1]?.url, 'https://eco.taobao.com/router/rest');
+  assert.equal(
+    new URLSearchParams(log[log.length - 1]?.body ?? '').get('method'),
+    'taobao.top.auth.token.refresh',
+  );
   const connection = currentStore.alibabaConnections?.[0];
   const payload = decryptTokenPayload(TOKEN_KEY, connection?.tokenEnvelope);
   assert.equal(payload?.accessToken, 'rotated-access-token');
@@ -962,4 +971,90 @@ test('a refresh TRANSPORT outage is retryable — never authorization_expired', 
   if (!recoveredRuntime.ok) return;
   const recovered = await getConnectionAccessToken(recoveredRuntime.runtime.deps);
   assert.deepEqual(recovered, { ok: true, accessToken: 'recovered-access-token' });
+});
+
+// --- TOP token wrappers -------------------------------------------------------
+
+test('a real TOP grant is parsed through the double wrapper', async () => {
+  // TOP nests twice: the method response object, then `token_result` which is
+  // itself a JSON STRING. Treating it as an object yields no grant at all.
+  setup();
+  alerts.length = 0;
+  const token = await adminToken();
+  const log: FetchLogEntry[] = [];
+  const topFetch = fakeAlibabaFetch(log, {
+    top_auth_token_create_response: {
+      token_result: JSON.stringify({
+        access_token: 'top-access',
+        refresh_token: 'top-refresh',
+        expires_in: 36_000,
+        refresh_token_timeout: 5_184_000,
+        taobao_user_nick: 'channel-seller',
+      }),
+    },
+  });
+  const state = await startAndExtractState(token, topFetch);
+  const redirect = await handleOAuthCallbackRequest(
+    { code: 'c', state },
+    baseConfig,
+    {},
+    overrides(topFetch),
+  );
+  assert.ok(redirect.location.endsWith('alibaba=connected'), 'the TOP grant is accepted');
+
+  const connection = currentStore.alibabaConnections?.[0] as CollectionDoc;
+  assert.equal(connection.status, 'active');
+  assert.equal(connection.accountLabel, 'channel-seller', 'taobao_user_nick becomes the label');
+  const payload = decryptTokenPayload(TOKEN_KEY, connection.tokenEnvelope);
+  assert.equal(payload?.accessToken, 'top-access');
+  assert.equal(payload?.refreshToken, 'top-refresh');
+  // The raw token must never be stored outside the envelope.
+  assert.ok(!JSON.stringify(connection).includes('top-access'));
+});
+
+test('an absolute expire_time wins over a relative duration', async () => {
+  setup();
+  const token = await adminToken();
+  const log: FetchLogEntry[] = [];
+  const absolute = Date.parse('2026-09-01T00:00:00.000Z');
+  const topFetch = fakeAlibabaFetch(log, {
+    top_auth_token_create_response: {
+      token_result: JSON.stringify({
+        access_token: 'abs-access',
+        refresh_token: 'abs-refresh',
+        expires_in: 60,
+        expire_time: absolute,
+        refresh_token_valid_time: Date.parse('2026-10-01T00:00:00.000Z'),
+      }),
+    },
+  });
+  const state = await startAndExtractState(token, topFetch);
+  await handleOAuthCallbackRequest({ code: 'c', state }, baseConfig, {}, overrides(topFetch));
+  const connection = currentStore.alibabaConnections?.[0] as CollectionDoc;
+  assert.equal(connection.accessTokenExpiresAt, new Date(absolute).toISOString());
+  assert.equal(connection.refreshTokenExpiresAt, '2026-10-01T00:00:00.000Z');
+});
+
+test('a TOP error_response is never mistaken for a grant', async () => {
+  setup();
+  alerts.length = 0;
+  const token = await adminToken();
+  const log: FetchLogEntry[] = [];
+  const errorFetch = fakeAlibabaFetch(log, {
+    error_response: {
+      code: 15,
+      msg: 'Remote service error',
+      sub_code: 'isv.invalid-parameter',
+      request_id: 'abc123',
+    },
+  });
+  const state = await startAndExtractState(token, errorFetch);
+  const redirect = await handleOAuthCallbackRequest(
+    { code: 'c', state },
+    baseConfig,
+    {},
+    overrides(errorFetch),
+  );
+  assert.ok(redirect.location.includes('error-exchange-failed'), 'refused, not connected');
+  assert.equal(currentStore.alibabaConnections?.length ?? 0, 0, 'no connection row is written');
 });

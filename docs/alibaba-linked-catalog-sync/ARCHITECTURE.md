@@ -563,6 +563,52 @@ exactly this purpose) and deploy. `scripts/function-manifest.test.mjs` pins the
 current manual-only state, so that test failing is the intended signal that
 someone changed this deliberately — update it, do not delete it.
 
+### §8.3 Amendment — ICBU runs on TOP; the post-callback protocol was wrong
+
+**Supersedes every GOP statement in §8.2 and the endpoint defaults.** Recorded
+2026-08-14.
+
+Alibaba.com ICBU is built ON the Taobao Open Platform. The browser
+authorization page is ICBU's own (`oauth.alibaba.com/authorize` with
+`sp=icbu`), but **everything after the callback is TOP**:
+
+| Concern | Was (GOP) | Is (TOP) |
+|---|---|---|
+| Gateway | `openapi-api.alibaba.com/rest` + API path | `eco.taobao.com/router/rest`, ONE url |
+| Operation | path segment | signed `method` parameter |
+| Token exchange | `/auth/token/create` | `taobao.top.auth.token.create` |
+| Credential | `access_token` | `session` |
+| Signature | HMAC-SHA256 over path+params | HMAC-MD5 over params, no path |
+| Timestamp | epoch milliseconds | `yyyy-MM-dd HH:mm:ss` in **GMT+8** |
+
+The tell was in the API names all along: `alibaba.icbu.product.list` and
+`.get` are TOP METHOD names. GOP would have exposed them as REST paths. The
+original implementation adopted the GOP family by convention while the
+documented methods were TOP, and marked the endpoints ASSUMED-UNVERIFIED
+rather than stopping — which the original gate said should have halted
+implementation.
+
+**This does NOT fix `param-appkey.not.exists`.** That failure happens in the
+browser before any callback, so no post-callback protocol change can affect
+it. The two are independent:
+
+```text
+pre-callback   ICBU OAuth client registration / seller-account binding  -> Alibaba
+post-callback  TOP protocol implementation                              -> this amendment
+```
+
+Correcting an earlier claim in this document: the uppercase-to-lowercase `sp`
+change was **not** the root-cause fix. Lowercase `sp=icbu` is the documented
+form and should stay, but the authenticated merchant still receives
+`param-appkey.not.exists` with it. Any comment implying the casing resolved
+the incident is wrong.
+
+Absolute expiries (`expire_time`, `refresh_token_valid_time`) are preferred
+over relative durations when TOP sends both — an instant cannot drift the way
+a mis-anchored duration does. The `token_result` wrapper is a JSON STRING
+inside JSON, and an `error_response` envelope is refused rather than mined for
+a grant.
+
 ### §10.1 Amendment — `runNow` executes a bounded slice inline
 
 **Supersedes the "marks the run due and returns" clause in §10** (recorded

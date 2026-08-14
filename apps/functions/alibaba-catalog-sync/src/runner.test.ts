@@ -237,13 +237,21 @@ interface FakeItem {
 /** Signed-client-compatible fetch backed by a synthetic catalog. */
 function fakeBackend(items: () => FakeItem[]): { fetchImpl: typeof fetch; calls: string[] } {
   const calls: string[] = [];
-  const fetchImpl = (async (url: unknown, init?: RequestInit) => {
-    const path = new URL(String(url)).pathname;
+  const fetchImpl = (async (_url: unknown, init?: RequestInit) => {
+    // TOP sends EVERY call to the same router URL, so the fake must route on
+    // the signed `method` parameter — routing on the path would match nothing
+    // and silently answer every call with the fallback.
     const params = new URLSearchParams(String(init?.body ?? ''));
-    calls.push(path);
-    if (path.endsWith('/product/list')) {
-      const from = Date.parse(params.get('gmt_modified_from') ?? '1970-01-01');
-      const to = Date.parse(params.get('gmt_modified_to') ?? '2100-01-01');
+    const method = params.get('method') ?? '';
+    calls.push(method);
+    if (method === 'alibaba.icbu.product.list') {
+      // Bounds arrive as GMT+8 'yyyy-MM-dd HH:mm:ss'; convert back to UTC ms.
+      const fromTop = (value: string | null, fallback: number): number => {
+        if (!value) return fallback;
+        return Date.parse(`${value.replace(' ', 'T')}+08:00`);
+      };
+      const from = fromTop(params.get('gmt_modified_from'), 0);
+      const to = fromTop(params.get('gmt_modified_to'), Date.parse('2100-01-01T00:00:00Z'));
       const inWindow = items().filter(
         (item) => !item.removed && item.modifiedMs >= from && item.modifiedMs <= to,
       );
@@ -258,7 +266,7 @@ function fakeBackend(items: () => FakeItem[]): { fetchImpl: typeof fetch; calls:
         { status: 200 },
       );
     }
-    if (path.endsWith('/product/get')) {
+    if (method === 'alibaba.icbu.product.get') {
       const id = params.get('product_id') ?? '';
       const item = items().find((candidate) => candidate.id === id);
       if (!item || item.removed) {
@@ -744,7 +752,7 @@ test('full run: a vanished item is CONFIRMED before tombstoning and demotes its 
   assert.equal(gone?.active, false, 'tombstoned only after detail confirmation');
   assert.ok(typeof gone?.tombstonedAt === 'string' && gone.tombstonedAt !== '');
   assert.ok(
-    backend.calls.filter((path) => path.endsWith('/product/get')).length >= 2,
+    backend.calls.filter((method) => method === 'alibaba.icbu.product.get').length >= 2,
     'confirmation fetch happened',
   );
   const product = store.products?.[0] as CollectionDoc;

@@ -25,17 +25,24 @@ export interface AlibabaEndpoints {
 }
 
 export const DEFAULT_ALIBABA_ENDPOINTS: AlibabaEndpoints = {
-  // CONFIRMED from the official seller-authorization docs (2026-08-06): the
-  // Alibaba.com (ICBU) authorize page is oauth.alibaba.com/authorize with
-  // sp=icbu — LOWERCASE, corrected 2026-08-07 after the live gateway answered
-  // `param-appkey.not.exists` to the uppercase variant (see ARCHITECTURE §8
-  // amendment). The /rest gateway host below matches the GOP family convention
-  // but remains ASSUMED-UNVERIFIED until the MIU 15 live smoke — hence the
-  // env override.
+  // Alibaba.com ICBU runs ON TOP of the Taobao Open Platform. That single fact
+  // decides every value here:
+  //
+  //   - the BROWSER authorization page is ICBU's own host with `sp=icbu`
+  //     (lowercase — the uppercase variant was answered `param-appkey.not.exists`
+  //     by the live gateway on 2026-08-07);
+  //   - everything AFTER the callback is TOP: one router endpoint, dotted
+  //     method names as signed parameters, HMAC-MD5, `session` for the token.
+  //
+  // The previous GOP values (`openapi-api.alibaba.com/rest` with
+  // `/auth/token/*` paths and HMAC-SHA256) were never reachable for this
+  // application: the documented product APIs are `alibaba.icbu.product.list`
+  // and `.get`, which are TOP method NAMES, not REST paths. See ARCHITECTURE
+  // §8.3.
   authorizeBaseUrl: 'https://oauth.alibaba.com/authorize',
-  apiBaseUrl: 'https://openapi-api.alibaba.com/rest',
-  tokenCreatePath: '/auth/token/create',
-  tokenRefreshPath: '/auth/token/refresh',
+  apiBaseUrl: 'https://eco.taobao.com/router/rest',
+  tokenCreatePath: 'taobao.top.auth.token.create',
+  tokenRefreshPath: 'taobao.top.auth.token.refresh',
 };
 
 export type EndpointResolution =
@@ -51,8 +58,13 @@ function validOverride(name: string, raw: string): string | undefined {
   }
   if (url.protocol !== 'https:') return `${name} must use https`;
   const host = url.hostname;
-  if (host !== 'alibaba.com' && !host.endsWith('.alibaba.com')) {
-    return `${name} must point at an *.alibaba.com host`;
+  // TOP's router lives on taobao.com, so the allowlist must cover BOTH families
+  // — while still refusing an arbitrary host, so a mis-set variable can never
+  // redirect signed requests (and the session token) to a third party.
+  const allowed = ['alibaba.com', 'taobao.com'];
+  const ok = allowed.some((domain) => host === domain || host.endsWith(`.${domain}`));
+  if (!ok) {
+    return `${name} must point at an *.alibaba.com or *.taobao.com host`;
   }
   return undefined;
 }
