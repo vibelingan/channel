@@ -7,7 +7,8 @@ This directory is the source of truth for the current SEO/GEO sequence.
 Only SEO/GEO technical work is active:
 
 1. Keep the deployed `/headphones/` canonical trailing-slash contract green.
-2. Let the concurrent Open Graph / Twitter Card MIU finish without touching its shared layout files.
+2. Deliver and keep the locally implemented Open Graph / Twitter Card default and per-page override
+  contract green.
 3. Keep public-page title, description, canonical, H1, and index intent within the audited contract.
 4. Add page-specific structured data only where visible fields support it.
 5. Add trustworthy sitemap `lastmod`, image alt/dimensions, Search Console, and Bing validation.
@@ -24,13 +25,13 @@ Read [CURRENT_EXECUTION.md](CURRENT_EXECUTION.md) first, then use
   - MIU-04A OEM factory video poster intrinsic dimensions.
   - MIU-04B-1 through MIU-04B-5 homepage process, factory, team, quality, certificate, and client
     image dimensions.
-- In progress elsewhere:
-  - Open Graph / Twitter Card metadata (concurrent agent; shared layout is off-limits here). No
-    corresponding remote branch or landed commit was visible after the 2026-08-13 fetch.
-- Verified locally on 2026-08-13 (re-run the commands below before merge):
-  - Site tests: 132 passed, 0 failed.
+  - Metadata/image MIUs through MIU-04B-5.
+- Implemented locally, pending delivery:
+  - Phase 2 Open Graph / Twitter Card metadata and reviewed 1200×630 default image.
+- Verified locally on 2026-08-14 (re-run the commands below before merge):
+  - Site tests: 135 passed, 0 failed.
   - Full workspace TypeScript/Astro checks: 0 errors; E2E TypeScript passed.
-  - Biome: 280 files passed.
+  - Biome: 279 files passed.
   - Production-origin build: public metadata contracts are green; all images across the ten built
     routes have alt text and numeric intrinsic dimensions.
   - Homepage assembly: all 44 process, factory, team, quality, certificate, and client images emit
@@ -38,9 +39,9 @@ Read [CURRENT_EXECUTION.md](CURRENT_EXECUTION.md) first, then use
 
 ## Next action
 
-Deliver the reviewed `feat/seo-phase-3-metadata` checkpoints to `test`. After the concurrent
-OG/Twitter MIU lands, rebase before starting page-specific structured data so the next MIU designs
-against the merged layout contract.
+Review, merge, deploy, and verify Phase 2 social cards in production. Mark Phase 2 complete only
+after production pages and the image URL pass the recorded checks.
+Page-specific structured data remains a separate follow-up that must use visible, owned facts.
 
 Sitemap `lastmod` is blocked on a trustworthy content-update field and owner; the current content
 model exposes neither. Search Console and Bing submission are blocked on external webmaster access.
@@ -84,6 +85,6 @@ Deferred business materials are intentionally not part of this SEO branch commit
 This branch contains MIU-03, MIU-04A, and MIU-04B-1 through MIU-04B-5. The image series adds
 measured dimensions and executable source/rendering contracts without changing image bytes, paths,
 alt copy, layout classes, visible text, navigation, or URL topology. It does not modify
-`BaseLayout`, OG/Twitter, or Schema implementation. The existing `WebPage` JSON-LD reads each
-page's title and description, so its rendered `name` / `description` values follow the MIU-03
-metadata changes.
+Schema implementation. Phase 2 changes `BaseLayout` only to add public-only OG/Twitter tags and a
+typed social-image override. The existing `WebPage` JSON-LD reads each page's title and description,
+so its rendered `name` / `description` values follow the MIU-03 metadata changes.
