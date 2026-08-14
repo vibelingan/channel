@@ -4,13 +4,13 @@
 
 ## Delivery preflight
 
-- Branch: `feat/seo-phase-3-metadata`
-- Original MIU implementation range: `origin/test..677564f`, audited on 2026-08-13.
-- Final delivery range: `origin/test..HEAD`; it includes the tracked delivery record and PR review
-	hardening documented below.
+- Historical metadata/image delivery: PR #15, squash commit `c2061a1` on `test`.
+- Current branch: `feat/seo-phase-2-social-cards`, based on `origin/test@c2061a1`.
+- Current Phase 2 range: uncommitted social-card MIU; review, commit, merge, deploy, and production
+	verification remain pending.
 - Included checkpoints: MIU-03, MIU-04A, and MIU-04B-1 through MIU-04B-5
-- Result: all included checkpoints are implemented and locally validated; no blocker prevents delivery to
-	`test`.
+- Result before this MIU: metadata/image checkpoints are delivered. Phase 2 social cards are implemented
+	locally and remain pending review, commit, merge, deploy, and production verification.
 
 ## 顺序
 
@@ -19,9 +19,11 @@
 3. ✅ MIU-04A 与 MIU-04B-1 至 MIU-04B-5 已完成图片 intrinsic dimensions：生产构建中
 	process、factory、team、quality、certificates、client logos 共 44 张业务图片全部输出真实
 	`width` / `height`；全站 10 条构建 route 的所有 `<img>` 均有 alt 与 numeric dimensions。
-4. 🔄 OG / Twitter Card 仍由并发 Agent 实施；截至 2026-08-13 最新远端 refs 未见其分支或落地
-	commit，本分支未修改共享 `BaseLayout`。
-5. ⏭ OG/Twitter 合并后 rebase，再按当前真实内容添加 BreadcrumbList、Article、Product Schema。
+4. 🔄 Phase 2 OG / Twitter Card 已本地实现：四个公开页输出完整标签，复用现有 title、
+	description、canonical，并使用获批的 1200×630 生产线实拍图；六个 noindex 页面不输出
+	社交标签。待 review、merge、deploy 与生产验证后才标记完成。
+5. ⏭ 后续按当前真实内容添加 BreadcrumbList、Article、Product Schema；这些不是 Phase 2
+	完成条件。
 6. ⏸ sitemap `lastmod` 等待可靠的内容更新时间字段与 owner；当前代码无该数据源，不编造日期。
 7. ⏸ Google Search Console 与 Bing 需要站长账户权限；获权后提交 `sitemap-index.xml` 并记录
 	收录、查询与 Core Web Vitals 基线。
@@ -29,11 +31,13 @@
 
 ## 当前验证
 
-- Site tests：132 passed，0 failed。
+- Site tests：135 passed，0 failed。
 - Workspace TypeScript / Astro：0 errors；E2E TypeScript passed。
-- Biome：280 files passed。
+- Biome：279 files passed。
 - Production-origin build：10 pages built；全站 `<img>` 缺 alt/width/height 数量为 0。
 - MIU-04B assembly：44/44 业务图片输出实测 numeric dimensions。
+- Phase 2 social cards（本地生产构建）：4/4 公开页完整且唯一；6/6 noindex 页无
+	OG/Twitter；默认图 1200×630 PNG，绝对 HTTPS URL。生产站仍待部署验证。
 
 ## Per-MIU execution record
 
@@ -157,6 +161,24 @@
 - Registry extraction compares property sets, and map extraction follows TypeScript AST semantics, so
 	harmless property reordering or callback-parameter renaming does not fail the contract.
 
+### Phase 2: Open Graph and Twitter Cards
+
+- **What:** Added public-only Open Graph and Twitter Card tags to `BaseLayout`, including image MIME,
+	dimensions, alt text, secure URL, locale, and `summary_large_image`.
+- **Image:** Production-line photo supplied in the current user message, already 1200×630; preserved as
+	truecolor PNG without cropping, text overlay, or branding changes. The repository contract pins the
+	shipped asset; the transient chat-cache source hash is only a session work record.
+- **Selection:** The gate photo naming Bohung Industry was rejected as a default because it conflicts
+	with the site's public entity. Two other factory photos remain unused because one truthful default
+	image is sufficient and page-specific claims/images were not approved.
+- **Contract:** Public pages reuse the actual page title/description/canonical. `socialImage` provides a
+	typed future override without forcing unrelated images onto Headphones or Portfolio.
+- **Validation completed:** Source AST test, real PNG metadata, production-origin build,
+	four-public-page HTML contract, six-noindex-page exclusion, site tests, workspace typechecks,
+	Biome, and local browser preview.
+- **Validation pending:** CI, deploy, production social tags, production image HTTP response, and
+	platform card/debugger probes.
+
 ## Deviations
 
 - **MIU-04B-3 renderer verification:** The initial MIU-04B testing approach used source regexes for
@@ -174,9 +196,7 @@ line-number shift.
 
 ## Remaining blockers
 
-- **Current delivery:** none.
-- **OG/Twitter:** owned by a concurrent agent; no corresponding remote branch or landed commit was
-	visible after the 2026-08-13 fetch. This branch intentionally does not modify `BaseLayout`.
+- **Current delivery:** Phase 2 social cards await review, merge, deployment, and production probes.
 - **Sitemap `lastmod`:** blocked on a trustworthy content-update field and owner; the current content
 	model exposes neither.
 - **Search Console and Bing:** blocked on external webmaster-account access.
