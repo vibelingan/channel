@@ -1,0 +1,115 @@
+import { strict as assert } from 'node:assert';
+import test from 'node:test';
+import {
+  type DeploymentCompensations,
+  type EngineCapabilities,
+  assertEngineUsable,
+  describeEngineRefusals,
+} from './capabilities.ts';
+
+/**
+ * A capability set with every guarantee present, and a deployment with no
+ * compensating control configured. Each test below removes exactly one thing,
+ * so a failure names the rule that broke rather than "something is off".
+ */
+function fullCapabilities(overrides: Partial<EngineCapabilities> = {}): EngineCapabilities {
+  return {
+    engineId: 'fake',
+    engineVersion: '0.0.0-test',
+    supportsIdempotentCreate: true,
+    supportsRunLookupByOperationId: true,
+    supportsStop: true,
+    supportsCitations: true,
+    ...overrides,
+  };
+}
+
+function deployment(overrides: Partial<DeploymentCompensations> = {}): DeploymentCompensations {
+  return {
+    operationIdMappingLayerConfigured: false,
+    unrecordedHandleRecoveryConfigured: false,
+    answerPolicyRequiresCitations: true,
+    knowledgeSourceConfigured: true,
+    ...overrides,
+  };
+}
+
+test('a fully capable engine with a configured knowledge source is usable', () => {
+  assert.doesNotThrow(() => assertEngineUsable(fullCapabilities(), deployment()));
+  assert.deepEqual(describeEngineRefusals(fullCapabilities(), deployment()), []);
+});
+
+test('refuses when the engine cannot stop a run — cancellation is not optional', () => {
+  const caps = fullCapabilities({ supportsStop: false });
+  assert.throws(() => assertEngineUsable(caps, deployment()), /supportsStop/);
+  assert.equal(describeEngineRefusals(caps, deployment()).length, 1);
+});
+
+test('refuses non-idempotent create when no mapping layer compensates for it', () => {
+  const caps = fullCapabilities({ supportsIdempotentCreate: false });
+  assert.throws(() => assertEngineUsable(caps, deployment()), /mapping layer/);
+});
+
+test('accepts non-idempotent create once the mapping layer is configured', () => {
+  const caps = fullCapabilities({ supportsIdempotentCreate: false });
+  assert.doesNotThrow(() =>
+    assertEngineUsable(caps, deployment({ operationIdMappingLayerConfigured: true })),
+  );
+});
+
+test('refuses when an unrecorded run handle could never be recovered or stopped', () => {
+  const caps = fullCapabilities({ supportsRunLookupByOperationId: false });
+  assert.throws(() => assertEngineUsable(caps, deployment()), /recover/i);
+});
+
+test('accepts no lookup capability when another recovery route is configured', () => {
+  const caps = fullCapabilities({ supportsRunLookupByOperationId: false });
+  assert.doesNotThrow(() =>
+    assertEngineUsable(caps, deployment({ unrecordedHandleRecoveryConfigured: true })),
+  );
+});
+
+test('refuses missing citation support only while the policy requires citations', () => {
+  const caps = fullCapabilities({ supportsCitations: false });
+  assert.throws(() => assertEngineUsable(caps, deployment()), /citation/i);
+  assert.doesNotThrow(() =>
+    assertEngineUsable(caps, deployment({ answerPolicyRequiresCitations: false })),
+  );
+});
+
+test('refuses an unconfigured knowledge source — absent is not the same as unreachable', () => {
+  // The repo precedent this guards against: the public catalog treats a missing
+  // JWT_SECRET as "anonymous viewer" and serves on. The same shape here would
+  // yield an assistant with no retrieval answering from the model's own memory.
+  const refusals = describeEngineRefusals(
+    fullCapabilities(),
+    deployment({ knowledgeSourceConfigured: false }),
+  );
+  assert.equal(refusals.length, 1);
+  assert.match(refusals[0] ?? '', /knowledge source/i);
+});
+
+test('reports every independent refusal at once, not just the first', () => {
+  const caps = fullCapabilities({
+    supportsStop: false,
+    supportsCitations: false,
+    supportsIdempotentCreate: false,
+  });
+  const refusals = describeEngineRefusals(caps, deployment({ knowledgeSourceConfigured: false }));
+  // Operators fixing a misconfiguration should see all of it in one pass rather
+  // than rediscovering the next problem on each restart.
+  assert.equal(refusals.length, 4);
+});
+
+test('the thrown error names every reason, so a restart loop is diagnosable', () => {
+  const caps = fullCapabilities({ supportsStop: false, supportsCitations: false });
+  assert.throws(
+    () => assertEngineUsable(caps, deployment()),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /supportsStop/);
+      assert.match(error.message, /citation/i);
+      return true;
+    },
+  );
+});
