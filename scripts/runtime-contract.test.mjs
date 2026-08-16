@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { test } from 'node:test';
 import ts from 'typescript';
@@ -10,8 +10,34 @@ const buildFloor = '22.12.0';
 const functionRequire = createRequire(
   new URL('../apps/functions/admin/package.json', import.meta.url),
 );
+const rootRequire = createRequire(new URL('../package.json', import.meta.url));
 const { require: tsxRequire } = functionRequire('tsx/cjs/api');
 const rootPackage = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+
+function collectPackageFiles(directory) {
+  const packageFile = new URL('package.json', directory);
+  if (existsSync(packageFile)) return [packageFile];
+
+  return readdirSync(directory, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) => collectPackageFiles(new URL(`${entry.name}/`, directory)));
+}
+
+function collectSourceFiles(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    if (entry.name === 'dist' || entry.name === 'node_modules') return [];
+    const entryUrl = new URL(entry.isDirectory() ? `${entry.name}/` : entry.name, directory);
+    if (entry.isDirectory()) return collectSourceFiles(entryUrl);
+    return /\.(?:astro|cjs|js|jsx|mjs|ts|tsx)$/.test(entry.name) ? [entryUrl] : [];
+  });
+}
+
+const productionPackageFiles = ['apps', 'packages'].flatMap((workspaceDirectory) =>
+  collectPackageFiles(new URL(`../${workspaceDirectory}/`, import.meta.url)),
+);
+const productionSourceFiles = ['apps', 'packages'].flatMap((workspaceDirectory) =>
+  collectSourceFiles(new URL(`../${workspaceDirectory}/`, import.meta.url)),
+);
 const buildWorkflows = [
   [
     'CI',
@@ -27,11 +53,19 @@ const buildWorkflows = [
 const ciJob = buildWorkflows[0][1].jobs?.checks;
 const deployJob = buildWorkflows[1][1].jobs?.deploy;
 const deploySource = readFileSync(new URL('./deploy-cloudbase-test.mjs', import.meta.url), 'utf8');
+const packageSource = readFileSync(new URL('./package-functions.mjs', import.meta.url), 'utf8');
 const smokeSource = readFileSync(new URL('./smoke-cloudbase-deploy.mjs', import.meta.url), 'utf8');
 const functionBuildConfigs = FUNCTION_NAMES.map((name) => [
   name,
   tsxRequire(`../apps/functions/${name}/tsup.config.ts`, import.meta.url).default,
 ]);
+const packageTree = ts.createSourceFile(
+  'package-functions.mjs',
+  packageSource,
+  ts.ScriptTarget.Latest,
+  true,
+  ts.ScriptKind.JS,
+);
 const scriptTrees = [
   [
     'deploy',
@@ -121,6 +155,70 @@ function assertRuntimeComparison(tree, objectName, label) {
   });
   assert.equal(matches.length, 1, label);
 }
+
+test('Ajv 2020 is root-only validation tooling', () => {
+  assert.equal(rootPackage.devDependencies?.ajv, '8.20.0');
+  assert.equal(typeof rootRequire('ajv/dist/2020'), 'function');
+
+  for (const packageFile of productionPackageFiles) {
+    const packageJson = JSON.parse(readFileSync(packageFile, 'utf8'));
+    for (const dependencyType of ['dependencies', 'devDependencies']) {
+      assert.equal(
+        packageJson[dependencyType]?.ajv,
+        undefined,
+        `${packageJson.name} must not declare Ajv in ${dependencyType}`,
+      );
+    }
+  }
+
+  const ajvImport = /(?:from\s*|import\s*\(\s*|import\s+|require\(\s*)['"]ajv(?:\/[^'"]*)?['"]/;
+  for (const sourceFile of productionSourceFiles) {
+    assert.doesNotMatch(
+      readFileSync(sourceFile, 'utf8'),
+      ajvImport,
+      `${sourceFile.pathname} must not import root-only Ajv tooling`,
+    );
+  }
+
+  const artifactDependencies = collectNodes(
+    packageTree,
+    (node) => ts.isPropertyAssignment(node) && node.name.getText(packageTree) === 'dependencies',
+  );
+  assert.equal(artifactDependencies.length, 1, 'function packaging must define dependencies once');
+  assert.ok(ts.isObjectLiteralExpression(artifactDependencies[0].initializer));
+  assert.equal(
+    artifactDependencies[0].initializer.properties.length,
+    0,
+    'function artifact manifests must not include root development dependencies',
+  );
+
+  for (const name of FUNCTION_NAMES) {
+    const artifactPackageFile = new URL(
+      `../.cloudbase-artifacts/functions/${name}/package.json`,
+      import.meta.url,
+    );
+    if (existsSync(artifactPackageFile)) {
+      const artifactPackage = JSON.parse(readFileSync(artifactPackageFile, 'utf8'));
+      assert.equal(
+        artifactPackage.dependencies?.ajv,
+        undefined,
+        `${name} artifact must not ship the root Ajv development dependency`,
+      );
+    }
+
+    const artifactBundleFile = new URL(
+      `../.cloudbase-artifacts/functions/${name}/index.js`,
+      import.meta.url,
+    );
+    if (existsSync(artifactBundleFile)) {
+      assert.doesNotMatch(
+        readFileSync(artifactBundleFile, 'utf8'),
+        /\bajv\b|ajv\/dist\/2020|json-schema\.org\/draft\/2020-12/i,
+        `${name} artifact bundle must not contain Ajv runtime code`,
+      );
+    }
+  }
+});
 
 test('site build engine and workflow Node versions satisfy the Astro build floor', () => {
   assert.equal(rootPackage.engines?.node, `>=${buildFloor}`);
