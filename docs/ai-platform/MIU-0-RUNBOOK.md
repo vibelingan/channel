@@ -11,29 +11,52 @@ only if you want to.
 
 ## The five things
 
-### 1. A database — this one blocks nearly everything
+### 1. A database — and there is a fork here, decided 2026-08-16
 
-**What to get:** a PostgreSQL database in whichever environment will really
-serve customers.
-**Where:** the Tencent CloudBase console (it offers PostgreSQL), or a managed
-database alongside wherever you decide the assistant runs.
-**What to send me:** the connection details (host, port, database name, user,
-password).
+**Do NOT buy anything for this until you have read the fork below.**
 
-**Why it matters more than the rest:** the feature where a salesperson takes
-over a chat and the AI instantly stops depends on the database behaving in one
-specific way under pressure. Most databases do. Some — and some cloud wrappers
-around them — do not. If this one does not, roughly four fifths of the plan has
-to be redesigned.
+CloudBase offers PostgreSQL, but two facts from Tencent's own documentation rule
+out the obvious route:
 
-**How long to check:** about 30 seconds. I wrote a script that answers PASS or
-FAIL, and I have already proved it gives the right answer on both a good
-database and a deliberately broken one.
+1. *"PG mode is selected when creating a new CloudBase environment with
+   PostgreSQL."*
+2. *"Legacy environments cannot be upgraded in place to PG mode."*
 
-**A local database is not enough.** I already ran it against one on this
-machine and it passed. That tells us the *design* is sound, not that *your*
-environment supports it — and pooling and configuration defaults are exactly
-what tend to differ. This is the one thing I cannot do for you.
+Your current environment is the NoSQL kind. It cannot be converted. So the
+"just switch on PostgreSQL" option does not exist.
+
+Worse, every documented way to reach CloudBase PostgreSQL is over the web —
+their `app.rdb()` SDK, their management tools, or a REST interface. There is no
+ordinary database connection. That matters because the salesperson-takeover
+feature needs several commands to run as one indivisible unit, and a REST
+interface cannot express that. It would have to be rewritten as functions
+stored inside the database — a real redesign of the most safety-critical part
+of the system, and one nobody has costed.
+
+**Option A — a second CloudBase environment, in PostgreSQL mode**
+- A new environment (your existing one keeps running untouched).
+- The handover logic must be rewritten as in-database functions.
+- My checking script cannot connect at all, so the risk stays unmeasured
+  until much later.
+
+**Option B — a normal Tencent Cloud PostgreSQL database, plus CloudRun — RECOMMENDED**
+- 云数据库 PostgreSQL is a separate Tencent product from CloudBase. It gives you
+  an ordinary database connection.
+- The design works exactly as written. No redesign.
+- My checking script runs against it unchanged, so you get a PASS/FAIL in
+  seconds rather than a guess.
+- Your existing CloudBase environment is untouched.
+- Costs money — it is a proper managed database, not a free tier.
+
+Buy page: https://buy.cloud.tencent.com/price/pgsql (pick the smallest instance;
+this is a pilot, not production traffic).
+
+**What to send me once it exists:** host, port, database name, user, password.
+
+**Why this fork was foreseeable:** ADR-001 already recorded that CloudBase's
+PostgreSQL SDK exposes no full transaction API, and that the server would
+therefore need either a direct database connection or in-database functions —
+"具体路径必须在目标环境 live-verify". This is that verification, done.
 
 ### 2. A place to run the assistant's own server
 
