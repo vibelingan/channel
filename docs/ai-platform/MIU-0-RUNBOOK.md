@@ -1,12 +1,123 @@
-# MIU 0 — Evidence Runbook
+# MIU 0 — What has to exist before the AI assistant can be built
 
-**Purpose:** replace every "not yet proven" line in the architecture with a
-recorded observation. No runtime code changes.
-**Blocks:** 14 of 17 units. Nothing in M2 (store, state machine, workers) may
-start until P0 below returns PASS.
-**Output:** `docs/ai-platform/MIU-0-EVIDENCE.md` — every item below with a date,
-the exact command run, and the actual output. An item nobody can reproduce from
-that file is not evidence.
+**Short version: five things do not exist yet. Four of them you have to go and
+get — an account, a server, or a signed agreement. Nobody can write the code
+until they exist.**
+
+This page is the shopping list. The technical steps are further down; read them
+only if you want to.
+
+---
+
+## The five things
+
+### 1. A database — this one blocks nearly everything
+
+**What to get:** a PostgreSQL database in whichever environment will really
+serve customers.
+**Where:** the Tencent CloudBase console (it offers PostgreSQL), or a managed
+database alongside wherever you decide the assistant runs.
+**What to send me:** the connection details (host, port, database name, user,
+password).
+
+**Why it matters more than the rest:** the feature where a salesperson takes
+over a chat and the AI instantly stops depends on the database behaving in one
+specific way under pressure. Most databases do. Some — and some cloud wrappers
+around them — do not. If this one does not, roughly four fifths of the plan has
+to be redesigned.
+
+**How long to check:** about 30 seconds. I wrote a script that answers PASS or
+FAIL, and I have already proved it gives the right answer on both a good
+database and a deliberately broken one.
+
+**A local database is not enough.** I already ran it against one on this
+machine and it passed. That tells us the *design* is sound, not that *your*
+environment supports it — and pooling and configuration defaults are exactly
+what tend to differ. This is the one thing I cannot do for you.
+
+### 2. A place to run the assistant's own server
+
+**What to get:** somewhere that can run a long-lived container — CloudRun, or
+the CloudBase equivalent.
+**Why:** the assistant needs a small server of its own, separate from your
+existing website functions. It holds the conversation, decides what the AI is
+allowed to say, and manages the handover to a salesperson.
+**What to send me:** which service, and which region.
+
+### 3. A brand-new Lexiang (腾讯乐享) knowledge space
+
+**What to get:** a **separate, new** space in Lexiang, containing only material
+you would be happy for any stranger on the internet to read. Plus a token for
+it that can read that space and nothing else.
+**Where:** the Lexiang console.
+
+**This is not your existing space, and not a folder inside it.** It has to be
+genuinely separate, because the whole safety of this feature rests on it. A
+stranger typing into the chat box causes a search against your company
+knowledge. If that search can reach internal material — supplier contracts,
+costs, customer projects — it eventually will.
+
+**What to send me:** the space identifier, the read-only token, and the id of
+one *internal* document so I can prove the token cannot open it.
+
+### 4. A running Hermes server with a fixed version
+
+**What to get:** Hermes deployed somewhere I can reach, pinned to one exact
+version (not "latest").
+**Why pinned:** Hermes ships new abilities frequently. Some of them — running
+commands, reading files, browsing — would be dangerous on a service an
+anonymous visitor can talk to. We check the exact list once and freeze it.
+**What to send me:** the URL, an API key, and the version.
+
+**Note:** your original prototype ran Hermes locally. That proved the idea
+works; it is not a server customers can use.
+
+### 5. A model provider account, with the paperwork done
+
+**What to get:** an account with whichever model provider you choose (DeepSeek
+was used in the prototype), a monthly spending cap, and the data-processing
+terms agreed by whoever handles legal for you.
+**Why the paperwork:** visitor messages will be sent to this provider. Someone
+has to have agreed to that in writing before it happens.
+
+---
+
+## Things only a person can decide
+
+No test settles these, and the work stalls on them just as hard as on a missing
+account. Each needs a name against it.
+
+| Decision | Who decides |
+|---|---|
+| Where salespeople actually work the chat queue | Sales lead |
+| Which channel notifies them of a waiting customer | Sales lead |
+| Monthly spending cap for the AI | You |
+| Which languages the assistant supports (site is English-only today) | You |
+| The list of questions and answers it is allowed to use | You |
+| Consent wording, and how long chat transcripts are kept | You + legal |
+| Which country the data is stored in | You + legal |
+
+---
+
+## Where things stand right now
+
+| | Status |
+|---|---|
+| The engine boundary (MIU 1) | **Built, tested, pushed.** 43 tests pass |
+| The database check | **Script written and proven** — waiting on your database to point it at |
+| Everything else | **Not started**, and cannot start until the five things above exist |
+
+Nothing above is a code problem. It is all accounts, servers, and decisions.
+
+---
+
+## What I would do first, if it were me
+
+Get item 1, the database. It is the only one that can invalidate the design, so
+finding out early is worth more than anything else on the list. Send me a
+connection string and you will have an answer the same day.
+
+---
 
 ---
 
