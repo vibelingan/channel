@@ -14,8 +14,6 @@ nav:
   items:
     - { label: Headphones, href: '/headphones' }
     - { label: Success Stories, href: '/portfolio' }
-    - { label: Teardown Lab, href: '/teardown-lab' }
-    - { label: Blue Ocean, href: '/blue-ocean' }
     - { label: OEM Development, href: '/oem#what-we-do' }
     - { label: Sign In, href: '/login', emphasis: true }
 
@@ -204,8 +202,6 @@ footer:
       links:
         - { label: Headphones, href: '/headphones' }
         - { label: Success Stories, href: '/portfolio' }
-        - { label: Teardown Lab, href: '/teardown-lab' }
-        - { label: Blue Ocean Products, href: '/blue-ocean' }
         - { label: OEM Development, href: '/oem' }
     - heading: Account
       links:
@@ -214,8 +210,8 @@ footer:
         - { label: Admin Portal, href: '/admin' }
     - heading: Contact Us
       links:
-        - { label: 'Email: hello@diversity-tech.com', href: 'mailto:hello@diversity-tech.com' }
-        - { label: 'Phone: +852 0000 0000', href: '#' }
+        - { label: 'Email: info@supplychainsai.com', href: 'mailto:info@supplychainsai.com' }
+        - { label: 'Phone: +852 6941 6140', href: 'tel:+85269416140' }
         - { label: 'Hong Kong · Dongguan, China', href: '#' }
   legal: © 2004–2026 Diversity Technology Limited. All rights reserved.
   filingNumber: 粤ICP备2026092477号-1

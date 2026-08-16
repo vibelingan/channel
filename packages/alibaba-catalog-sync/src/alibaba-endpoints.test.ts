@@ -69,10 +69,21 @@ test('buildAuthorizeUrl carries the ICBU OAuth params and encodes the redirect',
     parsed.searchParams.get('redirect_uri'),
     'https://env-id.service.tcloudbase.com/api/alibaba-catalog-sync/oauth/callback',
   );
-  // Both state casings ride the request (the official example sends State=,
-  // the callback returns state=); the platform selector pins Alibaba.com.
+  // Minimal official ICBU parameter set (2026-08-07 live correction):
+  // lowercase state only (the callback still accepts an echoed `State`),
+  // lowercase sp=icbu, and no force_auth.
   assert.equal(parsed.searchParams.get('state'), 'abc123');
-  assert.equal(parsed.searchParams.get('State'), 'abc123');
-  assert.equal(parsed.searchParams.get('sp'), 'ICBU');
+  assert.equal(parsed.searchParams.get('State'), null);
+  assert.equal(parsed.searchParams.get('force_auth'), null);
+  assert.equal(parsed.searchParams.get('sp'), 'icbu');
   assert.equal(parsed.searchParams.get('view'), 'web');
+  // Exactly the documented parameter set, nothing else.
+  assert.deepEqual([...parsed.searchParams.keys()].sort(), [
+    'client_id',
+    'redirect_uri',
+    'response_type',
+    'sp',
+    'state',
+    'view',
+  ]);
 });

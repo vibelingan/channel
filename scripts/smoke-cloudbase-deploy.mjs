@@ -156,8 +156,9 @@ for (const path of ['/', '/admin', '/login', '/oem', '/portfolio']) {
 
 // The overstock storefront was retired in the OEM refresh. Static hosting upload
 // is additive, so deployWebApp() prunes it; assert it stays gone. A 200 here
-// means a stale page resurfaced and the prune regressed.
-for (const path of ['/overstock']) {
+// means a stale page resurfaced and the prune regressed. Teardown Lab and Blue
+// Ocean joined the prune list when they were temporarily hidden (2026-08).
+for (const path of ['/overstock', '/teardown-lab', '/blue-ocean']) {
   await expectHttp('GET', `${siteUrl}${path}`, 404);
 }
 

@@ -2,7 +2,6 @@ import { Buffer } from 'node:buffer';
 import { type Browser, type Page, expect, test } from '@playwright/test';
 import type { CatalogPage } from '../../apps/site/src/islands/shop/catalog-types.ts';
 import type { SessionUser } from '../../packages/shared/src/auth.ts';
-import { teardownBomSource } from '../fixtures/teardown-bom-source.ts';
 import { e2e } from './helpers/env';
 
 const cardTypographyCatalog = {
@@ -105,7 +104,9 @@ function expectDesktopHeaderContained(
   expect(geometry.brand?.right).toBeLessThanOrEqual(geometry.nav?.left ?? 0);
   expect(geometry.nav?.right).toBeLessThanOrEqual(geometry.account?.left ?? 0);
   expect(geometry.noHorizontalOverflow).toBe(true);
-  expect(geometry.visibleLinks).toHaveLength(5);
+  // Primary nav currently has 3 visible links (OEM Development, Headphones,
+  // Success Stories) — Teardown Lab and Blue Ocean are temporarily hidden.
+  expect(geometry.visibleLinks).toHaveLength(3);
   const contentLeft = (geometry.layout?.left ?? 0) + (geometry.layoutPadding?.left ?? 0);
   const contentRight = (geometry.layout?.right ?? 0) - (geometry.layoutPadding?.right ?? 0);
   for (const region of [geometry.brand, geometry.nav, geometry.account]) {
@@ -421,14 +422,13 @@ test.describe('public browser smoke', () => {
     await toggle.click();
     await expect(disclosure).toHaveAttribute('open', '');
     await expect(mobileMenu).toBeVisible();
-    for (const label of [
-      'OEM Development',
-      'Headphones',
-      'Success Stories',
-      'Teardown Lab',
-      'Blue Ocean',
-    ]) {
+    for (const label of ['OEM Development', 'Headphones', 'Success Stories']) {
       await expect(mobileMenu.getByRole('link', { name: label, exact: true })).toBeVisible();
+    }
+    // Teardown Lab and Blue Ocean are temporarily hidden (un-routed, 2026-08):
+    // they must not appear in any nav.
+    for (const label of ['Teardown Lab', 'Blue Ocean']) {
+      await expect(mobileMenu.getByRole('link', { name: label, exact: true })).toHaveCount(0);
     }
     await expect(mobileMenu.getByRole('link', { name: 'Headphones', exact: true })).toHaveAttribute(
       'href',
@@ -1525,7 +1525,10 @@ test.describe('public browser smoke', () => {
       expectDesktopHeaderContained(await readHeaderGeometry(signedInPage));
       await desktopAccountTrigger.focus();
       await signedInPage.evaluate(() => {
-        document.documentElement.style.fontSize = '125%';
+        // 3 nav links (Teardown/Blue Ocean hidden) leave more headroom than the
+        // original 5-link header did — 150% font is what reliably overflows the
+        // measured desktop lane now.
+        document.documentElement.style.fontSize = '150%';
         window.dispatchEvent(new Event('resize'));
       });
       await expect(signedInPage.locator('[data-site-header]')).toHaveAttribute(
@@ -1892,196 +1895,6 @@ test.describe('public browser smoke', () => {
     await expect(dialog).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
-  });
-
-  test('OEM Phase 8 removes Teardown listing stats and retains reports', async ({
-    page,
-    request,
-  }) => {
-    const viewports = [
-      { width: 390, height: 844, columns: 1 },
-      { width: 768, height: 1024, columns: 2 },
-      { width: 1024, height: 900, columns: 3 },
-      { width: 1440, height: 1000, columns: 3 },
-    ];
-
-    for (const viewport of viewports) {
-      await page.setViewportSize(viewport);
-      await page.goto(`/teardown-lab?phase8=${e2e.runId}`, {
-        waitUntil: 'domcontentloaded',
-      });
-
-      await expect(page.getByText('Teardown Reports', { exact: true })).toHaveCount(0);
-      await expect(page.getByText('Avg. Hardware Margin', { exact: true })).toHaveCount(0);
-      await expect(page.getByText('Years Supply Chain Data', { exact: true })).toHaveCount(0);
-
-      const cardsHeading = page.getByRole('heading', { name: "What's inside the lab" });
-      const cardsSection = page.locator('main > section').filter({ has: cardsHeading });
-      await cardsSection.scrollIntoViewIfNeeded();
-      await expect(cardsHeading).toBeVisible();
-      expect(
-        await cardsSection.evaluate((section) =>
-          section.previousElementSibling?.querySelector('h1')?.textContent?.trim(),
-        ),
-      ).toBe('Teardown Lab');
-
-      const cards = cardsSection.locator('a[href^="/teardown-lab/"]');
-      await expect(cards).toHaveCount(3);
-      expect(
-        await cards.evaluateAll(
-          (elements) =>
-            new Set(elements.map((element) => Math.round(element.getBoundingClientRect().left)))
-              .size,
-        ),
-      ).toBe(viewport.columns);
-      expect(
-        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-      ).toBe(true);
-    }
-
-    const detailPaths = await page
-      .locator('a[href^="/teardown-lab/"]')
-      .evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).pathname));
-    expect([...detailPaths].sort()).toEqual([
-      '/teardown-lab/clicbot-modular-robot',
-      '/teardown-lab/lofree-flow-2-keyboard',
-      '/teardown-lab/oladance-ows-pro',
-    ]);
-    await expect(page.getByText('Our Methodology', { exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Start an OEM project' })).toHaveAttribute(
-      'href',
-      '/#oem-inquiry',
-    );
-
-    for (const detailPath of detailPaths) {
-      const response = await request.get(detailPath);
-      expect(response.status(), detailPath).toBe(200);
-      const html = await response.text();
-      for (const retained of ['BOM Cost Breakdown', 'Est. Margin', 'MOQ', 'Start an OEM project']) {
-        expect(html, `${detailPath} retains ${retained}`).toContain(retained);
-      }
-      expect(html).toContain('href="/teardown-lab"');
-      expect(html).toContain('href="/#oem-inquiry"');
-
-      await page.goto(`${detailPath}?phase8=${e2e.runId}`, { waitUntil: 'domcontentloaded' });
-      const source = teardownBomSource.find(({ slug }) => detailPath.endsWith(`/${slug}`));
-      expect(source, `${detailPath} has a reviewed source fixture`).toBeDefined();
-      const expectedRows = source?.rows
-        .slice(0, -1)
-        .map(({ category, description, cost }) => [category, description, `$${cost.toFixed(2)}`]);
-      const renderedRows = await page
-        .locator('#bom tbody tr')
-        .evaluateAll((rows) =>
-          rows.map((row) =>
-            Array.from(row.querySelectorAll('th, td'), (cell) => cell.textContent?.trim() ?? ''),
-          ),
-        );
-      expect(renderedRows, `${detailPath} renders every reviewed BOM row`).toEqual(expectedRows);
-      const expectedTotal = source?.rows.at(-1);
-      await expect(page.locator('#bom tfoot tr')).toHaveText(
-        `${expectedTotal?.category} ${expectedTotal?.description} $${expectedTotal?.cost.toFixed(2)}`,
-      );
-    }
-
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`/teardown-lab/clicbot-modular-robot?phase8=${e2e.runId}`, {
-      waitUntil: 'domcontentloaded',
-    });
-    const bomTableScroller = page.locator('#bom .overflow-x-auto');
-    await expect(
-      page.getByRole('rowheader', { name: 'Electromechanical Drive & Distributed Control' }),
-    ).toBeAttached();
-    expect(
-      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-    ).toBe(true);
-    expect(
-      await bomTableScroller.evaluate((element) => element.scrollWidth > element.clientWidth),
-    ).toBe(true);
-  });
-
-  test('OEM Phase 8 removes Blue Ocean listing stats and retains concepts', async ({
-    page,
-    request,
-  }) => {
-    const viewports = [
-      { width: 390, height: 844, columns: 1 },
-      { width: 768, height: 1024, columns: 2 },
-      { width: 1024, height: 900, columns: 3 },
-      { width: 1440, height: 1000, columns: 3 },
-    ];
-
-    for (const viewport of viewports) {
-      await page.setViewportSize(viewport);
-      await page.goto(`/blue-ocean?phase8=${e2e.runId}`, {
-        waitUntil: 'domcontentloaded',
-      });
-
-      await expect(page.getByText('Concept Products', { exact: true })).toHaveCount(0);
-      await expect(page.getByText('Avg. Gross Margin', { exact: true })).toHaveCount(0);
-      await expect(page.getByText('Starting MOQ', { exact: true })).toHaveCount(0);
-
-      const cardsHeading = page.getByRole('heading', {
-        name: "Products the market hasn't built yet",
-      });
-      const cardsSection = page.locator('main > section').filter({ has: cardsHeading });
-      await cardsSection.scrollIntoViewIfNeeded();
-      await expect(cardsHeading).toBeVisible();
-      expect(
-        await cardsSection.evaluate((section) =>
-          section.previousElementSibling?.querySelector('h1')?.textContent?.trim(),
-        ),
-      ).toBe('Blue Ocean Products');
-
-      const cards = cardsSection.locator('a[href^="/blue-ocean/"]');
-      await expect(cards).toHaveCount(3);
-      expect(
-        await cards.evaluateAll(
-          (elements) =>
-            new Set(elements.map((element) => Math.round(element.getBoundingClientRect().left)))
-              .size,
-        ),
-      ).toBe(viewport.columns);
-      expect(
-        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-      ).toBe(true);
-    }
-
-    const cardsHeading = page.getByRole('heading', {
-      name: "Products the market hasn't built yet",
-    });
-    const cardsSection = page.locator('main > section').filter({ has: cardsHeading });
-    const detailPaths = await cardsSection
-      .locator('a[href^="/blue-ocean/"]')
-      .evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).pathname));
-    expect([...detailPaths].sort()).toEqual([
-      '/blue-ocean/aerosense-ai-sports-headband',
-      '/blue-ocean/lumicogni-desktop-ai-hologram',
-      '/blue-ocean/somniflow-ai-sleep-pods',
-    ]);
-    for (const detailPath of detailPaths) {
-      const response = await request.get(detailPath);
-      expect(response.status(), detailPath).toBe(200);
-      const html = await response.text();
-      for (const retained of [
-        'BOM Cost Breakdown',
-        'Est. Margin',
-        'MOQ',
-        'White-label',
-        'Exclusive Buyout',
-        'Co-Development (JDM)',
-        'Start an OEM project',
-      ]) {
-        expect(html, `${detailPath} retains ${retained}`).toContain(retained);
-      }
-      expect(html).toContain('href="/blue-ocean"');
-      expect(html).toContain('href="/#oem-inquiry"');
-    }
-
-    await expect(page.getByText('Three Ways to Partner', { exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Start an OEM project' })).toHaveAttribute(
-      'href',
-      '/#oem-inquiry',
-    );
   });
 
   test('OEM Phase 8 renders approved active OEM claims without submitting', async ({ page }) => {
