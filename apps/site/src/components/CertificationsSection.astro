@@ -13,20 +13,49 @@ const { certs } = Astro.props;
 
 // Real compliance certificate scans (client-supplied).
 const complianceCerts = [
-  { name: 'CE', img: '/media/oem/certs/ce.jpg', description: 'European conformity' },
-  { name: 'EMC', img: '/media/oem/certs/emc.jpg', description: 'Electromagnetic compatibility' },
-  { name: 'FCC', img: '/media/oem/certs/fcc.jpg', description: 'U.S. FCC compliance' },
-  { name: 'JD', img: '/media/oem/certs/jd.jpg', description: 'Retail channel quality' },
+  {
+    name: 'CE',
+    img: '/media/oem/certs/ce.jpg',
+    description: 'European conformity',
+    width: 706,
+    height: 1000,
+  },
+  {
+    name: 'EMC',
+    img: '/media/oem/certs/emc.jpg',
+    description: 'Electromagnetic compatibility',
+    width: 707,
+    height: 1000,
+  },
+  {
+    name: 'FCC',
+    img: '/media/oem/certs/fcc.jpg',
+    description: 'U.S. FCC compliance',
+    width: 706,
+    height: 1000,
+  },
+  {
+    name: 'JD',
+    img: '/media/oem/certs/jd.jpg',
+    description: 'Retail channel quality',
+    width: 772,
+    height: 1000,
+  },
 ];
 
 // Real client brand logos.
 const clientLogos = [
-  { name: 'Artcoustic', img: '/media/oem/clients/artcoustic.png' },
-  { name: 'Audio Diversity', img: '/media/oem/clients/audio-diversity.png' },
-  { name: 'CoreMee', img: '/media/oem/clients/coremee.png' },
-  { name: 'DI', img: '/media/oem/clients/di.png' },
-  { name: 'pabobo', img: '/media/oem/clients/pabobo.jpg' },
-  { name: 'AS', img: '/media/oem/clients/as.png' },
+  { name: 'Artcoustic', img: '/media/oem/clients/artcoustic.png', width: 400, height: 65 },
+  {
+    name: 'Audio Diversity',
+    img: '/media/oem/clients/audio-diversity.png',
+    width: 400,
+    height: 124,
+  },
+  { name: 'CoreMee', img: '/media/oem/clients/coremee.png', width: 400, height: 87 },
+  { name: 'DI', img: '/media/oem/clients/di.png', width: 400, height: 120 },
+  { name: 'pabobo', img: '/media/oem/clients/pabobo.jpg', width: 400, height: 400 },
+  { name: 'AS', img: '/media/oem/clients/as.png', width: 400, height: 400 },
 ];
 ---
 
@@ -55,6 +84,8 @@ const clientLogos = [
             <img
               src={cert.img}
               alt={`${cert.name} certification`}
+              width={cert.width}
+              height={cert.height}
               loading="lazy"
               class="h-40 w-full rounded-md bg-white object-contain ring-1 ring-black/5"
             />
@@ -78,6 +109,8 @@ const clientLogos = [
             <img
               src={client.img}
               alt={`${client.name} logo`}
+              width={client.width}
+              height={client.height}
               loading="lazy"
               class="max-h-12 w-auto max-w-full object-contain opacity-80 transition hover:opacity-100"
             />

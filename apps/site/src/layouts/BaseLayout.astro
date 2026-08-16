@@ -1,13 +1,30 @@
 ---
 import '../styles/global.css';
 
+interface SocialImage {
+  path: string;
+  alt: string;
+  width: number;
+  height: number;
+  mimeType: 'image/png' | 'image/jpeg' | 'image/webp';
+}
+
 interface Props {
   title: string;
   description?: string;
   lang?: string;
   canonicalPath?: string;
   noindex?: boolean;
+  socialImage?: SocialImage;
 }
+
+const defaultSocialImage: SocialImage = {
+  path: '/media/social/oem-manufacturing-og.png',
+  alt: 'OEM product assembly and packing line at the Dongguan production facility',
+  width: 1200,
+  height: 630,
+  mimeType: 'image/png',
+};
 
 const {
   title,
@@ -15,12 +32,14 @@ const {
   lang = 'en',
   canonicalPath,
   noindex = false,
+  socialImage = defaultSocialImage,
 } = Astro.props;
 
 // Every public page self-canonicalizes by default; pass canonicalPath to override
 // (e.g. /portfolio/ is the canonical home of the old /success-stories content).
 const siteOrigin = Astro.site ?? Astro.url.origin;
 const canonicalUrl = new URL(canonicalPath ?? Astro.url.pathname, siteOrigin);
+const socialImageUrl = new URL(socialImage.path, siteOrigin);
 
 const homeUrl = new URL('/', siteOrigin).href;
 const orgId = `${homeUrl}#organization`;
@@ -105,6 +124,29 @@ const schemaGraph = {
     <meta name="description" content={description} />
     {noindex && <meta name="robots" content="noindex, nofollow" />}
     <link rel="canonical" href={canonicalUrl} />
+    {
+      !noindex && (
+        <>
+          <meta property="og:type" content="website" />
+          <meta property="og:site_name" content="Diversity Technology" />
+          <meta property="og:title" content={title} />
+          <meta property="og:description" content={description} />
+          <meta property="og:url" content={canonicalUrl.href} />
+          <meta property="og:image" content={socialImageUrl.href} />
+          <meta property="og:image:secure_url" content={socialImageUrl.href} />
+          <meta property="og:image:type" content={socialImage.mimeType} />
+          <meta property="og:image:width" content={String(socialImage.width)} />
+          <meta property="og:image:height" content={String(socialImage.height)} />
+          <meta property="og:image:alt" content={socialImage.alt} />
+          <meta property="og:locale" content="en_US" />
+          <meta name="twitter:card" content="summary_large_image" />
+          <meta name="twitter:title" content={title} />
+          <meta name="twitter:description" content={description} />
+          <meta name="twitter:image" content={socialImageUrl.href} />
+          <meta name="twitter:image:alt" content={socialImage.alt} />
+        </>
+      )
+    }
     {!noindex && <script type="application/ld+json" set:html={JSON.stringify(schemaGraph)} />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="mask-icon" href="/favicon.svg" color="#153687" />
