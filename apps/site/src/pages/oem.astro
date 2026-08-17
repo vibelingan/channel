@@ -1,115 +1,69 @@
 ---
-import CardGrid from '../components/CardGrid.astro';
-import MediaVideo from '../components/MediaVideo.astro';
-import PageHero from '../components/PageHero.astro';
-import ProcessTimeline from '../components/ProcessTimeline.astro';
-import ProjectForm from '../components/ProjectForm.astro';
-import ReasonList from '../components/ReasonList.astro';
-import Section from '../components/Section.astro';
+import AIHero from '../components/AIHero.astro';
+import CTASection from '../components/CTASection.astro';
+import CertificationsSection from '../components/CertificationsSection.astro';
+import FactorySection from '../components/FactorySection.astro';
+import OemProcessSection from '../components/OemProcessSection.astro';
+import OurTeamSection from '../components/OurTeamSection.astro';
+import QualityTestingSection from '../components/QualityTestingSection.astro';
 import ServiceGridSection from '../components/ServiceGridSection.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
+import WhyChooseUsSection from '../components/WhyChooseUsSection.astro';
 import { getOemContent } from '../i18n/oem.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
 import BaseLayout from '../layouts/BaseLayout.astro';
 
 const site = getSiteContent(DEFAULT_LOCALE);
-const oem = getOemContent(DEFAULT_LOCALE);
-const { brand, nav, footer } = site;
-const { meta, hero, capabilities, process, whyUs, submit, factoryVideo } = oem;
+const { meta, submit, factoryVideo } = getOemContent(DEFAULT_LOCALE);
+const {
+  brand,
+  nav,
+  hero: siteHero,
+  services,
+  oemProcess,
+  factory,
+  ourPeople,
+  whyChooseUs,
+  quality,
+  certifications,
+  ctaSection,
+  footer,
+} = site;
+
+// OEM-local hero reuses the homepage narrative; only the deep links point
+// back into this page (the shared content object is never mutated).
+const hero = {
+  ...siteHero,
+  primaryCta: { ...siteHero.primaryCta, href: '#submit' },
+  secondaryCta: { ...siteHero.secondaryCta, href: '#factory' },
+};
+
+// /oem must carry its own checked-in factory video/poster pair — a silent
+// fallback to the homepage media would erase the OEM-specific factory footage.
+if (!factoryVideo) {
+  throw new Error(
+    'OEM content is missing factoryVideo. /oem requires the checked-in ' +
+      '/media/oem-factory.mp4 + /media/factory-oem.webp pair (see content/oem/en-US.md).',
+  );
+}
+const factoryMedia = { ...factoryVideo, label: factoryVideo.caption };
 ---
 
 <BaseLayout title={`${meta.title} — ${brand.name}`} description={meta.description} lang="en">
   <SiteHeader brand={brand} nav={nav} />
 
   <main>
-    <PageHero
-      eyebrow={hero.eyebrow}
-      heading={hero.heading}
-      subheading={hero.subheading}
-      primaryCta={hero.primaryCta}
-      secondaryCta={hero.secondaryCta}
-    />
-
-    <!-- Section 1: shared Traditional-versus-AI What We Do comparison -->
-    <ServiceGridSection services={site.services} sectionId="what-we-do" />
-
-    <!-- Section 2: Our Development Capability -->
-    <Section
-      id={capabilities.id}
-      eyebrow={capabilities.eyebrow}
-      heading={capabilities.heading}
-      intro={capabilities.intro}
-      tone="alt"
-    >
-      <CardGrid items={capabilities.items} columns={3} />
-      <p class="reveal mx-auto mt-10 max-w-3xl text-center text-base leading-relaxed text-ink-soft">
-        {capabilities.note}
-      </p>
-      {
-        factoryVideo && (
-          <div class="reveal mx-auto mt-14 max-w-3xl">
-            <MediaVideo
-              src={factoryVideo.src}
-              poster={factoryVideo.poster}
-              posterWidth={factoryVideo.posterWidth}
-              posterHeight={factoryVideo.posterHeight}
-              caption={factoryVideo.caption}
-              label="Diversity Innovations production facility"
-            />
-          </div>
-        )
-      }
-    </Section>
-
-    <!-- Section 3: OEM Development Process -->
-    <Section
-      id={process.id}
-      eyebrow={process.eyebrow}
-      heading={process.heading}
-      intro={process.intro}
-      tone="surface"
-    >
-      <ProcessTimeline steps={process.steps} />
-    </Section>
-
-    <!-- Section 4: Why Choose Us -->
-    <Section
-      id={whyUs.id}
-      eyebrow={whyUs.eyebrow}
-      heading={whyUs.heading}
-      intro={whyUs.intro}
-      tone="alt"
-    >
-      <ReasonList reasons={whyUs.reasons} />
-    </Section>
-
-    <!-- Section 5: Submit Your Project -->
-    <Section
-      id={submit.id}
-      eyebrow={submit.eyebrow}
-      heading={submit.heading}
-      intro={submit.intro}
-      tone="surface"
-    >
-      <div class="mx-auto max-w-3xl">
-        <ProjectForm
-          fields={submit.fields}
-          submitLabel={submit.submitLabel}
-          disclaimer={submit.disclaimer}
-          successTitle={submit.successTitle}
-          successBody={submit.successBody}
-          action="/api/admin"
-          resultPath="/oem_submit_result"
-        />
-      </div>
-    </Section>
+    <AIHero hero={hero} />
+    <ServiceGridSection services={services} sectionId="what-we-do" />
+    <OemProcessSection process={oemProcess} sectionId="process" />
+    <FactorySection factory={factory} media={factoryMedia} />
+    <OurTeamSection people={ourPeople} />
+    <WhyChooseUsSection why={whyChooseUs} />
+    <QualityTestingSection quality={quality} />
+    <CertificationsSection certs={certifications} />
+    <CTASection cta={ctaSection} submit={submit} sectionId="submit" />
   </main>
 
   <SiteFooter brand={brand} footer={footer} />
-
-  <script is:inline>
-    const initialFragmentTarget = document.getElementById(window.location.hash.slice(1));
-    initialFragmentTarget?.scrollIntoView();
-  </script>
 </BaseLayout>

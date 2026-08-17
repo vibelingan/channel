@@ -315,22 +315,51 @@ test('FactorySection accepts an optional OEM media override while keeping homepa
   assert.ok(!homepageSource.includes('media={'));
 });
 
-test('OEM page reuses the shared What We Do section and retains the execution process', () => {
+test('OEM page recomposes the homepage narrative via the nine shared sections', () => {
+  // MIU 4: /oem reuses the homepage section sequence in the required order,
+  // with only OEM-local deep-link and media exceptions.
+  const requiredOrder = [
+    '<AIHero hero={hero} />',
+    '<ServiceGridSection services={services} sectionId="what-we-do" />',
+    '<OemProcessSection process={oemProcess} sectionId="process" />',
+    '<FactorySection factory={factory} media={factoryMedia} />',
+    '<OurTeamSection people={ourPeople} />',
+    '<WhyChooseUsSection why={whyChooseUs} />',
+    '<QualityTestingSection quality={quality} />',
+    '<CertificationsSection certs={certifications} />',
+    '<CTASection cta={ctaSection} submit={submit} sectionId="submit" />',
+  ];
+  let lastIndex = -1;
+  for (const needle of requiredOrder) {
+    const index = oemPageSource.indexOf(needle);
+    assert.ok(index > lastIndex, `OEM sections render in the required order: ${needle}`);
+    lastIndex = index;
+  }
+
+  // Legacy OEM composition and its inline fragment script are gone.
+  for (const legacy of [
+    'PageHero',
+    'CardGrid',
+    'ProcessTimeline',
+    'ReasonList',
+    'MediaVideo',
+    'ProjectForm',
+    "import Section from '../components/Section.astro'",
+  ]) {
+    assert.ok(!oemPageSource.includes(legacy), `legacy composition removed: ${legacy}`);
+  }
+  assert.ok(!oemPageSource.includes('<script is:inline>'));
+  assert.ok(!oemPageSource.includes('window.location.hash'));
+
+  // Shared narrative comes from site content; OEM reads only meta/submit/factoryVideo.
   assert.ok(
-    oemPageSource.includes(
-      "import ServiceGridSection from '../components/ServiceGridSection.astro'",
-    ),
+    oemPageSource.includes('const { meta, submit, factoryVideo } = getOemContent(DEFAULT_LOCALE)'),
   );
-  assert.ok(
-    oemPageSource.includes('<ServiceGridSection services={site.services} sectionId="what-we-do"'),
-  );
-  assert.ok(!oemPageSource.includes('id={oneStop.id}'));
-  assert.ok(oemPageSource.includes('<ProcessTimeline steps={process.steps} />'));
-  assert.ok(oemPageSource.includes('<script is:inline>'));
-  assert.ok(
-    oemPageSource.includes('document.getElementById(window.location.hash.slice(1))'),
-    'initial fragment navigation does not wait for media load',
-  );
+  assert.ok(oemPageSource.includes("primaryCta: { ...siteHero.primaryCta, href: '#submit' }"));
+  assert.ok(oemPageSource.includes("secondaryCta: { ...siteHero.secondaryCta, href: '#factory' }"));
+  assert.ok(oemPageSource.includes('label: factoryVideo.caption'));
+  // Missing factory media is a build-time error, not a silent homepage fallback.
+  assert.ok(oemPageSource.includes('throw new Error('));
 });
 
 test('Factory and Our People use the exact confirmed client copy', () => {
@@ -652,5 +681,5 @@ test('OEM content uses the approved experience and shared response-time claims',
     'shared ProjectForm success copy uses the PPT-approved response time',
   );
   assert.doesNotMatch(normalizedOemContent, /15\+|business day/i);
-  assert.ok(oemPageSource.includes('successBody={submit.successBody}'));
+  assert.ok(oemPageSource.includes('<CTASection cta={ctaSection} submit={submit} sectionId="submit" />'));
 });
