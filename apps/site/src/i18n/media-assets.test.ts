@@ -162,11 +162,27 @@ const assertMappedImageRenderer = async (
   };
   visit(ast);
 
-  assert.equal(images.length, expectedImageTemplates, 'component renders expected image templates');
-  const mappedImages = images.map((image) => {
-    assert.ok(image.expression, 'gallery image is rendered by a collection expression');
-    return { ...image, map: extractMapContext(image.expression) };
+  // Only registry-backed images (rendered by a `.map()` expression) are bound
+  // by this contract. Static images outside a collection — e.g. the optional
+  // FactorySection poster fallback inside <video> — carry their own literal
+  // attributes and are intentionally out of scope.
+  const isMapBacked = (image: (typeof images)[number]) => {
+    if (!image.expression) return false;
+    try {
+      extractMapContext(image.expression);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const mappedImages = images.filter(isMapBacked).map((image) => {
+    return { ...image, map: extractMapContext(image.expression as ExpressionNode) };
   });
+  assert.equal(
+    mappedImages.length,
+    expectedImageTemplates,
+    'component renders expected image templates',
+  );
   const matchingImages = mappedImages.filter(
     ({ map }) => map.registryExpression === registryExpression,
   );

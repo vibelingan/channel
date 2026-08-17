@@ -47,46 +47,6 @@ export interface OemContent {
     title: string;
     description: string;
   };
-  hero: {
-    eyebrow: string;
-    heading: string;
-    subheading: string;
-    primaryCta: { label: string; href: string };
-    secondaryCta: { label: string; href: string };
-  };
-  oneStop: {
-    id: string;
-    eyebrow: string;
-    heading: string;
-    intro: string;
-    servicesTitle: string;
-    services: IconCard[];
-    workflowTitle: string;
-    workflowIntro: string;
-    workflow: WorkflowStep[];
-  };
-  capabilities: {
-    id: string;
-    eyebrow: string;
-    heading: string;
-    intro: string;
-    items: IconCard[];
-    note: string;
-  };
-  process: {
-    id: string;
-    eyebrow: string;
-    heading: string;
-    intro: string;
-    steps: ProcessStep[];
-  };
-  whyUs: {
-    id: string;
-    eyebrow: string;
-    heading: string;
-    intro: string;
-    reasons: Reason[];
-  };
   submit: {
     id: string;
     eyebrow: string;
@@ -99,12 +59,12 @@ export interface OemContent {
     successBody: string;
   };
   /**
-   * Optional factory media block. The factory VIDEO (MIU 7) is deferred until
-   * the client's HD clip is available: with `src: ''` the `poster` facility
-   * photo renders on its own. Setting `src` to a storage/CDN URL upgrades it to
-   * an inline video with no code change (see MediaVideo).
+   * Required factory media block. /oem renders this checked-in video/poster
+   * pair through FactorySection's media override, and the recomposed page
+   * throws a build error if this content is missing — there is no silent
+   * fallback to the homepage media.
    */
-  factoryVideo?: {
+  factoryVideo: {
     src: string;
     poster: string;
     /** Intrinsic pixel dimensions of `poster`, to reserve layout space (avoid CLS). */

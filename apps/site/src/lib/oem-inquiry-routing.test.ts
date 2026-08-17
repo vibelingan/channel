@@ -16,6 +16,10 @@ const oemContent = readFileSync(
   fileURLToPath(new URL('../i18n/content/oem/en-US.md', import.meta.url)),
   'utf8',
 );
+const oemPageSource = readFileSync(
+  fileURLToPath(new URL('../pages/oem.astro', import.meta.url)),
+  'utf8',
+);
 const resultPage = readFileSync(
   fileURLToPath(new URL('../pages/oem_submit_result.astro', import.meta.url)),
   'utf8',
@@ -54,7 +58,9 @@ test('canonical OEM inquiry links target the homepage form without changing navi
 
   assert.ok(siteContent.includes("href: '/oem#what-we-do'"));
   assert.ok(siteContent.includes("- { label: OEM Development, href: '/oem' }"));
-  assert.ok(oemContent.includes("primaryCta: { label: Submit your project, href: '#submit' }"));
+  // The OEM hero deep link is now owned by the recomposed page (MIU 4), not by
+  // a removed hero block in OEM content.
+  assert.ok(oemPageSource.includes("primaryCta: { ...siteHero.primaryCta, href: '#submit' }"));
 });
 
 test('OEM submission result uses the approved response-time claim and keeps its routing', () => {
