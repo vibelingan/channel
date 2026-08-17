@@ -406,7 +406,10 @@ test.describe('public browser smoke', () => {
       'src',
       '/media/oem-factory.mp4',
     );
-    await expect(factorySection.locator('video')).toHaveAttribute('poster', '/media/factory-oem.webp');
+    await expect(factorySection.locator('video')).toHaveAttribute(
+      'poster',
+      '/media/factory-oem.webp',
+    );
     await expect(factorySection).toContainText('20+');
     await expect(factorySection).toContainText('5000+');
 

@@ -309,7 +309,9 @@ test('FactorySection accepts an optional OEM media override while keeping homepa
   assert.ok(factorySource.includes('width={media.posterWidth}'));
   assert.ok(factorySource.includes('height={media.posterHeight}'));
   assert.ok(factorySource.includes("media.label ?? media.caption ?? ''"));
-  assert.ok(factorySource.includes('aria-label={media ? (media.label ?? media.caption) : undefined}'));
+  assert.ok(
+    factorySource.includes('aria-label={media ? (media.label ?? media.caption) : undefined}'),
+  );
   assert.ok(factorySource.includes('media?.caption && ('));
   // The homepage call passes no media override.
   assert.ok(homepageSource.includes('<FactorySection factory={factory} />'));
@@ -684,7 +686,9 @@ test('OEM content uses the shared homepage experience and response-time claims',
     'shared ProjectForm success copy uses the PPT-approved response time',
   );
   assert.doesNotMatch(normalizedOemContent, /15\+|business day/i);
-  assert.ok(oemPageSource.includes('<CTASection cta={ctaSection} submit={submit} sectionId="submit" />'));
+  assert.ok(
+    oemPageSource.includes('<CTASection cta={ctaSection} submit={submit} sectionId="submit" />'),
+  );
 });
 
 test('OemContent drops the retired marketing fields while keeping the form and media contracts', () => {
@@ -713,7 +717,15 @@ test('OemContent drops the retired marketing fields while keeping the form and m
   assert.ok(!oemTypeSource.includes('factoryVideo?:'));
   // The submit contract is byte-stable: field names, category options, accept
   // list, and the 24-hour success copy.
-  for (const fieldName of ['company', 'contact', 'email', 'whatsapp', 'category', 'quantity', 'drawing']) {
+  for (const fieldName of [
+    'company',
+    'contact',
+    'email',
+    'whatsapp',
+    'category',
+    'quantity',
+    'drawing',
+  ]) {
     assert.ok(oemContent.includes(`name: ${fieldName}`), `submit field kept: ${fieldName}`);
   }
   assert.ok(
