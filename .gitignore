@@ -43,3 +43,9 @@ Thumbs.db
 # dev-pipeline local bookkeeping (durable record lives in docs/)
 .claude/archive/
 .claude/pipeline-state.json
+.e2e-logs/
+.e2e-pids.txt
+
+# AI assistant local secrets — the real file never, the template always
+.env.ai
+!.env.ai.example

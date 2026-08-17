@@ -71,5 +71,46 @@ services:
   #     postgres:
   #       condition: service_healthy
 
+  # Retrieval + chat engine for local development (see
+  # docs/ai-platform/ENGINE-EVALUATION-ANYTHINGLLM.md).
+  #
+  # The DOCKER image, never the desktop build: the desktop build ships
+  # closed-source telemetry, which is disqualifying for anything that will see
+  # customer questions.
+  #
+  # Secrets come from a gitignored .env.ai file, never from this file and never
+  # from the command line (a key on argv is visible in `ps` to every process on
+  # the machine). Create it from .env.ai.example.
+  anythingllm:
+    image: mintplexlabs/anythingllm:latest
+    container_name: channel-ai-anythingllm
+    env_file:
+      - .env.ai
+    environment:
+      STORAGE_DIR: /app/server/storage
+      # zenmux is OpenAI-compatible, so the "generic OpenAI" provider is the
+      # right adapter — no zenmux-specific plugin needed.
+      LLM_PROVIDER: generic-openai
+      GENERIC_OPEN_AI_BASE_PATH: https://zenmux.ai/api/v1
+      GENERIC_OPEN_AI_MODEL_PREF: z-ai/glm-5.2
+      # Reasoning models spend completion budget on reasoning before emitting a
+      # single visible token. 30 tokens produced an EMPTY answer in testing;
+      # Kimi K3 spent 103 reasoning tokens on a one-sentence reply. Keep real
+      # headroom or visitors get blank replies with no error.
+      GENERIC_OPEN_AI_MAX_TOKENS: "4096"
+      EMBEDDING_ENGINE: native
+      VECTOR_DB: lancedb
+      DISABLE_TELEMETRY: "true"
+    ports:
+      - "3001:3001"
+    volumes:
+      - ai-anythingllm:/app/server/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3001/api/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
 volumes:
   ai-pgdata:
+  ai-anythingllm:
