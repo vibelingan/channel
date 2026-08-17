@@ -544,7 +544,8 @@ test('Why Choose Us renders five accessible static concept visuals, not a fake l
 test('homepage CTA embeds the existing full secure ProjectForm at #oem-inquiry', () => {
   assert.ok(ctaSource.includes("import ProjectForm from './ProjectForm.astro'"));
   assert.ok(ctaSource.includes("submit: OemContent['submit']"));
-  assert.ok(ctaSource.includes('id="oem-inquiry"'));
+  assert.ok(ctaSource.includes("sectionId = 'oem-inquiry'"));
+  assert.ok(ctaSource.includes('id={sectionId}'));
   assert.ok(ctaSource.includes('scroll-mt-[var(--spacing-header)]'));
   assert.ok(ctaSource.includes('fields={submit.fields}'));
   assert.ok(ctaSource.includes('submitLabel={submit.submitLabel}'));
@@ -559,7 +560,7 @@ test('homepage CTA embeds the existing full secure ProjectForm at #oem-inquiry',
   assert.ok(homepageSource.includes("import { getOemContent } from '../i18n/oem.ts'"));
   assert.ok(homepageSource.includes('const { submit } = getOemContent(DEFAULT_LOCALE)'));
   assert.ok(homepageSource.includes('<CTASection cta={ctaSection} submit={submit} />'));
-  assert.equal((ctaSource.match(/id="oem-inquiry"/g) ?? []).length, 1);
+  assert.equal((ctaSource.match(/id=\{sectionId\}/g) ?? []).length, 1);
 
   for (const secureContract of [
     "'createOemFileUploadIntent'",
@@ -581,6 +582,21 @@ test('homepage CTA embeds the existing full secure ProjectForm at #oem-inquiry',
     !projectFormSource.includes('new FormData()'),
     'ProjectForm must not rebuild a multipart upload form',
   );
+});
+
+test('CTASection derives its anchor from an optional sectionId defaulting to oem-inquiry', () => {
+  // Optional route-local anchor (OEM homepage content sync, MIU 3): the OEM
+  // page passes sectionId="submit" so /oem#submit keeps targeting the reused
+  // form, while the homepage keeps #oem-inquiry via the unchanged default.
+  assert.ok(ctaSource.includes('sectionId?: string'));
+  assert.ok(ctaSource.includes("sectionId = 'oem-inquiry'"));
+  assert.ok(ctaSource.includes('id={sectionId}'));
+  assert.ok(ctaSource.includes('aria-labelledby={`${sectionId}-heading`}'));
+  assert.ok(ctaSource.includes('id={`${sectionId}-heading`}'));
+  // The form contract is untouched by the anchor derivation.
+  assert.ok(ctaSource.includes('action="/api/admin"'));
+  assert.ok(ctaSource.includes('resultPath="/oem_submit_result"'));
+  assert.ok(ctaSource.includes('fields={submit.fields}'));
 });
 
 test('Teardown listing removes only the aggregate stats band', () => {
