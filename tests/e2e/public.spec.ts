@@ -234,8 +234,8 @@ test.describe('public browser smoke', () => {
   });
 
   test('static reveal content is visible before observer class mutation', async ({ page }) => {
-    await page.goto('/oem#capabilities', { waitUntil: 'domcontentloaded' });
-    const reveal = page.locator('#capabilities .reveal').first();
+    await page.goto('/oem#process', { waitUntil: 'domcontentloaded' });
+    const reveal = page.locator('#process .reveal').first();
     await expect(reveal).toHaveCount(1);
     await reveal.evaluate((element) => element.classList.remove('reveal-pending', 'is-visible'));
 
@@ -258,8 +258,8 @@ test.describe('public browser smoke', () => {
     await page.addInitScript(() => {
       Reflect.deleteProperty(window, 'IntersectionObserver');
     });
-    await page.goto('/oem#capabilities', { waitUntil: 'domcontentloaded' });
-    const reveal = page.locator('#capabilities .reveal').first();
+    await page.goto('/oem#process', { waitUntil: 'domcontentloaded' });
+    const reveal = page.locator('#process .reveal').first();
     await expect(reveal).toBeVisible();
     await expect(reveal).not.toHaveClass(/reveal-pending|is-visible/);
     await expect(reveal).toHaveCSS('opacity', '1');
@@ -283,7 +283,7 @@ test.describe('public browser smoke', () => {
       });
     });
     await page.goto('/oem', { waitUntil: 'domcontentloaded' });
-    const reveal = page.locator('#capabilities .reveal').first();
+    const reveal = page.locator('#process .reveal').first();
     await expect(reveal).not.toHaveClass(/reveal-pending|is-visible/);
     await expect(reveal).toHaveCSS('opacity', '1');
     await expect(reveal).toHaveCSS('transform', 'none');
@@ -302,8 +302,8 @@ test.describe('public browser smoke', () => {
       });
       try {
         const page = await context.newPage();
-        await page.goto(`${e2e.siteUrl}/oem#capabilities`, { waitUntil: 'domcontentloaded' });
-        const reveal = page.locator('#capabilities .reveal').first();
+        await page.goto(`${e2e.siteUrl}/oem#process`, { waitUntil: 'domcontentloaded' });
+        const reveal = page.locator('#process .reveal').first();
         await expect(reveal).not.toHaveClass(/reveal-pending|is-visible/);
         const state = await reveal.evaluate((element) => {
           const style = getComputedStyle(element);
@@ -333,7 +333,7 @@ test.describe('public browser smoke', () => {
 
   test('below-fold reveal animates once and releases transform resources', async ({ page }) => {
     await page.goto('/oem', { waitUntil: 'domcontentloaded' });
-    const reveal = page.locator('#capabilities .reveal').first();
+    const reveal = page.locator('#process .reveal').first();
     await expect(reveal).toHaveClass(/reveal-pending/);
     await expect(reveal).not.toHaveClass(/is-visible/);
     await expect(reveal).toHaveCSS('will-change', 'auto');
@@ -365,7 +365,7 @@ test.describe('public browser smoke', () => {
     page,
   }) => {
     await page.goto('/oem', { waitUntil: 'domcontentloaded' });
-    const reveal = page.locator('#capabilities .reveal').first();
+    const reveal = page.locator('#process .reveal').first();
     await expect(reveal).toHaveClass(/reveal-pending/);
     await reveal.evaluate((element) => {
       if (!(element instanceof HTMLElement)) throw new Error('Reveal is not HTML');
@@ -376,6 +376,89 @@ test.describe('public browser smoke', () => {
     await expect(reveal).toHaveClass(/reveal-pending.*is-visible|is-visible.*reveal-pending/);
     await expect(reveal).not.toHaveClass(/reveal-pending|is-visible/, { timeout: 2_000 });
     await expect(reveal).toHaveCSS('will-change', 'auto');
+  });
+
+  test('OEM page recomposes the shared homepage narrative with OEM media, deep links, and no legacy claims', async ({
+    page,
+  }) => {
+    await page.goto('/oem', { waitUntil: 'domcontentloaded' });
+    await ensureApplicationPage(page);
+
+    // Shared homepage hero narrative with OEM-local deep links.
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await expect(page.locator('a[href="#submit"]').first()).toBeVisible();
+    await expect(page.locator('a[href="#factory"]').first()).toBeVisible();
+
+    // Shared What We Do keeps the Traditional-versus-AI comparison.
+    await expect(page.locator('#what-we-do')).toHaveCount(1);
+    await expect(page.getByText('Traditional Drawing-Based OEM Workflow')).toBeAttached();
+    await expect(page.getByText('AI Big Data Smart OEM Workflow')).toBeAttached();
+
+    // Shared 10-step process resolves as the retained #process anchor.
+    await expect(page.locator('#process')).toHaveCount(1);
+    await expect(page.locator('#process ol > li')).toHaveCount(10);
+
+    // Factory section carries the OEM-specific video/poster pair, exactly once.
+    const factorySection = page.locator('#factory');
+    await expect(factorySection).toHaveCount(1);
+    await expect(factorySection.locator('video')).toHaveCount(1);
+    await expect(factorySection.locator('video source')).toHaveAttribute(
+      'src',
+      '/media/oem-factory.mp4',
+    );
+    await expect(factorySection.locator('video')).toHaveAttribute('poster', '/media/factory-oem.webp');
+    await expect(factorySection).toContainText('20+');
+    await expect(factorySection).toContainText('5000+');
+
+    // The inquiry form stays intact at #submit.
+    await expect(page.locator('#submit')).toHaveCount(1);
+    await expect(page.locator('#submit form[data-project-form]')).toHaveCount(1);
+    await expect(page.locator('#submit input[type="file"]')).toHaveCount(1);
+
+    // Retired marketing claims are gone from the recomposed page.
+    const bodyText = await page.locator('body').innerText();
+    for (const claim of [
+      '100+ Supply Chain Partners',
+      'Flexible MOQ',
+      'Dedicated Project Manager',
+      'agreed AQL',
+      'RoHS',
+      'six primary product families',
+    ]) {
+      expect(bodyText, claim).not.toContain(claim);
+    }
+
+    // The homepage keeps its own anchor and factory media — no OEM overrides leak back.
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await ensureApplicationPage(page);
+    await expect(page.locator('#oem-inquiry')).toHaveCount(1);
+    await expect(page.locator('#factory video source')).toHaveAttribute(
+      'src',
+      '/media/oem/factory-video.mp4',
+    );
+    await expect(page.locator('a[href="/#oem-inquiry"]').first()).toBeVisible();
+    await expect(page.locator('a[href="#submit"]')).toHaveCount(0);
+  });
+
+  test('OEM page stays responsive without horizontal overflow across breakpoints', async ({
+    page,
+  }) => {
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 768, height: 1024 },
+      { width: 1024, height: 768 },
+      { width: 1440, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/oem', { waitUntil: 'domcontentloaded' });
+      await ensureApplicationPage(page);
+      await expect(page.locator('#process')).toBeAttached();
+      await expect(page.locator('#submit input[type="file"]')).toBeAttached();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+        `no horizontal overflow at ${viewport.width}px`,
+      ).toBe(true);
+    }
   });
 
   test('Slide 2 header keeps the company name without restoring MOQ', async ({ page }) => {
@@ -1906,9 +1989,10 @@ test.describe('public browser smoke', () => {
     });
 
     await page.goto(`/oem?phase8=${e2e.runId}`, { waitUntil: 'domcontentloaded' });
-    const whyUs = page.locator('#why-us');
-    await expect(whyUs.getByText('20+', { exact: true })).toBeVisible();
-    await expect(whyUs.getByText('15+', { exact: true })).toHaveCount(0);
+    // The approved experience stat now lives in the shared factory stats (the
+    // legacy #why-us section was retired in the OEM homepage content sync).
+    await expect(page.locator('#factory').getByText('20+', { exact: true })).toBeVisible();
+    await expect(page.getByText('15+', { exact: true })).toHaveCount(0);
 
     const oemForm = page.locator('#submit');
     await expect(oemForm.locator('[data-success]')).toContainText(
