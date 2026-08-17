@@ -5,14 +5,12 @@
 ## Delivery preflight
 
 - Historical metadata/image delivery: PR #15, squash commit `c2061a1` on `test`.
-- Historical social-card delivery: PR #16, squash commit `905a18f` on `test`.
-- Current main-promotion branch: `feat/seo-phase-2-main-delivery`, based on
-	`origin/main@7978369`; it cherry-picks only `c2061a1` then `905a18f`.
-- Before this status update, the promotion tree was byte-identical to
-	`origin/test@905a18f`; review and merge into `main` remain pending.
+- Current branch: `feat/seo-phase-2-social-cards`, based on `origin/test@c2061a1`.
+- Current Phase 2 range: uncommitted social-card MIU; review, commit, merge, deploy, and production
+	verification remain pending.
 - Included checkpoints: MIU-03, MIU-04A, and MIU-04B-1 through MIU-04B-5
-- Result: Phase 2 is deployed and verified on the sole current CloudBase environment. That environment
-	is publicly usable but remains the `test` environment; `main` stays the code source of truth.
+- Result before this MIU: metadata/image checkpoints are delivered. Phase 2 social cards are implemented
+	locally and remain pending review, commit, merge, deploy, and production verification.
 
 ## 顺序
 
@@ -21,9 +19,9 @@
 3. ✅ MIU-04A 与 MIU-04B-1 至 MIU-04B-5 已完成图片 intrinsic dimensions：生产构建中
 	process、factory、team、quality、certificates、client logos 共 44 张业务图片全部输出真实
 	`width` / `height`；全站 10 条构建 route 的所有 `<img>` 均有 alt 与 numeric dimensions。
-4. ✅ Phase 2 OG / Twitter Card 已部署验证：四个公开页输出完整标签，复用现有 title、
+4. 🔄 Phase 2 OG / Twitter Card 已本地实现：四个公开页输出完整标签，复用现有 title、
 	description、canonical，并使用获批的 1200×630 生产线实拍图；六个 noindex 页面不输出
-	社交标签。`main` promotion PR 仍待独立 review，不影响已完成的 `test` 部署验证。
+	社交标签。待 review、merge、deploy 与生产验证后才标记完成。
 5. ⏭ 后续按当前真实内容添加 BreadcrumbList、Article、Product Schema；这些不是 Phase 2
 	完成条件。
 6. ⏸ sitemap `lastmod` 等待可靠的内容更新时间字段与 owner；当前代码无该数据源，不编造日期。
@@ -39,11 +37,7 @@
 - Production-origin build：10 pages built；全站 `<img>` 缺 alt/width/height 数量为 0。
 - MIU-04B assembly：44/44 业务图片输出实测 numeric dimensions。
 - Phase 2 social cards（本地生产构建）：4/4 公开页完整且唯一；6/6 noindex 页无
-	OG/Twitter；默认图 1200×630 PNG，绝对 HTTPS URL。
-- `test@905a18f`：CI run `31769119066` 与 Deploy Test run `31769119017` 均成功；后者完成
-	CloudBase 部署、deployed smoke 与 public browser E2E。
-- 公开站点 `https://supplychainsai.com`：4/4 公开页标签完整且唯一；6/6 noindex 页面
-	OG/Twitter 数量为 0；默认图片返回 `200 image/png`，字节数 `1,039,416`。
+	OG/Twitter；默认图 1200×630 PNG，绝对 HTTPS URL。生产站仍待部署验证。
 
 ## Per-MIU execution record
 
@@ -181,10 +175,9 @@
 	typed future override without forcing unrelated images onto Headphones or Portfolio.
 - **Validation completed:** Source AST test, real PNG metadata, production-origin build,
 	four-public-page HTML contract, six-noindex-page exclusion, site tests, workspace typechecks,
-	Biome, local browser preview, test-branch CI/deploy, deployed smoke, public browser E2E, direct
-	production-visible social tags, and the social image HTTP response.
-- **Operational follow-up:** Social-platform cache/debugger refreshes require each platform's external
-	tooling and are not a code or deployment blocker after the direct production-visible contract passes.
+	Biome, and local browser preview.
+- **Validation pending:** CI, deploy, production social tags, production image HTTP response, and
+	platform card/debugger probes.
 
 ## Deviations
 
@@ -196,18 +189,19 @@
 	not the production bundle or runtime. The lockfile install, site tests, type checks, Biome, and
 	production-origin build covered the affected contexts.
 
-No other material behavior, scope, or implementation deviation was found in the immutable original
-MIU range `5a332d8..677564f` or its delivery/review follow-ups. The branch-point merge `7978369`
-contributes no file delta over its second parent (`git diff 7978369^2 7978369` is empty), and
-`566f218` only refreshes an accepted gate finding after a line-number shift.
+No other material behavior, scope, or implementation deviation was found in the original MIU range
+`origin/test..677564f` or its delivery/review follow-ups. The branch-point merge `7978369` contributes
+no file delta over `origin/test`, and `566f218` only refreshes an accepted gate finding after a
+line-number shift.
 
 ## Remaining blockers
 
-- **Main promotion:** `feat/seo-phase-2-main-delivery` awaits independent review and merge into `main`.
+- **Current delivery:** Phase 2 social cards await review, merge, deployment, and production probes.
 - **Sitemap `lastmod`:** blocked on a trustworthy content-update field and owner; the current content
 	model exposes neither.
 - **Search Console and Bing:** blocked on external webmaster-account access.
-- **Page-specific structured data:** remains a separate follow-up after the Phase 2 main-promotion PR.
+- **Page-specific structured data:** sequence-blocked until OG/Twitter lands and this branch rebases
+	against the resulting shared-layout contract.
 
 ## 明确排除
 
