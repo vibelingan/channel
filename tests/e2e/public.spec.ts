@@ -302,7 +302,13 @@ test.describe('public browser smoke', () => {
       });
       try {
         const page = await context.newPage();
-        await page.goto(`${e2e.siteUrl}/oem#process`, { waitUntil: 'domcontentloaded' });
+        // no-JS skips the render-blocking <script> chain that normally waits on
+        // the external stylesheet, so DOMContentLoaded fires before the CSS is
+        // applied. Waiting for 'load' guarantees .w-full/.w-64 width utilities
+        // are active before the overflow assertion below.
+        await page.goto(`${e2e.siteUrl}/oem#process`, {
+          waitUntil: mode === 'no-js' ? 'load' : 'domcontentloaded',
+        });
         const reveal = page.locator('#process .reveal').first();
         await expect(reveal).not.toHaveClass(/reveal-pending|is-visible/);
         const state = await reveal.evaluate((element) => {
@@ -327,6 +333,50 @@ test.describe('public browser smoke', () => {
         }
       } finally {
         await context.close();
+      }
+    }
+  });
+
+  test('public pages never overflow horizontally across breakpoints without JavaScript', async ({
+    browser,
+  }) => {
+    const trustedStorage = await trustedSiteStorage(browser);
+    // Independent public pages (no redirect aliases — /success-stories 301s to
+    // /portfolio and is asserted separately by the redirect contract).
+    const publicPaths = ['/', '/oem', '/headphones', '/portfolio'];
+    const breakpoints = [
+      { width: 320, height: 568 },
+      { width: 390, height: 844 },
+      { width: 768, height: 1024 },
+      { width: 1024, height: 768 },
+      { width: 1280, height: 800 },
+      { width: 1440, height: 900 },
+    ];
+
+    for (const path of publicPaths) {
+      for (const viewport of breakpoints) {
+        const context = await browser.newContext({
+          javaScriptEnabled: false,
+          storageState: trustedStorage,
+          viewport,
+        });
+        try {
+          const page = await context.newPage();
+          // 'load' is required in no-JS mode: DOMContentLoaded fires before the
+          // external stylesheet is applied (there is no render-blocking script
+          // chain), so width utilities would still be inactive and intrinsic
+          // image widths would falsely overflow the viewport.
+          await page.goto(`${e2e.siteUrl}${path}`, { waitUntil: 'load' });
+          const overflow = await page.evaluate(
+            () => document.documentElement.scrollWidth - window.innerWidth,
+          );
+          expect(
+            overflow,
+            `${path} @ ${viewport.width}px (no-js) horizontal overflow`,
+          ).toBeLessThanOrEqual(0);
+        } finally {
+          await context.close();
+        }
       }
     }
   });
