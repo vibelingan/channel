@@ -289,6 +289,32 @@ test('OemProcessSection supports an optional sectionId anchor without changing h
   assert.ok(homepageSource.includes('<OemProcessSection process={oemProcess} />'));
 });
 
+test('FactorySection accepts an optional OEM media override while keeping homepage defaults', () => {
+  // Optional media contract (OEM homepage content sync, MIU 2): the override
+  // carries src/poster/intrinsic dimensions/caption/label; omitting it keeps
+  // the homepage video, poster, and markup exactly as before.
+  assert.ok(factorySource.includes('media?: {'));
+  assert.ok(factorySource.includes('src: string;'));
+  assert.ok(factorySource.includes('poster: string;'));
+  assert.ok(factorySource.includes('posterWidth: number;'));
+  assert.ok(factorySource.includes('posterHeight: number;'));
+  assert.ok(factorySource.includes('caption?: string;'));
+  assert.ok(factorySource.includes('label?: string;'));
+  // Homepage defaults remain the fallback paths.
+  assert.ok(factorySource.includes("media?.src ?? '/media/oem/factory-video.mp4'"));
+  assert.ok(factorySource.includes("media?.poster ?? '/media/oem/factory-video-poster.jpg'"));
+  // Override renders an intrinsic-dimensioned poster fallback, accessible
+  // text, and a caption shown only when provided.
+  assert.ok(factorySource.includes('width={media.posterWidth}'));
+  assert.ok(factorySource.includes('height={media.posterHeight}'));
+  assert.ok(factorySource.includes("media.label ?? media.caption ?? ''"));
+  assert.ok(factorySource.includes('aria-label={media ? (media.label ?? media.caption) : undefined}'));
+  assert.ok(factorySource.includes('media?.caption && ('));
+  // The homepage call passes no media override.
+  assert.ok(homepageSource.includes('<FactorySection factory={factory} />'));
+  assert.ok(!homepageSource.includes('media={'));
+});
+
 test('OEM page reuses the shared What We Do section and retains the execution process', () => {
   assert.ok(
     oemPageSource.includes(
