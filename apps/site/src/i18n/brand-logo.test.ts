@@ -76,6 +76,7 @@ const oemContent = readFileSync(
   fileURLToPath(new URL('./content/oem/en-US.md', import.meta.url)),
   'utf8',
 );
+const oemTypeSource = readFileSync(fileURLToPath(new URL('./oem.ts', import.meta.url)), 'utf8');
 const productCapabilityComponent = fileURLToPath(
   new URL('../components/ProductCapabilitySection.astro', import.meta.url),
 );
@@ -444,12 +445,15 @@ test('homepage removes only the three confirmed sections and keeps the required 
   }
 });
 
-test('retired homepage Product Capability code is removed without affecting OEM capabilities', () => {
+test('retired homepage Product Capability code and OEM marketing capabilities are removed', () => {
   assert.ok(!existsSync(productCapabilityComponent));
   assert.ok(!siteTypeSource.includes('export interface IconCard'));
   assert.ok(!siteTypeSource.includes('productCapability: {'));
   assert.ok(!/^productCapability:/m.test(enUS));
-  assert.ok(oemContent.includes('capabilities:'));
+  // The six-family marketing section is retired from OEM content (MIU 5)…
+  assert.ok(!oemContent.includes('capabilities:'));
+  assert.ok(!oemContent.includes('six primary product families'));
+  // …but the same category names remain as inquiry-form taxonomy, unchanged.
   for (const category of [
     'Plastic Products',
     'Electronics',
@@ -458,7 +462,7 @@ test('retired homepage Product Capability code is removed without affecting OEM 
     'Hardware Products',
     'Promotional Products',
   ]) {
-    assert.ok(oemContent.includes(category), `OEM capability remains available: ${category}`);
+    assert.ok(oemContent.includes(category), `OEM form category remains available: ${category}`);
   }
 });
 
@@ -668,12 +672,11 @@ test('Blue Ocean listing removes only the aggregate stats band', () => {
   }
 });
 
-test('OEM content uses the approved experience and shared response-time claims', () => {
+test('OEM content uses the shared homepage experience and response-time claims', () => {
   const normalizedOemContent = oemContent.replace(/\s+/g, ' ');
-  assert.ok(
-    normalizedOemContent.includes("stat: '20+', label: Years of Experience"),
-    'OEM experience stat uses the PPT-approved 20+',
-  );
+  // The 20+ years experience stat now comes from the shared homepage source;
+  // the OEM page no longer keeps a parallel copy (MIU 5).
+  assert.ok(enUS.replace(/\s+/g, ' ').includes("value: '20+'"));
   assert.ok(
     normalizedOemContent.includes(
       'Our engineering team will review your details and get back to you within 24 hours.',
@@ -682,4 +685,40 @@ test('OEM content uses the approved experience and shared response-time claims',
   );
   assert.doesNotMatch(normalizedOemContent, /15\+|business day/i);
   assert.ok(oemPageSource.includes('<CTASection cta={ctaSection} submit={submit} sectionId="submit" />'));
+});
+
+test('OemContent drops the retired marketing fields while keeping the form and media contracts', () => {
+  // MIU 5: hero/oneStop/capabilities/process/whyUs are gone from both the type
+  // and the content source, so the old claims cannot silently return.
+  for (const field of ['hero', 'oneStop', 'capabilities', 'process', 'whyUs']) {
+    assert.ok(!new RegExp(`^ {2}${field}:`, 'm').test(oemTypeSource), `OemContent drops ${field}`);
+    assert.ok(!new RegExp(`^${field}:`, 'm').test(oemContent), `OEM content drops ${field}`);
+  }
+  for (const claim of [
+    '100+ Supply Chain Partners',
+    'Flexible MOQ',
+    'Dedicated Project Manager',
+    'agreed AQL',
+    'RoHS',
+    'six primary product families',
+  ]) {
+    assert.ok(!oemContent.includes(claim), `retired claim removed: ${claim}`);
+  }
+  // The preserved legacy components still import their interface types.
+  for (const iface of ['IconCard', 'WorkflowStep', 'ProcessStep', 'Reason']) {
+    assert.ok(oemTypeSource.includes(`export interface ${iface}`), `interface retained: ${iface}`);
+  }
+  // factoryVideo is now a required build-time contract, not an optional CDN stub.
+  assert.ok(oemTypeSource.includes('factoryVideo: {'));
+  assert.ok(!oemTypeSource.includes('factoryVideo?:'));
+  // The submit contract is byte-stable: field names, category options, accept
+  // list, and the 24-hour success copy.
+  for (const fieldName of ['company', 'contact', 'email', 'whatsapp', 'category', 'quantity', 'drawing']) {
+    assert.ok(oemContent.includes(`name: ${fieldName}`), `submit field kept: ${fieldName}`);
+  }
+  assert.ok(
+    oemContent.includes(
+      "accept: '.pdf,.zip,.rar,.png,.jpg,.jpeg,.webp,.step,.stp,.igs,.iges,.dwg,.dxf'",
+    ),
+  );
 });
