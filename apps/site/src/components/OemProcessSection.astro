@@ -8,18 +8,31 @@ import type { WorkflowStepItem } from '../i18n/site.ts';
 
 interface Props {
   process: SiteContent['oemProcess'];
+  /**
+   * Optional anchor target (e.g. "process" on /oem). When supplied the section
+   * gains the id, a heading relationship, and the fixed-header scroll margin;
+   * when omitted the homepage markup and classes stay exactly as before.
+   */
+  sectionId?: string;
 }
 
-const { process } = Astro.props;
+const { process, sectionId } = Astro.props;
 ---
 
-<section class="bg-surface-alt py-20 sm:py-28">
+<section
+  id={sectionId}
+  aria-labelledby={sectionId ? `${sectionId}-heading` : undefined}
+  class:list={['bg-surface-alt py-20 sm:py-28', sectionId && 'scroll-mt-[var(--spacing-header)]']}
+>
   <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
     <div class="reveal mx-auto max-w-2xl text-center">
       <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
         {process.eyebrow}
       </p>
-      <h2 class="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl">
+      <h2
+        id={sectionId ? `${sectionId}-heading` : undefined}
+        class="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl"
+      >
         {process.heading}
       </h2>
       <p class="mt-4 text-lg text-ink-soft">

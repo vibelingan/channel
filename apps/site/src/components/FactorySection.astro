@@ -8,9 +8,26 @@ import type { StatItem } from '../i18n/site.ts';
 
 interface Props {
   factory: SiteContent['factory'];
+  /**
+   * Optional media override (e.g. the OEM page's own factory video/poster
+   * pair). When omitted the homepage video, poster, and markup render
+   * exactly as before.
+   */
+  media?: {
+    src: string;
+    poster: string;
+    /** Intrinsic pixel dimensions of `poster`, to reserve layout space. */
+    posterWidth: number;
+    posterHeight: number;
+    caption?: string;
+    label?: string;
+  };
 }
 
-const { factory } = Astro.props;
+const { factory, media } = Astro.props;
+
+const videoSrc = media?.src ?? '/media/oem/factory-video.mp4';
+const videoPoster = media?.poster ?? '/media/oem/factory-video-poster.jpg';
 
 // Real factory floor photos (client-supplied — apps/site/public/media/oem/factory).
 const factoryPhotos = [
@@ -100,10 +117,27 @@ const factoryPhotos = [
           loop
           playsinline
           preload="metadata"
-          poster="/media/oem/factory-video-poster.jpg"
+          poster={videoPoster}
+          aria-label={media ? (media.label ?? media.caption) : undefined}
         >
-          <source src="/media/oem/factory-video.mp4" type="video/mp4" />
+          <source src={videoSrc} type="video/mp4" />
+          {
+            media && (
+              <img
+                src={media.poster}
+                alt={media.label ?? media.caption ?? ''}
+                width={media.posterWidth}
+                height={media.posterHeight}
+                class="aspect-video h-full w-full object-cover"
+              />
+            )
+          }
         </video>
+        {
+          media?.caption && (
+            <p class="bg-surface px-4 py-3 text-center text-sm text-ink-soft">{media.caption}</p>
+          )
+        }
       </div>
     </div>
 

@@ -40,6 +40,10 @@ const factorySource = readFileSync(
   fileURLToPath(new URL('../components/FactorySection.astro', import.meta.url)),
   'utf8',
 );
+const oemProcessSource = readFileSync(
+  fileURLToPath(new URL('../components/OemProcessSection.astro', import.meta.url)),
+  'utf8',
+);
 const whyChooseUsSource = readFileSync(
   fileURLToPath(new URL('../components/WhyChooseUsSection.astro', import.meta.url)),
   'utf8',
@@ -72,6 +76,7 @@ const oemContent = readFileSync(
   fileURLToPath(new URL('./content/oem/en-US.md', import.meta.url)),
   'utf8',
 );
+const oemTypeSource = readFileSync(fileURLToPath(new URL('./oem.ts', import.meta.url)), 'utf8');
 const productCapabilityComponent = fileURLToPath(
   new URL('../components/ProductCapabilitySection.astro', import.meta.url),
 );
@@ -270,22 +275,94 @@ test('homepage retains the separate 10-step OEM execution process', () => {
   assert.ok(homepageSource.includes('<OemProcessSection process={oemProcess} />'));
 });
 
-test('OEM page reuses the shared What We Do section and retains the execution process', () => {
+test('OemProcessSection supports an optional sectionId anchor without changing homepage defaults', () => {
+  // Optional anchor contract (OEM homepage content sync, MIU 1): only consumers
+  // that pass sectionId get the id, the heading relationship, and the
+  // fixed-header scroll margin; the no-ID homepage markup/classes stay as-is.
+  assert.ok(oemProcessSource.includes('sectionId?: string'));
+  assert.ok(oemProcessSource.includes('id={sectionId}'));
   assert.ok(
-    oemPageSource.includes(
-      "import ServiceGridSection from '../components/ServiceGridSection.astro'",
-    ),
+    oemProcessSource.includes('aria-labelledby={sectionId ? `${sectionId}-heading` : undefined}'),
   );
+  assert.ok(oemProcessSource.includes('id={sectionId ? `${sectionId}-heading` : undefined}'));
+  assert.ok(oemProcessSource.includes("sectionId && 'scroll-mt-[var(--spacing-header)]'"));
+  // The homepage call stays prop-free.
+  assert.ok(homepageSource.includes('<OemProcessSection process={oemProcess} />'));
+});
+
+test('FactorySection accepts an optional OEM media override while keeping homepage defaults', () => {
+  // Optional media contract (OEM homepage content sync, MIU 2): the override
+  // carries src/poster/intrinsic dimensions/caption/label; omitting it keeps
+  // the homepage video, poster, and markup exactly as before.
+  assert.ok(factorySource.includes('media?: {'));
+  assert.ok(factorySource.includes('src: string;'));
+  assert.ok(factorySource.includes('poster: string;'));
+  assert.ok(factorySource.includes('posterWidth: number;'));
+  assert.ok(factorySource.includes('posterHeight: number;'));
+  assert.ok(factorySource.includes('caption?: string;'));
+  assert.ok(factorySource.includes('label?: string;'));
+  // Homepage defaults remain the fallback paths.
+  assert.ok(factorySource.includes("media?.src ?? '/media/oem/factory-video.mp4'"));
+  assert.ok(factorySource.includes("media?.poster ?? '/media/oem/factory-video-poster.jpg'"));
+  // Override renders an intrinsic-dimensioned poster fallback, accessible
+  // text, and a caption shown only when provided.
+  assert.ok(factorySource.includes('width={media.posterWidth}'));
+  assert.ok(factorySource.includes('height={media.posterHeight}'));
+  assert.ok(factorySource.includes("media.label ?? media.caption ?? ''"));
   assert.ok(
-    oemPageSource.includes('<ServiceGridSection services={site.services} sectionId="what-we-do"'),
+    factorySource.includes('aria-label={media ? (media.label ?? media.caption) : undefined}'),
   );
-  assert.ok(!oemPageSource.includes('id={oneStop.id}'));
-  assert.ok(oemPageSource.includes('<ProcessTimeline steps={process.steps} />'));
-  assert.ok(oemPageSource.includes('<script is:inline>'));
+  assert.ok(factorySource.includes('media?.caption && ('));
+  // The homepage call passes no media override.
+  assert.ok(homepageSource.includes('<FactorySection factory={factory} />'));
+  assert.ok(!homepageSource.includes('media={'));
+});
+
+test('OEM page recomposes the homepage narrative via the nine shared sections', () => {
+  // MIU 4: /oem reuses the homepage section sequence in the required order,
+  // with only OEM-local deep-link and media exceptions.
+  const requiredOrder = [
+    '<AIHero hero={hero} />',
+    '<ServiceGridSection services={services} sectionId="what-we-do" />',
+    '<OemProcessSection process={oemProcess} sectionId="process" />',
+    '<FactorySection factory={factory} media={factoryMedia} />',
+    '<OurTeamSection people={ourPeople} />',
+    '<WhyChooseUsSection why={whyChooseUs} />',
+    '<QualityTestingSection quality={quality} />',
+    '<CertificationsSection certs={certifications} />',
+    '<CTASection cta={ctaSection} submit={submit} sectionId="submit" />',
+  ];
+  let lastIndex = -1;
+  for (const needle of requiredOrder) {
+    const index = oemPageSource.indexOf(needle);
+    assert.ok(index > lastIndex, `OEM sections render in the required order: ${needle}`);
+    lastIndex = index;
+  }
+
+  // Legacy OEM composition and its inline fragment script are gone.
+  for (const legacy of [
+    'PageHero',
+    'CardGrid',
+    'ProcessTimeline',
+    'ReasonList',
+    'MediaVideo',
+    'ProjectForm',
+    "import Section from '../components/Section.astro'",
+  ]) {
+    assert.ok(!oemPageSource.includes(legacy), `legacy composition removed: ${legacy}`);
+  }
+  assert.ok(!oemPageSource.includes('<script is:inline>'));
+  assert.ok(!oemPageSource.includes('window.location.hash'));
+
+  // Shared narrative comes from site content; OEM reads only meta/submit/factoryVideo.
   assert.ok(
-    oemPageSource.includes('document.getElementById(window.location.hash.slice(1))'),
-    'initial fragment navigation does not wait for media load',
+    oemPageSource.includes('const { meta, submit, factoryVideo } = getOemContent(DEFAULT_LOCALE)'),
   );
+  assert.ok(oemPageSource.includes("primaryCta: { ...siteHero.primaryCta, href: '#submit' }"));
+  assert.ok(oemPageSource.includes("secondaryCta: { ...siteHero.secondaryCta, href: '#factory' }"));
+  assert.ok(oemPageSource.includes('label: factoryVideo.caption'));
+  // Missing factory media is a build-time error, not a silent homepage fallback.
+  assert.ok(oemPageSource.includes('throw new Error('));
 });
 
 test('Factory and Our People use the exact confirmed client copy', () => {
@@ -370,12 +447,15 @@ test('homepage removes only the three confirmed sections and keeps the required 
   }
 });
 
-test('retired homepage Product Capability code is removed without affecting OEM capabilities', () => {
+test('retired homepage Product Capability code and OEM marketing capabilities are removed', () => {
   assert.ok(!existsSync(productCapabilityComponent));
   assert.ok(!siteTypeSource.includes('export interface IconCard'));
   assert.ok(!siteTypeSource.includes('productCapability: {'));
   assert.ok(!/^productCapability:/m.test(enUS));
-  assert.ok(oemContent.includes('capabilities:'));
+  // The six-family marketing section is retired from OEM content (MIU 5)…
+  assert.ok(!oemContent.includes('capabilities:'));
+  assert.ok(!oemContent.includes('six primary product families'));
+  // …but the same category names remain as inquiry-form taxonomy, unchanged.
   for (const category of [
     'Plastic Products',
     'Electronics',
@@ -384,7 +464,7 @@ test('retired homepage Product Capability code is removed without affecting OEM 
     'Hardware Products',
     'Promotional Products',
   ]) {
-    assert.ok(oemContent.includes(category), `OEM capability remains available: ${category}`);
+    assert.ok(oemContent.includes(category), `OEM form category remains available: ${category}`);
   }
 });
 
@@ -499,7 +579,8 @@ test('Why Choose Us renders five accessible static concept visuals, not a fake l
 test('homepage CTA embeds the existing full secure ProjectForm at #oem-inquiry', () => {
   assert.ok(ctaSource.includes("import ProjectForm from './ProjectForm.astro'"));
   assert.ok(ctaSource.includes("submit: OemContent['submit']"));
-  assert.ok(ctaSource.includes('id="oem-inquiry"'));
+  assert.ok(ctaSource.includes("sectionId = 'oem-inquiry'"));
+  assert.ok(ctaSource.includes('id={sectionId}'));
   assert.ok(ctaSource.includes('scroll-mt-[var(--spacing-header)]'));
   assert.ok(ctaSource.includes('fields={submit.fields}'));
   assert.ok(ctaSource.includes('submitLabel={submit.submitLabel}'));
@@ -514,7 +595,7 @@ test('homepage CTA embeds the existing full secure ProjectForm at #oem-inquiry',
   assert.ok(homepageSource.includes("import { getOemContent } from '../i18n/oem.ts'"));
   assert.ok(homepageSource.includes('const { submit } = getOemContent(DEFAULT_LOCALE)'));
   assert.ok(homepageSource.includes('<CTASection cta={ctaSection} submit={submit} />'));
-  assert.equal((ctaSource.match(/id="oem-inquiry"/g) ?? []).length, 1);
+  assert.equal((ctaSource.match(/id=\{sectionId\}/g) ?? []).length, 1);
 
   for (const secureContract of [
     "'createOemFileUploadIntent'",
@@ -536,6 +617,21 @@ test('homepage CTA embeds the existing full secure ProjectForm at #oem-inquiry',
     !projectFormSource.includes('new FormData()'),
     'ProjectForm must not rebuild a multipart upload form',
   );
+});
+
+test('CTASection derives its anchor from an optional sectionId defaulting to oem-inquiry', () => {
+  // Optional route-local anchor (OEM homepage content sync, MIU 3): the OEM
+  // page passes sectionId="submit" so /oem#submit keeps targeting the reused
+  // form, while the homepage keeps #oem-inquiry via the unchanged default.
+  assert.ok(ctaSource.includes('sectionId?: string'));
+  assert.ok(ctaSource.includes("sectionId = 'oem-inquiry'"));
+  assert.ok(ctaSource.includes('id={sectionId}'));
+  assert.ok(ctaSource.includes('aria-labelledby={`${sectionId}-heading`}'));
+  assert.ok(ctaSource.includes('id={`${sectionId}-heading`}'));
+  // The form contract is untouched by the anchor derivation.
+  assert.ok(ctaSource.includes('action="/api/admin"'));
+  assert.ok(ctaSource.includes('resultPath="/oem_submit_result"'));
+  assert.ok(ctaSource.includes('fields={submit.fields}'));
 });
 
 test('Teardown listing removes only the aggregate stats band', () => {
@@ -578,12 +674,11 @@ test('Blue Ocean listing removes only the aggregate stats band', () => {
   }
 });
 
-test('OEM content uses the approved experience and shared response-time claims', () => {
+test('OEM content uses the shared homepage experience and response-time claims', () => {
   const normalizedOemContent = oemContent.replace(/\s+/g, ' ');
-  assert.ok(
-    normalizedOemContent.includes("stat: '20+', label: Years of Experience"),
-    'OEM experience stat uses the PPT-approved 20+',
-  );
+  // The 20+ years experience stat now comes from the shared homepage source;
+  // the OEM page no longer keeps a parallel copy (MIU 5).
+  assert.ok(enUS.replace(/\s+/g, ' ').includes("value: '20+'"));
   assert.ok(
     normalizedOemContent.includes(
       'Our engineering team will review your details and get back to you within 24 hours.',
@@ -591,5 +686,51 @@ test('OEM content uses the approved experience and shared response-time claims',
     'shared ProjectForm success copy uses the PPT-approved response time',
   );
   assert.doesNotMatch(normalizedOemContent, /15\+|business day/i);
-  assert.ok(oemPageSource.includes('successBody={submit.successBody}'));
+  assert.ok(
+    oemPageSource.includes('<CTASection cta={ctaSection} submit={submit} sectionId="submit" />'),
+  );
+});
+
+test('OemContent drops the retired marketing fields while keeping the form and media contracts', () => {
+  // MIU 5: hero/oneStop/capabilities/process/whyUs are gone from both the type
+  // and the content source, so the old claims cannot silently return.
+  for (const field of ['hero', 'oneStop', 'capabilities', 'process', 'whyUs']) {
+    assert.ok(!new RegExp(`^ {2}${field}:`, 'm').test(oemTypeSource), `OemContent drops ${field}`);
+    assert.ok(!new RegExp(`^${field}:`, 'm').test(oemContent), `OEM content drops ${field}`);
+  }
+  for (const claim of [
+    '100+ Supply Chain Partners',
+    'Flexible MOQ',
+    'Dedicated Project Manager',
+    'agreed AQL',
+    'RoHS',
+    'six primary product families',
+  ]) {
+    assert.ok(!oemContent.includes(claim), `retired claim removed: ${claim}`);
+  }
+  // The preserved legacy components still import their interface types.
+  for (const iface of ['IconCard', 'WorkflowStep', 'ProcessStep', 'Reason']) {
+    assert.ok(oemTypeSource.includes(`export interface ${iface}`), `interface retained: ${iface}`);
+  }
+  // factoryVideo is now a required build-time contract, not an optional CDN stub.
+  assert.ok(oemTypeSource.includes('factoryVideo: {'));
+  assert.ok(!oemTypeSource.includes('factoryVideo?:'));
+  // The submit contract is byte-stable: field names, category options, accept
+  // list, and the 24-hour success copy.
+  for (const fieldName of [
+    'company',
+    'contact',
+    'email',
+    'whatsapp',
+    'category',
+    'quantity',
+    'drawing',
+  ]) {
+    assert.ok(oemContent.includes(`name: ${fieldName}`), `submit field kept: ${fieldName}`);
+  }
+  assert.ok(
+    oemContent.includes(
+      "accept: '.pdf,.zip,.rar,.png,.jpg,.jpeg,.webp,.step,.stp,.igs,.iges,.dwg,.dxf'",
+    ),
+  );
 });
