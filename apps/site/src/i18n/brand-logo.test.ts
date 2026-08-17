@@ -40,6 +40,10 @@ const factorySource = readFileSync(
   fileURLToPath(new URL('../components/FactorySection.astro', import.meta.url)),
   'utf8',
 );
+const oemProcessSource = readFileSync(
+  fileURLToPath(new URL('../components/OemProcessSection.astro', import.meta.url)),
+  'utf8',
+);
 const whyChooseUsSource = readFileSync(
   fileURLToPath(new URL('../components/WhyChooseUsSection.astro', import.meta.url)),
   'utf8',
@@ -267,6 +271,21 @@ test('homepage retains the separate 10-step OEM execution process', () => {
     10,
     'homepage OEM execution process keeps all 10 steps',
   );
+  assert.ok(homepageSource.includes('<OemProcessSection process={oemProcess} />'));
+});
+
+test('OemProcessSection supports an optional sectionId anchor without changing homepage defaults', () => {
+  // Optional anchor contract (OEM homepage content sync, MIU 1): only consumers
+  // that pass sectionId get the id, the heading relationship, and the
+  // fixed-header scroll margin; the no-ID homepage markup/classes stay as-is.
+  assert.ok(oemProcessSource.includes('sectionId?: string'));
+  assert.ok(oemProcessSource.includes('id={sectionId}'));
+  assert.ok(
+    oemProcessSource.includes('aria-labelledby={sectionId ? `${sectionId}-heading` : undefined}'),
+  );
+  assert.ok(oemProcessSource.includes('id={sectionId ? `${sectionId}-heading` : undefined}'));
+  assert.ok(oemProcessSource.includes("sectionId && 'scroll-mt-[var(--spacing-header)]'"));
+  // The homepage call stays prop-free.
   assert.ok(homepageSource.includes('<OemProcessSection process={oemProcess} />'));
 });
 
