@@ -1,0 +1,75 @@
+# Local development substrate for the AI assistant (MIU 2a).
+#
+# Production runs on CloudRun; this reproduces the *shape* of that runtime
+# locally — container process, ports, health checks, environment, graceful
+# shutdown — so the store, state machine and race suites have something real to
+# run against without buying anything.
+#
+# It deliberately does NOT reproduce: CloudRun's managed gateway, the CORS edge,
+# scale-to-zero cold starts, VPC attachment, TLS termination, managed pooling,
+# quotas or billing. Those stay deployed integration tests
+# (architecture §14: "production-shaped, not production-equivalent").
+#
+#   docker compose -f docker-compose.ai.yml up -d postgres
+#   node scripts/probe-ai-store.mjs --url postgres://ai:ai@localhost:55432/ai_assistant
+#
+# The BFF and worker services are commented out until MIU 2a creates those
+# packages. Leaving them uncommented would make `up` fail on a missing build
+# context, which reads as "the substrate is broken" rather than "not built yet".
+
+name: channel-ai
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: channel-ai-postgres
+    environment:
+      POSTGRES_USER: ai
+      POSTGRES_PASSWORD: ai
+      POSTGRES_DB: ai_assistant
+      # LLD-001 §4.4 requires READ COMMITTED. Postgres defaults to it, but the
+      # store probe (S1) asserts it rather than trusting the default, because a
+      # managed provider can ship a different default and the failure mode is a
+      # takeover returning a 500 instead of a clean conflict.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    # 55432, not 5432: developers on this team already run other Postgres
+    # containers (a stale one was found squatting ports during MIU 0), and a
+    # port clash here looks like a database fault.
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai -d ai_assistant"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - ai-pgdata:/var/lib/postgresql/data
+
+  # Uncomment as MIU 2a creates each package.
+  #
+  # ai-bff:
+  #   build:
+  #     context: .
+  #     dockerfile: apps/ai-bff/Dockerfile
+  #   environment:
+  #     DATABASE_URL: postgres://ai:ai@postgres:5432/ai_assistant
+  #     PORT: "8080"
+  #     CORS_ALLOWED_ORIGINS: http://localhost:4321
+  #   ports:
+  #     - "8080:8080"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #
+  # ai-worker:
+  #   build:
+  #     context: .
+  #     dockerfile: apps/ai-worker/Dockerfile
+  #   environment:
+  #     DATABASE_URL: postgres://ai:ai@postgres:5432/ai_assistant
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+
+volumes:
+  ai-pgdata:

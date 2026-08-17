@@ -2,7 +2,7 @@
   "name": "channel-portal",
   "version": "0.1.0",
   "private": true,
-  "description": "Channel portal — Astro + TailwindCSS site with a registry-driven admin backed by wx-server-sdk (CloudBase).",
+  "description": "Channel portal \u2014 Astro + TailwindCSS site with a registry-driven admin backed by wx-server-sdk (CloudBase).",
   "type": "module",
   "packageManager": "pnpm@11.5.0",
   "engines": {
@@ -30,7 +30,10 @@
     "typecheck": "npx pnpm -r --filter \"./packages/**\" --filter \"./apps/**\" typecheck && npx pnpm typecheck:e2e",
     "typecheck:e2e": "tsc --noEmit --project tsconfig.e2e.json",
     "lint": "npx biome check .",
-    "format": "npx biome format --write ."
+    "format": "npx biome format --write .",
+    "test:ai:store": "node scripts/probe-ai-store.mjs --url ${DATABASE_URL:-postgres://ai:ai@localhost:55432/ai_assistant}",
+    "dev:ai": "docker compose -f docker-compose.ai.yml up -d postgres",
+    "dev:ai:down": "docker compose -f docker-compose.ai.yml down"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

@@ -2,7 +2,7 @@
 
 **Product:** Diversity Technology Limited website  
 **Status:** Proposed; production approval blocked by the gates in this document  
-**Last reviewed:** 2026-08-11  
+**Last reviewed:** 2026-08-17
 **Scope:** Public floating customer-service assistant and sales handoff
 
 ## 1. Decision
@@ -28,7 +28,7 @@ Pinned Hermes Agent customer-service profile
 Dedicated Tencent Lexiang public customer-service space
 ```
 
-The BFF exposes a provider-neutral `ConversationEngine` boundary. Hermes is the first adapter. Direct Lexiang Q&A, Tencent ADP, or a CloudBase Agent can replace it only through a later ADR and equivalent security, cancellation, evaluation, and operations evidence.
+The BFF exposes a provider-neutral `ConversationEngine` boundary. The selected production implementation is CloudRun BFF/workers calling a pinned Hermes profile, with Hermes retrieving from Lexiang through its configured MCP server. This is a closed implementation decision for the current product. Replacing the runtime, engine, or knowledge transport requires a later ADR and equivalent security, cancellation, evaluation, and operations evidence; it is not an open implementation choice.
 
 ## 2. Evidence and Current State
 
@@ -44,7 +44,8 @@ The BFF exposes a provider-neutral `ConversationEngine` boundary. Hermes is the 
 - The exact pinned Hermes release and container digest.
 - Idempotent Runs creation semantics for the pinned release.
 - The production CloudRun network path and PostgreSQL transaction boundary.
-- A public-only Lexiang space whose credential cannot access internal knowledge.
+- A public-only Lexiang space and a production Lexiang MCP credential whose
+    actual tool surfaces cannot access internal knowledge or write public content.
 - Production model, region, retention policy, budget, and sales takeover channel.
 
 The local prototype proves feasibility, not production readiness.
@@ -93,6 +94,14 @@ The standalone Hermes messaging gateway documented in `HERMES_OPS_SOP.md` is ope
 ## 6. Public and Sales APIs
 
 ### Public
+
+**Host:** these paths are served on the **BFF's own CloudRun origin**
+(`<service>-<id>.sh.run.tcloudbase.com` or a custom domain mapped to it), *not*
+on the website's API domain. MIU 0 measured that `/api/ai/*` on the website
+domain resolves to the `public-api` function by longest-prefix match and always
+will; the assistant does not contend for that prefix. The widget therefore makes
+cross-origin calls, which makes CORS and cross-origin credential handling
+load-bearing rather than incidental (§14, `evidence/P3-runtime-and-routing.md`).
 
 | Method | Route | Purpose |
 |---|---|---|
@@ -226,3 +235,98 @@ With the existing prototype, the production increment remains approximately **22
 - A one-week demo is not a production customer-service system.
 
 The estimator, trend, supplier, and logistics modules are separate workstreams. Their details remain historical roadmap material until each receives its own English owning design.
+
+## 14. Environment and Purchase Strategy
+
+The existing CloudBase NoSQL environment remains the source for CMS, users,
+OEM, media and current Cloud Functions. The assistant adds a separate
+PostgreSQL operational store; it does not migrate or replace those workloads.
+
+Keep one PostgreSQL implementation from development to production:
+
+| Stage | Runtime and store | Purchase posture |
+|---|---|---|
+| Local development | Docker Compose: BFF, workers, PostgreSQL 16 | No cloud purchase |
+| CI | PostgreSQL service, same migrations and race tests | No persistent cloud purchase |
+| Cloud integration | CloudRun plus short-lived pay-as-you-go TencentDB PostgreSQL in ap-shanghai | Bounded test-window spend; release after evidence if no shared environment is needed |
+| Customer pilot/production | CloudRun plus sized TencentDB PostgreSQL on a private VPC path | Approve from measured traffic, connections, retention, RPO and RTO; pay-as-you-go or monthly |
+
+A second CloudBase PG-mode environment is optional sandbox capacity, not the
+primary target. PG mode requires a newly created environment; the existing
+traditional NoSQL environment cannot be upgraded in place. One free-experience
+environment with 3,000 monthly resource points may be available at the account
+level, but eligibility, renewal and workload sufficiency must be confirmed. If
+the PG environment exposes a normal server-side PostgreSQL connection and passes
+the store probes, the same implementation may be reused. An HTTP/RPC-only path
+moves transaction logic into database functions and requires a reviewed store
+implementation.
+
+Local Docker is production-shaped, not production-equivalent. It proves the
+container process, SSE server, health checks, graceful shutdown, migrations,
+transactions and race suite. It does not prove CloudRun gateway behavior, CORS,
+scale-to-zero cold starts, VPC attachment, TLS, managed pooling, quotas or
+billing. Those are repeated against the deployed path before public traffic.
+
+CloudRun is usage-based, not inherently a several-hundred-yuan monthly server.
+At the currently published rates, one continuously warm `0.25 core + 0.5 GiB`
+instance is about 21.72 yuan/month compute-only, and `1 core + 2 GiB` is about
+86.87 yuan/month. `minNum=0` may reduce low-traffic compute by scaling to zero,
+with a cold-start trade-off. Multiple services/replicas, logs, egress and other
+resources add cost, and the existing Standard-plan resource-point deduction
+must be confirmed on the actual bill.
+
+CloudRun is the production runtime for this product. Local Docker Compose is the
+development substitute for its BFF and worker containers. Future agents must not
+reopen the runtime choice during implementation; a proposed replacement requires
+a new ADR rather than an MIU-level trade-off.
+
+The knowledge path is also fixed for this release:
+
+```text
+BFF -> ConversationEngine -> pinned Hermes profile -> Lexiang MCP server
+```
+
+The BFF does not call Lexiang REST directly, and the browser never calls
+Lexiang. The local working artifact used an MCP URL and an `lxmcp_...` bearer
+credential. A REST AppKey's interface and knowledge authorization range is
+useful administrative evidence, but it does not prove that the serving MCP
+credential has the same scope. Gate 2 closes only against the exact MCP
+credential and tool surfaces deployed in the Hermes profile.
+
+The local-development design does not require Lexiang infrastructure on a
+developer machine. Current and planned layers are explicit:
+
+- The existing deterministic `FakeEngine` already supports successful token
+  streams, citations, transport failures, timeout and overlong-output cases.
+- MIU 5a and integration MIUs add answer-policy fixtures, including
+  `knowledge_empty` and `unavailable`; those cases are not yet implemented.
+- MIU 4 creates a local stub Hermes HTTP server that emits recorded, sanitized
+  Hermes event fixtures for adapter transport tests; that stub is not yet built
+  and will not call Lexiang.
+- A developer may run the pinned Hermes container locally with a test-only MCP
+  credential for manual integration, but it is optional and must contain no
+  internal or customer data.
+- Shared staging, contract probes, golden-set evaluation and production use the
+  real dedicated public Lexiang space and the exact scoped MCP credential.
+
+MIU 2a also creates the Docker Compose BFF/worker/PostgreSQL development stack;
+it does not exist in the current repository yet.
+
+Lexiang itself remains a managed external service. There is no Lexiang database,
+index, or MCP server to install locally. The company administrator creates the
+public space, obtains or mints the MCP credential, stores it in Secret Manager,
+and gives the deployment only a secret reference. Hermes is configured with the
+MCP URL, bearer credential, timeout and a read-only tool allowlist. Startup
+readiness fails if the MCP server or credential is absent.
+
+Before traffic, the deployed credential must pass, per exposed MCP surface: a
+known public positive read/search, a known internal denial, a public write
+denial, and a deliberately over-scoped sensitivity run that turns the probe red.
+If Lexiang cannot provide a credential that passes this contract, gate 2 remains
+blocked; implementation does not silently switch transport or relax isolation.
+
+No long-term infrastructure purchase is required to start local implementation.
+The first bounded cloud spend is the pay-as-you-go database integration window.
+Before customer traffic, the architect approves the complete operating envelope:
+CloudRun, PostgreSQL, Hermes hosting, model usage, Lexiang licensing if any,
+logs/monitoring, WAF, network and notification services.

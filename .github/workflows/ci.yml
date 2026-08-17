@@ -74,3 +74,58 @@ jobs:
 
       - name: Discover Playwright specs
         run: pnpm test:e2e --list
+
+  ai-store:
+    name: AI store contract (PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # A separate job, not a service bolted onto `checks`: the database is only
+    # needed by the AI assistant's store work, and a failure here should read as
+    # "the store contract broke", not "the build is red".
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ai
+          POSTGRES_PASSWORD: ai
+          POSTGRES_DB: ai_assistant
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ai -d ai_assistant"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      CI: 'true'
+      DATABASE_URL: postgres://ai:ai@localhost:5432/ai_assistant
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # LLD-001's entire takeover design rests on behaviours this probe checks —
+      # chiefly that a conditional UPDATE which waited on a row lock returns zero
+      # rows rather than raising or succeeding on stale data. Running it in CI
+      # means a PostgreSQL image or configuration change that breaks the
+      # assumption is caught here rather than in production.
+      - name: Store contract probe
+        run: pnpm test:ai:store

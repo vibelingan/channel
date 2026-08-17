@@ -1,8 +1,9 @@
 # MIU 0 — What has to exist before the AI assistant can be built
 
-**Short version: five things do not exist yet. Four of them you have to go and
-get — an account, a server, or a signed agreement. Nobody can write the code
-until they exist.**
+**Short version: production still needs five external resources or decisions,
+but local implementation does not wait for a long-term database purchase.
+Develop against PostgreSQL 16 in Docker and CI; buy bounded cloud integration
+time only when the real network path must be proven.**
 
 This page is the shopping list. The technical steps are further down; read them
 only if you want to.
@@ -11,7 +12,7 @@ only if you want to.
 
 ## The five things
 
-### 1. A database — and there is a fork here, decided 2026-08-16
+### 1. A database — PostgreSQL retained, purchase timing revised 2026-08-17
 
 **Do NOT buy anything for this until you have read the fork below.**
 
@@ -25,19 +26,23 @@ out the obvious route:
 Your current environment is the NoSQL kind. It cannot be converted. So the
 "just switch on PostgreSQL" option does not exist.
 
-Worse, every documented way to reach CloudBase PostgreSQL is over the web —
-their `app.rdb()` SDK, their management tools, or a REST interface. There is no
-ordinary database connection. That matters because the salesperson-takeover
-feature needs several commands to run as one indivisible unit, and a REST
-interface cannot express that. It would have to be rewritten as functions
-stored inside the database — a real redesign of the most safety-critical part
-of the system, and one nobody has costed.
+CloudBase documents two valid ways to perform a multi-statement transaction:
+encapsulate it in a database RPC function, or use a server-side PostgreSQL
+protocol connection. The target environment must prove which path it exposes.
+An HTTP-only path does not implement this LLD by changing a connection string;
+it moves the transaction boundary into database functions and needs a reviewed
+store implementation.
 
 **Option A — a second CloudBase environment, in PostgreSQL mode**
 - A new environment (your existing one keeps running untouched).
-- The handover logic must be rewritten as in-database functions.
-- My checking script cannot connect at all, so the risk stays unmeasured
-  until much later.
+- This Tencent account may be eligible for one free-experience environment with
+  3,000 resource points/month, but eligibility and renewal are account-specific
+  and must be confirmed. It is not a promised second free environment.
+- If a normal server-side PostgreSQL connection exists and `S0-S11` passes, the
+  current store and SQL remain reusable. If only HTTP/RPC is available, the
+  handover transaction must be implemented as database functions and reviewed.
+- Useful as an optional no-real-PII development sandbox. It does not prove the
+  final CloudRun-to-TencentDB VPC path.
 
 **Option B — a normal Tencent Cloud PostgreSQL database, plus CloudRun — RECOMMENDED**
 - 云数据库 PostgreSQL is a separate Tencent product from CloudBase. It gives you
@@ -46,30 +51,56 @@ of the system, and one nobody has costed.
 - My checking script runs against it unchanged, so you get a PASS/FAIL in
   seconds rather than a guess.
 - Your existing CloudBase environment is untouched.
-- Costs money — it is a proper managed database, not a free tier.
+- Supports pay-as-you-go for a bounded cloud integration window and a long-term
+  plan when the customer pilot begins.
 
-Buy page: https://buy.cloud.tencent.com/price/pgsql (pick the smallest instance;
-this is a pilot, not production traffic).
+Buy page: https://buy.cloud.tencent.com/price/pgsql. Quote the entry and next
+practical configurations; traffic, connections, retention, storage, RPO and RTO
+have not yet proved that the smallest SKU is sufficient.
 
-**What to send me once it exists:** host, port, database name, user, password.
+**What to return once it exists:** non-secret instance id, private host, port,
+database name, VPC id, subnet id and secret names. Put credentials directly in
+the approved secret manager; do not send passwords or connection strings in
+chat, email or command-line arguments. Use a disposable probe role and a
+separate least-privilege runtime role.
 
 **Why this fork was foreseeable:** ADR-001 already recorded that CloudBase's
 PostgreSQL SDK exposes no full transaction API, and that the server would
 therefore need either a direct database connection or in-database functions —
 "具体路径必须在目标环境 live-verify". This is that verification, done.
 
-### 2. A place to run the assistant's own server — ✅ DONE 2026-08-16
+### 2. A place to run the assistant's own server — platform proof done 2026-08-16
 
 **Status:** CloudRun activated and proven. A throwaway service deployed, served
 HTTP 200, and streamed server-sent events correctly through the gateway. See
 `evidence/P3-runtime-and-routing.md`.
 
-**What it was:** somewhere that can run a long-lived container — CloudRun, or
-the CloudBase equivalent.
-**Why:** the assistant needs a small server of its own, separate from your
+**Selected service:** CloudRun in ap-shanghai.
+**Why:** the assistant needs services of its own, separate from the
 existing website functions. It holds the conversation, decides what the AI is
 allowed to say, and manages the handover to a salesperson.
-**What to send me:** which service, and which region.
+
+**Closed runtime choice.** CloudRun is the production runtime for the full BFF +
+worker design. The live gateway is SSE-proven and the container/VPC/scale
+boundaries match the LLD. Local Docker Compose is the development substitute;
+future agents do not reopen runtime selection inside an MIU. Any replacement
+requires a new ADR with equivalent evidence.
+
+**Local parity target:** MIU 2a will add Docker Compose for the BFF and workers
+as ordinary containers with PostgreSQL 16. Once built, it reproduces process
+lifecycle, ports, health checks, environment variables, SSE and graceful
+shutdown. It does not reproduce
+CloudRun's managed gateway, CORS edge, scale-to-zero cold start, VPC attachment,
+resource limits or billing; those remain deployed integration tests.
+
+**CloudRun cost:** published rates are `0.055 yuan/core-hour`, `0.032
+yuan/GiB-hour`, and `0.8 yuan/GB` internet egress. One continuously warm
+`0.25 core + 0.5 GiB` instance is about `21.72 yuan/month` compute-only; one
+`1 core + 2 GiB` instance is about `86.87 yuan/month`. `minNum=0` can scale to
+zero for low-traffic development, reducing compute at the cost of cold starts.
+The existing Standard-plan resource-point deduction, logs and traffic must be
+confirmed on the actual bill. Therefore CloudRun is not automatically "hundreds
+per month", but neither is activation proof a zero-cost production approval.
 
 ### 3. A brand-new Lexiang (腾讯乐享) knowledge space
 
@@ -84,8 +115,38 @@ stranger typing into the chat box causes a search against your company
 knowledge. If that search can reach internal material — supplier contracts,
 costs, customer projects — it eventually will.
 
-**What to send me:** the space identifier, the read-only token, and the id of
-one *internal* document so I can prove the token cannot open it.
+**What to return:** the space identifier, the non-secret AppKey identity, the
+Secret Manager reference for AppSecret/access-token minting, and the id of one
+real *internal* document for the scheduled negative-access proof. Never send the
+AppSecret or access token through chat or email.
+
+**Serving credential correction:** the proven Hermes configuration uses a
+Lexiang MCP URL plus an `lxmcp_...` bearer credential. A REST AppKey/access token
+does not automatically establish the scope of that MCP credential. Return the
+non-secret MCP credential id, MCP URL, MCP preset/tool schema, space id and its
+Secret Manager reference. Keep REST AppKey evidence only for administration and
+documented API probes.
+
+**No local Lexiang installation.** For ordinary development:
+
+- The existing `FakeEngine` supplies deterministic successful streams,
+  citations, transport failures, timeout and overlong-output cases.
+- MIU 5a/integration work adds grounded-policy, empty-knowledge and unavailable
+  fixtures; they are not implemented yet.
+- MIU 4 creates the local stub Hermes HTTP server and sanitized recorded frames;
+  that artifact is not implemented yet.
+- Running local Hermes against a test-only public MCP credential is optional
+  manual integration, not a prerequisite for every developer.
+- Real Lexiang is required in shared staging for K1-K5, the golden-set
+  evaluation, and the production pre-traffic gate.
+
+**Production configuration:** the pinned Hermes profile contains exactly one
+approved Lexiang MCP server. Its URL, bearer secret reference, timeouts and
+read-only `tools.include` list are versioned with the profile. The profile's
+non-secret attestation identifies the serving credential/space/rotation. A
+missing MCP credential fails startup readiness. If the serving credential
+cannot pass K1-K5, gate 2 remains blocked; do not switch transport during
+implementation.
 
 ### 4. A running Hermes server with a fixed version
 
@@ -94,7 +155,9 @@ version (not "latest").
 **Why pinned:** Hermes ships new abilities frequently. Some of them — running
 commands, reading files, browsing — would be dangerous on a service an
 anonymous visitor can talk to. We check the exact list once and freeze it.
-**What to send me:** the URL, an API key, and the version.
+**What to return:** the private URL, pinned version and digest, profile id, and
+the Secret Manager reference for the API key. Never send the API key through
+chat or email.
 
 **Note:** your original prototype ran Hermes locally. That proved the idea
 works; it is not a server customers can use.
@@ -131,18 +194,22 @@ account. Each needs a name against it.
 | | Status |
 |---|---|
 | The engine boundary (MIU 1) | **Built, tested, pushed.** 43 tests pass |
-| The database check | **Script written and proven** — waiting on your database to point it at |
-| Everything else | **Not started**, and cannot start until the five things above exist |
+| Local/CI database | PostgreSQL 16 is the required development baseline; no long-term cloud purchase required |
+| Target database check | **Script written and proven** — run again through the real CloudRun-to-target path before pilot |
+| External credentials and policy gates | Outstanding; they block public traffic, not every local MIU |
 
-Nothing above is a code problem. It is all accounts, servers, and decisions.
+The engine port and local operational core can proceed. Public integration and
+release remain blocked by the external accounts, network and human decisions.
 
 ---
 
 ## What I would do first, if it were me
 
-Get item 1, the database. It is the only one that can invalidate the design, so
-finding out early is worth more than anything else on the list. Send me a
-connection string and you will have an answer the same day.
+Have MIU 2a create the named Docker Compose stack and CI PostgreSQL service,
+then bring them up, apply the real migrations, and run the full race suite. When the BFF is ready for cloud
+integration, open a pay-as-you-go TencentDB instance for a bounded test window,
+attach CloudRun to its VPC/subnet, run `S0-S11` and end-to-end tests, then release
+it. Buy a long-term instance only at the customer-pilot gate after sizing.
 
 ---
 
@@ -158,8 +225,10 @@ Each item states **who can do it**. That matters more than the order:
 | 🔑 | Needs a credential or console access only you have |
 | 🧑 | A **decision**. No probe closes it; a named human must choose |
 
-**Run P0 first.** Not "early" — first. It is the one result that can invalidate
-the other twelve.
+**Run P0 first locally and in CI, then repeat it against every cloud candidate
+and finally through the deployed production-shaped path.** A local PASS proves
+the code and reference PostgreSQL semantics; it does not prove VPC, TLS, pooling
+or the managed target.
 
 ---
 
@@ -222,12 +291,12 @@ record which you probed:
 
 ```bash
 # CloudBase PostgreSQL, or CloudRun + managed PG, or a self-managed instance
-node scripts/probe-ai-store.mjs --url "postgres://USER:PASS@HOST:PORT/DB" --json \
+PGURL="$AI_PROBE_DATABASE_URL" node scripts/probe-ai-store.mjs --json \
   > docs/ai-platform/evidence/store-probe-$(date +%Y%m%d).json
 ```
 
-Where to get the connection string: CloudBase console → the PostgreSQL/RDS
-instance for the target environment → connection details. It must be the
+Provision the connection secret directly in the execution environment. Do not
+place it in shell history or process arguments. It must be the
 **environment you intend to serve from**, not a local stand-in — pooling and
 isolation defaults are exactly what differ.
 
@@ -403,39 +472,37 @@ test never checks".
 
 ## R1 — Where does the BFF run
 
-Confirm the target platform can host a long-lived container: CloudRun, or the
-CloudBase equivalent. Record region.
+Use the selected CloudRun service and record region, service type, resources,
+`minNum`, VPC/subnet, public origin and billing evidence. Runtime replacement is
+outside MIU 0 and requires a new ADR.
 
-## R2 — The worker runtime and its trigger 🧑
+## R2 — The selected CloudRun worker and its trigger 🧑
 
 LLD-001's start-run handler streams engine events and appends per event — a
 long-lived process. This repo's only scheduling primitive is CloudBase timer
 triggers, and prior work established the test environment has none.
 
-**Decide and record:** what process runs the outbox workers, and what starts it.
-MIU 5b and 5c cannot be built without this answer.
+**Decide and record:** the selected CloudRun worker service/process and whether
+an internal signed request, queue adapter, or bounded poll wakes it. The runtime
+is not open; only the trigger mechanism is. MIU 5b and 5c cannot be built without
+this answer.
 
-## R3 — The gateway route collision 🔑
+## R3 — Verify the selected separate-origin route 🔑
 
-**A real conflict, already confirmed by reading the manifest.**
-`scripts/cloudbase-function-manifest.mjs` maps `/api` → `public-api` and
-`/api/admin` → `admin` as wildcard prefixes. The architecture puts the assistant
-at `/api/ai/*` and `/api/admin/ai/*` — **underneath routes that are already
-claimed**. Left alone, assistant traffic is answered by the storefront catalog
-function.
+The gateway collision and resolution were measured in
+`evidence/P3-runtime-and-routing.md`: `/api/ai/*` reaches the existing
+`public-api`, while CloudRun receives its own hostname. The selected topology is
+therefore the CloudRun origin; do not register a competing gateway prefix.
 
-Probe which resolution works:
+Record and verify:
 
-```bash
-# Option A: does the gateway honour longest-prefix precedence?
-# Register /api/ai at higher specificity, deploy, then:
-curl -sS -i "$TEST_ENV_URL/api/ai/healthz"
-# It must reach the BFF, not public-api. Precedence is an assumption until
-# this request has actually been made.
-```
-
-If precedence is not honoured: **Option B** — give the BFF its own origin, and
-record the CORS configuration and hostname that follows.
+1. The exact deployed CloudRun hostname and public health/smoke route.
+2. CORS allows only the approved website origins and methods.
+3. The short-lived conversation credential works cross-origin and is never
+  confused with the site's existing session token.
+4. The widget's compiled API origin matches the deployed CloudRun hostname.
+5. A request to the old environment-domain `/api/ai/*` path is not treated as a
+  successful assistant request.
 
 **Record:** which option, the evidence, the frontend API origin the widget will
 compile against, and the deployed smoke URL.

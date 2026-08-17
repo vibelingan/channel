@@ -1,7 +1,7 @@
 # AI Architecture Documentation Index
 
 **Status:** Canonical documentation index  
-**Last reviewed:** 2026-08-11
+**Last reviewed:** 2026-08-17
 
 This directory contains the AI architecture for the Diversity Technology Channel website. It does not define the architecture of the separate Vibelingan Enterprise Brain product.
 
@@ -25,6 +25,8 @@ the architecture above wins and the specifying document is corrected.
 | [LLD-002-CONVERSATION-ENGINE-INTERFACE.md](./LLD-002-CONVERSATION-ENGINE-INTERFACE.md) | The provider-neutral `ConversationEngine` boundary that keeps Hermes swappable | Writing the engine adapter, and before it |
 | [SECURITY.md](./SECURITY.md) | Architecture §9 — trust zones, the credential inventory, the public-only knowledge space, and the tool surface contract | Provisioning any credential |
 | [TEST_STRATEGY.md](./TEST_STRATEGY.md) | Architecture §11 — which test proves each gate, and which claims cannot be proven offline | Planning any MIU's verification |
+| [PROCUREMENT-BRIEF.md](./PROCUREMENT-BRIEF.md) | Architecture §14 — staged development, CloudRun cost model, database alternatives, purchase timing, and the architect checklist | Approving or buying any AI infrastructure |
+| [MIU-0-RUNBOOK.md](./MIU-0-RUNBOOK.md) | The executable preflight for local Docker, cloud integration probes, credentials, external providers, and human decisions | Starting infrastructure or MIU 0 work |
 
 ## Historical and Supporting Documents
 

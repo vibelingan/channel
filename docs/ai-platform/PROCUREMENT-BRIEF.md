@@ -1,24 +1,29 @@
 # AI Assistant — What to buy, and why
 
 **For:** the architect / whoever approves spend
-**Last updated:** 2026-08-16 (second revision — CloudRun now activated and tested)
+**Last updated:** 2026-08-17 (third revision — staged development and purchase timing)
 **Environment inspected:** `diversity-123-d9grnqfux221323bb` (ap-shanghai), plan
 标准版 `baas_pf_standard`, prepaid to 2027-07-31
 
-Everything below was read from or measured against the live environment, not
-assumed.
+Live-resource status and the SSE result were measured against the environment.
+Pricing and platform capabilities are reported from Tencent's current official
+documentation. Future usage, account eligibility and production sizing remain
+explicit assumptions or open decisions.
 
 ## Status at a glance
 
 | # | Item | Status | Spend |
 |---|---|---|---|
-| 1 | CloudRun (云托管) | ✅ **Activated and proven working** | Included / TBC — see note |
-| 2 | Database | **Decided: Option B** — standalone 云数据库 PostgreSQL | Monthly, to price |
-| 3 | Lexiang space + read-only token | Outstanding | Likely ¥0 |
-| 4 | Hermes HTTP API, restricted + pinned | Outstanding | Small server if separate |
+| 1 | CloudRun (云托管) | ✅ Platform activated and SSE proven; production services not deployed | Usage-based; existing-point coverage is unknown until load and bill measurement |
+| 2 | Database | PostgreSQL design retained; **no long-term instance purchased during local development** | Docker/CI now; temporary pay-as-you-go TencentDB for cloud integration; long-term instance at pilot gate |
+| 3 | Lexiang public space + scoped MCP serving credential | Outstanding | Confirm current licence and K1-K5 contract; do not assume zero cost |
+| 4 | Hermes HTTP API, restricted + pinned | Outstanding | Hosting and operations cost depends on isolation decision |
 | 5 | zenmux key + spend cap | Outstanding | Usage-based |
 
-**Only item 2 requires a purchase decision now.**
+**No long-term infrastructure purchase is required for local development.** The
+next commercial action is a pay-as-you-go TencentDB integration window, followed
+by a production quote only after measured sizing. Hermes hosting and model usage
+remain separate operating-cost decisions.
 
 ---
 
@@ -39,11 +44,19 @@ assumed.
 **Status: ✅ DONE.** Activated by the owner on 2026-08-16, and verified by
 deploying a throwaway service end to end.
 
-**Why it is needed at all.** The website's existing cloud functions answer a
-request and finish. The assistant cannot work that way: when a visitor asks a
-question the reply streams back word by word over a connection held open for
-tens of seconds, and a background worker feeds it. Functions time out and are
-not built to hold a connection open.
+**Why this runtime was selected.** The website's three existing services are
+Event Functions and cannot be reused in place as the assistant BFF/worker. A new
+CloudBase Web/HTTP Function can technically stream in supported runtimes, and
+the platform documents function timeouts up to 900 seconds. Therefore CloudRun
+is not the only possible Tencent runtime.
+
+CloudRun is the selected runtime for the full design because it gives the
+BFF and long-lived engine workers independent deployment, container parity,
+streaming lifecycle control, VPC TCP access to PostgreSQL, resource limits,
+scaling and failure isolation without changing the existing functions. This
+decision is closed for implementation: future agents use local Docker Compose
+as the development substitute and do not reopen runtime selection. Any proposed
+replacement requires a new architecture decision with equivalent evidence.
 
 ### What was measured, not assumed
 
@@ -61,13 +74,37 @@ assumption in the entire design — streaming that dies quietly behind a proxy
 looks fine in development and fails in production. It is now settled by
 measurement rather than hope.
 
-**Cost:** still worth confirming on your bill. It is a resource on an existing
-paid plan. **Ask Tencent: how is 云托管 billed on 标准版 — resource points or
-separately?**
+### Cost model
+
+The published resource-point table currently shows:
+
+- CPU: `0.055 yuan / core-hour` (`55 points / core-hour`).
+- Memory: `0.032 yuan / GiB-hour` (`32 points / GiB-hour`).
+- Internet egress: `0.8 yuan / GB`.
+
+At 730 hours/month, compute-only examples are:
+
+| Configuration | If one instance runs continuously | Resource points/month |
+|---|---:|---:|
+| 0.25 core + 0.5 GiB | about `21.72 yuan/month` | about `21,718` |
+| 0.5 core + 1 GiB | about `43.44 yuan/month` | about `43,435` |
+| 1 core + 2 GiB | about `86.87 yuan/month` | about `86,870` |
+
+This does **not** imply a fixed monthly bill. CloudRun supports `minNum=0`, so a
+low-traffic service can scale to zero and consume less compute, at the cost of a
+cold start. A continuously warm production instance uses the full monthly
+amount. Logs, outbound traffic, multiple services/replicas, and other resources
+are additional. The Standard plan publishes a shared compute-resource allowance,
+but this project must confirm on the actual bill whether these CloudRun points
+deduct from that allowance and how much the existing workloads already consume.
+
+**Ask Tencent:** confirm resource-point deduction, scale-to-zero billing, log and
+egress charges, and whether a minimum warm instance is required for the target
+latency. Remove the throwaway `ai-probe` service after evidence is retained.
 
 ---
 
-## Item 2 — The database · **DECIDED: Option B**
+## Item 2 — The database · **PostgreSQL retained; purchase staged**
 
 The assistant must make several writes happen as **one indivisible step** —
 mark the chat human-controlled, revoke the AI's permission to write, record the
@@ -95,14 +132,16 @@ takeover fence.
   conversation's events in order — are natural in SQL and need deliberate index
   design in a document store.
 
-### Option B — A standalone 云数据库 PostgreSQL instance · **new monthly cost**
+### Option B — A standalone 云数据库 PostgreSQL instance · **production target**
 
-A normal PostgreSQL server, in ap-shanghai so it sits beside the CloudRun
-service on the internal network.
+A normal PostgreSQL server in ap-shanghai. It is not on CloudRun's private
+network merely because the region matches; `VpcConf`, a compatible VPC/subnet,
+the private endpoint, TLS and network rules must be configured and tested.
 
-- **Cost:** a monthly instance charge. Price it at
-  <https://buy.cloud.tencent.com/price/pgsql> — smallest instance is ample for a
-  pilot.
+- **Cost:** pay-as-you-go or a monthly instance charge. Price it at
+  <https://buy.cloud.tencent.com/price/pgsql>. Do not claim the smallest instance
+  is sufficient until traffic, connection, retention, storage, RPO and RTO
+  envelopes are approved.
 - **Work:** none beyond what is designed. The low-level design already targets
   this exactly.
 - **Risk:** lowest. We have a 30-second script that answers PASS/FAIL on whether
@@ -110,36 +149,51 @@ service on the internal network.
   give the right answer on both a good database and a deliberately broken one.
   We can prove it before committing.
 
-### Option C — A second CloudBase environment in PostgreSQL mode · **new environment cost**
+### Option C — A second CloudBase environment in PostgreSQL mode · **optional sandbox, not the primary path**
 
 CloudBase does offer PostgreSQL, but Tencent's documentation states PG mode is
 chosen **when an environment is created** and *"legacy environments cannot be
 upgraded in place"*. Our environment reports `postgresql: false`. So this means
 a second environment.
 
-- **Cost:** another environment plan.
-- **Work:** see the section below — the critical logic moves into the database
-  and is written in a different language.
-- **Risk:** highest. Our verification script cannot connect to it at all, so the
-  hardest requirement stays unproven until late.
+- **Cost:** another environment plan unless this Tencent account is eligible for
+  its one free-experience environment. Eligibility is not assumed: an account
+  already using an earlier free package may not receive another. The free offer
+  publishes 3,000 resource points per month and renewal constraints; it does not
+  guarantee enough capacity for this workload.
+- **Work:** a new PG-mode environment can coexist with the existing NoSQL
+  environment, which remains untouched. If the new environment supplies a
+  normal server-side PostgreSQL connection and passes `S0-S11`, the existing
+  `pg` store can be reused. If it exposes the required multi-statement work only
+  through HTTP/RPC, the transaction boundary moves into database functions and
+  requires a store implementation and review.
+- **Use:** acceptable as an optional shared development sandbox if it is free,
+  contains no real customer data, and passes the relevant probes. It does not
+  prove the final CloudRun-to-TencentDB VPC path and is not a reason to rewrite
+  the production design.
 
-### Decision — taken 2026-08-16 by the product owner
+### Staged decision — revised 2026-08-17
 
-**Option B.** Buy a standalone 云数据库 PostgreSQL instance in **ap-shanghai**
-(same region as CloudRun, so the two talk over the internal network — lower
-latency, no egress charge).
+Keep one PostgreSQL implementation across environments; do not build a temporary
+NoSQL AI store merely to avoid a development bill:
 
-Rationale on record: the design is already written and reviewed against a normal
-PostgreSQL, and the 30-second verification script can prove the database
-supports the required behaviour *before* any code is committed to it. Option A
-was viable and free but required rewriting the most safety-critical design for a
-document store; Option C was rejected for adding cost and risk together.
+1. **Local development:** MIU 2a creates Docker Compose for the BFF, workers and PostgreSQL 16.
+2. **CI:** MIU 2a adds a PostgreSQL service for the same migrations and race tests.
+3. **Cloud integration:** create a short-lived pay-as-you-go TencentDB instance
+  in ap-shanghai, attach CloudRun explicitly to its VPC/subnet, run `S0-S11`
+  and end-to-end tests, then release the instance if the test window is over.
+4. **Customer pilot:** obtain a production quote using measured traffic and
+  retention. Continue pay-as-you-go for uncertain load or convert to a monthly
+  plan when usage stabilizes.
 
-**This is the only outstanding purchase.**
+Same region does not automatically create a private route. CloudRun must receive
+a real `VpcConf` using the database VPC and subnet, the database must expose its
+private endpoint, and TLS/network rules must be tested from the deployed runtime.
 
-**What to buy:** smallest instance, ap-shanghai. Price at
-<https://buy.cloud.tencent.com/price/pgsql>.
-**What to send back:** host, port, database name, user, password.
+Credentials are provisioned directly into the approved secret manager. Return
+only non-secret identifiers and secret names; never send a database password or
+connection string through chat or email. Use a disposable probe role/schema,
+then a separate least-privilege runtime role.
 
 ---
 
@@ -212,6 +266,43 @@ merely trusted not to.
 **Cost:** likely nothing if Lexiang is already licensed; a space is a container.
 **Confirm with whoever administers Lexiang.**
 
+### How development and production connect
+
+The selected serving path is **Hermes -> Lexiang MCP**, matching the proven
+local artifact. The BFF and browser do not call Lexiang REST directly.
+
+| Stage | Knowledge dependency |
+|---|---|
+| Unit/store/race tests | `FakeEngine` fixtures; no Lexiang account or network |
+| BFF/worker integration today | Existing `FakeEngine` + real PostgreSQL design; successful streams/citations and transport failure/timeout fixtures |
+| BFF/worker integration after MIU 5a | Adds `knowledge_empty`, `unavailable` and answer-policy fixtures |
+| Hermes adapter transport tests after MIU 4 | Local stub Hermes HTTP server with sanitized recorded event frames; no Lexiang |
+| Optional developer manual test | Pinned local Hermes container + test-only public MCP credential |
+| Shared staging and release evaluation | Real pinned Hermes + exact scoped Lexiang MCP credential + approved public corpus |
+| Production | Same as staging, with production secret reference and standing scope probes |
+
+Lexiang is managed SaaS; developers do not install its database, index or MCP
+server locally. The Lexiang administrator must:
+
+1. Create the dedicated public customer-service space and publish only approved
+  public FAQ/content.
+2. Create the serving MCP credential and record its non-secret credential id,
+  MCP URL and space id. REST AppKey/interface/knowledge-scope settings are
+  administrative evidence only; they do not substitute for probing the actual
+  `lxmcp_...` credential used by Hermes.
+3. Store the secret in the approved Secret Manager; provide deployment only the
+  secret reference.
+4. Provide one known public document and one current internal document id for
+  the positive/negative controls.
+5. Re-run the scope probe whenever the credential, space, MCP preset, Hermes
+  profile or MCP tool list changes.
+
+Hermes receives the MCP URL and bearer credential through its private profile,
+with only approved read/search tools included. Missing or unreachable MCP turns
+readiness red and the website falls back to inquiry/human contact. If the real
+MCP credential cannot be proven public-only and read-only across search, query,
+list, get and attachment surfaces, production remains blocked.
+
 ---
 
 ## Item 4 — Hermes with its HTTP API enabled
@@ -256,16 +347,20 @@ below.
 
 **No traffic or cost sizing exists.** Nobody has written down expected
 conversations per day, peak concurrency, tokens per conversation, or storage
-growth. That is why we cannot tell you which database instance size to buy or
-what the monthly model spend will be. It is a real gap in the design documents
-and we should close it before the purchase conversation, not after.
+growth. That is why we cannot select a long-term database SKU, a CloudRun warm
+instance count, or a monthly model budget yet. Local Docker and a bounded
+pay-as-you-go integration window let development continue without pretending
+these inputs exist.
 
 **We do not have Tencent's prices.** The console shows them at the point of
 activation. The two questions worth asking directly:
 
-1. Does activating 云托管 on 标准版 cost extra, and how is it billed?
-2. What is the monthly price of the smallest 云数据库 PostgreSQL instance in
-   ap-shanghai?
+1. Do CloudRun CPU/memory points deduct from the existing Standard-plan pool,
+  and what are the log, egress and minimum-instance charges?
+2. What are the pay-as-you-go and monthly prices for the entry and next practical
+  TencentDB PostgreSQL configurations in ap-shanghai?
+3. Is this account currently eligible for one free CloudBase PG experience
+  environment, and what PG workload consumes its 3,000 monthly points?
 
 ---
 
@@ -273,14 +368,120 @@ activation. The two questions worth asking directly:
 
 | # | Item | Status | Spend |
 |---|---|---|---|
-| 1 | CloudRun | ✅ Done — activated and proven working, including streaming | Confirm billing on 标准版 |
-| 2 | **云数据库 PostgreSQL, smallest instance, ap-shanghai** | ⬅ **The one thing to buy** | Monthly — price at the link above |
-| 3 | New Lexiang space + read-only token | Outstanding | Likely ¥0 — confirm with the Lexiang admin |
-| 4 | Hermes: enable HTTP API, restricted profile, pinned version | Outstanding | Small server if run separately |
-| 5 | zenmux key + monthly cap for the website | Outstanding | Usage-based |
+| 1 | CloudRun platform | ✅ Activated and streaming proven; production BFF/worker not deployed | No activation purchase; confirm point usage, logs and egress |
+| 2 | Local + CI PostgreSQL 16 | Development baseline | No cloud purchase |
+| 3 | Temporary TencentDB PostgreSQL, ap-shanghai | Purchase only for bounded cloud integration | Pay-as-you-go; release after tests |
+| 4 | Long-term TencentDB PostgreSQL | Purchase at customer-pilot gate after sizing | Pay-as-you-go or monthly |
+| 5 | New Lexiang space + scoped MCP serving credential | Outstanding | Confirm existing licence and K1-K5 isolation contract; REST AppKey is supporting evidence only |
+| 6 | Hermes: restricted, pinned website instance/profile | Outstanding | Host/operations cost if isolated instance required |
+| 7 | Model provider key + cap | Outstanding | Usage-based; legal approval required |
 
-**One purchase: item 2.** Items 3, 4 and 5 are configuration and policy, and
-item 1 is finished.
+**Immediate purchase: none for local development.** The first bounded spend is
+the temporary pay-as-you-go TencentDB integration window. Before public traffic,
+the architect approves the complete 12-month operating envelope: database,
+CloudRun, Hermes, model, Lexiang if chargeable, logs/monitoring, WAF, network and
+notification services.
 
-Once item 2 exists, send the connection details and the verification script
-gives a PASS/FAIL the same day — that result is what unblocks the database work.
+---
+
+## 给架构师的中文审批摘要
+
+### 已有资源和已完成证明
+
+- 继续保留现有 CloudBase NoSQL 环境、三个 Event Functions、存储和静态托管；AI 项目不迁移或替换这些业务。
+- CloudRun 已开通；真实 `ai-probe` 已证明普通 HTTP 和 SSE 增量流式输出可用。正式 BFF 和 Worker 尚未部署，探针应在证据保存后删除。
+- 本地 Hermes + 模型 + 乐享链路只证明技术可行，不代表公网生产安全门已关闭。
+
+### 开发阶段：暂不购买长期云资源
+
+1. MIU 2a 将创建本地 Docker Compose，运行 `ai-bff`、独立 `ai-worker` 和 PostgreSQL 16；当前尚未创建。
+2. MIU 2a 将给 CI 增加 PostgreSQL service，执行同一套 migrations、`S0-S11`、集成测试和并发竞态测试；当前尚未创建。
+3. 本地 Docker 可验证容器进程、端口、SSE、健康检查、优雅退出和 PostgreSQL 事务；不能代替 CloudRun 网关、CORS、缩容冷启动、VPC、TLS、配额和计费验证。
+4. 不为开发期临时实现 NoSQL AI Store。那会产生第二套接管、事件顺序、outbox、索引和并发测试，未来仍需删除。
+
+### CloudRun 成本判断
+
+本项目的生产 runtime 已确定为 CloudRun，不再把 HTTP Function 保留为实施阶段候选。原因是 BFF、长时间 engine stream、后台 Worker、VPC TCP PostgreSQL、独立扩缩容和故障隔离与现有 LLD 匹配，而且真实 CloudRun 网关已通过 SSE 证明。本地开发使用 Docker Compose 模拟 BFF/Worker 容器；任何生产 runtime 替换必须另开 ADR，不由后续 Agent 在 MIU 中重复调查。
+
+按当前公开单价，单个实例连续运行 730 小时的计算费示例：
+
+| 规格 | 计算费/月，不含日志与流量 |
+|---|---:|
+| 0.25 核 + 0.5 GiB | 约 21.72 元 |
+| 0.5 核 + 1 GiB | 约 43.44 元 |
+| 1 核 + 2 GiB | 约 86.87 元 |
+
+`minNum=0` 可在无请求时缩容到零，适合开发和低流量试用，但有冷启动。常驻实例、多服务、多副本、日志和外网出流量会增加成本。请腾讯确认这些点数是否从现有标准版资源池扣除，以及当前环境还剩多少资源点；不能直接断言每月几百，也不能断言免费。
+
+### PostgreSQL 阶段策略
+
+| 阶段 | 方案 | 采购 |
+|---|---|---|
+| 本地开发 | Docker PostgreSQL 16 | 无 |
+| CI | PostgreSQL service | 无持续云费用 |
+| 云端集成 | 上海按量 TencentDB PostgreSQL；CloudRun 显式配置同 VPC/subnet | 只购买限定测试窗口，用完可释放 |
+| 客户试运行 | 根据真实会话量、连接数、数据保留、RPO/RTO 选择规格 | 按量或包年包月 |
+
+现有传统 NoSQL 环境不能原地升级为 PG 模式。可以新建第二个 CloudBase PG 环境，而且 PG 环境可同时使用 NoSQL；但账号是否还具备一个每月 3,000 点的免费体验环境必须由控制台确认，不能假设。即使免费，它只作为无真实 PII 的可选开发 sandbox：若提供正常服务端 PostgreSQL 连接并通过 `S0-S11`，可以复用当前 `pg` 实现；若关键事务只能走 HTTP/RPC，就需要将事务封装为数据库函数并重新评审。它也不能替代最终 CloudRun 到 TencentDB 私网链路的验证。
+
+### 第一次需要付费的时点
+
+当 BFF 准备进入云联调时：
+
+1. 开一个上海按量 TencentDB PostgreSQL 测试实例；不要先买长期套餐。
+2. 为 CloudRun 配置真实 `VpcConf`，使用数据库 VPC/subnet 和私网 endpoint。
+3. 配置 TLS、最小网络权限、临时 probe role 和独立 runtime role。
+4. 从正式 CloudRun 路径运行 `S0-S11`、migrations、集成与竞态测试。
+5. 测试窗口结束且不需共享测试库时释放实例。
+6. 客户 pilot 前根据监控数据决定继续按量还是转包年包月。
+
+所有密码、连接串、AppSecret 和 API Key 直接写入获批 Secret Manager；聊天和邮件只回传实例 ID、私网 host、port、database、VPC/subnet ID 和 Secret 名称。
+
+### 试运行前需要采购或批准的完整清单
+
+| 项目 | 当前动作 | 可能费用 |
+|---|---|---|
+| CloudRun BFF + Worker | 确认规格、`minNum`、点数扣减、日志、流量和告警 | 使用量计费；不等于固定几百元 |
+| TencentDB PostgreSQL | 云联调先按量；pilot 再定长期规格 | 规格、磁盘、超额备份、审计 |
+| Lexiang 公开知识空间 | 建专用公开 space 和 scoped MCP serving credential；对实际 `lxmcp_...` 凭证做 K1-K5 probe。REST AppKey 只作管理证据 | 先确认现有 licence，不能假设 0 元 |
+| Hermes 官网实例/profile | 固定版本/digest、私网、只读工具；优先与内部 bot 隔离 | 主机、磁盘、日志、补丁和运维 |
+| 模型供应商 | 批准 provider/model、DPA、地域、保留/训练条款；官网独立 key 和日/月 cap | Token 使用量 |
+| 安全与运营 | WAF、监控、告警、通知/CRM/email、备份和恢复演练 | 依选型与用量 |
+
+### 架构师需要作出的决定
+
+1. 批准“本地/CI 免费开发 -> 按量云联调 -> pilot 再定长期资源”的时点策略。
+2. 确认 CloudRun 资源点、缩容到零、日志和流量的真实账单规则。
+3. 确认账号是否仍有免费 CloudBase PG 体验资格；只作为可选 sandbox。
+4. 到云联调阶段批准按量 TencentDB 的预算窗口和 VPC 配置。
+5. 决定 Hermes 独立实例还是接受共享主机 profile 的隔离风险。
+6. 确认 Lexiang licence、公开知识 owner 和 scoped MCP serving credential；REST AppKey 不作为上线凭证证明。
+7. 批准模型供应商、法律条款和预算上限。
+8. 在客户流量前审批完整 12 个月运行成本，而不只审批数据库。
+
+### 乐享接入实施路径
+
+生产链路固定为：`Chat BFF -> Hermes -> 乐享 MCP -> 专用公开知识空间`。浏览器和 BFF 不直接调用乐享 REST。REST AppKey 的接口权限和知识授权范围只能作为管理侧证据，不能代替对 Hermes 实际使用的 `lxmcp_...` MCP credential 做隔离证明。
+
+开发阶段不需要在本地安装乐享，也不需要每个工程师持有真实乐享凭证：
+
+1. 已有 `FakeEngine` 可提供确定性的成功、引用、transport failure、timeout 和 overlong-output 基础能力。MIU 5a/后续集成测试将补齐 `knowledge_empty`、`unavailable` 和回答策略 fixture；这些场景目前尚未全部实现。
+2. MIU 4 将创建本地 stub Hermes，供 adapter HTTP transport 测试回放脱敏事件；该 stub 当前尚未实现，也不会连接乐享。
+3. 仅手工端到端联调可选用本地 pinned Hermes + 测试专用公开 MCP credential；不得使用内部空间或真实客户数据。
+4. 共享 staging、golden-set evaluation 和 production 才必须连接真实专用乐享空间。
+
+乐享由管理员在 SaaS 控制台创建公开空间和 MCP 凭证，不存在需要本地部署的乐享数据库、索引或 MCP server。管理员把 MCP secret 直接写入 Secret Manager，只回传 MCP URL、space id、credential id 和 Secret 名称。Hermes profile 配置 MCP URL、Bearer secret reference、timeout 及只读 tool allowlist。
+
+上线前，对实际 serving credential 的每一个 MCP surface 分别执行：公开文档正向成功、内部文档拒绝、公开文档写入拒绝、故意 over-scoped credential 能让 probe 变红。MCP credential、space、preset、profile 或 tools 任何一项变化都重新运行。若乐享无法提供通过该合同的 scoped MCP credential，生产 gate 2 继续阻塞，不允许自动改用 REST 或放宽权限。
+
+### 本轮核对的官方资料
+
+- CloudBase 价格与资源点：<https://cloud.tencent.com/document/product/876/75213>
+- CloudBase PG 模式概述：<https://docs.cloudbase.net/quick-start/pg-overview>
+- CloudBase 环境模式：<https://docs.cloudbase.net/quick-start/env-overview#modes>
+- CloudBase PostgreSQL 多语句事务与 HTTP API：<https://docs.cloudbase.net/database/postgresql/transactions#relationship-with-http-api>
+- TencentDB PostgreSQL 计费概述：<https://cloud.tencent.com/document/product/409/4993>
+- TencentDB PostgreSQL 价格：<https://buy.cloud.tencent.com/price/pgsql>
+- 腾讯乐享接口凭证与知识授权范围：<https://lexiang.tencent.com/wiki/api/>
+- 腾讯乐享 AI 问答：<https://lexiang.tencent.com/wiki/api/40000.html>
+- 腾讯乐享 AI 搜索：<https://lexiang.tencent.com/wiki/api/40004.html>

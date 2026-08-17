@@ -9,7 +9,7 @@ Each MIU is implemented, tested, reviewed, and committed independently, and
 test-deployed where it is runtime-affecting. An MIU that cannot be verified on
 its own is too big and must be split.
 
-## 0. The decision that gates the whole plan
+## 0. The evidence gate for the selected runtime and store
 
 The architecture specifies a Chat BFF on CloudRun with an AI operational
 PostgreSQL. **This repository has neither today** — it is CloudBase functions
@@ -19,13 +19,14 @@ database locally; `apps/local-server` is a JSON-file adapter. The nearest thing
 to "postgres" in the source is the string `'pg-storage'`, one value of an
 image-storage mode enum.
 
-So this is not a feature added to an existing service. It introduces a second
-runtime and a second database engine to the project. Two consequences:
+So this is not a feature added to an existing service. It introduces the
+selected CloudRun runtime and a second database engine to the project. Two
+consequences:
 
-1. **MIU 0 must settle the runtime before MIU 2c writes a schema.** If the answer
-   turns out to be "no PostgreSQL", LLD-001's conditional-`UPDATE` fence does not
-   exist and the takeover design needs a different primitive and a new ADR. That
-   is a re-architecture, not a refactor.
+1. **MIU 0 verifies CloudRun and the selected PostgreSQL contract before MIU 2c
+  writes a schema.** Runtime selection is closed. If a target PostgreSQL fails
+  the store probe, use another conforming PostgreSQL target or open a new ADR;
+  do not reopen CloudRun selection inside an MIU.
 2. The person-week estimate in the architecture (22–38) is dominated by this,
    not by the widget. Anyone reading "add an AI chat widget" is reading the
    wrong scope.
@@ -110,17 +111,20 @@ observation. No runtime code changes.
 - Probe whether runs accept metadata and can be listed — this decides whether the
   operation-id mapping layer of LLD-001 §7 is buildable as designed.
 - Probe stop semantics: stop twice, stop an unknown id, stop a finished run.
-- **Settle the runtime and store.** CloudRun + `pg`, CloudBase PostgreSQL, or
-  database-side RPCs. Prove a transaction, a conditional `UPDATE … RETURNING`, a rollback,
-  and pool behaviour in the target environment. Follow the CloudBase SDK Contract
-  Gate in `AGENTS.md` for anything SDK-shaped.
-- Confirm the Lexiang public space can exist as a separate space with a
-  read-only, space-scoped token, and record the negative-access result.
-- **Decide the worker runtime and its trigger.** LLD-001's start-run handler
-  streams engine events and appends per event, which is a long-lived process. The
-  repo's only scheduling primitive is CloudBase timer triggers, and prior work
-  established the test environment has none. This is a decision, not a detail —
-  MIU 5b and 5c cannot be built without it.
+- **Verify the selected runtime and store.** CloudRun hosts the BFF and workers;
+  PostgreSQL is accessed through the `pg` protocol. Prove a transaction, a
+  conditional `UPDATE … RETURNING`, a rollback, pool behaviour, VPC/subnet and
+  TLS from the target environment. Follow the CloudBase SDK Contract Gate in
+  `AGENTS.md` for anything SDK-shaped.
+- Confirm the dedicated Lexiang public space and exact MCP serving credential
+  can satisfy K1-K5. Record the MCP URL/preset, non-secret credential identity,
+  space id, tool schema and negative-access result. REST AppKey scope is
+  supporting administration evidence, not serving-credential proof.
+- **Verify the CloudRun worker topology and choose only its trigger mechanism.**
+  LLD-001's start-run handler streams engine events and appends per event, which
+  is a long-lived process. Decide whether the selected CloudRun worker is woken
+  by an internal signed request, queue adapter, or bounded polling; do not choose
+  a different runtime in this MIU.
 - **Decide the context-assembly and redaction rule**: how many prior turns go
   into a run, whether a returned-to-AI conversation replays the salesperson's
   messages, and what is redacted. LLD-001 open question 3 and LLD-002 open
@@ -183,6 +187,9 @@ to.
 
 - The BFF service itself: container image, service definition, health route,
   gateway route, CORS origin, secret and environment plumbing.
+- The worker deployment skeleton: separate workspace package, process entry,
+  container, health/readiness and trigger plumbing. MIU 2a does not implement
+  outbox or start-run business logic; MIUs 5b/5c fill that skeleton.
 - PostgreSQL in CI (`services:` in the workflow) and locally (compose file), plus
   the connection, pool, and transaction harness — with the isolation level
   asserted at connection setup per LLD-001 §4.4.
@@ -203,12 +210,18 @@ to.
   | Container | `apps/ai-bff/Dockerfile` |
   | Build | `pnpm --filter @vibelingan-channel/ai-bff build` |
   | Start | `pnpm --filter @vibelingan-channel/ai-bff start` |
-  | Local dev | `docker compose -f docker-compose.ai.yml up` (BFF + PostgreSQL) |
-  | Root scripts | `dev:ai`, `build:ai`, `test:ai:store` added to the root `package.json`, which today has script paths only for the site and the CloudBase functions |
-  | Deploy manifest | a CloudRun service definition, plus its entry in whatever the MIU 0 runtime decision selects |
-  | Smoke | `node scripts/smoke-ai-bff.mjs <deployed-url>` asserting readiness and one round-trip |
+  | Worker package | `apps/ai-worker`, package name `@vibelingan-channel/ai-worker` |
+  | Worker entry point | `apps/ai-worker/src/worker.ts` |
+  | Worker container | `apps/ai-worker/Dockerfile` |
+  | Worker build | `pnpm --filter @vibelingan-channel/ai-worker build` |
+  | Worker start | `pnpm --filter @vibelingan-channel/ai-worker start` |
+  | Local dev | `docker compose -f docker-compose.ai.yml up` (BFF + worker + PostgreSQL) |
+  | Root scripts | `dev:ai`, `build:ai`, `test:ai:store` added to the root `package.json`; `build:ai` builds both packages |
+  | Deploy manifest | the selected CloudRun BFF service definition and worker service/trigger configuration |
+  | BFF smoke | `node scripts/smoke-ai-bff.mjs <deployed-url>` asserting readiness and one round-trip |
+  | Worker smoke | `node scripts/smoke-ai-worker.mjs` asserting readiness and, after MIU 5c, one fake-engine outbox drain |
 
-- **Resolve the gateway route collision — this is a real one, not a formality.**
+- **Implement the measured separate-origin routing decision.**
   The architecture puts the assistant at `/api/ai/*` and `/api/admin/ai/*`. The
   existing CloudBase gateway already maps `/api` to the `public-api` function and
   `/api/admin` to `admin` as wildcard prefixes
@@ -216,25 +229,29 @@ to.
   *underneath* routes that are already claimed. Left alone, assistant traffic is
   answered by the storefront catalog function.
 
-  Two acceptable resolutions, and the choice is MIU 0's to make because it turns
-  on a platform behaviour nobody here has verified:
+  MIU 0 measured that CloudRun uses its own hostname and is not mounted under the
+  environment service domain. Therefore the BFF uses that separate origin. Add
+  the exact site-origin CORS policy, short-lived cross-origin conversation
+  credential handling, frontend API origin and deployed smoke URL. Do not add a
+  competing gateway-prefix route.
 
-  1. **Longest-prefix precedence**, if the gateway provably honours it — register
-     `/api/ai` and `/api/admin/ai` at higher specificity, and prove with a
-     deployed request that they reach the BFF and not `public-api`. Precedence
-     is an assumption until that request has been made.
-  2. **A separate origin** for the BFF, which removes the collision entirely at
-     the cost of a CORS configuration and a second hostname.
+**Done:**
 
-  Whichever is chosen, record the frontend API origin the widget compiles
-  against, and the deployed smoke URL.
+- Every artifact above exists at the named path.
+- A trivial route is reachable locally (compose), in CI, and on the deployed
+  CloudRun origin; a transaction and a rollback are proven against real
+  PostgreSQL in all three.
+- **On the BFF's own CloudRun hostname**, `GET /api/ai/healthz` returns the
+  BFF's response — not `public-api`'s.
+- On the *website* API domain, `/api/ai/…` still resolves to `public-api`, and
+  that is the expected, correct outcome. It is not a defect and must not be
+  "fixed" by adding a gateway prefix route.
 
-**Done:** every artifact above exists at the named path; a deployed request to
-`/api/ai/…` demonstrably reaches the BFF rather than `public-api`.
-
-**Done:** a trivial route is reachable in CI, locally, and in the test
-environment; a transaction and a rollback are proven against real PostgreSQL in
-all three.
+An earlier draft of this MIU asked for a deployed request to `/api/ai/…` to
+reach the BFF "rather than `public-api`" without saying on which host. Under the
+separate-origin decision recorded ten lines above, that is unsatisfiable by
+construction: on the website domain the longest-prefix match sends `/api/ai/*`
+to `public-api` and always will.
 
 ---
 
@@ -335,12 +352,22 @@ no engine, no vendor.
   truthfully so the BFF knows whether the layer is required.
 - Vendor error → category mapping with fixtures for each category.
 - Toolset assertion as an exact-set contract test (SECURITY.md §5).
+- Build a local stub Hermes HTTP server with sanitized recorded frames and run
+  adapter transport tests against it. This artifact does not exist before MIU 4
+  and does not require or fake a Lexiang deployment.
+- Shared staging and release conformance run against the pinned Hermes instance
+  configured with the exact scoped Lexiang MCP credential. The serving path is
+  MCP only for this release; adapters do not choose REST versus MCP at runtime.
 
 **Done:** shared conformance suite green against a real pinned instance;
 startup refusal proven when a required capability is false. The **composed**
 replay case that LLD-002 §9 makes mandatory when native idempotency is absent
 runs in MIU 5c, not here — it needs the mapping layer, which does not exist yet
 at this point in the plan.
+
+Development completion and release completion are distinct: local stub
+conformance permits dependent local MIUs to proceed; MIU 15 and gate 2 still
+require the real deployed MCP credential, tool-surface probe and attestation.
 
 ---
 
@@ -632,6 +659,9 @@ that has not been published yet measures nothing).
 - Harness runs against the pinned runtime and reports the architecture §11
   metrics.
 - Grounding and refusal thresholds recorded as configuration.
+- MIU 13a records the dedicated Lexiang space id, public owner, MCP URL/preset,
+  non-secret serving credential id and Secret Manager reference. REST AppKey
+  scope is not accepted as proof of the MCP credential's scope.
 
 **Done:** a baseline evaluation run is recorded against pinned versions; the
 run is repeatable by one command. Closes gate 9.
