@@ -62,6 +62,34 @@ async function trustedSiteStorage(browser: Browser) {
   }
 }
 
+async function waitForLocalStylesheet(page: Page): Promise<void> {
+  // In no-JS mode DOMContentLoaded fires before the external stylesheet is
+  // applied, so width utilities are still inactive at that point. We wait only
+  // for same-origin stylesheets (the layout CSS) to load — third-party font CSS
+  // (Google Fonts) can hang under CI/CN network and does not affect horizontal
+  // overflow. `page.waitForFunction` is unusable here: its rAF/setInterval
+  // polling never fires with JavaScript disabled, so poll via evaluate instead.
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const ready = await page.evaluate(() => {
+      const links = Array.from(
+        document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'),
+      );
+      const local = links.filter((link) => {
+        try {
+          return new URL(link.href).origin === window.location.origin;
+        } catch {
+          return false;
+        }
+      });
+      return local.length === 0 || local.every((link) => link.sheet !== null);
+    });
+    if (ready) return;
+    await page.waitForTimeout(100);
+  }
+  throw new Error('Timed out waiting for same-origin stylesheets to apply');
+}
+
 async function readHeaderGeometry(page: Page) {
   return page.evaluate(() => {
     const bounds = (selector: string) => {
@@ -340,6 +368,7 @@ test.describe('public browser smoke', () => {
   test('public pages never overflow horizontally across breakpoints without JavaScript', async ({
     browser,
   }) => {
+    test.setTimeout(180_000);
     const trustedStorage = await trustedSiteStorage(browser);
     // Independent public pages (no redirect aliases — /success-stories 301s to
     // /portfolio and is asserted separately by the redirect contract).
@@ -362,11 +391,8 @@ test.describe('public browser smoke', () => {
         });
         try {
           const page = await context.newPage();
-          // 'load' is required in no-JS mode: DOMContentLoaded fires before the
-          // external stylesheet is applied (there is no render-blocking script
-          // chain), so width utilities would still be inactive and intrinsic
-          // image widths would falsely overflow the viewport.
-          await page.goto(`${e2e.siteUrl}${path}`, { waitUntil: 'load' });
+          await page.goto(`${e2e.siteUrl}${path}`, { waitUntil: 'domcontentloaded' });
+          await waitForLocalStylesheet(page);
           const overflow = await page.evaluate(
             () => document.documentElement.scrollWidth - window.innerWidth,
           );
