@@ -58,9 +58,13 @@ PostgreSQL SDK exposes no full transaction API, and that the server would
 therefore need either a direct database connection or in-database functions —
 "具体路径必须在目标环境 live-verify". This is that verification, done.
 
-### 2. A place to run the assistant's own server
+### 2. A place to run the assistant's own server — ✅ DONE 2026-08-16
 
-**What to get:** somewhere that can run a long-lived container — CloudRun, or
+**Status:** CloudRun activated and proven. A throwaway service deployed, served
+HTTP 200, and streamed server-sent events correctly through the gateway. See
+`evidence/P3-runtime-and-routing.md`.
+
+**What it was:** somewhere that can run a long-lived container — CloudRun, or
 the CloudBase equivalent.
 **Why:** the assistant needs a small server of its own, separate from your
 existing website functions. It holds the conversation, decides what the AI is
@@ -97,8 +101,8 @@ works; it is not a server customers can use.
 
 ### 5. A model provider account, with the paperwork done
 
-**What to get:** an account with whichever model provider you choose (DeepSeek
-was used in the prototype), a monthly spending cap, and the data-processing
+**What to get:** a key on **zenmux**, the OpenAI-compatible provider the existing
+Hermes bot already uses (per `HERMES_OPS_SOP.md`), a monthly spending cap, and the data-processing
 terms agreed by whoever handles legal for you.
 **Why the paperwork:** visitor messages will be sent to this provider. Someone
 has to have agreed to that in writing before it happens.

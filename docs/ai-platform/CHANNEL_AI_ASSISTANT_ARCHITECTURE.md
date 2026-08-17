@@ -34,7 +34,7 @@ The BFF exposes a provider-neutral `ConversationEngine` boundary. Hermes is the 
 
 ### Observed
 
-- A local prototype proved browser -> Hermes `/v1/chat/completions` -> DeepSeek -> Lexiang MCP connectivity.
+- A local prototype proved browser -> Hermes `/v1/chat/completions` -> DeepSeek -> Lexiang MCP connectivity. That records the *prototype*; the company's running Hermes bot uses **zenmux** (an OpenAI-compatible provider) per `HERMES_OPS_SOP.md`, and the production provider is still an open decision (gate 5).
 - Hermes Agent is the public Nous Research project and supports an API server, streaming, Runs, stop, sessions, MCP, health endpoints, and Docker deployment.
 - The default Hermes API-server tool surface is much broader than public customer service requires.
 - The repository currently has no production AI widget, Chat BFF, assistant conversation store, lead queue, or human-takeover implementation.
