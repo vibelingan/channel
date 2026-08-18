@@ -30,7 +30,7 @@ capabilities:
     - { icon: electronics, title: Electronics Engineering, desc: 'Support circuit design, PCBA development, embedded firmware, and complete device integration.' }
     - { icon: sampling, title: Prototyping & Validation, desc: 'Use prototypes, simulations, and pre-production samples to reduce physical rework before tooling.' }
     - { icon: mold, title: Tooling & Mass Production, desc: 'Move through mold development, test shots, pilot runs, assembly, and controlled volume production.' }
-    - { icon: logistics, title: Quality & Global Delivery, desc: 'Identify risks early, verify products through production, and coordinate export and worldwide delivery.' }
+    - { icon: logistics, title: Quality & Global Delivery, desc: 'Verify products through production, coordinate available CE, EMC, FCC, and JD compliance and test reports, then manage export and worldwide delivery.' }
   note: >-
     One accountable team connects each stage, while a diversified supply chain
     supports mixed materials, electronics, tooling, and final assembly.
@@ -64,6 +64,7 @@ whyUs:
     - { icon: production, stat: '5000+', label: m² Facility, desc: 'Engineering, tooling, production, assembly, and quality capability in Dongguan.' }
     - { icon: logistics, stat: '40+', label: Countries, desc: 'International trade and delivery experience across major global markets.' }
     - { icon: quality, label: Pre-QC Risk Control, desc: 'Identify tooling, production, and assembly risks before final inspection and mass delivery.' }
+    - { icon: design, label: Long-Term Product Iteration, desc: 'Use market feedback and cost optimization to improve later product generations instead of treating OEM as a one-time build.' }
     - { icon: manager, label: One Accountable Team, desc: 'Coordinate product development, sourcing, engineering, manufacturing, and logistics through one working relationship.' }
 
 submit:
