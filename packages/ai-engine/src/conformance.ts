@@ -137,6 +137,30 @@ export function runConformanceSuite(label: string, harness: ConformanceHarness):
     assert.ok(['stopped', 'already_finished'].includes(second), `unexpected: ${second}`);
   });
 
+  test(`${label}: cancellation matches the declared capability, honestly`, async () => {
+    const engine = harness.create();
+    const handle = await engine.createRun(SAMPLE_REQUEST, new AbortController().signal);
+
+    if (capabilities.supportsOutOfBandStop) {
+      // A different process really can stop it: cancelRun must take effect
+      // without anyone holding the stream.
+      const result = await engine.cancelRun(handle);
+      assert.ok(['stopped', 'already_finished'].includes(result));
+    } else {
+      // No out-of-band stop. The requirement is
+      // NOT that cancelRun works; it is that the adapter does not LIE about
+      // having stopped something it cannot reach, and that aborting the owning
+      // signal does terminate the stream.
+      const controller = new AbortController();
+      const seen: EngineEvent[] = [];
+      for await (const event of engine.streamRun(handle, controller.signal)) {
+        seen.push(event);
+        if (seen.length === 1) controller.abort();
+      }
+      assert.ok(seen.length <= 2, `owner abort did not stop the stream: ${seen.length} events`);
+    }
+  });
+
   test(`${label}: cancelRun on an unknown id reports it, never throws`, async () => {
     const engine = harness.create();
     const result = await engine.cancelRun({

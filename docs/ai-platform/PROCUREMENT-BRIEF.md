@@ -190,6 +190,20 @@ Same region does not automatically create a private route. CloudRun must receive
 a real `VpcConf` using the database VPC and subnet, the database must expose its
 private endpoint, and TLS/network rules must be tested from the deployed runtime.
 
+**Confirmed 2026-08-17:** Tencent support confirmed that CloudRun and the
+independent TencentDB must use the same VPC. Implementation is no longer an open
+question: create/select the Shanghai VPC; reserve a dedicated CloudRun subnet;
+bind both BFF and worker to it; create TencentDB in the same VPC (a separate
+database subnet is acceptable and preferred); use the private endpoint on
+`5432`; and allow only the CloudRun subnet/approved network boundary at the
+database. CloudRun instance IPs are dynamic, so do not maintain a fixed-IP
+allowlist. See `evidence/P3-runtime-and-routing.md` R4.
+
+Keep CloudRun public egress enabled initially because Hermes, Lexiang MCP and the
+model endpoint are public dependencies. Disabling it requires NAT gateway and
+route configuration. TencentDB's current pricing page says network traffic is
+currently free, but confirm that statement again at purchase.
+
 Credentials are provisioned directly into the approved secret manager. Return
 only non-secret identifiers and secret names; never send a database password or
 connection string through chat or email. Use a disposable probe role/schema,
@@ -429,13 +443,15 @@ notification services.
 当 BFF 准备进入云联调时：
 
 1. 开一个上海按量 TencentDB PostgreSQL 测试实例；不要先买长期套餐。
-2. 为 CloudRun 配置真实 `VpcConf`，使用数据库 VPC/subnet 和私网 endpoint。
+2. 为 BFF 和 Worker 配置真实 `VpcConf`，绑定上海同一 VPC 中的 CloudRun 专用子网；TencentDB 可放在同 VPC 的独立数据库子网，使用私网 endpoint `:5432`。
 3. 配置 TLS、最小网络权限、临时 probe role 和独立 runtime role。
 4. 从正式 CloudRun 路径运行 `S0-S11`、migrations、集成与竞态测试。
 5. 测试窗口结束且不需共享测试库时释放实例。
 6. 客户 pilot 前根据监控数据决定继续按量还是转包年包月。
 
 所有密码、连接串、AppSecret 和 API Key 直接写入获批 Secret Manager；聊天和邮件只回传实例 ID、私网 host、port、database、VPC/subnet ID 和 Secret 名称。
+
+腾讯支持已于 2026-08-17 书面确认 CloudRun 与独立 TencentDB 需要位于同一 VPC。实施时不再重复询问：CloudRun 使用专用子网，TencentDB 可使用同 VPC 的其他子网；数据库只开放私网 `5432` 给 CloudRun 子网/批准的网络边界，不依赖动态实例 IP。当前 Hermes、乐享 MCP、模型均需公网，因此先保持 CloudRun 公网出访开启；若以后关闭，先配置 NAT 网关与路由。腾讯数据库当前计费说明称流量费暂免，但购买时再核对现行计费。
 
 ### 试运行前需要采购或批准的完整清单
 
@@ -485,3 +501,6 @@ notification services.
 - 腾讯乐享接口凭证与知识授权范围：<https://lexiang.tencent.com/wiki/api/>
 - 腾讯乐享 AI 问答：<https://lexiang.tencent.com/wiki/api/40000.html>
 - 腾讯乐享 AI 搜索：<https://lexiang.tencent.com/wiki/api/40004.html>
+- CloudRun 内网互联：<https://docs.cloudbase.net/run/deploy/networking/internal-link>
+- CloudRun VPC 配置：<https://docs.cloudbase.net/run/deploy/networking/vpc>
+- CloudRun 公网出访：<https://docs.cloudbase.net/run/deploy/networking/egress>

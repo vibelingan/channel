@@ -53,6 +53,7 @@ const DEFAULT_CAPABILITIES: EngineCapabilities = {
   supportsIdempotentCreate: true,
   supportsRunLookupByOperationId: true,
   supportsStop: true,
+  supportsOutOfBandStop: true,
   supportsCitations: true,
 };
 

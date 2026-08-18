@@ -19,6 +19,7 @@ function fullCapabilities(overrides: Partial<EngineCapabilities> = {}): EngineCa
     supportsIdempotentCreate: true,
     supportsRunLookupByOperationId: true,
     supportsStop: true,
+    supportsOutOfBandStop: true,
     supportsCitations: true,
     ...overrides,
   };
@@ -39,10 +40,21 @@ test('a fully capable engine with a configured knowledge source is usable', () =
   assert.deepEqual(describeEngineRefusals(fullCapabilities(), deployment()), []);
 });
 
-test('refuses when the engine cannot stop a run — cancellation is not optional', () => {
+test('refuses when the OWNING worker cannot cancel its own run', () => {
   const caps = fullCapabilities({ supportsStop: false });
   assert.throws(() => assertEngineUsable(caps, deployment()), /supportsStop/);
   assert.equal(describeEngineRefusals(caps, deployment()).length, 1);
+});
+
+test('does NOT refuse an engine lacking out-of-band stop', () => {
+  // A whole family of chat protocols is in this position: cancellation there is
+  // closing the connection, which only the owner can do. LLD-001's fence still
+  // guarantees no text commits after takeover, so the cost is bounded token
+  // waste, not a correctness hole — blocking startup on it would rule out most
+  // of the available engines for no safety gain.
+  const caps = fullCapabilities({ supportsOutOfBandStop: false });
+  assert.doesNotThrow(() => assertEngineUsable(caps, deployment()));
+  assert.deepEqual(describeEngineRefusals(caps, deployment()), []);
 });
 
 test('refuses non-idempotent create when no mapping layer compensates for it', () => {

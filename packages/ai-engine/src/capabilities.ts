@@ -19,7 +19,24 @@ export interface EngineCapabilities {
   /** A handle can be resolved from its operationId alone, after a crash. */
   supportsRunLookupByOperationId: boolean;
   /** A run can be stopped. */
+  /**
+   * The worker that OWNS an in-flight run can cancel it. Where an engine's
+   * protocol has no explicit cancel operation, this is satisfied by aborting
+   * the connection — the AbortSignal passed to `streamRun` is that mechanism.
+   */
   supportsStop: boolean;
+  /**
+   * A run can be stopped by a process that does NOT hold its connection —
+   * i.e. the engine exposes a stop operation addressed by run id. Whole
+   * families of chat protocols lack this, because in them cancellation simply
+   * IS closing the connection, which only the owner can do.
+   *
+   * Deliberately NOT a startup blocker. When false, the owning worker aborts
+   * itself at its next fenced append; the residual cost is one dead worker's
+   * run finishing at the vendor, bounded by maxOutputTokens. See LLD-002 §7.1
+   * for which engine families fall on each side.
+   */
+  supportsOutOfBandStop: boolean;
   /** Retrieval returns source references. */
   supportsCitations: boolean;
 }
@@ -55,8 +72,9 @@ export function describeEngineRefusals(
 
   if (!capabilities.supportsStop) {
     refusals.push(
-      'supportsStop is false: cancellation is not optional — a run that cannot be stopped ' +
-        'cannot be fenced off after a human takes over.',
+      'supportsStop is false: the owning worker cannot cancel its own run, so a visitor ' +
+        'pressing Stop would be ignored entirely. Note this is NOT about out-of-band ' +
+        'cancellation — see supportsOutOfBandStop, which is deliberately not a blocker.',
     );
   }
 

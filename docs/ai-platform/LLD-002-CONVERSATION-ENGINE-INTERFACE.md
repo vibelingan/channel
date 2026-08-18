@@ -218,7 +218,19 @@ export interface EngineCapabilities {
   imageDigest?: string;      // recorded on every run row for audit
   supportsIdempotentCreate: boolean;
   supportsRunLookupByOperationId: boolean;
+  /**
+   * The worker that OWNS an in-flight run can cancel it. For an
+   * OpenAI-compatible engine this is satisfied by aborting the HTTP
+   * connection; the port's AbortSignal is that mechanism.
+   */
   supportsStop: boolean;
+  /**
+   * A run can be stopped by a process that does NOT hold its connection —
+   * e.g. Hermes' `/v1/runs/:id/stop`. **No OpenAI-compatible chat-completions
+   * API has this**, because cancellation there means closing the connection.
+   * Non-blocking: see ADR-002 §3 for why, and what it costs when false.
+   */
+  supportsOutOfBandStop: boolean;
   supportsCitations: boolean;
 }
 ```
@@ -226,7 +238,8 @@ export interface EngineCapabilities {
 This descriptor is the mechanism that stops an unproven assumption from becoming
 a silent one. At startup the BFF refuses to serve if:
 
-- `supportsStop` is false — cancellation is not optional;
+- `supportsStop` is false — the owner being unable to cancel its own run is not
+  survivable: a visitor pressing Stop would be ignored entirely;
 - `supportsIdempotentCreate` is false **and** the operation-id mapping layer of
   LLD-001 §7 is not configured;
 - `supportsRunLookupByOperationId` is false **and** no other route exists to stop
@@ -244,6 +257,28 @@ a silent one. At startup the BFF refuses to serve if:
 Refusing at startup rather than at the first visitor is the point. Gate 7 of the
 architecture stops being a line in a checklist and becomes a boolean the process
 reads before it opens a port.
+
+### 7.1 Two kinds of cancellation, and why the distinction is load-bearing
+
+LLD-001's cancel worker stops a run that a *different* worker is streaming. That
+requires an out-of-band stop endpoint. Hermes' Runs API has one; **no
+OpenAI-compatible chat-completions API does**, because in that protocol
+cancellation *is* closing the connection, which only the connection's owner can
+do. Verified by aborting a live stream (ADR-002 §3).
+
+So the single `supportsStop` flag conflated two different guarantees:
+
+| Capability | Meaning | Blocking? |
+|---|---|---|
+| `supportsStop` | The owning worker can cancel its own in-flight run | **Yes.** Without it the visitor's Stop button does nothing |
+| `supportsOutOfBandStop` | Another process can stop a run it does not own | **No.** When false, the owning worker polls `cancel_requested_at` between events and aborts itself |
+
+**What it costs when `supportsOutOfBandStop` is false.** Nothing on
+correctness: LLD-001 §4.2's fence means no assistant text is ever *committed*
+after a takeover regardless of what the model is doing. The cost is bounded
+waste — a run whose owner has died keeps generating until the vendor finishes it
+or its own limits stop it. The bound is one run's remaining `maxOutputTokens`,
+and that figure belongs in the budget model (MIU 14b).
 
 ## 8. Rules that keep the boundary real
 
@@ -275,6 +310,7 @@ cannot pass it is not swappable, whatever its README claims.
 |---|---|
 | Replayed `createRun` with one `operationId` | One vendor run; identical handle. **When `supportsIdempotentCreate` is false this case becomes mandatory, not skipped** — it runs against the composed stack (mapping layer + adapter) and adds a crash-between-call-and-record variant. Skipping it there would disable the only test of the hand-built replacement, in exactly the configuration that has no vendor guarantee behind it |
 | `cancelRun` twice | Both succeed; second returns `already_finished` or `stopped` |
+| `cancelRun` from a process that does not hold the stream | Only asserted when `supportsOutOfBandStop` is true. When false, the suite instead asserts that aborting the owning signal terminates the run, and that `cancelRun` reports honestly rather than pretending to have stopped something it cannot reach |
 | `cancelRun` on an unknown id | `unknown_run`, not a thrown error |
 | Abort the signal mid-stream | Iterator terminates promptly; no further events |
 | Vendor 500 / socket reset / malformed frame | Surfaces as `error` with the right category; never throws raw vendor objects |

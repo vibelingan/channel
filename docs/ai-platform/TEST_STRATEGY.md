@@ -190,6 +190,8 @@ disabled within a month.
 | `two-messages-one-conversation` | Two visitor POSTs in flight | I9: one live run. The second message is **committed**, starts no run, and the POST succeeds — the unique index must never actually fire |
 | `sequence-integrity` | N concurrent appends, **plus a forced rollback after allocation** | I1: unique, increasing, gapless. The concurrent half alone also passes against a Postgres `SEQUENCE`, which is exactly the implementation §8 forbids — only the rollback case distinguishes them, by requiring the next commit to reuse the abandoned number |
 | `stop-api-fails` | Engine stop always errors | I7: **no AI event committed after the cancellation is recorded**; alert raised |
+| `no-out-of-band-stop` | Engine declares `supportsOutOfBandStop: false`; cancellation recorded while a run streams | The owning worker aborts itself at its next fenced append and terminalizes. I7 holds without the engine cooperating at all |
+| `dead-owner-no-out-of-band-stop` | Owning worker killed mid-stream, engine cannot be reached out of band | I7 still holds — the stale `claim_epoch` blocks every commit (I10). The vendor run is expected to keep running; assert the waste is bounded and alerted, not that it stopped |
 | `replayed-post` | Same idempotency key twice | I8: one message, one run |
 | `crash-after-create` | Kill worker between the vendor call and recording | I4: no second vendor run is created on retry — `CALL_IN_FLIGHT` refuses it. Includes the superseded-worker variant: a stalled worker that wakes after losing its lease must not call the vendor |
 | `queued-message-drained` | Second message queued behind a live run, then that run terminalizes | I11: the queued message gets exactly one run and an answer |

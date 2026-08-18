@@ -251,6 +251,33 @@ Keep one PostgreSQL implementation from development to production:
 | Cloud integration | CloudRun plus short-lived pay-as-you-go TencentDB PostgreSQL in ap-shanghai | Bounded test-window spend; release after evidence if no shared environment is needed |
 | Customer pilot/production | CloudRun plus sized TencentDB PostgreSQL on a private VPC path | Approve from measured traffic, connections, retention, RPO and RTO; pay-as-you-go or monthly |
 
+The production network topology is fixed:
+
+```text
+Public website
+  -> HTTPS/SSE -> CloudRun BFF public hostname
+CloudRun BFF + CloudRun Worker
+  -> bound to a dedicated subnet in the Shanghai VPC
+  -> TencentDB private endpoint:5432 in the same VPC
+  -> public egress remains enabled for Hermes, Lexiang MCP and model APIs
+```
+
+Tencent support confirmed in writing on 2026-08-17 that CloudRun and the
+independent TencentDB must be in the same VPC; see
+`evidence/P3-runtime-and-routing.md` R4 and the official internal-link guide.
+Each CloudRun service receives real `VpcConf` with the selected VPC and dedicated
+CloudRun subnet. TencentDB may use another subnet in that VPC; same subnet is not
+required. Use only the private database endpoint and port `5432`, permit the
+CloudRun subnet/approved network boundary at the database, and never depend on a
+fixed CloudRun instance IP. Preserve enough subnet addresses for deployment and
+scaling.
+
+The current design keeps CloudRun outbound internet enabled because Hermes,
+Lexiang MCP and the model provider are public dependencies. Closing outbound
+internet later requires a NAT gateway and route configuration and is a separate
+hardening change; it must not silently break those integrations. Public inbound
+access to the BFF hostname is a separate control.
+
 A second CloudBase PG-mode environment is optional sandbox capacity, not the
 primary target. PG mode requires a newly created environment; the existing
 traditional NoSQL environment cannot be upgraded in place. One free-experience

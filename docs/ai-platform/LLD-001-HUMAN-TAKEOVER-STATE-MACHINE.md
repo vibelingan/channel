@@ -604,6 +604,30 @@ Cancel worker
   └─ engine.cancelRun(handle) — idempotent; unknown/finished runs are success.
      Runs with engine_run_id NULL are reconciled by operation_id first.
 
+     WHAT THIS CAN AND CANNOT DO depends on the engine (LLD-002 §7.1):
+
+     • supportsOutOfBandStop = true (e.g. a Runs API with a stop endpoint):
+       the worker really does stop a run another worker is streaming.
+
+     • supportsOutOfBandStop = false (every OpenAI-compatible engine — in that
+       protocol cancellation IS closing the connection, which only the owner
+       can do): cancelRun cannot reach the stream. It records the request and
+       returns honestly rather than pretending. The run stops because THE
+       OWNING WORKER stops it — see below.
+
+Owning worker, between streamed events
+  └─ re-reads cancel_requested_at as part of the §4.2 step-2 fence it already
+     runs per event. Zero rows there means cancelled, closed, or taken over, so
+     it aborts its own AbortSignal and terminalizes. This is the mechanism that
+     actually stops the model when out-of-band stop is unavailable, and it is
+     already in the design — the fence term was there for the visitor's Stop
+     button, and it does this job too.
+
+     The residual gap is a worker that has DIED holding a stream. Nothing can
+     abort its connection. The vendor finishes the run at its own pace, bounded
+     by maxOutputTokens. That waste is bounded and belongs in the budget model;
+     the visitor is unaffected, because the fence means none of it can commit.
+
 Run terminalization (every path: completed, failed, cancelled, reaped)
   └─ TX, in this order — the lock order of §4.4 applies here too:
      1. append the terminal run event via Primitive B  (locks conversations)
@@ -930,8 +954,10 @@ TEST_STRATEGY.md §4.
   delivered, and may render shortly after it (§1).
 - **I7** After a cancellation is recorded — by takeover, by close, or by the
   visitor's Stop — no further assistant-authored event is committed, regardless
-  of whether the vendor stop call succeeds. A failed stop raises a cost and
-  observability alarm only.
+  of whether the vendor stop call succeeds, **and regardless of whether the
+  engine has an out-of-band stop at all**. A failed or impossible stop raises a
+  cost and observability alarm only. This invariant is carried by the §4.2
+  fence, never by the engine's cooperation.
 - **I8** A replayed visitor POST with the same idempotency key produces zero
   additional runs and zero additional messages.
 - **I9** At most one run per conversation is in `CREATING` or `RUNNING`.
@@ -942,7 +968,8 @@ TEST_STRATEGY.md §4.
 
 | Failure | Behaviour |
 |---|---|
-| Vendor stop endpoint fails | The fence still blocks all output (I7) — `cancel_requested_at` is a fence term, not just a work item. Retry with backoff; alert on repeated failure; the visitor is unaffected. |
+| Vendor stop endpoint fails, or the engine has no out-of-band stop at all | The fence still blocks all output (I7) — `cancel_requested_at` is a fence term, not just a work item. The owning worker aborts itself at its next append. Retry with backoff; alert on repeated failure; the visitor is unaffected. |
+| Owning worker dies holding a stream, engine has no out-of-band stop | Nothing can abort that connection. The vendor completes the run and bills for it, bounded by `maxOutputTokens`. Correctness is untouched: the run's `claim_epoch` is stale, so not one byte of it can commit (I10). Record the bound in the budget model. |
 | Worker crashes mid-stream | The lease expires and the run is terminalized as `FAILED` — by a reclaiming worker or by the stall reaper, whichever arrives first, and the CAS in §5 makes sure only one of them does it. The zombie cannot commit (I10). The visitor sees an interrupted answer and a retry affordance. |
 | Worker stalls but stays alive past its lease | Same as above. This is the case a lease alone does not cover and `claim_epoch` does. |
 | Database unavailable | Fail closed. No streaming, no run creation; widget falls back to the inquiry form. |

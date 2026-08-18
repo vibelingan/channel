@@ -92,7 +92,8 @@ is a startup blocker:
 
 | Capability | Why it matters | Status |
 |---|---|---|
-| `supportsStop` | **Blocking.** `assertEngineUsable` refuses to serve without it. If a visitor's answer cannot be cancelled, the takeover fence still holds in the database but the model keeps burning tokens | **Unverified** |
+| `supportsStop` (owner-cancellable) | **Blocking**, but satisfied by aborting the connection — the port's `AbortSignal`. Verified at protocol level: aborting a live stream terminated cleanly | **Resolved** |
+| `supportsOutOfBandStop` | **Not blocking** since ADR-002 §3 split the capability. Expected `false`; costs bounded token waste when an owning worker dies | **Resolved as expected-false** |
 | `supportsCitations` | The answer policy requires citations; AnythingLLM has them in the UI, but the API response *shape* must map to `EngineCitation` (`sourceId`, `title`, `url`, `snippet`, `retrievedAt`) | **Unverified** |
 | `supportsIdempotentCreate` | Chat-completions style APIs usually lack it. If absent, LLD-001 §7's operation-id mapping layer becomes mandatory — which is already designed | **Likely false** |
 | Streaming | Token-by-token delivery. AnythingLLM streams by default | Likely true, verify |
@@ -156,7 +157,7 @@ race and state-machine tests need, and those must not depend on a model.
 recorded against it elsewhere do not apply to a single-tenant public corpus, it
 wins the two metrics our answer policy actually depends on, and it removes a
 component and a credential from the serving path. Conditional on the four probes
-in §4, chiefly `supportsStop`.
+in §4. The `supportsStop` question that was blocking is now resolved by the ADR-002 §3 capability split.
 
 **What this does not change:** the BFF, the takeover design, the store, and the
 port all stand exactly as designed. That is the point of having written the port

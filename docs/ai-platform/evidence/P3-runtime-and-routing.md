@@ -101,3 +101,41 @@ manageCloudRun action=delete serverName=ai-probe
 ```
 
 Its generated source was removed from the repo after the evidence was taken.
+
+---
+
+## R4 — CloudRun to TencentDB private-network topology confirmed
+
+**Recorded:** 2026-08-17
+**Source:** 郭昌杰，腾讯云高级客户经理，written reply in the project Tencent support group
+**Reported conclusion:** CloudRun and the independent TencentDB PostgreSQL need
+to be in the same VPC. The supplied official reference was:
+<https://docs.cloudbase.net/run/deploy/networking/internal-link>.
+
+The official CloudBase networking pages independently specify the implementation
+details:
+
+- CloudRun does not reach account VPC resources by default; enable **私有网络**
+  on each BFF/worker service and bind a Shanghai VPC and subnet.
+- Reserve a dedicated CloudRun subnet. The guidance recommends a VPC mask of at
+  least `/22` and a CloudRun subnet no larger than `/28`; ensure enough free IPs
+  for restarts, versions and scaling.
+- Create TencentDB in the same Shanghai VPC and use its private endpoint with
+  explicit port `5432`. It does not need to share the CloudRun subnet; keeping
+  database and CloudRun in separate subnets within the same VPC is preferred.
+- Configure the target database security group/allowlist to permit only the
+  CloudRun subnet or approved network boundary on `5432`; do not depend on a
+  fixed CloudRun instance IP.
+- Keep CloudRun **公网访问/公网出访** enabled for the current design because
+  Hermes, Lexiang MCP and the model provider are public dependencies. If outbound
+  internet is disabled later, the VPC needs a NAT gateway and routes before
+  those dependencies can work. External access to the CloudRun public hostname
+  is controlled separately from outbound internet.
+- Verify the effective `VpcConf`, private DNS/endpoint, TLS, pool and `S0-S11`
+  behavior from the deployed BFF and worker. Same-VPC configuration is necessary
+  but does not replace the runtime test.
+
+TencentDB's current billing overview states network traffic charges are
+currently free, but this is a dated vendor pricing statement and must be checked
+again at purchase. Instance, storage, excess backup and optional audit charges
+remain separate.

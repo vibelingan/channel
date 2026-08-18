@@ -476,6 +476,19 @@ Use the selected CloudRun service and record region, service type, resources,
 `minNum`, VPC/subnet, public origin and billing evidence. Runtime replacement is
 outside MIU 0 and requires a new ADR.
 
+The topology is already decided and reported by Tencent support on 2026-08-17:
+
+1. Bind BFF and worker CloudRun services to a dedicated subnet in the Shanghai
+  VPC through `VpcConf`.
+2. Create TencentDB in the same VPC; a separate database subnet is acceptable.
+3. Connect to the private endpoint with explicit port `5432` and TLS.
+4. Permit the CloudRun subnet/approved network boundary in database access
+  controls; do not use a fixed instance-IP allowlist.
+5. Keep public egress enabled for Hermes, Lexiang MCP and model calls. If policy
+  later closes it, provision NAT and routes first.
+6. Re-read deployed `VpcConf` and run the connectivity/pool/`S0-S11` tests from
+  both BFF and worker. Record evidence; configuration alone is not the test.
+
 ## R2 — The selected CloudRun worker and its trigger 🧑
 
 LLD-001's start-run handler streams engine events and appends per event — a
