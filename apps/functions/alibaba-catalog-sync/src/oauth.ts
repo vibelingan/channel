@@ -117,40 +117,11 @@ function readTokenResponse(bodyText: string, now: string): TokenGrant | null {
   }
   if (typeof parsed !== 'object' || parsed === null) return null;
   const root = parsed as Record<string, unknown>;
-
-  // An ERROR envelope must never be mistaken for a grant. TOP reports failure
-  // as `error_response`, and reading on would let a malformed success shape
-  // fall through to the generic extraction below.
-  if (root.error_response !== undefined) return null;
-
-  // TOP wraps the grant twice: the method response object, then a
-  // `token_result` that is itself a JSON STRING, not an object.
-  const topWrapper = (root.top_auth_token_create_response ??
-    root.top_auth_token_refresh_response) as Record<string, unknown> | undefined;
-  let source: Record<string, unknown> | undefined;
-  if (topWrapper !== undefined) {
-    const inner = topWrapper.token_result;
-    if (typeof inner === 'string') {
-      try {
-        const decoded: unknown = JSON.parse(inner);
-        if (typeof decoded === 'object' && decoded !== null) {
-          source = decoded as Record<string, unknown>;
-        }
-      } catch {
-        return null;
-      }
-    } else if (typeof inner === 'object' && inner !== null) {
-      source = inner as Record<string, unknown>;
-    }
-  }
-  if (!source) {
-    // Flat grant (the documented direct-OAuth token alternative) or a legacy
-    // nested wrapper, kept so existing fixtures stay meaningful.
-    source =
-      typeof root.access_token === 'string'
-        ? root
-        : ((root.data ?? root.result ?? root.token_result) as Record<string, unknown> | undefined);
-  }
+  // Some GOP responses nest the grant under a wrapper key; accept both.
+  const source =
+    typeof root.access_token === 'string'
+      ? root
+      : ((root.data ?? root.result ?? root.token_result) as Record<string, unknown> | undefined);
   if (!source || typeof source.access_token !== 'string' || source.access_token.length === 0) {
     return null;
   }
@@ -168,23 +139,7 @@ function readTokenResponse(bodyText: string, now: string): TokenGrant | null {
   if (Number.isFinite(refreshExpiresIn) && refreshExpiresIn > 0) {
     grant.refreshTokenExpiresAt = new Date(Date.parse(now) + refreshExpiresIn * 1000).toISOString();
   }
-  // TOP also reports ABSOLUTE expiries (epoch ms) rather than durations.
-  // Prefer them when present — a duration we mis-anchor drifts, an absolute
-  // instant cannot.
-  const absoluteAccess = Number(source.expire_time);
-  if (Number.isFinite(absoluteAccess) && absoluteAccess > 0) {
-    grant.accessTokenExpiresAt = new Date(absoluteAccess).toISOString();
-  }
-  const absoluteRefresh = Number(source.refresh_token_valid_time);
-  if (Number.isFinite(absoluteRefresh) && absoluteRefresh > 0) {
-    grant.refreshTokenExpiresAt = new Date(absoluteRefresh).toISOString();
-  }
-  const account =
-    source.account ??
-    source.resource_owner ??
-    source.seller_account ??
-    source.taobao_user_nick ??
-    source.user_nick;
+  const account = source.account ?? source.resource_owner ?? source.seller_account;
   if (typeof account === 'string' && account.length > 0) grant.accountLabel = account;
   return grant;
 }

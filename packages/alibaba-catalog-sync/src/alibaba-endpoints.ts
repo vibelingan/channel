@@ -25,24 +25,30 @@ export interface AlibabaEndpoints {
 }
 
 export const DEFAULT_ALIBABA_ENDPOINTS: AlibabaEndpoints = {
-  // Alibaba.com ICBU runs ON TOP of the Taobao Open Platform. That single fact
-  // decides every value here:
+  // Alibaba.com Open Platform — host CONFIRMED by Alibaba support on
+  // 2026-08-16 and verified live the same day.
   //
-  //   - the BROWSER authorization page is ICBU's own host with `sp=icbu`
-  //     (lowercase — the uppercase variant was answered `param-appkey.not.exists`
-  //     by the live gateway on 2026-08-07);
-  //   - everything AFTER the callback is TOP: one router endpoint, dotted
-  //     method names as signed parameters, HMAC-MD5, `session` for the token.
+  // `oauth.alibaba.com` is the OLD domain. It still answers, and it still
+  // redirects to a login page, which is exactly why this took so long to find:
+  // the flow looked healthy right up until the authenticated merchant was told
+  // `param-appkey.not.exists`. The key was never missing — it lives in the
+  // NEW platform's registry and the old host cannot see it.
   //
-  // The previous GOP values (`openapi-api.alibaba.com/rest` with
-  // `/auth/token/*` paths and HMAC-SHA256) were never reachable for this
-  // application: the documented product APIs are `alibaba.icbu.product.list`
-  // and `.get`, which are TOP method NAMES, not REST paths. See ARCHITECTURE
-  // §8.3.
-  authorizeBaseUrl: 'https://oauth.alibaba.com/authorize',
-  apiBaseUrl: 'https://eco.taobao.com/router/rest',
-  tokenCreatePath: 'taobao.top.auth.token.create',
-  tokenRefreshPath: 'taobao.top.auth.token.refresh',
+  // Proof (no credentials needed, reproducible):
+  //   open-api.alibaba.com  + app_key 511630   -> IncompleteSignature  (key KNOWN)
+  //   open-api.alibaba.com  + app_key 999999999 -> InvalidAppKey       (control)
+  // Reaching signature validation means the key resolved.
+  //
+  // Note the hostname carefully: `open-api` with a hyphen. An earlier probe
+  // used `openapi-api.alibaba.com`, which is a DIFFERENT host and answers
+  // InvalidAppKey for everything — that false negative is what made the key
+  // look unprovisioned.
+  //
+  // Docs: https://open.alibaba.com/doc/doc.htm?docId=72
+  authorizeBaseUrl: 'https://open-api.alibaba.com/oauth/authorize',
+  apiBaseUrl: 'https://open-api.alibaba.com/rest',
+  tokenCreatePath: '/auth/token/create',
+  tokenRefreshPath: '/auth/token/refresh',
 };
 
 export type EndpointResolution =
@@ -58,13 +64,8 @@ function validOverride(name: string, raw: string): string | undefined {
   }
   if (url.protocol !== 'https:') return `${name} must use https`;
   const host = url.hostname;
-  // TOP's router lives on taobao.com, so the allowlist must cover BOTH families
-  // — while still refusing an arbitrary host, so a mis-set variable can never
-  // redirect signed requests (and the session token) to a third party.
-  const allowed = ['alibaba.com', 'taobao.com'];
-  const ok = allowed.some((domain) => host === domain || host.endsWith(`.${domain}`));
-  if (!ok) {
-    return `${name} must point at an *.alibaba.com or *.taobao.com host`;
+  if (host !== 'alibaba.com' && !host.endsWith('.alibaba.com')) {
+    return `${name} must point at an *.alibaba.com host`;
   }
   return undefined;
 }
@@ -101,14 +102,17 @@ export function buildAuthorizeUrl(
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('client_id', input.appKey);
   url.searchParams.set('redirect_uri', input.redirectUri);
-  // Minimal official ICBU parameter set (corrected 2026-08-07): lowercase
-  // `sp=icbu`, lowercase `state` only, and NO `force_auth`. The uppercase
-  // `sp=ICBU` + `force_auth` + dual-casing `state`/`State` variant was
-  // answered by the live gateway with `param-appkey.not.exists` — the
-  // platform selector routes to the authorization registry, and the
-  // non-documented shape landed in one that does not know this app key.
+  // Exactly the parameter set Alibaba support supplied on 2026-08-16:
+  // response_type, client_id, redirect_uri, sp=icbu — plus our single-use
+  // `state`, which the platform echoes back to the callback.
+  //
+  // `view=web` was dropped: it is not in support's link, and both forms
+  // return 200 on the new host, so the smaller surface wins.
+  //
+  // The uppercase/lowercase `sp` question is settled and was never the real
+  // problem — `param-appkey.not.exists` came from the OLD authorize host,
+  // which cannot see this app key at all.
   url.searchParams.set('state', input.state);
   url.searchParams.set('sp', 'icbu');
-  url.searchParams.set('view', 'web');
   return url.toString();
 }

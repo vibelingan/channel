@@ -21,14 +21,7 @@ export {
   getPath,
   parseJsonPreservingNumbers,
 } from './alibaba-json.ts';
-export {
-  canonicalSignBase,
-  canonicalTopSignBase,
-  signGopRequest,
-  signTopRequest,
-  topTimestamp,
-} from './alibaba-signature.ts';
-export type { TopSignMethod } from './alibaba-signature.ts';
+export { canonicalSignBase, signGopRequest } from './alibaba-signature.ts';
 export {
   type AlibabaEndpoints,
   DEFAULT_ALIBABA_ENDPOINTS,

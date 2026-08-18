@@ -712,64 +712,39 @@ verify, 3 artifact smokes, site build.
 - **No production deploy exists.** `PRODUCTION_DESIRED_TIMER_TRIGGERS` is
   referenced only by a test; nothing applies the 15-minute timer.
 
-## Protocol correction — ICBU runs on TOP (2026-08-14)
+## Root cause found — retired hostname (2026-08-16)
 
-Written from scratch, NOT ported: the local TOP commits named in the incident
-handoff (`9898711`, `79bd08c`) were made in a different sandbox and **do not
-exist on this machine** — `git cat-file` finds none of them. Anyone repeating
-the handoff's "cherry-pick the local fix" step will hit the same wall.
+Alibaba support identified it: `oauth.alibaba.com` is the OLD domain. The
+correct host is `open-api.alibaba.com`. Confirmed live the same day with a
+credential-free control probe:
 
-Base is `origin/main` (`7978369`), which already carries the lowercase
-`sp=icbu` hotfix. The old `feature/alibaba-linked-catalog-sync` head
-(`54909ad`) is fully contained in `main`, so nothing was lost by branching
-fresh.
+```text
+open-api.alibaba.com + 511630    -> IncompleteSignature  (key RESOLVED)
+open-api.alibaba.com + 999999999 -> InvalidAppKey        (control)
+old oauth.alibaba.com/authorize  -> 302 to login, then fails after login
+new open-api.../oauth/authorize  -> 200, renders the consent page
+```
 
-### What changed
+The app key was correctly provisioned all along. No Alibaba backend repair was
+ever needed.
 
-- **Signing**: added `signTopRequest` (HMAC-MD5 over sorted `key+value`, no
-  path prefix, empty values excluded) and `topTimestamp` (GMT+8
-  `yyyy-MM-dd HH:mm:ss`). The GOP signer stays for its own tests; the client no
-  longer uses it.
-- **Endpoints**: `eco.taobao.com/router/rest` with `taobao.top.auth.token.*`
-  methods. The override allowlist now admits `*.taobao.com` as well —
-  necessarily, since TOP's router is not on an alibaba.com host — while still
-  refusing arbitrary hosts so a mis-set variable cannot redirect a signed
-  request carrying the session token.
-- **Client**: one router URL, `method` as a signed parameter, `session`
-  instead of `access_token`, `format=json`, `v=2.0`, `sign_method=hmac`.
-  `topMethodName()` normalises a legacy slash path to the dotted form so a
-  missed call site fails at review, not at the gateway.
-- **Token parsing**: the TOP double wrapper (`top_auth_token_create_response`
-  → `token_result`, which is itself a JSON string), absolute expiries
-  preferred over durations, `taobao_user_nick` as an account label, and an
-  `error_response` envelope refused outright.
-- **Runner**: dotted methods, `current_page` (not `page`), required
-  `language=ENGLISH`, and GMT+8 window bounds.
+**My TOP conversion was reverted.** I inferred from the dotted method names
+that ICBU ran on the Taobao Open Platform. Wrong: the Alibaba.com Open Platform
+serves those same methods over its own REST gateway. The protocol never needed
+changing — only the hostname. That is two incorrect protocol conclusions in
+this feature (`sp=ICBU`, then TOP), both reached by reading documentation
+instead of probing. The probe that settled it takes two curl commands and no
+credentials.
 
-### Tests that had pinned the wrong protocol
+**Why ten days passed.** The retired host answers and redirects to a login
+page, so every unauthenticated check looked healthy; the failure only appeared
+after a real merchant authenticated. Compounding it, an early probe used
+`openapi-api.alibaba.com` — a different host from `open-api.alibaba.com` —
+returned `InvalidAppKey`, and that false negative pointed the investigation at
+Alibaba's backend.
 
-Three existing tests asserted GOP and would have kept passing forever while the
-integration could not work — the same shape as the `sp=ICBU` bug:
+The endpoint test now pins the exact host and fails on either retired name, so
+this cannot silently regress.
 
-- the client test asserted the GOP URL, `access_token`, `sign_method=sha256`
-  and a 64-char signature;
-- two OAuth tests asserted the token URL ended in `/auth/token/create` and
-  `/auth/token/refresh`;
-- the runner's fake backend routed on URL PATH, which under TOP matches
-  nothing — every call would have fallen through to the default branch.
-
-All rewritten to assert the TOP contract, plus new coverage: the double
-wrapper, absolute-expiry precedence, `error_response` refusal, slash-path
-normalisation, and a GMT+8 timestamp case that a UTC formatter gets wrong
-(16:00Z rolls to the next day).
-
-### Gates
-
-9/9 suites (122 domain + 77 function + 125 site), 0 type errors, biome clean,
-21 script tests, SDK contract verify, 3 artifact cold-start smokes, site build.
-
-### Still true
-
-This changes nothing about `param-appkey.not.exists`. That is a pre-callback
-Alibaba registration/binding matter and only Alibaba can resolve it. Do not
-deploy this to retry that error.
+Gates: 9/9 suites, 0 type errors, biome clean, 21 script tests, SDK contract
+verify, 3 artifact smokes, site build.

@@ -13,7 +13,7 @@
 
 import { createHash } from 'node:crypto';
 import type { AlibabaEndpoints } from './alibaba-endpoints.ts';
-import { signTopRequest, topTimestamp } from './alibaba-signature.ts';
+import { signGopRequest } from './alibaba-signature.ts';
 
 export interface AlibabaClientConfig {
   appKey: string;
@@ -92,45 +92,24 @@ export interface AlibabaClient {
   fingerprintFor(input: Pick<ApiCallInput, 'apiPath' | 'params'>): string;
 }
 
-/**
- * Accept either a TOP dotted method (`alibaba.icbu.product.list`) or a legacy
- * slash path (`/alibaba/icbu/product/list`) and always emit the dotted form.
- * Callers were written against the old GOP paths; normalising here means a
- * missed call site fails loudly at review rather than quietly at the gateway.
- */
-export function topMethodName(apiPathOrMethod: string): string {
-  const trimmed = apiPathOrMethod.trim();
-  if (!trimmed.startsWith('/')) return trimmed;
-  return trimmed.replace(/^\/+/, '').replace(/\//g, '.');
-}
-
 export function createAlibabaClient(config: AlibabaClientConfig): AlibabaClient {
   const fetchImpl = config.fetchImpl ?? fetch;
   const sleep = config.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const now = config.now ?? Date.now;
 
-  /**
-   * TOP request construction. Every call — token exchange and business API
-   * alike — is a form POST to ONE router URL; the operation is carried by the
-   * signed `method` parameter, never by the path.
-   *
-   * `apiPath` on the input is therefore a METHOD NAME. Legacy slash forms are
-   * normalised so a stale caller cannot silently send `/alibaba/icbu/...` as a
-   * method and get an unhelpful gateway error.
-   */
   const buildParams = (input: ApiCallInput): Record<string, string> => {
     const params: Record<string, string> = {
       ...input.params,
-      method: topMethodName(input.apiPath),
       app_key: config.appKey,
-      timestamp: topTimestamp(now()),
-      format: 'json',
-      v: '2.0',
-      sign_method: 'hmac',
+      timestamp: String(now()),
+      sign_method: 'sha256',
     };
-    // TOP carries the user token as `session`, NOT `access_token`.
-    if (input.accessToken !== undefined) params.session = input.accessToken;
-    params.sign = signTopRequest({ params, appSecret: config.appSecret });
+    if (input.accessToken !== undefined) params.access_token = input.accessToken;
+    params.sign = signGopRequest({
+      apiPath: input.apiPath,
+      params,
+      appSecret: config.appSecret,
+    });
     return params;
   };
 
@@ -142,8 +121,7 @@ export function createAlibabaClient(config: AlibabaClientConfig): AlibabaClient 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      // Single router endpoint — no path concatenation.
-      const response = await fetchImpl(config.endpoints.apiBaseUrl, {
+      const response = await fetchImpl(`${config.endpoints.apiBaseUrl}${input.apiPath}`, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams(params).toString(),

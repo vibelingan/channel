@@ -18,50 +18,27 @@ const makeClient = (fetchImpl: typeof fetch) =>
 const okResponse = (body: string) =>
   new Response(body, { status: 200, headers: { 'content-type': 'application/json' } });
 
-test('posts TOP system params to the SINGLE router URL, method as a parameter', async () => {
+test('signs and posts form-encoded params to the gateway path', async () => {
   let captured: { url: string; body: string } | undefined;
   const client = makeClient(async (url, init) => {
     captured = { url: String(url), body: String(init?.body) };
     return okResponse('{"ok":true}');
   });
   const result = await client.callApi({
-    apiPath: 'alibaba.icbu.product.list',
+    apiPath: '/alibaba/icbu/product/list',
     params: { page_size: '30' },
     accessToken: 'tok-123',
   });
   assert.equal(result.ok, true);
   assert.ok(captured);
-
-  // The method NEVER appears in the URL — one router endpoint, no path.
-  assert.equal(captured.url, 'https://eco.taobao.com/router/rest');
-  assert.ok(!captured.url.includes('product'), 'the method must not leak into the path');
-
+  assert.equal(captured.url, 'https://open-api.alibaba.com/rest/alibaba/icbu/product/list');
   const params = new URLSearchParams(captured.body);
-  assert.equal(params.get('method'), 'alibaba.icbu.product.list');
   assert.equal(params.get('app_key'), '511630');
   assert.equal(params.get('page_size'), '30');
-  assert.equal(params.get('format'), 'json');
-  assert.equal(params.get('v'), '2.0');
-  // TOP carries the token as `session`; `access_token` is the GOP spelling.
-  assert.equal(params.get('session'), 'tok-123');
-  assert.equal(params.get('access_token'), null, 'access_token is the OLD protocol');
-  assert.equal(params.get('sign_method'), 'hmac');
-  // GMT+8 wall-clock, not an epoch and not ISO.
-  // Fixture clock is 1722900000000 = 2024-08-05T23:20:00Z, i.e. 07:20 next
-  // day in GMT+8. A UTC formatter would emit the 05th and be silently wrong.
-  assert.equal(params.get('timestamp'), '2024-08-06 07:20:00');
-  // HMAC-MD5 = 32 hex chars. 64 would mean the GOP SHA-256 signer came back.
-  assert.match(params.get('sign') ?? '', /^[0-9A-F]{32}$/);
-});
-
-test('a legacy slash path is normalised to a dotted TOP method', async () => {
-  let body = '';
-  const client = makeClient(async (_url, init) => {
-    body = String(init?.body);
-    return okResponse('{"ok":true}');
-  });
-  await client.callApi({ apiPath: '/alibaba/icbu/product/get', params: {} });
-  assert.equal(new URLSearchParams(body).get('method'), 'alibaba.icbu.product.get');
+  assert.equal(params.get('access_token'), 'tok-123');
+  assert.equal(params.get('sign_method'), 'sha256');
+  assert.equal(params.get('timestamp'), '1722900000000');
+  assert.match(params.get('sign') ?? '', /^[0-9A-F]{64}$/);
 });
 
 test('retries network failures then succeeds', async () => {

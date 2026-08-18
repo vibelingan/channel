@@ -563,51 +563,57 @@ exactly this purpose) and deploy. `scripts/function-manifest.test.mjs` pins the
 current manual-only state, so that test failing is the intended signal that
 someone changed this deliberately — update it, do not delete it.
 
-### §8.3 Amendment — ICBU runs on TOP; the post-callback protocol was wrong
+### §8.3 Amendment — the platform host was wrong
 
-**Supersedes every GOP statement in §8.2 and the endpoint defaults.** Recorded
-2026-08-14.
+**Supersedes §8.2 and every earlier endpoint statement.** Recorded 2026-08-16
+after Alibaba support identified the host; confirmed live the same day.
 
-Alibaba.com ICBU is built ON the Taobao Open Platform. The browser
-authorization page is ICBU's own (`oauth.alibaba.com/authorize` with
-`sp=icbu`), but **everything after the callback is TOP**:
+`param-appkey.not.exists` was never a provisioning defect. **We were calling a
+retired hostname.**
 
-| Concern | Was (GOP) | Is (TOP) |
+| | Retired | Correct |
 |---|---|---|
-| Gateway | `openapi-api.alibaba.com/rest` + API path | `eco.taobao.com/router/rest`, ONE url |
-| Operation | path segment | signed `method` parameter |
-| Token exchange | `/auth/token/create` | `taobao.top.auth.token.create` |
-| Credential | `access_token` | `session` |
-| Signature | HMAC-SHA256 over path+params | HMAC-MD5 over params, no path |
-| Timestamp | epoch milliseconds | `yyyy-MM-dd HH:mm:ss` in **GMT+8** |
+| Authorize | `oauth.alibaba.com/authorize` | `open-api.alibaba.com/oauth/authorize` |
+| API gateway | `openapi-api.alibaba.com/rest` | `open-api.alibaba.com/rest` |
 
-The tell was in the API names all along: `alibaba.icbu.product.list` and
-`.get` are TOP METHOD names. GOP would have exposed them as REST paths. The
-original implementation adopted the GOP family by convention while the
-documented methods were TOP, and marked the endpoints ASSUMED-UNVERIFIED
-rather than stopping — which the original gate said should have halted
-implementation.
+The protocol is unchanged — GOP-style REST paths, `access_token`, HMAC-SHA256,
+epoch-millisecond timestamps. Only the host moves.
 
-**This does NOT fix `param-appkey.not.exists`.** That failure happens in the
-browser before any callback, so no post-callback protocol change can affect
-it. The two are independent:
+Verified without credentials, reproducible by anyone:
 
 ```text
-pre-callback   ICBU OAuth client registration / seller-account binding  -> Alibaba
-post-callback  TOP protocol implementation                              -> this amendment
+open-api.alibaba.com + app_key 511630    -> IncompleteSignature  (key RESOLVED)
+open-api.alibaba.com + app_key 999999999 -> InvalidAppKey        (control)
 ```
 
-Correcting an earlier claim in this document: the uppercase-to-lowercase `sp`
-change was **not** the root-cause fix. Lowercase `sp=icbu` is the documented
-form and should stay, but the authenticated merchant still receives
-`param-appkey.not.exists` with it. Any comment implying the casing resolved
-the incident is wrong.
+Reaching signature validation proves the key resolved. The app was correctly
+provisioned the whole time.
 
-Absolute expiries (`expire_time`, `refresh_token_valid_time`) are preferred
-over relative durations when TOP sends both — an instant cannot drift the way
-a mis-anchored duration does. The `token_result` wrapper is a JSON STRING
-inside JSON, and an `error_response` envelope is refused rather than mined for
-a grant.
+**Why this hid for ten days.** The retired host does not reject the request. It
+answers, and it redirects to a normal login page — so every unauthenticated
+probe looked healthy, and the failure surfaced only *after* a real merchant
+logged in. A smoke test asserting "we reached Alibaba" cannot catch this. The
+endpoint test now pins the exact host and fails on either retired name.
+
+Note also that `openapi-api.alibaba.com` and `open-api.alibaba.com` are
+DIFFERENT hosts. An early probe used the former, got `InvalidAppKey`, and
+concluded the key was unprovisioned — a false negative that aimed the
+investigation at Alibaba's backend for days.
+
+**A TOP conversion was attempted and reverted.** Reasoning from the dotted
+method names (`alibaba.icbu.product.list`) to "this must be the Taobao Open
+Platform" was plausible and wrong: the Alibaba.com Open Platform serves those
+same ICBU methods over its own REST gateway. That makes two wrong protocol
+conclusions on this feature — `sp=ICBU`, then TOP — both reached by reading
+documentation rather than probing. The probe that settled it is two curl
+commands and needs no credentials.
+
+Support also confirmed the `B2B国际站企业对接` app supports OAuth 2.0
+server-side and that **no developer-to-seller entity binding is required** —
+the seller simply authorizes with their own account. The ISV publication and
+multi-store reporting paths explored earlier were dead ends.
+
+Docs: https://open.alibaba.com/doc/doc.htm?docId=72
 
 ### §10.1 Amendment — `runNow` executes a bounded slice inline
 

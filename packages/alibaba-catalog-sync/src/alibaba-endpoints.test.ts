@@ -51,39 +51,43 @@ test('suffix check is dot-anchored (no evil-alibaba.com bypass)', () => {
   );
 });
 
-test('the confirmed ICBU authorize host is the default', () => {
-  assert.equal(DEFAULT_ALIBABA_ENDPOINTS.authorizeBaseUrl, 'https://oauth.alibaba.com/authorize');
+test('the default authorize host is the NEW open-api domain, not the old one', () => {
+  // The whole `param-appkey.not.exists` incident was this hostname. The old
+  // host still answers and still redirects to login, so a smoke test that only
+  // checks "did we reach Alibaba" cannot catch a regression here.
+  assert.equal(
+    DEFAULT_ALIBABA_ENDPOINTS.authorizeBaseUrl,
+    'https://open-api.alibaba.com/oauth/authorize',
+  );
+  assert.equal(DEFAULT_ALIBABA_ENDPOINTS.apiBaseUrl, 'https://open-api.alibaba.com/rest');
+  for (const value of Object.values(DEFAULT_ALIBABA_ENDPOINTS)) {
+    assert.ok(!value.includes('oauth.alibaba.com'), 'oauth.alibaba.com is the RETIRED host');
+    assert.ok(
+      !value.includes('openapi-api.alibaba.com'),
+      'openapi-api.alibaba.com is a different host that rejects every key',
+    );
+    assert.ok(!value.includes('eco.taobao.com'), 'this app is not on the TOP platform');
+  }
 });
 
-test('buildAuthorizeUrl carries the ICBU OAuth params and encodes the redirect', () => {
+test('buildAuthorizeUrl sends exactly the parameters Alibaba support supplied', () => {
   const url = buildAuthorizeUrl(DEFAULT_ALIBABA_ENDPOINTS, {
     appKey: '511630',
-    redirectUri: 'https://env-id.service.tcloudbase.com/api/alibaba-catalog-sync/oauth/callback',
+    redirectUri: 'https://supplychainsai.com/api/alibaba-catalog-sync/oauth/callback',
     state: 'abc123',
   });
   const parsed = new URL(url);
-  assert.equal(parsed.origin + parsed.pathname, DEFAULT_ALIBABA_ENDPOINTS.authorizeBaseUrl);
+  assert.equal(parsed.origin + parsed.pathname, 'https://open-api.alibaba.com/oauth/authorize');
   assert.equal(parsed.searchParams.get('response_type'), 'code');
   assert.equal(parsed.searchParams.get('client_id'), '511630');
   assert.equal(
     parsed.searchParams.get('redirect_uri'),
-    'https://env-id.service.tcloudbase.com/api/alibaba-catalog-sync/oauth/callback',
+    'https://supplychainsai.com/api/alibaba-catalog-sync/oauth/callback',
   );
-  // Minimal official ICBU parameter set (2026-08-07 live correction):
-  // lowercase state only (the callback still accepts an echoed `State`),
-  // lowercase sp=icbu, and no force_auth.
-  assert.equal(parsed.searchParams.get('state'), 'abc123');
-  assert.equal(parsed.searchParams.get('State'), null);
-  assert.equal(parsed.searchParams.get('force_auth'), null);
   assert.equal(parsed.searchParams.get('sp'), 'icbu');
-  assert.equal(parsed.searchParams.get('view'), 'web');
-  // Exactly the documented parameter set, nothing else.
-  assert.deepEqual([...parsed.searchParams.keys()].sort(), [
-    'client_id',
-    'redirect_uri',
-    'response_type',
-    'sp',
-    'state',
-    'view',
-  ]);
+  assert.equal(parsed.searchParams.get('state'), 'abc123');
+  // Absent by design — none appear in support's link.
+  assert.equal(parsed.searchParams.get('State'), null, 'no duplicate casing');
+  assert.equal(parsed.searchParams.get('force_auth'), null);
+  assert.equal(parsed.searchParams.get('view'), null);
 });

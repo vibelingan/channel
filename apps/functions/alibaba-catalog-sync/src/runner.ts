@@ -34,7 +34,6 @@ import {
   nextEnumerationAction,
   parseAlibabaApiResponse,
   runOverdue,
-  topTimestamp,
 } from '@vibelingan-channel/alibaba-catalog-sync';
 import {
   ALIBABA_SYNC_LEASE_TTL_MS,
@@ -53,12 +52,8 @@ import { PRIMARY_CONNECTION_ID } from './oauth.ts';
 import { promoteLinkedProduct } from './promotion.ts';
 import { type CollectionDoc, createDocWithId, getDoc, updateDoc, upsertDocWithId } from './repo.ts';
 
-// TOP METHOD NAMES, not REST paths — ICBU rides on the Taobao Open Platform,
-// so the operation travels as a signed `method` parameter to one router URL.
-const LIST_METHOD = 'alibaba.icbu.product.list';
-const DETAIL_METHOD = 'alibaba.icbu.product.get';
-/** ICBU product APIs require an explicit display language. */
-const PRODUCT_LANGUAGE = 'ENGLISH';
+const LIST_PATH = '/alibaba/icbu/product/list';
+const DETAIL_PATH = '/alibaba/icbu/product/get';
 /** Full enumeration window start: safely before any live listing. */
 const FULL_WINDOW_START = '2010-01-01T00:00:00.000Z';
 const INCREMENTAL_LOOKBACK_MS = 4 * 3_600_000;
@@ -401,19 +396,14 @@ async function executeSlice(
     | { ok: false; kind: 'transport' | 'api-error' | 'malformed' | 'raw-failed' }
   > => {
     budget.apiCalls += 1;
-    // Documented ICBU list contract: `current_page` (not `page`), a required
-    // `language`, and GMT+8 window bounds in TOP's timestamp format — an ISO
-    // instant here is rejected, and a UTC-formatted one silently selects the
-    // wrong 8-hour window.
     const params: Record<string, string> = {
-      current_page: '1',
+      page: '1',
       page_size: String(pageSize),
-      language: PRODUCT_LANGUAGE,
-      gmt_modified_from: topTimestamp(fromMs),
-      gmt_modified_to: topTimestamp(toMs),
+      gmt_modified_from: new Date(fromMs).toISOString(),
+      gmt_modified_to: new Date(toMs).toISOString(),
     };
     const response = await deps.client.callApi({
-      apiPath: LIST_METHOD,
+      apiPath: LIST_PATH,
       params,
       accessToken,
       ...callTuning,
@@ -423,7 +413,7 @@ async function executeSlice(
     const raw = await storeRawPayload({
       bodyText: response.bodyText,
       endpointId: 'product.list',
-      requestFingerprint: deps.client.fingerprintFor({ apiPath: LIST_METHOD, params }),
+      requestFingerprint: deps.client.fingerprintFor({ apiPath: LIST_PATH, params }),
       connectionId: PRIMARY_CONNECTION_ID,
       runId: state.activeRunId,
       now: deps.now(),
@@ -519,9 +509,9 @@ async function executeSlice(
         if (!(await keepLease())) return { outcome: 'lease-lost', runId: state.activeRunId };
         budget.apiCalls += 1;
         budget.productsProcessed += 1;
-        const params = { product_id: sourceProductId, language: PRODUCT_LANGUAGE };
+        const params = { product_id: sourceProductId };
         const detailResponse = await deps.client.callApi({
-          apiPath: DETAIL_METHOD,
+          apiPath: DETAIL_PATH,
           params,
           accessToken,
           ...callTuning,
@@ -533,7 +523,7 @@ async function executeSlice(
         const ingest = await ingestProductDetail({
           bodyText: detailResponse.bodyText,
           endpointId: 'product.get',
-          requestFingerprint: deps.client.fingerprintFor({ apiPath: DETAIL_METHOD, params }),
+          requestFingerprint: deps.client.fingerprintFor({ apiPath: DETAIL_PATH, params }),
           connectionId: PRIMARY_CONNECTION_ID,
           runId: state.activeRunId,
           now: deps.now(),
@@ -711,12 +701,9 @@ async function executeSlice(
     }
     if (!(await keepLease())) return { outcome: 'lease-lost', runId: state.activeRunId };
     budget.apiCalls += 1;
-    const params = {
-      product_id: String(candidate.sourceProductId ?? ''),
-      language: PRODUCT_LANGUAGE,
-    };
+    const params = { product_id: String(candidate.sourceProductId ?? '') };
     const confirm = await deps.client.callApi({
-      apiPath: DETAIL_METHOD,
+      apiPath: DETAIL_PATH,
       params,
       accessToken,
       // NOT callTuning: a single transient timeout here quarantines the
@@ -746,7 +733,7 @@ async function executeSlice(
       await ingestProductDetail({
         bodyText: confirm.bodyText,
         endpointId: 'product.get',
-        requestFingerprint: deps.client.fingerprintFor({ apiPath: DETAIL_METHOD, params }),
+        requestFingerprint: deps.client.fingerprintFor({ apiPath: DETAIL_PATH, params }),
         connectionId: PRIMARY_CONNECTION_ID,
         runId: state.activeRunId,
         now: deps.now(),
