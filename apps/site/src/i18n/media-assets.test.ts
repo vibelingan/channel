@@ -72,7 +72,13 @@ type MapContext = {
   indexName?: string;
 };
 
-const extractMapContext = (expression: ExpressionNode) => {
+const extractMapContext = (expression: ExpressionNode): ReturnType<typeof parseTopLevelMap> => {
+  const context = parseTopLevelMap(expression);
+  assert.ok(context, 'image expression is a top-level .map() call');
+  return context;
+};
+
+const parseTopLevelMap = (expression: ExpressionNode) => {
   const firstChild = expression.children[0];
   const lastChild = expression.children.at(-1);
   assert.ok(firstChild?.type === 'text');
@@ -87,15 +93,22 @@ const extractMapContext = (expression: ExpressionNode) => {
   const statement = source.statements[0];
   assert.ok(ts.isExpressionStatement(statement));
   const call = statement.expression;
-  assert.ok(ts.isCallExpression(call));
-  assert.ok(ts.isPropertyAccessExpression(call.expression));
-  assert.equal(call.expression.name.text, 'map');
+  if (
+    !ts.isCallExpression(call) ||
+    !ts.isPropertyAccessExpression(call.expression) ||
+    call.expression.name.text !== 'map'
+  ) {
+    return null;
+  }
   assert.equal(call.arguments.length, 1);
   const callback = call.arguments[0];
   assert.ok(ts.isArrowFunction(callback));
   assert.ok(callback.parameters.length === 1 || callback.parameters.length === 2);
   const parameters = callback.parameters.map((parameter) => {
-    assert.ok(ts.isIdentifier(parameter.name));
+    assert.ok(
+      ts.isIdentifier(parameter.name),
+      'mapped image callbacks must use identifier parameters',
+    );
     return parameter.name.text;
   });
   return {
@@ -162,21 +175,15 @@ const assertMappedImageRenderer = async (
   };
   visit(ast);
 
-  // Only registry-backed images (rendered by a `.map()` expression) are bound
-  // by this contract. Static images outside a collection — e.g. the optional
-  // FactorySection poster fallback inside <video> — carry their own literal
-  // attributes and are intentionally out of scope.
-  const isMapBacked = (image: (typeof images)[number]) => {
-    if (!image.expression) return false;
-    try {
-      extractMapContext(image.expression);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-  const mappedImages = images.filter(isMapBacked).map((image) => {
-    return { ...image, map: extractMapContext(image.expression as ExpressionNode) };
+  // Only images whose owning Astro expression is itself a top-level `.map()`
+  // call are registry-backed. This avoids classifying a static image in a
+  // conditional sibling branch as mapped merely because the enclosing source
+  // contains another `.map()`. Once a top-level map is identified, malformed
+  // callbacks fail loudly instead of being reclassified as static.
+  const mappedImages = images.flatMap((image) => {
+    if (!image.expression) return [];
+    const map = parseTopLevelMap(image.expression);
+    return map ? [{ ...image, map }] : [];
   });
   assert.equal(
     mappedImages.length,
@@ -258,6 +265,21 @@ const assertMappedImageRenderer = async (
   }
 };
 
+test('mapped image contract rejects unsupported map callback shapes', async () => {
+  const malformed = `---
+const items = [{ src: '/media/example.webp' }];
+---
+{items.map(({ src }) => <img src={src} alt="" />)}`;
+
+  await assert.rejects(
+    () =>
+      assertMappedImageRenderer(malformed, 'items', ({ itemName }) => ({
+        src: `${itemName}.src`,
+      })),
+    /mapped image callbacks must use identifier parameters/,
+  );
+});
+
 test('home keeps the real team gallery separate from Why Choose Us visuals', () => {
   const ourTeam = readFileSync(
     fileURLToPath(new URL('../components/OurTeamSection.astro', import.meta.url)),
@@ -293,6 +315,22 @@ test('every /media asset referenced by site + OEM + portfolio content exists in 
     const file = fileURLToPath(new URL(`../../public${ref}`, import.meta.url));
     assert.ok(existsSync(file), `referenced asset missing on disk: ${ref}`);
   }
+});
+
+test('OEM factory poster dimensions match the source bytes', async () => {
+  const oemSource = readFileSync(
+    fileURLToPath(new URL('./content/oem/en-US.md', import.meta.url)),
+    'utf8',
+  );
+  const frontmatterSource = oemSource.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  assert.ok(frontmatterSource, 'OEM content has YAML frontmatter');
+  const document = parseDocument(frontmatterSource[1], { uniqueKeys: true });
+  assert.deepEqual(document.errors, []);
+  const content = document.toJS() as {
+    factoryVideo?: { poster?: string; posterWidth?: number; posterHeight?: number };
+  };
+  assert.ok(content.factoryVideo);
+  await assertImageMetadata([content.factoryVideo], 'poster', 'posterWidth', 'posterHeight');
 });
 
 test('OEM process images expose reviewed intrinsic dimensions to the renderer', async () => {
