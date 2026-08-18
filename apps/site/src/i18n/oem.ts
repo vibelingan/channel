@@ -47,6 +47,35 @@ export interface OemContent {
     title: string;
     description: string;
   };
+  hero: {
+    eyebrow: string;
+    heading: string;
+    subheading: string;
+    primaryCta: { label: string; href: string };
+    secondaryCta: { label: string; href: string };
+  };
+  capabilities: {
+    id: string;
+    eyebrow: string;
+    heading: string;
+    intro: string;
+    items: IconCard[];
+    note: string;
+  };
+  process: {
+    id: string;
+    eyebrow: string;
+    heading: string;
+    intro: string;
+    steps: ProcessStep[];
+  };
+  whyUs: {
+    id: string;
+    eyebrow: string;
+    heading: string;
+    intro: string;
+    reasons: Reason[];
+  };
   submit: {
     id: string;
     eyebrow: string;
@@ -58,12 +87,7 @@ export interface OemContent {
     successTitle: string;
     successBody: string;
   };
-  /**
-   * Required factory media block. /oem renders this checked-in video/poster
-   * pair through FactorySection's media override, and the recomposed page
-   * throws a build error if this content is missing — there is no silent
-   * fallback to the homepage media.
-   */
+  /** Required OEM-specific factory video and poster. */
   factoryVideo: {
     src: string;
     poster: string;

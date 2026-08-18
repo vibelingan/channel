@@ -58,9 +58,10 @@ test('canonical OEM inquiry links target the homepage form without changing navi
 
   assert.ok(siteContent.includes("href: '/oem#what-we-do'"));
   assert.ok(siteContent.includes("- { label: OEM Development, href: '/oem' }"));
-  // The OEM hero deep link is now owned by the recomposed page (MIU 4), not by
-  // a removed hero block in OEM content.
-  assert.ok(oemPageSource.includes("primaryCta: { ...siteHero.primaryCta, href: '#submit' }"));
+  assert.ok(oemContent.includes("primaryCta: { label: Submit your project, href: '#submit' }"));
+  assert.ok(oemContent.includes("secondaryCta: { label: See our process, href: '#process' }"));
+  assert.ok(oemPageSource.includes('primaryCta={hero.primaryCta}'));
+  assert.ok(oemPageSource.includes('secondaryCta={hero.secondaryCta}'));
 });
 
 test('OEM submission result uses the approved response-time claim and keeps its routing', () => {

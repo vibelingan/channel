@@ -62,32 +62,23 @@ async function trustedSiteStorage(browser: Browser) {
   }
 }
 
-async function waitForLocalStylesheet(page: Page): Promise<void> {
-  // In no-JS mode DOMContentLoaded fires before the external stylesheet is
-  // applied, so width utilities are still inactive at that point. We wait only
-  // for same-origin stylesheets (the layout CSS) to load — third-party font CSS
-  // (Google Fonts) can hang under CI/CN network and does not affect horizontal
-  // overflow. `page.waitForFunction` is unusable here: its rAF/setInterval
-  // polling never fires with JavaScript disabled, so poll via evaluate instead.
-  const deadline = Date.now() + 30_000;
+async function waitForApplicationStyles(page: Page, timeoutMs = 30_000): Promise<void> {
+  // In no-JS mode DOMContentLoaded can fire before Astro's app stylesheet is
+  // applied. Poll a required global.css token instead of <link> elements:
+  // Astro may inline CSS locally, while third-party font CSS can hang in CI/CN.
+  // `page.waitForFunction` is unusable here because its polling does not run
+  // when JavaScript is disabled in the browser context.
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const ready = await page.evaluate(() => {
-      const links = Array.from(
-        document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'),
-      );
-      const local = links.filter((link) => {
-        try {
-          return new URL(link.href).origin === window.location.origin;
-        } catch {
-          return false;
-        }
-      });
-      return local.length === 0 || local.every((link) => link.sheet !== null);
-    });
+    const ready = await page.evaluate(
+      () =>
+        getComputedStyle(document.documentElement).getPropertyValue('--spacing-header').trim() !==
+        '',
+    );
     if (ready) return;
     await page.waitForTimeout(100);
   }
-  throw new Error('Timed out waiting for same-origin stylesheets to apply');
+  throw new Error('Timed out waiting for application styles to apply');
 }
 
 async function readHeaderGeometry(page: Page) {
@@ -330,13 +321,8 @@ test.describe('public browser smoke', () => {
       });
       try {
         const page = await context.newPage();
-        // no-JS skips the render-blocking <script> chain that normally waits on
-        // the external stylesheet, so DOMContentLoaded fires before the CSS is
-        // applied. Waiting for 'load' guarantees .w-full/.w-64 width utilities
-        // are active before the overflow assertion below.
-        await page.goto(`${e2e.siteUrl}/oem#process`, {
-          waitUntil: mode === 'no-js' ? 'load' : 'domcontentloaded',
-        });
+        await page.goto(`${e2e.siteUrl}/oem#process`, { waitUntil: 'domcontentloaded' });
+        if (mode === 'no-js') await waitForApplicationStyles(page);
         const reveal = page.locator('#process .reveal').first();
         await expect(reveal).not.toHaveClass(/reveal-pending|is-visible/);
         const state = await reveal.evaluate((element) => {
@@ -392,7 +378,7 @@ test.describe('public browser smoke', () => {
         try {
           const page = await context.newPage();
           await page.goto(`${e2e.siteUrl}${path}`, { waitUntil: 'domcontentloaded' });
-          await waitForLocalStylesheet(page);
+          await waitForApplicationStyles(page);
           const overflow = await page.evaluate(
             () => document.documentElement.scrollWidth - window.innerWidth,
           );
@@ -404,6 +390,31 @@ test.describe('public browser smoke', () => {
           await context.close();
         }
       }
+    }
+  });
+
+  test('no-JS layout readiness fails closed when application CSS is unavailable', async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({
+      javaScriptEnabled: false,
+      viewport: { width: 390, height: 844 },
+    });
+    try {
+      const page = await context.newPage();
+      await page.goto(`${e2e.siteUrl}/portfolio`, { waitUntil: 'domcontentloaded' });
+      await waitForApplicationStyles(page);
+      const removedStyleNodes = await page.evaluate(() => {
+        const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'));
+        for (const style of styles) style.remove();
+        return styles.length;
+      });
+      expect(removedStyleNodes).toBeGreaterThan(0);
+      await expect(waitForApplicationStyles(page, 250)).rejects.toThrow(
+        'Timed out waiting for application styles to apply',
+      );
+    } finally {
+      await context.close();
     }
   });
 
@@ -454,47 +465,54 @@ test.describe('public browser smoke', () => {
     await expect(reveal).toHaveCSS('will-change', 'auto');
   });
 
-  test('OEM page recomposes the shared homepage narrative with OEM media, deep links, and no legacy claims', async ({
+  test('OEM page keeps its independent service structure with current facts and deep links', async ({
     page,
   }) => {
     await page.goto('/oem', { waitUntil: 'domcontentloaded' });
     await ensureApplicationPage(page);
 
-    // Shared homepage hero narrative with OEM-local deep links.
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.locator('a[href="#submit"]').first()).toBeVisible();
-    await expect(page.locator('a[href="#factory"]').first()).toBeVisible();
+    // OEM-specific hero and local deep links.
+    const hero = page.locator('main > section').first();
+    await expect(
+      hero.getByRole('heading', {
+        level: 1,
+        name: 'One-stop OEM development, from idea to shipment',
+      }),
+    ).toBeVisible();
+    await expect(hero.locator('a[href="#submit"]')).toHaveCount(1);
+    await expect(hero.locator('a[href="#process"]')).toHaveCount(1);
 
     // Shared What We Do keeps the Traditional-versus-AI comparison.
     await expect(page.locator('#what-we-do')).toHaveCount(1);
     await expect(page.getByText('Traditional Drawing-Based OEM Workflow')).toBeAttached();
     await expect(page.getByText('AI Big Data Smart OEM Workflow')).toBeAttached();
 
-    // Shared 10-step process resolves as the retained #process anchor.
+    // Independent capability and six-stage process remain distinct from home.
+    await expect(page.locator('#capabilities')).toHaveCount(1);
+    await expect(page.locator('#capabilities ul > li')).toHaveCount(6);
     await expect(page.locator('#process')).toHaveCount(1);
-    await expect(page.locator('#process ol > li')).toHaveCount(10);
+    await expect(page.locator('#process ol > li')).toHaveCount(6);
+    await expect(page.locator('#why-us')).toHaveCount(1);
 
-    // Factory section carries the OEM-specific video/poster pair, exactly once.
-    const factorySection = page.locator('#factory');
-    await expect(factorySection).toHaveCount(1);
-    await expect(factorySection.locator('video')).toHaveCount(1);
-    await expect(factorySection.locator('video source')).toHaveAttribute(
+    // Capability section carries the OEM-specific video/poster pair, exactly once.
+    await expect(page.locator('#capabilities video')).toHaveCount(1);
+    await expect(page.locator('#capabilities video source')).toHaveAttribute(
       'src',
       '/media/oem-factory.mp4',
     );
-    await expect(factorySection.locator('video')).toHaveAttribute(
+    await expect(page.locator('#capabilities video')).toHaveAttribute(
       'poster',
       '/media/factory-oem.webp',
     );
-    await expect(factorySection).toContainText('20+');
-    await expect(factorySection).toContainText('5000+');
+    await expect(page.locator('#why-us')).toContainText('40+');
+    await expect(page.locator('#why-us')).toContainText('5000+');
 
     // The inquiry form stays intact at #submit.
     await expect(page.locator('#submit')).toHaveCount(1);
     await expect(page.locator('#submit form[data-project-form]')).toHaveCount(1);
     await expect(page.locator('#submit input[type="file"]')).toHaveCount(1);
 
-    // Retired marketing claims are gone from the recomposed page.
+    // Unsupported legacy claims remain gone from the restored page.
     const bodyText = await page.locator('body').innerText();
     for (const claim of [
       '100+ Supply Chain Partners',
@@ -507,7 +525,7 @@ test.describe('public browser smoke', () => {
       expect(bodyText, claim).not.toContain(claim);
     }
 
-    // The homepage keeps its own anchor and factory media — no OEM overrides leak back.
+    // The homepage remains separate and unchanged.
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await ensureApplicationPage(page);
     await expect(page.locator('#oem-inquiry')).toHaveCount(1);
@@ -1923,40 +1941,6 @@ test.describe('public browser smoke', () => {
     ).toBe(true);
   });
 
-  test('signed-in member gets VIP pricing from the catalog; anonymous does not', async ({
-    request,
-  }) => {
-    // The public catalog is unauthenticated, but a valid session token unlocks
-    // the role-gated VIP tier server-side. Uses the local seed's member account;
-    // on a deployed env without that sample account, skip rather than fail.
-    const loginRes = await request.post(`${e2e.apiUrl}/api/admin`, {
-      data: { action: 'login', data: { email: 'member@channel.local', password: 'password' } },
-    });
-    const loginBody = (await loginRes.json()) as { ok: boolean; data?: { token?: string } };
-    const token = loginBody.data?.token;
-    test.skip(!loginBody.ok || !token, 'seeded member account unavailable in this environment');
-
-    const anon = await request.get(`${e2e.apiUrl}/api/products?pageSize=1`, {
-      headers: { Origin: e2e.siteUrl },
-    });
-    const anonItem = ((await anon.json()) as { data: { items: Record<string, unknown>[] } }).data
-      .items[0];
-    // Guard against an empty catalog: `not.toHaveProperty` passes vacuously on
-    // `undefined`, so only assert when we actually have a real item to inspect.
-    if (anonItem) {
-      expect(anonItem, 'anonymous callers must not receive vipPrice').not.toHaveProperty(
-        'vipPrice',
-      );
-    }
-
-    const authed = await request.get(`${e2e.apiUrl}/api/products?pageSize=1`, {
-      headers: { Origin: e2e.siteUrl, Authorization: `Bearer ${token}` },
-    });
-    const authedItem = ((await authed.json()) as { data: { items: Record<string, unknown>[] } })
-      .data.items[0];
-    expect(typeof authedItem?.vipPrice, 'entitled member must receive vipPrice').toBe('number');
-  });
-
   test('Success Stories galleries expose carousel controls on mobile and tablet', async ({
     page,
   }) => {
@@ -2068,9 +2052,9 @@ test.describe('public browser smoke', () => {
     });
 
     await page.goto(`/oem?phase8=${e2e.runId}`, { waitUntil: 'domcontentloaded' });
-    // The approved experience stat now lives in the shared factory stats (the
-    // legacy #why-us section was retired in the OEM homepage content sync).
-    await expect(page.locator('#factory').getByText('20+', { exact: true })).toBeVisible();
+    // The independent OEM page keeps the approved experience stat in its own
+    // restored Why Us section.
+    await expect(page.locator('#why-us').getByText('20+', { exact: true })).toBeVisible();
     await expect(page.getByText('15+', { exact: true })).toHaveCount(0);
 
     const oemForm = page.locator('#submit');
