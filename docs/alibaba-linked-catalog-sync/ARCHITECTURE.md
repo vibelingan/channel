@@ -409,8 +409,11 @@ defaults, overridable via optional env (`ALI_AUTHORIZE_BASE_URL`,
 
 Verification status (updated 2026-08-06 once connectivity returned):
 
-- **CONFIRMED from official docs** — the ICBU authorize page:
-  `https://oauth.alibaba.com/authorize?response_type=code&client_id=<appKey>&redirect_uri=<cb>&sp=icbu&view=web&state=…`
+- **SUPERSEDED 2026-08-16 — see §8.3.** This entry claimed
+  `https://oauth.alibaba.com/authorize` was "CONFIRMED from official docs". It
+  was the RETIRED host, and that claim is what the whole
+  `param-appkey.not.exists` incident rested on. The correct authorize URL is
+  `https://open-api.alibaba.com/oauth/authorize?response_type=code&client_id=<appKey>&redirect_uri=<cb>&sp=icbu&state=…`
 - **AMENDED 2026-08-07 — the parameter shape above is the MINIMAL set, with
   lowercase `sp=icbu`.** The originally shipped URL sent `sp=ICBU` (uppercase),
   `force_auth=true`, and both `state`/`State` casings; the live gateway
