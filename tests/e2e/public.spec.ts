@@ -465,53 +465,54 @@ test.describe('public browser smoke', () => {
     await expect(reveal).toHaveCSS('will-change', 'auto');
   });
 
-  test('OEM page recomposes the shared homepage narrative with OEM media, deep links, and no legacy claims', async ({
+  test('OEM page keeps its independent service structure with current facts and deep links', async ({
     page,
   }) => {
     await page.goto('/oem', { waitUntil: 'domcontentloaded' });
     await ensureApplicationPage(page);
 
-    // Shared homepage hero narrative with OEM-local deep links.
+    // OEM-specific hero and local deep links.
     const hero = page.locator('main > section').first();
     await expect(
       hero.getByRole('heading', {
         level: 1,
-        name: 'One-Stop OEM Manufacturing, From Idea to Shipment',
+        name: 'One-stop OEM development, from idea to shipment',
       }),
     ).toBeVisible();
     await expect(hero.locator('a[href="#submit"]')).toHaveCount(1);
-    await expect(hero.locator('a[href="#factory"]')).toHaveCount(1);
+    await expect(hero.locator('a[href="#process"]')).toHaveCount(1);
 
     // Shared What We Do keeps the Traditional-versus-AI comparison.
     await expect(page.locator('#what-we-do')).toHaveCount(1);
     await expect(page.getByText('Traditional Drawing-Based OEM Workflow')).toBeAttached();
     await expect(page.getByText('AI Big Data Smart OEM Workflow')).toBeAttached();
 
-    // Shared 10-step process resolves as the retained #process anchor.
+    // Independent capability and six-stage process remain distinct from home.
+    await expect(page.locator('#capabilities')).toHaveCount(1);
+    await expect(page.locator('#capabilities ul > li')).toHaveCount(6);
     await expect(page.locator('#process')).toHaveCount(1);
-    await expect(page.locator('#process ol > li')).toHaveCount(10);
+    await expect(page.locator('#process ol > li')).toHaveCount(6);
+    await expect(page.locator('#why-us')).toHaveCount(1);
 
-    // Factory section carries the OEM-specific video/poster pair, exactly once.
-    const factorySection = page.locator('#factory');
-    await expect(factorySection).toHaveCount(1);
-    await expect(factorySection.locator('video')).toHaveCount(1);
-    await expect(factorySection.locator('video source')).toHaveAttribute(
+    // Capability section carries the OEM-specific video/poster pair, exactly once.
+    await expect(page.locator('#capabilities video')).toHaveCount(1);
+    await expect(page.locator('#capabilities video source')).toHaveAttribute(
       'src',
       '/media/oem-factory.mp4',
     );
-    await expect(factorySection.locator('video')).toHaveAttribute(
+    await expect(page.locator('#capabilities video')).toHaveAttribute(
       'poster',
       '/media/factory-oem.webp',
     );
-    await expect(factorySection).toContainText('20+');
-    await expect(factorySection).toContainText('5000+');
+    await expect(page.locator('#why-us')).toContainText('40+');
+    await expect(page.locator('#why-us')).toContainText('5000+');
 
     // The inquiry form stays intact at #submit.
     await expect(page.locator('#submit')).toHaveCount(1);
     await expect(page.locator('#submit form[data-project-form]')).toHaveCount(1);
     await expect(page.locator('#submit input[type="file"]')).toHaveCount(1);
 
-    // Retired marketing claims are gone from the recomposed page.
+    // Unsupported legacy claims remain gone from the restored page.
     const bodyText = await page.locator('body').innerText();
     for (const claim of [
       '100+ Supply Chain Partners',
@@ -524,7 +525,7 @@ test.describe('public browser smoke', () => {
       expect(bodyText, claim).not.toContain(claim);
     }
 
-    // The homepage keeps its own anchor and factory media — no OEM overrides leak back.
+    // The homepage remains separate and unchanged.
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await ensureApplicationPage(page);
     await expect(page.locator('#oem-inquiry')).toHaveCount(1);
@@ -2051,9 +2052,9 @@ test.describe('public browser smoke', () => {
     });
 
     await page.goto(`/oem?phase8=${e2e.runId}`, { waitUntil: 'domcontentloaded' });
-    // The approved experience stat now lives in the shared factory stats (the
-    // legacy #why-us section was retired in the OEM homepage content sync).
-    await expect(page.locator('#factory').getByText('20+', { exact: true })).toBeVisible();
+    // The independent OEM page keeps the approved experience stat in its own
+    // restored Why Us section.
+    await expect(page.locator('#why-us').getByText('20+', { exact: true })).toBeVisible();
     await expect(page.getByText('15+', { exact: true })).toHaveCount(0);
 
     const oemForm = page.locator('#submit');
