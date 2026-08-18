@@ -129,3 +129,31 @@ jobs:
       # assumption is caught here rather than in production.
       - name: Store contract probe
         run: pnpm test:ai:store
+
+      - name: AI package tests (store, engine, BFF, worker)
+        run: pnpm test:ai
+
+      # The smoke scripts are the artifact MIU 2a is actually judged on: the
+      # same file must pass locally, here, and against the deployed CloudRun
+      # origin. Running them in CI against a real server — not a mock — is what
+      # makes the third run meaningful.
+      - name: Start BFF and worker
+        run: |
+          PORT=58080 CORS_ALLOWED_ORIGINS=https://ci.invalid \
+            nohup pnpm --filter @vibelingan-channel/ai-bff start > /tmp/ai-bff.log 2>&1 &
+          PORT=58081 \
+            nohup pnpm --filter @vibelingan-channel/ai-worker start > /tmp/ai-worker.log 2>&1 &
+          for _ in $(seq 1 40); do
+            if curl -sf http://localhost:58080/api/ai/healthz >/dev/null \
+              && curl -sf http://localhost:58081/healthz >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          # Without the logs a startup failure here reads as an unexplained
+          # timeout, which is the least actionable way for CI to fail.
+          echo "services did not become reachable within 40s" >&2
+          echo "--- ai-bff ---" >&2; cat /tmp/ai-bff.log >&2 || true
+          echo "--- ai-worker ---" >&2; cat /tmp/ai-worker.log >&2 || true
+          exit 1
+
+      - name: Smoke the running services
+        run: pnpm smoke:ai

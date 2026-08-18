@@ -27,6 +27,38 @@ importers:
         specifier: 2.9.0
         version: 2.9.0
 
+  apps/ai-bff:
+    dependencies:
+      '@vibelingan-channel/ai-engine':
+        specifier: workspace:*
+        version: link:../../packages/ai-engine
+      '@vibelingan-channel/ai-store':
+        specifier: workspace:*
+        version: link:../../packages/ai-store
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.21
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+
+  apps/ai-worker:
+    dependencies:
+      '@vibelingan-channel/ai-engine':
+        specifier: workspace:*
+        version: link:../../packages/ai-engine
+      '@vibelingan-channel/ai-store':
+        specifier: workspace:*
+        version: link:../../packages/ai-store
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.21
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+
   apps/functions/admin:
     dependencies:
       '@vibelingan-channel/auth':
@@ -211,6 +243,22 @@ importers:
       '@types/node':
         specifier: ^22.10.2
         version: 22.19.21
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+
+  packages/ai-store:
+    dependencies:
+      pg:
+        specifier: ^8.16.3
+        version: 8.23.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.21
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.21.0
       tsx:
         specifier: ^4.22.4
         version: 4.22.4
@@ -1453,6 +1501,9 @@ packages:
 
   '@types/nodemailer@6.4.24':
     resolution: {integrity: sha512-Ww4u0rT9wQNXh4JiQaIwx3QWdcOFXzOjQA2zc+jtFYNmQiT4mIUqcDin51bDFdkzKubFnQCZNK7FIHlPKQ/q9w==}
+
+  '@types/pg@8.21.0':
+    resolution: {integrity: sha512-AYdtudzabjLZgVgRZmAnU8bAnVUXzuJX2IYHeSIiIHm68olD+LgQYCGWdtcNYnP0uq9c4S4NibVG3Ni7VbKW7Q==}
 
   '@types/qs@6.15.1':
     resolution: {integrity: sha512-GZHUBZR9hckSUhrxmp1nG6NwdpM9fCunJwyThLW1X3AyHgd9IlHb6VANpQQqDr2o/qQp6McZ3y/IA2rVzKzSbw==}
@@ -4444,6 +4495,12 @@ snapshots:
   '@types/nodemailer@6.4.24':
     dependencies:
       '@types/node': 22.19.21
+
+  '@types/pg@8.21.0':
+    dependencies:
+      '@types/node': 22.19.21
+      pg-protocol: 1.16.0
+      pg-types: 2.2.0
 
   '@types/qs@6.15.1': {}
 

@@ -216,10 +216,20 @@ to.
   | Worker build | `pnpm --filter @vibelingan-channel/ai-worker build` |
   | Worker start | `pnpm --filter @vibelingan-channel/ai-worker start` |
   | Local dev | `docker compose -f docker-compose.ai.yml up` (BFF + worker + PostgreSQL) |
-  | Root scripts | `dev:ai`, `build:ai`, `test:ai:store` added to the root `package.json`; `build:ai` builds both packages |
-  | Deploy manifest | the selected CloudRun BFF service definition and worker service/trigger configuration |
+  | Store package | `packages/ai-store`, package name `@vibelingan-channel/ai-store` — pool, transaction helper, readiness proof |
+  | Root scripts | `dev:ai`, `build:ai`, `test:ai:store`, `test:ai`, `smoke:ai` in the root `package.json`; `build:ai` builds both packages |
+  | Deploy manifest | `scripts/cloudrun-service-manifest.mjs`, pinned by `scripts/cloudrun-manifest.test.mjs` |
   | BFF smoke | `node scripts/smoke-ai-bff.mjs <deployed-url>` asserting readiness and one round-trip |
-  | Worker smoke | `node scripts/smoke-ai-worker.mjs` asserting readiness and, after MIU 5c, one fake-engine outbox drain |
+  | Worker smoke | `node scripts/smoke-ai-worker.mjs <deployed-url>` asserting readiness and, after MIU 5c, one fake-engine outbox drain |
+
+  **Readiness proves a transaction, not a connection.** `select 1` also succeeds
+  against a read-only replica and against a role that cannot open a transaction,
+  so `/readyz` runs a real transaction, rolls it back, checks the rollback
+  discarded the write, and reports the isolation level it observed. The
+  isolation level is deliberately on the wire: it is a property of the *managed
+  database*, not of our code, and LLD-001 §4.4 breaks silently if a provider
+  ships something other than READ COMMITTED. Reading it back from a running
+  deployment is the only way to know.
 
 - **Implement the measured separate-origin routing decision.**
   The architecture puts the assistant at `/api/ai/*` and `/api/admin/ai/*`. The

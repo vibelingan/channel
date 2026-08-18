@@ -32,8 +32,11 @@
     "lint": "npx biome check .",
     "format": "npx biome format --write .",
     "test:ai:store": "node scripts/probe-ai-store.mjs --url ${DATABASE_URL:-postgres://ai:ai@localhost:55432/ai_assistant}",
-    "dev:ai": "docker compose -f docker-compose.ai.yml up -d postgres",
-    "dev:ai:down": "docker compose -f docker-compose.ai.yml down"
+    "dev:ai": "docker compose -f docker-compose.ai.yml up -d",
+    "dev:ai:down": "docker compose -f docker-compose.ai.yml down",
+    "build:ai": "npx pnpm --filter @vibelingan-channel/ai-bff --filter @vibelingan-channel/ai-worker build",
+    "smoke:ai": "node scripts/smoke-ai-bff.mjs && node scripts/smoke-ai-worker.mjs",
+    "test:ai": "pnpm --filter @vibelingan-channel/ai-engine --filter @vibelingan-channel/ai-store --filter @vibelingan-channel/ai-bff --filter @vibelingan-channel/ai-worker test"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
