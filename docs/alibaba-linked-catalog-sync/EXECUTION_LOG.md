@@ -711,3 +711,40 @@ verify, 3 artifact smokes, site build.
   limit at the 5,000-product catalog size §11 targets.
 - **No production deploy exists.** `PRODUCTION_DESIRED_TIMER_TRIGGERS` is
   referenced only by a test; nothing applies the 15-minute timer.
+
+## Root cause found — retired hostname (2026-08-16)
+
+Alibaba support identified it: `oauth.alibaba.com` is the OLD domain. The
+correct host is `open-api.alibaba.com`. Confirmed live the same day with a
+credential-free control probe:
+
+```text
+open-api.alibaba.com + 511630    -> IncompleteSignature  (key RESOLVED)
+open-api.alibaba.com + 999999999 -> InvalidAppKey        (control)
+old oauth.alibaba.com/authorize  -> 302 to login, then fails after login
+new open-api.../oauth/authorize  -> 200, renders the consent page
+```
+
+The app key was correctly provisioned all along. No Alibaba backend repair was
+ever needed.
+
+**My TOP conversion was reverted.** I inferred from the dotted method names
+that ICBU ran on the Taobao Open Platform. Wrong: the Alibaba.com Open Platform
+serves those same methods over its own REST gateway. The protocol never needed
+changing — only the hostname. That is two incorrect protocol conclusions in
+this feature (`sp=ICBU`, then TOP), both reached by reading documentation
+instead of probing. The probe that settled it takes two curl commands and no
+credentials.
+
+**Why ten days passed.** The retired host answers and redirects to a login
+page, so every unauthenticated check looked healthy; the failure only appeared
+after a real merchant authenticated. Compounding it, an early probe used
+`openapi-api.alibaba.com` — a different host from `open-api.alibaba.com` —
+returned `InvalidAppKey`, and that false negative pointed the investigation at
+Alibaba's backend.
+
+The endpoint test now pins the exact host and fails on either retired name, so
+this cannot silently regress.
+
+Gates: 9/9 suites, 0 type errors, biome clean, 21 script tests, SDK contract
+verify, 3 artifact smokes, site build.
