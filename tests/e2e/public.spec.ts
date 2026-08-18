@@ -506,6 +506,16 @@ test.describe('public browser smoke', () => {
     );
     await expect(page.locator('#why-us')).toContainText('40+');
     await expect(page.locator('#why-us')).toContainText('5000+');
+    const qualityCapability = page
+      .locator('#capabilities ul > li')
+      .filter({ has: page.getByRole('heading', { name: 'Quality & Global Delivery' }) });
+    await expect(qualityCapability).toContainText(
+      'coordinate available CE, EMC, FCC, and JD compliance and test reports',
+    );
+    const iterationReason = page
+      .locator('#why-us li')
+      .filter({ hasText: 'Long-Term Product Iteration' });
+    await expect(iterationReason).toContainText('market feedback and cost optimization');
 
     // The inquiry form stays intact at #submit.
     await expect(page.locator('#submit')).toHaveCount(1);

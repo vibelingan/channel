@@ -643,6 +643,35 @@ test('OEM content keeps an independent service narrative and approved response-t
   assert.ok(oemPageSource.includes('<ProjectForm'));
 });
 
+test('OEM content carries the homepage proof points customers need before enquiry', () => {
+  const frontmatterSource = oemContent.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  assert.ok(frontmatterSource, 'OEM content has YAML frontmatter');
+  const document = parseDocument(frontmatterSource[1], { uniqueKeys: true });
+  assert.deepEqual(document.errors, []);
+  const content = document.toJS() as {
+    capabilities?: { items?: Array<{ title?: string; desc?: string }> };
+    whyUs?: { reasons?: Array<{ label?: string; desc?: string }> };
+  };
+  const quality = content.capabilities?.items?.find(
+    (item) => item.title === 'Quality & Global Delivery',
+  );
+  assert.equal(
+    quality?.desc,
+    'Verify products through production, coordinate available CE, EMC, FCC, and JD compliance and test reports, then manage export and worldwide delivery.',
+  );
+  const iteration = content.whyUs?.reasons?.find(
+    (reason) => reason.label === 'Long-Term Product Iteration',
+  );
+  assert.equal(
+    iteration?.desc,
+    'Use market feedback and cost optimization to improve later product generations instead of treating OEM as a one-time build.',
+  );
+  assert.doesNotMatch(
+    `${quality?.desc ?? ''} ${iteration?.desc ?? ''}`,
+    /in-house reliability|documentation service|live system interface|performance guarantee/i,
+  );
+});
+
 test('OemContent restores independent page fields without restoring unsupported claims', () => {
   for (const field of ['hero', 'capabilities', 'process', 'whyUs']) {
     assert.ok(new RegExp(`^ {2}${field}:`, 'm').test(oemTypeSource), `OemContent defines ${field}`);
