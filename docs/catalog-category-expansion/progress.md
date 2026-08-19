@@ -60,6 +60,13 @@
 - CloudBase runtime probes verify post-write rollback, conflict retry, and one-transaction adapter
 	wiring (`65a7bfa`). Real local adapter tests verify concurrent single-winner persistence and
 	reopen parity.
+- MIU 3 Admin repository canonicalizes identity input and maps storage outcomes to stable domain
+	errors (`785af0a`). MIU 3 is complete.
+- MIU 4 moves lifecycle validation inside the atomic product/identity transaction (`4c07f9d`),
+	routes Admin create/update through that authority, blocks hard/batch product bypasses, preserves
+	legacy missing-archive published rows, rejects VIP/Alibaba forged writes, and returns the
+	transaction-authoritative previous row for image visibility deltas (`dd83b16`). MIU 4 is complete;
+	MIU 5 public product projection is active.
 
 | Implementation check | Result |
 |---|---|
@@ -68,3 +75,7 @@
 | Real local adapter identity tests | Passed: 4/4 |
 | DB + local-server typecheck | Passed |
 | Installed CloudBase SDK contract | Passed, including post-write abort and conflict retry |
+| MIU 4 Admin tests | Passed: 170/170 |
+| MIU 4 DB tests | Passed: 40/40 |
+| MIU 4 real local adapter tests | Passed: 7/7, including archive/publish and duplicate-publish races |
+| MIU 4 function artifacts | Passed: Admin, public-api, and Alibaba builds/package/cold-start smoke |
