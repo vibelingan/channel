@@ -109,16 +109,15 @@ test('public catalog image policy is scoped to products and overstock', () => {
   assert.deepEqual(PUBLIC_CATALOG_COLLECTIONS, ['products', 'overstock']);
 });
 
-test('storefront catalog writes retain the shared 18-image compatibility limit', () => {
-  const base = { name: 'Bounded product', category: 'wired' };
-  const imageIds = Array.from({ length: CATALOG_IMAGE_MAX_COUNT }, (_, index) => `img-${index}`);
-
-  for (const collection of ['products', 'overstock']) {
+test('storefront image write limits split products at 9 from Overstock at 18', () => {
+  for (const [collection, limit, values] of [
+    ['products', PRODUCT_IMAGE_MAX_COUNT, { name: 'Bounded product', category: 'wired' }],
+    ['overstock', CATALOG_IMAGE_MAX_COUNT, { name: 'Bounded overstock', category: 'electronics' }],
+  ] as const) {
     const def = getCollection(collection);
     assert.ok(def, `${collection} collection must be registered`);
     const schema = buildWriteSchema(def);
-    const values =
-      collection === 'products' ? base : { name: 'Bounded overstock', category: 'electronics' };
+    const imageIds = Array.from({ length: limit }, (_, index) => `img-${index}`);
     assert.deepEqual(schema.parse({ ...values, imageIds }).imageIds, imageIds);
     assert.throws(() => schema.parse({ ...values, imageIds: [...imageIds, 'img-over-limit'] }));
     assert.throws(() => schema.partial().parse({ imageIds: [...imageIds, 'img-over-limit'] }));

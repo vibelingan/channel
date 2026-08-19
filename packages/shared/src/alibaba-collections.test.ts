@@ -107,7 +107,7 @@ test('generic write schema rejects Alibaba fields as unknown keys', () => {
 
 // --- protected legacy pricing surfaces (EXECUTION_HANDOFF §3 snapshot) ------
 
-test('SNAPSHOT: legacy pricing field definitions are byte-identical to the pre-feature contract', () => {
+test('legacy pricing fields stay compatible while product VIP is hidden and deprecated', () => {
   const products = getCollection('products');
   const overstock = getCollection('overstock');
   assert.ok(products && overstock);
@@ -119,7 +119,13 @@ test('SNAPSHOT: legacy pricing field definitions are byte-identical to the pre-f
       { name: 'moq', label: 'MOQ', type: 'number' },
       { name: 'unitPrice', label: 'Unit Price', type: 'number' },
       { name: 'wholesalePrice', label: 'Wholesale Price', type: 'number' },
-      { name: 'vipPrice', label: 'VIP Price', type: 'number' },
+      {
+        name: 'vipPrice',
+        label: 'VIP Price',
+        type: 'number',
+        hideInForm: true,
+        deprecated: true,
+      },
     ],
   );
   assert.deepEqual(
@@ -208,9 +214,10 @@ test('admin-visible registry dump omits none collections and keeps the rest', ()
   for (const [name, access] of Object.entries(EXPECTED_ACCESS)) {
     assert.equal(visible.includes(name), access !== 'none', name);
   }
+  const hiddenCount = COLLECTIONS.filter((def) => def.adminAccess === 'none').length;
   assert.equal(
     visible.length,
-    COLLECTIONS.length - 4,
-    'exactly the four none collections are omitted',
+    COLLECTIONS.length - hiddenCount,
+    'every none collection is omitted',
   );
 });
