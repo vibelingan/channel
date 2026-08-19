@@ -34,6 +34,8 @@ import {
   compareBySort,
   getCollection,
   matchesFilter,
+  normalizeProductSlug,
+  normalizeSkuCode,
 } from '@vibelingan-channel/shared';
 
 type Store = Record<string, CollectionDoc[]>;
@@ -586,6 +588,55 @@ export class JsonFileAdapter implements DbAdapter {
       docs[index] = { ...(docs[index] as CollectionDoc), ...patch, updatedAt: guard.now };
       this.persist();
       return true;
+    });
+  }
+
+  /** Seed a collection only when it is currently empty. */
+  async ensureCatalogProductIdentityReservations(): Promise<void> {
+    await this.withMutationLock(() => {
+      const expected = new Map<
+        string,
+        { kind: 'slug' | 'sku'; normalizedValue: string; productId: string }
+      >();
+      for (const product of this.docs('products')) {
+        const identities = [
+          ['slug', normalizeProductSlug(product.slug)],
+          ['sku', normalizeSkuCode(product.skuCode)],
+        ] as const;
+        for (const [kind, normalizedValue] of identities) {
+          if (normalizedValue === null) continue;
+          const id = `${kind}:${normalizedValue}`;
+          const candidate = { kind, normalizedValue, productId: product._id };
+          const duplicate = expected.get(id);
+          if (duplicate && duplicate.productId !== product._id) {
+            throw new Error(`Local product identity ${id} is claimed by multiple products.`);
+          }
+          expected.set(id, candidate);
+        }
+      }
+
+      const reservations = this.docs('catalogProductIdentities');
+      const missing: CollectionDoc[] = [];
+      for (const [id, identity] of expected) {
+        const existing = reservations.find((document) => document._id === id);
+        if (!existing) {
+          missing.push({ _id: id, ...identity });
+          continue;
+        }
+        if (
+          existing.productId !== identity.productId ||
+          existing.kind !== identity.kind ||
+          existing.normalizedValue !== identity.normalizedValue
+        ) {
+          throw new Error(`Local product identity ${id} has conflicting reservation data.`);
+        }
+      }
+      if (missing.length === 0) return;
+      const now = new Date().toISOString();
+      reservations.push(
+        ...missing.map((identity) => ({ ...identity, createdAt: now, updatedAt: now })),
+      );
+      this.persist();
     });
   }
 
