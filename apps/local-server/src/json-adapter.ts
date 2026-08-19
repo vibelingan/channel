@@ -483,7 +483,7 @@ export class JsonFileAdapter implements DbAdapter {
         if (index >= 0) identityDocs.splice(index, 1);
       }
       this.persist();
-      return { result: 'saved', doc: plan.doc };
+      return { result: 'saved', doc: plan.doc, previous: existing };
     });
   }
 

@@ -45,7 +45,7 @@ export interface CatalogProductIdentity {
 }
 
 export type CatalogProductSaveResult =
-  | { result: 'saved'; doc: CollectionDoc }
+  | { result: 'saved'; doc: CollectionDoc; previous: CollectionDoc | null }
   | { result: 'conflict'; kind: 'slug' | 'sku'; normalizedValue: string }
   | { result: 'invalid'; kind: 'slug' | 'sku' }
   | { result: 'invalid-product'; issues: ReturnType<typeof validateProductPublication> }

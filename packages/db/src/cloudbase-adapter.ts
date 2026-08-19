@@ -403,7 +403,7 @@ export const cloudBaseAdapter: DbAdapter = {
           await transaction.collection('catalogProductIdentities').doc(identity.id).remove();
         }
       }
-      return { result: 'saved', doc: plan.doc };
+      return { result: 'saved', doc: plan.doc, previous: existing };
     });
   },
 

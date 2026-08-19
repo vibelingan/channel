@@ -19,6 +19,7 @@ class SaveSpyAdapter implements DbAdapter {
   result: CatalogProductSaveResult = {
     result: 'saved',
     doc: { _id: 'product-1', slug: 'desk-lamp', skuCode: 'sku-100' },
+    previous: null,
   };
 
   async list(_query: AdapterListQuery): Promise<ListResult<CollectionDoc>> {
@@ -58,11 +59,12 @@ function setup(): SaveSpyAdapter {
 
 test('create uses one stable product id and canonical identity values', async () => {
   const adapter = setup();
-  const doc = await createCatalogProductRecord(
+  const transition = await createCatalogProductRecord(
     { name: 'Desk Lamp', slug: ' Desk Lamp ', skuCode: ' SKU-100 ' },
     'product-stable',
   );
-  assert.equal(doc._id, 'product-1');
+  assert.equal(transition.doc._id, 'product-1');
+  assert.equal(transition.previous, null);
   assert.deepEqual(adapter.inputs, [
     {
       mode: 'create',

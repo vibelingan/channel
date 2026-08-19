@@ -23,6 +23,11 @@ export class CatalogProductWriteError extends Error {
   }
 }
 
+export interface CatalogProductWriteTransition {
+  doc: CollectionDoc;
+  previous: CollectionDoc | null;
+}
+
 function canonicalizeIdentityFields(values: unknown): Record<string, unknown> {
   if (!values || typeof values !== 'object' || Array.isArray(values)) {
     throw new CatalogProductWriteError('INVALID_IDENTITY', 'Product values are invalid.');
@@ -66,13 +71,13 @@ async function saveCatalogProduct(input: {
   mode: 'create' | 'update';
   productId: string;
   values: unknown;
-}): Promise<CollectionDoc> {
+}): Promise<CatalogProductWriteTransition> {
   const result = await saveCatalogProductWithIdentities({
     mode: input.mode,
     productId: input.productId,
     data: canonicalizeIdentityFields(input.values),
   });
-  if (result.result === 'saved') return result.doc;
+  if (result.result === 'saved') return { doc: result.doc, previous: result.previous };
   if (result.result === 'conflict') {
     throw new CatalogProductWriteError(
       'IDENTITY_CONFLICT',
@@ -97,13 +102,13 @@ async function saveCatalogProduct(input: {
 export function createCatalogProductRecord(
   values: unknown,
   productId: string = randomUUID(),
-): Promise<CollectionDoc> {
+): Promise<CatalogProductWriteTransition> {
   return saveCatalogProduct({ mode: 'create', productId, values });
 }
 
 export function updateCatalogProductRecord(
   productId: string,
   values: unknown,
-): Promise<CollectionDoc> {
+): Promise<CatalogProductWriteTransition> {
   return saveCatalogProduct({ mode: 'update', productId, values });
 }

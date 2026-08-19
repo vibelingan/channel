@@ -3,7 +3,12 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { get, saveCatalogProductWithIdentities, setAdapter } from '@vibelingan-channel/db';
+import {
+  type CatalogProductSaveResult,
+  get,
+  saveCatalogProductWithIdentities,
+  setAdapter,
+} from '@vibelingan-channel/db';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { JsonFileAdapter } from './json-adapter.ts';
 
@@ -249,4 +254,43 @@ test('legacy missing archived plus submitted false remains published', async (t)
   });
   assert.equal(result.result, 'saved');
   assert.equal(readStore(file).products?.[0]?.published, true);
+});
+
+test('RACE: duplicate publish returns one authoritative unpublished previous row', async (t) => {
+  const { directory, file } = temporaryDatabase();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  setAdapter(new JsonFileAdapter(file));
+  await saveCatalogProductWithIdentities({
+    mode: 'create',
+    productId: 'product-publish',
+    data: {
+      name: 'Publish Product',
+      productFamily: 'toys',
+      slug: 'publish-product',
+      skuCode: 'publish-100',
+      description: 'Complete product.',
+      imageIds: ['image-1'],
+      published: false,
+    },
+  });
+
+  const results = await Promise.all([
+    saveCatalogProductWithIdentities({
+      mode: 'update',
+      productId: 'product-publish',
+      data: { published: true },
+    }),
+    saveCatalogProductWithIdentities({
+      mode: 'update',
+      productId: 'product-publish',
+      data: { published: true },
+    }),
+  ]);
+  const saved = results.filter(
+    (result): result is Extract<CatalogProductSaveResult, { result: 'saved' }> =>
+      result.result === 'saved',
+  );
+  assert.equal(saved.length, 2);
+  assert.equal(saved.filter((result) => result.previous?.published === false).length, 1);
+  assert.equal(saved.filter((result) => result.previous?.published === true).length, 1);
 });
