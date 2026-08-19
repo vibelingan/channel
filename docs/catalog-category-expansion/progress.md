@@ -77,6 +77,10 @@
 	  composition (`e0e4940`). Local Express now delegates catalog HTTP semantics to the production
 	  adapter, with real repeated-query/method/header tests (`298feaa`). Installed CloudBase nested
 	  query translation is probed in `e61d445`. MIU 6 is complete; MIU 7 slug detail lookup is active.
+	- MIU 7 adds canonical published/non-archived slug detail lookup, uniform hidden-state 404s,
+	  pre-normalization raw-path safety, gateway-prefixed/stripped routing, and a local regex bridge
+	  that delegates to the production HTTP adapter (`43f7bd3`). MIU 7 is complete; MIU 8 site DTO and
+	  fetch helpers are active.
 
 | Implementation check | Result |
 |---|---|
@@ -96,3 +100,5 @@
 | MIU 6 shared/public/local tests | Passed: 94/94, 56/56, 10/10 |
 | MIU 6 family query SDK probe | Passed |
 | MIU 6 function artifacts | Passed: Admin, public-api, and Alibaba build/package/cold-start smoke |
+| MIU 7 public/local tests | Passed: 60/60, 11/11 |
+| MIU 7 function artifacts | Passed: Admin, public-api, and Alibaba build/package/cold-start smoke |
