@@ -130,6 +130,19 @@ The existing VIP pricing path is not part of this feature. Registration creates 
 - Focused Playwright must set `E2E_SITE_URL` to an isolated worktree server. The default port may be
 	occupied by another checkout and produce a plausible but unrelated 404.
 
+## MIU 12 Implementation Findings
+
+- The existing pure `headphonesCatalogState` reducer is the shared pagination authority. It already
+	enforces request generations, stale-result no-ops, first-seen dedupe, and terminal empty-page
+	behavior, so the family controller reuses it instead of introducing a parallel state machine.
+- Family, category, and deferred-search changes abort the prior request, increment the generation,
+	and restart at page 1. Headphones with no selected subcategories terminates locally; unconfigured
+	families omit the filter fieldset and send only the family/search/page query.
+- Family cards are canonical slug links. Rows without a usable slug are omitted; linked Alibaba
+	pricing takes precedence over legacy values, unlinked products prefer wholesale then unit price,
+	and missing public pricing renders the registry-owned quote label. VIP and video have no rendering
+	path in the shared grid.
+
 ## Superseded Planning Note
 
 The earlier menu-only Phase 1 scope was superseded by client PDF V1.1. Implementers must use the V1.1 baseline at the top of this file and the current V1.1 LLD/MIU documents; the removed Phase 1 constraints no longer apply.

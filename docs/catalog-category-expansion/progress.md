@@ -102,6 +102,10 @@
 	invalid detail links. The public metadata inventory now verifies the hub title, description,
 	uniqueness, bounds, and BaseLayout bindings. MIU 11 is complete; MIU 12 shared family catalog
 	controller/grid is active.
+- MIU 12 adds one family-aware controller and link-only catalog grid. It reuses the proven catalog
+	reducer for generation guards and overlap dedupe, resets/aborts on family/filter/search changes,
+	omits unconfigured filter bars, and renders only valid slug links with Alibaba/public/quote pricing.
+	No VIP or video surface is present. MIU 12 is complete; MIU 13 family route shells are active.
 
 | Implementation check | Result |
 |---|---|
@@ -135,3 +139,7 @@
 | MIU 11 browser states | Passed: 2/2 loading/error/retry/real/empty/responsive Playwright tests |
 | MIU 11 visual review | Passed: 375px mobile and exact 1440×900 desktop; four assets loaded; no overflow |
 | MIU 11 site build | Passed: 11 static pages, including `/electronics-toys/` |
+| MIU 12 focused state/render tests | Passed: 6/6 reducer, pricing, slug, lifecycle, SSR states, fallback, and pagination-edge contracts |
+| MIU 12 site tests | Passed: 163/163 |
+| MIU 12 typecheck/lint | Passed: Astro 0 errors; scoped Biome clean |
+| MIU 12 site build | Passed: 11 static pages (components are consumed starting in MIU 13) |
