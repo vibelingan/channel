@@ -23,7 +23,7 @@ export const FILTER_OPERATORS = [
   'isNotEmpty',
 ] as const;
 
-export type FilterOperator = (typeof FILTER_OPERATORS)[number];
+export type FilterOperator = (typeof FILTER_OPERATORS)[number] | 'isFalseOrMissing';
 
 /** A single field/operator/value condition. */
 export interface FilterClause {
@@ -48,7 +48,7 @@ export interface SortClause {
 
 /** Operators that do not take a value. */
 export function isValuelessOperator(op: FilterOperator): boolean {
-  return op === 'isEmpty' || op === 'isNotEmpty';
+  return op === 'isEmpty' || op === 'isNotEmpty' || op === 'isFalseOrMissing';
 }
 
 /** Whether a sensible default set of operators applies to a field type. */
@@ -78,6 +78,7 @@ const OPERATOR_LABELS: Record<FilterOperator, string> = {
   in: 'is any of',
   isEmpty: 'is empty',
   isNotEmpty: 'is not empty',
+  isFalseOrMissing: 'is false or missing',
 };
 
 export function operatorLabel(op: FilterOperator): string {
@@ -124,6 +125,8 @@ function matchesClause(doc: Record<string, unknown>, clause: FilterClause): bool
       return actual === undefined || actual === null || actual === '';
     case 'isNotEmpty':
       return !(actual === undefined || actual === null || actual === '');
+    case 'isFalseOrMissing':
+      return !Object.hasOwn(doc, clause.field) || actual === false;
     default:
       return false;
   }

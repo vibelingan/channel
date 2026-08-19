@@ -70,6 +70,7 @@ interface WxCommand {
   lte(value: unknown): unknown;
   in(values: unknown[]): unknown;
   nin(values: unknown[]): unknown;
+  exists(value: boolean): unknown;
   /**
    * Update command: replace a field WHOLESALE instead of the default
    * dot-path merge. Present on the installed wx-server-sdk 4.0.2 command
@@ -569,6 +570,8 @@ function clauseToWhere(
       return { [field]: _.in(['', null]) };
     case 'isNotEmpty':
       return { [field]: _.nin(['', null]) };
+    case 'isFalseOrMissing':
+      return _.or([{ [field]: _.exists(false) }, { [field]: _.eq(false) }]);
     default:
       return null;
   }

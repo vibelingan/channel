@@ -9,6 +9,7 @@ import {
   validateProductPublication,
 } from './index.ts';
 import { CATALOG_IMAGE_MAX_COUNT, PRODUCT_IMAGE_MAX_COUNT } from './media.ts';
+import { FILTER_OPERATORS, isValuelessOperator, matchesFilter } from './query.ts';
 
 function productsDef() {
   const def = getCollection('products');
@@ -127,4 +128,18 @@ test('identity reservations are server-managed and VIP is deprecated in forms', 
   const vip = productsDef().fields.find((field) => field.name === 'vipPrice');
   assert.equal(vip?.hideInForm, true);
   assert.equal(vip?.deprecated, true);
+});
+
+test('strict active-product filter accepts only archived false or missing', () => {
+  const filter = {
+    combinator: 'and' as const,
+    clauses: [{ field: 'archived', op: 'isFalseOrMissing' as const }],
+  };
+  assert.equal((FILTER_OPERATORS as readonly string[]).includes('isFalseOrMissing'), false);
+  assert.equal(isValuelessOperator('isFalseOrMissing'), true);
+  assert.equal(matchesFilter({ _id: 'missing' }, filter), true);
+  assert.equal(matchesFilter({ _id: 'false', archived: false }, filter), true);
+  for (const archived of [true, 'true', null, 0, '']) {
+    assert.equal(matchesFilter({ _id: String(archived), archived }, filter), false);
+  }
 });
