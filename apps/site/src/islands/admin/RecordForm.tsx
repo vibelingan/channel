@@ -7,6 +7,7 @@ interface RecordFormProps {
   collection: CollectionDef;
   title: string;
   initial?: CollectionDoc;
+  defaults?: Record<string, unknown>;
   submitting: boolean;
   error: Error | null;
   onSubmit: (values: Record<string, unknown>) => void;
@@ -15,11 +16,15 @@ interface RecordFormProps {
 
 type FormState = Record<string, string | boolean>;
 
-function initialState(collection: CollectionDef, initial?: CollectionDoc): FormState {
+function initialState(
+  collection: CollectionDef,
+  initial?: CollectionDoc,
+  defaults: Record<string, unknown> = {},
+): FormState {
   const state: FormState = {};
   for (const field of collection.fields) {
     if (field.readOnly) continue;
-    const raw = initial?.[field.name];
+    const raw = initial?.[field.name] ?? defaults[field.name];
     if (field.type === 'boolean') {
       state[field.name] = Boolean(raw);
     } else if (field.type === 'json') {
@@ -35,12 +40,13 @@ export function RecordForm({
   collection,
   title,
   initial,
+  defaults,
   submitting,
   error,
   onSubmit,
   onCancel,
 }: RecordFormProps) {
-  const [state, setState] = useState<FormState>(() => initialState(collection, initial));
+  const [state, setState] = useState<FormState>(() => initialState(collection, initial, defaults));
   const [localError, setLocalError] = useState('');
 
   function setField(name: string, value: string | boolean) {
@@ -63,6 +69,7 @@ export function RecordForm({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
       <form
+        method="post"
         onSubmit={handleSubmit}
         className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl bg-white p-6 shadow-xl"
       >

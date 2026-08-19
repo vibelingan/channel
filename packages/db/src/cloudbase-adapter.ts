@@ -171,6 +171,16 @@ export const cloudBaseAdapter: DbAdapter = {
 
     const ands: Record<string, unknown>[] = [];
 
+    if (query.productFamily) {
+      ands.push(
+        clauseToWhere(db, _, {
+          field: 'productFamily',
+          op: 'matchesProductFamily',
+          value: query.productFamily,
+        }) ?? { _id: _.exists(false) },
+      );
+    }
+
     // Free-text search across the collection's searchable fields.
     if (query.search && def && def.searchableFields.length > 0) {
       const term = db.RegExp({ regexp: escapeRegExp(query.search), options: 'i' });

@@ -16,6 +16,7 @@ import type { FilterModel, SortClause } from './query.ts';
 /** Shared types for the generic admin CRUD protocol. */
 export interface ListQuery {
   collection: string;
+  productFamily?: import('./catalog-product.ts').ProductFamily;
   page?: number;
   pageSize?: number;
   search?: string;

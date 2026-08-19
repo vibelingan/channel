@@ -117,6 +117,10 @@
 	loading/not-found/error/retry states, max-nine Gallery, facts/MOQ, Alibaba/public/quote pricing,
 	registry-owned OEM content, enquiry CTA, and nonblocking same-family related links. MIU 15 is
 	complete; MIU 16 Admin Products family tabs is active.
+- MIU 16 renames the Admin catalog section to Products, adds All/four-family URL-backed controls,
+	composes family independently with search and flat AND/OR filters across Admin/server/DB adapters,
+	resets page/selection, prefills New, and adds responsive mobile navigation/table containment. MIU 16
+	is complete; MIU 17 product form and nine-image management is active.
 
 | Implementation check | Result |
 |---|---|
@@ -169,3 +173,8 @@
 | MIU 15 browser journeys | Passed: 4/4 direct/share/back, not-found, retry, and delayed-related degradation |
 | MIU 15 site tests/typecheck | Passed: 167/167; Astro 0 errors; E2E TypeScript clean; scoped Biome clean |
 | MIU 15 site build | Passed: 15 static pages, including `/products/item/` |
+| MIU 16 focused query tests | Passed: 5/5 helper and real-handler composition/rejection checks |
+| MIU 16 Admin browser regressions | Passed: 6/6 tabs, URL recovery, reset, prefill, mobile, and session flows |
+| MIU 16 site tests | Passed: 170/170 |
+| MIU 16 runtime tests | Passed: Admin 172/172; DB 40/40; local-server 23/23 |
+| MIU 16 typecheck/build | Passed: Admin/local/site/E2E clean; 15 static pages; scoped Biome clean |

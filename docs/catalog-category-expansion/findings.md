@@ -178,6 +178,19 @@ The existing VIP pricing path is not part of this feature. Registration creates 
 	current-product guards, are restricted to same-family valid-slug rows, and can fail without hiding
 	the main detail. Registry-owned OEM/ODM copy and the canonical enquiry CTA complete the detail flow.
 
+## MIU 16 Implementation Findings
+
+- Products replaces the Headphones-only Admin section label and exposes All plus four fixed family
+	controls only in that collection. URL state is closed-set, push/back recoverable, and switches reset
+	page and selection; New receives the active family as a real form default.
+- The existing flat user filter cannot safely absorb a family clause when its combinator is OR.
+	Therefore family is an independent closed-set Admin list argument applied by the repository adapters
+	as `family AND search AND (user filter)`, preserving legacy missing-family Headphones semantics.
+- Unknown family input and family input on non-products reject before storage. CloudBase, local, and
+	Admin test adapters all implement the same optional query member.
+- Mobile Admin stacks navigation/content, keeps Back/Sign out available, uses a full-width native
+	family select, bounds body width, and delegates wide-table horizontal scrolling to the table wrapper.
+
 ## Superseded Planning Note
 
 The earlier menu-only Phase 1 scope was superseded by client PDF V1.1. Implementers must use the V1.1 baseline at the top of this file and the current V1.1 LLD/MIU documents; the removed Phase 1 constraints no longer apply.

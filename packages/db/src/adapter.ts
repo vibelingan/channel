@@ -11,6 +11,7 @@ import type {
   FilterModel,
   ListQuery,
   ListResult,
+  ProductFamily,
   SortClause,
 } from '@vibelingan-channel/shared';
 import {
@@ -22,6 +23,7 @@ import {
 /** Normalized query passed to adapters: defaults already applied. */
 export interface AdapterListQuery {
   collection: string;
+  productFamily?: ProductFamily;
   page: number;
   pageSize: number;
   search: string;

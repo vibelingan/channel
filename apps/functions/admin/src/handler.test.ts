@@ -55,6 +55,20 @@ class MemoryAdapter implements DbAdapter {
   async list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>> {
     this.listQueries.push(query);
     let docs = [...(this.store[query.collection] ?? [])];
+    if (query.productFamily) {
+      docs = docs.filter((doc) =>
+        matchesFilter(doc, {
+          combinator: 'and',
+          clauses: [
+            {
+              field: 'productFamily',
+              op: 'matchesProductFamily',
+              value: query.productFamily,
+            },
+          ],
+        }),
+      );
+    }
     if (query.filter) {
       const filter = query.filter;
       docs = docs.filter((doc) => matchesFilter(doc, filter));
@@ -2140,6 +2154,74 @@ test('list rejects a filter/sort on a redacted or unknown field (no extraction o
       )
     ).ok,
     true,
+  );
+});
+
+test('products list composes closed family filtering independently from an OR filter', async () => {
+  setup({
+    products: [
+      {
+        _id: 'ai-camera',
+        name: 'Smart Camera',
+        skuCode: 'AI-100',
+        productFamily: 'ai-gadgets',
+      },
+      {
+        _id: 'toy-camera',
+        name: 'Smart Camera Toy',
+        skuCode: 'TOY-100',
+        productFamily: 'toys',
+      },
+      {
+        _id: 'legacy-headphones',
+        name: 'Legacy Office Headset',
+        skuCode: 'HP-100',
+        category: 'office',
+      },
+    ],
+  });
+  const token = await adminToken();
+  const ai = okData<{ items: { _id: string }[] }>(
+    await call(
+      'list',
+      {
+        collection: 'products',
+        productFamily: 'ai-gadgets',
+        filter: {
+          combinator: 'or',
+          clauses: [
+            { field: 'name', op: 'contains', value: 'Camera' },
+            { field: 'skuCode', op: 'startsWith', value: 'HP-' },
+          ],
+        },
+      },
+      token,
+    ),
+  );
+  assert.deepEqual(
+    ai.items.map((item) => item._id),
+    ['ai-camera'],
+  );
+
+  const headphones = okData<{ items: { _id: string }[] }>(
+    await call('list', { collection: 'products', productFamily: 'headphones' }, token),
+  );
+  assert.deepEqual(
+    headphones.items.map((item) => item._id),
+    ['legacy-headphones'],
+  );
+});
+
+test('list rejects unknown families and family filters on non-product collections', async () => {
+  setup({ users: [], products: [] });
+  const token = await adminToken();
+  expectErr(
+    await call('list', { collection: 'products', productFamily: 'garden' }, token),
+    'BAD_REQUEST',
+  );
+  expectErr(
+    await call('list', { collection: 'users', productFamily: 'toys' }, token),
+    'BAD_REQUEST',
   );
 });
 

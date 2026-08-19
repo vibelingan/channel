@@ -268,6 +268,21 @@ export class JsonFileAdapter implements DbAdapter {
       const def = getCollection(query.collection);
       let docs = [...this.docs(query.collection)];
 
+      if (query.productFamily) {
+        docs = docs.filter((doc) =>
+          matchesFilter(doc, {
+            combinator: 'and',
+            clauses: [
+              {
+                field: 'productFamily',
+                op: 'matchesProductFamily',
+                value: query.productFamily,
+              },
+            ],
+          }),
+        );
+      }
+
       if (query.search && def) {
         const needle = query.search.toLowerCase();
         docs = docs.filter((doc) =>

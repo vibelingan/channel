@@ -535,7 +535,7 @@ flowchart TD
 
 **Block:** FRONTEND
 
-**Files:** `apps/site/src/islands/admin/CollectionView.tsx`, `apps/site/src/islands/admin/sections.ts`, `apps/site/src/islands/admin/product-family-tabs.test.ts`
+**Files:** `apps/site/src/islands/admin/CollectionView.tsx`, `apps/site/src/islands/admin/sections.ts`, `apps/site/src/islands/admin/product-family-tabs.test.ts`, plus the shared/admin/DB list-query seam required for independent family composition
 
 **Type:** modify-existing
 
@@ -548,12 +548,16 @@ flowchart TD
 
 **Build/Deploy/Runtime impact:**
 
-- Admin React UI only; no backend or dependency.
+- Admin React UI plus one optional closed-set Admin list argument.
+- Shared `ListQuery`, Admin request validation, repository forwarding, CloudBase, local, and test adapters must apply family independently from the user's flat AND/OR filter.
+- No new route, collection, migration, or dependency.
 
 **Test plan (TDD — write first):**
 
 - Tab filter composition, URL recovery, reset page/selection, and All cross-family behavior.
 - Non-product collections render no family tabs and retain existing queries.
+- Unknown families and family filters on non-product collections reject; legacy Headphones matches remain compatible.
+- Family composes as `family AND search AND (user filter)` even when the user filter is OR.
 - Mobile tab control fits and remains keyboard accessible.
 
 **Done when:**

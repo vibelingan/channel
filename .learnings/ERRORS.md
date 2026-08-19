@@ -1,5 +1,32 @@
 # Resolved Errors
 
+## [ERR-20260820-002] push command blessed SHA from wrong persistent cwd
+
+**Logged**: 2026-08-20T04:18:00-07:00
+**Priority**: high
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+
+The push reached the correct remote ref but the persistent terminal had drifted to the main checkout, so `.last-reviewed-sha` was written from an unrelated branch.
+
+### Resolution
+
+Re-entered the absolute feature worktree, rewrote the marker from its HEAD, and verified local HEAD, remote-tracking HEAD, and blessed SHA all equal `9c380360a4bfdad62875ee94825ec937e6784f9c`.
+
+### Suggested Fix
+
+Every bless/push command must begin with an absolute `cd` and assert `$PWD`, even when the immediately preceding command ran in the intended worktree.
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: `.claude/.last-reviewed-sha`
+- Source: error
+
+---
+
 ## [ERR-20260820-001] ripgrep unavailable in linked worktree terminal
 
 **Logged**: 2026-08-20T03:12:00-07:00

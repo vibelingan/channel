@@ -11,8 +11,10 @@ import type {
   CollectionDoc,
   FieldDef,
   FilterModel,
+  ProductFamily,
   SortClause,
 } from '@vibelingan-channel/shared';
+import { PRODUCT_FAMILY_OPTIONS } from '@vibelingan-channel/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { FilterBuilder } from './FilterBuilder.tsx';
@@ -27,6 +29,12 @@ import {
   removeRecord,
   updateRecord,
 } from './api.ts';
+import {
+  type AdminProductFamily,
+  adminProductFamilyFromSearch,
+  adminProductFamilySearch,
+  productFamilyListArgs,
+} from './product-family-tabs.ts';
 import type { DashboardSection } from './sections.ts';
 
 const PAGE_SIZE = 20;
@@ -49,6 +57,12 @@ export function CollectionView({ collection, section }: Props) {
   const [previewing, setPreviewing] = useState<CollectionDoc | null>(null);
 
   const isCatalog = section.catalog === true;
+  const isProducts = collection.name === 'products';
+  const [productFamily, setProductFamily] = useState<AdminProductFamily>(() =>
+    isProducts && typeof window !== 'undefined'
+      ? adminProductFamilyFromSearch(window.location.search)
+      : null,
+  );
   const isUsers = collection.name === 'users';
   const inlineEdit = useMemo(() => new Set(section.inlineEdit ?? []), [section.inlineEdit]);
   const singular = section.label.replace(/s$/, '');
@@ -58,18 +72,31 @@ export function CollectionView({ collection, section }: Props) {
     [sorting],
   );
 
-  const queryKey = ['list', collection.name, page, search, filter, sortClauses] as const;
+  const queryKey = [
+    'list',
+    collection.name,
+    productFamily,
+    page,
+    search,
+    filter,
+    sortClauses,
+  ] as const;
   const { data, isLoading, error } = useQuery({
     queryKey,
     queryFn: () =>
-      listRecords({
-        collection: collection.name,
-        page,
-        pageSize: PAGE_SIZE,
-        search,
-        ...(filter ? { filter } : {}),
-        ...(sortClauses.length > 0 ? { sort: sortClauses } : {}),
-      }),
+      listRecords(
+        productFamilyListArgs(
+          {
+            collection: collection.name,
+            page,
+            pageSize: PAGE_SIZE,
+            search,
+            ...(filter ? { filter } : {}),
+            ...(sortClauses.length > 0 ? { sort: sortClauses } : {}),
+          },
+          productFamily,
+        ),
+      ),
   });
 
   function invalidate() {
@@ -127,7 +154,28 @@ export function CollectionView({ collection, section }: Props) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset triggers
   useEffect(() => {
     setRowSelection({});
-  }, [search, filter, page]);
+  }, [search, filter, page, productFamily]);
+
+  function changeProductFamily(next: AdminProductFamily) {
+    setProductFamily(next);
+    setPage(1);
+    clearSelection();
+    if (typeof window !== 'undefined') {
+      const nextUrl = `${window.location.pathname}${adminProductFamilySearch(window.location.search, next)}${window.location.hash}`;
+      window.history.pushState(null, '', nextUrl);
+    }
+  }
+
+  useEffect(() => {
+    if (!isProducts) return;
+    const recoverFamily = () => {
+      setProductFamily(adminProductFamilyFromSearch(window.location.search));
+      setPage(1);
+      setRowSelection({});
+    };
+    window.addEventListener('popstate', recoverFamily);
+    return () => window.removeEventListener('popstate', recoverFamily);
+  }, [isProducts]);
 
   const tableFields = useMemo(
     () => collection.fields.filter((f) => !f.hideInTable && !(isCatalog && f.name === 'published')),
@@ -270,8 +318,8 @@ export function CollectionView({ collection, section }: Props) {
   const colCount = columns.length;
 
   return (
-    <div className="p-8">
-      <header className="flex items-center justify-between">
+    <div className="min-w-0 p-4 sm:p-8">
+      <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">{section.label}</h1>
           {collection.description && (
@@ -287,9 +335,50 @@ export function CollectionView({ collection, section }: Props) {
         </button>
       </header>
 
+      {isProducts && (
+        <div className="mt-6 border-b border-slate-200 pb-3">
+          <fieldset className="hidden min-w-0 gap-1 overflow-x-auto sm:flex">
+            <legend className="sr-only">Product family</legend>
+            <ProductFamilyTab
+              label="All products"
+              value={null}
+              selected={productFamily === null}
+              onSelect={changeProductFamily}
+            />
+            {PRODUCT_FAMILY_OPTIONS.map((value) => (
+              <ProductFamilyTab
+                key={value}
+                label={productFamilyLabel(value)}
+                value={value}
+                selected={productFamily === value}
+                onSelect={changeProductFamily}
+              />
+            ))}
+          </fieldset>
+          <label className="block sm:hidden">
+            <span className="sr-only">Product family</span>
+            <select
+              value={productFamily ?? ''}
+              onChange={(event) =>
+                changeProductFamily((event.currentTarget.value || null) as AdminProductFamily)
+              }
+              className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800"
+            >
+              <option value="">All products</option>
+              {PRODUCT_FAMILY_OPTIONS.map((value) => (
+                <option key={value} value={value}>
+                  {productFamilyLabel(value)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
+
       <div className="mt-6 flex flex-wrap items-center gap-2">
         <form
-          className="flex gap-2"
+          method="get"
+          className="flex min-w-0 flex-1 gap-2 sm:flex-initial"
           onSubmit={(e) => {
             e.preventDefault();
             setPage(1);
@@ -300,7 +389,7 @@ export function CollectionView({ collection, section }: Props) {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder={`Search ${collection.searchableFields.join(', ')}…`}
-            className="w-72 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900 sm:w-72"
           />
           <button
             type="submit"
@@ -336,8 +425,8 @@ export function CollectionView({ collection, section }: Props) {
         />
       )}
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <table className="w-full text-left text-sm">
+      <div className="mt-4 max-w-full overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <table className="w-full min-w-max text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id}>
@@ -435,6 +524,7 @@ export function CollectionView({ collection, section }: Props) {
         <RecordForm
           collection={collection}
           title={`New ${singular}`}
+          {...(productFamily ? { defaults: { productFamily } } : {})}
           submitting={createMutation.isPending}
           error={createMutation.error as Error | null}
           onCancel={() => setCreating(false)}
@@ -465,6 +555,46 @@ export function CollectionView({ collection, section }: Props) {
         />
       )}
     </div>
+  );
+}
+
+function productFamilyLabel(productFamily: ProductFamily): string {
+  switch (productFamily) {
+    case 'headphones':
+      return 'Headphones';
+    case 'ai-gadgets':
+      return 'AI Gadgets';
+    case 'toys':
+      return 'Toys';
+    case 'misc':
+      return 'Other Electronics & Toys';
+  }
+}
+
+function ProductFamilyTab({
+  label,
+  value,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  value: AdminProductFamily;
+  selected: boolean;
+  onSelect: (value: AdminProductFamily) => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={() => onSelect(value)}
+      className={`min-h-11 shrink-0 rounded-lg px-4 py-2 text-sm font-semibold transition ${
+        selected
+          ? 'bg-slate-900 text-white'
+          : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 

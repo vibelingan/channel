@@ -99,6 +99,7 @@ export async function list(query: ListQuery): Promise<ListResult<CollectionDoc>>
   const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, query.pageSize ?? DEFAULT_PAGE_SIZE));
   return db().list({
     collection: query.collection,
+    ...(query.productFamily ? { productFamily: query.productFamily } : {}),
     page,
     pageSize,
     search: (query.search ?? '').trim(),

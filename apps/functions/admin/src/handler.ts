@@ -64,6 +64,7 @@ import {
   OEM_UPLOAD_RATE_WINDOW_MS,
   PASSWORD_RESET_SWEEP_LIMIT,
   PASSWORD_RESET_TTL_MS,
+  PRODUCT_FAMILY_OPTIONS,
   PUBLIC_CATALOG_COLLECTIONS,
   PUBLIC_RATE_WINDOW_MS,
   RATE_LIMIT_HITS_SWEEP_LIMIT,
@@ -194,6 +195,7 @@ const sortClauseSchema = z.object({
 });
 const listSchema = z.object({
   collection: z.string(),
+  productFamily: z.enum(PRODUCT_FAMILY_OPTIONS).optional(),
   page: z.number().int().positive().default(1),
   pageSize: z.number().int().positive().max(100).default(20),
   search: z.string().max(200).default(''),
@@ -1250,11 +1252,15 @@ async function listAction(req: AdminRequest, claims: SessionClaims): Promise<Api
   if (!canReadRegisteredCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have access to this collection.');
   }
-  const { filter, sort, ...rest } = parsed.data;
+  if (parsed.data.productFamily && parsed.data.collection !== 'products') {
+    return err('BAD_REQUEST', 'Product family filtering is only available for products.');
+  }
+  const { filter, productFamily, sort, ...rest } = parsed.data;
   const badClause = validateQueryClauses(parsed.data.collection, filter, sort);
   if (badClause) return badClause;
   const result = await list({
     ...rest,
+    ...(productFamily ? { productFamily } : {}),
     ...(filter ? { filter } : {}),
     ...(sort ? { sort } : {}),
   });
