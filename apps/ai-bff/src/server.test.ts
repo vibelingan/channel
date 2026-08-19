@@ -110,3 +110,33 @@ test('unknown routes return the shared error envelope', async () => {
     assert.equal(body.error.code, 'NOT_FOUND');
   });
 });
+
+test('the development chat harness is not served in production', async () => {
+  // The page talks to the chat route with no authentication and exists purely
+  // to drive the assistant by hand. Shipping it would put an open console for
+  // the assistant on the public internet.
+  const previous = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'production';
+  try {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/dev/chat`);
+      assert.equal(res.status, 404);
+    });
+  } finally {
+    process.env.NODE_ENV = previous ?? '';
+  }
+});
+
+test('the development chat harness is served outside production', async () => {
+  const previous = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'development';
+  try {
+    await withServer(async (base) => {
+      const res = await fetch(`${base}/dev/chat`);
+      assert.equal(res.status, 200);
+      assert.match(res.headers.get('content-type') ?? '', /text\/html/);
+    });
+  } finally {
+    process.env.NODE_ENV = previous ?? '';
+  }
+});

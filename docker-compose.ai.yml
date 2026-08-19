@@ -58,15 +58,30 @@ services:
       dockerfile: apps/ai-bff/Dockerfile
     container_name: channel-ai-bff
     environment:
+      # The image defaults to production so the hand-driving page at /dev/chat
+      # cannot be reached from a deployed container. Compose IS the local
+      # development environment, so it opts back in here and nowhere else.
+      NODE_ENV: development
       DATABASE_URL: postgres://ai:ai@postgres:5432/ai_assistant
       PORT: "8080"
       # The assistant is served from its own origin, so the widget always calls
       # cross-origin. An empty list makes the service refuse to start.
-      CORS_ALLOWED_ORIGINS: http://localhost:4321,http://localhost:4324
+      CORS_ALLOWED_ORIGINS: http://localhost:4321,http://localhost:4324,http://localhost:58080
+      # Container-to-container, so the service name — not localhost, which
+      # inside this container is the BFF itself.
+      ANYTHINGLLM_BASE_URL: http://anythingllm:3001
+      ANYTHINGLLM_WORKSPACE: channel-public-assistant
+      ANYTHINGLLM_API_KEY: ${ANYTHINGLLM_API_KEY:?set it in .env.ai}
+      # The engine has no idempotent create and no run-lookup, and the
+      # compensating layer (LLD-001 §7) is a later MIU. Production must refuse;
+      # local development opts out explicitly and logs every reason.
+      AI_DEV_UNSAFE_ALLOW_UNGATED_ENGINE: "1"
     ports:
       - "58080:8080"
     depends_on:
       postgres:
+        condition: service_healthy
+      anythingllm:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/ai/healthz || exit 1"]

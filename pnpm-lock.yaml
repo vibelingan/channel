@@ -32,6 +32,9 @@ importers:
       '@vibelingan-channel/ai-engine':
         specifier: workspace:*
         version: link:../../packages/ai-engine
+      '@vibelingan-channel/ai-engine-anythingllm':
+        specifier: workspace:*
+        version: link:../../packages/ai-engine-anythingllm
       '@vibelingan-channel/ai-store':
         specifier: workspace:*
         version: link:../../packages/ai-store
@@ -239,6 +242,19 @@ importers:
         version: 7.3.5(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0)
 
   packages/ai-engine:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.21
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+
+  packages/ai-engine-anythingllm:
+    dependencies:
+      '@vibelingan-channel/ai-engine':
+        specifier: workspace:*
+        version: link:../ai-engine
     devDependencies:
       '@types/node':
         specifier: ^22.10.2

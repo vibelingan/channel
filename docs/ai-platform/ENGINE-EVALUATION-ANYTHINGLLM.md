@@ -94,9 +94,9 @@ is a startup blocker:
 |---|---|---|
 | `supportsStop` (owner-cancellable) | **Blocking**, but satisfied by aborting the connection — the port's `AbortSignal`. Verified at protocol level: aborting a live stream terminated cleanly | **Resolved** |
 | `supportsOutOfBandStop` | **Not blocking** since ADR-002 §3 split the capability. Expected `false`; costs bounded token waste when an owning worker dies | **Resolved as expected-false** |
-| `supportsCitations` | The answer policy requires citations; AnythingLLM has them in the UI, but the API response *shape* must map to `EngineCitation` (`sourceId`, `title`, `url`, `snippet`, `retrievedAt`) | **Unverified** |
-| `supportsIdempotentCreate` | Chat-completions style APIs usually lack it. If absent, LLD-001 §7's operation-id mapping layer becomes mandatory — which is already designed | **Likely false** |
-| Streaming | Token-by-token delivery. AnythingLLM streams by default | Likely true, verify |
+| `supportsCitations` | The answer policy requires citations; the API's source shape must map to `EngineCitation` | **Verified true.** Mapped in the adapter; deduplicated to the page rather than the chunk |
+| `supportsIdempotentCreate` | Chat-completions style APIs usually lack it. If absent, LLD-001 §7's operation-id mapping layer becomes mandatory | **Confirmed false.** The startup gate refuses on it today; local development opts out explicitly via `AI_DEV_UNSAFE_ALLOW_UNGATED_ENGINE` and logs every refusal |
+| Streaming | Token-by-token delivery | **Verified true**, with two frame-order traps recorded in ADR-002 §6 |
 
 None of these is a reason not to proceed locally. All are answerable in a day
 once the container is running.

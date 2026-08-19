@@ -216,15 +216,35 @@ non-developers; the engine port proves its worth on first use.
 cancellation, so bounded token waste on takeover; we adopt a product whose primary
 use case is not ours, so upstream changes may not serve us.
 
-**Unproven, and must be closed before production:**
+**Probe results — measured against a running instance on 2026-08-19:**
 
-| # | Question | Blocks |
+| # | Question | Result |
 |---|---|---|
-| 1 | Does AnythingLLM expose **retrieval separately from generation**? | The preferred integration shape in §4 |
-| 2 | Does its API return citations mappable to `EngineCitation`? | `supportsCitations`; the answer policy |
-| 3 | Does streaming work through its OpenAI-compatible endpoint? | Token-by-token delivery |
-| 4 | Can it parse the certificate PDFs we actually have? | If not, RAGFlow becomes the candidate |
-| 5 | What is its full enabled tool/agent surface? | Same class as the Hermes toolset gate |
+| 1 | Retrieval separately from generation? | **Yes.** `POST /api/v1/workspace/{slug}/vector-search`, ~100ms, no model call. Takes `topN` and `scoreThreshold`. Returns `{results:[{id,text,metadata,distance,score}]}`. §4's preferred shape is therefore available |
+| 2 | Citations mappable to `EngineCitation`? | **Yes.** Sources carry `id`, `title`, `description`, `docSource`, `text`, `published` — mapped in the adapter. `supportsCitations: true` |
+| 3 | Streaming? | **Yes.** SSE, `textResponseChunk` frames then `finalizeResponseStream`. Two frame-order traps, both found only by running it — see below |
+| 4 | Certificate PDF parsing? | **Untested.** No certificate PDFs in hand yet. Remains open |
+| 5 | Enabled tool/agent surface? | **None enabled.** `agentProvider` and `agentModel` are both null on the workspace; no agent skills are configured |
+
+**Two integration traps, both invisible to unit tests and to reading the docs:**
+
+1. The vendor sets `close: true` on the **last text chunk**, then sends the
+   citations in a *separate* frame after it. Stopping at the first close flag
+   loses every citation while the answer still looks perfectly correct.
+2. The response ends immediately after that final frame, with no terminating
+   blank line. An SSE reader that requires the separator drops the frame — and
+   that frame is the only one carrying sources.
+
+Both cost citations, not answers, so nothing looks broken: the assistant
+replies correctly and silently stops attributing anything.
+
+**A third finding, and the one with product consequences:** the configured
+models emit their private deliberation in `<think>…</think>` before the answer,
+and AnythingLLM passes it straight through. Un-stripped, a visitor watches the
+model reason in the first person before it answers. The tags routinely straddle
+stream chunks, so this cannot be handled by a regex over each chunk; the adapter
+carries a small state machine that withholds any fragment that might still
+become a tag.
 
 **Superseded:** ADR-001's Hermes + Lexiang serving path. ADR-001's other
 decisions — BFF ownership, the takeover consistency model, the security posture —

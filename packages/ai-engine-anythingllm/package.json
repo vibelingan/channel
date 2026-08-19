@@ -1,18 +1,18 @@
 {
-  "name": "@vibelingan-channel/ai-bff",
+  "name": "@vibelingan-channel/ai-engine-anythingllm",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
-    "start": "tsx src/main.ts",
     "build": "tsc --noEmit",
     "test": "tsx --test src/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vibelingan-channel/ai-engine": "workspace:*",
-    "@vibelingan-channel/ai-store": "workspace:*",
-    "@vibelingan-channel/ai-engine-anythingllm": "workspace:*"
+    "@vibelingan-channel/ai-engine": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

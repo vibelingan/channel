@@ -11,6 +11,7 @@ FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/ai-engine/package.json packages/ai-engine/
 COPY packages/ai-store/package.json packages/ai-store/
+COPY packages/ai-engine-anythingllm/package.json packages/ai-engine-anythingllm/
 COPY apps/ai-bff/package.json apps/ai-bff/
 RUN pnpm install --frozen-lockfile --filter @vibelingan-channel/ai-bff...
 
@@ -22,6 +23,7 @@ COPY --from=deps /app/apps ./apps
 COPY tsconfig.base.json ./
 COPY packages/ai-engine packages/ai-engine
 COPY packages/ai-store packages/ai-store
+COPY packages/ai-engine-anythingllm packages/ai-engine-anythingllm
 COPY apps/ai-bff apps/ai-bff
 
 # Never root. CloudRun does not require it, which is exactly why it gets
@@ -34,4 +36,4 @@ EXPOSE 8080
 # own node_modules, and `node --import tsx` resolves from the working directory.
 # Running from /app fails with ERR_MODULE_NOT_FOUND for 'tsx'.
 WORKDIR /app/apps/ai-bff
-CMD ["node", "--import", "tsx", "src/server.ts"]
+CMD ["node", "--import", "tsx", "src/main.ts"]

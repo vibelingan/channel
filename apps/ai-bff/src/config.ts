@@ -14,6 +14,29 @@ export interface BffConfig {
   databaseUrl: string;
   /** Exact origins allowed to call this service. The widget is cross-origin. */
   corsAllowedOrigins: string[];
+  /**
+   * Absent means the conversation route is disabled and says so. The service
+   * still starts, because liveness, readiness and the deploy path must remain
+   * verifiable without a configured engine.
+   */
+  engine?: EngineConfig;
+}
+
+export interface EngineConfig {
+  baseUrl: string;
+  apiKey: string;
+  workspaceSlug: string;
+  engineVersion: string;
+  /**
+   * Serve even though the startup capability gate found unmet guarantees.
+   *
+   * The gate is real and stays on: this engine family has no idempotent create
+   * and no run lookup, and the compensating machinery for both is LLD-001 §7
+   * work that does not exist yet. Until it does, production must refuse. Local
+   * development needs to run anyway, so the bypass is explicit, named unsafe,
+   * never defaulted on, and prints every refusal it is stepping over.
+   */
+  allowUngated: boolean;
 }
 
 export class ConfigError extends Error {
@@ -49,7 +72,38 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BffConfig {
   if (origins.includes('*'))
     problems.push("CORS_ALLOWED_ORIGINS contains '*', which is never valid here");
 
+  // The engine block is all-or-nothing: a half-configured engine would fail at
+  // the first visitor instead of at startup.
+  const engineFields = {
+    baseUrl: env.ANYTHINGLLM_BASE_URL?.trim(),
+    apiKey: env.ANYTHINGLLM_API_KEY?.trim(),
+    workspaceSlug: env.ANYTHINGLLM_WORKSPACE?.trim(),
+  };
+  const providedFields = Object.entries(engineFields).filter(([, v]) => v);
+  let engine: EngineConfig | undefined;
+  if (providedFields.length > 0) {
+    const missing = Object.entries(engineFields)
+      .filter(([, v]) => !v)
+      .map(([k]) => k);
+    if (missing.length > 0) {
+      problems.push(`engine is partially configured; missing: ${missing.join(', ')}`);
+    } else {
+      engine = {
+        baseUrl: engineFields.baseUrl as string,
+        apiKey: engineFields.apiKey as string,
+        workspaceSlug: engineFields.workspaceSlug as string,
+        engineVersion: env.ANYTHINGLLM_VERSION?.trim() || 'unpinned',
+        allowUngated: env.AI_DEV_UNSAFE_ALLOW_UNGATED_ENGINE === '1',
+      };
+    }
+  }
+
   if (problems.length > 0) throw new ConfigError(problems);
 
-  return { port, databaseUrl: databaseUrl as string, corsAllowedOrigins: origins };
+  return {
+    port,
+    databaseUrl: databaseUrl as string,
+    corsAllowedOrigins: origins,
+    ...(engine ? { engine } : {}),
+  };
 }

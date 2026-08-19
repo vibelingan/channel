@@ -7,11 +7,40 @@
  * API routes belong to MIU 6 and the SSE stream to MIU 7.
  */
 
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import type { ConversationEngine } from '@vibelingan-channel/ai-engine';
 import { createAiPool, createStoreReadiness } from '@vibelingan-channel/ai-store';
-import { type BffConfig, loadConfig } from './config.ts';
+import { parseChatRequest, streamChatToResponse } from './chat.ts';
+import type { BffConfig } from './config.ts';
 
-export function buildServer(config: BffConfig) {
+/**
+ * The engine is INJECTED, never imported here. LLD-002 is explicit that the BFF
+ * must not depend on an adapter package — the composition root in `main.ts`
+ * builds the adapter and hands it in, which is what keeps "swapping engines
+ * costs one package" true.
+ */
+export interface BffDependencies {
+  engine?: ConversationEngine;
+}
+
+async function readBody(
+  req: import('node:http').IncomingMessage,
+  maxBytes: number,
+): Promise<string | null> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += (chunk as Buffer).length;
+    if (size > maxBytes) return null;
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+export function buildServer(config: BffConfig, deps: BffDependencies = {}) {
   const pool = createAiPool({ connectionString: config.databaseUrl, max: 10 });
   const readiness = createStoreReadiness(pool);
 
@@ -54,6 +83,70 @@ export function buildServer(config: BffConfig) {
       return;
     }
 
+    // A development-only harness for using the assistant by hand. Guarded on
+    // NODE_ENV so it cannot be reached from a production image, which is set to
+    // production in the Dockerfile.
+    if (url.pathname === '/dev/chat' && process.env.NODE_ENV !== 'production') {
+      try {
+        const page = readFileSync(
+          join(dirname(fileURLToPath(import.meta.url)), '../dev/chat.html'),
+        );
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        res.end(page);
+      } catch {
+        res.writeHead(404).end();
+      }
+      return;
+    }
+
+    // The conversation route. MIU 2a's skeleton had no routes at all; this is
+    // the first one that does the product's actual job.
+    if (url.pathname === '/api/ai/chat' && req.method === 'POST') {
+      if (!deps.engine) {
+        res.writeHead(503, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            ok: false,
+            error: { code: 'ENGINE_NOT_CONFIGURED', message: 'The assistant is not configured.' },
+          }),
+        );
+        return;
+      }
+
+      const raw = await readBody(req, 64 * 1024);
+      if (raw === null) {
+        res.writeHead(413, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            ok: false,
+            error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request too large.' },
+          }),
+        );
+        return;
+      }
+
+      const parsed = parseChatRequest(raw);
+      if (!parsed.ok) {
+        res.writeHead(400, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({ ok: false, error: { code: 'INVALID_REQUEST', message: parsed.error } }),
+        );
+        return;
+      }
+
+      // Abort the engine stream when the visitor closes the tab. Without this
+      // the model keeps generating — and billing — for a page nobody is on.
+      const controller = new AbortController();
+      req.on('close', () => controller.abort());
+      await streamChatToResponse({
+        engine: deps.engine,
+        request: parsed.value,
+        res,
+        signal: controller.signal,
+      });
+      return;
+    }
+
     res.writeHead(404, { 'content-type': 'application/json' });
     res.end(
       JSON.stringify({ ok: false, error: { code: 'NOT_FOUND', message: 'Route not found' } }),
@@ -63,8 +156,19 @@ export function buildServer(config: BffConfig) {
   return { server, pool };
 }
 
-export function startServer(config: BffConfig) {
-  const { server, pool } = buildServer(config);
+export function startServer(config: BffConfig, deps: BffDependencies = {}) {
+  const { server, pool } = buildServer(config, deps);
+
+  // Without this, a port clash surfaces as an unhandled 'error' event and a
+  // raw stack trace, which reads like a crash in the application rather than
+  // "something else is already on this port".
+  server.on('error', (error: NodeJS.ErrnoException) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`refusing to start; port ${config.port} is already in use`);
+      process.exit(1);
+    }
+    throw error;
+  });
   server.listen(config.port);
 
   // Graceful shutdown matters more here than in a request/response service:
@@ -80,16 +184,4 @@ export function startServer(config: BffConfig) {
   process.on('SIGINT', () => void shutdown('SIGINT'));
 
   return { server, pool };
-}
-
-// Entry point when run directly (not when imported by a test).
-if (process.argv[1]?.endsWith('server.ts')) {
-  try {
-    const config = loadConfig();
-    startServer(config);
-    console.log(JSON.stringify({ event: 'listening', port: config.port }));
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
-    process.exit(1);
-  }
 }
