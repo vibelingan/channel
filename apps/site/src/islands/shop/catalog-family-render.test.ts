@@ -43,6 +43,8 @@ const family: CatalogFamilyContent = {
   eyebrow: 'Audio',
   heading: 'Headphones',
   description: 'Audio products',
+  seoTitle: 'Headphones',
+  seoDescription: 'Headphones for OEM programs.',
   image: '/media/section-capabilities.png',
   imageAlt: 'Audio products',
   imageWidth: 1448,

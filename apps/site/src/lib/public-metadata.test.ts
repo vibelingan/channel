@@ -29,6 +29,7 @@ const parseFrontmatter = (relativePath: string) => {
     brand?: { name: string };
     meta?: { title: string; description: string };
     hub?: { seoTitle: string; seoDescription: string };
+    families?: Array<{ key: string; seoTitle: string; seoDescription: string }>;
   };
 };
 
@@ -124,11 +125,13 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
     .filter((fileName) => !noindexTopLevelPages.has(fileName))
     .sort();
   assert.deepEqual(routableTopLevelPages, [
+    'ai-gadgets.astro',
     'electronics-toys.astro',
     'headphones.astro',
     'index.astro',
     'oem.astro',
     'portfolio.astro',
+    'toys.astro',
   ]);
 
   const site = parseFrontmatter('../i18n/content/en-US.md');
@@ -139,11 +142,19 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
   assert.ok(oem.meta);
   assert.ok(portfolio.meta);
   assert.ok(catalog.hub);
+  assert.ok(catalog.families);
   assert.ok(oem.meta.title.trim());
   assert.ok(oem.meta.description.trim());
   assert.ok(portfolio.meta.title.trim());
   assert.ok(portfolio.meta.description.trim());
   const brandName = site.brand.name;
+  const familyMetadata = new Map(catalog.families.map((family) => [family.key, family]));
+  const headphones = familyMetadata.get('headphones');
+  const aiGadgets = familyMetadata.get('ai-gadgets');
+  const toys = familyMetadata.get('toys');
+  assert.ok(headphones);
+  assert.ok(aiGadgets);
+  assert.ok(toys);
 
   const metadata = [
     {
@@ -162,12 +173,23 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
     },
     {
       name: 'headphones',
-      ...extractPageMetadata('../pages/headphones.astro', brandName),
+      title: `${headphones.seoTitle} | ${brandName}`,
+      description: headphones.seoDescription,
     },
     {
       name: 'electronics-toys',
       title: `${catalog.hub.seoTitle} | ${brandName}`,
       description: catalog.hub.seoDescription,
+    },
+    {
+      name: 'ai-gadgets',
+      title: `${aiGadgets.seoTitle} | ${brandName}`,
+      description: aiGadgets.seoDescription,
+    },
+    {
+      name: 'toys',
+      title: `${toys.seoTitle} | ${brandName}`,
+      description: toys.seoDescription,
     },
   ];
 
@@ -189,6 +211,14 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
       description: 'seoDescription',
     }),
     assertBaseLayoutBindings('../pages/electronics-toys.astro', {
+      title: 'seoTitle',
+      description: 'seoDescription',
+    }),
+    assertBaseLayoutBindings('../pages/ai-gadgets.astro', {
+      title: 'seoTitle',
+      description: 'seoDescription',
+    }),
+    assertBaseLayoutBindings('../pages/toys.astro', {
       title: 'seoTitle',
       description: 'seoDescription',
     }),

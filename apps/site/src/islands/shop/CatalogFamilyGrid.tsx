@@ -70,7 +70,11 @@ export function CatalogFamilyGrid({
 
   return (
     <div className="mt-10">
-      <div className="flex flex-col gap-5 border-y border-slate-200 py-5 sm:flex-row sm:items-end sm:justify-between">
+      <div
+        className={`flex flex-col gap-5 border-y border-slate-200 py-5 sm:flex-row sm:items-end ${
+          family.categories.length > 0 ? 'sm:justify-between' : 'sm:justify-end'
+        }`}
+      >
         {family.categories.length > 0 && (
           <fieldset>
             <legend className="text-sm font-semibold text-ink">{list.filterLabel}</legend>

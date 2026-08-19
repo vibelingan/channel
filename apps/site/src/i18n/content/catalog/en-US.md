@@ -47,6 +47,8 @@ families:
     eyebrow: Audio Products
     heading: Headphones
     description: Wired, office, and Bluetooth audio products for private-label and OEM programs.
+    seoTitle: OEM Headphone Manufacturer
+    seoDescription: OEM headphone manufacturer in Dongguan for wired, Bluetooth, over-ear, and kid-safe models. MOQ from 500 units, OEM/ODM customization, and global delivery.
     image: /media/section-capabilities.png
     imageAlt: Headphones, speakers, and earbuds among Channel product capabilities
     imageWidth: 1448
@@ -61,6 +63,8 @@ families:
     eyebrow: Smart Electronics
     heading: AI Gadgets
     description: Connected cameras, translators, wearables, and practical smart devices ready for customization.
+    seoTitle: AI Gadgets for OEM Programs
+    seoDescription: Browse factory-direct AI gadgets for wholesale and OEM programs, including connected cameras, translators, wearables, and smart devices.
     image: /media/oem/process/p04.jpg
     imageAlt: Wired prototype circuit board used during electronics development
     imageWidth: 540
@@ -72,6 +76,8 @@ families:
     eyebrow: Play & Learning
     heading: Toys
     description: Educational, robotic, and creative play products developed for retail and promotional programs.
+    seoTitle: Toys for OEM Programs
+    seoDescription: Browse educational, robotic, and creative toys for wholesale, private-label, OEM, and promotional product programs.
     image: /media/oem/process/p05.jpg
     imageAlt: Compact bear-shaped speaker prototype with illuminated ears
     imageWidth: 662
@@ -83,6 +89,8 @@ families:
     eyebrow: More Electronics & Toys
     heading: Other Electronics & Toys
     description: Useful consumer electronics and home products outside our core audio, smart-device, and toy ranges.
+    seoTitle: Other Electronics & Toys
+    seoDescription: Browse other consumer electronics and home products available for wholesale, private-label, and OEM programs.
     image: /media/oem/factory/f04.jpg
     imageAlt: Channel factory production capability for consumer products
     imageWidth: 1280

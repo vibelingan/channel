@@ -106,6 +106,10 @@
 	reducer for generation guards and overlap dedupe, resets/aborts on family/filter/search changes,
 	omits unconfigured filter bars, and renders only valid slug links with Alibaba/public/quote pricing.
 	No VIP or video surface is present. MIU 12 is complete; MIU 13 family route shells are active.
+- MIU 13 preserves the reviewed Headphones hero/canonical/enquiry flow while switching its catalog
+	to the shared family controller, and adds registry-owned AI Gadgets and Toys shells with breadcrumb,
+	one H1, canonical metadata, and quote CTA. MIU 13 is complete; MIU 14 Other Electronics route and
+	metadata inventory is active.
 
 | Implementation check | Result |
 |---|---|
@@ -143,3 +147,9 @@
 | MIU 12 site tests | Passed: 163/163 |
 | MIU 12 typecheck/lint | Passed: Astro 0 errors; scoped Biome clean |
 | MIU 12 site build | Passed: 11 static pages (components are consumed starting in MIU 13) |
+| MIU 13 route/source tests | Passed: 8/8 focused registry, hero, canonical, and metadata checks |
+| MIU 13 browser integration | Passed: 3/3 routes across 375px and 1440px; exact family queries and no overflow |
+| MIU 13 visual review | Passed: AI Gadgets desktop and Toys mobile screenshots, no overlap/overflow |
+| MIU 13 site tests | Passed: 163/163 |
+| MIU 13 typecheck/lint | Passed: Astro 0 errors; E2E TypeScript clean; scoped Biome clean |
+| MIU 13 site build | Passed: 13 static pages, including `/ai-gadgets/` and `/toys/` |

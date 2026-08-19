@@ -12,6 +12,8 @@ export interface CatalogFamilyContent {
   eyebrow: string;
   heading: string;
   description: string;
+  seoTitle: string;
+  seoDescription: string;
   image: string;
   imageAlt: string;
   imageWidth: number;

@@ -143,6 +143,15 @@ The existing VIP pricing path is not part of this feature. Registration creates 
 	and missing public pricing renders the registry-owned quote label. VIP and video have no rendering
 	path in the shared grid.
 
+## MIU 13 Implementation Findings
+
+- `/headphones/` retains its reviewed gated-media hero, canonical, product-matrix anchor, and OEM
+	enquiry target while replacing only the old list/detail controller with the shared family island.
+- `/ai-gadgets/` and `/toys/` are static registry-driven shells with one H1, visible breadcrumb,
+	canonical metadata, quote CTA, and no route-local merchandising copy.
+- Browser interception verified that each route requests its exact `productFamily` at page 1/size 12;
+	Headphones exposes three configured filters while AI Gadgets and Toys omit an empty filter bar.
+
 ## Superseded Planning Note
 
 The earlier menu-only Phase 1 scope was superseded by client PDF V1.1. Implementers must use the V1.1 baseline at the top of this file and the current V1.1 LLD/MIU documents; the removed Phase 1 constraints no longer apply.
