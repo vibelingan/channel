@@ -9,6 +9,7 @@ import {
 export type CatalogProductWriteErrorCode =
   | 'IDENTITY_CONFLICT'
   | 'INVALID_IDENTITY'
+  | 'INVALID_PRODUCT'
   | 'PRODUCT_EXISTS'
   | 'PRODUCT_NOT_FOUND';
 
@@ -80,6 +81,12 @@ async function saveCatalogProduct(input: {
   }
   if (result.result === 'invalid') {
     throw new CatalogProductWriteError('INVALID_IDENTITY', `Product ${result.kind} is invalid.`);
+  }
+  if (result.result === 'invalid-product') {
+    throw new CatalogProductWriteError(
+      'INVALID_PRODUCT',
+      result.issues.map((issue) => issue.message).join('; '),
+    );
   }
   if (result.result === 'exists') {
     throw new CatalogProductWriteError('PRODUCT_EXISTS', 'Product already exists.');

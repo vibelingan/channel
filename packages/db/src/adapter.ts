@@ -13,7 +13,11 @@ import type {
   ListResult,
   SortClause,
 } from '@vibelingan-channel/shared';
-import { normalizeProductSlug, normalizeSkuCode } from '@vibelingan-channel/shared';
+import {
+  normalizeProductSlug,
+  normalizeSkuCode,
+  validateProductPublication,
+} from '@vibelingan-channel/shared';
 
 /** Normalized query passed to adapters: defaults already applied. */
 export interface AdapterListQuery {
@@ -44,10 +48,14 @@ export type CatalogProductSaveResult =
   | { result: 'saved'; doc: CollectionDoc }
   | { result: 'conflict'; kind: 'slug' | 'sku'; normalizedValue: string }
   | { result: 'invalid'; kind: 'slug' | 'sku' }
+  | { result: 'invalid-product'; issues: ReturnType<typeof validateProductPublication> }
   | { result: 'missing' | 'exists' };
 
 export type CatalogProductSavePlan =
-  | Extract<CatalogProductSaveResult, { result: 'invalid' | 'missing' | 'exists' }>
+  | Extract<
+      CatalogProductSaveResult,
+      { result: 'invalid' | 'invalid-product' | 'missing' | 'exists' }
+    >
   | {
       result: 'ready';
       doc: CollectionDoc;
@@ -92,7 +100,16 @@ export function planCatalogProductSave(
 ): CatalogProductSavePlan {
   if (input.mode === 'create' && existing) return { result: 'exists' };
   if (input.mode === 'update' && !existing) return { result: 'missing' };
-  const { _id, ...data } = input.data as Record<string, unknown> & { _id?: unknown };
+  const { _id, ...inputData } = input.data as Record<string, unknown> & { _id?: unknown };
+  const data =
+    input.mode === 'create'
+      ? { published: false, archived: false, ...inputData }
+      : { ...inputData };
+  if (input.mode === 'update' && Object.hasOwn(data, 'archived')) {
+    const wasArchived = existing?.archived === true;
+    const willBeArchived = data.archived === true;
+    if (wasArchived !== willBeArchived) data.published = false;
+  }
   const doc = {
     ...(existing ?? {}),
     ...data,
@@ -100,6 +117,8 @@ export function planCatalogProductSave(
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   } as CollectionDoc;
+  const issues = validateProductPublication(doc);
+  if (issues.length > 0) return { result: 'invalid-product', issues };
   const identities = productIdentities(doc);
   if (!Array.isArray(identities)) return { result: 'invalid', kind: identities.invalid };
   const previousIdentities = existing ? validProductIdentities(existing) : [];

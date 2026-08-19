@@ -169,3 +169,84 @@ test('conflict, corrupt reservation, and malformed facade input produce no write
   );
   assert.equal(readFileSync(file, 'utf8'), before);
 });
+
+test('RACE: concurrent archive and publish cannot persist an archived published product', async (t) => {
+  const { directory, file } = temporaryDatabase();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  setAdapter(new JsonFileAdapter(file));
+  await saveCatalogProductWithIdentities({
+    mode: 'create',
+    productId: 'product-race',
+    data: {
+      name: 'Race Product',
+      productFamily: 'toys',
+      slug: 'race-product',
+      skuCode: 'race-100',
+      description: 'Complete product.',
+      imageIds: ['image-1'],
+      published: true,
+    },
+  });
+
+  const results = await Promise.all([
+    saveCatalogProductWithIdentities({
+      mode: 'update',
+      productId: 'product-race',
+      data: { archived: true },
+    }),
+    saveCatalogProductWithIdentities({
+      mode: 'update',
+      productId: 'product-race',
+      data: { published: true },
+    }),
+  ]);
+  assert.ok(results.some((result) => result.result === 'saved'));
+  const persisted = readStore(file).products?.[0];
+  assert.equal(persisted?.archived, true);
+  assert.equal(persisted?.published, false);
+});
+
+test('legacy missing archived plus submitted false remains published', async (t) => {
+  const { directory, file } = temporaryDatabase();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  writeFileSync(
+    file,
+    JSON.stringify({
+      products: [
+        {
+          _id: 'legacy-published',
+          name: 'Legacy Published',
+          productFamily: 'headphones',
+          slug: 'legacy-published',
+          skuCode: 'legacy-100',
+          description: 'Complete legacy product.',
+          imageIds: ['image-1'],
+          published: true,
+        },
+      ],
+      catalogProductIdentities: [
+        {
+          _id: 'slug:legacy-published',
+          kind: 'slug',
+          normalizedValue: 'legacy-published',
+          productId: 'legacy-published',
+        },
+        {
+          _id: 'sku:legacy-100',
+          kind: 'sku',
+          normalizedValue: 'legacy-100',
+          productId: 'legacy-published',
+        },
+      ],
+    }),
+    'utf8',
+  );
+  setAdapter(new JsonFileAdapter(file));
+  const result = await saveCatalogProductWithIdentities({
+    mode: 'update',
+    productId: 'legacy-published',
+    data: { name: 'Edited', archived: false },
+  });
+  assert.equal(result.result, 'saved');
+  assert.equal(readStore(file).products?.[0]?.published, true);
+});

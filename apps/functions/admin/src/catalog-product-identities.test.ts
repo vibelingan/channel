@@ -139,6 +139,13 @@ test('storage outcomes map to stable domain errors', async () => {
       code: 'IDENTITY_CONFLICT',
     },
     { result: { result: 'invalid', kind: 'sku' }, code: 'INVALID_IDENTITY' },
+    {
+      result: {
+        result: 'invalid-product',
+        issues: [{ field: 'archived', message: 'Archived products cannot be published' }],
+      },
+      code: 'INVALID_PRODUCT',
+    },
     { result: { result: 'exists' }, code: 'PRODUCT_EXISTS' },
     { result: { result: 'missing' }, code: 'PRODUCT_NOT_FOUND' },
   ];
