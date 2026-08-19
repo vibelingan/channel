@@ -1,4 +1,6 @@
 /** Shared product types + API client for the storefront islands. */
+import { isProductFamily } from '@vibelingan-channel/shared';
+import { readApiEnvelope } from '../../lib/api-envelope.ts';
 import { apiMediaUrl, apiUrl } from '../../lib/api-url.ts';
 import { getToken } from '../../lib/session.ts';
 import type { CatalogPage, CatalogQuery, Product, ProductFamily } from './catalog-types.ts';
@@ -18,10 +20,122 @@ function catalogHeaders(): HeadersInit | undefined {
   return token ? { Authorization: `Bearer ${token}` } : undefined;
 }
 
-interface ApiEnvelope<T> {
-  ok: boolean;
-  data?: T;
-  error?: { code: string; message: string };
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function optionalString(record: Record<string, unknown>, key: string): boolean {
+  return record[key] === undefined || typeof record[key] === 'string';
+}
+
+function optionalNumber(record: Record<string, unknown>, key: string): boolean {
+  return (
+    record[key] === undefined || (typeof record[key] === 'number' && Number.isFinite(record[key]))
+  );
+}
+
+function isAlibabaCatalogPricing(value: unknown): boolean {
+  if (
+    !isRecord(value) ||
+    typeof value.schemaVersion !== 'string' ||
+    value.source !== 'alibaba' ||
+    typeof value.mode !== 'string' ||
+    !['fixed', 'range', 'tiered', 'negotiable', 'unavailable'].includes(value.mode) ||
+    typeof value.syncedAt !== 'string'
+  ) {
+    return false;
+  }
+  if (value.currency !== undefined && value.currency !== 'CNY' && value.currency !== 'USD') {
+    return false;
+  }
+  for (const key of ['amountMinor', 'minAmountMinor', 'maxAmountMinor', 'sourceMoq']) {
+    if (!optionalNumber(value, key)) return false;
+  }
+  for (const key of ['sourceUpdatedAt']) {
+    if (!optionalString(value, key)) return false;
+  }
+  if (value.tiers !== undefined) {
+    if (!Array.isArray(value.tiers)) return false;
+    for (const tier of value.tiers) {
+      if (
+        !isRecord(tier) ||
+        typeof tier.minQuantity !== 'number' ||
+        !Number.isFinite(tier.minQuantity) ||
+        typeof tier.unitAmountMinor !== 'number' ||
+        !Number.isFinite(tier.unitAmountMinor) ||
+        (tier.maxQuantity !== undefined &&
+          (typeof tier.maxQuantity !== 'number' || !Number.isFinite(tier.maxQuantity)))
+      ) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+function isProduct(value: unknown): value is Product {
+  if (!isRecord(value) || typeof value._id !== 'string' || typeof value.name !== 'string') {
+    return false;
+  }
+  if (value.productFamily !== undefined && !isProductFamily(value.productFamily)) return false;
+  for (const key of [
+    'category',
+    'skuCode',
+    'slug',
+    'series',
+    'modName',
+    'modType',
+    'description',
+    'productCode',
+    'alibabaPrimarySourceKey',
+    'alibabaSourceLastSyncedAt',
+  ]) {
+    if (!optionalString(value, key)) return false;
+  }
+  for (const key of [
+    'moq',
+    'unitPrice',
+    'wholesalePrice',
+    'vipPrice',
+    'inventory',
+    'clearancePrice',
+  ]) {
+    if (!optionalNumber(value, key)) return false;
+  }
+  if (value.images !== undefined) {
+    if (!Array.isArray(value.images) || !value.images.every((image) => typeof image === 'string')) {
+      return false;
+    }
+  }
+  if (value.imageIds !== undefined) {
+    if (!Array.isArray(value.imageIds) || !value.imageIds.every((id) => typeof id === 'string')) {
+      return false;
+    }
+  }
+  if (
+    value.alibabaSourceStatus !== undefined &&
+    (typeof value.alibabaSourceStatus !== 'string' ||
+      !['available', 'limited', 'unavailable', 'removed', 'unknown'].includes(
+        value.alibabaSourceStatus,
+      ))
+  ) {
+    return false;
+  }
+  return (
+    value.alibabaCatalogPricing === undefined ||
+    isAlibabaCatalogPricing(value.alibabaCatalogPricing)
+  );
+}
+
+function isCatalogPage(value: unknown): value is CatalogPage {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.items) &&
+    value.items.every(isProduct) &&
+    Number.isInteger(value.total) &&
+    Number.isInteger(value.page) &&
+    Number.isInteger(value.pageSize)
+  );
 }
 
 function resolveProductMedia(product: Product, maxImages?: number): Product {
@@ -59,10 +173,12 @@ export async function fetchCatalog(
     signal,
   });
   if (!res.ok) throw new Error(`Failed to load catalog (${res.status})`);
-  const json = (await res.json()) as ApiEnvelope<CatalogPage>;
-  if (!json.ok || !json.data) throw new Error(json.error?.message ?? 'Failed to load catalog');
+  const result = await readApiEnvelope<unknown>(res);
+  if (!result?.ok || !isCatalogPage(result.data)) {
+    throw new Error(result && !result.ok ? result.error.message : 'Failed to load catalog');
+  }
   return resolveCatalogMedia(
-    json.data,
+    result.data,
     basePath === '/api/products' ? PRODUCT_IMAGE_LIMIT : undefined,
   );
 }
@@ -78,10 +194,12 @@ export async function fetchCatalogItem(
   });
   if (res.status === 404) throw new Error('not-found');
   if (!res.ok) throw new Error(`Failed to load item (${res.status})`);
-  const json = (await res.json()) as ApiEnvelope<Product>;
-  if (!json.ok || !json.data) throw new Error(json.error?.message ?? 'Failed to load item');
+  const result = await readApiEnvelope<unknown>(res);
+  if (!result?.ok || !isProduct(result.data)) {
+    throw new Error(result && !result.ok ? result.error.message : 'Failed to load item');
+  }
   return resolveProductMedia(
-    json.data,
+    result.data,
     basePath === '/api/products' ? PRODUCT_IMAGE_LIMIT : undefined,
   );
 }
@@ -101,9 +219,11 @@ export async function fetchProductBySlug(slug: string, signal?: AbortSignal): Pr
   });
   if (res.status === 404) throw new Error('not-found');
   if (!res.ok) throw new Error(`Failed to load item (${res.status})`);
-  const json = (await res.json()) as ApiEnvelope<Product>;
-  if (!json.ok || !json.data) throw new Error(json.error?.message ?? 'Failed to load item');
-  return resolveProductMedia(json.data, PRODUCT_IMAGE_LIMIT);
+  const result = await readApiEnvelope<unknown>(res);
+  if (!result?.ok || !isProduct(result.data)) {
+    throw new Error(result && !result.ok ? result.error.message : 'Failed to load item');
+  }
+  return resolveProductMedia(result.data, PRODUCT_IMAGE_LIMIT);
 }
 
 export async function fetchRelatedProducts(

@@ -174,6 +174,45 @@ test('AbortError from fetch propagates unchanged', async (t) => {
   );
 });
 
+test('malformed catalog and product payloads fail at the response boundary', async (t) => {
+  installBrowserMocks(t, [
+    jsonResponse({ items: [{ _id: 'bad', name: 42 }], total: 1, page: 1, pageSize: 24 }),
+    jsonResponse({ _id: 'bad', name: 'Bad', images: [42] }),
+    jsonResponse({
+      _id: 'bad-pricing',
+      name: 'Bad pricing',
+      alibabaCatalogPricing: {
+        schemaVersion: '1',
+        source: 'alibaba',
+        mode: 'tiered',
+        syncedAt: '2026-01-01T00:00:00.000Z',
+        sourceUpdatedAt: 42,
+        tiers: {},
+      },
+    }),
+    jsonResponse({
+      _id: 'array-status',
+      name: 'Array status',
+      alibabaSourceStatus: ['available'],
+    }),
+    jsonResponse({
+      _id: 'array-mode',
+      name: 'Array mode',
+      alibabaCatalogPricing: {
+        schemaVersion: '1',
+        source: 'alibaba',
+        mode: ['fixed'],
+        syncedAt: '2026-01-01T00:00:00.000Z',
+      },
+    }),
+  ]);
+  await assert.rejects(fetchProductFamily('toys'), /Failed to load catalog/);
+  await assert.rejects(fetchProductBySlug('bad'), /Failed to load item/);
+  await assert.rejects(fetchProductBySlug('bad-pricing'), /Failed to load item/);
+  await assert.rejects(fetchProductBySlug('array-status'), /Failed to load item/);
+  await assert.rejects(fetchProductBySlug('array-mode'), /Failed to load item/);
+});
+
 class MemoryStorage implements Storage {
   #values = new Map<string, string>();
 
