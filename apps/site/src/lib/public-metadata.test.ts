@@ -120,9 +120,20 @@ const assertBaseLayoutBindings = async (
   });
 };
 
+const routablePageFiles = (relativeDirectory = '../pages', prefix = ''): string[] => {
+  const directory = fileURLToPath(new URL(relativeDirectory, import.meta.url));
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const relativePath = `${prefix}${entry.name}`;
+    if (entry.isDirectory()) {
+      if (entry.name.startsWith('_')) return [];
+      return routablePageFiles(`${relativeDirectory}/${entry.name}`, `${relativePath}/`);
+    }
+    return entry.name.endsWith('.astro') && !entry.name.startsWith('_') ? [relativePath] : [];
+  });
+};
+
 test('public pages keep dedicated SEO metadata within review limits', async () => {
-  const routableTopLevelPages = readdirSync(fileURLToPath(new URL('../pages', import.meta.url)))
-    .filter((fileName) => fileName.endsWith('.astro') && !fileName.startsWith('_'))
+  const routablePublicPages = routablePageFiles()
     .filter((fileName) => !noindexTopLevelPages.has(fileName))
     .sort();
 
@@ -190,12 +201,16 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
       title: `${misc.seoTitle} | ${brandName}`,
       description: misc.seoDescription,
     },
+    {
+      name: 'products/item',
+      ...extractPageMetadata('../pages/products/item.astro', brandName),
+    },
   ];
 
   assert.deepEqual(
     metadata.map(({ name }) => `${name === 'home' ? 'index' : name}.astro`).sort(),
-    routableTopLevelPages,
-    'every discovered public top-level route has audited metadata',
+    routablePublicPages,
+    'every discovered public route has audited metadata',
   );
 
   for (const { name, title, description } of metadata) {
@@ -228,6 +243,10 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
       description: 'seoDescription',
     }),
     assertBaseLayoutBindings('../pages/misc.astro', {
+      title: 'seoTitle',
+      description: 'seoDescription',
+    }),
+    assertBaseLayoutBindings('../pages/products/item.astro', {
       title: 'seoTitle',
       description: 'seoDescription',
     }),

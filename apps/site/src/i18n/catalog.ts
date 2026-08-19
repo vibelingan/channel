@@ -56,6 +56,9 @@ export interface CatalogContent {
     unitPriceLabel: string;
     wholesaleLabel: string;
     inquiryCta: string;
+    oemEyebrow: string;
+    oemHeading: string;
+    oemBody: string;
     relatedHeading: string;
     notFound: string;
   };

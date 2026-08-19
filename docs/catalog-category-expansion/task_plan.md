@@ -44,8 +44,8 @@ implemented on `feat/catalog-category-design`. Alibaba API transport/scheduling 
 | 20. Implement shared family catalog | Complete | MIU 12 generation-safe controller, link grid, states, pricing, and filters pass |
 | 21. Implement family route shells | Complete | MIU 13 shared Headphones, AI Gadgets, and Toys routes pass |
 | 22. Implement Other Electronics route/indexing | Complete | MIU 14 dynamic metadata and sitemap artifact pass |
-| 23. Implement SKU detail shell | In progress | MIU 15 detail, gallery, and related products active |
-| 24. Implement remaining V1.1 MIUs | Pending | MIU 16-22 execute in dependency order |
+| 23. Implement SKU detail shell | Complete | MIU 15 detail, gallery, OEM content, related products, and journeys pass |
+| 24. Implement remaining V1.1 MIUs | In progress | MIU 16 Admin Products family tabs active |
 
 ## Scope Boundaries
 

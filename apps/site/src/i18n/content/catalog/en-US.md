@@ -37,6 +37,9 @@ detail:
   unitPriceLabel: Unit price
   wholesaleLabel: Wholesale price
   inquiryCta: Request a Quote
+  oemEyebrow: OEM / ODM Programs
+  oemHeading: Build This Product for Your Market
+  oemBody: Share your target model, quantity, branding, packaging, and market requirements with our OEM team.
   relatedHeading: Related Products
   notFound: Product not found.
 

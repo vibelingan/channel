@@ -164,6 +164,20 @@ The existing VIP pricing path is not part of this feature. Registration creates 
 - A real `SITE_URL=https://example.test` build produced 14 pages and sitemap XML containing the hub
 	plus all four family routes while excluding sampled private/redirect URLs.
 
+## MIU 15 Implementation Findings
+
+- `/products/item/?slug={slug}` remains the approved category-independent static-host address. The
+	shell uses generic bounded metadata; product facts are API-owned and rendered only after runtime
+	DTO validation.
+- Detail, missing/unknown, retryable error, and loaded states are exclusive. The Gallery now enforces
+	the product-specific nine-image ceiling independently of the public API; primary/order and stable
+	fallback behavior remain in the shared media components.
+- Linked Alibaba pricing suppresses legacy values; unlinked products prefer wholesale then unit
+	price, otherwise render the registry quote label. No VIP or video surface is present.
+- The product commits as soon as detail resolves. Related products load afterward with abort and
+	current-product guards, are restricted to same-family valid-slug rows, and can fail without hiding
+	the main detail. Registry-owned OEM/ODM copy and the canonical enquiry CTA complete the detail flow.
+
 ## Superseded Planning Note
 
 The earlier menu-only Phase 1 scope was superseded by client PDF V1.1. Implementers must use the V1.1 baseline at the top of this file and the current V1.1 LLD/MIU documents; the removed Phase 1 constraints no longer apply.

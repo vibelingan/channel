@@ -113,6 +113,10 @@
 - MIU 14 adds the registry-owned `/misc/` shell, makes the metadata audit compare discovered routes
 	to audited values dynamically, and derives sitemap family inclusion from structured catalog
 	frontmatter. MIU 14 is complete; MIU 15 SKU detail shell is active.
+- MIU 15 adds the static `/products/item/?slug=` shell and abortable detail controller with distinct
+	loading/not-found/error/retry states, max-nine Gallery, facts/MOQ, Alibaba/public/quote pricing,
+	registry-owned OEM content, enquiry CTA, and nonblocking same-family related links. MIU 15 is
+	complete; MIU 16 Admin Products family tabs is active.
 
 | Implementation check | Result |
 |---|---|
@@ -161,3 +165,7 @@
 | MIU 14 site build | Passed: 14 static pages, including `/misc/` |
 | MIU 14 generated sitemap | Passed: 5 catalog URLs included; 4 private/redirect URLs excluded |
 | MIU 14 site tests/typecheck | Passed: 164/164; Astro 0 errors; E2E TypeScript clean; scoped Biome clean |
+| MIU 15 focused detail/media tests | Passed: 14/14, including nine-image cap and SSR state rendering |
+| MIU 15 browser journeys | Passed: 4/4 direct/share/back, not-found, retry, and delayed-related degradation |
+| MIU 15 site tests/typecheck | Passed: 167/167; Astro 0 errors; E2E TypeScript clean; scoped Biome clean |
+| MIU 15 site build | Passed: 15 static pages, including `/products/item/` |
