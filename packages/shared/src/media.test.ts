@@ -24,6 +24,7 @@ import {
   OEM_UPLOAD_RATE_MAX_PER_WINDOW,
   OEM_UPLOAD_RATE_MAX_PER_WINDOW_GLOBAL,
   OEM_UPLOAD_RATE_WINDOW_MS,
+  PRODUCT_IMAGE_MAX_COUNT,
   type StorageBackedImageMetadataDoc,
   catalogImageUploadSchema,
   fileExtension,
@@ -98,6 +99,7 @@ test('media constants expose the policy vocabulary', () => {
   assert.ok(MEDIA_STATUSES.includes('pending'));
   assert.ok(MEDIA_STATUSES.includes('active'));
   assert.equal(CATALOG_IMAGE_MAX_BYTES, 10 * 1024 * 1024);
+  assert.equal(PRODUCT_IMAGE_MAX_COUNT, 9);
   assert.equal(CATALOG_IMAGE_MAX_COUNT, 18);
   assert.ok(CATALOG_IMAGE_MIME_TYPES.includes('image/webp'));
   assert.ok(BLOCKED_IMAGE_MIME_TYPES.includes('image/svg+xml'));
@@ -107,7 +109,7 @@ test('public catalog image policy is scoped to products and overstock', () => {
   assert.deepEqual(PUBLIC_CATALOG_COLLECTIONS, ['products', 'overstock']);
 });
 
-test('storefront catalog writes enforce the shared 18-image limit', () => {
+test('storefront catalog writes retain the shared 18-image compatibility limit', () => {
   const base = { name: 'Bounded product', category: 'wired' };
   const imageIds = Array.from({ length: CATALOG_IMAGE_MAX_COUNT }, (_, index) => `img-${index}`);
 

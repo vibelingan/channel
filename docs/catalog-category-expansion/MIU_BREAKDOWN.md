@@ -1,478 +1,737 @@
-# Catalog Category Expansion — Phase 1 MIU Breakdown
+# Catalog Category Expansion — V1.1 MIU Breakdown
 
-> Status: Proposed for architecture approval
-> Architecture source: `LOW_LEVEL_DESIGN.md`
-> TDD first; no implementation starts before approval
-
-## Product Tasks
-
-1. Replace the flat Headphones navigation item with an Electronics & Toys menu.
-2. Add a basic hub and in-preparation family pages.
-3. Preserve the existing populated Headphones catalog and validate it with the current local seed.
-4. Hide active public VIP pricing and registration-benefit copy without backend cleanup.
+> Requirement source: client PDF V1.1 (`b3804c067e947e8447ac6fed4eae0d1207345c1479a415f44e8e0a87fcc05d56`)
+> Single branch: `feat/catalog-category-design`
+> Method: TDD, contract-first DAG, one independently compilable MIU at a time
 
 ## Dependency DAG
 
 ```mermaid
 flowchart TD
-    M1[MIU 1: Catalog content contract]
-    M2[MIU 2: Robots policy]
-    M3[MIU 3: Header disclosure]
-    M4[MIU 4: Hub + metadata audit]
-    M5[MIU 5: Preparation shell + AI]
-    M6[MIU 6: Toys + Other routes]
-    M7[MIU 7: Sitemap exclusion]
-    M8[MIU 8: Wholesale-only detail]
-    M9[MIU 9: Headphones content]
-    M10[MIU 10: AuthShell copy]
-    M11[MIU 11: Deploy-safe E2E]
-    M12[MIU 12: Local-seed E2E]
-
-    M1 --> M3
-    M1 --> M4
-    M2 --> M4
-    M1 --> M5
-    M2 --> M5
-    M5 --> M6
-    M4 --> M7
-    M5 --> M7
-    M6 --> M7
-    M8 --> M9
-    M3 --> M11
-    M4 --> M11
-    M5 --> M11
-    M6 --> M11
-    M7 --> M11
-    M8 --> M11
-    M9 --> M11
-    M10 --> M11
-    M3 --> M12
-    M8 --> M12
-    M9 --> M12
-    M11 --> M12
+  M1[1 Product image policy] --> M2[2 Shared product contract]
+  M2 --> M3[3 Identity reservations]
+  M3 --> M4[4 Admin mutation invariants]
+  M2 --> M5[5 Public projection]
+  M5 --> M6[6 Family filtering]
+  M5 --> M7[7 Slug detail API]
+  M6 --> M8[8 Site API contract]
+  M7 --> M8
+  M2 --> M9[9 Local seed]
+  M8 --> M10[10 Catalog content and menu]
+  M8 --> M11[11 Hub]
+  M10 --> M11
+  M8 --> M12[12 Family controller]
+  M10 --> M13[13 Family routes]
+  M12 --> M13
+  M13 --> M14[14 Misc route/metadata]
+  M8 --> M15[15 SKU detail]
+  M12 --> M15
+  M2 --> M16[16 Admin tabs]
+  M4 --> M16
+  M2 --> M17[17 Admin form]
+  M4 --> M17[17 Admin form]
+  M8 --> M18[18 VIP suppression]
+  M2 --> M19[19 Alibaba compatibility]
+  M14 --> M20
+  M15 --> M20
+  M10 --> M21[21 Public/Admin E2E]
+  M11 --> M21[21 Public/Admin E2E]
+  M12 --> M21
+  M13 --> M21
+  M14 --> M21
+  M15 --> M21
+  M16 --> M21
+  M17 --> M21
+  M18 --> M21
+  M19 --> M21
+  M20 --> M21
+  M9 --> M22[22 Local seed and delivery]
+  M21 --> M22
 ```
 
-## Technical MIUs
+## MIU 1: Product-specific nine-image policy
 
-### MIU 1: Catalog presentation content loader and family registry
+**Block:** BACKEND
 
-**Block:** FRONTEND
-**Files:** `apps/site/src/i18n/catalog.ts`, `apps/site/src/i18n/content/catalog/en-US.md`, `apps/site/src/i18n/catalog-content.test.ts`
+**Files:** `packages/shared/src/media.ts`, `packages/shared/src/media.test.ts`
+
+**Type:** modify-existing
+
+**Depends on:** none
+
+**What it does:**
+
+- Adds `PRODUCT_IMAGE_MAX_COUNT = 9` as the V1.1 products policy.
+- Retains `CATALOG_IMAGE_MAX_COUNT = 18` for Overstock and legacy shared normalization, preventing image visibility/refcount regressions.
+
+**Build/Deploy/Runtime impact:**
+
+- Policy vocabulary only; runtime wiring begins in MIU 2.
+- No dependency, artifact, API, database, or deploy configuration change.
+
+**Test plan (TDD — write first):**
+
+- Assert the product policy equals 9.
+- Assert the legacy catalog/Overstock policy remains 18 and existing normalization/write tests remain unchanged.
+
+**Done when:**
+
+- Shared tests and shared typecheck pass.
+- Site tests, root workspace typecheck, E2E typecheck, and lint pass without changing current runtime behavior.
+
+## MIU 2: Shared product identity and lifecycle contract
+
+**Block:** BACKEND
+
+**Files:** `packages/shared/src/collections.ts`, `packages/shared/src/catalog-product.ts`, `packages/shared/src/catalog-product.test.ts`
+
 **Type:** new-file
-**Depends on:** none
 
-**What it does:**
-
-- Defines `CatalogFamilyKey`, `CatalogFamilyContent`, and the complete `CatalogContent` interface from `LOW_LEVEL_DESIGN.md`, including canonical family order and metadata.
-- Exposes `getCatalogContent(locale): CatalogContent` with `en-US` fallback and `getCatalogFamily(key, locale): CatalogFamilyContent` that throws for unknown keys, using the existing eager Markdown pattern.
-- Keeps the registry presentation-only: no `productFamily`, database field, API query, source category, SKU, price, inventory, or Product schema.
-
-**Build/Deploy/Runtime impact:**
-
-- Build-time content only; no runtime request, dependency, environment, API, database, or deploy change.
-- Node tests validate raw frontmatter; Astro/Vite compilation proves `import.meta.glob` loader resolution.
-
-**Test plan (TDD — write first):**
-
-- Parse raw frontmatter and assert ordered keys `headphones`, `ai-gadgets`, `toys`, `misc`, unique trailing-slash hrefs, availability tokens, and non-empty authored `availabilityLabel` values.
-- Assert titles are at most 60 characters, descriptions at most 160, and serialized content excludes `productFamily`, `vipPrice`, inventory, ratings, and reviews.
-- Assert the typed union, complete `CatalogContent` shape, locale fallback, and unknown-key throw are present; compile the actual loader with Astro.
-
-**Done when:**
-
-- Raw content tests and all existing site tests pass.
-- Site typecheck and production build compile both loader exports.
-
----
-
-### MIU 2: BaseLayout explicit robots policy
-
-**Block:** FRONTEND
-**Files:** `apps/site/src/layouts/BaseLayout.astro`, `apps/site/src/lib/public-metadata.test.ts`
-**Type:** modify-existing
-**Depends on:** none
-
-**What it does:**
-
-- Adds `RobotsPolicy = 'index,follow' | 'noindex,follow' | 'noindex,nofollow'` and optional `robots?: RobotsPolicy` to `BaseLayout`.
-- Resolves explicit robots first, legacy `noindex=true` second, and public default last; both noindex modes suppress social/schema output.
-- Revalidates this seam after rebasing the active SEO metadata work; no breadcrumb or JSON-LD is added.
-
-**Build/Deploy/Runtime impact:**
-
-- Static head output only; no runtime, dependency, environment, or deploy change.
-- Overlaps active SEO metadata files, so rebase and focused conflict review are mandatory.
-
-**Test plan (TDD — write first):**
-
-- Source/AST assert the exact union, precedence, and backward mapping `noindex=true -> noindex,nofollow`.
-- Assert default public pages remain indexable and both noindex policies suppress social/schema output by inspecting BaseLayout branches.
-- Use Astro typecheck/build as proof that invalid robots values cannot be passed by real pages.
-
-**Done when:**
-
-- Existing metadata tests pass with unchanged private/public meaning.
-- Site typecheck and production build pass after current SEO changes are rebased.
-
----
-
-### MIU 3: SiteHeader catalog disclosure and nav-source replacement
-
-**Block:** FRONTEND
-**Files:** `apps/site/src/components/SiteHeader.astro`, `apps/site/src/i18n/content/en-US.md`, `apps/site/src/header-catalog-source-contract.test.ts`
-**Type:** modify-existing
 **Depends on:** MIU 1
 
 **What it does:**
 
-- Removes the flat Headphones nav record from `apps/site/src/i18n/content/en-US.md`; `SiteHeader.astro` imports `getCatalogContent()` from `apps/site/src/i18n/catalog.ts` internally, avoiding changes to existing callers.
-- Renders desktop and mobile native disclosures from the same registry: hub plus four family links, current-route indication, 44px targets, and no hover-only opening.
-- Extends the script for desktop Escape/outside/focus-leave closure and mobile focus transfer: opening focuses the first actionable menu control; Escape restores hamburger focus.
-- Keeps measured switching, account controls, link-close behavior, and no-JS navigation; no hidden `/headphones` filter is introduced.
+- Defines `ProductFamily`, slug/SKU normalization, reserved-slug validation, legacy Headphones family resolution, and draft/publish/archive state validation.
+- Adds products fields `productFamily`, optional `category`, `skuCode`, `slug`, `archived`; products use `PRODUCT_IMAGE_MAX_COUNT` while Overstock retains 18.
+- Registers hidden server-managed `catalogProductIdentities` reservation collection and marks `vipPrice` deprecated/hidden from generic Admin form metadata.
 
 **Build/Deploy/Runtime impact:**
 
-- Global Header markup/script changes on every public page; no new island or dependency.
-- Trigger width can move 1360px layouts to mobile; browser validation belongs to MIU 11.
+- Changes shared schemas consumed by Admin, local server, public function, and Alibaba function builds.
+- No storage migration is executed; legacy drafts remain readable/writable under explicit compatibility rules.
 
 **Test plan (TDD — write first):**
 
-- Assert site Markdown has no flat Headphones nav record and Header imports the MIU 1 contract instead of duplicating labels/URLs.
-- Source-assert one desktop and one mobile disclosure, exact five destinations per variant, current-page semantics, 44px classes, and no hidden route filter.
-- Source-assert Escape/outside/focus-leave handlers plus mobile open/Escape focus transfer; no-JS links remain literal anchors.
+- Accept a legacy unpublished Headphones row and resolve its family without mutation; reject unknown families and invalid/reserved slugs.
+- Reject publication without family, slug, SKU code, description, or image; reject archived+published; accept a complete nine-image product and reject ten.
+- Assert Alibaba fields and identity reservations are read-only/hidden from generic CRUD.
 
 **Done when:**
 
-- Header source/content tests and all existing site tests pass without modifying Header call sites.
-- Site typecheck and production build pass.
+- Shared tests and typecheck pass, including existing Alibaba collection snapshots or deliberately updated additive expectations.
+- All workspace typechecks compile the additive schema.
 
----
+## MIU 3: Atomic catalog identity reservation repository
 
-### MIU 4: ElectronicsAndToys hub, family cards, and dynamic route metadata audit
+**Block:** BACKEND
 
-**Block:** FRONTEND
-**Files:** `apps/site/src/components/CatalogFamilyCard.astro`, `apps/site/src/pages/electronics-toys.astro`, `apps/site/src/lib/public-metadata.test.ts`
+**Files:** `apps/functions/admin/src/catalog-product-identities.ts`, `apps/functions/admin/src/catalog-product-identities.test.ts`, `packages/db/src/index.ts`
+
 **Type:** new-file
-**Depends on:** MIUs 1, 2
+
+**Depends on:** MIU 2
 
 **What it does:**
 
-- `CatalogFamilyCard` accepts `{ family: CatalogFamilyContent }` from `apps/site/src/i18n/catalog.ts` and renders label, summary, authored `availabilityLabel`, and anchor only.
-- Hub consumes `CatalogContent` from `apps/site/src/i18n/catalog.ts`, `OEM_INQUIRY_HREF` from `apps/site/src/lib/site-navigation.ts`, and MIU 2 robots policy; renders Header/Footer, one H1, four cards, and enquiry CTA.
-- Refactors `public-metadata.test.ts` from a hardcoded route list to dynamically audit every existing routable top-level page for bounded unique metadata and valid BaseLayout bindings, while retaining required baseline routes.
-- Renders no product media, fake inventory, Featured Products, API request, SKU, price, MOQ, review, or certification.
+- Reserves normalized `slug` and case-folded `skuCode` through deterministic `createDocWithId` rows.
+- Supports create, identity change, idempotent same-owner retry, and compensation of only current-attempt reservations.
+- Exposes no generic Admin route; storage atomicity is the uniqueness gate.
 
 **Build/Deploy/Runtime impact:**
 
-- One static route and one server component; no runtime product request/backend deploy.
-- Local/test-preview only pending client approval; sitemap exclusion lands in MIU 7 before integration completion.
+- Adds Admin-function repository logic over the existing DB facade.
+- Admin function bundle/cold-start context must compile; no new package or environment variable.
 
 **Test plan (TDD — write first):**
 
-- Assert family-card API and hub contract imports; assert one H1, four family records with authored availability labels, enquiry CTA, bounded metadata, and `robots="noindex,follow"`.
-- Assert dynamic metadata test discovers actual routable pages rather than requiring future missing files.
-- Assert absence of fetch/product arrays/cards/prices/MOQ/SKU and compile the new route with Astro.
+- Two concurrent products reserving the same slug/SKU yield exactly one fulfilled owner and one conflict, with one stored reservation per identity.
+- A failed product write removes only reservations created by that attempt; another product's reservation survives.
+- Changing identity reserves new values before releasing old values; retry by same owner is idempotent.
 
 **Done when:**
 
-- Metadata and site tests pass immediately with only the hub route present.
-- Site typecheck and production build pass; browser/layout tests wait for MIU 11.
+- Focused reservation tests and Admin function typecheck pass.
+- Root tests/typecheck and function artifact build remain green.
 
----
+## MIU 4: Admin product mutation invariants
 
-### MIU 5: CatalogFamilyPage shell and AI Gadgets route
+**Block:** BACKEND
 
-**Block:** FRONTEND
-**Files:** `apps/site/src/components/CatalogFamilyPage.astro`, `apps/site/src/pages/ai-gadgets.astro`, `apps/site/src/catalog-category-phase1-contract.test.ts`
-**Type:** new-file
-**Depends on:** MIUs 1, 2
+**Files:** `apps/functions/admin/src/handler.ts`, `apps/functions/admin/src/handler.test.ts`, `apps/functions/admin/src/catalog-product-identities.ts`
+
+**Type:** modify-existing
+
+**Depends on:** MIU 3
 
 **What it does:**
 
-- `CatalogFamilyPage` accepts `{ site: SiteContent; family: CatalogFamilyContent & { availability: 'in-preparation' } }`, consuming types from `site.ts` and `catalog.ts`.
-- Shell consumes `OEM_INQUIRY_HREF` from `apps/site/src/lib/site-navigation.ts`, renders Header/Footer, one H1, summary, preparation message, CTA, and MIU 2 `noindex,follow`; no breadcrumb/JSON-LD.
-- AI route is a thin `getCatalogFamily('ai-gadgets')` consumer with no route-local product/copy array.
+- Routes product create/update through identity reservation and the shared lifecycle validator while leaving other generic collections unchanged.
+- Defaults create to draft/non-archived; archive forces unpublish; unarchive returns to draft.
+- Rejects generic `vipPrice` writes and all Alibaba read-only fields without clearing existing stored values.
 
 **Build/Deploy/Runtime impact:**
 
-- One static route/component; no API, database, dependency, function, or runtime request.
-- Local/test-preview only pending client approval; sitemap exclusion lands in MIU 7.
+- Changes Admin API product mutations and local-server parity because local delegates to the same handler.
+- Admin function build/package/cold-start smoke required; no new endpoint or secret.
 
 **Test plan (TDD — write first):**
 
-- Assert exact component props and contract-source imports; AI route resolves the typed key and duplicates no family copy.
-- Assert H1, preparation copy, OEM CTA, canonical, noindex, and absence of fetch/API/client directive/product facts/breadcrumb/schema.
-- Run dynamic metadata audit from MIU 4 to prove adding this actual route does not break route inventory.
+- Create defaults draft; incomplete publish rejects; complete publish succeeds; archive unpublishes; unarchive remains draft.
+- Duplicate slug/SKU returns conflict and stores one product; non-product CRUD remains byte-compatible.
+- VIP/Alibaba forged writes reject while ordinary curated fields update.
+- Admin and contributor may publish/unpublish/archive; viewer/member/blank/anonymous/suspended/invalid sessions are denied with no product or reservation mutation.
 
 **Done when:**
 
-- Contract, metadata, and all site tests pass with AI route present.
-- Site typecheck and production build pass; browser/layout tests wait for MIU 11.
+- Admin tests/typecheck and local-server typecheck pass.
+- Root tests and packaged Admin cold-start smoke pass.
 
----
+## MIU 5: Public product projection and legacy fallback
 
-### MIU 6: Toys and Other family route consumers
+**Block:** BACKEND
 
-**Block:** FRONTEND
-**Files:** `apps/site/src/pages/toys.astro`, `apps/site/src/pages/misc.astro`, `apps/site/src/catalog-category-phase1-contract.test.ts`
-**Type:** new-file
+**Files:** `apps/functions/public-api/src/handler.ts`, `apps/functions/public-api/src/http-adapter.test.ts`
+
+**Type:** modify-existing
+
+**Depends on:** MIU 2
+
+**What it does:**
+
+- Adds `productFamily`, `skuCode`, and `slug` to the public allowlist and suppresses archived products.
+- Projects missing-family `wired|office|bluetooth` rows as Headphones without mutating storage.
+- Applies the product-specific nine-image projection while preserving Overstock's 18-image contract and current Alibaba private-key stripping.
+
+**Build/Deploy/Runtime impact:**
+
+- Additive public product response; public function and local parity builds change.
+- Authorization/cache headers and VIP legacy projection remain unchanged.
+
+**Test plan (TDD — write first):**
+
+- Anonymous product list/detail exposes identity and at most nine ordered images, never `imageIds`, timestamps, archived rows, or VIP.
+- Legacy Headphones projection adds family in response while adapter store remains unchanged.
+- Overstock still projects up to 18 images and Alibaba source private keys remain absent.
+
+**Done when:**
+
+- Public API tests/typecheck pass.
+- Public function package/cold-start smoke and root tests pass.
+
+## MIU 6: Public family and subcategory filtering
+
+**Block:** BACKEND
+
+**Files:** `apps/functions/public-api/src/handler.ts`, `apps/functions/public-api/src/http-adapter.ts`, `apps/functions/public-api/src/http-adapter.test.ts`
+
+**Type:** modify-existing
+
 **Depends on:** MIU 5
 
 **What it does:**
 
-- Adds thin consumers of `apps/site/src/components/CatalogFamilyPage.astro` and `apps/site/src/i18n/catalog.ts` for `toys` and `misc`.
-- Displays `Other Electronics & Toys` from the registry without declaring a storage/SEO contract.
-- Uses MIU 5 shell and its `apps/site/src/lib/site-navigation.ts` enquiry contract; no route-local copy/product arrays.
+- Parses a closed-set `productFamily` query and composes it with subcategories, search, pagination, publication, and archive filters.
+- Includes legacy missing-family rows only for Headphones through a bounded compatibility merge with stable `_id` ordering and dedupe.
 
 **Build/Deploy/Runtime impact:**
 
-- Two static routes; no runtime/API/database/dependency change.
-- Local/test-preview only pending client approval; sitemap exclusion lands next.
+- Adds a query option to existing list route; no new route or dependency.
+- Public function and local-server integration tests/builds required.
 
 **Test plan (TDD — write first):**
 
-- Assert both routes delegate to shared shell, resolve exact typed keys, and contain no duplicated copy/product arrays.
-- Assert exact H1s, metadata, noindex, CTA, and absence of API/product facts/breadcrumb/schema.
-- Run dynamic metadata audit and compile both routes.
+- Each family filter returns only that family; unknown family rejects; Headphones subcategory filters independently.
+- Headphones includes legacy rows, other families do not; pages contain no duplicates and preserve stable order/total.
+- Search plus family plus page size composes without bypassing publication/archive gates.
 
 **Done when:**
 
-- Contract, metadata, and all site tests pass with all four new routes present.
-- Site typecheck and production build pass; browser/layout tests wait for MIU 11.
+- Public API focused/all tests and typecheck pass.
+- Root tests and function artifact smoke pass.
 
----
+## MIU 7: Published SKU slug detail endpoint
 
-### MIU 7: Catalog preview sitemap exclusion contract
+**Block:** BACKEND
 
-**Block:** INFRASTRUCTURE
-**Files:** `apps/site/astro.config.ts`, `apps/site/src/catalog-indexing-contract.test.ts`
+**Files:** `apps/functions/public-api/src/handler.ts`, `apps/functions/public-api/src/http-adapter.ts`, `apps/functions/public-api/src/http-adapter.test.ts`
+
 **Type:** modify-existing
-**Depends on:** MIUs 4, 5, 6
+
+**Depends on:** MIU 5
 
 **What it does:**
 
-- Adds dedicated `CATALOG_PREVIEW_PATHS` for the exact four route files from MIUs 4–6 and excludes them from sitemap separately from private paths.
-- Cross-checks each actual route uses `robots="noindex,follow"`; leaves robots.txt unchanged and Headphones in sitemap.
-- Adds no redirect, lastmod, hreflang, Product schema, or publication approval.
+- Adds `GET /api/products/slug/:slug`, reusing the public projection and legacy family fallback.
+- Serves only published, non-archived products; existing ID detail remains compatibility-only.
 
 **Build/Deploy/Runtime impact:**
 
-- Production sitemap output changes; real site build mandatory.
-- No runtime/dependency/environment/API/function/robots.txt change.
+- Adds one public-function route accepted in gateway-prefixed and stripped shapes.
+- Public function bundle/local parity tests and artifact smoke required.
 
 **Test plan (TDD — write first):**
 
-- Assert exact four actual route files match the preview set and each page's robots usage.
-- Build and assert sitemap excludes previews, retains Headphones, and robots.txt does not Disallow previews.
-- Assert either-side drift fails focused contract test.
+- Published slug returns 200; unknown, unpublished, and archived slugs return identical 404 contracts.
+- Encoded/invalid slugs cannot alter routing; Alibaba private keys and VIP remain absent anonymously.
+- Gateway-prefixed and stripped slug paths resolve identically.
 
 **Done when:**
 
-- Indexing/site tests, site typecheck, and real production build pass.
-- Generated sitemap and unchanged robots.txt satisfy the contract.
+- Public API and local parity tests/typechecks pass.
+- Packaged public function cold-start smoke passes.
 
----
-
-### MIU 8: HeadphonesProductDetail wholesale-only rendering
+## MIU 8: Site catalog DTO and fetch helpers
 
 **Block:** FRONTEND
-**Files:** `apps/site/src/islands/shop/HeadphonesProductDetail.tsx`, `apps/site/src/islands/shop/headphones-detail-render.test.ts`, `apps/site/src/islands/shop/alibaba-routing-render.test.ts`
+
+**Files:** `apps/site/src/islands/shop/catalog-types.ts`, `apps/site/src/islands/shop/api.ts`, `apps/site/src/islands/shop/api.test.ts`
+
 **Type:** modify-existing
-**Depends on:** none
+
+**Depends on:** MIUs 6–7
 
 **What it does:**
 
-- Keeps `registered` in `HeadphonesProductDetailProps` for compile compatibility but omits it from function destructuring and every rendering reference; unlinked products render public/wholesale price or quote without VIP value/label/lock.
-- Updates both direct render-test consumers. Alibaba-linked routing and no-legacy-fallback assertions remain intact.
-- Leaves HeadphonesPage, Product types, API projection, roles, Admin, PriceBlock, and Alibaba data contracts unchanged.
+- Adds family/slug/SKU fields and family query typing to the browser contract.
+- Adds family list, slug detail, and same-family related-product helpers with media normalization capped at nine for products.
+- Preserves current token lookup, AbortSignal, pagination, and Alibaba pricing DTO.
 
 **Build/Deploy/Runtime impact:**
 
-- Active detail rendering only; no API/auth/database/dependency/function change.
+- Browser request shapes change; no dependency or deploy config.
+- Site test/typecheck/build contexts required.
 
 **Test plan (TDD — write first):**
 
-- Render wholesale `$15.50` and VIP `$13.20`; assert wholesale remains and VIP amount/label/lock/login are absent for both registered values.
-- Assert Alibaba fixed/range/tiered/negotiable/unavailable routing remains and never falls back.
-- Assert unit price, MOQ, enquiry CTA, detail/back focus markers remain.
+- Assert exact encoded family/category/search/page query and slug path encoding.
+- Assert token is read per request and AbortError propagates.
+- Assert product media stops at nine while response order/primary image remain stable.
 
 **Done when:**
 
-- Detail/Alibaba routing/all site tests pass.
-- Site typecheck and production build pass without signature changes.
+- Focused/all site tests and site typecheck pass.
+- Site production build passes.
 
----
+## MIU 9: Full-family local seed fixtures
 
-### MIU 9: Headphones active-content VIP suppression
+**Block:** INTEGRATION
+
+**Files:** `apps/local-server/src/seed.ts`, `apps/local-server/src/seed.test.ts`
+
+**Type:** modify-existing
+
+**Depends on:** MIU 2
+
+**What it does:**
+
+- Preserves six existing Headphones and adds clearly synthetic local-only AI Gadgets, Toys, and Misc products with unique identity and max-nine images.
+- Keeps one legacy no-family Headphones fixture for compatibility tests; includes no video or VIP values on new products.
+
+**Build/Deploy/Runtime impact:**
+
+- Local development database only; no production migration or asset upload.
+- Local-server tests/typecheck required.
+
+**Test plan (TDD — write first):**
+
+- Assert all four families, unique normalized slug/SKU, draft/published intent, and no product exceeds nine images.
+- Assert six original Headphones remain and one legacy row lacks family intentionally.
+- Assert new fixtures include no `vipPrice` or video field.
+
+**Done when:**
+
+- Local seed tests and local-server typecheck pass.
+- Clean temporary DB boots deterministically.
+
+## MIU 10: Catalog content registry and accessible global menu
 
 **Block:** FRONTEND
-**Files:** `apps/site/src/i18n/headphones.ts`, `apps/site/src/i18n/content/headphones/en-US.md`, `apps/site/src/i18n/headphones-content.test.ts`
-**Type:** modify-existing
+
+**Files:** `apps/site/src/i18n/catalog.ts`, `apps/site/src/i18n/content/catalog/en-US.md`, `apps/site/src/components/SiteHeader.astro`
+
+**Type:** new-file
+
 **Depends on:** MIU 8
 
 **What it does:**
 
-- Removes VIP from metadata and sets active Markdown `vipLabel`/`vipLockedLabel` values to empty strings so no VIP copy is serialized into hydration props.
-- Keeps both TypeScript properties required but marks them deprecated for cross-branch compile compatibility; permanent type removal and legacy-component cleanup remain deferred.
-- Updates the complete real-interface content fixture while preserving hero provenance, public/wholesale labels, enquiry, recovery, and metadata bounds; leaves storage/API/role/Admin/ProductDetail/PriceBlock/Alibaba contracts untouched.
+- Defines typed family/menu/hub/list/detail copy and category media references.
+- Replaces flat Headphones nav with desktop/mobile native disclosures using one registry.
+- Supports keyboard, Escape/focus return, outside/focus-leave close, no-JS links, active state, and 44px targets.
 
 **Build/Deploy/Runtime impact:**
 
-- Static metadata/content and hydration-prop change only; no backend/auth/deploy config.
+- Global Header markup/script changes on all public pages; no new dependency.
+- Site production build and global Header browser tests required.
 
 **Test plan (TDD — write first):**
 
-- Assert active frontmatter values for vipLabel/vipLockedLabel are empty and metadata contains no VIP pricing/registration benefit, while type source marks both required keys deprecated.
-- Assert complete typed fixture retains wholesale/public pricing, hero source hashes/dimensions, OEM CTA, and recovery copy.
-- Build and scan Headphones HTML/hydration output for absence of VIP strings.
+- Raw content test asserts exactly four families and valid assets/routes; no video/VIP copy.
+- Header source/render test asserts one desktop/mobile disclosure, five links, semantic active state, and no duplicate flat Headphones item.
+- No-JS source contains ordinary anchors; focus handlers exist for Escape/mobile open.
 
 **Done when:**
 
-- Content, metadata, detail, catalog, Alibaba routing, and all site tests pass.
-- Site typecheck and production build pass with narrowed content shape.
+- Site content/header tests, typecheck, and production build pass.
+- Existing public page Header contract remains contained.
 
----
-
-### MIU 10: AuthShell neutral account/OEM copy contract
+## MIU 11: Electronics & Toys hub and Featured Products
 
 **Block:** FRONTEND
-**Files:** `apps/site/src/components/AuthShell.astro`, `apps/site/src/auth-shell-source-contract.test.ts`
+
+**Files:** `apps/site/src/pages/electronics-toys.astro`, `apps/site/src/components/CatalogFamilyCard.astro`, `apps/site/src/islands/shop/FeaturedProducts.tsx`
+
+**Type:** new-file
+
+**Depends on:** MIUs 8, 10
+
+**What it does:**
+
+- Renders one H1, introduction, four image-backed family links, quote CTA, and API-backed Featured Products.
+- Featured states are loading/error/retry/empty/real data and never fabricate product claims.
+
+**Build/Deploy/Runtime impact:**
+
+- New static route and one hydrated list request; no backend change.
+- Site tests/typecheck/build and browser verification required.
+
+**Test plan (TDD — write first):**
+
+- Assert exactly four family cards with approved/fallback media dimensions and destinations.
+- Assert featured loading/error/retry/empty/real states and public card fields; no VIP/video.
+- Assert one H1, bounded metadata, CTA, and no horizontal overflow in E2E.
+
+**Done when:**
+
+- Focused/all site tests, typecheck, and build pass.
+- Hub browser smoke passes at mobile/desktop.
+
+## MIU 12: Shared family catalog controller and grid
+
+**Block:** FRONTEND
+
+**Files:** `apps/site/src/islands/shop/CatalogFamilyPage.tsx`, `apps/site/src/islands/shop/CatalogFamilyGrid.tsx`, `apps/site/src/islands/shop/catalog-family-render.test.ts`
+
+**Type:** new-file
+
+**Depends on:** MIU 8
+
+**What it does:**
+
+- Owns family fetch, AbortController/generation, filters, pagination, retry, dedupe, and URL-backed card links.
+- Grid renders primary image, name, SKU/model, description, MOQ, Alibaba/public price or quote, and no VIP.
+- Headphones receives three subcategories; other families omit unconfigured filter bars.
+
+**Build/Deploy/Runtime impact:**
+
+- New React island shared by four routes; no dependency.
+- Site tests/typecheck/build required.
+
+**Test plan (TDD — write first):**
+
+- Stale/aborted responses cannot commit; filter resets page; overlapping pages dedupe and keep order.
+- Loading/error/retry/empty/success/load-more render mutually exclusive accessible states.
+- Cards contain required fields/stable SKU links and no VIP/video; missing image/price fall back correctly.
+
+**Done when:**
+
+- Focused state/render tests and all site tests pass.
+- Site typecheck/build pass.
+
+## MIU 13: Four family route shells
+
+**Block:** FRONTEND
+
+**Files:** `apps/site/src/pages/headphones.astro`, `apps/site/src/pages/ai-gadgets.astro`, `apps/site/src/pages/toys.astro`
+
 **Type:** modify-existing
-**Depends on:** none
+
+**Depends on:** MIUs 10, 12
 
 **What it does:**
 
-- Replaces VIP registration-benefit copy with neutral account and OEM enquiry wording.
-- Preserves brand link, responsive two-panel shell, slot, title/footer output, and all auth behavior.
+- Preserves Headphones URL/hero while switching catalog list to the shared family controller.
+- Adds AI Gadgets and Toys shells with typed content, family key, one H1, canonical, and quote CTA.
 
 **Build/Deploy/Runtime impact:**
 
-- Static copy shared by login/register/reset pages; no auth/API/dependency change.
+- Two new static routes and one existing route update.
+- Site metadata tests/typecheck/build required.
 
 **Test plan (TDD — write first):**
 
-- Assert no case-insensitive VIP/member-price/unlock-pricing wording remains.
-- Assert neutral copy, slot, brand home link, responsive classes, and title output remain.
-- Build and scan auth outputs for no VIP copy.
+- Assert route family keys, one H1, unique metadata, correct canonical, and no duplicated route-local copy.
+- Assert Headphones retains hero and wired/office/bluetooth filters.
+- Assert all shells pass the shared content/API contract and no VIP/video copy.
 
 **Done when:**
 
-- Focused/all site tests pass.
-- Site typecheck and production build pass.
+- Route/content/metadata tests, site typecheck, and build pass.
+- Existing `/headphones/` smoke remains green.
 
----
+## MIU 14: Other Electronics route and metadata inventory
 
-### MIU 11: Deploy-safe catalog browser contract and public-gate wiring
+**Block:** FRONTEND
+
+**Files:** `apps/site/src/pages/misc.astro`, `apps/site/src/lib/public-metadata.test.ts`, `apps/site/astro.config.ts`
+
+**Type:** new-file
+
+**Depends on:** MIU 13
+
+**What it does:**
+
+- Adds Misc route with public label Other Electronics & Toys.
+- Updates dynamic public route metadata audit and sitemap inclusion/exclusion based on actual published family content.
+
+**Build/Deploy/Runtime impact:**
+
+- New static route and sitemap output change.
+- Real site production build required.
+
+**Test plan (TDD — write first):**
+
+- Assert unique bounded metadata, one H1, canonical, and correct family key/label.
+- Assert sitemap includes hub/populated families and excludes empty/noindex families.
+- Assert all public top-level routes are audited without hardcoded stale inventory.
+
+**Done when:**
+
+- Metadata/indexing tests, site typecheck, and production build pass.
+- Generated sitemap matches contract.
+
+## MIU 15: SKU detail shell, gallery, and related products
+
+**Block:** FRONTEND
+
+**Files:** `apps/site/src/pages/products/item.astro`, `apps/site/src/islands/shop/SkuDetailPage.tsx`, `apps/site/src/islands/shop/sku-detail-render.test.ts`
+
+**Type:** new-file
+
+**Depends on:** MIUs 8, 12
+
+**What it does:**
+
+- Reads slug query, loads detail, and renders max-nine ordered gallery, facts, MOQ, public/Alibaba price or quote, OEM content/enquiry, and related same-family products.
+- Renders loading/not-found/error/retry and suppresses absent sections, VIP, video, and unapproved claims.
+
+**Build/Deploy/Runtime impact:**
+
+- New static page shell plus detail/related API requests.
+- Site tests/typecheck/build and browser verification required.
+
+**Test plan (TDD — write first):**
+
+- Nine images preserve primary/order; tenth never renders; missing image uses stable fallback.
+- Published product renders identity/facts/quote; missing/archived returns not-found UI; retry recovers.
+- Related products share family, exclude current ID, and links preserve stable slug query.
+
+**Done when:**
+
+- Focused/all site tests, typecheck, and build pass.
+- Direct/share/back browser journeys pass.
+
+## MIU 16: Admin Products family tabs
+
+**Block:** FRONTEND
+
+**Files:** `apps/site/src/islands/admin/CollectionView.tsx`, `apps/site/src/islands/admin/sections.ts`, `apps/site/src/islands/admin/product-family-tabs.test.ts`
+
+**Type:** modify-existing
+
+**Depends on:** MIUs 2, 4
+
+**What it does:**
+
+- Adds All/four-family tabs only inside Products, stored in URL query and composed with search/filter/sort/page.
+- Tab switch resets page/selection; New carries family context; mobile uses scrollable tabs/select.
+
+**Build/Deploy/Runtime impact:**
+
+- Admin React UI only; no backend or dependency.
+
+**Test plan (TDD — write first):**
+
+- Tab filter composition, URL recovery, reset page/selection, and All cross-family behavior.
+- Non-product collections render no family tabs and retain existing queries.
+- Mobile tab control fits and remains keyboard accessible.
+
+**Done when:**
+
+- Focused/all site tests and site typecheck pass.
+- Admin browser tab journey passes.
+
+## MIU 17: Admin product form and nine-image management
+
+**Block:** FRONTEND
+
+**Files:** `apps/site/src/islands/admin/RecordForm.tsx`, `apps/site/src/islands/admin/ImageManager.tsx`, `apps/site/src/islands/admin/product-form.test.ts`
+
+**Type:** modify-existing
+
+**Depends on:** MIUs 2, 4
+
+**What it does:**
+
+- Shows product family/subcategory/identity/content/media/pricing/lifecycle fields with family prefill and incompatible-category clearing.
+- Hides VIP input; separates Alibaba read-only status; labels first image primary and limits products to nine.
+- Shows server publish/uniqueness errors at relevant fields.
+
+**Build/Deploy/Runtime impact:**
+
+- Admin create/edit UI only.
+
+**Test plan (TDD — write first):**
+
+- Correct product fields visible; VIP/Alibaba editable controls absent; other collection forms unchanged.
+- Family change clears Headphones-only category and announces tab move.
+- Nine image slots, primary ordering, over-limit block, publish validation, and server error mapping.
+
+**Done when:**
+
+- Focused image/form and all site tests/typecheck pass.
+- Admin create/edit browser smoke passes.
+
+## MIU 18: Public and auth VIP presentation suppression
+
+**Block:** FRONTEND
+
+**Files:** `apps/site/src/islands/shop/HeadphonesProductDetail.tsx`, `apps/site/src/i18n/content/headphones/en-US.md`, `apps/site/src/components/AuthShell.astro`
+
+**Type:** modify-existing
+
+**Depends on:** MIU 8
+
+**What it does:**
+
+- Removes VIP values/labels/locks and registration-benefit copy from active public/auth surfaces.
+- Preserves legacy field/type/API/role and Alibaba pricing renderer.
+
+**Build/Deploy/Runtime impact:**
+
+- Public/auth rendering and hydrated copy only; no backend change.
+
+**Test plan (TDD — write first):**
+
+- Anonymous/member renders are VIP-free and identical for public manual pricing while public/Alibaba price or quote remains.
+- Built Headphones/auth HTML contains no VIP/unlock copy.
+- Alibaba routing modes remain unchanged and never fall back to legacy values.
+
+**Done when:**
+
+- Existing/focused site tests, typecheck, and build pass.
+- Browser VIP-negative checks pass.
+
+## MIU 19: Alibaba compatibility regression suite
 
 **Block:** TESTING
-**Files:** `tests/e2e/catalog-category.spec.ts`, `tests/e2e/public.spec.ts`, `package.json`
+
+**Files:** `apps/functions/alibaba-catalog-sync/src/linking.test.ts`, `apps/functions/alibaba-catalog-sync/src/promotion.test.ts`, `packages/shared/src/alibaba-collections.test.ts`
+
 **Type:** new-test
-**Depends on:** MIUs 3, 4, 5, 6, 7, 8, 9, 10
+
+**Depends on:** MIU 2
 
 **What it does:**
 
-- Adds environment-independent tests for disclosures, routes, empty states, VIP absence, no-JS, mobile focus transfer, and responsive containment.
-- Updates `test:e2e:public` to include both specs; existing e2e/deploy workflows consume this script.
-- Measures and asserts Header geometry established by MIU 3, including summaries and links; this MIU does not change production Header code or assume catalog DB contents.
+- Pins V1.1 curated ownership without changing Alibaba API calls, scheduler, auth, or worker implementation.
+- Verifies identity/lifecycle additions remain server-safe/read-only where required.
 
 **Build/Deploy/Runtime impact:**
 
-- Test script/E2E only; no production runtime.
-- Deployed test/preview execution required before merge; production publication remains prohibited until client URL approval.
+- Test-only, but Alibaba package/function typecheck/build contexts must pass.
 
 **Test plan (TDD — write first):**
 
-- Desktop 1360/1440 tests Enter/Space/click, Escape focus return, outside/focus-leave closure, active marker, five links, no collision.
-- Mobile 320/390/768/1024 tests hamburger focus transfer/return, nested disclosure, 44px targets, no history entry, no overflow.
-- Routes test H1/canonical/noindex/no fake products/no product requests on preparation pages/no VIP copy/no-JS/no console errors.
-- Under `prefers-reduced-motion: reduce`, assert disclosure/page transitions are disabled and Headphones focus scrolling uses non-smooth behavior.
+- Unmapped category creates no product and never defaults Misc; mapped draft remains unpublished.
+- Promotion patch contains only Alibaba-owned fields and preserves family/category/slug/SKU/images/published/archived.
+- Generic Admin cannot write Alibaba fields; no new endpoint/scheduler config appears.
 
 **Done when:**
 
-- Updated public script passes locally and against controlled deployed test/preview URL.
-- Fresh root `pnpm typecheck` (including E2E), lint, tests, and production build pass.
+- Alibaba package/function/shared tests and typechecks pass.
+- Alibaba function build/package smoke passes.
 
----
+## MIU 20: Catalog SEO and breadcrumb contract
 
-### MIU 12: Clean-local-seed Headphones browser contract and execution record
+**Block:** FRONTEND
+
+**Files:** `apps/site/src/layouts/BaseLayout.astro`, `apps/site/src/lib/catalog-seo.ts`, `apps/site/src/lib/catalog-seo.test.ts`
+
+**Type:** new-file
+
+**Depends on:** MIUs 14–15
+
+**What it does:**
+
+- Adds visible-hierarchy BreadcrumbList and real-data-only Product/Offer schema helpers after rebasing current SEO metadata work.
+- Provides bounded unique metadata, canonical, one-H1 and noindex decisions for family/SKU shells.
+- Emits no placeholder ratings/reviews/inventory/warranty or Product schema for empty/missing data.
+
+**Build/Deploy/Runtime impact:**
+
+- Static head/JSON-LD output; overlaps SEO branch and requires conflict re-derivation.
+- Site production build required.
+
+**Test plan (TDD — write first):**
+
+- Visible breadcrumb items equal BreadcrumbList positions/URLs.
+- Product schema emits only approved real fields and omits unsupported claims; empty/unpublished emits none.
+- Titles/descriptions/canonicals/noindex/sitemap contracts remain bounded and unique.
+
+**Done when:**
+
+- Catalog/public metadata/social tests, site typecheck, and build pass after rebase.
+- Structured-data browser/source checks pass.
+
+## MIU 21: Public and Admin E2E workflows
 
 **Block:** TESTING
-**Files:** `tests/e2e/catalog-category-local-seed.spec.ts`, `docs/catalog-category-expansion/PHASE1_EXECUTION.md`
+
+**Files:** `tests/e2e/catalog-category.spec.ts`, `tests/e2e/catalog-admin.spec.ts`, `package.json`
+
 **Type:** new-test
-**Depends on:** MIUs 3, 8, 9, 11
+
+**Depends on:** MIUs 10–20
 
 **What it does:**
 
-- Requires `E2E_EXPECT_LOCAL_SEED=1` before page/request creation and fails if absent; never data-dependent skips.
-- Against clean temporary DB, asserts six existing products, three groups, unique cards, detail/Back focus, error/retry, and missing-media fallback without editing seed.
-- Records local results plus MIU 11 deploy-safe results and explicit production-deploy prohibition pending client URLs.
+- Adds deploy-safe public journeys and opt-in credentialed Admin CRUD journeys; wires explicit scripts.
+- Uses run-ID records and finally cleanup; once mutation opt-in is set, missing credentials fail rather than skip.
 
 **Build/Deploy/Runtime impact:**
 
-- Local test/documentation only; excluded from deploy-safe script.
+- Test scripts only; deployed test/preview environment required.
 
 **Test plan (TDD — write first):**
 
-- Assert exact six names/groups and fail on any mismatch.
-- Assert detail/Back/public pricing/no VIP behavior.
-- Intercept initial 503/retry and missing media/fallback; no duplicate requests or layout shift.
+- Public: menu keyboard/mobile/no-JS, hub/families/filter/pagination, SKU/gallery/related, error/fallback, VIP absence, responsive/reduced-motion.
+- Admin: create draft, tab/filter/edit/move, nine images, duplicate errors, publish/unpublish/archive, VIP hidden, cleanup.
+- Assert new specs are included in CI/deploy commands and fail path when opt-in credentials are absent.
 
 **Done when:**
 
-- Local-only suite passes from deleted temp DB and is absent from deploy commands.
-- Execution doc records fresh root typecheck, lint, tests, build, local seed E2E, screenshots, and MIU 11 deployed test/preview E2E.
+- E2E typecheck, local browser suites, and deployed preview suites pass.
+- Root typecheck/lint/tests/build remain green.
 
-## Scope Fence
+## MIU 22: Local full-family seed and delivery verification
 
-Reject Phase 1 changes under:
+**Block:** INTEGRATION
 
-- `packages/shared/**`, `apps/functions/**`, `apps/local-server/src/seed.ts`
-- `apps/site/src/islands/admin/**`, Alibaba modules
-- SKU route/slug/redirect/breadcrumb/JSON-LD files
-- Product-family database/API fields
-- VIP storage/API/role/Admin cleanup
+**Files:** `tests/e2e/catalog-local-seed.spec.ts`, `docs/catalog-category-expansion/EXECUTION.md`, `docs/catalog-category-expansion/COMPATIBILITY.md`
 
-## Validation Commands
+**Type:** new-test
 
-```bash
-pnpm --filter @vibelingan-channel/site test
-pnpm --filter @vibelingan-channel/site typecheck
-pnpm --filter @vibelingan-channel/site build
-pnpm test:e2e:public -- --project=chromium
-```
+**Depends on:** MIUs 9, 21
 
-Clean local seed, separate terminals:
+**What it does:**
 
-```bash
-export LOCAL_DB_FILE="$TMPDIR/channel-catalog-category-phase1.json"
-rm -f "$LOCAL_DB_FILE"
-pnpm --filter @vibelingan-channel/local-server dev
-```
+- Validates four families and legacy Headphones from a deleted temporary local DB without data-dependent skip.
+- Records cross-branch reconciliation, exact SHAs, test/build/E2E evidence, publication/deploy outcome, and residual risks.
+- Performs final cross-file review, secret scan, deploy-preview verification, production smoke when approved, and remote delivery.
 
-```bash
-PUBLIC_CB_HOST=localhost:3002 pnpm --filter @vibelingan-channel/site dev --host 127.0.0.1 --port 4321
-```
+**Build/Deploy/Runtime impact:**
 
-```bash
-E2E_SITE_URL=http://127.0.0.1:4321 E2E_EXPECT_LOCAL_SEED=1 \
-  pnpm exec playwright test tests/e2e/catalog-category-local-seed.spec.ts --project=chromium
-```
+- Delivery gate; no new feature behavior.
+- All package/function/site build and runtime contexts are exercised.
 
-Final gates:
+**Test plan (TDD — write first):**
 
-```bash
-pnpm typecheck
-pnpm lint
-pnpm test
-pnpm build
-```
+- Explicit local-seed opt-in fails if absent and asserts exact deterministic families/legacy fallback when present.
+- Compatibility checklist fails on Alibaba/SEO/shared-contract drift or missing validation evidence.
+- Deployed smoke asserts release SHA, public routes, API filters/detail, image bounds, Admin auth, and no VIP leakage.
 
-Deploy-safe test environment gate:
+**Done when:**
 
-```bash
-E2E_SITE_URL=<deployed-test-url> pnpm test:e2e:public -- --project=chromium
-```
-
-## Architecture Approval
-
-**APPROVE ARCHITECTURE** — approval authorizes MIUs 1–12 only. No implementation starts until confirmed.
+- Full tests/typecheck/lint/build, function artifacts, local E2E, preview E2E, and approved production smoke are green and recorded.
+- HEAD is independently reviewed/blessed, pushed to the single remote feature branch, and PR status is reported.

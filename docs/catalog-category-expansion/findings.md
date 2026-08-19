@@ -1,5 +1,44 @@
 # Catalog Category Expansion — Findings
 
+## Authoritative Client Baseline — V1.1
+
+- **Source**: `CLIENT_REQUIREMENTS_AND_UI_DESIGN.pdf` supplied via WeCom on 2026-08-19.
+- **SHA-256**: `b3804c067e947e8447ac6fed4eae0d1207345c1479a415f44e8e0a87fcc05d56`.
+- **Page count**: 10 pages from the PDF page tree.
+- **Precedence**: This PDF supersedes the earlier Phase 1 scope reduction in this branch. The full V1.1 requirements below are now the implementation contract.
+
+### Confirmed full scope
+
+- Electronics & Toys hub with Headphones, AI Gadgets, Toys, and Misc/Other Electronics & Toys.
+- Desktop and mobile catalog menu.
+- Shared family listing UI with product images, model/SKU identity, description, MOQ, public price or `Request a quote`, filters, pagination, loading/empty/error states.
+- Independent SKU detail pages with stable addresses, gallery, product facts, OEM/ODM content, enquiry CTA, and related products.
+- One Admin Products workspace with All plus four family tabs, search/filter/status, manual create/edit, draft/publish/unpublish/archive behavior, and responsive list UI.
+- One product record equals one SKU for this release; variants are deferred.
+- Maximum nine product images; first image is primary and remaining images enter the gallery. Product video is explicitly out of scope.
+- VIP price is hidden from public pages and Admin forms; the legacy field remains only for compatibility until Alibaba pricing is stable.
+- Alibaba API integration is not implemented in this work, but future source fields remain read-only, imported products default to draft, unmapped categories do not become Misc, and sync must not overwrite curated fields.
+- Existing `/headphones/` remains; English only for this release.
+
+### V1.1 decisions that replace the earlier Phase 1 plan
+
+- Category pages are real data-backed pages, not preparation-only placeholders.
+- Hub includes category imagery and Featured Products.
+- SKU detail route and stable slug are in scope now.
+- Admin family tabs and manual CRUD are in scope now.
+- Data/schema/API work required to support these surfaces is in scope now.
+- Breadcrumb and SEO integration must support real family/SKU pages; temporary noindex-only preview behavior is no longer the final contract.
+
+### Compatibility decisions
+
+- Add a dedicated `productFamily` field with stable values `headphones`, `ai-gadgets`, `toys`, `misc`.
+- Keep the existing `category` field as an optional subcategory. Existing `wired`, `office`, and `bluetooth` values remain valid Headphones subcategories and remain compatible with current Alibaba category mappings.
+- Treat legacy products with no `productFamily` and a known Headphones category as `headphones` at the public read boundary. Do not rewrite storage during reads.
+- Add unique public `slug` and operator-visible `skuCode`; preserve `_id` as storage identity.
+- New products default to draft/unpublished. Publication requires product family, name, slug, SKU code, description, and at least one image.
+- Use `imageIds[0]` as the primary image and enforce a maximum of nine throughout schema, Admin selection, API projection, seed fixtures, and tests.
+- Alibaba-linked products continue using Alibaba pricing. Manual/unlinked products show permitted public price or quote; VIP is not rendered or newly editable.
+
 ## User Intent
 
 - The catalog must no longer present Headphones as the only product family.
@@ -63,13 +102,12 @@ This hypothesis is supported, with one important correction: the current `catego
 
 Do not namespace or overload the existing category enum as the permanent model. That shortcut makes Headphones subtype data ambiguous and forces the future importer to infer hierarchy from strings. Use explicit product-family and subcategory keys, with display labels and SEO copy kept separate from identifiers.
 
-The selected compatibility-first URL contract is:
+The family URL contract is:
 
 - Preserve `/headphones/` as the existing canonical.
 - Add `/electronics-toys/`, `/ai-gadgets/`, `/toys/`, and `/misc/`.
-- Give each SKU a category-independent `/products/{slug}/` URL.
 
-This rejects a clean-looking `/products/{family}/{slug}/` hierarchy because family reassignment would change SKU URLs. It also rejects migrating `/headphones/` to `/products/headphones/`, which would create SEO and integration work without user benefit.
+SKU address syntax is defined only in `SKU URL Clarification` below. The PDF confirms stability and category independence, not a specific clean-path shape. Migrating `/headphones/` to `/products/headphones/` remains rejected because it creates SEO and integration work without user benefit.
 
 Independent requirements and design reviews agreed that only the Headphones visual components should be reused. The current same-page detail interaction must not be copied because it has no crawlable/shareable SKU URL.
 
@@ -80,29 +118,10 @@ The existing VIP pricing path is not part of this feature. Registration creates 
 - Client decisions listed in `CLIENT_CONFIRMATION.md`.
 - Authenticated Admin screenshots can be captured during implementation; the runtime correctly redirected the unauthenticated inspection to login, so current Admin behavior is grounded in source contracts.
 
-## Phase 1 Scope Lock — Menu And Basic Pages
+## Superseded Planning Note
 
-The first implementation phase intentionally stops before any customer decision that would harden a data, permission, integration, or permanent URL contract.
+The earlier menu-only Phase 1 scope was superseded by client PDF V1.1. Implementers must use the V1.1 baseline at the top of this file and the current V1.1 LLD/MIU documents; the removed Phase 1 constraints no longer apply.
 
-### Implement now
+## SKU URL Clarification
 
-- Replace the single Headphones global-nav item with an accessible `Electronics & Toys` disclosure on desktop and nested disclosure on mobile.
-- Add the Electronics & Toys hub plus basic sibling pages for Headphones, AI Gadgets, Toys, and Other Electronics & Toys.
-- Reuse the current Headphones seed and catalog UI to validate the populated Headphones state.
-- Render honest empty/in-preparation states and an OEM enquiry CTA for the other three families.
-- Keep the current Headphones in-page detail interaction, data fetching, and controller behavior unchanged while suppressing its VIP presentation.
-- Remove VIP marketing copy from active Headphones/auth presentation; keep VIP storage, API, roles, Admin, and Alibaba compatibility unchanged.
-- Validate navigation and responsive UI locally with the existing local API and seed dataset.
-
-### Explicitly defer
-
-- `productFamily` or any replacement schema field, migration, public API filter, or Alibaba mapping.
-- Admin category tabs, CRUD form changes, publication permissions, deletion behavior, or bulk actions.
-- Breadcrumb hierarchy/JSON-LD, SKU detail routes, slug persistence, redirects, permanent URL guarantees, or Product schema; these re-enter after the active SEO metadata work and client URL approval.
-- Alibaba source/pricing branches and VIP backend/Admin/Alibaba cleanup work.
-- VIP storage/API/role/Admin cleanup (presentation-only suppression is in scope now).
-- Synthetic AI Gadget/Toys products presented as real catalog inventory.
-
-### Why this is the lowest-risk slice
-
-The current seed has six real demo Headphones records and no confirmed cross-family field. Static family navigation plus truthful empty pages proves the complete menu/page interaction without prematurely turning the proposed `productFamily` name into a database contract. New route names are local/test-preview only until the client confirms them; noindex alone is not treated as permission to publish unstable URLs. The later data/API/Admin phase can then adopt the client-approved taxonomy without migrating a speculative Phase 1 schema.
+The PDF requires a stable independent SKU address but does not prescribe one exact path syntax. Because the current site is statically hosted and product records live in CloudBase at runtime, V1.1 uses `/products/item/?slug={slug}` as the first stable implementation. It is independent of product family and shareable. A future clean-path migration to `/products/{slug}/` requires a server-rendering/static-feed contract plus redirects and is not silently assumed here.
