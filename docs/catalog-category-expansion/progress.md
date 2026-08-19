@@ -44,3 +44,27 @@
 | Client DOCX Phase 1 round-trip | Passed: implementation order and production publication gate survived conversion |
 | Final repository typecheck | Passed: all packages/apps and E2E; Astro 0 errors, 0 warnings, 7 baseline hints |
 | Final repository lint | Passed: Biome checked 279 files with no fixes |
+
+## 2026-08-20 Implementation
+
+- Client PDF V1.1 is authoritative; implementation is approved on the single
+	`feat/catalog-category-design` branch.
+- MIU 1 split product images to 9 while preserving Overstock/legacy at 18 (`384dff5`).
+- MIU 2 added product family, identity, lifecycle, and hidden reservation contracts (`0a4938b`,
+	public package export `953546f`).
+- MIU 3 provisioning creates `catalogProductIdentities` with `ADMINONLY` permission (`7a76c42`,
+	corrected to the single required collection in `240a08a`).
+- Atomic owner-checked delete and installed SDK remove probes landed in `06b32d0` and `7b709f0`.
+- Replaced the initial reserve/compensate design after concurrency review: product save and
+	reservation transfer now run in one CloudBase transaction / local critical section (`fffebae8`).
+- CloudBase runtime probes verify post-write rollback, conflict retry, and one-transaction adapter
+	wiring (`65a7bfa`). Real local adapter tests verify concurrent single-winner persistence and
+	reopen parity.
+
+| Implementation check | Result |
+|---|---|
+| Shared tests | Passed: 91/91 |
+| DB tests after atomic save | Passed: 40/40 |
+| Real local adapter identity tests | Passed: 4/4 |
+| DB + local-server typecheck | Passed |
+| Installed CloudBase SDK contract | Passed, including post-write abort and conflict retry |

@@ -52,7 +52,8 @@ Products remain in the existing `products` collection. No separate collection pe
 
 ### Atomic slug and SKU uniqueness
 
-Use deterministic reservation documents written through the existing atomic `createDocWithId` primitive:
+Use deterministic reservation documents owned by one atomic
+`saveCatalogProductWithIdentities` storage operation:
 
 ```text
 catalogProductIdentities/{kind}:{normalizedValue}
@@ -61,10 +62,16 @@ catalogProductIdentities/{kind}:{normalizedValue}
   productId: products._id
 ```
 
-- Create/update reserves both identities before publishing or exposing new values.
-- A reservation owned by another product rejects the write.
-- A failed write compensates only reservations created by that attempt.
-- Identity changes reserve the new value, update the product, then release the old reservation.
+- CloudBase reads the product and all affected reservation rows, writes the product and new
+  reservations, and releases owner-matched old reservations inside one `runTransaction` callback.
+- The local JSON adapter performs the same state transition inside one `withMutationLock` critical
+  section and persists it with one atomic file replacement.
+- A reservation owned by another product or with a malformed deterministic shape rejects the
+  transaction before any write.
+- Identity changes reserve the new value, update the product, then release old reservations owned
+  by that product in the same transaction.
+- A callback failure rolls back the whole operation; CloudBase transaction conflicts retry the pure
+  callback. No process-local compensation or recoverable lease object is required.
 - Concurrent attempts for the same identity have exactly one storage-level winner.
 - The identity collection is server-managed and hidden from generic Admin CRUD.
 

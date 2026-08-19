@@ -115,7 +115,7 @@ flowchart TD
 
 **Block:** BACKEND
 
-**Files:** `apps/functions/admin/src/catalog-product-identities.ts`, `apps/functions/admin/src/catalog-product-identities.test.ts`, `packages/db/src/index.ts`
+**Files:** `packages/db/src/adapter.ts`, `packages/db/src/index.ts`, `packages/db/src/cloudbase-adapter.ts`, `apps/local-server/src/json-adapter.ts`, `apps/functions/admin/src/catalog-product-identities.ts`
 
 **Type:** new-file
 
@@ -123,24 +123,34 @@ flowchart TD
 
 **What it does:**
 
-- Reserves normalized `slug` and case-folded `skuCode` through deterministic `createDocWithId` rows.
-- Supports create, identity change, idempotent same-owner retry, and compensation of only current-attempt reservations.
-- Exposes no generic Admin route; storage atomicity is the uniqueness gate.
+- Defines one `saveCatalogProductWithIdentities` state transition over the product row and
+  deterministic normalized `slug` / case-folded `skuCode` rows.
+- CloudBase runs the complete transition in one multi-collection transaction; local development
+  runs the same plan in one file-backed critical section.
+- Supports create, identity change, legacy partial-identity repair, same-owner idempotency, and
+  owner-checked stale identity release without process-local compensation.
+- Adds a thin Admin repository that generates create IDs, canonicalizes identity input, and maps
+  storage results to domain errors. It exposes no generic Admin route.
 
 **Build/Deploy/Runtime impact:**
 
-- Adds Admin-function repository logic over the existing DB facade.
+- Extends the DB adapter/facade and adds Admin-function repository logic over it.
 - Admin function bundle/cold-start context must compile; no new package or environment variable.
 
 **Test plan (TDD — write first):**
 
-- Two concurrent products reserving the same slug/SKU yield exactly one fulfilled owner and one conflict, with one stored reservation per identity.
-- A failed product write removes only reservations created by that attempt; another product's reservation survives.
-- Changing identity reserves new values before releasing old values; retry by same owner is idempotent.
+- A real `JsonFileAdapter` race yields one saved product and one conflict, persists one owner per
+  identity, and remains correct after reopening the file.
+- The installed CloudBase SDK probe proves post-write callback failure aborts and transaction
+  conflict retries the complete callback before one commit.
+- Conflict/corrupt reservation paths write nothing; identity change writes new values before
+  owner-checked old release; legacy malformed sibling identities do not strand valid old rows.
+- Admin repository tests pin ID generation, canonical slug storage, normalized reservation keys,
+  result/error mapping, and missing/invalid identity behavior.
 
 **Done when:**
 
-- Focused reservation tests and Admin function typecheck pass.
+- Focused DB/local/Admin tests, SDK contract probe, and Admin function typecheck pass.
 - Root tests/typecheck and function artifact build remain green.
 
 ## MIU 4: Admin product mutation invariants

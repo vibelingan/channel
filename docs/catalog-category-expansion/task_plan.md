@@ -6,7 +6,8 @@ Produce a client-reviewable requirements and UI design package for expanding the
 
 `Electronics & Toys → Headphones / AI Gadgets / Toys / Misc → SKU`
 
-This phase defines behavior, information architecture, admin workflows, and integration boundaries. It does not implement the catalog expansion or Alibaba synchronization.
+The requirements/design phase is complete and the client-approved V1.1 scope is now being
+implemented on `feat/catalog-category-design`. Alibaba API transport/scheduling remains unchanged.
 
 ## Truth Conditions
 
@@ -30,6 +31,9 @@ This phase defines behavior, information architecture, admin workflows, and inte
 | 7. Define low-risk Phase 1 LLD | Complete | Menu/pages/seed scope is separated from deferred customer decisions |
 | 8. Decompose Phase 1 MIUs | Complete | Every MIU uses exact files, TDD assertions, dependencies, and runtime impact |
 | 9. Review and validate Phase 1 handoff | Complete | Independent architecture/MIU review and document checks pass |
+| 10. Implement shared product contracts | Complete | MIU 1-2 tests/typechecks pass and commits are pushed |
+| 11. Implement atomic product identities | In progress | Storage transaction/provisioning/probes complete; Admin repository pending |
+| 12. Implement remaining V1.1 MIUs | Pending | MIU 4-22 execute in dependency order |
 
 ## Scope Boundaries
 
