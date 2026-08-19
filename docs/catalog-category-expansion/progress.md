@@ -66,7 +66,12 @@
 	routes Admin create/update through that authority, blocks hard/batch product bypasses, preserves
 	legacy missing-archive published rows, rejects VIP/Alibaba forged writes, and returns the
 	transaction-authoritative previous row for image visibility deltas (`dd83b16`). MIU 4 is complete;
-	MIU 5 public product projection is active.
+	MIU 5 public product projection is complete.
+- MIU 5 exposes valid product family/SKU/slug fields, projects legacy Headphones without storage
+	mutation, enforces products 9 vs Overstock 18 images, and suppresses archived/malformed products
+	with one bounded DB query (`48cc3ac`). The internal false-or-missing predicate stays outside the
+	client filter protocol; installed CloudBase `exists(false)` and translator wiring are probed in
+	`d5a9a25`. MIU 6 family filtering is active.
 
 | Implementation check | Result |
 |---|---|
@@ -79,3 +84,7 @@
 | MIU 4 DB tests | Passed: 40/40 |
 | MIU 4 real local adapter tests | Passed: 7/7, including archive/publish and duplicate-publish races |
 | MIU 4 function artifacts | Passed: Admin, public-api, and Alibaba builds/package/cold-start smoke |
+| MIU 5 public API tests | Passed: 52/52 |
+| MIU 5 shared tests | Passed: 92/92 |
+| MIU 5 strict archive SDK probe | Passed |
+| MIU 5 function artifacts | Passed: Admin, public-api, and Alibaba build/package/cold-start smoke |

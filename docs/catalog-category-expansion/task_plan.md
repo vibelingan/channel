@@ -34,8 +34,9 @@ implemented on `feat/catalog-category-design`. Alibaba API transport/scheduling 
 | 10. Implement shared product contracts | Complete | MIU 1-2 tests/typechecks pass and commits are pushed |
 | 11. Implement atomic product identities | Complete | Storage transaction, provisioning, probes, and Admin repository pass |
 | 12. Implement Admin product invariants | Complete | Atomic lifecycle, authorization, and image-counter races pass |
-| 13. Implement public catalog API | In progress | MIU 5 projection and legacy fallback active |
-| 14. Implement remaining V1.1 MIUs | Pending | MIU 6-22 execute in dependency order |
+| 13. Implement public product projection | Complete | MIU 5 identity, archive, legacy, and image contracts pass |
+| 14. Implement family filtering | In progress | MIU 6 query parsing and legacy Headphones merge active |
+| 15. Implement remaining V1.1 MIUs | Pending | MIU 7-22 execute in dependency order |
 
 ## Scope Boundaries
 
