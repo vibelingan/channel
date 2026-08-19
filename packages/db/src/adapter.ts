@@ -294,6 +294,13 @@ export interface DbAdapter {
     id: string,
     data: Record<string, unknown>,
   ): Promise<'created' | 'exists'>;
+  /** Delete by id only while one field still equals the expected owner value. */
+  removeDocIfFieldEquals?(
+    collection: string,
+    id: string,
+    field: string,
+    expectedValue: unknown,
+  ): Promise<boolean>;
   /** Create-or-patch by deterministic id; returns the resulting document. */
   upsertDocWithId?(
     collection: string,

@@ -101,6 +101,7 @@ interface NodeSdkTransaction {
        * scripts/verify-cloudbase-sdk-contract.mjs.
        */
       set(data: Record<string, unknown>): Promise<{ updated?: number }>;
+      remove(): Promise<{ deleted?: number }>;
     };
   };
 }
@@ -328,6 +329,18 @@ export const cloudBaseAdapter: DbAdapter = {
       const { _id, ...payload } = data as Record<string, unknown> & { _id?: unknown };
       await ref.set(payload);
       return 'created';
+    });
+  },
+
+  async removeDocIfFieldEquals(collection, id, field, expectedValue): Promise<boolean> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection(collection).doc(id);
+      const got = await ref.get();
+      const existing = normalizeSingle(got.data);
+      if (!existing || existing[field] !== expectedValue) return false;
+      const removed = await ref.remove();
+      return (removed.deleted ?? 0) > 0;
     });
   },
 

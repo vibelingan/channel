@@ -415,6 +415,24 @@ export class JsonFileAdapter implements DbAdapter {
     });
   }
 
+  async removeDocIfFieldEquals(
+    collection: string,
+    id: string,
+    field: string,
+    expectedValue: unknown,
+  ): Promise<boolean> {
+    return this.withMutationLock(() => {
+      const docs = this.docs(collection);
+      const index = docs.findIndex(
+        (document) => document._id === id && document[field] === expectedValue,
+      );
+      if (index < 0) return false;
+      docs.splice(index, 1);
+      this.persist();
+      return true;
+    });
+  }
+
   async upsertDocWithId(
     collection: string,
     id: string,

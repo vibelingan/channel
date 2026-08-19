@@ -290,6 +290,25 @@ export function createDocWithId(
   });
 }
 
+/** Delete a deterministic-id document only while its owner field still matches. */
+export function removeDocIfFieldEquals(
+  collection: string,
+  id: string,
+  field: string,
+  expectedValue: unknown,
+): Promise<boolean> {
+  assertKnown(collection);
+  requireNonEmpty(id, 'document id');
+  requireNonEmpty(field, 'field');
+  const adapter = db();
+  if (!adapter.removeDocIfFieldEquals) {
+    throw new Error(
+      '@vibelingan-channel/db: removeDocIfFieldEquals is not implemented by this adapter.',
+    );
+  }
+  return adapter.removeDocIfFieldEquals(collection, id, field, expectedValue);
+}
+
 /** Create-or-patch with a deterministic id; returns the resulting document. */
 export function upsertDocWithId(
   collection: string,
