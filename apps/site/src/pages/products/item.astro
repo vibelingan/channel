@@ -14,7 +14,12 @@ const seoDescription =
   'Review published product details, order quantities, available pricing, and related products for Channel OEM and wholesale programs.';
 ---
 
-<BaseLayout title={seoTitle} description={seoDescription} canonicalPath="/products/item/">
+<BaseLayout
+  title={seoTitle}
+  description={seoDescription}
+  canonicalPath="/products/item/"
+  robots="noindex,follow"
+>
   <SiteHeader brand={site.brand} nav={site.nav} />
   <main>
     <SkuDetailPage content={catalog} client:load />

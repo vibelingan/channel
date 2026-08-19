@@ -8,6 +8,7 @@ import { CatalogFamilyPage } from '../islands/shop/CatalogFamilyPage.tsx';
 import { ProductMedia } from '../islands/shop/ProductMedia.tsx';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { apiMediaUrl } from '../lib/api-url.ts';
+import { catalogBreadcrumbSchema, familyBreadcrumbs } from '../lib/catalog-seo.ts';
 import { OEM_INQUIRY_HREF } from '../lib/site-navigation.ts';
 
 const site = getSiteContent(DEFAULT_LOCALE);
@@ -24,12 +25,21 @@ const heroSources = hp.hero.sources.map((source) => apiMediaUrl(`/api/images/${s
 // SEO metadata
 const seoTitle = `${family.seoTitle} | ${brand.name}`;
 const seoDescription = family.seoDescription;
+const breadcrumbs = familyBreadcrumbs(family.heading, family.href);
+const schemaNodes = [catalogBreadcrumbSchema(breadcrumbs, Astro.site ?? Astro.url.origin)];
 ---
 
-<BaseLayout title={seoTitle} description={seoDescription} lang="en" canonicalPath="/headphones/">
+<BaseLayout title={seoTitle} description={seoDescription} lang="en" canonicalPath="/headphones/" schemaNodes={schemaNodes}>
   <SiteHeader brand={brand} nav={nav} />
 
   <main>
+    <nav aria-label="Breadcrumb" class="mx-auto max-w-[var(--width-container)] px-4 py-4 text-sm text-ink-muted sm:px-6 lg:px-8">
+      {breadcrumbs.map((breadcrumb, index) => (
+        index < breadcrumbs.length - 1 ? (
+          <><a href={breadcrumb.href} class="hover:text-brand-700">{breadcrumb.label}</a><span class="px-2" aria-hidden="true">/</span></>
+        ) : <span aria-current="page">{breadcrumb.label}</span>
+      ))}
+    </nav>
     <!-- ===== Hero: real gated product media, 55/45 unframed on desktop,
          media before the proof/CTA row on mobile ===== -->
     <section class="relative overflow-hidden bg-gradient-to-br from-brand-950 via-brand-900 to-brand-800 text-white">

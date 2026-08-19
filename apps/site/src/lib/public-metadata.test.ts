@@ -265,7 +265,7 @@ test('sitemap follows published catalog content and excludes private routes', ()
   for (const path of ['/electronics-toys/', '/headphones/', '/ai-gadgets/', '/toys/', '/misc/']) {
     assert.equal(includeInSitemap(`https://example.test${path}`), true, path);
   }
-  for (const path of ['/admin/', '/login/', '/register/', '/success-stories/']) {
+  for (const path of ['/admin/', '/login/', '/register/', '/products/item/', '/success-stories/']) {
     assert.equal(includeInSitemap(`https://example.test${path}`), false, path);
   }
   assert.equal(
@@ -273,4 +273,10 @@ test('sitemap follows published catalog content and excludes private routes', ()
     false,
     'known family absent from published catalog content is excluded',
   );
+});
+
+test('dynamic SKU shell stays noindex-follow until product metadata is server-rendered', () => {
+  const source = read('../pages/products/item.astro');
+  assert.match(source, /robots="noindex,follow"/);
+  assert.doesNotMatch(source, /schemaNodes|['"]@type['"]\s*:\s*['"](?:Product|Offer)['"]/);
 });

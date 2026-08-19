@@ -3,11 +3,34 @@ import { isProductFamily } from '@vibelingan-channel/shared';
 import { readApiEnvelope } from '../../lib/api-envelope.ts';
 import { apiMediaUrl, apiUrl } from '../../lib/api-url.ts';
 import { getToken } from '../../lib/session.ts';
-import type { CatalogPage, CatalogQuery, Product, ProductFamily } from './catalog-types.ts';
+import { validAlibabaTiers, validMinorAmount } from './catalog-pricing.ts';
+import type {
+  AlibabaCatalogPricing,
+  CatalogPage,
+  CatalogQuery,
+  Product,
+  ProductFamily,
+} from './catalog-types.ts';
 
 export type { CatalogPage, CatalogQuery, Product, ProductFamily } from './catalog-types.ts';
 
 const PRODUCT_IMAGE_LIMIT = 9;
+const ALIBABA_PRICING_SCHEMA_VERSION = 'alibaba-catalog-pricing-v1';
+const CANONICAL_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/;
+const ALIBABA_PRICING_KEYS = new Set([
+  'schemaVersion',
+  'source',
+  'currency',
+  'mode',
+  'amountMinor',
+  'minAmountMinor',
+  'maxAmountMinor',
+  'tiers',
+  'sourceMoq',
+  'sourceUpdatedAt',
+  'syncedAt',
+]);
+const ALIBABA_TIER_KEYS = new Set(['minQuantity', 'maxQuantity', 'unitAmountMinor']);
 
 /**
  * Attach the session token so the catalog API can verify the caller's role and
@@ -28,49 +51,100 @@ function optionalString(record: Record<string, unknown>, key: string): boolean {
   return record[key] === undefined || typeof record[key] === 'string';
 }
 
-function optionalNumber(record: Record<string, unknown>, key: string): boolean {
+function optionalNonNegativeNumber(record: Record<string, unknown>, key: string): boolean {
   return (
-    record[key] === undefined || (typeof record[key] === 'number' && Number.isFinite(record[key]))
+    record[key] === undefined ||
+    (typeof record[key] === 'number' && Number.isFinite(record[key]) && record[key] >= 0)
   );
+}
+
+function isCanonicalUtcInstant(value: unknown): value is string {
+  if (typeof value !== 'string' || !CANONICAL_UTC.test(value)) return false;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return false;
+  const canonical = parsed.toISOString();
+  return value === canonical || value === canonical.replace('.000Z', 'Z');
 }
 
 function isAlibabaCatalogPricing(value: unknown): boolean {
   if (
     !isRecord(value) ||
-    typeof value.schemaVersion !== 'string' ||
+    value.schemaVersion !== ALIBABA_PRICING_SCHEMA_VERSION ||
     value.source !== 'alibaba' ||
     typeof value.mode !== 'string' ||
     !['fixed', 'range', 'tiered', 'negotiable', 'unavailable'].includes(value.mode) ||
-    typeof value.syncedAt !== 'string'
+    !isCanonicalUtcInstant(value.syncedAt)
   ) {
     return false;
   }
+  if (Object.keys(value).some((key) => !ALIBABA_PRICING_KEYS.has(key))) return false;
   if (value.currency !== undefined && value.currency !== 'CNY' && value.currency !== 'USD') {
     return false;
   }
   for (const key of ['amountMinor', 'minAmountMinor', 'maxAmountMinor', 'sourceMoq']) {
-    if (!optionalNumber(value, key)) return false;
+    if (!optionalNonNegativeNumber(value, key)) return false;
   }
-  for (const key of ['sourceUpdatedAt']) {
-    if (!optionalString(value, key)) return false;
+  if (value.sourceUpdatedAt !== undefined && !isCanonicalUtcInstant(value.sourceUpdatedAt)) {
+    return false;
+  }
+  if (
+    value.sourceMoq !== undefined &&
+    (typeof value.sourceMoq !== 'number' ||
+      !Number.isSafeInteger(value.sourceMoq) ||
+      value.sourceMoq <= 0)
+  ) {
+    return false;
   }
   if (value.tiers !== undefined) {
     if (!Array.isArray(value.tiers)) return false;
     for (const tier of value.tiers) {
       if (
         !isRecord(tier) ||
-        typeof tier.minQuantity !== 'number' ||
-        !Number.isFinite(tier.minQuantity) ||
-        typeof tier.unitAmountMinor !== 'number' ||
-        !Number.isFinite(tier.unitAmountMinor) ||
-        (tier.maxQuantity !== undefined &&
-          (typeof tier.maxQuantity !== 'number' || !Number.isFinite(tier.maxQuantity)))
+        Object.keys(tier).some((key) => !ALIBABA_TIER_KEYS.has(key)) ||
+        !Number.isSafeInteger(tier.minQuantity) ||
+        !validMinorAmount(tier.unitAmountMinor) ||
+        (tier.maxQuantity !== undefined && !Number.isSafeInteger(tier.maxQuantity))
       ) {
         return false;
       }
     }
   }
-  return true;
+  switch (value.mode) {
+    case 'fixed':
+      return (
+        value.currency !== undefined &&
+        validMinorAmount(value.amountMinor) &&
+        value.minAmountMinor === undefined &&
+        value.maxAmountMinor === undefined &&
+        value.tiers === undefined
+      );
+    case 'range':
+      return (
+        value.currency !== undefined &&
+        validMinorAmount(value.minAmountMinor) &&
+        validMinorAmount(value.maxAmountMinor) &&
+        value.maxAmountMinor >= value.minAmountMinor &&
+        value.amountMinor === undefined &&
+        value.tiers === undefined
+      );
+    case 'tiered':
+      return (
+        value.currency !== undefined &&
+        value.amountMinor === undefined &&
+        value.minAmountMinor === undefined &&
+        value.maxAmountMinor === undefined &&
+        validAlibabaTiers(value as unknown as AlibabaCatalogPricing)
+      );
+    case 'negotiable':
+    case 'unavailable':
+      return (
+        value.amountMinor === undefined &&
+        value.minAmountMinor === undefined &&
+        value.maxAmountMinor === undefined &&
+        value.tiers === undefined
+      );
+  }
+  return false;
 }
 
 function isProduct(value: unknown): value is Product {
@@ -100,7 +174,7 @@ function isProduct(value: unknown): value is Product {
     'inventory',
     'clearancePrice',
   ]) {
-    if (!optionalNumber(value, key)) return false;
+    if (!optionalNonNegativeNumber(value, key)) return false;
   }
   if (value.images !== undefined) {
     if (!Array.isArray(value.images) || !value.images.every((image) => typeof image === 'string')) {

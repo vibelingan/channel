@@ -47,16 +47,16 @@ test('detail gallery preserves order and caps product media at nine', () => {
 test('detail loading, not-found, and retryable error states are mutually exclusive', () => {
   const loading = renderView({ status: 'loading' });
   assert.match(loading, /Loading products/);
-  assert.doesNotMatch(loading, /Try Again|Product not found|data-sku-detail/);
+  assert.doesNotMatch(loading, /Try Again|Product not found|data-sku-detail|data-catalog-schema/);
 
   const notFound = renderView({ status: 'not-found' });
   assert.match(notFound, /Product not found/);
-  assert.doesNotMatch(notFound, /Try Again|data-sku-detail/);
+  assert.doesNotMatch(notFound, /Try Again|data-sku-detail|data-catalog-schema/);
 
   const error = renderView({ status: 'error' });
   assert.match(error, /role="alert"/);
   assert.match(error, /Try Again/);
-  assert.doesNotMatch(error, /Product not found|data-sku-detail/);
+  assert.doesNotMatch(error, /Product not found|data-sku-detail|data-catalog-schema/);
 });
 
 test('published detail renders facts, quote pricing, fallback media, and valid related links', () => {
@@ -73,7 +73,7 @@ test('published detail renders facts, quote pricing, fallback media, and valid r
       modType: 'Camera',
       description: 'Compact connected camera.',
       moq: 100,
-      images: [],
+      images: ['/image-1.jpg'],
     },
     related: [
       {
@@ -95,4 +95,44 @@ test('published detail renders facts, quote pricing, fallback media, and valid r
   assert.match(markup, /href="\/products\/item\/\?slug=translator"/);
   assert.doesNotMatch(markup, /Duplicate current|Wrong family|Missing slug/);
   assert.doesNotMatch(markup, /VIP|vipPrice|video/iu);
+  const schemaSource = markup.match(
+    /<script[^>]*data-catalog-schema="true"[^>]*>([\s\S]*?)<\/script>/,
+  )?.[1];
+  assert.ok(schemaSource);
+  const schema = JSON.parse(schemaSource.replaceAll('&quot;', '"')) as {
+    '@graph': Array<Record<string, unknown>>;
+  };
+  const breadcrumbs = schema['@graph'].find((node) => node['@type'] === 'BreadcrumbList');
+  const productSchema = schema['@graph'].find((node) => node['@type'] === 'Product');
+  assert.equal((breadcrumbs?.itemListElement as unknown[])?.length, 4);
+  assert.equal(productSchema?.name, 'VisionClip');
+  assert.equal(productSchema?.sku, 'AI-100');
+  assert.equal(Object.hasOwn(productSchema ?? {}, 'aggregateRating'), false);
+});
+
+test('invalid manual pricing is absent from both visible detail and Product schema', () => {
+  const markup = renderView({
+    status: 'ready',
+    product: {
+      _id: 'invalid-price',
+      name: 'Quote only',
+      slug: 'quote-only',
+      productFamily: 'misc',
+      wholesalePrice: -1,
+      unitPrice: Number.NaN,
+    },
+    related: [],
+  });
+
+  assert.match(markup, /Request a Quote/);
+  assert.doesNotMatch(markup, /\$-1\.00|Wholesale price|Unit price/);
+  const schemaSource = markup.match(
+    /<script[^>]*data-catalog-schema="true"[^>]*>([\s\S]*?)<\/script>/,
+  )?.[1];
+  assert.ok(schemaSource);
+  const schema = JSON.parse(schemaSource.replaceAll('&quot;', '"')) as {
+    '@graph': Array<Record<string, unknown>>;
+  };
+  const productSchema = schema['@graph'].find((node) => node['@type'] === 'Product');
+  assert.equal(Object.hasOwn(productSchema ?? {}, 'offers'), false);
 });

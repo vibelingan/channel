@@ -101,6 +101,16 @@ test('manual pricing falls back from wholesale to unit to quote', () => {
   assert.ok(!quoteOnly.includes('$13.20'));
 });
 
+test('invalid manual prices fail closed to quote', () => {
+  const html = render({
+    product: { ...FULL_PRODUCT, wholesalePrice: -1, unitPrice: Number.NaN },
+  });
+  assert.ok(html.includes(DETAIL.inquiryCta));
+  assert.ok(!html.includes('$-1.00'));
+  assert.ok(!html.includes(DETAIL.wholesaleLabel));
+  assert.ok(!html.includes(DETAIL.unitPriceLabel));
+});
+
 test('legacy viewer context cannot change public manual pricing', () => {
   const anonymous = renderToStaticMarkup(
     createElement(HeadphonesProductDetail, {

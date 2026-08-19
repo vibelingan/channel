@@ -40,6 +40,11 @@ test('direct SKU journey renders nine images, facts, related links, and preserve
   await page.goto('/ai-gadgets/');
   await page.goto('/products/item/?slug=visionclip-ai-camera');
   await expect(page.getByRole('heading', { level: 1, name: product.name })).toBeVisible();
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex,follow');
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    'href',
+    /\/products\/item\/\?slug=visionclip-ai-camera$/,
+  );
   await expect(page.getByText('AI-VC-100', { exact: true })).toBeVisible();
   await expect(page.locator('dl > div', { hasText: 'MOQ' })).toContainText('100');
   await expect(page.getByText('$15.50', { exact: true })).toBeVisible();
@@ -54,6 +59,56 @@ test('direct SKU journey renders nine images, facts, related links, and preserve
     '/products/item/?slug=pocket-translator',
   );
   await expect(page.getByText(/VIP|video/i)).toHaveCount(0);
+  const schemas = await page
+    .locator('script[type="application/ld+json"]')
+    .evaluateAll((scripts) =>
+      scripts
+        .map((script) => JSON.parse(script.textContent ?? '{}'))
+        .flatMap((schema) => schema['@graph'] ?? []),
+    );
+  const breadcrumbSchema = schemas.find((node) => node['@type'] === 'BreadcrumbList');
+  const productSchema = schemas.find((node) => node['@type'] === 'Product');
+  const visibleBreadcrumbs = await page
+    .getByRole('navigation', { name: 'Breadcrumb' })
+    .locator('a, [aria-current="page"]')
+    .allTextContents();
+  expect(
+    breadcrumbSchema.itemListElement.map(
+      (item: { name: string; position: number; item: string }) => ({
+        name: item.name,
+        position: item.position,
+        item: new URL(item.item).pathname + new URL(item.item).search,
+      }),
+    ),
+  ).toEqual(
+    visibleBreadcrumbs.map((name, index) => ({
+      name: name.trim(),
+      position: index + 1,
+      item:
+        index === 0
+          ? '/'
+          : index === 1
+            ? '/electronics-toys/'
+            : index === 2
+              ? '/ai-gadgets/'
+              : '/products/item/?slug=visionclip-ai-camera',
+    })),
+  );
+  expect(productSchema).toMatchObject({
+    '@type': 'Product',
+    name: product.name,
+    sku: product.skuCode,
+    offers: { '@type': 'Offer', priceCurrency: 'USD', price: '15.50' },
+  });
+  for (const forbidden of [
+    'aggregateRating',
+    'review',
+    'inventoryLevel',
+    'warranty',
+    'availability',
+  ]) {
+    expect(productSchema).not.toHaveProperty(forbidden);
+  }
   expect(page.url()).toContain('?slug=visionclip-ai-camera');
   await page.goBack();
   await expect(page).toHaveURL(/\/ai-gadgets\/$/);
@@ -64,10 +119,18 @@ test('missing and unknown slugs render not-found without detail', async ({ page 
 
   await page.goto('/products/item/');
   await expect(page.getByRole('heading', { level: 1, name: 'Product not found.' })).toBeVisible();
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    'href',
+    /\/products\/item\/$/,
+  );
   await expect(page.locator('[data-sku-detail]')).toHaveCount(0);
 
   await page.goto('/products/item/?slug=unknown');
   await expect(page.getByRole('heading', { level: 1, name: 'Product not found.' })).toBeVisible();
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    'href',
+    /\/products\/item\/$/,
+  );
   await expect(page.locator('[data-sku-detail]')).toHaveCount(0);
 });
 
@@ -89,8 +152,16 @@ test('retry recovers from a detail transport error', async ({ page }) => {
 
   await page.goto('/products/item/?slug=visionclip-ai-camera');
   await expect(page.getByRole('alert')).toContainText('We could not load this product family.');
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    'href',
+    /\/products\/item\/$/,
+  );
   await page.getByRole('button', { name: 'Try Again' }).click();
   await expect(page.getByRole('heading', { level: 1, name: product.name })).toBeVisible();
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    'href',
+    /\/products\/item\/\?slug=visionclip-ai-camera$/,
+  );
   expect(attempts).toBe(2);
 });
 

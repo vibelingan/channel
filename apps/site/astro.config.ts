@@ -22,7 +22,7 @@ const siteUrl = env.SITE_URL?.trim() || 'http://localhost:4321';
 const site = new URL(siteUrl).href.replace(/\/$/, '');
 
 // Pages that must stay out of the sitemap (auth, admin, form results, redirects).
-// Mirrored by robots.txt Disallow rules and per-page noindex meta.
+// Private routes are mirrored by robots.txt; crawlable noindex routes use page metadata only.
 const NOINDEX_PATHS = new Set([
   '/admin',
   '/login',
@@ -30,6 +30,7 @@ const NOINDEX_PATHS = new Set([
   '/account',
   '/reset',
   '/oem_submit_result',
+  '/products/item',
   '/success-stories',
 ]);
 

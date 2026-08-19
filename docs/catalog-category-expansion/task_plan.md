@@ -49,7 +49,9 @@ implemented on `feat/catalog-category-design`. Alibaba API transport/scheduling 
 | 25. Implement Admin product form/media | Complete | MIU 17 grouped fields, nine-image management, and error mapping pass |
 | 26. Suppress public/auth VIP presentation | Complete | MIU 18 source, build, pricing, and browser negatives pass |
 | 27. Pin Alibaba compatibility | Complete | MIU 19 V1.1 ownership/linking/promotion regressions pass |
-| 28. Implement remaining V1.1 MIUs | In progress | MIU 20 catalog SEO and breadcrumb contract active |
+| 28. Implement catalog SEO/breadcrumb contract | Complete | MIU 20 structured data, canonical, browser, artifact, and audit gates pass |
+| 29. Implement public/Admin E2E workflows | In progress | MIU 21 deploy-safe and credentialed workflow coverage active |
+| 30. Complete local-seed delivery verification | Pending | MIU 22 full-family seed, compatibility, deploy, and remote-delivery gate |
 
 ## Scope Boundaries
 

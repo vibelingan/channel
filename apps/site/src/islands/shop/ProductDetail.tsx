@@ -3,6 +3,7 @@ import type { HeadphonesContent } from '../../i18n/headphones.ts';
 import { Gallery } from './Gallery.tsx';
 import { InquiryForm } from './InquiryForm.tsx';
 import { type Product, fetchProduct, formatPrice } from './api.ts';
+import { publicManualPrice } from './catalog-pricing.ts';
 import { useSession } from './session.ts';
 
 interface Props {
@@ -67,6 +68,7 @@ export function ProductDetail({ content }: Props) {
 
   const categoryLabel =
     list.categories.find((c) => c.key === product.category)?.label ?? product.category;
+  const publicAmount = publicManualPrice(product);
 
   const specs = [
     { label: detail.seriesLabel, value: product.series },
@@ -132,18 +134,14 @@ export function ProductDetail({ content }: Props) {
           {/* Pricing */}
           <div className="mt-6 rounded-[var(--radius-card)] bg-surface-alt p-5">
             <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-              {product.wholesalePrice !== undefined
+              {publicAmount !== undefined && publicAmount === product.wholesalePrice
                 ? detail.wholesaleLabel
-                : product.unitPrice !== undefined
+                : publicAmount !== undefined
                   ? detail.unitPriceLabel
                   : detail.inquiryCta}
             </p>
             <p className="mt-2 font-display text-3xl font-bold text-brand-700">
-              {product.wholesalePrice !== undefined
-                ? formatPrice(product.wholesalePrice)
-                : product.unitPrice !== undefined
-                  ? formatPrice(product.unitPrice)
-                  : detail.inquiryCta}
+              {publicAmount !== undefined ? formatPrice(publicAmount) : detail.inquiryCta}
             </p>
           </div>
 

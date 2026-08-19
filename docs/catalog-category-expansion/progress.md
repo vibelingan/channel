@@ -133,6 +133,13 @@
 	field preservation on link/unlink/promotion, exact fenced promotion patch keys, and complete generic
 	Admin ownership including the operator pin. MIU 19 is complete; MIU 20 catalog SEO/breadcrumb work
 	is active.
+- MIU 20 adds matching visible and structured breadcrumbs for the catalog hierarchy, an explicit
+	index-follow JSON-LD graph policy, runtime publication-complete Product schema, fixed/range
+	Offer provenance, query-SKU canonical timing, strict browser pricing decoding, and deterministic
+	static sitemap/noindex behavior. Two independent assumption-audit rounds found and closed range
+	misrepresentation, weak tier decoding, incomplete Product eligibility, premature canonical
+	promotion, unknown-key acceptance, stale fixtures, and impossible-date normalization. MIU 20 is
+	complete; MIU 21 public/Admin workflow E2E is active.
 
 | Implementation check | Result |
 |---|---|
@@ -200,3 +207,10 @@
 | MIU 19 focused compatibility tests | Passed: 28/28 linking, promotion, and shared ownership checks |
 | MIU 19 full tests/typecheck | Passed: Alibaba 74/74; shared 95/95; both typechecks clean |
 | MIU 19 function artifact | Passed: Alibaba build plus Admin/Public/Alibaba package cold-start smoke |
+| MIU 20 focused SEO/pricing/render tests | Passed: 44/44 |
+| MIU 20 site tests | Passed: 191/191 |
+| MIU 20 typecheck/lint | Passed: Astro 0 errors; E2E TypeScript clean; Biome 314 files clean |
+| MIU 20 browser integration | Passed: 8/8 family/SKU tests on fresh guarded server, including canonical error/retry transitions |
+| MIU 20 production build | Passed: 15 static pages with `SITE_URL=https://example.test` |
+| MIU 20 generated artifact parser | Passed: 5 BreadcrumbLists, SKU `noindex,follow`, no static Product/Offer/AggregateOffer, SKU absent sitemap, 5 catalog URLs present |
+| MIU 20 assumption audit | Passed: final independent audit reported no findings |

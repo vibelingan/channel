@@ -16,6 +16,7 @@ import { OEM_INQUIRY_HREF } from '../../lib/site-navigation.ts';
 import { AlibabaCatalogPricingBlock } from './AlibabaCatalogPricingBlock.tsx';
 import { Gallery } from './Gallery.tsx';
 import { formatPrice } from './api.ts';
+import { publicManualPrice } from './catalog-pricing.ts';
 import type { Product } from './catalog-types.ts';
 
 export interface HeadphonesProductDetailProps {
@@ -39,6 +40,7 @@ export function HeadphonesProductDetail({
   // PriceBlock — with no fallback when Alibaba pricing is missing. Unlinked
   // products render byte-identically to the pre-feature page.
   const alibabaLinked = Boolean(product.alibabaPrimarySourceKey);
+  const publicAmount = publicManualPrice(product);
   return (
     <section
       data-product-detail={product._id}
@@ -149,18 +151,14 @@ export function HeadphonesProductDetail({
               ) : (
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-                    {product.wholesalePrice !== undefined
+                    {publicAmount !== undefined && publicAmount === product.wholesalePrice
                       ? detail.wholesaleLabel
-                      : product.unitPrice !== undefined
+                      : publicAmount !== undefined
                         ? detail.unitPriceLabel
                         : detail.inquiryCta}
                   </p>
                   <p className="mt-2 font-display text-3xl font-bold text-brand-700">
-                    {product.wholesalePrice !== undefined
-                      ? formatPrice(product.wholesalePrice)
-                      : product.unitPrice !== undefined
-                        ? formatPrice(product.unitPrice)
-                        : detail.inquiryCta}
+                    {publicAmount !== undefined ? formatPrice(publicAmount) : detail.inquiryCta}
                   </p>
                 </div>
               )}

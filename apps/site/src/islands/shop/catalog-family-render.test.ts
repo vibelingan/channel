@@ -126,7 +126,7 @@ test('family cards choose source, public, or quote pricing and require usable sl
         name: 'Linked',
         alibabaPrimarySourceKey: 'source-1',
         alibabaCatalogPricing: {
-          schemaVersion: '1',
+          schemaVersion: 'alibaba-catalog-pricing-v1',
           source: 'alibaba',
           mode: 'fixed',
           currency: 'USD',
@@ -219,7 +219,7 @@ test('family grid source keeps public card fields and excludes VIP and video', (
   assert.match(source, /\/products\/item\/\?slug=/);
   assert.match(source, /ProductMedia/);
   assert.match(source, /alibabaPriceSummary/);
-  assert.match(source, /wholesalePrice\s*\?\?/);
+  assert.match(source, /publicManualPrice/);
   assert.match(source, /quote/iu);
   assert.match(source, /initial-error/);
   assert.match(source, /loading-initial/);

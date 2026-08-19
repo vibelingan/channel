@@ -106,7 +106,11 @@ test('public pages expose a complete default Open Graph and Twitter card contrac
       .filter((child) => child.type === 'text')
       .map((child) => child.value.trim())
       .filter(Boolean);
-    assert.deepEqual(meaningfulText, ['!noindex && (', ')'], `${key} stays public-only`);
+    assert.deepEqual(
+      meaningfulText,
+      ["robots === 'index,follow' && (", ')'],
+      `${key} stays public-only`,
+    );
   }
 
   assert.match(layoutSource, /socialImage\?: SocialImage/);

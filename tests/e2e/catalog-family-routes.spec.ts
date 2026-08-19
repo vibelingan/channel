@@ -45,6 +45,21 @@ for (const route of familyRoutes) {
       await expect
         .poll(() => requests.at(-1)?.searchParams.get('productFamily'))
         .toBe(route.family);
+      const visibleBreadcrumbs = await page
+        .getByRole('navigation', { name: 'Breadcrumb' })
+        .locator('a, [aria-current="page"]')
+        .allTextContents();
+      const breadcrumbSchema = await page
+        .locator('script[type="application/ld+json"]')
+        .evaluateAll((scripts) =>
+          scripts
+            .map((script) => JSON.parse(script.textContent ?? '{}'))
+            .flatMap((schema) => schema['@graph'] ?? [])
+            .find((node) => node['@type'] === 'BreadcrumbList'),
+        );
+      expect(breadcrumbSchema.itemListElement.map((item: { name: string }) => item.name)).toEqual(
+        visibleBreadcrumbs.map((label) => label.trim()),
+      );
       expect(requests.at(-1)?.searchParams.get('page')).toBe('1');
       expect(requests.at(-1)?.searchParams.get('pageSize')).toBe('12');
       const dimensions = await page.evaluate(() => ({

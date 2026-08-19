@@ -5,6 +5,7 @@ import {
 } from './AlibabaCatalogPricingBlock.tsx';
 import { ProductMedia } from './ProductMedia.tsx';
 import { formatPrice } from './api.ts';
+import { publicManualPrice } from './catalog-pricing.ts';
 import type { Product } from './catalog-types.ts';
 import { type HeadphonesCatalogState, hasMoreProducts } from './headphonesCatalogState.ts';
 
@@ -33,7 +34,7 @@ export function catalogProductPrice(product: Product, quoteLabel: string): strin
       DEFAULT_ALIBABA_PRICING_LABELS.unavailableLabel
     );
   }
-  const publicPrice = product.wholesalePrice ?? product.unitPrice;
+  const publicPrice = publicManualPrice(product);
   return publicPrice === undefined ? quoteLabel : formatPrice(publicPrice);
 }
 

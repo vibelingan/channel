@@ -84,9 +84,15 @@ This hypothesis is supported, with one important correction: the current `catego
 - Public canonicals use trailing slashes. The category design should avoid a later URL migration by reserving stable routes now.
 - Global Organization, WebSite, and WebPage schema comes from `BaseLayout.astro`; category/SKU pages should extend, not duplicate, that graph.
 - Visible three-level hierarchy warrants visible breadcrumbs and matching `BreadcrumbList` data.
-- Product schema remains blocked until real server-rendered product data exists. Placeholder price, rating, inventory, warranty, and review claims are forbidden.
+- The static query-SKU shell remains generic `noindex,follow` and absent from the sitemap. After the
+	published-slug endpoint returns a runtime-validated publication-complete product, the hydrated
+	detail may emit Product/Offer data and a slug-qualified canonical; placeholder price, rating,
+	inventory, warranty, and review claims remain forbidden.
 - Titles must remain at most 60 characters, descriptions at most 160 characters, and each public page must render one visible H1.
 - Sitemap `lastmod` may only use a reviewed content timestamp, never build time or Alibaba sync time.
+- Catalog frontmatter is the reviewed family-content publication manifest for static builds. A family
+	href in that registry means the route has approved real content and may be indexable even when the
+	runtime product query is empty; removing the href removes that family from the sitemap contract.
 - English is the only approved locale today. Do not add hreflang or translated URLs until translated content and locale strategy are approved.
 
 ## UI Constraints
@@ -208,13 +214,38 @@ The existing VIP pricing path is not part of this feature. Registration creates 
 ## MIU 18 Implementation Findings
 
 - Headphones/auth presentation no longer contains VIP values, labels, locks, or unlock-pricing copy.
-	The legacy DTO/storage/API/role fields remain intact; Overstock remains outside this catalog scope.
+- The legacy DTO/storage/API/role fields remain intact; Overstock remains outside this catalog scope.
 - Manual Headphones detail pricing is viewer-independent and selects public wholesale, then unit price,
 	then quote. Legacy compatibility detail follows the same rule. Alibaba-linked detail still routes by
 	link identity and never falls back to any legacy price.
 - Focused tests cover wholesale/unit/quote branches, loaded `vipPrice` suppression, anonymous/member
 	parity, and Alibaba missing/unavailable modes. Source and built HTML scans cover Headphones/auth;
 	browser checks cover family/SKU plus login/register negative presentation.
+
+## MIU 20 Implementation Findings
+
+- The hub and four family routes render one visible breadcrumb hierarchy and one matching
+	`BreadcrumbList` each. Catalog frontmatter remains the reviewed static family-content publication
+	manifest used by sitemap filtering.
+- The query-SKU shell stays generic `noindex,follow`, contains no static Product pricing schema, and
+	remains absent from the sitemap. Runtime canonical promotion occurs only after the published-slug
+	endpoint returns a publication-complete product; missing, unknown, and transport-error states keep
+	the generic `/products/item/` canonical.
+- Product schema requires the public equivalent of the server publication contract: family, name,
+	slug, SKU, description, and at least one resolved image. The published/non-archived slug endpoint
+	is the publication authority; no placeholder ratings, reviews, inventory, warranty, or availability
+	claims are emitted.
+- Manual visible and schema pricing share one selector: valid wholesale, then valid unit, otherwise
+	quote/no Offer. Alibaba-linked products never fall back to manual or VIP values. Fixed source
+	pricing emits `Offer`; validated source ranges emit `AggregateOffer`; tiered, negotiable,
+	unavailable, and malformed source pricing emit no structured price claim.
+- The browser trust boundary mirrors the canonical public Alibaba pricing contract: exact schema
+	version, canonical UTC timestamps, known public keys only, safe integer minor units, strict
+	per-mode fields, positive ordered non-overlapping tiers, final-only open tiers, and source-MOQ
+	compatibility. Invalid payloads fail closed before rendering.
+- A long-lived Astro/Vite server can lose hydration after a failed config full reload
+	(`astro:server-app.js` resolution). Browser evidence is accepted only from a fresh guarded
+	worktree-bound server; unchanged tests passed on the clean process.
 
 ## MIU 19 Implementation Findings
 

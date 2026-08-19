@@ -182,12 +182,61 @@ test('malformed catalog and product payloads fail at the response boundary', asy
       _id: 'bad-pricing',
       name: 'Bad pricing',
       alibabaCatalogPricing: {
-        schemaVersion: '1',
+        schemaVersion: 'alibaba-catalog-pricing-v1',
         source: 'alibaba',
         mode: 'tiered',
+        currency: 'USD',
         syncedAt: '2026-01-01T00:00:00.000Z',
-        sourceUpdatedAt: 42,
         tiers: {},
+      },
+    }),
+    jsonResponse({
+      _id: 'bad-source-updated',
+      name: 'Bad source updated',
+      alibabaCatalogPricing: {
+        schemaVersion: 'alibaba-catalog-pricing-v1',
+        source: 'alibaba',
+        mode: 'fixed',
+        currency: 'USD',
+        amountMinor: 250,
+        sourceUpdatedAt: 42,
+        syncedAt: '2026-01-01T00:00:00.000Z',
+      },
+    }),
+    jsonResponse({
+      _id: 'bad-synced-format',
+      name: 'Bad synced format',
+      alibabaCatalogPricing: {
+        schemaVersion: 'alibaba-catalog-pricing-v1',
+        source: 'alibaba',
+        mode: 'fixed',
+        currency: 'USD',
+        amountMinor: 250,
+        syncedAt: 'not-a-date',
+      },
+    }),
+    jsonResponse({
+      _id: 'bad-synced-calendar',
+      name: 'Bad synced calendar',
+      alibabaCatalogPricing: {
+        schemaVersion: 'alibaba-catalog-pricing-v1',
+        source: 'alibaba',
+        mode: 'fixed',
+        currency: 'USD',
+        amountMinor: 250,
+        syncedAt: '2026-02-30T00:00:00.000Z',
+      },
+    }),
+    jsonResponse({
+      _id: 'bad-version',
+      name: 'Bad version',
+      alibabaCatalogPricing: {
+        schemaVersion: '1',
+        source: 'alibaba',
+        mode: 'fixed',
+        currency: 'USD',
+        amountMinor: 250,
+        syncedAt: '2026-01-01T00:00:00.000Z',
       },
     }),
     jsonResponse({
@@ -199,9 +248,79 @@ test('malformed catalog and product payloads fail at the response boundary', asy
       _id: 'array-mode',
       name: 'Array mode',
       alibabaCatalogPricing: {
-        schemaVersion: '1',
+        schemaVersion: 'alibaba-catalog-pricing-v1',
         source: 'alibaba',
         mode: ['fixed'],
+        syncedAt: '2026-01-01T00:00:00.000Z',
+      },
+    }),
+    jsonResponse({
+      _id: 'negative-price',
+      name: 'Negative price',
+      wholesalePrice: -1,
+    }),
+    jsonResponse({
+      _id: 'bad-range',
+      name: 'Bad range',
+      alibabaCatalogPricing: {
+        schemaVersion: 'alibaba-catalog-pricing-v1',
+        source: 'alibaba',
+        mode: 'range',
+        currency: 'USD',
+        minAmountMinor: 300,
+        maxAmountMinor: 200,
+        syncedAt: '2026-01-01T00:00:00.000Z',
+      },
+    }),
+    jsonResponse({
+      _id: 'bad-tier-window',
+      name: 'Bad tier window',
+      alibabaCatalogPricing: {
+        schemaVersion: 'alibaba-catalog-pricing-v1',
+        source: 'alibaba',
+        mode: 'tiered',
+        currency: 'USD',
+        tiers: [{ minQuantity: 100, maxQuantity: 50, unitAmountMinor: 250 }],
+        syncedAt: '2026-01-01T00:00:00.000Z',
+      },
+    }),
+    jsonResponse({
+      _id: 'overlapping-tiers',
+      name: 'Overlapping tiers',
+      alibabaCatalogPricing: {
+        schemaVersion: 'alibaba-catalog-pricing-v1',
+        source: 'alibaba',
+        mode: 'tiered',
+        currency: 'USD',
+        tiers: [
+          { minQuantity: 1, maxQuantity: 100, unitAmountMinor: 250 },
+          { minQuantity: 100, unitAmountMinor: 200 },
+        ],
+        syncedAt: '2026-01-01T00:00:00.000Z',
+      },
+    }),
+    jsonResponse({
+      _id: 'unknown-pricing-key',
+      name: 'Unknown pricing key',
+      alibabaCatalogPricing: {
+        schemaVersion: 'alibaba-catalog-pricing-v1',
+        source: 'alibaba',
+        mode: 'fixed',
+        currency: 'USD',
+        amountMinor: 250,
+        syncedAt: '2026-01-01T00:00:00.000Z',
+        discount: true,
+      },
+    }),
+    jsonResponse({
+      _id: 'unknown-tier-key',
+      name: 'Unknown tier key',
+      alibabaCatalogPricing: {
+        schemaVersion: 'alibaba-catalog-pricing-v1',
+        source: 'alibaba',
+        mode: 'tiered',
+        currency: 'USD',
+        tiers: [{ minQuantity: 1, unitAmountMinor: 250, discount: true }],
         syncedAt: '2026-01-01T00:00:00.000Z',
       },
     }),
@@ -209,8 +328,18 @@ test('malformed catalog and product payloads fail at the response boundary', asy
   await assert.rejects(fetchProductFamily('toys'), /Failed to load catalog/);
   await assert.rejects(fetchProductBySlug('bad'), /Failed to load item/);
   await assert.rejects(fetchProductBySlug('bad-pricing'), /Failed to load item/);
+  await assert.rejects(fetchProductBySlug('bad-source-updated'), /Failed to load item/);
+  await assert.rejects(fetchProductBySlug('bad-synced-format'), /Failed to load item/);
+  await assert.rejects(fetchProductBySlug('bad-synced-calendar'), /Failed to load item/);
+  await assert.rejects(fetchProductBySlug('bad-version'), /Failed to load item/);
   await assert.rejects(fetchProductBySlug('array-status'), /Failed to load item/);
   await assert.rejects(fetchProductBySlug('array-mode'), /Failed to load item/);
+  await assert.rejects(fetchProductBySlug('negative-price'), /Failed to load item/);
+  await assert.rejects(fetchProductBySlug('bad-range'), /Failed to load item/);
+  await assert.rejects(fetchProductBySlug('bad-tier-window'), /Failed to load item/);
+  await assert.rejects(fetchProductBySlug('overlapping-tiers'), /Failed to load item/);
+  await assert.rejects(fetchProductBySlug('unknown-pricing-key'), /Failed to load item/);
+  await assert.rejects(fetchProductBySlug('unknown-tier-key'), /Failed to load item/);
 });
 
 class MemoryStorage implements Storage {

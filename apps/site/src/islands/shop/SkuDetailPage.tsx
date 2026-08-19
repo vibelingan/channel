@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react';
 import type { CatalogContent } from '../../i18n/catalog.ts';
+import {
+  catalogBreadcrumbSchema,
+  catalogProductSchema,
+  serializeCatalogSchema,
+  skuBreadcrumbs,
+} from '../../lib/catalog-seo.ts';
 import { OEM_INQUIRY_HREF } from '../../lib/site-navigation.ts';
 import { AlibabaCatalogPricingBlock } from './AlibabaCatalogPricingBlock.tsx';
 import { catalogProductPrice, hasUsableCatalogSlug } from './CatalogFamilyGrid.tsx';
 import { Gallery } from './Gallery.tsx';
 import { ProductMedia } from './ProductMedia.tsx';
 import { fetchProductBySlug, fetchRelatedProducts } from './api.ts';
+import { isPublicationCompleteCatalogProduct } from './catalog-pricing.ts';
 import type { Product } from './catalog-types.ts';
 
 export type SkuDetailViewState =
@@ -48,6 +55,7 @@ export function SkuDetailView({ content, state, onRetry }: ViewProps) {
   if (state.status === 'loading') {
     return (
       <div className="mx-auto max-w-[var(--width-container)] px-4 py-20 sm:px-6 lg:px-8">
+        <h1 className="sr-only">Product details</h1>
         <p className="text-center text-ink-muted" aria-live="polite">
           {list.loadingLabel}
         </p>
@@ -75,6 +83,9 @@ export function SkuDetailView({ content, state, onRetry }: ViewProps) {
         role="alert"
         className="mx-auto my-20 max-w-2xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-800"
       >
+        <h1 className="font-display text-2xl font-bold text-red-900">
+          Product details unavailable
+        </h1>
         <p>{list.errorLabel}</p>
         <button
           type="button"
@@ -92,19 +103,36 @@ export function SkuDetailView({ content, state, onRetry }: ViewProps) {
   const related = relatedProducts(product, state.related);
   const alibabaLinked = Boolean(product.alibabaPrimarySourceKey);
   const moq = alibabaLinked ? product.alibabaCatalogPricing?.sourceMoq : product.moq;
+  const breadcrumbs = skuBreadcrumbs(product);
+  const origin = typeof window === 'undefined' ? 'http://localhost' : window.location.origin;
+  // The public slug endpoint admits only published, non-archived products.
+  const productSchema = catalogProductSchema(product, origin, { published: true });
+  const schemaNodes = [
+    ...(breadcrumbs.length > 0 ? [catalogBreadcrumbSchema(breadcrumbs, origin)] : []),
+    ...(productSchema ? [productSchema] : []),
+  ];
 
   return (
     <>
       <section data-sku-detail={product._id} className="bg-white py-12 sm:py-16">
         <div className="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
           <nav aria-label="Breadcrumb" className="mb-8 text-sm text-ink-muted">
-            <a href="/electronics-toys/" className="hover:text-brand-700">
-              Electronics &amp; Toys
-            </a>
-            <span className="px-2" aria-hidden="true">
-              /
-            </span>
-            <span aria-current="page">{product.name}</span>
+            {breadcrumbs.map((breadcrumb, index) =>
+              index < breadcrumbs.length - 1 ? (
+                <span key={breadcrumb.href}>
+                  <a href={breadcrumb.href} className="hover:text-brand-700">
+                    {breadcrumb.label}
+                  </a>
+                  <span className="px-2" aria-hidden="true">
+                    /
+                  </span>
+                </span>
+              ) : (
+                <span key={breadcrumb.href} aria-current="page">
+                  {breadcrumb.label}
+                </span>
+              ),
+            )}
           </nav>
           <div className="grid min-w-0 gap-10 lg:grid-cols-2">
             <div className="min-w-0">
@@ -208,6 +236,14 @@ export function SkuDetailView({ content, state, onRetry }: ViewProps) {
           </div>
         </section>
       )}
+      {schemaNodes.length > 0 && (
+        <script
+          type="application/ld+json"
+          data-catalog-schema
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: serializer escapes `<` so remote text cannot terminate the script.
+          dangerouslySetInnerHTML={{ __html: serializeCatalogSchema(schemaNodes) }}
+        />
+      )}
     </>
   );
 }
@@ -220,6 +256,8 @@ export function SkuDetailPage({ content }: Props) {
   useEffect(() => {
     const controller = new AbortController();
     const slug = new URLSearchParams(window.location.search).get('slug')?.trim() ?? '';
+    const canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (canonical) canonical.href = new URL('/products/item/', window.location.origin).href;
     if (!slug) {
       setState({ status: 'not-found' });
       return () => controller.abort();
@@ -228,6 +266,12 @@ export function SkuDetailPage({ content }: Props) {
     fetchProductBySlug(slug, controller.signal)
       .then((product) => {
         if (controller.signal.aborted) return;
+        if (canonical && isPublicationCompleteCatalogProduct(product)) {
+          canonical.href = new URL(
+            `/products/item/?slug=${encodeURIComponent(product.slug?.trim() ?? '')}`,
+            window.location.origin,
+          ).href;
+        }
         setState({ status: 'ready', product, related: [] });
         fetchRelatedProducts(product, 4, controller.signal)
           .then((related) => {
