@@ -218,8 +218,16 @@ requireCheck(
   ]),
   '@cloudbase/database in-transaction doc.get resolves {data: doc|null} for missing documents',
 );
-// Runtime probe: drive a transaction through get(miss) -> set -> update and
-// pin the API sequence + upsert/merge params actually sent.
+requireCheck(
+  containsAll(documentRuntime, [
+    "await this.request.send('database.removeDocument'",
+    'transactionId: this._transactionId',
+    'deleted: res.data.deleted',
+  ]),
+  '@cloudbase/database doc.remove is transaction-aware and returns the deleted count',
+);
+// Runtime probe: drive a transaction through get(miss) -> set -> update ->
+// remove and pin the API sequence + transaction params actually sent.
 {
   const txCalls = [];
   class FakeLeaseProbeRequest {
@@ -229,6 +237,9 @@ requireCheck(
       if (api === 'database.getDocument') return { requestId: 'r', data: { list: [] } };
       if (api === 'database.modifyDocument') {
         return { requestId: 'r', data: { updated: 1, upsert_id: 'conn-1' } };
+      }
+      if (api === 'database.removeDocument') {
+        return { requestId: 'r', data: { deleted: 1 } };
       }
       return { requestId: 'r' };
     }
@@ -242,7 +253,8 @@ requireCheck(
       const missing = await ref.get();
       const setResult = await ref.set({ holder: 'h', fence: 1 });
       await ref.update({ heartbeatAt: 'x' });
-      return { missing: missing.data, updated: setResult.updated };
+      const removeResult = await ref.remove();
+      return { missing: missing.data, updated: setResult.updated, deleted: removeResult.deleted };
     });
     const apiSequence = txCalls.map((call) => call.api);
     const setCall = txCalls.find(
@@ -251,23 +263,28 @@ requireCheck(
     const updateCall = txCalls.find(
       (call) => call.api === 'database.modifyDocument' && call.params?.upsert === false,
     );
+    const removeCall = txCalls.find((call) => call.api === 'database.removeDocument');
     requireCheck(
       probeResult.missing === null &&
         probeResult.updated === 1 &&
+        probeResult.deleted === 1 &&
         JSON.stringify(apiSequence) ===
           JSON.stringify([
             'database.startTransaction',
             'database.getDocument',
             'database.modifyDocument',
             'database.modifyDocument',
+            'database.removeDocument',
             'database.commitTransaction',
           ]) &&
         setCall?.params?.merge === false &&
         setCall?.params?.transactionId === 'lease-probe-tx' &&
         setCall?.params?.query?.includes('conn-1') &&
         updateCall?.params?.merge === true &&
-        updateCall?.params?.transactionId === 'lease-probe-tx',
-      '@cloudbase/database transaction get-miss/set-upsert/update probe matches the lease write contract',
+        updateCall?.params?.transactionId === 'lease-probe-tx' &&
+        removeCall?.params?.transactionId === 'lease-probe-tx' &&
+        removeCall?.params?.query?.includes('conn-1'),
+      '@cloudbase/database transaction get/set/update/remove probe matches deterministic write contracts',
     );
   } finally {
     databaseModule.Db.reqClass = originalReqClass;
