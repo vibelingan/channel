@@ -14,11 +14,14 @@ import {
   type AdapterListQuery,
   type AlibabaLeaseGrant,
   type AlibabaLeaseGuard,
+  type CatalogProductSaveInput,
+  type CatalogProductSaveResult,
   type DbAdapter,
   type ImageMutationAcquireResult,
   type ImageMutationReleaseResult,
   holdsAlibabaLease,
   nextCounterValue,
+  planCatalogProductSave,
   transitionAlibabaLeaseAcquire,
   transitionAlibabaLeaseRelease,
   transitionAlibabaLeaseRenew,
@@ -430,6 +433,57 @@ export class JsonFileAdapter implements DbAdapter {
       docs.splice(index, 1);
       this.persist();
       return true;
+    });
+  }
+
+  async saveCatalogProductWithIdentities(
+    input: CatalogProductSaveInput,
+  ): Promise<CatalogProductSaveResult> {
+    return this.withMutationLock(() => {
+      const products = this.docs('products');
+      const productIndex = products.findIndex((document) => document._id === input.productId);
+      const existing = productIndex >= 0 ? (products[productIndex] as CollectionDoc) : null;
+      const plan = planCatalogProductSave(existing, input, new Date().toISOString());
+      if (plan.result !== 'ready') return plan;
+
+      const identityDocs = this.docs('catalogProductIdentities');
+      for (const identity of plan.identities) {
+        const existingIdentity = identityDocs.find((document) => document._id === identity.id);
+        if (
+          existingIdentity &&
+          (existingIdentity.productId !== input.productId ||
+            existingIdentity.kind !== identity.kind ||
+            existingIdentity.normalizedValue !== identity.normalizedValue)
+        ) {
+          return {
+            result: 'conflict',
+            kind: identity.kind,
+            normalizedValue: identity.normalizedValue,
+          };
+        }
+      }
+      for (const identity of plan.identities) {
+        if (!identityDocs.some((document) => document._id === identity.id)) {
+          identityDocs.push({
+            _id: identity.id,
+            kind: identity.kind,
+            normalizedValue: identity.normalizedValue,
+            productId: input.productId,
+            createdAt: plan.doc.updatedAt,
+            updatedAt: plan.doc.updatedAt,
+          } as CollectionDoc);
+        }
+      }
+      if (productIndex >= 0) products[productIndex] = plan.doc;
+      else products.push(plan.doc);
+      for (const identity of plan.staleIdentities) {
+        const index = identityDocs.findIndex(
+          (document) => document._id === identity.id && document.productId === input.productId,
+        );
+        if (index >= 0) identityDocs.splice(index, 1);
+      }
+      this.persist();
+      return { result: 'saved', doc: plan.doc };
     });
   }
 

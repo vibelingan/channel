@@ -13,7 +13,13 @@ import {
   getCollection,
   normalizeCatalogImageIds,
 } from '@vibelingan-channel/shared';
-import type { AlibabaLeaseGrant, AlibabaLeaseGuard, DbAdapter } from './adapter.ts';
+import type {
+  AlibabaLeaseGrant,
+  AlibabaLeaseGuard,
+  CatalogProductSaveInput,
+  CatalogProductSaveResult,
+  DbAdapter,
+} from './adapter.ts';
 import type { ImageMutationAcquireResult, ImageMutationReleaseResult } from './adapter.ts';
 import { ALIBABA_SYNC_LEASE_COLLECTION, holdsAlibabaLease } from './adapter.ts';
 export {
@@ -24,6 +30,7 @@ export {
   ALIBABA_SYNC_LEASE_RENEW_MS,
   ALIBABA_SYNC_LEASE_TTL_MS,
   holdsAlibabaLease,
+  planCatalogProductSave,
   readAlibabaLeaseState,
   transitionAlibabaLeaseAcquire,
   transitionAlibabaLeaseRelease,
@@ -35,6 +42,10 @@ export type {
   AlibabaLeaseGrant,
   AlibabaLeaseGuard,
   AlibabaLeaseState,
+  CatalogProductIdentity,
+  CatalogProductSaveInput,
+  CatalogProductSavePlan,
+  CatalogProductSaveResult,
   DbAdapter,
   ImageMutationAcquireResult,
   ImageMutationReleaseResult,
@@ -307,6 +318,31 @@ export function removeDocIfFieldEquals(
     );
   }
   return adapter.removeDocIfFieldEquals(collection, id, field, expectedValue);
+}
+
+/** Atomically save a product together with its normalized slug/SKU ownership. */
+export function saveCatalogProductWithIdentities(
+  input: CatalogProductSaveInput,
+): Promise<CatalogProductSaveResult> {
+  if (
+    !input ||
+    typeof input !== 'object' ||
+    Array.isArray(input) ||
+    (input.mode !== 'create' && input.mode !== 'update') ||
+    !input.data ||
+    typeof input.data !== 'object' ||
+    Array.isArray(input.data)
+  ) {
+    throw new Error('@vibelingan-channel/db: invalid catalog product save input.');
+  }
+  requireNonEmpty(input.productId, 'product id');
+  const adapter = db();
+  if (!adapter.saveCatalogProductWithIdentities) {
+    throw new Error(
+      '@vibelingan-channel/db: saveCatalogProductWithIdentities is not implemented by this adapter.',
+    );
+  }
+  return adapter.saveCatalogProductWithIdentities(input);
 }
 
 /** Create-or-patch with a deterministic id; returns the resulting document. */

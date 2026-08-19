@@ -15,6 +15,7 @@ import {
 import cloud from 'wx-server-sdk';
 import type {
   AlibabaLeaseGrant,
+  CatalogProductSaveResult,
   DbAdapter,
   ImageMutationAcquireResult,
   ImageMutationReleaseResult,
@@ -22,6 +23,7 @@ import type {
 import {
   ALIBABA_SYNC_LEASE_COLLECTION,
   holdsAlibabaLease,
+  planCatalogProductSave,
   transitionAlibabaLeaseAcquire,
   transitionAlibabaLeaseRelease,
   transitionAlibabaLeaseRenew,
@@ -341,6 +343,67 @@ export const cloudBaseAdapter: DbAdapter = {
       if (!existing || existing[field] !== expectedValue) return false;
       const removed = await ref.remove();
       return (removed.deleted ?? 0) > 0;
+    });
+  },
+
+  async saveCatalogProductWithIdentities(input): Promise<CatalogProductSaveResult> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const productRef = transaction.collection('products').doc(input.productId);
+      const existing = normalizeSingle((await productRef.get()).data);
+      const now = new Date().toISOString();
+      const plan = planCatalogProductSave(existing, input, now);
+      if (plan.result !== 'ready') return plan;
+
+      const identityById = new Map<string, CollectionDoc | null>();
+      for (const identity of [...plan.identities, ...plan.staleIdentities]) {
+        if (!identityById.has(identity.id)) {
+          const ref = transaction.collection('catalogProductIdentities').doc(identity.id);
+          identityById.set(identity.id, normalizeSingle((await ref.get()).data));
+        }
+      }
+      for (const identity of plan.identities) {
+        const existingIdentity = identityById.get(identity.id);
+        if (
+          existingIdentity &&
+          (existingIdentity.productId !== input.productId ||
+            existingIdentity.kind !== identity.kind ||
+            existingIdentity.normalizedValue !== identity.normalizedValue)
+        ) {
+          return {
+            result: 'conflict',
+            kind: identity.kind,
+            normalizedValue: identity.normalizedValue,
+          };
+        }
+      }
+
+      for (const identity of plan.identities) {
+        if (!identityById.get(identity.id)) {
+          await transaction.collection('catalogProductIdentities').doc(identity.id).set({
+            kind: identity.kind,
+            normalizedValue: identity.normalizedValue,
+            productId: input.productId,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+      }
+      const { _id, ...productData } = plan.doc;
+      if (input.mode === 'create') {
+        await productRef.set(productData);
+      } else {
+        if (existing?.createdAt !== undefined && existing.createdAt !== null) {
+          delete productData.createdAt;
+        }
+        await productRef.update(replaceNestedObjects(productData, db.command));
+      }
+      for (const identity of plan.staleIdentities) {
+        if (identityById.get(identity.id)?.productId === input.productId) {
+          await transaction.collection('catalogProductIdentities').doc(identity.id).remove();
+        }
+      }
+      return { result: 'saved', doc: plan.doc };
     });
   },
 

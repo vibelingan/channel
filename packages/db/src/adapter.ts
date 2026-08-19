@@ -13,6 +13,7 @@ import type {
   ListResult,
   SortClause,
 } from '@vibelingan-channel/shared';
+import { normalizeProductSlug, normalizeSkuCode } from '@vibelingan-channel/shared';
 
 /** Normalized query passed to adapters: defaults already applied. */
 export interface AdapterListQuery {
@@ -26,6 +27,90 @@ export interface AdapterListQuery {
 
 export type ImageMutationAcquireResult = 'acquired' | 'missing' | 'busy' | 'corrupt';
 export type ImageMutationReleaseResult = 'released' | 'missing' | 'not-owner' | 'corrupt';
+
+export interface CatalogProductSaveInput {
+  mode: 'create' | 'update';
+  productId: string;
+  data: Record<string, unknown>;
+}
+
+export interface CatalogProductIdentity {
+  kind: 'slug' | 'sku';
+  normalizedValue: string;
+  id: string;
+}
+
+export type CatalogProductSaveResult =
+  | { result: 'saved'; doc: CollectionDoc }
+  | { result: 'conflict'; kind: 'slug' | 'sku'; normalizedValue: string }
+  | { result: 'invalid'; kind: 'slug' | 'sku' }
+  | { result: 'missing' | 'exists' };
+
+export type CatalogProductSavePlan =
+  | Extract<CatalogProductSaveResult, { result: 'invalid' | 'missing' | 'exists' }>
+  | {
+      result: 'ready';
+      doc: CollectionDoc;
+      identities: CatalogProductIdentity[];
+      staleIdentities: CatalogProductIdentity[];
+    };
+
+function productIdentity(
+  kind: 'slug' | 'sku',
+  value: unknown,
+): CatalogProductIdentity | null | 'invalid' {
+  if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '')) {
+    return null;
+  }
+  const normalizedValue = kind === 'slug' ? normalizeProductSlug(value) : normalizeSkuCode(value);
+  if (normalizedValue === null) return 'invalid';
+  return { kind, normalizedValue, id: `${kind}:${normalizedValue}` };
+}
+
+function productIdentities(
+  values: Record<string, unknown>,
+): CatalogProductIdentity[] | { invalid: 'slug' | 'sku' } {
+  const slug = productIdentity('slug', values.slug);
+  if (slug === 'invalid') return { invalid: 'slug' };
+  const sku = productIdentity('sku', values.skuCode);
+  if (sku === 'invalid') return { invalid: 'sku' };
+  return [slug, sku].filter((identity): identity is CatalogProductIdentity => identity !== null);
+}
+
+function validProductIdentities(values: Record<string, unknown>): CatalogProductIdentity[] {
+  return (['slug', 'sku'] as const)
+    .map((kind) => productIdentity(kind, kind === 'slug' ? values.slug : values.skuCode))
+    .filter(
+      (identity): identity is CatalogProductIdentity => identity !== null && identity !== 'invalid',
+    );
+}
+
+export function planCatalogProductSave(
+  existing: CollectionDoc | null,
+  input: CatalogProductSaveInput,
+  now: string,
+): CatalogProductSavePlan {
+  if (input.mode === 'create' && existing) return { result: 'exists' };
+  if (input.mode === 'update' && !existing) return { result: 'missing' };
+  const { _id, ...data } = input.data as Record<string, unknown> & { _id?: unknown };
+  const doc = {
+    ...(existing ?? {}),
+    ...data,
+    _id: input.productId,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  } as CollectionDoc;
+  const identities = productIdentities(doc);
+  if (!Array.isArray(identities)) return { result: 'invalid', kind: identities.invalid };
+  const previousIdentities = existing ? validProductIdentities(existing) : [];
+  const nextIds = new Set(identities.map((identity) => identity.id));
+  return {
+    result: 'ready',
+    doc,
+    identities,
+    staleIdentities: previousIdentities.filter((identity) => !nextIds.has(identity.id)),
+  };
+}
 
 /**
  * A lock older than this is treated as abandoned by a crashed holder and may
@@ -301,6 +386,10 @@ export interface DbAdapter {
     field: string,
     expectedValue: unknown,
   ): Promise<boolean>;
+  /** Atomically save one product and transfer its slug/SKU reservations. */
+  saveCatalogProductWithIdentities?(
+    input: CatalogProductSaveInput,
+  ): Promise<CatalogProductSaveResult>;
   /** Create-or-patch by deterministic id; returns the resulting document. */
   upsertDocWithId?(
     collection: string,
