@@ -14,6 +14,8 @@ export interface CatalogFamilyContent {
   description: string;
   image: string;
   imageAlt: string;
+  imageWidth: number;
+  imageHeight: number;
   categories: readonly CatalogCategoryContent[];
 }
 

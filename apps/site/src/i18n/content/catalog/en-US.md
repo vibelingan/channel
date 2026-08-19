@@ -44,6 +44,8 @@ families:
     description: Wired, office, and Bluetooth audio products for private-label and OEM programs.
     image: /media/section-capabilities.png
     imageAlt: Headphones, speakers, and earbuds among Channel product capabilities
+    imageWidth: 1448
+    imageHeight: 1086
     categories:
       - { key: wired, label: Wired Headphones }
       - { key: office, label: Office Headphones }
@@ -56,6 +58,8 @@ families:
     description: Connected cameras, translators, wearables, and practical smart devices ready for customization.
     image: /media/oem/process/p04.jpg
     imageAlt: Wired prototype circuit board used during electronics development
+    imageWidth: 540
+    imageHeight: 720
     categories: []
   - key: toys
     label: Toys
@@ -65,6 +69,8 @@ families:
     description: Educational, robotic, and creative play products developed for retail and promotional programs.
     image: /media/oem/process/p05.jpg
     imageAlt: Compact bear-shaped speaker prototype with illuminated ears
+    imageWidth: 662
+    imageHeight: 720
     categories: []
   - key: misc
     label: Misc
@@ -74,6 +80,8 @@ families:
     description: Useful consumer electronics and home products outside our core audio, smart-device, and toy ranges.
     image: /media/oem/factory/f04.jpg
     imageAlt: Channel factory production capability for consumer products
+    imageWidth: 1280
+    imageHeight: 713
     categories: []
 ---
 

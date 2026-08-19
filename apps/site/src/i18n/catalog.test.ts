@@ -20,6 +20,8 @@ const content = parseDocument(frontmatter[1]).toJS() as {
     href: string;
     image: string;
     imageAlt: string;
+    imageWidth: number;
+    imageHeight: number;
     categories: unknown[];
   }>;
 };
@@ -44,8 +46,8 @@ test('every family references a real inspectable image with descriptive alt text
     const file = fileURLToPath(new URL(`../../public${family.image}`, import.meta.url));
     assert.equal(existsSync(file), true, family.image);
     const metadata = await sharp(file).metadata();
-    assert.ok((metadata.width ?? 0) >= 500, `${family.image} width`);
-    assert.ok((metadata.height ?? 0) >= 400, `${family.image} height`);
+    assert.equal(metadata.width, family.imageWidth, `${family.image} width`);
+    assert.equal(metadata.height, family.imageHeight, `${family.image} height`);
   }
 });
 
