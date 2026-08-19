@@ -125,6 +125,10 @@
 	renders Alibaba status read-only, maps server errors to fields, and hardens nine-image management
 	with Primary ordering, committed-plus-pending capacity, over-limit blocking, and linked image errors.
 	MIU 17 is complete; MIU 18 public/auth VIP presentation suppression is active.
+- MIU 18 removes VIP values/labels/locks from Headphones and auth presentation while preserving legacy
+	storage/API/role compatibility. Manual public pricing is viewer-independent (wholesale, unit, quote),
+	Alibaba link-identity routing remains unchanged, and Overstock is untouched. MIU 18 is complete;
+	MIU 19 Alibaba compatibility regression suite is active.
 
 | Implementation check | Result |
 |---|---|
@@ -186,3 +190,6 @@
 | MIU 17 Admin browser form | Passed: 2/2 edit/media and field-error journeys |
 | MIU 17 site tests/typecheck | Passed: 177/177; Astro 0 errors; E2E TypeScript clean; scoped Biome clean |
 | MIU 17 site build | Passed: 15 static pages |
+| MIU 18 focused pricing/source tests | Passed: 15/15 wholesale/unit/quote, parity, Alibaba, and negative-source contracts |
+| MIU 18 public/auth browser negatives | Passed: 11/11 family, SKU, login, and register checks |
+| MIU 18 site tests/build | Passed: 179/179; Astro 0 errors; 15 static pages; built Headphones/auth scan clean |

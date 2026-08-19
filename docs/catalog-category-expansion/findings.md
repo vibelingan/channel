@@ -205,6 +205,17 @@ The existing VIP pricing path is not part of this feature. Registration creates 
 	preserves submitted order through deterministic reorder logic, disables over-limit selection, and
 	associates server image errors with the file input. The form is a native named modal dialog.
 
+## MIU 18 Implementation Findings
+
+- Headphones/auth presentation no longer contains VIP values, labels, locks, or unlock-pricing copy.
+	The legacy DTO/storage/API/role fields remain intact; Overstock remains outside this catalog scope.
+- Manual Headphones detail pricing is viewer-independent and selects public wholesale, then unit price,
+	then quote. Legacy compatibility detail follows the same rule. Alibaba-linked detail still routes by
+	link identity and never falls back to any legacy price.
+- Focused tests cover wholesale/unit/quote branches, loaded `vipPrice` suppression, anonymous/member
+	parity, and Alibaba missing/unavailable modes. Source and built HTML scans cover Headphones/auth;
+	browser checks cover family/SKU plus login/register negative presentation.
+
 ## Superseded Planning Note
 
 The earlier menu-only Phase 1 scope was superseded by client PDF V1.1. Implementers must use the V1.1 baseline at the top of this file and the current V1.1 LLD/MIU documents; the removed Phase 1 constraints no longer apply.

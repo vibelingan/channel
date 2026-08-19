@@ -140,3 +140,12 @@ test('mobile Products view exposes a full-width family select', async ({ page })
   expect(dimensions.bodyScroll).toBeLessThanOrEqual(dimensions.body);
   expect(dimensions.tableScroll).toBeGreaterThan(dimensions.tableClient);
 });
+
+test('auth presentation is VIP-free on login and registration pages', async ({ page }) => {
+  for (const path of ['/login', '/register']) {
+    await page.goto(path);
+    expect(await page.locator('body').innerText()).not.toMatch(
+      /\bVIP\b|unlock\s+(?:VIP\s+)?pricing/i,
+    );
+  }
+});

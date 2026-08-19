@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import type { HeadphonesContent } from '../../i18n/headphones.ts';
 import { Gallery } from './Gallery.tsx';
 import { InquiryForm } from './InquiryForm.tsx';
-import { PriceBlock } from './PriceBlock.tsx';
 import { type Product, fetchProduct, formatPrice } from './api.ts';
 import { useSession } from './session.ts';
 
@@ -21,7 +20,7 @@ export function ProductDetail({ content }: Props) {
   const [product, setProduct] = useState<Product | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'not-found' | 'error'>('loading');
   const [showInquiry, setShowInquiry] = useState(false);
-  const { canSeeVip, loggedIn } = useSession();
+  const { loggedIn } = useSession();
 
   useEffect(() => {
     const id = getId();
@@ -132,15 +131,20 @@ export function ProductDetail({ content }: Props) {
 
           {/* Pricing */}
           <div className="mt-6 rounded-[var(--radius-card)] bg-surface-alt p-5">
-            <PriceBlock
-              wholesaleLabel={detail.wholesaleLabel}
-              vipLabel={detail.vipLabel}
-              vipLockedLabel={detail.vipLockedLabel}
-              wholesalePrice={product.wholesalePrice}
-              vipPrice={product.vipPrice}
-              registered={canSeeVip}
-              size="lg"
-            />
+            <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
+              {product.wholesalePrice !== undefined
+                ? detail.wholesaleLabel
+                : product.unitPrice !== undefined
+                  ? detail.unitPriceLabel
+                  : detail.inquiryCta}
+            </p>
+            <p className="mt-2 font-display text-3xl font-bold text-brand-700">
+              {product.wholesalePrice !== undefined
+                ? formatPrice(product.wholesalePrice)
+                : product.unitPrice !== undefined
+                  ? formatPrice(product.unitPrice)
+                  : detail.inquiryCta}
+            </p>
           </div>
 
           {/* Inquiry CTA — signed-in users only */}

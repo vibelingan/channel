@@ -8,6 +8,8 @@ const product = {
   skuCode: 'AI-VC-100',
   description: 'Compact smart camera for OEM programs.',
   moq: 100,
+  wholesalePrice: 15.5,
+  vipPrice: 13.2,
   images: Array.from({ length: 10 }, (_, index) => `/media/test-${index + 1}.jpg`),
 };
 
@@ -40,6 +42,8 @@ test('direct SKU journey renders nine images, facts, related links, and preserve
   await expect(page.getByRole('heading', { level: 1, name: product.name })).toBeVisible();
   await expect(page.getByText('AI-VC-100', { exact: true })).toBeVisible();
   await expect(page.locator('dl > div', { hasText: 'MOQ' })).toContainText('100');
+  await expect(page.getByText('$15.50', { exact: true })).toBeVisible();
+  await expect(page.getByText('$13.20', { exact: true })).toHaveCount(0);
   await expect(page.locator('[data-gallery-thumbnail]')).toHaveCount(4);
   await expect(page.getByRole('button', { name: 'View All' })).toBeVisible();
   await page.getByRole('button', { name: 'View All' }).click();

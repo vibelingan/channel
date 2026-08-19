@@ -59,8 +59,6 @@ export interface HeadphonesContent {
     resultProgressLabel: string;
     categories: CategoryOption[];
     wholesaleLabel: string;
-    vipLabel: string;
-    vipLockedLabel: string;
     viewDetail: string;
     moqLabel: string;
   };
@@ -73,8 +71,6 @@ export interface HeadphonesContent {
     moqLabel: string;
     unitPriceLabel: string;
     wholesaleLabel: string;
-    vipLabel: string;
-    vipLockedLabel: string;
     inquiryCta: string;
     oemInquiryCta: string;
     viewAllLabel: string;

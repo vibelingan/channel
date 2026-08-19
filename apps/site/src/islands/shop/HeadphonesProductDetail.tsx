@@ -15,7 +15,6 @@ import type { HeadphonesContent } from '../../i18n/headphones.ts';
 import { OEM_INQUIRY_HREF } from '../../lib/site-navigation.ts';
 import { AlibabaCatalogPricingBlock } from './AlibabaCatalogPricingBlock.tsx';
 import { Gallery } from './Gallery.tsx';
-import { PriceBlock } from './PriceBlock.tsx';
 import { formatPrice } from './api.ts';
 import type { Product } from './catalog-types.ts';
 
@@ -24,7 +23,6 @@ export interface HeadphonesProductDetailProps {
   detail: HeadphonesContent['detail'];
   /** Category display label, resolved by the caller from the list contract. */
   categoryLabel: string;
-  registered: boolean;
   onBack: () => void;
 }
 
@@ -32,7 +30,6 @@ export function HeadphonesProductDetail({
   product,
   detail,
   categoryLabel,
-  registered,
   onBack,
 }: HeadphonesProductDetailProps) {
   // Alibaba-linked branch (docs/alibaba-linked-catalog-sync, MIU 10): the
@@ -136,14 +133,6 @@ export function HeadphonesProductDetail({
                   </dd>
                 </div>
               )}
-              {!alibabaLinked && product.unitPrice !== undefined && (
-                <div className="flex items-center justify-between gap-4 px-4 py-3">
-                  <dt className="text-sm text-ink-muted">{detail.unitPriceLabel}</dt>
-                  <dd className="font-display text-base font-bold text-brand-700">
-                    {formatPrice(product.unitPrice)}
-                  </dd>
-                </div>
-              )}
               {product.productCode && (
                 <div className="flex items-center justify-between gap-4 px-4 py-3">
                   <dt className="text-sm text-ink-muted">Product Code</dt>
@@ -158,16 +147,22 @@ export function HeadphonesProductDetail({
               {alibabaLinked ? (
                 <AlibabaCatalogPricingBlock pricing={product.alibabaCatalogPricing} size="lg" />
               ) : (
-                <PriceBlock
-                  wholesaleLabel={detail.wholesaleLabel}
-                  vipLabel={detail.vipLabel}
-                  vipLockedLabel={detail.vipLockedLabel}
-                  wholesalePrice={product.wholesalePrice}
-                  vipPrice={product.vipPrice}
-                  registered={registered}
-                  signInHref={null}
-                  size="lg"
-                />
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
+                    {product.wholesalePrice !== undefined
+                      ? detail.wholesaleLabel
+                      : product.unitPrice !== undefined
+                        ? detail.unitPriceLabel
+                        : detail.inquiryCta}
+                  </p>
+                  <p className="mt-2 font-display text-3xl font-bold text-brand-700">
+                    {product.wholesalePrice !== undefined
+                      ? formatPrice(product.wholesalePrice)
+                      : product.unitPrice !== undefined
+                        ? formatPrice(product.unitPrice)
+                        : detail.inquiryCta}
+                  </p>
+                </div>
               )}
             </div>
 

@@ -17,8 +17,6 @@ const DETAIL: HeadphonesContent['detail'] = {
   moqLabel: 'Minimum Order Quantity',
   unitPriceLabel: 'Unit price',
   wholesaleLabel: 'Wholesale price',
-  vipLabel: 'VIP price',
-  vipLockedLabel: 'Sign in to view VIP price',
   inquiryCta: 'Price inquiry',
   oemInquiryCta: 'Start Your OEM Enquiry',
   viewAllLabel: 'View All',
@@ -45,14 +43,12 @@ const FULL_PRODUCT: Product = {
 
 function render(over: {
   product?: Product;
-  registered?: boolean;
 }): string {
   return renderToStaticMarkup(
     createElement(HeadphonesProductDetail, {
       product: over.product ?? FULL_PRODUCT,
       detail: DETAIL,
       categoryLabel: 'True Wireless',
-      registered: over.registered ?? false,
       onBack: () => {},
     }),
   );
@@ -66,18 +62,13 @@ test('a complete product renders gallery, specs, pricing, focus heading, and Bac
   // Gallery media flows through the ProductMedia contract.
   assert.ok(html.includes('data-product-media='));
   // Spec sheet rows from the content contract.
-  for (const label of [
-    DETAIL.seriesLabel,
-    DETAIL.typeLabel,
-    DETAIL.moqLabel,
-    DETAIL.unitPriceLabel,
-  ]) {
+  for (const label of [DETAIL.seriesLabel, DETAIL.typeLabel, DETAIL.moqLabel]) {
     assert.ok(html.includes(label), `missing spec label: ${label}`);
   }
   assert.ok(html.includes('SY-T8-BLK'));
-  assert.ok(html.includes('$18.90'));
-  // Entitlement pricing block.
+  // Public pricing panel.
   assert.ok(html.includes(DETAIL.wholesaleLabel));
+  assert.ok(html.includes('$15.50'));
   // Focus-target heading: focusable programmatically, marked for the controller.
   assert.ok(/<h2[^>]*tabindex="-1"[^>]*data-detail-heading/.test(html));
   assert.ok(html.includes(FULL_PRODUCT.name));
@@ -88,21 +79,52 @@ test('a complete product renders gallery, specs, pricing, focus heading, and Bac
   assert.ok(!/<a[^>]*data-detail-back/.test(html));
 });
 
-test('unregistered viewers see the VIP entitlement lock, registered see VIP price', () => {
-  const locked = render({ registered: false });
-  assert.ok(locked.includes(DETAIL.vipLockedLabel));
-  // The locked chip is informational, not a login prerequisite: the detail
-  // output must never contain a /login anchor for any viewer.
-  assert.ok(!locked.includes('/login'));
-  const unlocked = render({ registered: true });
-  assert.ok(!unlocked.includes(DETAIL.vipLockedLabel));
-  assert.ok(unlocked.includes('$13.20'));
+test('manual pricing is public and VIP-free', () => {
+  const html = render({});
+  assert.ok(html.includes('$15.50'));
+  assert.ok(!html.includes('$13.20'));
+  assert.ok(!/VIP|vipPrice/i.test(html));
+  assert.ok(!html.includes('/login'));
+});
+
+test('manual pricing falls back from wholesale to unit to quote', () => {
+  const unitOnly = render({
+    product: { ...FULL_PRODUCT, wholesalePrice: undefined, unitPrice: 18.9 },
+  });
+  assert.ok(unitOnly.includes(DETAIL.unitPriceLabel));
+  assert.ok(unitOnly.includes('$18.90'));
+
+  const quoteOnly = render({
+    product: { ...FULL_PRODUCT, wholesalePrice: undefined, unitPrice: undefined },
+  });
+  assert.ok(quoteOnly.includes(DETAIL.inquiryCta));
+  assert.ok(!quoteOnly.includes('$13.20'));
+});
+
+test('legacy viewer context cannot change public manual pricing', () => {
+  const anonymous = renderToStaticMarkup(
+    createElement(HeadphonesProductDetail, {
+      product: FULL_PRODUCT,
+      detail: DETAIL,
+      categoryLabel: 'True Wireless',
+      onBack: () => {},
+    }),
+  );
+  const member = renderToStaticMarkup(
+    createElement(HeadphonesProductDetail, {
+      product: FULL_PRODUCT,
+      detail: DETAIL,
+      categoryLabel: 'True Wireless',
+      onBack: () => {},
+    }),
+  );
+  assert.equal(member, anonymous);
 });
 
 // --- enquiry commands --------------------------------------------------------
 
 test('every enquiry command is an anchor to the OEM enquiry section', () => {
-  const html = render({ registered: true });
+  const html = render({});
   const anchors = html.match(/<a\s[^>]*href="([^"]+)"/g) ?? [];
   assert.ok(anchors.length >= 1, 'expected at least one enquiry anchor');
   assert.ok(html.includes(`href="${OEM_INQUIRY_HREF}"`));

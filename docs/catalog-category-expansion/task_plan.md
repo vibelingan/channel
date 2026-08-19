@@ -47,7 +47,8 @@ implemented on `feat/catalog-category-design`. Alibaba API transport/scheduling 
 | 23. Implement SKU detail shell | Complete | MIU 15 detail, gallery, OEM content, related products, and journeys pass |
 | 24. Implement Admin Products family tabs | Complete | MIU 16 URL/query/form/mobile contracts pass |
 | 25. Implement Admin product form/media | Complete | MIU 17 grouped fields, nine-image management, and error mapping pass |
-| 26. Implement remaining V1.1 MIUs | In progress | MIU 18 public/auth VIP presentation suppression active |
+| 26. Suppress public/auth VIP presentation | Complete | MIU 18 source, build, pricing, and browser negatives pass |
+| 27. Implement remaining V1.1 MIUs | In progress | MIU 19 Alibaba compatibility regression suite active |
 
 ## Scope Boundaries
 
