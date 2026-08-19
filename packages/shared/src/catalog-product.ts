@@ -2,7 +2,8 @@ export const PRODUCT_FAMILY_OPTIONS = ['headphones', 'ai-gadgets', 'toys', 'misc
 export type ProductFamily = (typeof PRODUCT_FAMILY_OPTIONS)[number];
 
 const PRODUCT_FAMILY_SET = new Set<string>(PRODUCT_FAMILY_OPTIONS);
-const LEGACY_HEADPHONES_CATEGORIES = new Set(['wired', 'office', 'bluetooth']);
+export const LEGACY_HEADPHONES_CATEGORY_OPTIONS = ['wired', 'office', 'bluetooth'] as const;
+const LEGACY_HEADPHONES_CATEGORIES = new Set<string>(LEGACY_HEADPHONES_CATEGORY_OPTIONS);
 const RESERVED_PRODUCT_SLUGS = new Set([
   'account',
   'admin',

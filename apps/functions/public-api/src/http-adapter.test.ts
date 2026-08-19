@@ -580,6 +580,30 @@ test('malformed archived and identity values fail closed across list and detail'
   assert.equal('skuCode' in visible, false);
 });
 
+test('malformed published values fail closed across list and detail', async () => {
+  const store = seedStore();
+  const malformed = store.products?.find((item) => item._id === 'p-1');
+  assert.ok(malformed);
+  malformed.published = 'true';
+  setup(store);
+  const listResponse = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/products', queryStringParameters: { pageSize: '48' } },
+    {},
+  );
+  const list = (body(listResponse) as { ok: true; data: { items: CollectionDoc[]; total: number } })
+    .data;
+  assert.equal(
+    list.items.some((item) => item._id === 'p-1'),
+    false,
+  );
+  assert.equal(list.total, 54);
+  const detailResponse = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/products/p-1' },
+    {},
+  );
+  assert.equal(detailResponse.statusCode, 404);
+});
+
 test('strict archive filtering preserves stable pagination beyond 100 candidates', async () => {
   const store = seedStore();
   store.products = Array.from({ length: 130 }, (_, index) => ({
@@ -613,6 +637,138 @@ test('strict archive filtering preserves stable pagination beyond 100 candidates
     page.items.map((item) => item._id),
     activeIds.slice(96, 144),
   );
+});
+
+test('productFamily filters explicit families and includes only legacy Headphones rows', async () => {
+  const store = seedStore();
+  store.products = [
+    {
+      _id: 'explicit-headphones',
+      name: 'Explicit Headphones',
+      productFamily: 'headphones',
+      category: 'office',
+      published: true,
+      archived: false,
+    },
+    {
+      _id: 'legacy-headphones',
+      name: 'Legacy Headphones',
+      category: 'wired',
+      published: true,
+    },
+    {
+      _id: 'ai-product',
+      name: 'Smart Camera',
+      productFamily: 'ai-gadgets',
+      published: true,
+    },
+    { _id: 'toy-product', name: 'Robot', productFamily: 'toys', published: true },
+    { _id: 'misc-product', name: 'Cable', productFamily: 'misc', published: true },
+    { _id: 'corrupt-missing', name: 'Unknown', category: 'unknown', published: true },
+    {
+      _id: 'archived-ai',
+      name: 'Archived',
+      productFamily: 'ai-gadgets',
+      published: true,
+      archived: true,
+    },
+    { _id: 'draft-ai', name: 'Draft', productFamily: 'ai-gadgets', published: false },
+  ];
+  setup(store);
+
+  const expected = new Map([
+    ['headphones', ['explicit-headphones', 'legacy-headphones']],
+    ['ai-gadgets', ['ai-product']],
+    ['toys', ['toy-product']],
+    ['misc', ['misc-product']],
+  ]);
+  for (const [productFamily, expectedIds] of expected) {
+    const response = await handlePublicApiEvent(
+      {
+        httpMethod: 'GET',
+        path: '/api/products',
+        queryStringParameters: { productFamily },
+      },
+      {},
+    );
+    const page = (
+      body(response) as {
+        ok: true;
+        data: { items: CollectionDoc[]; total: number };
+      }
+    ).data;
+    assert.deepEqual(
+      page.items.map((item) => item._id),
+      expectedIds,
+    );
+    assert.equal(page.total, expectedIds.length);
+  }
+});
+
+test('Headphones family composes independently with subcategory, search, and pagination', async () => {
+  const store = seedStore();
+  store.products = [
+    {
+      _id: 'h-1',
+      name: 'Alpha Office',
+      productFamily: 'headphones',
+      category: 'office',
+      published: true,
+    },
+    { _id: 'h-2', name: 'Alpha Legacy', category: 'office', published: true },
+    { _id: 'h-3', name: 'Beta Office', category: 'office', published: true },
+    { _id: 'h-4', name: 'Alpha Wired', category: 'wired', published: true },
+    {
+      _id: 'ai-1',
+      name: 'Alpha Camera',
+      productFamily: 'ai-gadgets',
+      category: 'office',
+      published: true,
+    },
+  ];
+  setup(store);
+  const response = await handlePublicApiEvent(
+    {
+      httpMethod: 'GET',
+      path: '/api/products',
+      queryStringParameters: {
+        productFamily: 'headphones',
+        category: 'office',
+        search: 'Alpha',
+        page: '2',
+        pageSize: '1',
+      },
+    },
+    {},
+  );
+  const page = (
+    body(response) as {
+      ok: true;
+      data: { items: CollectionDoc[]; total: number; page: number; pageSize: number };
+    }
+  ).data;
+  assert.equal(page.total, 2);
+  assert.equal(page.page, 2);
+  assert.equal(page.pageSize, 1);
+  assert.deepEqual(
+    page.items.map((item) => item._id),
+    ['h-2'],
+  );
+});
+
+test('unknown productFamily query is rejected instead of ignored', async () => {
+  setup();
+  const response = await handlePublicApiEvent(
+    {
+      httpMethod: 'GET',
+      path: '/api/products',
+      queryStringParameters: { productFamily: 'garden' },
+    },
+    {},
+  );
+  assert.equal(response.statusCode, 400);
+  const payload = body(response) as { ok: false; error: { code: string } };
+  assert.equal(payload.error.code, 'VALIDATION_ERROR');
 });
 
 test('Overstock retains the eighteen-image public projection limit', async () => {

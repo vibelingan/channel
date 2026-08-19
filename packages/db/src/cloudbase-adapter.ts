@@ -1,10 +1,12 @@
 import * as cloudbase from '@cloudbase/node-sdk';
 import type { CloudBase } from '@cloudbase/node-sdk';
 import {
+  LEGACY_HEADPHONES_CATEGORY_OPTIONS,
   type CollectionDoc,
   type FilterClause,
   type ListResult,
   getCollection,
+  isProductFamily,
 } from '@vibelingan-channel/shared';
 /**
  * CloudBase (wx-server-sdk) implementation of `DbAdapter`.
@@ -570,8 +572,22 @@ function clauseToWhere(
       return { [field]: _.in(['', null]) };
     case 'isNotEmpty':
       return { [field]: _.nin(['', null]) };
+    case 'isLiteralTrue':
+      return { [field]: _.eq(true) };
     case 'isFalseOrMissing':
       return _.or([{ [field]: _.exists(false) }, { [field]: _.eq(false) }]);
+    case 'matchesProductFamily':
+      if (!isProductFamily(value)) return { _id: _.exists(false) };
+      if (value === 'headphones') {
+        return _.or([
+          { [field]: _.eq('headphones') },
+          _.and([
+            { [field]: _.exists(false) },
+            { category: _.in([...LEGACY_HEADPHONES_CATEGORY_OPTIONS]) },
+          ]),
+        ]);
+      }
+      return { [field]: _.eq(value) };
     default:
       return null;
   }

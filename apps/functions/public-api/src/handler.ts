@@ -7,6 +7,7 @@ import {
   type FilterClause,
   PRODUCT_IMAGE_MAX_COUNT,
   PUBLIC_CATALOG_COLLECTIONS,
+  type ProductFamily,
   canSeeVipPricing,
   err,
   normalizeCatalogImageIds,
@@ -25,6 +26,7 @@ const PLACEHOLDER_IMAGE_ID = '_placeholder';
 export type PublicCatalog = (typeof CATALOGS)[number];
 
 export interface CatalogQuery {
+  productFamily?: ProductFamily;
   categories?: readonly string[];
   search?: string;
   page?: number;
@@ -249,9 +251,16 @@ export async function listCatalog(
 ): Promise<ApiResult<unknown>> {
   const page = positiveInt(query.page, 1);
   const pageSize = Math.min(MAX_PUBLIC_PAGE_SIZE, positiveInt(query.pageSize, 24));
-  const clauses: FilterClause[] = [{ field: 'published', op: 'eq', value: true }];
+  const clauses: FilterClause[] = [{ field: 'published', op: 'isLiteralTrue' }];
   if (collection === 'products') {
     clauses.push({ field: 'archived', op: 'isFalseOrMissing' });
+    if (query.productFamily) {
+      clauses.push({
+        field: 'productFamily',
+        op: 'matchesProductFamily',
+        value: query.productFamily,
+      });
+    }
   }
   const categories = query.categories?.map((c) => c.trim()).filter(Boolean) ?? [];
   if (categories.length > 0) {

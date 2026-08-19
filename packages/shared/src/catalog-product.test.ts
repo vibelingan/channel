@@ -143,3 +143,28 @@ test('strict active-product filter accepts only archived false or missing', () =
     assert.equal(matchesFilter({ _id: String(archived), archived }, filter), false);
   }
 });
+
+test('internal publication filter accepts only literal true', () => {
+  const filter = {
+    combinator: 'and' as const,
+    clauses: [{ field: 'published', op: 'isLiteralTrue' as const }],
+  };
+  assert.equal((FILTER_OPERATORS as readonly string[]).includes('isLiteralTrue'), false);
+  assert.equal(isValuelessOperator('isLiteralTrue'), true);
+  assert.equal(matchesFilter({ _id: 'published', published: true }, filter), true);
+  for (const published of [false, 'true', 'false', 1, {}, [], null]) {
+    assert.equal(matchesFilter({ _id: String(published), published }, filter), false);
+  }
+  assert.equal(matchesFilter({ _id: 'missing' }, filter), false);
+});
+
+test('internal family filter applies legacy fallback and rejects malformed values', () => {
+  const filter = (value: unknown) => ({
+    combinator: 'and' as const,
+    clauses: [{ field: 'productFamily', op: 'matchesProductFamily' as const, value }],
+  });
+  assert.equal(matchesFilter({ _id: 'explicit', productFamily: 'toys' }, filter('toys')), true);
+  assert.equal(matchesFilter({ _id: 'legacy', category: 'wired' }, filter('headphones')), true);
+  assert.equal(matchesFilter({ _id: 'wrong', category: 'unknown' }, filter('headphones')), false);
+  assert.equal(matchesFilter({ _id: 'malformed', productFamily: 'toys' }, filter('garden')), false);
+});
