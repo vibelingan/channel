@@ -130,6 +130,10 @@ jobs:
       - name: Store contract probe
         run: pnpm test:ai:store
 
+      # Root `pnpm test` deliberately EXCLUDES the three AI packages that need a
+      # database, because the `checks` job has no PostgreSQL service. They run
+      # here instead, where one exists. Without that split the ordinary build
+      # fails on ECONNREFUSED and everyone learns to ignore a red check.
       - name: AI package tests (store, engine, BFF, worker)
         run: pnpm test:ai
 

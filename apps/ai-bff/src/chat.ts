@@ -8,21 +8,45 @@
  * epoch, no human takeover. Those are MIU 2c/5b/5c. Everything here is written
  * so that adding them is additive: the engine is injected, the events are
  * already the port's normalized events, and nothing vendor-shaped is visible.
+ *
+ * TRUST BOUNDARY: the client supplies exactly two things — a conversation id it
+ * was given, and a new visitor message. It may not assert what the assistant
+ * previously said, and it may not manufacture turns. See `conversations.ts`.
  */
 
 import type { ServerResponse } from 'node:http';
 import type { ConversationEngine, EngineTurn } from '@vibelingan-channel/ai-engine';
+import type { ConversationStore } from './conversations.ts';
 
 /** A public endpoint takes a bounded message or none at all. */
 const MAX_MESSAGE_CHARS = 2_000;
-const MAX_HISTORY_TURNS = 20;
+
+/** Conversation ids are ours, and they are UUIDs. Anything else is not one. */
+const CONVERSATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface ChatRequest {
   message: string;
-  history: EngineTurn[];
+  conversationId?: string;
 }
 
 export type ParseResult = { ok: true; value: ChatRequest } | { ok: false; error: string };
+
+/**
+ * Break turn labels a visitor typed into their own message.
+ *
+ * The engine renders history as `Customer: …` / `Assistant: …` lines, so a
+ * message containing a line that starts `Assistant:` can graft a fabricated
+ * turn into the prompt. Replacing the colon keeps the sentence readable while
+ * removing the shape the model reads as a speaker change.
+ *
+ * This is defence in depth, not the structural fix. The structural fix is to
+ * send roles as protocol fields rather than as text — recorded as follow-up,
+ * because this vendor's retrieval endpoint takes a single string and its
+ * message-array endpoint has not been shown to return citations.
+ */
+export function neutralizeRoleLabels(text: string): string {
+  return text.replace(/^([ \t>]*)(assistant|system|customer|user|human|ai)[ \t]*:/gim, '$1$2 -');
+}
 
 export function parseChatRequest(body: string): ParseResult {
   let parsed: unknown;
@@ -35,7 +59,7 @@ export function parseChatRequest(body: string): ParseResult {
     return { ok: false, error: 'body must be an object' };
   }
 
-  const { message, history } = parsed as { message?: unknown; history?: unknown };
+  const { message, conversationId } = parsed as { message?: unknown; conversationId?: unknown };
   if (typeof message !== 'string' || message.trim().length === 0) {
     return { ok: false, error: 'message is required' };
   }
@@ -43,31 +67,20 @@ export function parseChatRequest(body: string): ParseResult {
     return { ok: false, error: `message exceeds ${MAX_MESSAGE_CHARS} characters` };
   }
 
-  const turns: EngineTurn[] = [];
-  if (history !== undefined) {
-    if (!Array.isArray(history)) return { ok: false, error: 'history must be an array' };
-    if (history.length > MAX_HISTORY_TURNS) return { ok: false, error: 'history is too long' };
-    for (const entry of history) {
-      const turn = entry as { role?: unknown; text?: unknown };
-      // Only the two roles the port defines. Accepting anything else would let
-      // a caller post a 'system' turn and rewrite the assistant's instructions
-      // from the browser.
-      if (turn.role !== 'visitor' && turn.role !== 'assistant') {
-        return { ok: false, error: 'history role must be visitor or assistant' };
-      }
-      if (typeof turn.text !== 'string' || turn.text.length > MAX_MESSAGE_CHARS) {
-        return { ok: false, error: 'history text is missing or too long' };
-      }
-      turns.push({ role: turn.role, text: turn.text });
+  if (conversationId !== undefined) {
+    if (typeof conversationId !== 'string' || !CONVERSATION_ID.test(conversationId)) {
+      return { ok: false, error: 'conversationId is not a valid conversation reference' };
     }
+    return { ok: true, value: { message: message.trim(), conversationId } };
   }
 
-  return { ok: true, value: { message: message.trim(), history: turns } };
+  return { ok: true, value: { message: message.trim() } };
 }
 
 export interface StreamChatOptions {
   engine: ConversationEngine;
   request: ChatRequest;
+  conversations: ConversationStore;
   res: ServerResponse;
   signal: AbortSignal;
   limits?: { maxOutputTokens: number; maxStreamDurationMs: number };
@@ -78,7 +91,7 @@ function sse(res: ServerResponse, payload: unknown): void {
 }
 
 export async function streamChatToResponse(options: StreamChatOptions): Promise<void> {
-  const { engine, request, res, signal } = options;
+  const { engine, request, conversations, res, signal } = options;
   const limits = {
     // Real headroom, not a tight cap: these are reasoning models and the
     // reasoning is billed inside this budget. Too small and the visitor gets a
@@ -88,6 +101,20 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
     maxToolCalls: 0,
   };
 
+  // An id the client did not get from us — expired, guessed, or invented — is
+  // not an error. It starts a new conversation, which is what the visitor sees
+  // anyway, and avoids handing out an oracle for which ids exist.
+  const conversationId =
+    request.conversationId && conversations.has(request.conversationId)
+      ? request.conversationId
+      : conversations.create();
+
+  const visitorTurn: EngineTurn = {
+    role: 'visitor',
+    text: neutralizeRoleLabels(request.message),
+  };
+  const priorTurns = conversations.turns(conversationId);
+
   res.writeHead(200, {
     'content-type': 'text/event-stream',
     'cache-control': 'no-cache, no-transform',
@@ -95,17 +122,20 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
     // Proxies that buffer will hold the whole answer and deliver it at once,
     // which turns a streaming assistant into a slow non-streaming one.
     'x-accel-buffering': 'no',
+    // How the client continues this conversation. It is an opaque handle, not
+    // a container for history.
+    'x-conversation-id': conversationId,
   });
   res.flushHeaders?.();
 
-  const turns: EngineTurn[] = [...request.history, { role: 'visitor', text: request.message }];
+  let answer = '';
 
   try {
     const handle = await engine.createRun(
       {
         operationId: crypto.randomUUID(),
-        conversationRef: crypto.randomUUID(),
-        turns,
+        conversationRef: conversationId,
+        turns: [...priorTurns, visitorTurn],
         profileId: 'public-sales-v1',
         locale: 'en-US',
         limits,
@@ -115,6 +145,7 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
 
     for await (const event of engine.streamRun(handle, signal)) {
       if (signal.aborted) break;
+      if (event.type === 'token') answer += event.text;
       // Events are forwarded as-is because the port's events are ALREADY the
       // client contract: token, citation, final, error. The vendor run id lives
       // on the handle and deliberately never enters this stream.
@@ -131,6 +162,13 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
       });
     }
   } finally {
+    // Record only after the fact, and only what actually happened. Appending
+    // the visitor turn up front would let a cancelled or failed turn poison the
+    // next question's context.
+    conversations.append(conversationId, visitorTurn);
+    if (answer.trim().length > 0) {
+      conversations.append(conversationId, { role: 'assistant', text: answer });
+    }
     res.end();
   }
 }

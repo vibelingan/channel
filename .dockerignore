@@ -1,0 +1,63 @@
+# Docker build context for the AI services is the REPOSITORY ROOT, so every path
+# here is sent to the daemon unless excluded. .gitignore has no effect on this:
+# a file can be absent from git and still be shipped into a build context, and
+# from there into a layer, a cache, or a remote builder.
+#
+# Secrets first, and by pattern rather than by name, so a new .env.<something>
+# is excluded the day it is created rather than the day someone remembers.
+.env
+.env.*
+!.env.example
+!.env.ai.example
+!.env.e2e.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+.npmrc
+.netrc
+
+# Version control and agent state
+.git
+.gitignore
+.github
+.claude
+.cursor
+.vscode
+.idea
+
+# Dependencies and build output — reinstalled inside the image from the
+# lockfile, so copying them in is both slower and a cross-platform hazard.
+node_modules
+**/node_modules
+dist
+build
+.next
+.astro
+.turbo
+.output
+output
+coverage
+*.tsbuildinfo
+
+# Test and report artifacts
+playwright-report
+test-results
+blob-report
+.playwright
+
+# Local and editor noise
+.DS_Store
+Thumbs.db
+*.log
+*.local
+tmp
+.tmp
+.cache
+scratchpad
+
+# Docs and design assets are not needed to build a service
+docs
+*.md
+!README.md

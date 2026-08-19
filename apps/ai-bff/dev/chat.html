@@ -107,8 +107,12 @@
   const empty = document.getElementById('empty');
   const foot = document.getElementById('foot');
 
-  /** Full turn history, so follow-up questions carry context. */
-  const history = [];
+  /**
+   * Only the id. History lives on the server: a page that could assert what the
+   * assistant previously said could put words in its mouth, and curl could do
+   * the same without opening a browser.
+   */
+  let conversationId = null;
   let controller = null;
 
   // Readiness up front: an assistant that silently cannot answer is worse than
@@ -209,13 +213,15 @@
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message, history }),
+        body: JSON.stringify(conversationId ? { message, conversationId } : { message }),
         signal: controller.signal,
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body?.error?.message ?? `HTTP ${res.status}`);
       }
+
+      conversationId = res.headers.get('x-conversation-id') ?? conversationId;
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -255,8 +261,6 @@
         }
       }
 
-      history.push({ role: 'visitor', text: message });
-      if (answer) history.push({ role: 'assistant', text: answer });
     } catch (err) {
       wrap.classList.remove('thinking');
       if (err.name === 'AbortError') {

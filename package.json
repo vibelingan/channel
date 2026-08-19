@@ -19,7 +19,7 @@
     "verify:cloudbase-sdk": "node scripts/verify-cloudbase-sdk-contract.mjs",
     "smoke:cloudbase": "node scripts/smoke-cloudbase-deploy.mjs",
     "smoke:functions": "node scripts/smoke-function-artifacts.mjs",
-    "test": "pnpm test:deploy-smoke && pnpm -r test",
+    "test": "pnpm test:deploy-smoke && pnpm -r --filter '!@vibelingan-channel/ai-store' --filter '!@vibelingan-channel/ai-bff' --filter '!@vibelingan-channel/ai-worker' test",
     "test:deploy-smoke": "node --test scripts/*.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:public": "playwright test tests/e2e/public.spec.ts",

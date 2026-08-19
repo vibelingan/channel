@@ -15,6 +15,7 @@ import type { ConversationEngine } from '@vibelingan-channel/ai-engine';
 import { createAiPool, createStoreReadiness } from '@vibelingan-channel/ai-store';
 import { parseChatRequest, streamChatToResponse } from './chat.ts';
 import type { BffConfig } from './config.ts';
+import { createConversationStore } from './conversations.ts';
 
 /**
  * The engine is INJECTED, never imported here. LLD-002 is explicit that the BFF
@@ -43,6 +44,8 @@ async function readBody(
 export function buildServer(config: BffConfig, deps: BffDependencies = {}) {
   const pool = createAiPool({ connectionString: config.databaseUrl, max: 10 });
   const readiness = createStoreReadiness(pool);
+  // Conversation history is the SERVER's, never the client's — see chat.ts.
+  const conversations = createConversationStore();
 
   const server = createServer(async (req, res) => {
     const origin = req.headers.origin;
@@ -141,6 +144,7 @@ export function buildServer(config: BffConfig, deps: BffDependencies = {}) {
       await streamChatToResponse({
         engine: deps.engine,
         request: parsed.value,
+        conversations,
         res,
         signal: controller.signal,
       });
