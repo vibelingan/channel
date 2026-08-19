@@ -216,6 +216,18 @@ The existing VIP pricing path is not part of this feature. Registration creates 
 	parity, and Alibaba missing/unavailable modes. Source and built HTML scans cover Headphones/auth;
 	browser checks cover family/SKU plus login/register negative presentation.
 
+## MIU 19 Implementation Findings
+
+- Alibaba implementation remains unchanged; the MIU is test-only and touches no endpoint, scheduler,
+	authentication, configuration, worker, or production source file.
+- Unmapped source categories create no product and never default to Misc. Mapped sources create only
+	unpublished suggestion drafts and do not invent product family, slug, SKU, or image selection.
+- Explicit link/unlink preserves family, subcategory, slug, SKU, images, publication, and archive state.
+	Promotion fixtures populate all curated V1.1 fields and assert the exact fenced patch key set contains
+	only Alibaba materialization fields.
+- Shared registry tests pin family/category/identity/media/lifecycle as operator-writable and every
+	Alibaba product field, including the operator pin, as generic-Admin read-only.
+
 ## Superseded Planning Note
 
 The earlier menu-only Phase 1 scope was superseded by client PDF V1.1. Implementers must use the V1.1 baseline at the top of this file and the current V1.1 LLD/MIU documents; the removed Phase 1 constraints no longer apply.

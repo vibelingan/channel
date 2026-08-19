@@ -76,6 +76,7 @@ test('category mapping is operator-writable with the Channel category enum', () 
 const ALIBABA_PRODUCT_FIELDS = [
   'alibabaPrimarySourceKey',
   'alibabaPrimaryOfferKey',
+  'alibabaPinnedOfferKey',
   'alibabaCatalogPricing',
   'alibabaSourceStatus',
   'alibabaSourceLastSyncedAt',
@@ -103,6 +104,26 @@ test('generic write schema rejects Alibaba fields as unknown keys', () => {
     alibabaPrimarySourceKey: 'k',
   });
   assert.equal(result.success, false, 'readOnly field must be rejected on generic write');
+});
+
+test('V1.1 curated product fields remain operator-writable while Alibaba fields remain read-only', () => {
+  const def = getCollection('products');
+  assert.ok(def);
+  const writable = new Set(writableFields(def).map((field) => field.name));
+  for (const name of [
+    'productFamily',
+    'category',
+    'slug',
+    'skuCode',
+    'imageIds',
+    'published',
+    'archived',
+  ]) {
+    assert.equal(writable.has(name), true, `${name} remains curated`);
+  }
+  for (const name of ALIBABA_PRODUCT_FIELDS) {
+    assert.equal(writable.has(name), false, `${name} remains server-owned`);
+  }
 });
 
 // --- protected legacy pricing surfaces (EXECUTION_HANDOFF §3 snapshot) ------

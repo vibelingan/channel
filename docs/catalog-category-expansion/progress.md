@@ -129,6 +129,10 @@
 	storage/API/role compatibility. Manual public pricing is viewer-independent (wholesale, unit, quote),
 	Alibaba link-identity routing remains unchanged, and Overstock is untouched. MIU 18 is complete;
 	MIU 19 Alibaba compatibility regression suite is active.
+- MIU 19 adds test-only V1.1 Alibaba compatibility coverage for unmapped/mapped drafts, exact curated
+	field preservation on link/unlink/promotion, exact fenced promotion patch keys, and complete generic
+	Admin ownership including the operator pin. MIU 19 is complete; MIU 20 catalog SEO/breadcrumb work
+	is active.
 
 | Implementation check | Result |
 |---|---|
@@ -193,3 +197,6 @@
 | MIU 18 focused pricing/source tests | Passed: 15/15 wholesale/unit/quote, parity, Alibaba, and negative-source contracts |
 | MIU 18 public/auth browser negatives | Passed: 11/11 family, SKU, login, and register checks |
 | MIU 18 site tests/build | Passed: 179/179; Astro 0 errors; 15 static pages; built Headphones/auth scan clean |
+| MIU 19 focused compatibility tests | Passed: 28/28 linking, promotion, and shared ownership checks |
+| MIU 19 full tests/typecheck | Passed: Alibaba 74/74; shared 95/95; both typechecks clean |
+| MIU 19 function artifact | Passed: Alibaba build plus Admin/Public/Alibaba package cold-start smoke |
