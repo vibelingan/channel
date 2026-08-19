@@ -92,6 +92,11 @@ requireCheck(
   'wx-server-sdk does not expose getUploadMetadata',
   'If this changes in a future SDK, update the design and integration intentionally.',
 );
+const wxDatabase = wx.database();
+requireCheck(
+  typeof wxDatabase.command.exists === 'function' && wxDatabase.command.exists(false) !== undefined,
+  'wx-server-sdk command exposes exists(false) for strict missing-field queries',
+);
 
 const nodeTypes = readPackageFile(
   nodeSdk,
@@ -558,6 +563,15 @@ requireCheck(
     'cloudStorageSdk',
   ]),
   'db cloudbase adapter explicitly initialises @cloudbase/node-sdk for storage injection',
+);
+requireCheck(
+  containsAll(cloudbaseAdapter, [
+    "case 'isFalseOrMissing'",
+    '_.or([',
+    '_.exists(false)',
+    '_.eq(false)',
+  ]),
+  'db cloudbase strict active-product filter composes missing OR literal false',
 );
 const acquireMutationStart = cloudbaseAdapter.indexOf('  async acquireImageMutation');
 const acquireMutationEnd = cloudbaseAdapter.indexOf(
