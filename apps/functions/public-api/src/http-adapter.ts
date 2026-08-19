@@ -6,6 +6,7 @@ import {
   type PublicApiConfig,
   getCatalogImage,
   getCatalogItem,
+  getCatalogItemBySlug,
   listCatalog,
   parseCatalogName,
   resolveCatalogViewer,
@@ -236,6 +237,14 @@ function decodeSegment(value: string): string {
   }
 }
 
+function pathHasUnsafeEncodedSegment(path: string): boolean {
+  const pathname = path.split(/[?#]/, 1)[0] ?? '';
+  return pathname.split('/').some((segment) => {
+    const decoded = decodeSegment(segment);
+    return decoded === '.' || decoded === '..' || decoded.includes('/') || decoded.includes('\\');
+  });
+}
+
 function apiSegments(path: string): string[] {
   const segments = path.split('/').filter(Boolean);
   return segments[0] === 'api' ? segments.slice(1) : segments;
@@ -245,7 +254,12 @@ async function routeGet(
   event: Record<string, unknown>,
   config: PublicHttpConfig,
 ): Promise<HttpResponse> {
-  const url = new URL(requestPath(event), 'https://channel.local');
+  const rawPath = requestPath(event);
+  const originalRawPath = typeof event.rawPath === 'string' ? event.rawPath : rawPath;
+  if (pathHasUnsafeEncodedSegment(originalRawPath)) {
+    return jsonResponse(event, config, err('NOT_FOUND', 'Route not found'));
+  }
+  const url = new URL(rawPath, 'https://channel.local');
   const path = url.pathname.replace(/\/+$/, '') || '/';
   const params = queryParams(event, url);
   const segments = apiSegments(path);
@@ -263,6 +277,17 @@ async function routeGet(
       event,
       config,
       await listCatalog(collection, query, config, viewer),
+      undefined,
+      CATALOG_CACHE_HEADERS,
+    );
+  }
+
+  if (segments[0] === 'products' && segments[1] === 'slug' && segments.length === 3) {
+    const viewer = await resolveCatalogViewer(headerValue(event.headers, 'authorization'), config);
+    return jsonResponse(
+      event,
+      config,
+      await getCatalogItemBySlug(decodeSegment(segments[2] ?? ''), config, viewer),
       undefined,
       CATALOG_CACHE_HEADERS,
     );

@@ -903,6 +903,79 @@ test('catalog detail ships only allowlisted public fields', async () => {
   assert.equal('imageIds' in json.data, false);
 });
 
+test('published product slug resolves in gateway-prefixed and stripped path shapes', async () => {
+  const store = seedStore();
+  const product = store.products?.find((item) => item._id === 'p-1');
+  assert.ok(product);
+  product.slug = 'desk-lamp';
+  product.skuCode = 'sku-100';
+  product.alibabaPrimaryOfferKey = 'private-offer';
+  setup(store);
+
+  for (const path of ['/api/products/slug/desk-lamp', '/products/slug/desk-lamp']) {
+    const response = await handlePublicApiEvent({ httpMethod: 'GET', path }, {});
+    assert.equal(response.statusCode, 200);
+    const item = (body(response) as { ok: true; data: CollectionDoc }).data;
+    assert.equal(item._id, 'p-1');
+    assert.equal(item.slug, 'desk-lamp');
+    assert.equal('vipPrice' in item, false);
+    assert.equal('alibabaPrimaryOfferKey' in item, false);
+  }
+});
+
+test('unknown, unpublished, and archived slugs return the same 404 contract', async () => {
+  const store = seedStore();
+  store.products = [
+    { _id: 'draft', name: 'Draft', slug: 'draft-product', published: false },
+    {
+      _id: 'archived',
+      name: 'Archived',
+      slug: 'archived-product',
+      published: true,
+      archived: true,
+    },
+  ];
+  setup(store);
+  const payloads = [];
+  for (const slug of ['missing-product', 'draft-product', 'archived-product']) {
+    const response = await handlePublicApiEvent(
+      { httpMethod: 'GET', path: `/api/products/slug/${slug}` },
+      {},
+    );
+    assert.equal(response.statusCode, 404);
+    payloads.push(body(response));
+  }
+  assert.deepEqual(payloads[1], payloads[0]);
+  assert.deepEqual(payloads[2], payloads[0]);
+});
+
+test('noncanonical and encoded route-breaking slugs never reach a product lookup', async () => {
+  const store = seedStore();
+  const product = store.products?.find((item) => item._id === 'p-1');
+  assert.ok(product);
+  product.slug = 'desk-lamp';
+  setup(store);
+  for (const slug of ['Desk%20Lamp', 'desk%2Flamp', 'products', '%2E%2E']) {
+    const response = await handlePublicApiEvent(
+      { httpMethod: 'GET', path: `/api/products/slug/${slug}` },
+      {},
+    );
+    assert.equal(response.statusCode, 404, `slug ${slug} must not resolve`);
+  }
+});
+
+test('gateway-normalized path cannot hide an unsafe original rawPath', async () => {
+  const response = await handlePublicApiEvent(
+    {
+      httpMethod: 'GET',
+      path: '/api/products/slug/desk-lamp',
+      rawPath: '/api/products/slug/%2E%2E',
+    },
+    {},
+  );
+  assert.equal(response.statusCode, 404);
+});
+
 test('catalog responses Vary on Authorization so a shared cache never leaks VIP data', async () => {
   setup();
   for (const path of ['/api/products?pageSize=1', '/api/products/p-1']) {

@@ -1,5 +1,5 @@
 import { verifySession } from '@vibelingan-channel/auth/jwt';
-import { get, list } from '@vibelingan-channel/db';
+import { findByField, get, list } from '@vibelingan-channel/db';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
 import {
   type ApiResult,
@@ -299,6 +299,23 @@ export async function getCatalogItem(
     return err('NOT_FOUND', 'Item not found');
   }
   return ok(publicDoc(collection, doc, config, viewer));
+}
+
+export async function getCatalogItemBySlug(
+  slug: string,
+  config: PublicApiConfig,
+  viewer: CatalogViewer = ANONYMOUS_VIEWER,
+): Promise<ApiResult<unknown>> {
+  if (normalizeProductSlug(slug) !== slug) return err('NOT_FOUND', 'Item not found');
+  const doc = await findByField('products', 'slug', slug);
+  if (
+    !doc ||
+    doc.published !== true ||
+    (Object.hasOwn(doc, 'archived') && doc.archived !== false)
+  ) {
+    return err('NOT_FOUND', 'Item not found');
+  }
+  return ok(publicDoc('products', doc, config, viewer));
 }
 
 async function publishedCatalogReferencesImage(
