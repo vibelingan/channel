@@ -81,6 +81,10 @@
 	  pre-normalization raw-path safety, gateway-prefixed/stripped routing, and a local regex bridge
 	  that delegates to the production HTTP adapter (`43f7bd3`). MIU 7 is complete; MIU 8 site DTO and
 	  fetch helpers are active.
+- MIU 8 extends the storefront DTO and query contract, adds encoded family/slug and related-product
+	helpers, reads the current token per request, forwards AbortSignal, and caps product media at nine
+	without changing Overstock (`545c2f4`). MIU 8 is complete; MIU 9 catalog content registry is
+	active.
 
 | Implementation check | Result |
 |---|---|
@@ -102,3 +106,5 @@
 | MIU 6 function artifacts | Passed: Admin, public-api, and Alibaba build/package/cold-start smoke |
 | MIU 7 public/local tests | Passed: 60/60, 11/11 |
 | MIU 7 function artifacts | Passed: Admin, public-api, and Alibaba build/package/cold-start smoke |
+| MIU 8 site tests | Passed: 149/149 |
+| MIU 8 Astro typecheck/build | Passed: 0 errors, 10 static pages |
