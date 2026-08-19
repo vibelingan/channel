@@ -1,13 +1,13 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
+import { buildWriteSchema, getCollection } from './collections.ts';
 import {
   PRODUCT_FAMILY_OPTIONS,
   normalizeProductSlug,
   normalizeSkuCode,
   productFamilyForDoc,
   validateProductPublication,
-} from './catalog-product.ts';
-import { buildWriteSchema, getCollection } from './collections.ts';
+} from './index.ts';
 import { CATALOG_IMAGE_MAX_COUNT, PRODUCT_IMAGE_MAX_COUNT } from './media.ts';
 
 function productsDef() {
