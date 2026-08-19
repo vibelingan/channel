@@ -191,6 +191,20 @@ The existing VIP pricing path is not part of this feature. Registration creates 
 - Mobile Admin stacks navigation/content, keeps Back/Sign out available, uses a full-width native
 	family select, bounds body width, and delegates wide-table horizontal scrolling to the table wrapper.
 
+## MIU 17 Implementation Findings
+
+- The generic form now enforces registry `hideInForm`, fixing the previous gap where deprecated VIP
+	fields were hidden in schema metadata but still rendered/submitted. Product forms group identity,
+	content, media, pricing/order, and lifecycle while non-product forms retain the ordinary field loop.
+- Family changes clear legacy Headphones subcategories when moving to another family and announce the
+	change. The selected Admin tab remains the New-product default from MIU 16.
+- Alibaba-owned fields remain non-editable and appear only as a read-only source summary on existing
+	linked products. Product identity/publication server messages map to slug, SKU, image, family,
+	description, name, or archived controls with `aria-invalid`/`aria-describedby` linkage.
+- Image management counts committed plus pending uploads against nine, labels the first image Primary,
+	preserves submitted order through deterministic reorder logic, disables over-limit selection, and
+	associates server image errors with the file input. The form is a native named modal dialog.
+
 ## Superseded Planning Note
 
 The earlier menu-only Phase 1 scope was superseded by client PDF V1.1. Implementers must use the V1.1 baseline at the top of this file and the current V1.1 LLD/MIU documents; the removed Phase 1 constraints no longer apply.

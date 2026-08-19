@@ -121,6 +121,10 @@
 	composes family independently with search and flat AND/OR filters across Admin/server/DB adapters,
 	resets page/selection, prefills New, and adds responsive mobile navigation/table containment. MIU 16
 	is complete; MIU 17 product form and nine-image management is active.
+- MIU 17 enforces `hideInForm`, groups product fields, clears incompatible Headphones subcategories,
+	renders Alibaba status read-only, maps server errors to fields, and hardens nine-image management
+	with Primary ordering, committed-plus-pending capacity, over-limit blocking, and linked image errors.
+	MIU 17 is complete; MIU 18 public/auth VIP presentation suppression is active.
 
 | Implementation check | Result |
 |---|---|
@@ -178,3 +182,7 @@
 | MIU 16 site tests | Passed: 170/170 |
 | MIU 16 runtime tests | Passed: Admin 172/172; DB 40/40; local-server 23/23 |
 | MIU 16 typecheck/build | Passed: Admin/local/site/E2E clean; 15 static pages; scoped Biome clean |
+| MIU 17 focused form tests | Passed: 7/7 grouping, transition, payload, ordering/capacity, and error contracts |
+| MIU 17 Admin browser form | Passed: 2/2 edit/media and field-error journeys |
+| MIU 17 site tests/typecheck | Passed: 177/177; Astro 0 errors; E2E TypeScript clean; scoped Biome clean |
+| MIU 17 site build | Passed: 15 static pages |
