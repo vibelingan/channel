@@ -55,7 +55,7 @@ families:
     heading: AI Gadgets
     description: Connected cameras, translators, wearables, and practical smart devices ready for customization.
     image: /media/oem/process/p04.jpg
-    imageAlt: Electronics circuit design workstation in the Channel development process
+    imageAlt: Wired prototype circuit board used during electronics development
     categories: []
   - key: toys
     label: Toys
@@ -64,7 +64,7 @@ families:
     heading: Toys
     description: Educational, robotic, and creative play products developed for retail and promotional programs.
     image: /media/oem/process/p05.jpg
-    imageAlt: Functional prototype being evaluated during product development
+    imageAlt: Compact bear-shaped speaker prototype with illuminated ears
     categories: []
   - key: misc
     label: Misc

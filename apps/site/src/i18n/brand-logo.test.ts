@@ -143,9 +143,15 @@ test('site header renders the CHANNEL wordmark with company name but no MOQ', ()
     'header exposes the visible company name for responsive browser verification',
   );
   assert.ok(!headerSource.includes('{brand.minOrder}'), 'header does not render the MOQ badge');
-  assert.ok(
-    headerSource.includes('orderedMenuItems.map'),
-    'desktop and mobile menus consume OEM-first items',
+  assert.equal(
+    headerSource.match(/beforeCatalog\.map/g)?.length,
+    2,
+    'desktop and mobile render ordered items before the catalog slot',
+  );
+  assert.equal(
+    headerSource.match(/afterCatalog\.map/g)?.length,
+    2,
+    'desktop and mobile render ordered items after the catalog slot',
   );
   assert.ok(
     headerSource.includes('border-b-2 border-brand-700'),

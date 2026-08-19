@@ -1,4 +1,5 @@
 ---
+import { getCatalogContent } from '../i18n/catalog.ts';
 import type { NavItem, SiteContent } from '../i18n/site.ts';
 import { AccountMenu } from '../islands/auth/AccountMenu.tsx';
 import { orderPrimaryNavItems } from '../lib/site-navigation.ts';
@@ -11,11 +12,18 @@ interface Props {
 }
 
 const { brand, nav } = Astro.props;
+const catalog = getCatalogContent();
+const catalogPath = Astro.url.pathname.replace(/\/$/, '') || '/';
 
 // Auth-related nav entries are handled by the AccountMenu island instead.
 const AUTH_HREFS = ['/admin', '/login', '/register'];
 const menuItems: NavItem[] = nav.items.filter((item) => !AUTH_HREFS.includes(item.href));
 const orderedMenuItems = orderPrimaryNavItems(menuItems);
+const catalogPosition = orderedMenuItems.findIndex((item) => item.href === '/headphones');
+const beforeCatalog = orderedMenuItems.slice(0, Math.max(0, catalogPosition));
+const afterCatalog = orderedMenuItems
+  .filter((item) => item.href !== '/headphones')
+  .slice(beforeCatalog.length);
 
 // The server-rendered default is the native mobile disclosure, so navigation
 // remains available without JavaScript. The client enables the desktop lane
@@ -67,8 +75,50 @@ const orderedMenuItems = orderPrimaryNavItems(menuItems);
 
     <!-- Primary navigation (hidden below the measured 1360px fit threshold) -->
     <nav class="header-desktop-nav shrink-0 items-center gap-1" aria-label="Primary" data-primary-nav>
+      {beforeCatalog.map((item) => (
+        <a href={item.href} class="whitespace-nowrap rounded-lg px-3 py-2 text-base font-semibold text-ink-soft transition hover:bg-brand-50 hover:text-brand-700">
+          {item.label}
+        </a>
+      ))}
+      <details class="relative" data-catalog-disclosure="desktop">
+        <summary
+          class="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-lg px-3 py-2 text-base font-semibold text-ink-soft transition hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700"
+          aria-label={`Browse ${catalog.menu.label}`}
+        >
+          {catalog.menu.label}
+          <svg aria-hidden="true" class="h-4 w-4 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" />
+          </svg>
+        </summary>
+        <div class="absolute left-0 top-[calc(100%+0.5rem)] w-72 border border-slate-200 bg-white p-2 shadow-xl" data-catalog-menu>
+          <a
+            href="/electronics-toys"
+            aria-current={catalogPath === '/electronics-toys' ? 'page' : undefined}
+            class:list={[
+              'block min-h-11 rounded-md px-3 py-2.5 text-sm font-semibold text-brand-700 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-700',
+              { 'bg-brand-50 ring-1 ring-inset ring-brand-200': catalogPath === '/electronics-toys' },
+            ]}
+          >
+            {catalog.menu.allLabel}
+          </a>
+          <div class="my-1 border-t border-slate-100"></div>
+          {catalog.families.map((family) => (
+            <a
+              href={family.href}
+              aria-current={catalogPath === family.href ? 'page' : undefined}
+              class:list={[
+                'block min-h-11 rounded-md px-3 py-2.5 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-700',
+                { 'bg-brand-50 ring-1 ring-inset ring-brand-200': catalogPath === family.href },
+              ]}
+            >
+              <span class="block text-sm font-semibold text-ink">{family.label}</span>
+              <span class="mt-0.5 block text-xs leading-snug text-ink-soft">{family.description}</span>
+            </a>
+          ))}
+        </div>
+      </details>
       {
-        orderedMenuItems.map((item) => (
+        afterCatalog.map((item) => (
           <a
             href={item.href}
             class="whitespace-nowrap rounded-lg px-3 py-2 text-base font-semibold text-ink-soft transition hover:bg-brand-50 hover:text-brand-700"
@@ -84,7 +134,7 @@ const orderedMenuItems = orderPrimaryNavItems(menuItems);
       <span class="header-desktop-account"><AccountMenu client:only="react" /></span>
       <details class="header-mobile-disclosure" data-mobile-disclosure>
         <summary
-          class="header-mobile-toggle inline-flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-lg text-ink-soft transition hover:bg-brand-50"
+          class="header-mobile-toggle inline-flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-lg text-ink-soft transition hover:bg-brand-50"
           aria-label="Toggle menu"
           aria-controls="mobile-menu"
           data-menu-toggle
@@ -100,8 +150,45 @@ const orderedMenuItems = orderPrimaryNavItems(menuItems);
           aria-label="Mobile"
           data-mobile-menu
         >
+          {beforeCatalog.map((item) => (
+            <a href={item.href} class="block min-h-11 rounded-lg px-3 py-3 text-base font-medium text-ink-soft transition hover:bg-brand-50 hover:text-brand-700">
+              {item.label}
+            </a>
+          ))}
+          <details class="border-b border-slate-100" data-catalog-disclosure="mobile">
+            <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-lg px-3 py-3 text-base font-semibold text-ink-soft hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-brand-700">
+              {catalog.menu.label}
+              <svg aria-hidden="true" class="h-5 w-5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" />
+              </svg>
+            </summary>
+            <div class="pb-2 pl-3" data-catalog-menu>
+              <a
+                href="/electronics-toys"
+                aria-current={catalogPath === '/electronics-toys' ? 'page' : undefined}
+                class:list={[
+                  'block min-h-11 rounded-lg px-3 py-3 text-sm font-semibold text-brand-700 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-700',
+                  { 'bg-brand-50 ring-1 ring-inset ring-brand-200': catalogPath === '/electronics-toys' },
+                ]}
+              >
+                {catalog.menu.allLabel}
+              </a>
+              {catalog.families.map((family) => (
+                <a
+                  href={family.href}
+                  aria-current={catalogPath === family.href ? 'page' : undefined}
+                  class:list={[
+                    'block min-h-11 rounded-lg px-3 py-3 text-sm font-medium text-ink-soft hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-brand-700',
+                    { 'bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-200': catalogPath === family.href },
+                  ]}
+                >
+                  {family.label}
+                </a>
+              ))}
+            </div>
+          </details>
           {
-            orderedMenuItems.map((item) => (
+            afterCatalog.map((item) => (
               <a
                 href={item.href}
                 class="block rounded-lg px-3 py-3 text-base font-medium text-ink-soft transition hover:bg-brand-50 hover:text-brand-700"
@@ -130,6 +217,13 @@ const orderedMenuItems = orderPrimaryNavItems(menuItems);
   const desktopAccount = header?.querySelector<HTMLElement>('.header-desktop-account');
   const mobileDisclosure = header?.querySelector<HTMLDetailsElement>('[data-mobile-disclosure]');
   const mobileToggle = header?.querySelector<HTMLElement>('[data-menu-toggle]');
+  const catalogDisclosures = [
+    ...(header?.querySelectorAll<HTMLDetailsElement>('[data-catalog-disclosure]') ?? []),
+  ];
+  const dismissibleDisclosures = [
+    ...(mobileDisclosure ? [mobileDisclosure] : []),
+    ...catalogDisclosures,
+  ];
   let fitFrame = 0;
 
   function focusForDesktop(previousFocus: Element | null) {
@@ -142,6 +236,7 @@ const orderedMenuItems = orderPrimaryNavItems(menuItems);
         desktopAccount?.querySelector<HTMLElement>(`a[href="${CSS.escape(href)}"]`) ??
         desktopAccount?.querySelector<HTMLElement>('[data-account-trigger], a'))
       : (desktopAccount?.querySelector<HTMLElement>('[data-account-trigger], a') ?? brand);
+    target?.closest<HTMLDetailsElement>('[data-catalog-disclosure]')?.setAttribute('open', '');
     target?.focus({ preventScroll: true });
   }
 
@@ -155,6 +250,7 @@ const orderedMenuItems = orderPrimaryNavItems(menuItems);
       ? (mobileDisclosure?.querySelector<HTMLElement>(`a[href="${CSS.escape(href)}"]`) ??
         mobileDisclosure?.querySelector<HTMLElement>('[data-account-trigger], [data-account-menu] a'))
       : mobileDisclosure?.querySelector<HTMLElement>('[data-account-trigger], [data-account-menu] a');
+    target?.closest<HTMLDetailsElement>('[data-catalog-disclosure]')?.setAttribute('open', '');
     (target ?? mobileToggle)?.focus({ preventScroll: true });
   }
 
@@ -180,7 +276,7 @@ const orderedMenuItems = orderPrimaryNavItems(menuItems);
     if (!header || !mobileDisclosure) return;
     const previousFocus = document.activeElement;
     const nextMode = desktopFits() ? 'desktop' : 'mobile';
-    const previousMode = header.dataset.headerMode ?? 'mobile';
+    const previousMode = header.dataset.headerMode;
     if (nextMode === previousMode) return;
 
     if (nextMode === 'desktop') {
@@ -203,6 +299,38 @@ const orderedMenuItems = orderPrimaryNavItems(menuItems);
     link.addEventListener('click', () => {
       if (mobileDisclosure) mobileDisclosure.open = false;
     });
+  });
+
+  for (const disclosure of catalogDisclosures) {
+    disclosure.addEventListener('toggle', () => {
+      if (!disclosure.open) return;
+      for (const other of catalogDisclosures) {
+        if (other !== disclosure) other.open = false;
+      }
+    });
+    disclosure.querySelectorAll('a').forEach((link) => {
+      link.addEventListener('click', () => {
+        disclosure.open = false;
+      });
+    });
+  }
+  for (const disclosure of dismissibleDisclosures) {
+    disclosure.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || !disclosure.open) return;
+      event.stopPropagation();
+      disclosure.open = false;
+      disclosure.querySelector<HTMLElement>(':scope > summary')?.focus();
+    });
+    disclosure.addEventListener('focusout', () => {
+      window.setTimeout(() => {
+        if (!disclosure.contains(document.activeElement)) disclosure.open = false;
+      }, 0);
+    });
+  }
+  document.addEventListener('pointerdown', (event) => {
+    for (const disclosure of dismissibleDisclosures) {
+      if (!disclosure.contains(event.target as Node)) disclosure.open = false;
+    }
   });
 
   const resizeObserver = new ResizeObserver(scheduleHeaderFit);
@@ -242,6 +370,14 @@ const orderedMenuItems = orderPrimaryNavItems(menuItems);
 
   .header-mobile-disclosure summary::-webkit-details-marker {
     display: none;
+  }
+
+  [data-catalog-disclosure] summary::-webkit-details-marker {
+    display: none;
+  }
+
+  [data-catalog-disclosure][open] > summary svg {
+    transform: rotate(180deg);
   }
 
   .header-mobile-menu {
