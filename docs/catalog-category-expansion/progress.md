@@ -85,6 +85,9 @@
 	helpers, reads the current token per request, forwards AbortSignal, and caps product media at nine
 	without changing Overstock (`545c2f4`). MIU 8 is complete; MIU 9 catalog content registry is
 	active.
+- MIU 8 browser trust boundaries now decode envelopes and validate the complete present product,
+	image, status, and Alibaba pricing/tier shapes before data reaches UI consumers (`7e610c3`). Craft
+	gates report zero findings new since baseline.
 
 | Implementation check | Result |
 |---|---|
@@ -106,5 +109,5 @@
 | MIU 6 function artifacts | Passed: Admin, public-api, and Alibaba build/package/cold-start smoke |
 | MIU 7 public/local tests | Passed: 60/60, 11/11 |
 | MIU 7 function artifacts | Passed: Admin, public-api, and Alibaba build/package/cold-start smoke |
-| MIU 8 site tests | Passed: 149/149 |
+| MIU 8 site tests | Passed: 150/150; focused API tests 11/11 |
 | MIU 8 Astro typecheck/build | Passed: 0 errors, 10 static pages |
