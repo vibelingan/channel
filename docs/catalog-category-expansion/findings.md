@@ -152,6 +152,18 @@ The existing VIP pricing path is not part of this feature. Registration creates 
 - Browser interception verified that each route requests its exact `productFamily` at page 1/size 12;
 	Headphones exposes three configured filters while AI Gadgets and Toys omit an empty filter bar.
 
+## MIU 14 Implementation Findings
+
+- `/misc/` uses the public heading “Other Electronics & Toys” while retaining the stable internal
+	`misc` family key and registry-owned SEO/content contract.
+- Public metadata auditing now compares discovered top-level route files to the complete audited
+	metadata set, so adding an unaudited route fails without maintaining a second filename allowlist.
+- Astro derives indexable family paths from structured catalog frontmatter. Known family routes not
+	present in published catalog content are excluded; private, auth, form-result, and redirect paths
+	remain excluded by the existing noindex set.
+- A real `SITE_URL=https://example.test` build produced 14 pages and sitemap XML containing the hub
+	plus all four family routes while excluding sampled private/redirect URLs.
+
 ## Superseded Planning Note
 
 The earlier menu-only Phase 1 scope was superseded by client PDF V1.1. Implementers must use the V1.1 baseline at the top of this file and the current V1.1 LLD/MIU documents; the removed Phase 1 constraints no longer apply.

@@ -4,6 +4,7 @@ const familyRoutes = [
   { path: '/headphones/', family: 'headphones', heading: 'OEM Headphones, Built for Your Brand' },
   { path: '/ai-gadgets/', family: 'ai-gadgets', heading: 'AI Gadgets' },
   { path: '/toys/', family: 'toys', heading: 'Toys' },
+  { path: '/misc/', family: 'misc', heading: 'Other Electronics & Toys' },
 ] as const;
 
 for (const route of familyRoutes) {

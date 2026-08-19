@@ -110,6 +110,9 @@
 	to the shared family controller, and adds registry-owned AI Gadgets and Toys shells with breadcrumb,
 	one H1, canonical metadata, and quote CTA. MIU 13 is complete; MIU 14 Other Electronics route and
 	metadata inventory is active.
+- MIU 14 adds the registry-owned `/misc/` shell, makes the metadata audit compare discovered routes
+	to audited values dynamically, and derives sitemap family inclusion from structured catalog
+	frontmatter. MIU 14 is complete; MIU 15 SKU detail shell is active.
 
 | Implementation check | Result |
 |---|---|
@@ -153,3 +156,8 @@
 | MIU 13 site tests | Passed: 163/163 |
 | MIU 13 typecheck/lint | Passed: Astro 0 errors; E2E TypeScript clean; scoped Biome clean |
 | MIU 13 site build | Passed: 13 static pages, including `/ai-gadgets/` and `/toys/` |
+| MIU 14 metadata/indexing tests | Passed: dynamic route inventory and published-content sitemap filter |
+| MIU 14 browser integration | Passed: 4/4 family routes across 375px and 1440px |
+| MIU 14 site build | Passed: 14 static pages, including `/misc/` |
+| MIU 14 generated sitemap | Passed: 5 catalog URLs included; 4 private/redirect URLs excluded |
+| MIU 14 site tests/typecheck | Passed: 164/164; Astro 0 errors; E2E TypeScript clean; scoped Biome clean |

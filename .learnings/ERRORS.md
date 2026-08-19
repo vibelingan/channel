@@ -1,5 +1,28 @@
 # Resolved Errors
 
+## [ERR-20260820-001] ripgrep unavailable in linked worktree terminal
+
+**Logged**: 2026-08-20T03:12:00-07:00
+**Priority**: low
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+
+The linked worktree terminal could not resolve `rg` even though repository searches were needed.
+
+### Resolution
+
+Used a narrowly scoped recursive `grep` over the intended source extensions and retained the absolute-worktree guard.
+
+### Metadata
+
+- Reproducible: environment-dependent
+- Related Files: `apps/site/src/`
+- Source: error
+
+---
+
 ## [ERR-20260726-001] Playwright reused another checkout's server
 
 **Logged**: 2026-07-26T01:50:00-07:00
