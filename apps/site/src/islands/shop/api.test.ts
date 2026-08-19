@@ -1,7 +1,178 @@
-import assert from 'node:assert/strict';
+import { strict as assert } from 'node:assert';
 import test, { afterEach } from 'node:test';
 import { createCatalogPage, createProduct } from '../../test/factories/catalog.ts';
-import { fetchCatalog } from './api.ts';
+import {
+  fetchCatalog,
+  fetchProductBySlug,
+  fetchProductFamily,
+  fetchRelatedProducts,
+} from './api.ts';
+import type { Product } from './catalog-types.ts';
+
+interface FetchCall {
+  url: string;
+  init?: RequestInit;
+}
+
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify({ ok: status < 400, data }), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+function installBrowserMocks(t: test.TestContext, responses: Response[]): FetchCall[] {
+  const originalFetch = globalThis.fetch;
+  const originalLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const calls: FetchCall[] = [];
+  const storage = new Map<string, string>();
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem(key: string) {
+        return storage.get(key) ?? null;
+      },
+      setItem(key: string, value: string) {
+        storage.set(key, value);
+      },
+      removeItem(key: string) {
+        storage.delete(key);
+      },
+    },
+  });
+  globalThis.fetch = async (input, init) => {
+    calls.push({ url: String(input), ...(init ? { init } : {}) });
+    const response = responses.shift();
+    if (!response) throw new Error('unexpected fetch');
+    return response;
+  };
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    if (originalLocalStorage)
+      Object.defineProperty(globalThis, 'localStorage', originalLocalStorage);
+    else Reflect.deleteProperty(globalThis, 'localStorage');
+  });
+  return calls;
+}
+
+test('family helper encodes exact family, category, search, and pagination query', async (t) => {
+  const calls = installBrowserMocks(t, [
+    jsonResponse({ items: [], total: 0, page: 2, pageSize: 12 }),
+  ]);
+  const controller = new AbortController();
+  await fetchProductFamily(
+    'ai-gadgets',
+    { categories: ['smart home'], search: 'camera kit', page: 2, pageSize: 12 },
+    controller.signal,
+  );
+  assert.equal(
+    calls[0]?.url,
+    '/api/products?productFamily=ai-gadgets&category=smart+home&search=camera+kit&page=2&pageSize=12',
+  );
+  assert.equal(calls[0]?.init?.signal, controller.signal);
+});
+
+test('slug helper encodes the slug as one path segment and resolves only nine images', async (t) => {
+  const images = Array.from({ length: 11 }, (_, index) => `/api/images/image-${index + 1}`);
+  const calls = installBrowserMocks(t, [
+    jsonResponse({
+      _id: 'product-1',
+      name: 'Desk Lamp',
+      productFamily: 'ai-gadgets',
+      slug: 'desk-lamp',
+      skuCode: 'sku-100',
+      images,
+    }),
+  ]);
+  const product = await fetchProductBySlug('Desk Lamp/Pro');
+  assert.equal(calls[0]?.url, '/api/products/slug/Desk%20Lamp%2FPro');
+  assert.deepEqual(product.images, images.slice(0, 9));
+});
+
+test('catalog token is read for every request', async (t) => {
+  const calls = installBrowserMocks(t, [
+    jsonResponse({ items: [], total: 0, page: 1, pageSize: 24 }),
+    jsonResponse({ items: [], total: 0, page: 1, pageSize: 24 }),
+  ]);
+  localStorage.setItem('channel.token', 'token-a');
+  await fetchProductFamily('toys');
+  localStorage.setItem('channel.token', 'token-b');
+  await fetchProductFamily('toys');
+  assert.deepEqual(
+    calls.map((call) => call.init?.headers),
+    [{ Authorization: 'Bearer token-a' }, { Authorization: 'Bearer token-b' }],
+  );
+});
+
+test('related helper fetches the same family and excludes the current product', async (t) => {
+  const current: Product = {
+    _id: 'current',
+    name: 'Current',
+    productFamily: 'toys',
+    slug: 'current',
+    skuCode: 'current',
+  };
+  const calls = installBrowserMocks(t, [
+    jsonResponse({
+      items: [
+        current,
+        { _id: 'other-1', name: 'Other 1', productFamily: 'toys' },
+        { _id: 'other-2', name: 'Other 2', productFamily: 'toys' },
+      ],
+      total: 3,
+      page: 1,
+      pageSize: 4,
+    }),
+  ]);
+  const related = await fetchRelatedProducts(current, 2);
+  assert.deepEqual(
+    related.map((product) => product._id),
+    ['other-1', 'other-2'],
+  );
+  assert.equal(calls[0]?.url, '/api/products?productFamily=toys&page=1&pageSize=3');
+});
+
+test('related helper skips network work for invalid or non-positive limits', async (t) => {
+  const calls = installBrowserMocks(t, []);
+  const product: Product = { _id: 'current', name: 'Current', productFamily: 'toys' };
+  for (const limit of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 0, -1]) {
+    assert.deepEqual(await fetchRelatedProducts(product, limit), []);
+  }
+  assert.deepEqual(await fetchRelatedProducts({ _id: 'no-family', name: 'No family' }, 4), []);
+  assert.equal(calls.length, 0);
+});
+
+test('related helper truncates fractional limits and caps requests at 48 candidates', async (t) => {
+  const calls = installBrowserMocks(t, [
+    jsonResponse({ items: [], total: 0, page: 1, pageSize: 3 }),
+    jsonResponse({ items: [], total: 0, page: 1, pageSize: 48 }),
+  ]);
+  const product: Product = { _id: 'current', name: 'Current', productFamily: 'misc' };
+  await fetchRelatedProducts(product, 2.9);
+  await fetchRelatedProducts(product, 100);
+  assert.deepEqual(
+    calls.map((call) => call.url),
+    [
+      '/api/products?productFamily=misc&page=1&pageSize=3',
+      '/api/products?productFamily=misc&page=1&pageSize=48',
+    ],
+  );
+});
+
+test('AbortError from fetch propagates unchanged', async (t) => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new DOMException('aborted', 'AbortError');
+  };
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+  const controller = new AbortController();
+  await assert.rejects(
+    fetchProductFamily('misc', {}, controller.signal),
+    (error: unknown) => error instanceof DOMException && error.name === 'AbortError',
+  );
+});
 
 class MemoryStorage implements Storage {
   #values = new Map<string, string>();

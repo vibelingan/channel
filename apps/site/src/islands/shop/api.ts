@@ -1,9 +1,11 @@
 /** Shared product types + API client for the storefront islands. */
 import { apiMediaUrl, apiUrl } from '../../lib/api-url.ts';
 import { getToken } from '../../lib/session.ts';
-import type { CatalogPage, CatalogQuery, Product } from './catalog-types.ts';
+import type { CatalogPage, CatalogQuery, Product, ProductFamily } from './catalog-types.ts';
 
-export type { CatalogPage, CatalogQuery, Product } from './catalog-types.ts';
+export type { CatalogPage, CatalogQuery, Product, ProductFamily } from './catalog-types.ts';
+
+const PRODUCT_IMAGE_LIMIT = 9;
 
 /**
  * Attach the session token so the catalog API can verify the caller's role and
@@ -22,13 +24,14 @@ interface ApiEnvelope<T> {
   error?: { code: string; message: string };
 }
 
-function resolveProductMedia(product: Product): Product {
+function resolveProductMedia(product: Product, maxImages?: number): Product {
   if (!product.images) return product;
-  return { ...product, images: product.images.map(apiMediaUrl) };
+  const images = maxImages === undefined ? product.images : product.images.slice(0, maxImages);
+  return { ...product, images: images.map(apiMediaUrl) };
 }
 
-function resolveCatalogMedia(page: CatalogPage): CatalogPage {
-  return { ...page, items: page.items.map(resolveProductMedia) };
+function resolveCatalogMedia(page: CatalogPage, maxImages?: number): CatalogPage {
+  return { ...page, items: page.items.map((product) => resolveProductMedia(product, maxImages)) };
 }
 
 /**
@@ -43,6 +46,7 @@ export async function fetchCatalog(
   signal?: AbortSignal,
 ): Promise<CatalogPage> {
   const params = new URLSearchParams();
+  if (query.productFamily) params.set('productFamily', query.productFamily);
   if (query.categories && query.categories.length > 0) {
     params.set('category', query.categories.join(','));
   }
@@ -57,18 +61,64 @@ export async function fetchCatalog(
   if (!res.ok) throw new Error(`Failed to load catalog (${res.status})`);
   const json = (await res.json()) as ApiEnvelope<CatalogPage>;
   if (!json.ok || !json.data) throw new Error(json.error?.message ?? 'Failed to load catalog');
-  return resolveCatalogMedia(json.data);
+  return resolveCatalogMedia(
+    json.data,
+    basePath === '/api/products' ? PRODUCT_IMAGE_LIMIT : undefined,
+  );
 }
 
-export async function fetchCatalogItem(basePath: string, id: string): Promise<Product> {
+export async function fetchCatalogItem(
+  basePath: string,
+  id: string,
+  signal?: AbortSignal,
+): Promise<Product> {
   const res = await fetch(apiUrl(`${basePath}/${encodeURIComponent(id)}`), {
     headers: catalogHeaders(),
+    signal,
   });
   if (res.status === 404) throw new Error('not-found');
   if (!res.ok) throw new Error(`Failed to load item (${res.status})`);
   const json = (await res.json()) as ApiEnvelope<Product>;
   if (!json.ok || !json.data) throw new Error(json.error?.message ?? 'Failed to load item');
-  return resolveProductMedia(json.data);
+  return resolveProductMedia(
+    json.data,
+    basePath === '/api/products' ? PRODUCT_IMAGE_LIMIT : undefined,
+  );
+}
+
+export function fetchProductFamily(
+  productFamily: ProductFamily,
+  query: Omit<CatalogQuery, 'productFamily'> = {},
+  signal?: AbortSignal,
+): Promise<CatalogPage> {
+  return fetchCatalog('/api/products', { ...query, productFamily }, signal);
+}
+
+export async function fetchProductBySlug(slug: string, signal?: AbortSignal): Promise<Product> {
+  const res = await fetch(apiUrl(`/api/products/slug/${encodeURIComponent(slug)}`), {
+    headers: catalogHeaders(),
+    signal,
+  });
+  if (res.status === 404) throw new Error('not-found');
+  if (!res.ok) throw new Error(`Failed to load item (${res.status})`);
+  const json = (await res.json()) as ApiEnvelope<Product>;
+  if (!json.ok || !json.data) throw new Error(json.error?.message ?? 'Failed to load item');
+  return resolveProductMedia(json.data, PRODUCT_IMAGE_LIMIT);
+}
+
+export async function fetchRelatedProducts(
+  product: Product,
+  limit = 4,
+  signal?: AbortSignal,
+): Promise<Product[]> {
+  if (!product.productFamily || !Number.isFinite(limit) || limit <= 0) return [];
+  const boundedLimit = Math.min(47, Math.max(1, Math.trunc(limit)));
+  const page = await fetchProductFamily(
+    product.productFamily,
+    { page: 1, pageSize: boundedLimit + 1 },
+    signal,
+  );
+  return page.items.filter((candidate) => candidate._id !== product._id).slice(0, boundedLimit);
 }
 
 // Back-compat helpers for the headphones pages (products catalog).

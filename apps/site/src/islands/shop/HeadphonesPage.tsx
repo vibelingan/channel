@@ -230,7 +230,7 @@ export function HeadphonesPage({ content }: Props) {
         <HeadphonesProductDetail
           product={activeProduct}
           detail={detail}
-          categoryLabel={categoryLabel(activeProduct.category)}
+          categoryLabel={categoryLabel(activeProduct.category ?? '')}
           registered={canSeeVip}
           onBack={handleBack}
         />
