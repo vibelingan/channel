@@ -286,6 +286,60 @@ requireCheck(
         removeCall?.params?.query?.includes('conn-1'),
       '@cloudbase/database transaction get/set/update/remove probe matches deterministic write contracts',
     );
+
+    txCalls.length = 0;
+    let postWriteRollbackCaught = false;
+    try {
+      await probeDb.runTransaction(async (transaction) => {
+        await transaction.collection('catalogProductIdentities').doc('slug:failed').set({
+          kind: 'slug',
+          normalizedValue: 'failed',
+          productId: 'product-failed',
+        });
+        throw new Error('catalog-save-rollback-probe');
+      }, 0);
+    } catch (error) {
+      postWriteRollbackCaught =
+        error instanceof Error && error.message === 'catalog-save-rollback-probe';
+    }
+    const postWriteRollbackCalls = txCalls.map((call) => call.api);
+    requireCheck(
+      postWriteRollbackCaught &&
+        JSON.stringify(postWriteRollbackCalls) ===
+          JSON.stringify([
+            'database.startTransaction',
+            'database.modifyDocument',
+            'database.abortTransaction',
+          ]),
+      '@cloudbase/database aborts a catalog transaction when the callback fails after a write',
+    );
+
+    txCalls.length = 0;
+    let catalogConflictAttempts = 0;
+    const catalogRetryResult = await probeDb.runTransaction(async (transaction) => {
+      catalogConflictAttempts += 1;
+      await transaction.collection('catalogProductIdentities').doc('slug:retry').set({
+        kind: 'slug',
+        normalizedValue: 'retry',
+        productId: 'product-retry',
+      });
+      if (catalogConflictAttempts === 1) throw { code: 'DATABASE_TRANSACTION_CONFLICT' };
+      return 'saved';
+    }, 1);
+    const catalogRetryCalls = txCalls.map((call) => call.api);
+    requireCheck(
+      catalogRetryResult === 'saved' &&
+        catalogConflictAttempts === 2 &&
+        JSON.stringify(catalogRetryCalls) ===
+          JSON.stringify([
+            'database.startTransaction',
+            'database.modifyDocument',
+            'database.startTransaction',
+            'database.modifyDocument',
+            'database.commitTransaction',
+          ]),
+      '@cloudbase/database retries the complete catalog callback and commits only the winning attempt',
+    );
   } finally {
     databaseModule.Db.reqClass = originalReqClass;
   }
@@ -605,6 +659,7 @@ for (const method of [
   'releaseAlibabaSyncLease',
   'updateDocWithAlibabaLease',
   'createDocWithId',
+  'saveCatalogProductWithIdentities',
   'upsertDocWithId',
 ]) {
   const calls = objectMethodCalls('cloudBaseAdapter', method);
@@ -613,6 +668,15 @@ for (const method of [
     `db cloudbase ${method} performs its read-and-write inside runTransaction`,
   );
 }
+requireCheck(
+  objectMethodCalls('cloudBaseAdapter', 'saveCatalogProductWithIdentities').includes(
+    'planCatalogProductSave',
+  ) &&
+    objectMethodCalls('cloudBaseAdapter', 'saveCatalogProductWithIdentities').includes(
+      'replaceNestedObjects',
+    ),
+  'db cloudbase catalog save plans and writes product identities inside one transaction callback',
+);
 requireCheck(
   objectMethodCalls('cloudBaseAdapter', 'updateDocWithAlibabaLease').includes(
     'holdsAlibabaLease',
