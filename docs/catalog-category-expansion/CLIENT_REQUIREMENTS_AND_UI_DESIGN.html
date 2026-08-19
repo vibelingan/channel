@@ -41,6 +41,16 @@
 
   <div class="decision"><strong>本次建议：</strong>网站建立一个统一的 Electronics &amp; Toys 商品中心，下面分为四个产品大类，每个大类再展示各自的 SKU 商品。后台仍然使用同一个商品管理区，不为每个大类重复建设一套系统。</div>
 
+  <h3>建议实施顺序</h3>
+  <table>
+    <tr><th>Phase 1：先实现</th><th>客户确认后再实现</th></tr>
+    <tr>
+      <td>桌面与手机菜单<br>Electronics &amp; Toys 基础总览<br>三个新分类的准备中页面<br>现有 Headphones 与本地示例商品 UI 验证<br>前台隐藏 VIP 价格入口</td>
+      <td>跨分类真实商品数据与 Alibaba mapping<br>Admin 分类 Tab 与商品表单改造<br>SKU 独立页面和永久 URL<br>Breadcrumb、Product Schema 与完整 SEO 接入<br>发布权限、删除和批量操作</td>
+    </tr>
+  </table>
+  <p class="small">Phase 1 的新分类名称和页面地址只用于本地或受控测试预览；客户确认前不发布到生产。</p>
+
   <h3>建议的商品层级</h3>
   <div class="mock">Electronics &amp; Toys
 │
@@ -89,7 +99,8 @@
   <p class="caption">菜单保持现有网站的白色 Header 与蓝色品牌风格，不改成大型复杂的商城菜单。</p>
 
   <h3>2. Electronics &amp; Toys 总览页</h3>
-  <p>总览页让客户先选择产品大类，同时展示少量重点商品。它是商品目录入口，不做成大段营销 Landing Page。</p>
+  <p><strong>Phase 1：</strong>总览页先提供四个无产品图的文字分类入口；Headphones 标记为可浏览，其他三类标记为准备中。</p>
+  <p class="notice"><strong>以下带图片、Breadcrumb 和 Featured Products 的线框是客户确认内容后的后续完整版，不属于 Phase 1。</strong></p>
 
   <div class="mock">Home / Electronics &amp; Toys
 
@@ -114,7 +125,8 @@ Featured Products
 [SKU Card]  [SKU Card]  [SKU Card]  [SKU Card]</div>
 
   <h3>3. 产品分类页</h3>
-  <p>四个产品大类共用同一种页面布局，但每个大类使用自己的标题、图片和介绍。Headphones 继续保留 Office、Bluetooth、Wired 筛选。</p>
+  <p><strong>Phase 1：</strong>Headphones 保持当前商品列表和详情交互；其他三类只显示准备中说明与询价按钮。</p>
+  <p class="notice"><strong>以下商品网格、筛选、详情链接和分页是后续真实数据/API 阶段的设计方向，不属于 Phase 1。</strong></p>
 
   <div class="mock">Home / Electronics &amp; Toys / Headphones
 

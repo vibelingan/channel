@@ -85,7 +85,7 @@ Headphones 的 Office / Bluetooth / Wired 是筛选条件，不额外进入面�
 
 ## 4. 公开网站 UI
 
-### 4.1 桌面顶部菜单
+### 4.1 桌面顶部菜单（Phase 1）
 
 当前 Header 很紧凑，不把四个类别全部塞进顶栏。将单独的 `Headphones` 链接替换为一个可点击的 `Electronics & Toys` 菜单。
 
@@ -105,11 +105,11 @@ Headphones 的 Office / Bluetooth / Wired 是筛选条件，不额外进入面�
 
 - 点击、Enter 或 Space 打开；不依赖 hover。
 - Escape、点击外部或焦点离开菜单时关闭。
-- 关闭后焦点回到 `Electronics & Toys` 触发器。
+- 使用 Escape 主动关闭时，焦点回到 `Electronics & Toys` 触发器；点击外部或正常 Tab 离开时保留用户选择的新焦点，不强制抢回。
 - 当前产品族有清楚的 active 状态，但颜色不是唯一提示。
 - 每个链接至少 44×44 px 可点击区域。
 
-### 4.2 移动菜单
+### 4.2 移动菜单（Phase 1）
 
 沿用现有汉堡菜单，在其中加入一层 accordion，不做复杂的多级抽屉。
 
@@ -133,9 +133,13 @@ Headphones 的 Office / Bluetooth / Wired 是筛选条件，不额外进入面�
 - 菜单打开后焦点进入菜单，关闭后回到汉堡按钮。
 - 汉堡按钮与每一行都达到 44×44 px。
 
-### 4.3 Electronics & Toys 总览页
+### 4.3 Electronics & Toys 总览页（Phase 1 基础 UI）
 
 该页不是营销 Landing Page，而是进入商品目录的工作入口。
+
+Phase 1 只显示标题、简短介绍、询价入口和四个**无产品图**的分类入口。Headphones 标记为可浏览，其他三类标记为准备中；不显示 breadcrumb、Featured Products 或未批准的分类图片。
+
+以下是客户确认分类与内容后的**后续完整版方向，不属于 Phase 1**：
 
 ```text
 Breadcrumb
@@ -158,13 +162,15 @@ Featured products
 [SKU] [SKU] [SKU] [SKU]
 ```
 
-- 桌面 2×2，移动端单列。
-- 每个产品族需要自己的图片、简介和 SEO 文案；不可机械复制 Headphones 文案。
-- 没有正式商品或文案的产品族可以出现为入口，但先 `noindex,follow` 且不进入 sitemap。
+- Phase 1 采用桌面 2×2、移动端单列，卡片只显示分类文字与状态。
+- 后续只有在客户提供并批准分类图片、简介和 SEO 文案后，才升级成带图完整版。
+- 没有正式商品或文案的产品族只显示准备中状态，并使用 `noindex,follow` 且不进入 sitemap。
 
-### 4.4 产品族页
+### 4.4 产品族页（后续完整版；Phase 1 只保留现有 Headphones + 其他三类准备中页面）
 
-复用当前 Headphones 页的品牌语言、商品卡片字段和询盘 CTA，但改为服务端输出真实商品链接。
+Phase 1 不重构 Headphones 商品卡和详情交互，也不为其他三类伪造商品。Headphones 继续使用当前页面和本地 seed；AI Gadgets、Toys、Other 只显示标题、准备中说明和询价 CTA。
+
+以下商品网格、真实详情链接和 URL 分页属于后续数据/API/SKU 阶段：
 
 ```text
 Home / Electronics & Toys / Headphones
@@ -191,7 +197,7 @@ Family-specific introduction and approved proof points.
 - 缺少公开价格时显示 `Request a quote`，不显示 `$0`、空白或假价格。
 - 分页必须有真实 URL；`Load more` 只能作为渐进增强。
 
-### 4.5 SKU 详情页
+### 4.5 SKU 详情页（后续阶段，不在 Phase 1）
 
 ```text
 Home / Electronics & Toys / Headphones / WorkComm Mono
@@ -232,7 +238,7 @@ Related products
 | 分页失败 | 保留已加载商品，仅在分页控件旁提示并允许重试 |
 | 图片缺失 | 沿用品牌化占位图，并保留固定宽高避免布局跳动 |
 
-## 5. Admin UI
+## 5. Admin UI（后续阶段，不在 Phase 1）
 
 ### 5.1 导航与列表
 
@@ -304,7 +310,7 @@ Alibaba status · source · last synced at
 - 宽表格改为精简行/卡片，页面整体不得横向溢出。
 - 新建/编辑使用可访问 dialog：焦点锁定、Escape 关闭、错误播报、首个错误聚焦、关闭后焦点恢复。
 
-## 6. 商品数据设计（内部建议，待确认）
+## 6. 商品数据设计（后续阶段，内部建议，待确认）
 
 > 说明：`productFamily` 不是当前系统或 Alibaba 分支已有的字段，是本次为了同时表达“四个产品大类”和“Headphones 内部分类”提出的建议名称。实施前可以调整字段名，但需要保留这两个独立层级。
 
@@ -361,49 +367,58 @@ flowchart LR
 
 1. 所有公开 URL 使用 trailing slash，并在 sitemap、canonical 和内部链接中保持一致。
 2. `/headphones/` 保留，不为分类扩展制造旧页迁移。
-3. 产品族和 SKU 页面由服务端输出真实标题、正文、图片和 `<a>` 商品链接。
+3. Phase 1 新分类路由只用于本地/受控测试预览，使用 `noindex,follow` 且不进入 sitemap；客户确认名称和 URL 前不发布到生产。
 4. 每页一个可见 H1；title ≤ 60 字符，description ≤ 160 字符。
-5. 可见 breadcrumb 与 `BreadcrumbList` 必须表达相同层级。
-6. Product/Offer Schema 只使用真实、已发布、可公开字段；不得添加占位库存、价格、评分或评论。
+5. Phase 1 不增加 breadcrumb 或 `BreadcrumbList`，等 SEO metadata 分支落地且客户确认层级后统一接入。
+6. Product/Offer Schema 只使用真实、已发布、可公开字段；Phase 1 不新增 Product/Offer Schema。
 7. `lastmod` 只能来自经过审核的内容更新时间，不使用 build time 或 Alibaba sync time。
-8. 暂无正式内容或商品的产品族使用 `noindex,follow`，不进入 sitemap；准备完成后再开放索引。
-9. 目前只设计英文路由和内容。没有批准的翻译页面前，不添加 hreflang。
-10. SKU 下架后从产品族列表、sitemap 和 Product Schema 中移除；永久移除策略待客户确认。
+8. 目前只设计英文路由和内容。没有批准的翻译页面前，不添加 hreflang。
+9. SKU URL、下架后的 sitemap/Schema 行为和永久移除策略均属于后续阶段。
 
 ## 8. 范围边界
 
-### 本阶段包含
+### Phase 1 包含
 
-- 产品层级、URL、公开菜单、产品总览/产品族/SKU 页面设计。
-- Admin 产品族 Tab、人工新增/编辑/发布/下架流程设计。
-- 统一商品字段与 Alibaba 接入边界。
-- SEO/GEO 兼容与响应式、可访问性要求。
+- 桌面和移动端 Electronics & Toys 菜单改造。
+- Electronics & Toys 总览页基础 UI。
+- AI Gadgets、Toys、Other Electronics & Toys 的真实“准备中”页面状态。
+- 现有 Headphones 页面和本地六条 seed 商品的 UI 验证。
+- 前台隐藏 VIP 价格和登录解锁 VIP 的文案。
+- 响应式、键盘、触屏、无 JavaScript 和基础错误/图片缺失状态验证。
 
-### 本阶段不包含
+### Phase 1 不包含
 
-- Alibaba API、OAuth、定时任务或真实数据导入实现。
-- 购物车、在线支付、库存扣减、订单或物流。
-- SKU 多规格/变体模型。
-- 商品比较、收藏、评分、评论。
-- 自动生成或翻译产品文案。
-- 新的发布审批状态机，除非客户确认需要。
-- VIP 申请、审批、会员升级和 VIP 价格展示。
+- `productFamily`、数据库迁移、API family filter 或 Alibaba mapping。
+- Admin 产品族 Tab、商品表单、发布权限、删除或批量操作改造。
+- SKU 独立详情路由、slug、redirect、永久 URL 或 Product Schema。
+- Breadcrumb/`BreadcrumbList`；它们随 SEO metadata 集成后续处理。
+- 购物车、支付、订单、库存、多规格、比较、收藏、评分或评论。
+- VIP 字段、API、角色、Admin 或 Alibaba 兼容逻辑的永久删除。
+- AI Gadgets、Toys、Other 的虚构 SKU 或未获客户批准的产品资料。
 
 ## 9. 验收标准
 
+### Phase 1 验收
+
 - [ ] 顶部菜单在键盘、鼠标和触屏下都能进入四个产品族，且不依赖 hover。
-- [ ] `/headphones/` 保持 canonical；三个新增产品族页与 `/electronics-toys/` 使用 trailing slash。
-- [ ] 每个已发布 SKU 可通过唯一 `/products/{slug}/` 独立打开，并输出真实 SSR 内容。
+- [ ] `/headphones/` 保持现有 canonical；四个新增预览路由使用 trailing slash、`noindex,follow` 且不进 sitemap。
 - [ ] Headphones 的 Office / Bluetooth / Wired 只作为子分类筛选，不和四个产品族混用。
-- [ ] 商品卡显示图片、名称、SKU code、描述、MOQ 和价格或 `Request a quote`。
-- [ ] 新分类页面不显示 VIP 价格或登录解锁 VIP 的入口，Admin 表单不显示 `vipPrice`。
-- [ ] 产品族页覆盖 loading、空数据、无筛选结果、接口错误、分页失败和图片缺失状态。
+- [ ] 现有本地 seed 的六个 Headphones 商品、三个子分类、详情展开和返回焦点行为保持可用。
+- [ ] AI Gadgets、Toys、Other 页面不伪造商品，只显示准备中状态和 OEM 询价入口。
+- [ ] Headphones 覆盖 loading、初始错误/重试、空数据、分页失败和图片缺失状态。
+- [ ] 新分类页面和活跃 Headphones/Auth 展示不出现 VIP 价格或登录解锁 VIP 的入口。
+- [ ] 375 / 768 / 1024 / 1440 px 无不合理横向滚动、文字重叠或操作目标过小。
+- [ ] 页面通过键盘焦点、Escape、44×44 px target 和 reduced-motion 检查。
+
+### 后续阶段验收（不阻塞 Phase 1）
+
+- [ ] 每个已发布 SKU 可通过批准的稳定 URL 独立打开，并输出真实服务端内容。
+- [ ] 可见 breadcrumb 与 `BreadcrumbList` 在 SEO metadata 集成阶段表达相同层级。
 - [ ] Admin 提供 `All + 四产品族` Tab；Tab 与搜索/筛选/分页组合结果正确。
+- [ ] Admin 商品表单隐藏 `vipPrice` 并停止新录入；底层旧字段仅兼容历史数据。
 - [ ] 新建 SKU 默认草稿，缺少发布必填字段时不能发布。
 - [ ] 已发布 SKU 不能在普通列表中直接硬删除，需先下架/归档。
 - [ ] Alibaba 导入不覆盖人工内容、不自动发布、不把未映射商品放入 Misc。
-- [ ] 375 / 768 / 1024 / 1440 px 无不合理横向滚动、文字重叠或操作目标过小。
-- [ ] 页面通过键盘焦点、Escape、44×44 px target 和 reduced-motion 检查。
 
 ## 10. 客户待确认
 

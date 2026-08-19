@@ -27,6 +27,9 @@ This phase defines behavior, information architecture, admin workflows, and inte
 | 4. Define public and admin UI | Complete | Annotated desktop/mobile wireframes and interaction rules are documented |
 | 5. Package client decisions and implementation handoff | Complete | Client checklist and technical follow-up work are separated clearly |
 | 6. Validate documentation | Complete | Markdown checks, typecheck, lint, and consistency review pass |
+| 7. Define low-risk Phase 1 LLD | Complete | Menu/pages/seed scope is separated from deferred customer decisions |
+| 8. Decompose Phase 1 MIUs | Complete | Every MIU uses exact files, TDD assertions, dependencies, and runtime impact |
+| 9. Review and validate Phase 1 handoff | Complete | Independent architecture/MIU review and document checks pass |
 
 ## Scope Boundaries
 

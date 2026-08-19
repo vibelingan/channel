@@ -79,3 +79,30 @@ The existing VIP pricing path is not part of this feature. Registration creates 
 
 - Client decisions listed in `CLIENT_CONFIRMATION.md`.
 - Authenticated Admin screenshots can be captured during implementation; the runtime correctly redirected the unauthenticated inspection to login, so current Admin behavior is grounded in source contracts.
+
+## Phase 1 Scope Lock — Menu And Basic Pages
+
+The first implementation phase intentionally stops before any customer decision that would harden a data, permission, integration, or permanent URL contract.
+
+### Implement now
+
+- Replace the single Headphones global-nav item with an accessible `Electronics & Toys` disclosure on desktop and nested disclosure on mobile.
+- Add the Electronics & Toys hub plus basic sibling pages for Headphones, AI Gadgets, Toys, and Other Electronics & Toys.
+- Reuse the current Headphones seed and catalog UI to validate the populated Headphones state.
+- Render honest empty/in-preparation states and an OEM enquiry CTA for the other three families.
+- Keep the current Headphones in-page detail interaction, data fetching, and controller behavior unchanged while suppressing its VIP presentation.
+- Remove VIP marketing copy from active Headphones/auth presentation; keep VIP storage, API, roles, Admin, and Alibaba compatibility unchanged.
+- Validate navigation and responsive UI locally with the existing local API and seed dataset.
+
+### Explicitly defer
+
+- `productFamily` or any replacement schema field, migration, public API filter, or Alibaba mapping.
+- Admin category tabs, CRUD form changes, publication permissions, deletion behavior, or bulk actions.
+- Breadcrumb hierarchy/JSON-LD, SKU detail routes, slug persistence, redirects, permanent URL guarantees, or Product schema; these re-enter after the active SEO metadata work and client URL approval.
+- Alibaba source/pricing branches and VIP backend/Admin/Alibaba cleanup work.
+- VIP storage/API/role/Admin cleanup (presentation-only suppression is in scope now).
+- Synthetic AI Gadget/Toys products presented as real catalog inventory.
+
+### Why this is the lowest-risk slice
+
+The current seed has six real demo Headphones records and no confirmed cross-family field. Static family navigation plus truthful empty pages proves the complete menu/page interaction without prematurely turning the proposed `productFamily` name into a database contract. New route names are local/test-preview only until the client confirms them; noindex alone is not treated as permission to publish unstable URLs. The later data/API/Admin phase can then adopt the client-approved taxonomy without migrating a speculative Phase 1 schema.

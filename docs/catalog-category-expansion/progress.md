@@ -19,6 +19,11 @@
 - Completed final validation and consistency review. All task phases are complete; implementation remains intentionally deferred until client confirmation.
 - Clarified that `productFamily` is a proposed internal field, not an existing main/Alibaba field.
 - Added a non-technical client Word source containing all public-site and Admin wireframes, Alibaba behavior, scope, and confirmation decisions.
+- Locked Phase 1 to menu/basic-page presentation, existing Headphones seed verification, and active storefront VIP suppression.
+- Deferred schema/API/Admin/Alibaba/SKU URL and permission decisions from Phase 1.
+- Authored `LOW_LEVEL_DESIGN.md` and an implementation-ready 12-MIU DAG with deploy-safe and local-seed E2E separated.
+- Reconciled the customer requirements/Word document so the full Admin/SKU vision is explicitly later-phase work.
+- Completed independent tech-lead and assumption reviews; all blocking findings were closed.
 
 ## Validation Log
 
@@ -34,3 +39,8 @@
 | Initial DOCX conversion and archive check | Passed; Word 2007+ archive valid |
 | Initial DOCX content round-trip | Passed all required client sections and Chinese text checks |
 | Strict HTML source check | Found raw display ampersands; corrected before final regeneration |
+| Phase 1 LLD/MIU structure | Passed: 12/12 MIUs include mandatory fields, 1–3 files, TDD assertions, and compile criteria |
+| Phase 1 scope consistency | Passed: menu/basic pages/seed now; schema/API/Admin/Alibaba/SKU/SEO hierarchy later |
+| Client DOCX Phase 1 round-trip | Passed: implementation order and production publication gate survived conversion |
+| Final repository typecheck | Passed: all packages/apps and E2E; Astro 0 errors, 0 warnings, 7 baseline hints |
+| Final repository lint | Passed: Biome checked 279 files with no fixes |
