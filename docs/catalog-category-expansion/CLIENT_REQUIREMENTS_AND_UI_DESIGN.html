@@ -211,7 +211,11 @@ Source status · Last synced time
     <li>如果商品改到另一个大类，保存后会提示它将移动到对应标签。</li>
     <li>已经发布的商品先下架或归档，不在普通列表里直接永久删除。</li>
     <li>Alibaba 来源和同步时间只读显示，避免运营人员误改同步资料。</li>
+    <li>本期后台商品表单不显示 VIP Price，不新增或修改会员价格。</li>
   </ul>
+
+  <h3>3. VIP 价格处理</h3>
+  <div class="notice"><strong>本期不继续建设 VIP 价格功能：</strong>商品卡、分类页和 SKU 页面不显示 VIP 价格，也不显示“登录后查看 VIP 价格”。后台表单隐藏 VIP Price。系统底层的旧字段暂时保留，只为了兼容历史数据；Alibaba 价格接入稳定后再单独清理。</div>
 
   <h2>四、与 Alibaba 数据同步的关系</h2>
   <p>这次不接 Alibaba API，但页面和后台设计会为后续同步预留清楚的位置。</p>
@@ -245,7 +249,7 @@ Source status · Last synced time
     <tr><th>本期设计包含</th><th>本期不包含</th></tr>
     <tr>
       <td>四个产品大类与 SKU 层级<br>桌面与手机菜单<br>商品总览、分类、SKU 页面<br>后台分类标签与手工录入<br>Alibaba 后续兼容原则<br>搜索与内容规则</td>
-      <td>Alibaba API 真实接入<br>购物车、支付、订单、库存<br>颜色/尺寸多规格管理<br>评论、评分、收藏、商品比较<br>自动生成或翻译商品文案<br>新的复杂发布审批流程</td>
+      <td>Alibaba API 真实接入<br>购物车、支付、订单、库存<br>颜色/尺寸多规格管理<br>评论、评分、收藏、商品比较<br>自动生成或翻译商品文案<br>新的复杂发布审批流程<br>VIP 申请、审批、升级和会员价格展示</td>
     </tr>
   </table>
 
@@ -265,7 +269,7 @@ Source status · Last synced time
     <tr><td>9</td><td>新商品发布</td><td>先保存草稿，人工确认后发布；Alibaba 不能自动发布</td><td></td></tr>
     <tr><td>10</td><td>发布权限</td><td>暂时沿用现有管理员与内容运营人员权限</td><td></td></tr>
     <tr><td>11</td><td>已发布商品移除</td><td>先下架/归档；永久删除后的页面处理另行确认</td><td></td></tr>
-    <tr><td>12</td><td>价格查看权限</td><td>继续沿用当前公开价、批发价和会员价规则</td><td></td></tr>
+    <tr><td>12</td><td>价格展示</td><td>显示允许公开的价格；没有公开价格时显示 Request a quote。本期不显示 VIP 价格</td><td></td></tr>
     <tr><td>13</td><td>Alibaba 未对应分类的商品</td><td>暂不建立商品，不自动归入 Misc</td><td></td></tr>
     <tr><td>14</td><td>暂无商品的分类</td><td>可先保留页面入口，但暂不让搜索引擎收录</td><td></td></tr>
     <tr><td>15</td><td>页面语言</td><td>本期先做英文</td><td></td></tr>

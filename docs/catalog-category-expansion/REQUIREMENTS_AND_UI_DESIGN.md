@@ -279,7 +279,7 @@ Images *           [Image manager]
 
 Commercial
 MOQ                [________]
-Public pricing     [existing fields / Alibaba read-only pricing]
+Public price       [________] or Request a quote
 
 Source (read-only when linked)
 Alibaba status · source · last synced at
@@ -295,6 +295,7 @@ Alibaba status · source · last synced at
 - 新商品默认草稿。发布前至少要求名称、SKU code、slug、产品族、描述和主图。
 - 人工字段与 Alibaba 只读字段视觉分组，禁止把同步字段伪装成普通输入框。
 - 已发布 SKU 先下架/归档，不在普通编辑流中硬删除。
+- 本次新建/编辑表单不显示 `vipPrice`；不设计 VIP 申请、审批、升级或会员价格入口。
 
 ### 5.3 Admin 移动端
 
@@ -319,13 +320,23 @@ Alibaba status · source · last synced at
 | `series / modName / modType` | 继续沿用 | Channel 人工维护 |
 | `description` | 发布前必填 | Channel 人工维护 |
 | `imageIds` | 继续沿用；发布前至少一张主图 | Channel 人工维护 |
-| `moq / unitPrice / wholesalePrice / vipPrice` | 继续沿用现有权限与显示规则 | Channel 人工维护 |
+| `moq / unitPrice / wholesalePrice` | 手工商品可继续维护；公开页面只显示允许公开的价格或 `Request a quote` | Channel 人工维护 |
+| `vipPrice` | **Deprecated**：本次前台和后台表单均不使用；底层字段暂时保留，避免破坏旧数据，Alibaba 接入稳定后另行删除 | 仅旧数据兼容，不接受新录入 |
 | `published` | 新建默认 false | 现有发布权限，待客户确认是否增加审批 |
 | `alibaba*` | 保持 provider-prefixed、只读、可解除关联 | 同步服务维护 |
 
 为降低与 Alibaba 分支合并难度，首期不强制把数据库字段 `category` 重命名为 `subcategory`。只在产品概念和 UI 中明确它是三级子分类；建议新增一个独立字段承载四个二级产品族，`productFamily` 只是本稿中的暂定技术名称。
 
-### 6.2 Alibaba 兼容边界
+### 6.2 VIP 价格退场规则
+
+- 本次分类扩展不实现或延续 VIP 价格体验。
+- 前台商品卡、分类页和 SKU 页不显示 VIP 价格，也不显示 `Sign in to view VIP price` 等引导。
+- 新分类页面不读取 `member` 角色来决定价格展示。
+- Admin 商品新建/编辑表单隐藏 `vipPrice`，不允许新增或修改该值。
+- 数据库/API 中的旧 `vipPrice` 字段暂时保留为 deprecated，仅为了不破坏历史记录和 Alibaba 尚未接管的旧路径。
+- Alibaba 价格接入稳定并完成旧数据确认后，另开清理任务永久删除已经隐藏/停用的 VIP 前台代码、角色权限判断、API 投影和底层字段。
+
+### 6.3 Alibaba 兼容边界
 
 ```mermaid
 flowchart LR
@@ -376,6 +387,7 @@ flowchart LR
 - 商品比较、收藏、评分、评论。
 - 自动生成或翻译产品文案。
 - 新的发布审批状态机，除非客户确认需要。
+- VIP 申请、审批、会员升级和 VIP 价格展示。
 
 ## 9. 验收标准
 
@@ -384,6 +396,7 @@ flowchart LR
 - [ ] 每个已发布 SKU 可通过唯一 `/products/{slug}/` 独立打开，并输出真实 SSR 内容。
 - [ ] Headphones 的 Office / Bluetooth / Wired 只作为子分类筛选，不和四个产品族混用。
 - [ ] 商品卡显示图片、名称、SKU code、描述、MOQ 和价格或 `Request a quote`。
+- [ ] 新分类页面不显示 VIP 价格或登录解锁 VIP 的入口，Admin 表单不显示 `vipPrice`。
 - [ ] 产品族页覆盖 loading、空数据、无筛选结果、接口错误、分页失败和图片缺失状态。
 - [ ] Admin 提供 `All + 四产品族` Tab；Tab 与搜索/筛选/分页组合结果正确。
 - [ ] 新建 SKU 默认草稿，缺少发布必填字段时不能发布。

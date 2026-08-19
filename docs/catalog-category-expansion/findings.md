@@ -73,6 +73,8 @@ This rejects a clean-looking `/products/{family}/{slug}/` hierarchy because fami
 
 Independent requirements and design reviews agreed that only the Headphones visual components should be reused. The current same-page detail interaction must not be copied because it has no crawlable/shareable SKU URL.
 
+The existing VIP pricing path is not part of this feature. Registration creates a blank base role, while VIP visibility requires an administrator to assign `member`; there is no customer application or approval journey. The catalog expansion therefore hides VIP pricing and its sign-in prompt, hides `vipPrice` from Admin forms, and retains the underlying field only as deprecated storage compatibility until Alibaba pricing is stable.
+
 ## Remaining Evidence To Collect
 
 - Client decisions listed in `CLIENT_CONFIRMATION.md`.
