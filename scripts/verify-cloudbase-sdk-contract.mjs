@@ -566,12 +566,17 @@ requireCheck(
 );
 requireCheck(
   containsAll(cloudbaseAdapter, [
+    "case 'isLiteralTrue'",
+    "case 'matchesProductFamily'",
     "case 'isFalseOrMissing'",
     '_.or([',
+    '_.and([',
     '_.exists(false)',
     '_.eq(false)',
+    "_.eq('headphones')",
+    'LEGACY_HEADPHONES_CATEGORY_OPTIONS',
   ]),
-  'db cloudbase strict active-product filter composes missing OR literal false',
+  'db cloudbase strict publication/archive and legacy Headphones filters are composed server-side',
 );
 const acquireMutationStart = cloudbaseAdapter.indexOf('  async acquireImageMutation');
 const acquireMutationEnd = cloudbaseAdapter.indexOf(
