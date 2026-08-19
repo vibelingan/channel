@@ -35,8 +35,9 @@ implemented on `feat/catalog-category-design`. Alibaba API transport/scheduling 
 | 11. Implement atomic product identities | Complete | Storage transaction, provisioning, probes, and Admin repository pass |
 | 12. Implement Admin product invariants | Complete | Atomic lifecycle, authorization, and image-counter races pass |
 | 13. Implement public product projection | Complete | MIU 5 identity, archive, legacy, and image contracts pass |
-| 14. Implement family filtering | In progress | MIU 6 query parsing and legacy Headphones merge active |
-| 15. Implement remaining V1.1 MIUs | Pending | MIU 7-22 execute in dependency order |
+| 14. Implement family filtering | Complete | MIU 6 bounded family query and local transport parity pass |
+| 15. Implement slug detail lookup | In progress | MIU 7 canonical SKU detail API active |
+| 16. Implement remaining V1.1 MIUs | Pending | MIU 8-22 execute in dependency order |
 
 ## Scope Boundaries
 

@@ -72,6 +72,11 @@
 	with one bounded DB query (`48cc3ac`). The internal false-or-missing predicate stays outside the
 	client filter protocol; installed CloudBase `exists(false)` and translator wiring are probed in
 	`d5a9a25`. MIU 6 family filtering is active.
+	- MIU 6 adds a bounded database family predicate with explicit and legacy Headphones matching,
+	  strict publication/archive parity, closed-set query parsing, and family/subcategory/search/page
+	  composition (`e0e4940`). Local Express now delegates catalog HTTP semantics to the production
+	  adapter, with real repeated-query/method/header tests (`298feaa`). Installed CloudBase nested
+	  query translation is probed in `e61d445`. MIU 6 is complete; MIU 7 slug detail lookup is active.
 
 | Implementation check | Result |
 |---|---|
@@ -88,3 +93,6 @@
 | MIU 5 shared tests | Passed: 92/92 |
 | MIU 5 strict archive SDK probe | Passed |
 | MIU 5 function artifacts | Passed: Admin, public-api, and Alibaba build/package/cold-start smoke |
+| MIU 6 shared/public/local tests | Passed: 94/94, 56/56, 10/10 |
+| MIU 6 family query SDK probe | Passed |
+| MIU 6 function artifacts | Passed: Admin, public-api, and Alibaba build/package/cold-start smoke |
