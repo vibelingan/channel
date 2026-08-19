@@ -23,15 +23,10 @@ export const REQUIRED_NOSQL_RESOURCES = [
       ]),
     ],
   },
-  // Catalog product identity uniqueness + mutation serialization. Both are
-  // function-only coordination state and never client-readable.
+  // Catalog product identity uniqueness is function-only coordination state
+  // and never client-readable.
   {
     collectionName: 'catalogProductIdentities',
-    permission: 'ADMINONLY',
-    indexes: [],
-  },
-  {
-    collectionName: 'catalogProductMutationLocks',
     permission: 'ADMINONLY',
     indexes: [],
   },

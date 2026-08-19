@@ -96,14 +96,12 @@ test('passwordResets declares its expiry and unique token lookup indexes', () =>
 });
 
 test('catalog identity coordination collections are function-only resources', () => {
-  for (const collectionName of ['catalogProductIdentities', 'catalogProductMutationLocks']) {
-    const resource = REQUIRED_NOSQL_RESOURCES.find(
-      (candidate) => candidate.collectionName === collectionName,
-    );
-    assert.ok(resource, `${collectionName} must be provisioned before admin deploy`);
-    assert.equal(resource.permission, 'ADMINONLY');
-    assert.deepEqual(resource.indexes, []);
-  }
+  const resource = REQUIRED_NOSQL_RESOURCES.find(
+    (candidate) => candidate.collectionName === 'catalogProductIdentities',
+  );
+  assert.ok(resource, 'catalogProductIdentities must be provisioned before admin deploy');
+  assert.equal(resource.permission, 'ADMINONLY');
+  assert.deepEqual(resource.indexes, []);
 });
 
 test('ensureNoSqlResources creates missing resources and verifies the resulting structure', () => {
@@ -160,8 +158,8 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
   ensureNoSqlResources(callTool, (message) => messages.push(message));
 
   // Anchor: a silent registry change must fail here, not slip through the
-  // derived expectations below (2 auth/abuse + 2 catalog + 10 alibaba collections).
-  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 14);
+  // derived expectations below (2 auth/abuse + 1 catalog + 10 alibaba collections).
+  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 13);
   assert.equal(collections.size, REQUIRED_NOSQL_RESOURCES.length);
   assert.equal(
     [...indexesByCollection.values()].reduce((total, indexes) => total + indexes.size, 0),
