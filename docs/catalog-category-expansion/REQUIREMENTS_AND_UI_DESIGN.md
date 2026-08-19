@@ -1,0 +1,397 @@
+# Electronics & Toys Catalog Expansion
+
+> 客户确认稿 · 2026-08-19
+> 本文件定义需求与 UI 方向，不代表功能已经上线。
+
+## 1. 确认结论
+
+网站商品结构从目前单一的 Headphones 扩展为三级：
+
+```text
+Electronics & Toys
+├── Headphones
+│   ├── Office
+│   ├── Bluetooth
+│   └── Wired
+├── AI Gadgets
+├── Toys
+└── Misc（公开名称待确认）
+    └── SKU 商品
+```
+
+首期遵循以下规则：
+
+1. 一条商品记录代表一个可独立发布的 SKU；颜色、尺寸等多规格变体留待后续。
+2. 四个产品族使用同一套商品字段、卡片和详情页，不复制四套后台或 API。
+3. Headphones 现有 Office / Bluetooth / Wired 保留为该产品族的子分类。
+4. 每个 SKU 有独立、可分享、可被搜索引擎抓取的详情 URL。
+5. 后台支持人工新增、编辑、发布和下架；未来 Alibaba 导入也写入同一个商品库。
+6. Alibaba 只负责来源、价格和同步状态，不覆盖 Channel 人工维护的名称、文案、分类、图片、URL 和发布状态。
+
+## 2. 用户与目标
+
+### 公开网站访客
+
+- 从顶部菜单快速进入 Electronics & Toys 或任一产品族。
+- 浏览某产品族下的 SKU，并按可用子分类筛选。
+- 打开独立 SKU 页面查看图片、型号、描述、MOQ、可公开价格和询盘入口。
+- 在移动端与桌面端都能理解当前位置并返回上一级。
+
+### 后台运营人员
+
+- 在一个 Products 工作区管理全部商品。
+- 使用 `All / Headphones / AI Gadgets / Toys / Misc` 快速切换产品族。
+- 手工新增商品时继承当前 Tab 的产品族，减少重复选择。
+- 区分人工可编辑字段和 Alibaba 只读来源字段。
+- 安全地下架商品，不误删仍被公开页面或图片引用的记录。
+
+## 3. 信息架构与 URL
+
+### 推荐 URL
+
+| 页面 | URL | 说明 |
+|---|---|---|
+| Electronics & Toys 总览 | `/electronics-toys/` | 四个产品族入口与精选 SKU |
+| Headphones | `/headphones/` | 保留现有 canonical，不做迁移 |
+| AI Gadgets | `/ai-gadgets/` | 新产品族页 |
+| Toys | `/toys/` | 新产品族页 |
+| Misc | `/misc/` | 名称确认后可调整显示文案；内部 key 保持 `misc` |
+| SKU 详情 | `/products/{slug}/` | 稳定 URL，不因改产品族而变化 |
+
+不采用 `/products/{family}/{slug}/`，因为商品未来可能被重新分类；稳定 SKU URL 可以避免重定向和 Alibaba 重新映射造成的链接变化。
+
+### 页面层级
+
+```mermaid
+flowchart TD
+    H[Home] --> E[Electronics & Toys]
+    E --> HP[Headphones]
+    E --> AI[AI Gadgets]
+    E --> T[Toys]
+    E --> M[Misc]
+    HP --> S1[SKU Detail]
+    AI --> S2[SKU Detail]
+    T --> S3[SKU Detail]
+    M --> S4[SKU Detail]
+```
+
+产品族页和 SKU 页都显示可见面包屑；SKU 页面示例：
+
+```text
+Home / Electronics & Toys / Headphones / WorkComm Mono
+```
+
+Headphones 的 Office / Bluetooth / Wired 是筛选条件，不额外进入面包屑，避免形成不必要的第四层 URL。
+
+## 4. 公开网站 UI
+
+### 4.1 桌面顶部菜单
+
+当前 Header 很紧凑，不把四个类别全部塞进顶栏。将单独的 `Headphones` 链接替换为一个可点击的 `Electronics & Toys` 菜单。
+
+```text
+┌──────────────────────────────────────────────────────────────────────────┐
+│ CHANNEL      OEM Development   Electronics & Toys ▾   Success Stories   │
+│                              ┌───────────────────────────────┐           │
+│                              │ View all products          →  │           │
+│                              ├───────────────┬───────────────┤           │
+│                              │ Headphones    │ AI Gadgets    │           │
+│                              │ Toys          │ Misc          │           │
+│                              └───────────────┴───────────────┘           │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+交互要求：
+
+- 点击、Enter 或 Space 打开；不依赖 hover。
+- Escape、点击外部或焦点离开菜单时关闭。
+- 关闭后焦点回到 `Electronics & Toys` 触发器。
+- 当前产品族有清楚的 active 状态，但颜色不是唯一提示。
+- 每个链接至少 44×44 px 可点击区域。
+
+### 4.2 移动菜单
+
+沿用现有汉堡菜单，在其中加入一层 accordion，不做复杂的多级抽屉。
+
+```text
+┌──────────────────────────────┐
+│ CHANNEL                  [×] │
+├──────────────────────────────┤
+│ OEM Development              │
+│ Electronics & Toys       [−] │
+│   All products               │
+│   Headphones                 │
+│   AI Gadgets                 │
+│   Toys                       │
+│   Misc                       │
+│ Success Stories              │
+│ Sign in                      │
+└──────────────────────────────┘
+```
+
+- 展开 accordion 不写入浏览器历史；点击页面链接后 Back 正常返回上一页面。
+- 菜单打开后焦点进入菜单，关闭后回到汉堡按钮。
+- 汉堡按钮与每一行都达到 44×44 px。
+
+### 4.3 Electronics & Toys 总览页
+
+该页不是营销 Landing Page，而是进入商品目录的工作入口。
+
+```text
+Breadcrumb
+
+Electronics & Toys                         [Request a Quote]
+Explore product families available for OEM / ODM development.
+
+┌───────────────────────┐  ┌───────────────────────┐
+│ Headphones            │  │ AI Gadgets            │
+│ Image + short summary │  │ Image + short summary │
+│ Browse category →     │  │ Browse category →     │
+└───────────────────────┘  └───────────────────────┘
+┌───────────────────────┐  ┌───────────────────────┐
+│ Toys                  │  │ Misc                  │
+│ Image + short summary │  │ Image + short summary │
+│ Browse category →     │  │ Browse category →     │
+└───────────────────────┘  └───────────────────────┘
+
+Featured products
+[SKU] [SKU] [SKU] [SKU]
+```
+
+- 桌面 2×2，移动端单列。
+- 每个产品族需要自己的图片、简介和 SEO 文案；不可机械复制 Headphones 文案。
+- 没有正式商品或文案的产品族可以出现为入口，但先 `noindex,follow` 且不进入 sitemap。
+
+### 4.4 产品族页
+
+复用当前 Headphones 页的品牌语言、商品卡片字段和询盘 CTA，但改为服务端输出真实商品链接。
+
+```text
+Home / Electronics & Toys / Headphones
+
+Headphones
+Family-specific introduction and approved proof points.
+
+[All] [Office] [Bluetooth] [Wired]          24 models
+
+┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+│ image       │ │ image       │ │ image       │
+│ Product     │ │ Product     │ │ Product     │
+│ SKU code    │ │ SKU code    │ │ SKU code    │
+│ Description │ │ Description │ │ Description │
+│ MOQ / Price │ │ MOQ / Quote │ │ MOQ / Price │
+│ View →      │ │ View →      │ │ View →      │
+└─────────────┘ └─────────────┘ └─────────────┘
+
+                    [Previous] 1 2 3 [Next]
+```
+
+- Headphones 显示现有三个子分类；其他产品族没有子分类时不显示空筛选栏。
+- 商品卡片主操作改为真实 `<a>` 链接，不再只用按钮打开同页弹层。
+- 缺少公开价格时显示 `Request a quote`，不显示 `$0`、空白或假价格。
+- 分页必须有真实 URL；`Load more` 只能作为渐进增强。
+
+### 4.5 SKU 详情页
+
+```text
+Home / Electronics & Toys / Headphones / WorkComm Mono
+
+┌─────────────────────────┐  WorkComm Mono
+│                         │  WC-15
+│    Product gallery      │  Short product description
+│                         │
+└─────────────────────────┘  MOQ: 300 units
+                             Price: $11.00 / Request a quote
+                             [Request OEM Quote]
+
+Product details
+Series · Model type · Description · approved specifications
+
+OEM / ODM options
+Only approved, product-specific content
+
+Related products
+[SKU] [SKU] [SKU]
+```
+
+- 每个详情页有唯一 title、description、H1、canonical 和可见面包屑。
+- 缺失字段直接隐藏相应区块，不虚构库存、评分、评论、保修或认证。
+- Product/Offer Schema 只在服务端真实字段满足条件时输出。
+- Slug 修改必须保留旧 slug 到新 URL 的单跳 301 映射。
+
+### 4.6 页面状态
+
+所有产品族页必须设计并测试以下状态：
+
+| 状态 | UI 行为 |
+|---|---|
+| Loading | 保留卡片尺寸的 skeleton，不显示虚假商品信息 |
+| 产品族暂无商品 | 显示产品族说明和询盘 CTA；不显示空网格 |
+| 筛选无结果 | 显示 `No products match this filter` 和清除筛选按钮 |
+| API/页面错误 | 显示重试操作；不无限停留在 `Loading…` |
+| 分页失败 | 保留已加载商品，仅在分页控件旁提示并允许重试 |
+| 图片缺失 | 沿用品牌化占位图，并保留固定宽高避免布局跳动 |
+
+## 5. Admin UI
+
+### 5.1 导航与列表
+
+后台侧栏只保留一个 `Products` 入口，不能建立五个指向同一 collection 的侧栏项。产品族作为工作区内部 Tab。
+
+```text
+┌───────────────┬──────────────────────────────────────────────────────┐
+│ Dashboard     │ Products                              [New product] │
+│ Products  ●   │                                                      │
+│ Overstock     │ [All] [Headphones] [AI Gadgets] [Toys] [Misc]       │
+│ OEM Requests  │                                                      │
+│ Alibaba Sync  │ [Search products____________] [Filters] [Status ▾]  │
+│               │                                                      │
+│               │ □ Image  Product / SKU  Family  MOQ  Status Actions │
+│               │ □ ...                                               │
+└───────────────┴──────────────────────────────────────────────────────┘
+```
+
+- 默认进入 `All`；Tab 状态写入 URL query，刷新与浏览器 Back 后仍可恢复。
+- 切换 Tab 时重置页码并清空批量选择，避免操作不可见商品。
+- 搜索、筛选、排序和分页始终叠加当前产品族条件。
+- `All` 可跨产品族搜索；首期批量发布/下架限制在当前 Tab，批量硬删除不提供。
+- 可选增强：Tab 显示总数，但必须来自独立聚合数据，不能用当前页数量推算。
+
+### 5.2 新建与编辑
+
+```text
+New product
+
+Classification
+Product family *   [Headphones ▾]
+Subcategory        [Office ▾]
+
+Identity
+Product name *     [________________]
+SKU code *         [________________]
+URL slug *         [________________]
+
+Merchandising
+Series             [________________]
+Model name/type    [________________]
+Description *      [________________]
+Images *           [Image manager]
+
+Commercial
+MOQ                [________]
+Public pricing     [existing fields / Alibaba read-only pricing]
+
+Source (read-only when linked)
+Alibaba status · source · last synced at
+
+[Save draft]                            [Publish]
+```
+
+行为规则：
+
+- 从某产品族 Tab 点击 New product 时预填该产品族；从 All 新建时先选择产品族。
+- 改产品族时，若现有子分类不适用则清空并提示。
+- 商品移动到其他产品族后，保存成功提示其将出现在另一个 Tab。
+- 新商品默认草稿。发布前至少要求名称、SKU code、slug、产品族、描述和主图。
+- 人工字段与 Alibaba 只读字段视觉分组，禁止把同步字段伪装成普通输入框。
+- 已发布 SKU 先下架/归档，不在普通编辑流中硬删除。
+
+### 5.3 Admin 移动端
+
+- 小屏将固定侧栏替换为顶部 section selector。
+- 产品族 Tab 可横向滚动；375 px 下也可降级为原生 select。
+- 宽表格改为精简行/卡片，页面整体不得横向溢出。
+- 新建/编辑使用可访问 dialog：焦点锁定、Escape 关闭、错误播报、首个错误聚焦、关闭后焦点恢复。
+
+## 6. 商品数据设计（内部建议，待确认）
+
+> 说明：`productFamily` 不是当前系统或 Alibaba 分支已有的字段，是本次为了同时表达“四个产品大类”和“Headphones 内部分类”提出的建议名称。实施前可以调整字段名，但需要保留这两个独立层级。
+
+### 6.1 统一商品记录
+
+| 字段 | 首期规则 | 所有权 |
+|---|---|---|
+| `productFamily`（暂定名称） | 建议新增；必填：`headphones / ai-gadgets / toys / misc` | Channel 人工维护；Alibaba 仅通过明确映射设置草稿初值 |
+| `category` | 保留现字段，UI 标为 Subcategory；Headphones 可用 `wired / office / bluetooth` | Channel 人工维护 |
+| `skuCode` | 必填、唯一、稳定的客户可见 SKU 编码 | Channel 人工维护 |
+| `slug` | 必填、唯一；用于 `/products/{slug}/` | Channel 人工维护 |
+| `name` | 必填 | Channel 人工维护 |
+| `series / modName / modType` | 继续沿用 | Channel 人工维护 |
+| `description` | 发布前必填 | Channel 人工维护 |
+| `imageIds` | 继续沿用；发布前至少一张主图 | Channel 人工维护 |
+| `moq / unitPrice / wholesalePrice / vipPrice` | 继续沿用现有权限与显示规则 | Channel 人工维护 |
+| `published` | 新建默认 false | 现有发布权限，待客户确认是否增加审批 |
+| `alibaba*` | 保持 provider-prefixed、只读、可解除关联 | 同步服务维护 |
+
+为降低与 Alibaba 分支合并难度，首期不强制把数据库字段 `category` 重命名为 `subcategory`。只在产品概念和 UI 中明确它是三级子分类；建议新增一个独立字段承载四个二级产品族，`productFamily` 只是本稿中的暂定技术名称。
+
+### 6.2 Alibaba 兼容边界
+
+```mermaid
+flowchart LR
+    A[Alibaba source product/SKU] --> M[Explicit category mapping]
+    M --> D[Unpublished Channel draft]
+    U[Admin manual entry] --> P[Canonical products collection]
+    D --> P
+    P --> API[Public catalog API]
+    API --> C[Category and SKU pages]
+```
+
+必须保持：
+
+- 未映射的 Alibaba 类目不创建 Channel 商品，也不自动归入 Misc。
+- 导入只创建草稿，不自动发布。
+- 人工名称、描述、slug、产品族、子分类、图片和发布状态优先，后续同步不得覆盖。
+- Alibaba 来源商品、offer、同步记录和分类映射继续保存在独立集合。
+- Storefront 只消费统一公开商品 contract，不读取 Alibaba 原始 payload、source category 或 source ID。
+- 同步移除或解除关联后，SKU URL 与人工内容保持不变。
+
+## 7. SEO / GEO 兼容规则
+
+1. 所有公开 URL 使用 trailing slash，并在 sitemap、canonical 和内部链接中保持一致。
+2. `/headphones/` 保留，不为分类扩展制造旧页迁移。
+3. 产品族和 SKU 页面由服务端输出真实标题、正文、图片和 `<a>` 商品链接。
+4. 每页一个可见 H1；title ≤ 60 字符，description ≤ 160 字符。
+5. 可见 breadcrumb 与 `BreadcrumbList` 必须表达相同层级。
+6. Product/Offer Schema 只使用真实、已发布、可公开字段；不得添加占位库存、价格、评分或评论。
+7. `lastmod` 只能来自经过审核的内容更新时间，不使用 build time 或 Alibaba sync time。
+8. 暂无正式内容或商品的产品族使用 `noindex,follow`，不进入 sitemap；准备完成后再开放索引。
+9. 目前只设计英文路由和内容。没有批准的翻译页面前，不添加 hreflang。
+10. SKU 下架后从产品族列表、sitemap 和 Product Schema 中移除；永久移除策略待客户确认。
+
+## 8. 范围边界
+
+### 本阶段包含
+
+- 产品层级、URL、公开菜单、产品总览/产品族/SKU 页面设计。
+- Admin 产品族 Tab、人工新增/编辑/发布/下架流程设计。
+- 统一商品字段与 Alibaba 接入边界。
+- SEO/GEO 兼容与响应式、可访问性要求。
+
+### 本阶段不包含
+
+- Alibaba API、OAuth、定时任务或真实数据导入实现。
+- 购物车、在线支付、库存扣减、订单或物流。
+- SKU 多规格/变体模型。
+- 商品比较、收藏、评分、评论。
+- 自动生成或翻译产品文案。
+- 新的发布审批状态机，除非客户确认需要。
+
+## 9. 验收标准
+
+- [ ] 顶部菜单在键盘、鼠标和触屏下都能进入四个产品族，且不依赖 hover。
+- [ ] `/headphones/` 保持 canonical；三个新增产品族页与 `/electronics-toys/` 使用 trailing slash。
+- [ ] 每个已发布 SKU 可通过唯一 `/products/{slug}/` 独立打开，并输出真实 SSR 内容。
+- [ ] Headphones 的 Office / Bluetooth / Wired 只作为子分类筛选，不和四个产品族混用。
+- [ ] 商品卡显示图片、名称、SKU code、描述、MOQ 和价格或 `Request a quote`。
+- [ ] 产品族页覆盖 loading、空数据、无筛选结果、接口错误、分页失败和图片缺失状态。
+- [ ] Admin 提供 `All + 四产品族` Tab；Tab 与搜索/筛选/分页组合结果正确。
+- [ ] 新建 SKU 默认草稿，缺少发布必填字段时不能发布。
+- [ ] 已发布 SKU 不能在普通列表中直接硬删除，需先下架/归档。
+- [ ] Alibaba 导入不覆盖人工内容、不自动发布、不把未映射商品放入 Misc。
+- [ ] 375 / 768 / 1024 / 1440 px 无不合理横向滚动、文字重叠或操作目标过小。
+- [ ] 页面通过键盘焦点、Escape、44×44 px target 和 reduced-motion 检查。
+
+## 10. 客户待确认
+
+推荐默认值已经写入 [CLIENT_CONFIRMATION.md](CLIENT_CONFIRMATION.md)，客户只需对有异议的项目标注修改。
