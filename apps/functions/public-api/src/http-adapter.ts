@@ -1,4 +1,4 @@
-import { type ApiResult, err, ok } from '@vibelingan-channel/shared';
+import { type ApiResult, err, isProductFamily, ok } from '@vibelingan-channel/shared';
 import { releaseInfo } from '@vibelingan-channel/shared/release';
 import {
   type BinaryResult,
@@ -205,7 +205,13 @@ function parsePositiveInt(value: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function catalogQuery(params: URLSearchParams): CatalogQuery {
+export function parseCatalogQuery(params: URLSearchParams): CatalogQuery | ApiResult<never> {
+  const productFamily = params.get('productFamily')?.trim();
+  if (productFamily && !isProductFamily(productFamily)) {
+    return err('VALIDATION_ERROR', 'Unknown product family.');
+  }
+  const parsedProductFamily =
+    productFamily && isProductFamily(productFamily) ? productFamily : undefined;
   const category = params.get('category')?.trim();
   const categories = category
     ? category
@@ -214,6 +220,7 @@ function catalogQuery(params: URLSearchParams): CatalogQuery {
         .filter(Boolean)
     : [];
   return {
+    ...(parsedProductFamily ? { productFamily: parsedProductFamily } : {}),
     ...(categories.length > 0 ? { categories } : {}),
     search: params.get('search') ?? '',
     page: parsePositiveInt(params.get('page') ?? '', 1),
@@ -249,11 +256,13 @@ async function routeGet(
 
   const collection = segments[0] ? parseCatalogName(segments[0]) : null;
   if (collection && segments.length === 1) {
+    const query = parseCatalogQuery(params);
+    if ('ok' in query) return jsonResponse(event, config, query);
     const viewer = await resolveCatalogViewer(headerValue(event.headers, 'authorization'), config);
     return jsonResponse(
       event,
       config,
-      await listCatalog(collection, catalogQuery(params), config, viewer),
+      await listCatalog(collection, query, config, viewer),
       undefined,
       CATALOG_CACHE_HEADERS,
     );
