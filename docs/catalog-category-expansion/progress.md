@@ -92,6 +92,10 @@
 	local-only fixtures for each AI Gadgets, Toys, and Misc family. Startup atomically repairs all
 	slug/SKU reservations, fails closed without partial writes on conflicts, and reconciles image
 	refcounts across database pages (`6ec055d`). MIU 9 is complete; MIU 10 content/menu is active.
+- MIU 10 adds the typed four-family copy/media registry (`12f8cbf`) and replaces the flat
+	Headphones nav with ordered desktop/mobile native disclosures, visual active state, 44px targets,
+	Escape/focus/outside dismissal, and server-rendered no-JS links (`63ce22f`). MIU 10 is complete;
+	MIU 11 Electronics & Toys hub is active.
 
 | Implementation check | Result |
 |---|---|
@@ -116,3 +120,7 @@
 | MIU 8 site tests | Passed: 150/150; focused API tests 11/11 |
 | MIU 8 Astro typecheck/build | Passed: 0 errors, 10 static pages |
 | MIU 9 local tests/typecheck | Passed: 23/23; TypeScript clean |
+| MIU 10 site/source tests | Passed: 157/157; Astro 0 errors |
+| MIU 10 browser interactions | Passed: 3/3 desktop/mobile Playwright tests |
+| MIU 10 visual review | Passed: desktop/mobile open-menu screenshots, no overlap/overflow |
+| MIU 10 site build | Passed: 10 static pages |
