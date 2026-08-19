@@ -28,6 +28,7 @@ const parseFrontmatter = (relativePath: string) => {
   return document.toJS() as {
     brand?: { name: string };
     meta?: { title: string; description: string };
+    hub?: { seoTitle: string; seoDescription: string };
   };
 };
 
@@ -123,6 +124,7 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
     .filter((fileName) => !noindexTopLevelPages.has(fileName))
     .sort();
   assert.deepEqual(routableTopLevelPages, [
+    'electronics-toys.astro',
     'headphones.astro',
     'index.astro',
     'oem.astro',
@@ -132,9 +134,11 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
   const site = parseFrontmatter('../i18n/content/en-US.md');
   const oem = parseFrontmatter('../i18n/content/oem/en-US.md');
   const portfolio = parseFrontmatter('../i18n/content/portfolio/en-US.md');
+  const catalog = parseFrontmatter('../i18n/content/catalog/en-US.md');
   assert.ok(site.brand);
   assert.ok(oem.meta);
   assert.ok(portfolio.meta);
+  assert.ok(catalog.hub);
   assert.ok(oem.meta.title.trim());
   assert.ok(oem.meta.description.trim());
   assert.ok(portfolio.meta.title.trim());
@@ -160,6 +164,11 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
       name: 'headphones',
       ...extractPageMetadata('../pages/headphones.astro', brandName),
     },
+    {
+      name: 'electronics-toys',
+      title: `${catalog.hub.seoTitle} | ${brandName}`,
+      description: catalog.hub.seoDescription,
+    },
   ];
 
   for (const { name, title, description } of metadata) {
@@ -176,6 +185,10 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
       description: 'seoDescription',
     }),
     assertBaseLayoutBindings('../pages/headphones.astro', {
+      title: 'seoTitle',
+      description: 'seoDescription',
+    }),
+    assertBaseLayoutBindings('../pages/electronics-toys.astro', {
       title: 'seoTitle',
       description: 'seoDescription',
     }),

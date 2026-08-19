@@ -96,6 +96,12 @@
 	Headphones nav with ordered desktop/mobile native disclosures, visual active state, 44px targets,
 	Escape/focus/outside dismissal, and server-rendered no-JS links (`63ce22f`). MIU 10 is complete;
 	MIU 11 Electronics & Toys hub is active.
+- MIU 11 adds the static Electronics & Toys hub, four registry-backed image family destinations,
+	a direct quote CTA, and an API-backed Featured Products island with loading, retryable error,
+	empty, and real-data states. Products without a usable slug are omitted instead of producing
+	invalid detail links. The public metadata inventory now verifies the hub title, description,
+	uniqueness, bounds, and BaseLayout bindings. MIU 11 is complete; MIU 12 shared family catalog
+	controller/grid is active.
 
 | Implementation check | Result |
 |---|---|
@@ -124,3 +130,8 @@
 | MIU 10 browser interactions | Passed: 3/3 desktop/mobile Playwright tests |
 | MIU 10 visual review | Passed: desktop/mobile open-menu screenshots, no overlap/overflow |
 | MIU 10 site build | Passed: 10 static pages |
+| MIU 11 site tests | Passed: 157/157, including public metadata inventory |
+| MIU 11 typecheck/lint | Passed: Astro 0 errors; E2E TypeScript clean; scoped Biome clean |
+| MIU 11 browser states | Passed: 2/2 loading/error/retry/real/empty/responsive Playwright tests |
+| MIU 11 visual review | Passed: 375px mobile and exact 1440×900 desktop; four assets loaded; no overflow |
+| MIU 11 site build | Passed: 11 static pages, including `/electronics-toys/` |

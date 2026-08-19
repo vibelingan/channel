@@ -118,6 +118,18 @@ The existing VIP pricing path is not part of this feature. Registration creates 
 - Client decisions listed in `CLIENT_CONFIRMATION.md`.
 - Authenticated Admin screenshots can be captured during implementation; the runtime correctly redirected the unauthenticated inspection to login, so current Admin behavior is grounded in source contracts.
 
+## MIU 11 Implementation Findings
+
+- The hub's effective Astro URL is `/electronics-toys/`; catalog family destinations use canonical
+	trailing slashes from the shared registry.
+- Hub labels and SEO metadata are registry-owned; the public metadata test validates title and
+	description limits while the route test validates BaseLayout bindings.
+- Featured Products uses one persistent polite announcer across loading, error, empty, and result
+	transitions. Error remains an immediate alert, retry starts a fresh abortable request, rows without
+	usable slugs are omitted, and `productFamily` is never presented as a SKU fallback.
+- Focused Playwright must set `E2E_SITE_URL` to an isolated worktree server. The default port may be
+	occupied by another checkout and produce a plausible but unrelated 404.
+
 ## Superseded Planning Note
 
 The earlier menu-only Phase 1 scope was superseded by client PDF V1.1. Implementers must use the V1.1 baseline at the top of this file and the current V1.1 LLD/MIU documents; the removed Phase 1 constraints no longer apply.

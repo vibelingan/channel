@@ -26,6 +26,11 @@ export interface CatalogContent {
     eyebrow: string;
     heading: string;
     body: string;
+    seoTitle: string;
+    seoDescription: string;
+    quoteLabel: string;
+    catalogLabel: string;
+    browseLabel: string;
     featuredHeading: string;
     emptyLabel: string;
   };

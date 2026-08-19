@@ -1,5 +1,39 @@
 # Resolved Errors
 
+## [ERR-20260726-001] Playwright reused another checkout's server
+
+**Logged**: 2026-07-26T01:50:00-07:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+
+A focused E2E test targeted the default localhost port, which was occupied by a server from another checkout and returned a misleading 404.
+
+### Error
+
+```text
+404: Not Found — Path: /electronics-toys/
+```
+
+### Context
+
+- The Playwright config defaults to `http://localhost:4321` and does not own a web server.
+- The active server on that port served a different checkout without the new route.
+
+### Suggested Fix
+
+Start the intended worktree's server on an isolated port and set `E2E_SITE_URL` explicitly for focused browser runs.
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: `playwright.config.ts`, `tests/e2e/catalog-hub.spec.ts`
+- Source: error
+
+---
+
 ## [ERR-20260729-002] worktree-playwright-module-resolution
 
 **Logged**: 2026-07-29T12:00:00Z

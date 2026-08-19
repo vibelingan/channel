@@ -40,8 +40,8 @@ implemented on `feat/catalog-category-design`. Alibaba API transport/scheduling 
 | 16. Implement site catalog client | Complete | MIU 8 DTO, family/slug/related helpers pass |
 | 17. Implement full-family local seed | Complete | MIU 9 fixtures, reservations, refcounts, and repair pass |
 | 18. Implement catalog content/menu | Complete | MIU 10 registry and accessible disclosures pass |
-| 19. Implement catalog hub | In progress | MIU 11 Electronics & Toys hub active |
-| 20. Implement remaining V1.1 MIUs | Pending | MIU 12-22 execute in dependency order |
+| 19. Implement catalog hub | Complete | MIU 11 route, family cards, Featured states, metadata, browser checks, and review pass |
+| 20. Implement remaining V1.1 MIUs | In progress | MIU 12 shared family catalog controller/grid active |
 
 ## Scope Boundaries
 

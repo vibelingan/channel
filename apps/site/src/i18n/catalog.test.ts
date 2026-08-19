@@ -34,7 +34,7 @@ test('catalog content defines exactly four unique families and five menu destina
   assert.equal(new Set(content.families.map((family) => family.href)).size, 4);
   assert.deepEqual(
     content.families.map((family) => family.href),
-    ['/headphones', '/ai-gadgets', '/toys', '/misc'],
+    ['/headphones/', '/ai-gadgets/', '/toys/', '/misc/'],
   );
   assert.equal(content.menu.allLabel.length > 0, true);
 });

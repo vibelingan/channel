@@ -9,6 +9,11 @@ hub:
   eyebrow: Product Families
   heading: Electronics & Toys
   body: Explore factory-direct product families for wholesale, OEM, and ODM programs.
+  seoTitle: Electronics & Toys
+  seoDescription: "Browse Channel product families for wholesale and OEM programs: headphones, AI gadgets, toys, and other consumer products."
+  quoteLabel: Request a Quote
+  catalogLabel: Catalog
+  browseLabel: Browse a product family
   featuredHeading: Featured Products
   emptyLabel: Published products will appear here as they become available.
 
@@ -38,7 +43,7 @@ detail:
 families:
   - key: headphones
     label: Headphones
-    href: /headphones
+    href: /headphones/
     eyebrow: Audio Products
     heading: Headphones
     description: Wired, office, and Bluetooth audio products for private-label and OEM programs.
@@ -52,7 +57,7 @@ families:
       - { key: bluetooth, label: Bluetooth Headphones }
   - key: ai-gadgets
     label: AI Gadgets
-    href: /ai-gadgets
+    href: /ai-gadgets/
     eyebrow: Smart Electronics
     heading: AI Gadgets
     description: Connected cameras, translators, wearables, and practical smart devices ready for customization.
@@ -63,7 +68,7 @@ families:
     categories: []
   - key: toys
     label: Toys
-    href: /toys
+    href: /toys/
     eyebrow: Play & Learning
     heading: Toys
     description: Educational, robotic, and creative play products developed for retail and promotional programs.
@@ -74,7 +79,7 @@ families:
     categories: []
   - key: misc
     label: Misc
-    href: /misc
+    href: /misc/
     eyebrow: More Electronics & Toys
     heading: Other Electronics & Toys
     description: Useful consumer electronics and home products outside our core audio, smart-device, and toy ranges.
