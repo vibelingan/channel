@@ -38,8 +38,9 @@ implemented on `feat/catalog-category-design`. Alibaba API transport/scheduling 
 | 14. Implement family filtering | Complete | MIU 6 bounded family query and local transport parity pass |
 | 15. Implement slug detail lookup | Complete | MIU 7 canonical and encoded-path contracts pass |
 | 16. Implement site catalog client | Complete | MIU 8 DTO, family/slug/related helpers pass |
-| 17. Implement catalog content registry | In progress | MIU 9 family metadata and asset contract active |
-| 18. Implement remaining V1.1 MIUs | Pending | MIU 10-22 execute in dependency order |
+| 17. Implement full-family local seed | Complete | MIU 9 fixtures, reservations, refcounts, and repair pass |
+| 18. Implement catalog content/menu | In progress | MIU 10 registry and accessible global menu active |
+| 19. Implement remaining V1.1 MIUs | Pending | MIU 11-22 execute in dependency order |
 
 ## Scope Boundaries
 

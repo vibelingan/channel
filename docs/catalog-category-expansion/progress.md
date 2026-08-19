@@ -88,6 +88,10 @@
 - MIU 8 browser trust boundaries now decode envelopes and validate the complete present product,
 	image, status, and Alibaba pricing/tier shapes before data reaches UI consumers (`7e610c3`). Craft
 	gates report zero findings new since baseline.
+- MIU 9 preserves six Headphones with one intentional no-family legacy row and adds two synthetic
+	local-only fixtures for each AI Gadgets, Toys, and Misc family. Startup atomically repairs all
+	slug/SKU reservations, fails closed without partial writes on conflicts, and reconciles image
+	refcounts across database pages (`6ec055d`). MIU 9 is complete; MIU 10 content/menu is active.
 
 | Implementation check | Result |
 |---|---|
@@ -111,3 +115,4 @@
 | MIU 7 function artifacts | Passed: Admin, public-api, and Alibaba build/package/cold-start smoke |
 | MIU 8 site tests | Passed: 150/150; focused API tests 11/11 |
 | MIU 8 Astro typecheck/build | Passed: 0 errors, 10 static pages |
+| MIU 9 local tests/typecheck | Passed: 23/23; TypeScript clean |
