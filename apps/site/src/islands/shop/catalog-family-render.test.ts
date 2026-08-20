@@ -201,17 +201,24 @@ test('family grid renders mutually exclusive loading, error, empty, and success 
   assert.doesNotMatch(success, /animate-pulse|role="alert"/);
 });
 
-test('family grid keeps pagination reachable when the current page has only invalid slugs', () => {
+test('family grid shows slug-less products, omits only their detail link, and paginates', () => {
   const markup = renderGrid({
     ...initialHeadphonesCatalogState(),
     status: 'ready',
-    total: 2,
+    total: 4,
     nextPage: 2,
-    products: [{ _id: 'invalid', name: 'Invalid', slug: '   ' }],
+    products: [
+      { _id: 'blank-slug', name: 'Blank Slug Product', slug: '   ' },
+      { _id: 'legacy', name: 'Legacy Product Without Slug' },
+    ],
   });
-  assert.match(markup, /No products/);
-  assert.match(markup, /Load More/);
+  // Legacy catalog rows predate slugs. They are still published, sellable products,
+  // so they must appear; only the detail link is withheld.
+  assert.match(markup, /Blank Slug Product/);
+  assert.match(markup, /Legacy Product Without Slug/);
+  assert.doesNotMatch(markup, /No products/);
   assert.doesNotMatch(markup, /\/products\/item/);
+  assert.match(markup, /Load More/);
 });
 
 test('family grid source keeps public card fields and excludes VIP and video', () => {

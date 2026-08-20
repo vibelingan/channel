@@ -27,6 +27,62 @@ export function hasUsableCatalogSlug(product: Product): product is Product & { s
   return Boolean(product.slug?.trim());
 }
 
+/**
+ * One catalog card. Legacy rows predate slugs and have no detail page to link to, so
+ * the card still renders its identity, media, and price and simply omits the link
+ * rather than hiding a published product from the storefront.
+ */
+function CatalogProductCard({ product, content }: { product: Product; content: CatalogContent }) {
+  const { list, detail } = content;
+  const slug = hasUsableCatalogSlug(product) ? product.slug.trim() : null;
+  const moq = product.alibabaPrimarySourceKey
+    ? product.alibabaCatalogPricing?.sourceMoq
+    : product.moq;
+  const cardClassName =
+    'group min-w-0 bg-white p-4 focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-brand-700';
+  const cardBody = (
+    <>
+      <div className="aspect-square overflow-hidden bg-surface-alt">
+        <ProductMedia
+          sources={product.images ?? []}
+          alt={product.name}
+          imageClassName="p-4 transition duration-300 group-hover:scale-[1.025] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+        />
+      </div>
+      {(product.skuCode || product.modName || product.productCode) && (
+        <p className="mt-4 text-xs font-semibold uppercase text-brand-600">
+          {product.skuCode ?? product.modName ?? product.productCode}
+        </p>
+      )}
+      <h3 className="mt-1 font-display text-lg font-semibold text-ink group-hover:text-brand-700">
+        {product.name}
+      </h3>
+      {product.description && (
+        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-ink-soft">
+          {product.description}
+        </p>
+      )}
+      <div className="mt-4 flex items-end justify-between gap-3 text-sm">
+        {moq !== undefined && (
+          <span className="text-ink-muted">
+            {list.moqLabel} {moq}
+          </span>
+        )}
+        <span className="ml-auto text-right font-semibold text-brand-700">
+          {catalogProductPrice(product, detail.inquiryCta)}
+        </span>
+      </div>
+    </>
+  );
+  return slug ? (
+    <a href={`/products/item/?slug=${encodeURIComponent(slug)}`} className={cardClassName}>
+      {cardBody}
+    </a>
+  ) : (
+    <div className={cardClassName}>{cardBody}</div>
+  );
+}
+
 export function catalogProductPrice(product: Product, quoteLabel: string): string {
   if (product.alibabaPrimarySourceKey) {
     return (
@@ -50,16 +106,19 @@ export function CatalogFamilyGrid({
   onLoadMore,
 }: Props) {
   const { list, detail } = content;
-  const linkedProducts = state.products.filter(hasUsableCatalogSlug);
+  // Render every published product the API returns. Legacy catalog rows predate slugs,
+  // so filtering the grid by slug hid real, sellable products behind "no products match".
+  // The slug only decides whether a card links to its detail page.
+  const products = state.products;
   const loadingInitial = state.status === 'idle' || state.status === 'loading-initial';
   const loadingMore = state.status === 'loading-more';
   const announcement = loadingInitial
     ? list.loadingLabel
     : state.status === 'initial-error'
       ? (state.initialError ?? list.errorLabel)
-      : linkedProducts.length === 0
+      : products.length === 0
         ? list.emptyLabel
-        : `${linkedProducts.length} ${list.resultsLabel}`;
+        : `${products.length} ${list.resultsLabel}`;
 
   const toggleCategory = (category: string) => {
     onCategoriesChange(
@@ -142,62 +201,21 @@ export function CatalogFamilyGrid({
         </div>
       )}
 
-      {!loadingInitial && state.status !== 'initial-error' && linkedProducts.length === 0 && (
+      {!loadingInitial && state.status !== 'initial-error' && products.length === 0 && (
         <p className="mt-8 border-y border-slate-200 bg-white px-5 py-10 text-center text-ink-muted">
           {list.emptyLabel}
         </p>
       )}
 
-      {!loadingInitial && state.status !== 'initial-error' && linkedProducts.length > 0 && (
+      {!loadingInitial && state.status !== 'initial-error' && products.length > 0 && (
         <>
           <p className="mt-6 text-sm text-ink-muted">
-            {linkedProducts.length} {list.resultsLabel}
+            {products.length} {list.resultsLabel}
           </p>
           <div className="mt-4 grid grid-cols-1 gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-4">
-            {linkedProducts.map((product) => {
-              const slug = product.slug.trim();
-              const moq = product.alibabaPrimarySourceKey
-                ? product.alibabaCatalogPricing?.sourceMoq
-                : product.moq;
-              return (
-                <a
-                  key={product._id}
-                  href={`/products/item/?slug=${encodeURIComponent(slug)}`}
-                  className="group min-w-0 bg-white p-4 focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-brand-700"
-                >
-                  <div className="aspect-square overflow-hidden bg-surface-alt">
-                    <ProductMedia
-                      sources={product.images ?? []}
-                      alt={product.name}
-                      imageClassName="p-4 transition duration-300 group-hover:scale-[1.025] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
-                    />
-                  </div>
-                  {(product.skuCode || product.modName || product.productCode) && (
-                    <p className="mt-4 text-xs font-semibold uppercase text-brand-600">
-                      {product.skuCode ?? product.modName ?? product.productCode}
-                    </p>
-                  )}
-                  <h3 className="mt-1 font-display text-lg font-semibold text-ink group-hover:text-brand-700">
-                    {product.name}
-                  </h3>
-                  {product.description && (
-                    <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-ink-soft">
-                      {product.description}
-                    </p>
-                  )}
-                  <div className="mt-4 flex items-end justify-between gap-3 text-sm">
-                    {moq !== undefined && (
-                      <span className="text-ink-muted">
-                        {list.moqLabel} {moq}
-                      </span>
-                    )}
-                    <span className="ml-auto text-right font-semibold text-brand-700">
-                      {catalogProductPrice(product, detail.inquiryCta)}
-                    </span>
-                  </div>
-                </a>
-              );
-            })}
+            {products.map((product) => (
+              <CatalogProductCard key={product._id} product={product} content={content} />
+            ))}
           </div>
         </>
       )}
