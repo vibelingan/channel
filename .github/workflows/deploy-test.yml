@@ -135,6 +135,8 @@ jobs:
         env:
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
           TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+          E2E_ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL || 'admin@channel.local' }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
         run: pnpm smoke:cloudbase
 
       - name: Install Playwright Chromium

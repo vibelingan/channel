@@ -11,6 +11,7 @@ const readyToken = randomUUID();
 const bin = (packageDirectory, name) =>
   join(process.cwd(), packageDirectory, 'node_modules', '.bin', name);
 const processes = [];
+const failStage = process.env.E2E_CATALOG_RUNNER_FAIL_STAGE ?? '';
 let cleanupPromise;
 
 function start(command, args, env, cwd = process.cwd(), pipeOutput = false) {
@@ -19,6 +20,10 @@ function start(command, args, env, cwd = process.cwd(), pipeOutput = false) {
     env: { ...process.env, ...env },
     stdio: pipeOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit',
     detached: true,
+  });
+  child.spawnError = null;
+  child.once('error', (error) => {
+    child.spawnError = error;
   });
   if (pipeOutput) {
     child.stdout.pipe(process.stdout);
@@ -31,6 +36,7 @@ function start(command, args, env, cwd = process.cwd(), pipeOutput = false) {
 async function waitForOwnedApi(child) {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
+    if (child.spawnError) throw child.spawnError;
     if (child.exitCode !== null) {
       throw new Error(`Local API exited before readiness (${child.exitCode ?? child.signalCode}).`);
     }
@@ -66,6 +72,7 @@ async function waitForSite(child) {
   child.stdout.on('data', append);
   child.stderr.on('data', append);
   while (Date.now() < deadline) {
+    if (child.spawnError) throw child.spawnError;
     if (child.exitCode !== null) throw new Error('Astro site exited before readiness.');
     const match = output.match(/Local\s+http:\/\/127\.0\.0\.1:(\d+)\//);
     if (match) {
@@ -101,7 +108,7 @@ function waitForExit(child, timeoutMs) {
 }
 
 function signalGroup(child, signal) {
-  if (child.exitCode !== null) return;
+  if (child.exitCode !== null || !Number.isSafeInteger(child.pid)) return;
   try {
     process.kill(-child.pid, signal);
   } catch (error) {
@@ -143,7 +150,7 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 
 try {
   const api = start(
-    bin('apps/local-server', 'tsx'),
+    failStage === 'api' ? join(temporaryDirectory, 'missing-api') : bin('apps/local-server', 'tsx'),
     ['src/main.ts'],
     {
       PORT: '0',
@@ -159,7 +166,7 @@ try {
   const apiUrl = await waitForOwnedApi(api);
 
   const site = start(
-    bin('apps/site', 'astro'),
+    failStage === 'site' ? join(temporaryDirectory, 'missing-site') : bin('apps/site', 'astro'),
     ['dev', '--host', '127.0.0.1', '--port', '0'],
     { PUBLIC_CB_HOST: new URL(apiUrl).host },
     join(process.cwd(), 'apps/site'),
@@ -167,7 +174,7 @@ try {
   );
   const siteUrl = await waitForSite(site);
 
-  await run(bin('.', 'playwright'), ['test', 'tests/e2e/catalog-admin.spec.ts'], {
+  const e2eEnvironment = {
     E2E_SITE_URL: siteUrl,
     E2E_API_URL: apiUrl,
     E2E_ADMIN_EMAIL: 'admin@channel.local',
@@ -175,7 +182,13 @@ try {
     E2E_ALLOW_MUTATION: '1',
     E2E_CATALOG_LOCAL_SEED: '1',
     E2E_CATALOG_LOCAL_DB: databaseFile,
-  });
+  };
+  await run(
+    bin('.', 'playwright'),
+    ['test', 'tests/e2e/catalog-local-seed.spec.ts'],
+    e2eEnvironment,
+  );
+  await run(bin('.', 'playwright'), ['test', 'tests/e2e/catalog-admin.spec.ts'], e2eEnvironment);
 } finally {
   await cleanup();
 }
