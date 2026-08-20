@@ -46,7 +46,6 @@ function CatalogProductCard({
     <button
       type="button"
       data-product-card={product._id}
-      data-product-card-action="expand"
       onClick={() => onOpenProduct(product._id)}
       className="group min-w-0 bg-white p-4 text-left focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-brand-700"
     >
@@ -80,6 +79,11 @@ function CatalogProductCard({
           {catalogProductPrice(product, detail.inquiryCta)}
         </span>
       </div>
+      {/* The action affordance stays the quietest line in the card: identity reads
+          strongest, then price, then this. */}
+      <span className="mt-3 block text-xs font-medium text-brand-700" data-product-card-action>
+        {list.viewDetail}
+      </span>
     </button>
   );
 }

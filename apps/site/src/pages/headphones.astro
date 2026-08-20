@@ -60,7 +60,10 @@ const schemaNodes = [catalogBreadcrumbSchema(breadcrumbs, Astro.site ?? Astro.ur
             <p class="text-sm font-semibold uppercase tracking-[0.15em] text-accent-300">
               {hp.hero.eyebrow}
             </p>
-            <h1 class="mt-4 font-display text-[34px] font-bold leading-tight sm:text-5xl">
+            <h1
+              data-catalog-heading
+              class="mt-4 font-display text-[34px] font-bold leading-tight sm:text-5xl"
+            >
               {hp.hero.heading}
             </h1>
             <p class="mt-6 max-w-xl text-lg leading-relaxed text-slate-300">

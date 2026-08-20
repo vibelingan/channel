@@ -200,7 +200,7 @@ test('family grid renders mutually exclusive loading, error, empty, and success 
   // The card expands the detail band on the same page, keyed by product id, so it
   // works for every published product rather than only slugged ones.
   assert.match(success, /<button[^>]+data-product-card="valid"/);
-  assert.match(success, /data-product-card-action="expand"/);
+  assert.match(success, /data-product-card-action/);
   assert.match(success, /data-product-media="fallback"/);
   assert.doesNotMatch(success, /animate-pulse|role="alert"/);
 });
