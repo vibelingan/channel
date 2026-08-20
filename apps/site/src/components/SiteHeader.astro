@@ -261,7 +261,17 @@ const afterCatalog = orderedMenuItems
   }
 
   function desktopFits(): boolean {
-    if (!layout || !brand || !desktopNav || !desktopAccount || window.innerWidth < 1360) {
+    // Ask the SAME question the stylesheet asks. `window.innerWidth` excludes the
+    // scrollbar, so at the boundary it can disagree with the media query and the
+    // script would force the mobile lane onto a header CSS had already laid out
+    // for desktop.
+    if (
+      !layout ||
+      !brand ||
+      !desktopNav ||
+      !desktopAccount ||
+      !window.matchMedia('(min-width: 1360px)').matches
+    ) {
       return false;
     }
     const style = getComputedStyle(layout);

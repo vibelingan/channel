@@ -238,7 +238,7 @@ export function CollectionView({ collection, section }: Props) {
           if (field.type === 'file') {
             return <FileDownloadLink id={doc[field.name]} name={doc.drawingName} />;
           }
-          return formatCell(doc[field.name]);
+          return <TextCell field={field.name} value={doc[field.name]} />;
         },
       });
     }
@@ -833,4 +833,35 @@ function formatCell(value: unknown): string {
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
+}
+
+/**
+ * Per-column width caps for table text. The table is `min-w-max`, so without a cap a
+ * single long product name stretches its column and pushes the rest off screen.
+ */
+const TEXT_CELL_WIDTHS: Record<string, string> = {
+  name: 'max-w-56',
+  description: 'max-w-72',
+  slug: 'max-w-48',
+  skuCode: 'max-w-40',
+  modName: 'max-w-40',
+};
+const DEFAULT_TEXT_CELL_WIDTH = 'max-w-48';
+
+/**
+ * A table value clamped to two lines with an ellipsis, the full value available through
+ * the native title tooltip. TanStack Table is headless — it owns sorting, selection and
+ * column state, never presentation — so cell rendering like this is ours to provide.
+ */
+function TextCell({ field, value }: { field: string; value: unknown }) {
+  const text = formatCell(value);
+  const width = TEXT_CELL_WIDTHS[field] ?? DEFAULT_TEXT_CELL_WIDTH;
+  return (
+    <span
+      className={`line-clamp-2 ${width} whitespace-normal break-words`}
+      title={text === '—' ? undefined : text}
+    >
+      {text}
+    </span>
+  );
 }
