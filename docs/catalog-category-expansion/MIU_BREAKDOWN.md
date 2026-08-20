@@ -763,6 +763,8 @@ flowchart TD
 
 ## MIU 23 — Restore catalog visibility and the product detail journey on legacy data
 
+**Status:** Complete (`65ba453`, `25d06f6`).
+
 **Depends on:** MIU 22
 
 **Why:** The deployed catalog is entirely legacy rows created before slugs existed. The V1.1
@@ -788,6 +790,8 @@ so published products vanished and no product had a detail page. See REMEDIATION
 opens its detail band. Verified against the deployed payload shape in a browser.
 
 ## MIU 24 — Make the catalog card self-contained and the header lane deterministic
+
+**Status:** Complete (`d6972a5`, `182ff6d`, `d63138e`, `1b16b74`, `8f64659`).
 
 **Depends on:** MIU 23
 
@@ -818,6 +822,8 @@ row, nav position is identical before and after island hydration, and the header
 pass in Chromium and WebKit.
 
 ## MIU 25 — Align the deployed browser suite with the approved design
+
+**Status:** Complete (`1e4f3ff`, `2dcce50`, `b897b7b`, `b06c17c`, `dcbc8f2`).
 
 **Depends on:** MIU 24
 

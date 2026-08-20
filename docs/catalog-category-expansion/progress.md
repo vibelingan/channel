@@ -146,7 +146,8 @@
 	full hub/family/SKU workflows. Workflow secret scopes and post-deploy catalog execution are explicit.
 	Independent review found and closed stale slash-active state, missing filter/pagination behavior,
 	unsafe shared-environment cleanup assumptions, false locality flags, fixed-port races, signal cleanup,
-	and overly broad secret exposure. MIU 21 is complete; MIU 22 delivery verification is active.
+	and overly broad secret exposure. At that point MIU 21 was complete and MIU 22 delivery
+	verification became active; the final state is recorded in the remediation/delivery section below.
 
 | Implementation check | Result |
 |---|---|
@@ -236,3 +237,22 @@
 | MIU 22 remote delivery | Passed: implementation candidate `7252af0` pushed; PR #27 open |
 | MIU 22 test preview | Delivered by merging into `test` (`0fa5962`). CI `32325527620` passed. Deploy Test `32325527543` deployed successfully; its smoke then caught a real defect (empty `ai-gadgets` family), fixed in `SMOKE_REQUIRED_FAMILIES`. The earlier feature-branch dispatches failed only because dispatch is the wrong delivery route |
 | MIU 22 production smoke | Not run: production approval was not provided |
+
+## 2026-08-20 Remediation And Final Delivery
+
+- MIU 23 restored published legacy products and the existing in-page detail journey without
+	requiring slugs or mutating production records (`65ba453`, `25d06f6`).
+- MIU 24 made the shared card/grid self-contained, eliminated grey empty tracks, aligned card
+	regions, stabilized first paint/header hydration, matched CSS/JS media-query semantics, and
+	clamped Admin table text with full-value tooltips (`d6972a5`, `182ff6d`, `d63138e`, `1b16b74`,
+	`8f64659`).
+- MIU 25 repaired spec discovery, deployed smoke assumptions, capacity-fixture arithmetic, and
+	public browser assertions against the approved information architecture (`1e4f3ff`, `2dcce50`,
+	`b897b7b`, `b06c17c`, `dcbc8f2`).
+- Final feature SHA `8f64659` was merged directly into `test` as `a4d0bc5`.
+- CI run `32359898730` passed.
+- Deploy Test run `32359898758` passed: CloudBase deploy, deployed smoke, public browser E2E
+	37/37, and catalog E2E 16/16.
+- Safari/WebKit header/catalog behavioural validation passed 6/6.
+- PR #27 remains open, mergeable, and CI-green against `main`. No implementation MIU remains;
+	next action is review/merge through the normal PR gate. Production smoke is not authorized.

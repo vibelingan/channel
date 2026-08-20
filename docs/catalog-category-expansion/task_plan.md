@@ -6,8 +6,9 @@ Produce a client-reviewable requirements and UI design package for expanding the
 
 `Electronics & Toys → Headphones / AI Gadgets / Toys / Misc → SKU`
 
-The requirements/design phase is complete and the client-approved V1.1 scope is now being
-implemented on `feat/catalog-category-design`. Alibaba API transport/scheduling remains unchanged.
+The requirements/design phase and the client-approved V1.1 implementation are complete on
+`feat/catalog-category-design`. This plan records the original design scope and implementation
+sequence; current delivery state is in `EXECUTION.md`. Alibaba API transport/scheduling remains unchanged.
 
 ## Truth Conditions
 
@@ -51,7 +52,14 @@ implemented on `feat/catalog-category-design`. Alibaba API transport/scheduling 
 | 27. Pin Alibaba compatibility | Complete | MIU 19 V1.1 ownership/linking/promotion regressions pass |
 | 28. Implement catalog SEO/breadcrumb contract | Complete | MIU 20 structured data, canonical, browser, artifact, and audit gates pass |
 | 29. Implement public/Admin E2E workflows | Complete | MIU 21 public, Admin UI, disposable mutation, workflow, and audit gates pass |
-| 30. Complete local-seed delivery verification | Blocked | Local/full release gates pass and PR #27 is open; test preview is blocked by environment branch policy |
+| 30. Complete local-seed delivery verification | Complete | Final feature SHA `8f64659` is in `test`; CI `32359898730`, deploy/smoke, 37 public E2E, and 16 catalog E2E passed |
+| 31. Remediate legacy-data and layout regressions | Complete | MIUs 23–25 are implemented, documented in `REMEDIATION.md`, validated, and deployed to `test` |
+
+## Current Delivery State
+
+Implementation is complete. PR #27 is open, mergeable, and CI-green against `main`. There is
+no active implementation MIU and no separate P1–P6 refactor plan. The only remaining delivery
+action is the normal PR review/merge to `main`; production smoke remains explicitly unauthorized.
 
 ## Scope Boundaries
 
@@ -63,9 +71,10 @@ implemented on `feat/catalog-category-design`. Alibaba API transport/scheduling 
 - Canonical product/category contract suitable for later Alibaba import.
 - SEO/GEO-compatible URL and metadata design.
 
-### Out of scope for this phase
+### Out of scope for the original design phase
 
 - Alibaba API authentication, polling, webhook, or scheduled synchronization.
 - Automated migration/backfill of existing products.
-- Production UI or backend implementation.
+- Production publication/deployment. The approved UI/backend implementation was subsequently
+	completed in MIUs 1–25; publishing to production remains separately authorized.
 - Final client-facing category copy, imagery, or translated merchandising content.

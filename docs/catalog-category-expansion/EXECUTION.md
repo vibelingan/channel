@@ -1,10 +1,36 @@
 # Catalog Category Expansion - Execution And Delivery
 
-Status: implementation complete; test preview is blocked by GitHub environment branch policy.
+Status: implementation and test deployment complete; PR #27 is green and awaiting merge to `main`.
 Branch: `feat/catalog-category-design`.
-Baseline before MIU 22: `7c8a7096e98997509ad0fb48eb80049a26a3163b`.
-Implementation candidate SHA: `7252af0863cdfb8ff21f67752933da5c86a93b4f`.
+Final reviewed feature SHA: `8f64659deda11a2651afebcb38ca241bf15bc5a4`.
+Final test-branch merge SHA: `a4d0bc5`.
 Pull request: <https://github.com/vibelingan/channel/pull/27>.
+
+## Handoff Contract
+
+This file is the **portable source of truth for current status and next action**. Agents must
+use the following precedence instead of inferring state from filenames or creating a second plan:
+
+1. `EXECUTION.md` — completed work, validation evidence, current phase, and next action.
+2. `MIU_BREAKDOWN.md` — approved MIU scope and dependencies; it is not a progress tracker.
+3. `REMEDIATION.md` — defect/root-cause and architectural rationale.
+4. `task_plan.md` and `progress.md` — historical planning/log detail; they must not override this file.
+5. `.claude/pipeline-state.json` — disposable local pointer regenerated from these tracked docs.
+
+**Current phase:** `deliver`.
+
+**Current/next MIU:** none. MIUs 1–25 are complete. Do not invent P1–P6, a new refactor plan,
+or another implementation branch for this feature.
+
+**Next action by role:**
+
+| Agent role | Action |
+|---|---|
+| Implementer | No implementation work remains. Only address a new, explicit review finding. |
+| Reviewer | Review PR #27 / final feature SHA `8f64659`; verify the diff against this execution record and `REMEDIATION.md`. |
+| Designer | No redesign is pending. Audit only if the user requests a new design change. |
+| Validator | Re-run the recorded full validation/deployed smoke when requested; report only, do not create a new plan. |
+| Delivery | PR #27 is open, mergeable, and CI-green against `main`; merging to `main` requires the normal PR gate. |
 
 ## Delivered Units
 
@@ -15,7 +41,10 @@ Pull request: <https://github.com/vibelingan/channel/pull/27>.
 | 16-19 | Admin family/form workflows, VIP suppression, and Alibaba compatibility | `63e87eb` through `7f9f01d` |
 | 20 | Breadcrumbs, structured data, canonical/robots/sitemap, and strict pricing projection | `9eddc36` |
 | 21 | Public/Admin E2E workflows and disposable local mutation runner | `7c8a709` |
-| 22 | Full-family local seed, compatibility, and release verification | In progress |
+| 22 | Full-family local seed, compatibility, and release verification | `7252af0`, final delivery evidence below |
+| 23 | Restore legacy-product visibility and the in-page detail journey | `65ba453`, `25d06f6` |
+| 24 | Self-contained catalog cards, stable header layout, and Admin table clamp | `d6972a5`, `182ff6d`, `d63138e`, `1b16b74`, `8f64659` |
+| 25 | Align CI, deployed smoke, and browser E2E with the approved catalog design | `1e4f3ff`, `2dcce50`, `b897b7b`, `b06c17c`, `dcbc8f2` |
 
 ## MIU 22 Local Integration
 
@@ -57,10 +86,13 @@ Observed local results:
 | Disposable seed/lifecycle | Passed | 2/2 specs; whole temporary DB removed |
 | Production site build | Passed | 15 static pages with explicit `SITE_URL` |
 | Repository lint | Passed | Biome 317 files |
-| Assumption audit | Passed | Independent MIU 21 audit had no findings; MIU 22 final audit pending |
+| Assumption/cross-file audit | Passed | MIU 22 final audit passed; remediation traces are recorded in `REMEDIATION.md` |
 | Function builds/packages/smoke | Passed | Admin, Public API, and Alibaba build/package/cold-start smoke |
 | CloudBase SDK contract | Passed | Installed runtime/type/transaction/upload probes |
-| Test-environment deploy | Deployed | Merged into `test` (`0fa5962`); CI run `32325527620` passed; Deploy Test run `32325527543` deployed all three functions Active at the release SHA and served every catalog route 200 |
+| Test-environment deploy | Passed | Final feature SHA merged into `test` as `a4d0bc5`; CI run `32359898730` passed; Deploy Test run `32359898758` passed |
+| Deployed public browser E2E | Passed | 37/37 on run `32359898758` |
+| Deployed catalog E2E | Passed | 16/16 on run `32359898758` |
+| Safari/WebKit compatibility | Passed | 6/6 header/catalog behavioural checks |
 | Production smoke | Not run | Requires separate explicit production approval |
 
 ## Deployment Boundary
@@ -71,8 +103,8 @@ Observed local results:
 	`32324519611`) were rejected only because a feature branch is not in the environment allowlist;
 	that was the wrong delivery route, not a genuine blocker.
 - Production deployment or production smoke is not authorized by this task. It must not be inferred from test-environment approval.
-- The deployed smoke now verifies release identity, all catalog routes, family-filtered API response
-	shape and projection, identity-matched slug detail, max-nine images, internal/VIP/video field
+- The deployed smoke verifies release identity, all catalog routes, family-filtered API response
+	shape/projection, optional slug detail when present, max-nine images, internal/VIP/video field
 	absence, and an Admin token authorizing a protected catalog read.
 
 ## Defects Found By CI And Deploy, And Fixed
@@ -102,12 +134,12 @@ Two real defects in this branch's own test tooling were caught only on the runne
 
 ## Delivery Checklist
 
-- [x] MIUs 1-21 committed and pushed to the single feature branch.
+- [x] MIUs 1-25 committed and pushed to the single feature branch.
 - [x] Exact local full-family and lifecycle verification passes.
 - [x] Temporary local database is removed after success and failure.
 - [x] Final package/function validation passes.
 - [x] Compatibility checklist is complete.
-- [ ] Test-environment preview workflow passes for the final SHA (blocked by branch policy).
+- [x] Test-environment deploy, deployed smoke, and public/catalog E2E pass for the final SHA.
 - [x] Final SHA is independently reviewed, blessed, and pushed.
 - [x] PR status is recorded: PR #27 open against `main`.
-- [ ] Production smoke is approved and passed, or explicitly recorded as not authorized.
+- [x] Production smoke is explicitly recorded as not authorized; no production claim is made.
