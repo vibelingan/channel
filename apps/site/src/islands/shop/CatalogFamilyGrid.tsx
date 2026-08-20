@@ -19,6 +19,7 @@ interface Props {
   onSearchInputChange: (search: string) => void;
   onRetryInitial: () => void;
   onLoadMore: () => void;
+  onOpenProduct: (productId: string) => void;
 }
 
 const SKELETON_KEYS = ['family-1', 'family-2', 'family-3', 'family-4'] as const;
@@ -28,20 +29,27 @@ export function hasUsableCatalogSlug(product: Product): product is Product & { s
 }
 
 /**
- * One catalog card. Legacy rows predate slugs and have no detail page to link to, so
- * the card still renders its identity, media, and price and simply omits the link
- * rather than hiding a published product from the storefront.
+ * One catalog card. Activating it expands the detail band lower on the same page,
+ * keyed by product id. That works for every published product, including legacy rows
+ * that predate slugs and therefore have no detail URL of their own.
  */
-function CatalogProductCard({ product, content }: { product: Product; content: CatalogContent }) {
+function CatalogProductCard({
+  product,
+  content,
+  onOpenProduct,
+}: { product: Product; content: CatalogContent; onOpenProduct: (productId: string) => void }) {
   const { list, detail } = content;
-  const slug = hasUsableCatalogSlug(product) ? product.slug.trim() : null;
   const moq = product.alibabaPrimarySourceKey
     ? product.alibabaCatalogPricing?.sourceMoq
     : product.moq;
-  const cardClassName =
-    'group min-w-0 bg-white p-4 focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-brand-700';
-  const cardBody = (
-    <>
+  return (
+    <button
+      type="button"
+      data-product-card={product._id}
+      data-product-card-action="expand"
+      onClick={() => onOpenProduct(product._id)}
+      className="group min-w-0 bg-white p-4 text-left focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-brand-700"
+    >
       <div className="aspect-square overflow-hidden bg-surface-alt">
         <ProductMedia
           sources={product.images ?? []}
@@ -68,18 +76,11 @@ function CatalogProductCard({ product, content }: { product: Product; content: C
             {list.moqLabel} {moq}
           </span>
         )}
-        <span className="ml-auto text-right font-semibold text-brand-700">
+        <span className="ml-auto text-right font-semibold text-brand-700" data-product-card-price>
           {catalogProductPrice(product, detail.inquiryCta)}
         </span>
       </div>
-    </>
-  );
-  return slug ? (
-    <a href={`/products/item/?slug=${encodeURIComponent(slug)}`} className={cardClassName}>
-      {cardBody}
-    </a>
-  ) : (
-    <div className={cardClassName}>{cardBody}</div>
+    </button>
   );
 }
 
@@ -104,6 +105,7 @@ export function CatalogFamilyGrid({
   onSearchInputChange,
   onRetryInitial,
   onLoadMore,
+  onOpenProduct,
 }: Props) {
   const { list, detail } = content;
   // Render every published product the API returns. Legacy catalog rows predate slugs,
@@ -209,12 +211,17 @@ export function CatalogFamilyGrid({
 
       {!loadingInitial && state.status !== 'initial-error' && products.length > 0 && (
         <>
-          <p className="mt-6 text-sm text-ink-muted">
+          <p className="mt-6 text-sm text-ink-muted" data-result-progress>
             {products.length} {list.resultsLabel}
           </p>
           <div className="mt-4 grid grid-cols-1 gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-4">
             {products.map((product) => (
-              <CatalogProductCard key={product._id} product={product} content={content} />
+              <CatalogProductCard
+                key={product._id}
+                product={product}
+                content={content}
+                onOpenProduct={onOpenProduct}
+              />
             ))}
           </div>
         </>
@@ -235,6 +242,7 @@ export function CatalogFamilyGrid({
                 disabled={loadingMore}
                 aria-busy={loadingMore || undefined}
                 onClick={onLoadMore}
+                data-load-more
                 className="mt-4 min-h-11 border border-brand-300 bg-white px-6 py-2 text-sm font-semibold text-brand-700 disabled:opacity-60"
               >
                 {loadingMore ? list.loadingLabel : list.loadMoreLabel}

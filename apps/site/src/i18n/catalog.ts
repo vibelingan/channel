@@ -52,10 +52,18 @@ export interface CatalogContent {
   };
   detail: {
     backLabel: string;
+    backToModelsLabel: string;
+    seriesLabel: string;
+    modelLabel: string;
+    typeLabel: string;
     moqLabel: string;
     unitPriceLabel: string;
     wholesaleLabel: string;
     inquiryCta: string;
+    oemInquiryCta: string;
+    viewAllLabel: string;
+    showLessLabel: string;
+    imageUnavailableLabel: string;
     oemEyebrow: string;
     oemHeading: string;
     oemBody: string;

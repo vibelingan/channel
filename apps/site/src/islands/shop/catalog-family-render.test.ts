@@ -78,6 +78,7 @@ const renderGrid = (state: ReturnType<typeof initialHeadphonesCatalogState>) =>
       onCategoriesChange: () => undefined,
       onSearchInputChange: () => undefined,
       onRetryInitial: () => undefined,
+      onOpenProduct: () => undefined,
       onLoadMore: () => undefined,
     }),
   );
@@ -196,12 +197,15 @@ test('family grid renders mutually exclusive loading, error, empty, and success 
     nextPage: 2,
     products: [{ _id: 'valid', name: 'Valid', slug: ' valid ', images: [] }],
   });
-  assert.match(success, /href="\/products\/item\/\?slug=valid"/);
+  // The card expands the detail band on the same page, keyed by product id, so it
+  // works for every published product rather than only slugged ones.
+  assert.match(success, /<button[^>]+data-product-card="valid"/);
+  assert.match(success, /data-product-card-action="expand"/);
   assert.match(success, /data-product-media="fallback"/);
   assert.doesNotMatch(success, /animate-pulse|role="alert"/);
 });
 
-test('family grid shows slug-less products, omits only their detail link, and paginates', () => {
+test('family grid shows every published product, including rows without a slug', () => {
   const markup = renderGrid({
     ...initialHeadphonesCatalogState(),
     status: 'ready',
@@ -213,17 +217,18 @@ test('family grid shows slug-less products, omits only their detail link, and pa
     ],
   });
   // Legacy catalog rows predate slugs. They are still published, sellable products,
-  // so they must appear; only the detail link is withheld.
+  // and the in-page detail band is keyed by id, so they are fully usable.
   assert.match(markup, /Blank Slug Product/);
   assert.match(markup, /Legacy Product Without Slug/);
+  assert.match(markup, /data-product-card="legacy"/);
   assert.doesNotMatch(markup, /No products/);
-  assert.doesNotMatch(markup, /\/products\/item/);
   assert.match(markup, /Load More/);
 });
 
 test('family grid source keeps public card fields and excludes VIP and video', () => {
   const source = parse('./CatalogFamilyGrid.tsx');
-  assert.match(source, /\/products\/item\/\?slug=/);
+  assert.match(source, /data-product-card=\{product\._id\}/);
+  assert.match(source, /onOpenProduct\(product\._id\)/);
   assert.match(source, /ProductMedia/);
   assert.match(source, /alibabaPriceSummary/);
   assert.match(source, /publicManualPrice/);
