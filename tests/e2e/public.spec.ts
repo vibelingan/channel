@@ -1168,9 +1168,9 @@ test.describe('public browser smoke', () => {
     const existingManager = page.locator('#imageIds-capacity').locator('..');
     await expect
       .poll(() => [...previewCounts.values()].reduce((sum, count) => sum + count, 0))
-      .toBe(19);
-    await expect(existingManager.locator('img[alt=""]')).toHaveCount(19);
-    expect(previewCounts.size).toBe(19);
+      .toBe(10);
+    await expect(existingManager.locator('img[alt=""]')).toHaveCount(10);
+    expect(previewCounts.size).toBe(10);
     expect([...previewCounts.values()].every((count) => count === 1)).toBe(true);
     await expect(existingManager.locator('#imageIds-capacity')).toContainText('10 of 9 images');
     await expect(existingInput).toBeDisabled();

@@ -292,6 +292,10 @@ const afterCatalog = orderedMenuItems
     if (!header || !mobileDisclosure) return;
     const previousFocus = document.activeElement;
     const nextMode = desktopFits() ? 'desktop' : 'mobile';
+    // Idempotent, not transition-only: the mobile disclosure must never remain open
+    // while the desktop lane is showing. Relying on the mode transition alone left it
+    // open whenever a resize run was coalesced or missed.
+    if (nextMode === 'desktop' && mobileDisclosure.open) mobileDisclosure.open = false;
     const previousMode = header.dataset.headerMode;
     if (nextMode === previousMode) return;
 
