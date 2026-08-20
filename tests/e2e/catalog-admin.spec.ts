@@ -9,9 +9,14 @@ import {
 test.describe.configure({ mode: 'serial' });
 
 test.describe('Admin catalog lifecycle', () => {
-  if (!e2e.allowMutation) {
-    throw new Error('Catalog Admin lifecycle requires E2E_ALLOW_MUTATION=1.');
-  }
+  // @skip-when the disposable local catalog lane is off. Spec DISCOVERY (`test:e2e --list`)
+  // and PR CI must stay green without mutation credentials, so this skips on a STATIC
+  // config flag only. Once the flag IS set, missing credentials, a non-loopback URL, or a
+  // mismatched temporary database FAIL below — they never skip.
+  test.skip(
+    !e2e.allowMutation,
+    'Run pnpm test:e2e:catalog-admin-local (sets E2E_ALLOW_MUTATION=1) for catalog mutations.',
+  );
   requireAdminCredentialsWhenEnabled(e2e.allowMutation, 'catalog Admin mutation suite');
   requireCatalogLocalSeedWhenEnabled(e2e.allowMutation);
 

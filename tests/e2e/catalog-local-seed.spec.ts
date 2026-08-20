@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { type CollectionDoc, type ListResult, adminAction, loginAdmin } from './helpers/admin-api';
-import { e2e, requireCatalogLocalSeedWhenEnabled } from './helpers/env';
+import {
+  e2e,
+  requireAdminCredentialsWhenEnabled,
+  requireCatalogLocalSeedWhenEnabled,
+} from './helpers/env';
 
 const expectedFamilies = {
   headphones: [
@@ -16,7 +20,16 @@ const expectedFamilies = {
   misc: ['Local Demo USB-C Travel Hub', 'Local Demo Desktop Aroma Light'],
 } as const;
 
-requireCatalogLocalSeedWhenEnabled(true);
+// @skip-when the disposable local catalog lane is off. Spec DISCOVERY (`test:e2e --list`)
+// and PR CI must stay green without a temporary database, so this skips on a STATIC config
+// flag only. Once the flag IS set, missing credentials, a non-loopback URL, or a mismatched
+// temporary database FAIL below — they never skip.
+test.skip(
+  !e2e.catalogLocalSeed,
+  'Run pnpm test:e2e:catalog-admin-local (sets E2E_CATALOG_LOCAL_SEED=1) for the seed audit.',
+);
+requireAdminCredentialsWhenEnabled(e2e.catalogLocalSeed, 'catalog local seed suite');
+requireCatalogLocalSeedWhenEnabled(e2e.catalogLocalSeed);
 
 test('disposable local seed exposes four exact families and legacy Headphones safely', async ({
   page,
