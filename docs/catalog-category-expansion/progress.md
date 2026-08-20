@@ -16,7 +16,9 @@
 - Completed independent requirements and UI design reviews. Both confirmed that SKU details need real SSR URLs and that Admin should use one Products section with internal family tabs.
 - Selected compatibility-first URLs: preserve `/headphones/`, add sibling family routes, and use category-independent `/products/{slug}/` SKU URLs.
 - Authored the consolidated client requirements/UI design and a one-page confirmation checklist.
-- Completed final validation and consistency review. All task phases are complete; implementation remains intentionally deferred until client confirmation.
+- At the end of the 2026-08-19 design-only session, final documentation validation passed and
+	implementation was intentionally deferred pending client confirmation. The client subsequently
+	approved V1.1 and MIUs 1–25 were implemented; final state is recorded below.
 - Clarified that `productFamily` is a proposed internal field, not an existing main/Alibaba field.
 - Added a non-technical client Word source containing all public-site and Admin wireframes, Alibaba behavior, scope, and confirmation decisions.
 - Locked Phase 1 to menu/basic-page presentation, existing Headphones seed verification, and active storefront VIP suppression.

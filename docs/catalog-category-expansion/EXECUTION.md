@@ -2,7 +2,8 @@
 
 Status: implementation and test deployment complete; PR #27 is green and awaiting merge to `main`.
 Branch: `feat/catalog-category-design`.
-Final reviewed feature SHA: `8f64659deda11a2651afebcb38ca241bf15bc5a4`.
+Final reviewed implementation SHA: `8f64659deda11a2651afebcb38ca241bf15bc5a4`.
+Current PR/head handoff SHA: `4c62471197206436d19ae3e8694ec9834d56d035`.
 Final test-branch merge SHA: `a4d0bc5`.
 Pull request: <https://github.com/vibelingan/channel/pull/27>.
 
@@ -31,6 +32,18 @@ or another implementation branch for this feature.
 | Designer | No redesign is pending. Audit only if the user requests a new design change. |
 | Validator | Re-run the recorded full validation/deployed smoke when requested; report only, do not create a new plan. |
 | Delivery | PR #27 is open, mergeable, and CI-green against `main`; merging to `main` requires the normal PR gate. |
+
+## Post-Delivery Queue (Not An Active MIU)
+
+After PR #27 is reviewed/merged, run a separate serious retrospective/design task covering:
+
+- why the initial V1.1 architecture replaced proven Headphones behaviour instead of extracting it;
+- whole-repository dependency and historical-data impact analysis before additive design approval;
+- role-separated design → implementation → review → validation handoff quality;
+- a durable debugging/solutions knowledge system that preserves detailed reproduction methods,
+	verification evidence, expiry/refresh policy, and reusable interview-quality explanations.
+
+This queue item is intentionally **not** MIU 26 and does not reopen catalog implementation.
 
 ## Delivered Units
 
