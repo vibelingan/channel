@@ -372,6 +372,12 @@ const afterCatalog = orderedMenuItems
     visibility: hidden;
     width: max-content;
     pointer-events: none;
+    /* Reserve the account control's footprint. AccountMenu is a client-only island,
+       so it contributes 0px until React hydrates. Without this reservation the flex
+       row rebalances when it appears and the centre nav slides ~80px left, landing
+       clicks on the neighbouring link. Reserving >= the rendered width keeps the
+       used width constant before and after hydration. */
+    min-width: 10.5rem;
   }
 
   .header-mobile-disclosure summary::-webkit-details-marker {
@@ -406,5 +412,22 @@ const afterCatalog = orderedMenuItems
 
   [data-site-header][data-header-mode='desktop'] .header-mobile-disclosure {
     display: none;
+  }
+
+  /* First paint must already match the settled layout. The 1360px threshold mirrors
+     the JS fit check, so the common case needs no JS at all and nothing pops in.
+     JS still measures and can force the mobile lane when the desktop lane genuinely
+     does not fit (long brand strings, wide account controls). */
+  @media (min-width: 1360px) {
+    [data-site-header]:not([data-header-mode='mobile']) .header-desktop-nav,
+    [data-site-header]:not([data-header-mode='mobile']) .header-desktop-account {
+      position: static;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    [data-site-header]:not([data-header-mode='mobile']) .header-mobile-disclosure {
+      display: none;
+    }
   }
 </style>
