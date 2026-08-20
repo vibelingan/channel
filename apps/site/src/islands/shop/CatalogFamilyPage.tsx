@@ -1,6 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react';
 import type { CatalogContent, CatalogFamilyContent } from '../../i18n/catalog.ts';
 import { CatalogFamilyGrid } from './CatalogFamilyGrid.tsx';
+import { HeadphonesProductDetail } from './HeadphonesProductDetail.tsx';
 import { fetchCatalog } from './api.ts';
 import {
   type HeadphonesCatalogState,
@@ -11,6 +12,7 @@ import {
   failLoadMore,
   initialHeadphonesCatalogState,
   resetCatalogGeneration,
+  setActiveProduct,
 } from './headphonesCatalogState.ts';
 
 interface Props {
@@ -28,6 +30,10 @@ export function CatalogFamilyPage({ content, family }: Props) {
   const [state, setState] = useState<HeadphonesCatalogState>(initialHeadphonesCatalogState);
   const stateRef = useRef(state);
   const abortRef = useRef<AbortController | null>(null);
+  // The card that opened the detail band; focus returns here on Back.
+  const originCardIdRef = useRef<string | null>(null);
+  // Bumped on every activation so re-opening the same card still moves focus.
+  const [openToken, setOpenToken] = useState(0);
   stateRef.current = state;
 
   const commit = useCallback((next: HeadphonesCatalogState) => {
@@ -111,17 +117,75 @@ export function CatalogFamilyPage({ content, family }: Props) {
     loadPage(loading.generation, loading.nextPage, false);
   }, [commit, loadPage]);
 
+  const handleOpenProduct = useCallback(
+    (productId: string) => {
+      originCardIdRef.current = productId;
+      setOpenToken((token) => token + 1);
+      commit(setActiveProduct(stateRef.current, productId));
+    },
+    [commit],
+  );
+
+  const handleBack = useCallback(() => {
+    const originId = originCardIdRef.current;
+    commit(setActiveProduct(stateRef.current, null));
+    requestAnimationFrame(() => {
+      if (!originId) return;
+      const card = document.querySelector<HTMLElement>(
+        `[data-product-card="${CSS.escape(originId)}"]`,
+      );
+      card?.focus();
+      card?.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'center',
+      });
+      originCardIdRef.current = null;
+    });
+  }, [commit]);
+
+  const activeProduct =
+    state.activeProductId === null
+      ? null
+      : (state.products.find((product) => product._id === state.activeProductId) ?? null);
+
+  // Move focus to the detail heading once the expanded band has mounted.
+  useEffect(() => {
+    if (openToken === 0 || !activeProduct) return;
+    const heading = document.querySelector<HTMLElement>('[data-detail-heading]');
+    heading?.focus();
+    heading?.scrollIntoView({
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      block: 'start',
+    });
+  }, [openToken, activeProduct]);
+
+  const categoryLabel =
+    family.categories.find((category) => category.key === activeProduct?.category)?.label ??
+    activeProduct?.category ??
+    '';
+
   return (
-    <CatalogFamilyGrid
-      content={content}
-      family={family}
-      state={state}
-      selectedCategories={selectedCategories}
-      searchInput={searchInput}
-      onCategoriesChange={setSelectedCategories}
-      onSearchInputChange={setSearchInput}
-      onRetryInitial={handleRetryInitial}
-      onLoadMore={handleLoadMore}
-    />
+    <>
+      <CatalogFamilyGrid
+        content={content}
+        family={family}
+        state={state}
+        selectedCategories={selectedCategories}
+        searchInput={searchInput}
+        onCategoriesChange={setSelectedCategories}
+        onSearchInputChange={setSearchInput}
+        onRetryInitial={handleRetryInitial}
+        onLoadMore={handleLoadMore}
+        onOpenProduct={handleOpenProduct}
+      />
+      {activeProduct && (
+        <HeadphonesProductDetail
+          product={activeProduct}
+          detail={content.detail}
+          categoryLabel={categoryLabel}
+          onBack={handleBack}
+        />
+      )}
+    </>
   );
 }

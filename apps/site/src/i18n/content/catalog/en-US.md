@@ -33,10 +33,18 @@ list:
 
 detail:
   backLabel: Back to products
+  backToModelsLabel: Back to all products
+  seriesLabel: Series
+  modelLabel: Model
+  typeLabel: Type
   moqLabel: Minimum Order Quantity
   unitPriceLabel: Unit price
   wholesaleLabel: Wholesale price
   inquiryCta: Request a Quote
+  oemInquiryCta: Start Your OEM Enquiry
+  viewAllLabel: View All
+  showLessLabel: Show Less
+  imageUnavailableLabel: Product image unavailable
   oemEyebrow: OEM / ODM Programs
   oemHeading: Build This Product for Your Market
   oemBody: Share your target model, quantity, branding, packaging, and market requirements with our OEM team.
