@@ -760,3 +760,84 @@ flowchart TD
 
 - Full tests/typecheck/lint/build, function artifacts, local E2E, preview E2E, and approved production smoke are green and recorded.
 - HEAD is independently reviewed/blessed, pushed to the single remote feature branch, and PR status is reported.
+
+## MIU 23 — Restore catalog visibility and the product detail journey on legacy data
+
+**Depends on:** MIU 22
+
+**Why:** The deployed catalog is entirely legacy rows created before slugs existed. The V1.1
+shell filtered the grid by slug and routed the detail journey exclusively through a slug URL,
+so published products vanished and no product had a detail page. See REMEDIATION.md R1, R2.
+
+**Scope:**
+
+- Render every product the API returns; a slug decides only whether a card links out.
+- Restore in-page detail expansion keyed by product id, with the focus lifecycle the previous
+  headphones page defined (heading focus on open, origin-card focus on Back).
+- Extend the catalog detail content contract with the labels the shared detail band renders.
+
+**Build/Deploy/Runtime impact:** Storefront rendering only; no schema or API change.
+
+**Test plan (TDD — write first):**
+
+- A grid given products with a blank slug and with no slug property renders both, links
+  neither, and keeps pagination reachable.
+- Clicking a slug-less card opens `data-product-detail` for that id; Back restores card focus.
+
+**Done when:** The deployed headphones family renders its published products and each card
+opens its detail band. Verified against the deployed payload shape in a browser.
+
+## MIU 24 — Make the catalog card self-contained and the header lane deterministic
+
+**Depends on:** MIU 23
+
+**Why:** The grid painted its own background to fake separators, so empty tracks rendered as
+grey blocks; card regions drifted with copy length; and the header chose its lane from a
+different width API than its stylesheet, so the two disagreed at the breakpoint. See
+REMEDIATION.md R3, R4, R5, R6.
+
+**Scope:**
+
+- Card owns its border and is a full-height flex column with fixed regions; grid paints
+  nothing and uses ordinary gaps.
+- Reserve the account island's footprint; choose the header lane in CSS at the 1360px
+  threshold; the script evaluates the same media query rather than `window.innerWidth`.
+- Cap admin table text at two clamped lines with the full value in a title tooltip.
+
+**Build/Deploy/Runtime impact:** Presentation only; no data or route change.
+
+**Test plan (TDD — write first):**
+
+- Header geometry counts a top-level nav item as an anchor or the catalog disclosure summary.
+- Navigation is available with JavaScript disabled in both lanes.
+- Lane transition across the threshold closes the mobile disclosure and moves focus to the
+  equivalent desktop destination.
+
+**Done when:** Grid background is transparent with an uneven row, card regions align across a
+row, nav position is identical before and after island hydration, and the header/nav suites
+pass in Chromium and WebKit.
+
+## MIU 25 — Align the deployed browser suite with the approved design
+
+**Depends on:** MIU 24
+
+**Why:** Eight deployed tests still described the pre-expansion site, and the smoke asserted
+inventory rather than contract. See REMEDIATION.md R7, R8, R9.
+
+**Scope:**
+
+- Spec discovery succeeds with no environment; opt-in lanes skip on their static flag and fail
+  on missing credentials once enabled.
+- Smoke requires non-emptiness only for families declared populated and probes slug detail only
+  when a slug exists.
+- Nav, admin section, back-label, eyebrow, and image-cap assertions restated against the
+  approved design; component gaps found this way fixed rather than asserted away.
+
+**Build/Deploy/Runtime impact:** CI and deployment verification only.
+
+**Test plan (TDD — write first):**
+
+- `pnpm test:e2e --list` enumerates every spec with no environment variables set.
+- The admin capacity scenario is expressed at the V1.1 nine-image product cap.
+
+**Done when:** CI is green and the deployed public browser suite passes end to end.
