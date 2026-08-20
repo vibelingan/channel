@@ -302,7 +302,10 @@ const afterCatalog = orderedMenuItems
     if (nextMode === 'desktop') {
       header.dataset.headerMode = 'desktop';
       mobileDisclosure.open = false;
-      focusForDesktop(previousFocus);
+      // Closing the disclosure blurs whatever was focused inside it, and that blur
+      // lands after this call stack. Restore focus on the next frame, once the lane
+      // has settled, or the browser drops focus to <body> right after we set it.
+      window.requestAnimationFrame(() => focusForDesktop(previousFocus));
       return;
     }
 
