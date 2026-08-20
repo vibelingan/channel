@@ -140,6 +140,13 @@
 	misrepresentation, weak tier decoding, incomplete Product eligibility, premature canonical
 	promotion, unknown-key acceptance, stale fixtures, and impossible-date normalization. MIU 20 is
 	complete; MIU 21 public/Admin workflow E2E is active.
+- MIU 21 adds explicit deploy-safe catalog and non-mutating Admin UI suites plus a real catalog
+	lifecycle confined to a nonce-verified disposable local database. Public coverage now includes
+	no-JavaScript navigation, reduced motion, family/filter/page composition, page append/reset, and the
+	full hub/family/SKU workflows. Workflow secret scopes and post-deploy catalog execution are explicit.
+	Independent review found and closed stale slash-active state, missing filter/pagination behavior,
+	unsafe shared-environment cleanup assumptions, false locality flags, fixed-port races, signal cleanup,
+	and overly broad secret exposure. MIU 21 is complete; MIU 22 delivery verification is active.
 
 | Implementation check | Result |
 |---|---|
@@ -214,3 +221,10 @@
 | MIU 20 production build | Passed: 15 static pages with `SITE_URL=https://example.test` |
 | MIU 20 generated artifact parser | Passed: 5 BreadcrumbLists, SKU `noindex,follow`, no static Product/Offer/AggregateOffer, SKU absent sitemap, 5 catalog URLs present |
 | MIU 20 assumption audit | Passed: final independent audit reported no findings |
+| MIU 21 deploy-safe public browser | Passed: 16/16 menu/hub/family/filter/pagination/SKU/no-JS/reduced-motion journeys |
+| MIU 21 non-mutating Admin browser | Passed: 6/6 tabs/mobile/form/media/error/VIP-free journeys |
+| MIU 21 disposable Admin lifecycle | Passed: 1/1 create/move/duplicate/publish/public/unpublish/archive; exact temp DB removed |
+| MIU 21 site/local tests | Passed: site 191/191; local-server 23/23 |
+| MIU 21 typecheck/build/lint | Passed: Astro 0 errors; local/E2E TypeScript clean; 15-page build; Biome 317 files clean |
+| MIU 21 workflow contract | Passed: YAML parse, secret scopes, dispatch populations, and post-deploy catalog lane |
+| MIU 21 assumption audit | Passed: final independent audit reported no findings |

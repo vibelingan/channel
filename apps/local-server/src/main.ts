@@ -6,6 +6,7 @@
  * entirely offline. Same request protocol as the cloud function:
  *   POST /api/admin  ->  { action, data, token }
  */
+import { renameSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { setAdapter } from '@vibelingan-channel/db';
 import { handleAdminRequest } from '@vibelingan-channel/fn-admin/handler';
@@ -29,6 +30,8 @@ import { seed } from './seed.ts';
 const PORT = Number(optionalEnv('PORT', '3002'));
 const DB_FILE = resolve(process.cwd(), optionalEnv('LOCAL_DB_FILE', './data/db.local.json'));
 const MEDIA_DIR = resolve(process.cwd(), optionalEnv('LOCAL_MEDIA_DIR', './data/media'));
+const READY_FILE = optionalEnv('LOCAL_READY_FILE');
+const READY_TOKEN = optionalEnv('LOCAL_READY_TOKEN');
 const TCB_ENV = optionalEnv('TCB_ENV', '');
 
 // Dev defaults so the server runs with zero configuration.
@@ -222,10 +225,21 @@ function registerCatalog(collection: PublicCatalog, basePath: string): void {
 registerCatalog('products', '/api/products');
 registerCatalog('overstock', '/api/overstock');
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, '127.0.0.1', () => {
+  const address = server.address();
+  const port = typeof address === 'object' && address ? address.port : PORT;
+  if (READY_FILE) {
+    const temporaryReadyFile = `${READY_FILE}.${process.pid}.tmp`;
+    writeFileSync(
+      temporaryReadyFile,
+      JSON.stringify({ pid: process.pid, port, db: DB_FILE, token: READY_TOKEN }),
+      'utf8',
+    );
+    renameSync(temporaryReadyFile, READY_FILE);
+  }
   console.log('');
   console.log('  channel local API server');
-  console.log(`  ➜  http://localhost:${PORT}/api/admin`);
+  console.log(`  ➜  http://localhost:${port}/api/admin`);
   console.log(`  ➜  db file: ${DB_FILE}`);
   console.log('  ➜  seeded admin login: admin@channel.local / admin');
   console.log('');

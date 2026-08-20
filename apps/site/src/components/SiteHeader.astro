@@ -92,7 +92,7 @@ const afterCatalog = orderedMenuItems
         </summary>
         <div class="absolute left-0 top-[calc(100%+0.5rem)] w-72 border border-slate-200 bg-white p-2 shadow-xl" data-catalog-menu>
           <a
-            href="/electronics-toys"
+            href="/electronics-toys/"
             aria-current={catalogPath === '/electronics-toys' ? 'page' : undefined}
             class:list={[
               'block min-h-11 rounded-md px-3 py-2.5 text-sm font-semibold text-brand-700 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-700',
@@ -105,10 +105,13 @@ const afterCatalog = orderedMenuItems
           {catalog.families.map((family) => (
             <a
               href={family.href}
-              aria-current={catalogPath === family.href ? 'page' : undefined}
+              aria-current={catalogPath === family.href.replace(/\/$/, '') ? 'page' : undefined}
               class:list={[
                 'block min-h-11 rounded-md px-3 py-2.5 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-700',
-                { 'bg-brand-50 ring-1 ring-inset ring-brand-200': catalogPath === family.href },
+                {
+                  'bg-brand-50 ring-1 ring-inset ring-brand-200':
+                    catalogPath === family.href.replace(/\/$/, ''),
+                },
               ]}
             >
               <span class="block text-sm font-semibold text-ink">{family.label}</span>
@@ -164,7 +167,7 @@ const afterCatalog = orderedMenuItems
             </summary>
             <div class="pb-2 pl-3" data-catalog-menu>
               <a
-                href="/electronics-toys"
+                href="/electronics-toys/"
                 aria-current={catalogPath === '/electronics-toys' ? 'page' : undefined}
                 class:list={[
                   'block min-h-11 rounded-lg px-3 py-3 text-sm font-semibold text-brand-700 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-700',
@@ -176,10 +179,13 @@ const afterCatalog = orderedMenuItems
               {catalog.families.map((family) => (
                 <a
                   href={family.href}
-                  aria-current={catalogPath === family.href ? 'page' : undefined}
+                  aria-current={catalogPath === family.href.replace(/\/$/, '') ? 'page' : undefined}
                   class:list={[
                     'block min-h-11 rounded-lg px-3 py-3 text-sm font-medium text-ink-soft hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-brand-700',
-                    { 'bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-200': catalogPath === family.href },
+                    {
+                      'bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-200':
+                        catalogPath === family.href.replace(/\/$/, ''),
+                    },
                   ]}
                 >
                   {family.label}

@@ -247,6 +247,28 @@ The existing VIP pricing path is not part of this feature. Registration creates 
 	(`astro:server-app.js` resolution). Browser evidence is accepted only from a fresh guarded
 	worktree-bound server; unchanged tests passed on the clean process.
 
+## MIU 21 Implementation Findings
+
+- The explicit public catalog suite composes the existing menu, hub, family, SKU, error, responsive,
+	and structured-data journeys with new no-JavaScript navigation, reduced-motion, category-filter,
+	page-two append, and filter-reset coverage. Every filter/pagination request remains scoped to the
+	Headphones family.
+- Including the full navigation suite exposed a real active-state regression: route paths were
+	normalized without trailing slashes while family hrefs retained them. Desktop/mobile comparisons now
+	normalize the registry href, and all hub/family/detail links use canonical trailing-slash paths.
+- Deployed Admin coverage is intentionally non-mutating and composes family tabs, mobile containment,
+	nine-image capacity, upload busy state, field error mapping, and VIP-free presentation. The real
+	create/move/duplicate/publish/unpublish/archive lifecycle runs only through
+	`test:e2e:catalog-admin-local` against a disposable database.
+- Local mutation safety is observed, not asserted by a flag: the runner uses an ephemeral loopback API,
+	a nonce-bound atomic readiness file, exact temporary-DB health identity, an Astro-owned live port,
+	loopback/spec guards, and tracked process groups. `finally`/SIGINT/SIGTERM cleanup escalates from
+	SIGTERM to SIGKILL, then verifies the whole temporary directory (products and identity reservations)
+	is deleted.
+- Workflow secrets are scoped by consumer: public suites receive none, credentialed Admin/media suites
+	receive only the Admin password, and bootstrap alone receives the bootstrap token. Post-deploy public
+	validation runs both the base public smoke and the complete catalog suite.
+
 ## MIU 19 Implementation Findings
 
 - Alibaba implementation remains unchanged; the MIU is test-only and touches no endpoint, scheduler,

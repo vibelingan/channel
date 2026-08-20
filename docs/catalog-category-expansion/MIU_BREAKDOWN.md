@@ -692,7 +692,9 @@ flowchart TD
 
 **Block:** TESTING
 
-**Files:** `tests/e2e/catalog-category.spec.ts`, `tests/e2e/catalog-admin.spec.ts`, `package.json`
+**Files:** `tests/e2e/catalog-category.spec.ts`, `tests/e2e/catalog-admin.spec.ts`,
+`scripts/run-catalog-admin-local-e2e.mjs`, `package.json`, `.github/workflows/e2e.yml`,
+`.github/workflows/deploy-test.yml`
 
 **Type:** new-test
 
@@ -700,22 +702,31 @@ flowchart TD
 
 **What it does:**
 
-- Adds deploy-safe public journeys and opt-in credentialed Admin CRUD journeys; wires explicit scripts.
-- Uses run-ID records and finally cleanup; once mutation opt-in is set, missing credentials fail rather than skip.
+- Adds deploy-safe public journeys, deployed non-mutating Admin UI journeys, and an opt-in real Admin
+  lifecycle confined to a runner-owned disposable local database; wires explicit scripts/workflows.
+- Uses run-ID records and whole-database teardown. Mutation requires credentials, explicit opt-in,
+  loopback URLs, local health mode, and exact runner-provided temporary DB identity; missing inputs fail
+  rather than skip.
 
 **Build/Deploy/Runtime impact:**
 
-- Test scripts only; deployed test/preview environment required.
+- Test scripts/workflow wiring plus optional local-server readiness diagnostics used only by the
+  disposable runner. Public and non-mutating Admin UI suites run against deployed test/preview;
+  product mutation never runs against shared CloudBase.
 
 **Test plan (TDD — write first):**
 
 - Public: menu keyboard/mobile/no-JS, hub/families/filter/pagination, SKU/gallery/related, error/fallback, VIP absence, responsive/reduced-motion.
-- Admin: create draft, tab/filter/edit/move, nine images, duplicate errors, publish/unpublish/archive, VIP hidden, cleanup.
+- Admin UI (deployed, non-mutating): tab/filter/edit/move presentation, nine images, field errors,
+  upload busy state, VIP hidden.
+- Admin lifecycle (disposable local DB): create draft, family list/move, duplicate identity error,
+  publish/public detail/fallback, unpublish/not-found, archive, whole-DB cleanup.
 - Assert new specs are included in CI/deploy commands and fail path when opt-in credentials are absent.
 
 **Done when:**
 
-- E2E typecheck, local browser suites, and deployed preview suites pass.
+- E2E typecheck, deploy-safe local browser suites, disposable local lifecycle, and deployed preview
+  public/Admin UI suites pass.
 - Root typecheck/lint/tests/build remain green.
 
 ## MIU 22: Local full-family seed and delivery verification

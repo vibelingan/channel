@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test';
 
-const expectedCatalogLinks = ['/electronics-toys', '/headphones', '/ai-gadgets', '/toys', '/misc'];
+const expectedCatalogLinks = [
+  '/electronics-toys/',
+  '/headphones/',
+  '/ai-gadgets/',
+  '/toys/',
+  '/misc/',
+];
 
 test('desktop catalog disclosure exposes five links and returns focus on Escape', async ({
   page,
@@ -65,8 +71,8 @@ test('current family is indicated semantically and visually', async ({ page }) =
   await expect(page.locator('[data-site-header]')).toHaveAttribute('data-header-mode', 'desktop');
   const disclosure = page.locator('[data-catalog-disclosure="desktop"]');
   await disclosure.locator(':scope > summary').click();
-  const active = disclosure.locator('a[href="/headphones"]');
-  const inactive = disclosure.locator('a[href="/toys"]');
+  const active = disclosure.locator('a[href="/headphones/"]');
+  const inactive = disclosure.locator('a[href="/toys/"]');
   await expect(active).toHaveAttribute('aria-current', 'page');
   const styles = await Promise.all(
     [active, inactive].map((link) =>

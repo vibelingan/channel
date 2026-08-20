@@ -143,7 +143,7 @@ jobs:
 
       - name: Run public browser E2E
         if: ${{ github.event_name == 'push' || github.event.inputs.run_public_e2e == 'true' }}
-        run: pnpm test:e2e:public
+        run: pnpm test:e2e:public && pnpm test:e2e:catalog
 
       - name: Run media upload smoke
         if: ${{ github.event.inputs.run_media_upload_smoke == 'true' }}

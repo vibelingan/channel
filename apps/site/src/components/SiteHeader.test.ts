@@ -19,7 +19,7 @@ test('SiteHeader compiles with one desktop and one mobile catalog disclosure', a
 });
 
 test('both disclosures render one hub link plus the same four registry families', () => {
-  assert.equal(occurrences('href="/electronics-toys"'), 2);
+  assert.equal(occurrences('href="/electronics-toys/"'), 2);
   assert.equal(occurrences('catalog.families.map'), 2);
   assert.match(source, /item\.href !== '\/headphones'/);
   assert.match(source, /beforeCatalog/);
@@ -42,6 +42,6 @@ test('catalog menu preserves semantic active state and keyboard-safe close behav
 test('catalog links remain server-rendered inside native details for no-JS navigation', () => {
   assert.equal(occurrences('<details'), 3, 'outer mobile menu plus two catalog disclosures');
   assert.equal(occurrences('<summary'), 3);
-  assert.ok(source.indexOf('href="/electronics-toys"') < source.indexOf('<script>'));
+  assert.ok(source.indexOf('href="/electronics-toys/"') < source.indexOf('<script>'));
   assert.ok(source.indexOf('catalog.families.map') < source.indexOf('<script>'));
 });

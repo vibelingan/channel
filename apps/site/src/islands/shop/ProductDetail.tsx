@@ -57,7 +57,7 @@ export function ProductDetail({ content }: Props) {
       <div className="rounded-[var(--radius-card)] border border-slate-200 bg-surface-alt p-12 text-center">
         <p className="text-ink-soft">{detail.notFound}</p>
         <a
-          href="/headphones"
+          href="/headphones/"
           className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:text-brand-800"
         >
           ← {detail.backLabel}
@@ -81,7 +81,7 @@ export function ProductDetail({ content }: Props) {
     <div>
       <div className="flex items-center justify-between">
         <a
-          href="/headphones"
+          href="/headphones/"
           className="inline-flex items-center gap-2 text-sm font-medium text-ink-soft transition hover:text-brand-700"
         >
           <svg
