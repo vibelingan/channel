@@ -57,9 +57,10 @@ sequence; current delivery state is in `EXECUTION.md`. Alibaba API transport/sch
 
 ## Current Delivery State
 
-Implementation is complete. PR #27 is open, mergeable, and CI-green against `main`. There is
-no active implementation MIU and no separate P1–P6 refactor plan. The only remaining delivery
-action is the normal PR review/merge to `main`; production smoke remains explicitly unauthorized.
+Implementation is complete and PR #27 is open against `main`. There is no active implementation
+MIU and no separate P1–P6 refactor plan. The only remaining delivery action is to query the PR's
+live checks and complete the normal review/merge when green; production smoke remains explicitly
+unauthorized.
 
 ## Scope Boundaries
 

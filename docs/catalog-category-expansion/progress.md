@@ -256,5 +256,6 @@
 - Deploy Test run `32359898758` passed: CloudBase deploy, deployed smoke, public browser E2E
 	37/37, and catalog E2E 16/16.
 - Safari/WebKit header/catalog behavioural validation passed 6/6.
-- PR #27 remains open, mergeable, and CI-green against `main`. No implementation MIU remains;
-	next action is review/merge through the normal PR gate. Production smoke is not authorized.
+- PR #27 remains open against `main`. No implementation MIU remains; next action is to query its
+	live head/checks and review/merge through the normal PR gate when green. Production smoke is not
+	authorized.

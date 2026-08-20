@@ -62,7 +62,7 @@ cross-file-reasoning:
 | Preview E2E | Public catalog and non-mutating Admin UI on deployed test SHA | Passed: public 37/37 and catalog 16/16 on run `32359898758` |
 | Deployed smoke | Release SHA, routes, declared stocked families, optional slug detail, negatives, protected Admin read | Passed: run `32359898758` |
 | Independent review | No open assumption/cross-file findings | Passed; remediation findings closed and recorded |
-| Remote delivery | Reviewed final SHA pushed to one feature branch | Passed: `8f64659`; PR #27 open, mergeable, CI green |
+| Remote delivery | Reviewed implementation SHA pushed to one feature branch | Passed: `8f64659`; PR #27 open; current head/checks are queried at review time |
 | Production | Explicit approval before live smoke/deploy | Not authorized |
 
 ## Risk Register

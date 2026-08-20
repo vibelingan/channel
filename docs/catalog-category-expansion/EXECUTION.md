@@ -1,11 +1,13 @@
 # Catalog Category Expansion - Execution And Delivery
 
-Status: implementation and test deployment complete; PR #27 is green and awaiting merge to `main`.
+Status: implementation and test deployment complete; PR #27 is open for normal review/merge to `main`.
 Branch: `feat/catalog-category-design`.
 Final reviewed implementation SHA: `8f64659deda11a2651afebcb38ca241bf15bc5a4`.
-Current PR/head handoff SHA: `4c62471197206436d19ae3e8694ec9834d56d035`.
 Final test-branch merge SHA: `a4d0bc5`.
 Pull request: <https://github.com/vibelingan/channel/pull/27>.
+
+The PR head and checks change whenever this handoff document is updated. Query GitHub at review
+time (`gh pr view 27`) rather than freezing a self-invalidating "current head/green" claim here.
 
 ## Handoff Contract
 
@@ -31,7 +33,7 @@ or another implementation branch for this feature.
 | Reviewer | Review PR #27 / final feature SHA `8f64659`; verify the diff against this execution record and `REMEDIATION.md`. |
 | Designer | No redesign is pending. Audit only if the user requests a new design change. |
 | Validator | Re-run the recorded full validation/deployed smoke when requested; report only, do not create a new plan. |
-| Delivery | PR #27 is open, mergeable, and CI-green against `main`; merging to `main` requires the normal PR gate. |
+| Delivery | Query PR #27's current head/checks, then merge to `main` through the normal PR gate when green. |
 
 ## Post-Delivery Queue (Not An Active MIU)
 
