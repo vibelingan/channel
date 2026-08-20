@@ -68,18 +68,25 @@ function CatalogProductCard({ product, content }: { product: Product; content: C
             {list.moqLabel} {moq}
           </span>
         )}
-        <span className="ml-auto text-right font-semibold text-brand-700">
+        <span className="ml-auto text-right font-semibold text-brand-700" data-product-card-price>
           {catalogProductPrice(product, detail.inquiryCta)}
         </span>
       </div>
     </>
   );
   return slug ? (
-    <a href={`/products/item/?slug=${encodeURIComponent(slug)}`} className={cardClassName}>
+    <a
+      href={`/products/item/?slug=${encodeURIComponent(slug)}`}
+      className={cardClassName}
+      data-product-card
+      data-product-card-action="detail"
+    >
       {cardBody}
     </a>
   ) : (
-    <div className={cardClassName}>{cardBody}</div>
+    <div className={cardClassName} data-product-card data-product-card-action="none">
+      {cardBody}
+    </div>
   );
 }
 
@@ -209,7 +216,7 @@ export function CatalogFamilyGrid({
 
       {!loadingInitial && state.status !== 'initial-error' && products.length > 0 && (
         <>
-          <p className="mt-6 text-sm text-ink-muted">
+          <p className="mt-6 text-sm text-ink-muted" data-result-progress>
             {products.length} {list.resultsLabel}
           </p>
           <div className="mt-4 grid grid-cols-1 gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-4">
@@ -235,6 +242,7 @@ export function CatalogFamilyGrid({
                 disabled={loadingMore}
                 aria-busy={loadingMore || undefined}
                 onClick={onLoadMore}
+                data-load-more
                 className="mt-4 min-h-11 border border-brand-300 bg-white px-6 py-2 text-sm font-semibold text-brand-700 disabled:opacity-60"
               >
                 {loadingMore ? list.loadingLabel : list.loadMoreLabel}

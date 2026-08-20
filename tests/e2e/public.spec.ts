@@ -612,7 +612,7 @@ test.describe('public browser smoke', () => {
     await toggle.click();
     await expect(disclosure).toHaveAttribute('open', '');
     await expect(mobileMenu).toBeVisible();
-    for (const label of ['OEM Development', 'Headphones', 'Success Stories']) {
+    for (const label of ['OEM Development', 'Success Stories']) {
       await expect(mobileMenu.getByRole('link', { name: label, exact: true })).toBeVisible();
     }
     // Teardown Lab and Blue Ocean are temporarily hidden (un-routed, 2026-08):
@@ -620,10 +620,16 @@ test.describe('public browser smoke', () => {
     for (const label of ['Teardown Lab', 'Blue Ocean']) {
       await expect(mobileMenu.getByRole('link', { name: label, exact: true })).toHaveCount(0);
     }
-    await expect(mobileMenu.getByRole('link', { name: 'Headphones', exact: true })).toHaveAttribute(
-      'href',
-      '/headphones',
-    );
+    // The catalog expansion groups every family under an Electronics & Toys disclosure,
+    // so Headphones is reachable one level in rather than as a top-level nav link.
+    const mobileCatalog = mobileMenu.locator('[data-catalog-disclosure="mobile"]');
+    await mobileCatalog.locator(':scope > summary').click();
+    await expect(
+      mobileCatalog.getByRole('link', { name: 'Headphones', exact: true }),
+    ).toBeVisible();
+    await expect(
+      mobileCatalog.getByRole('link', { name: 'Headphones', exact: true }),
+    ).toHaveAttribute('href', '/headphones/');
     await expect(mobileMenu.getByRole('link', { name: 'Sign in', exact: true })).toBeVisible();
     await expect(mobileMenu.getByRole('link', { name: 'Register', exact: true })).toBeVisible();
     await expect(page.getByText('Minimum Order Amount: $500', { exact: true })).toHaveCount(0);
