@@ -32,6 +32,11 @@ export function hasUsableCatalogSlug(product: Product): product is Product & { s
  * One catalog card. Activating it expands the detail band lower on the same page,
  * keyed by product id. That works for every published product, including legacy rows
  * that predate slugs and therefore have no detail URL of their own.
+ *
+ * The card owns its own border and fills its grid track as a flex column, so the grid
+ * never has to paint separators behind it. Every region has a fixed place: square
+ * media, a two-line title, then the meta row and action pinned to the bottom. Cards
+ * therefore line up whatever the length of a product name.
  */
 function CatalogProductCard({
   product,
@@ -42,26 +47,25 @@ function CatalogProductCard({
   const moq = product.alibabaPrimarySourceKey
     ? product.alibabaCatalogPricing?.sourceMoq
     : product.moq;
+  const identifier = product.skuCode ?? product.modName ?? product.productCode;
   return (
     <button
       type="button"
       data-product-card={product._id}
       onClick={() => onOpenProduct(product._id)}
-      className="group min-w-0 bg-white p-4 text-left focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-brand-700"
+      className="group flex h-full min-w-0 flex-col border border-slate-200 bg-white p-4 text-left transition hover:border-brand-300 focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-brand-700"
     >
-      <div className="aspect-square overflow-hidden bg-surface-alt">
+      <div className="aspect-square shrink-0 overflow-hidden bg-surface-alt">
         <ProductMedia
           sources={product.images ?? []}
           alt={product.name}
           imageClassName="p-4 transition duration-300 group-hover:scale-[1.025] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
         />
       </div>
-      {(product.skuCode || product.modName || product.productCode) && (
-        <p className="mt-4 text-xs font-semibold uppercase text-brand-600">
-          {product.skuCode ?? product.modName ?? product.productCode}
-        </p>
-      )}
-      <h3 className="mt-1 font-display text-lg font-semibold text-ink group-hover:text-brand-700">
+      {/* Reserve the identifier line whether or not this product has one, so titles
+          start at the same y across the row. */}
+      <p className="mt-4 min-h-4 text-xs font-semibold uppercase text-brand-600">{identifier}</p>
+      <h3 className="mt-1 line-clamp-2 font-display text-lg font-semibold text-ink group-hover:text-brand-700">
         {product.name}
       </h3>
       {product.description && (
@@ -69,7 +73,7 @@ function CatalogProductCard({
           {product.description}
         </p>
       )}
-      <div className="mt-4 flex items-end justify-between gap-3 text-sm">
+      <div className="mt-auto flex items-end justify-between gap-3 pt-4 text-sm">
         {moq !== undefined && (
           <span className="text-ink-muted">
             {list.moqLabel} {moq}
@@ -218,7 +222,9 @@ export function CatalogFamilyGrid({
           <p className="mt-6 text-sm text-ink-muted" data-result-progress>
             {products.length} {list.resultsLabel}
           </p>
-          <div className="mt-4 grid grid-cols-1 gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Real gaps, not a painted container. A partly filled last row used to
+              expose the container background as grey placeholder blocks. */}
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {products.map((product) => (
               <CatalogProductCard
                 key={product._id}

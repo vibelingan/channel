@@ -1170,7 +1170,7 @@ test.describe('public browser smoke', () => {
     await expect(existingManager.locator('img[alt=""]')).toHaveCount(19);
     expect(previewCounts.size).toBe(19);
     expect([...previewCounts.values()].every((count) => count === 1)).toBe(true);
-    await expect(existingManager.locator('#imageIds-capacity')).toContainText('19 of 18 images');
+    await expect(existingManager.locator('#imageIds-capacity')).toContainText('19 of 9 images');
     await expect(existingInput).toBeDisabled();
     const existingRemove = existingManager
       .getByRole('button', { name: 'Remove image', exact: true })
@@ -1214,8 +1214,8 @@ test.describe('public browser smoke', () => {
     await expect(
       existingManager.getByRole('button', { name: 'Remove image', exact: true }).first(),
     ).toBeFocused();
-    await expect(existingManager.locator('#imageIds-capacity')).toContainText('17 of 18 images');
-    await expect(existingManager.locator('output')).toContainText('17 of 18 images');
+    await expect(existingManager.locator('#imageIds-capacity')).toContainText('17 of 9 images');
+    await expect(existingManager.locator('output')).toContainText('17 of 9 images');
     await expect(existingManager.locator('output')).toContainText('Image removed');
     await expect(existingInput).toBeEnabled();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -1233,7 +1233,9 @@ test.describe('public browser smoke', () => {
     expect(
       await fileInput.locator('..').evaluate((element) => getComputedStyle(element).boxShadow),
     ).not.toBe('none');
-    await expect(imageManager.locator('#imageIds-capacity')).toContainText('0 of 18 images');
+    // V1.1 caps a PRODUCT at nine images (Overstock keeps eighteen), so twenty
+    // selected files fill the nine slots and the rest are refused before upload.
+    await expect(imageManager.locator('#imageIds-capacity')).toContainText('0 of 9 images');
 
     const payloads = Array.from({ length: 20 }, (_, index) => ({
       name: `miu8-cap-${index}.png`,
@@ -1246,15 +1248,15 @@ test.describe('public browser smoke', () => {
     await fileInput.setInputFiles(payloads);
     await expect
       .poll(() => [...intentCounts.values()].reduce((sum, count) => sum + count, 0))
-      .toBe(18);
+      .toBe(9);
     await expect(imageManager.getByText('Uploading…')).toHaveCount(0);
     await expect(imageManager.getByText('Upload failed', { exact: true })).toHaveCount(2);
     await expect(imageManager.locator('output')).toContainText(
       '2 uploads failed. Retry or remove them.',
     );
-    await expect(imageManager.locator('img[alt=""]')).toHaveCount(16);
-    await expect(imageManager.locator('#imageIds-capacity')).toContainText('18 of 18 images');
-    await expect(imageManager.locator('output')).toContainText('2 files not selected');
+    await expect(imageManager.locator('img[alt=""]')).toHaveCount(7);
+    await expect(imageManager.locator('#imageIds-capacity')).toContainText('9 of 9 images');
+    await expect(imageManager.locator('output')).toContainText('11 files not selected');
     await expect(fileInput).toBeDisabled();
 
     const firstRetry = imageManager.getByRole('button', { name: 'Retry', exact: true }).first();
@@ -1267,10 +1269,10 @@ test.describe('public browser smoke', () => {
     await page.waitForTimeout(100);
     expect(intentCounts.get('miu8-cap-0.png')).toBe(2);
     await expect(imageManager.getByText('Upload failed', { exact: true })).toHaveCount(1);
-    await expect(imageManager.locator('img[alt=""]')).toHaveCount(17);
+    await expect(imageManager.locator('img[alt=""]')).toHaveCount(8);
 
     await imageManager.getByRole('button', { name: 'Remove', exact: true }).click();
-    await expect(imageManager.locator('#imageIds-capacity')).toContainText('17 of 18 images');
+    await expect(imageManager.locator('#imageIds-capacity')).toContainText('8 of 9 images');
     await expect(imageManager.locator('output')).toContainText('Failed upload removed');
     await expect(fileInput).toBeEnabled();
 
@@ -1279,8 +1281,8 @@ test.describe('public browser smoke', () => {
       mimeType: 'image/png',
       buffer: payloads[0]?.buffer ?? Buffer.alloc(0),
     });
-    await expect(imageManager.locator('img[alt=""]')).toHaveCount(18);
-    await expect(imageManager.locator('#imageIds-capacity')).toContainText('18 of 18 images');
+    await expect(imageManager.locator('img[alt=""]')).toHaveCount(9);
+    await expect(imageManager.locator('#imageIds-capacity')).toContainText('9 of 9 images');
     await expect(fileInput).toBeDisabled();
     expect(intentCounts.get('miu8-cap-replacement.png')).toBe(1);
   });
