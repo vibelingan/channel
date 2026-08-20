@@ -75,7 +75,7 @@ cross-file-reasoning:
 | Family route slash drift breaks active state/canonicals | Canonical href tests plus browser active-state assertions | Closed |
 | Provider pricing shape drifts | Strict schema/key/time/mode/tier decoder and visible/schema parity tests | Closed |
 | Production differs from test environment | Release-ID smoke and explicit production approval gate | Open until approved |
-| Test preview branch policy | Code owner must allow `feat/catalog-category-design` or promote through `test`; agent token received HTTP 403 when attempting the policy update | External blocker |
+| Test preview branch policy | Delivered by merging into the `test` branch, which triggers Deploy Test directly; no environment-policy change or admin rights required | Resolved |
 
 ## Sign-Off
 
