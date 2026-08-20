@@ -1,8 +1,10 @@
 # Catalog Category Expansion - Execution And Delivery
 
-Status: MIU 22 delivery verification in progress.
+Status: implementation complete; test preview is blocked by GitHub environment branch policy.
 Branch: `feat/catalog-category-design`.
 Baseline before MIU 22: `7c8a7096e98997509ad0fb48eb80049a26a3163b`.
+Implementation candidate SHA: `7252af0863cdfb8ff21f67752933da5c86a93b4f`.
+Pull request: <https://github.com/vibelingan/channel/pull/27>.
 
 ## Delivered Units
 
@@ -58,12 +60,18 @@ Observed local results:
 | Assumption audit | Passed | Independent MIU 21 audit had no findings; MIU 22 final audit pending |
 | Function builds/packages/smoke | Passed | Admin, Public API, and Alibaba build/package/cold-start smoke |
 | CloudBase SDK contract | Passed | Installed runtime/type/transaction/upload probes |
-| Test-environment deploy/preview | Pending branch delivery | Standard test deployment only |
+| Test-environment deploy/preview | Blocked by policy | Deploy Test run `32324413709` and E2E run `32324519611` were rejected before runner allocation because the feature branch is not allowed to deploy to the `test` environment |
 | Production smoke | Not run | Requires separate explicit production approval |
 
 ## Deployment Boundary
 
 - Test environment deployment and preview checks are part of the normal branch delivery pipeline.
+- GitHub currently permits only `test` and `fix/image-upload-storage-design` to deploy to the `test`
+	environment. The feature-branch deployment and standalone E2E dispatches were therefore rejected
+	before checkout or code execution. No preview result can be claimed until a code owner updates the
+	environment policy or merges/promotes the reviewed SHA through an allowed branch.
+- Attempting to add `feat/catalog-category-design` to that allowlist returned GitHub HTTP 403
+	(`Must have admin rights to Repository`), so the agent could not clear the policy gate.
 - Production deployment or production smoke is not authorized by this task. It must not be inferred from test-environment approval.
 - The deployed smoke now verifies release identity, all catalog routes, non-empty family-filtered API
 	responses, identity-matched slug detail, max-nine images, internal/VIP/video field absence, and an
@@ -82,7 +90,7 @@ Observed local results:
 - [x] Temporary local database is removed after success and failure.
 - [x] Final package/function validation passes.
 - [x] Compatibility checklist is complete.
-- [ ] Test-environment preview workflow passes for the final SHA.
-- [ ] Final SHA is independently reviewed, blessed, and pushed.
-- [ ] PR status is recorded.
+- [ ] Test-environment preview workflow passes for the final SHA (blocked by branch policy).
+- [x] Final SHA is independently reviewed, blessed, and pushed.
+- [x] PR status is recorded: PR #27 open against `main`.
 - [ ] Production smoke is approved and passed, or explicitly recorded as not authorized.

@@ -228,3 +228,11 @@
 | MIU 21 typecheck/build/lint | Passed: Astro 0 errors; local/E2E TypeScript clean; 15-page build; Biome 317 files clean |
 | MIU 21 workflow contract | Passed: YAML parse, secret scopes, dispatch populations, and post-deploy catalog lane |
 | MIU 21 assumption audit | Passed: final independent audit reported no findings |
+| MIU 22 exact local integration | Passed: exact 6/2/2/2 seed, one legacy Headphones row, real SKU browser, Admin lifecycle, and whole-DB cleanup |
+| MIU 22 runner failure paths | Passed: API/site spawn failures both remove and verify the temporary directory |
+| MIU 22 deployment contracts | Passed: 25/25 |
+| MIU 22 function/SDK/static gates | Passed: three function builds/packages/cold starts, CloudBase SDK contract, 15-page build, secret scan, Biome 319 files |
+| MIU 22 assumption audit | Passed: final independent audit reported no findings |
+| MIU 22 remote delivery | Passed: implementation candidate `7252af0` pushed; PR #27 open |
+| MIU 22 test preview | Blocked before runner allocation: GitHub `test` environment rejects `feat/catalog-category-design` (runs `32324413709`, `32324519611`); allowlist update attempt returned HTTP 403 (admin rights required) |
+| MIU 22 production smoke | Not run: production approval was not provided |

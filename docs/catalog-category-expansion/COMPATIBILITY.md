@@ -59,10 +59,10 @@ cross-file-reasoning:
 | CloudBase SDK contract | Installed SDK/runtime probes pass | Passed |
 | Static site | Explicit production origin build and secret-name scan pass | Passed |
 | Local E2E | Exact seed plus real lifecycle on deleted temporary DB | Passed |
-| Preview E2E | Public catalog and non-mutating Admin UI on deployed test SHA | Pending workflow run |
+| Preview E2E | Public catalog and non-mutating Admin UI on deployed test SHA | Blocked: test environment rejects this feature branch before runner allocation (runs `32324413709`, `32324519611`) |
 | Deployed smoke | Release SHA, routes, non-empty family filters, identity-matched detail, negatives, protected Admin read | Pending test deployment |
 | Independent review | No open assumption/cross-file findings | Pending MIU 22 final review |
-| Remote delivery | Final reviewed SHA pushed to one feature branch | Pending |
+| Remote delivery | Reviewed implementation candidate pushed to one feature branch | Passed: `7252af0`; PR #27 open |
 | Production | Explicit approval before live smoke/deploy | Not authorized |
 
 ## Risk Register
@@ -75,6 +75,7 @@ cross-file-reasoning:
 | Family route slash drift breaks active state/canonicals | Canonical href tests plus browser active-state assertions | Closed |
 | Provider pricing shape drifts | Strict schema/key/time/mode/tier decoder and visible/schema parity tests | Closed |
 | Production differs from test environment | Release-ID smoke and explicit production approval gate | Open until approved |
+| Test preview branch policy | Code owner must allow `feat/catalog-category-design` or promote through `test`; agent token received HTTP 403 when attempting the policy update | External blocker |
 
 ## Sign-Off
 
@@ -82,8 +83,8 @@ cross-file-reasoning:
 - [x] Exact local full-family verification passes.
 - [x] Disposable mutation lifecycle and teardown pass.
 - [x] Final full repository/function/SDK gates pass.
-- [ ] Test preview deploy and E2E pass for final SHA.
+- [ ] Test preview deploy and E2E pass for final SHA (blocked by environment branch policy).
 - [ ] Final independent MIU 22 review passes.
-- [ ] Final SHA is blessed and pushed.
-- [ ] PR status is recorded.
+- [x] Final SHA is blessed and pushed.
+- [x] PR status is recorded: <https://github.com/vibelingan/channel/pull/27>.
 - [ ] Production smoke is approved and passed, or explicitly recorded as not authorized.
