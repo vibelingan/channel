@@ -1066,8 +1066,10 @@ test.describe('public browser smoke', () => {
     const intentCounts = new Map<string, number>();
     const previewCounts = new Map<string, number>();
     let imageSequence = 0;
+    // A legacy product stored above the V1.1 product cap of nine. Removing two brings
+    // it back under capacity, which is what re-enables the file input.
     const existingImageIds = Array.from(
-      { length: 19 },
+      { length: 10 },
       (_, index) => `existing-image-${index + 1}`,
     );
 
@@ -1170,7 +1172,7 @@ test.describe('public browser smoke', () => {
     await expect(existingManager.locator('img[alt=""]')).toHaveCount(19);
     expect(previewCounts.size).toBe(19);
     expect([...previewCounts.values()].every((count) => count === 1)).toBe(true);
-    await expect(existingManager.locator('#imageIds-capacity')).toContainText('19 of 9 images');
+    await expect(existingManager.locator('#imageIds-capacity')).toContainText('10 of 9 images');
     await expect(existingInput).toBeDisabled();
     const existingRemove = existingManager
       .getByRole('button', { name: 'Remove image', exact: true })
@@ -1214,7 +1216,7 @@ test.describe('public browser smoke', () => {
     await expect(
       existingManager.getByRole('button', { name: 'Remove image', exact: true }).first(),
     ).toBeFocused();
-    await expect(existingManager.locator('#imageIds-capacity')).toContainText('17 of 9 images');
+    await expect(existingManager.locator('#imageIds-capacity')).toContainText('8 of 9 images');
     // The live region announces the latest event, not the running capacity; the
     // capacity itself is asserted on its own element above.
     await expect(existingManager.locator('output')).toContainText('Image removed');
@@ -1687,7 +1689,10 @@ test.describe('public browser smoke', () => {
       .locator('a[href="/headphones/"]');
     await page.locator('[data-catalog-disclosure="mobile"]').locator(':scope > summary').click();
     await mobileCatalogLink.focus();
-    await page.setViewportSize({ width: 1360, height: 800 });
+    // Cross the lane threshold with margin: the header measures window.innerWidth,
+    // which excludes the scrollbar, so a viewport of exactly 1360 can still report
+    // less than 1360 and leave the header in the mobile lane.
+    await page.setViewportSize({ width: 1440, height: 800 });
     await expect(page.locator('[data-site-header]')).toHaveAttribute('data-header-mode', 'desktop');
     await expect(page.locator('[data-mobile-disclosure]')).not.toHaveAttribute('open', '');
     await expect(
