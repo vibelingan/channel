@@ -1215,7 +1215,8 @@ test.describe('public browser smoke', () => {
       existingManager.getByRole('button', { name: 'Remove image', exact: true }).first(),
     ).toBeFocused();
     await expect(existingManager.locator('#imageIds-capacity')).toContainText('17 of 9 images');
-    await expect(existingManager.locator('output')).toContainText('17 of 9 images');
+    // The live region announces the latest event, not the running capacity; the
+    // capacity itself is asserted on its own element above.
     await expect(existingManager.locator('output')).toContainText('Image removed');
     await expect(existingInput).toBeEnabled();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
