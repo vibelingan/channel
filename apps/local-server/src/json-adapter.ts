@@ -14,11 +14,14 @@ import {
   type AdapterListQuery,
   type AlibabaLeaseGrant,
   type AlibabaLeaseGuard,
+  type CatalogProductSaveInput,
+  type CatalogProductSaveResult,
   type DbAdapter,
   type ImageMutationAcquireResult,
   type ImageMutationReleaseResult,
   holdsAlibabaLease,
   nextCounterValue,
+  planCatalogProductSave,
   transitionAlibabaLeaseAcquire,
   transitionAlibabaLeaseRelease,
   transitionAlibabaLeaseRenew,
@@ -31,6 +34,8 @@ import {
   compareBySort,
   getCollection,
   matchesFilter,
+  normalizeProductSlug,
+  normalizeSkuCode,
 } from '@vibelingan-channel/shared';
 
 type Store = Record<string, CollectionDoc[]>;
@@ -263,6 +268,21 @@ export class JsonFileAdapter implements DbAdapter {
       const def = getCollection(query.collection);
       let docs = [...this.docs(query.collection)];
 
+      if (query.productFamily) {
+        docs = docs.filter((doc) =>
+          matchesFilter(doc, {
+            combinator: 'and',
+            clauses: [
+              {
+                field: 'productFamily',
+                op: 'matchesProductFamily',
+                value: query.productFamily,
+              },
+            ],
+          }),
+        );
+      }
+
       if (query.search && def) {
         const needle = query.search.toLowerCase();
         docs = docs.filter((doc) =>
@@ -415,6 +435,75 @@ export class JsonFileAdapter implements DbAdapter {
     });
   }
 
+  async removeDocIfFieldEquals(
+    collection: string,
+    id: string,
+    field: string,
+    expectedValue: unknown,
+  ): Promise<boolean> {
+    return this.withMutationLock(() => {
+      const docs = this.docs(collection);
+      const index = docs.findIndex(
+        (document) => document._id === id && document[field] === expectedValue,
+      );
+      if (index < 0) return false;
+      docs.splice(index, 1);
+      this.persist();
+      return true;
+    });
+  }
+
+  async saveCatalogProductWithIdentities(
+    input: CatalogProductSaveInput,
+  ): Promise<CatalogProductSaveResult> {
+    return this.withMutationLock(() => {
+      const products = this.docs('products');
+      const productIndex = products.findIndex((document) => document._id === input.productId);
+      const existing = productIndex >= 0 ? (products[productIndex] as CollectionDoc) : null;
+      const plan = planCatalogProductSave(existing, input, new Date().toISOString());
+      if (plan.result !== 'ready') return plan;
+
+      const identityDocs = this.docs('catalogProductIdentities');
+      for (const identity of plan.identities) {
+        const existingIdentity = identityDocs.find((document) => document._id === identity.id);
+        if (
+          existingIdentity &&
+          (existingIdentity.productId !== input.productId ||
+            existingIdentity.kind !== identity.kind ||
+            existingIdentity.normalizedValue !== identity.normalizedValue)
+        ) {
+          return {
+            result: 'conflict',
+            kind: identity.kind,
+            normalizedValue: identity.normalizedValue,
+          };
+        }
+      }
+      for (const identity of plan.identities) {
+        if (!identityDocs.some((document) => document._id === identity.id)) {
+          identityDocs.push({
+            _id: identity.id,
+            kind: identity.kind,
+            normalizedValue: identity.normalizedValue,
+            productId: input.productId,
+            createdAt: plan.doc.updatedAt,
+            updatedAt: plan.doc.updatedAt,
+          } as CollectionDoc);
+        }
+      }
+      if (productIndex >= 0) products[productIndex] = plan.doc;
+      else products.push(plan.doc);
+      for (const identity of plan.staleIdentities) {
+        const index = identityDocs.findIndex(
+          (document) => document._id === identity.id && document.productId === input.productId,
+        );
+        if (index >= 0) identityDocs.splice(index, 1);
+      }
+      this.persist();
+      return { result: 'saved', doc: plan.doc, previous: existing };
+    });
+  }
+
   async upsertDocWithId(
     collection: string,
     id: string,
@@ -514,6 +603,55 @@ export class JsonFileAdapter implements DbAdapter {
       docs[index] = { ...(docs[index] as CollectionDoc), ...patch, updatedAt: guard.now };
       this.persist();
       return true;
+    });
+  }
+
+  /** Seed a collection only when it is currently empty. */
+  async ensureCatalogProductIdentityReservations(): Promise<void> {
+    await this.withMutationLock(() => {
+      const expected = new Map<
+        string,
+        { kind: 'slug' | 'sku'; normalizedValue: string; productId: string }
+      >();
+      for (const product of this.docs('products')) {
+        const identities = [
+          ['slug', normalizeProductSlug(product.slug)],
+          ['sku', normalizeSkuCode(product.skuCode)],
+        ] as const;
+        for (const [kind, normalizedValue] of identities) {
+          if (normalizedValue === null) continue;
+          const id = `${kind}:${normalizedValue}`;
+          const candidate = { kind, normalizedValue, productId: product._id };
+          const duplicate = expected.get(id);
+          if (duplicate && duplicate.productId !== product._id) {
+            throw new Error(`Local product identity ${id} is claimed by multiple products.`);
+          }
+          expected.set(id, candidate);
+        }
+      }
+
+      const reservations = this.docs('catalogProductIdentities');
+      const missing: CollectionDoc[] = [];
+      for (const [id, identity] of expected) {
+        const existing = reservations.find((document) => document._id === id);
+        if (!existing) {
+          missing.push({ _id: id, ...identity });
+          continue;
+        }
+        if (
+          existing.productId !== identity.productId ||
+          existing.kind !== identity.kind ||
+          existing.normalizedValue !== identity.normalizedValue
+        ) {
+          throw new Error(`Local product identity ${id} has conflicting reservation data.`);
+        }
+      }
+      if (missing.length === 0) return;
+      const now = new Date().toISOString();
+      reservations.push(
+        ...missing.map((identity) => ({ ...identity, createdAt: now, updatedAt: now })),
+      );
+      this.persist();
     });
   }
 

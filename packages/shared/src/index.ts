@@ -2,6 +2,7 @@ export * from './api.ts';
 export * from './errors.ts';
 export * from './env.ts';
 export * from './collections.ts';
+export * from './catalog-product.ts';
 export * from './media.ts';
 export * from './media-content.ts';
 export * from './media-lifecycle.ts';
@@ -15,6 +16,7 @@ import type { FilterModel, SortClause } from './query.ts';
 /** Shared types for the generic admin CRUD protocol. */
 export interface ListQuery {
   collection: string;
+  productFamily?: import('./catalog-product.ts').ProductFamily;
   page?: number;
   pageSize?: number;
   search?: string;

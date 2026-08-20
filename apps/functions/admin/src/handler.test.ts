@@ -6,12 +6,15 @@ import { type SessionClaims, signSession } from '@vibelingan-channel/auth/jwt';
 import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password';
 import {
   type AdapterListQuery,
+  type CatalogProductSaveInput,
+  type CatalogProductSaveResult,
   type DbAdapter,
   type ImageMutationAcquireResult,
   type ImageMutationReleaseResult,
   backfillPublishedRefCounts,
   incrementField,
   nextCounterValue,
+  planCatalogProductSave,
   setAdapter,
   transitionImageMutationAcquire,
   transitionImageMutationRelease,
@@ -52,6 +55,20 @@ class MemoryAdapter implements DbAdapter {
   async list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>> {
     this.listQueries.push(query);
     let docs = [...(this.store[query.collection] ?? [])];
+    if (query.productFamily) {
+      docs = docs.filter((doc) =>
+        matchesFilter(doc, {
+          combinator: 'and',
+          clauses: [
+            {
+              field: 'productFamily',
+              op: 'matchesProductFamily',
+              value: query.productFamily,
+            },
+          ],
+        }),
+      );
+    }
     if (query.filter) {
       const filter = query.filter;
       docs = docs.filter((doc) => matchesFilter(doc, filter));
@@ -150,6 +167,53 @@ class MemoryAdapter implements DbAdapter {
     if (transition.result !== 'released') return transition.result;
     docs[index] = { ...existing, ...transition.patch };
     return 'released';
+  }
+
+  async saveCatalogProductWithIdentities(
+    input: CatalogProductSaveInput,
+  ): Promise<CatalogProductSaveResult> {
+    const products = this.store.products ?? [];
+    this.store.products = products;
+    const productIndex = products.findIndex((doc) => doc._id === input.productId);
+    const existing = productIndex >= 0 ? (products[productIndex] as CollectionDoc) : null;
+    const plan = planCatalogProductSave(existing, input, '2026-08-20T00:00:00.000Z');
+    if (plan.result !== 'ready') return plan;
+    const identities = this.store.catalogProductIdentities ?? [];
+    this.store.catalogProductIdentities = identities;
+    for (const identity of plan.identities) {
+      const row = identities.find((doc) => doc._id === identity.id);
+      if (
+        row &&
+        (row.productId !== input.productId ||
+          row.kind !== identity.kind ||
+          row.normalizedValue !== identity.normalizedValue)
+      ) {
+        return {
+          result: 'conflict',
+          kind: identity.kind,
+          normalizedValue: identity.normalizedValue,
+        };
+      }
+    }
+    for (const identity of plan.identities) {
+      if (!identities.some((doc) => doc._id === identity.id)) {
+        identities.push({
+          _id: identity.id,
+          kind: identity.kind,
+          normalizedValue: identity.normalizedValue,
+          productId: input.productId,
+        });
+      }
+    }
+    if (productIndex >= 0) products[productIndex] = plan.doc;
+    else products.push(plan.doc);
+    for (const stale of plan.staleIdentities) {
+      const index = identities.findIndex(
+        (doc) => doc._id === stale.id && doc.productId === input.productId,
+      );
+      if (index >= 0) identities.splice(index, 1);
+    }
+    return { result: 'saved', doc: plan.doc, previous: existing };
   }
 }
 
@@ -469,6 +533,23 @@ function okData<T = Record<string, unknown>>(res: ApiResult<unknown>): T {
   return res.data as T;
 }
 
+let publishableProductSequence = 0;
+
+function publishableProduct(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  publishableProductSequence += 1;
+  return {
+    name: `Product ${publishableProductSequence}`,
+    productFamily: 'headphones',
+    slug: `product-${publishableProductSequence}`,
+    skuCode: `sku-${publishableProductSequence}`,
+    description: 'Complete product fixture.',
+    imageIds: ['imgA'],
+    published: true,
+    archived: false,
+    ...overrides,
+  };
+}
+
 test('health returns safe release metadata without a session', async () => {
   setup();
   const res = await handleAdminRequest({ action: 'health' }, config);
@@ -487,6 +568,305 @@ test('health returns safe release metadata without a session', async () => {
   assert.notEqual(data.buildTime.length, 0);
 });
 
+test('product create defaults to draft and reserves canonical identities', async () => {
+  const store = setup({ users: [], products: [], catalogProductIdentities: [] });
+  const token = await adminToken();
+  const result = await call(
+    'create',
+    {
+      collection: 'products',
+      values: {
+        name: 'Desk Lamp',
+        productFamily: 'ai-gadgets',
+        slug: ' Desk Lamp ',
+        skuCode: ' SKU-100 ',
+      },
+    },
+    token,
+  );
+  const created = okData<CollectionDoc>(result);
+  assert.equal(created.published, false);
+  assert.equal(created.archived, false);
+  assert.equal(created.slug, 'desk-lamp');
+  assert.equal(created.skuCode, 'sku-100');
+  assert.deepEqual(store.catalogProductIdentities?.map((doc) => doc._id).sort(), [
+    'sku:sku-100',
+    'slug:desk-lamp',
+  ]);
+});
+
+test('product publish requires the complete lifecycle contract', async () => {
+  setup({ users: [], products: [] });
+  const token = await adminToken();
+  expectErr(
+    await call(
+      'create',
+      { collection: 'products', values: { name: 'Incomplete', published: true } },
+      token,
+    ),
+    'VALIDATION_ERROR',
+  );
+});
+
+test('archive and unarchive both force a product back to draft', async () => {
+  const store = setup({
+    users: [],
+    products: [
+      {
+        _id: 'product-1',
+        name: 'Desk Lamp',
+        productFamily: 'ai-gadgets',
+        slug: 'desk-lamp',
+        skuCode: 'sku-100',
+        description: 'Lamp',
+        imageIds: ['image-1'],
+        published: true,
+        archived: false,
+      },
+    ],
+    catalogProductIdentities: [
+      { _id: 'slug:desk-lamp', kind: 'slug', normalizedValue: 'desk-lamp', productId: 'product-1' },
+      { _id: 'sku:sku-100', kind: 'sku', normalizedValue: 'sku-100', productId: 'product-1' },
+    ],
+  });
+  const token = await adminToken();
+  assert.equal(
+    (
+      await call(
+        'update',
+        { collection: 'products', id: 'product-1', values: { archived: true } },
+        token,
+      )
+    ).ok,
+    true,
+  );
+  assert.equal(store.products?.[0]?.archived, true);
+  assert.equal(store.products?.[0]?.published, false);
+  assert.equal(
+    (
+      await call(
+        'update',
+        { collection: 'products', id: 'product-1', values: { archived: false, published: true } },
+        token,
+      )
+    ).ok,
+    true,
+  );
+  assert.equal(store.products?.[0]?.archived, false);
+  assert.equal(store.products?.[0]?.published, false);
+});
+
+test('submitting unchanged archived false does not unpublish an ordinary edit', async () => {
+  const { archived: _archived, ...product } = publishableProduct({ _id: 'product-ordinary' });
+  const store = setup({ users: [], products: [product as CollectionDoc] });
+  const token = await adminToken();
+  const result = await call(
+    'update',
+    {
+      collection: 'products',
+      id: 'product-ordinary',
+      values: { name: 'Edited name', archived: false },
+    },
+    token,
+  );
+  assert.equal(result.ok, true);
+  assert.equal(store.products?.[0]?.name, 'Edited name');
+  assert.equal(store.products?.[0]?.published, true);
+});
+
+test('product identity conflict, VIP write, and hard delete fail without mutation', async () => {
+  const store = setup({
+    users: [],
+    products: [],
+    catalogProductIdentities: [
+      { _id: 'slug:taken', kind: 'slug', normalizedValue: 'taken', productId: 'other' },
+    ],
+  });
+  const token = await adminToken();
+  expectErr(
+    await call(
+      'create',
+      { collection: 'products', values: { name: 'Conflict', slug: 'taken', skuCode: 'free' } },
+      token,
+    ),
+    'CONFLICT',
+  );
+  expectErr(
+    await call('create', { collection: 'products', values: { name: 'VIP', vipPrice: 10 } }, token),
+    'VALIDATION_ERROR',
+  );
+  expectErr(await call('remove', { collection: 'products', id: 'other' }, token), 'BAD_REQUEST');
+  assert.equal(store.products?.length, 0);
+});
+
+test('forged Alibaba product fields reject create and update without identity writes', async () => {
+  const product = publishableProduct({
+    _id: 'product-1',
+    slug: 'original',
+    skuCode: 'sku-original',
+  });
+  const store = setup({
+    users: [],
+    products: [product as CollectionDoc],
+    catalogProductIdentities: [
+      { _id: 'slug:original', kind: 'slug', normalizedValue: 'original', productId: 'product-1' },
+      {
+        _id: 'sku:sku-original',
+        kind: 'sku',
+        normalizedValue: 'sku-original',
+        productId: 'product-1',
+      },
+    ],
+  });
+  const token = await adminToken();
+  const before = structuredClone(store);
+  expectErr(
+    await call(
+      'create',
+      {
+        collection: 'products',
+        values: {
+          ...publishableProduct({ slug: 'forged-create', skuCode: 'forged-create' }),
+          alibabaSourceStatus: 'available',
+        },
+      },
+      token,
+    ),
+    'VALIDATION_ERROR',
+  );
+  expectErr(
+    await call(
+      'update',
+      {
+        collection: 'products',
+        id: 'product-1',
+        values: { alibabaPrimarySourceKey: 'forged-source' },
+      },
+      token,
+    ),
+    'VALIDATION_ERROR',
+  );
+  assert.deepEqual(store, before);
+});
+
+test('product update conflict and batch operations cannot bypass identity invariants', async () => {
+  const original = publishableProduct({
+    _id: 'product-1',
+    slug: 'original',
+    skuCode: 'original-sku',
+  });
+  const store = setup({
+    users: [],
+    products: [original as CollectionDoc],
+    catalogProductIdentities: [
+      { _id: 'slug:original', kind: 'slug', normalizedValue: 'original', productId: 'product-1' },
+      {
+        _id: 'sku:original-sku',
+        kind: 'sku',
+        normalizedValue: 'original-sku',
+        productId: 'product-1',
+      },
+      { _id: 'slug:taken', kind: 'slug', normalizedValue: 'taken', productId: 'other' },
+    ],
+  });
+  const token = await adminToken();
+  expectErr(
+    await call(
+      'update',
+      { collection: 'products', id: 'product-1', values: { slug: 'taken' } },
+      token,
+    ),
+    'CONFLICT',
+  );
+  expectErr(
+    await call(
+      'batchUpdate',
+      { collection: 'products', ids: ['product-1'], values: { published: false } },
+      token,
+    ),
+    'BAD_REQUEST',
+  );
+  expectErr(
+    await call('batchRemove', { collection: 'products', ids: ['product-1'] }, token),
+    'BAD_REQUEST',
+  );
+  assert.equal(store.products?.[0]?.slug, 'original');
+  assert.equal(
+    store.catalogProductIdentities?.find((doc) => doc._id === 'slug:original')?.productId,
+    'product-1',
+  );
+});
+
+test('contributor can publish and archive while read-only or invalid sessions write nothing', async () => {
+  const contributorStore = setup({ users: [], products: [], catalogProductIdentities: [] });
+  const contributorClaims: SessionClaims = {
+    sub: 'contributor-1',
+    email: 'contributor@example.com',
+    name: 'contributor',
+    role: 'contributor',
+  };
+  const contributor = await sessionToken(contributorClaims);
+  const created = okData<CollectionDoc>(
+    await call('create', { collection: 'products', values: publishableProduct() }, contributor),
+  );
+  assert.equal(created.published, true);
+  assert.equal(
+    (
+      await call(
+        'update',
+        { collection: 'products', id: created._id, values: { archived: true } },
+        contributor,
+      )
+    ).ok,
+    true,
+  );
+  assert.equal(contributorStore.products?.[0]?.archived, true);
+  assert.equal(contributorStore.products?.[0]?.published, false);
+
+  const attempt = {
+    collection: 'products',
+    values: publishableProduct({ slug: 'denied', skuCode: 'denied' }),
+  };
+  for (const role of ['member', ''] as const) {
+    const store = setup({ users: [], products: [], catalogProductIdentities: [] });
+    const token = await sessionToken({
+      sub: `user-${role || 'blank'}`,
+      email: `${role || 'blank'}@example.com`,
+      name: role || 'blank',
+      role,
+    });
+    expectErr(await call('create', attempt, token), 'FORBIDDEN');
+    assert.equal(store.products?.length, 0);
+    assert.equal(store.catalogProductIdentities?.length, 0);
+  }
+
+  for (const token of [undefined, 'invalid-token']) {
+    const store = setup({ users: [], products: [], catalogProductIdentities: [] });
+    expectErr(
+      await handleAdminRequest(
+        { action: 'create', data: attempt, ...(token ? { token } : {}) },
+        config,
+      ),
+      'UNAUTHORIZED',
+    );
+    assert.equal(store.products?.length, 0);
+    assert.equal(store.catalogProductIdentities?.length, 0);
+  }
+
+  const suspendedStore = setup({ users: [], products: [], catalogProductIdentities: [] });
+  const suspendedToken = await sessionToken({
+    sub: 'contributor-suspended',
+    email: 'suspended@example.com',
+    name: 'suspended',
+    role: 'contributor',
+  });
+  const suspended = suspendedStore.users?.find((user) => user._id === 'contributor-suspended');
+  if (suspended) suspended.status = 'suspended';
+  expectErr(await call('create', attempt, suspendedToken), 'UNAUTHORIZED');
+  assert.equal(suspendedStore.products?.length, 0);
+  assert.equal(suspendedStore.catalogProductIdentities?.length, 0);
+});
+
 test('create published product increments publishedRefCount for each image', async () => {
   const store = imageStore(['imgA', 'imgB']);
   setup(store);
@@ -495,7 +875,7 @@ test('create published product increments publishedRefCount for each image', asy
     'create',
     {
       collection: 'products',
-      values: { name: 'P1', category: 'wired', imageIds: ['imgA', 'imgB'], published: true },
+      values: publishableProduct({ imageIds: ['imgA', 'imgB'] }),
     },
     token,
   );
@@ -527,13 +907,36 @@ test('publishing then unpublishing a product increments then decrements', async 
     'create',
     {
       collection: 'products',
-      values: { name: 'P', category: 'wired', imageIds: ['imgA'], published: false },
+      values: publishableProduct({ imageIds: ['imgA'], published: false }),
     },
     token,
   );
   const id = store.products?.[0]?._id as string;
   assert.equal(refCount(store, 'imgA'), 0);
   await call('update', { collection: 'products', id, values: { published: true } }, token);
+  assert.equal(refCount(store, 'imgA'), 1);
+  await call('update', { collection: 'products', id, values: { published: false } }, token);
+  assert.equal(refCount(store, 'imgA'), 0);
+});
+
+test('RACE: concurrent duplicate publish increments the image counter exactly once', async () => {
+  const store = imageStore(['imgA']);
+  setup(store);
+  const token = await adminToken();
+  await call(
+    'create',
+    {
+      collection: 'products',
+      values: publishableProduct({ imageIds: ['imgA'], published: false }),
+    },
+    token,
+  );
+  const id = store.products?.[0]?._id as string;
+  const results = await Promise.all([
+    call('update', { collection: 'products', id, values: { published: true } }, token),
+    call('update', { collection: 'products', id, values: { published: true } }, token),
+  ]);
+  assert.ok(results.every((result) => result.ok));
   assert.equal(refCount(store, 'imgA'), 1);
   await call('update', { collection: 'products', id, values: { published: false } }, token);
   assert.equal(refCount(store, 'imgA'), 0);
@@ -547,7 +950,7 @@ test('changing imageIds on a published product moves the refcounts', async () =>
     'create',
     {
       collection: 'products',
-      values: { name: 'P', category: 'wired', imageIds: ['imgA', 'imgB'], published: true },
+      values: publishableProduct({ imageIds: ['imgA', 'imgB'] }),
     },
     token,
   );
@@ -564,21 +967,21 @@ test('changing imageIds on a published product moves the refcounts', async () =>
   assert.equal(refCount(store, 'imgC'), 1); // added
 });
 
-test('removing a published product decrements its images', async () => {
+test('removing a published Overstock row decrements its images', async () => {
   const store = imageStore(['imgA']);
   setup(store);
   const token = await adminToken();
   await call(
     'create',
     {
-      collection: 'products',
-      values: { name: 'P', category: 'wired', imageIds: ['imgA'], published: true },
+      collection: 'overstock',
+      values: { name: 'O', category: 'electronics', imageIds: ['imgA'], published: true },
     },
     token,
   );
-  const id = store.products?.[0]?._id as string;
+  const id = store.overstock?.[0]?._id as string;
   assert.equal(refCount(store, 'imgA'), 1);
-  await call('remove', { collection: 'products', id }, token);
+  await call('remove', { collection: 'overstock', id }, token);
   assert.equal(refCount(store, 'imgA'), 0);
 });
 
@@ -590,7 +993,7 @@ test('refcount reflects the number of publishing catalog docs', async () => {
     'create',
     {
       collection: 'products',
-      values: { name: 'P1', category: 'wired', imageIds: ['imgA'], published: true },
+      values: publishableProduct({ imageIds: ['imgA'] }),
     },
     token,
   );
@@ -598,7 +1001,7 @@ test('refcount reflects the number of publishing catalog docs', async () => {
     'create',
     {
       collection: 'products',
-      values: { name: 'P2', category: 'office', imageIds: ['imgA'], published: true },
+      values: publishableProduct({ imageIds: ['imgA'] }),
     },
     token,
   );
@@ -612,77 +1015,77 @@ test('refcount reflects the number of publishing catalog docs', async () => {
   assert.equal(refCount(store, 'imgA'), 1);
 });
 
-test('batchUpdate publish then unpublish updates refcounts per doc', async () => {
+test('Overstock batchUpdate publish then unpublish updates refcounts per doc', async () => {
   const store = imageStore(['imgA', 'imgB']);
   setup(store);
   const token = await adminToken();
   await call(
     'create',
     {
-      collection: 'products',
-      values: { name: 'P1', category: 'wired', imageIds: ['imgA'], published: false },
+      collection: 'overstock',
+      values: { name: 'O1', category: 'electronics', imageIds: ['imgA'], published: false },
     },
     token,
   );
   await call(
     'create',
     {
-      collection: 'products',
-      values: { name: 'P2', category: 'wired', imageIds: ['imgB'], published: false },
+      collection: 'overstock',
+      values: { name: 'O2', category: 'electronics', imageIds: ['imgB'], published: false },
     },
     token,
   );
-  const ids = (store.products ?? []).map((p) => p._id);
-  await call('batchUpdate', { collection: 'products', ids, values: { published: true } }, token);
+  const ids = (store.overstock ?? []).map((product) => product._id);
+  await call('batchUpdate', { collection: 'overstock', ids, values: { published: true } }, token);
   assert.equal(refCount(store, 'imgA'), 1);
   assert.equal(refCount(store, 'imgB'), 1);
-  await call('batchUpdate', { collection: 'products', ids, values: { published: false } }, token);
+  await call('batchUpdate', { collection: 'overstock', ids, values: { published: false } }, token);
   assert.equal(refCount(store, 'imgA'), 0);
   assert.equal(refCount(store, 'imgB'), 0);
 });
 
-test('batchRemove decrements refcounts for published docs', async () => {
+test('Overstock batchRemove decrements refcounts for published docs', async () => {
   const store = imageStore(['imgA', 'imgB']);
   setup(store);
   const token = await adminToken();
   await call(
     'create',
     {
-      collection: 'products',
-      values: { name: 'P1', category: 'wired', imageIds: ['imgA'], published: true },
+      collection: 'overstock',
+      values: { name: 'O1', category: 'electronics', imageIds: ['imgA'], published: true },
     },
     token,
   );
   await call(
     'create',
     {
-      collection: 'products',
-      values: { name: 'P2', category: 'wired', imageIds: ['imgB'], published: true },
+      collection: 'overstock',
+      values: { name: 'O2', category: 'electronics', imageIds: ['imgB'], published: true },
     },
     token,
   );
-  const ids = (store.products ?? []).map((p) => p._id);
-  await call('batchRemove', { collection: 'products', ids }, token);
+  const ids = (store.overstock ?? []).map((product) => product._id);
+  await call('batchRemove', { collection: 'overstock', ids }, token);
   assert.equal(refCount(store, 'imgA'), 0);
   assert.equal(refCount(store, 'imgB'), 0);
 });
 
-test('duplicate ids in a batch do not double-count', async () => {
+test('duplicate Overstock ids in a batch do not double-count', async () => {
   const store = imageStore(['imgA']);
   setup(store);
   const token = await adminToken();
   await call(
     'create',
     {
-      collection: 'products',
-      values: { name: 'P', category: 'wired', imageIds: ['imgA'], published: false },
+      collection: 'overstock',
+      values: { name: 'O', category: 'electronics', imageIds: ['imgA'], published: false },
     },
     token,
   );
-  const id = store.products?.[0]?._id as string;
+  const id = store.overstock?.[0]?._id as string;
   await call(
     'batchUpdate',
-    { collection: 'products', ids: [id, id, id], values: { published: true } },
+    { collection: 'overstock', ids: [id, id, id], values: { published: true } },
     token,
   );
   assert.equal(refCount(store, 'imgA'), 1); // not 3
@@ -696,7 +1099,7 @@ test('publishing a product that references a missing image is a no-op (no throw)
     'create',
     {
       collection: 'products',
-      values: { name: 'P', category: 'wired', imageIds: ['ghost'], published: true },
+      values: publishableProduct({ imageIds: ['ghost'] }),
     },
     token,
   );
@@ -720,7 +1123,7 @@ test('overstock is tracked for image visibility too', async () => {
 
 // --- MIU-04 Phase B: review-hardening regression guards ----------------------
 
-test('removing an UNpublished product does not decrement (delete-side no-op)', async () => {
+test('hard deleting an unpublished product is rejected and preserves the row', async () => {
   const store = imageStore(['imgA']);
   setup(store);
   const token = await adminToken();
@@ -728,12 +1131,13 @@ test('removing an UNpublished product does not decrement (delete-side no-op)', a
     'create',
     {
       collection: 'products',
-      values: { name: 'P', category: 'wired', imageIds: ['imgA'], published: false },
+      values: publishableProduct({ imageIds: ['imgA'], published: false }),
     },
     token,
   );
   const id = store.products?.[0]?._id as string;
-  await call('remove', { collection: 'products', id }, token);
+  expectErr(await call('remove', { collection: 'products', id }, token), 'BAD_REQUEST');
+  assert.equal(store.products?.length, 1);
   assert.equal(refCount(store, 'imgA'), 0);
 });
 
@@ -745,12 +1149,18 @@ test('changing imageIds on an UNpublished product moves nothing', async () => {
     'create',
     {
       collection: 'products',
-      values: { name: 'P', category: 'wired', imageIds: ['imgA'], published: false },
+      values: publishableProduct({ imageIds: ['imgA'], published: false }),
     },
     token,
   );
   const id = store.products?.[0]?._id as string;
-  await call('update', { collection: 'products', id, values: { imageIds: ['imgB'] } }, token);
+  const result = await call(
+    'update',
+    { collection: 'products', id, values: { imageIds: ['imgB'] } },
+    token,
+  );
+  assert.equal(result.ok, true);
+  assert.deepEqual(store.products?.[0]?.imageIds, ['imgB']);
   assert.equal(refCount(store, 'imgA'), 0);
   assert.equal(refCount(store, 'imgB'), 0);
 });
@@ -763,14 +1173,14 @@ test('the same image listed twice in one imageIds array counts once', async () =
     'create',
     {
       collection: 'products',
-      values: { name: 'P', category: 'wired', imageIds: ['imgA', 'imgA'], published: true },
+      values: publishableProduct({ imageIds: ['imgA', 'imgA'] }),
     },
     token,
   );
   assert.equal(refCount(store, 'imgA'), 1); // not 2
 });
 
-test('null / non-array / empty / empty-string imageIds are handled safely', async () => {
+test('Overstock null / non-array / empty / empty-string imageIds are handled safely', async () => {
   const store = imageStore(['imgA']);
   setup(store);
   const token = await adminToken();
@@ -780,8 +1190,8 @@ test('null / non-array / empty / empty-string imageIds are handled safely', asyn
     const res = await call(
       'create',
       {
-        collection: 'products',
-        values: { name: 'P', category: 'wired', imageIds, published: true },
+        collection: 'overstock',
+        values: { name: 'O', category: 'electronics', imageIds, published: true },
       },
       token,
     );
@@ -791,7 +1201,7 @@ test('null / non-array / empty / empty-string imageIds are handled safely', asyn
   assert.equal(refCount(store, ''), undefined); // empty-string id was filtered out
 });
 
-test('publishing a legacy product normalizes and bounds online refcount changes', async () => {
+test('publishing a legacy product without the new identity contract is rejected', async () => {
   const imageIds = [
     ' linked-image ',
     ...Array.from({ length: 17 }, (_, index) => `in-bound-${index + 2}`),
@@ -827,56 +1237,56 @@ test('publishing a legacy product normalizes and bounds online refcount changes'
     token,
   );
 
-  assert.equal(result.ok, true);
-  assert.equal(refCount(store, 'linked-image'), 1);
+  expectErr(result, 'VALIDATION_ERROR');
+  assert.equal(refCount(store, 'linked-image'), 0);
   assert.equal(refCount(store, 'out-of-bound-image'), 0);
 });
 
-test('batchRemove with duplicate ids does not over-decrement', async () => {
+test('Overstock batchRemove with duplicate ids does not over-decrement', async () => {
   const store = imageStore(['imgA']);
   setup(store);
   const token = await adminToken();
   await call(
     'create',
     {
-      collection: 'products',
-      values: { name: 'P', category: 'wired', imageIds: ['imgA'], published: true },
+      collection: 'overstock',
+      values: { name: 'O', category: 'electronics', imageIds: ['imgA'], published: true },
     },
     token,
   );
-  const id = store.products?.[0]?._id as string;
-  const res = await call('batchRemove', { collection: 'products', ids: [id, id, id] }, token);
+  const id = store.overstock?.[0]?._id as string;
+  const res = await call('batchRemove', { collection: 'overstock', ids: [id, id, id] }, token);
   assert.equal(res.ok, true);
   if (res.ok) assert.equal((res.data as { removed: number }).removed, 1);
   assert.equal(refCount(store, 'imgA'), 0); // exactly once, not −2
 });
 
-test('batch ops with a non-existent id only move the real docs', async () => {
+test('Overstock batch ops with a non-existent id only move the real docs', async () => {
   const store = imageStore(['imgA']);
   setup(store);
   const token = await adminToken();
   await call(
     'create',
     {
-      collection: 'products',
-      values: { name: 'P', category: 'wired', imageIds: ['imgA'], published: false },
+      collection: 'overstock',
+      values: { name: 'O', category: 'electronics', imageIds: ['imgA'], published: false },
     },
     token,
   );
-  const id = store.products?.[0]?._id as string;
+  const id = store.overstock?.[0]?._id as string;
   const upd = await call(
     'batchUpdate',
-    { collection: 'products', ids: [id, 'ghost-id'], values: { published: true } },
+    { collection: 'overstock', ids: [id, 'ghost-id'], values: { published: true } },
     token,
   );
   if (upd.ok) assert.equal((upd.data as { updated: number }).updated, 1);
   assert.equal(refCount(store, 'imgA'), 1);
-  const rem = await call('batchRemove', { collection: 'products', ids: [id, 'ghost-id'] }, token);
+  const rem = await call('batchRemove', { collection: 'overstock', ids: [id, 'ghost-id'] }, token);
   if (rem.ok) assert.equal((rem.data as { removed: number }).removed, 1);
   assert.equal(refCount(store, 'imgA'), 0);
 });
 
-test('a corrupted sibling counter does not strand other images in a batch remove', async () => {
+test('a corrupted sibling counter does not strand other images in an Overstock batch remove', async () => {
   // imgA has a corrupted (non-numeric) counter; imgB is healthy at 1. Removing
   // both publishing products must still decrement imgB even though imgA throws.
   const store: Store = {
@@ -885,14 +1295,14 @@ test('a corrupted sibling counter does not strand other images in a batch remove
       { _id: 'imgA', name: 'a.jpg', mimeType: 'image/jpeg', publishedRefCount: 'oops' },
       { _id: 'imgB', name: 'b.jpg', mimeType: 'image/jpeg', publishedRefCount: 1 },
     ],
-    products: [
-      { _id: 'p1', name: 'P1', category: 'wired', imageIds: ['imgA'], published: true },
-      { _id: 'p2', name: 'P2', category: 'wired', imageIds: ['imgB'], published: true },
+    overstock: [
+      { _id: 'o1', name: 'O1', category: 'electronics', imageIds: ['imgA'], published: true },
+      { _id: 'o2', name: 'O2', category: 'electronics', imageIds: ['imgB'], published: true },
     ],
   };
   setup(store);
   const token = await adminToken();
-  const res = await call('batchRemove', { collection: 'products', ids: ['p1', 'p2'] }, token);
+  const res = await call('batchRemove', { collection: 'overstock', ids: ['o1', 'o2'] }, token);
   assert.equal(res.ok, true); // the committed deletes are not masked as a 500
   if (res.ok) assert.equal((res.data as { removed: number }).removed, 2);
   assert.equal(refCount(store, 'imgB'), 0); // healthy sibling still decremented
@@ -1744,6 +2154,74 @@ test('list rejects a filter/sort on a redacted or unknown field (no extraction o
       )
     ).ok,
     true,
+  );
+});
+
+test('products list composes closed family filtering independently from an OR filter', async () => {
+  setup({
+    products: [
+      {
+        _id: 'ai-camera',
+        name: 'Smart Camera',
+        skuCode: 'AI-100',
+        productFamily: 'ai-gadgets',
+      },
+      {
+        _id: 'toy-camera',
+        name: 'Smart Camera Toy',
+        skuCode: 'TOY-100',
+        productFamily: 'toys',
+      },
+      {
+        _id: 'legacy-headphones',
+        name: 'Legacy Office Headset',
+        skuCode: 'HP-100',
+        category: 'office',
+      },
+    ],
+  });
+  const token = await adminToken();
+  const ai = okData<{ items: { _id: string }[] }>(
+    await call(
+      'list',
+      {
+        collection: 'products',
+        productFamily: 'ai-gadgets',
+        filter: {
+          combinator: 'or',
+          clauses: [
+            { field: 'name', op: 'contains', value: 'Camera' },
+            { field: 'skuCode', op: 'startsWith', value: 'HP-' },
+          ],
+        },
+      },
+      token,
+    ),
+  );
+  assert.deepEqual(
+    ai.items.map((item) => item._id),
+    ['ai-camera'],
+  );
+
+  const headphones = okData<{ items: { _id: string }[] }>(
+    await call('list', { collection: 'products', productFamily: 'headphones' }, token),
+  );
+  assert.deepEqual(
+    headphones.items.map((item) => item._id),
+    ['legacy-headphones'],
+  );
+});
+
+test('list rejects unknown families and family filters on non-product collections', async () => {
+  setup({ users: [], products: [] });
+  const token = await adminToken();
+  expectErr(
+    await call('list', { collection: 'products', productFamily: 'garden' }, token),
+    'BAD_REQUEST',
+  );
+  expectErr(
+    await call('list', { collection: 'users', productFamily: 'toys' }, token),
+    'BAD_REQUEST',
   );
 });
 

@@ -13,7 +13,13 @@
  */
 import { z } from 'zod';
 import { ROLES, type Role, canEditCollection, canReadCollection } from './auth.ts';
-import { CATALOG_IMAGE_MAX_COUNT, MEDIA_PURPOSES, MEDIA_STATUSES } from './media.ts';
+import { PRODUCT_FAMILY_OPTIONS } from './catalog-product.ts';
+import {
+  CATALOG_IMAGE_MAX_COUNT,
+  MEDIA_PURPOSES,
+  MEDIA_STATUSES,
+  PRODUCT_IMAGE_MAX_COUNT,
+} from './media.ts';
 
 export type FieldType =
   | 'string'
@@ -39,6 +45,10 @@ export interface FieldDef {
   readOnly?: boolean;
   /** Hide from the table list view (still editable in the detail form). */
   hideInTable?: boolean;
+  /** Hide from generic create/edit forms while retaining stored compatibility. */
+  hideInForm?: boolean;
+  /** Retained for compatibility but no longer part of new product workflows. */
+  deprecated?: boolean;
   /** Maximum entries for array-backed JSON fields such as catalog imageIds. */
   maxItems?: number;
   placeholder?: string;
@@ -200,12 +210,19 @@ export const COLLECTIONS: readonly CollectionDef[] = [
     fields: [
       { name: 'name', label: 'Name', type: 'string', required: true },
       {
+        name: 'productFamily',
+        label: 'Product Family',
+        type: 'select',
+        options: PRODUCT_FAMILY_OPTIONS,
+      },
+      {
         name: 'category',
-        label: 'Category',
+        label: 'Subcategory',
         type: 'select',
         options: PRODUCT_CATEGORY_OPTIONS,
-        required: true,
       },
+      { name: 'skuCode', label: 'SKU Code', type: 'string' },
+      { name: 'slug', label: 'URL Slug', type: 'string' },
       { name: 'series', label: 'Series', type: 'string' },
       { name: 'modName', label: 'Model Name', type: 'string' },
       { name: 'modType', label: 'Model Type', type: 'string' },
@@ -213,15 +230,22 @@ export const COLLECTIONS: readonly CollectionDef[] = [
       { name: 'moq', label: 'MOQ', type: 'number' },
       { name: 'unitPrice', label: 'Unit Price', type: 'number' },
       { name: 'wholesalePrice', label: 'Wholesale Price', type: 'number' },
-      { name: 'vipPrice', label: 'VIP Price', type: 'number' },
+      {
+        name: 'vipPrice',
+        label: 'VIP Price',
+        type: 'number',
+        hideInForm: true,
+        deprecated: true,
+      },
       {
         name: 'imageIds',
         label: 'Image IDs',
         type: 'json',
         hideInTable: true,
-        maxItems: CATALOG_IMAGE_MAX_COUNT,
+        maxItems: PRODUCT_IMAGE_MAX_COUNT,
       },
       { name: 'published', label: 'Published', type: 'boolean' },
+      { name: 'archived', label: 'Archived', type: 'boolean' },
       // Alibaba-owned additive fields (ARCHITECTURE §3.10). All server-managed:
       // the sync worker writes them via the trusted repository path; readOnly
       // excludes them from buildWriteSchema so generic admin CRUD rejects them
@@ -275,6 +299,19 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         readOnly: true,
         hideInTable: true,
       },
+    ],
+  },
+  {
+    name: 'catalogProductIdentities',
+    label: 'Catalog Product Identities',
+    description: 'Server-managed uniqueness reservations for product slugs and SKU codes.',
+    searchableFields: [],
+    hideFromNav: true,
+    adminAccess: 'none',
+    fields: [
+      { name: 'kind', label: 'Kind', type: 'select', options: ['slug', 'sku'], readOnly: true },
+      { name: 'normalizedValue', label: 'Normalized Value', type: 'string', readOnly: true },
+      { name: 'productId', label: 'Product ID', type: 'string', readOnly: true },
     ],
   },
   {

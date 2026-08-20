@@ -1,15 +1,20 @@
 import { verifySession } from '@vibelingan-channel/auth/jwt';
-import { get, list } from '@vibelingan-channel/db';
+import { findByField, get, list } from '@vibelingan-channel/db';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
 import {
   type ApiResult,
   type CollectionDoc,
   type FilterClause,
+  PRODUCT_IMAGE_MAX_COUNT,
   PUBLIC_CATALOG_COLLECTIONS,
+  type ProductFamily,
   canSeeVipPricing,
   err,
   normalizeCatalogImageIds,
+  normalizeProductSlug,
+  normalizeSkuCode,
   ok,
+  productFamilyForDoc,
   toRole,
 } from '@vibelingan-channel/shared';
 
@@ -21,6 +26,7 @@ const PLACEHOLDER_IMAGE_ID = '_placeholder';
 export type PublicCatalog = (typeof CATALOGS)[number];
 
 export interface CatalogQuery {
+  productFamily?: ProductFamily;
   categories?: readonly string[];
   search?: string;
   page?: number;
@@ -117,8 +123,14 @@ function imageUrl(id: string, config: PublicApiConfig): string {
   return apiUrl(`/api/images/${encodeURIComponent(id)}`, config);
 }
 
-function catalogImages(doc: CollectionDoc, config: PublicApiConfig): string[] {
-  return normalizeCatalogImageIds(doc.imageIds).map((id) => imageUrl(id, config));
+function catalogImages(
+  collection: PublicCatalog,
+  doc: CollectionDoc,
+  config: PublicApiConfig,
+): string[] {
+  const imageIds = normalizeCatalogImageIds(doc.imageIds);
+  const bounded = collection === 'products' ? imageIds.slice(0, PRODUCT_IMAGE_MAX_COUNT) : imageIds;
+  return bounded.map((id) => imageUrl(id, config));
 }
 
 /**
@@ -191,6 +203,7 @@ function publicAlibabaCatalogPricing(value: unknown): unknown {
 const GATED_CATALOG_FIELDS = ['vipPrice'] as const;
 
 function publicDoc(
+  collection: PublicCatalog,
   doc: CollectionDoc,
   config: PublicApiConfig,
   viewer: CatalogViewer = ANONYMOUS_VIEWER,
@@ -198,7 +211,7 @@ function publicDoc(
   // Constructed as a CollectionDoc with `_id` set unconditionally, so the
   // result is structurally guaranteed (no cast) — dropping `_id` from the
   // allowlist can never silently ship an id-less doc.
-  const out: CollectionDoc = { _id: doc._id, images: catalogImages(doc, config) };
+  const out: CollectionDoc = { _id: doc._id, images: catalogImages(collection, doc, config) };
   for (const key of PUBLIC_CATALOG_FIELDS) {
     if (key !== '_id' && key in doc) {
       out[key] =
@@ -208,6 +221,14 @@ function publicDoc(
             ? publicAlibabaSourceKey(doc[key])
             : doc[key];
     }
+  }
+  if (collection === 'products') {
+    const productFamily = productFamilyForDoc(doc);
+    if (productFamily !== null) out.productFamily = productFamily;
+    const skuCode = normalizeSkuCode(doc.skuCode);
+    const slug = normalizeProductSlug(doc.slug);
+    if (skuCode !== null) out.skuCode = skuCode;
+    if (slug !== null) out.slug = slug;
   }
   if (viewer.canSeeVipPricing) {
     for (const key of GATED_CATALOG_FIELDS) {
@@ -230,7 +251,17 @@ export async function listCatalog(
 ): Promise<ApiResult<unknown>> {
   const page = positiveInt(query.page, 1);
   const pageSize = Math.min(MAX_PUBLIC_PAGE_SIZE, positiveInt(query.pageSize, 24));
-  const clauses: FilterClause[] = [{ field: 'published', op: 'eq', value: true }];
+  const clauses: FilterClause[] = [{ field: 'published', op: 'isLiteralTrue' }];
+  if (collection === 'products') {
+    clauses.push({ field: 'archived', op: 'isFalseOrMissing' });
+    if (query.productFamily) {
+      clauses.push({
+        field: 'productFamily',
+        op: 'matchesProductFamily',
+        value: query.productFamily,
+      });
+    }
+  }
   const categories = query.categories?.map((c) => c.trim()).filter(Boolean) ?? [];
   if (categories.length > 0) {
     clauses.push({ field: 'category', op: 'in' as const, value: categories });
@@ -241,12 +272,12 @@ export async function listCatalog(
     page,
     pageSize,
     search: query.search ?? '',
-    filter: { combinator: 'and', clauses },
+    filter: { combinator: 'and' as const, clauses },
     sort: [{ field: '_id', dir: 'asc' }],
   });
 
   return ok({
-    items: result.items.map((doc) => publicDoc(doc, config, viewer)),
+    items: result.items.map((doc) => publicDoc(collection, doc, config, viewer)),
     total: result.total,
     page: result.page,
     pageSize: result.pageSize,
@@ -260,10 +291,31 @@ export async function getCatalogItem(
   viewer: CatalogViewer = ANONYMOUS_VIEWER,
 ): Promise<ApiResult<unknown>> {
   const doc = await get(collection, id);
-  if (!doc || doc.published !== true) {
+  if (
+    !doc ||
+    doc.published !== true ||
+    (collection === 'products' && Object.hasOwn(doc, 'archived') && doc.archived !== false)
+  ) {
     return err('NOT_FOUND', 'Item not found');
   }
-  return ok(publicDoc(doc, config, viewer));
+  return ok(publicDoc(collection, doc, config, viewer));
+}
+
+export async function getCatalogItemBySlug(
+  slug: string,
+  config: PublicApiConfig,
+  viewer: CatalogViewer = ANONYMOUS_VIEWER,
+): Promise<ApiResult<unknown>> {
+  if (normalizeProductSlug(slug) !== slug) return err('NOT_FOUND', 'Item not found');
+  const doc = await findByField('products', 'slug', slug);
+  if (
+    !doc ||
+    doc.published !== true ||
+    (Object.hasOwn(doc, 'archived') && doc.archived !== false)
+  ) {
+    return err('NOT_FOUND', 'Item not found');
+  }
+  return ok(publicDoc('products', doc, config, viewer));
 }
 
 async function publishedCatalogReferencesImage(

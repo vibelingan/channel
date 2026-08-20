@@ -54,6 +54,39 @@ test('alibabaPriceSummary summarizes each displayable mode and nulls the rest', 
   assert.equal(alibabaPriceSummary(undefined), null);
 });
 
+test('malformed source amounts fail closed in summaries and blocks', () => {
+  const invalidPricing = [
+    createAlibabaCatalogPricing({ amountMinor: -1 }),
+    createAlibabaCatalogPricing({
+      mode: 'range',
+      minAmountMinor: 300,
+      maxAmountMinor: 200,
+    }),
+    createAlibabaCatalogPricing({
+      mode: 'tiered',
+      tiers: [{ minQuantity: 1, unitAmountMinor: 1.5 }],
+    }),
+    createAlibabaCatalogPricing({
+      mode: 'tiered',
+      tiers: [{ minQuantity: 100, maxQuantity: 50, unitAmountMinor: 250 }],
+    }),
+    createAlibabaCatalogPricing({
+      mode: 'tiered',
+      tiers: [
+        { minQuantity: 1, maxQuantity: 100, unitAmountMinor: 250 },
+        { minQuantity: 100, unitAmountMinor: 200 },
+      ],
+    }),
+  ];
+
+  for (const pricing of invalidPricing) {
+    assert.equal(alibabaPriceSummary(pricing), null);
+    const html = renderBlock({ pricing });
+    assert.ok(html.includes('data-alibaba-unavailable'));
+    assert.doesNotMatch(html, /\$-?0\.01|\$2\.00|\$3\.00|\$0\.02/);
+  }
+});
+
 // --- block rendering per mode ------------------------------------------------
 
 test('fixed and range modes render amounts with currency labels', () => {

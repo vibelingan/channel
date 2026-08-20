@@ -92,6 +92,11 @@ requireCheck(
   'wx-server-sdk does not expose getUploadMetadata',
   'If this changes in a future SDK, update the design and integration intentionally.',
 );
+const wxDatabase = wx.database();
+requireCheck(
+  typeof wxDatabase.command.exists === 'function' && wxDatabase.command.exists(false) !== undefined,
+  'wx-server-sdk command exposes exists(false) for strict missing-field queries',
+);
 
 const nodeTypes = readPackageFile(
   nodeSdk,
@@ -218,8 +223,16 @@ requireCheck(
   ]),
   '@cloudbase/database in-transaction doc.get resolves {data: doc|null} for missing documents',
 );
-// Runtime probe: drive a transaction through get(miss) -> set -> update and
-// pin the API sequence + upsert/merge params actually sent.
+requireCheck(
+  containsAll(documentRuntime, [
+    "await this.request.send('database.removeDocument'",
+    'transactionId: this._transactionId',
+    'deleted: res.data.deleted',
+  ]),
+  '@cloudbase/database doc.remove is transaction-aware and returns the deleted count',
+);
+// Runtime probe: drive a transaction through get(miss) -> set -> update ->
+// remove and pin the API sequence + transaction params actually sent.
 {
   const txCalls = [];
   class FakeLeaseProbeRequest {
@@ -229,6 +242,9 @@ requireCheck(
       if (api === 'database.getDocument') return { requestId: 'r', data: { list: [] } };
       if (api === 'database.modifyDocument') {
         return { requestId: 'r', data: { updated: 1, upsert_id: 'conn-1' } };
+      }
+      if (api === 'database.removeDocument') {
+        return { requestId: 'r', data: { deleted: 1 } };
       }
       return { requestId: 'r' };
     }
@@ -242,7 +258,8 @@ requireCheck(
       const missing = await ref.get();
       const setResult = await ref.set({ holder: 'h', fence: 1 });
       await ref.update({ heartbeatAt: 'x' });
-      return { missing: missing.data, updated: setResult.updated };
+      const removeResult = await ref.remove();
+      return { missing: missing.data, updated: setResult.updated, deleted: removeResult.deleted };
     });
     const apiSequence = txCalls.map((call) => call.api);
     const setCall = txCalls.find(
@@ -251,23 +268,82 @@ requireCheck(
     const updateCall = txCalls.find(
       (call) => call.api === 'database.modifyDocument' && call.params?.upsert === false,
     );
+    const removeCall = txCalls.find((call) => call.api === 'database.removeDocument');
     requireCheck(
       probeResult.missing === null &&
         probeResult.updated === 1 &&
+        probeResult.deleted === 1 &&
         JSON.stringify(apiSequence) ===
           JSON.stringify([
             'database.startTransaction',
             'database.getDocument',
             'database.modifyDocument',
             'database.modifyDocument',
+            'database.removeDocument',
             'database.commitTransaction',
           ]) &&
         setCall?.params?.merge === false &&
         setCall?.params?.transactionId === 'lease-probe-tx' &&
         setCall?.params?.query?.includes('conn-1') &&
         updateCall?.params?.merge === true &&
-        updateCall?.params?.transactionId === 'lease-probe-tx',
-      '@cloudbase/database transaction get-miss/set-upsert/update probe matches the lease write contract',
+        updateCall?.params?.transactionId === 'lease-probe-tx' &&
+        removeCall?.params?.transactionId === 'lease-probe-tx' &&
+        removeCall?.params?.query?.includes('conn-1'),
+      '@cloudbase/database transaction get/set/update/remove probe matches deterministic write contracts',
+    );
+
+    txCalls.length = 0;
+    let postWriteRollbackCaught = false;
+    try {
+      await probeDb.runTransaction(async (transaction) => {
+        await transaction.collection('catalogProductIdentities').doc('slug:failed').set({
+          kind: 'slug',
+          normalizedValue: 'failed',
+          productId: 'product-failed',
+        });
+        throw new Error('catalog-save-rollback-probe');
+      }, 0);
+    } catch (error) {
+      postWriteRollbackCaught =
+        error instanceof Error && error.message === 'catalog-save-rollback-probe';
+    }
+    const postWriteRollbackCalls = txCalls.map((call) => call.api);
+    requireCheck(
+      postWriteRollbackCaught &&
+        JSON.stringify(postWriteRollbackCalls) ===
+          JSON.stringify([
+            'database.startTransaction',
+            'database.modifyDocument',
+            'database.abortTransaction',
+          ]),
+      '@cloudbase/database aborts a catalog transaction when the callback fails after a write',
+    );
+
+    txCalls.length = 0;
+    let catalogConflictAttempts = 0;
+    const catalogRetryResult = await probeDb.runTransaction(async (transaction) => {
+      catalogConflictAttempts += 1;
+      await transaction.collection('catalogProductIdentities').doc('slug:retry').set({
+        kind: 'slug',
+        normalizedValue: 'retry',
+        productId: 'product-retry',
+      });
+      if (catalogConflictAttempts === 1) throw { code: 'DATABASE_TRANSACTION_CONFLICT' };
+      return 'saved';
+    }, 1);
+    const catalogRetryCalls = txCalls.map((call) => call.api);
+    requireCheck(
+      catalogRetryResult === 'saved' &&
+        catalogConflictAttempts === 2 &&
+        JSON.stringify(catalogRetryCalls) ===
+          JSON.stringify([
+            'database.startTransaction',
+            'database.modifyDocument',
+            'database.startTransaction',
+            'database.modifyDocument',
+            'database.commitTransaction',
+          ]),
+      '@cloudbase/database retries the complete catalog callback and commits only the winning attempt',
     );
   } finally {
     databaseModule.Db.reqClass = originalReqClass;
@@ -488,6 +564,20 @@ requireCheck(
   ]),
   'db cloudbase adapter explicitly initialises @cloudbase/node-sdk for storage injection',
 );
+requireCheck(
+  containsAll(cloudbaseAdapter, [
+    "case 'isLiteralTrue'",
+    "case 'matchesProductFamily'",
+    "case 'isFalseOrMissing'",
+    '_.or([',
+    '_.and([',
+    '_.exists(false)',
+    '_.eq(false)',
+    "_.eq('headphones')",
+    'LEGACY_HEADPHONES_CATEGORY_OPTIONS',
+  ]),
+  'db cloudbase strict publication/archive and legacy Headphones filters are composed server-side',
+);
 const acquireMutationStart = cloudbaseAdapter.indexOf('  async acquireImageMutation');
 const acquireMutationEnd = cloudbaseAdapter.indexOf(
   '  async releaseImageMutation',
@@ -588,6 +678,7 @@ for (const method of [
   'releaseAlibabaSyncLease',
   'updateDocWithAlibabaLease',
   'createDocWithId',
+  'saveCatalogProductWithIdentities',
   'upsertDocWithId',
 ]) {
   const calls = objectMethodCalls('cloudBaseAdapter', method);
@@ -596,6 +687,15 @@ for (const method of [
     `db cloudbase ${method} performs its read-and-write inside runTransaction`,
   );
 }
+requireCheck(
+  objectMethodCalls('cloudBaseAdapter', 'saveCatalogProductWithIdentities').includes(
+    'planCatalogProductSave',
+  ) &&
+    objectMethodCalls('cloudBaseAdapter', 'saveCatalogProductWithIdentities').includes(
+      'replaceNestedObjects',
+    ),
+  'db cloudbase catalog save plans and writes product identities inside one transaction callback',
+);
 requireCheck(
   objectMethodCalls('cloudBaseAdapter', 'updateDocWithAlibabaLease').includes(
     'holdsAlibabaLease',

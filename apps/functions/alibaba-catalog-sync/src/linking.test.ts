@@ -121,9 +121,14 @@ function setup(extra: Store = {}): Store {
       {
         _id: 'p-1',
         name: 'Legacy',
+        productFamily: 'headphones',
         category: 'wired',
+        slug: 'legacy-headset',
+        skuCode: 'HP-LEGACY-1',
+        imageIds: ['img-1'],
         unitPrice: 12.5,
         published: true,
+        archived: false,
       } as CollectionDoc,
     ],
     ...extra,
@@ -154,6 +159,12 @@ test('explicit link claims the source and stamps only Alibaba-owned fields', asy
   assert.equal(product?.unitPrice, 12.5);
   assert.equal(product?.published, true);
   assert.equal(product?.name, 'Legacy');
+  assert.equal(product?.productFamily, 'headphones');
+  assert.equal(product?.category, 'wired');
+  assert.equal(product?.slug, 'legacy-headset');
+  assert.equal(product?.skuCode, 'HP-LEGACY-1');
+  assert.deepEqual(product?.imageIds, ['img-1']);
+  assert.equal(product?.archived, false);
 });
 
 test('RACE: one source product can never link to two Channel products', async () => {
@@ -209,6 +220,12 @@ test('unlink clears ONLY Alibaba fields and removes link rows (legacy path resto
   // Legacy pricing byte-identical — nothing was destroyed.
   assert.equal(product?.unitPrice, 12.5);
   assert.equal(product?.published, true);
+  assert.equal(product?.productFamily, 'headphones');
+  assert.equal(product?.category, 'wired');
+  assert.equal(product?.slug, 'legacy-headset');
+  assert.equal(product?.skuCode, 'HP-LEGACY-1');
+  assert.deepEqual(product?.imageIds, ['img-1']);
+  assert.equal(product?.archived, false);
   assert.deepEqual(await unlinkProduct('missing', CTX), { ok: false, reason: 'product-not-found' });
 });
 
@@ -222,9 +239,19 @@ const MAPPING: CollectionDoc = {
 
 test('draft creation requires an explicit category mapping', async () => {
   setup();
+  const beforeIds = store.products?.map((product) => product._id);
   const denied = await createDraftForSource(SOURCE_KEY, CTX);
   assert.deepEqual(denied, { ok: false, reason: 'no-category-mapping' });
   assert.equal(store.products?.length, 1, 'no draft without a mapping');
+  assert.deepEqual(
+    store.products?.map((product) => product._id),
+    beforeIds,
+  );
+  assert.equal(
+    store.products?.some((product) => product.productFamily === 'misc'),
+    false,
+    'unmapped sources never default to Misc',
+  );
 });
 
 test('a mapped source creates an UNPUBLISHED draft with source suggestions', async () => {
@@ -238,6 +265,9 @@ test('a mapped source creates an UNPUBLISHED draft with source suggestions', asy
   assert.equal(draft.published, false, 'worker-created drafts are never published');
   assert.equal(draft.name, 'BT Headphones');
   assert.equal(draft.category, 'bluetooth');
+  assert.equal(draft.productFamily, undefined, 'operator must curate family before publication');
+  assert.equal(draft.slug, undefined, 'worker never invents public identity');
+  assert.equal(draft.skuCode, undefined, 'worker never invents operator SKU identity');
   assert.equal(draft.alibabaPrimarySourceKey, SOURCE_KEY);
   assert.equal(draft.imageIds, undefined, 'no automatic public image selection');
   const link = store.alibabaProductLinks?.[0];

@@ -39,8 +39,6 @@ const LIST: HeadphonesContent['list'] = {
     { key: 'tws', label: 'True Wireless' },
   ],
   wholesaleLabel: 'Wholesale',
-  vipLabel: 'VIP',
-  vipLockedLabel: 'Sign in for VIP pricing',
   viewDetail: 'View details',
   moqLabel: 'MOQ',
 };

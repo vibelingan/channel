@@ -16,6 +16,8 @@ const siteUrl = trimSlash(
 const apiUrl = trimSlash(
   process.env.PUBLIC_API_BASE_URL || `https://${envId}.service.tcloudbase.com`,
 );
+const adminEmail = requireEnv('E2E_ADMIN_EMAIL');
+const adminPassword = requireEnv('E2E_ADMIN_PASSWORD');
 
 function trimSlash(value) {
   return value.trim().replace(/\/+$/, '');
@@ -102,6 +104,31 @@ function assertApiError(label, body, expectedCode) {
   }
 }
 
+function assertCatalogProduct(product, family) {
+  if (!product || typeof product !== 'object' || Array.isArray(product)) {
+    throw new Error(`${family}: catalog item is not an object`);
+  }
+  if (product.productFamily !== family) {
+    throw new Error(`${family}: product ${product._id ?? '<missing>'} has wrong family`);
+  }
+  if (!Array.isArray(product.images) || product.images.length > 9) {
+    throw new Error(`${family}: product ${product._id ?? '<missing>'} violates image bounds`);
+  }
+  for (const forbidden of [
+    'imageIds',
+    'vipPrice',
+    'archived',
+    'createdAt',
+    'updatedAt',
+    'video',
+    'videoUrl',
+  ]) {
+    if (Object.hasOwn(product, forbidden)) {
+      throw new Error(`${family}: product ${product._id ?? '<missing>'} exposed ${forbidden}`);
+    }
+  }
+}
+
 function verifyFunctionRuntime(functionName) {
   const result = callTool('cloudbase.queryFunctions', {
     action: 'getFunctionDetail',
@@ -150,7 +177,19 @@ for (const functionName of FUNCTION_NAMES) {
   );
 }
 
-for (const path of ['/', '/admin', '/login', '/oem', '/portfolio']) {
+for (const path of [
+  '/',
+  '/admin',
+  '/login',
+  '/oem',
+  '/portfolio',
+  '/electronics-toys/',
+  '/headphones/',
+  '/ai-gadgets/',
+  '/toys/',
+  '/misc/',
+  '/products/item/',
+]) {
   await expectHttp('GET', `${siteUrl}${path}`, 200);
 }
 
@@ -211,5 +250,59 @@ await expectHttp('POST', `${apiUrl}/api/admin`, 401, {
   action: 'list',
   data: { collection: 'users' },
 });
+
+let detailProduct;
+for (const family of ['headphones', 'ai-gadgets', 'toys', 'misc']) {
+  const payload = await expectJson(
+    'GET',
+    `${apiUrl}/api/products?productFamily=${encodeURIComponent(family)}&pageSize=48`,
+    200,
+  );
+  if (payload?.ok !== true || !Array.isArray(payload.data?.items)) {
+    throw new Error(`${family}: malformed catalog response`);
+  }
+  if (payload.data.items.length === 0) {
+    throw new Error(`${family}: deployed catalog requires at least one published product`);
+  }
+  for (const product of payload.data.items) {
+    assertCatalogProduct(product, family);
+    if (!detailProduct && typeof product.slug === 'string' && product.slug) detailProduct = product;
+  }
+}
+if (!detailProduct) throw new Error('Catalog smoke requires at least one published product slug.');
+const detail = await expectJson(
+  'GET',
+  `${apiUrl}/api/products/slug/${encodeURIComponent(detailProduct.slug)}`,
+  200,
+);
+if (detail?.ok !== true || !detail.data || typeof detail.data.productFamily !== 'string') {
+  throw new Error('Catalog slug detail response is malformed.');
+}
+assertCatalogProduct(detail.data, detail.data.productFamily);
+if (detail.data._id !== detailProduct._id || detail.data.slug !== detailProduct.slug) {
+  throw new Error('Catalog slug detail did not match the selected list product identity.');
+}
+
+const login = await expectJson('POST', `${apiUrl}/api/admin`, 200, {
+  action: 'login',
+  data: { email: adminEmail, password: adminPassword },
+});
+if (
+  login?.ok !== true ||
+  typeof login.data?.token !== 'string' ||
+  login.data.token.length === 0 ||
+  typeof login.data?.user?.id !== 'string' ||
+  login.data.user.role !== 'admin'
+) {
+  throw new Error('Admin login smoke did not return a valid session.');
+}
+const protectedList = await expectJson('POST', `${apiUrl}/api/admin`, 200, {
+  action: 'list',
+  token: login.data.token,
+  data: { collection: 'products', page: 1, pageSize: 1 },
+});
+if (protectedList?.ok !== true || !Array.isArray(protectedList.data?.items)) {
+  throw new Error('Admin token did not authorize a protected catalog read.');
+}
 
 console.log(`CloudBase smoke passed for ${siteUrl}`);

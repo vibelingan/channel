@@ -13,6 +13,7 @@ import {
   CATALOG_IMAGE_MAX_COUNT,
   type CollectionDoc,
   type ListResult,
+  PRODUCT_IMAGE_MAX_COUNT,
   type Role,
   compareBySort,
   matchesFilter,
@@ -475,7 +476,325 @@ test('catalog list ships only allowlisted public fields (no vipPrice / imageIds 
   assert.equal('updatedAt' in item, false);
 });
 
-test('catalog list and detail filter malformed image ids before applying the shared limit', async () => {
+test('product list and detail expose identity fields and project at most nine ordered images', async () => {
+  const store = seedStore();
+  const product = store.products?.find((item) => item._id === 'p-1');
+  assert.ok(product);
+  product.productFamily = 'ai-gadgets';
+  product.skuCode = 'ai-100';
+  product.slug = 'smart-camera';
+  product.imageIds = Array.from(
+    { length: PRODUCT_IMAGE_MAX_COUNT + 2 },
+    (_, index) => `image-${index + 1}`,
+  );
+  setup(store);
+
+  for (const [path, isList] of [
+    ['/api/products?pageSize=1', true],
+    ['/api/products/p-1', false],
+  ] as const) {
+    const response = await handlePublicApiEvent(
+      { httpMethod: 'GET', path },
+      { apiBaseUrl: 'https://api.example.test' },
+    );
+    const item = isList
+      ? (body(response) as { ok: true; data: { items: CollectionDoc[] } }).data.items[0]
+      : (body(response) as { ok: true; data: CollectionDoc }).data;
+    assert.equal(item?.productFamily, 'ai-gadgets');
+    assert.equal(item?.skuCode, 'ai-100');
+    assert.equal(item?.slug, 'smart-camera');
+    assert.equal((item?.images as string[]).length, PRODUCT_IMAGE_MAX_COUNT);
+    assert.equal((item?.images as string[])[0], 'https://api.example.test/api/images/image-1');
+  }
+});
+
+test('legacy Headphones family is projected without mutating storage', async () => {
+  const store = seedStore();
+  const legacy = store.products?.find((item) => item._id === 'p-1');
+  assert.ok(legacy);
+  assert.equal(Object.hasOwn(legacy, 'productFamily'), false);
+  setup(store);
+
+  const response = await handlePublicApiEvent({ httpMethod: 'GET', path: '/api/products/p-1' }, {});
+  const item = (body(response) as { ok: true; data: CollectionDoc }).data;
+  assert.equal(item.productFamily, 'headphones');
+  assert.equal(Object.hasOwn(legacy, 'productFamily'), false);
+});
+
+test('archived products are absent from list and detail even when published', async () => {
+  const store = seedStore();
+  const archived = store.products?.find((item) => item._id === 'p-1');
+  assert.ok(archived);
+  archived.archived = true;
+  setup(store);
+
+  const listResponse = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/products', queryStringParameters: { pageSize: '48' } },
+    {},
+  );
+  const items = (body(listResponse) as { ok: true; data: { items: CollectionDoc[] } }).data.items;
+  assert.equal(
+    items.some((item) => item._id === 'p-1'),
+    false,
+  );
+  const detailResponse = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/products/p-1' },
+    {},
+  );
+  assert.equal(detailResponse.statusCode, 404);
+});
+
+test('malformed archived and identity values fail closed across list and detail', async () => {
+  const store = seedStore();
+  const malformed = store.products?.find((item) => item._id === 'p-1');
+  assert.ok(malformed);
+  malformed.archived = 'true';
+  malformed.slug = 'products';
+  malformed.skuCode = '   ';
+  setup(store);
+
+  const listResponse = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/products', queryStringParameters: { pageSize: '48' } },
+    {},
+  );
+  const list = (body(listResponse) as { ok: true; data: { items: CollectionDoc[]; total: number } })
+    .data;
+  assert.equal(
+    list.items.some((item) => item._id === 'p-1'),
+    false,
+  );
+  assert.equal(list.total, 54);
+  const detailResponse = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/products/p-1' },
+    {},
+  );
+  assert.equal(detailResponse.statusCode, 404);
+
+  malformed.archived = false;
+  const visibleResponse = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/products/p-1' },
+    {},
+  );
+  const visible = (body(visibleResponse) as { ok: true; data: CollectionDoc }).data;
+  assert.equal('slug' in visible, false);
+  assert.equal('skuCode' in visible, false);
+});
+
+test('malformed published values fail closed across list and detail', async () => {
+  const store = seedStore();
+  const malformed = store.products?.find((item) => item._id === 'p-1');
+  assert.ok(malformed);
+  malformed.published = 'true';
+  setup(store);
+  const listResponse = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/products', queryStringParameters: { pageSize: '48' } },
+    {},
+  );
+  const list = (body(listResponse) as { ok: true; data: { items: CollectionDoc[]; total: number } })
+    .data;
+  assert.equal(
+    list.items.some((item) => item._id === 'p-1'),
+    false,
+  );
+  assert.equal(list.total, 54);
+  const detailResponse = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/products/p-1' },
+    {},
+  );
+  assert.equal(detailResponse.statusCode, 404);
+});
+
+test('strict archive filtering preserves stable pagination beyond 100 candidates', async () => {
+  const store = seedStore();
+  store.products = Array.from({ length: 130 }, (_, index) => ({
+    _id: `product-${String(index).padStart(3, '0')}`,
+    name: `Product ${index}`,
+    category: 'wired',
+    published: true,
+    ...(index % 10 === 0 ? { archived: index % 20 === 0 ? true : 'true' } : {}),
+  }));
+  setup(store);
+  const activeIds = (store.products ?? [])
+    .filter((item) => !Object.hasOwn(item, 'archived') || item.archived === false)
+    .map((item) => item._id)
+    .sort();
+  const response = await handlePublicApiEvent(
+    {
+      httpMethod: 'GET',
+      path: '/api/products',
+      queryStringParameters: { page: '3', pageSize: '48' },
+    },
+    {},
+  );
+  const page = (
+    body(response) as {
+      ok: true;
+      data: { items: CollectionDoc[]; total: number };
+    }
+  ).data;
+  assert.equal(page.total, activeIds.length);
+  assert.deepEqual(
+    page.items.map((item) => item._id),
+    activeIds.slice(96, 144),
+  );
+});
+
+test('productFamily filters explicit families and includes only legacy Headphones rows', async () => {
+  const store = seedStore();
+  store.products = [
+    {
+      _id: 'explicit-headphones',
+      name: 'Explicit Headphones',
+      productFamily: 'headphones',
+      category: 'office',
+      published: true,
+      archived: false,
+    },
+    {
+      _id: 'legacy-headphones',
+      name: 'Legacy Headphones',
+      category: 'wired',
+      published: true,
+    },
+    {
+      _id: 'ai-product',
+      name: 'Smart Camera',
+      productFamily: 'ai-gadgets',
+      published: true,
+    },
+    { _id: 'toy-product', name: 'Robot', productFamily: 'toys', published: true },
+    { _id: 'misc-product', name: 'Cable', productFamily: 'misc', published: true },
+    { _id: 'corrupt-missing', name: 'Unknown', category: 'unknown', published: true },
+    {
+      _id: 'archived-ai',
+      name: 'Archived',
+      productFamily: 'ai-gadgets',
+      published: true,
+      archived: true,
+    },
+    { _id: 'draft-ai', name: 'Draft', productFamily: 'ai-gadgets', published: false },
+  ];
+  setup(store);
+
+  const expected = new Map([
+    ['headphones', ['explicit-headphones', 'legacy-headphones']],
+    ['ai-gadgets', ['ai-product']],
+    ['toys', ['toy-product']],
+    ['misc', ['misc-product']],
+  ]);
+  for (const [productFamily, expectedIds] of expected) {
+    const response = await handlePublicApiEvent(
+      {
+        httpMethod: 'GET',
+        path: '/api/products',
+        queryStringParameters: { productFamily },
+      },
+      {},
+    );
+    const page = (
+      body(response) as {
+        ok: true;
+        data: { items: CollectionDoc[]; total: number };
+      }
+    ).data;
+    assert.deepEqual(
+      page.items.map((item) => item._id),
+      expectedIds,
+    );
+    assert.equal(page.total, expectedIds.length);
+  }
+});
+
+test('Headphones family composes independently with subcategory, search, and pagination', async () => {
+  const store = seedStore();
+  store.products = [
+    {
+      _id: 'h-1',
+      name: 'Alpha Office',
+      productFamily: 'headphones',
+      category: 'office',
+      published: true,
+    },
+    { _id: 'h-2', name: 'Alpha Legacy', category: 'office', published: true },
+    { _id: 'h-3', name: 'Beta Office', category: 'office', published: true },
+    { _id: 'h-4', name: 'Alpha Wired', category: 'wired', published: true },
+    {
+      _id: 'ai-1',
+      name: 'Alpha Camera',
+      productFamily: 'ai-gadgets',
+      category: 'office',
+      published: true,
+    },
+  ];
+  setup(store);
+  const response = await handlePublicApiEvent(
+    {
+      httpMethod: 'GET',
+      path: '/api/products',
+      queryStringParameters: {
+        productFamily: 'headphones',
+        category: 'office',
+        search: 'Alpha',
+        page: '2',
+        pageSize: '1',
+      },
+    },
+    {},
+  );
+  const page = (
+    body(response) as {
+      ok: true;
+      data: { items: CollectionDoc[]; total: number; page: number; pageSize: number };
+    }
+  ).data;
+  assert.equal(page.total, 2);
+  assert.equal(page.page, 2);
+  assert.equal(page.pageSize, 1);
+  assert.deepEqual(
+    page.items.map((item) => item._id),
+    ['h-2'],
+  );
+});
+
+test('unknown productFamily query is rejected instead of ignored', async () => {
+  setup();
+  const response = await handlePublicApiEvent(
+    {
+      httpMethod: 'GET',
+      path: '/api/products',
+      queryStringParameters: { productFamily: 'garden' },
+    },
+    {},
+  );
+  assert.equal(response.statusCode, 400);
+  const payload = body(response) as { ok: false; error: { code: string } };
+  assert.equal(payload.error.code, 'VALIDATION_ERROR');
+});
+
+test('Overstock retains the eighteen-image public projection limit', async () => {
+  const store = seedStore();
+  const overstock = store.overstock?.[0];
+  assert.ok(overstock);
+  overstock.productFamily = 'toys';
+  overstock.skuCode = 'must-not-leak';
+  overstock.slug = 'must-not-leak';
+  overstock.imageIds = Array.from(
+    { length: CATALOG_IMAGE_MAX_COUNT + 2 },
+    (_, index) => `overstock-${index + 1}`,
+  );
+  setup(store);
+  const response = await handlePublicApiEvent(
+    { httpMethod: 'GET', path: '/api/overstock/o-1' },
+    {},
+  );
+  const item = (body(response) as { ok: true; data: CollectionDoc }).data;
+  assert.equal((item.images as string[]).length, CATALOG_IMAGE_MAX_COUNT);
+  assert.equal('productFamily' in item, false);
+  assert.equal('skuCode' in item, false);
+  assert.equal('slug' in item, false);
+});
+
+test('product list and detail filter malformed image ids before applying the nine-image limit', async () => {
   const store = seedStore();
   const first = store.products?.find((product) => product._id === 'p-1');
   assert.ok(first);
@@ -500,7 +819,7 @@ test('catalog list and detail filter malformed image ids before applying the sha
   assert.ok(listDoc, 'list route returns a document');
   const imagesByRoute = [listDoc.images as string[], detailJson.data.images as string[]];
   const expected = validImageIds
-    .slice(0, CATALOG_IMAGE_MAX_COUNT)
+    .slice(0, PRODUCT_IMAGE_MAX_COUNT)
     .map((id) => `https://api.example.test/api/images/${id.trim()}`);
 
   assert.deepEqual(imagesByRoute, [expected, expected]);
@@ -582,6 +901,79 @@ test('catalog detail ships only allowlisted public fields', async () => {
   assert.equal(json.data.wholesalePrice, 10);
   assert.equal('vipPrice' in json.data, false);
   assert.equal('imageIds' in json.data, false);
+});
+
+test('published product slug resolves in gateway-prefixed and stripped path shapes', async () => {
+  const store = seedStore();
+  const product = store.products?.find((item) => item._id === 'p-1');
+  assert.ok(product);
+  product.slug = 'desk-lamp';
+  product.skuCode = 'sku-100';
+  product.alibabaPrimaryOfferKey = 'private-offer';
+  setup(store);
+
+  for (const path of ['/api/products/slug/desk-lamp', '/products/slug/desk-lamp']) {
+    const response = await handlePublicApiEvent({ httpMethod: 'GET', path }, {});
+    assert.equal(response.statusCode, 200);
+    const item = (body(response) as { ok: true; data: CollectionDoc }).data;
+    assert.equal(item._id, 'p-1');
+    assert.equal(item.slug, 'desk-lamp');
+    assert.equal('vipPrice' in item, false);
+    assert.equal('alibabaPrimaryOfferKey' in item, false);
+  }
+});
+
+test('unknown, unpublished, and archived slugs return the same 404 contract', async () => {
+  const store = seedStore();
+  store.products = [
+    { _id: 'draft', name: 'Draft', slug: 'draft-product', published: false },
+    {
+      _id: 'archived',
+      name: 'Archived',
+      slug: 'archived-product',
+      published: true,
+      archived: true,
+    },
+  ];
+  setup(store);
+  const payloads = [];
+  for (const slug of ['missing-product', 'draft-product', 'archived-product']) {
+    const response = await handlePublicApiEvent(
+      { httpMethod: 'GET', path: `/api/products/slug/${slug}` },
+      {},
+    );
+    assert.equal(response.statusCode, 404);
+    payloads.push(body(response));
+  }
+  assert.deepEqual(payloads[1], payloads[0]);
+  assert.deepEqual(payloads[2], payloads[0]);
+});
+
+test('noncanonical and encoded route-breaking slugs never reach a product lookup', async () => {
+  const store = seedStore();
+  const product = store.products?.find((item) => item._id === 'p-1');
+  assert.ok(product);
+  product.slug = 'desk-lamp';
+  setup(store);
+  for (const slug of ['Desk%20Lamp', 'desk%2Flamp', 'products', '%2E%2E']) {
+    const response = await handlePublicApiEvent(
+      { httpMethod: 'GET', path: `/api/products/slug/${slug}` },
+      {},
+    );
+    assert.equal(response.statusCode, 404, `slug ${slug} must not resolve`);
+  }
+});
+
+test('gateway-normalized path cannot hide an unsafe original rawPath', async () => {
+  const response = await handlePublicApiEvent(
+    {
+      httpMethod: 'GET',
+      path: '/api/products/slug/desk-lamp',
+      rawPath: '/api/products/slug/%2E%2E',
+    },
+    {},
+  );
+  assert.equal(response.statusCode, 404);
 });
 
 test('catalog responses Vary on Authorization so a shared cache never leaks VIP data', async () => {
