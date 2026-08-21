@@ -595,6 +595,45 @@ test('product create defaults to draft and reserves canonical identities', async
   ]);
 });
 
+test('manual tier pricing can be explicitly cleared only on product update', async () => {
+  const pricing = {
+    schemaVersion: 'manual-catalog-pricing-v1',
+    currency: 'USD',
+    tiers: [{ minQuantity: 1, unitAmountMinor: 100 }],
+  };
+  const store = setup({
+    users: [],
+    products: [
+      {
+        _id: 'product-tiered',
+        name: 'Tiered product',
+        productFamily: 'toys',
+        manualCatalogPricing: pricing,
+        published: false,
+        archived: false,
+      },
+    ],
+  });
+  const token = await adminToken();
+  expectErr(
+    await call(
+      'create',
+      { collection: 'products', values: { name: 'Bad clear', manualCatalogPricing: null } },
+      token,
+    ),
+    'VALIDATION_ERROR',
+  );
+  const cleared = okData<CollectionDoc>(
+    await call(
+      'update',
+      { collection: 'products', id: 'product-tiered', values: { manualCatalogPricing: null } },
+      token,
+    ),
+  );
+  assert.equal(cleared.manualCatalogPricing, '');
+  assert.equal(store.products?.[0]?.manualCatalogPricing, '');
+});
+
 test('product publish requires the complete lifecycle contract', async () => {
   setup({ users: [], products: [] });
   const token = await adminToken();

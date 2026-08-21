@@ -22,7 +22,7 @@ use the following precedence instead of inferring state from filenames or creati
 
 **Current phase:** `implement`.
 
-**Current/next MIU:** MIU 27 in progress; MIUs 28–29 follow. MIUs 1–26 are complete. Do not
+**Current/next MIU:** MIU 28 in progress; MIU 29 follows. MIUs 1–27 are complete. Do not
 invent P1–P6, a second pricing plan, or another implementation branch for this feature.
 
 **Next action by role:**
@@ -84,6 +84,26 @@ typechecks; assumption/cross-file audit PASS.
 **Engineering rationale:** A separate manual anti-corruption contract prevents operators from
 forging Alibaba provenance and avoids converting major-unit legacy prices into fabricated tiers.
 Tier amounts use integer minor units so the Admin editor can parse decimal strings exactly.
+
+## MIU 27 — Structured Admin Tier Editor And Family-Aware Form
+
+**What:** Replaced raw manual-pricing JSON with an accessible USD/CNY quantity-tier editor; kept
+legacy MOQ, unit price, and wholesale price fields; made SKU Code and URL Slug visibly optional; and
+showed Subcategory only for Headphones. Product updates now distinguish omitted manual pricing from
+an explicit clear and remove stale Headphones category when a product moves to another family.
+
+**Tests written:** decimal-to-minor-unit parsing; valid/invalid/malformed tier drafts; max-four,
+add/remove/clear, stable focus, and update-clear behavior; optional identity publication errors;
+family transition payloads; and a real authenticated Admin browser journey that submits two tiers
+(`1–12` at USD 134.18 and `13+` at USD 118.31) as exact minor units (`13418`, `11831`).
+
+**Validation:** Admin tests 173/173 and site tests 196/196; focused Admin/site/shared typechecks and
+lint passed. Chromium Admin E2E passed 4/4, including a 390px dialog containment assertion. The same
+four journeys passed in WebKit. Desktop and narrow-layout captures were inspected for field overlap,
+wrapping, tier readability, and retained scalar pricing.
+
+**Result:** Complete. No scalar field, Alibaba pricing field, or generic mutation endpoint was
+removed or repurposed.
 
 ## Deviations
 

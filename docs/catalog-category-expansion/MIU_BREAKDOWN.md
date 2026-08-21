@@ -921,7 +921,7 @@ inventory rather than contract. See REMEDIATION.md R7, R8, R9.
 
 ## MIU 27 — Structured Admin tier editor and family-aware form
 
-**Status:** In progress.
+**Status:** Complete (commit recorded in `EXECUTION.md`).
 
 **Block:** FRONTEND
 
@@ -933,7 +933,7 @@ inventory rather than contract. See REMEDIATION.md R7, R8, R9.
 
 **What it does:**
 
-- Adds an accessible structured editor (currency, 1–4 quantity tiers, add/remove/reorder, inline
+- Adds an accessible structured editor (currency, 1–4 quantity tiers, add/remove, inline
   errors) instead of raw JSON while leaving scalar MOQ/unit/wholesale fields in place.
 - Hides Subcategory unless family is Headphones, clears it accessibly on transition, and omits stale
   category from non-Headphones payloads.
@@ -943,7 +943,7 @@ inventory rather than contract. See REMEDIATION.md R7, R8, R9.
 
 **Test plan (TDD — write first):**
 
-- Add/remove/reorder/clear tier rows and submit exact minor-unit payload while preserving scalar fields.
+- Add/remove/clear tier rows and submit exact minor-unit payload while preserving scalar fields.
 - Reject invalid tiers accessibly; hide/omit Subcategory outside Headphones; show optional identity
   labels and preserve supplied identity conflict errors.
 
@@ -954,7 +954,7 @@ inventory rather than contract. See REMEDIATION.md R7, R8, R9.
 
 ## MIU 28 — Public projection, strict decode, and shared pricing presentation
 
-**Status:** Not started.
+**Status:** In progress.
 
 **Block:** INTEGRATION
 

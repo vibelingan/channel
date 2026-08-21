@@ -72,7 +72,7 @@ test('product edit form groups fields, clears incompatible category, and enforce
   );
 
   await page.getByLabel('Product Family', { exact: true }).selectOption('toys');
-  await expect(page.getByLabel('Subcategory')).toHaveValue('');
+  await expect(page.getByLabel('Subcategory')).toHaveCount(0);
   await expect(page.locator('[data-product-form-announcement]')).toContainText(
     'Subcategory cleared because it applies only to Headphones.',
   );
@@ -108,8 +108,7 @@ test('product server errors attach to slug and publication fields', async ({ pag
               ok: false,
               error: {
                 code: 'VALIDATION_ERROR',
-                message:
-                  'SKU code is required to publish; At least one product image is required to publish',
+                message: 'At least one product image is required to publish',
               },
             };
     } else response = { ok: false, error: { code: 'BAD_REQUEST', message: 'Unexpected action' } };
@@ -130,13 +129,118 @@ test('product server errors attach to slug and publication fields', async ({ pag
   await page.getByLabel('Published').check();
   await page.getByLabel('SKU Code').fill('');
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByLabel('SKU Code')).toHaveAttribute('aria-invalid', 'true');
-  await expect(page.locator('#skuCode-error')).toContainText('required to publish');
+  await expect(page.getByLabel('SKU Code')).not.toHaveAttribute('aria-invalid', 'true');
   await expect(page.locator('#imageIds-error')).toContainText('At least one product image');
   await expect(page.getByLabel('Add product images')).toHaveAttribute(
     'aria-describedby',
     /imageIds-capacity imageIds-error/,
   );
+});
+
+test('manual tier pricing is keyboard-editable, blocks invalid drafts, and submits exact payload', async ({
+  page,
+}) => {
+  await seedAdminSession(page);
+  let updateValues: Record<string, unknown> | undefined;
+  await page.route('**/api/admin', async (route) => {
+    const body = route.request().postDataJSON() as {
+      action?: string;
+      data?: { values?: Record<string, unknown> };
+    };
+    let response: unknown;
+    if (body.action === 'me') response = { ok: true, data: { user: adminUser } };
+    else if (body.action === 'list') {
+      response = {
+        ok: true,
+        data: {
+          items: [
+            {
+              ...product,
+              productFamily: 'toys',
+              category: undefined,
+              skuCode: '',
+              slug: '',
+              imageIds: [],
+              moq: 1,
+              unitPrice: 134.18,
+              wholesalePrice: 118.31,
+              manualCatalogPricing: '',
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        },
+      };
+    } else if (body.action === 'update') {
+      updateValues = body.data?.values;
+      response = { ok: true, data: { ...product, ...updateValues } };
+    } else response = { ok: false, error: { code: 'BAD_REQUEST', message: 'Unexpected action' } };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(response),
+    });
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Edit Product' });
+  await expect(dialog.getByLabel('Subcategory')).toHaveCount(0);
+  await expect(dialog.getByLabel('SKU Code')).toHaveValue('');
+  await expect(dialog.getByLabel('URL Slug')).toHaveValue('');
+  await expect(dialog.getByLabel('MOQ')).toHaveValue('1');
+  await expect(dialog.getByLabel('Unit Price')).toHaveValue('134.18');
+  await expect(dialog.getByLabel('Wholesale Price')).toHaveValue('118.31');
+
+  await dialog.getByRole('button', { name: 'Add price tier' }).click();
+  await dialog.getByLabel('Minimum quantity').fill('');
+  await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled();
+  await expect(dialog.getByRole('alert')).toContainText('minimum quantity');
+  await expect(dialog.getByRole('button', { name: 'Add price tier' })).toBeDisabled();
+
+  await dialog.getByLabel('Minimum quantity').fill('1');
+  await dialog.getByLabel('Maximum quantity').fill('12');
+  await dialog.getByLabel('Unit price (USD)').fill('134.18');
+  await dialog.getByRole('button', { name: 'Add price tier' }).click();
+  const minimums = dialog.getByLabel('Minimum quantity');
+  await expect(minimums).toHaveCount(2);
+  await expect(minimums.nth(1)).toHaveValue('13');
+  await dialog.getByLabel('Unit price (USD)').nth(1).fill('118.31');
+
+  const removeSecond = dialog.getByRole('button', { name: 'Remove tier 2' });
+  await removeSecond.focus();
+  await removeSecond.press('Enter');
+  await expect(dialog.getByLabel('Minimum quantity')).toBeFocused();
+
+  await dialog.getByRole('button', { name: 'Add price tier' }).click();
+  await dialog.getByLabel('Unit price (USD)').nth(1).fill('118.31');
+  expect(
+    await dialog.evaluate(
+      (element) =>
+        element.scrollWidth <= element.clientWidth &&
+        element.getBoundingClientRect().right <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect.poll(() => updateValues).toBeTruthy();
+  expect(updateValues).toMatchObject({
+    productFamily: 'toys',
+    moq: 1,
+    unitPrice: 134.18,
+    wholesalePrice: 118.31,
+    manualCatalogPricing: {
+      schemaVersion: 'manual-catalog-pricing-v1',
+      currency: 'USD',
+      tiers: [
+        { minQuantity: 1, maxQuantity: 12, unitAmountMinor: 13_418 },
+        { minQuantity: 13, unitAmountMinor: 11_831 },
+      ],
+    },
+  });
+  expect(updateValues).not.toHaveProperty('category');
 });
 
 test('Save waits for an in-flight image upload and re-enables after completion', async ({
