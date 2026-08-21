@@ -22,7 +22,7 @@ const RESERVED_PRODUCT_SLUGS = new Set([
 ]);
 
 export interface ProductPublicationIssue {
-  field: 'name' | 'productFamily' | 'skuCode' | 'slug' | 'description' | 'imageIds' | 'archived';
+  field: 'name' | 'productFamily' | 'category' | 'description' | 'imageIds' | 'archived';
   message: string;
 }
 
@@ -60,19 +60,21 @@ export function productFamilyForDoc(doc: Record<string, unknown>): ProductFamily
 export function validateProductPublication(
   values: Record<string, unknown>,
 ): ProductPublicationIssue[] {
-  if (values.published !== true) return [];
   const issues: ProductPublicationIssue[] = [];
+  if (
+    isProductFamily(values.productFamily) &&
+    values.productFamily !== 'headphones' &&
+    typeof values.category === 'string' &&
+    values.category.trim() !== ''
+  ) {
+    issues.push({ field: 'category', message: 'Subcategory applies only to Headphones' });
+  }
+  if (values.published !== true) return issues;
   if (typeof values.name !== 'string' || values.name.trim() === '') {
     issues.push({ field: 'name', message: 'Product name is required to publish' });
   }
   if (!isProductFamily(values.productFamily)) {
     issues.push({ field: 'productFamily', message: 'Product family is required to publish' });
-  }
-  if (normalizeSkuCode(values.skuCode) === null) {
-    issues.push({ field: 'skuCode', message: 'SKU code is required to publish' });
-  }
-  if (normalizeProductSlug(values.slug) === null) {
-    issues.push({ field: 'slug', message: 'Valid URL slug is required to publish' });
   }
   if (typeof values.description !== 'string' || values.description.trim() === '') {
     issues.push({ field: 'description', message: 'Description is required to publish' });

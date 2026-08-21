@@ -22,7 +22,7 @@ use the following precedence instead of inferring state from filenames or creati
 
 **Current phase:** `implement`.
 
-**Current/next MIU:** MIU 26 in progress; MIUs 27–29 follow. MIUs 1–25 remain complete. Do not
+**Current/next MIU:** MIU 27 in progress; MIUs 28–29 follow. MIUs 1–26 are complete. Do not
 invent P1–P6, a second pricing plan, or another implementation branch for this feature.
 
 **Next action by role:**
@@ -60,6 +60,38 @@ This queue item is intentionally **not** MIU 26 and does not reopen catalog impl
 - `category` is a Headphones-only subcategory. Hide it for all other families, clear it on a family
 	change, omit it from non-Headphones writes, and suppress stale non-Headphones category on public reads.
 - No production data mutation/backfill, no Alibaba contract changes, no new branch, no ID-based URL.
+
+## MIU 26 — Manual Pricing Contract And Optional Identity
+
+**What:** Added strict `manualCatalogPricing` (USD/CNY, 1–4 ordered non-overlapping quantity
+tiers in integer minor units), registered it as a writable product field, preserved scalar and
+Alibaba pricing ownership, removed SKU/slug from publication completeness, and canonicalized stale
+non-Headphones subcategory on the next atomic product write.
+
+**Why:** Manual products need Alibaba-equivalent quantity-range semantics without making provider
+fields writable or migrating existing scalar prices. SKU/slug are optional addressability metadata,
+not prerequisites for the restored `_id`-keyed in-page detail journey.
+
+**Tests written:** strict contract happy/invalid/gap/cardinality tests; blank identity publication;
+scalar coexistence; Headphones-only subcategory; atomic stale-category partial-update regression.
+
+**Validation:** Red gate failed exactly four intended surfaces (missing module, old publication gate,
+category accepted globally, no registry field). Green: shared 100/100, DB 41/41, both package
+typechecks; assumption/cross-file audit PASS.
+
+**Result:** Complete. No migration or Alibaba contract change.
+
+**Engineering rationale:** A separate manual anti-corruption contract prevents operators from
+forging Alibaba provenance and avoids converting major-unit legacy prices into fabricated tiers.
+Tier amounts use integer minor units so the Admin editor can parse decimal strings exactly.
+
+## Deviations
+
+- **MIU 26 stale category canonicalization:** The approved scope said non-Headphones category should
+	be omitted/cleared. Validating the merged stored row directly would have blocked unrelated edits to
+	historical rows carrying stale category. Conservative choice: clear it inside the atomic save plan
+	on the next write. Non-conservative alternative rejected: require a bulk migration or force every
+	UI caller to know storage cleanup rules.
 
 ## Delivered Units
 

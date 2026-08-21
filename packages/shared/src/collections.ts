@@ -14,6 +14,7 @@
 import { z } from 'zod';
 import { ROLES, type Role, canEditCollection, canReadCollection } from './auth.ts';
 import { PRODUCT_FAMILY_OPTIONS } from './catalog-product.ts';
+import { manualCatalogPricingSchema } from './manual-catalog-pricing.ts';
 import {
   CATALOG_IMAGE_MAX_COUNT,
   MEDIA_PURPOSES,
@@ -230,6 +231,12 @@ export const COLLECTIONS: readonly CollectionDef[] = [
       { name: 'moq', label: 'MOQ', type: 'number' },
       { name: 'unitPrice', label: 'Unit Price', type: 'number' },
       { name: 'wholesalePrice', label: 'Wholesale Price', type: 'number' },
+      {
+        name: 'manualCatalogPricing',
+        label: 'Quantity Tier Pricing',
+        type: 'json',
+        hideInTable: true,
+      },
       {
         name: 'vipPrice',
         label: 'VIP Price',
@@ -1114,16 +1121,18 @@ function zodForField(field: FieldDef): z.ZodTypeAny {
       break;
     case 'json':
       schema =
-        field.maxItems === undefined
-          ? z.unknown()
-          : z.unknown().superRefine((value, ctx) => {
-              if (Array.isArray(value) && value.length > (field.maxItems ?? 0)) {
-                ctx.addIssue({
-                  code: z.ZodIssueCode.custom,
-                  message: `${field.label} must contain at most ${field.maxItems} items`,
-                });
-              }
-            });
+        field.name === 'manualCatalogPricing'
+          ? manualCatalogPricingSchema
+          : field.maxItems === undefined
+            ? z.unknown()
+            : z.unknown().superRefine((value, ctx) => {
+                if (Array.isArray(value) && value.length > (field.maxItems ?? 0)) {
+                  ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: `${field.label} must contain at most ${field.maxItems} items`,
+                  });
+                }
+              });
       break;
     default:
       schema = z.string();

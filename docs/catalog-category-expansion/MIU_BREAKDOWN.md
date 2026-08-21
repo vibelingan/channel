@@ -887,7 +887,7 @@ inventory rather than contract. See REMEDIATION.md R7, R8, R9.
 
 ## MIU 26 — Manual quantity-tier contract and optional publication identity
 
-**Status:** In progress.
+**Status:** Complete (commit recorded in `EXECUTION.md`).
 
 **Block:** BACKEND
 
@@ -921,7 +921,7 @@ inventory rather than contract. See REMEDIATION.md R7, R8, R9.
 
 ## MIU 27 — Structured Admin tier editor and family-aware form
 
-**Status:** Not started.
+**Status:** In progress.
 
 **Block:** FRONTEND
 
