@@ -1632,7 +1632,12 @@ async function updateAction(req: AdminRequest, claims: SessionClaims): Promise<A
       if (Object.hasOwn(parsed.data.values, 'vipPrice')) {
         return err('VALIDATION_ERROR', 'VIP price is deprecated and cannot be changed.');
       }
-      const values = buildWriteSchema(definition).partial().parse(parsed.data.values);
+      const clearsManualPricing = parsed.data.values.manualCatalogPricing === null;
+      const { manualCatalogPricing: _clearCommand, ...productValuesWithoutPricing } =
+        parsed.data.values;
+      const productValues = clearsManualPricing ? productValuesWithoutPricing : parsed.data.values;
+      const values = buildWriteSchema(definition).partial().parse(productValues);
+      if (clearsManualPricing) values.manualCatalogPricing = '';
       const transition = await updateCatalogProductRecord(parsed.data.id, values);
       doc = transition.doc;
       authoritativeBefore = transition.previous;

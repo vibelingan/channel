@@ -1,5 +1,5 @@
 /** Shared product types + API client for the storefront islands. */
-import { isProductFamily } from '@vibelingan-channel/shared';
+import { isProductFamily, validateManualCatalogPricing } from '@vibelingan-channel/shared';
 import { readApiEnvelope } from '../../lib/api-envelope.ts';
 import { apiMediaUrl, apiUrl } from '../../lib/api-url.ts';
 import { getToken } from '../../lib/session.ts';
@@ -196,8 +196,10 @@ function isProduct(value: unknown): value is Product {
     return false;
   }
   return (
-    value.alibabaCatalogPricing === undefined ||
-    isAlibabaCatalogPricing(value.alibabaCatalogPricing)
+    (value.alibabaCatalogPricing === undefined ||
+      isAlibabaCatalogPricing(value.alibabaCatalogPricing)) &&
+    (value.manualCatalogPricing === undefined ||
+      validateManualCatalogPricing(value.manualCatalogPricing).ok)
   );
 }
 

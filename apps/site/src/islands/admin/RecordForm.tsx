@@ -8,6 +8,7 @@ import {
 import { useState } from 'react';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { ImageManager } from './ImageManager.tsx';
+import { QuantityTierPricingEditor } from './QuantityTierPricingEditor.tsx';
 import { AdminApiError } from './api.ts';
 
 interface RecordFormProps {
@@ -32,7 +33,10 @@ const PRODUCT_SECTION_FIELDS = [
   { heading: 'Identity', fields: ['productFamily', 'category', 'skuCode', 'slug'] },
   { heading: 'Content', fields: ['name', 'series', 'modName', 'modType', 'description'] },
   { heading: 'Media', fields: ['imageIds'] },
-  { heading: 'Pricing & Order', fields: ['moq', 'unitPrice', 'wholesalePrice'] },
+  {
+    heading: 'Pricing & Order',
+    fields: ['moq', 'unitPrice', 'wholesalePrice', 'manualCatalogPricing'],
+  },
   { heading: 'Lifecycle', fields: ['published', 'archived'] },
 ] as const;
 
@@ -101,11 +105,13 @@ export function productFormErrorTargets(error: Error | null): Record<string, str
             ? 'productFamily'
             : lower.includes('description')
               ? 'description'
-              : lower.includes('archiv')
-                ? 'archived'
-                : lower.includes('name')
-                  ? 'name'
-                  : null;
+              : lower.includes('pricing') || lower.includes('tier')
+                ? 'manualCatalogPricing'
+                : lower.includes('archiv')
+                  ? 'archived'
+                  : lower.includes('name')
+                    ? 'name'
+                    : null;
     if (field) targets[field] = message;
   }
   return targets;
@@ -123,7 +129,10 @@ function initialState(
     if (field.type === 'boolean') {
       state[field.name] = Boolean(raw);
     } else if (field.type === 'json') {
-      state[field.name] = raw === undefined ? '' : JSON.stringify(raw, null, 2);
+      state[field.name] =
+        raw === undefined || (field.name === 'manualCatalogPricing' && raw === '')
+          ? ''
+          : JSON.stringify(raw, null, 2);
     } else {
       state[field.name] = raw === undefined || raw === null ? '' : String(raw);
     }
@@ -145,6 +154,7 @@ export function RecordForm({
   const [localError, setLocalError] = useState('');
   const [fieldAnnouncement, setFieldAnnouncement] = useState('');
   const [imageBusy, setImageBusy] = useState(false);
+  const [pricingInvalid, setPricingInvalid] = useState(false);
 
   function setField(name: string, value: string | boolean) {
     if (collection.name === 'products' && name === 'productFamily') {
@@ -160,7 +170,7 @@ export function RecordForm({
     event.preventDefault();
     setLocalError('');
     try {
-      const values = coerceValues(collection, state);
+      const values = coerceValues(collection, state, initial);
       onSubmit(values);
     } catch (e) {
       setLocalError(e instanceof Error ? e.message : 'Invalid input');
@@ -197,16 +207,21 @@ export function RecordForm({
                 className="space-y-4 border-t border-slate-200 pt-4 first:border-t-0 first:pt-0"
               >
                 <legend className="font-semibold text-slate-900">{section.heading}</legend>
-                {section.fields.map((field) => (
-                  <Field
-                    key={field.name}
-                    field={field}
-                    value={state[field.name]}
-                    error={fieldErrors[field.name]}
-                    onBusyChange={field.name === 'imageIds' ? setImageBusy : undefined}
-                    onChange={(value) => setField(field.name, value)}
-                  />
-                ))}
+                {section.fields.map((field) =>
+                  field.name === 'category' && state.productFamily !== 'headphones' ? null : (
+                    <Field
+                      key={field.name}
+                      field={field}
+                      value={state[field.name]}
+                      error={fieldErrors[field.name]}
+                      onBusyChange={field.name === 'imageIds' ? setImageBusy : undefined}
+                      onValidityChange={
+                        field.name === 'manualCatalogPricing' ? setPricingInvalid : undefined
+                      }
+                      onChange={(value) => setField(field.name, value)}
+                    />
+                  ),
+                )}
               </fieldset>
             ))}
             {readOnlyFields.length > 0 && (
@@ -263,7 +278,7 @@ export function RecordForm({
           </button>
           <button
             type="submit"
-            disabled={submitting || imageBusy}
+            disabled={submitting || imageBusy || pricingInvalid}
             className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
           >
             {imageBusy ? 'Waiting for uploads…' : submitting ? 'Saving…' : 'Save'}
@@ -279,12 +294,14 @@ function Field({
   value,
   error,
   onBusyChange,
+  onValidityChange,
   onChange,
 }: {
   field: FieldDef;
   value: string | boolean;
   error?: string;
   onBusyChange?: (busy: boolean) => void;
+  onValidityChange?: (invalid: boolean) => void;
   onChange: (value: string | boolean) => void;
 }) {
   const label = (
@@ -326,6 +343,17 @@ function Field({
         </div>
         {fieldError}
       </div>
+    );
+  }
+
+  if (field.name === 'manualCatalogPricing') {
+    return (
+      <QuantityTierPricingEditor
+        value={String(value)}
+        error={error}
+        onValidityChange={onValidityChange}
+        onChange={(next) => onChange(next)}
+      />
     );
   }
 
@@ -437,11 +465,39 @@ function Field({
 }
 
 /** Convert the string-based form state into typed values for the API. */
-export function coerceValues(collection: CollectionDef, state: FormState): Record<string, unknown> {
+export function coerceValues(
+  collection: CollectionDef,
+  state: FormState,
+  initial?: CollectionDoc,
+): Record<string, unknown> {
   const values: Record<string, unknown> = {};
   for (const field of collection.fields) {
     if (field.readOnly || field.hideInForm) continue;
     const raw = state[field.name];
+
+    if (
+      collection.name === 'products' &&
+      field.name === 'category' &&
+      state.productFamily !== 'headphones'
+    ) {
+      if (
+        typeof initial?.category === 'string' &&
+        (LEGACY_HEADPHONES_CATEGORY_OPTIONS as readonly string[]).includes(initial.category)
+      ) {
+        values.category = '';
+      }
+      continue;
+    }
+
+    if (collection.name === 'products' && field.name === 'manualCatalogPricing') {
+      const str = String(raw ?? '').trim();
+      if (str) {
+        values.manualCatalogPricing = JSON.parse(str);
+      } else if (initial && initial.manualCatalogPricing !== undefined) {
+        values.manualCatalogPricing = null;
+      }
+      continue;
+    }
 
     if (field.type === 'boolean') {
       values[field.name] = Boolean(raw);

@@ -59,10 +59,10 @@ cross-file-reasoning:
 | CloudBase SDK contract | Installed SDK/runtime probes pass | Passed |
 | Static site | Explicit production origin build and secret-name scan pass | Passed |
 | Local E2E | Exact seed plus real lifecycle on deleted temporary DB | Passed |
-| Preview E2E | Public catalog and non-mutating Admin UI on deployed test SHA | Blocked: test environment rejects this feature branch before runner allocation (runs `32324413709`, `32324519611`) |
-| Deployed smoke | Release SHA, routes, non-empty family filters, identity-matched detail, negatives, protected Admin read | Pending test deployment |
-| Independent review | No open assumption/cross-file findings | Pending MIU 22 final review |
-| Remote delivery | Reviewed implementation candidate pushed to one feature branch | Passed: `7252af0`; PR #27 open |
+| Preview E2E | Public catalog and non-mutating Admin UI on deployed test SHA | Passed: public 37/37 and catalog 16/16 on run `32359898758` |
+| Deployed smoke | Release SHA, routes, declared stocked families, optional slug detail, negatives, protected Admin read | Passed: run `32359898758` |
+| Independent review | No open assumption/cross-file findings | Passed; remediation findings closed and recorded |
+| Remote delivery | Reviewed implementation SHA pushed to one feature branch | Passed: `8f64659`; PR #27 open; current head/checks are queried at review time |
 | Production | Explicit approval before live smoke/deploy | Not authorized |
 
 ## Risk Register
@@ -83,8 +83,8 @@ cross-file-reasoning:
 - [x] Exact local full-family verification passes.
 - [x] Disposable mutation lifecycle and teardown pass.
 - [x] Final full repository/function/SDK gates pass.
-- [ ] Test preview deploy and E2E pass for final SHA (blocked by environment branch policy).
-- [ ] Final independent MIU 22 review passes.
+- [x] Test deploy, smoke, and E2E pass for final SHA.
+- [x] Final MIU 22–25 review/validation evidence is recorded.
 - [x] Final SHA is blessed and pushed.
 - [x] PR status is recorded: <https://github.com/vibelingan/channel/pull/27>.
-- [ ] Production smoke is approved and passed, or explicitly recorded as not authorized.
+- [x] Production smoke is explicitly recorded as not authorized; no production claim is made.

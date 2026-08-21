@@ -89,6 +89,27 @@ test('slug helper encodes the slug as one path segment and resolves only nine im
   assert.deepEqual(product.images, images.slice(0, 9));
 });
 
+test('product decoder accepts canonical manual quantity tiers', async (t) => {
+  installBrowserMocks(t, [
+    jsonResponse({
+      _id: 'product-1',
+      name: 'Tiered Toy',
+      productFamily: 'toys',
+      manualCatalogPricing: {
+        schemaVersion: 'manual-catalog-pricing-v1',
+        currency: 'USD',
+        tiers: [
+          { minQuantity: 1, maxQuantity: 12, unitAmountMinor: 13_418 },
+          { minQuantity: 13, unitAmountMinor: 11_831 },
+        ],
+      },
+    }),
+  ]);
+
+  const product = await fetchProductBySlug('tiered-toy');
+  assert.equal(product.manualCatalogPricing?.tiers[1]?.unitAmountMinor, 11_831);
+});
+
 test('catalog token is read for every request', async (t) => {
   const calls = installBrowserMocks(t, [
     jsonResponse({ items: [], total: 0, page: 1, pageSize: 24 }),
@@ -324,6 +345,37 @@ test('malformed catalog and product payloads fail at the response boundary', asy
         syncedAt: '2026-01-01T00:00:00.000Z',
       },
     }),
+    jsonResponse({
+      _id: 'unknown-manual-key',
+      name: 'Unknown manual key',
+      manualCatalogPricing: {
+        schemaVersion: 'manual-catalog-pricing-v1',
+        currency: 'USD',
+        tiers: [{ minQuantity: 1, unitAmountMinor: 250, discount: true }],
+      },
+    }),
+    jsonResponse({
+      _id: 'bad-manual-bounds',
+      name: 'Bad manual bounds',
+      manualCatalogPricing: {
+        schemaVersion: 'manual-catalog-pricing-v1',
+        currency: 'USD',
+        tiers: [{ minQuantity: 10, maxQuantity: 5, unitAmountMinor: 250 }],
+      },
+    }),
+    jsonResponse({
+      _id: 'too-many-manual-tiers',
+      name: 'Too many manual tiers',
+      manualCatalogPricing: {
+        schemaVersion: 'manual-catalog-pricing-v1',
+        currency: 'USD',
+        tiers: Array.from({ length: 5 }, (_, index) => ({
+          minQuantity: index + 1,
+          maxQuantity: index + 1,
+          unitAmountMinor: 250,
+        })),
+      },
+    }),
   ]);
   await assert.rejects(fetchProductFamily('toys'), /Failed to load catalog/);
   await assert.rejects(fetchProductBySlug('bad'), /Failed to load item/);
@@ -340,6 +392,9 @@ test('malformed catalog and product payloads fail at the response boundary', asy
   await assert.rejects(fetchProductBySlug('overlapping-tiers'), /Failed to load item/);
   await assert.rejects(fetchProductBySlug('unknown-pricing-key'), /Failed to load item/);
   await assert.rejects(fetchProductBySlug('unknown-tier-key'), /Failed to load item/);
+  await assert.rejects(fetchProductBySlug('unknown-manual-key'), /Failed to load item/);
+  await assert.rejects(fetchProductBySlug('bad-manual-bounds'), /Failed to load item/);
+  await assert.rejects(fetchProductBySlug('too-many-manual-tiers'), /Failed to load item/);
 });
 
 class MemoryStorage implements Storage {

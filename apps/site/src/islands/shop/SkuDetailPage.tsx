@@ -3,6 +3,7 @@ import type { CatalogContent } from '../../i18n/catalog.ts';
 import {
   catalogBreadcrumbSchema,
   catalogProductSchema,
+  hasAddressableProductDetail,
   serializeCatalogSchema,
   skuBreadcrumbs,
 } from '../../lib/catalog-seo.ts';
@@ -11,8 +12,8 @@ import { AlibabaCatalogPricingBlock } from './AlibabaCatalogPricingBlock.tsx';
 import { catalogProductPrice, hasUsableCatalogSlug } from './CatalogFamilyGrid.tsx';
 import { Gallery } from './Gallery.tsx';
 import { ProductMedia } from './ProductMedia.tsx';
+import { QuantityTierPricingBlock } from './QuantityTierPricingBlock.tsx';
 import { fetchProductBySlug, fetchRelatedProducts } from './api.ts';
-import { isPublicationCompleteCatalogProduct } from './catalog-pricing.ts';
 import type { Product } from './catalog-types.ts';
 
 export type SkuDetailViewState =
@@ -178,6 +179,8 @@ export function SkuDetailView({ content, state, onRetry }: ViewProps) {
               <div className="mt-8 border-y border-slate-200 py-5">
                 {alibabaLinked ? (
                   <AlibabaCatalogPricingBlock pricing={product.alibabaCatalogPricing} size="lg" />
+                ) : product.manualCatalogPricing ? (
+                  <QuantityTierPricingBlock pricing={product.manualCatalogPricing} />
                 ) : (
                   <p className="font-display text-2xl font-bold text-brand-700">
                     {catalogProductPrice(product, detail.inquiryCta)}
@@ -266,7 +269,7 @@ export function SkuDetailPage({ content }: Props) {
     fetchProductBySlug(slug, controller.signal)
       .then((product) => {
         if (controller.signal.aborted) return;
-        if (canonical && isPublicationCompleteCatalogProduct(product)) {
+        if (canonical && hasAddressableProductDetail(product)) {
           canonical.href = new URL(
             `/products/item/?slug=${encodeURIComponent(product.slug?.trim() ?? '')}`,
             window.location.origin,

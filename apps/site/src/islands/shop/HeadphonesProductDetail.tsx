@@ -15,6 +15,7 @@ import type { HeadphonesContent } from '../../i18n/headphones.ts';
 import { OEM_INQUIRY_HREF } from '../../lib/site-navigation.ts';
 import { AlibabaCatalogPricingBlock } from './AlibabaCatalogPricingBlock.tsx';
 import { Gallery } from './Gallery.tsx';
+import { QuantityTierPricingBlock } from './QuantityTierPricingBlock.tsx';
 import { formatPrice } from './api.ts';
 import { publicManualPrice } from './catalog-pricing.ts';
 import type { Product } from './catalog-types.ts';
@@ -148,6 +149,8 @@ export function HeadphonesProductDetail({
             <div className="mt-6 rounded-[var(--radius-card)] bg-white p-5 shadow-sm ring-1 ring-slate-200">
               {alibabaLinked ? (
                 <AlibabaCatalogPricingBlock pricing={product.alibabaCatalogPricing} size="lg" />
+              ) : product.manualCatalogPricing ? (
+                <QuantityTierPricingBlock pricing={product.manualCatalogPricing} />
               ) : (
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">

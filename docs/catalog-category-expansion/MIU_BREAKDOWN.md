@@ -115,7 +115,7 @@ flowchart TD
 
 **Block:** BACKEND
 
-**Files:** `packages/db/src/adapter.ts`, `packages/db/src/index.ts`, `packages/db/src/cloudbase-adapter.ts`, `apps/local-server/src/json-adapter.ts`, `apps/functions/admin/src/catalog-product-identities.ts`
+**Files:** `packages/db/src/adapter.ts`, `packages/db/src/cloudbase-adapter.ts`, `apps/functions/admin/src/catalog-product-identities.ts`
 
 **Type:** new-file
 
@@ -131,6 +131,8 @@ flowchart TD
   owner-checked stale identity release without process-local compensation.
 - Adds a thin Admin repository that generates create IDs, canonicalizes identity input, and maps
   storage results to domain errors. It exposes no generic Admin route.
+- The DB facade export and local JSON adapter are secondary seam consumers validated by the focused
+  integration tests, not separate contract owners in this MIU.
 
 **Build/Deploy/Runtime impact:**
 
@@ -535,7 +537,7 @@ flowchart TD
 
 **Block:** FRONTEND
 
-**Files:** `apps/site/src/islands/admin/CollectionView.tsx`, `apps/site/src/islands/admin/sections.ts`, `apps/site/src/islands/admin/product-family-tabs.test.ts`, plus the shared/admin/DB list-query seam required for independent family composition
+**Files:** `apps/site/src/islands/admin/CollectionView.tsx`, `apps/site/src/islands/admin/product-family-tabs.test.ts`, `packages/shared/src/query.ts`
 
 **Type:** modify-existing
 
@@ -545,6 +547,8 @@ flowchart TD
 
 - Adds All/four-family tabs only inside Products, stored in URL query and composed with search/filter/sort/page.
 - Tab switch resets page/selection; New carries family context; mobile uses scrollable tabs/select.
+- Existing Admin/DB adapter consumers forward the shared query contract and are verified as seams;
+  section metadata remains unchanged except for the already-established Products label.
 
 **Build/Deploy/Runtime impact:**
 
@@ -763,20 +767,31 @@ flowchart TD
 
 ## MIU 23 — Restore catalog visibility and the product detail journey on legacy data
 
+**Status:** Complete (`65ba453`, `25d06f6`).
+
+**Block:** FRONTEND
+
+**Files:** `apps/site/src/islands/shop/CatalogFamilyGrid.tsx`, `apps/site/src/islands/shop/CatalogFamilyPage.tsx`, `apps/site/src/islands/shop/catalog-family-render.test.ts`
+
+**Type:** modify-existing
+
 **Depends on:** MIU 22
 
 **Why:** The deployed catalog is entirely legacy rows created before slugs existed. The V1.1
 shell filtered the grid by slug and routed the detail journey exclusively through a slug URL,
 so published products vanished and no product had a detail page. See REMEDIATION.md R1, R2.
 
-**Scope:**
+**What it does:**
 
 - Render every product the API returns; a slug decides only whether a card links out.
 - Restore in-page detail expansion keyed by product id, with the focus lifecycle the previous
   headphones page defined (heading focus on open, origin-card focus on Back).
 - Extend the catalog detail content contract with the labels the shared detail band renders.
 
-**Build/Deploy/Runtime impact:** Storefront rendering only; no schema or API change.
+**Build/Deploy/Runtime impact:**
+
+- Storefront rendering only; no schema, API, dependency, or deployment topology change.
+- Site static build and hydrated catalog runtime are affected and were verified.
 
 **Test plan (TDD — write first):**
 
@@ -784,10 +799,20 @@ so published products vanished and no product had a detail page. See REMEDIATION
   neither, and keeps pagination reachable.
 - Clicking a slug-less card opens `data-product-detail` for that id; Back restores card focus.
 
-**Done when:** The deployed headphones family renders its published products and each card
-opens its detail band. Verified against the deployed payload shape in a browser.
+**Done when:**
+
+- The deployed headphones family renders its published legacy products and each card opens its detail band.
+- Site tests/typecheck/build and browser focus/Back behavior pass against the deployed payload shape.
 
 ## MIU 24 — Make the catalog card self-contained and the header lane deterministic
+
+**Status:** Complete (`d6972a5`, `182ff6d`, `d63138e`, `1b16b74`, `8f64659`).
+
+**Block:** FRONTEND
+
+**Files:** `apps/site/src/islands/shop/CatalogFamilyGrid.tsx`, `apps/site/src/components/SiteHeader.astro`, `apps/site/src/islands/admin/CollectionView.tsx`
+
+**Type:** refactor
 
 **Depends on:** MIU 23
 
@@ -796,7 +821,7 @@ grey blocks; card regions drifted with copy length; and the header chose its lan
 different width API than its stylesheet, so the two disagreed at the breakpoint. See
 REMEDIATION.md R3, R4, R5, R6.
 
-**Scope:**
+**What it does:**
 
 - Card owns its border and is a full-height flex column with fixed regions; grid paints
   nothing and uses ordinary gaps.
@@ -804,7 +829,10 @@ REMEDIATION.md R3, R4, R5, R6.
   threshold; the script evaluates the same media query rather than `window.innerWidth`.
 - Cap admin table text at two clamped lines with the full value in a title tooltip.
 
-**Build/Deploy/Runtime impact:** Presentation only; no data or route change.
+**Build/Deploy/Runtime impact:**
+
+- Presentation/hydration only; no data, route, dependency, or deployment topology change.
+- Static Astro build plus Chromium/WebKit runtime layout/focus behavior are affected and verified.
 
 **Test plan (TDD — write first):**
 
@@ -813,18 +841,27 @@ REMEDIATION.md R3, R4, R5, R6.
 - Lane transition across the threshold closes the mobile disclosure and moves focus to the
   equivalent desktop destination.
 
-**Done when:** Grid background is transparent with an uneven row, card regions align across a
-row, nav position is identical before and after island hydration, and the header/nav suites
-pass in Chromium and WebKit.
+**Done when:**
+
+- Grid background is transparent with an uneven row and card/media/title/action measurements align.
+- Nav position is stable before/after hydration and header/nav suites pass in Chromium and WebKit.
 
 ## MIU 25 — Align the deployed browser suite with the approved design
+
+**Status:** Complete (`1e4f3ff`, `2dcce50`, `b897b7b`, `b06c17c`, `dcbc8f2`).
+
+**Block:** TESTING
+
+**Files:** `tests/e2e/public.spec.ts`, `scripts/smoke-cloudbase-deploy.mjs`, `.github/workflows/deploy-test.yml`
+
+**Type:** modify-existing
 
 **Depends on:** MIU 24
 
 **Why:** Eight deployed tests still described the pre-expansion site, and the smoke asserted
 inventory rather than contract. See REMEDIATION.md R7, R8, R9.
 
-**Scope:**
+**What it does:**
 
 - Spec discovery succeeds with no environment; opt-in lanes skip on their static flag and fail
   on missing credentials once enabled.
@@ -833,11 +870,153 @@ inventory rather than contract. See REMEDIATION.md R7, R8, R9.
 - Nav, admin section, back-label, eyebrow, and image-cap assertions restated against the
   approved design; component gaps found this way fixed rather than asserted away.
 
-**Build/Deploy/Runtime impact:** CI and deployment verification only.
+**Build/Deploy/Runtime impact:**
+
+- CI, CloudBase test deployment smoke, and deployed browser validation behavior change.
+- No application runtime contract changes; CI and Deploy Test runs verify the affected contexts.
 
 **Test plan (TDD — write first):**
 
 - `pnpm test:e2e --list` enumerates every spec with no environment variables set.
 - The admin capacity scenario is expressed at the V1.1 nine-image product cap.
 
-**Done when:** CI is green and the deployed public browser suite passes end to end.
+**Done when:**
+
+- CI/spec discovery and deployed smoke pass with no false inventory assumptions.
+- Deployed public and catalog browser suites pass end to end with recorded run evidence.
+
+## MIU 26 — Manual quantity-tier contract and optional publication identity
+
+**Status:** Complete (commit recorded in `EXECUTION.md`).
+
+**Block:** BACKEND
+
+**Files:** `packages/shared/src/manual-catalog-pricing.ts`, `packages/shared/src/catalog-product.ts`, `packages/shared/src/collections.ts`
+
+**Type:** new-file
+
+**Depends on:** MIU 25
+
+**What it does:**
+
+- Adds strict manual-owned pricing with USD/CNY currency and at most four ordered quantity tiers in
+  integer minor units; unknown keys, invalid bounds, overlap, duplicate starts, and non-final open
+  tiers fail closed.
+- Registers the field as writable without changing Alibaba-owned or legacy scalar pricing.
+- Makes SKU/slug optional publication metadata while keeping supplied-value normalization and identity
+  uniqueness; establishes Headphones-only subcategory write validation.
+
+**Build/Deploy/Runtime impact:** shared runtime contract consumed by Admin, public API, and site.
+
+**Test plan (TDD — write first):**
+
+- Accept 1–4 valid ordered tiers and blank SKU/slug publication; preserve legacy scalar fields.
+- Reject unknown keys, invalid amounts/quantities, overlap/duplicate starts/non-final open tiers,
+  malformed supplied identities, and non-Headphones subcategory writes.
+
+**Done when:**
+
+- Shared tests/typecheck pass with red-to-green evidence for validator/publication/category boundaries.
+- Assumption/cross-file audit reports no Alibaba ownership or historical-data compatibility drift.
+
+## MIU 27 — Structured Admin tier editor and family-aware form
+
+**Status:** Complete (commit recorded in `EXECUTION.md`).
+
+**Block:** FRONTEND
+
+**Files:** `apps/site/src/islands/admin/QuantityTierPricingEditor.tsx`, `apps/site/src/islands/admin/RecordForm.tsx`, `apps/site/src/islands/admin/product-form.test.ts`
+
+**Type:** new-file
+
+**Depends on:** MIU 26
+
+**What it does:**
+
+- Adds an accessible structured editor (currency, 1–4 quantity tiers, add/remove, inline
+  errors) instead of raw JSON while leaving scalar MOQ/unit/wholesale fields in place.
+- Hides Subcategory unless family is Headphones, clears it accessibly on transition, and omits stale
+  category from non-Headphones payloads.
+- Removes publication-only red errors for blank SKU/slug while preserving conflict errors when supplied.
+
+**Build/Deploy/Runtime impact:** Admin React island only; generic product mutation contract reused.
+
+**Test plan (TDD — write first):**
+
+- Add/remove/clear tier rows and submit exact minor-unit payload while preserving scalar fields.
+- Reject invalid tiers accessibly; hide/omit Subcategory outside Headphones; show optional identity
+  labels and preserve supplied identity conflict errors.
+
+**Done when:**
+
+- Focused Admin tests plus site typecheck/lint pass.
+- Chromium mobile/desktop visual and keyboard/focus journeys pass with no overflow or overlap.
+
+## MIU 28 — Public projection, strict decode, and shared pricing presentation
+
+**Status:** Complete (commit recorded in `EXECUTION.md`).
+
+**Block:** INTEGRATION
+
+**Files:** `apps/functions/public-api/src/handler.ts`, `apps/site/src/islands/shop/api.ts`, `apps/site/src/islands/shop/QuantityTierPricingBlock.tsx`
+
+**Type:** modify-existing
+
+**Depends on:** MIU 26
+
+**What it does:**
+
+- Projects only validated manual pricing, strips stale category from non-Headphones rows, and keeps
+  invalid stored pricing from dropping otherwise-readable legacy products.
+- Strictly decodes the new nested contract in the browser.
+- Renders tier summary/table across cards and detail surfaces with precedence Alibaba → manual tiers →
+  scalar fallback; optional SKU/slug do not gate publication, and JSON-LD uses manual AggregateOffer
+  only on an addressable slug detail.
+
+**Build/Deploy/Runtime impact:** public function payload plus catalog rendering/schema.
+
+**Test plan (TDD — write first):**
+
+- Project valid manual tiers and omit malformed storage/stale non-Headphones category; strict decoder
+  accepts the canonical shape and rejects invalid nested keys/bounds.
+- Render all four families with Alibaba → manual tiers → scalar precedence; verify legacy scalar parity,
+  slugless inline detail, and addressable AggregateOffer behavior.
+
+**Done when:**
+
+- Public API/site tests, typechecks, function build, package, and cold-start artifact smoke pass.
+- Chromium/WebKit card/detail/SEO checks pass for linked, tiered, scalar-only, and slugless products.
+
+## MIU 29 — Full human validation and test deployment
+
+**Status:** In progress.
+
+**Block:** TESTING
+
+**Files:** `tests/e2e/catalog-admin.spec.ts`, `tests/e2e/catalog-category.spec.ts`, `docs/catalog-category-expansion/EXECUTION.md`
+
+**Type:** new-test
+
+**Depends on:** MIUs 27–28
+
+**What it does:**
+
+- Runs disposable Admin create/edit/publish for a non-Headphones slugless tier-priced product and a
+  Headphones→other-family category clear, with cleanup.
+- Performs Chromium/WebKit, no-JS, reduced-motion, mobile/desktop, empty/partial/full/long/missing-media,
+  visual alignment, keyboard/focus, API/function/build/secret/deployed smoke validation.
+- Merges only the reviewed final SHA into `test` and waits for CI, deploy, public E2E, catalog E2E.
+
+**Build/Deploy/Runtime impact:** full repository and CloudBase test environment.
+
+**Test plan (TDD — write first):**
+
+- Real disposable Admin journeys create/edit/publish tier-priced slugless and family-transition products,
+  assert storefront/API results, and clean up in `finally`.
+- Full static/unit/function/Chromium/WebKit/deployed lanes assert exact release identity, visual states,
+  no skipped credentialed lane, no secret leakage, and no console/network failures.
+
+**Done when:**
+
+- Every local/full human validation gate passes with recorded commands, counts, screenshots, and risks.
+- Reviewed SHA deploys to `test`; CI, smoke, public E2E, and catalog E2E pass with recorded run IDs.

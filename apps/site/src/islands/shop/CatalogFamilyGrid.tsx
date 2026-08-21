@@ -4,6 +4,7 @@ import {
   alibabaPriceSummary,
 } from './AlibabaCatalogPricingBlock.tsx';
 import { ProductMedia } from './ProductMedia.tsx';
+import { quantityTierPriceSummary } from './QuantityTierPricingBlock.tsx';
 import { formatPrice } from './api.ts';
 import { publicManualPrice } from './catalog-pricing.ts';
 import type { Product } from './catalog-types.ts';
@@ -99,6 +100,7 @@ export function catalogProductPrice(product: Product, quoteLabel: string): strin
       DEFAULT_ALIBABA_PRICING_LABELS.unavailableLabel
     );
   }
+  if (product.manualCatalogPricing) return quantityTierPriceSummary(product.manualCatalogPricing);
   const publicPrice = publicManualPrice(product);
   return publicPrice === undefined ? quoteLabel : formatPrice(publicPrice);
 }
@@ -115,7 +117,7 @@ export function CatalogFamilyGrid({
   onLoadMore,
   onOpenProduct,
 }: Props) {
-  const { list, detail } = content;
+  const { list } = content;
   // Render every published product the API returns. Legacy catalog rows predate slugs,
   // so filtering the grid by slug hid real, sellable products behind "no products match".
   // The slug only decides whether a card links to its detail page.

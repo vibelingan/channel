@@ -60,7 +60,7 @@ test('draft writes remain backward compatible while product identity fields vali
   assert.equal(schema.safeParse({ name: 'Bad', productFamily: 'garden' }).success, false);
 });
 
-test('publication requires complete identity, description, and a primary image', () => {
+test('publication allows missing SKU and slug but still requires content and a primary image', () => {
   const complete = {
     name: 'WorkComm Mono',
     productFamily: 'headphones',
@@ -73,14 +73,13 @@ test('publication requires complete identity, description, and a primary image',
   };
   assert.deepEqual(validateProductPublication(complete), []);
 
-  for (const key of [
-    'name',
-    'productFamily',
-    'skuCode',
-    'slug',
-    'description',
-    'imageIds',
-  ] as const) {
+  assert.deepEqual(
+    validateProductPublication({ ...complete, skuCode: undefined, slug: undefined }),
+    [],
+  );
+  assert.deepEqual(validateProductPublication({ ...complete, skuCode: '', slug: '   ' }), []);
+
+  for (const key of ['name', 'productFamily', 'description', 'imageIds'] as const) {
     const incomplete = { ...complete } as Record<string, unknown>;
     delete incomplete[key];
     assert.ok(validateProductPublication(incomplete).length > 0, `missing ${key} must fail`);
@@ -88,6 +87,43 @@ test('publication requires complete identity, description, and a primary image',
   assert.ok(validateProductPublication({ ...complete, imageIds: ['  '] }).length > 0);
   assert.ok(validateProductPublication({ ...complete, archived: true }).length > 0);
   assert.deepEqual(validateProductPublication({ name: 'Draft', published: false }), []);
+});
+
+test('non-Headphones products reject subcategory while legacy Headphones categories remain valid', () => {
+  assert.deepEqual(
+    validateProductPublication({ name: 'Headset', productFamily: 'headphones', category: 'wired' }),
+    [],
+  );
+  for (const productFamily of ['ai-gadgets', 'toys', 'misc']) {
+    assert.deepEqual(
+      validateProductPublication({ name: 'Other product', productFamily, category: 'wired' }),
+      [{ field: 'category', message: 'Subcategory applies only to Headphones' }],
+    );
+  }
+});
+
+test('manual tier pricing is writable without removing scalar pricing fields', () => {
+  const schema = buildWriteSchema(productsDef());
+  const parsed = schema.safeParse({
+    name: 'Tiered toy',
+    productFamily: 'toys',
+    moq: 1,
+    unitPrice: 134.18,
+    wholesalePrice: 118.31,
+    manualCatalogPricing: {
+      schemaVersion: 'manual-catalog-pricing-v1',
+      currency: 'USD',
+      tiers: [
+        { minQuantity: 1, maxQuantity: 12, unitAmountMinor: 13_418 },
+        { minQuantity: 13, unitAmountMinor: 11_831 },
+      ],
+    },
+  });
+  assert.equal(parsed.success, true);
+  if (!parsed.success) return;
+  assert.equal(parsed.data.unitPrice, 134.18);
+  assert.equal(parsed.data.wholesalePrice, 118.31);
+  assert.equal((parsed.data.manualCatalogPricing as { tiers: unknown[] }).tiers.length, 2);
 });
 
 test('products enforce nine images while Overstock retains eighteen', () => {

@@ -1,10 +1,160 @@
 # Catalog Category Expansion - Execution And Delivery
 
-Status: implementation complete; test preview is blocked by GitHub environment branch policy.
+Status: approved post-V1.1 form/pricing enhancement is in implementation on the existing branch.
 Branch: `feat/catalog-category-design`.
-Baseline before MIU 22: `7c8a7096e98997509ad0fb48eb80049a26a3163b`.
-Implementation candidate SHA: `7252af0863cdfb8ff21f67752933da5c86a93b4f`.
+Final reviewed implementation SHA: `8f64659deda11a2651afebcb38ca241bf15bc5a4`.
+Final test-branch merge SHA: `a4d0bc5`.
 Pull request: <https://github.com/vibelingan/channel/pull/27>.
+
+The PR head and checks change whenever this handoff document is updated. Query GitHub at review
+time (`gh pr view 27`) rather than freezing a self-invalidating "current head/green" claim here.
+
+## Handoff Contract
+
+This file is the **portable source of truth for current status and next action**. Agents must
+use the following precedence instead of inferring state from filenames or creating a second plan:
+
+1. `EXECUTION.md` — completed work, validation evidence, current phase, and next action.
+2. `MIU_BREAKDOWN.md` — approved MIU scope and dependencies; it is not a progress tracker.
+3. `REMEDIATION.md` — defect/root-cause and architectural rationale.
+4. `task_plan.md` and `progress.md` — historical planning/log detail; they must not override this file.
+5. `.claude/pipeline-state.json` — disposable local pointer regenerated from these tracked docs.
+
+**Current phase:** `implement`.
+
+**Current/next MIU:** MIU 29 in progress. MIUs 1–28 are complete. Do not
+invent P1–P6, a second pricing plan, or another implementation branch for this feature.
+
+**Next action by role:**
+
+| Agent role | Action |
+|---|---|
+| Implementer | Execute MIUs 26–29 in order on `feat/catalog-category-design`; test first and record each boundary. |
+| Reviewer | Review each MIU against its cross-file contract; do not redesign provider ownership. |
+| Designer | The scope below is locked. Raise a conflict only if code cannot support the conservative contract. |
+| Validator | Validate each MIU narrowly, then run the full human/browser/deployed matrix in MIU 29. |
+| Delivery | After MIU 29 passes, merge the reviewed feature SHA into `test`, wait for deploy/E2E, then return to PR #27. |
+
+## Post-Delivery Queue (Not An Active MIU)
+
+After PR #27 is reviewed/merged, run a separate serious retrospective/design task covering:
+
+- why the initial V1.1 architecture replaced proven Headphones behaviour instead of extracting it;
+- whole-repository dependency and historical-data impact analysis before additive design approval;
+- role-separated design → implementation → review → validation handoff quality;
+- a durable debugging/solutions knowledge system that preserves detailed reproduction methods,
+	verification evidence, expiry/refresh policy, and reusable interview-quality explanations.
+
+This queue item is intentionally **not** MIU 26 and does not reopen catalog implementation.
+
+## Approved Enhancement Scope (MIUs 26–29)
+
+- SKU Code and URL Slug are optional for publication. Nonblank values retain normalization,
+	uniqueness, and reservation behavior; slugless products remain family-list/in-page-detail only.
+- Add writable `manualCatalogPricing` for every product family: explicit USD/CNY currency and
+	1–4 quantity tiers (`minQuantity`, optional `maxQuantity`, `unitAmountMinor`). Tiers are ordered,
+	non-overlapping, only the final tier may be open-ended, and gaps are allowed.
+- Preserve `moq`, `unitPrice`, and `wholesalePrice` without migration or deletion. For unlinked
+	products, valid manual tiers are the primary display and scalars remain fallback. For linked
+	products, Alibaba pricing remains the only visible pricing source.
+- `category` is a Headphones-only subcategory. Hide it for all other families, clear it on a family
+	change, omit it from non-Headphones writes, and suppress stale non-Headphones category on public reads.
+- No production data mutation/backfill, no Alibaba contract changes, no new branch, no ID-based URL.
+
+## MIU 26 — Manual Pricing Contract And Optional Identity
+
+**What:** Added strict `manualCatalogPricing` (USD/CNY, 1–4 ordered non-overlapping quantity
+tiers in integer minor units), registered it as a writable product field, preserved scalar and
+Alibaba pricing ownership, removed SKU/slug from publication completeness, and canonicalized stale
+non-Headphones subcategory on the next atomic product write.
+
+**Why:** Manual products need Alibaba-equivalent quantity-range semantics without making provider
+fields writable or migrating existing scalar prices. SKU/slug are optional addressability metadata,
+not prerequisites for the restored `_id`-keyed in-page detail journey.
+
+**Tests written:** strict contract happy/invalid/gap/cardinality tests; blank identity publication;
+scalar coexistence; Headphones-only subcategory; atomic stale-category partial-update regression.
+
+**Validation:** Red gate failed exactly four intended surfaces (missing module, old publication gate,
+category accepted globally, no registry field). Green: shared 100/100, DB 41/41, both package
+typechecks; assumption/cross-file audit PASS.
+
+**Result:** Complete. No migration or Alibaba contract change.
+
+**Engineering rationale:** A separate manual anti-corruption contract prevents operators from
+forging Alibaba provenance and avoids converting major-unit legacy prices into fabricated tiers.
+Tier amounts use integer minor units so the Admin editor can parse decimal strings exactly.
+
+## MIU 27 — Structured Admin Tier Editor And Family-Aware Form
+
+**What:** Replaced raw manual-pricing JSON with an accessible USD/CNY quantity-tier editor; kept
+legacy MOQ, unit price, and wholesale price fields; made SKU Code and URL Slug visibly optional; and
+showed Subcategory only for Headphones. Product updates now distinguish omitted manual pricing from
+an explicit clear and remove stale Headphones category when a product moves to another family.
+
+**Tests written:** decimal-to-minor-unit parsing; valid/invalid/malformed tier drafts; max-four,
+add/remove/clear, stable focus, and update-clear behavior; optional identity publication errors;
+family transition payloads; and a real authenticated Admin browser journey that submits two tiers
+(`1–12` at USD 134.18 and `13+` at USD 118.31) as exact minor units (`13418`, `11831`).
+
+**Validation:** Admin tests 173/173 and site tests 196/196; focused Admin/site/shared typechecks and
+lint passed. Chromium Admin E2E passed 4/4, including a 390px dialog containment assertion. The same
+four journeys passed in WebKit. Desktop and narrow-layout captures were inspected for field overlap,
+wrapping, tier readability, and retained scalar pricing.
+
+**Result:** Complete. No scalar field, Alibaba pricing field, or generic mutation endpoint was
+removed or repurposed.
+
+## MIU 28 — Public Projection, Strict Decode, And Shared Pricing Presentation
+
+**What:** Added validated public projection and strict storefront decoding for manual quantity
+tiers; malformed stored pricing is omitted without dropping the product. Public reads now suppress
+stale Subcategory outside Headphones. Cards, in-page details, and slug details share USD/CNY tier
+summary/table presentation with Alibaba → manual tiers → scalar fallback precedence. Slug-addressable
+products may omit SKU, and valid manual tiers emit AggregateOffer low/high prices.
+
+**Tests written:** valid/malformed public projection and stale category suppression; canonical and
+malformed nested DTO decoding; currency/range/table rendering; Alibaba/manual/scalar precedence;
+optional-SKU addressability and AggregateOffer; and a 390px browser journey across Toys card,
+in-page detail, and slug detail with hydration-error and overflow guards.
+
+**Validation:** Public API 62/62 and site 204/204; Public API/site/E2E typechecks and focused Biome
+passed. Site production build generated 15 routes; all three CloudBase functions built, packaged,
+and cold-started from fresh artifacts. Chromium SKU journeys passed 5/5 and the same suite passed
+WebKit 5/5. True 390px and 1440px captures were inspected for wrapping, overlap, table alignment,
+and scalar-price leakage.
+
+**Result:** Complete. Invalid manual pricing fails closed at storage and network boundaries; Alibaba
+link identity remains authoritative and never falls back to manual or scalar prices.
+
+## MIU 29 — Full Human Validation And Test Deployment
+
+**Local mutation journey:** The runner-owned disposable DB passed its exact seed audit 1/1 and two
+serial Admin lifecycles 2/2. The additive lifecycle created a Headphones draft without SKU/slug,
+moved it to Toys while clearing `office`, stored exact two-tier pricing alongside scalar fields,
+published it, verified public projection and real in-page tier rendering, then unpublished/archived
+it. The runner removed the whole temporary directory after each run.
+
+**Local release gates:** Repository tests passed (deploy contracts 25/25; shared 100; DB 41; Admin
+173; Public API 62; site 204; sync function 74; local server 23; remaining package suites green).
+All 11 package/app typechecks plus E2E passed; Astro reported zero errors and seven existing hints.
+Repository Biome checked 327 files. Site built 15 routes, and all three fresh function artifacts
+built, packaged, and cold-started. E2E discovery enumerated 76 tests in 17 files.
+
+**Browser matrix:** Fresh-server Chromium catalog passed 17/17 and mocked Admin passed 7/7. The
+combined WebKit catalog/Admin matrix passed 24/24, including no-JS, reduced motion, mobile/desktop,
+long copy, missing media, optional identity, exact quantity tiers, focus, and overflow checks.
+
+**Deployment status:** Pending. Commit and independently review this MIU, merge the exact reviewed
+feature SHA into `test`, then record CI, deploy smoke, deployed public E2E, and deployed catalog E2E.
+
+## Deviations
+
+- **MIU 26 stale category canonicalization:** The approved scope said non-Headphones category should
+	be omitted/cleared. Validating the merged stored row directly would have blocked unrelated edits to
+	historical rows carrying stale category. Conservative choice: clear it inside the atomic save plan
+	on the next write. Non-conservative alternative rejected: require a bulk migration or force every
+	UI caller to know storage cleanup rules.
 
 ## Delivered Units
 
@@ -15,7 +165,10 @@ Pull request: <https://github.com/vibelingan/channel/pull/27>.
 | 16-19 | Admin family/form workflows, VIP suppression, and Alibaba compatibility | `63e87eb` through `7f9f01d` |
 | 20 | Breadcrumbs, structured data, canonical/robots/sitemap, and strict pricing projection | `9eddc36` |
 | 21 | Public/Admin E2E workflows and disposable local mutation runner | `7c8a709` |
-| 22 | Full-family local seed, compatibility, and release verification | In progress |
+| 22 | Full-family local seed, compatibility, and release verification | `7252af0`, final delivery evidence below |
+| 23 | Restore legacy-product visibility and the in-page detail journey | `65ba453`, `25d06f6` |
+| 24 | Self-contained catalog cards, stable header layout, and Admin table clamp | `d6972a5`, `182ff6d`, `d63138e`, `1b16b74`, `8f64659` |
+| 25 | Align CI, deployed smoke, and browser E2E with the approved catalog design | `1e4f3ff`, `2dcce50`, `b897b7b`, `b06c17c`, `dcbc8f2` |
 
 ## MIU 22 Local Integration
 
@@ -57,10 +210,13 @@ Observed local results:
 | Disposable seed/lifecycle | Passed | 2/2 specs; whole temporary DB removed |
 | Production site build | Passed | 15 static pages with explicit `SITE_URL` |
 | Repository lint | Passed | Biome 317 files |
-| Assumption audit | Passed | Independent MIU 21 audit had no findings; MIU 22 final audit pending |
+| Assumption/cross-file audit | Passed | MIU 22 final audit passed; remediation traces are recorded in `REMEDIATION.md` |
 | Function builds/packages/smoke | Passed | Admin, Public API, and Alibaba build/package/cold-start smoke |
 | CloudBase SDK contract | Passed | Installed runtime/type/transaction/upload probes |
-| Test-environment deploy | Deployed | Merged into `test` (`0fa5962`); CI run `32325527620` passed; Deploy Test run `32325527543` deployed all three functions Active at the release SHA and served every catalog route 200 |
+| Test-environment deploy | Passed | Final feature SHA merged into `test` as `a4d0bc5`; CI run `32359898730` passed; Deploy Test run `32359898758` passed |
+| Deployed public browser E2E | Passed | 37/37 on run `32359898758` |
+| Deployed catalog E2E | Passed | 16/16 on run `32359898758` |
+| Safari/WebKit compatibility | Passed | 6/6 header/catalog behavioural checks |
 | Production smoke | Not run | Requires separate explicit production approval |
 
 ## Deployment Boundary
@@ -71,8 +227,8 @@ Observed local results:
 	`32324519611`) were rejected only because a feature branch is not in the environment allowlist;
 	that was the wrong delivery route, not a genuine blocker.
 - Production deployment or production smoke is not authorized by this task. It must not be inferred from test-environment approval.
-- The deployed smoke now verifies release identity, all catalog routes, family-filtered API response
-	shape and projection, identity-matched slug detail, max-nine images, internal/VIP/video field
+- The deployed smoke verifies release identity, all catalog routes, family-filtered API response
+	shape/projection, optional slug detail when present, max-nine images, internal/VIP/video field
 	absence, and an Admin token authorizing a protected catalog read.
 
 ## Defects Found By CI And Deploy, And Fixed
@@ -102,12 +258,12 @@ Two real defects in this branch's own test tooling were caught only on the runne
 
 ## Delivery Checklist
 
-- [x] MIUs 1-21 committed and pushed to the single feature branch.
+- [x] MIUs 1-25 committed and pushed to the single feature branch.
 - [x] Exact local full-family and lifecycle verification passes.
 - [x] Temporary local database is removed after success and failure.
 - [x] Final package/function validation passes.
 - [x] Compatibility checklist is complete.
-- [ ] Test-environment preview workflow passes for the final SHA (blocked by branch policy).
+- [x] Test-environment deploy, deployed smoke, and public/catalog E2E pass for the final SHA.
 - [x] Final SHA is independently reviewed, blessed, and pushed.
 - [x] PR status is recorded: PR #27 open against `main`.
-- [ ] Production smoke is approved and passed, or explicitly recorded as not authorized.
+- [x] Production smoke is explicitly recorded as not authorized; no production claim is made.

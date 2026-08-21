@@ -16,6 +16,7 @@ import {
   ok,
   productFamilyForDoc,
   toRole,
+  validateManualCatalogPricing,
 } from '@vibelingan-channel/shared';
 
 const CATALOGS = PUBLIC_CATALOG_COLLECTIONS;
@@ -155,6 +156,7 @@ const PUBLIC_CATALOG_FIELDS = [
   'wholesalePrice',
   'clearancePrice',
   'published',
+  'manualCatalogPricing',
   // Alibaba-linked catalog fields (docs/alibaba-linked-catalog-sync, MIU 9).
   // Ungated by design: anonymous and authenticated callers receive IDENTICAL
   // Alibaba pricing (never in GATED_CATALOG_FIELDS). alibabaPrimaryOfferKey
@@ -202,7 +204,7 @@ function publicAlibabaCatalogPricing(value: unknown): unknown {
  */
 const GATED_CATALOG_FIELDS = ['vipPrice'] as const;
 
-function publicDoc(
+export function publicDoc(
   collection: PublicCatalog,
   doc: CollectionDoc,
   config: PublicApiConfig,
@@ -214,6 +216,12 @@ function publicDoc(
   const out: CollectionDoc = { _id: doc._id, images: catalogImages(collection, doc, config) };
   for (const key of PUBLIC_CATALOG_FIELDS) {
     if (key !== '_id' && key in doc) {
+      if (collection === 'products' && key === 'category') continue;
+      if (key === 'manualCatalogPricing') {
+        const pricing = validateManualCatalogPricing(doc[key]);
+        if (pricing.ok) out.manualCatalogPricing = pricing.value;
+        continue;
+      }
       out[key] =
         key === 'alibabaCatalogPricing'
           ? publicAlibabaCatalogPricing(doc[key])
@@ -224,7 +232,12 @@ function publicDoc(
   }
   if (collection === 'products') {
     const productFamily = productFamilyForDoc(doc);
-    if (productFamily !== null) out.productFamily = productFamily;
+    if (productFamily !== null) {
+      out.productFamily = productFamily;
+      if (productFamily === 'headphones' && typeof doc.category === 'string') {
+        out.category = doc.category;
+      }
+    }
     const skuCode = normalizeSkuCode(doc.skuCode);
     const slug = normalizeProductSlug(doc.slug);
     if (skuCode !== null) out.skuCode = skuCode;
