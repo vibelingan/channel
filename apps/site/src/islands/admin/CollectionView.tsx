@@ -16,6 +16,7 @@ import type {
 } from '@vibelingan-channel/shared';
 import { PRODUCT_FAMILY_OPTIONS } from '@vibelingan-channel/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Select } from '../../components/form/Select.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { FilterBuilder } from './FilterBuilder.tsx';
 import { PreviewModal } from './PreviewModal.tsx';
@@ -355,23 +356,18 @@ export function CollectionView({ collection, section }: Props) {
               />
             ))}
           </fieldset>
-          <label className="block sm:hidden">
-            <span className="sr-only">Product family</span>
-            <select
-              value={productFamily ?? ''}
-              onChange={(event) =>
-                changeProductFamily((event.currentTarget.value || null) as AdminProductFamily)
-              }
-              className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800"
-            >
-              <option value="">All products</option>
-              {PRODUCT_FAMILY_OPTIONS.map((value) => (
-                <option key={value} value={value}>
-                  {productFamilyLabel(value)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select
+            ariaLabel="Product family"
+            value={productFamily ?? ''}
+            placeholder="All products"
+            options={PRODUCT_FAMILY_OPTIONS.map((value) => ({
+              value,
+              label: productFamilyLabel(value),
+            }))}
+            className="block sm:hidden"
+            triggerClassName="font-medium text-slate-800"
+            onChange={(value) => changeProductFamily((value || null) as AdminProductFamily)}
+          />
         </div>
       )}
 
@@ -693,25 +689,22 @@ function BatchSelect({
   disabled: boolean;
   onPick: (value: string) => void;
 }) {
+  const [value, setValue] = useState('');
   return (
-    <select
-      defaultValue=""
+    <Select
+      ariaLabel={label}
+      value={value}
+      placeholder={`${label}…`}
+      options={field.options ?? []}
       disabled={disabled}
-      onChange={(e) => {
-        if (e.target.value) {
-          onPick(e.target.value);
-          e.target.value = '';
+      triggerClassName="min-h-9 border-brand-300 py-1.5 font-medium text-slate-700"
+      onChange={(next) => {
+        if (next) {
+          onPick(next);
+          setValue('');
         }
       }}
-      className="rounded-lg border border-brand-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 outline-none focus:border-brand-600 disabled:opacity-50"
-    >
-      <option value="">{label}…</option>
-      {field.options?.map((option) => (
-        <option key={option} value={option}>
-          {option}
-        </option>
-      ))}
-    </select>
+    />
   );
 }
 
@@ -791,18 +784,14 @@ function InlineSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <select
+    <Select
+      ariaLabel={field.label}
       value={value === undefined || value === null ? '' : String(value)}
-      onChange={(e) => onChange(e.target.value)}
-      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm capitalize outline-none focus:border-slate-900"
-    >
-      <option value="">—</option>
-      {field.options?.map((option) => (
-        <option key={option} value={option}>
-          {option}
-        </option>
-      ))}
-    </select>
+      placeholder="—"
+      options={field.options ?? []}
+      triggerClassName="min-h-8 rounded-md px-2 py-1 capitalize"
+      onChange={onChange}
+    />
   );
 }
 

@@ -1,6 +1,6 @@
 # Shared Form Select Refactor
 
-Status: implementation in progress; MIU 1 complete, MIU 2 next
+Status: implementation complete; final review and delivery in progress
 Branch: `fix/shared-form-select`
 Base: `origin/main` at `9ddda85593517bc9d1d2bea81c4862ce492b144f`
 
@@ -38,7 +38,7 @@ JavaScript, the native form control still exposes and submits the selected field
 
 ## MIU 2 — Admin Migration And Whole-Family Guard
 
-Status: queued after MIU 1
+Status: complete
 
 1. Migrate every native Admin single-select in `RecordForm`, `QuantityTierPricingEditor`,
    `CollectionView`, and `FilterBuilder` to the shared React component.
@@ -51,11 +51,21 @@ Status: queued after MIU 1
 Truth condition: all active single-select forms share the encapsulated component and no migrated
 workflow changes its submitted value, accessibility state, or layout.
 
+Evidence: the Admin source guard covers all nine migrated call sites; site tests, Astro typecheck,
+repository lint, production build, and Chromium Admin/OEM journeys pass. Mobile coverage selects a
+family and clears it back to All products. Optional placeholders are selectable after hydration,
+while required prompts remain disabled. The repository exposes only a Chromium Playwright project,
+so final-code WebKit validation is unavailable.
+
 ## Delivery
 
 - Independent review and exact-SHA blessing are required before push.
 - Open a separate PR against `main`; do not append this refactor to merged PR #27 or the deployed
   Catalog release branch.
+- The repository-wide Catalog architecture refactor is separately owned by
+  `refactor/catalog-architecture-hardening` at reviewed remote SHA `bc1e69e25e9e8d453584be0fde9279f7bdf0c006`.
+  This branch owns the shared Select and Admin select migration; it must not edit
+  `docs/catalog-architecture-hardening/**` or Catalog kernel/presentation modules.
 - No production deployment is implied by this task.
 
 ## Errors

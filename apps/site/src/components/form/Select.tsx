@@ -21,6 +21,7 @@ interface SelectProps {
   disabled?: boolean;
   form?: string;
   error?: string;
+  invalid?: boolean;
   describedBy?: string;
   className?: string;
   triggerClassName?: string;
@@ -71,6 +72,7 @@ export function Select({
   disabled = false,
   form,
   error,
+  invalid = false,
   describedBy,
   className = '',
   triggerClassName = '',
@@ -81,11 +83,14 @@ export function Select({
   const triggerId = `${selectId}-trigger`;
   const listboxId = `${selectId}-listbox`;
   const options = normalizeSelectOptions(optionInputs);
+  const interactiveOptions = placeholder
+    ? [{ value: '', label: placeholder, disabled: required }, ...options]
+    : options;
   const controlled = value !== undefined;
   const [internalValue, setInternalValue] = useState(defaultValue);
   const selectedValue = controlled ? value : internalValue;
-  const selectedIndex = options.findIndex((option) => option.value === selectedValue);
-  const selectedOption = options[selectedIndex];
+  const selectedIndex = interactiveOptions.findIndex((option) => option.value === selectedValue);
+  const selectedOption = interactiveOptions[selectedIndex];
   const [hydrated, setHydrated] = useState(false);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(selectedIndex);
@@ -131,7 +136,7 @@ export function Select({
     const initialIndex =
       selectedIndex >= 0
         ? selectedIndex
-        : moveSelectIndex(options, direction === 1 ? -1 : 0, direction);
+        : moveSelectIndex(interactiveOptions, direction === 1 ? -1 : 0, direction);
     setActiveIndex(initialIndex);
     setOpen(true);
   }
@@ -151,21 +156,21 @@ export function Select({
     if (event.key === 'Home' || event.key === 'End') {
       event.preventDefault();
       if (!open) setOpen(true);
-      setActiveIndex(boundaryIndex(options, event.key === 'End'));
+      setActiveIndex(boundaryIndex(interactiveOptions, event.key === 'End'));
       return;
     }
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       const direction = event.key === 'ArrowDown' ? 1 : -1;
       if (!open) openList(direction);
-      else setActiveIndex((current) => moveSelectIndex(options, current, direction));
+      else setActiveIndex((current) => moveSelectIndex(interactiveOptions, current, direction));
       return;
     }
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       if (!open) openList();
-      else if (activeIndex >= 0 && !options[activeIndex]?.disabled) {
-        choose(options[activeIndex]?.value ?? '');
+      else if (activeIndex >= 0 && !interactiveOptions[activeIndex]?.disabled) {
+        choose(interactiveOptions[activeIndex]?.value ?? '');
       }
     }
   }
@@ -176,7 +181,9 @@ export function Select({
       ? `Select ${String(label ?? ariaLabel ?? 'an option').toLowerCase()}.`
       : undefined);
   const shownErrorId = shownError ? `${selectId}-error` : undefined;
-  const ariaDescribedBy = [describedBy, shownErrorId].filter(Boolean).join(' ') || undefined;
+  const ariaDescribedBy =
+    [...new Set([describedBy, shownErrorId].filter((id): id is string => Boolean(id)))].join(' ') ||
+    undefined;
 
   return (
     <div ref={rootRef} className={`relative min-w-0 ${className}`} data-shared-select>
@@ -206,7 +213,7 @@ export function Select({
         aria-label={ariaLabel}
         aria-labelledby={label ? `${selectId}-label` : undefined}
         aria-describedby={ariaDescribedBy}
-        aria-invalid={Boolean(shownError) || undefined}
+        aria-invalid={invalid || Boolean(shownError) || undefined}
         aria-hidden={hydrated || undefined}
         tabIndex={hydrated ? -1 : undefined}
         data-select-native
@@ -240,7 +247,7 @@ export function Select({
             aria-label={ariaLabel}
             aria-labelledby={label ? `${selectId}-label` : undefined}
             aria-describedby={ariaDescribedBy}
-            aria-invalid={Boolean(shownError) || undefined}
+            aria-invalid={invalid || Boolean(shownError) || undefined}
             aria-required={required || undefined}
             aria-haspopup="listbox"
             aria-expanded={open}
@@ -279,7 +286,7 @@ export function Select({
               aria-label={label ? undefined : ariaLabel}
               className="absolute z-50 mt-2 max-h-80 w-full min-w-max overflow-auto rounded-lg border border-slate-200 bg-white p-1 shadow-xl"
             >
-              {options.map((option, index) => (
+              {interactiveOptions.map((option, index) => (
                 <button
                   key={option.value}
                   id={`${selectId}-option-${index}`}
