@@ -159,4 +159,116 @@ test.describe('Admin catalog lifecycle', () => {
     // Products are intentionally archive-only. The E2E_CATALOG_LOCAL_SEED guard
     // binds this suite to MIU 22's disposable DB, which is deleted after the run.
   });
+
+  test('publishes a slugless tier-priced product and clears Headphones subcategory on move', async ({
+    page,
+    request,
+  }) => {
+    const session = await loginAdmin(request);
+    const name = `${e2e.runId} Slugless Tiered Toy`;
+    const imageId = `${e2e.runId}-tiered-image`;
+    const manualCatalogPricing = {
+      schemaVersion: 'manual-catalog-pricing-v1',
+      currency: 'USD',
+      tiers: [
+        { minQuantity: 1, maxQuantity: 12, unitAmountMinor: 13_418 },
+        { minQuantity: 13, unitAmountMinor: 11_831 },
+      ],
+    };
+
+    const draft = await adminAction<CollectionDoc>(
+      request,
+      'create',
+      {
+        collection: 'products',
+        values: {
+          name,
+          productFamily: 'headphones',
+          category: 'office',
+          description: 'Disposable slugless product with quantity pricing.',
+          published: false,
+          archived: false,
+        },
+      },
+      session.token,
+    );
+    expect(draft).not.toHaveProperty('skuCode');
+    expect(draft).not.toHaveProperty('slug');
+    expect(draft.category).toBe('office');
+
+    const moved = await adminAction<CollectionDoc>(
+      request,
+      'update',
+      {
+        collection: 'products',
+        id: draft._id,
+        values: {
+          productFamily: 'toys',
+          imageIds: [imageId],
+          moq: 1,
+          unitPrice: 199,
+          wholesalePrice: 177,
+          manualCatalogPricing,
+        },
+      },
+      session.token,
+    );
+    expect(moved.productFamily).toBe('toys');
+    expect(moved.category).toBe('');
+    expect(moved.unitPrice).toBe(199);
+    expect(moved.wholesalePrice).toBe(177);
+    expect(moved.manualCatalogPricing).toEqual(manualCatalogPricing);
+
+    const published = await adminAction<CollectionDoc>(
+      request,
+      'update',
+      { collection: 'products', id: draft._id, values: { published: true } },
+      session.token,
+    );
+    expect(published.published).toBe(true);
+
+    const publicResponse = await request.get(
+      `${e2e.apiUrl}/api/products?productFamily=toys&pageSize=48`,
+      { headers: { Origin: e2e.siteUrl } },
+    );
+    expect(publicResponse.ok()).toBe(true);
+    const publicBody = (await publicResponse.json()) as {
+      data?: { items?: CollectionDoc[] };
+    };
+    const projected = publicBody.data?.items?.find((item) => item._id === draft._id);
+    expect(projected).toBeDefined();
+    expect(projected).not.toHaveProperty('category');
+    expect(projected).not.toHaveProperty('skuCode');
+    expect(projected).not.toHaveProperty('slug');
+    expect(projected?.unitPrice).toBe(199);
+    expect(projected?.wholesalePrice).toBe(177);
+    expect(projected?.manualCatalogPricing).toEqual(manualCatalogPricing);
+
+    await page.goto('/toys/');
+    const card = page.getByRole('button', { name: new RegExp(name) });
+    await expect(card).toContainText('From $118.31');
+    await card.click();
+    const detail = page.locator(`[data-product-detail="${draft._id}"]`);
+    await expect(detail.locator('[data-manual-tier-pricing]')).toContainText('1–12');
+    await expect(detail.locator('[data-manual-tier-pricing]')).toContainText('13+');
+    await expect(detail.getByText('$134.18', { exact: true })).toHaveCount(1);
+    await expect(detail.getByText('$118.31', { exact: true })).toHaveCount(1);
+    await expect(detail.getByText('$199.00', { exact: true })).toHaveCount(0);
+    await expect(detail.getByText('$177.00', { exact: true })).toHaveCount(0);
+
+    const unpublished = await adminAction<CollectionDoc>(
+      request,
+      'update',
+      { collection: 'products', id: draft._id, values: { published: false } },
+      session.token,
+    );
+    expect(unpublished.published).toBe(false);
+    const archived = await adminAction<CollectionDoc>(
+      request,
+      'update',
+      { collection: 'products', id: draft._id, values: { archived: true } },
+      session.token,
+    );
+    expect(archived.archived).toBe(true);
+  });
 });

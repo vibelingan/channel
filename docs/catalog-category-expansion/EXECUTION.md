@@ -127,6 +127,27 @@ and scalar-price leakage.
 **Result:** Complete. Invalid manual pricing fails closed at storage and network boundaries; Alibaba
 link identity remains authoritative and never falls back to manual or scalar prices.
 
+## MIU 29 — Full Human Validation And Test Deployment
+
+**Local mutation journey:** The runner-owned disposable DB passed its exact seed audit 1/1 and two
+serial Admin lifecycles 2/2. The additive lifecycle created a Headphones draft without SKU/slug,
+moved it to Toys while clearing `office`, stored exact two-tier pricing alongside scalar fields,
+published it, verified public projection and real in-page tier rendering, then unpublished/archived
+it. The runner removed the whole temporary directory after each run.
+
+**Local release gates:** Repository tests passed (deploy contracts 25/25; shared 100; DB 41; Admin
+173; Public API 62; site 204; sync function 74; local server 23; remaining package suites green).
+All 11 package/app typechecks plus E2E passed; Astro reported zero errors and seven existing hints.
+Repository Biome checked 327 files. Site built 15 routes, and all three fresh function artifacts
+built, packaged, and cold-started. E2E discovery enumerated 76 tests in 17 files.
+
+**Browser matrix:** Fresh-server Chromium catalog passed 17/17 and mocked Admin passed 7/7. The
+combined WebKit catalog/Admin matrix passed 24/24, including no-JS, reduced motion, mobile/desktop,
+long copy, missing media, optional identity, exact quantity tiers, focus, and overflow checks.
+
+**Deployment status:** Pending. Commit and independently review this MIU, merge the exact reviewed
+feature SHA into `test`, then record CI, deploy smoke, deployed public E2E, and deployed catalog E2E.
+
 ## Deviations
 
 - **MIU 26 stale category canonicalization:** The approved scope said non-Headphones category should
