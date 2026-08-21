@@ -184,17 +184,20 @@ test.describe('public browser smoke', () => {
 
       const form = page.locator('form[data-project-form]');
       const category = form.getByRole('combobox', { name: 'Product Category', exact: true });
+      const nativeCategory = form.locator('select[name="category"]');
       await expect(form.locator('[data-public-select]')).toHaveCount(1);
-      await expect(form.locator('[name="category"]')).toHaveCount(1);
+      await expect(nativeCategory).toHaveCount(1);
       await expect(category).toBeVisible();
-      await expect(category).toHaveAttribute('name', 'category');
-      await expect(category).toHaveAttribute('required', '');
+      await expect(category).toHaveAttribute('aria-required', 'true');
+      await expect(nativeCategory).toHaveAttribute('name', 'category');
+      await expect(nativeCategory).toHaveAttribute('required', '');
       await expect(category).not.toHaveAttribute('aria-describedby', /category-error/);
       await expect(category).not.toHaveAttribute('aria-invalid', 'true');
-      await expect(form.locator('#category-error')).not.toHaveAttribute('data-visible', '');
-      await expect(form.locator('#category-error')).toHaveText('');
-      await expect(category.locator('option[value=""]')).toHaveText('Select a product category…');
-      await expect(category.locator('option[value="Other"]')).toHaveCount(1);
+      await expect(form.locator('#category-error')).toHaveCount(0);
+      await expect(nativeCategory.locator('option[value=""]')).toHaveText(
+        'Select a product category…',
+      );
+      await expect(nativeCategory.locator('option[value="Other"]')).toHaveCount(1);
 
       await form.locator('[name="company"]').fill('E2E Category Control');
       await form.locator('[name="contact"]').fill('E2E Contact');
@@ -203,15 +206,16 @@ test.describe('public browser smoke', () => {
       await expect(category).toBeFocused();
       await expect(category).toHaveAttribute('aria-describedby', 'category-error');
       await expect(category).toHaveAttribute('aria-invalid', 'true');
-      await expect(form.locator('#category-error')).toHaveAttribute('data-visible', '');
       await expect(form.locator('#category-error')).toHaveText('Select product category.');
 
-      await category.selectOption('Other');
-      await expect(category).toHaveValue('Other');
+      await category.press('ArrowDown');
+      await category.press('End');
+      await category.press('Enter');
+      await expect(category).toContainText('Other');
+      await expect(nativeCategory).toHaveValue('Other');
       await expect(category).not.toHaveAttribute('aria-describedby', /category-error/);
       await expect(category).not.toHaveAttribute('aria-invalid', 'true');
-      await expect(form.locator('#category-error')).not.toHaveAttribute('data-visible', '');
-      await expect(form.locator('#category-error')).toHaveText('');
+      await expect(form.locator('#category-error')).toHaveCount(0);
       await form.getByRole('button', { name: /Submit project/i }).click();
       await expect.poll(() => submissions.length).toBe(1);
       expect(submissions[0]?.data?.category).toBe('Other');
@@ -2200,6 +2204,67 @@ test.describe('public browser smoke', () => {
     await expect(oemForm).toHaveCount(1);
     await expect(oemForm).toHaveAttribute('data-endpoint', '/api/admin');
     await expect(oemForm).toHaveAttribute('data-result', '/oem_submit_result');
+  });
+
+  test('OEM product category uses the shared custom picker with native form fallback', async ({
+    browser,
+    page,
+  }) => {
+    await page.goto('/oem#submit', { waitUntil: 'domcontentloaded' });
+    const form = page.locator('#submit form[data-project-form]');
+    const root = form.locator('[data-public-select]');
+    const native = root.locator('[data-select-native]');
+    const trigger = root.getByRole('combobox', { name: 'Product Category' });
+
+    await expect(native).toHaveAttribute('aria-hidden', 'true');
+    await expect(trigger).toHaveAttribute('aria-haspopup', 'listbox');
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await expect(trigger).toHaveAttribute('aria-controls', 'category-listbox');
+    await trigger.focus();
+    await trigger.press('ArrowDown');
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    await expect(trigger).toHaveAttribute('aria-activedescendant', 'category-option-0');
+    await expect(root.getByRole('listbox')).toBeVisible();
+    await trigger.press('Tab');
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await expect(trigger).not.toHaveAttribute('aria-activedescendant');
+    await expect(root.getByRole('listbox')).toHaveCount(0);
+    await trigger.focus();
+    await trigger.press('ArrowDown');
+    await page.locator('#submit').click({ position: { x: 4, y: 4 } });
+    await expect(root.getByRole('listbox')).toHaveCount(0);
+    await trigger.focus();
+    await trigger.press('ArrowDown');
+    await trigger.press('End');
+    await trigger.press('Enter');
+    await expect(trigger).toContainText('Other');
+    await expect(native).toHaveValue('Other');
+    expect(
+      await form.evaluate((element) => new FormData(element as HTMLFormElement).get('category')),
+    ).toBe('Other');
+
+    await form.evaluate((element) => (element as HTMLFormElement).reset());
+    await expect(trigger).toContainText('Select a product category…');
+    await expect(native).toHaveValue('');
+    await form.evaluate((element) => (element as HTMLFormElement).reportValidity());
+    await expect(trigger).toBeFocused();
+    await expect(root.getByRole('alert')).toContainText('Select product category.');
+
+    const noJsContext = await browser.newContext({ javaScriptEnabled: false });
+    const noJsPage = await noJsContext.newPage();
+    try {
+      await noJsPage.goto('/oem#submit');
+      const noJsSelect = noJsPage.locator('#submit select[name="category"]');
+      await expect(noJsSelect).toBeVisible();
+      await noJsSelect.selectOption('Electronics');
+      expect(
+        await noJsPage
+          .locator('#submit form[data-project-form]')
+          .evaluate((element) => new FormData(element as HTMLFormElement).get('category')),
+      ).toBe('Electronics');
+    } finally {
+      await noJsContext.close();
+    }
   });
 
   test('legacy Success Stories redirects to canonical portfolio and keeps its inquiry CTA', async ({

@@ -1,6 +1,6 @@
 # Shared Form Select Refactor
 
-Status: implementation approved; MIU 1 is next
+Status: implementation in progress; MIU 1 complete, MIU 2 next
 Branch: `fix/shared-form-select`
 Base: `origin/main` at `9ddda85593517bc9d1d2bea81c4862ce492b144f`
 
@@ -23,7 +23,7 @@ disabled state, and current value semantics.
 
 ## MIU 1 — Shared Select Interaction And Public Adapter
 
-Status: approved, not started
+Status: complete
 
 1. Write failing unit/browser tests for open/close, click selection, Arrow/Home/End navigation,
    Enter/Space selection, Escape focus return, outside click, disabled state, required validation,
