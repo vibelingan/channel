@@ -140,3 +140,33 @@ test('the development chat harness is served outside production', async () => {
     process.env.NODE_ENV = previous ?? '';
   }
 });
+
+test('a cross-origin caller can actually read the conversation handle', async () => {
+  // Browsers hide every response header from cross-origin JavaScript except a
+  // short safelist, unless the server names it in access-control-expose-headers.
+  // The assistant runs on its own hostname by design, so without this the
+  // website can never read x-conversation-id and every follow-up question
+  // starts a brand-new conversation — while a same-origin local harness works
+  // perfectly and hides the defect.
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/ai/healthz`, {
+      headers: { origin: 'https://allowed.example' },
+    });
+    const exposed = (res.headers.get('access-control-expose-headers') ?? '')
+      .split(',')
+      .map((name) => name.trim().toLowerCase());
+    assert.ok(
+      exposed.includes('x-conversation-id'),
+      'x-conversation-id is not readable by a cross-origin client',
+    );
+  });
+});
+
+test('an unlisted origin gets no expose-headers either', async () => {
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/ai/healthz`, {
+      headers: { origin: 'https://evil.example' },
+    });
+    assert.equal(res.headers.get('access-control-expose-headers'), null);
+  });
+});

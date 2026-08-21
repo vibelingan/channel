@@ -5,17 +5,28 @@
 #
 # Secrets first, and by pattern rather than by name, so a new .env.<something>
 # is excluded the day it is created rather than the day someone remembers.
+#
+# Note the `**/` forms. A bare `.env` matches ONLY the context root, so a
+# secrets file created at apps/ai-bff/.env would be uploaded while the root
+# rule looked like it covered it.
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
 !.env.ai.example
 !.env.e2e.example
+!**/*.example
 *.pem
 *.key
 *.p12
 *.pfx
+**/*.pem
+**/*.key
 id_rsa*
+**/id_rsa*
 .npmrc
+**/.npmrc
 .netrc
 
 # Version control and agent state

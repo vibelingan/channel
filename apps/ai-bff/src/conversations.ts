@@ -39,6 +39,19 @@ export interface ConversationStore {
   append(id: string, turn: EngineTurn): void;
   has(id: string): boolean;
   size(): number;
+  /**
+   * Claim the conversation for one turn. Returns false when a turn is already
+   * running on it.
+   *
+   * Read-then-append is not atomic here: two requests on the same conversation
+   * would read identical history, run concurrently, and append in completion
+   * order — so the later question could be recorded before the earlier answer.
+   * Rather than pretend otherwise, a second concurrent turn is refused. The
+   * durable answer is LLD-001's authorization epoch in the database, which is
+   * what replaces this module.
+   */
+  tryBeginTurn(id: string): boolean;
+  endTurn(id: string): void;
 }
 
 interface Conversation {
@@ -55,10 +68,14 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   // Insertion-ordered, so the first key is always the least recently created —
   // which is what makes eviction O(1) without a second index.
   const conversations = new Map<string, Conversation>();
+  const activeTurns = new Set<string>();
 
   function expire(): void {
     const cutoff = now() - ttlMs;
     for (const [id, conversation] of conversations) {
+      // Never drop a conversation that is mid-answer. Its final append would
+      // land on a conversation that no longer exists and be silently lost.
+      if (activeTurns.has(id)) continue;
       if (conversation.touchedAt < cutoff) conversations.delete(id);
     }
   }
@@ -66,7 +83,9 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   function live(id: string): Conversation | undefined {
     const conversation = conversations.get(id);
     if (!conversation) return undefined;
-    if (conversation.touchedAt < now() - ttlMs) {
+    // An in-flight turn holds its conversation alive regardless of age, so a
+    // slow answer cannot have its own conversation expire out from under it.
+    if (!activeTurns.has(id) && conversation.touchedAt < now() - ttlMs) {
       conversations.delete(id);
       return undefined;
     }
@@ -78,10 +97,10 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       expire();
       // Bounded on purpose: an unbounded map on a public route is a memory
       // exhaustion primitive that needs no exploit, just traffic.
-      while (conversations.size >= maxConversations) {
-        const oldest = conversations.keys().next();
-        if (oldest.done) break;
-        conversations.delete(oldest.value);
+      // Oldest first, but never one that is mid-answer — see expire().
+      const evictable = [...conversations.keys()].filter((key) => !activeTurns.has(key));
+      while (conversations.size >= maxConversations && evictable.length > 0) {
+        conversations.delete(evictable.shift() as string);
       }
       const id = randomUUID();
       conversations.set(id, { turns: [], touchedAt: now() });
@@ -109,6 +128,16 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
     size(): number {
       expire();
       return conversations.size;
+    },
+
+    tryBeginTurn(id: string): boolean {
+      if (activeTurns.has(id)) return false;
+      activeTurns.add(id);
+      return true;
+    },
+
+    endTurn(id: string): void {
+      activeTurns.delete(id);
     },
   };
 }

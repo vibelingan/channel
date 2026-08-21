@@ -290,19 +290,150 @@ test('an unknown conversation id quietly starts a new conversation', async () =>
   assert.notEqual(conversationId, '00000000-0000-4000-8000-00000000dead');
 });
 
-test('a failed turn does not poison the next question with a phantom answer', async () => {
+/**
+ * The bug this matrix exists for: tokens arrived, the stream then failed, and
+ * the half-sentence was stored as a trusted assistant turn — "We approved 40" —
+ * to be replayed as context on the next question. The earlier test only covered
+ * failure BEFORE any token, so it missed every case that matters.
+ *
+ * The rule is that only a `final` event produces an assistant turn. Text alone
+ * proves nothing about whether the assistant finished saying it.
+ */
+const PARTIAL = { type: 'token', text: 'We approved 40' } as const;
+
+for (const [name, events] of [
+  ['error after a token', [PARTIAL, { type: 'error', category: 'transient', retriable: true }]],
+  ['timeout after a token', [PARTIAL, { type: 'error', category: 'timeout', retriable: true }]],
+  [
+    'content filtered after a token',
+    [PARTIAL, { type: 'error', category: 'content_filtered', retriable: false }],
+  ],
+  ['truncation: tokens then nothing', [PARTIAL]],
+] as [string, EngineEvent[]][]) {
+  test(`a partial answer is not stored — ${name}`, async () => {
+    const conversations = createConversationStore();
+    const { conversationId } = await run({
+      engine: stubEngine(events),
+      message: 'price?',
+      conversations,
+    });
+    const turns = conversations.turns(conversationId);
+    assert.deepEqual(
+      turns.map((turn) => turn.role),
+      ['visitor'],
+      `a truncated answer was stored as history (${name})`,
+    );
+    assert.ok(
+      !turns.some((turn) => turn.text.includes('We approved 40')),
+      'the partial sentence survived into history',
+    );
+  });
+}
+
+test('a partial answer is not stored — the engine throws mid-stream', async () => {
   const conversations = createConversationStore();
-  const first = await run({
-    engine: stubEngine([
-      { type: 'error', category: 'unavailable', retriable: false, safeDetail: 'down' },
-    ]),
-    message: 'What is your MOQ?',
+  const engine = stubEngine([]);
+  // biome-ignore lint/suspicious/noExplicitAny: replacing one method on a stub
+  (engine as any).streamRun = async function* () {
+    yield PARTIAL;
+    throw new Error('socket reset');
+  };
+  const { conversationId } = await run({ engine, message: 'price?', conversations });
+  assert.deepEqual(
+    conversations.turns(conversationId).map((turn) => turn.role),
+    ['visitor'],
+    'an exception mid-stream still stored a partial answer',
+  );
+});
+
+test('a partial answer is not stored — the caller aborts mid-stream', async () => {
+  const conversations = createConversationStore();
+  const controller = new AbortController();
+  const out = fakeResponse();
+  const engine = stubEngine([]);
+  // biome-ignore lint/suspicious/noExplicitAny: replacing one method on a stub
+  (engine as any).streamRun = async function* () {
+    yield PARTIAL;
+    controller.abort();
+    yield { type: 'token', text: ' percent off' };
+  };
+  await streamChatToResponse({
+    engine,
+    request: { message: 'price?' },
+    conversations,
+    res: out.res as never,
+    signal: controller.signal,
+  });
+  const id = out.headers['x-conversation-id'] as string;
+  assert.deepEqual(
+    conversations.turns(id).map((turn) => turn.role),
+    ['visitor'],
+    'a cancelled answer was stored as history',
+  );
+});
+
+test('a completed answer IS stored', async () => {
+  const conversations = createConversationStore();
+  const { conversationId } = await run({
+    engine: stubEngine(FINAL),
+    message: 'MOQ?',
     conversations,
   });
-  const turns = conversations.turns(first.conversationId);
   assert.deepEqual(
-    turns.map((turn) => turn.role),
-    ['visitor'],
-    'an assistant turn was recorded for an answer that never happened',
+    conversations.turns(conversationId).map((turn) => turn.role),
+    ['visitor', 'assistant'],
   );
+});
+
+test('the stored answer is the final event text, not the accumulated tokens', async () => {
+  // The engine is the authority on what it actually said. Tokens can be
+  // filtered or rewritten on the way through.
+  const conversations = createConversationStore();
+  const { conversationId } = await run({
+    engine: stubEngine([
+      { type: 'token', text: 'Our MOQ ' },
+      { type: 'token', text: 'is 500.' },
+      { type: 'final', text: 'Our MOQ is 500 units.', citations: [] },
+    ]),
+    message: 'MOQ?',
+    conversations,
+  });
+  assert.equal(conversations.turns(conversationId)[1]?.text, 'Our MOQ is 500 units.');
+});
+
+test('a second terminal event is neither forwarded nor stored', async () => {
+  const conversations = createConversationStore();
+  const { out, conversationId } = await run({
+    engine: stubEngine([
+      { type: 'token', text: 'first' },
+      { type: 'final', text: 'The real answer.', citations: [] },
+      { type: 'final', text: 'A second answer.', citations: [] },
+    ]),
+    message: 'MOQ?',
+    conversations,
+  });
+  assert.equal(
+    out.events.filter((event: { type: string }) => event.type === 'final').length,
+    1,
+    'two final events reached the client',
+  );
+  assert.equal(conversations.turns(conversationId)[1]?.text, 'The real answer.');
+});
+
+test('a second concurrent turn on one conversation is refused, not interleaved', async () => {
+  const conversations = createConversationStore();
+  const id = conversations.create();
+  assert.equal(conversations.tryBeginTurn(id), true);
+
+  const out = fakeResponse();
+  await streamChatToResponse({
+    engine: stubEngine(FINAL),
+    request: { message: 'second question', conversationId: id },
+    conversations,
+    res: out.res as never,
+    signal: new AbortController().signal,
+  });
+  assert.equal(out.status, 409);
+  assert.ok(out.body.includes('CONVERSATION_BUSY'));
+  assert.deepEqual(conversations.turns(id), [], 'the refused turn still wrote history');
 });

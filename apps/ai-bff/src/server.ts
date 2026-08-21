@@ -55,6 +55,13 @@ export function buildServer(config: BffConfig, deps: BffDependencies = {}) {
       res.setHeader('access-control-allow-credentials', 'true');
       res.setHeader('access-control-allow-headers', 'content-type, authorization, last-event-id');
       res.setHeader('access-control-allow-methods', 'GET, POST, OPTIONS');
+      // Without this, browser JavaScript cannot READ x-conversation-id, because
+      // only a short safelist of response headers is visible cross-origin. The
+      // assistant is served from its own hostname by design (ADR-001 §6), so
+      // every real page is cross-origin: omitting this makes each follow-up
+      // start a brand-new conversation while working perfectly in a same-origin
+      // local harness.
+      res.setHeader('access-control-expose-headers', 'x-conversation-id');
     }
     if (req.method === 'OPTIONS') {
       res.writeHead(204).end();

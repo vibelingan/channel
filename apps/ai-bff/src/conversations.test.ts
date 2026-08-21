@@ -82,3 +82,43 @@ test('activity keeps a conversation alive', () => {
   clock += 4_000;
   assert.equal(store.has(id), true, 'an active conversation was expired');
 });
+
+test('one turn at a time per conversation', () => {
+  const store = createConversationStore();
+  const id = store.create();
+  assert.equal(store.tryBeginTurn(id), true);
+  assert.equal(store.tryBeginTurn(id), false, 'a second concurrent turn was allowed');
+  store.endTurn(id);
+  assert.equal(store.tryBeginTurn(id), true, 'the conversation stayed locked after the turn ended');
+});
+
+test('different conversations do not block each other', () => {
+  const store = createConversationStore();
+  const a = store.create();
+  const b = store.create();
+  assert.equal(store.tryBeginTurn(a), true);
+  assert.equal(store.tryBeginTurn(b), true);
+});
+
+test('a conversation mid-answer is never evicted for capacity', () => {
+  // Its final append would land on a conversation that no longer exists and
+  // vanish without an error.
+  const store = createConversationStore({ maxConversations: 2 });
+  const busy = store.create();
+  store.tryBeginTurn(busy);
+  store.create();
+  store.create();
+  store.create();
+  assert.equal(store.has(busy), true, 'an in-flight conversation was evicted');
+});
+
+test('a conversation mid-answer is never expired for age', () => {
+  let clock = 1_000;
+  const store = createConversationStore({ ttlMs: 1_000, now: () => clock });
+  const id = store.create();
+  store.tryBeginTurn(id);
+  clock += 10_000;
+  assert.equal(store.has(id), true, 'a slow answer had its own conversation expire');
+  store.append(id, { role: 'assistant', text: 'landed' });
+  assert.equal(store.turns(id).length, 1, 'the final append was lost');
+});

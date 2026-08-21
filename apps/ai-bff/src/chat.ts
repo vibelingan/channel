@@ -109,6 +109,23 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
       ? request.conversationId
       : conversations.create();
 
+  // Refused before any streaming header is written, so the caller gets an
+  // ordinary status rather than an error buried inside a stream it is already
+  // reading.
+  if (!conversations.tryBeginTurn(conversationId)) {
+    res.writeHead(409, { 'content-type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        ok: false,
+        error: {
+          code: 'CONVERSATION_BUSY',
+          message: 'This conversation already has an answer in progress.',
+        },
+      }),
+    );
+    return;
+  }
+
   const visitorTurn: EngineTurn = {
     role: 'visitor',
     text: neutralizeRoleLabels(request.message),
@@ -128,7 +145,19 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
   });
   res.flushHeaders?.();
 
-  let answer = '';
+  /**
+   * The answer, but ONLY once the engine has said it finished.
+   *
+   * Deliberately not "whatever tokens arrived". A stream that emitted
+   * "We approved 40" and then failed has not said anything — recording that
+   * fragment would make a truncated sentence into a trusted prior statement of
+   * the company's, replayed as context on the customer's next question. That is
+   * the same failure as accepting history from the client, sourced from our own
+   * side instead, and it is why the check is the terminal EVENT rather than the
+   * presence of text.
+   */
+  let completedAnswer: string | null = null;
+  let terminated = false;
 
   try {
     const handle = await engine.createRun(
@@ -145,12 +174,24 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
 
     for await (const event of engine.streamRun(handle, signal)) {
       if (signal.aborted) break;
-      if (event.type === 'token') answer += event.text;
+      // One terminal event per stream. A second `final` after the first is an
+      // engine defect, and forwarding it would let the client see two answers.
+      if (terminated) break;
+
       // Events are forwarded as-is because the port's events are ALREADY the
       // client contract: token, citation, final, error. The vendor run id lives
       // on the handle and deliberately never enters this stream.
       sse(res, event);
-      if (event.type === 'final' || event.type === 'error') break;
+
+      if (event.type === 'final') {
+        completedAnswer = event.text;
+        terminated = true;
+        break;
+      }
+      if (event.type === 'error') {
+        terminated = true;
+        break;
+      }
     }
   } catch (error) {
     if (!signal.aborted) {
@@ -162,13 +203,16 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
       });
     }
   } finally {
-    // Record only after the fact, and only what actually happened. Appending
-    // the visitor turn up front would let a cancelled or failed turn poison the
-    // next question's context.
+    // The question was genuinely asked, so it is recorded whatever happened to
+    // the answer. History then reads as "customer asked X, we did not answer",
+    // which is what actually occurred.
     conversations.append(conversationId, visitorTurn);
-    if (answer.trim().length > 0) {
-      conversations.append(conversationId, { role: 'assistant', text: answer });
+    // The answer is recorded only if the engine declared it complete. Errors,
+    // timeouts, aborts, exceptions and truncated streams all leave this null.
+    if (completedAnswer !== null && completedAnswer.trim().length > 0) {
+      conversations.append(conversationId, { role: 'assistant', text: completedAnswer });
     }
+    conversations.endTurn(conversationId);
     res.end();
   }
 }
