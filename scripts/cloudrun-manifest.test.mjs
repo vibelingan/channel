@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import {
   CLOUDRUN_SERVICE_NAMES,
+  FORBIDDEN_ENV_KEYS,
   SECRET_ENV_KEYS,
   buildCloudRunServiceDefs,
 } from './cloudrun-service-manifest.mjs';
@@ -113,6 +114,29 @@ test('the BFF gets its CORS allowlist and the worker does not', () => {
   const worker = defs.find((d) => d.name === 'ai-worker');
   assert.equal(bff.envVariables.CORS_ALLOWED_ORIGINS, ctx.siteOrigins);
   assert.equal(worker.envVariables.CORS_ALLOWED_ORIGINS, undefined);
+});
+
+test('no deployed service may switch on the local harness', () => {
+  // Defence before the service's own startup refusal, not instead of it. A
+  // manifest that sets this is wrong even if the process would reject it,
+  // because the next reader assumes the manifest describes something valid.
+  for (const def of defs) {
+    for (const key of FORBIDDEN_ENV_KEYS) {
+      assert.equal(
+        def.envVariables[key],
+        undefined,
+        `${def.name} sets ${key}, which must never appear in a deployed service`,
+      );
+    }
+  }
+});
+
+test('every deployed service declares itself production', () => {
+  // The harness refusal keys off NODE_ENV/APP_ENV. If a deployed service left
+  // both unset, the last line of defence would never fire.
+  for (const def of defs) {
+    assert.equal(def.envVariables.NODE_ENV, 'production', `${def.name} is not marked production`);
+  }
 });
 
 test('the manifest declares no gateway prefix route', () => {

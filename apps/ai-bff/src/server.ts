@@ -96,7 +96,7 @@ export function buildServer(config: BffConfig, deps: BffDependencies = {}) {
     // A development-only harness for using the assistant by hand. Guarded on
     // NODE_ENV so it cannot be reached from a production image, which is set to
     // production in the Dockerfile.
-    if (url.pathname === '/dev/chat' && process.env.NODE_ENV !== 'production') {
+    if (url.pathname === '/dev/chat' && config.localHarness) {
       try {
         const page = readFileSync(
           join(dirname(fileURLToPath(import.meta.url)), '../dev/chat.html'),
@@ -109,9 +109,17 @@ export function buildServer(config: BffConfig, deps: BffDependencies = {}) {
       return;
     }
 
-    // The conversation route. MIU 2a's skeleton had no routes at all; this is
-    // the first one that does the product's actual job.
-    if (url.pathname === '/api/ai/chat' && req.method === 'POST') {
+    // The conversation route exists ONLY in the local harness.
+    //
+    // Not "exists but returns 503", and not "exists when an engine happens to
+    // be injected" — that was the defect. This route has no rate limiting, no
+    // admission control, no conversation credential, no persistence and no
+    // takeover fence, so outside the harness it falls through to the 404 below
+    // and is indistinguishable from a route that was never written. CORS is not
+    // a control here: a direct HTTP client ignores it entirely.
+    //
+    // MIU 6 introduces the real public route, with those controls.
+    if (url.pathname === '/api/ai/chat' && req.method === 'POST' && config.localHarness) {
       if (!deps.engine) {
         res.writeHead(503, { 'content-type': 'application/json' });
         res.end(

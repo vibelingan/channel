@@ -109,11 +109,17 @@ Worth knowing before you judge what you are looking at.
   call the model ourselves — so that the rule "never invent a price" sits in code
   we review. The policy text is already in `apps/ai-bff/policy/` ready for that
   move; only the delivery changes.
-- **The startup capability gate is being bypassed locally.** The engine has no
-  idempotent create and no run lookup, and the compensating layer is a later
-  MIU. Production refuses; local development sets
-  `AI_DEV_UNSAFE_ALLOW_UNGATED_ENGINE=1` and logs every reason on boot. If you
-  see that warning in a deployed log, something is misconfigured.
+- **Everything here runs behind one switch: `AI_LOCAL_HARNESS=1`.** It turns on
+  the `/dev/chat` page, the `/api/ai/chat` route, and permission to serve with
+  unmet engine guarantees — three things that are really one decision, because
+  the route has no rate limiting, no admission control and no takeover fence.
+
+  Without that flag the conversation route **does not exist**: it answers 404,
+  the same as a route nobody ever wrote. With the flag set in a production
+  environment (`NODE_ENV=production` or `APP_ENV=production`), the service
+  refuses to start and says why. Copying `docker-compose.ai.yml` onto a real
+  server therefore fails loudly instead of quietly publishing an
+  unauthenticated assistant.
 
 ---
 

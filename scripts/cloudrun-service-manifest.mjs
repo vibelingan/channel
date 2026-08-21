@@ -27,6 +27,17 @@ export const CLOUDRUN_SERVICE_NAMES = ['ai-bff', 'ai-worker'];
  */
 export const SECRET_ENV_KEYS = ['DATABASE_URL', 'ZENMUX_API_KEY', 'ANYTHINGLLM_API_KEY'];
 
+/**
+ * Switches that must never appear in a deployed service definition.
+ *
+ * `AI_LOCAL_HARNESS` turns on an unauthenticated conversation route with no
+ * rate limiting and permits serving with unmet engine guarantees. The service
+ * itself refuses to start with it in a production environment, but that is the
+ * last line rather than the first: a deploy manifest that sets it at all is a
+ * mistake, and the manifest test fails on its presence.
+ */
+export const FORBIDDEN_ENV_KEYS = ['AI_LOCAL_HARNESS', 'AI_DEV_UNSAFE_ALLOW_UNGATED_ENGINE'];
+
 /** Drop undefined values so optional variables are omitted, not set to "undefined". */
 export function envEntries(record) {
   return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined));

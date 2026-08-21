@@ -29,8 +29,8 @@ any claim made about progress is checkable against it.
 |---|---|---|---|
 | 1 | Exposed key handling and secret-printing guidance | `PARTIAL` | done / see note |
 | 2 | No root `.dockerignore` | `FIXED` | 1 |
-| 3 | Unsafe engine bypass works regardless of `NODE_ENV` | `PHASE_2` | 2 |
-| 4 | `/api/ai/chat` registers whenever an engine is injected | `PHASE_2` | 2 |
+| 3 | Unsafe engine bypass works regardless of `NODE_ENV` | `FIXED` | 2 |
+| 4 | `/api/ai/chat` registers whenever an engine is injected | `FIXED` | 2 |
 | 5 | Client-supplied assistant history | `FIXED` | 1 |
 | 6 | Cancellation bound to `req.close`, not the response socket | `PHASE_3` | 3 |
 | 7 | Adapter does not run the shared conformance suite | `PHASE_3` | 3 |
@@ -51,7 +51,7 @@ any claim made about progress is checkable against it.
 | 22 | CloudRun manifest has no deploy consumer | `GATE_PENDING` | — |
 | 23 | VPC / TencentDB / TLS validation | `GATE_PENDING` | — |
 | 24 | Production secret management | `GATE_PENDING` | — |
-| 25 | Real container validation | `GATE_PENDING` | — |
+| 25 | Real container validation | `FIXED` | 2 |
 | R1 | Partial failed answers stored as authoritative history | `FIXED` | 1 |
 | R2 | `x-conversation-id` not readable cross-origin | `FIXED` | 1 |
 | R3 | Knowledge brief promises non-existent Alibaba ingestion | `FIXED` | 1 |
@@ -64,13 +64,12 @@ any claim made about progress is checkable against it.
 
 | Status | Count | IDs |
 |---|---|---|
-| `FIXED` | 10 | 2, 5, 16, R1, R2, R3, R4, R5, R6, R7 |
+| `FIXED` | 13 | 2, 3, 4, 5, 16, 25, R1, R2, R3, R4, R5, R6, R7 |
 | `PARTIAL` | 1 | 1 |
 | `WITHDRAWN` | 1 | 18 |
-| `PHASE_2` | 2 | 3, 4 |
 | `PHASE_3` | 6 | 6, 7, 8, 9, 13, 15 |
 | `PHASE_4` | 8 | 10, 11, 12, 14, 17, 19, 20, 21 |
-| `GATE_PENDING` | 4 | 22, 23, 24, 25 |
+| `GATE_PENDING` | 3 | 22, 23, 24 |
 | **Total** | **32** | 25 from round 1 + 7 from round 2 |
 
 Round 2 was right that "21 accepted, 4 disputed" was not derivable from the
@@ -153,12 +152,11 @@ engine. The durable fix is a vendor field separating reasoning from output; the
 filter mitigates a protocol that does not offer one.
 
 **Round 1 #25** — "Docker CLI is unavailable in the current review environment."
-Was not true when the container evidence was gathered: both images were built,
-Compose was brought up, health and readiness were smoked through the containers,
-and the build-context leak was demonstrated with a probe image. It **is** true
-now — the daemon is stopped in this session too, so the round-2 container
-changes are **unverified against a real build**. Recorded as stale evidence, not
-fresh, and listed as the first item of Phase 2.
+This was a moving target across three sessions, so the honest record is: the
+original container evidence was real, it went stale when the daemon stopped for
+two rounds, and it is **fresh again as of Phase 2** — the daemon was restarted,
+both images rebuild, Compose runs, and the production-refusal and route-absence
+proofs in the Phase 2 section were run against actual containers. Now `FIXED`.
 
 **Architecture contradiction** — correct that two serving paths cannot both be
 live; not correct that the decision is open. The product owner directed the
@@ -169,13 +167,45 @@ not a decision to re-open.
 
 ---
 
-## Remaining phases
+## Phase 2 — done, and proven in real containers
 
-**Phase 2 — production cannot serve the local harness.**
-Re-verify the container build once the daemon is running (#25). Then: production
-plus the unsafe bypass must be a startup failure (#3); `/api/ai/chat` must not
-be registered outside an explicit local-harness mode (#4). CORS is not a control
-here — direct HTTP clients ignore it.
+Three switches became one: `AI_LOCAL_HARNESS=1` now governs the `/dev/chat`
+page, the `/api/ai/chat` route, and permission to serve with unmet engine
+guarantees. They were three independent conditions before, which is exactly why
+hiding the page did nothing for the route — the route registered whenever an
+engine happened to be injected.
+
+Production cannot turn it on. `loadConfig` refuses to return when the flag is
+set and either `NODE_ENV` or `APP_ENV` says production; **either signal alone is
+enough**, so one missing variable cannot downgrade a production service into one
+that accepts the flag.
+
+Verified against real containers, not just unit tests:
+
+| Case | Result |
+|---|---|
+| Production image + `AI_LOCAL_HARNESS=1` | Refuses to start, naming the consequence |
+| Production, no flag, engine fully configured | Starts; `/api/ai/healthz` 200 |
+| `POST /api/ai/chat` with no `Origin`, as curl sends it | **404** — the route does not exist |
+| `GET /dev/chat` in production | 404 |
+| Compose harness | Starts in `LOCAL HARNESS` mode, smoke and eval pass, forged-history attack still refused |
+
+The route answers 404 rather than 503 deliberately: outside the harness it is
+indistinguishable from a route nobody wrote. CORS is not part of this — the
+proof requests carry no `Origin` at all, exactly like a direct HTTP client.
+
+Defence in depth at the deploy layer too: `FORBIDDEN_ENV_KEYS` in the CloudRun
+manifest, with tests asserting no service definition sets the harness flag and
+that every deployed service declares itself production — so the startup refusal
+has something to fire on.
+
+**#25 closed.** The Docker daemon was down for two rounds; it is up now, both
+images rebuild, Compose runs, and the container evidence above is fresh rather
+than inherited.
+
+---
+
+## Remaining phases
 
 **Phase 3 — engine correctness.** #6, #7, #8, #9, #13, #15.
 The conformance work (#7) must first resolve a real contradiction the review

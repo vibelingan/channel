@@ -13,7 +13,7 @@ import {
   describeEngineRefusals,
 } from '@vibelingan-channel/ai-engine';
 import { AnythingLlmEngine } from '@vibelingan-channel/ai-engine-anythingllm';
-import { loadConfig } from './config.ts';
+import { type BffConfig, loadConfig } from './config.ts';
 import { startServer } from './server.ts';
 
 /**
@@ -31,7 +31,8 @@ const DEPLOYMENT: DeploymentCompensations = {
 };
 
 function buildEngine(
-  config: NonNullable<ReturnType<typeof loadConfig>['engine']>,
+  config: NonNullable<BffConfig['engine']>,
+  localHarness: boolean,
 ): ConversationEngine {
   const engine = new AnythingLlmEngine({
     baseUrl: config.baseUrl,
@@ -43,18 +44,18 @@ function buildEngine(
   const refusals = describeEngineRefusals(engine.capabilities, DEPLOYMENT);
   if (refusals.length === 0) return engine;
 
-  if (!config.allowUngated) {
-    // Production path: refuse, with every reason at once.
+  if (!localHarness) {
+    // Anything that is not the local harness refuses, with every reason at once.
+    // The bypass is not a production concept, so there is no production branch.
     assertEngineUsable(engine.capabilities, DEPLOYMENT);
   }
 
-  // Development path: serve, but never silently. An operator who sees this in a
-  // deployed log is looking at a misconfiguration.
+  // Harness path: serve, but never silently.
   console.warn(
     JSON.stringify({
       event: 'engine.gate.bypassed',
       severity: 'warning',
-      detail: 'AI_DEV_UNSAFE_ALLOW_UNGATED_ENGINE=1 — serving with unmet engine guarantees',
+      detail: 'AI_LOCAL_HARNESS=1 — serving with unmet engine guarantees',
       refusals,
     }),
   );
@@ -63,13 +64,18 @@ function buildEngine(
 
 try {
   const config = loadConfig();
-  const engine = config.engine ? buildEngine(config.engine) : undefined;
+  // The engine is only constructed for the harness. Outside it the conversation
+  // route does not exist, so an engine would have nothing to serve — and
+  // building one anyway would open a connection to the vendor for no reason.
+  const engine =
+    config.localHarness && config.engine ? buildEngine(config.engine, true) : undefined;
   startServer(config, engine ? { engine } : {});
   console.log(
     JSON.stringify({
       event: 'listening',
       port: config.port,
-      chat: engine ? 'enabled' : 'disabled (no engine configured)',
+      mode: config.localHarness ? 'LOCAL HARNESS (not for public traffic)' : 'normal',
+      chat: engine ? 'enabled' : 'not registered (harness only until MIU 6)',
     }),
   );
 } catch (error) {

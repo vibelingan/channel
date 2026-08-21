@@ -3,10 +3,12 @@ import type { AddressInfo } from 'node:net';
 import test from 'node:test';
 import { buildServer } from './server.ts';
 
+/** The default shape: a normal, non-harness service. */
 const config = {
   port: 0,
   databaseUrl: process.env.DATABASE_URL ?? 'postgres://ai:ai@localhost:55432/ai_assistant',
   corsAllowedOrigins: ['https://allowed.example'],
+  localHarness: false,
 };
 
 async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
@@ -111,36 +113,6 @@ test('unknown routes return the shared error envelope', async () => {
   });
 });
 
-test('the development chat harness is not served in production', async () => {
-  // The page talks to the chat route with no authentication and exists purely
-  // to drive the assistant by hand. Shipping it would put an open console for
-  // the assistant on the public internet.
-  const previous = process.env.NODE_ENV;
-  process.env.NODE_ENV = 'production';
-  try {
-    await withServer(async (base) => {
-      const res = await fetch(`${base}/dev/chat`);
-      assert.equal(res.status, 404);
-    });
-  } finally {
-    process.env.NODE_ENV = previous ?? '';
-  }
-});
-
-test('the development chat harness is served outside production', async () => {
-  const previous = process.env.NODE_ENV;
-  process.env.NODE_ENV = 'development';
-  try {
-    await withServer(async (base) => {
-      const res = await fetch(`${base}/dev/chat`);
-      assert.equal(res.status, 200);
-      assert.match(res.headers.get('content-type') ?? '', /text\/html/);
-    });
-  } finally {
-    process.env.NODE_ENV = previous ?? '';
-  }
-});
-
 test('a cross-origin caller can actually read the conversation handle', async () => {
   // Browsers hide every response header from cross-origin JavaScript except a
   // short safelist, unless the server names it in access-control-expose-headers.
@@ -168,5 +140,89 @@ test('an unlisted origin gets no expose-headers either', async () => {
       headers: { origin: 'https://evil.example' },
     });
     assert.equal(res.headers.get('access-control-expose-headers'), null);
+  });
+});
+
+const harnessConfig = { ...config, localHarness: true };
+
+async function withHarnessServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
+  const { server, pool } = buildServer(harnessConfig, {});
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const { port } = server.address() as AddressInfo;
+  try {
+    return await fn(`http://127.0.0.1:${port}`);
+  } finally {
+    server.close();
+    await pool.end().catch(() => undefined);
+  }
+}
+
+test('outside the harness the conversation route does not exist at all', async () => {
+  // 404, not 503. Not "exists but refuses", and not "exists when an engine
+  // happens to be injected" — that was the defect this closes. CORS is not a
+  // control here: the request below carries no Origin, exactly like curl.
+  await withServer(async (base) => {
+    const res = await fetch(`${base}/api/ai/chat`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: 'What is your MOQ?' }),
+    });
+    assert.equal(res.status, 404);
+    const body = (await res.json()) as { error: { code: string } };
+    assert.equal(body.error.code, 'NOT_FOUND');
+  });
+});
+
+test('outside the harness the route stays absent even with an engine injected', async () => {
+  // The previous shape registered the route whenever deps.engine existed, so
+  // hiding the page did nothing for the route.
+  const stub = {
+    capabilities: {
+      engineId: 'stub',
+      engineVersion: '0',
+      supportsIdempotentCreate: false,
+      supportsRunLookupByOperationId: false,
+      supportsStop: true,
+      supportsOutOfBandStop: false,
+      supportsCitations: true,
+    },
+  };
+  const { server, pool } = buildServer(config, { engine: stub as never });
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const { port } = server.address() as AddressInfo;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/ai/chat`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: 'hi' }),
+    });
+    assert.equal(res.status, 404, 'the route existed outside the harness');
+  } finally {
+    server.close();
+    await pool.end().catch(() => undefined);
+  }
+});
+
+test('inside the harness the route exists and reports a missing engine', async () => {
+  await withHarnessServer(async (base) => {
+    const res = await fetch(`${base}/api/ai/chat`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: 'hi' }),
+    });
+    assert.equal(res.status, 503);
+    const body = (await res.json()) as { error: { code: string } };
+    assert.equal(body.error.code, 'ENGINE_NOT_CONFIGURED');
+  });
+});
+
+test('the dev page follows the harness flag, not NODE_ENV', async () => {
+  // It used to key off NODE_ENV, which is a different switch that a deployment
+  // sets for unrelated reasons.
+  await withServer(async (base) => {
+    assert.equal((await fetch(`${base}/dev/chat`)).status, 404);
+  });
+  await withHarnessServer(async (base) => {
+    assert.equal((await fetch(`${base}/dev/chat`)).status, 200);
   });
 });

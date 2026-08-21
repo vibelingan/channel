@@ -20,6 +20,24 @@ export interface BffConfig {
    * verifiable without a configured engine.
    */
   engine?: EngineConfig;
+  /**
+   * Local harness mode — ONE switch for everything that must never face the
+   * public internet.
+   *
+   * It controls three things together, because they are one decision: the
+   * hand-driving page at `/dev/chat`, the conversation route `/api/ai/chat`,
+   * and permission to serve with unmet engine guarantees.
+   *
+   * They were three separate conditions before, and that was the bug: the chat
+   * route registered whenever an engine happened to be injected, so hiding the
+   * page did nothing. A route with no rate limiting, no admission control, no
+   * persistence and no takeover fence must be one flag away from existing at
+   * all, not three independent ones.
+   *
+   * Production cannot turn it on. `loadConfig` refuses to return at all when
+   * this is set in a production environment.
+   */
+  localHarness: boolean;
 }
 
 export interface EngineConfig {
@@ -27,16 +45,6 @@ export interface EngineConfig {
   apiKey: string;
   workspaceSlug: string;
   engineVersion: string;
-  /**
-   * Serve even though the startup capability gate found unmet guarantees.
-   *
-   * The gate is real and stays on: this engine family has no idempotent create
-   * and no run lookup, and the compensating machinery for both is LLD-001 §7
-   * work that does not exist yet. Until it does, production must refuse. Local
-   * development needs to run anyway, so the bypass is explicit, named unsafe,
-   * never defaulted on, and prints every refusal it is stepping over.
-   */
-  allowUngated: boolean;
 }
 
 export class ConfigError extends Error {
@@ -48,8 +56,35 @@ export class ConfigError extends Error {
   }
 }
 
+/**
+ * Whether this process considers itself production.
+ *
+ * Two independent signals, and EITHER one is enough. A deployment that sets
+ * only `APP_ENV=production` is production; so is one that sets only
+ * `NODE_ENV=production`. Requiring both to agree would mean a single missing
+ * variable silently downgrades a production service into one that will accept
+ * the harness flag.
+ */
+export function isProductionEnv(env: NodeJS.ProcessEnv): boolean {
+  return env.NODE_ENV?.trim() === 'production' || env.APP_ENV?.trim() === 'production';
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): BffConfig {
   const problems: string[] = [];
+
+  const localHarness = env.AI_LOCAL_HARNESS?.trim() === '1';
+  if (localHarness && isProductionEnv(env)) {
+    // Refusing to start, rather than ignoring the flag. Silently downgrading
+    // would leave an operator believing the harness is on while the assistant
+    // answers nobody, and would make the same image behave differently
+    // depending on a variable nobody is looking at.
+    problems.push(
+      'AI_LOCAL_HARNESS=1 in a production environment. The harness exposes an ' +
+        'unauthenticated conversation route with no rate limiting and permits ' +
+        'serving with unmet engine guarantees. It is local-only, and production ' +
+        'refuses rather than quietly ignoring it.',
+    );
+  }
 
   const databaseUrl = env.DATABASE_URL?.trim();
   if (!databaseUrl) problems.push('DATABASE_URL is not set');
@@ -93,7 +128,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BffConfig {
         apiKey: engineFields.apiKey as string,
         workspaceSlug: engineFields.workspaceSlug as string,
         engineVersion: env.ANYTHINGLLM_VERSION?.trim() || 'unpinned',
-        allowUngated: env.AI_DEV_UNSAFE_ALLOW_UNGATED_ENGINE === '1',
       };
     }
   }
@@ -104,6 +138,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BffConfig {
     port,
     databaseUrl: databaseUrl as string,
     corsAllowedOrigins: origins,
+    localHarness,
     ...(engine ? { engine } : {}),
   };
 }

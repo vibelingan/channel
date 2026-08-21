@@ -58,9 +58,9 @@ services:
       dockerfile: apps/ai-bff/Dockerfile
     container_name: channel-ai-bff
     environment:
-      # The image defaults to production so the hand-driving page at /dev/chat
-      # cannot be reached from a deployed container. Compose IS the local
-      # development environment, so it opts back in here and nowhere else.
+      # The image defaults to production, which makes AI_LOCAL_HARNESS a
+      # start-up failure. Compose IS the local development environment, so it
+      # opts back out here and nowhere else.
       NODE_ENV: development
       DATABASE_URL: postgres://ai:ai@postgres:5432/ai_assistant
       PORT: "8080"
@@ -72,10 +72,12 @@ services:
       ANYTHINGLLM_BASE_URL: http://anythingllm:3001
       ANYTHINGLLM_WORKSPACE: channel-public-assistant
       ANYTHINGLLM_API_KEY: ${ANYTHINGLLM_API_KEY:?set it in .env.ai}
-      # The engine has no idempotent create and no run-lookup, and the
-      # compensating layer (LLD-001 §7) is a later MIU. Production must refuse;
-      # local development opts out explicitly and logs every reason.
-      AI_DEV_UNSAFE_ALLOW_UNGATED_ENGINE: "1"
+      # ONE switch for everything that must not face the internet: the
+      # /dev/chat page, the /api/ai/chat route, and permission to serve with
+      # unmet engine guarantees. The service REFUSES TO START with this set in
+      # a production environment, so copying this file onto a real server fails
+      # loudly rather than quietly exposing an unauthenticated chat route.
+      AI_LOCAL_HARNESS: "1"
     ports:
       - "58080:8080"
     depends_on:
