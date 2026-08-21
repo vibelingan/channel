@@ -1,6 +1,6 @@
 # Catalog Category Expansion - Execution And Delivery
 
-Status: implementation and test deployment complete; PR #27 is open for normal review/merge to `main`.
+Status: approved post-V1.1 form/pricing enhancement is in implementation on the existing branch.
 Branch: `feat/catalog-category-design`.
 Final reviewed implementation SHA: `8f64659deda11a2651afebcb38ca241bf15bc5a4`.
 Final test-branch merge SHA: `a4d0bc5`.
@@ -20,20 +20,20 @@ use the following precedence instead of inferring state from filenames or creati
 4. `task_plan.md` and `progress.md` — historical planning/log detail; they must not override this file.
 5. `.claude/pipeline-state.json` — disposable local pointer regenerated from these tracked docs.
 
-**Current phase:** `deliver`.
+**Current phase:** `implement`.
 
-**Current/next MIU:** none. MIUs 1–25 are complete. Do not invent P1–P6, a new refactor plan,
-or another implementation branch for this feature.
+**Current/next MIU:** MIU 26 in progress; MIUs 27–29 follow. MIUs 1–25 remain complete. Do not
+invent P1–P6, a second pricing plan, or another implementation branch for this feature.
 
 **Next action by role:**
 
 | Agent role | Action |
 |---|---|
-| Implementer | No implementation work remains. Only address a new, explicit review finding. |
-| Reviewer | Review PR #27 / final feature SHA `8f64659`; verify the diff against this execution record and `REMEDIATION.md`. |
-| Designer | No redesign is pending. Audit only if the user requests a new design change. |
-| Validator | Re-run the recorded full validation/deployed smoke when requested; report only, do not create a new plan. |
-| Delivery | Query PR #27's current head/checks, then merge to `main` through the normal PR gate when green. |
+| Implementer | Execute MIUs 26–29 in order on `feat/catalog-category-design`; test first and record each boundary. |
+| Reviewer | Review each MIU against its cross-file contract; do not redesign provider ownership. |
+| Designer | The scope below is locked. Raise a conflict only if code cannot support the conservative contract. |
+| Validator | Validate each MIU narrowly, then run the full human/browser/deployed matrix in MIU 29. |
+| Delivery | After MIU 29 passes, merge the reviewed feature SHA into `test`, wait for deploy/E2E, then return to PR #27. |
 
 ## Post-Delivery Queue (Not An Active MIU)
 
@@ -46,6 +46,20 @@ After PR #27 is reviewed/merged, run a separate serious retrospective/design tas
 	verification evidence, expiry/refresh policy, and reusable interview-quality explanations.
 
 This queue item is intentionally **not** MIU 26 and does not reopen catalog implementation.
+
+## Approved Enhancement Scope (MIUs 26–29)
+
+- SKU Code and URL Slug are optional for publication. Nonblank values retain normalization,
+	uniqueness, and reservation behavior; slugless products remain family-list/in-page-detail only.
+- Add writable `manualCatalogPricing` for every product family: explicit USD/CNY currency and
+	1–4 quantity tiers (`minQuantity`, optional `maxQuantity`, `unitAmountMinor`). Tiers are ordered,
+	non-overlapping, only the final tier may be open-ended, and gaps are allowed.
+- Preserve `moq`, `unitPrice`, and `wholesalePrice` without migration or deletion. For unlinked
+	products, valid manual tiers are the primary display and scalars remain fallback. For linked
+	products, Alibaba pricing remains the only visible pricing source.
+- `category` is a Headphones-only subcategory. Hide it for all other families, clear it on a family
+	change, omit it from non-Headphones writes, and suppress stale non-Headphones category on public reads.
+- No production data mutation/backfill, no Alibaba contract changes, no new branch, no ID-based URL.
 
 ## Delivered Units
 
