@@ -21,6 +21,26 @@ const related = {
   images: [],
 };
 
+const tieredToy = {
+  _id: 'tiered-toy',
+  name: 'Interactive Tiered Toy',
+  productFamily: 'toys',
+  slug: 'interactive-tiered-toy',
+  description: 'Interactive toy for quantity-based OEM orders.',
+  moq: 1,
+  unitPrice: 134.18,
+  wholesalePrice: 118.31,
+  manualCatalogPricing: {
+    schemaVersion: 'manual-catalog-pricing-v1',
+    currency: 'USD',
+    tiers: [
+      { minQuantity: 1, maxQuantity: 12, unitAmountMinor: 13_418 },
+      { minQuantity: 13, unitAmountMinor: 11_831 },
+    ],
+  },
+  images: ['/media/section-capabilities.png'],
+};
+
 const envelope = (data: unknown) => JSON.stringify({ ok: true, data });
 
 test('direct SKU journey renders nine images, facts, related links, and preserves browser Back', async ({
@@ -132,6 +152,82 @@ test('missing and unknown slugs render not-found without detail', async ({ page 
     /\/products\/item\/$/,
   );
   await expect(page.locator('[data-sku-detail]')).toHaveCount(0);
+});
+
+test('manual tiers drive card, in-page detail, slug detail, and AggregateOffer without SKU', async ({
+  page,
+}) => {
+  const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  const productRequests: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/products/slug/interactive-tiered-toy', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: envelope(tieredToy) }),
+  );
+  await page.route('**/api/products?*', (route) => {
+    productRequests.push(route.request().url());
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: envelope({ items: [tieredToy], total: 1, page: 1, pageSize: 12 }),
+    });
+  });
+
+  await page.goto('/toys/');
+  await expect.poll(() => productRequests.length + pageErrors.length).toBeGreaterThan(0);
+  expect(pageErrors, pageErrors.join('\n')).toEqual([]);
+  expect(consoleErrors, consoleErrors.join('\n')).toEqual([]);
+  const familyRequest = new URL(productRequests[0] ?? 'http://invalid');
+  expect(familyRequest.searchParams.get('productFamily')).toBe('toys');
+  expect(familyRequest.searchParams.get('page')).toBe('1');
+  expect(familyRequest.searchParams.get('pageSize')).toBe('12');
+  await expect(page.locator('[data-product-card-price]')).toHaveText('From $118.31');
+  await page.getByRole('button', { name: /Interactive Tiered Toy/ }).click();
+  await expect(page.locator('[data-manual-tier-pricing]')).toContainText('1–12');
+  await expect(page.locator('[data-manual-tier-pricing]')).toContainText('13+');
+  await expect(page.locator('[data-manual-tier-pricing]')).toContainText('$134.18');
+  await expect(page.getByText('$118.31', { exact: true })).toBeVisible();
+  await expect(page.getByText('$134.18', { exact: true })).toBeVisible();
+
+  await page.goto('/products/item/?slug=interactive-tiered-toy');
+  await expect(page.getByRole('heading', { level: 1, name: tieredToy.name })).toBeVisible();
+  await expect(page.getByText('SKU', { exact: true })).toHaveCount(0);
+  await expect(page.locator('[data-manual-tier-pricing]')).toContainText('1–12');
+  const productSchema = await page
+    .locator('script[type="application/ld+json"]')
+    .evaluateAll((scripts) =>
+      scripts
+        .map((script) => JSON.parse(script.textContent ?? '{}'))
+        .flatMap((schema) => schema['@graph'] ?? [])
+        .find((node) => node['@type'] === 'Product'),
+    );
+  expect(productSchema).not.toHaveProperty('sku');
+  expect(productSchema.offers).toMatchObject({
+    '@type': 'AggregateOffer',
+    priceCurrency: 'USD',
+    lowPrice: '118.31',
+    highPrice: '134.18',
+  });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  if (process.env.E2E_RECORD_ARTIFACTS) {
+    await page.screenshot({
+      path: 'output/playwright/miu28-tiered-product-mobile.png',
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.screenshot({
+      path: 'output/playwright/miu28-tiered-product-desktop.png',
+      fullPage: true,
+    });
+  }
 });
 
 test('retry recovers from a detail transport error', async ({ page }) => {

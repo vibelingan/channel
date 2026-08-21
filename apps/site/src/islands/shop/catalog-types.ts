@@ -1,5 +1,5 @@
 /** Pure storefront catalog DTOs shared by runtime clients and contract tests. */
-import type { ProductFamily } from '@vibelingan-channel/shared';
+import type { ManualCatalogPricing, ProductFamily } from '@vibelingan-channel/shared';
 
 export type { ProductFamily } from '@vibelingan-channel/shared';
 
@@ -43,6 +43,7 @@ export interface Product {
   unitPrice?: number;
   wholesalePrice?: number;
   vipPrice?: number;
+  manualCatalogPricing?: ManualCatalogPricing;
   /** Overstock-only fields. */
   inventory?: number;
   clearancePrice?: number;

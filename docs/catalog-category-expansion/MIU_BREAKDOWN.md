@@ -954,7 +954,7 @@ inventory rather than contract. See REMEDIATION.md R7, R8, R9.
 
 ## MIU 28 — Public projection, strict decode, and shared pricing presentation
 
-**Status:** In progress.
+**Status:** Complete (commit recorded in `EXECUTION.md`).
 
 **Block:** INTEGRATION
 
@@ -989,7 +989,7 @@ inventory rather than contract. See REMEDIATION.md R7, R8, R9.
 
 ## MIU 29 — Full human validation and test deployment
 
-**Status:** Not started.
+**Status:** In progress.
 
 **Block:** TESTING
 

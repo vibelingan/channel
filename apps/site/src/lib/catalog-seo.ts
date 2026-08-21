@@ -1,9 +1,5 @@
 import { type ProductFamily, isProductFamily } from '@vibelingan-channel/shared';
-import {
-  isPublicationCompleteCatalogProduct,
-  publicManualPrice,
-  validMinorAmount,
-} from '../islands/shop/catalog-pricing.ts';
+import { publicManualPrice, validMinorAmount } from '../islands/shop/catalog-pricing.ts';
 import type { Product } from '../islands/shop/catalog-types.ts';
 
 export interface CatalogBreadcrumb {
@@ -53,6 +49,21 @@ export function skuBreadcrumbs(product: Product): CatalogBreadcrumb[] {
   ];
 }
 
+export function hasAddressableProductDetail(product: Product): product is Product & {
+  productFamily: ProductFamily;
+  slug: string;
+  description: string;
+  images: string[];
+} {
+  return Boolean(
+    isProductFamily(product.productFamily) &&
+      product.name.trim() &&
+      product.slug?.trim() &&
+      product.description?.trim() &&
+      product.images?.some(Boolean),
+  );
+}
+
 export function catalogBreadcrumbSchema(
   breadcrumbs: readonly CatalogBreadcrumb[],
   origin: string | URL,
@@ -100,6 +111,16 @@ function realOffer(product: Product, origin: string | URL): CatalogSchemaNode | 
       url,
     };
   }
+  if (product.manualCatalogPricing) {
+    const amounts = product.manualCatalogPricing.tiers.map((tier) => tier.unitAmountMinor);
+    return {
+      '@type': 'AggregateOffer',
+      priceCurrency: product.manualCatalogPricing.currency,
+      lowPrice: (Math.min(...amounts) / 100).toFixed(2),
+      highPrice: (Math.max(...amounts) / 100).toFixed(2),
+      url,
+    };
+  }
   const amount = publicManualPrice(product);
   if (amount === undefined) return null;
   return { '@type': 'Offer', priceCurrency: 'USD', price: amount.toFixed(2), url };
@@ -110,11 +131,7 @@ export function catalogProductSchema(
   origin: string | URL,
   options: { published: boolean },
 ): CatalogSchemaNode | null {
-  if (
-    !options.published ||
-    !isPublicationCompleteCatalogProduct(product) ||
-    !isProductFamily(product.productFamily)
-  ) {
+  if (!options.published || !hasAddressableProductDetail(product)) {
     return null;
   }
   const schema: CatalogSchemaNode = {
@@ -123,7 +140,7 @@ export function catalogProductSchema(
     url: absoluteUrl(`/products/item/?slug=${encodeURIComponent(product.slug.trim())}`, origin),
   };
   schema.description = product.description.trim();
-  schema.sku = product.skuCode.trim();
+  if (product.skuCode?.trim()) schema.sku = product.skuCode.trim();
   const images = (product.images ?? []).filter(Boolean).map((image) => absoluteUrl(image, origin));
   if (images.length > 0) schema.image = images;
   const offer = realOffer(product, origin);

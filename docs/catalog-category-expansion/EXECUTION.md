@@ -22,7 +22,7 @@ use the following precedence instead of inferring state from filenames or creati
 
 **Current phase:** `implement`.
 
-**Current/next MIU:** MIU 28 in progress; MIU 29 follows. MIUs 1–27 are complete. Do not
+**Current/next MIU:** MIU 29 in progress. MIUs 1–28 are complete. Do not
 invent P1–P6, a second pricing plan, or another implementation branch for this feature.
 
 **Next action by role:**
@@ -104,6 +104,28 @@ wrapping, tier readability, and retained scalar pricing.
 
 **Result:** Complete. No scalar field, Alibaba pricing field, or generic mutation endpoint was
 removed or repurposed.
+
+## MIU 28 — Public Projection, Strict Decode, And Shared Pricing Presentation
+
+**What:** Added validated public projection and strict storefront decoding for manual quantity
+tiers; malformed stored pricing is omitted without dropping the product. Public reads now suppress
+stale Subcategory outside Headphones. Cards, in-page details, and slug details share USD/CNY tier
+summary/table presentation with Alibaba → manual tiers → scalar fallback precedence. Slug-addressable
+products may omit SKU, and valid manual tiers emit AggregateOffer low/high prices.
+
+**Tests written:** valid/malformed public projection and stale category suppression; canonical and
+malformed nested DTO decoding; currency/range/table rendering; Alibaba/manual/scalar precedence;
+optional-SKU addressability and AggregateOffer; and a 390px browser journey across Toys card,
+in-page detail, and slug detail with hydration-error and overflow guards.
+
+**Validation:** Public API 62/62 and site 204/204; Public API/site/E2E typechecks and focused Biome
+passed. Site production build generated 15 routes; all three CloudBase functions built, packaged,
+and cold-started from fresh artifacts. Chromium SKU journeys passed 5/5 and the same suite passed
+WebKit 5/5. True 390px and 1440px captures were inspected for wrapping, overlap, table alignment,
+and scalar-price leakage.
+
+**Result:** Complete. Invalid manual pricing fails closed at storage and network boundaries; Alibaba
+link identity remains authoritative and never falls back to manual or scalar prices.
 
 ## Deviations
 

@@ -5,6 +5,7 @@ import {
   catalogBreadcrumbSchema,
   catalogProductSchema,
   familyBreadcrumbs,
+  hasAddressableProductDetail,
   serializeCatalogSchema,
   skuBreadcrumbs,
 } from './catalog-seo.ts';
@@ -58,6 +59,11 @@ test('SKU breadcrumbs add the validated product as level four with its stable qu
   ]);
   assert.deepEqual(skuBreadcrumbs({ ...product, productFamily: undefined }), []);
   assert.deepEqual(skuBreadcrumbs({ ...product, slug: undefined }), []);
+});
+
+test('slug detail addressability does not require SKU', () => {
+  assert.equal(hasAddressableProductDetail({ ...product, skuCode: undefined }), true);
+  assert.equal(hasAddressableProductDetail({ ...product, slug: undefined }), false);
 });
 
 test('Product schema emits approved real fields and wholesale Offer only', () => {
@@ -142,6 +148,55 @@ test('Product schema uses Alibaba real pricing, omits Offer for quote, and never
   });
 });
 
+test('Product schema uses manual tier AggregateOffer before scalar pricing', () => {
+  const schema = catalogProductSchema(
+    {
+      ...product,
+      skuCode: undefined,
+      unitPrice: 99,
+      wholesalePrice: 88,
+      manualCatalogPricing: {
+        schemaVersion: 'manual-catalog-pricing-v1',
+        currency: 'CNY',
+        tiers: [
+          { minQuantity: 1, maxQuantity: 12, unitAmountMinor: 13_418 },
+          { minQuantity: 13, unitAmountMinor: 11_831 },
+        ],
+      },
+    },
+    origin,
+    { published: true },
+  );
+  assert.ok(schema);
+  assert.equal(Object.hasOwn(schema, 'sku'), false);
+  assert.deepEqual(schema.offers, {
+    '@type': 'AggregateOffer',
+    priceCurrency: 'CNY',
+    lowPrice: '118.31',
+    highPrice: '134.18',
+    url: 'https://example.test/products/item/?slug=visionclip-camera',
+  });
+
+  const linked = catalogProductSchema(
+    {
+      ...product,
+      manualCatalogPricing: schema.offers as never,
+      alibabaPrimarySourceKey: 'source-1',
+      alibabaCatalogPricing: {
+        schemaVersion: 'alibaba-catalog-pricing-v1',
+        source: 'alibaba',
+        mode: 'fixed',
+        currency: 'USD',
+        amountMinor: 250,
+        syncedAt: '2026-08-20T00:00:00.000Z',
+      },
+    },
+    origin,
+    { published: true },
+  );
+  assert.equal((linked?.offers as { price?: string }).price, '2.50');
+});
+
 test('empty, malformed, or unpublished-looking data emits no Product schema', () => {
   assert.equal(
     catalogProductSchema({ _id: 'x', name: '', slug: 'x' }, origin, { published: true }),
@@ -157,10 +212,7 @@ test('empty, malformed, or unpublished-looking data emits no Product schema', ()
     catalogProductSchema({ ...product, description: '' }, origin, { published: true }),
     null,
   );
-  assert.equal(
-    catalogProductSchema({ ...product, skuCode: '' }, origin, { published: true }),
-    null,
-  );
+  assert.equal(catalogProductSchema({ ...product, slug: '' }, origin, { published: true }), null);
   assert.equal(catalogProductSchema(product, origin, { published: false }), null);
 });
 
