@@ -22,19 +22,19 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
   const collection = section ? getCollection(section.collection) : undefined;
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="flex w-60 flex-col border-r border-slate-200 bg-white">
+    <div className="flex min-h-screen min-w-0 max-w-full flex-col overflow-x-hidden lg:flex-row">
+      <aside className="flex w-full shrink-0 flex-col border-b border-slate-200 bg-white lg:w-60 lg:border-b-0 lg:border-r">
         <div className="border-b border-slate-200 px-5 py-4">
           <p className="text-sm font-semibold text-slate-900">Channel Admin</p>
           <p className="mt-0.5 text-xs capitalize text-slate-500">{role || 'member'}</p>
         </div>
-        <nav className="flex-1 space-y-1 p-3">
+        <nav className="flex gap-1 overflow-x-auto p-3 lg:block lg:flex-1 lg:space-y-1">
           {sections.map((s) => (
             <button
               type="button"
               key={s.collection}
               onClick={() => setActive(s.collection)}
-              className={`w-full rounded-lg px-3 py-2 text-left text-sm transition ${
+              className={`min-h-11 shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm transition lg:w-full ${
                 s.collection === active
                   ? 'bg-slate-900 text-white'
                   : 'text-slate-700 hover:bg-slate-100'
@@ -44,24 +44,24 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
             </button>
           ))}
         </nav>
-        <div className="border-t border-slate-200 p-3">
+        <div className="flex gap-2 border-t border-slate-200 p-3 lg:block">
           <a
             href="/"
-            className="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"
+            className="min-h-11 flex-1 rounded-lg px-3 py-2 text-center text-sm text-slate-600 hover:bg-slate-100 lg:block lg:text-left"
           >
             ← Back to site
           </a>
           <button
             type="button"
             onClick={onLogout}
-            className="mt-1 w-full rounded-lg px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-100"
+            className="min-h-11 flex-1 rounded-lg px-3 py-2 text-center text-sm text-slate-600 hover:bg-slate-100 lg:mt-1 lg:w-full lg:text-left"
           >
             Sign out
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto">
+      <main className="min-w-0 flex-1 overflow-auto">
         {section?.custom === 'alibaba-sync' ? (
           <div className="p-6">
             <AlibabaCatalogSyncPage />

@@ -90,7 +90,12 @@ async function readHeaderGeometry(page: Page) {
         : null;
     };
     const visibleLinks = Array.from(
-      document.querySelectorAll<HTMLElement>('[data-primary-nav] > a'),
+      // The catalog expansion replaced the flat Headphones link with an
+      // Electronics & Toys disclosure, so a top-level nav item is now either an
+      // anchor or that disclosure's summary.
+      document.querySelectorAll<HTMLElement>(
+        '[data-primary-nav] > a, [data-primary-nav] > details > summary',
+      ),
     )
       .filter((link) => getComputedStyle(link).display !== 'none')
       .map((link) => ({
@@ -123,8 +128,9 @@ function expectDesktopHeaderContained(
   expect(geometry.brand?.right).toBeLessThanOrEqual(geometry.nav?.left ?? 0);
   expect(geometry.nav?.right).toBeLessThanOrEqual(geometry.account?.left ?? 0);
   expect(geometry.noHorizontalOverflow).toBe(true);
-  // Primary nav currently has 3 visible links (OEM Development, Headphones,
-  // Success Stories) — Teardown Lab and Blue Ocean are temporarily hidden.
+  // Primary nav currently has 3 visible top-level items (OEM Development,
+  // Electronics & Toys disclosure, Success Stories) — Teardown Lab and Blue
+  // Ocean are temporarily hidden.
   expect(geometry.visibleLinks).toHaveLength(3);
   const contentLeft = (geometry.layout?.left ?? 0) + (geometry.layoutPadding?.left ?? 0);
   const contentRight = (geometry.layout?.right ?? 0) - (geometry.layoutPadding?.right ?? 0);
@@ -612,7 +618,7 @@ test.describe('public browser smoke', () => {
     await toggle.click();
     await expect(disclosure).toHaveAttribute('open', '');
     await expect(mobileMenu).toBeVisible();
-    for (const label of ['OEM Development', 'Headphones', 'Success Stories']) {
+    for (const label of ['OEM Development', 'Success Stories']) {
       await expect(mobileMenu.getByRole('link', { name: label, exact: true })).toBeVisible();
     }
     // Teardown Lab and Blue Ocean are temporarily hidden (un-routed, 2026-08):
@@ -620,10 +626,16 @@ test.describe('public browser smoke', () => {
     for (const label of ['Teardown Lab', 'Blue Ocean']) {
       await expect(mobileMenu.getByRole('link', { name: label, exact: true })).toHaveCount(0);
     }
-    await expect(mobileMenu.getByRole('link', { name: 'Headphones', exact: true })).toHaveAttribute(
-      'href',
-      '/headphones',
-    );
+    // The catalog expansion groups every family under an Electronics & Toys disclosure,
+    // so Headphones is reachable one level in rather than as a top-level nav link.
+    const mobileCatalog = mobileMenu.locator('[data-catalog-disclosure="mobile"]');
+    await mobileCatalog.locator(':scope > summary').click();
+    await expect(
+      mobileCatalog.getByRole('link', { name: 'Headphones', exact: true }),
+    ).toBeVisible();
+    await expect(
+      mobileCatalog.getByRole('link', { name: 'Headphones', exact: true }),
+    ).toHaveAttribute('href', '/headphones/');
     await expect(mobileMenu.getByRole('link', { name: 'Sign in', exact: true })).toBeVisible();
     await expect(mobileMenu.getByRole('link', { name: 'Register', exact: true })).toBeVisible();
     await expect(page.getByText('Minimum Order Amount: $500', { exact: true })).toHaveCount(0);
@@ -660,11 +672,14 @@ test.describe('public browser smoke', () => {
       await expect(page.locator('[data-menu-toggle]')).toBeHidden();
       await expect(page.locator('[data-primary-nav]')).toBeVisible();
       await expect(page.locator('[data-account-controls]')).toBeVisible();
-      const headphonesLink = page
-        .locator('[data-primary-nav]')
-        .getByRole('link', { name: 'Headphones', exact: true });
+      const catalogDisclosure = page.locator('[data-catalog-disclosure="desktop"]');
+      await expect(catalogDisclosure).toBeVisible();
+      await catalogDisclosure.locator(':scope > summary').click();
+      // Desktop catalog links carry a description, so their accessible name is not
+      // just the family label; address them by destination instead.
+      const headphonesLink = catalogDisclosure.locator('a[href="/headphones/"]');
       await expect(headphonesLink).toBeVisible();
-      await expect(headphonesLink).toHaveAttribute('href', '/headphones');
+      await expect(headphonesLink).toHaveText(/Headphones/);
       await expect(page.getByText('Minimum Order Amount: $500', { exact: true })).toHaveCount(0);
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
@@ -729,7 +744,7 @@ test.describe('public browser smoke', () => {
 
       await productCards.first().click();
       await expect(page.locator('[data-product-detail]')).toBeVisible();
-      await page.getByRole('button', { name: 'Back to all models', exact: true }).click();
+      await page.getByRole('button', { name: 'Back to all products', exact: true }).click();
       await expect(page.locator('[data-product-detail]')).toHaveCount(0);
       await expect(productCards.first()).toBeVisible();
     }
@@ -1051,8 +1066,10 @@ test.describe('public browser smoke', () => {
     const intentCounts = new Map<string, number>();
     const previewCounts = new Map<string, number>();
     let imageSequence = 0;
+    // A legacy product stored above the V1.1 product cap of nine. Removing two brings
+    // it back under capacity, which is what re-enables the file input.
     const existingImageIds = Array.from(
-      { length: 19 },
+      { length: 10 },
       (_, index) => `existing-image-${index + 1}`,
     );
 
@@ -1141,7 +1158,9 @@ test.describe('public browser smoke', () => {
 
     await page.goto('/admin?miu8-capacity=1', { waitUntil: 'domcontentloaded' });
     await expect(page.getByText('Channel Admin', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Headphones', exact: true }).click();
+    // The catalog now spans four families, so the admin section that used to be
+    // "Headphones" is the broader "Products".
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
     await expect(page.getByText('Existing Over-Limit Product', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Edit', exact: true }).click();
 
@@ -1149,11 +1168,11 @@ test.describe('public browser smoke', () => {
     const existingManager = page.locator('#imageIds-capacity').locator('..');
     await expect
       .poll(() => [...previewCounts.values()].reduce((sum, count) => sum + count, 0))
-      .toBe(19);
-    await expect(existingManager.locator('img[alt=""]')).toHaveCount(19);
-    expect(previewCounts.size).toBe(19);
+      .toBe(10);
+    await expect(existingManager.locator('img[alt=""]')).toHaveCount(10);
+    expect(previewCounts.size).toBe(10);
     expect([...previewCounts.values()].every((count) => count === 1)).toBe(true);
-    await expect(existingManager.locator('#imageIds-capacity')).toContainText('19 of 18 images');
+    await expect(existingManager.locator('#imageIds-capacity')).toContainText('10 of 9 images');
     await expect(existingInput).toBeDisabled();
     const existingRemove = existingManager
       .getByRole('button', { name: 'Remove image', exact: true })
@@ -1197,8 +1216,9 @@ test.describe('public browser smoke', () => {
     await expect(
       existingManager.getByRole('button', { name: 'Remove image', exact: true }).first(),
     ).toBeFocused();
-    await expect(existingManager.locator('#imageIds-capacity')).toContainText('17 of 18 images');
-    await expect(existingManager.locator('output')).toContainText('17 of 18 images');
+    await expect(existingManager.locator('#imageIds-capacity')).toContainText('8 of 9 images');
+    // The live region announces the latest event, not the running capacity; the
+    // capacity itself is asserted on its own element above.
     await expect(existingManager.locator('output')).toContainText('Image removed');
     await expect(existingInput).toBeEnabled();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -1216,7 +1236,9 @@ test.describe('public browser smoke', () => {
     expect(
       await fileInput.locator('..').evaluate((element) => getComputedStyle(element).boxShadow),
     ).not.toBe('none');
-    await expect(imageManager.locator('#imageIds-capacity')).toContainText('0 of 18 images');
+    // V1.1 caps a PRODUCT at nine images (Overstock keeps eighteen), so twenty
+    // selected files fill the nine slots and the rest are refused before upload.
+    await expect(imageManager.locator('#imageIds-capacity')).toContainText('0 of 9 images');
 
     const payloads = Array.from({ length: 20 }, (_, index) => ({
       name: `miu8-cap-${index}.png`,
@@ -1229,15 +1251,15 @@ test.describe('public browser smoke', () => {
     await fileInput.setInputFiles(payloads);
     await expect
       .poll(() => [...intentCounts.values()].reduce((sum, count) => sum + count, 0))
-      .toBe(18);
+      .toBe(9);
     await expect(imageManager.getByText('Uploading…')).toHaveCount(0);
     await expect(imageManager.getByText('Upload failed', { exact: true })).toHaveCount(2);
     await expect(imageManager.locator('output')).toContainText(
       '2 uploads failed. Retry or remove them.',
     );
-    await expect(imageManager.locator('img[alt=""]')).toHaveCount(16);
-    await expect(imageManager.locator('#imageIds-capacity')).toContainText('18 of 18 images');
-    await expect(imageManager.locator('output')).toContainText('2 files not selected');
+    await expect(imageManager.locator('img[alt=""]')).toHaveCount(7);
+    await expect(imageManager.locator('#imageIds-capacity')).toContainText('9 of 9 images');
+    await expect(imageManager.locator('output')).toContainText('11 files not selected');
     await expect(fileInput).toBeDisabled();
 
     const firstRetry = imageManager.getByRole('button', { name: 'Retry', exact: true }).first();
@@ -1250,10 +1272,10 @@ test.describe('public browser smoke', () => {
     await page.waitForTimeout(100);
     expect(intentCounts.get('miu8-cap-0.png')).toBe(2);
     await expect(imageManager.getByText('Upload failed', { exact: true })).toHaveCount(1);
-    await expect(imageManager.locator('img[alt=""]')).toHaveCount(17);
+    await expect(imageManager.locator('img[alt=""]')).toHaveCount(8);
 
     await imageManager.getByRole('button', { name: 'Remove', exact: true }).click();
-    await expect(imageManager.locator('#imageIds-capacity')).toContainText('17 of 18 images');
+    await expect(imageManager.locator('#imageIds-capacity')).toContainText('8 of 9 images');
     await expect(imageManager.locator('output')).toContainText('Failed upload removed');
     await expect(fileInput).toBeEnabled();
 
@@ -1262,8 +1284,8 @@ test.describe('public browser smoke', () => {
       mimeType: 'image/png',
       buffer: payloads[0]?.buffer ?? Buffer.alloc(0),
     });
-    await expect(imageManager.locator('img[alt=""]')).toHaveCount(18);
-    await expect(imageManager.locator('#imageIds-capacity')).toContainText('18 of 18 images');
+    await expect(imageManager.locator('img[alt=""]')).toHaveCount(9);
+    await expect(imageManager.locator('#imageIds-capacity')).toContainText('9 of 9 images');
     await expect(fileInput).toBeDisabled();
     expect(intentCounts.get('miu8-cap-replacement.png')).toBe(1);
   });
@@ -1311,7 +1333,7 @@ test.describe('public browser smoke', () => {
     const mediaHeight = mediaBox.height;
     expect(mediaHeight).toBeGreaterThanOrEqual(160);
     expect(mediaHeight).toBeLessThanOrEqual(180);
-    await expect(page.getByText('Product Line', { exact: true })).toBeVisible();
+    await expect(page.getByText('Factory-Direct Headphones', { exact: true })).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
@@ -1659,24 +1681,27 @@ test.describe('public browser smoke', () => {
     await transitionToggle.click();
     await expect(page.locator('[data-mobile-disclosure]')).toHaveAttribute('open', '');
     await expect(page.getByRole('navigation', { name: 'Mobile' })).toBeVisible();
-    await page
-      .getByRole('navigation', { name: 'Mobile' })
-      .getByRole('link', { name: 'Headphones', exact: true })
-      .focus();
-    await page.setViewportSize({ width: 1360, height: 800 });
+    // Under the catalog IA the family link lives inside the Electronics & Toys
+    // disclosure in both lanes, so the lane transition must carry focus between
+    // the two nested copies of the same destination.
+    const mobileCatalogLink = page
+      .locator('[data-catalog-disclosure="mobile"]')
+      .locator('a[href="/headphones/"]');
+    await page.locator('[data-catalog-disclosure="mobile"]').locator(':scope > summary').click();
+    await mobileCatalogLink.focus();
+    // Cross the lane threshold with margin: the header measures window.innerWidth,
+    // which excludes the scrollbar, so a viewport of exactly 1360 can still report
+    // less than 1360 and leave the header in the mobile lane.
+    await page.setViewportSize({ width: 1440, height: 800 });
     await expect(page.locator('[data-site-header]')).toHaveAttribute('data-header-mode', 'desktop');
     await expect(page.locator('[data-mobile-disclosure]')).not.toHaveAttribute('open', '');
     await expect(
-      page.locator('[data-primary-nav]').getByRole('link', { name: 'Headphones', exact: true }),
+      page.locator('[data-catalog-disclosure="desktop"]').locator('a[href="/headphones/"]'),
     ).toBeFocused();
     await page.setViewportSize({ width: 1359, height: 800 });
     await expect(page.locator('[data-mobile-disclosure]')).toHaveAttribute('open', '');
     await expect(page.getByRole('navigation', { name: 'Mobile' })).toBeVisible();
-    await expect(
-      page
-        .getByRole('navigation', { name: 'Mobile' })
-        .getByRole('link', { name: 'Headphones', exact: true }),
-    ).toBeFocused();
+    await expect(mobileCatalogLink).toBeFocused();
 
     await page.setViewportSize({ width: 568, height: 320 });
     await page.goto('/headphones', { waitUntil: 'domcontentloaded' });
@@ -1781,6 +1806,9 @@ test.describe('public browser smoke', () => {
 
   test('public navigation remains available without JavaScript', async ({ browser }) => {
     const trustedStorage = await trustedSiteStorage(browser);
+    // The header now picks its lane in CSS at the same 1360px threshold the script
+    // measures, so navigation is present without JavaScript at BOTH widths: the
+    // desktop lane above the threshold, the native disclosure below it.
     const context = await browser.newContext({
       javaScriptEnabled: false,
       storageState: trustedStorage,
@@ -1789,16 +1817,35 @@ test.describe('public browser smoke', () => {
     try {
       const page = await context.newPage();
       await page.goto(`${e2e.siteUrl}/headphones`, { waitUntil: 'domcontentloaded' });
-      const disclosure = page.locator('[data-mobile-disclosure]');
-      await expect(disclosure).toBeVisible();
-      await disclosure.locator('summary').click();
-      const mobileMenu = page.getByRole('navigation', { name: 'Mobile' });
-      await expect(mobileMenu).toBeVisible();
-      await expect(
-        mobileMenu.getByRole('link', { name: 'Headphones', exact: true }),
-      ).toHaveAttribute('href', '/headphones');
+      const desktopNav = page.locator('[data-primary-nav]');
+      await expect(desktopNav).toBeVisible();
+      const desktopCatalog = page.locator('[data-catalog-disclosure="desktop"]');
+      await desktopCatalog.locator(':scope > summary').click();
+      await expect(desktopCatalog.locator('a[href="/headphones/"]')).toBeVisible();
     } finally {
       await context.close();
+    }
+
+    const mobileContext = await browser.newContext({
+      javaScriptEnabled: false,
+      storageState: trustedStorage,
+      viewport: { width: 390, height: 844 },
+    });
+    try {
+      const page = await mobileContext.newPage();
+      await page.goto(`${e2e.siteUrl}/headphones`, { waitUntil: 'domcontentloaded' });
+      const disclosure = page.locator('[data-mobile-disclosure]');
+      await expect(disclosure).toBeVisible();
+      await disclosure.locator(':scope > summary').click();
+      const mobileMenu = page.getByRole('navigation', { name: 'Mobile' });
+      await expect(mobileMenu).toBeVisible();
+      const mobileCatalog = mobileMenu.locator('[data-catalog-disclosure="mobile"]');
+      await mobileCatalog.locator(':scope > summary').click();
+      await expect(
+        mobileCatalog.getByRole('link', { name: 'Headphones', exact: true }),
+      ).toHaveAttribute('href', '/headphones/');
+    } finally {
+      await mobileContext.close();
     }
   });
 

@@ -49,7 +49,7 @@ export function detailScrollBehavior(reducedMotion: boolean): ScrollBehavior {
 export function HeadphonesPage({ content }: Props) {
   const { list, detail, oemCta } = content;
   const [state, setState] = useState<HeadphonesCatalogState>(initialHeadphonesCatalogState);
-  const { canSeeVip, user, loggedIn, ready } = useSession();
+  const { user, loggedIn, ready } = useSession();
 
   // A render-synchronised mirror of `state`. Transitions that need to know the
   // generation they just produced MUST compute it here rather than inside a
@@ -230,8 +230,7 @@ export function HeadphonesPage({ content }: Props) {
         <HeadphonesProductDetail
           product={activeProduct}
           detail={detail}
-          categoryLabel={categoryLabel(activeProduct.category)}
-          registered={canSeeVip}
+          categoryLabel={categoryLabel(activeProduct.category ?? '')}
           onBack={handleBack}
         />
       )}

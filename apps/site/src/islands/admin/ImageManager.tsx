@@ -7,6 +7,8 @@ interface Props {
   onChange: (ids: string[]) => void;
   maxItems?: number;
   inputId?: string;
+  errorId?: string;
+  onBusyChange?: (busy: boolean) => void;
 }
 
 /** A file still uploading, or one that failed and can be retried. Successful
@@ -84,6 +86,15 @@ export function failPendingAttempt(
   );
 }
 
+export function reorderImageIds(value: readonly string[], id: string, direction: -1 | 1): string[] {
+  const index = value.indexOf(id);
+  const target = index + direction;
+  if (index < 0 || target < 0 || target >= value.length) return [...value];
+  const reordered = [...value];
+  [reordered[index], reordered[target]] = [reordered[target] as string, reordered[index] as string];
+  return reordered;
+}
+
 /**
  * Inline image manager for the catalog edit form. Uploads files through the
  * admin-brokered direct-upload flow (`uploadImage`: intent → direct COS POST → complete)
@@ -92,7 +103,14 @@ export function failPendingAttempt(
  * would 404 unpublished images); just-uploaded files preview from a local object
  * URL so they show instantly without a round-trip.
  */
-export function ImageManager({ value, onChange, maxItems, inputId = 'imageIds' }: Props) {
+export function ImageManager({
+  value,
+  onChange,
+  maxItems,
+  inputId = 'imageIds',
+  errorId,
+  onBusyChange,
+}: Props) {
   const [pending, setPending] = useState<PendingUpload[]>([]);
   const [selectionNotice, setSelectionNotice] = useState('');
   // Object URLs for the just-uploaded session; fetched data URLs for persisted ids.
@@ -153,6 +171,11 @@ export function ImageManager({ value, onChange, maxItems, inputId = 'imageIds' }
       for (const url of Object.values(objectUrlsRef.current)) URL.revokeObjectURL(url);
     };
   }, []);
+
+  useEffect(() => {
+    onBusyChange?.(pending.length > 0);
+    return () => onBusyChange?.(false);
+  }, [onBusyChange, pending.length]);
 
   function previewSrc(id: string): string | undefined {
     return objectUrls[id] ?? fetched[id];
@@ -248,13 +271,7 @@ export function ImageManager({ value, onChange, maxItems, inputId = 'imageIds' }
   }
 
   function move(id: string, dir: -1 | 1): void {
-    const current = valueRef.current;
-    const idx = current.indexOf(id);
-    const next = idx + dir;
-    if (next < 0 || next >= current.length) return;
-    const copy = [...current];
-    [copy[idx], copy[next]] = [copy[next] as string, copy[idx] as string];
-    commit(copy);
+    commit(reorderImageIds(valueRef.current, id, dir));
   }
 
   const uploading = pending.filter((item) => item.status === 'uploading');
@@ -270,7 +287,7 @@ export function ImageManager({ value, onChange, maxItems, inputId = 'imageIds' }
     failed.length === 0
       ? ''
       : `${failed.length} upload${failed.length === 1 ? '' : 's'} failed. Retry or remove ${failed.length === 1 ? 'it' : 'them'}.`;
-  const liveNotice = [capacityText, selectionNotice, failureNotice].filter(Boolean).join(' ');
+  const liveNotice = [selectionNotice, failureNotice].filter(Boolean).join(' ');
 
   return (
     <div data-image-manager>
@@ -290,7 +307,7 @@ export function ImageManager({ value, onChange, maxItems, inputId = 'imageIds' }
             )}
             {i === 0 && (
               <span className="absolute left-1 top-1 rounded bg-slate-900/80 px-1 py-0.5 text-[9px] font-semibold text-white">
-                Cover
+                Primary
               </span>
             )}
             <div className="absolute inset-x-0 bottom-0 flex justify-between bg-slate-900/60 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
@@ -377,7 +394,8 @@ export function ImageManager({ value, onChange, maxItems, inputId = 'imageIds' }
             disabled={availableSlots <= 0}
             className="sr-only"
             aria-label="Add product images"
-            aria-describedby={`${inputId}-capacity`}
+            aria-invalid={Boolean(errorId) || undefined}
+            aria-describedby={[`${inputId}-capacity`, errorId].filter(Boolean).join(' ')}
             onChange={(e) => {
               void handleFiles(e.target.files);
               e.target.value = '';
@@ -386,7 +404,7 @@ export function ImageManager({ value, onChange, maxItems, inputId = 'imageIds' }
         </label>
       </div>
       <p id={`${inputId}-capacity`} className="mt-2 text-xs text-slate-400">
-        JPG, PNG, or WebP. The first image is the cover. Use ‹ › to reorder.
+        JPG, PNG, or WebP. The first image is primary. Use ‹ › to reorder.
         {capacityText ? ` ${capacityText}` : ''}
       </p>
       <output className="mt-1 block text-xs text-amber-700" aria-live="polite">

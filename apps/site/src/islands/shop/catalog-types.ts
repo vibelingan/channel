@@ -1,4 +1,7 @@
 /** Pure storefront catalog DTOs shared by runtime clients and contract tests. */
+import type { ManualCatalogPricing, ProductFamily } from '@vibelingan-channel/shared';
+
+export type { ProductFamily } from '@vibelingan-channel/shared';
 
 /**
  * Public projection of an Alibaba-linked product's live source pricing
@@ -27,7 +30,10 @@ export type AlibabaSourceStatus = 'available' | 'limited' | 'unavailable' | 'rem
 export interface Product {
   _id: string;
   name: string;
-  category: string;
+  productFamily?: ProductFamily;
+  category?: string;
+  skuCode?: string;
+  slug?: string;
   series?: string;
   modName?: string;
   modType?: string;
@@ -37,6 +43,7 @@ export interface Product {
   unitPrice?: number;
   wholesalePrice?: number;
   vipPrice?: number;
+  manualCatalogPricing?: ManualCatalogPricing;
   /** Overstock-only fields. */
   inventory?: number;
   clearancePrice?: number;
@@ -59,6 +66,7 @@ export interface CatalogPage {
 }
 
 export interface CatalogQuery {
+  productFamily?: ProductFamily;
   categories?: string[];
   search?: string;
   page?: number;

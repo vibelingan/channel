@@ -9,6 +9,7 @@ import type {
   CollectionDoc,
   FilterModel,
   ListResult,
+  ProductFamily,
   SessionUser,
   SortClause,
 } from '@vibelingan-channel/shared';
@@ -58,6 +59,7 @@ export function fetchCurrentUser(): Promise<{ user: SessionUser }> {
 
 export interface ListArgs {
   collection: string;
+  productFamily?: ProductFamily;
   page?: number;
   pageSize?: number;
   search?: string;
