@@ -1,0 +1,670 @@
+{
+  "schemaVersion": "catalog-task-registry-v4",
+  "updatedAt": "2026-08-21T00:00:00Z",
+  "reservationPolicy": {
+    "states": ["planned", "blocked", "active", "released"],
+    "activationRule": "Only the planning packet is active now. A MIU activates atomically after dependencies and MIU-scoped gates pass, the docs claim is released, live refs/worktrees match, and no exact file is active elsewhere.",
+    "ownershipRule": "Planned and blocked reservations may repeat only through sequentialOwnership: predecessor released before successor active. Simultaneous activation is invalid.",
+    "derivationRule": "MIU 01 derives rooted consumers and known owners. MIU 29 extends only completed migration and retirement expectations."
+  },
+  "validationPolicy": {
+    "liveSources": [
+      "git show-ref --verify",
+      "git ls-remote --heads origin",
+      "git worktree list --porcelain"
+    ],
+    "completionRequires": [
+      "reviewedImplementationSha",
+      "pushedImplementationRemoteSha",
+      "implementationLocalRemoteEqualityBeforeDeploy",
+      "deployedReleaseShaEqualsImplementationShaByBuildContract",
+      "externalClosureLocalRemoteEqualityAfterPush",
+      "validationEvidence"
+    ],
+    "rejects": [
+      "missing local or remote ref",
+      "worktree/branch mismatch",
+      "stale claimed SHA",
+      "duplicate active exact-file reservation",
+      "unmodeled repeated planned or blocked reservation",
+      "unrooted consumer discovery",
+      "glob-only MIU reservation",
+      "registry/MIU/live-reference file-set mismatch",
+      "illegal reservation state transition",
+      "dependency cycle or unmet dependency",
+      "completed local-only work"
+    ]
+  },
+  "tasks": [
+    {
+      "id": "catalog-architecture-hardening",
+      "owner": "catalog-architecture-agent",
+      "branch": "refactor/catalog-architecture-hardening",
+      "remoteBranch": "origin/refactor/catalog-architecture-hardening",
+      "worktree": "/Users/SeanCai/Desktop/projects/channel-catalog-architecture-refactor",
+      "baseSha": "9ddda85593517bc9d1d2bea81c4862ce492b144f",
+      "claimedLocalHead": "9ddda85593517bc9d1d2bea81c4862ce492b144f",
+      "claimedRemoteHead": "9ddda85593517bc9d1d2bea81c4862ce492b144f",
+      "status": "planning-pending-final-review-push",
+      "currentMiu": null,
+      "dependencies": [],
+      "activeExactReservations": ["docs/catalog-architecture-hardening/**"],
+      "activeReservationPurpose": "Planning packet only; release before MIU 01 activates.",
+      "externalGates": {
+        "D1": {
+          "scope": ["26", "27", "28"],
+          "taskLevelDependency": false,
+          "currentInProgressSha": "b9e52fed2b0af20e2b791bb6af08026404e3d57c",
+          "satisfaction": "Final reviewed Select SHA merged into origin/main, then the full inherited controlled update/reset, validation/focus, Arrow/Home/End/Escape/Enter/Space, outside pointer, no-JS, Chromium, and WebKit suite passes on that merge before MIUs 26-28 leave blocked."
+        },
+        "D2": {
+          "scope": ["46"],
+          "taskLevelDependency": false,
+          "satisfaction": "Immediately after MIU 45 and before sole mutation MIU 46, a human approves confirm_live against the immutable reviewed/pushed RELEASE_MANIFEST.json whose implementation and rollback SHAs exactly match dispatch inputs."
+        }
+      },
+      "miuFilePlans": {
+        "01": [
+          "scripts/verify-catalog-architecture.mjs",
+          "scripts/verify-catalog-architecture.test.mjs",
+          "config/change-impact/catalog.yaml"
+        ],
+        "02": [
+          "packages/shared/src/catalog/index.ts",
+          "packages/shared/src/catalog/index.test.ts",
+          "packages/shared/package.json"
+        ],
+        "03": [
+          "packages/shared/src/catalog/normalize-public-product.ts",
+          "packages/shared/src/catalog/normalize-public-product.test.ts",
+          "packages/shared/src/catalog-product.ts"
+        ],
+        "04": [
+          "apps/functions/public-api/src/catalog/project-public-product.ts",
+          "apps/functions/public-api/src/handler.ts",
+          "apps/functions/public-api/src/handler.test.ts"
+        ],
+        "05": [
+          "apps/site/src/catalog/infrastructure/catalog-api.ts",
+          "apps/site/src/catalog/infrastructure/catalog-api.test.ts",
+          "apps/site/src/test/factories/catalog.ts"
+        ],
+        "06": [
+          "packages/shared/src/catalog/alibaba-pricing-adapter.ts",
+          "packages/shared/src/catalog/alibaba-pricing-adapter.test.ts",
+          "packages/shared/src/catalog/index.ts"
+        ],
+        "07": [
+          "packages/shared/src/catalog/resolve-pricing.ts",
+          "packages/shared/src/catalog/resolve-pricing.test.ts",
+          "packages/shared/src/catalog/index.ts"
+        ],
+        "08": [
+          "apps/site/src/islands/shop/catalog-pricing.ts",
+          "apps/site/src/islands/shop/alibaba-catalog-pricing.test.ts"
+        ],
+        "09": [
+          "apps/site/src/islands/shop/CatalogFamilyGrid.tsx",
+          "apps/site/src/islands/shop/catalog-family-render.test.ts",
+          "apps/site/src/headphones-source-contract.test.ts"
+        ],
+        "10": [
+          "apps/site/src/catalog/presentation/CatalogCard.tsx",
+          "apps/site/src/catalog/presentation/catalog-card.test.ts",
+          "apps/site/src/islands/shop/HeadphonesProductCard.tsx"
+        ],
+        "11": [
+          "apps/site/src/catalog/presentation/CatalogDetail.tsx",
+          "apps/site/src/catalog/presentation/catalog-detail.test.ts",
+          "apps/site/src/islands/shop/HeadphonesProductDetail.tsx"
+        ],
+        "12": [
+          "apps/site/src/catalog/application/catalog-media.ts",
+          "apps/site/src/catalog/application/catalog-media.test.ts",
+          "apps/site/src/islands/shop/ProductMedia.tsx"
+        ],
+        "13": [
+          "apps/site/src/catalog/presentation/SkuDetailPage.tsx",
+          "apps/site/src/islands/shop/SkuDetailPage.tsx",
+          "apps/site/src/islands/shop/sku-detail-render.test.ts"
+        ],
+        "14": [
+          "apps/site/src/catalog/presentation/catalog-seo-view.ts",
+          "apps/site/src/lib/catalog-seo.ts",
+          "apps/site/src/lib/catalog-seo.test.ts"
+        ],
+        "15": [
+          "apps/site/src/catalog/families/catalog-family-adapter.ts",
+          "apps/site/src/catalog/families/catalog-family-adapter.test.ts"
+        ],
+        "16": [
+          "apps/site/src/catalog/families/headphones.ts",
+          "apps/site/src/catalog/families/headphones.test.ts",
+          "apps/site/src/i18n/headphones.ts"
+        ],
+        "17": [
+          "apps/site/src/catalog/families/ai-gadgets.ts",
+          "apps/site/src/catalog/families/ai-gadgets.test.ts",
+          "apps/site/src/i18n/catalog.ts"
+        ],
+        "18": [
+          "apps/site/src/catalog/families/toys.ts",
+          "apps/site/src/catalog/families/toys.test.ts"
+        ],
+        "19": [
+          "apps/site/src/catalog/families/misc.ts",
+          "apps/site/src/catalog/families/misc.test.ts"
+        ],
+        "20": [
+          "apps/site/src/catalog/families/registry.ts",
+          "apps/site/src/catalog/families/registry.test.ts"
+        ],
+        "21": [
+          "apps/site/src/catalog/application/catalog-list-state.ts",
+          "apps/site/src/catalog/application/catalog-list-state.test.ts"
+        ],
+        "22": [
+          "apps/site/src/islands/shop/CatalogFamilyPage.tsx",
+          "apps/site/src/islands/shop/HeadphonesPage.tsx"
+        ],
+        "23": [
+          "apps/site/src/islands/shop/FeaturedProducts.tsx",
+          "apps/site/src/islands/shop/featured-products.test.ts",
+          "apps/site/src/pages/electronics-toys.astro"
+        ],
+        "24": [
+          "apps/site/src/islands/shop/AlibabaCatalogPricingBlock.tsx",
+          "apps/site/src/islands/shop/alibaba-catalog-pricing.test.ts"
+        ],
+        "25": [
+          "apps/site/src/islands/admin/PreviewModal.tsx",
+          "apps/site/src/islands/admin/preview-modal.test.ts"
+        ],
+        "26": [
+          "apps/site/src/islands/admin/RecordForm.tsx",
+          "apps/site/src/islands/admin/CollectionView.tsx",
+          "apps/site/src/islands/admin/product-form.test.ts"
+        ],
+        "27": ["apps/site/src/islands/admin/FilterBuilder.tsx", "tests/e2e/catalog-admin.spec.ts"],
+        "28": [
+          "apps/site/src/islands/admin/QuantityTierPricingEditor.tsx",
+          "tests/e2e/admin-product-form.spec.ts"
+        ],
+        "29": [
+          "scripts/verify-catalog-architecture.mjs",
+          "scripts/verify-catalog-architecture.test.mjs",
+          "config/change-impact/catalog.yaml"
+        ],
+        "30": [
+          "tests/e2e/public.spec.ts",
+          "tests/e2e/helpers/catalog-factory.ts",
+          "apps/site/src/islands/shop/alibaba-routing-render.test.ts"
+        ],
+        "31": [
+          "apps/site/src/islands/shop/quantity-tier-pricing.test.ts",
+          "apps/site/src/islands/shop/headphones-detail-render.test.ts",
+          "apps/site/src/islands/shop/sku-detail-tier-pricing.test.ts"
+        ],
+        "32": [
+          "apps/site/src/islands/shop/headphonesCatalogState.test.ts",
+          "apps/site/src/islands/shop/product-media.test.ts",
+          "apps/site/src/i18n/headphones-content.test.ts"
+        ],
+        "33": [
+          "apps/site/src/islands/shop/CatalogFamilyGrid.tsx",
+          "apps/site/src/islands/shop/catalog-family-render.test.ts",
+          "apps/site/src/headphones-source-contract.test.ts"
+        ],
+        "34": [
+          "apps/site/src/islands/shop/HeadphonesProductCard.tsx",
+          "apps/site/src/islands/shop/HeadphonesCatalog.tsx",
+          "apps/site/src/islands/shop/headphones-catalog-render.test.ts"
+        ],
+        "35": [
+          "apps/site/src/islands/shop/HeadphonesProductDetail.tsx",
+          "apps/site/src/islands/shop/headphonesCatalogState.ts",
+          "apps/site/src/islands/shop/HeadphonesPage.tsx"
+        ],
+        "36": [
+          "apps/site/src/islands/shop/api.ts",
+          "apps/site/src/islands/shop/catalog-types.ts",
+          "apps/site/src/islands/shop/api.test.ts"
+        ],
+        "37": [
+          "docs/ENGINEERING_CRAFT.md",
+          "docs/catalog-category-expansion/EXECUTION.md",
+          "docs/catalog-architecture-hardening/KNOWLEDGE_SYSTEM.md"
+        ],
+        "38": ["tests/e2e/catalog-family-routes.spec.ts", "tests/e2e/sku-detail.spec.ts"],
+        "39": ["scripts/deploy-cloudbase-test.mjs"],
+        "40": ["scripts/deploy-cloudbase-test.test.mjs"],
+        "41": ["scripts/smoke-cloudbase-deploy.mjs"],
+        "42": ["scripts/smoke-cloudbase-deploy.test.mjs"],
+        "43": ["tests/e2e/catalog-deployed-smoke.spec.ts"],
+        "44": [
+          "docs/catalog-architecture-hardening/RELEASE_MANIFEST.json",
+          "scripts/validate-catalog-release-manifest.mjs",
+          "scripts/validate-catalog-release-manifest.test.mjs"
+        ],
+        "45": [".github/workflows/deploy-test.yml"],
+        "46": ["docs/catalog-architecture-hardening/EXECUTION.md"],
+        "47": ["docs/catalog-architecture-hardening/EXECUTION.md"],
+        "48": [
+          "docs/catalog-architecture-hardening/ARCHITECTURE.md",
+          "docs/catalog-architecture-hardening/IMPACT_MAP.md",
+          "docs/catalog-architecture-hardening/TEST_STRATEGY.md"
+        ],
+        "49": [
+          "docs/catalog-architecture-hardening/EXECUTION.md",
+          "docs/catalog-architecture-hardening/TASK_REGISTRY.json",
+          "docs/catalog-architecture-hardening/README.md"
+        ]
+      },
+      "miuTypes": {
+        "01": "new-file",
+        "02": "new-file",
+        "03": "new-file",
+        "04": "refactor",
+        "05": "new-file",
+        "06": "new-file",
+        "07": "new-file",
+        "08": "refactor",
+        "09": "refactor",
+        "10": "refactor",
+        "11": "refactor",
+        "12": "refactor",
+        "13": "refactor",
+        "14": "refactor",
+        "15": "new-file",
+        "16": "new-file",
+        "17": "new-file",
+        "18": "new-file",
+        "19": "new-file",
+        "20": "new-file",
+        "21": "refactor",
+        "22": "refactor",
+        "23": "refactor",
+        "24": "refactor",
+        "25": "refactor",
+        "26": "refactor",
+        "27": "refactor",
+        "28": "refactor",
+        "29": "refactor",
+        "30": "refactor",
+        "31": "refactor",
+        "32": "refactor",
+        "33": "refactor",
+        "34": "refactor",
+        "35": "refactor",
+        "36": "refactor",
+        "37": "modify-existing",
+        "38": "modify-existing",
+        "39": "modify-existing",
+        "40": "new-test",
+        "41": "modify-existing",
+        "42": "new-test",
+        "43": "new-test",
+        "44": "new-file",
+        "45": "modify-existing",
+        "46": "modify-existing",
+        "47": "modify-existing",
+        "48": "modify-existing",
+        "49": "modify-existing"
+      },
+      "miuDependencies": {
+        "01": [],
+        "02": ["01"],
+        "03": ["02"],
+        "04": ["02", "03"],
+        "05": ["02", "04"],
+        "06": ["02"],
+        "07": ["06"],
+        "08": ["07"],
+        "09": ["08"],
+        "10": ["05", "07"],
+        "11": ["05", "07"],
+        "12": ["02", "05"],
+        "13": ["07", "11", "12"],
+        "14": ["07", "13"],
+        "15": ["02", "05"],
+        "16": ["15"],
+        "17": ["15"],
+        "18": ["15", "17"],
+        "19": ["15", "17"],
+        "20": ["02", "16", "17", "18", "19"],
+        "21": ["05", "10", "11", "12"],
+        "22": ["20", "21"],
+        "23": ["02", "05", "10"],
+        "24": ["02", "07", "08"],
+        "25": ["02", "07"],
+        "26": ["22"],
+        "27": ["26"],
+        "28": ["26"],
+        "29": ["01", "14", "20", "22", "23", "24", "25", "27", "28"],
+        "30": ["02", "04", "05", "29"],
+        "31": ["08", "09", "10", "11", "13", "24", "30"],
+        "32": ["11", "12", "21", "31"],
+        "33": ["09", "22", "29", "30", "31", "32"],
+        "34": ["10", "22", "29", "31", "33"],
+        "35": ["11", "21", "22", "29", "32", "34"],
+        "36": ["02", "05", "23", "24", "25", "29", "30", "31", "32", "35"],
+        "37": ["29", "35", "36"],
+        "38": ["30", "35", "36", "37"],
+        "39": ["38"],
+        "40": ["39"],
+        "41": ["40"],
+        "42": ["41"],
+        "43": ["42"],
+        "44": ["43"],
+        "45": ["44"],
+        "46": ["45"],
+        "47": ["46"],
+        "48": ["47"],
+        "49": ["48"]
+      },
+      "miuReservationStates": {
+        "01": { "reservationState": "planned" },
+        "02": { "reservationState": "planned" },
+        "03": { "reservationState": "planned" },
+        "04": { "reservationState": "planned" },
+        "05": { "reservationState": "planned" },
+        "06": { "reservationState": "planned" },
+        "07": { "reservationState": "planned" },
+        "08": { "reservationState": "planned" },
+        "09": { "reservationState": "planned" },
+        "10": { "reservationState": "planned" },
+        "11": { "reservationState": "planned" },
+        "12": { "reservationState": "planned" },
+        "13": { "reservationState": "planned" },
+        "14": { "reservationState": "planned" },
+        "15": { "reservationState": "planned" },
+        "16": { "reservationState": "planned" },
+        "17": { "reservationState": "planned" },
+        "18": { "reservationState": "planned" },
+        "19": { "reservationState": "planned" },
+        "20": { "reservationState": "planned" },
+        "21": { "reservationState": "planned" },
+        "22": { "reservationState": "planned" },
+        "23": { "reservationState": "planned" },
+        "24": { "reservationState": "planned" },
+        "25": { "reservationState": "planned" },
+        "26": {
+          "reservationState": "blocked",
+          "blockedBy": "D1 final Select merge plus full inherited suite",
+          "transferredFromTaskAfterRelease": "shared-form-select"
+        },
+        "27": {
+          "reservationState": "blocked",
+          "blockedBy": "D1 final Select merge plus full inherited suite",
+          "transferredFromTaskAfterRelease": "shared-form-select"
+        },
+        "28": {
+          "reservationState": "blocked",
+          "blockedBy": "D1 final Select merge plus full inherited suite",
+          "transferredFromTaskAfterRelease": "shared-form-select"
+        },
+        "29": { "reservationState": "planned" },
+        "30": { "reservationState": "planned" },
+        "31": { "reservationState": "planned" },
+        "32": { "reservationState": "planned" },
+        "33": { "reservationState": "planned" },
+        "34": { "reservationState": "planned" },
+        "35": { "reservationState": "planned" },
+        "36": { "reservationState": "planned" },
+        "37": { "reservationState": "planned" },
+        "38": { "reservationState": "planned" },
+        "39": { "reservationState": "planned" },
+        "40": { "reservationState": "planned" },
+        "41": { "reservationState": "planned" },
+        "42": { "reservationState": "planned" },
+        "43": { "reservationState": "planned" },
+        "44": { "reservationState": "planned" },
+        "45": { "reservationState": "planned" },
+        "46": { "reservationState": "planned" },
+        "47": { "reservationState": "planned" },
+        "48": { "reservationState": "planned" },
+        "49": { "reservationState": "planned" }
+      },
+      "sequentialOwnership": {
+        "packages/shared/src/catalog/index.ts": {
+          "chain": ["02", "06", "07"],
+          "transition": "released-before-next-active"
+        },
+        "apps/site/src/islands/shop/alibaba-catalog-pricing.test.ts": {
+          "chain": ["08", "24"],
+          "transition": "released-before-next-active"
+        },
+        "apps/site/src/i18n/catalog.ts": { "ownerMiu": "17", "laterConsumers": ["18", "19"] },
+        "scripts/verify-catalog-architecture.mjs": {
+          "chain": ["01", "29"],
+          "transition": "released-before-next-active"
+        },
+        "scripts/verify-catalog-architecture.test.mjs": {
+          "chain": ["01", "29"],
+          "transition": "released-before-next-active"
+        },
+        "config/change-impact/catalog.yaml": {
+          "chain": ["01", "29"],
+          "transition": "released-before-next-active"
+        },
+        "apps/site/src/islands/shop/CatalogFamilyGrid.tsx": {
+          "chain": ["09", "33"],
+          "transition": "released-before-next-active"
+        },
+        "apps/site/src/islands/shop/catalog-family-render.test.ts": {
+          "chain": ["09", "33"],
+          "transition": "released-before-next-active"
+        },
+        "apps/site/src/headphones-source-contract.test.ts": {
+          "chain": ["09", "33"],
+          "transition": "released-before-next-active"
+        },
+        "apps/site/src/islands/shop/HeadphonesProductDetail.tsx": {
+          "chain": ["11", "35"],
+          "transition": "released-before-next-active"
+        },
+        "apps/site/src/islands/shop/HeadphonesProductCard.tsx": {
+          "chain": ["10", "34"],
+          "transition": "released-before-next-active"
+        },
+        "apps/site/src/islands/shop/HeadphonesPage.tsx": {
+          "chain": ["22", "35"],
+          "transition": "released-before-next-active"
+        },
+        "docs/catalog-architecture-hardening/EXECUTION.md": {
+          "chain": ["46", "47", "49"],
+          "transition": "released-before-next-active"
+        },
+        "docs/catalog-architecture-hardening/TASK_REGISTRY.json": {
+          "taskPlanningReference": true,
+          "ownerMiu": "49"
+        }
+      },
+      "consumerReferences": {
+        "01": [
+          "docs/catalog-architecture-hardening/TASK_REGISTRY.json",
+          "docs/catalog-architecture-hardening/MIU_BREAKDOWN.md"
+        ],
+        "05": ["apps/site/src/islands/shop/api.test.ts"],
+        "08": ["apps/site/src/islands/shop/quantity-tier-pricing.test.ts"],
+        "13": [
+          "apps/site/src/islands/shop/sku-detail-tier-pricing.test.ts",
+          "apps/site/src/pages/products/item.astro"
+        ],
+        "18": ["apps/site/src/i18n/catalog.ts"],
+        "19": ["apps/site/src/i18n/catalog.ts"],
+        "22": [
+          "apps/site/src/pages/headphones.astro",
+          "apps/site/src/pages/ai-gadgets.astro",
+          "apps/site/src/pages/toys.astro",
+          "apps/site/src/pages/misc.astro"
+        ],
+        "26": [
+          "apps/site/src/components/form/Select.tsx",
+          "apps/site/src/components/form/Select.test.ts"
+        ],
+        "27": [
+          "apps/site/src/islands/admin/CollectionView.tsx",
+          "apps/site/src/components/form/Select.tsx",
+          "apps/site/src/components/form/Select.test.ts"
+        ],
+        "28": [
+          "apps/site/src/islands/admin/product-form.test.ts",
+          "apps/site/src/components/form/Select.tsx",
+          "apps/site/src/components/form/Select.test.ts"
+        ],
+        "29": [
+          "docs/catalog-architecture-hardening/MIU_BREAKDOWN.md",
+          "docs/catalog-architecture-hardening/TASK_REGISTRY.json",
+          "apps/site/src/islands/shop/api.ts",
+          "apps/site/src/islands/shop/catalog-types.ts",
+          "apps/site/src/pages/_overstock.astro",
+          "apps/site/src/pages/_overstock-item.astro"
+        ],
+        "31": ["apps/site/src/catalog/presentation/SkuDetailPage.tsx"],
+        "36": [
+          "packages/shared/src/catalog/index.ts",
+          "apps/site/src/catalog/infrastructure/catalog-api.ts",
+          "apps/site/src/islands/shop/ProductGrid.tsx",
+          "apps/site/src/islands/shop/ProductCard.tsx",
+          "apps/site/src/islands/shop/PriceBlock.tsx",
+          "apps/site/src/islands/shop/ProductDetail.tsx",
+          "apps/site/src/islands/shop/OverstockDetail.tsx",
+          "apps/site/src/islands/shop/StockBadge.tsx",
+          "apps/site/src/pages/_overstock.astro",
+          "apps/site/src/pages/_overstock-item.astro"
+        ],
+        "38": [
+          "tests/e2e/catalog-admin.spec.ts",
+          "tests/e2e/admin-product-form.spec.ts",
+          "apps/site/src/components/form/Select.test.ts"
+        ],
+        "41": ["scripts/deploy-cloudbase-test.mjs"],
+        "42": ["scripts/smoke-cloudbase-deploy.mjs"],
+        "44": [
+          "scripts/deploy-cloudbase-test.mjs",
+          "scripts/deploy-cloudbase-test.test.mjs",
+          "scripts/smoke-cloudbase-deploy.mjs",
+          "scripts/smoke-cloudbase-deploy.test.mjs",
+          "tests/e2e/catalog-deployed-smoke.spec.ts"
+        ],
+        "45": [
+          "docs/catalog-architecture-hardening/RELEASE_MANIFEST.json",
+          "scripts/validate-catalog-release-manifest.mjs",
+          "scripts/deploy-cloudbase-test.mjs",
+          "scripts/smoke-cloudbase-deploy.mjs",
+          "tests/e2e/catalog-deployed-smoke.spec.ts"
+        ],
+        "46": [
+          ".github/workflows/deploy-test.yml",
+          "docs/catalog-architecture-hardening/RELEASE_MANIFEST.json"
+        ],
+        "47": ["scripts/smoke-cloudbase-deploy.mjs", "tests/e2e/catalog-deployed-smoke.spec.ts"],
+        "49": ["docs/catalog-architecture-hardening/MIU_BREAKDOWN.md"]
+      },
+      "permanentCompatibilityOwner": {
+        "ownerMiu": "36",
+        "owner": "underscore-route-catalog-compatibility",
+        "rationale": "Intentionally unbuilt underscore Overstock routes retain an explicit Overstock DTO/decoder compatibility contract. Catalog Product, Alibaba pricing, CatalogPage, envelope, and validation authority delegate to @vibelingan-channel/shared/catalog. The active /headphones route is outside this owner and remains a required 200.",
+        "files": [
+          "apps/site/src/islands/shop/api.ts",
+          "apps/site/src/islands/shop/catalog-types.ts",
+          "apps/site/src/islands/shop/catalog-pricing.ts",
+          "apps/site/src/islands/shop/ProductGrid.tsx",
+          "apps/site/src/islands/shop/ProductCard.tsx",
+          "apps/site/src/islands/shop/PriceBlock.tsx",
+          "apps/site/src/islands/shop/ProductDetail.tsx",
+          "apps/site/src/islands/shop/OverstockDetail.tsx",
+          "apps/site/src/islands/shop/StockBadge.tsx"
+        ],
+        "permanentReadOnlyReferences": [
+          "apps/site/src/pages/_overstock.astro",
+          "apps/site/src/pages/_overstock-item.astro"
+        ]
+      },
+      "fullyMigratedRetirementFiles": [
+        "apps/site/src/islands/shop/CatalogFamilyGrid.tsx",
+        "apps/site/src/islands/shop/HeadphonesProductCard.tsx",
+        "apps/site/src/islands/shop/HeadphonesProductDetail.tsx",
+        "apps/site/src/islands/shop/headphonesCatalogState.ts",
+        "apps/site/src/islands/shop/HeadphonesCatalog.tsx",
+        "apps/site/src/islands/shop/HeadphonesPage.tsx"
+      ],
+      "liveDeployment": {
+        "soleMutationMiu": "46",
+        "deployedSmokeMiu": "47",
+        "deployedSmokeEvidenceMiu": "47",
+        "deployScriptOwnerMiu": "39",
+        "deployScriptTestOwnerMiu": "40",
+        "smokeScriptOwnerMiu": "41",
+        "smokeScriptTestOwnerMiu": "42",
+        "browserSmokeOwnerMiu": "43",
+        "approvalManifestOwnerMiu": "44",
+        "workflowOwnerMiu": "45",
+        "concurrencyGroup": "cloudbase-deploy-test",
+        "workflowDispatchInputs": ["approved_sha", "confirm_live", "rollback_sha"],
+        "pushMutationDisabled": true,
+        "fixedScriptsOnly": true,
+        "deployCheckout": "approved_sha",
+        "rollbackCheckout": "rollback_sha",
+        "rebuildCheckedOutCommit": true,
+        "releaseIdentityContract": {
+          "inputs": ["CHANNEL_BUILD_SHA", "GITHUB_SHA"],
+          "definition": "Each deploy or rollback checkout derives CHANNEL_BUILD_SHA and GITHUB_SHA from git rev-parse HEAD; its releaseId therefore equals that checked-out commit SHA.",
+          "evidence": [
+            "requestedImplementationCommitSha",
+            "observedDeployedReleaseId",
+            "requestedRollbackCommitSha",
+            "observedRollbackReleaseId"
+          ],
+          "equalityBasis": "Compare each requested commit only with its corresponding observed release ID under checked-out build identity; never collapse deploy and rollback into one SHA.",
+          "arbitraryReleaseIdentifiersAllowed": false
+        },
+        "approvalArtifact": {
+          "path": "docs/catalog-architecture-hardening/RELEASE_MANIFEST.json",
+          "validator": "scripts/validate-catalog-release-manifest.mjs",
+          "producerMiu": "44",
+          "consumerMiu": "45",
+          "requiredFacts": [
+            "reviewedImplementationSha",
+            "approvedRollbackSha",
+            "independentReviewEvidence",
+            "manifestContentHashOrProtectedReviewedTag"
+          ],
+          "selfReportedInputsSufficient": false
+        },
+        "hostingRoutePolicy": {
+          "required200": ["/headphones"],
+          "required404": ["/overstock", "/overstock-item", "/teardown-lab", "/blue-ocean"],
+          "targetedRetiredMedia": [
+            "/media/section-heritage.png",
+            "/media/portfolio/cases/tws-speaker-1.webp",
+            "/media/portfolio/cases/tws-speaker-2.webp",
+            "/media/portfolio/cases/tws-speaker-3.webp"
+          ],
+          "blanketDeleteAllowed": false
+        }
+      },
+      "finalEvidenceModel": {
+        "approvalCommits": {
+          "reviewedImplementationSha": "independently reviewed and pushed commit selected for deploy",
+          "approvedRollbackSha": "independently approved and pushed commit selected for rollback",
+          "source": "docs/catalog-architecture-hardening/RELEASE_MANIFEST.json"
+        },
+        "runtimeObservations": {
+          "observedDeployedReleaseId": "compared only with reviewedImplementationSha",
+          "observedRollbackReleaseId": "compared only with approvedRollbackSha when rollback runs"
+        },
+        "closure": {
+          "docsOnly": true,
+          "deployed": false,
+          "records": ["reviewedImplementationSha", "observedDeploymentEvidence"],
+          "embedsOwnClosureSha": false,
+          "localRemoteEqualityProof": "External registry/tool output after closure push.",
+          "branchOrPrStatusMayResolveTo": "HEAD"
+        }
+      },
+      "handoff": "Packet is uncommitted pending final review/push; only the docs glob is active and MIU 01 is planned."
+    }
+  ]
+}

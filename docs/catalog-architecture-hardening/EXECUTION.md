@@ -1,0 +1,94 @@
+# Catalog Architecture Hardening - Execution
+Status: 49-MIU planning packet reviewed and committed; pending push and remote-SHA equality proof; no application code implemented.
+Branch: `refactor/catalog-architecture-hardening`
+
+**Current phase:** `plan`.
+
+**Current/next MIU:** none active; MIU 01 is planned and cannot activate until the task-level docs claim is released after review/push.
+
+## Git Truth
+
+- Base SHA: `9ddda85593517bc9d1d2bea81c4862ce492b144f`.
+- Local HEAD contains the reviewed packet commit; the remote branch still resolves to the base SHA
+  until the pending push completes.
+- The branch ref exists remotely, but this packet is not a portable handoff until local/remote SHA
+  equality is observed after push.
+- A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
+  complete.
+
+## Source Of Truth
+
+The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
+`TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
+rather than trusted from JSON strings. The only active Catalog reservation is
+`docs/catalog-architecture-hardening/**`; 49 MIU file plans are future `planned|blocked` claims, not
+active reservations. Activation is one MIU at a time and shared files use references or explicit transfer.
+
+## Planning Review Gate
+
+Before MIU 01:
+
+1. Review all ten packet files for requirement, architecture, MIU, test, and registry consistency.
+2. Run the packet validators listed below.
+3. Commit the packet only; do not include application code.
+4. Push `refactor/catalog-architecture-hardening`.
+5. Record the reviewed SHA and prove local HEAD equals the remote branch SHA.
+
+## Concurrent Dependency D1
+
+`fix/shared-form-select` is live at remote SHA
+`b9e52fed2b0af20e2b791bb6af08026404e3d57c` in
+`/Users/SeanCai/Desktop/projects/channel-form-select-refactor`. It owns the excluded Select/Admin
+files listed in `TASK_REGISTRY.json`. D1 is scoped to MIUs 26-28 and is not a task-level dependency.
+Those MIUs remain blocked until the final reviewed SHA merges into `origin/main`; the current SHA is
+in-progress evidence only. They remain blocked after merge until the full inherited controlled/reset,
+validation/focus, Arrow/Home/End/Escape/Enter/Space, outside-pointer, no-JS, Chromium, and WebKit suite
+passes on that final merge. Only then may Catalog integration activate.
+
+## Environment Mutation Gate D2
+
+Local tests and builds are non-live. MIUs 39-43 author and test all deploy/API/browser smoke source.
+MIU 44 creates the reviewed immutable release manifest and validator; MIU 45 consumes it before credentials,
+removes push deployment, and retains static concurrency. After those artifacts are independently reviewed
+and pushed, D2 occurs immediately before MIU 46, the only LIVE CloudBase **test** mutation. MIU 47 only
+executes already-reviewed smoke and records evidence here. Production is unauthorized.
+
+Deploy and rollback each check out its manifest SHA, derive `CHANNEL_BUILD_SHA` and `GITHUB_SHA` from
+`git rev-parse HEAD`, rebuild, and use the same real deploy script. MIU 46 preserves four evidence fields:
+requested implementation commit, observed deployed release ID, requested rollback commit, and observed
+rollback release ID. Each pair is compared only under this checked-out build identity contract.
+No arbitrary release identifier is accepted.
+
+## Final Evidence Model
+
+Before D2, immutable implementation and rollback commits are independently reviewed, pushed, and recorded
+in the integrity-checked manifest. MIU 46 deploys or restores only those commits; MIU 47 verifies the
+observed release. MIUs 48-49 then produce a separate
+docs-only closure commit.
+The closure document records the implementation/deployed SHA and observed deployment/rollback/smoke
+evidence; it does not claim the closure commit was deployed and does not embed its own SHA.
+
+After the closure commit is pushed, registry/tool output external to that commit records its local/remote
+equality. A separate branch/PR status field may point to `HEAD` for current closure status without storing
+the commit's own SHA in its contents. Implementation release evidence and closure publication evidence
+are distinct completion checks.
+
+## Planning Validation
+
+Run from the target worktree before requesting review:
+
+```sh
+git diff --check
+node -e "JSON.parse(require('fs').readFileSync('docs/catalog-architecture-hardening/TASK_REGISTRY.json','utf8'))"
+/Users/SeanCai/Desktop/projects/dev-pipeline/tools/validate-miu-breakdown.sh docs/catalog-architecture-hardening/MIU_BREAKDOWN.md
+grep -c '^## MIU ' docs/catalog-architecture-hardening/MIU_BREAKDOWN.md
+node -e "const r=require('./docs/catalog-architecture-hardening/TASK_REGISTRY.json'); const t=r.tasks.find(x=>x.id==='catalog-architecture-hardening'); if(Object.keys(t.miuFilePlans).length!==49) process.exit(1)"
+git status --short --branch
+git rev-parse HEAD origin/refactor/catalog-architecture-hardening
+```
+
+Implementation validation is intentionally absent. Do not describe planned tests as passed evidence.
+
+## Deviations
+
+Deviations: none. This is an unapproved plan rewrite, not an executed MIU.
