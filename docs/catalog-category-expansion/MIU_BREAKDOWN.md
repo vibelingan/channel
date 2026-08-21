@@ -989,7 +989,7 @@ inventory rather than contract. See REMEDIATION.md R7, R8, R9.
 
 ## MIU 29 — Full human validation and test deployment
 
-**Status:** In progress.
+**Status:** Complete (commit and deployment evidence recorded in `EXECUTION.md`).
 
 **Block:** TESTING
 

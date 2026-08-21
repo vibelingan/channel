@@ -1,9 +1,9 @@
 # Catalog Category Expansion - Execution And Delivery
 
-Status: approved post-V1.1 form/pricing enhancement is in implementation on the existing branch.
+Status: approved post-V1.1 form/pricing enhancement is implemented and deployed to the test environment.
 Branch: `feat/catalog-category-design`.
-Final reviewed implementation SHA: `8f64659deda11a2651afebcb38ca241bf15bc5a4`.
-Final test-branch merge SHA: `a4d0bc5`.
+Final reviewed implementation SHA: `1f8f21c232a57d6246f4354c271e9a6321196b7c`.
+Final test-branch merge SHA: `41701da4706945490de795cb5d505b2b93bf2bdf`.
 Pull request: <https://github.com/vibelingan/channel/pull/27>.
 
 The PR head and checks change whenever this handoff document is updated. Query GitHub at review
@@ -20,20 +20,20 @@ use the following precedence instead of inferring state from filenames or creati
 4. `task_plan.md` and `progress.md` — historical planning/log detail; they must not override this file.
 5. `.claude/pipeline-state.json` — disposable local pointer regenerated from these tracked docs.
 
-**Current phase:** `implement`.
+**Current phase:** `review`.
 
-**Current/next MIU:** MIU 29 in progress. MIUs 1–28 are complete. Do not
+**Current/next MIU:** MIUs 1–29 are complete. Return to PR #27 review; do not
 invent P1–P6, a second pricing plan, or another implementation branch for this feature.
 
 **Next action by role:**
 
 | Agent role | Action |
 |---|---|
-| Implementer | Execute MIUs 26–29 in order on `feat/catalog-category-design`; test first and record each boundary. |
-| Reviewer | Review each MIU against its cross-file contract; do not redesign provider ownership. |
+| Implementer | No active MIU. Preserve the reviewed feature SHA; address only concrete PR findings. |
+| Reviewer | Review PR #27 at exact head; do not redesign provider ownership. |
 | Designer | The scope below is locked. Raise a conflict only if code cannot support the conservative contract. |
-| Validator | Validate each MIU narrowly, then run the full human/browser/deployed matrix in MIU 29. |
-| Delivery | After MIU 29 passes, merge the reviewed feature SHA into `test`, wait for deploy/E2E, then return to PR #27. |
+| Validator | Validation is complete; rerun only if PR review changes runtime behavior. |
+| Delivery | Test delivery is complete. Production remains unauthorized; return to PR #27. |
 
 ## Post-Delivery Queue (Not An Active MIU)
 
@@ -145,8 +145,12 @@ built, packaged, and cold-started. E2E discovery enumerated 76 tests in 17 files
 combined WebKit catalog/Admin matrix passed 24/24, including no-JS, reduced motion, mobile/desktop,
 long copy, missing media, optional identity, exact quantity tiers, focus, and overflow checks.
 
-**Deployment status:** Pending. Commit and independently review this MIU, merge the exact reviewed
-feature SHA into `test`, then record CI, deploy smoke, deployed public E2E, and deployed catalog E2E.
+**Deployment result:** Complete. Exact reviewed SHA `1f8f21c232a57d6246f4354c271e9a6321196b7c`
+was merged into `test` as `41701da4706945490de795cb5d505b2b93bf2bdf`. CI run
+`32447787228` passed every SDK/lint/type/test/artifact/build/secret/discovery step. Deploy Test run
+`32447787405` passed in 12m57s: Public API, Admin, and Alibaba sync each reported release
+`41701da4706945490de795cb5d505b2b93bf2bdf`; CloudBase smoke passed for
+`https://supplychainsai.com`; deployed public E2E passed 37/37 and catalog E2E passed 17/17.
 
 ## Deviations
 
@@ -199,24 +203,24 @@ Observed local results:
 
 | Gate | Status | Evidence |
 |---|---|---|
-| Site tests | Passed | 191/191 |
+| Site tests | Passed | 204/204 |
 | Local-server tests | Passed | 23/23 |
 | Deployment-contract tests | Passed | 25/25, including API/site spawn-failure teardown |
 | Site typecheck | Passed | Astro 0 errors; 7 existing hints |
 | Local-server typecheck | Passed | `tsc --noEmit` |
 | E2E typecheck | Passed | `tsc --noEmit --project tsconfig.e2e.json` |
-| Public catalog browser | Passed | 16/16 |
-| Non-mutating Admin browser | Passed | 6/6 |
-| Disposable seed/lifecycle | Passed | 2/2 specs; whole temporary DB removed |
+| Local catalog browser | Passed | Chromium 17/17; WebKit included in combined 24/24 matrix |
+| Non-mutating Admin browser | Passed | Chromium 7/7; WebKit included in combined 24/24 matrix |
+| Disposable seed/lifecycle | Passed | seed 1/1 and Admin lifecycles 2/2; whole temporary DB removed |
 | Production site build | Passed | 15 static pages with explicit `SITE_URL` |
-| Repository lint | Passed | Biome 317 files |
+| Repository lint | Passed | Biome 327 files |
 | Assumption/cross-file audit | Passed | MIU 22 final audit passed; remediation traces are recorded in `REMEDIATION.md` |
 | Function builds/packages/smoke | Passed | Admin, Public API, and Alibaba build/package/cold-start smoke |
 | CloudBase SDK contract | Passed | Installed runtime/type/transaction/upload probes |
-| Test-environment deploy | Passed | Final feature SHA merged into `test` as `a4d0bc5`; CI run `32359898730` passed; Deploy Test run `32359898758` passed |
-| Deployed public browser E2E | Passed | 37/37 on run `32359898758` |
-| Deployed catalog E2E | Passed | 16/16 on run `32359898758` |
-| Safari/WebKit compatibility | Passed | 6/6 header/catalog behavioural checks |
+| Test-environment deploy | Passed | Reviewed feature SHA `1f8f21c` merged into `test` as `41701da`; CI run `32447787228` and Deploy Test run `32447787405` passed |
+| Deployed public browser E2E | Passed | 37/37 on run `32447787405` |
+| Deployed catalog E2E | Passed | 17/17 on run `32447787405` |
+| Safari/WebKit compatibility | Passed | 24/24 local catalog/Admin behavioural checks |
 | Production smoke | Not run | Requires separate explicit production approval |
 
 ## Deployment Boundary
@@ -258,7 +262,7 @@ Two real defects in this branch's own test tooling were caught only on the runne
 
 ## Delivery Checklist
 
-- [x] MIUs 1-25 committed and pushed to the single feature branch.
+- [x] MIUs 1-29 committed and pushed to the single feature branch.
 - [x] Exact local full-family and lifecycle verification passes.
 - [x] Temporary local database is removed after success and failure.
 - [x] Final package/function validation passes.
