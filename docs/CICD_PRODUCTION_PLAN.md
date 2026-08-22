@@ -130,12 +130,12 @@ settled verdict is recorded here.
 | PD-3 | P1 | Section 2 "current facts" state baseline is stale (`none yet`). | **Accept.** Run a fresh CloudBase inspection for `test` + the new `prod` EnvId at prod bring-up (§6); replace with dated "last verified" state. |
 | PD-4 | P1 | Hosting mode: first prod deploy should use `manageApps`; test uses `manageHosting upload`. | **Already this plan's CB3 / §3** — independent agreement. Choose mode before first prod deploy; derive URLs from it. |
 | PD-5 | P1 | `updateFunctionConfig` can erase console-managed env; gateway doesn't verify function permission; secrets via `mcporter --args`; no durable release manifest. | **Settled.** Env-replace is **real** → CB1 read-merge (§4, reverses our earlier "merge" reading). Gateway-vs-function-permission = CB2 (not needed for HTTP; `CICD_HARDENING_MIU02.md` §0). Secret transport = D2 (harden for prod). Durable release manifest = §4 step 6 (now a CI artifact). |
-| PD-6 | P2 | Factory video bundled in static build vs storage/CDN policy (OR-4). | Media-policy decision on the OEM/image-upload branch; **not a CI/CD gate**. Resolve before final client release. |
+| PD-6 (resolved 2026-08-23) | P2 | Factory video bundled in static build vs storage/CDN policy (OR-4). | Resolved by the reviewed static launch video exception in `IMAGE_UPLOAD_STORAGE_DESIGN.md`: the current 7.2 MB OEM clip may remain static; new/replacement videos require signed raw COS `PUT`. |
 | PD-7 | P2 | "HTTP function" terminology vs Event Function via HTTP Access. | **Accept** wording fix in the deploy docs; our runtime is an **Event Function via HTTP Access** (matches `CICD_HARDENING_MIU02.md` §0). |
 
 **Net for the prod gate:** PD-4 (=CB3, §3) and PD-5's env-replace (=CB1, §4) are the two findings that
 change *this* plan; both are now folded in. PD-1/PD-2/PD-3/PD-7 are doc-consistency fixes for the
-CloudBase deploy docs (now applied); PD-6 is a media-policy decision outside CI/CD. Codex's
+CloudBase deploy docs (now applied); PD-6 is resolved outside CI/CD. Codex's
 "Verified Correct" items (Event-Function/HTTP-Access model, `TENCENTCLOUD_*` not copied into runtime
 env, storage SDK boundary, private-media delivery, retired-route pruning) corroborate MIU-01 + the
 storage design and need no action.

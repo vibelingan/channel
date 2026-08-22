@@ -215,12 +215,28 @@ Size alone must never downshift a product/OEM file into base64.
 
 | Purpose | Allowed types | P0 size cap | Upload transport | Notes |
 | --- | --- | --- | --- | --- |
-| `catalog-image` | `image/jpeg`, `image/png`, `image/webp` | 10 MiB | CloudBase Storage direct COS POST | Used for all new product photos, even if the image is tiny. Keeps one lifecycle, checksum, cleanup, preview, and public-delivery model. |
+| `catalog-image` | `image/jpeg`, `image/png`, `image/webp` | 10 MiB | CloudBase Storage signed raw COS `PUT` | Used for all new product photos, even if the image is tiny. Keeps one lifecycle, checksum, cleanup, preview, and public-delivery model. |
 | `catalog-thumbnail` | generated `jpeg`/`png`/`webp` variants | derived from source | CloudBase Storage variant path | Generated metadata follows the parent source image. Do not store product thumbnails as DB base64 unless they are legacy records. |
-| `oem-drawing` | PDF, ZIP/RAR, CAD extensions, drawing `png`/`jpeg`/`webp` | 10 MiB P0 | CloudBase Storage direct COS POST under `oem/` | Private admin-only lifecycle. Never tunnel OEM bytes through `/api/admin` JSON/base64. |
+| `oem-drawing` | PDF, ZIP/RAR, CAD extensions, drawing `png`/`jpeg`/`webp` | 10 MiB P0 | CloudBase Storage signed raw COS `PUT` under `oem/` | Private admin-only lifecycle. Never tunnel OEM bytes through `/api/admin` JSON/base64. |
 | `inline-small` | SVG/icon/swatch-style `svg`/`png`/`webp` only | 50 KiB raw max | Static asset or explicit base64 field | Only for deliberate inline/admin assets, seeded fixtures, and compatibility. Must use a named action/schema; never generic CRUD. |
 | `marketing-media` (image) | `jpeg`/`png`/`webp` | 10 MiB | Storage or static hosting | Public-site imagery (team / factory / case photos). Separate publishing/cache policy; not a fallback for catalog/OEM. |
-| `marketing-media` (video) | `video/mp4`, `video/webm` | **200 MiB single-video cap** (`MARKETING_VIDEO_MAX_BYTES`) | CloudBase Storage direct COS POST; served by URL (never bundled in the site build) | ~2–4 min 1080p clip. CloudBase free tier ≈ 5 GiB storage + limited CDN traffic — budget only a handful. **Above 200 MiB ⇒ chunked / resumable (multipart) upload — intentionally NOT built yet.** |
+| `marketing-media` (video) | `video/mp4`, `video/webm` | **200 MiB single-video cap** (`MARKETING_VIDEO_MAX_BYTES`) | CloudBase Storage signed raw COS `PUT` for new/replaced media; reviewed static launch video exception below | ~2–4 min 1080p clip. CloudBase free tier ≈ 5 GiB storage + limited CDN traffic — budget only a handful. **Above 200 MiB ⇒ chunked / resumable upload — intentionally NOT built yet.** |
+
+Reviewed static launch video exception:
+
+- A version-controlled launch asset under 20 MiB may remain in static hosting
+  when it has explicit product review, no admin upload lifecycle, and a stable
+  page-owned path.
+- The current exception is
+  `apps/site/public/media/oem-factory.mp4` (approximately 7.2 MB), retained by
+  the reviewed OEM independent-page contract.
+- New or replaced marketing videos must use CloudBase Storage. This exception
+  is not an alternate upload path and must not be used for catalog media, OEM
+  drawings, or user-supplied files.
+- Static hosting is additive. When the exception is retired or moved to
+  CloudBase Storage, the deployment must explicitly prune
+  `/media/oem-factory.mp4`; removing it from the source tree alone is not proof
+  that the hosted object was deleted.
 
 Base64 eligibility contract:
 
@@ -261,10 +277,10 @@ sequenceDiagram
   UI->>Admin: createUploadIntent(token, file metadata)
   Admin->>Admin: validate JWT, role, MIME, size
   Admin->>Storage: getUploadMetadata(cloudPath) — server identity
-  Storage-->>Admin: direct POST URL + form fields
+  Storage-->>Admin: signed PUT URL + credential headers
   Admin->>DB: write pending image doc
-  Admin-->>UI: { imageId, upload: { method, url, fields } }
-  UI->>Storage: POST multipart form + file
+  Admin-->>UI: { imageId, upload: { method, url, headers } }
+  UI->>Storage: signed raw PUT file bytes
   UI->>Admin: completeUpload(imageId)
   Admin->>Storage: verify object + recompute size/SHA-256
   Admin->>DB: activate image doc (pending → active)
@@ -1508,8 +1524,8 @@ Exit criteria:
 The single upload MIU. The old server-multipart (MIU-03), `FormData`-through-
 `/api/admin` (MIU-05), and CloudBase Web-SDK (MIU-07) paths are all folded here —
 §24 records why (the 100 KiB function-route cap and the absent browser CloudBase
-identity). **One upload path everywhere:** the browser `POST`s a multipart form
-straight to CloudBase Storage using a server-minted, single-object, short-lived
+identity). **One upload path everywhere:** the browser sends a signed raw `PUT`
+straight to CloudBase Storage using server-minted, single-object, short-lived
 credential. The custom JWT stays the only browser credential — no local-folder
 upload path, no CloudBase Web SDK in the browser.
 
@@ -1530,11 +1546,11 @@ upload path, no CloudBase Web SDK in the browser.
      (`storageProvider: 'cloudbase-storage'`, `storageMode: 'classic-nosql-storage'`,
      `storagePath`, `storageFileId`, `status: 'pending'`, `publishedRefCount: 0`,
      `uploadIntentId`, `byteSize`, optional `checksumSha256`);
-   - returns `{ imageId, uploadIntentId, storageFileId, upload: { method: "POST",
-     url, fields } }`, where `fields` = `Signature`, `x-cos-security-token`,
-     `x-cos-meta-fileid`, `key`, appended before the `file` form part.
-2. Browser `POST`s multipart `FormData` to `upload.url` with those fields and the
-   file. Bytes go browser → COS directly; the 100 KiB function cap is never on the
+  - returns `{ imageId, uploadIntentId, storageFileId, upload: { method: "PUT",
+    url, headers } }`, where `headers` contains the server-minted authorization,
+    security token, and file metadata required by COS.
+2. Browser sends the file as the raw body of a `PUT` to `upload.url` with those
+  headers. Bytes go browser → COS directly; the 100 KiB function cap is never on the
    path.
 3. `completeUpload` — body = `{ imageId }`. Verifies the object is retrievable,
    **recomputes `byteSize` + SHA-256 SERVER-side** (never trusts the client;
@@ -1547,7 +1563,7 @@ upload path, no CloudBase Web SDK in the browser.
 `MediaStorageAdapter.getUploadCredential(cloudPath)`:
 - CloudBase impl wraps the server-only `getUploadMetadata`
   (`POST /v1/storages/get-objects-upload-info`) and maps its result to
-  `{ uploadUrl, method: "POST", formFields, storageFileId }`. The installed
+  `{ uploadUrl, method: "PUT", headers, storageFileId }`. The installed
   `@cloudbase/node-sdk@2.10.0` shape is `{ data: { url, authorization, token,
   fileId, cosFileId } }`; `wx-server-sdk@3.0.4` does not expose
   `getUploadMetadata`, so the injected storage SDK is the node-sdk `CloudBase`
@@ -1566,14 +1582,14 @@ only and uploads fail loudly. The DB stays file-backed either way.
 **Lifecycle:** `pending` (intent) → `active` (verified). Only a SIZE or CHECKSUM
 verification failure marks the doc `failed` (and best-effort deletes the bad
 object). An object that is not yet retrievable at `completeUpload` (transient /
-eventually-consistent miss, or a POST that has not landed) is left `pending` and
-is **retryable** — it is NOT dead-ended to `failed`. A `pending` doc whose POST
+eventually-consistent miss, or a `PUT` that has not landed) is left `pending` and
+is **retryable** — it is NOT dead-ended to `failed`. A `pending` doc whose `PUT`
 or `completeUpload` never arrives is never public (delivery gates on
 `status === 'active'` && `publishedRefCount > 0`, §20.6) and is reaped by orphan
 cleanup (§20.8 / MIU-06).
 
 **MIU-05 — Admin UI uploader (U2, drives this flow):** replace `uploadImage()`
-with `createUploadIntent` → direct COS multipart `POST` → `completeUpload`. Keep the
+with `createUploadIntent` → signed raw COS `PUT` → `completeUpload`. Keep the
 product form value shape `imageIds: string[]`; show per-file
 pending/uploading/succeeded/failed with retry, preserving successful IDs in order;
 restrict the file picker to jpeg/png/webp (matching `catalogImageUploadSchema`);
@@ -1593,9 +1609,9 @@ do NOT import the CloudBase Web SDK.
 > parity land and review.
 
 **Still env-gated (MIU-09):** a real pre-signed-credential mint and the bucket
-**CORS gate** — allow browser-origin `POST` to the COS form endpoint from the site
-origin. The signature, token, file id, and object key are multipart fields rather
-than custom request headers. Evidence + preconditions: `docs/IMAGE_UPLOAD_EXECUTION.md`
+**CORS gate** — allow browser-origin `PUT` and the server-minted credential
+headers at the COS endpoint from the site origin. Evidence + preconditions:
+`docs/IMAGE_UPLOAD_EXECUTION.md`
 §"Upload-credential mechanism" / §"MIU-Upload preconditions".
 
 ### 20.8 MIU-06 - Legacy Image Migration And Orphan Cleanup
@@ -1700,8 +1716,8 @@ Decision:
 - P0 accepts **one OEM attachment up to 10 MiB** from the public OEM form.
 - Accepted classes: PDF, ZIP, RAR, common CAD exports (`step`, `stp`, `igs`,
   `iges`, `dwg`, `dxf`), and drawing images (`png`, `jpeg`, `webp`).
-- The browser uploads bytes directly to CloudBase Storage under `oem/` using a
-  server-minted, single-object COS multipart POST credential. The function only
+- The browser uploads bytes directly to CloudBase Storage under `oem/` using
+  server-minted headers for one signed raw COS `PUT`. The function only
   receives small JSON metadata and the finalization request.
 - CloudRun media gateway is deferred to a later MIU for files above 10 MiB,
   resumable upload, malware scanning, or conversion/preview jobs.
@@ -1795,8 +1811,8 @@ sequenceDiagram
   AdminFn->>AdminFn: validate 10 MiB cap + extension/MIME + rate/TTL policy
   AdminFn->>Storage: getUploadMetadata(oem/<yyyy>/<mm>/<intent>/<safeName>)
   AdminFn->>DB: create files pending doc + uploadSecretHash + expiry
-  AdminFn-->>Browser: fileId + uploadSecret + COS POST fields
-  Browser->>Storage: multipart POST file bytes directly to COS
+  AdminFn-->>Browser: fileId + uploadSecret + signed PUT URL and headers
+  Browser->>Storage: signed raw PUT file bytes directly to COS
   Browser->>AdminFn: submitProject(text fields + fileId + uploadSecret)
   AdminFn->>Storage: fetch object metadata/bytes for verification
   AdminFn->>AdminFn: verify size/checksum/MIME and expiry
@@ -1817,13 +1833,14 @@ Server actions:
      emergency cap if source identity is unavailable.
    - Mints upload credentials through the **same verified `@cloudbase/node-sdk`
      upload-metadata path used by MIU-09**, not `wx-server-sdk`.
-   - Binds the returned COS POST policy to exactly one server-chosen object key.
-     (The current `getUploadMetadata` credential cannot bind object length; size
-     is enforced server-side at finalization — see above.)
+   - Binds the returned signed `PUT` credential to exactly one server-chosen
+     object key. The current credential cannot bind object length; size is
+     enforced server-side at finalization — see above.
    - Creates a `files` row with `status: 'pending'`, `purpose: 'oem-drawing'`,
      storage metadata, `uploadIntentId`, `uploadSecretHash`, and
      `uploadExpiresAt`.
-   - Returns only the `fileId`, one-time `uploadSecret`, and COS POST fields.
+   - Returns only the `fileId`, one-time `uploadSecret`, and signed `PUT` URL and
+     headers.
 
 2. `submitProject`
    - Keeps the no-file path.
@@ -1881,10 +1898,10 @@ Server actions:
      them via an object-URL `<a download={fileName}>` (see
      `apps/site/src/islands/admin/oem-download.ts`). Do NOT `window.open` the
      temp URL — that inline-renders image/PDF drawings, drops the real filename,
-     and can be silently popup-blocked. Failures (non-OK/CORS/network) surface to
+    and can be silently popup-blocked. Failures (non-OK/CORS/network) surface to
      the admin, never silent. Fetching the temp URL cross-origin requires the COS
      bucket to allow GET from the site origin (bucket CORS / security-domain — an
-     ops prerequisite, same as the browser upload POST).
+    ops prerequisite, same as the browser upload `PUT`).
    - The returned filename is sanitized server-side (strip CR, LF, quotes, path
      separators, and control characters) before it reaches the client contract.
      If a future proxy/header path is added it must also force
@@ -1908,7 +1925,7 @@ Frontend/API flow:
 - The file input copy should say the form accepts PDF/ZIP/CAD/drawing images up
   to 10 MiB. If several files are needed, compress them into one ZIP under 10
   MiB; larger packages need the CloudRun/later path or manual follow-up.
-- The browser shows progress for the direct COS POST and only calls
+- The browser shows progress for the signed raw COS `PUT` and only calls
   `submitProject` after the storage upload succeeds.
 - Admin `RecordForm`/OEM Requests uses an authenticated download action, not
   the absent production `/api/files/:id` route.
@@ -2059,7 +2076,7 @@ export interface UploadTransportDecision {
 Technology constraint:
 
 - CloudBase HTTP-access JSON bodies are not a byte transport for large files.
-  MIU-00 proved the route cap; MIU-09 proved browser -> COS multipart POST.
+  MIU-00 proved the route cap; MIU-09 proved browser -> COS signed raw `PUT`.
 - CloudBase Storage uploads require a real bucket/security-domain/CORS setup and
   a server-minted credential. The browser must not fabricate URLs or write
   storage metadata directly.
@@ -2403,14 +2420,14 @@ upload-credential decisions.
 
 Decisions from MIU-00 validation (2026-06-29) that now bind this plan:
 
-- P0 byte transport = **admin-brokered direct-storage-upload**: the browser POSTs
-  bytes straight to CloudBase Storage using a server-minted direct form credential
+- P0 byte transport = **admin-brokered direct-storage-upload**: the browser sends
+  bytes straight to CloudBase Storage using a server-minted signed raw `PUT`
   (`getUploadMetadata` / `POST /v1/storages/get-objects-upload-info`); the custom
   JWT stays the only browser credential. Server-side upload (Option C / MIU-03 as
   written) is **shelved** — the HTTP access route hard-caps request bodies at
   100 KiB.
 - The old **MIU-03 + MIU-07 fold into one** admin-brokered direct-upload MIU
-  (intent -> pre-signed COS POST form -> complete+verify).
+  (intent -> signed raw COS `PUT` -> complete+verify).
 - Env confirmed **classic NoSQL**; storage bucket is **private** (proxy/temp-URL
   delivery, reinforcing the MIU-04 proxy P0); `admin`/`public-api` stay Event
   Functions behind HTTP access. Web SDK browser upload is unavailable here
@@ -2454,7 +2471,7 @@ yet specified. Finding 25-1 must be in the OEM MIU's own scope, not deferred.
 | # | Severity | Issue | Recommended fix |
 | --- | --- | --- | --- |
 | 25-1 | P1 | `createOemFileUploadIntent` is public (no JWT). An anonymous caller can mint unlimited intents and PUT 10 MiB objects into the private bucket — a storage-cost/DoS and bucket-pollution vector. The flow diagram says "rate/TTL policy" but the server-action spec does not define one. | Make abuse control part of the OEM MIU scope, not a later item: per-source rate limit on intent creation, a cap on concurrent `pending` intents per IP/`submissionId`, short `uploadExpiresAt` (e.g. 15 min), and aggressive pending-intent cleanup. Without a per-IP limiter in Event Functions, gate via a coarse counter (e.g. per-minute) or OPA/gateway rule. |
-| 25-2 | P2 | Size is validated from client-claimed `byteSize` at intent time and re-verified after upload, but the COS POST credential itself may not bound object size — oversize bytes can land before the server rejects them (cost already incurred). | Bind the COS POST policy's `content-length-range` to `OEM_FILE_MAX_BYTES` so COS rejects oversize at upload, before the object lands. |
+| 25-2 (resolved as implemented) | P2 | Size is validated from client-claimed `byteSize` at intent time and re-verified after upload, but the signed `PUT` credential cannot bind object size — oversize bytes can land before the server rejects them (cost already incurred). | P0 accepts this residual cost risk: validate declared size before minting, re-read authoritative bytes after upload, reject and delete oversize objects, and keep abuse caps/cleanup active. |
 | 25-3 | P2 | Delivery inconsistency: OEM (the most-private class) uses a temp-URL via `getOemFileDownloadUrl`, but product images (less sensitive) use **proxy** delivery (MIU-04) specifically to avoid the CDN-cache-after-delete leak MIU-00 observed. A signed OEM URL can linger at the CDN edge after the file is deleted/withdrawn. | Prefer proxy delivery for OEM (most sensitive), or use a very short TTL and document why edge-cache exposure is acceptable. At minimum reconcile with the MIU-00 CDN-cache caveat explicitly. |
 | 25-4 | P2 | `uploadSecret` is introduced without an explicit threat model. Since intents are public, its value is preventing one anonymous client from finalizing/attaching another's `pending` fileId (anti-hijack of a guessed/enumerated fileId). | State the threat it closes; confirm `uploadSecretHash` is compared in constant time and the secret is single-use (consumed/rotated on `submitProject`). |
 | 25-5 | P3 | Admin download uses the public-supplied original filename in `Content-Disposition`; CRLF/quote injection and inline-render are risks. | Sanitize the filename (the local `/api/files/:id` already strips `["\r\n]`) and always serve `Content-Disposition: attachment`, never inline. |
@@ -2527,7 +2544,7 @@ hole because an abuse-control reaper that is never triggered does not run.
 
 | Pattern | Where | Constraint satisfied |
 | --- | --- | --- |
-| Valet Key | Admin-brokered pre-signed COS POST (§24, MIU-08) | Minimum scope: single server-chosen key, `content-length-range`, short TTL, single-use secret. Never wildcard. |
+| Valet Key | Admin-brokered signed raw COS `PUT` (§24, MIU-08) | Minimum scope: one server-chosen key, short TTL, and single-use finalization secret. Never wildcard. Size is re-verified after upload because the installed credential cannot bind object length. |
 | Compensating Transaction | Upload→activate and project→file-activate failure paths (MIU-03/06/08) | Each compensating step is idempotent; orphan cleanup retries. |
 | Strangler Fig | `legacy-base64` reads coexist with storage writes, then retire (§14, MIU-06) | The delivery facade branches by provider — never serves old and new for the same request. |
 | Anti-Corruption Layer | `MediaStorageAdapter` (`packages/media-storage`) | CloudBase SDK shapes do not leak into handlers; returns domain `StoredMediaObject`. |

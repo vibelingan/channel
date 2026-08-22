@@ -3,15 +3,13 @@
  * MediaVideo — inline, muted, auto-looping video for section content
  * (e.g. a factory walkthrough).
  *
- * The video file is intentionally NOT bundled into the Astro build: pass a
- * `src` URL served from CloudBase storage / a CDN so the deploy stays lean
- * (an 18MB clip in `public/` would bloat every build + hosting sync). When
- * `src` is omitted, the `poster` image renders on its own — so the section
- * shows real imagery immediately and upgrades to a video the moment a URL is
- * configured (e.g. once the client's HD version is uploaded to storage).
+ * New or replacement videos use a CloudBase/CDN URL. A reviewed,
+ * version-controlled launch asset under 20 MiB may use a stable public path;
+ * `docs/IMAGE_UPLOAD_STORAGE_DESIGN.md` owns that narrow exception. When `src`
+ * is omitted, the poster image renders on its own.
  */
 interface Props {
-  /** Video URL (CloudBase storage / CDN). Empty ⇒ show the poster only. */
+  /** CloudBase/CDN URL or reviewed static-launch path. Empty ⇒ poster only. */
   src?: string;
   /** Poster / fallback image path (served from public/media). */
   poster?: string;

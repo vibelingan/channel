@@ -256,6 +256,10 @@ test.describe('public browser smoke', () => {
         expect(opacity).toBe(1);
         await category.selectOption('Other');
         await expect(category).toHaveValue('Other');
+        expect(await page.content()).toContain(
+          'JavaScript is required to submit this project securely',
+        );
+        await expect(form.getByRole('button', { name: 'Submit project' })).toBeDisabled();
       }
     } finally {
       await context.close();
@@ -2204,6 +2208,7 @@ test.describe('public browser smoke', () => {
     await expect(oemForm).toHaveCount(1);
     await expect(oemForm).toHaveAttribute('data-endpoint', '/api/admin');
     await expect(oemForm).toHaveAttribute('data-result', '/oem_submit_result');
+    await expect(oemForm.getByRole('button', { name: 'Submit project' })).toBeEnabled();
   });
 
   test('OEM product category uses the shared custom picker with native form fallback', async ({

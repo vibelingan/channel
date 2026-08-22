@@ -450,7 +450,7 @@ and the pruned client-question list is focused.
 
 | # | Severity | Cause / layer | Issue | Recommended fix |
 |---|---|---|---|---|
-| OR-4 | P2 | Mixed: design-policy drift + deployment risk; media delivery / docs | The factory video is now wired and works, but it is committed under `apps/site/public/media/oem-factory.mp4` and served as a static-hosting asset (`/media/oem-factory.mp4`, 7,201,197 bytes). That contradicts the canonical marketing-video policy in `docs/IMAGE_UPLOAD_STORAGE_DESIGN.md` ("CloudBase Storage direct COS POST; served by URL (never bundled in the site build)") and the `MediaVideo` comment that says video files are intentionally not bundled into Astro. It is not a rendering blocker, but it leaves future maintainers with two incompatible delivery rules and can grow static hosting deploy/CDN cost as videos change. | Before final release, choose and document one rule: either move the factory clip to CloudBase Storage/CDN and keep `factoryVideo.src` as that URL, or explicitly amend the canonical media policy to allow small launch marketing videos in static hosting with a size budget, ownership note, and prune/deploy implications. |
+| OR-4 (resolved 2026-08-23) | P2 | Mixed: design-policy drift + deployment risk; media delivery / docs | The 7,201,197-byte OEM factory clip remains a reviewed static launch asset under the canonical 20 MiB exception. `MediaVideo` and `IMAGE_UPLOAD_STORAGE_DESIGN.md` now agree; new/replacement videos require signed raw COS `PUT`. | No remaining action for the current clip. Re-review storage and hosting cost before replacing it. |
 
 What passed:
 

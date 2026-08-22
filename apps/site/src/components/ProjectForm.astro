@@ -2,10 +2,9 @@
 /**
  * ProjectForm — OEM project submission form.
  *
- * Fields are data-driven from the page content. The form degrades gracefully
- * without JS (native validation); with JS it submits asynchronously and shows
- * an inline success state. The submit endpoint is left as a data attribute so a
- * backend (e.g. an `inquiries` collection) can be wired later.
+ * Fields are data-driven from the page content. JavaScript is required because
+ * submission coordinates JSON actions and direct-to-storage file upload. The
+ * form stays disabled until its submit handler is ready.
  */
 import type { FormField } from '../i18n/oem.ts';
 import PublicSelect from './form/PublicSelect.astro';
@@ -44,6 +43,7 @@ const fieldBase =
     data-project-form
     data-endpoint={action}
     data-result={resultPath}
+    data-degradation-reviewed="JS-only JSON and signed-storage flow; disabled with noscript notice"
     novalidate
   >
     {
@@ -70,6 +70,7 @@ const fieldBase =
               name={field.name}
               type="file"
               accept={field.accept}
+              aria-describedby={field.hint ? `${field.name}-hint` : undefined}
               class:list={[
                 fieldBase,
                 'file:mr-3 file:rounded-md file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100',
@@ -82,6 +83,7 @@ const fieldBase =
               type={field.type}
               placeholder={field.placeholder}
               required={field.required}
+              aria-describedby={field.hint ? `${field.name}-hint` : undefined}
               class={fieldBase}
             />
           )}
@@ -98,15 +100,24 @@ const fieldBase =
 
     <div class="sm:col-span-2">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <p class="max-w-md text-xs text-ink-muted">{disclaimer}</p>
+        <p id="project-form-runtime-note" class="max-w-md text-xs text-ink-muted">
+          {disclaimer}
+        </p>
         <button
           type="submit"
+          disabled
+          aria-describedby="project-form-runtime-note"
           class="inline-flex items-center justify-center rounded-lg bg-brand-700 px-7 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-800 disabled:opacity-60"
           data-submit
         >
           {submitLabel}
         </button>
       </div>
+      <noscript>
+        <p class="mt-3 text-sm font-medium text-red-600" role="alert">
+          JavaScript is required to submit this project securely, including any drawing upload.
+        </p>
+      </noscript>
       <p class="mt-3 hidden text-sm font-medium text-red-600" data-error role="alert"></p>
     </div>
   </form>
@@ -136,6 +147,8 @@ const fieldBase =
   const submitBtn = form?.querySelector<HTMLButtonElement>('[data-submit]');
   const submitLabel = submitBtn?.textContent ?? 'Submit';
   const maxMiB = Math.floor(OEM_FILE_MAX_BYTES / (1024 * 1024));
+
+  if (form && submitBtn) submitBtn.disabled = false;
 
   interface OemIntent {
     fileId: string;
