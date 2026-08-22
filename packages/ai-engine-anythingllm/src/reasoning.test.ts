@@ -54,3 +54,53 @@ test('multiple reasoning blocks are all removed', () => {
 test('the alternate <reasoning> tag is handled too', () => {
   assert.equal(run(['<reasoning>x</reasoning>Answer.']), 'Answer.');
 });
+
+test('a capitalised tag is still stripped', () => {
+  // A model that writes <Think> rather than <think> used to stream its whole
+  // deliberation through untouched.
+  assert.equal(run(['<Think>hidden</Think>Visible.']), 'Visible.');
+  assert.equal(run(['<THINK>hidden</THINK>Visible.']), 'Visible.');
+});
+
+test('whitespace inside the brackets does not defeat the filter', () => {
+  assert.equal(run(['< think >hidden</ think >Visible.']), 'Visible.');
+});
+
+test('a tag carrying attributes is still a tag', () => {
+  assert.equal(run(['<think type="internal" id="7">hidden</think>Visible.']), 'Visible.');
+});
+
+test('the other reasoning tag names this model family uses are covered', () => {
+  for (const name of ['thinking', 'thought', 'reflection', 'scratchpad']) {
+    assert.equal(run([`<${name}>hidden</${name}>Visible.`]), 'Visible.', `<${name}> leaked`);
+  }
+});
+
+test('nested reasoning blocks do not leak the outer remainder', () => {
+  // Closing the inner tag must not be read as leaving deliberation entirely.
+  assert.equal(run(['<think>outer <think>inner</think> still hidden</think>Visible.']), 'Visible.');
+});
+
+test('a stray closing tag does not turn ordinary text into deliberation', () => {
+  assert.equal(run(['Answer.</think>More answer.']), 'Answer.More answer.');
+});
+
+test('ordinary markup in the answer survives', () => {
+  assert.equal(run(['Our MOQ is <b>500</b> units.']), 'Our MOQ is <b>500</b> units.');
+});
+
+test('a less-than in prose is emitted rather than held to end of stream', () => {
+  // A looser rule would withhold everything after the "<" until the stream
+  // ended, turning a streaming answer into a non-streaming one.
+  const filter = createReasoningFilter();
+  const streamed = filter.push('Orders < 500 units are ');
+  assert.ok(streamed.includes('< 500'), `held back ordinary prose: ${JSON.stringify(streamed)}`);
+});
+
+test('a capitalised tag split across chunks is still stripped', () => {
+  assert.equal(run(['<Th', 'ink>hid', 'den</Thi', 'nk>Visible.']), 'Visible.');
+});
+
+test('an unclosed capitalised tag never leaks', () => {
+  assert.equal(run(['<Think>still deliberating when the stream died']), '');
+});

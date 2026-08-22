@@ -270,13 +270,143 @@ test('exceeding the stream duration limit yields a timeout error', async () => {
   assert.equal(last.category, 'timeout');
 });
 
-test('malformed frames are skipped rather than killing the stream', async () => {
+test('a malformed frame fails the run instead of being silently dropped', async () => {
+  // Changed deliberately. Skipping a frame we cannot parse loses output we
+  // cannot account for, and the visitor gets an answer with a hole in it that
+  // reads as complete — for a sales assistant, a sentence missing its
+  // qualifier is worse than no sentence.
   const events = await collect({
-    raw: 'data: {not json\n\ndata: {"type":"textResponseChunk","textResponse":"ok","sources":[]}\n\ndata: {"type":"finalizeResponseStream","close":true}\n\n',
+    raw: 'data: {"type":"textResponseChunk","textResponse":"MOQ is ","sources":[]}\n\ndata: {not json\n\ndata: {"type":"finalizeResponseStream","close":true}\n\n',
   });
-  const final = events.at(-1) as { type: string; text?: string };
-  assert.equal(final.type, 'final');
-  assert.equal(final.text, 'ok');
+  const last = events.at(-1) as { type: string; category?: string };
+  assert.equal(last.type, 'error');
+  assert.equal(last.category, 'transient');
+  assert.ok(
+    !events.some((event) => event.type === 'final'),
+    'a run with an unparseable frame still reported a final answer',
+  );
+});
+
+test('a stream that ends before the engine finishes is a failure, not an answer', async () => {
+  // Truncation used to produce a `final` built from whatever had arrived, so a
+  // dropped connection mid-sentence was recorded as a complete answer.
+  const events = await collect({
+    raw: 'data: {"type":"textResponseChunk","textResponse":"Our MOQ is 5","sources":[]}\n\n',
+  });
+  const last = events.at(-1) as { type: string; category?: string; retriable?: boolean };
+  assert.equal(last.type, 'error');
+  assert.equal(last.category, 'transient');
+  assert.equal(last.retriable, true);
+  assert.ok(!events.some((event) => event.type === 'final'), 'a truncated stream produced a final');
+});
+
+test('a complete stream still produces exactly one terminal event', async () => {
+  const events = await collect({
+    frames: [
+      chunk('Our MOQ is 500.', { close: true }),
+      { type: 'finalizeResponseStream', close: true, error: false },
+    ],
+  });
+  const terminals = events.filter((event) => event.type === 'final' || event.type === 'error');
+  assert.equal(terminals.length, 1, `expected one terminal event, got ${terminals.length}`);
+  assert.equal(terminals[0]?.type, 'final');
+});
+
+test('an answer that runs past its output budget is stopped and reported', async () => {
+  // The budget was declared and never enforced, so a runaway answer billed
+  // until the vendor felt like stopping.
+  const events = await collect(
+    { frames: [...Array.from({ length: 200 }, (_, i) => chunk(`overlong sentence ${i}. `))] },
+    { ...REQUEST, limits: { ...REQUEST.limits, maxOutputTokens: 20 } },
+  );
+  const last = events.at(-1) as { type: string; category?: string; retriable?: boolean };
+  assert.equal(last.type, 'error');
+  assert.equal(last.category, 'invalid_request');
+  assert.equal(
+    last.retriable,
+    false,
+    'a budget overrun must not invite a retry that overruns again',
+  );
+  assert.ok(
+    events.filter((event) => event.type === 'token').length < 200,
+    'the stream ran to completion despite the budget',
+  );
+});
+
+test('the output budget counts hidden reasoning, not just visible text', async () => {
+  // These models bill their private reasoning inside the same completion
+  // budget, so counting only what a visitor sees lets a run spend far past its
+  // limit while appearing to produce almost nothing.
+  const hidden = `<think>${'deliberating at length. '.repeat(40)}</think>`;
+  const events = await collect(
+    {
+      frames: [
+        chunk(hidden),
+        chunk('Short answer.'),
+        { type: 'finalizeResponseStream', close: true },
+      ],
+    },
+    { ...REQUEST, limits: { ...REQUEST.limits, maxOutputTokens: 30 } },
+  );
+  const last = events.at(-1) as { type: string; category?: string };
+  assert.equal(last.type, 'error', 'reasoning tokens were not counted against the budget');
+  assert.equal(last.category, 'invalid_request');
+});
+
+test('a caller abort is reported as neither timeout nor failure', async () => {
+  // The two were told apart by matching an error message, so a caller abort
+  // near the deadline could be mislabelled. They are now distinct identities.
+  const { server, baseUrl } = await vendor({
+    frames: [chunk('a'), chunk('b'), chunk('c')],
+    delayMs: 50,
+  });
+  const engine = new AnythingLlmEngine({
+    baseUrl,
+    apiKey: 'test-key',
+    workspaceSlug: 'ws',
+    engineVersion: '1.0.0-test',
+  });
+  const controller = new AbortController();
+  const events: EngineEvent[] = [];
+  try {
+    const handle = await engine.createRun(REQUEST, controller.signal);
+    for await (const event of engine.streamRun(handle, controller.signal)) {
+      events.push(event);
+      controller.abort();
+    }
+  } finally {
+    server.close();
+  }
+  assert.ok(
+    !events.some((event) => event.type === 'error' && event.category === 'timeout'),
+    'a caller abort was reported as a deadline expiry',
+  );
+});
+
+test('cancelling a finished run says so, rather than denying it existed', async () => {
+  const { server, baseUrl } = await vendor({
+    frames: [chunk('done'), { type: 'finalizeResponseStream', close: true }],
+  });
+  const engine = new AnythingLlmEngine({
+    baseUrl,
+    apiKey: 'k',
+    workspaceSlug: 'ws',
+    engineVersion: '1.0.0-test',
+  });
+  try {
+    const handle = await engine.createRun(REQUEST, new AbortController().signal);
+    for await (const _ of engine.streamRun(handle, new AbortController().signal)) {
+      // drain
+    }
+    assert.equal(await engine.cancelRun(handle), 'already_finished');
+    assert.equal(
+      await engine.cancelRun({ operationId: 'never-existed', engineRunId: 'x' }),
+      'unknown_run',
+      'a run we never saw must not be reported as already finished',
+    );
+  } finally {
+    server.close();
+  }
 });
 
 test('the final frame is not lost when the stream ends without a blank line', async () => {
@@ -370,4 +500,71 @@ test('rotating the credential changes the attested identity', async () => {
   const before = await make('key-one').attestKnowledgeCredential();
   const after = await make('key-two').attestKnowledgeCredential();
   assert.notEqual(before.credentialId, after.credentialId, 'a silent key swap would be invisible');
+});
+
+test('an engine with no agent surface reports one that is off', async () => {
+  const server = createServer((req, res) => {
+    if (req.url?.includes('/workspace/')) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ workspace: [{ agentProvider: null, agentModel: null }] }));
+      return;
+    }
+    res.writeHead(404).end();
+  });
+  await new Promise<void>((resolve) => server.listen(0, () => resolve()));
+  const { port } = server.address() as AddressInfo;
+  const engine = new AnythingLlmEngine({
+    baseUrl: `http://127.0.0.1:${port}`,
+    apiKey: 'k',
+    workspaceSlug: 'ws',
+    engineVersion: 'test',
+  });
+  try {
+    const surface = await engine.inspectToolSurface();
+    assert.equal(surface.known, true);
+    assert.equal(surface.enabled, false);
+  } finally {
+    server.close();
+  }
+});
+
+test('an enabled agent surface is reported, and names which one', async () => {
+  // The run contract sets maxToolCalls to zero. This protocol never reports a
+  // tool call mid-stream, so the only place that limit can be enforced is here.
+  const server = createServer((req, res) => {
+    if (req.url?.includes('/workspace/')) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ workspace: [{ agentProvider: 'openai', agentModel: 'gpt-4' }] }));
+      return;
+    }
+    res.writeHead(404).end();
+  });
+  await new Promise<void>((resolve) => server.listen(0, () => resolve()));
+  const { port } = server.address() as AddressInfo;
+  const engine = new AnythingLlmEngine({
+    baseUrl: `http://127.0.0.1:${port}`,
+    apiKey: 'k',
+    workspaceSlug: 'ws',
+    engineVersion: 'test',
+  });
+  try {
+    const surface = await engine.inspectToolSurface();
+    assert.equal(surface.enabled, true);
+    assert.match(surface.detail, /openai/);
+  } finally {
+    server.close();
+  }
+});
+
+test('an unreachable engine is unknown, never assumed safe', async () => {
+  // "Could not check" and "checked and it is off" must not be the same answer.
+  const engine = new AnythingLlmEngine({
+    baseUrl: 'http://127.0.0.1:1',
+    apiKey: 'k',
+    workspaceSlug: 'ws',
+    engineVersion: 'test',
+  });
+  const surface = await engine.inspectToolSurface();
+  assert.equal(surface.known, false);
+  assert.equal(surface.enabled, false, 'unknown must not be reported as enabled either');
 });

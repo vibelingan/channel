@@ -22,6 +22,15 @@ import {
 } from '@vibelingan-channel/ai-engine';
 import { createReasoningFilter } from './reasoning.ts';
 
+/** Result of asking the engine what it is permitted to do on our behalf. */
+export interface ToolSurface {
+  /** False when the engine could not be reached — unknown, not proven safe. */
+  known: boolean;
+  enabled: boolean;
+  /** Short, operator-facing, never credential-shaped. */
+  detail: string;
+}
+
 export interface AnythingLlmEngineConfig {
   baseUrl: string;
   apiKey: string;
@@ -41,6 +50,8 @@ interface VendorFrame {
   sources?: VendorSource[];
   close?: boolean;
   error?: string | boolean | null;
+  /** Set when the frame could not be parsed. Surfaced, never skipped. */
+  malformed?: true;
 }
 
 interface VendorSource {
@@ -51,6 +62,83 @@ interface VendorSource {
   url?: string;
   text?: string;
   published?: string;
+}
+
+/**
+ * Characters per token, for budget accounting only.
+ *
+ * This protocol reports real usage in its final frame, which is too late to
+ * stop a runaway answer, so the budget is enforced on an approximation. Four
+ * characters per token is the usual rule of thumb for this model family. It is
+ * deliberately a slight OVER-estimate of what a token costs, so the guard trips
+ * a little early rather than a little late.
+ */
+const CHARS_PER_TOKEN = 4;
+
+/** How many finished runs are remembered, so `cancelRun` can distinguish
+ * "already finished" from "never existed" without growing without bound. */
+const REMEMBERED_RUNS = 1_000;
+
+/**
+ * A single expiry shared by every await in one run.
+ *
+ * Two separate timers on the same duration, with the winner identified by
+ * matching an error message, is what this replaces. Identity comparison against
+ * one sentinel is deterministic; message matching is not, and cannot tell a
+ * caller's abort from an expiry that happened to phrase itself the same way.
+ */
+class Deadline {
+  readonly #expiry: symbol = Symbol('deadline');
+  readonly #timer: ReturnType<typeof setTimeout>;
+  #rejectExpired: ((reason: unknown) => void) | undefined;
+  readonly #expired: Promise<never>;
+
+  constructor(ms: number, onExpire?: () => void) {
+    this.#expired = new Promise<never>((_, reject) => {
+      this.#rejectExpired = reject;
+    });
+    // Nothing ever awaits #expired on its own, so an unhandled rejection would
+    // be reported if it fired with no racer attached.
+    this.#expired.catch(() => undefined);
+    this.#timer = setTimeout(() => {
+      // Tear the transport down as well as rejecting. Rejecting alone leaves
+      // the underlying read pending, and a pending read makes the generator's
+      // own cleanup unable to complete — which is how a deadline meant to stop
+      // a hang became a hang.
+      onExpire?.();
+      this.#rejectExpired?.(this.#expiry);
+    }, ms);
+  }
+
+  /** Resolve `work`, or reject with this deadline's sentinel when time runs out. */
+  race<T>(work: Promise<T>): Promise<T> {
+    return Promise.race([work, this.#expired]);
+  }
+
+  /** Re-yield `source`, applying the same deadline to every step. */
+  async *guard<T>(source: AsyncIterable<T>): AsyncGenerator<T> {
+    const iterator = source[Symbol.asyncIterator]();
+    try {
+      for (;;) {
+        const next = await this.race(iterator.next());
+        if (next.done) return;
+        yield next.value;
+      }
+    } finally {
+      // NOT awaited. A generator suspended on a read that never settles cannot
+      // finish returning, so awaiting its cleanup here would block forever on
+      // exactly the failure this class exists to end.
+      void iterator.return?.().catch(() => undefined);
+    }
+  }
+
+  expired(error: unknown): boolean {
+    return error === this.#expiry;
+  }
+
+  clear(): void {
+    clearTimeout(this.#timer);
+  }
 }
 
 function categoryForStatus(status: number): EngineErrorCategory {
@@ -64,12 +152,17 @@ function categoryForStatus(status: number): EngineErrorCategory {
 export class AnythingLlmEngine implements ConversationEngine {
   readonly capabilities: EngineCapabilities;
 
-  readonly #config: AnythingLlmEngineConfig;
+  #config: AnythingLlmEngineConfig;
   readonly #fetch: typeof fetch;
   /** Pending request bodies, keyed by operationId, awaiting their stream. */
   readonly #pending = new Map<string, EngineRunRequest>();
   /** In-flight streams this process owns, so it can abort what it holds. */
   readonly #inFlight = new Map<string, AbortController>();
+  /**
+   * Runs that reached a terminal state, newest last. Bounded, because an
+   * unbounded record of every run this process ever served is a slow leak.
+   */
+  readonly #finished = new Set<string>();
 
   constructor(config: AnythingLlmEngineConfig) {
     this.#config = config;
@@ -123,39 +216,45 @@ export class AnythingLlmEngine implements ConversationEngine {
     const onAbort = () => controller.abort();
     signal.addEventListener('abort', onAbort, { once: true });
 
-    // A duration cap the caller cannot forget to enforce. Without it a vendor
-    // that stops sending frames without closing holds the worker forever.
-    const deadline = setTimeout(
-      () => controller.abort(new Error('deadline')),
-      request.limits.maxStreamDurationMs,
-    );
-    let timedOut = false;
-    const markTimeout = () => {
-      timedOut = true;
-    };
-    const deadlineWatcher = setTimeout(markTimeout, request.limits.maxStreamDurationMs);
+    // ONE deadline, one timer, one identity to compare against.
+    //
+    // The previous version ran two timers on the same duration and decided
+    // which had fired by matching an error MESSAGE. It also assumed aborting
+    // the fetch signal would end the read — so a vendor that accepts a
+    // connection and then says nothing at all hung the worker forever, because
+    // nothing was watching the read itself. The deadline now races every read,
+    // which holds whether or not the transport honours abort.
+    const deadline = new Deadline(request.limits.maxStreamDurationMs, () => controller.abort());
 
     const filter = createReasoningFilter();
     const citations = new Map<string, EngineCitation>();
+    // Approximate, and documented as such: this protocol reports usage only in
+    // its final frame, which is far too late to stop a runaway answer. Four
+    // characters per token is the usual rule of thumb for this model family.
+    const maxOutputChars = request.limits.maxOutputTokens * CHARS_PER_TOKEN;
+    let producedChars = 0;
     let visible = '';
+    let sawTerminalFrame = false;
 
     try {
-      const response = await this.#fetch(
-        `${this.#config.baseUrl}/api/v1/workspace/${this.#config.workspaceSlug}/stream-chat`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${this.#config.apiKey}`,
-            'Content-Type': 'application/json',
-            Accept: 'text/event-stream',
+      const response = await deadline.race(
+        this.#fetch(
+          `${this.#config.baseUrl}/api/v1/workspace/${this.#config.workspaceSlug}/stream-chat`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${this.#config.apiKey}`,
+              'Content-Type': 'application/json',
+              Accept: 'text/event-stream',
+            },
+            body: JSON.stringify({
+              message: this.#renderTurns(request),
+              mode: 'query',
+              sessionId: request.conversationRef,
+            }),
+            signal: controller.signal,
           },
-          body: JSON.stringify({
-            message: this.#renderTurns(request),
-            mode: 'query',
-            sessionId: request.conversationRef,
-          }),
-          signal: controller.signal,
-        },
+        ),
       );
 
       if (!response.ok || !response.body) {
@@ -163,7 +262,21 @@ export class AnythingLlmEngine implements ConversationEngine {
         return;
       }
 
-      for await (const frame of readSseFrames(response.body)) {
+      let overlong = false;
+
+      for await (const frame of deadline.guard(readSseFrames(response.body))) {
+        // Checked per frame, not left to the transport. Frames already buffered
+        // in the stream keep arriving after an abort, so without this the
+        // caller's cancellation would be honoured only once the buffer drained.
+        if (signal.aborted) return;
+
+        if (frame.malformed) {
+          // Not skipped. A frame we cannot parse is output we cannot account
+          // for, and continuing would hand the visitor an answer with a hole in
+          // it that reads as complete.
+          yield this.#error('transient', 'vendor sent a frame that could not be parsed');
+          return;
+        }
         if (frame.error) {
           yield this.#error('unavailable', 'vendor reported a stream error');
           return;
@@ -176,6 +289,14 @@ export class AnythingLlmEngine implements ConversationEngine {
         }
 
         if (typeof frame.textResponse === 'string' && frame.textResponse.length > 0) {
+          // Counted RAW, before the reasoning filter. The models bill their
+          // private reasoning inside the same completion budget, so counting
+          // only what a visitor sees would let a run spend far past its limit.
+          producedChars += frame.textResponse.length;
+          if (producedChars > maxOutputChars) {
+            overlong = true;
+            break;
+          }
           const text = filter.push(frame.textResponse);
           if (text) {
             visible += text;
@@ -186,7 +307,34 @@ export class AnythingLlmEngine implements ConversationEngine {
         // Deliberately NOT `if (frame.close) break`. This vendor sets close on
         // the last text chunk and then sends the citations in a separate
         // finalize frame, so leaving at the first close flag discards them.
-        if (frame.type === 'finalizeResponseStream') break;
+        if (frame.type === 'finalizeResponseStream' || frame.close === true) {
+          sawTerminalFrame = frame.type === 'finalizeResponseStream' || sawTerminalFrame;
+        }
+        if (frame.type === 'finalizeResponseStream') {
+          sawTerminalFrame = true;
+          break;
+        }
+      }
+
+      if (overlong) {
+        controller.abort();
+        // The taxonomy in LLD-002 §6 has no "limit exceeded" category. This is
+        // the least wrong of the closed set and, importantly, non-retriable: an
+        // answer that overran once will overrun again, and a retry loop would
+        // simply spend the budget twice. Widening the taxonomy is a change to
+        // the port and belongs with its owners.
+        yield this.#error(
+          'invalid_request',
+          'engine output exceeded the run budget; raise maxOutputTokens or narrow the profile',
+        );
+        return;
+      }
+
+      if (!sawTerminalFrame) {
+        // The body ended before the engine said it had finished. Emitting a
+        // `final` here would record a truncated answer as a complete one.
+        yield this.#error('transient', 'stream ended before the engine finished its answer');
+        return;
       }
 
       const tail = filter.end();
@@ -205,17 +353,22 @@ export class AnythingLlmEngine implements ConversationEngine {
 
       yield { type: 'final', text: visible, citations: [...citations.values()] };
     } catch (error) {
-      if (timedOut || (error as Error)?.message === 'deadline') {
+      if (deadline.expired(error)) {
         yield this.#error('timeout', 'stream exceeded its duration limit');
         return;
       }
       if (signal.aborted) return;
       yield this.#error('transient', 'stream failed');
     } finally {
-      clearTimeout(deadline);
-      clearTimeout(deadlineWatcher);
+      deadline.clear();
       signal.removeEventListener('abort', onAbort);
       this.#inFlight.delete(handle.operationId);
+      // Remember that this run reached a terminal state, so a later cancel can
+      // say "already finished" rather than "never heard of it". The conformance
+      // suite requires that distinction, and it is a real one: an operator
+      // cancelling a finished run and an operator cancelling a typo should not
+      // get the same answer.
+      this.#remember(handle.operationId);
     }
   }
 
@@ -229,10 +382,83 @@ export class AnythingLlmEngine implements ConversationEngine {
     if (controller) {
       controller.abort();
       this.#inFlight.delete(handle.operationId);
+      this.#remember(handle.operationId);
       return 'stopped';
     }
-    if (this.#pending.delete(handle.operationId)) return 'stopped';
+    if (this.#pending.delete(handle.operationId)) {
+      this.#remember(handle.operationId);
+      return 'stopped';
+    }
+    // A run this process has seen reach an end. Cancelling it again is a
+    // no-op that succeeded, which is not the same answer as "no such run" —
+    // an operator cancelling a finished run and one cancelling a typo need to
+    // be told different things.
+    if (this.#finished.has(handle.operationId)) return 'already_finished';
     return 'unknown_run';
+  }
+
+  /**
+   * Swap the knowledge credential without a restart, moving the attested
+   * rotation counter so the change is visible to the startup check that
+   * compares "which credential is serving" against the one that was probed.
+   */
+  rotateKnowledgeCredential(apiKey: string): void {
+    this.#config = {
+      ...this.#config,
+      apiKey,
+      rotationCounter: (this.#config.rotationCounter ?? 0) + 1,
+    };
+  }
+
+  /**
+   * Drop runs that were created but never streamed — what a process crash
+   * between the create call and recording its handle looks like from inside.
+   * Used by the conformance harness; the handle is derived from the
+   * operationId, so a replay after this recomputes the identical one.
+   */
+  forgetPendingRuns(): void {
+    this.#pending.clear();
+  }
+
+  /**
+   * What this engine can do on the assistant's behalf beyond retrieval.
+   *
+   * The run contract sets `maxToolCalls: 0`, and an adapter cannot enforce that
+   * mid-stream for a protocol that never reports tool calls. So it is enforced
+   * where it CAN be: the workspace must have no agent surface enabled at all.
+   * ADR-002 §4 names this as the same class of gate the Hermes toolset had —
+   * "what can this engine actually do on our behalf".
+   */
+  async inspectToolSurface(): Promise<ToolSurface> {
+    try {
+      const response = await this.#fetch(
+        `${this.#config.baseUrl}/api/v1/workspace/${this.#config.workspaceSlug}`,
+        {
+          headers: { Authorization: `Bearer ${this.#config.apiKey}` },
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+      if (!response.ok)
+        return { known: false, enabled: false, detail: `status ${response.status}` };
+      const body = (await response.json()) as {
+        workspace?: { agentProvider?: string | null; agentModel?: string | null }[];
+      };
+      const workspace = body.workspace?.[0] ?? {};
+      const enabled = Boolean(workspace.agentProvider) || Boolean(workspace.agentModel);
+      return {
+        known: true,
+        enabled,
+        // Named, not the value — an operator needs to know WHICH surface is on,
+        // and a provider name is not a credential.
+        detail: enabled
+          ? `agentProvider=${workspace.agentProvider ?? 'unset'}`
+          : 'no agent surface',
+      };
+    } catch {
+      // Unreachable is not the same as "tools are on". Report that we could not
+      // tell, and let the caller decide.
+      return { known: false, enabled: false, detail: 'workspace could not be inspected' };
+    }
   }
 
   async health(): Promise<EngineHealth> {
@@ -255,6 +481,15 @@ export class AnythingLlmEngine implements ConversationEngine {
       rotationCounter: this.#config.rotationCounter ?? 0,
       spaceId: this.#config.workspaceSlug,
     };
+  }
+
+  #remember(operationId: string): void {
+    this.#finished.add(operationId);
+    while (this.#finished.size > REMEMBERED_RUNS) {
+      const oldest = this.#finished.values().next();
+      if (oldest.done) break;
+      this.#finished.delete(oldest.value);
+    }
   }
 
   #error(category: EngineErrorCategory, safeDetail: string): EngineEvent {
@@ -327,8 +562,10 @@ function parseSseFrame(raw: string): VendorFrame | null {
   try {
     return JSON.parse(payload) as VendorFrame;
   } catch {
-    // Skip. Losing one fragment beats ending the answer.
-    return null;
+    // Reported, not skipped. Silently dropping a fragment hands the visitor an
+    // answer with a hole in it that reads as complete — and for a sales
+    // assistant, a sentence missing its qualifier is worse than no sentence.
+    return { malformed: true };
   }
 }
 

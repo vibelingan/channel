@@ -154,15 +154,29 @@ export function buildServer(config: BffConfig, deps: BffDependencies = {}) {
 
       // Abort the engine stream when the visitor closes the tab. Without this
       // the model keeps generating — and billing — for a page nobody is on.
+      //
+      // Bound to the RESPONSE, not the request. `req` emits 'close' once its
+      // body has been consumed, which happens on every normal request the
+      // moment `readBody` finishes — so the previous wiring fired on success as
+      // well as on disconnect, and told the two apart only by luck of timing.
+      // The response closes when the socket does, and `writableEnded` says
+      // whether we got there by finishing or by being cut off.
       const controller = new AbortController();
-      req.on('close', () => controller.abort());
-      await streamChatToResponse({
-        engine: deps.engine,
-        request: parsed.value,
-        conversations,
-        res,
-        signal: controller.signal,
-      });
+      const onResponseClosed = () => {
+        if (!res.writableEnded) controller.abort();
+      };
+      res.once('close', onResponseClosed);
+      try {
+        await streamChatToResponse({
+          engine: deps.engine,
+          request: parsed.value,
+          conversations,
+          res,
+          signal: controller.signal,
+        });
+      } finally {
+        res.off('close', onResponseClosed);
+      }
       return;
     }
 

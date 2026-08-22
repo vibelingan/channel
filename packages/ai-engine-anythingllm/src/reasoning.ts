@@ -14,29 +14,37 @@
  * The rule when in doubt is to withhold. A fragment that might still turn into
  * an opening tag is held back until it is proven ordinary text — releasing it
  * early is what leaks half a tag onto the page.
+ *
+ * WHAT THIS IS NOT: a guarantee. It is a mitigation for a protocol that does
+ * not separate reasoning from output. The durable fix is a vendor field that
+ * keeps them apart, and if one becomes available it should replace this rather
+ * than sit alongside it.
  */
 
-const OPEN_TAGS = ['<think>', '<reasoning>'] as const;
-const CLOSE_TAGS = ['</think>', '</reasoning>'] as const;
+/** Tag names that carry model deliberation across the supported model family. */
+const REASONING_TAGS = ['think', 'thinking', 'thought', 'reasoning', 'reflection', 'scratchpad'];
 
-/** Longest prefix of `text` that is also a proper prefix of any tag in `tags`. */
-function heldBackSuffixLength(text: string, tags: readonly string[]): number {
-  const longest = Math.max(...tags.map((t) => t.length));
-  for (let take = Math.min(longest - 1, text.length); take > 0; take--) {
-    const tail = text.slice(text.length - take);
-    if (tags.some((tag) => tag.startsWith(tail))) return take;
-  }
-  return 0;
-}
+/**
+ * A complete tag at the start of the buffer.
+ *
+ * Case-insensitive, tolerant of whitespace inside the brackets, and tolerant of
+ * attributes — `<Think>`, `< think >` and `<think type="internal">` are all the
+ * same tag. Matching only exact lowercase `<think>` meant a model that
+ * capitalised or annotated its tag streamed its reasoning straight through.
+ */
+const TAG_AT_START = new RegExp(`^<\\s*(/?)\\s*(${REASONING_TAGS.join('|')})\\b[^>]*>`, 'i');
 
-function firstIndexOfAny(text: string, tags: readonly string[]): { index: number; tag: string } {
-  let best = { index: -1, tag: '' };
-  for (const tag of tags) {
-    const at = text.indexOf(tag);
-    if (at !== -1 && (best.index === -1 || at < best.index)) best = { index: at, tag };
-  }
-  return best;
-}
+/** Any tag at all, so non-reasoning markup is skipped rather than held back. */
+const ANY_TAG_AT_START = /^<\s*\/?\s*[a-z][^>]*>/i;
+
+/**
+ * Text that is not yet a tag but could still become one.
+ *
+ * Deliberately narrow: `<thi` qualifies, `< 500 units` does not. A looser rule
+ * would hold back every `<` in ordinary prose — "orders < 500" — until the
+ * stream ended.
+ */
+const PARTIAL_TAG = /^<\s*\/?\s*[a-z]*$/i;
 
 export interface ReasoningFilter {
   /** Feed the next stream chunk. Returns the text safe to show right now. */
@@ -47,52 +55,84 @@ export interface ReasoningFilter {
 
 export function createReasoningFilter(): ReasoningFilter {
   let buffer = '';
-  let insideReasoning = false;
+  /** Nesting depth, so `<think>a<think>b</think>c</think>` does not leak `c`. */
+  let depth = 0;
+
+  /** Consume from the buffer until nothing more can be decided. */
+  function drain(): string {
+    let emitted = '';
+
+    for (;;) {
+      if (buffer.length === 0) return emitted;
+
+      const next = buffer.indexOf('<');
+
+      if (depth > 0) {
+        // Inside deliberation: discard everything up to the next tag, and hold
+        // only what might still complete one.
+        if (next === -1) {
+          buffer = PARTIAL_TAG.test(buffer) ? buffer : '';
+          return emitted;
+        }
+        buffer = buffer.slice(next);
+      } else {
+        if (next === -1) {
+          // No tag anywhere: all of it is answer text.
+          emitted += buffer;
+          buffer = '';
+          return emitted;
+        }
+        emitted += buffer.slice(0, next);
+        buffer = buffer.slice(next);
+      }
+
+      const tag = TAG_AT_START.exec(buffer);
+      if (tag) {
+        depth += tag[1] === '/' ? -1 : 1;
+        if (depth < 0) depth = 0; // A stray closing tag closes nothing.
+        buffer = buffer.slice(tag[0].length);
+        continue;
+      }
+
+      const other = ANY_TAG_AT_START.exec(buffer);
+      if (other) {
+        // Ordinary markup. Outside deliberation it is content; inside, it is
+        // still deliberation and gets dropped with everything else.
+        if (depth === 0) emitted += other[0];
+        buffer = buffer.slice(other[0].length);
+        continue;
+      }
+
+      if (PARTIAL_TAG.test(buffer)) {
+        // Might still become a tag once more arrives. Hold it.
+        return emitted;
+      }
+
+      // A `<` that cannot begin a tag — "orders < 500". Emit it and move on,
+      // rather than holding ordinary prose hostage until the stream ends.
+      if (depth === 0) emitted += buffer[0];
+      buffer = buffer.slice(1);
+    }
+  }
 
   return {
     push(chunk: string): string {
       buffer += chunk;
-      let emitted = '';
-
-      for (;;) {
-        if (insideReasoning) {
-          const close = firstIndexOfAny(buffer, CLOSE_TAGS);
-          if (close.index === -1) {
-            // Keep only what could still complete a closing tag; the rest is
-            // deliberation and is dropped rather than buffered forever.
-            const keep = heldBackSuffixLength(buffer, CLOSE_TAGS);
-            buffer = keep > 0 ? buffer.slice(buffer.length - keep) : '';
-            return emitted;
-          }
-          buffer = buffer.slice(close.index + close.tag.length);
-          insideReasoning = false;
-          continue;
-        }
-
-        const open = firstIndexOfAny(buffer, OPEN_TAGS);
-        if (open.index === -1) {
-          const keep = heldBackSuffixLength(buffer, OPEN_TAGS);
-          emitted += buffer.slice(0, buffer.length - keep);
-          buffer = keep > 0 ? buffer.slice(buffer.length - keep) : '';
-          return emitted;
-        }
-        emitted += buffer.slice(0, open.index);
-        buffer = buffer.slice(open.index + open.tag.length);
-        insideReasoning = true;
-      }
+      return drain();
     },
 
     end(): string {
-      // Inside a block at end of stream means the stream was truncated mid
-      // thought. Emitting the remainder would publish exactly what this filter
-      // exists to hide, so it is discarded.
-      if (insideReasoning) {
+      // Still inside deliberation at end of stream means the stream was
+      // truncated mid-thought. Emitting the remainder would publish exactly
+      // what this filter exists to hide, so it is discarded.
+      if (depth > 0) {
         buffer = '';
         return '';
       }
       const rest = buffer;
       buffer = '';
-      return rest;
+      // A held-back fragment that never became a tag is real text.
+      return PARTIAL_TAG.test(rest) || !rest.startsWith('<') ? rest : rest;
     },
   };
 }

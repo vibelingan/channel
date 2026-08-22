@@ -37,16 +37,16 @@ any claim made about progress is checkable against it.
 | 3 | Unsafe engine bypass works regardless of `NODE_ENV` | `FIXED` | 2 |
 | 4 | `/api/ai/chat` registers whenever an engine is injected | `FIXED` | 2 |
 | 5 | Client-supplied assistant history | `FIXED` | 1 |
-| 6 | Cancellation bound to `req.close`, not the response socket | `PHASE_3` | 3 |
-| 7 | Adapter does not run the shared conformance suite | `PHASE_3` | 3 |
-| 8 | `maxOutputTokens` / `maxToolCalls` declared but unenforced | `PHASE_3` | 3 |
-| 9 | Corrupt or truncated SSE treated as success | `PHASE_3` | 3 |
+| 6 | Cancellation bound to `req.close`, not the response socket | `FIXED` | 3 |
+| 7 | Adapter does not run the shared conformance suite | `FIXED` | 3 |
+| 8 | `maxOutputTokens` / `maxToolCalls` declared but unenforced | `FIXED` | 3 |
+| 9 | Corrupt or truncated SSE treated as success | `FIXED` | 3 |
 | 10 | Corpus refresh deletes before it uploads | `PHASE_4` | 4 |
 | 11 | Workspace policy applied without read-back | `PHASE_4` | 4 |
 | 12 | Readiness ignores the engine; version defaults to `unpinned` | `PHASE_4` | 4 |
-| 13 | Reasoning filter is case-sensitive and tag-exact | `PHASE_3` | 3 |
+| 13 | Reasoning filter is case-sensitive and tag-exact | `FIXED` | 3 |
 | 14 | Citation URLs relative and unvalidated | `PHASE_4` | 4 |
-| 15 | Two timers for one deadline | `PHASE_3` | 3 |
+| 15 | Two timers for one deadline | `FIXED` | 3 |
 | 16 | Ordinary CI job runs database tests without a database | `FIXED` | 1 |
 | 17 | `mintplexlabs/anythingllm:latest` is a mutable tag | `PHASE_4` | 4 |
 | 18 | Docker build-context safety | `WITHDRAWN` | — |
@@ -74,10 +74,9 @@ any claim made about progress is checkable against it.
 
 | Status | Count | IDs |
 |---|---|---|
-| `FIXED` | 18 | 2, 3, 4, 5, 16, 25, R1–R12 |
+| `FIXED` | 24 | 2, 3, 4, 5, 6, 7, 8, 9, 13, 15, 16, 25, R1–R12 |
 | `PARTIAL` | 1 | 1 |
 | `WITHDRAWN` | 1 | 18 |
-| `PHASE_3` | 6 | 6, 7, 8, 9, 13, 15 |
 | `PHASE_4` | 8 | 10, 11, 12, 14, 17, 19, 20, 21 |
 | `GATE_PENDING` | 3 | 22, 23, 24 |
 | **Total** | **37** | 25 + 7 + 5, one row per finding, never renumbered |
@@ -217,6 +216,66 @@ disproven claim remained on the BFF service in the same file. Correcting the
 readable copy is not correcting the artifact. `scripts/compose-ports.test.mjs`
 now fails if that assertion reappears in the compose file, the runbook, or this
 document — verified by reintroducing it and watching the test go red.
+
+---
+
+## Phase 3 — engine correctness
+
+All six items closed, and one of them corrected the review rather than the code.
+
+**#7, and a disputed premise.** The review said the shared suite contained a
+contradiction: "the unconditional cancellation test expects idempotent success"
+while `supportsOutOfBandStop: false` "explicitly permits `unknown_run`", and
+proposed making the suite capability-aware.
+
+Building the harness and running it showed otherwise. The suite is
+self-consistent: it requires `stopped`/`already_finished` for a run the adapter
+*created*, and `unknown_run` only for an id it never saw. Those are compatible.
+The adapter was the thing at fault — it deleted every trace of a run once it
+ended, so a second cancel could not tell "already finished" from "never
+existed". Remembering a bounded set of terminal runs fixed it with no change to
+the suite. **12 of 15 passed on first run; the suite needed no amendment.**
+
+That distinction matters operationally too: someone cancelling a finished run
+and someone cancelling a typo need different answers.
+
+**#15 and the hang.** The two same-duration timers were replaced by one
+`Deadline` with a symbol identity, so a caller abort can never be mistaken for
+an expiry by message matching. Writing it surfaced a worse bug: the deadline
+rejected but left the underlying read pending, and the generator's own cleanup
+`await`ed a return that could never settle — so the mechanism meant to end a
+hang *was* a hang. The conformance suite's timeout case reproduced it
+immediately. The deadline now tears the transport down as well as rejecting,
+and cleanup is not awaited.
+
+**#9.** A malformed frame is an error rather than a skipped fragment, and a body
+that ends without the engine's finalize frame is a truncation error rather than
+a `final` assembled from whatever arrived. Exactly one terminal event per
+stream.
+
+**#8.** `maxOutputTokens` is enforced on a documented approximation — four
+characters per token, counted on RAW output so the models' billed reasoning
+counts against the budget, which is the whole point. `maxToolCalls: 0` cannot be
+enforced mid-stream in a protocol that never reports tool calls, so it is
+enforced where it can be: startup refuses to serve a workspace with any agent
+surface enabled, and distinguishes "checked, none" from "could not check".
+
+The taxonomy in LLD-002 §6 has no "limit exceeded" category. A budget overrun is
+reported as `invalid_request`, non-retriable — the least wrong of a closed set,
+and non-retriable is the property that matters, since a retry would overrun
+again. Widening the taxonomy is a change to the port and belongs with its
+owners.
+
+**#6.** Cancellation moved from the request to the response. `req` emits
+`close` once its body is consumed — on every successful call — so the old wiring
+could not distinguish success from disconnect. A real HTTP test now destroys an
+actual client socket and asserts exactly one abort; reverting the wiring makes
+it fail, which also showed the old code did not abort on disconnect **at all**.
+
+**#13.** The filter matched only exact lowercase `<think>`. It now handles case,
+whitespace inside the brackets, attributes, nesting, stray closing tags, and the
+other tag names this model family uses — while still emitting an ordinary `<` in
+prose rather than withholding the rest of the answer.
 
 ---
 

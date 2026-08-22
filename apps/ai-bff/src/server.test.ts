@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert';
+import { request as httpRequest } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import test from 'node:test';
 import { buildServer } from './server.ts';
@@ -225,4 +226,134 @@ test('the dev page follows the harness flag, not NODE_ENV', async () => {
   await withHarnessServer(async (base) => {
     assert.equal((await fetch(`${base}/dev/chat`)).status, 200);
   });
+});
+
+/**
+ * Cancellation over a real socket.
+ *
+ * The unit tests drive `streamChatToResponse` with a fake response object,
+ * which cannot express "the client went away". These use an actual HTTP
+ * connection and destroy it, because the defect being guarded against —
+ * cancellation bound to the request rather than the response — is invisible to
+ * anything that does not have a socket to close.
+ */
+function countingEngine(onSignal: (signal: AbortSignal) => void) {
+  return {
+    capabilities: {
+      engineId: 'stub',
+      engineVersion: '0',
+      supportsIdempotentCreate: false,
+      supportsRunLookupByOperationId: false,
+      supportsStop: true,
+      supportsOutOfBandStop: false,
+      supportsCitations: true,
+    },
+    async createRun(request: { operationId: string }, signal: AbortSignal) {
+      onSignal(signal);
+      return { operationId: request.operationId, engineRunId: 'stub-run' };
+    },
+    async *streamRun(_handle: unknown, signal: AbortSignal) {
+      for (let i = 0; i < 50; i++) {
+        if (signal.aborted) return;
+        yield { type: 'token' as const, text: `chunk-${i} ` };
+        await new Promise((resolve) => setTimeout(resolve, 30));
+      }
+      yield { type: 'final' as const, text: 'done', citations: [] };
+    },
+    async cancelRun() {
+      return 'stopped' as const;
+    },
+    async health() {
+      return { status: 'live' as const, checkedAt: new Date().toISOString() };
+    },
+    async attestKnowledgeCredential() {
+      return { credentialId: 'stub', rotationCounter: 0, spaceId: 'stub' };
+    },
+  };
+}
+
+test('destroying the client socket mid-stream aborts the engine exactly once', async () => {
+  let aborts = 0;
+  let captured: AbortSignal | undefined;
+  const engine = countingEngine((signal) => {
+    captured = signal;
+    signal.addEventListener('abort', () => {
+      aborts++;
+    });
+  });
+
+  const { server, pool } = buildServer(harnessConfig, { engine: engine as never });
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const { port } = server.address() as AddressInfo;
+
+  try {
+    const body = JSON.stringify({ message: 'What is your MOQ?' });
+    const request = httpRequest({
+      host: '127.0.0.1',
+      port,
+      method: 'POST',
+      path: '/api/ai/chat',
+      headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) },
+    });
+    request.end(body);
+
+    const response = await new Promise<import('node:http').IncomingMessage>((resolve, reject) => {
+      request.once('response', resolve);
+      request.once('error', reject);
+    });
+
+    // Read one chunk so the stream is genuinely in progress, then cut the wire.
+    await new Promise<void>((resolve) => response.once('data', () => resolve()));
+    assert.equal(aborts, 0, 'the engine was aborted while the client was still connected');
+
+    request.destroy();
+
+    // Give the server a moment to notice the socket is gone.
+    const deadline = Date.now() + 3_000;
+    while (aborts === 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+
+    assert.equal(aborts, 1, `expected exactly one abort, saw ${aborts}`);
+    assert.equal(captured?.aborted, true);
+  } finally {
+    server.close();
+    await pool.end().catch(() => undefined);
+  }
+});
+
+test('a normally completed response never aborts the engine', async () => {
+  // The previous wiring listened on the REQUEST, which closes as soon as its
+  // body is read — on every successful call, not only on disconnect.
+  let aborts = 0;
+  const engine = {
+    ...countingEngine((signal) => {
+      signal.addEventListener('abort', () => {
+        aborts++;
+      });
+    }),
+    async *streamRun() {
+      yield { type: 'token' as const, text: 'Our MOQ is 500.' };
+      yield { type: 'final' as const, text: 'Our MOQ is 500.', citations: [] };
+    },
+  };
+
+  const { server, pool } = buildServer(harnessConfig, { engine: engine as never });
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const { port } = server.address() as AddressInfo;
+
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/ai/chat`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: 'MOQ?' }),
+    });
+    const text = await res.text();
+    assert.ok(text.includes('"type":"final"'), 'the stream did not complete');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(aborts, 0, 'a completed response aborted the engine');
+  } finally {
+    server.close();
+    await pool.end().catch(() => undefined);
+  }
 });
