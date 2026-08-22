@@ -93,9 +93,20 @@ services:
       ANYTHINGLLM_API_KEY: ${ANYTHINGLLM_API_KEY:?set it in .env.ai}
       # ONE switch for everything that must not face the internet: the
       # /dev/chat page, the /api/ai/chat route, and permission to serve with
-      # unmet engine guarantees. The service REFUSES TO START with this set in
-      # a production environment, so copying this file onto a real server fails
-      # loudly rather than quietly exposing an unauthenticated chat route.
+      # unmet engine guarantees.
+      #
+      # The contract, in full, because an earlier version of this comment stated
+      # the opposite and left the false assurance sitting here after the file
+      # header had already been corrected:
+      #
+      #   - This stack DELIBERATELY enables the harness. It declares development
+      #     in both NODE_ENV and APP_ENV, so the service starts normally.
+      #   - Copying this file somewhere else does NOT turn it into a production
+      #     configuration and does NOT make it refuse to start.
+      #   - What protects this stack is that every published port is bound to
+      #     127.0.0.1. Keep it that way.
+      #   - What refuses the harness is the production IMAGE and the CloudRun
+      #     manifest — neither of which is this file.
       AI_LOCAL_HARNESS: "1"
     ports:
       - "127.0.0.1:58080:8080"

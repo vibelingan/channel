@@ -181,3 +181,32 @@ test('the runbook quotes the port compose publishes', () => {
     assert.equal(port, bffPort.published, `the runbook sends developers to port ${port}`);
   }
 });
+
+test('the disproven fail-closed claim appears nowhere in the deployment docs', () => {
+  // R8 disproved "copying this file onto a real server fails loudly". The file
+  // header was corrected and an identical claim was left standing on the BFF
+  // service twenty lines below, so the false assurance stayed available to the
+  // next reader. Correcting the readable copy is not the same as correcting the
+  // artifact.
+  const sources = [
+    'docker-compose.ai.yml',
+    'docs/ai-platform/LOCAL-DEV-RUNBOOK.md',
+    'docs/ai-platform/REVIEW-TRIAGE-2026-08-19.md',
+  ];
+  // Phrases that assert compose itself fails closed. The corrected text says
+  // the opposite, and quotes the old claim only to mark it wrong — so the
+  // pattern requires the assertion, not a mention.
+  const DISPROVEN = [
+    /copying this file onto a real server fails loudly/i,
+    /copying [^.\n]{0,40}compose[^.\n]{0,40} (?:therefore )?fails? (?:loudly|closed)/i,
+  ];
+  for (const relative of sources) {
+    const text = readFileSync(join(repoRoot, relative), 'utf8');
+    for (const pattern of DISPROVEN) {
+      assert.ok(
+        !pattern.test(text),
+        `${relative} still asserts that copying compose fails closed; it does not`,
+      );
+    }
+  }
+});

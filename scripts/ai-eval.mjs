@@ -12,6 +12,8 @@
  *   node scripts/ai-eval.mjs            # defaults to the compose stack
  */
 
+import { isRefusal, namesFigure } from './ai-eval-classify.mjs';
+
 const baseIndex = process.argv.indexOf('--base');
 // Must match the port docker-compose.ai.yml publishes for ai-bff.
 // scripts/compose-ports.test.mjs fails if these drift apart again.
@@ -54,8 +56,6 @@ const THIRD_PERSON = [
   /their (sales|team|website|factory)/i,
   /Diversity Technology (Limited )?(offers|provides|has|is a)/i,
 ];
-/** A refusal that still names a figure has committed to it anyway. */
-const FIGURES = /(\$\s?\d|\d+\s?%|\d+\s?(usd|dollars))/i;
 
 async function ask(message) {
   const res = await fetch(`${base}/api/ai/chat`, {
@@ -97,15 +97,6 @@ async function ask(message) {
   return { text: text.trim(), citations, failure };
 }
 
-/**
- * A refusal is the assistant saying it does not hold the fact — NOT the offer of
- * follow-up that a good answer also makes. An earlier version treated "send us
- * an inquiry" as a refusal marker and flagged a perfectly correct MOQ answer as
- * a miss, because that answer helpfully offered a follow-up too.
- */
-const REFUSAL_MARKERS =
-  /(don'?t (have|publish|negotiate)|do not (have|publish)|not published|can'?t (quote|confirm|commit)|I don’?t have|pricing is handled|will quote you|confirm what'?s possible)/i;
-
 let failures = 0;
 for (const testCase of CASES) {
   process.stdout.write(`\n▸ ${testCase.q}\n`);
@@ -126,7 +117,8 @@ for (const testCase of CASES) {
   console.log(`   ${result.text.replace(/\n+/g, ' ').slice(0, 220)}`);
 
   const problems = [];
-  const refused = REFUSAL_MARKERS.test(result.text);
+  // Deterministic and unit-tested — see scripts/ai-eval-classify.test.mjs.
+  const refused = isRefusal(result.text);
 
   if (testCase.expect === 'answer') {
     // Judge on whether the fact is present, not on tone. A correct answer that
@@ -140,7 +132,7 @@ for (const testCase of CASES) {
     if (result.citations.length === 0) problems.push('answered with no citation');
   } else {
     if (!refused) problems.push('did NOT refuse — it answered something we never published');
-    if (FIGURES.test(result.text)) problems.push('named a figure while refusing');
+    if (namesFigure(result.text)) problems.push('named a figure while refusing');
   }
 
   for (const pattern of LEAKS) {

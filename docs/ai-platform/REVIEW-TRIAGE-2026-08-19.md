@@ -20,14 +20,15 @@ any claim made about progress is checkable against it.
 - **Round 2** — 7 findings against `8d6ac94..e363fbc`, numbered `R1`–`R7`.
   Round 2 was a **BLOCK**, and it was right to be: three of its findings were
   reproduced here before anything was changed.
-- **Round 3** — 3 findings against `e363fbc..26bc895`, numbered `R8`–`R10`.
+- **Round 3** — 5 findings against `e363fbc..26bc895` and the fix commit that
+  followed, numbered `R8`–`R12`.
   Also a **BLOCK**, and also right. R8 identified a **false safety claim** made
   in the Phase 2 commit and runbook, which is the most serious kind of defect in
   this document: a control that was described as existing and did not.
 
 ---
 
-## Canonical table — 35 findings
+## Canonical table — 37 findings
 
 | # | Finding | Status | Phase |
 |---|---|---|---|
@@ -66,18 +67,20 @@ any claim made about progress is checkable against it.
 | R8 | Compose publishes every service on all interfaces; copy-Compose fail-closed claim was false | `FIXED` | 2 |
 | R9 | Conversation cap exceeded when every stored conversation is active | `FIXED` | 2 |
 | R10 | Evaluation script default port does not match the Compose port | `FIXED` | 2 |
+| R11 | Live evaluator rejects a valid refusal — a flaky oracle | `FIXED` | 2 |
+| R12 | A disproven safety claim left standing elsewhere in the same file | `FIXED` | 2 |
 
 ### Totals, computed from the table
 
 | Status | Count | IDs |
 |---|---|---|
-| `FIXED` | 16 | 2, 3, 4, 5, 16, 25, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10 |
+| `FIXED` | 18 | 2, 3, 4, 5, 16, 25, R1–R12 |
 | `PARTIAL` | 1 | 1 |
 | `WITHDRAWN` | 1 | 18 |
 | `PHASE_3` | 6 | 6, 7, 8, 9, 13, 15 |
 | `PHASE_4` | 8 | 10, 11, 12, 14, 17, 19, 20, 21 |
 | `GATE_PENDING` | 3 | 22, 23, 24 |
-| **Total** | **35** | 25 + 7 + 3, one row per finding, never renumbered |
+| **Total** | **37** | 25 + 7 + 5, one row per finding, never renumbered |
 
 Round 2 was right that "21 accepted, 4 disputed" was not derivable from the
 previous table. It was a count carried in prose rather than computed, which is
@@ -190,6 +193,30 @@ hand-started dev server ever used, while compose publishes 58080. Every case
 failed with `fetch failed` unless the reader knew to pass `--base`. The default
 now matches compose, and a test compares the script, the runbook and the compose
 file so they cannot drift apart again.
+
+**R11 — the evaluator itself was a flaky oracle.** Its refusal test was an
+inline regex listing specific verbs (`can't quote`, `can't confirm`,
+`can't commit`), so a correct refusal reading "we **can't agree** to pricing"
+was reported as a pricing-policy violation. Two runs of an unchanged system
+disagreed purely on the model's synonym choice.
+
+The fix is not a longer verb list, which would keep missing synonyms. The
+classifier now decides on STRUCTURE — a refusal is the assistant negating its
+own ability or willingness, in the first person, whatever verb follows — and
+lives in `scripts/ai-eval-classify.mjs` with 25 fixtures that run without a
+model. The fixtures include the exact wording that broke it, and a genuine
+policy violation that must stay classified as an answer so a real breach is
+never scored as good behaviour.
+
+This mattered more than its P2 label suggests: a red that a rerun turns green
+teaches maintainers to rerun rather than to read.
+
+**R12 — a corrected claim left standing twenty lines below itself.** The compose
+header was fixed to say copying the file does not fail closed; the identical
+disproven claim remained on the BFF service in the same file. Correcting the
+readable copy is not correcting the artifact. `scripts/compose-ports.test.mjs`
+now fails if that assertion reappears in the compose file, the runbook, or this
+document — verified by reintroducing it and watching the test go red.
 
 ---
 
