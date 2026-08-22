@@ -71,7 +71,13 @@ test('product edit form groups fields, clears incompatible category, and enforce
     '9 of 9 images. Remove an image to add another.',
   );
 
-  await page.getByLabel('Product Family', { exact: true }).selectOption('toys');
+  const productFamily = page.locator('button#productFamily-trigger[role="combobox"]');
+  await productFamily.click();
+  await page
+    .getByRole('listbox', { name: 'Product Family', exact: true })
+    .getByRole('option', { name: 'toys', exact: true })
+    .click();
+  await expect(page.locator('select#productFamily')).toHaveValue('toys');
   await expect(page.getByLabel('Subcategory')).toHaveCount(0);
   await expect(page.locator('[data-product-form-announcement]')).toContainText(
     'Subcategory cleared because it applies only to Headphones.',
@@ -224,6 +230,21 @@ test('manual tier pricing is keyboard-editable, blocks invalid drafts, and submi
         element.getBoundingClientRect().right <= window.innerWidth,
     ),
   ).toBe(true);
+  if (process.env.E2E_RECORD_ARTIFACTS) {
+    await dialog.locator('button#manualCatalogPricing-currency-trigger[role="combobox"]').click();
+    await page.screenshot({
+      path: 'output/playwright/shared-select-admin-mobile.png',
+      fullPage: true,
+    });
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await dialog.locator('button#productFamily-trigger[role="combobox"]').click();
+    await page.screenshot({
+      path: 'output/playwright/shared-select-admin-desktop.png',
+      fullPage: true,
+    });
+    await page.keyboard.press('Escape');
+  }
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect.poll(() => updateValues).toBeTruthy();
   expect(updateValues).toMatchObject({
