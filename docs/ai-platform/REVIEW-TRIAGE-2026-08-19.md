@@ -1,6 +1,6 @@
 # External review triage — AI assistant local phase
 
-Two review rounds by Codex 5.6. Every finding appears **exactly once** in the
+Three review rounds by Codex 5.6. Every finding appears **exactly once** in the
 canonical table below, with a status. Totals are computed from that table, so
 any claim made about progress is checkable against it.
 
@@ -20,10 +20,14 @@ any claim made about progress is checkable against it.
 - **Round 2** — 7 findings against `8d6ac94..e363fbc`, numbered `R1`–`R7`.
   Round 2 was a **BLOCK**, and it was right to be: three of its findings were
   reproduced here before anything was changed.
+- **Round 3** — 3 findings against `e363fbc..26bc895`, numbered `R8`–`R10`.
+  Also a **BLOCK**, and also right. R8 identified a **false safety claim** made
+  in the Phase 2 commit and runbook, which is the most serious kind of defect in
+  this document: a control that was described as existing and did not.
 
 ---
 
-## Canonical table — 32 findings
+## Canonical table — 35 findings
 
 | # | Finding | Status | Phase |
 |---|---|---|---|
@@ -59,18 +63,21 @@ any claim made about progress is checkable against it.
 | R5 | Dockerignore test fidelity, and a raw NUL sentinel | `FIXED` | 1 |
 | R6 | Triage accounting not auditable | `FIXED` | 1 |
 | R7 | Knowledge brief overclaims and internal contradictions | `FIXED` | 1 |
+| R8 | Compose publishes every service on all interfaces; copy-Compose fail-closed claim was false | `FIXED` | 2 |
+| R9 | Conversation cap exceeded when every stored conversation is active | `FIXED` | 2 |
+| R10 | Evaluation script default port does not match the Compose port | `FIXED` | 2 |
 
 ### Totals, computed from the table
 
 | Status | Count | IDs |
 |---|---|---|
-| `FIXED` | 13 | 2, 3, 4, 5, 16, 25, R1, R2, R3, R4, R5, R6, R7 |
+| `FIXED` | 16 | 2, 3, 4, 5, 16, 25, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10 |
 | `PARTIAL` | 1 | 1 |
 | `WITHDRAWN` | 1 | 18 |
 | `PHASE_3` | 6 | 6, 7, 8, 9, 13, 15 |
 | `PHASE_4` | 8 | 10, 11, 12, 14, 17, 19, 20, 21 |
 | `GATE_PENDING` | 3 | 22, 23, 24 |
-| **Total** | **32** | 25 from round 1 + 7 from round 2 |
+| **Total** | **35** | 25 + 7 + 3, one row per finding, never renumbered |
 
 Round 2 was right that "21 accepted, 4 disputed" was not derivable from the
 previous table. It was a count carried in prose rather than computed, which is
@@ -129,6 +136,60 @@ because `.env` in a `.dockerignore` matches only the context **root**. A secrets
 file at `apps/ai-bff/.env` would still have been uploaded. `**/.env` and
 `**/.env.*` patterns added. A test written to check a test found a live hole in
 the policy.
+
+---
+
+## Round 3 — a control that was described but did not exist
+
+**R8 is the most serious defect in this whole sequence**, not because of its
+blast radius but because of its kind. The Phase 2 commit message and the runbook
+both stated that copying `docker-compose.ai.yml` onto a real server "fails
+loudly instead of quietly publishing an unauthenticated assistant."
+
+That was false, and it was checkable. Compose sets `NODE_ENV=development` and
+supplied **no `APP_ENV` at all**, so `isProductionEnv` returned false and the
+harness was permitted. Running `loadConfig` against the exact rendered compose
+environment confirms it starts with `localHarness: true`.
+
+Worse, the test named `the local compose environment, deployed to production,
+refuses to start` injected `APP_ENV=production` — a variable compose does not
+set. It proved that an *external platform override* blocks startup, which is a
+different and much weaker statement than its name. A test whose name overstates
+its coverage is how a false claim survives review: the name is what gets read.
+
+The second half of R8 was live exposure. All four services published on
+`0.0.0.0` and `::`:
+
+| Service | Port | What was reachable from the network |
+|---|---:|---|
+| PostgreSQL | 55432 | Database with static credentials |
+| BFF | 58080 | Unauthenticated chat route and dev page |
+| Worker | 58081 | Health surface |
+| AnythingLLM | 53001 | Engine API and administration console |
+
+Fixed by binding every published port to `127.0.0.1`, verified against the
+**daemon-rendered** configuration rather than the literal file — and the first
+version of that verification silently fell back to file parsing because
+`docker compose config` cannot interpolate `${ANYTHINGLLM_API_KEY:?...}` without
+a value. It now supplies a placeholder, prints which source it read, and
+cross-checks the two against each other.
+
+**Corrected claim, stated plainly:** copying this compose file somewhere else
+does *not* fail closed. The production image and the CloudRun manifest fail
+closed. The local stack is protected by reachability — loopback binding — and
+nothing else.
+
+**R9** — `create()` excluded active conversations from eviction and then
+inserted regardless, so the cap was advisory. Reproduced at `maxConversations: 2`
+returning size 3. `create()` now returns `null` at capacity and the route
+answers 503 with `Retry-After` **before** calling the engine, since a run whose
+answer has nowhere to be recorded is spend with no product.
+
+**R10** — the documented `pnpm ai:eval` targeted port 58090, which only a
+hand-started dev server ever used, while compose publishes 58080. Every case
+failed with `fetch failed` unless the reader knew to pass `--base`. The default
+now matches compose, and a test compares the script, the runbook and the compose
+file so they cannot drift apart again.
 
 ---
 

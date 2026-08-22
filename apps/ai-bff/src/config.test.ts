@@ -94,10 +94,12 @@ test('either production signal alone is enough to refuse the harness', () => {
   );
 });
 
-test('the local compose environment, deployed to production, refuses to start', () => {
-  // The exact accident the review named: someone copies docker-compose.ai.yml
-  // onto a server. Compose sets NODE_ENV=development and the harness flag, so
-  // the platform's own APP_ENV=production is what catches it.
+test('a platform that declares production blocks the harness even when the image says development', () => {
+  // Named for what it actually proves. An earlier version of this test called
+  // itself "the local compose environment, deployed to production, refuses to
+  // start" while injecting APP_ENV=production — a variable compose does not
+  // set. It proved that an EXTERNAL override blocks startup, not that copying
+  // the compose file fails closed. It does not; see the test below.
   assert.throws(
     () =>
       loadConfig({
@@ -108,6 +110,22 @@ test('the local compose environment, deployed to production, refuses to start', 
       }),
     /AI_LOCAL_HARNESS/,
   );
+});
+
+test('the compose environment as written starts the harness, and that is the honest position', () => {
+  // The exact environment docker-compose.ai.yml renders — nothing injected.
+  // It declares development, so the harness is permitted and the service
+  // starts. Copying this file to a reachable host does NOT fail closed, and
+  // claiming otherwise was wrong. What protects the stack is that every
+  // published port binds to 127.0.0.1 (scripts/compose-ports.test.mjs), plus
+  // the production image and CloudRun manifest, which do fail closed.
+  const config = loadConfig({
+    ...BASE_ENV,
+    NODE_ENV: 'development',
+    APP_ENV: 'development',
+    AI_LOCAL_HARNESS: '1',
+  });
+  assert.equal(config.localHarness, true);
 });
 
 test('production starts normally when the harness flag is absent', () => {

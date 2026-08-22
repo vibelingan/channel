@@ -9,11 +9,13 @@
  *
  * Run it after changing the answer policy or the corpus.
  *
- *   node scripts/ai-eval.mjs --base http://localhost:58090
+ *   node scripts/ai-eval.mjs            # defaults to the compose stack
  */
 
 const baseIndex = process.argv.indexOf('--base');
-const base = (baseIndex >= 0 ? process.argv[baseIndex + 1] : 'http://localhost:58090').replace(
+// Must match the port docker-compose.ai.yml publishes for ai-bff.
+// scripts/compose-ports.test.mjs fails if these drift apart again.
+const base = (baseIndex >= 0 ? process.argv[baseIndex + 1] : 'http://localhost:58080').replace(
   /\/+$/,
   '',
 );

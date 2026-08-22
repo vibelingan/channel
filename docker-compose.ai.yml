@@ -19,7 +19,22 @@
 
 name: channel-ai
 
-# PORT RULE: every published port here is in the 5xxxx range.
+# PORT RULE 1 — every published port binds to 127.0.0.1 ONLY.
+#
+# `"58080:8080"` binds 0.0.0.0 and ::, which puts all four of these on every
+# network the machine is attached to. That is a PostgreSQL with static
+# credentials, an AnythingLLM admin surface, and an unauthenticated chat route,
+# reachable by anything on the same café wifi. Never publish a port from this
+# file without the 127.0.0.1 prefix; scripts/compose-ports.test.mjs fails if you
+# do.
+#
+# This binding is also what makes copying the file somewhere else safe. The
+# service does NOT refuse to start on this configuration — it declares
+# development, so the harness is permitted — and an earlier version of this
+# comment wrongly claimed it did. What fails closed is the production image and
+# the CloudRun manifest. Here, the control is reachability.
+#
+# PORT RULE 2 — every published port is in the 5xxxx range.
 # This machine already runs other project stacks, and low ports collide: 5432
 # was taken by another Postgres, 4321/4322/4323 by stale Astro servers, and 3001
 # by an unrelated node service. A collision does not fail loudly — docker
@@ -43,7 +58,7 @@ services:
     # containers (a stale one was found squatting ports during MIU 0), and a
     # port clash here looks like a database fault.
     ports:
-      - "55432:5432"
+      - "127.0.0.1:55432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ai -d ai_assistant"]
       interval: 3s
@@ -62,6 +77,10 @@ services:
       # start-up failure. Compose IS the local development environment, so it
       # opts back out here and nowhere else.
       NODE_ENV: development
+      # Declared, not left absent. The harness refusal keys off NODE_ENV and
+      # APP_ENV, and an unset APP_ENV is what made the earlier "copying this
+      # file to a server fails closed" claim false.
+      APP_ENV: development
       DATABASE_URL: postgres://ai:ai@postgres:5432/ai_assistant
       PORT: "8080"
       # The assistant is served from its own origin, so the widget always calls
@@ -79,7 +98,7 @@ services:
       # loudly rather than quietly exposing an unauthenticated chat route.
       AI_LOCAL_HARNESS: "1"
     ports:
-      - "58080:8080"
+      - "127.0.0.1:58080:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -100,7 +119,7 @@ services:
       DATABASE_URL: postgres://ai:ai@postgres:5432/ai_assistant
       PORT: "8081"
     ports:
-      - "58081:8081"
+      - "127.0.0.1:58081:8081"
     depends_on:
       postgres:
         condition: service_healthy
@@ -142,7 +161,7 @@ services:
       DISABLE_TELEMETRY: "true"
     ports:
       # 53001, not 3001 — see the port rule at the top of this file.
-      - "53001:3001"
+      - "127.0.0.1:53001:3001"
     volumes:
       - ai-anythingllm:/app/server/storage
     healthcheck:

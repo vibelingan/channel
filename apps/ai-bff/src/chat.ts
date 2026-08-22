@@ -104,10 +104,29 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
   // An id the client did not get from us — expired, guessed, or invented — is
   // not an error. It starts a new conversation, which is what the visitor sees
   // anyway, and avoids handing out an oracle for which ids exist.
-  const conversationId =
+  const existing =
     request.conversationId && conversations.has(request.conversationId)
       ? request.conversationId
-      : conversations.create();
+      : null;
+  const conversationId = existing ?? conversations.create();
+
+  // The store is full and every conversation in it is mid-answer. Refuse HERE,
+  // before the engine is called: starting a run whose answer has nowhere to be
+  // recorded would spend tokens producing something that is then discarded.
+  if (conversationId === null) {
+    res.writeHead(503, { 'content-type': 'application/json', 'retry-after': '5' });
+    res.end(
+      JSON.stringify({
+        ok: false,
+        error: {
+          code: 'AT_CAPACITY',
+          message:
+            'The assistant is handling as many conversations as it can. Please try again shortly.',
+        },
+      }),
+    );
+    return;
+  }
 
   // Refused before any streaming header is written, so the caller gets an
   // ordinary status rather than an error buried inside a stream it is already

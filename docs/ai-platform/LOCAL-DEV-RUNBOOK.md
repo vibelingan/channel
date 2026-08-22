@@ -117,9 +117,20 @@ Worth knowing before you judge what you are looking at.
   Without that flag the conversation route **does not exist**: it answers 404,
   the same as a route nobody ever wrote. With the flag set in a production
   environment (`NODE_ENV=production` or `APP_ENV=production`), the service
-  refuses to start and says why. Copying `docker-compose.ai.yml` onto a real
-  server therefore fails loudly instead of quietly publishing an
-  unauthenticated assistant.
+  refuses to start and says why.
+
+  **Correction to an earlier version of this document.** It claimed that copying
+  `docker-compose.ai.yml` onto a real server "fails loudly". That was wrong.
+  Compose declares `development`, so the harness is permitted and the stack
+  starts normally. What fails closed is the production **image** and the
+  **CloudRun manifest** — not this file.
+
+  What protects the local stack is that every published port binds to
+  `127.0.0.1` only. Before that change all four services bound `0.0.0.0` and
+  `::`, which put a PostgreSQL with static credentials, the AnythingLLM
+  administration console, and an unauthenticated chat route on every network the
+  laptop was attached to. `scripts/compose-ports.test.mjs` fails if a port is
+  ever published without the loopback prefix.
 
 ---
 

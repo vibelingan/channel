@@ -33,7 +33,17 @@ export interface ConversationStoreOptions {
 }
 
 export interface ConversationStore {
-  create(): string;
+  /**
+   * A new conversation id, or `null` when the store is full and nothing can be
+   * safely evicted — i.e. every conversation it holds is mid-answer.
+   *
+   * Returning null rather than growing is the point. The previous version
+   * excluded active conversations from eviction and then inserted anyway, so
+   * with enough simultaneous first-questions the map grew past its cap without
+   * limit. "Bounded" has to mean the size never exceeds the bound, including
+   * under exactly the load a bound exists to survive.
+   */
+  create(): string | null;
   /** Existing turns, oldest first. Unknown or expired ids yield an empty list. */
   turns(id: string): EngineTurn[];
   append(id: string, turn: EngineTurn): void;
@@ -93,7 +103,7 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
   }
 
   return {
-    create(): string {
+    create(): string | null {
       expire();
       // Bounded on purpose: an unbounded map on a public route is a memory
       // exhaustion primitive that needs no exploit, just traffic.
@@ -101,6 +111,11 @@ export function createConversationStore(options: ConversationStoreOptions = {}):
       const evictable = [...conversations.keys()].filter((key) => !activeTurns.has(key));
       while (conversations.size >= maxConversations && evictable.length > 0) {
         conversations.delete(evictable.shift() as string);
+      }
+      if (conversations.size >= maxConversations) {
+        // Everything held is mid-answer. Refuse rather than exceed the cap —
+        // evicting one of them would silently discard a completed answer.
+        return null;
       }
       const id = randomUUID();
       conversations.set(id, { turns: [], touchedAt: now() });

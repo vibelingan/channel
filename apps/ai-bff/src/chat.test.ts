@@ -422,7 +422,7 @@ test('a second terminal event is neither forwarded nor stored', async () => {
 
 test('a second concurrent turn on one conversation is refused, not interleaved', async () => {
   const conversations = createConversationStore();
-  const id = conversations.create();
+  const id = conversations.create() as string;
   assert.equal(conversations.tryBeginTurn(id), true);
 
   const out = fakeResponse();
@@ -436,4 +436,43 @@ test('a second concurrent turn on one conversation is refused, not interleaved',
   assert.equal(out.status, 409);
   assert.ok(out.body.includes('CONVERSATION_BUSY'));
   assert.deepEqual(conversations.turns(id), [], 'the refused turn still wrote history');
+});
+
+test('at capacity the request is refused BEFORE the engine is called', async () => {
+  // Calling the engine first would spend tokens producing an answer that has
+  // nowhere to be recorded.
+  const conversations = createConversationStore({ maxConversations: 1 });
+  const held = conversations.create() as string;
+  conversations.tryBeginTurn(held);
+
+  const seen: SeenRequest = { turns: undefined };
+  const out = fakeResponse();
+  await streamChatToResponse({
+    engine: stubEngine(FINAL, seen),
+    request: { message: 'What is your MOQ?' },
+    conversations,
+    res: out.res as never,
+    signal: new AbortController().signal,
+  });
+
+  assert.equal(out.status, 503);
+  assert.ok(out.body.includes('AT_CAPACITY'));
+  assert.equal(out.headers['retry-after'], '5');
+  assert.equal(seen.turns, undefined, 'the engine was called despite being at capacity');
+});
+
+test('an existing conversation still works while the store is at capacity', async () => {
+  // Capacity limits NEW conversations. Someone already talking must not be cut
+  // off because the store is full.
+  const conversations = createConversationStore({ maxConversations: 1 });
+  const first = await run({ engine: stubEngine(FINAL), message: 'MOQ?', conversations });
+  assert.equal(conversations.size(), 1);
+
+  const { out } = await run({
+    engine: stubEngine(FINAL),
+    message: 'And lead time?',
+    conversationId: first.conversationId,
+    conversations,
+  });
+  assert.equal(out.status, 200, 'a continuing conversation was refused for capacity');
 });

@@ -63,9 +63,12 @@ test('container ports match the local compose stack', () => {
     const service = compose.services[def.name];
     assert.ok(service, `docker-compose.ai.yml has no ${def.name} service`);
     assert.equal(String(service.environment.PORT), String(def.containerPort));
-    const published = service.ports.map((p) => String(p).split(':'));
+    // Short syntax is [host_ip:]published:target, so the CONTAINER port is the
+    // last segment. Assuming two segments broke the moment ports were bound to
+    // 127.0.0.1 and grew a third.
+    const containerPorts = service.ports.map((entry) => String(entry).split(':').at(-1));
     assert.ok(
-      published.some(([, container]) => container === String(def.containerPort)),
+      containerPorts.includes(String(def.containerPort)),
       `${def.name} does not publish container port ${def.containerPort} in compose`,
     );
   }
