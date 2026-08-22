@@ -6,6 +6,7 @@ import {
   type ProductFamily,
 } from '@vibelingan-channel/shared';
 import { useState } from 'react';
+import { Select } from '../../components/form/Select.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { ImageManager } from './ImageManager.tsx';
 import { QuantityTierPricingEditor } from './QuantityTierPricingEditor.tsx';
@@ -381,26 +382,17 @@ function Field({
 
   if (field.type === 'select') {
     return (
-      <div>
-        {label}
-        <select
-          id={field.name}
-          value={String(value)}
-          onChange={(e) => onChange(e.target.value)}
-          className={inputClass}
-          required={field.required}
-          aria-invalid={Boolean(error) || undefined}
-          aria-describedby={describedBy}
-        >
-          <option value="">Select…</option>
-          {field.options?.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-        {fieldError}
-      </div>
+      <Select
+        id={field.name}
+        label={field.label}
+        options={field.options ?? []}
+        value={String(value)}
+        placeholder="Select…"
+        required={field.required}
+        error={error}
+        triggerClassName="mt-1"
+        onChange={onChange}
+      />
     );
   }
 

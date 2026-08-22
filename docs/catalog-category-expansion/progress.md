@@ -1,5 +1,8 @@
 # Catalog Category Expansion — Progress
 
+Historical chronological log. The current source of truth for status, SHAs, run IDs, and next action
+is `EXECUTION.md`; older counts below are retained as point-in-time evidence, not current results.
+
 ## 2026-08-19
 
 - Interpreted the requested deliverable as requirements and UI design only, with implementation deferred until client confirmation.

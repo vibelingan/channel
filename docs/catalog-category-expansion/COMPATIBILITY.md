@@ -1,6 +1,7 @@
 # Catalog Category Expansion - Compatibility Gate
 
-MIU 22 cross-file and release-readiness checklist for `feat/catalog-category-design`.
+Historical MIU 22 checklist for `feat/catalog-category-design`. Current post-V1.1 enhancement status
+and deployment evidence live in `EXECUTION.md`; where this snapshot differs, `EXECUTION.md` controls.
 
 ## Compatibility Matrix
 
@@ -8,12 +9,12 @@ MIU 22 cross-file and release-readiness checklist for `feat/catalog-category-des
 |---|---|---|---|
 | Product family | Closed set is Headphones, AI Gadgets, Toys, Misc; legacy missing-family Headphones remains readable without mutation | Shared contract tests, public API tests, exact local seed E2E | Passed |
 | Identity | Slug/SKU normalization and reservations remain atomic and owner-bound | Shared/Admin/DB/local race tests | Passed |
-| Publication | Published products require family, slug, SKU, name, description, image, and non-archived state | Admin transaction tests and disposable lifecycle E2E | Passed |
+| Publication | Published products require family, name, description, image, and non-archived state; slug/SKU are optional addressability metadata | Admin transaction tests and disposable lifecycle E2E | Passed |
 | Public API | Family/filter/search/page composition, slug detail, archive suppression, max-nine images, and allowlist projection remain aligned | Public/local tests, catalog browser suite, local seed E2E | Passed |
 | Admin UI | Products tabs/form/media states remain registry-driven; VIP and Alibaba-owned fields are not editable | Site tests and six deployed-safe Admin browser journeys | Passed |
 | Media | Product maximum is nine; Overstock remains eighteen; visible galleries preserve bounded order | Shared/media tests and SKU browser coverage | Passed |
 | Alibaba | Sync does not own family/category/slug/SKU/images/publication; promotion modifies Alibaba fields only | MIU 19 Alibaba/shared regression suites | Passed |
-| Pricing | Linked products never fall back to manual/VIP; fixed uses Offer, ranges use AggregateOffer, malformed values fail closed | MIU 18/20 focused and browser tests | Passed |
+| Pricing | Alibaba-linked products never fall back; unlinked products use manual tiers before scalar fallback; malformed values fail closed | MIU 18/20 and MIU 26–29 focused/browser tests | Passed |
 | VIP retirement | No public/auth/Admin presentation exposes VIP copy or values; storage/type compatibility remains | MIU 18 tests, catalog/Admin E2E, public projection negatives | Passed |
 | SEO | Canonical trailing slashes, visible/structured breadcrumbs, bounded metadata, SKU noindex, and sitemap exclusions remain aligned | MIU 20 tests, browser checks, production artifact parser | Passed |
 | Menu | Native no-JS disclosure exposes hub/four families; keyboard/focus/mobile and active-state behavior remain correct | Header source tests and 16 public browser journeys | Passed |
@@ -59,10 +60,10 @@ cross-file-reasoning:
 | CloudBase SDK contract | Installed SDK/runtime probes pass | Passed |
 | Static site | Explicit production origin build and secret-name scan pass | Passed |
 | Local E2E | Exact seed plus real lifecycle on deleted temporary DB | Passed |
-| Preview E2E | Public catalog and non-mutating Admin UI on deployed test SHA | Passed: public 37/37 and catalog 16/16 on run `32359898758` |
-| Deployed smoke | Release SHA, routes, declared stocked families, optional slug detail, negatives, protected Admin read | Passed: run `32359898758` |
+| Preview E2E | Public catalog and catalog UI on deployed test SHA | Passed: public 37/37 and catalog 17/17 on run `32447787405` |
+| Deployed smoke | Release SHA, routes, declared stocked families, optional slug detail, negatives, protected Admin read | Passed: release `41701da` on run `32447787405` |
 | Independent review | No open assumption/cross-file findings | Passed; remediation findings closed and recorded |
-| Remote delivery | Reviewed implementation SHA pushed to one feature branch | Passed: `8f64659`; PR #27 open; current head/checks are queried at review time |
+| Remote delivery | Reviewed implementation SHA pushed to one feature branch | Passed: `1f8f21c`; PR #27 open; current head/checks are queried at review time |
 | Production | Explicit approval before live smoke/deploy | Not authorized |
 
 ## Risk Register
