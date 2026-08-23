@@ -1,6 +1,6 @@
 # External review triage — AI assistant local phase
 
-Three review rounds by Codex 5.6. Every finding appears **exactly once** in the
+Four review rounds by Codex 5.6. Every finding appears **exactly once** in the
 canonical table below, with a status. Totals are computed from that table, so
 any claim made about progress is checkable against it.
 
@@ -20,6 +20,11 @@ any claim made about progress is checkable against it.
 - **Round 2** — 7 findings against `8d6ac94..e363fbc`, numbered `R1`–`R7`.
   Round 2 was a **BLOCK**, and it was right to be: three of its findings were
   reproduced here before anything was changed.
+- **Round 5** — 1 new finding (`R13`) plus **three reopenings** of items this
+  document had marked `FIXED`: R11, #8 and #13. A reopening is worth more than a
+  new finding, because a wrong `FIXED` is a claim this document made and did not
+  hold. All four were reproduced here before anything changed, and the R13
+  timing matched the reviewer's to the millisecond.
 - **Round 3** — 5 findings against `e363fbc..26bc895` and the fix commit that
   followed, numbered `R8`–`R12`.
   Also a **BLOCK**, and also right. R8 identified a **false safety claim** made
@@ -28,7 +33,7 @@ any claim made about progress is checkable against it.
 
 ---
 
-## Canonical table — 37 findings
+## Canonical table — 38 findings
 
 | # | Finding | Status | Phase |
 |---|---|---|---|
@@ -39,12 +44,12 @@ any claim made about progress is checkable against it.
 | 5 | Client-supplied assistant history | `FIXED` | 1 |
 | 6 | Cancellation bound to `req.close`, not the response socket | `FIXED` | 3 |
 | 7 | Adapter does not run the shared conformance suite | `FIXED` | 3 |
-| 8 | `maxOutputTokens` / `maxToolCalls` declared but unenforced | `FIXED` | 3 |
+| 8 | `maxOutputTokens` / `maxToolCalls` declared but unenforced — reopened R5 | `FIXED` | 3 |
 | 9 | Corrupt or truncated SSE treated as success | `FIXED` | 3 |
 | 10 | Corpus refresh deletes before it uploads | `PHASE_4` | 4 |
 | 11 | Workspace policy applied without read-back | `PHASE_4` | 4 |
 | 12 | Readiness ignores the engine; version defaults to `unpinned` | `PHASE_4` | 4 |
-| 13 | Reasoning filter is case-sensitive and tag-exact | `FIXED` | 3 |
+| 13 | Reasoning filter leaks split attribute-bearing tags — reopened R5 | `FIXED` | 3 |
 | 14 | Citation URLs relative and unvalidated | `PHASE_4` | 4 |
 | 15 | Two timers for one deadline | `FIXED` | 3 |
 | 16 | Ordinary CI job runs database tests without a database | `FIXED` | 1 |
@@ -67,19 +72,20 @@ any claim made about progress is checkable against it.
 | R8 | Compose publishes every service on all interfaces; copy-Compose fail-closed claim was false | `FIXED` | 2 |
 | R9 | Conversation cap exceeded when every stored conversation is active | `FIXED` | 2 |
 | R10 | Evaluation script default port does not match the Compose port | `FIXED` | 2 |
-| R11 | Live evaluator rejects a valid refusal — a flaky oracle | `FIXED` | 2 |
+| R11 | Evaluator cannot identify WHICH proposition was refused — reopened R5 | `FIXED` | 2 |
 | R12 | A disproven safety claim left standing elsewhere in the same file | `FIXED` | 2 |
+| R13 | Owner abort waits out the full stream deadline | `FIXED` | 3 |
 
 ### Totals, computed from the table
 
 | Status | Count | IDs |
 |---|---|---|
-| `FIXED` | 24 | 2, 3, 4, 5, 6, 7, 8, 9, 13, 15, 16, 25, R1–R12 |
+| `FIXED` | 25 | 2, 3, 4, 5, 6, 7, 8, 9, 13, 15, 16, 25, R1–R13 |
 | `PARTIAL` | 1 | 1 |
 | `WITHDRAWN` | 1 | 18 |
 | `PHASE_4` | 8 | 10, 11, 12, 14, 17, 19, 20, 21 |
 | `GATE_PENDING` | 3 | 22, 23, 24 |
-| **Total** | **37** | 25 + 7 + 5, one row per finding, never renumbered |
+| **Total** | **38** | 25 + 7 + 5 + 1, one row per finding, never renumbered |
 
 Round 2 was right that "21 accepted, 4 disputed" was not derivable from the
 previous table. It was a count carried in prose rather than computed, which is
@@ -276,6 +282,80 @@ it fail, which also showed the old code did not abort on disconnect **at all**.
 whitespace inside the brackets, attributes, nesting, stray closing tags, and the
 other tag names this model family uses — while still emitting an ordinary `<` in
 prose rather than withholding the rest of the answer.
+
+---
+
+## Round 5 — three of my own `FIXED` marks were wrong
+
+Reopenings matter more than new findings. A wrong `FIXED` is this document
+asserting something it had not established, and every one of these passed a test
+I wrote — which means the tests encoded my idea of the problem rather than the
+problem.
+
+**R11 — the classifier was wrong in the OPPOSITE direction from last time.**
+Round 3 caught it failing a valid refusal that said "can't agree". I replaced
+the verb list with "any first-person negation means refusal", and that scored
+these as compliant:
+
+```text
+We don't compromise on quality. Yes, we are ISO 9001 and IATF 16949 certified.
+We don't usually delay shipments. We can ship to Brazil next Friday.
+We can't discuss every detail here. Our IATF 16949 certificate is current.
+```
+
+Each opens with an unrelated negation and then makes exactly the commitment the
+evaluation exists to catch — **a silent false green on certification and
+delivery claims, which is worse than the flaky red it replaced, because nobody
+reruns a pass.** It also failed a textbook refusal for repeating the visitor's
+own figure while denying it.
+
+Both mistakes share a root: judging policy from whether refusal-shaped WORDS
+appear anywhere, instead of from what the answer asserts about the thing asked.
+Compliance is now decided by `affirmativeClaims` — does any clause ASSERT the
+prohibited proposition — with negation attached to the clause it governs. A
+figure inside a denied clause is a denial; one the assistant offers is a
+commitment. Verified in both directions: the three bad answers are now caught,
+the denial now passes.
+
+**#8 — a four-characters-per-token budget is an English rule.** 80 Chinese
+characters passed a 20-token budget, because 80/4 read as 20 tokens while common
+tokenizers charge close to one token per CJK character — roughly four times the
+intended output. My comment had claimed four-per-token was a conservative
+over-estimate; for CJK it is the opposite. The estimate is now script-aware and
+biased to trip early, with CJK, Hangul, Kana, emoji and mixed-script tests.
+
+The tool half was worse. "Unknown" warned and served, so `maxToolCalls: 0` was
+enforced only when the check happened to succeed — a probe against an
+unreachable endpoint logged `engine.toolsurface.unverified` and started chat
+anyway. That is not a control. Unknown now refuses, and all three states are
+tested at the composition root rather than only reachable by booting the
+process.
+
+**#13 — whole attribute-bearing tags and split tag NAMES were each handled; the
+combination was not.** Fed `['<think type="', 'internal">SECRET</think>…']` the
+filter emitted the opening tag and the secret, because once an attribute
+appeared the buffer stopped looking like a partial tag and was released as
+prose. Two regex-based attempts leaked; the third implementation is a character
+state machine tracking bracket, slash, name, quoted and unquoted attributes, and
+nesting across arbitrary chunk boundaries. Tested one character per chunk.
+
+One deliberate policy change came with it: `<thi` at end of stream is now
+withheld rather than flushed. The costs are asymmetric — withholding loses four
+characters, flushing starts leaking deliberation.
+
+**R13 — owner abort waited out the deadline.** The abort listener told the
+transport to stop, but the promise raced by `Deadline.guard` contained only the
+read and the deadline. A transport that ignores abort and sends nothing left the
+read pending, so cancellation could only take effect when the deadline fired:
+401ms for an abort at 20ms against a 400ms deadline, matching the reviewer's
+measurement exactly. Now 21ms.
+
+The shared suite could not have caught it: its cancellation cases abort after
+receiving a frame, against a transport that cooperates. A new scenario scripts a
+vendor that accepts the connection, goes silent, and ignores abort — the case
+cancellation actually exists for. It is optional in the harness because an
+in-process fake has no transport to ignore anything, and required in spirit for
+any adapter that talks over a network.
 
 ---
 

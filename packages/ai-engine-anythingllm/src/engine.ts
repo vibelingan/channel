@@ -65,15 +65,45 @@ interface VendorSource {
 }
 
 /**
- * Characters per token, for budget accounting only.
- *
- * This protocol reports real usage in its final frame, which is too late to
- * stop a runaway answer, so the budget is enforced on an approximation. Four
- * characters per token is the usual rule of thumb for this model family. It is
- * deliberately a slight OVER-estimate of what a token costs, so the guard trips
- * a little early rather than a little late.
+ * Latin-ish characters per token. Applies only to scripts where a token spans
+ * several characters — English, and most European languages.
  */
-const CHARS_PER_TOKEN = 4;
+const LATIN_CHARS_PER_TOKEN = 4;
+
+/**
+ * Estimate the tokens a piece of output costs.
+ *
+ * APPROXIMATE, and named so. This protocol reports real usage only in its final
+ * frame, which is far too late to stop a runaway answer, so the budget has to
+ * be enforced on an estimate.
+ *
+ * It is script-aware because a flat four-characters-per-token is an ENGLISH
+ * rule and this assistant answers multilingual customers. Measured: 80 Chinese
+ * characters passed a 20-token budget, because 80 characters divided by four
+ * read as 20 tokens — while common tokenizers charge close to one token per CJK
+ * character, so the real cost was around four times the limit. The old comment
+ * claimed four-per-token was a conservative over-estimate; for CJK it is the
+ * opposite.
+ *
+ * Deliberately errs high: CJK, Hangul, Kana, emoji and other non-Latin code
+ * points are charged a full token each, so the guard trips a little early
+ * rather than a little late.
+ */
+export function estimateTokens(text: string): number {
+  let dense = 0;
+  let latin = 0;
+  for (const character of text) {
+    const code = character.codePointAt(0) ?? 0;
+    // Everything above the Latin/Greek/Cyrillic range: CJK, Kana, Hangul,
+    // Thai, Devanagari, emoji and the rest. Charged one token per code point.
+    if (code > 0x2e80 || (code >= 0x0590 && code <= 0x08ff)) {
+      dense += 1;
+    } else {
+      latin += 1;
+    }
+  }
+  return dense + Math.ceil(latin / LATIN_CHARS_PER_TOKEN);
+}
 
 /** How many finished runs are remembered, so `cancelRun` can distinguish
  * "already finished" from "never existed" without growing without bound. */
@@ -87,6 +117,9 @@ const REMEMBERED_RUNS = 1_000;
  * one sentinel is deterministic; message matching is not, and cannot tell a
  * caller's abort from an expiry that happened to phrase itself the same way.
  */
+/** Resolution sentinel for "the caller aborted", distinct from any real value. */
+const ABORTED = Symbol('aborted');
+
 class Deadline {
   readonly #expiry: symbol = Symbol('deadline');
   readonly #timer: ReturnType<typeof setTimeout>;
@@ -115,16 +148,60 @@ class Deadline {
     return Promise.race([work, this.#expired]);
   }
 
-  /** Re-yield `source`, applying the same deadline to every step. */
-  async *guard<T>(source: AsyncIterable<T>): AsyncGenerator<T> {
+  /**
+   * As `race`, but a caller abort also wins — so a hung connect does not hold
+   * the run until the deadline. Rejects with an `AbortError` the caller's own
+   * `signal.aborted` check then recognises.
+   */
+  raceWithAbort<T>(signal: AbortSignal, work: Promise<T>): Promise<T> {
+    if (signal.aborted) return Promise.reject(new DOMException('aborted', 'AbortError'));
+    let onAbort: (() => void) | undefined;
+    const aborted = new Promise<never>((_, reject) => {
+      onAbort = () => reject(new DOMException('aborted', 'AbortError'));
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
+    aborted.catch(() => undefined);
+    return Promise.race([work, this.#expired, aborted]).finally(() => {
+      if (onAbort) signal.removeEventListener('abort', onAbort);
+    });
+  }
+
+  /**
+   * Re-yield `source`, applying the same deadline to every step — and ending
+   * immediately when the caller aborts.
+   *
+   * The caller's signal has to be one of the racers, not merely something that
+   * tells the transport to stop. A transport that ignores abort and then sends
+   * nothing leaves the read pending, so cancellation could only take effect
+   * when the deadline fired: measured at 401ms for an abort issued at 20ms
+   * against a 400ms deadline. A visitor pressing Stop is not asking to wait out
+   * the run.
+   */
+  async *guard<T>(source: AsyncIterable<T>, signal?: AbortSignal): AsyncGenerator<T> {
     const iterator = source[Symbol.asyncIterator]();
+    let onAbort: (() => void) | undefined;
+    const abortedEarly: Promise<typeof ABORTED> | null = signal
+      ? new Promise((resolve) => {
+          if (signal.aborted) return resolve(ABORTED);
+          onAbort = () => resolve(ABORTED);
+          signal.addEventListener('abort', onAbort, { once: true });
+        })
+      : null;
+
     try {
       for (;;) {
-        const next = await this.race(iterator.next());
+        const racers: Promise<IteratorResult<T> | typeof ABORTED>[] = [
+          iterator.next(),
+          this.#expired,
+        ];
+        if (abortedEarly) racers.push(abortedEarly);
+        const next = await Promise.race(racers);
+        if (next === ABORTED) return;
         if (next.done) return;
         yield next.value;
       }
     } finally {
+      if (onAbort && signal) signal.removeEventListener('abort', onAbort);
       // NOT awaited. A generator suspended on a read that never settles cannot
       // finish returning, so awaiting its cleanup here would block forever on
       // exactly the failure this class exists to end.
@@ -228,16 +305,15 @@ export class AnythingLlmEngine implements ConversationEngine {
 
     const filter = createReasoningFilter();
     const citations = new Map<string, EngineCitation>();
-    // Approximate, and documented as such: this protocol reports usage only in
-    // its final frame, which is far too late to stop a runaway answer. Four
-    // characters per token is the usual rule of thumb for this model family.
-    const maxOutputChars = request.limits.maxOutputTokens * CHARS_PER_TOKEN;
-    let producedChars = 0;
+    // See `estimateTokens`: approximate, script-aware, and biased to trip early.
+    const maxOutputTokens = request.limits.maxOutputTokens;
+    let producedTokens = 0;
     let visible = '';
     let sawTerminalFrame = false;
 
     try {
-      const response = await deadline.race(
+      const response = await deadline.raceWithAbort(
+        signal,
         this.#fetch(
           `${this.#config.baseUrl}/api/v1/workspace/${this.#config.workspaceSlug}/stream-chat`,
           {
@@ -264,7 +340,7 @@ export class AnythingLlmEngine implements ConversationEngine {
 
       let overlong = false;
 
-      for await (const frame of deadline.guard(readSseFrames(response.body))) {
+      for await (const frame of deadline.guard(readSseFrames(response.body), signal)) {
         // Checked per frame, not left to the transport. Frames already buffered
         // in the stream keep arriving after an abort, so without this the
         // caller's cancellation would be honoured only once the buffer drained.
@@ -292,8 +368,8 @@ export class AnythingLlmEngine implements ConversationEngine {
           // Counted RAW, before the reasoning filter. The models bill their
           // private reasoning inside the same completion budget, so counting
           // only what a visitor sees would let a run spend far past its limit.
-          producedChars += frame.textResponse.length;
-          if (producedChars > maxOutputChars) {
+          producedTokens += estimateTokens(frame.textResponse);
+          if (producedTokens > maxOutputTokens) {
             overlong = true;
             break;
           }
@@ -325,10 +401,15 @@ export class AnythingLlmEngine implements ConversationEngine {
         // the port and belongs with its owners.
         yield this.#error(
           'invalid_request',
-          'engine output exceeded the run budget; raise maxOutputTokens or narrow the profile',
+          'engine output exceeded the estimated run budget; raise maxOutputTokens or narrow the profile',
         );
         return;
       }
+
+      // A caller who aborted is not owed an error. They asked for it to stop,
+      // and reporting "the stream ended early" would turn a visitor pressing
+      // Stop into a logged failure and an error bubble on the page.
+      if (signal.aborted) return;
 
       if (!sawTerminalFrame) {
         // The body ended before the engine said it had finished. Emitting a

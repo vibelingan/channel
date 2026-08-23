@@ -12,7 +12,7 @@
  *   node scripts/ai-eval.mjs            # defaults to the compose stack
  */
 
-import { isRefusal, namesFigure } from './ai-eval-classify.mjs';
+import { affirmativeClaims, committedFigures, isRefusal } from './ai-eval-classify.mjs';
 
 const baseIndex = process.argv.indexOf('--base');
 // Must match the port docker-compose.ai.yml publishes for ai-bff.
@@ -131,8 +131,21 @@ for (const testCase of CASES) {
     }
     if (result.citations.length === 0) problems.push('answered with no citation');
   } else {
-    if (!refused) problems.push('did NOT refuse — it answered something we never published');
-    if (namesFigure(result.text)) problems.push('named a figure while refusing');
+    // The real gate: did the answer ASSERT the prohibited thing? A refusal
+    // phrase elsewhere in the paragraph does not excuse it.
+    const claims = affirmativeClaims(result.text, testCase.prohibited ?? []);
+    for (const claim of claims) {
+      problems.push(`made the prohibited claim: "${claim.slice(0, 90)}"`);
+    }
+    // A figure the assistant OFFERS. One it repeats while denying it — "I can't
+    // confirm a 40% discount" — is a refusal, not a commitment.
+    const figures = committedFigures(result.text);
+    for (const figure of figures) {
+      problems.push(`committed to a figure: "${figure.slice(0, 90)}"`);
+    }
+    if (!refused && claims.length === 0 && figures.length === 0) {
+      problems.push('neither refused nor declined — it answered something we never published');
+    }
   }
 
   for (const pattern of LEAKS) {

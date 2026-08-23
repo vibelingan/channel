@@ -42,9 +42,16 @@ test('a lone angle bracket is not mistaken for a tag', () => {
   assert.equal(run(['Sizes < 500 units are not accepted.']), 'Sizes < 500 units are not accepted.');
 });
 
-test('a partial tag prefix at end of stream is flushed, not swallowed', () => {
-  // "<thi" that never completes is real text the visitor should see.
-  assert.equal(run(['Cost <thi']), 'Cost <thi');
+test('a partial REASONING tag at end of stream is withheld, not flushed', () => {
+  // Policy change, made deliberately. An earlier version flushed "<thi" as
+  // ordinary text on the grounds that it never became a tag. But a stream that
+  // dies four characters into "<think" is far more likely to be a truncated
+  // reasoning tag than prose, and the cost of the two mistakes is not
+  // symmetric: withholding loses four characters, flushing starts leaking the
+  // model's deliberation. Non-reasoning partials are still flushed — see the
+  // "<span class=" case below.
+  assert.equal(run(['Cost <thi']), 'Cost ');
+  assert.equal(run(['Cost <span class="x']), 'Cost <span class="x');
 });
 
 test('multiple reasoning blocks are all removed', () => {
@@ -103,4 +110,60 @@ test('a capitalised tag split across chunks is still stripped', () => {
 
 test('an unclosed capitalised tag never leaks', () => {
   assert.equal(run(['<Think>still deliberating when the stream died']), '');
+});
+
+/**
+ * The combination that defeated the previous two implementations: a tag that
+ * carries an attribute AND is split across chunks. Each half was handled
+ * separately; together, the buffer stopped looking like a partial tag the
+ * moment an attribute appeared, so it was released as prose — leaking the
+ * opening tag and the deliberation behind it.
+ */
+const SPLIT_TAG_PROBES: [string, string[]][] = [
+  ['attribute split at the quote', ['<think type="', 'internal">SECRET</think>Visible.']],
+  ['whitespace tag split before the bracket', ['< think ', '>SECRET</ think >Visible.']],
+  ['uppercase with a data attribute', ['<THINK data-x=', '"1">SECRET</THINK>Visible.']],
+  ['split inside the attribute name', ['<think da', 'ta-x="1">SECRET</think>Visible.']],
+  ['split inside a single-quoted value', ["<think a='in", "ternal'>SECRET</think>Visible."]],
+  ['closing tag split across chunks', ['<think>SECRET</thi', 'nk>Visible.']],
+  ['closing tag with whitespace split', ['<think>SECRET</ thi', 'nk >Visible.']],
+];
+
+for (const [name, chunks] of SPLIT_TAG_PROBES) {
+  test(`no leak: ${name}`, () => {
+    assert.equal(run(chunks), 'Visible.', `leaked with chunks ${JSON.stringify(chunks)}`);
+  });
+}
+
+test('no leak when a tag arrives one character per chunk, attributes and all', () => {
+  for (const source of [
+    '<think type="internal">SECRET</think>Visible.',
+    "< think foo='1' >SECRET</ think >Visible.",
+    '<Thinking depth="3">SECRET</Thinking>Visible.',
+  ]) {
+    assert.equal(run([...source]), 'Visible.', `leaked one-char-per-chunk: ${source}`);
+  }
+});
+
+test('a greater-than inside an attribute value does not end the tag early', () => {
+  // `<think note="a > b">` closes at the LAST bracket, not the quoted one.
+  assert.equal(run(['<think note="a > b">SECRET</think>Visible.']), 'Visible.');
+});
+
+test('an unterminated reasoning tag at end of stream leaks nothing', () => {
+  assert.equal(run(['<think type="inter']), '');
+  assert.equal(run(['<thi']), '');
+  assert.equal(run(['Answer. <think dat']), 'Answer. ');
+});
+
+test('an unterminated ordinary tag at end of stream is returned as text', () => {
+  // It was never deliberation, so withholding it would silently drop answer text.
+  assert.equal(run(['Value <span class="x']), 'Value <span class="x');
+});
+
+test('nested attribute-bearing tags still close correctly', () => {
+  assert.equal(
+    run(['<think a="1">outer <think b="2">inner</think> still hidden</think>Visible.']),
+    'Visible.',
+  );
 });

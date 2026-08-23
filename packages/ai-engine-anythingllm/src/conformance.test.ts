@@ -20,7 +20,8 @@ type Script =
   | { kind: 'socket_reset' }
   | { kind: 'malformed_frame' }
   | { kind: 'timeout' }
-  | { kind: 'overlong' };
+  | { kind: 'overlong' }
+  | { kind: 'unabortable_silence' };
 
 /** Per-engine scripting state, keyed by the instance the suite hands back. */
 const scripts = new WeakMap<object, { script: Script }>();
@@ -74,6 +75,11 @@ function bodyFor(script: Script): ReadableStream<Uint8Array> {
       },
     });
   }
+  if (script.kind === 'unabortable_silence') {
+    // Yields nothing, and the caller below deliberately does NOT wire abort to
+    // it — a vendor that accepts the connection and then goes quiet.
+    return new ReadableStream({ start() {} });
+  }
   if (script.kind === 'timeout') {
     // Emits nothing and never closes: the adapter's own deadline is the only
     // thing that can end this.
@@ -115,8 +121,9 @@ function createEngine(): AnythingLlmEngine {
       return new Response(JSON.stringify({ error: 'scripted' }), { status: 500 });
     }
     const body = bodyFor(state.script);
-    // Honour abort so the suite's cancellation tests mean something.
-    const signal = init?.signal;
+    // Honour abort so the suite's cancellation tests mean something — EXCEPT in
+    // the scenario whose whole point is a transport that ignores it.
+    const signal = state.script.kind === 'unabortable_silence' ? undefined : init?.signal;
     if (signal) {
       if (signal.aborted) throw new DOMException('aborted', 'AbortError');
       signal.addEventListener('abort', () => body.cancel().catch(() => undefined), { once: true });
@@ -157,6 +164,10 @@ const harness: ConformanceHarness = {
 
   scriptOverlongOutput(engine) {
     scriptOf(engine).script = { kind: 'overlong' };
+  },
+
+  scriptUnabortableSilence(engine) {
+    scriptOf(engine).script = { kind: 'unabortable_silence' };
   },
 
   rotateKnowledgeCredential(engine) {

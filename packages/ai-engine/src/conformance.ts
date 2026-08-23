@@ -38,6 +38,17 @@ export interface ConformanceHarness {
    * `supportsIdempotentCreate` is false — see the note on that case below.
    */
   scriptCrashBetweenCallAndRecord?(engine: ConversationEngine): void;
+
+  /**
+   * Make the next stream produce NO frames and ignore transport-level abort —
+   * a vendor that accepts the connection and then goes silent.
+   *
+   * Optional only because an in-process fake has no transport to ignore
+   * anything. Every adapter that talks over a network must supply it: without
+   * it, `supportsStop` is tested against a transport that politely cooperates,
+   * which is not the case cancellation exists for.
+   */
+  scriptUnabortableSilence?(engine: ConversationEngine): void;
 }
 
 const SAMPLE_REQUEST: EngineRunRequest = {
@@ -168,6 +179,43 @@ export function runConformanceSuite(label: string, harness: ConformanceHarness):
       engineRunId: 'run-does-not-exist',
     });
     assert.equal(result, 'unknown_run');
+  });
+
+  test(`${label}: an owner abort does not wait out the run deadline`, async (t) => {
+    if (!harness.scriptUnabortableSilence) {
+      t.skip('harness does not script an unabortable silent vendor');
+      return;
+    }
+    // The case the other cancellation tests miss: they abort after receiving a
+    // frame, against a transport that honours abort by cancelling the body. A
+    // vendor that accepts the connection, sends nothing, and ignores abort
+    // leaves the read pending — so cancellation can only take effect when the
+    // deadline fires. Measured at 401ms for an abort issued at 20ms against a
+    // 400ms deadline, on an adapter that passed every other cancellation test.
+    const engine = harness.create();
+    harness.scriptUnabortableSilence(engine);
+
+    const deadlineMs = 4_000;
+    const request: EngineRunRequest = {
+      ...SAMPLE_REQUEST,
+      limits: { ...SAMPLE_REQUEST.limits, maxStreamDurationMs: deadlineMs },
+    };
+    const controller = new AbortController();
+    const handle = await engine.createRun(request, controller.signal);
+
+    const started = Date.now();
+    setTimeout(() => controller.abort(), 20);
+    const events = await collect(engine.streamRun(handle, controller.signal));
+    const elapsed = Date.now() - started;
+
+    assert.ok(
+      elapsed < deadlineMs / 2,
+      `owner abort took ${elapsed}ms against a ${deadlineMs}ms deadline — it waited for the deadline`,
+    );
+    assert.ok(
+      !events.some((event) => event.type === 'error' && event.category === 'timeout'),
+      'an owner abort was reported as a deadline timeout',
+    );
   });
 
   test(`${label}: aborting the signal terminates the stream promptly`, async () => {

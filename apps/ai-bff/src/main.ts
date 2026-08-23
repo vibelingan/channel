@@ -15,6 +15,7 @@ import {
 import { AnythingLlmEngine } from '@vibelingan-channel/ai-engine-anythingllm';
 import { type BffConfig, loadConfig } from './config.ts';
 import { startServer } from './server.ts';
+import { assertNoToolSurface } from './tool-surface.ts';
 
 /**
  * What the deployment provides around the engine today.
@@ -62,34 +63,6 @@ function buildEngine(
   return engine;
 }
 
-/**
- * The run contract sets `maxToolCalls: 0`. This protocol never reports a tool
- * call mid-stream, so the limit cannot be enforced there — it is enforced by
- * refusing to serve an engine that has any agent surface switched on.
- *
- * "Could not check" is treated differently from "checked and it is on": an
- * unreachable engine warns, because refusing to boot on a transient network
- * failure turns a blip into an outage. An engine that answers and says tools
- * are enabled is a refusal.
- */
-async function assertNoToolSurface(engine: AnythingLlmEngine): Promise<void> {
-  const surface = await engine.inspectToolSurface();
-  if (surface.enabled) {
-    throw new Error(
-      `refusing to serve; the engine workspace has an agent surface enabled (${surface.detail}) while the run contract permits zero tool calls. Disable every agent skill that is not retrieval.`,
-    );
-  }
-  if (!surface.known) {
-    console.warn(
-      JSON.stringify({
-        event: 'engine.toolsurface.unverified',
-        severity: 'warning',
-        detail: surface.detail,
-      }),
-    );
-  }
-}
-
 try {
   const config = loadConfig();
   // The engine is only constructed for the harness. Outside it the conversation
@@ -97,7 +70,7 @@ try {
   // building one anyway would open a connection to the vendor for no reason.
   const engine =
     config.localHarness && config.engine ? buildEngine(config.engine, true) : undefined;
-  if (engine) await assertNoToolSurface(engine as AnythingLlmEngine);
+  if (engine) await assertNoToolSurface(() => (engine as AnythingLlmEngine).inspectToolSurface());
   startServer(config, engine ? { engine } : {});
   console.log(
     JSON.stringify({

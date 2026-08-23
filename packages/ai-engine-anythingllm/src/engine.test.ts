@@ -3,7 +3,7 @@ import { type Server, createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import test from 'node:test';
 import type { EngineCitation, EngineEvent, EngineRunRequest } from '@vibelingan-channel/ai-engine';
-import { AnythingLlmEngine } from './engine.ts';
+import { AnythingLlmEngine, estimateTokens } from './engine.ts';
 
 type Scripted = { status?: number; frames?: unknown[]; delayMs?: number; raw?: string };
 
@@ -567,4 +567,40 @@ test('an unreachable engine is unknown, never assumed safe', async () => {
   const surface = await engine.inspectToolSurface();
   assert.equal(surface.known, false);
   assert.equal(surface.enabled, false, 'unknown must not be reported as enabled either');
+});
+
+test('the budget estimate is script-aware, not an English rule applied everywhere', () => {
+  // Measured before this change: 80 Chinese characters passed a 20-token
+  // budget, because 80 / 4 read as 20 tokens while the real cost was nearer 80.
+  assert.ok(
+    estimateTokens('产'.repeat(80)) >= 80,
+    `80 CJK characters estimated at ${estimateTokens('产'.repeat(80))} tokens`,
+  );
+  // Latin still uses the usual rule of thumb.
+  assert.ok(estimateTokens('a'.repeat(80)) <= 25);
+  // Emoji and mixed scripts are charged densely rather than as cheap Latin.
+  assert.ok(estimateTokens('🙂'.repeat(20)) >= 20);
+  assert.ok(estimateTokens('한글'.repeat(20)) >= 40);
+  assert.ok(estimateTokens('こんにちは'.repeat(10)) >= 50);
+  assert.equal(estimateTokens(''), 0);
+});
+
+test('a CJK answer cannot run four times past its budget', async () => {
+  const events = await collect(
+    { frames: Array.from({ length: 40 }, () => chunk('产'.repeat(10))) },
+    { ...REQUEST, limits: { ...REQUEST.limits, maxOutputTokens: 20 } },
+  );
+  const last = events.at(-1) as { type: string; category?: string };
+  assert.equal(last.type, 'error', 'a CJK answer ran past its budget unchecked');
+  assert.equal(last.category, 'invalid_request');
+  const emitted = events.filter((event) => event.type === 'token').length;
+  assert.ok(emitted <= 4, `emitted ${emitted} chunks against a 20-token budget`);
+});
+
+test('a mixed-script answer is bounded too', async () => {
+  const events = await collect(
+    { frames: Array.from({ length: 40 }, () => chunk('MOQ 产品 500 单位 🙂 ')) },
+    { ...REQUEST, limits: { ...REQUEST.limits, maxOutputTokens: 25 } },
+  );
+  assert.equal((events.at(-1) as { type: string }).type, 'error');
 });
