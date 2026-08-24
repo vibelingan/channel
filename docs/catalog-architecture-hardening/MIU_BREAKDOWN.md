@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening MIU Breakdown
 
-Status: published; MIUs 01-02 released; MIU 03 planned and inactive.
+Status: published; MIUs 01-02 released; MIU 03 governance correction active; MIU 04 planned and inactive.
 
 ```mermaid
 flowchart TD
@@ -116,7 +116,7 @@ flowchart TD
 - **Files:** `packages/shared/src/catalog/normalize-public-product.ts`, `packages/shared/src/catalog/normalize-public-product.test.ts`, `packages/shared/src/catalog-product.ts`
 - **Type:** new-file
 - **Depends on:** MIU 02
-- **Reservation state:** `planned`.
+- **Reservation state:** `active`; governance correction for activation evidence omitted before implementation commit `d00a923076d04646f22b211f13288c4c8c8f0c21`.
 - **What it does:**
   - Implements `normalizePublicProduct(row): NormalizedPublicProductResult` using MIU 02's
     `packages/shared/src/catalog/index.ts` contract as an immutable public-read transformation returning

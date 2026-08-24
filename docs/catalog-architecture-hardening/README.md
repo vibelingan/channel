@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening Handoff
 
-Status: 49-MIU packet published; MIUs 01-02 released; MIU 03 planned and inactive.
+Status: 49-MIU packet published; MIUs 01-02 released; MIU 03 governance correction active; MIU 04 planned and inactive.
 Branch: `refactor/catalog-architecture-hardening`
 Planning packet SHA: `bc1e69e25e9e8d453584be0fde9279f7bdf0c006`.
 

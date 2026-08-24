@@ -37,7 +37,7 @@ consolidation into the cross-project engineering-craft skill.
 | Diff touches… | Group | Rules |
 |---|---|---|
 | `verifySession`, roles, `revalidateSession`, login, tokens | Auth & Session Security | 6 |
-| `publicDoc`, catalog fields, `PUBLIC_CATALOG_FIELDS`, refcount gating | Public API Projection | 3 |
+| `publicDoc`, catalog fields, `PUBLIC_CATALOG_FIELDS`, refcount gating | Public API Projection | 2 |
 | `sniffMagicBytes`, mimeType, SVG/image response headers, public derivatives | Content Validation | 4 |
 | upload intents, `submitProject`/finalize, storage objects, rate caps | Upload Lifecycle & Concurrency | 6 |
 | `incrementField`, `publishedRefCount`, backfills, batch deletes | Counters & Data Integrity | 6 |
@@ -61,7 +61,6 @@ consolidation into the cross-project engineering-craft skill.
 
 - **Allowlist projection with separate gated tier** (`2eeb2b4`, `317f60a`): Public API responses must be built by explicit allowlist projection, never by spreading the DB doc — spreading shipped role-gated vipPrice and internal fields to anonymous callers while the UI gate was cosmetic. Allowlisting withholds every FUTURE field by default. Keep role-gated fields in a physically separate GATED_FIELDS list attached only after a server-side entitlement check. Construct the projected object typed as the real interface with required fields set unconditionally (no cast) so allowlist mistakes become compile errors.
 - **Refcount gates public media and fails closed on corruption** (`7965ad7`, `d82bc5e`): Public media delivery is gated on a canonical publishedRefCount counter: unpublished/unreferenced images 404, replacing an O(catalog) scan per request. The counter is 'visible' only as typeof number && isFinite && > 0 — the first cut used Number(doc.publishedRefCount) which fail-opened on a corrupt numeric STRING like '1'. Field PRESENCE (Object.hasOwn) is split from validity: the legacy fallback scan runs ONLY when the field is absent; present-but-invalid is corruption and 404s. Unknown storage providers also fail closed.
-- **Nested projection objects need their own sub-projection before strict validation** (`ded7393`): An allowlist that copies a nested object verbatim then strict-validates it fail-closed REJECTS legitimate rows — a real alibaba-linked product stores supplier offer keys (sourceOfferKey/sourceProductId/sourceSkuId) inside alibabaCatalogPricing, so the strict schema's unrecognized_keys rejection made every alibaba-linked product unnormalizable. Sub-project nested objects to their public shape first (strip supplier offer identifiers, mask the brute-forceable source key to a constant 'linked'), exactly matching the public API projection, THEN validate. Verify with a probe against a realistic stored row, not just hand-written clean fixtures.
 
 ### Content Validation
 

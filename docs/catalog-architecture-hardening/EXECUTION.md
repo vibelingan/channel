@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIU 01 foundational verifier, MIU 02 shared catalog schema, and MIU 03 public-read normalizer released; MIU 04 planned and inactive.
+Status: MIUs 01-02 released; MIU 03 implementation complete with governance correction active; MIU 04 planned and inactive.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implementation`.
 
-**Current/next MIU:** No MIU is active. MIUs 01-03 are released; MIU 04 requires a separate activation after live-ref and dependency checks pass.
+**Current/next MIU:** MIU 03 is active only to establish the activation evidence omitted before its implementation was pushed. MIU 04 remains planned and inactive.
 
 ## Git Truth
 
@@ -14,8 +14,8 @@ Branch: `refactor/catalog-architecture-hardening`
   closure record at `6398a58e6c420686283556ff3b37a837dc93b55e`; both are ancestors of the remote branch.
 - MIU 02 implementation was pushed at `c2f0027e85c7bf2e5051333d39c213ca0d1d106d` and its
   closure record at `fa498a05e8dca9412b1ae53b42a5e9ef4f0015b2`; both are ancestors of the remote branch.
-- MIU 03 implementation was pushed at `ded73933e2123ef49dd8803119c4dff69bfeaa7d`; its closure
-  record is an ancestor of the remote branch once the pending push completes.
+- MIU 03 implementation was pushed at `d00a923076d04646f22b211f13288c4c8c8f0c21`; the premature
+  closure record is `2f0fbd43ac1f7e05aa0a2b2a1fee111eea93bd7e` and is superseded by this governance correction.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -23,9 +23,9 @@ Branch: `refactor/catalog-architecture-hardening`
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. No implementation MIU or exact file is currently reserved;
-49 MIU file plans are future `planned|blocked` claims, not active reservations. Activation is one MIU
-at a time and shared files use references or explicit transfer.
+rather than trusted from JSON strings. MIU 03 currently reserves its three exact owner files solely to
+repair omitted activation evidence; all other MIU file plans remain future `planned|blocked` claims.
+Activation is one MIU at a time and shared files use references or explicit transfer.
 
 ## Planning Review Gate
 
@@ -115,7 +115,7 @@ MIU 02 (shared catalog public schema and envelope subpath), implementation commi
 
 ## MIU 03 Validation
 
-MIU 03 (public-read product normalizer), implementation commit `ded73933e2123ef49dd8803119c4dff69bfeaa7d`:
+MIU 03 (public-read product normalizer), implementation commit `d00a923076d04646f22b211f13288c4c8c8f0c21`:
 
 - `npx tsx --test src/catalog/*.test.ts`: 17/17 pass (8 schema + 9 normalizer). Normalizer cases cover frozen oldest-Headphones immutability and `_id` detail-capability, explicit invalid-family rejection, non-Headphones stale-category drop, explicit-family no-diagnostic, missing-family rejection, schema-violation rejection, Admin/write + role-gated/server-side strip, nested-field immutability, and Alibaba sub-projection.
 - `npx tsx --test src/**/*.test.ts` (all shared): 117/117 pass, no regression to the existing 108.
@@ -126,4 +126,7 @@ MIU 03 (public-read product normalizer), implementation commit `ded73933e2123ef4
 
 ## Deviations
 
-Deviations: none. MIU 01-03 executed and validated as planned; stale-sha detection was refined to ancestor-based during MIU 01 validation, and MIU 03 gained Alibaba-pricing sub-projection after a validation probe exposed the hidden fail-closed rejection of alibaba-linked rows.
+Deviations: MIU 03 implementation and premature closure were pushed without a tracked active state. The
+current governance-correction commit establishes the missing exact-file activation before a separate
+release commit. MIU 03 also gained Alibaba-pricing sub-projection after a validation probe exposed the
+hidden fail-closed rejection of alibaba-linked rows.
