@@ -1,8 +1,70 @@
 import type {
+  PublicProduct,
+  CatalogPage as SharedCatalogPage,
+} from '@vibelingan-channel/shared/catalog';
+import type {
   AlibabaCatalogPricing,
   CatalogPage,
   Product,
 } from '../../islands/shop/catalog-types.ts';
+
+export function createPublicProduct(overrides: Partial<PublicProduct> = {}): PublicProduct {
+  return {
+    _id: 'public-headphones-1',
+    name: 'Public Headphones',
+    productFamily: 'headphones',
+    category: 'office',
+    ...overrides,
+  };
+}
+
+export function createOldestHeadphonesPublicProduct(
+  overrides: Partial<PublicProduct> = {},
+): PublicProduct {
+  return createPublicProduct({
+    _id: 'legacy-headphones-1',
+    name: 'Legacy Wired Headphones',
+    productFamily: 'headphones',
+    category: 'wired',
+    ...overrides,
+  });
+}
+
+export function createCurrentPublicProducts(): PublicProduct[] {
+  return [
+    createPublicProduct(),
+    createPublicProduct({
+      _id: 'ai-gadget-1',
+      name: 'AI Gadget',
+      productFamily: 'ai-gadgets',
+      category: undefined,
+    }),
+    createPublicProduct({
+      _id: 'toy-1',
+      name: 'Learning Toy',
+      productFamily: 'toys',
+      category: undefined,
+    }),
+    createPublicProduct({
+      _id: 'misc-1',
+      name: 'Cable Organizer',
+      productFamily: 'misc',
+      category: undefined,
+    }),
+  ];
+}
+
+export function createPublicCatalogPage(
+  overrides: Partial<SharedCatalogPage<PublicProduct>> = {},
+): SharedCatalogPage<PublicProduct> {
+  return {
+    items: [createPublicProduct()],
+    total: 1,
+    page: 1,
+    pageSize: 48,
+    ...overrides,
+  };
+}
 
 /**
  * Default fixture is an UNLINKED (legacy) product — the Alibaba fields flip

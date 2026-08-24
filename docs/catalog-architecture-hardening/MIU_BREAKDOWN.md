@@ -157,7 +157,7 @@ flowchart TD
 - **Files:** `apps/site/src/catalog/infrastructure/catalog-api.ts`, `apps/site/src/catalog/infrastructure/catalog-api.test.ts`, `apps/site/src/test/factories/catalog.ts`
 - **Type:** new-file
 - **Depends on:** MIUs 02, 04
-- **Reservation state:** `planned`.
+- **Reservation state:** `active`; local browser/SSR validation only.
 - **What it does:**
   - Exposes `fetchCatalogPage(query, signal): Promise<CatalogPage<PublicProduct>>`, consuming MIU 02's
     schema/envelope from `packages/shared/src/catalog/index.ts` without redeclaring fields.
