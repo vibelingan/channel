@@ -33,7 +33,7 @@ rather than trusted from JSON strings. No MIU or exact file is active; future MI
 
 ## MIU 05 Local Validation
 
-- Focused gateway suite: 3/3 pass after an observed 0/2 TDD baseline.
+- Focused gateway suite: 4/4 pass after an observed 0/2 TDD baseline.
 - Full site suite: 207/207 pass; production and test typechecks: 0 errors.
 - Node SSR import: pass; production Astro build: 15 pages; touched-file Biome and `git diff --check`: pass.
 - Valid response order and AbortSignal forwarding are asserted; malformed required/envelope and gated
