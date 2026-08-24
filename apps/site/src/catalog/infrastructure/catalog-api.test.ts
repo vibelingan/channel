@@ -56,3 +56,23 @@ test('rejects malformed required and envelope fields while optional fields may b
   await assert.rejects(fetchCatalogPage(), /Invalid catalog response/);
   await assert.rejects(fetchCatalogPage(), /Invalid catalog response/);
 });
+
+test('rejects role-gated fields outside the PublicProduct base contract', async (t) => {
+  const originalFetch = globalThis.fetch;
+  const products = createCurrentPublicProducts();
+  const invalidWirePage = {
+    ...createPublicCatalogPage(),
+    items: [products[0], { ...products[1], vipPrice: 5 }],
+    total: 2,
+  };
+  globalThis.fetch = async () =>
+    Response.json({
+      ok: true,
+      data: invalidWirePage,
+    });
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  await assert.rejects(fetchCatalogPage(), /Invalid catalog response/);
+});
