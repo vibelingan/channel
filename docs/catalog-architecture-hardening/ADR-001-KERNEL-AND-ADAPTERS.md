@@ -1,7 +1,7 @@
 # ADR-001: Catalog Kernel, Composition Root, And Provider Pricing
 
 Date: 2026-08-21
-Status: proposed; pending planning review
+Status: accepted; implementation in progress
 
 ## Context
 

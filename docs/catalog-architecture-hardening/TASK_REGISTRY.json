@@ -666,7 +666,7 @@
           "branchOrPrStatusMayResolveTo": "HEAD"
         }
       },
-      "handoff": "MIU 01 is released with no active exact-file reservation. MIU 02 remains planned and requires separate activation after local/remote branch equality is proven."
+      "handoff": "MIUs 01-02 are released with no active exact-file reservation. MIU 03 remains planned and requires separate activation after local/remote branch equality is proven."
     }
   ]
 }

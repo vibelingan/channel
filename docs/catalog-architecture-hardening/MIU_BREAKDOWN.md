@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening MIU Breakdown
 
-Status: published; MIU 01 released; MIU 02 planned and inactive.
+Status: published; MIUs 01-02 released; MIU 03 planned and inactive.
 
 ```mermaid
 flowchart TD
@@ -95,7 +95,7 @@ flowchart TD
 - **Files:** `packages/shared/src/catalog/index.ts`, `packages/shared/src/catalog/index.test.ts`, `packages/shared/package.json`
 - **Type:** new-file
 - **Depends on:** MIU 1
-- **Reservation state:** `planned`.
+- **Reservation state:** `released`; previous state `active`.
 - **What it does:**
   - Creates the dedicated `@vibelingan-channel/shared/catalog` export. Its index owns strict
     `PublicProductSchema`, inferred `PublicProduct`, `CatalogPageSchema`, and `CatalogPage<T>` with
