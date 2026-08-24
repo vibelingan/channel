@@ -41,7 +41,7 @@
       "owner": "catalog-architecture-agent",
       "branch": "refactor/catalog-architecture-hardening",
       "remoteBranch": "origin/refactor/catalog-architecture-hardening",
-      "worktree": "/Users/SeanCai/Desktop/projects/channel-catalog-miu01-review",
+      "worktree": "/home/ubuntu/channel",
       "baseSha": "9ddda85593517bc9d1d2bea81c4862ce492b144f",
       "claimedLocalHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "claimedRemoteHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
