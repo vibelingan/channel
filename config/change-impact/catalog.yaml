@@ -1,76 +1,150 @@
-# Catalog Architecture Hardening — MIU 01 initial change-impact denominator.
-#
-# Names all known CURRENT governance owners (schema / pricing / family / route / Admin /
-# SEO / test / workflow / smoke / legacy) before any migration. The verifier consumes this
-# together with rooted module-graph discovery:
-#   - every path listed here must exist (else: stale denominator entry);
-#   - each governance role must resolve to exactly the owners named here (else: a second
-#     governance owner appeared → duplicate-governance issue);
-#   - these files are the roots from which consumer discovery walks the import graph.
-#
-# No glob-only entries: every owner is an exact file path relative to the repo root.
 schemaVersion: catalog-change-impact-v1
-task: catalog-architecture-hardening
-baseSha: 9ddda85593517bc9d1d2bea81c4862ce492b144f
+updatedAt: 2026-08-24T00:00:00Z
 
-owners:
-  schema:
-    - packages/shared/src/catalog-product.ts
-    - packages/shared/src/manual-catalog-pricing.ts
-    - apps/site/src/islands/shop/catalog-types.ts
-    - apps/site/src/islands/shop/types.ts
-  pricing:
-    - apps/site/src/islands/shop/catalog-pricing.ts
-    - apps/site/src/islands/shop/QuantityTierPricingBlock.tsx
-    - apps/site/src/islands/shop/PriceBlock.tsx
-    - apps/site/src/islands/shop/AlibabaCatalogPricingBlock.tsx
-    - apps/site/src/islands/admin/QuantityTierPricingEditor.tsx
-    - packages/alibaba-catalog-sync/src/alibaba-pricing.ts
+scanRoots:
+  - apps
+  - packages
+  - scripts
+
+layers:
+  domain:
+    include:
+      - packages/shared/src/catalog/**
+    forbidPackages:
+      - react
+      - astro:*
+    forbidLayers:
+      - infrastructure
+      - application
+      - presentation
+      - family
+      - route
+  infrastructure:
+    include:
+      - apps/functions/public-api/src/catalog/**
+      - apps/site/src/catalog/infrastructure/**
+    forbidPackages:
+      - react
+    forbidLayers:
+      - application
+      - presentation
+      - family
+      - route
+  application:
+    include:
+      - apps/site/src/catalog/application/**
+    forbidPackages:
+      - react
+      - astro:*
+    forbidLayers:
+      - family
+      - route
+  presentation:
+    include:
+      - apps/site/src/catalog/presentation/**
+    forbidPackages: []
+    forbidLayers:
+      - family
+      - route
   family:
-    - apps/site/src/islands/shop/CatalogFamilyGrid.tsx
-    - apps/site/src/islands/shop/CatalogFamilyPage.tsx
-    - apps/site/src/islands/shop/SkuDetailPage.tsx
-    - apps/site/src/islands/shop/FeaturedProducts.tsx
-    - apps/site/src/islands/shop/CategoryFilter.tsx
-    - apps/site/src/components/CatalogFamilyCard.astro
-    # Headphones-specific owners — the "replaced instead of extracted" cluster that MIUs
-    # 16/20/22 must fold into the Headphones family adapter behind the shared contract.
-    - apps/site/src/islands/shop/HeadphonesCatalog.tsx
-    - apps/site/src/islands/shop/HeadphonesPage.tsx
-    - apps/site/src/islands/shop/HeadphonesProductCard.tsx
-    - apps/site/src/islands/shop/HeadphonesProductDetail.tsx
-    - apps/site/src/islands/shop/headphonesCatalogState.ts
-    - apps/site/src/islands/admin/product-family-tabs.ts
+    include:
+      - apps/site/src/catalog/families/**
+    forbidPackages:
+      - react
+      - astro:*
+    forbidLayers:
+      - application
+      - presentation
+      - route
   route:
-    - apps/site/src/pages/headphones.astro
-    - apps/site/src/pages/ai-gadgets.astro
-    - apps/site/src/pages/toys.astro
-    - apps/site/src/pages/misc.astro
-    - apps/site/src/pages/electronics-toys.astro
-    - apps/site/src/pages/products/item.astro
-    - apps/site/src/pages/_overstock.astro
-    - apps/site/src/pages/_overstock-item.astro
-  admin:
-    - apps/site/src/islands/admin/CollectionView.tsx
-    - apps/site/src/islands/admin/product-family-tabs.ts
-    - apps/site/src/islands/admin/QuantityTierPricingEditor.tsx
-    - apps/site/src/islands/admin/PreviewModal.tsx
-  seo:
-    - apps/site/src/lib/catalog-seo.ts
-  test:
-    - apps/site/src/islands/shop/quantity-tier-pricing.test.ts
-    - apps/site/src/islands/shop/sku-detail-tier-pricing.test.ts
-    - apps/site/src/islands/shop/api.test.ts
-  workflow:
-    - .github/workflows/ci.yml
-    - .github/workflows/deploy-test.yml
-    - .github/workflows/e2e.yml
-  smoke:
-    - scripts/smoke-cloudbase-deploy.mjs
-    - scripts/smoke-http.mjs
-    - scripts/smoke-function-artifacts.mjs
-  legacy:
-    # Thin legacy adapters — may only define the genuinely different Overstock DTO/decoder;
-    # Catalog schema/validation/envelope authority delegates to @vibelingan-channel/shared/catalog.
-    - apps/site/src/islands/shop/api.ts
-    - apps/site/src/islands/shop/catalog-types.ts
+    include:
+      - apps/site/src/islands/shop/CatalogFamilyPage.tsx
+      - apps/site/src/pages/headphones.astro
+      - apps/site/src/pages/ai-gadgets.astro
+      - apps/site/src/pages/toys.astro
+      - apps/site/src/pages/misc.astro
+      - apps/site/src/pages/products/item.astro
+    forbidPackages: []
+    forbidLayers: []
+
+# Layer/discovery configuration is validated against the verifier's immutable
+# catalog-change-impact-v1 schema. File denominators derive from MIU docs,
+# registry references, compatibility ownership, and the source import graph.
+governanceOwners:
+  - role: architecture-verifier
+    path: scripts/verify-catalog-architecture.mjs
+    miu: "01"
+    discover:
+      roots: [scripts]
+      declarationNames: [verifyCatalogArchitecture]
+  - role: public-catalog-schema
+    path: packages/shared/src/catalog/index.ts
+    miu: "02"
+    discover:
+      roots: [packages/shared/src/catalog]
+      declarationNames: [PublicProductSchema, CatalogPageSchema]
+  - role: public-read-normalizer
+    path: packages/shared/src/catalog/normalize-public-product.ts
+    miu: "03"
+    discover:
+      roots: [packages/shared/src/catalog]
+      declarationNames: [normalizePublicProduct]
+  - role: public-api-projection
+    path: apps/functions/public-api/src/catalog/project-public-product.ts
+    miu: "04"
+    discover:
+      roots: [apps/functions/public-api/src/catalog]
+      declarationNames: [projectPublicProduct]
+  - role: browser-catalog-decoder
+    path: apps/site/src/catalog/infrastructure/catalog-api.ts
+    miu: "05"
+    discover:
+      roots: [apps/site/src/catalog/infrastructure]
+      declarationNames: [fetchCatalogPage]
+  - role: alibaba-pricing-adapter
+    path: packages/shared/src/catalog/alibaba-pricing-adapter.ts
+    miu: "06"
+    discover:
+      roots: [packages/shared/src/catalog]
+      declarationNames: [createAlibabaPricingAdapter]
+  - role: pricing-resolver
+    path: packages/shared/src/catalog/resolve-pricing.ts
+    miu: "07"
+    discover:
+      roots: [packages/shared/src/catalog]
+      declarationNames: [resolveCatalogPricing]
+  - role: family-adapter-contract
+    path: apps/site/src/catalog/families/catalog-family-adapter.ts
+    miu: "15"
+    discover:
+      roots: [apps/site/src/catalog/families]
+      declarationNames: [CatalogFamilyAdapter]
+  - role: family-registry
+    path: apps/site/src/catalog/families/registry.ts
+    miu: "20"
+    discover:
+      roots: [apps/site/src/catalog/families]
+      declarationNames: [getCatalogFamilyAdapter]
+  - role: catalog-list-state
+    path: apps/site/src/catalog/application/catalog-list-state.ts
+    miu: "21"
+    discover:
+      roots: [apps/site/src/catalog/application]
+      declarationNames: [createCatalogListState]
+  - role: family-route-composition
+    path: apps/site/src/islands/shop/CatalogFamilyPage.tsx
+    miu: "22"
+    discover:
+      roots: [apps/site/src/islands/shop]
+      declarationNames: [CatalogFamilyPage]
+  - role: legacy-catalog-delegation
+    path: apps/site/src/islands/shop/api.ts
+    miu: "36"
+  - role: catalog-knowledge-authority
+    path: docs/ENGINEERING_CRAFT.md
+    miu: "37"
+    discover:
+      roots: [docs]
+      filePatterns:
+        - docs/ENGINEERING_CRAFT.md
+        - docs/knowledge/catalog/**

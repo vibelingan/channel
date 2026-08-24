@@ -1,788 +1,1280 @@
 #!/usr/bin/env node
-// Catalog Architecture Hardening — MIU 01 foundational verifier.
-//
-// verifyCatalogArchitecture(root, registry, gitProbe) -> ArchitectureIssue[]
-//
-// Five enforcement surfaces, all evaluated before any migration MIU:
-//   1. module graph      — parse imports/re-exports/dynamic imports, build a rooted graph
-//   2. dependency direction — reject forbidden edges and cycles per the kernel/adapter rule
-//   3. reservation       — task-registry state machine, sequential ownership, consumer refs
-//   4. git live refs     — stale claimed SHA, worktree/branch mismatch, missing refs, local-only
-//   5. governance        — duplicate owner detection + rooted consumer discovery off the
-//                          config/change-impact/catalog.yaml denominator
-//
-// The function is pure with respect to its inputs: all filesystem access goes through `root`
-// and all git access through the injected `gitProbe`, so tests can drive synthetic fixtures.
-
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { dirname, join, relative, resolve, sep } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import {
+  dirname,
+  extname,
+  isAbsolute,
+  join,
+  matchesGlob,
+  normalize,
+  relative,
+  resolve,
+  sep,
+} from 'node:path';
+import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
-import { parse as parseYaml } from 'yaml';
+import { parse } from 'yaml';
 
-// ---------------------------------------------------------------------------
-// Issue model
-// ---------------------------------------------------------------------------
-function issue(type, detail, paths = []) {
-  return { type, detail, paths };
-}
+export const ISSUE_CODES = Object.freeze({
+  FORBIDDEN_EDGE: 'forbidden-edge',
+  MODULE_CYCLE: 'module-cycle',
+  UNROOTED_IMPORT: 'unrooted-import',
+  GLOB_ONLY_PLAN: 'glob-only-plan',
+  MISSING_DEPENDENCY: 'missing-dependency',
+  MIU_CYCLE: 'miu-cycle',
+  UNMET_ACTIVE_DEPENDENCY: 'unmet-active-dependency',
+  ILLEGAL_STATE_TRANSITION: 'illegal-state-transition',
+  UNMODELED_REPEAT: 'unmodeled-repeat',
+  DUPLICATE_ACTIVE_OWNER: 'duplicate-active-owner',
+  STALE_SHA: 'stale-sha',
+  WORKTREE_MISMATCH: 'worktree-mismatch',
+  LOCAL_ONLY_COMPLETION: 'local-only-completion',
+  MISSING_CONSUMER: 'missing-consumer',
+  DUPLICATE_GOVERNANCE_OWNER: 'duplicate-governance-owner',
+  REGISTRY_SHAPE: 'registry-shape',
+  MISSING_ACTIVE_FILE: 'missing-active-file',
+  ACTIVE_RESERVATION_MISMATCH: 'active-reservation-mismatch',
+  REGISTRY_MIU_MISMATCH: 'registry-miu-mismatch',
+  REGISTRY_FILE_MISMATCH: 'registry-file-mismatch',
+  MULTIPLE_ACTIVE_MIUS: 'multiple-active-mius',
+  CURRENT_MIU_MISMATCH: 'current-miu-mismatch',
+  INVALID_SEQUENTIAL_OWNERSHIP: 'invalid-sequential-ownership',
+  UNMODELED_CONSUMER: 'unmodeled-consumer',
+  GOVERNANCE_OWNER_MISMATCH: 'governance-owner-mismatch',
+  UNSATISFIED_EXTERNAL_GATE: 'unsatisfied-external-gate',
+  CONFIG_DENOMINATOR_MISMATCH: 'config-denominator-mismatch',
+  EXTERNAL_GATE_SHAPE: 'external-gate-shape',
+  COMPATIBILITY_DENOMINATOR_MISMATCH: 'compatibility-denominator-mismatch',
+  NEXT_MIU_STATE_MISMATCH: 'next-miu-state-mismatch',
+});
 
-// ---------------------------------------------------------------------------
-// Source-file discovery (rooted: only known source roots, never node_modules/dist)
-// ---------------------------------------------------------------------------
-const SOURCE_ROOTS = ['apps', 'packages', 'scripts'];
-const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.mjs', '.astro'];
-const SKIP_DIRS = new Set([
-  'node_modules',
-  'dist',
-  'build',
-  '.git',
-  '.astro',
-  'coverage',
-  '.next',
-  'out',
+const EXPECTED_MIU_IDS = Object.freeze(
+  Array.from({ length: 49 }, (_, index) => String(index + 1).padStart(2, '0')),
+);
+const EXPECTED_GOVERNANCE = Object.freeze([
+  ['architecture-verifier', 'scripts/verify-catalog-architecture.mjs', '01'],
+  ['public-catalog-schema', 'packages/shared/src/catalog/index.ts', '02'],
+  ['public-read-normalizer', 'packages/shared/src/catalog/normalize-public-product.ts', '03'],
+  [
+    'public-api-projection',
+    'apps/functions/public-api/src/catalog/project-public-product.ts',
+    '04',
+  ],
+  ['browser-catalog-decoder', 'apps/site/src/catalog/infrastructure/catalog-api.ts', '05'],
+  ['alibaba-pricing-adapter', 'packages/shared/src/catalog/alibaba-pricing-adapter.ts', '06'],
+  ['pricing-resolver', 'packages/shared/src/catalog/resolve-pricing.ts', '07'],
+  ['family-adapter-contract', 'apps/site/src/catalog/families/catalog-family-adapter.ts', '15'],
+  ['family-registry', 'apps/site/src/catalog/families/registry.ts', '20'],
+  ['catalog-list-state', 'apps/site/src/catalog/application/catalog-list-state.ts', '21'],
+  ['family-route-composition', 'apps/site/src/islands/shop/CatalogFamilyPage.tsx', '22'],
+  ['legacy-catalog-delegation', 'apps/site/src/islands/shop/api.ts', '36'],
+  ['catalog-knowledge-authority', 'docs/ENGINEERING_CRAFT.md', '37'],
+]);
+const EXPECTED_COMPATIBILITY_FILES = Object.freeze([
+  'apps/site/src/islands/shop/api.ts',
+  'apps/site/src/islands/shop/catalog-types.ts',
+  'apps/site/src/islands/shop/catalog-pricing.ts',
+  'apps/site/src/islands/shop/ProductGrid.tsx',
+  'apps/site/src/islands/shop/ProductCard.tsx',
+  'apps/site/src/islands/shop/PriceBlock.tsx',
+  'apps/site/src/islands/shop/ProductDetail.tsx',
+  'apps/site/src/islands/shop/OverstockDetail.tsx',
+  'apps/site/src/islands/shop/StockBadge.tsx',
+]);
+const EXPECTED_COMPATIBILITY_REFERENCES = Object.freeze([
+  'apps/site/src/pages/_overstock.astro',
+  'apps/site/src/pages/_overstock-item.astro',
+]);
+const EXPECTED_SCAN_ROOTS = Object.freeze(['apps', 'packages', 'scripts']);
+const EXPECTED_LAYER_NAMES = Object.freeze([
+  'application',
+  'domain',
+  'family',
+  'infrastructure',
+  'presentation',
+  'route',
 ]);
 
-export function collectSourceFiles(root) {
-  const files = [];
-  const walk = (dir) => {
-    let entries;
-    try {
-      entries = readdirSync(dir);
-    } catch {
-      return;
-    }
-    for (const name of entries) {
-      if (SKIP_DIRS.has(name)) continue;
-      const full = join(dir, name);
-      let st;
-      try {
-        st = statSync(full);
-      } catch {
-        continue;
-      }
-      if (st.isDirectory()) {
-        walk(full);
-      } else if (SOURCE_EXTENSIONS.some((ext) => name.endsWith(ext))) {
-        files.push(full);
-      }
-    }
-  };
-  for (const rootDir of SOURCE_ROOTS) {
-    const abs = join(root, rootDir);
-    if (existsSync(abs)) walk(abs);
+const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.astro']);
+const SKIP_DIRECTORIES = new Set(['node_modules', 'dist', 'build', 'coverage', '.git', '.astro']);
+const ACTIVE_STATES = new Set(['active']);
+const FINISHED_STATES = new Set(['released']);
+const LEGAL_STATES = new Set(['planned', 'blocked', 'active', 'released']);
+const LEGAL_PREVIOUS_STATES = {
+  planned: new Set(['planned', 'blocked']),
+  blocked: new Set(['planned', 'blocked']),
+  active: new Set(['planned', 'blocked', 'active']),
+  released: new Set(['active', 'released']),
+};
+
+function posix(value) {
+  return normalize(value).split(sep).join('/').replace(/^\.\//, '');
+}
+
+function issue(code, message, path = '', relatedPath = '') {
+  return { code, severity: 'error', message, path, ...(relatedPath ? { relatedPath } : {}) };
+}
+
+function sortIssues(issues) {
+  return issues.sort((left, right) =>
+    [left.code, left.path, left.relatedPath ?? '', left.message]
+      .join('\0')
+      .localeCompare([right.code, right.path, right.relatedPath ?? '', right.message].join('\0')),
+  );
+}
+
+function hasGlob(value) {
+  return /[*?\[\]{}]/.test(value);
+}
+
+function matches(pattern, path) {
+  return matchesGlob(posix(path), posix(pattern));
+}
+
+function walk(root, relativeRoot, output = []) {
+  const absolute = join(root, relativeRoot);
+  if (!existsSync(absolute)) return output;
+  for (const entry of readdirSync(absolute)) {
+    if (SKIP_DIRECTORIES.has(entry)) continue;
+    const child = join(absolute, entry);
+    const childRelative = posix(relative(root, child));
+    const stats = statSync(child);
+    if (stats.isDirectory()) walk(root, childRelative, output);
+    else if (SOURCE_EXTENSIONS.has(extname(entry))) output.push(childRelative);
   }
-  return files.sort();
+  return output;
 }
 
-// ---------------------------------------------------------------------------
-// Import extraction (TypeScript compiler API; .astro goes through frontmatter)
-// ---------------------------------------------------------------------------
-function astroFrontmatter(source) {
-  // Frontmatter is the leading --- ... --- fence; only that region holds imports.
-  if (!source.startsWith('---')) return '';
-  const end = source.indexOf('\n---', 3);
-  if (end === -1) return '';
-  return source.slice(3, end);
+function walkAll(root, relativeRoot, output = []) {
+  const absolute = join(root, relativeRoot);
+  if (!existsSync(absolute)) return output;
+  for (const entry of readdirSync(absolute)) {
+    if (SKIP_DIRECTORIES.has(entry)) continue;
+    const child = join(absolute, entry);
+    const childRelative = posix(relative(root, child));
+    const stats = statSync(child);
+    if (stats.isDirectory()) walkAll(root, childRelative, output);
+    else output.push(childRelative);
+  }
+  return output;
 }
 
-function extractSpecifiers(filePath, source) {
-  const isAstro = filePath.endsWith('.astro');
-  const code = isAstro ? astroFrontmatter(source) : source;
-  if (!code.trim()) return [];
-  const kind =
-    filePath.endsWith('.tsx') || filePath.endsWith('.astro')
-      ? ts.ScriptKind.TSX
-      : filePath.endsWith('.mts') || filePath.endsWith('.mjs')
-        ? ts.ScriptKind.JS
-        : ts.ScriptKind.TS;
-  const sf = ts.createSourceFile(filePath, code, ts.ScriptTarget.Latest, true, kind);
-  const specs = [];
-  const push = (node) => {
-    if (!node) return;
-    if (ts.isStringLiteral(node)) specs.push(node.text);
-  };
-  const visit = (node) => {
-    if (ts.isImportDeclaration(node)) push(node.moduleSpecifier);
-    else if (ts.isExportDeclaration(node)) push(node.moduleSpecifier);
-    else if (
-      ts.isImportEqualsDeclaration(node) &&
-      ts.isExternalModuleReference(node.moduleReference)
+function sourceForParsing(path, source) {
+  if (!path.endsWith('.astro')) return source;
+  const parts = [];
+  const frontmatter = source.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (frontmatter?.[1]) parts.push(frontmatter[1]);
+  for (const script of source.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)) {
+    if (script[1]) parts.push(script[1]);
+  }
+  return parts.join('\n');
+}
+
+function importSpecifiers(path, source) {
+  const scriptKind = path.endsWith('.tsx')
+    ? ts.ScriptKind.TSX
+    : path.endsWith('.jsx')
+      ? ts.ScriptKind.JSX
+      : ts.ScriptKind.TS;
+  const tree = ts.createSourceFile(
+    path,
+    sourceForParsing(path, source),
+    ts.ScriptTarget.Latest,
+    true,
+    scriptKind,
+  );
+  const imports = [];
+  function add(node, value) {
+    imports.push({
+      specifier: value,
+      line: tree.getLineAndCharacterOfPosition(node.getStart(tree)).line + 1,
+    });
+  }
+  function visit(node) {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier)
     ) {
-      push(node.moduleReference.expression);
-    } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-      push(node.arguments[0]);
-    } else if (ts.isExportAssignment(node) && ts.isExternalModuleReference(node.expression)) {
-      push(node.expression.expression);
+      add(node, node.moduleSpecifier.text);
+    }
+    if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference) &&
+      node.moduleReference.expression &&
+      ts.isStringLiteralLike(node.moduleReference.expression)
+    ) {
+      add(node, node.moduleReference.expression.text);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      node.arguments.length >= 1 &&
+      ts.isStringLiteralLike(node.arguments[0])
+    ) {
+      if (
+        node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) && node.expression.text === 'require')
+      ) {
+        add(node, node.arguments[0].text);
+      }
     }
     ts.forEachChild(node, visit);
-  };
-  visit(sf);
-  return specs;
+  }
+  visit(tree);
+  return imports;
 }
 
-// ---------------------------------------------------------------------------
-// Import specifier -> repo-relative file resolution
-// ---------------------------------------------------------------------------
-const RESOLVE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.mjs', '.js', '.jsx', '.astro'];
-const PACKAGE_NAME = /^@[^/]+\/[^/]+$|^@vibelingan-channel\//;
+function resolveRelativeImport(root, fromPath, specifier) {
+  if (!specifier.startsWith('.')) return null;
+  const base = resolve(root, dirname(fromPath), specifier);
+  const candidates = [
+    base,
+    ...['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.astro'].map(
+      (extension) => `${base}${extension}`,
+    ),
+    ...['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.astro'].map((extension) =>
+      join(base, `index${extension}`),
+    ),
+  ];
+  const found = candidates.find(
+    (candidate) => existsSync(candidate) && statSync(candidate).isFile(),
+  );
+  if (!found) return undefined;
+  const relativeTarget = relative(root, found);
+  return relativeTarget.startsWith('..') || isAbsolute(relativeTarget)
+    ? undefined
+    : posix(relativeTarget);
+}
 
-function resolveSpecifier(fromFile, spec, root, fileSet) {
-  if (!spec || spec.startsWith('node:')) return null;
-  // Package/bare imports (npm deps, @vibelingan-channel/*) are outside the repo graph.
-  if (!spec.startsWith('.') && !spec.startsWith('/')) return null;
-  const baseDir = spec.startsWith('/') ? root : dirname(fromFile);
-  const cleaned = spec.replace(/\.(js|mjs|cjs|jsx)$/, (m) => m); // keep as-is; try candidates below
-  const base = resolve(baseDir, cleaned);
-  const candidates = [];
-  if (/\.(ts|tsx|mts|cts|mjs|js|jsx|astro)$/.test(base)) {
-    candidates.push(base);
-  } else {
-    for (const ext of RESOLVE_EXTENSIONS) candidates.push(base + ext);
-    for (const ext of RESOLVE_EXTENSIONS) candidates.push(join(base, `index${ext}`));
+function workspaceAliases(root) {
+  const aliases = new Map();
+  for (const packageRoot of ['apps', 'packages']) {
+    const absoluteRoot = join(root, packageRoot);
+    if (!existsSync(absoluteRoot)) continue;
+    for (const entry of readdirSync(absoluteRoot)) {
+      const packageJson = join(absoluteRoot, entry, 'package.json');
+      if (!existsSync(packageJson)) continue;
+      const manifest = JSON.parse(readFileSync(packageJson, 'utf8'));
+      if (!manifest.name) continue;
+      const exports = typeof manifest.exports === 'object' ? manifest.exports : {};
+      for (const [subpath, target] of Object.entries(exports)) {
+        if (typeof target !== 'string') continue;
+        const alias =
+          subpath === '.' ? manifest.name : `${manifest.name}/${subpath.replace(/^\.\//, '')}`;
+        aliases.set(alias, posix(join(packageRoot, entry, target)));
+      }
+      if (!aliases.has(manifest.name)) {
+        aliases.set(
+          manifest.name,
+          posix(join(packageRoot, entry, manifest.module ?? manifest.main ?? './src/index.ts')),
+        );
+      }
+    }
   }
-  for (const cand of candidates) {
-    if (fileSet.has(cand)) return cand;
+  return aliases;
+}
+
+function resolveImport(root, fromPath, specifier, aliases) {
+  if (specifier.startsWith('.')) return resolveRelativeImport(root, fromPath, specifier);
+  const target = aliases.get(specifier);
+  if (!target) return null;
+  const absolute = resolve(root, target);
+  const relativeTarget = relative(root, absolute);
+  if (relativeTarget.startsWith('..') || isAbsolute(relativeTarget)) return undefined;
+  return existsSync(absolute) ? posix(relativeTarget) : undefined;
+}
+
+function classifyLayer(config, path) {
+  for (const [name, layer] of Object.entries(config.layers ?? {})) {
+    if ((layer.include ?? []).some((pattern) => matches(pattern, path))) return name;
   }
   return null;
 }
 
-export function buildModuleGraph(root) {
-  const files = collectSourceFiles(root);
-  const fileSet = new Set(files);
-  // Map absolute path -> Set of absolute dependency paths (repo-internal only).
+function packageForbidden(patterns, specifier) {
+  return patterns.some((pattern) => {
+    if (pattern.endsWith(':*')) {
+      const prefix = pattern.slice(0, -2);
+      return specifier === prefix || specifier.startsWith(`${prefix}:`);
+    }
+    return specifier === pattern || specifier.startsWith(`${pattern}/`);
+  });
+}
+
+function validateModuleGraph(root, config, issues) {
+  const files = [...new Set((config.scanRoots ?? []).flatMap((scanRoot) => walk(root, scanRoot)))];
+  const aliases = workspaceAliases(root);
   const graph = new Map();
-  for (const file of files) {
-    let source;
-    try {
-      source = readFileSync(file, 'utf8');
-    } catch {
-      continue;
+  for (const path of files) {
+    const layerName = classifyLayer(config, path);
+    const layer = layerName ? (config.layers[layerName] ?? {}) : {};
+    const imports = importSpecifiers(path, readFileSync(join(root, path), 'utf8'));
+    const dependencies = [];
+    for (const imported of imports) {
+      if (!imported.specifier.startsWith('.') && !aliases.has(imported.specifier)) {
+        if (packageForbidden(layer.forbidPackages ?? [], imported.specifier)) {
+          issues.push(
+            issue(
+              ISSUE_CODES.FORBIDDEN_EDGE,
+              `${layerName} cannot import package ${imported.specifier} (line ${imported.line})`,
+              path,
+              imported.specifier,
+            ),
+          );
+        }
+        continue;
+      }
+      const target = resolveImport(root, path, imported.specifier, aliases);
+      if (target === null) continue;
+      if (target === undefined) {
+        issues.push(
+          issue(
+            ISSUE_CODES.UNROOTED_IMPORT,
+            `Import does not resolve inside the rooted graph (line ${imported.line})`,
+            path,
+            imported.specifier,
+          ),
+        );
+        continue;
+      }
+      dependencies.push(target);
+      const targetLayer = classifyLayer(config, target);
+      if (targetLayer && layerName) {
+        if ((layer.forbidLayers ?? []).includes(targetLayer)) {
+          issues.push(
+            issue(
+              ISSUE_CODES.FORBIDDEN_EDGE,
+              `${layerName} cannot depend on ${targetLayer} (line ${imported.line})`,
+              path,
+              target,
+            ),
+          );
+        }
+      }
     }
-    const deps = new Set();
-    for (const spec of extractSpecifiers(file, source)) {
-      const target = resolveSpecifier(file, spec, root, fileSet);
-      if (target && target !== file) deps.add(target);
-    }
-    graph.set(file, deps);
+    graph.set(path, dependencies);
   }
+
+  const state = new Map();
+  const stack = [];
+  function visit(path) {
+    state.set(path, 'visiting');
+    stack.push(path);
+    for (const dependency of graph.get(path) ?? []) {
+      if (!graph.has(dependency)) continue;
+      if (state.get(dependency) === 'visiting') {
+        const cycleStart = stack.indexOf(dependency);
+        const cycle = [...stack.slice(cycleStart), dependency];
+        const layers = new Set(cycle.map((item) => classifyLayer(config, item)).filter(Boolean));
+        if (layers.size > 1) {
+          issues.push(
+            issue(
+              ISSUE_CODES.MODULE_CYCLE,
+              `Catalog layer cycle: ${cycle.join(' -> ')}`,
+              path,
+              dependency,
+            ),
+          );
+        }
+      } else if (!state.has(dependency)) visit(dependency);
+    }
+    stack.pop();
+    state.set(path, 'done');
+  }
+  for (const path of graph.keys()) if (!state.has(path)) visit(path);
   return { files, graph };
 }
 
-// ---------------------------------------------------------------------------
-// Dependency-direction rule (kernel + adapters). Layer classification by path.
-// ---------------------------------------------------------------------------
-// Layers ordered by allowed dependency direction:
-//   route/controller -> family adapter + application + presentation -> domain contracts
-//
-// IMPORTANT (progressive enforcement): only files that have MIGRATED into the new kernel
-// layout are classified into a governed layer. The pre-refactor cluster under
-// `islands/shop`, `islands/admin`, `components`, and existing `packages/shared/src/*`
-// is the legacy baseline — it is recorded in config/change-impact/catalog.yaml and folded
-// in by later MIUs, so it is intentionally NOT subject to the new dependency rule yet.
-// Test files (*.test.*, test/) never participate in the direction rule.
-function layerOf(relPath) {
-  const p = relPath.split(sep).join('/');
-  if (/\.test\.|\/test\//.test(p)) return 'test';
-  if (/\/pages\//.test(p)) return 'route';
-  if (/\/catalog\/families\/(headphones|ai-gadgets|toys|misc)\.tsx?$/.test(p))
-    return 'family-adapter';
-  if (/\/catalog\/families\/(catalog-family-adapter|registry)\.tsx?$/.test(p))
-    return 'family-contract';
-  if (/\/catalog\/presentation\//.test(p)) return 'presentation';
-  if (/\/catalog\/application\//.test(p)) return 'application';
-  if (/\/catalog\/infrastructure\//.test(p)) return 'infrastructure';
-  if (/packages\/shared\/src\/catalog\//.test(p)) return 'domain';
-  return 'other'; // legacy baseline + everything not yet migrated
+function parseMiuBreakdown(root) {
+  const path = join(root, 'docs/catalog-architecture-hardening/MIU_BREAKDOWN.md');
+  if (!existsSync(path)) return new Map();
+  const source = readFileSync(path, 'utf8');
+  const headings = [...source.matchAll(/^## MIU (\d+):[^\n]*$/gm)];
+  const result = new Map();
+  for (const [index, heading] of headings.entries()) {
+    const id = heading[1].padStart(2, '0');
+    const sectionEnd = headings[index + 1]?.index ?? source.length;
+    const section = source.slice(heading.index, sectionEnd);
+    const filesLine = section.match(/^- \*\*Files:\*\* ([^\n]+)$/m)?.[1] ?? '';
+    const files = [...filesLine.matchAll(/`([^`]+)`/g)].map((match) => posix(match[1]));
+    const references = [
+      ...new Set(
+        [...section.matchAll(/`([^`]+)`/g)]
+          .map((match) => match[1])
+          .filter(
+            (value) =>
+              /^(?:\.github|apps|config|docs|packages|scripts|tests)\//.test(value) &&
+              /\.[a-z0-9]+$/i.test(value),
+          )
+          .map(posix),
+      ),
+    ];
+    result.set(id, { files, references });
+  }
+  return result;
 }
 
-// A concrete family adapter module lives only under the new families/ directory. Legacy
-// Headphones* components under islands/shop are baseline, not adapters.
-function isConcreteFamilyModule(relPath) {
-  const p = relPath.split(sep).join('/');
-  return /\/catalog\/families\/(headphones|ai-gadgets|toys|misc)\.tsx?$/.test(p);
+function allMiuIds(task) {
+  return new Set([
+    ...Object.keys(task.miuFilePlans ?? {}),
+    ...Object.keys(task.miuTypes ?? {}),
+    ...Object.keys(task.miuDependencies ?? {}),
+    ...Object.keys(task.miuReservationStates ?? {}),
+  ]);
 }
 
-function importsReactOrAstro(depRel) {
-  const p = depRel.split(sep).join('/');
-  return /\.(tsx|astro)$/.test(p) || /\/islands\//.test(p) || /\/components\//.test(p);
+function plannedPaths(task) {
+  return new Set(Object.values(task.miuFilePlans ?? {}).flat());
 }
 
-export function checkDependencyDirection(root, graph) {
-  const issues = [];
-  for (const [from, deps] of graph) {
-    const fromRel = relative(root, from);
-    const fromLayer = layerOf(fromRel);
-    for (const to of deps) {
-      const toRel = relative(root, to);
-      // domain/application importing React/Astro/route/family is forbidden.
-      if (fromLayer === 'domain' || fromLayer === 'application') {
-        if (importsReactOrAstro(toRel) || isConcreteFamilyModule(toRel)) {
-          issues.push(
-            issue('forbidden-edge', `${fromLayer} module must not import presentation/family`, [
-              fromRel,
-              toRel,
-            ]),
-          );
-        }
-      }
-      // presentation importing a concrete family adapter is forbidden.
-      if (fromLayer === 'presentation' && isConcreteFamilyModule(toRel)) {
+function sequentiallyModeled(task, path, owners) {
+  const model = task.sequentialOwnership?.[path];
+  if (!model) return false;
+  if (Array.isArray(model.chain)) {
+    const orderedOwners = [...owners].sort((left, right) => Number(left) - Number(right));
+    return (
+      model.transition === 'released-before-next-active' &&
+      model.chain.length === orderedOwners.length &&
+      model.chain.every((owner, index) => owner === orderedOwners[index])
+    );
+  }
+  if (model.ownerMiu) {
+    const modeled = new Set([model.ownerMiu, ...(model.laterConsumers ?? [])]);
+    return owners.every((owner) => modeled.has(owner));
+  }
+  return Boolean(model.taskPlanningReference);
+}
+
+function validateRegistryShape(root, task, registry, issues) {
+  const documented = parseMiuBreakdown(root);
+  const ids = allMiuIds(task);
+  const maps = ['miuFilePlans', 'miuTypes', 'miuDependencies', 'miuReservationStates'];
+  for (const id of ids) {
+    for (const map of maps) {
+      if (!Object.hasOwn(task[map] ?? {}, id)) {
         issues.push(
-          issue('forbidden-edge', 'presentation must not import a concrete family module', [
-            fromRel,
-            toRel,
-          ]),
+          issue(ISSUE_CODES.REGISTRY_SHAPE, `MIU ${id} is missing ${map}`, `MIU ${id}`, map),
         );
       }
     }
   }
-  return issues;
-}
-
-export function detectCycles(root, graph) {
-  const issues = [];
-  const WHITE = 0;
-  const GRAY = 1;
-  const BLACK = 2;
-  const color = new Map([...graph.keys()].map((k) => [k, WHITE]));
-  const stack = [];
-  const report = (cyclePath) => {
+  const documentedIds = [...documented.keys()];
+  const registryIds = [...ids].sort();
+  if (
+    JSON.stringify(documentedIds) !== JSON.stringify(EXPECTED_MIU_IDS) ||
+    JSON.stringify(registryIds) !== JSON.stringify(EXPECTED_MIU_IDS)
+  ) {
     issues.push(
       issue(
-        'cycle',
-        'import cycle detected',
-        cyclePath.map((f) => relative(root, f)),
+        ISSUE_CODES.REGISTRY_MIU_MISMATCH,
+        `Catalog schema requires MIUs [${EXPECTED_MIU_IDS.join(', ')}]; documented [${documentedIds.join(', ')}], registry [${registryIds.join(', ')}]`,
+        'docs/catalog-architecture-hardening/MIU_BREAKDOWN.md',
+        'docs/catalog-architecture-hardening/TASK_REGISTRY.json',
       ),
     );
-  };
-  const dfs = (node) => {
-    color.set(node, GRAY);
-    stack.push(node);
-    for (const dep of graph.get(node) || []) {
-      const c = color.get(dep);
-      if (c === GRAY) {
-        const idx = stack.indexOf(dep);
-        report([...stack.slice(idx), dep]);
-      } else if (c === WHITE) {
-        dfs(dep);
-      }
-    }
-    stack.pop();
-    color.set(node, BLACK);
-  };
-  for (const node of graph.keys()) {
-    if (color.get(node) === WHITE) dfs(node);
   }
-  return issues;
-}
-
-// ---------------------------------------------------------------------------
-// Reservation / task-registry state machine
-// ---------------------------------------------------------------------------
-const RESERVATION_STATES = ['planned', 'blocked', 'active', 'released'];
-const LEGAL_TRANSITIONS = {
-  planned: ['active', 'blocked'],
-  blocked: ['planned'],
-  active: ['released'],
-  released: ['active'], // released -> active is a recorded transfer
-};
-
-function isGlob(path) {
-  return /[*?[\]{}]/.test(path);
-}
-
-export function checkReservations(registry) {
-  const issues = [];
-  const tasks = Array.isArray(registry?.tasks) ? registry.tasks : [];
-  const policy = registry?.reservationPolicy || {};
-  const states = policy.states || RESERVATION_STATES;
-
-  // Exact-file active ownership map: path -> [taskId, ...]
-  const activeOwners = new Map();
-  for (const task of tasks) {
-    const reservations = task.activeExactReservations || [];
-    for (const path of reservations) {
-      if (!activeOwners.has(path)) activeOwners.set(path, []);
-      activeOwners.get(path).push(task.id);
-    }
-    // MIU file plans must not be glob-only.
-    for (const [miu, files] of Object.entries(task.miuFilePlans || {})) {
-      if (!Array.isArray(files) || files.length === 0) {
-        issues.push(issue('glob-only-plan', `MIU ${miu} has an empty file plan`, [task.id, miu]));
-        continue;
-      }
-      const allGlob = files.every(isGlob);
-      if (allGlob) {
-        issues.push(issue('glob-only-plan', `MIU ${miu} reservation is glob-only`, [task.id, miu]));
-      }
-    }
-    // Reservation states must be legal members and transitions legal.
-    for (const [miu, st] of Object.entries(task.miuReservationStates || {})) {
-      const state = st?.reservationState;
-      if (state && !states.includes(state)) {
-        issues.push(
-          issue('illegal-transition', `MIU ${miu} has unknown state ${state}`, [
-            task.id,
-            miu,
-            state,
-          ]),
-        );
-      }
-    }
-  }
-  // Duplicate active exact-file ownership across tasks is forbidden.
-  for (const [path, owners] of activeOwners) {
-    if (owners.length > 1) {
-      issues.push(
-        issue('duplicate-active-owner', `exact file is actively owned by ${owners.length} tasks`, [
-          path,
-          ...owners,
-        ]),
-      );
-    }
-  }
-  return issues;
-}
-
-// MIU dependency DAG: no cycles, referenced MIUs exist, an active MIU depends only on
-// released MIUs (anything else is an illegal transition).
-export function checkMiuDependencies(registry) {
-  const issues = [];
-  const tasks = Array.isArray(registry?.tasks) ? registry.tasks : [];
-  for (const task of tasks) {
-    const deps = task.miuDependencies || {};
-    const states = task.miuReservationStates || {};
-    const label = task.id || '(task)';
-    for (const [miu, depList] of Object.entries(deps)) {
-      for (const dep of depList) {
-        if (!(dep in states)) {
-          issues.push(
-            issue('unmet-dependency', `MIU ${miu} depends on unknown MIU ${dep}`, [
-              label,
-              miu,
-              dep,
-            ]),
-          );
-        }
-      }
-    }
-    const mark = new Map();
-    const dfs = (node, path) => {
-      if (mark.get(node) === 'gray') {
-        issues.push(
-          issue('dependency-cycle', `MIU dependency cycle: ${[...path, node].join(' -> ')}`, [
-            label,
-            ...path,
-            node,
-          ]),
-        );
-        return;
-      }
-      if (mark.get(node) === 'black') return;
-      mark.set(node, 'gray');
-      for (const dep of deps[node] || []) dfs(dep, [...path, node]);
-      mark.set(node, 'black');
-    };
-    for (const miu of Object.keys(deps)) {
-      if (!mark.has(miu)) dfs(miu, []);
-    }
-    for (const [miu, st] of Object.entries(states)) {
-      if (st?.reservationState === 'active') {
-        for (const dep of deps[miu] || []) {
-          const depState = states[dep]?.reservationState;
-          if (depState !== 'released') {
-            issues.push(
-              issue(
-                'illegal-transition',
-                `MIU ${miu} active but dependency MIU ${dep} is ${depState || 'missing'} (must be released)`,
-                [label, miu, dep],
-              ),
-            );
-          }
-        }
-      }
-    }
-  }
-  return issues;
-}
-
-// Sequential ownership: a file's chain may hold at most one active MIU at a time.
-export function checkSequentialOwnership(registry) {
-  const issues = [];
-  const tasks = Array.isArray(registry?.tasks) ? registry.tasks : [];
-  for (const task of tasks) {
-    const seq = task.sequentialOwnership || {};
-    const states = task.miuReservationStates || {};
-    const label = task.id || '(task)';
-    for (const [file, spec] of Object.entries(seq)) {
-      const chain =
-        spec?.chain || (spec?.ownerMiu ? [spec.ownerMiu, ...(spec.laterConsumers || [])] : []);
-      const activeInChain = chain.filter((m) => states[m]?.reservationState === 'active');
-      if (activeInChain.length > 1) {
+  if (documented.size > 0) {
+    for (const [id, contract] of documented) {
+      const registryFiles = (task.miuFilePlans?.[id] ?? []).map(posix);
+      if (JSON.stringify(contract.files) !== JSON.stringify(registryFiles)) {
         issues.push(
           issue(
-            'illegal-transition',
-            `file has ${activeInChain.length} simultaneously active chain MIUs (${activeInChain.join(', ')})`,
-            [label, file],
+            ISSUE_CODES.REGISTRY_FILE_MISMATCH,
+            `MIU ${id} documented files differ from registry`,
+            `MIU ${id}`,
+            'miuFilePlans',
           ),
         );
       }
     }
   }
-  return issues;
+  const allowedStates = new Set(registry.reservationPolicy?.states ?? LEGAL_STATES);
+  for (const [id, stateRecord] of Object.entries(task.miuReservationStates ?? {})) {
+    const state = stateRecord?.reservationState;
+    if (!allowedStates.has(state)) {
+      issues.push(
+        issue(
+          ISSUE_CODES.ILLEGAL_STATE_TRANSITION,
+          `MIU ${id} has unknown state ${state}`,
+          `MIU ${id}`,
+        ),
+      );
+    }
+    const previous = stateRecord?.previousReservationState;
+    if (previous && !LEGAL_PREVIOUS_STATES[state]?.has(previous)) {
+      issues.push(
+        issue(
+          ISSUE_CODES.ILLEGAL_STATE_TRANSITION,
+          `MIU ${id} cannot transition ${previous} -> ${state}`,
+          `MIU ${id}`,
+        ),
+      );
+    }
+    if (state === 'released' && previous !== 'active') {
+      issues.push(
+        issue(
+          ISSUE_CODES.ILLEGAL_STATE_TRANSITION,
+          `MIU ${id} release must record previousReservationState active`,
+          `MIU ${id}`,
+        ),
+      );
+    }
+  }
+  if (
+    task.miuReservationStates?.['01']?.reservationState === 'released' &&
+    task.currentMiu == null &&
+    task.miuReservationStates?.['02']?.reservationState !== 'planned'
+  ) {
+    issues.push(
+      issue(
+        ISSUE_CODES.NEXT_MIU_STATE_MISMATCH,
+        'MIU 02 must remain planned when MIU 01 closes; activation is a separate step',
+        'MIU 02',
+      ),
+    );
+  }
+
+  const compatibilityFiles = (task.permanentCompatibilityOwner?.files ?? []).map(posix).sort();
+  const compatibilityReferences = (
+    task.permanentCompatibilityOwner?.permanentReadOnlyReferences ?? []
+  )
+    .map(posix)
+    .sort();
+  if (
+    task.permanentCompatibilityOwner?.ownerMiu !== '36' ||
+    JSON.stringify(compatibilityFiles) !==
+      JSON.stringify([...EXPECTED_COMPATIBILITY_FILES].sort()) ||
+    JSON.stringify(compatibilityReferences) !==
+      JSON.stringify([...EXPECTED_COMPATIBILITY_REFERENCES].sort())
+  ) {
+    issues.push(
+      issue(
+        ISSUE_CODES.COMPATIBILITY_DENOMINATOR_MISMATCH,
+        'Permanent Overstock compatibility owner/files/references differ from catalog-change-impact-v1',
+        'permanentCompatibilityOwner',
+      ),
+    );
+  }
 }
 
-// Consumer references: only active/released MIUs have present consumer files. Planned or
-// blocked MIUs reference files that later MIUs create (or that live on other branches), so
-// existence is only asserted for consumers of already-realized MIUs.
-export function checkConsumerReferences(registry, root) {
-  const issues = [];
-  const tasks = Array.isArray(registry?.tasks) ? registry.tasks : [];
-  for (const task of tasks) {
-    const refs = task.consumerReferences || {};
-    const states = task.miuReservationStates || {};
-    const label = task.id || '(task)';
-    for (const [miu, files] of Object.entries(refs)) {
-      const state = states[miu]?.reservationState;
-      if (state !== 'active' && state !== 'released') continue;
-      for (const f of files || []) {
-        if (!existsSync(join(root, f))) {
+function validateMiuGraph(task, issues) {
+  const ids = allMiuIds(task);
+  const graph = new Map();
+  for (const id of ids) {
+    const dependencies = task.miuDependencies?.[id] ?? [];
+    graph.set(
+      id,
+      dependencies.filter((dependency) => ids.has(dependency)),
+    );
+    for (const dependency of dependencies) {
+      if (!ids.has(dependency))
+        issues.push(
+          issue(
+            ISSUE_CODES.MISSING_DEPENDENCY,
+            `MIU ${id} depends on unknown MIU ${dependency}`,
+            `MIU ${id}`,
+            `MIU ${dependency}`,
+          ),
+        );
+    }
+    const state = task.miuReservationStates?.[id]?.reservationState;
+    if (ACTIVE_STATES.has(state)) {
+      for (const dependency of dependencies) {
+        const dependencyState = task.miuReservationStates?.[dependency]?.reservationState;
+        if (!FINISHED_STATES.has(dependencyState)) {
           issues.push(
-            issue('missing-derived-consumer', 'consumer reference file does not exist', [
-              label,
-              miu,
-              f,
-            ]),
+            issue(
+              ISSUE_CODES.UNMET_ACTIVE_DEPENDENCY,
+              `Active MIU ${id} requires released MIU ${dependency}, found ${dependencyState ?? 'missing'}`,
+              `MIU ${id}`,
+              `MIU ${dependency}`,
+            ),
           );
         }
       }
     }
   }
-  return issues;
+
+  const visiting = new Set();
+  const visited = new Set();
+  function visit(id, chain) {
+    if (visiting.has(id)) {
+      const start = chain.indexOf(id);
+      const cycle = [...chain.slice(start), id];
+      issues.push(
+        issue(ISSUE_CODES.MIU_CYCLE, `MIU dependency cycle: ${cycle.join(' -> ')}`, `MIU ${id}`),
+      );
+      return;
+    }
+    if (visited.has(id)) return;
+    visiting.add(id);
+    for (const dependency of graph.get(id) ?? []) visit(dependency, [...chain, id]);
+    visiting.delete(id);
+    visited.add(id);
+  }
+  for (const id of ids) visit(id, []);
+  const active = [...ids].filter((id) =>
+    ACTIVE_STATES.has(task.miuReservationStates?.[id]?.reservationState),
+  );
+  if (active.length > 1) {
+    issues.push(
+      issue(
+        ISSUE_CODES.MULTIPLE_ACTIVE_MIUS,
+        `Only one MIU may be active, found ${active.join(', ')}`,
+        task.id,
+      ),
+    );
+  }
+  if ((active[0] ?? null) !== (task.currentMiu ?? null)) {
+    issues.push(
+      issue(
+        ISSUE_CODES.CURRENT_MIU_MISMATCH,
+        `currentMiu ${task.currentMiu ?? 'null'} does not match active MIU ${active[0] ?? 'none'}`,
+        task.id,
+      ),
+    );
+  }
 }
 
-// ---------------------------------------------------------------------------
-// Git live refs (via injected gitProbe so tests can mock)
-// ---------------------------------------------------------------------------
-export function createGitProbe(root) {
-  const run = (args) =>
-    execFileSync('git', args, {
-      cwd: root,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }).trim();
-  return {
-    root,
-    headSha() {
-      try {
-        return run(['rev-parse', 'HEAD']);
-      } catch {
-        return null;
-      }
-    },
-    showRefVerify(ref) {
-      try {
-        return run(['show-ref', '--verify', '--hash', ref]);
-      } catch {
-        return null;
-      }
-    },
-    lsRemoteHeads(remote = 'origin') {
-      try {
-        const out = run(['ls-remote', '--heads', remote]);
-        const map = {};
-        for (const line of out.split('\n')) {
-          if (!line.trim()) continue;
-          const [sha, ref] = line.split(/\s+/);
-          map[ref.replace(/^refs\/heads\//, '')] = sha;
+function validateOwnership(task, issues) {
+  const ownersByPath = new Map();
+  for (const [id, files] of Object.entries(task.miuFilePlans ?? {})) {
+    if (!Array.isArray(files) || files.length === 0) {
+      issues.push(
+        issue(ISSUE_CODES.REGISTRY_SHAPE, `MIU ${id} has no exact file plan`, `MIU ${id}`),
+      );
+      continue;
+    }
+    for (const rawPath of files) {
+      const path = posix(rawPath);
+      if (hasGlob(path))
+        issues.push(
+          issue(
+            ISSUE_CODES.GLOB_ONLY_PLAN,
+            `MIU ${id} must reserve exact files, not ${path}`,
+            `MIU ${id}`,
+            path,
+          ),
+        );
+      const owners = ownersByPath.get(path) ?? [];
+      owners.push(id);
+      ownersByPath.set(path, owners);
+    }
+  }
+
+  for (const [path, owners] of ownersByPath) {
+    const model = task.sequentialOwnership?.[path];
+    if (owners.length > 1 && model && !sequentiallyModeled(task, path, owners)) {
+      issues.push(
+        issue(
+          ISSUE_CODES.INVALID_SEQUENTIAL_OWNERSHIP,
+          `Sequential ownership does not match owner order ${owners.join(', ')}`,
+          path,
+        ),
+      );
+    }
+    if (owners.length > 1 && !model) {
+      issues.push(
+        issue(
+          ISSUE_CODES.UNMODELED_REPEAT,
+          `Repeated file plan lacks sequential ownership: ${owners.join(', ')}`,
+          path,
+        ),
+      );
+    }
+    const activeOwners = owners.filter((id) =>
+      ACTIVE_STATES.has(task.miuReservationStates?.[id]?.reservationState),
+    );
+    if (activeOwners.length > 1) {
+      issues.push(
+        issue(
+          ISSUE_CODES.DUPLICATE_ACTIVE_OWNER,
+          `Multiple active MIUs own this exact file: ${activeOwners.join(', ')}`,
+          path,
+        ),
+      );
+    }
+    if (model?.transition === 'released-before-next-active' && activeOwners.length === 1) {
+      const activeIndex = model.chain.indexOf(activeOwners[0]);
+      for (const predecessor of model.chain.slice(0, activeIndex)) {
+        if (!FINISHED_STATES.has(task.miuReservationStates?.[predecessor]?.reservationState)) {
+          issues.push(
+            issue(
+              ISSUE_CODES.INVALID_SEQUENTIAL_OWNERSHIP,
+              `Active MIU ${activeOwners[0]} requires predecessor MIU ${predecessor} released`,
+              path,
+            ),
+          );
         }
-        return map;
-      } catch {
-        return null;
       }
-    },
-    worktreeList() {
-      try {
-        const out = run(['worktree', 'list', '--porcelain']);
-        const list = [];
-        let cur = {};
-        for (const line of out.split('\n')) {
-          if (line.startsWith('worktree ')) {
-            if (cur.worktree) list.push(cur);
-            cur = { worktree: line.slice(9) };
-          } else if (line.startsWith('HEAD ')) cur.head = line.slice(5);
-          else if (line.startsWith('branch '))
-            cur.branch = line.slice(7).replace(/^refs\/heads\//, '');
-          else if (line === '' && cur.worktree) {
-            list.push(cur);
-            cur = {};
+    }
+  }
+
+  for (const [path, model] of Object.entries(task.sequentialOwnership ?? {})) {
+    if (!model?.ownerMiu || !Array.isArray(model.laterConsumers)) continue;
+    const ownerState = task.miuReservationStates?.[model.ownerMiu]?.reservationState;
+    for (const consumer of model.laterConsumers) {
+      const consumerState = task.miuReservationStates?.[consumer]?.reservationState;
+      if (
+        (ACTIVE_STATES.has(consumerState) || FINISHED_STATES.has(consumerState)) &&
+        !FINISHED_STATES.has(ownerState)
+      ) {
+        issues.push(
+          issue(
+            ISSUE_CODES.INVALID_SEQUENTIAL_OWNERSHIP,
+            `MIU ${consumer} cannot consume ${path} before owner MIU ${model.ownerMiu} is released`,
+            path,
+          ),
+        );
+      }
+    }
+  }
+
+  const activeFiles = new Set();
+  for (const [id, stateRecord] of Object.entries(task.miuReservationStates ?? {})) {
+    if (!ACTIVE_STATES.has(stateRecord?.reservationState)) continue;
+    for (const path of task.miuFilePlans?.[id] ?? []) activeFiles.add(path);
+  }
+  if (activeFiles.size > 0) {
+    const claimed = new Set(task.activeExactReservations ?? []);
+    for (const path of activeFiles) {
+      if (!claimed.has(path)) {
+        issues.push(
+          issue(
+            ISSUE_CODES.ACTIVE_RESERVATION_MISMATCH,
+            'Active MIU file is missing from activeExactReservations',
+            path,
+          ),
+        );
+      }
+    }
+    for (const path of claimed) {
+      if (!activeFiles.has(path)) {
+        issues.push(
+          issue(
+            ISSUE_CODES.ACTIVE_RESERVATION_MISMATCH,
+            'activeExactReservations contains a file not owned by an active MIU',
+            path,
+          ),
+        );
+      }
+    }
+  } else if ((task.activeExactReservations ?? []).length > 0) {
+    for (const path of task.activeExactReservations) {
+      issues.push(
+        issue(
+          ISSUE_CODES.ACTIVE_RESERVATION_MISMATCH,
+          'No MIU is active, so activeExactReservations must be empty',
+          path,
+        ),
+      );
+    }
+  }
+  if (activeFiles.size === 0 && String(task.activeReservationPurpose ?? '').trim()) {
+    issues.push(
+      issue(
+        ISSUE_CODES.ACTIVE_RESERVATION_MISMATCH,
+        'No MIU is active, so activeReservationPurpose must be empty',
+        'activeReservationPurpose',
+      ),
+    );
+  }
+}
+
+function validateConsumers(root, task, config, issues) {
+  const futurePaths = plannedPaths(task);
+  const documented = parseMiuBreakdown(root);
+  for (const path of config.additionalRequiredPaths ?? []) {
+    if (!existsSync(join(root, path)) && !futurePaths.has(path)) {
+      issues.push(
+        issue(
+          ISSUE_CODES.MISSING_CONSUMER,
+          'Required Catalog denominator path is neither present nor planned',
+          path,
+        ),
+      );
+    }
+  }
+  for (const [id, paths] of Object.entries(task.consumerReferences ?? {})) {
+    const state = task.miuReservationStates?.[id]?.reservationState;
+    if (!ACTIVE_STATES.has(state) && !FINISHED_STATES.has(state)) continue;
+    for (const path of paths) {
+      if (!existsSync(join(root, path)) && !futurePaths.has(path)) {
+        issues.push(
+          issue(
+            ISSUE_CODES.MISSING_CONSUMER,
+            `MIU ${id} consumer reference is absent and unplanned`,
+            path,
+            `MIU ${id}`,
+          ),
+        );
+      }
+    }
+  }
+  for (const [id, contract] of documented) {
+    for (const path of contract.references) {
+      if (!existsSync(join(root, path)) && !futurePaths.has(path)) {
+        issues.push(
+          issue(
+            ISSUE_CODES.MISSING_CONSUMER,
+            `MIU ${id} names a contract path that is neither present nor planned`,
+            path,
+            `MIU ${id}`,
+          ),
+        );
+      }
+    }
+  }
+  for (const [id, stateRecord] of Object.entries(task.miuReservationStates ?? {})) {
+    if (!ACTIVE_STATES.has(stateRecord?.reservationState)) continue;
+    for (const path of task.miuFilePlans?.[id] ?? []) {
+      if (!hasGlob(path) && !existsSync(join(root, path))) {
+        issues.push(
+          issue(
+            ISSUE_CODES.MISSING_ACTIVE_FILE,
+            `Active MIU ${id} implementation file does not exist`,
+            path,
+            `MIU ${id}`,
+          ),
+        );
+      }
+    }
+  }
+}
+
+function validateGovernance(task, config, issues) {
+  const byRole = new Map();
+  const ids = allMiuIds(task);
+  for (const owner of config.governanceOwners ?? []) {
+    const existing = byRole.get(owner.role);
+    if (existing) {
+      issues.push(
+        issue(
+          ISSUE_CODES.DUPLICATE_GOVERNANCE_OWNER,
+          `Governance role ${owner.role} has multiple canonical owners`,
+          existing.path,
+          owner.path,
+        ),
+      );
+    } else byRole.set(owner.role, owner);
+    if (!ids.has(String(owner.miu).padStart(2, '0'))) {
+      issues.push(
+        issue(
+          ISSUE_CODES.REGISTRY_SHAPE,
+          `Governance owner references unknown MIU ${owner.miu}`,
+          owner.path,
+        ),
+      );
+    }
+  }
+  const configured = (config.governanceOwners ?? [])
+    .map((owner) => [owner.role, posix(owner.path), String(owner.miu).padStart(2, '0')])
+    .sort((left, right) => left[0].localeCompare(right[0]));
+  const expected = [...EXPECTED_GOVERNANCE].sort((left, right) => left[0].localeCompare(right[0]));
+  if (JSON.stringify(configured) !== JSON.stringify(expected)) {
+    issues.push(
+      issue(
+        ISSUE_CODES.CONFIG_DENOMINATOR_MISMATCH,
+        'governanceOwners differs from immutable catalog-change-impact-v1 roles',
+        'config/change-impact/catalog.yaml',
+      ),
+    );
+  }
+  const scanRoots = [...(config.scanRoots ?? [])].sort();
+  const layerNames = Object.keys(config.layers ?? {}).sort();
+  const invalidLayer = EXPECTED_LAYER_NAMES.some((name) => {
+    const layer = config.layers?.[name];
+    return !layer || !Array.isArray(layer.include) || layer.include.length === 0;
+  });
+  if (
+    JSON.stringify(scanRoots) !== JSON.stringify([...EXPECTED_SCAN_ROOTS].sort()) ||
+    JSON.stringify(layerNames) !== JSON.stringify([...EXPECTED_LAYER_NAMES].sort()) ||
+    invalidLayer
+  ) {
+    issues.push(
+      issue(
+        ISSUE_CODES.CONFIG_DENOMINATOR_MISMATCH,
+        'scanRoots/layers differ from immutable catalog-change-impact-v1 topology',
+        'config/change-impact/catalog.yaml',
+      ),
+    );
+  }
+}
+
+function declarationNames(path, source) {
+  const tree = ts.createSourceFile(
+    path,
+    sourceForParsing(path, source),
+    ts.ScriptTarget.Latest,
+    true,
+    path.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const names = [];
+  function visit(node) {
+    if (
+      (ts.isFunctionDeclaration(node) ||
+        ts.isClassDeclaration(node) ||
+        ts.isInterfaceDeclaration(node) ||
+        ts.isTypeAliasDeclaration(node) ||
+        ts.isVariableDeclaration(node)) &&
+      node.name &&
+      ts.isIdentifier(node.name)
+    ) {
+      names.push(node.name.text);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(tree);
+  return names;
+}
+
+function modeledPaths(task, config) {
+  return new Set([
+    ...Object.values(task.miuFilePlans ?? {})
+      .flat()
+      .map(posix),
+    ...Object.values(task.consumerReferences ?? {})
+      .flat()
+      .map(posix),
+    ...(task.permanentCompatibilityOwner?.files ?? []).map(posix),
+    ...(task.permanentCompatibilityOwner?.permanentReadOnlyReferences ?? []).map(posix),
+    ...(config.additionalRequiredPaths ?? []).map(posix),
+  ]);
+}
+
+function validateDiscoveredGovernance(root, task, config, moduleGraph, issues) {
+  const modeled = modeledPaths(task, config);
+  for (const owner of config.governanceOwners ?? []) {
+    const discover = owner.discover;
+    if (!discover) continue;
+    const producers = [];
+    for (const scanRoot of discover.roots ?? []) {
+      for (const path of walkAll(root, scanRoot)) {
+        if ((discover.filePatterns ?? []).some((pattern) => matches(pattern, path))) {
+          producers.push(path);
+          continue;
+        }
+        if (SOURCE_EXTENSIONS.has(extname(path))) {
+          const names = declarationNames(path, readFileSync(join(root, path), 'utf8'));
+          if ((discover.declarationNames ?? []).some((name) => names.includes(name))) {
+            producers.push(path);
           }
         }
-        if (cur.worktree) list.push(cur);
-        return list;
-      } catch {
-        return [];
       }
+    }
+    if (producers.length > 1) {
+      issues.push(
+        issue(
+          ISSUE_CODES.DUPLICATE_GOVERNANCE_OWNER,
+          `Governance role ${owner.role} has discovered producers ${producers.join(', ')}`,
+          producers[0],
+          producers[1],
+        ),
+      );
+    }
+    const canonical = posix(owner.path);
+    if (producers.length === 1 && producers[0] !== canonical) {
+      issues.push(
+        issue(
+          ISSUE_CODES.GOVERNANCE_OWNER_MISMATCH,
+          `Governance role ${owner.role} is produced at ${producers[0]}, expected ${canonical}`,
+          producers[0],
+          canonical,
+        ),
+      );
+    }
+    const ownerState =
+      task.miuReservationStates?.[String(owner.miu).padStart(2, '0')]?.reservationState;
+    if (
+      (ACTIVE_STATES.has(ownerState) || FINISHED_STATES.has(ownerState)) &&
+      !producers.includes(canonical)
+    ) {
+      issues.push(
+        issue(
+          ISSUE_CODES.GOVERNANCE_OWNER_MISMATCH,
+          `Active/released governance owner ${owner.role} is missing at its canonical path`,
+          canonical,
+        ),
+      );
+    }
+    for (const [consumer, dependencies] of moduleGraph.graph) {
+      if (dependencies.includes(canonical) && !modeled.has(consumer)) {
+        issues.push(
+          issue(
+            ISSUE_CODES.UNMODELED_CONSUMER,
+            `Consumer of ${owner.role} is absent from registry and denominator`,
+            consumer,
+            canonical,
+          ),
+        );
+      }
+    }
+  }
+}
+
+function validateGit(root, task, gitProbe, issues) {
+  const localHead = gitProbe.localSha(task.branch);
+  const remoteHead = gitProbe.remoteSha(task.remoteBranch);
+  if (!task.baseSha || !localHead || !gitProbe.isAncestor(task.baseSha, localHead)) {
+    issues.push(
+      issue(
+        ISSUE_CODES.STALE_SHA,
+        `base claimed SHA ${task.baseSha ?? 'missing'} is not an ancestor of ${localHead ?? 'missing'}`,
+        task.branch,
+        task.remoteBranch,
+      ),
+    );
+  }
+  for (const [label, claimed, actual] of [
+    ['local', task.claimedLocalHead, localHead],
+    ['remote', task.claimedRemoteHead, remoteHead],
+  ]) {
+    if (!claimed || !actual || !gitProbe.isAncestor(claimed, actual)) {
+      issues.push(
+        issue(
+          ISSUE_CODES.STALE_SHA,
+          `${label} claimed SHA ${claimed ?? 'missing'} is not an ancestor of observed head ${actual ?? 'missing'}`,
+          task.branch,
+          task.remoteBranch,
+        ),
+      );
+    }
+  }
+
+  const expectedWorktree = normalize(
+    isAbsolute(task.worktree) ? task.worktree : resolve(root, task.worktree),
+  );
+  const found = gitProbe
+    .worktrees()
+    .find(
+      (worktree) =>
+        normalize(worktree.path) === expectedWorktree && worktree.branch === task.branch,
+    );
+  if (!found) {
+    issues.push(
+      issue(
+        ISSUE_CODES.WORKTREE_MISMATCH,
+        'Claimed worktree/branch pair is not present in live Git worktrees',
+        task.worktree,
+        task.branch,
+      ),
+    );
+  }
+
+  if (found && found.head !== localHead) {
+    issues.push(
+      issue(
+        ISSUE_CODES.WORKTREE_MISMATCH,
+        `Worktree HEAD ${found.head} differs from local branch head ${localHead}`,
+        task.worktree,
+        task.branch,
+      ),
+    );
+  }
+  const released = Object.values(task.miuReservationStates ?? {}).some(
+    (state) => state?.reservationState === 'released',
+  );
+  if (
+    (released || /(complete|completed|closure|released)/i.test(task.status ?? '')) &&
+    localHead !== remoteHead
+  ) {
+    issues.push(
+      issue(
+        ISSUE_CODES.LOCAL_ONLY_COMPLETION,
+        `Task status ${task.status} cannot complete with local ${localHead} != remote ${remoteHead}`,
+        task.branch,
+        task.remoteBranch,
+      ),
+    );
+  }
+}
+
+function validateExternalGates(task, gitProbe, issues) {
+  const gate = task.externalGates?.D1;
+  const deployGate = task.externalGates?.D2;
+  if (
+    !gate ||
+    JSON.stringify((gate.scope ?? []).map(String)) !== JSON.stringify(['26', '27', '28']) ||
+    gate.taskLevelDependency !== false ||
+    !deployGate ||
+    JSON.stringify((deployGate.scope ?? []).map(String)) !== JSON.stringify(['46']) ||
+    deployGate.taskLevelDependency !== false
+  ) {
+    issues.push(
+      issue(
+        ISSUE_CODES.EXTERNAL_GATE_SHAPE,
+        'Catalog registry must retain MIU-scoped D1 [26,27,28] and D2 [46]',
+        'externalGates',
+      ),
+    );
+    return;
+  }
+  const scopeHasUnblockedMiu = gate.scope.some(
+    (id) =>
+      task.miuReservationStates?.[String(id).padStart(2, '0')]?.reservationState !== 'blocked',
+  );
+  if (scopeHasUnblockedMiu) {
+    const mergedSha = gate.satisfiedMergedSha;
+    const evidence = gate.validationEvidence;
+    const mainHead = gitProbe.remoteSha('origin/main');
+    if (
+      !mergedSha ||
+      !Array.isArray(evidence) ||
+      evidence.length === 0 ||
+      !mainHead ||
+      !gitProbe.isAncestor(mergedSha, mainHead)
+    ) {
+      issues.push(
+        issue(
+          ISSUE_CODES.UNSATISFIED_EXTERNAL_GATE,
+          'D1-scoped MIUs cannot leave blocked until the final Select SHA is merged and validation evidence is recorded',
+          'externalGates.D1',
+        ),
+      );
+    }
+  }
+
+  const d2Unblocked = deployGate.scope.some((id) => {
+    const state = task.miuReservationStates?.[String(id).padStart(2, '0')]?.reservationState;
+    return ACTIVE_STATES.has(state) || FINISHED_STATES.has(state);
+  });
+  if (d2Unblocked) {
+    const implementationSha = deployGate.approvedImplementationSha;
+    const rollbackSha = deployGate.approvedRollbackSha;
+    if (
+      deployGate.confirmLive !== true ||
+      !implementationSha ||
+      !rollbackSha ||
+      !gitProbe.isAncestor(implementationSha, implementationSha) ||
+      !gitProbe.isAncestor(rollbackSha, rollbackSha)
+    ) {
+      issues.push(
+        issue(
+          ISSUE_CODES.UNSATISFIED_EXTERNAL_GATE,
+          'MIU 46 requires confirmLive plus valid approved implementation and rollback SHAs',
+          'externalGates.D2',
+        ),
+      );
+    }
+  }
+}
+
+function loadConfig(root) {
+  const path = join(root, 'config/change-impact/catalog.yaml');
+  if (!existsSync(path)) return null;
+  return parse(readFileSync(path, 'utf8'));
+}
+
+export function verifyCatalogArchitecture(root, registry, gitProbe = createGitProbe(root)) {
+  const issues = [];
+  const config = loadConfig(root);
+  if (!config || config.schemaVersion !== 'catalog-change-impact-v1') {
+    return [
+      issue(
+        ISSUE_CODES.REGISTRY_SHAPE,
+        'Missing or unsupported config/change-impact/catalog.yaml',
+        'config/change-impact/catalog.yaml',
+      ),
+    ];
+  }
+  if (!registry || !Array.isArray(registry.tasks) || registry.tasks.length !== 1) {
+    return [
+      issue(
+        ISSUE_CODES.REGISTRY_SHAPE,
+        'Catalog registry must contain exactly one task',
+        'docs/catalog-architecture-hardening/TASK_REGISTRY.json',
+      ),
+    ];
+  }
+  const task = registry.tasks[0];
+  validateRegistryShape(root, task, registry, issues);
+  validateMiuGraph(task, issues);
+  validateOwnership(task, issues);
+  validateConsumers(root, task, config, issues);
+  validateGovernance(task, config, issues);
+  const moduleGraph = validateModuleGraph(root, config, issues);
+  validateDiscoveredGovernance(root, task, config, moduleGraph, issues);
+  validateGit(root, task, gitProbe, issues);
+  validateExternalGates(task, gitProbe, issues);
+  return sortIssues(issues);
+}
+
+export function createGitProbe(root, options = {}) {
+  const execute = options.exec ?? execFileSync;
+  const timeoutMs = options.timeoutMs ?? 10_000;
+  function run(args, options = {}) {
+    try {
+      return execute('git', args, {
+        cwd: root,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: timeoutMs,
+        ...options,
+      }).trim();
+    } catch {
+      return '';
+    }
+  }
+  return {
+    localSha(branch) {
+      return run(['rev-parse', '--verify', `refs/heads/${branch}`]) || null;
     },
-    isAncestor(ancestorSha, descendantRef) {
+    remoteSha(remoteBranch) {
+      const normalizedRemote = remoteBranch.replace(/^refs\/remotes\//, '');
+      const slash = normalizedRemote.indexOf('/');
+      const remote = slash < 0 ? 'origin' : normalizedRemote.slice(0, slash);
+      const branch = slash < 0 ? normalizedRemote : normalizedRemote.slice(slash + 1);
+      const live = run(['ls-remote', '--heads', remote, branch]);
+      return live.split(/\s+/)[0] || null;
+    },
+    isAncestor(ancestor, descendant) {
+      if (!ancestor || !descendant) return false;
       try {
-        run(['merge-base', '--is-ancestor', ancestorSha, descendantRef]);
+        execFileSync('git', ['merge-base', '--is-ancestor', ancestor, descendant], {
+          cwd: root,
+          stdio: 'ignore',
+        });
         return true;
       } catch {
         return false;
       }
     },
+    worktrees() {
+      const output = run(['worktree', 'list', '--porcelain']);
+      if (!output) return [];
+      return output.split(/\n\n+/).map((block) => {
+        const values = Object.fromEntries(
+          block.split('\n').map((line) => {
+            const space = line.indexOf(' ');
+            return space < 0 ? [line, true] : [line.slice(0, space), line.slice(space + 1)];
+          }),
+        );
+        return {
+          path: values.worktree,
+          head: values.HEAD,
+          branch:
+            typeof values.branch === 'string' ? values.branch.replace(/^refs\/heads\//, '') : null,
+        };
+      });
+    },
   };
 }
 
-export function checkGitRefs(registry, gitProbe) {
-  const issues = [];
-  const tasks = Array.isArray(registry?.tasks) ? registry.tasks : [];
-  if (!gitProbe) return issues;
-  const remoteHeads = gitProbe.lsRemoteHeads ? gitProbe.lsRemoteHeads('origin') : null;
-  const worktrees = gitProbe.worktreeList ? gitProbe.worktreeList() : [];
-
-  for (const task of tasks) {
-    const label = task.id || '(unknown task)';
-    const localRef = `refs/heads/${task.branch}`;
-    const localSha = gitProbe.showRefVerify ? gitProbe.showRefVerify(localRef) : null;
-    if (task.branch && !localSha) {
-      issues.push(issue('missing-ref', `local ref ${task.branch} not found`, [label, task.branch]));
-    }
-    const branchName = task.remoteBranch ? task.remoteBranch.replace(/^origin\//, '') : null;
-    const remoteSha = remoteHeads && branchName ? remoteHeads[branchName] : null;
-    if (branchName && remoteHeads && !remoteSha) {
-      issues.push(
-        issue('missing-ref', `remote ref ${branchName} not found on origin`, [label, branchName]),
-      );
-    }
-    // Stale claimed SHAs. A claimed SHA merely BEHIND the live head (an ancestor, i.e.
-    // normal commit progress) is fine; a claimed SHA that is NOT an ancestor of the live
-    // head means the registry is out of sync (rebase/reset/force-push) -> stale.
-    const isAnc = (a, d) => (gitProbe.isAncestor ? gitProbe.isAncestor(a, d) : false);
-    if (
-      task.claimedLocalHead &&
-      localSha &&
-      task.claimedLocalHead !== localSha &&
-      !isAnc(task.claimedLocalHead, localRef)
-    ) {
-      issues.push(
-        issue(
-          'stale-sha',
-          `claimedLocalHead ${task.claimedLocalHead.slice(0, 7)} is not an ancestor of live local ${localSha.slice(0, 7)} (registry out of sync)`,
-          [label, task.branch],
-        ),
-      );
-    }
-    if (
-      task.claimedRemoteHead &&
-      remoteSha &&
-      branchName &&
-      task.claimedRemoteHead !== remoteSha &&
-      !isAnc(task.claimedRemoteHead, `origin/${branchName}`)
-    ) {
-      issues.push(
-        issue(
-          'stale-sha',
-          `claimedRemoteHead ${task.claimedRemoteHead.slice(0, 7)} is not an ancestor of live remote ${remoteSha.slice(0, 7)} (registry out of sync)`,
-          [label, branchName],
-        ),
-      );
-    }
-    // Local-only completion: local ahead of remote means unpushed work.
-    if (localSha && remoteSha && localSha !== remoteSha) {
-      issues.push(
-        issue(
-          'local-only-completion',
-          `local ${localSha.slice(0, 7)} differs from remote ${remoteSha.slice(0, 7)} (unpushed or diverged)`,
-          [label, task.branch],
-        ),
-      );
-    }
-    // Worktree/branch mismatch (ignore sibling worktrees on other branches).
-    if (task.worktree) {
-      const wt = worktrees.find((w) => w.worktree === task.worktree);
-      if (wt?.branch && task.branch && wt.branch !== task.branch) {
-        issues.push(
-          issue(
-            'worktree-mismatch',
-            `worktree ${task.worktree} is on ${wt.branch}, expected ${task.branch}`,
-            [label, task.worktree],
-          ),
-        );
-      }
-    }
-  }
-  return issues;
+export function formatIssue(value) {
+  return `[${value.code}] ${value.path}${value.relatedPath ? ` -> ${value.relatedPath}` : ''}: ${value.message}`;
 }
 
-// ---------------------------------------------------------------------------
-// Governance: denominator loading, duplicate owners, rooted discovery
-// ---------------------------------------------------------------------------
-export function loadDenominator(root) {
-  const path = join(root, 'config', 'change-impact', 'catalog.yaml');
-  if (!existsSync(path)) return null;
-  const parsed = parseYaml(readFileSync(path, 'utf8'));
-  return parsed;
-}
-
-export function checkDenominator(root, denominator) {
-  const issues = [];
-  if (!denominator || !denominator.owners) {
-    issues.push(
-      issue(
-        'missing-denominator',
-        'config/change-impact/catalog.yaml missing or has no owners',
-        [],
-      ),
-    );
-    return issues;
-  }
-  for (const [role, files] of Object.entries(denominator.owners)) {
-    if (!Array.isArray(files) || files.length === 0) {
-      issues.push(issue('empty-owner-role', `governance role ${role} names no owners`, [role]));
-      continue;
-    }
-    for (const f of files) {
-      if (isGlob(f)) {
-        issues.push(
-          issue('glob-only-owner', `governance role ${role} uses glob-only entry`, [role, f]),
-        );
-      } else if (!existsSync(join(root, f))) {
-        issues.push(issue('stale-denominator', 'denominator path does not exist', [role, f]));
-      }
-    }
-  }
-  return issues;
-}
-
-// ---------------------------------------------------------------------------
-// Governance: rooted consumer discovery + duplicate owner detection
-// ---------------------------------------------------------------------------
-// The rooted set is every denominator owner plus everything reachable from those owners
-// along the import graph in BOTH directions. Governance enforcement applies ONLY to the
-// new catalog kernel (apps/site/src/catalog/**, packages/shared/src/catalog/**): the
-// pre-refactor legacy cluster is the recorded baseline and is intentionally not policed.
-//   - unrooted-discovery: a kernel file unreachable from any known owner (no rooted owner).
-//   - duplicate-governance-owner: a kernel file that shadows a denominator owner of a role
-//     (same basename) without being that role's declared owner — a second owner appeared.
-const CATALOG_KERNEL = /^apps\/site\/src\/catalog\/|^packages\/shared\/src\/catalog\//;
-const ROLE_OF_KERNEL = [
-  [/packages\/shared\/src\/catalog\//, 'schema'],
-  [/\/catalog\/families\//, 'family'],
-  [/\/catalog\/presentation\/|\/catalog\/application\//, 'family'],
-];
-
-function baseName(p) {
-  return p.split(/[\\/]/).pop();
-}
-
-export function checkGovernance(root, denominator, graph, files) {
-  const issues = [];
-  if (!denominator?.owners) return issues;
-  const knownOwners = new Set();
-  for (const list of Object.values(denominator.owners)) {
-    for (const f of list || []) knownOwners.add(resolve(root, f));
-  }
-  const reverse = new Map();
-  for (const [from, deps] of graph) {
-    for (const to of deps) {
-      if (!reverse.has(to)) reverse.set(to, new Set());
-      reverse.get(to).add(from);
-    }
-  }
-  const rooted = new Set(knownOwners);
-  const queue = [...knownOwners];
-  while (queue.length) {
-    const cur = queue.pop();
-    for (const next of [...(graph.get(cur) || []), ...(reverse.get(cur) || [])]) {
-      if (!rooted.has(next)) {
-        rooted.add(next);
-        queue.push(next);
-      }
-    }
-  }
-  const ownerByBase = new Map();
-  for (const [role, list] of Object.entries(denominator.owners)) {
-    for (const f of list || []) {
-      const b = baseName(f);
-      if (!ownerByBase.has(b)) ownerByBase.set(b, []);
-      ownerByBase.get(b).push({ role, path: f });
-    }
-  }
-  for (const file of files) {
-    const rel = relative(root, file).split(sep).join('/');
-    if (!CATALOG_KERNEL.test(rel)) continue;
-    if (!rooted.has(file)) {
-      issues.push(
-        issue('unrooted-discovery', 'catalog kernel file is not reachable from any known owner', [
-          rel,
-        ]),
-      );
-    }
-    const shadow = ownerByBase.get(baseName(rel));
-    if (shadow && !shadow.some((s) => resolve(root, s.path) === file)) {
-      issues.push(
-        issue(
-          'duplicate-governance-owner',
-          `kernel file shadows declared ${shadow[0].role} owner ${shadow[0].path}`,
-          [rel, shadow[0].path],
-        ),
-      );
-    }
-  }
-  return issues;
-}
-
-// ---------------------------------------------------------------------------
-// Main entry
-// ---------------------------------------------------------------------------
-export function verifyCatalogArchitecture(root, registry, gitProbe) {
-  const absRoot = resolve(root);
-  const issues = [];
-  const { files, graph } = buildModuleGraph(absRoot);
-  issues.push(...checkDependencyDirection(absRoot, graph));
-  issues.push(...detectCycles(absRoot, graph));
-  issues.push(...checkReservations(registry));
-  issues.push(...checkMiuDependencies(registry));
-  issues.push(...checkSequentialOwnership(registry));
-  issues.push(...checkConsumerReferences(registry, absRoot));
-  issues.push(...checkGitRefs(registry, gitProbe));
-  const denominator = loadDenominator(absRoot);
-  issues.push(...checkDenominator(absRoot, denominator));
-  issues.push(...checkGovernance(absRoot, denominator, graph, files));
-  return issues;
-}
-
-// ---------------------------------------------------------------------------
-// CLI
-// ---------------------------------------------------------------------------
-const isMain = (() => {
-  try {
-    return process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
-  } catch {
-    return false;
-  }
-})();
-
-if (isMain) {
+function cli() {
   const root = resolve(process.cwd());
-  const registryPath = join(root, 'docs', 'catalog-architecture-hardening', 'TASK_REGISTRY.json');
-  const registry = existsSync(registryPath)
-    ? JSON.parse(readFileSync(registryPath, 'utf8'))
-    : { tasks: [] };
-  const gitProbe = createGitProbe(root);
-  const issues = verifyCatalogArchitecture(root, registry, gitProbe);
-  if (issues.length === 0) {
-    console.log('verify-catalog-architecture: OK (0 issues)');
-    process.exit(0);
-  }
-  console.log(`verify-catalog-architecture: ${issues.length} issue(s)`);
-  for (const i of issues) {
-    console.log(`  [${i.type}] ${i.detail}${i.paths.length ? ` :: ${i.paths.join(' | ')}` : ''}`);
-  }
-  process.exit(1);
+  const registryPath = join(root, 'docs/catalog-architecture-hardening/TASK_REGISTRY.json');
+  const registry = JSON.parse(readFileSync(registryPath, 'utf8'));
+  const issues = verifyCatalogArchitecture(root, registry, createGitProbe(root));
+  if (process.argv.includes('--json'))
+    console.log(JSON.stringify({ ok: issues.length === 0, issues }, null, 2));
+  else if (issues.length === 0) console.log('Catalog architecture verification passed (0 issues).');
+  else for (const value of issues) console.error(formatIssue(value));
+  process.exitCode = issues.length === 0 ? 0 : 1;
 }
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) cli();
