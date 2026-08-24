@@ -144,6 +144,21 @@ test('returns null for an explicit corrupt family', () => {
   );
 });
 
+test('product list fails closed instead of reporting a false total for a corrupt row', async () => {
+  setAdapter(
+    readOnlyProductAdapter({
+      _id: 'corrupt-family',
+      name: 'Corrupt Family',
+      productFamily: 'gadgets',
+      published: true,
+    }),
+  );
+
+  const result = await listCatalog('products', {}, config);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.error.code, 'INTERNAL_ERROR');
+});
+
 test('list, ID, and slug paths share one deeply equal product projection', async () => {
   const product: CollectionDoc = {
     _id: 'same-product',

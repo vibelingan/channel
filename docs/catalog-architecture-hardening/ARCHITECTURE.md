@@ -126,7 +126,7 @@ for full retirement: `CatalogFamilyGrid`, `HeadphonesProductCard`, `HeadphonesPr
 
 ## Reservation And Deployment Control
 
-MIU 04 is active for local validation with four exact owner files. MIUs 01-03 are released and MIU 05
+MIU 04 is active for local validation with five exact owner files. MIUs 01-03 are released and MIU 05
 remains planned.
 Activation and release follow the lifecycle in `TASK_REGISTRY.json`. Shared
 files have one owner and later consumer/reference entries, or an explicit release/activation transfer.

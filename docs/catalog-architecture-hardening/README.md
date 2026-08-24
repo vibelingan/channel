@@ -68,8 +68,8 @@ reset, rebase, cherry-pick, or create another branch to manufacture that equalit
 - Active `/headphones` remains built and must return 200. Targeted pruning preserves the real deploy
 	contract: `/overstock`, `/overstock-item`, temporarily hidden `/teardown-lab` and `/blue-ocean`, and
 	the existing retired media allowlist. Route smoke enumerates each status; no blanket delete is allowed.
-- No MIU or exact file is currently active. Future MIU plans have lifecycle state and exact owner files,
-	with references/transfers for sequential reuse.
+- MIU 04 is active for local validation with five exact owner files. Future MIU plans have lifecycle
+	state and exact owner files, with references/transfers for sequential reuse.
 - MIUs 39-43 separately own the real deploy script modification, its new test, the existing smoke script
 	modification, its new test, and the new browser smoke. MIU 44 produces and validates the immutable
 	`RELEASE_MANIFEST.json`; MIU 45 consumes it before credentials, disables push deployment, and owns the

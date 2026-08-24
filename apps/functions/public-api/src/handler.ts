@@ -297,10 +297,12 @@ export async function listCatalog(
   });
 
   if (collection === 'products') {
-    const projected = result.items.flatMap((doc) => {
+    const projected: Array<{ product: PublicProduct; source: CollectionDoc }> = [];
+    for (const doc of result.items) {
       const product = productProjection(doc, config);
-      return product ? [{ product, source: doc }] : [];
-    });
+      if (!product) return err('INTERNAL_ERROR', 'Catalog projection failed');
+      projected.push({ product, source: doc });
+    }
     const pageResult = CatalogPageSchema.safeParse({
       items: projected.map(({ product }) => product),
       total: result.total,

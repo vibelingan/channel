@@ -25,7 +25,7 @@ Branch: `refactor/catalog-architecture-hardening`
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. MIU 04 actively reserves its four exact owner files, including a
+rather than trusted from JSON strings. MIU 04 actively reserves its five exact owner files, including a
 released-to-active transfer of `packages/shared/package.json`. Other MIU file plans remain
 `planned|blocked` claims. Activation is one MIU at a time.
 
