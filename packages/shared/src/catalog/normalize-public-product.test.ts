@@ -138,9 +138,17 @@ test('does not mutate the source row when copying nested public fields', () => {
   const result = normalizePublicProduct(row);
   assert.equal(result.ok, true, result.ok ? '' : JSON.stringify(result.issues));
   if (!result.ok) return;
-  // the row retains its own references; the normalizer never writes back
-  assert.equal(row.images.length, 1);
-  assert.deepEqual(result.value.images, ['/api/images/a']);
+  assert.notEqual(result.value.images, row.images);
+  assert.notEqual(result.value.manualCatalogPricing, row.manualCatalogPricing);
+  assert.notEqual(result.value.manualCatalogPricing?.tiers, row.manualCatalogPricing.tiers);
+
+  result.value.images?.push('/api/images/b');
+  result.value.manualCatalogPricing?.tiers.push({ minQuantity: 2, unitAmountMinor: 1000 });
+
+  assert.deepEqual(row.images, ['/api/images/a']);
+  assert.deepEqual(row.manualCatalogPricing.tiers, [{ minQuantity: 1, unitAmountMinor: 1250 }]);
+  assert.deepEqual(result.value.images, ['/api/images/a', '/api/images/b']);
+  assert.equal(result.value.manualCatalogPricing?.tiers.length, 2);
   assert.equal(result.value.productFamily, 'headphones');
 });
 
