@@ -46,16 +46,10 @@
       "claimedLocalHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "claimedRemoteHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "status": "implementation-in-progress",
-      "currentMiu": "04",
+      "currentMiu": null,
       "dependencies": [],
-      "activeExactReservations": [
-        "apps/functions/public-api/src/catalog/project-public-product.ts",
-        "apps/functions/public-api/src/handler.ts",
-        "apps/functions/public-api/src/handler.test.ts",
-        "apps/local-server/src/catalog-routes.test.ts",
-        "packages/shared/package.json"
-      ],
-      "activeReservationPurpose": "MIU 04 schema-checked Public API projection and legal normalizer package export; local validation only, no deployment.",
+      "activeExactReservations": [],
+      "activeReservationPurpose": "",
       "externalGates": {
         "D1": {
           "scope": ["26", "27", "28"],
@@ -376,7 +370,7 @@
         "01": { "reservationState": "released", "previousReservationState": "active" },
         "02": { "reservationState": "released", "previousReservationState": "active" },
         "03": { "reservationState": "released", "previousReservationState": "active" },
-        "04": { "reservationState": "active", "previousReservationState": "planned" },
+        "04": { "reservationState": "released", "previousReservationState": "active" },
         "05": { "reservationState": "planned" },
         "06": { "reservationState": "planned" },
         "07": { "reservationState": "planned" },
@@ -678,7 +672,7 @@
           "branchOrPrStatusMayResolveTo": "HEAD"
         }
       },
-      "handoff": "MIUs 01-03 are released. MIU 04 is active for local implementation and validation only; no CloudBase test deployment is authorized."
+      "handoff": "MIUs 01-04 are released with no active exact-file reservation. MIU 05 remains planned and requires separate activation; no CloudBase test deployment was run for MIU 04."
     }
   ]
 }
