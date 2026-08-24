@@ -30,6 +30,12 @@ export function isProductFamily(value: unknown): value is ProductFamily {
   return typeof value === 'string' && PRODUCT_FAMILY_SET.has(value);
 }
 
+export type LegacyHeadphonesCategory = (typeof LEGACY_HEADPHONES_CATEGORY_OPTIONS)[number];
+
+export function isLegacyHeadphonesCategory(value: unknown): value is LegacyHeadphonesCategory {
+  return typeof value === 'string' && LEGACY_HEADPHONES_CATEGORIES.has(value);
+}
+
 export function normalizeProductSlug(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const normalized = value
