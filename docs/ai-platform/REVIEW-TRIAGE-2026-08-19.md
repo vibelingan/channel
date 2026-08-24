@@ -1,6 +1,6 @@
 # External review triage — AI assistant local phase
 
-Rounds 1–8 by Codex 5.6. Every finding appears **exactly once** in the
+Rounds 1–9 by Codex 5.6. Every finding appears **exactly once** in the
 canonical table below, with a status. Totals are computed from that table, so
 any claim made about progress is checkable against it.
 
@@ -40,7 +40,7 @@ any claim made about progress is checkable against it.
 
 ---
 
-## Canonical table — 39 findings
+## Canonical table — 40 findings
 
 | # | Finding | Status | Phase |
 |---|---|---|---|
@@ -53,7 +53,7 @@ any claim made about progress is checkable against it.
 | 7 | Adapter does not run the shared conformance suite | `FIXED` | 3 |
 | 8 | Output/tool limits: contract promised a token bound nothing could keep — reopened R5, R6, R8 | `FIXED` | 3 |
 | 9 | Corrupt or truncated SSE treated as success | `FIXED` | 3 |
-| 10 | Corpus refresh deletes before it uploads | `FIXED` | 4 |
+| 10 | Corpus refresh: destructive order, then verification the old generation satisfied | `FIXED` | 4 |
 | 11 | Workspace policy applied without read-back | `PHASE_4` | 4 |
 | 12 | Readiness ignores the engine; version defaults to `unpinned` | `PHASE_4` | 4 |
 | 13 | Reasoning filter leaks split attribute-bearing tags — reopened R5 | `FIXED` | 3 |
@@ -64,7 +64,7 @@ any claim made about progress is checkable against it.
 | 18 | Docker build-context safety | `WITHDRAWN` | — |
 | 19 | Worker `EXPOSE 8080` vs actual 8081 | `FIXED` | 4 |
 | 20 | Shutdown does not drain | `PHASE_4` | 4 |
-| 21 | Routing URL built from the `Host` header | `FIXED` | 4 |
+| 21 | Routing URL built from the `Host` header (test was vacuous) | `FIXED` | 4 |
 | 22 | CloudRun manifest has no deploy consumer | `GATE_PENDING` | — |
 | 23 | VPC / TencentDB / TLS validation | `GATE_PENDING` | — |
 | 24 | Production secret management | `GATE_PENDING` | — |
@@ -79,21 +79,22 @@ any claim made about progress is checkable against it.
 | R8 | Compose publishes every service on all interfaces; copy-Compose fail-closed claim was false | `FIXED` | 2 |
 | R9 | Conversation cap exceeded when every stored conversation is active | `FIXED` | 2 |
 | R10 | Evaluation script default port does not match the Compose port | `FIXED` | 2 |
-| R11 | Commercial commitments were graded from model prose — reopened R5, R6, R8 | `FIXED` | 2 |
+| R11 | Commercial commitments — reopened R5, R6, R8, R9 | `FIXED` | 2 |
 | R12 | A disproven safety claim left standing elsewhere in the same file | `FIXED` | 2 |
 | R13 | Owner abort waits out the full stream deadline | `FIXED` | 3 |
 | R14 | `sh` collapses an unquoted `**` glob; 76 tests silently became 27 | `FIXED` | 3 |
+| R15 | A user-local absolute symlink was swept into a feature commit | `FIXED` | 3 |
 
 ### Totals, computed from the table
 
 | Status | Count | IDs |
 |---|---|---|
-| `FIXED` | 29 | 2–10, 13, 15, 16, 19, 21, 25, R1–R14 |
+| `FIXED` | 30 | 2–10, 13, 15, 16, 19, 21, 25, R1–R15 |
 | `PARTIAL` | 1 | 1 |
 | `WITHDRAWN` | 1 | 18 |
 | `PHASE_4` | 5 | 11, 12, 14, 17, 20 |
 | `GATE_PENDING` | 3 | 22, 23, 24 |
-| **Total** | **39** | 25 + 7 + 5 + 1 + 1, one row per finding, never renumbered |
+| **Total** | **40** | 25 + 7 + 5 + 1 + 1 + 1, one row per finding, never renumbered |
 
 Round 2 was right that "21 accepted, 4 disputed" was not derivable from the
 previous table. It was a count carried in prose rather than computed, which is
@@ -515,6 +516,66 @@ delete and orphaned the uploads in storage.
 already had. A fixed base removes the parse of attacker-supplied input entirely.
 **#19** — the worker Dockerfile exposed 8080 while the worker listens on 8081;
 the manifest drift test checked compose and nothing read `EXPOSE`.
+
+---
+
+## Round 9 — two layers, and an honest account of what each one guarantees
+
+**R11 needed a second boundary, not a better first one.** Ask-side interception
+answers a recognised commercial question from a template without calling the
+model. Round 9 showed eight ordinary paraphrases walking straight past it —
+"What amount would I pay for each piece?", "Can you knock forty points off?" —
+reaching the model with the authority the design claimed it no longer had.
+Recognising intent is unbounded in exactly the way recognising phrasing was.
+
+The second layer works on a different thing entirely. It does not read the
+answer; it extracts the **concrete values a commitment must contain** — a money
+amount, a percentage, a weekday, a certification identifier — and requires each
+to appear in the retrieved sources. "For 1000 units, that's twelve dollars
+apiece" and "the unit price is $12" are unboundedly different sentences carrying
+the same ungrounded number, and both are replaced by the template before the
+visitor sees them. Spelled-out and numeric forms normalise to one claim, so
+choosing a spelling is not an escape.
+
+**What it does NOT guarantee, stated plainly:** a commitment carrying no
+extractable value — a bare "yes, we can do that" — is not caught by either
+layer. What remains against it is the corpus: the assistant is grounded in
+material with no prices, and it refuses on its own. That is a disposition, not a
+control, and it is the honest residual.
+
+Live, the paraphrase above reached the model and the model refused by itself —
+no figure invented, so the gate had nothing to catch. That is the expected
+outcome and it is also why the gate's proof is deterministic rather than live:
+sixteen fixtures and four route-level tests drive the invented-answer path
+directly.
+
+**#10 was still destructive through a second door.** The generation swap fixed
+the delete-first order, but verification checked only that retrieval returned
+*something* — which the still-attached OLD generation satisfied. A mock with the
+new documents attached but retrieving nothing approved the swap and deleted the
+only corpus that worked. Retrieval must now identify the current generation.
+
+The algorithm moved behind an injectable client with twelve deterministic tests:
+old-only retrieval, empty retrieval, partial attach, upload failure, rollback
+with a failing detach, legacy migration, foreign documents, repeated runs. Every
+prior claim about rollback rested on a manual run; a live run proves what
+happened once, not what happens when a step fails.
+
+**#8's contract was internally contradictory.** Three files still stated the
+retired name as a live bound, and two operator-set ceilings had to match with
+nothing enforcing it. Both are now tests — one that fails if the retired name
+reappears as a live contract (historical mentions allowed), one that compares
+the advertised ceiling against the engine's configured one.
+
+**#21's fix was real and its test was not.** The test looped malformed hosts and
+never used them — reverting the router would not have failed it. Replaced with
+raw socket requests carrying `Host: [unclosed` and friends to both services,
+verified to fail when the vulnerable code is restored.
+
+**R15 — I swept a symlink into a feature commit.** `scripts/pipeline-e2e.sh`
+pointed at `/Users/…/.claude/`, worked only on this machine, and did not belong
+to this feature. Removed, gitignored, and a test now fails on any committed
+absolute symlink.
 
 ---
 

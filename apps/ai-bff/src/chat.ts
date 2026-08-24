@@ -17,7 +17,8 @@
 import type { ServerResponse } from 'node:http';
 import type { ConversationEngine, EngineTurn } from '@vibelingan-channel/ai-engine';
 import type { ConversationStore } from './conversations.ts';
-import { classifyCommitmentRequest } from './policy/commitments.ts';
+import { classifyCommitmentRequest, templateFor } from './policy/commitments.ts';
+import { topicForCommitments, ungroundedCommitments } from './policy/grounding.ts';
 
 /** A public endpoint takes a bounded message or none at all. */
 const MAX_MESSAGE_CHARS = 2_000;
@@ -197,6 +198,8 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
    */
   let completedAnswer: string | null = null;
   let terminated = false;
+  /** Set when the grounding gate replaced the model's answer. */
+  let groundingRefusal: string | null = null;
 
   try {
     const handle = await engine.createRun(
@@ -220,9 +223,37 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
       // Events are forwarded as-is because the port's events are ALREADY the
       // client contract: token, citation, final, error. The vendor run id lives
       // on the handle and deliberately never enters this stream.
-      sse(res, event);
+      //
+      // `final` is NOT forwarded here: it goes through the grounding gate below,
+      // which may replace it.
+      if (event.type !== 'final') sse(res, event);
 
       if (event.type === 'final') {
+        // THE ANSWER-SIDE GATE. Ask-side interception only catches recognised
+        // phrasings; this catches an invented price, discount, date or
+        // certification whatever sentence carries it, by requiring the concrete
+        // value to appear in the sources the answer was built from.
+        const invented = ungroundedCommitments(event.text, event.citations);
+        if (invented.length > 0) {
+          const replacement = templateFor(topicForCommitments(invented));
+          const topic = topicForCommitments(invented);
+          sse(res, { type: 'token', text: replacement });
+          sse(res, { type: 'final', text: replacement, citations: [] });
+          // The outcome header was written before the stream opened, so it
+          // cannot report a decision made mid-answer. This trailing event
+          // carries it instead — route-level, not one of the port's events.
+          sse(res, {
+            type: 'policy',
+            outcome: `refused:${topic}`,
+            reason: 'ungrounded-commitment',
+            values: invented.map((value) => value.kind),
+          });
+          completedAnswer = replacement;
+          groundingRefusal = topic;
+          terminated = true;
+          break;
+        }
+        sse(res, event);
         completedAnswer = event.text;
         terminated = true;
         break;
@@ -255,3 +286,6 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
     res.end();
   }
 }
+
+/** Exposed for tests: did the grounding gate replace an answer on this run? */
+export type GroundingOutcome = string | null;

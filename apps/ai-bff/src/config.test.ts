@@ -142,3 +142,27 @@ test('the harness refusal explains the consequence, not just the rule', () => {
     assert.match(message, /rate limiting/, 'the refusal does not say why it matters');
   }
 });
+
+test('the advertised engine ceiling must be a positive integer', () => {
+  // It is what the cost model multiplies by, so a wrong value is a wrong budget
+  // rather than a crash. `Number(x) ? …` accepted "4096abc" and dropped 0.
+  const withEngine = {
+    ...BASE_ENV,
+    ANYTHINGLLM_BASE_URL: 'http://engine.invalid',
+    ANYTHINGLLM_API_KEY: 'k',
+    ANYTHINGLLM_WORKSPACE: 'ws',
+  };
+  assert.equal(
+    loadConfig({ ...withEngine, ANYTHINGLLM_MAX_TOKENS: '4096' }).engine?.vendorMaxOutputTokens,
+    4096,
+  );
+  for (const bad of ['0', '-1', '4096abc', 'many', '1.5']) {
+    assert.throws(
+      () => loadConfig({ ...withEngine, ANYTHINGLLM_MAX_TOKENS: bad }),
+      /ANYTHINGLLM_MAX_TOKENS/,
+      `accepted ${bad}`,
+    );
+  }
+  // Absent is allowed: an engine with no configurable ceiling advertises none.
+  assert.equal(loadConfig(withEngine).engine?.vendorMaxOutputTokens, undefined);
+});

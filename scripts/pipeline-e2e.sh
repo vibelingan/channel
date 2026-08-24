@@ -1,1 +1,0 @@
-/Users/SeanCai/.claude/scripts/pipeline-e2e.sh

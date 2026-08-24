@@ -75,6 +75,27 @@ export function isProductionEnv(env: NodeJS.ProcessEnv): boolean {
   return env.NODE_ENV?.trim() === 'production' || env.APP_ENV?.trim() === 'production';
 }
 
+/**
+ * The engine's advertised generation ceiling, validated.
+ *
+ * `Number(x) ? …` accepted "4096abc" as 4096 and silently dropped 0, -1 and
+ * "many". This value is what the cost model multiplies by, so a wrong one is a
+ * wrong budget rather than a crash.
+ */
+function vendorCeiling(
+  raw: string | undefined,
+  problems: string[],
+): { vendorMaxOutputTokens?: number } {
+  const text = raw?.trim();
+  if (!text) return {};
+  const value = Number(text);
+  if (!Number.isInteger(value) || value <= 0) {
+    problems.push(`ANYTHINGLLM_MAX_TOKENS must be a positive integer, got: ${text}`);
+    return {};
+  }
+  return { vendorMaxOutputTokens: value };
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): BffConfig {
   const problems: string[] = [];
 
@@ -134,9 +155,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BffConfig {
         apiKey: engineFields.apiKey as string,
         workspaceSlug: engineFields.workspaceSlug as string,
         engineVersion: env.ANYTHINGLLM_VERSION?.trim() || 'unpinned',
-        ...(Number(env.ANYTHINGLLM_MAX_TOKENS)
-          ? { vendorMaxOutputTokens: Number(env.ANYTHINGLLM_MAX_TOKENS) }
-          : {}),
+        ...vendorCeiling(env.ANYTHINGLLM_MAX_TOKENS, problems),
       };
     }
   }

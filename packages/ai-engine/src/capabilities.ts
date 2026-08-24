@@ -33,7 +33,9 @@ export interface EngineCapabilities {
    *
    * Deliberately NOT a startup blocker. When false, the owning worker aborts
    * itself at its next fenced append; the residual cost is one dead worker's
-   * run finishing at the vendor, bounded by maxOutputTokens. See LLD-002 §7.1
+   * run finishing at the vendor, bounded by `vendorMaxOutputTokens` — the
+   * engine's own ceiling, NOT the delivered-output budget, which bounds only
+   * what this process receives. See LLD-002 §7.1
    * for which engine families fall on each side.
    */
   supportsOutOfBandStop: boolean;

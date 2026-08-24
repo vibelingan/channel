@@ -543,3 +543,103 @@ test('a policy answer releases the conversation for the next question', async ()
   });
   assert.equal(out.status, 200, 'the conversation stayed locked after a policy answer');
 });
+
+test('an invented price is replaced before it reaches the visitor', async () => {
+  // The ask-side patterns do not match this phrasing, so the model answers —
+  // and invents a number the corpus does not contain. The answer-side gate is
+  // what stops it, and it does not depend on how the question was worded.
+  const { out } = await run({
+    engine: stubEngine([
+      { type: 'token', text: 'For 1000 units, ' },
+      {
+        type: 'citation',
+        citation: {
+          sourceId: '/headphones',
+          title: 'Headphones',
+          snippet: 'MOQ from 500 units',
+          retrievedAt: new Date().toISOString(),
+        },
+      },
+      {
+        type: 'final',
+        text: "For 1000 units, that's twelve dollars apiece.",
+        citations: [
+          {
+            sourceId: '/headphones',
+            title: 'Headphones',
+            snippet: 'MOQ from 500 units',
+            retrievedAt: new Date().toISOString(),
+          },
+        ],
+      },
+    ]),
+    message: 'What amount would I pay for each piece?',
+  });
+  assert.ok(!out.body.includes('twelve dollars'), 'the invented price reached the visitor');
+  const final = out.events.find((event: { type: string }) => event.type === 'final') as {
+    text: string;
+  };
+  assert.equal(final.text, templateFor('pricing'));
+  const outcome = out.events.at(-1) as { type: string; outcome: string; reason: string };
+  assert.equal(outcome.type, 'policy');
+  assert.equal(outcome.outcome, 'refused:pricing');
+  assert.equal(outcome.reason, 'ungrounded-commitment');
+});
+
+test('every Round 9 paraphrase is stopped on the answer side', async () => {
+  // These asks all slipped past request-pattern interception. What they cannot
+  // slip past is the requirement that a stated figure exist in the sources.
+  const cases: [string, string, string][] = [
+    ['What amount would I pay for each piece?', 'That works out at 12 USD each.', 'pricing'],
+    [
+      'Could you guarantee arrival before Friday?',
+      'Delivery is confirmed for Friday.',
+      'delivery-date',
+    ],
+    ['Can you knock forty points off?', 'A forty percent reduction is approved.', 'discount'],
+    [
+      'Which quality standards has your factory passed?',
+      'Our facilities maintain ISO 9001 certification.',
+      'certification',
+    ],
+  ];
+  for (const [question, inventedAnswer, topic] of cases) {
+    const { out } = await run({
+      engine: stubEngine([{ type: 'final', text: inventedAnswer, citations: [] }]),
+      message: question,
+    });
+    const final = out.events.find((event: { type: string }) => event.type === 'final') as {
+      text: string;
+    };
+    assert.equal(final.text, templateFor(topic as never), `not stopped: ${inventedAnswer}`);
+  }
+});
+
+test('a grounded figure is NOT replaced', async () => {
+  // The gate must not stop the assistant repeating a published fact.
+  const citation = {
+    sourceId: '/headphones',
+    title: 'Headphones',
+    snippet: 'brand minimum order: 500 units',
+    retrievedAt: new Date().toISOString(),
+  };
+  const { out } = await run({
+    engine: stubEngine([{ type: 'final', text: 'Our MOQ is 500 units.', citations: [citation] }]),
+    message: 'What is your MOQ?',
+  });
+  const final = out.events.find((event: { type: string }) => event.type === 'final') as {
+    text: string;
+  };
+  assert.equal(final.text, 'Our MOQ is 500 units.');
+  assert.ok(!out.body.includes('"type":"policy"'), 'a grounded answer was refused');
+});
+
+test('a replaced answer is what gets recorded in history', async () => {
+  const { conversations, conversationId } = await run({
+    engine: stubEngine([{ type: 'final', text: 'The price is $12.', citations: [] }]),
+    message: 'What amount would I pay?',
+  });
+  const turns = conversations.turns(conversationId);
+  assert.equal(turns[1]?.text, templateFor('pricing'));
+  assert.ok(!turns[1]?.text.includes('$12'), 'the invented price entered history');
+});

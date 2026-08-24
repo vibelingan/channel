@@ -19,6 +19,7 @@ import { readFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
+import { refreshCorpus } from './ai-corpus-refresh.mjs';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CONTENT_DIR = join(repoRoot, 'apps/site/src/i18n/content');
@@ -213,21 +214,6 @@ export function keyFactsDocument(homeYaml) {
   return lines.join('\n');
 }
 
-/** Marks documents this script owns, and which run created them. */
-const DOCUMENT_NAMESPACE = 'channelkb';
-const OWNED_DOCUMENT = new RegExp(`${DOCUMENT_NAMESPACE}-g(\\d+)-`);
-
-/**
- * Documents this script uploaded BEFORE the namespace existed.
- *
- * Without this the first namespaced run treats them as somebody else's, leaves
- * them attached, and the workspace ends up holding two copies of every page.
- * Observed: 12 documents where there should be 6, and the duplication pushed
- * the MOQ fact out of the top results — the assistant stopped answering a
- * question the website answers. Recognising them by the exact names this
- * script generated is precise enough to migrate them without touching a
- * document a person attached by hand.
- */
 function legacyDocumentNames() {
   const names = ['key-facts-home'];
   for (const source of SOURCES) {
@@ -255,7 +241,7 @@ async function api(base, key, path, init = {}) {
 async function main() {
   const dryRun = process.argv.includes('--dry-run');
   const base = process.env.ANYTHINGLLM_BASE_URL ?? 'http://localhost:53001';
-  const workspace = process.env.ANYTHINGLLM_WORKSPACE ?? 'channel-public-assistant';
+  const workspace_ = process.env.ANYTHINGLLM_WORKSPACE ?? 'channel-public-assistant';
   const key = process.env.ANYTHINGLLM_API_KEY;
   if (!key && !dryRun) throw new Error('ANYTHINGLLM_API_KEY is not set');
 
@@ -280,148 +266,76 @@ async function main() {
     return;
   }
 
-  // GENERATION SWAP, not delete-then-upload.
-  //
-  // The previous order deleted every attached document first and only then
-  // uploaded replacements. A failure at upload or embed — a network blip, a
-  // rejected document, an interrupted run — left the assistant with NO corpus
-  // and no error: it would keep answering, ungrounded, until someone noticed.
-  //
-  // Now the new generation is uploaded and embedded alongside the old one, and
-  // the old one is removed only after the new one is verified. A failure at any
-  // earlier point rolls the partial generation back and leaves the corpus
-  // exactly as it was.
-  const generation = Date.now();
-  const legacy = legacyDocumentNames();
-  const owned = (docpath) => {
-    // Compared lower-cased: the engine slugs the title it is given, so
-    // `en-US.md` becomes `raw-en-us-home-…`. Matching case-sensitively left
-    // five of twelve stale documents attached and the corpus still duplicated.
-    const path = String(docpath ?? '').toLowerCase();
-    if (OWNED_DOCUMENT.test(path)) return true;
-    // Pre-namespace uploads: `custom-documents/raw-<name>-<uuid>.json`.
-    return legacy.some((name) => path.includes(`raw-${name.toLowerCase()}-`));
-  };
-  const generationOf = (docpath) => Number(OWNED_DOCUMENT.exec(String(docpath ?? ''))?.[1] ?? 0);
-
-  const before = await api(base, key, `/api/v1/workspace/${workspace}`);
-  const attachedBefore = (before.workspace?.[0]?.documents ?? [])
-    .map((document) => document.docpath)
-    .filter(Boolean);
-  const previousGeneration = attachedBefore.filter(owned);
-  const foreign = attachedBefore.filter((docpath) => !owned(docpath));
-  if (foreign.length > 0) {
-    // Someone attached documents by hand through the engine's own UI. They are
-    // not ours to delete.
-    console.log(`leaving ${foreign.length} document(s) this script does not own`);
-  }
-
-  const uploadedLocations = [];
-
-  /** Undo a partial generation so a failure never costs the corpus. */
-  async function rollback(reason) {
-    if (uploadedLocations.length === 0) return;
-    console.error(`\n${reason}\nrolling back ${uploadedLocations.length} uploaded document(s)…`);
-    // Detach and delete are attempted INDEPENDENTLY. Chaining them meant a
-    // failed detach — which is exactly what happens when the workspace itself
-    // is the problem — skipped the delete and left the uploads orphaned in
-    // storage forever.
-    const detached = await api(base, key, `/api/v1/workspace/${workspace}/update-embeddings`, {
-      method: 'POST',
-      body: JSON.stringify({ deletes: uploadedLocations }),
-    })
-      .then(() => true)
-      .catch(() => false);
-
-    const deleted = await api(base, key, '/api/v1/system/remove-documents', {
-      method: 'DELETE',
-      body: JSON.stringify({ names: uploadedLocations }),
-    })
-      .then(() => true)
-      .catch(() => false);
-
-    if (detached && deleted) {
-      console.error('rolled back; the previous corpus is untouched');
-    } else {
-      console.error(
-        `rollback incomplete (detached=${detached}, deleted=${deleted}); the previous corpus is still attached and still serving. Re-run to replace it.`,
-      );
-    }
-  }
-
-  try {
-    for (const { source, text } of docs) {
-      const res = await fetch(`${base}/api/v1/document/raw-text`, {
+  // The swap algorithm lives in ai-corpus-refresh.mjs behind an injectable
+  // client, so rollback, migration and generation cleanup are covered by
+  // deterministic tests rather than by whatever a live run happened to do.
+  const client = {
+    listAttached: async () => {
+      const workspace = await api(base, key, `/api/v1/workspace/${workspace_}`);
+      return (workspace.workspace?.[0]?.documents ?? [])
+        .map((document) => document.docpath)
+        .filter(Boolean);
+    },
+    upload: async (document) => {
+      const body = await api(base, key, '/api/v1/document/raw-text', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          textContent: text,
+          textContent: document.text,
           metadata: {
-            // The generation tag rides in the title, which becomes part of the
-            // docpath — so ownership and vintage are both readable from the
-            // path alone, with no side table to keep in step.
-            title: `${DOCUMENT_NAMESPACE}-g${generation}-${basename(source.file, '.md')}-${source.url.replace(/\W+/g, '') || 'home'}.txt`,
-            docSource: source.url,
-            description: source.title,
+            title: document.title,
+            docSource: document.docSource,
+            description: document.description,
           },
         }),
       });
-      const body = await res.json();
-      if (!res.ok || body.error) {
-        throw new Error(`upload failed for ${source.file}: ${JSON.stringify(body).slice(0, 300)}`);
-      }
-      const location = body.documents?.[0]?.location;
-      if (!location) throw new Error(`no document location returned for ${source.file}`);
-      uploadedLocations.push(location);
-      console.log(`uploaded  ${source.file}`);
-    }
+      return body.documents?.[0]?.location;
+    },
+    attach: async (paths) => {
+      await api(base, key, `/api/v1/workspace/${workspace_}/update-embeddings`, {
+        method: 'POST',
+        body: JSON.stringify({ adds: paths }),
+      });
+    },
+    detach: async (paths) => {
+      await api(base, key, `/api/v1/workspace/${workspace_}/update-embeddings`, {
+        method: 'POST',
+        body: JSON.stringify({ deletes: paths }),
+      });
+    },
+    destroy: async (paths) => {
+      await api(base, key, '/api/v1/system/remove-documents', {
+        method: 'DELETE',
+        body: JSON.stringify({ names: paths }),
+      });
+    },
+    search: async (query) => {
+      const probe = await api(base, key, `/api/v1/workspace/${workspace_}/vector-search`, {
+        method: 'POST',
+        body: JSON.stringify({ query, topN: 8, scoreThreshold: 0 }),
+      });
+      return (probe.results ?? []).map((result) => ({
+        source: String(
+          result?.metadata?.docpath ??
+            result?.metadata?.title ??
+            result?.metadata?.chunkSource ??
+            '',
+        ),
+      }));
+    },
+  };
 
-    // Uploading only parks a document in the system; a workspace only retrieves
-    // what has been explicitly embedded into it.
-    await api(base, key, `/api/v1/workspace/${workspace}/update-embeddings`, {
-      method: 'POST',
-      body: JSON.stringify({ adds: uploadedLocations }),
-    });
-
-    // VERIFY BEFORE REMOVING. Embedding reporting success is not the same as
-    // the documents being attached and retrievable.
-    const after = await api(base, key, `/api/v1/workspace/${workspace}`);
-    const attachedAfter = (after.workspace?.[0]?.documents ?? [])
-      .map((document) => document.docpath)
-      .filter(Boolean);
-    const missing = uploadedLocations.filter((location) => !attachedAfter.includes(location));
-    if (missing.length > 0) {
-      throw new Error(`${missing.length} document(s) did not attach to the workspace`);
-    }
-
-    const probe = await api(base, key, `/api/v1/workspace/${workspace}/vector-search`, {
-      method: 'POST',
-      body: JSON.stringify({ query: 'minimum order quantity', topN: 3, scoreThreshold: 0 }),
-    });
-    if (!Array.isArray(probe.results) || probe.results.length === 0) {
-      throw new Error('the new corpus embedded but retrieved nothing');
-    }
-    console.log(`\nembedded and verified ${uploadedLocations.length} document(s)`);
-  } catch (error) {
-    await rollback(error.message);
-    throw error;
-  }
-
-  // Only now is the old generation safe to remove.
-  const superseded = previousGeneration.filter(
-    (docpath) => generationOf(docpath) !== generation && !uploadedLocations.includes(docpath),
-  );
-  if (superseded.length > 0) {
-    await api(base, key, `/api/v1/workspace/${workspace}/update-embeddings`, {
-      method: 'POST',
-      body: JSON.stringify({ deletes: superseded }),
-    });
-    await api(base, key, '/api/v1/system/remove-documents', {
-      method: 'DELETE',
-      body: JSON.stringify({ names: superseded }),
-    }).catch(() => undefined);
-    console.log(`removed ${superseded.length} superseded document(s)`);
-  }
+  await refreshCorpus({
+    client,
+    documents: docs.map(({ source, text }) => ({
+      name: `${basename(source.file, '.md')}-${source.url.replace(/\W+/g, '') || 'home'}`,
+      text,
+      docSource: source.url,
+      description: source.title,
+    })),
+    legacyNames: legacyDocumentNames(),
+    verifyQuery: 'minimum order quantity',
+    log: (message) => console.log(message),
+  });
 }
 
 if (process.argv[1]?.endsWith('ai-ingest-content.mjs')) {

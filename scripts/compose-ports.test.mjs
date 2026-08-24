@@ -234,3 +234,82 @@ test('no package collects its tests with an unquoted recursive glob', () => {
     );
   }
 });
+
+test('the advertised engine ceiling matches the engine actually configured', () => {
+  // Two operator assertions of the same number, in two services. A comment said
+  // they must match and nothing enforced it, so one edit could make the BFF
+  // advertise a cost ceiling the engine does not have — and the cost model
+  // multiplies by it.
+  const compose = parseYaml(readFileSync(COMPOSE_FILE, 'utf8'));
+  const advertised = compose.services?.['ai-bff']?.environment?.ANYTHINGLLM_MAX_TOKENS;
+  const configured = compose.services?.anythingllm?.environment?.GENERIC_OPEN_AI_MAX_TOKENS;
+  assert.ok(advertised, 'ai-bff advertises no engine ceiling');
+  assert.ok(configured, 'the engine declares no generation ceiling');
+  assert.equal(
+    String(advertised),
+    String(configured),
+    `ai-bff advertises ${advertised} while the engine is configured for ${configured}`,
+  );
+});
+
+test('the retired output-limit name is gone from code and design docs', () => {
+  // Three files kept saying maxOutputTokens after the rename, each stating a
+  // bound the implementation does not provide. A contract that reads two ways
+  // is worse than one that reads wrongly, because both readers think they are
+  // right.
+  const surfaces = [
+    'packages/ai-engine/src/port.ts',
+    'packages/ai-engine/src/capabilities.ts',
+    'packages/ai-engine-anythingllm/src/engine.ts',
+    'apps/ai-bff/src/chat.ts',
+    'docs/ai-platform/LLD-001-HUMAN-TAKEOVER-STATE-MACHINE.md',
+    'docs/ai-platform/LLD-002-CONVERSATION-ENGINE-INTERFACE.md',
+    'docs/ai-platform/ENGINE-EVALUATION-ANYTHINGLLM.md',
+  ];
+  // Two uses are legitimate and must NOT be flagged, or the check becomes a
+  // nuisance that gets deleted: naming the retired field while explaining the
+  // rename, and quoting the vendor REQUEST fields that were probed and ignored.
+  const HISTORICAL =
+    /renamed from|was called|formerly|retired|request body|all ignored|accepted with/i;
+
+  for (const relative of surfaces) {
+    const lines = readFileSync(join(repoRoot, relative), 'utf8').split('\n');
+    const stale = lines.filter((line, index) => {
+      const uses = [...line.matchAll(/(\w*)maxOutputTokens/g)].filter(
+        (match) => match[1] !== 'vendor',
+      );
+      if (uses.length === 0) return false;
+      // The explanation can wrap, so accept the sentence around it too.
+      const context = [lines[index - 1] ?? '', line, lines[index + 1] ?? ''].join(' ');
+      return !HISTORICAL.test(context);
+    });
+    assert.deepEqual(
+      stale,
+      [],
+      `${relative} still states a live contract in terms of maxOutputTokens`,
+    );
+  }
+});
+
+test('no committed file is an absolute symlink', () => {
+  // R15: a link to /Users/<someone>/.claude/… was swept into a feature commit.
+  // It resolves only on one machine; everywhere else it dangles and points
+  // outside the repository.
+  const listing = execFileSync('git', ['ls-files', '-s'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    timeout: 30_000,
+  });
+  for (const line of listing.split('\n')) {
+    if (!line.startsWith('120000')) continue;
+    const path = line.split('\t')[1];
+    const target = execFileSync('git', ['cat-file', '-p', line.split(/\s+/)[1]], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    });
+    assert.ok(
+      !target.startsWith('/'),
+      `${path} is a symlink to an absolute path (${target.slice(0, 60)})`,
+    );
+  }
+});

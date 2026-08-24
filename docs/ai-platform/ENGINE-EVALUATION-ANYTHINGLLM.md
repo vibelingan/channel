@@ -127,12 +127,12 @@ inside the completion budget:
 | `z-ai/glm-5.2` | **empty reply** — 30/30 tokens spent on reasoning | correct answer; 31 completion, 22 reasoning |
 | `moonshotai/kimi-k3` | **empty reply** — 27/30 spent on reasoning | correct answer; 125 completion, **103 reasoning** |
 
-A too-small `maxDeliveredOutputUnits` (formerly `maxOutputTokens`) therefore produces a **silent empty answer**, not an
+A too-small `maxDeliveredOutputUnits` therefore produces a **silent empty answer**, not an
 error. Kimi K3 spent 103 reasoning tokens on a one-sentence reply.
 
 Consequences to propagate:
 
-- `LLD-002` `EngineRunLimits.maxOutputTokens` must be documented as covering
+- `LLD-002` `EngineRunLimits.maxDeliveredOutputUnits` must be documented as covering
   reasoning tokens, with a floor well above the visible answer length.
 - The engine adapter must treat "empty content with non-zero completion tokens"
   as a **failure**, not a successful empty answer — otherwise a visitor sees a

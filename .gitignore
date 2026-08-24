@@ -49,3 +49,4 @@ Thumbs.db
 # AI assistant local secrets — the real file never, the template always
 .env.ai
 !.env.ai.example
+scripts/pipeline-e2e.sh

@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
+import { connect } from 'node:net';
 import type { AddressInfo } from 'node:net';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
@@ -361,16 +362,58 @@ test('a normally completed response never aborts the engine', async () => {
   }
 });
 
-test('a malformed Host header cannot break routing', () => {
-  // The router only ever wanted the PATH. Building a URL from an
-  // attacker-supplied Host to get it meant a malformed header threw inside the
-  // request handler.
-  for (const host of ['', ':::::', 'a b c', '[unclosed', '%%%', 'x'.repeat(2000)]) {
-    assert.doesNotThrow(
-      () => new URL('/api/ai/healthz', 'http://internal.invalid'),
-      `host ${host}`,
-    );
-  }
+/**
+ * Malformed Host headers, sent over a real socket to a real server.
+ *
+ * The previous version of this test looped over malformed hosts and then
+ * asserted `new URL('/x', 'http://internal.invalid')` — it never used the host
+ * and never called the server. Reverting the router to the vulnerable
+ * Host-based URL would not have failed it. A test that cannot fail is not
+ * evidence, and the triage's own definition of FIXED requires one that can.
+ */
+const MALFORMED_HOSTS = ['', ':::::', 'a b c', '[unclosed', '%%%', 'x'.repeat(2000), 'http://evil'];
+
+/** Raw request, because fetch() will not send a deliberately invalid Host. */
+function rawRequest(port: number, path: string, host: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const socket = connect(port, '127.0.0.1', () => {
+      socket.write(`GET ${path} HTTP/1.1\r\nHost: ${host}\r\nConnection: close\r\n\r\n`);
+    });
+    let received = '';
+    socket.setTimeout(5_000, () => {
+      socket.destroy();
+      reject(new Error('timed out'));
+    });
+    socket.on('data', (chunk) => {
+      received += chunk.toString('utf8');
+    });
+    socket.on('end', () => resolve(received));
+    socket.on('error', reject);
+  });
+}
+
+test('the BFF routes correctly despite a malformed Host header', async () => {
+  await withServer(async (base) => {
+    const port = Number(new URL(base).port);
+    for (const host of MALFORMED_HOSTS) {
+      const response = await rawRequest(port, '/api/ai/healthz', host);
+      assert.match(
+        response,
+        /^HTTP\/1\.1 200/,
+        `host ${JSON.stringify(host.slice(0, 20))} did not route to healthz: ${response.slice(0, 60)}`,
+      );
+      assert.match(response, /"ok":true/);
+    }
+  });
+});
+
+test('the BFF still 404s an unknown route despite a malformed Host header', async () => {
+  // Proves routing is happening from the PATH, not merely that nothing threw.
+  await withServer(async (base) => {
+    const port = Number(new URL(base).port);
+    const response = await rawRequest(port, '/api/ai/nope', '[unclosed');
+    assert.match(response, /^HTTP\/1\.1 404/);
+  });
 });
 
 test('the worker Dockerfile exposes the port the worker listens on', () => {
