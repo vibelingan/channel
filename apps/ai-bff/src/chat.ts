@@ -92,6 +92,18 @@ function sse(res: ServerResponse, payload: unknown): void {
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
 }
 
+/**
+ * An SSE comment. Carries no answer content — EventSource ignores it entirely —
+ * but keeps the connection alive and tells the client work is happening.
+ *
+ * Needed because the answer is now withheld until it has been validated, so
+ * without this the socket is silent for several seconds and a proxy, a client
+ * timeout, or an impatient visitor all read that as a hang.
+ */
+function heartbeat(res: ServerResponse): void {
+  res.write(': working\n\n');
+}
+
 export async function streamChatToResponse(options: StreamChatOptions): Promise<void> {
   const { engine, request, conversations, res, signal } = options;
   const limits = {
@@ -174,8 +186,13 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
     'x-policy-outcome': policy ? `refused:${policy.topic}` : 'answered-by-engine',
   });
   res.flushHeaders?.();
+  // Immediately, so the client knows the stream is open before any answer can
+  // be released.
+  heartbeat(res);
+  const keepAlive = setInterval(() => heartbeat(res), 5_000);
 
   if (policy) {
+    clearInterval(keepAlive);
     sse(res, { type: 'token', text: policy.template });
     sse(res, { type: 'final', text: policy.template, citations: [] });
     conversations.append(conversationId, visitorTurn);
@@ -198,8 +215,9 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
    */
   let completedAnswer: string | null = null;
   let terminated = false;
-  /** Set when the grounding gate replaced the model's answer. */
-  let groundingRefusal: string | null = null;
+  /** Held back until validated — see the loop below. */
+  let pendingText = '';
+  const pendingCitations: import('@vibelingan-channel/ai-engine').EngineCitation[] = [];
 
   try {
     const handle = await engine.createRun(
@@ -220,28 +238,39 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
       // engine defect, and forwarding it would let the client see two answers.
       if (terminated) break;
 
-      // Events are forwarded as-is because the port's events are ALREADY the
-      // client contract: token, citation, final, error. The vendor run id lives
-      // on the handle and deliberately never enters this stream.
+      // NOTHING IS FORWARDED UNTIL THE ANSWER IS VALIDATED.
       //
-      // `final` is NOT forwarded here: it goes through the grounding gate below,
-      // which may replace it.
-      if (event.type !== 'final') sse(res, event);
+      // An earlier version streamed every token and inspected only the final
+      // event, so "The unit price is $12 each." was rendered in the browser and
+      // then replaced. You cannot unsend bytes; a post-final substitution is
+      // not a safety gate.
+      //
+      // Buffering the whole answer is forced by this protocol, not chosen: the
+      // engine sends its sources only in the terminal frame, so there is no
+      // evidence to validate against until the answer is complete. The design
+      // that restores token streaming is to retrieve the evidence ourselves
+      // BEFORE calling the model — ADR-002 §4's preferred shape — which needs a
+      // retrieval method on the port and is recorded as follow-up.
+      if (event.type === 'citation') {
+        pendingCitations.push(event.citation);
+        continue;
+      }
+      if (event.type === 'token') {
+        pendingText += event.text;
+        // Progress without content: the visitor sees the assistant is working
+        // while nothing it might have to retract is on the wire.
+        heartbeat(res);
+        continue;
+      }
 
       if (event.type === 'final') {
-        // THE ANSWER-SIDE GATE. Ask-side interception only catches recognised
-        // phrasings; this catches an invented price, discount, date or
-        // certification whatever sentence carries it, by requiring the concrete
-        // value to appear in the sources the answer was built from.
-        const invented = ungroundedCommitments(event.text, event.citations);
+        const citations = event.citations.length > 0 ? event.citations : pendingCitations;
+        const invented = ungroundedCommitments(event.text, citations);
         if (invented.length > 0) {
-          const replacement = templateFor(topicForCommitments(invented));
           const topic = topicForCommitments(invented);
+          const replacement = templateFor(topic);
           sse(res, { type: 'token', text: replacement });
           sse(res, { type: 'final', text: replacement, citations: [] });
-          // The outcome header was written before the stream opened, so it
-          // cannot report a decision made mid-answer. This trailing event
-          // carries it instead — route-level, not one of the port's events.
           sse(res, {
             type: 'policy',
             outcome: `refused:${topic}`,
@@ -249,16 +278,20 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
             values: invented.map((value) => value.kind),
           });
           completedAnswer = replacement;
-          groundingRefusal = topic;
           terminated = true;
           break;
         }
+        // Validated. Release the answer and the citations that justify it.
+        for (const citation of citations) sse(res, { type: 'citation', citation });
+        if (event.text) sse(res, { type: 'token', text: event.text });
         sse(res, event);
         completedAnswer = event.text;
         terminated = true;
         break;
       }
+
       if (event.type === 'error') {
+        sse(res, event);
         terminated = true;
         break;
       }
@@ -282,6 +315,7 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
     if (completedAnswer !== null && completedAnswer.trim().length > 0) {
       conversations.append(conversationId, { role: 'assistant', text: completedAnswer });
     }
+    clearInterval(keepAlive);
     conversations.endTurn(conversationId);
     res.end();
   }

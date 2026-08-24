@@ -217,10 +217,15 @@ test('tokens, citations and the final answer stream as SSE', async () => {
   });
   assert.equal(out.headers['content-type'], 'text/event-stream');
   assert.equal(out.headers['cache-control'], 'no-cache, no-transform');
+  // Citation, then the validated answer, then final. NOT token-by-token: the
+  // answer is withheld until the grounding gate has seen it, because a
+  // replacement cannot unsend bytes the browser already rendered. Progress is
+  // signalled by content-free SSE comments, which carry nothing to retract.
   assert.deepEqual(
     out.events.map((event: { type: string }) => event.type),
-    ['token', 'token', 'citation', 'final'],
+    ['citation', 'token', 'final'],
   );
+  assert.ok(out.body.includes(': working'), 'no progress heartbeat was sent');
 });
 
 test('an engine error reaches the client as an error event, not a dead stream', async () => {
@@ -642,4 +647,58 @@ test('a replaced answer is what gets recorded in history', async () => {
   const turns = conversations.turns(conversationId);
   assert.equal(turns[1]?.text, templateFor('pricing'));
   assert.ok(!turns[1]?.text.includes('$12'), 'the invented price entered history');
+});
+
+test('THE LEAK: an unsafe value in a streamed token never reaches the client', async () => {
+  // Round 10's probe. The previous gate forwarded every token and inspected only
+  // `final`, so "The unit price is $12 each." was rendered and THEN replaced.
+  // The earlier test hid this by putting the unsafe value only in `final` and
+  // making the streamed token a harmless prefix — it encoded the desired result
+  // rather than the real failure.
+  const { out } = await run({
+    engine: stubEngine([
+      { type: 'token', text: 'The unit price is $12 each.' },
+      { type: 'final', text: 'The unit price is $12 each.', citations: [] },
+    ]),
+    message: 'What amount would I pay for each piece?',
+  });
+  assert.ok(!out.body.includes('$12'), 'the invented price was streamed to the client');
+  assert.ok(!out.body.includes('unit price is'), 'the unsafe sentence reached the client');
+  const final = out.events.find((event: { type: string }) => event.type === 'final') as {
+    text: string;
+  };
+  assert.equal(final.text, templateFor('pricing'));
+});
+
+test('an unsafe value split across several tokens still never reaches the client', async () => {
+  const { out } = await run({
+    engine: stubEngine([
+      { type: 'token', text: 'That works out at $' },
+      { type: 'token', text: '1' },
+      { type: 'token', text: '2 each.' },
+      { type: 'final', text: 'That works out at $12 each.', citations: [] },
+    ]),
+    message: 'What would each piece be?',
+  });
+  assert.ok(!out.body.includes('works out at'), 'partial unsafe text was streamed');
+  assert.ok(!out.body.includes('$1'), 'a fragment of the price was streamed');
+});
+
+test('a safe answer is still delivered in full', async () => {
+  const citation = {
+    sourceId: '/headphones',
+    title: 'Headphones',
+    snippet: 'brand minimum order: 500 units',
+    retrievedAt: new Date().toISOString(),
+  };
+  const { out } = await run({
+    engine: stubEngine([
+      { type: 'token', text: 'Our MOQ ' },
+      { type: 'token', text: 'is 500 units.' },
+      { type: 'final', text: 'Our MOQ is 500 units.', citations: [citation] },
+    ]),
+    message: 'What is your MOQ?',
+  });
+  assert.ok(out.body.includes('Our MOQ is 500 units.'), 'the safe answer was withheld');
+  assert.ok(out.body.includes(': working'), 'no progress signal while buffering');
 });

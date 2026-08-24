@@ -313,3 +313,26 @@ test('no committed file is an absolute symlink', () => {
     );
   }
 });
+
+test('the abandoned-run cost bound is stated as the vendor ceiling everywhere', () => {
+  // Both LLDs described the waste from a dead worker's run. One said the bound
+  // was the delivered-output budget, which bounds only what we RECEIVE and
+  // therefore says nothing about what the vendor keeps generating after we stop
+  // listening. Two documents giving different bounds for the same cost is worse
+  // than one giving the wrong bound.
+  for (const relative of [
+    'docs/ai-platform/LLD-001-HUMAN-TAKEOVER-STATE-MACHINE.md',
+    'docs/ai-platform/LLD-002-CONVERSATION-ENGINE-INTERFACE.md',
+    'packages/ai-engine/src/capabilities.ts',
+  ]) {
+    const text = readFileSync(join(repoRoot, relative), 'utf8');
+    for (const match of text.matchAll(/bound(?:ed)? (?:by|is) ([^.\n]{0,80})/gi)) {
+      const claim = match[1];
+      if (!/output|token|unit|waste|generat/i.test(claim)) continue;
+      assert.ok(
+        !/maxDeliveredOutputUnits/.test(claim) || /NOT `maxDeliveredOutputUnits`/.test(claim),
+        `${relative} bounds vendor cost by the delivered-output budget: "${claim.trim()}"`,
+      );
+    }
+  }
+});

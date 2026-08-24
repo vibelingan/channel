@@ -1,30 +1,32 @@
 /**
- * The answer-side gate: a commitment the corpus does not support never reaches
- * the visitor, however the question was phrased.
+ * Whether the evidence actually supports a commercial value the answer states.
  *
- * WHY ASK-SIDE INTERCEPTION WAS NOT ENOUGH. `commitments.ts` recognises a
- * commercial request and answers it from a template without calling the model.
- * That is useful, but its boundary is a request pattern, and eight ordinary
- * paraphrases walked straight past it —
+ * TWO DEFECTS THIS REPLACES, both mine, both found by review rather than by me.
  *
- *   "What amount would I pay for each piece?"
- *   "Could you guarantee arrival before Friday?"
- *   "Which quality standards has your factory passed?"
- *   "Can you knock forty points off?"
+ * 1. TIMING. The first version validated the `final` event while forwarding
+ *    every token as it arrived, so "The unit price is $12 each." was rendered
+ *    in the browser and *then* replaced. You cannot unsend bytes. Validation
+ *    now happens before any answer byte leaves — see `chat.ts`.
  *
- * — reaching the model with the authority the design claimed it no longer had.
- * Recognising intent is unbounded in exactly the way recognising phrasing was.
+ * 2. EVIDENCE. It asked `context.includes(token)` over concatenated citation
+ *    text, which is not evidence of anything. All four of these were treated as
+ *    support:
  *
- * THIS GATE IS DIFFERENT IN KIND. It does not try to understand the answer. It
- * extracts the CONCRETE VALUES a commitment must contain — a money amount, a
- * percentage, a quantity-bearing figure, a weekday, a certification identifier —
- * and requires each to appear in the retrieved sources. A commitment with no
- * such value is not a commitment; one with a value the corpus does not contain
- * is invented, whatever sentence surrounds it.
+ *      "$12 each"                 ← "Founded in 2012."
+ *      "40% discount approved"    ← "Capacity is 40,000 units."
+ *      "guaranteed Friday"        ← "Office hours Friday: 9 to 5."
+ *      "We hold ISO 9001."        ← "We do NOT hold ISO 9001."
  *
- * "For 1000 units, that's twelve dollars apiece" and "the unit price is $12"
- * are unboundedly different sentences carrying the same ungrounded number, and
- * both fail the same way.
+ *    A substring is not a claim. Support now requires the source to state a
+ *    value of the SAME KIND, in a fragment that is not a denial, and — for
+ *    dates — in a fragment that is actually about delivery.
+ *
+ * WHAT THIS GUARANTEES, exactly, because the previous wording overclaimed:
+ * an answer that states a money amount, a percentage, a weekday or a
+ * certification identifier which the retrieved sources do not support is
+ * replaced before the visitor sees it. It does NOT catch a commitment carrying
+ * no such value — "yes, we can do that". That residual is real and R11 stays
+ * open for it.
  */
 
 import type { EngineCitation } from '@vibelingan-channel/ai-engine';
@@ -65,15 +67,15 @@ const WORD_NUMBERS: Record<string, string> = {
 
 const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
-/**
- * A value that, if asserted, is a commercial commitment.
- *
- * Kinds are recorded so the refusal can name the right topic rather than a
- * generic apology.
- */
+/** A source fragment only supports a delivery date if it is about delivery. */
+const DELIVERY_CONTEXT =
+  /\b(?:ship|ships|shipped|shipping|deliver\w*|dispatch\w*|lead time|arrival|arrives)\b/i;
+
+export type CommitmentKind = 'money' | 'percentage' | 'date' | 'certification';
+
 export interface CommitmentValue {
-  kind: 'money' | 'percentage' | 'date' | 'certification';
-  /** Normalised for comparison — lower-cased, digits rather than words. */
+  kind: CommitmentKind;
+  /** Normalised — lower-cased, digits rather than words, no thousands commas. */
   token: string;
 }
 
@@ -82,45 +84,44 @@ function normalise(text: string): string {
   for (const [word, digits] of Object.entries(WORD_NUMBERS)) {
     out = out.replace(new RegExp(`\\b${word}\\b`, 'g'), digits);
   }
-  // Certification identifiers are written both ways — "ISO 9001" in the corpus,
-  // "ISO9001" in an answer — so the space is closed on BOTH sides. Comparing a
-  // closed-up token against a spaced context was reporting a grounded
-  // certification as invented.
-  out = out.replace(/\b(iso|iatf|ce|rohs|reach|fcc|ul)\s+(\d{3,5})\b/g, '$1$2');
-  return out;
+  // "ISO 9001" and "ISO9001" are the same identifier.
+  return out.replace(/\b(iso|iatf|ce|rohs|reach|fcc|ul)\s+(\d{3,5})\b/g, '$1$2');
+}
+
+/** `40,000` and `40000` are one number; `12.50` keeps its decimal. */
+function canonicalNumber(raw: string): string {
+  return raw.replace(/,/g, '').replace(/\.$/, '');
 }
 
 /**
- * Every value in `text` that would constitute a commitment.
+ * Values in `text` that would constitute a commercial commitment.
  *
- * Deliberately narrow. A number that is not money, a percentage, a date or a
- * certification — "we have 8 production lines" — is an ordinary fact and is
- * left to the grounding the corpus already provides.
+ * Narrow on purpose. A bare quantity — "we run 8 production lines" — is an
+ * ordinary fact; treating every number as a commitment would block most real
+ * answers and train everyone to ignore the gate.
  */
 export function commitmentValues(text: string): CommitmentValue[] {
-  const normalised = normalise(String(text ?? ''));
+  const normalised = normalise(text);
   const values: CommitmentValue[] = [];
 
   for (const match of normalised.matchAll(
-    /\$\s?(\d[\d,.]*)|\b(\d[\d,.]*)\s?(?:usd|dollars?|eur|rmb|cny)\b/g,
+    /\$\s?(\d[\d,]*(?:\.\d+)?)|\b(\d[\d,]*(?:\.\d+)?)\s?(?:usd|dollars?|eur|rmb|cny)\b/g,
   )) {
-    values.push({ kind: 'money', token: (match[1] ?? match[2] ?? '').replace(/[,.]$/, '') });
+    values.push({ kind: 'money', token: canonicalNumber(match[1] ?? match[2] ?? '') });
   }
-  // `%` is not a word character, so a trailing \b after it never matches and
-  // "40%" was silently not a percentage at all.
+  // `%` is not a word character, so a trailing \b after it never matches.
   for (const match of normalised.matchAll(
-    /\b(\d[\d,.]*)\s?%|\b(\d[\d,.]*)\s?(?:percent|points off)\b/g,
+    /\b(\d[\d,]*(?:\.\d+)?)\s?%|\b(\d[\d,]*(?:\.\d+)?)\s?(?:percent|points off)\b/g,
   )) {
-    values.push({ kind: 'percentage', token: (match[1] ?? match[2] ?? '').replace(/[,.]$/, '') });
+    values.push({ kind: 'percentage', token: canonicalNumber(match[1] ?? match[2] ?? '') });
   }
   for (const day of WEEKDAYS) {
     if (new RegExp(`\\b${day}\\b`).test(normalised)) values.push({ kind: 'date', token: day });
   }
-  for (const match of normalised.matchAll(/\b(iso|iatf|ce|rohs|reach|fcc|ul)\s?(\d{3,5})?\b/g)) {
-    values.push({ kind: 'certification', token: `${match[1]}${match[2] ?? ''}` });
+  for (const match of normalised.matchAll(/\b(iso|iatf|ce|rohs|reach|fcc|ul)(\d{3,5})\b/g)) {
+    values.push({ kind: 'certification', token: `${match[1]}${match[2]}` });
   }
 
-  // De-duplicate, keeping the first kind seen for each token.
   const seen = new Set<string>();
   return values.filter((value) => {
     const key = `${value.kind}:${value.token}`;
@@ -130,23 +131,53 @@ export function commitmentValues(text: string): CommitmentValue[] {
   });
 }
 
+/** Clause-level split, so a denial governs only what it actually denies. */
+function fragments(text: string): string[] {
+  return normalise(text)
+    .split(/[.!?;:\n]+|,(?=\s)|\s+[-–—]+\s+|\s+(?:but|although|though|however|whereas|yet)\s+/)
+    .map((fragment) => fragment.trim())
+    .filter(Boolean);
+}
+
+function isDenial(fragment: string): boolean {
+  return /\b(?:not|no|never|none|don'?t|doesn'?t|didn'?t|can'?t|cannot|won'?t|isn'?t|aren'?t|unable|without|excluding)\b/i.test(
+    fragment,
+  );
+}
+
 /**
- * Values the answer asserts that the retrieved sources do not support.
+ * Does any source fragment ASSERT this value?
  *
- * The comparison is on the normalised token, so "twelve dollars" is checked
- * against a corpus containing "$12" and vice versa.
+ * The source must state the same kind of value, not merely contain the digits.
+ * "Founded in 2012" contains `12` and asserts no price.
  */
+function isSupported(value: CommitmentValue, sourceFragments: readonly string[]): boolean {
+  return sourceFragments.some((fragment) => {
+    // A source that denies something cannot authorise asserting it.
+    if (isDenial(fragment)) return false;
+    const stated = commitmentValues(fragment);
+    const matches = stated.some(
+      (candidate) => candidate.kind === value.kind && candidate.token === value.token,
+    );
+    if (!matches) return false;
+    // A weekday in "office hours Friday: 9 to 5" is not a delivery promise.
+    if (value.kind === 'date') return DELIVERY_CONTEXT.test(fragment);
+    return true;
+  });
+}
+
+/** Values the answer asserts that the retrieved sources do not support. */
 export function ungroundedCommitments(
   answer: string,
   citations: readonly EngineCitation[],
 ): CommitmentValue[] {
-  const context = normalise(
-    citations.map((citation) => `${citation.title} ${citation.snippet ?? ''}`).join(' \n '),
+  const sourceFragments = citations.flatMap((citation) =>
+    fragments(`${citation.title ?? ''} ${citation.snippet ?? ''}`),
   );
-  return commitmentValues(answer).filter((value) => !context.includes(value.token));
+  return commitmentValues(answer).filter((value) => !isSupported(value, sourceFragments));
 }
 
-/** Which template best answers a refusal caused by these values. */
+/** Which template answers a refusal caused by these values. */
 export function topicForCommitments(
   values: readonly CommitmentValue[],
 ): 'pricing' | 'discount' | 'delivery-date' | 'certification' {

@@ -1,6 +1,6 @@
 # External review triage — AI assistant local phase
 
-Rounds 1–9 by Codex 5.6. Every finding appears **exactly once** in the
+Rounds 1–10 by Codex 5.6. Every finding appears **exactly once** in the
 canonical table below, with a status. Totals are computed from that table, so
 any claim made about progress is checkable against it.
 
@@ -79,7 +79,7 @@ any claim made about progress is checkable against it.
 | R8 | Compose publishes every service on all interfaces; copy-Compose fail-closed claim was false | `FIXED` | 2 |
 | R9 | Conversation cap exceeded when every stored conversation is active | `FIXED` | 2 |
 | R10 | Evaluation script default port does not match the Compose port | `FIXED` | 2 |
-| R11 | Commercial commitments — reopened R5, R6, R8, R9 | `FIXED` | 2 |
+| R11 | Commercial commitments — reopened R5, R6, R8, R9, R10 | `PARTIAL` | 2 |
 | R12 | A disproven safety claim left standing elsewhere in the same file | `FIXED` | 2 |
 | R13 | Owner abort waits out the full stream deadline | `FIXED` | 3 |
 | R14 | `sh` collapses an unquoted `**` glob; 76 tests silently became 27 | `FIXED` | 3 |
@@ -89,8 +89,8 @@ any claim made about progress is checkable against it.
 
 | Status | Count | IDs |
 |---|---|---|
-| `FIXED` | 30 | 2–10, 13, 15, 16, 19, 21, 25, R1–R15 |
-| `PARTIAL` | 1 | 1 |
+| `FIXED` | 29 | 2–10, 13, 15, 16, 19, 21, 25, R1–R10, R12–R15 |
+| `PARTIAL` | 2 | 1, R11 |
 | `WITHDRAWN` | 1 | 18 |
 | `PHASE_4` | 5 | 11, 12, 14, 17, 20 |
 | `GATE_PENDING` | 3 | 22, 23, 24 |
@@ -576,6 +576,65 @@ verified to fail when the vulnerable code is restored.
 pointed at `/Users/…/.claude/`, worked only on this machine, and did not belong
 to this feature. Removed, gitignored, and a test now fails on any committed
 absolute symlink.
+
+---
+
+## Round 10 — the gate I built was unsafe, and I am not calling R11 fixed
+
+Two defects, both mine, both in the thing I had just described as a guarantee.
+
+**It validated after the answer had already been sent.** `streamChatToResponse`
+forwarded every token as it arrived and inspected only the terminal event, so
+"The unit price is $12 each." was rendered in the browser and *then* replaced.
+You cannot unsend bytes. A post-final substitution is not a safety gate, and
+calling it one was the worse error.
+
+My own test hid it: the unsafe value appeared only in `final`, and the streamed
+token was the harmless prefix "For 1000 units, ". That encoded the result I
+wanted rather than the failure that existed.
+
+Nothing now leaves until the answer is validated. Buffering is **forced by this
+protocol, not chosen** — the engine sends its sources only in the terminal
+frame, so there is no evidence to check against until the answer is complete.
+The cost is that token-by-token streaming is gone; progress is signalled by
+content-free SSE comments, which carry nothing that might have to be retracted.
+Restoring streaming means retrieving the evidence ourselves before calling the
+model — ADR-002 §4's preferred shape — which needs a retrieval method on the
+port and is recorded as follow-up.
+
+**Its evidence check was `context.includes(token)`, which is not evidence.** All
+four of these were accepted as support:
+
+| Answer | "Support" |
+|---|---|
+| `The price is $12 each.` | `Founded in 2012.` |
+| `A 40% discount is approved.` | `Capacity is 40,000 units.` |
+| `Delivery is guaranteed Friday.` | `Office hours Friday: 9 to 5.` |
+| `We hold ISO 9001.` | `We do **not** hold ISO 9001.` |
+
+Support now requires the source to state a value of the same KIND, in a fragment
+that is not a denial, and — for dates — in a fragment that is actually about
+delivery. Thousands separators are canonicalised so `40,000` cannot ground
+`40%`.
+
+**R11 is `PARTIAL`, not `FIXED`.** Round 10 offered two closing conditions and
+this work meets neither in full. What is now guaranteed: an answer stating a
+money amount, a percentage, a weekday or a certification identifier that the
+sources do not support is replaced before any of it reaches the visitor. What is
+not: a commitment carrying no such value — "yes, we can do that". Neither the
+request layer nor the answer layer catches that, and the only thing standing
+against it is the corpus having no prices, which is a disposition rather than a
+control.
+
+Closing it properly means Round 10's option 1 — deterministic code decides the
+commercial outcome from retrieved evidence and the model only words a decision
+it cannot change. That is a design change, not another patch, and it is the next
+R11 item rather than something to claim now.
+
+**#8 closes.** The last contradiction was LLD-002 §7.1 bounding abandoned-run
+waste by the delivered-output budget while its own output-limits section named
+the vendor ceiling. A test now fails on any statement that bounds vendor cost by
+what this process merely receives.
 
 ---
 

@@ -51,7 +51,15 @@ carrying a real citation.
 Open **http://localhost:58080/dev/chat** and ask something a customer would ask.
 
 The page shows what the assistant said, which pages it drew from, and how long
-it took. The banner at the top reports whether the database is genuinely usable.
+it took.
+
+**The answer appears all at once, not word by word.** That is deliberate: an
+answer is checked for commercial commitments the sources do not support — an
+invented price, discount, delivery date or certification — and a check that runs
+after the words are on screen cannot take them back. The engine returns its
+sources only at the end, so there is nothing to check against until the answer
+is complete. While it works, the server sends content-free keep-alive comments
+rather than partial text. The banner at the top reports whether the database is genuinely usable.
 
 The Send button becomes Stop while an answer is streaming. Pressing it closes
 the connection, which is the only way to cancel with this engine — see

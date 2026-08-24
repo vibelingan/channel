@@ -277,7 +277,11 @@ So the single `supportsStop` flag conflated two different guarantees:
 correctness: LLD-001 §4.2's fence means no assistant text is ever *committed*
 after a takeover regardless of what the model is doing. The cost is bounded
 waste — a run whose owner has died keeps generating until the vendor finishes it
-or its own limits stop it. The bound is one run's remaining `maxDeliveredOutputUnits`,
+or its own limits stop it. The bound is `EngineCapabilities.vendorMaxOutputTokens` — the
+engine's OWN ceiling, which is the only limit the vendor honours. It is NOT
+`maxDeliveredOutputUnits`, which bounds only what this process receives and
+therefore says nothing about what a vendor keeps generating after we stop
+listening. See the output-limits section below.
 and that figure belongs in the budget model (MIU 14b).
 
 ## 8. Rules that keep the boundary real
