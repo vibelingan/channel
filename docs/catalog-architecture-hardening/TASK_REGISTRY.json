@@ -1,9 +1,9 @@
 {
   "schemaVersion": "catalog-task-registry-v4",
-  "updatedAt": "2026-08-21T00:00:00Z",
+  "updatedAt": "2026-08-24T00:00:00Z",
   "reservationPolicy": {
     "states": ["planned", "blocked", "active", "released"],
-    "activationRule": "Only the planning packet is active now. A MIU activates atomically after dependencies and MIU-scoped gates pass, the docs claim is released, live refs/worktrees match, and no exact file is active elsewhere.",
+    "activationRule": "No MIU is active. A MIU activates atomically after dependencies and MIU-scoped gates pass, live refs/worktrees match, and no exact file is active elsewhere.",
     "ownershipRule": "Planned and blocked reservations may repeat only through sequentialOwnership: predecessor released before successor active. Simultaneous activation is invalid.",
     "derivationRule": "MIU 01 derives rooted consumers and known owners. MIU 29 extends only completed migration and retirement expectations."
   },
@@ -41,21 +41,27 @@
       "owner": "catalog-architecture-agent",
       "branch": "refactor/catalog-architecture-hardening",
       "remoteBranch": "origin/refactor/catalog-architecture-hardening",
-      "worktree": "/Users/SeanCai/Desktop/projects/channel-catalog-architecture-refactor",
+      "worktree": "/Users/SeanCai/Desktop/projects/channel-catalog-miu01-review",
       "baseSha": "9ddda85593517bc9d1d2bea81c4862ce492b144f",
       "claimedLocalHead": "f96b75b9114f8aa5b694963cca9a783acf192106",
       "claimedRemoteHead": "f96b75b9114f8aa5b694963cca9a783acf192106",
       "status": "implementation-in-progress",
-      "currentMiu": "02",
+      "currentMiu": null,
       "dependencies": [],
       "activeExactReservations": [],
-      "activeReservationPurpose": "MIU 01 released; no active file claim until MIU 02 activates.",
+      "activeReservationPurpose": "",
       "externalGates": {
         "D1": {
           "scope": ["26", "27", "28"],
           "taskLevelDependency": false,
-          "currentInProgressSha": "b9e52fed2b0af20e2b791bb6af08026404e3d57c",
-          "satisfaction": "Final reviewed Select SHA merged into origin/main, then the full inherited controlled update/reset, validation/focus, Arrow/Home/End/Escape/Enter/Space, outside pointer, no-JS, Chromium, and WebKit suite passes on that merge before MIUs 26-28 leave blocked."
+          "satisfiedMergedSha": "78506d525eefcd6410ff0d85a1a020d834f4ab02",
+          "deployedTestSha": "026e18b45c2bf8b61d54049e7a58bdf22466bfaa",
+          "validationEvidence": [
+            "Shared selector merge and repository validation completed on origin/main.",
+            "CloudBase test deployment rerun completed successfully.",
+            "Focused live shared-selector E2E passed 9/9."
+          ],
+          "satisfaction": "D1 is satisfied. MIUs 26-28 remain inactive until their ordinary dependencies and reservation checks pass."
         },
         "D2": {
           "scope": ["46"],
@@ -363,7 +369,7 @@
         "49": ["48"]
       },
       "miuReservationStates": {
-        "01": { "reservationState": "released" },
+        "01": { "reservationState": "released", "previousReservationState": "active" },
         "02": { "reservationState": "planned" },
         "03": { "reservationState": "planned" },
         "04": { "reservationState": "planned" },
@@ -388,21 +394,9 @@
         "23": { "reservationState": "planned" },
         "24": { "reservationState": "planned" },
         "25": { "reservationState": "planned" },
-        "26": {
-          "reservationState": "blocked",
-          "blockedBy": "D1 final Select merge plus full inherited suite",
-          "transferredFromTaskAfterRelease": "shared-form-select"
-        },
-        "27": {
-          "reservationState": "blocked",
-          "blockedBy": "D1 final Select merge plus full inherited suite",
-          "transferredFromTaskAfterRelease": "shared-form-select"
-        },
-        "28": {
-          "reservationState": "blocked",
-          "blockedBy": "D1 final Select merge plus full inherited suite",
-          "transferredFromTaskAfterRelease": "shared-form-select"
-        },
+        "26": { "reservationState": "planned" },
+        "27": { "reservationState": "planned" },
+        "28": { "reservationState": "planned" },
         "29": { "reservationState": "planned" },
         "30": { "reservationState": "planned" },
         "31": { "reservationState": "planned" },
@@ -664,7 +658,7 @@
           "branchOrPrStatusMayResolveTo": "HEAD"
         }
       },
-      "handoff": "Packet is uncommitted pending final review/push; only the docs glob is active and MIU 01 is planned."
+      "handoff": "MIU 01 is released with no active exact-file reservation. MIU 02 remains planned and requires separate activation after local/remote branch equality is proven."
     }
   ]
 }

@@ -1,9 +1,8 @@
 # Catalog Architecture Hardening Handoff
 
-Status: 49-MIU planning packet reviewed and committed; pending push and remote-SHA equality proof.
+Status: 49-MIU packet published; MIU 01 released; MIU 02 planned and inactive.
 Branch: `refactor/catalog-architecture-hardening`
-Remote base: `origin/refactor/catalog-architecture-hardening` at
-`9ddda85593517bc9d1d2bea81c4862ce492b144f`.
+Planning packet SHA: `bc1e69e25e9e8d453584be0fde9279f7bdf0c006`.
 
 This packet is the tracked source of truth for a repository-wide Catalog refactor. It covers every
 current family (`headphones`, `ai-gadgets`, `toys`, `misc`), historical and current rows,
@@ -14,17 +13,16 @@ test-only fifth family.
 ## Start Here
 
 ```sh
-cd /Users/SeanCai/Desktop/projects/channel-catalog-architecture-refactor
+cd /Users/SeanCai/Desktop/projects/channel-catalog-miu01-review
 git fetch origin
 git branch --show-current
 git status --short
 git rev-parse HEAD origin/refactor/catalog-architecture-hardening
 ```
 
-Expected branch: `refactor/catalog-architecture-hardening`. The branch ref exists remotely at the
-base SHA until the reviewed planning commit is pushed. No MIU may start until local/remote SHAs
-match after that push. Do not reset,
-rebase, cherry-pick, or create another branch to manufacture that equality.
+Expected branch: `refactor/catalog-architecture-hardening`. No MIU may activate until local HEAD and
+`origin/refactor/catalog-architecture-hardening` match after the reviewed closure is pushed. Do not
+reset, rebase, cherry-pick, or create another branch to manufacture that equality.
 
 ## Reading Order
 
@@ -70,8 +68,8 @@ rebase, cherry-pick, or create another branch to manufacture that equality.
 - Active `/headphones` remains built and must return 200. Targeted pruning preserves the real deploy
 	contract: `/overstock`, `/overstock-item`, temporarily hidden `/teardown-lab` and `/blue-ocean`, and
 	the existing retired media allowlist. Route smoke enumerates each status; no blanket delete is allowed.
-- The task currently actively reserves only `docs/catalog-architecture-hardening/**`; all MIU plans
-	have lifecycle state and exact owner files, with references/transfers for sequential reuse.
+- No MIU or exact file is currently active; all future MIU plans have lifecycle state and exact owner
+	files, with references/transfers for sequential reuse.
 - MIUs 39-43 separately own the real deploy script modification, its new test, the existing smoke script
 	modification, its new test, and the new browser smoke. MIU 44 produces and validates the immutable
 	`RELEASE_MANIFEST.json`; MIU 45 consumes it before credentials, disables push deployment, and owns the
@@ -80,15 +78,14 @@ rebase, cherry-pick, or create another branch to manufacture that equality.
 
 ## Select Branch Exclusion
 
-`fix/shared-form-select` is independently active. Until its reviewed SHA is merged into `main`, this
-branch must not edit its reserved Select or Admin files. D1 is scoped to MIUs 26-28, not a task-level
-dependency. The current Select SHA is in-progress evidence only. Those MIUs remain blocked until the
-final reviewed SHA merges and the full inherited controlled/reset, validation/focus, Arrow/Home/End/
-Escape/Enter/Space, outside-pointer, no-JS, Chromium, and WebKit suite passes on that merge.
+D1 is satisfied by shared selector merge `78506d525eefcd6410ff0d85a1a020d834f4ab02`, successful
+CloudBase test deployment `026e18b45c2bf8b61d54049e7a58bdf22466bfaa`, and focused live E2E
+passing 9/9. MIUs 26-28 are planned, not active, and still require ordinary dependency and reservation
+checks before activation.
 
 ## Completion
 
-The planning packet remains pending review/push. Later, the manifest records two approved commit SHAs:
+The planning packet and MIU 01 closure are published. Later, the manifest records two approved commit SHAs:
 the independently reviewed/pushed implementation and rollback commits. Runtime records separate observed
 deploy and rollback release IDs and compares each only with its corresponding checked-out commit. Post-deploy
 MIUs create a separate docs-only closure commit that is not deployed and does not embed its own SHA;

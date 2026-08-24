@@ -1,17 +1,17 @@
 # Catalog Architecture Hardening - Execution
-Status: MIU 01 foundational architecture verifier implemented and validated; planning packet and MIU 01 implementation pushed; MIU 02 pending activation.
+Status: MIU 01 foundational architecture verifier released; MIU 02 planned and inactive.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implementation`.
 
-**Current/next MIU:** MIU 01 released; MIU 02 is next and activates after the live-ref and dependency checks pass.
+**Current/next MIU:** No MIU is active. MIU 01 is released; MIU 02 requires a separate activation after live-ref and dependency checks pass.
 
 ## Git Truth
 
 - Base SHA: `9ddda85593517bc9d1d2bea81c4862ce492b144f`.
 - Planning packet reviewed and pushed at `bc1e69e25e9e8d453584be0fde9279f7bdf0c006`.
-- MIU 01 implementation reviewed and pushed at `f96b75b9114f8aa5b694963cca9a783acf192106`; the
-  remote branch resolves to a descendant of this SHA once the pending push completes.
+- MIU 01 implementation was pushed at `f96b75b9114f8aa5b694963cca9a783acf192106` and its
+  closure record at `6398a58e6c420686283556ff3b37a837dc93b55e`; both are ancestors of the remote branch.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -19,9 +19,9 @@ Branch: `refactor/catalog-architecture-hardening`
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. The only active Catalog reservation is
-`docs/catalog-architecture-hardening/**`; 49 MIU file plans are future `planned|blocked` claims, not
-active reservations. Activation is one MIU at a time and shared files use references or explicit transfer.
+rather than trusted from JSON strings. No implementation MIU or exact file is currently reserved;
+49 MIU file plans are future `planned|blocked` claims, not active reservations. Activation is one MIU
+at a time and shared files use references or explicit transfer.
 
 ## Planning Review Gate
 
@@ -35,14 +35,11 @@ Before MIU 01:
 
 ## Concurrent Dependency D1
 
-`fix/shared-form-select` is live at remote SHA
-`b9e52fed2b0af20e2b791bb6af08026404e3d57c` in
-`/Users/SeanCai/Desktop/projects/channel-form-select-refactor`. It owns the excluded Select/Admin
-files listed in `TASK_REGISTRY.json`. D1 is scoped to MIUs 26-28 and is not a task-level dependency.
-Those MIUs remain blocked until the final reviewed SHA merges into `origin/main`; the current SHA is
-in-progress evidence only. They remain blocked after merge until the full inherited controlled/reset,
-validation/focus, Arrow/Home/End/Escape/Enter/Space, outside-pointer, no-JS, Chromium, and WebKit suite
-passes on that final merge. Only then may Catalog integration activate.
+D1 is satisfied: shared selector merge `78506d525eefcd6410ff0d85a1a020d834f4ab02` is on
+`origin/main`, CloudBase test deployment SHA `026e18b45c2bf8b61d54049e7a58bdf22466bfaa` succeeded,
+and focused live shared-selector E2E passed 9/9. D1 is scoped to MIUs 26-28 and is not a task-level
+dependency. Those MIUs are planned, not active, and still require their ordinary dependency and
+reservation checks before activation.
 
 ## Environment Mutation Gate D2
 
@@ -92,10 +89,10 @@ Implementation validation is intentionally absent for planned MIUs. Do not descr
 
 MIU 01 (foundational architecture verifier), implementation commit `f96b75b9114f8aa5b694963cca9a783acf192106`:
 
-- `node --test scripts/verify-catalog-architecture.test.mjs`: 25/25 pass. Synthetic cases cover forbidden edge, cycle, duplicate governance owner, unrooted discovery, two active exact-file owners, stale SHA, worktree mismatch, illegal transition, missing derived consumer, glob-only plan, local-only completion, released-to-active transfer, and sibling-worktree-ignored.
-- `node --test scripts/*.test.mjs` (`test:deploy-smoke`): 49/49 pass, no regression to the existing 24.
-- `npx biome check .`: 330 files, exit 0.
-- `pnpm typecheck`: 0 errors.
+- `node --test scripts/verify-catalog-architecture.test.mjs`: 65/65 pass. Synthetic cases cover forbidden edges, cross-layer cycles, Astro and TypeScript import forms, workspace aliases, immutable 49-MIU denominator, derived governance/consumer discovery, ownership transfers, D1/D2 gates, compatibility owners, lifecycle, stale SHA/worktree, and bounded Git probing; the real-registry integration case also passes.
+- `pnpm test:deploy-smoke`: 90/90 pass, including all 65 Catalog architecture cases.
+- `pnpm exec biome check .`: 330 files, exit 0.
+- `pnpm -r --filter './packages/**' --filter './apps/**' typecheck && pnpm typecheck:e2e`: 0 errors.
 - `pnpm build`: 15 pages, exit 0.
 - `node scripts/verify-catalog-architecture.mjs` on the live repo: 0 issues.
 - Critical injection: three planted real violations (stale-sha, illegal-transition, glob-only) were each named with exact paths, then the repo was restored to 0 issues.

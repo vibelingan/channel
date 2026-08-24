@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening MIU Breakdown
 
-Status: proposed; pending final planning review/push. No MIU is approved to start.
+Status: published; MIU 01 released; MIU 02 planned and inactive.
 
 ```mermaid
 flowchart TD
@@ -46,11 +46,10 @@ flowchart TD
 
 ## External Gates
 
-- **D1 Select merge (MIU-scoped, not a task dependency):** `fix/shared-form-select` must finish review
-  and merge into `origin/main`. Record the final merged SHA (the current in-progress SHA is evidence,
-  not satisfaction), apply only controlled integration updates, reset the forms, and rerun required,
-  validation/focus, Arrow/Home/End/Escape/Enter/Space, outside-pointer, no-JS, Chromium, and WebKit
-  assertions. Only then transfer MIUs 26-28 from `blocked` to `planned`; never claim Select files.
+- **D1 Select merge (satisfied; MIU-scoped, not a task dependency):** merge
+  `78506d525eefcd6410ff0d85a1a020d834f4ab02` is on `origin/main`, test deployment
+  `026e18b45c2bf8b61d54049e7a58bdf22466bfaa` succeeded, and focused live E2E passed 9/9.
+  MIUs 26-28 are planned but inactive; they never claim Select files.
 - **D2 sole LIVE mutation:** immediately after MIU 45's workflow, manifest, deploy, and smoke code are
   independently reviewed and pushed, and immediately before MIU 46, a human approves the immutable
   manifest's reviewed implementation SHA and rollback SHA plus `confirm_live`. Production, self-report-only
@@ -58,13 +57,10 @@ flowchart TD
 
 ## Reservation Lifecycle
 
-- The only active task is this planning packet and its active claim is only
-  `docs/catalog-architecture-hardening/**`. All MIU file lists are future plans until activation; each
-  MIU's registry state is `planned`, except D1-owned MIUs 26-28,
-  which are `blocked`.
-- Activation follows `TASK_REGISTRY.json`: release the task-level planning claim, verify dependencies,
-  gates, live refs/worktrees, and zero conflicting active owner claims, then atomically mark one MIU
-  `active`. Completion marks it `released` before any explicit successor transfer activates.
+- No MIU or exact file is active. MIU 01 is released; every future MIU remains planned until activation.
+- Activation follows `TASK_REGISTRY.json`: verify dependencies, gates, live refs/worktrees, and zero
+  conflicting active owner claims, then atomically mark one MIU `active`. Completion marks it `released`
+  before any explicit successor transfer activates.
 - `Files` names owner files only. A shared file used later is named in `What it does` as a
   consumer/reference; a later edit requires a recorded `released -> active` transfer. The registry
   validator derives files from this document and live references rather than trusting JSON alone.
@@ -75,7 +71,7 @@ flowchart TD
 - **Files:** `scripts/verify-catalog-architecture.mjs`, `scripts/verify-catalog-architecture.test.mjs`, `config/change-impact/catalog.yaml`
 - **Type:** new-file
 - **Depends on:** none
-- **Reservation state:** `planned`; activates only after the planning task claim is released.
+- **Reservation state:** `released`; previous state `active`.
 - **What it does:**
   - Implements `verifyCatalogArchitecture(root, registry, gitProbe): ArchitectureIssue[]` before the
     first migration. It parses imports/re-exports/dynamic imports, enforces dependency direction,
@@ -90,7 +86,7 @@ flowchart TD
   - Assert stale SHA/worktree, illegal transition, missing derived consumer, glob-only plan, or local-only
     completion returns its named issue while a released-to-active transfer passes.
 - **Done when:**
-  - Synthetic graph/reservation/duplicate mutations and the observed active planning task validate.
+  - Synthetic graph/reservation/duplicate mutations and the released MIU lifecycle validate.
   - Repository typecheck/lint/build and the verifier command pass before MIU 02 may activate.
 
 ## MIU 2: Shared Catalog public schema and envelope subpath
@@ -587,13 +583,12 @@ flowchart TD
 - **Files:** `apps/site/src/islands/admin/RecordForm.tsx`, `apps/site/src/islands/admin/CollectionView.tsx`, `apps/site/src/islands/admin/product-form.test.ts`
 - **Type:** refactor
 - **Depends on:** MIU 22 and external D1
-- **Reservation state:** `blocked` until the final Select merge and full inherited D1 suite pass; only then transferred from the released Select task and marked `planned`.
+- **Reservation state:** `planned`; D1 is satisfied, but ordinary MIU 22 dependency and activation checks still apply.
 - **What it does:**
   - Applies only controlled updates against final merged `Select.tsx`; parent prefill/change/reset and required
     validation/focus map to MIU 02's canonical family, and Headphones-to-other clears category once.
-  - Records the final merged SHA and keeps this MIU blocked while `Select.test.ts` plus controlled reset,
-    validation/focus, keyboard, outside-pointer, no-JS, Chromium, and WebKit checks run against that merge.
-    It creates no claim, clone, or registry for Select; the current in-progress SHA cannot satisfy D1.
+  - Consumes the recorded final merge and D1 validation evidence without creating a claim, clone, or
+    registry for Select.
 - **Build/Deploy/Runtime impact:** Authenticated Admin islands/site build; merged Select suite applies.
 - **Test plan (TDD - write FIRST):**
   - Assert controlled prefill/change/reset, required validation/focus, and exact submitted family.
