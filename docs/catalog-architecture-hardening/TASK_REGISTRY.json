@@ -3,7 +3,7 @@
   "updatedAt": "2026-08-24T00:00:00Z",
   "reservationPolicy": {
     "states": ["planned", "blocked", "active", "released"],
-    "activationRule": "No MIU is active. A MIU activates atomically after dependencies and MIU-scoped gates pass, live refs/worktrees match, and no exact file is active elsewhere.",
+    "activationRule": "A MIU activates atomically after dependencies and MIU-scoped gates pass, live refs/worktrees match, and no exact file is active elsewhere.",
     "ownershipRule": "Planned and blocked reservations may repeat only through sequentialOwnership: predecessor released before successor active. Simultaneous activation is invalid.",
     "derivationRule": "MIU 01 derives rooted consumers and known owners. MIU 29 extends only completed migration and retirement expectations."
   },
