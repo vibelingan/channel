@@ -46,7 +46,7 @@ consolidation into the cross-project engineering-craft skill.
 | `tests/e2e/*`, env flags, CI smoke steps, screenshot evidence | E2E Testing | 7 |
 | review rounds, deferrals, doc status markers, hidden pages, audit coverage | Review Process & Knowledge | 9 |
 | `package.json`/`pnpm-lock.yaml` version delta, hand-written `*.d.ts`, `node_modules/**` assertions in scripts, an SDK-minted credential sent by your own `fetch` | Third-Party SDK & Wire Contracts | 5 |
-| a new early-return guard, a changed mode literal (hydration directive, HTTP verb, flag), a test-only edit, a `test.skip`, any contract probe | Test & Probe Efficacy | 5 |
+| a new early-return guard, a changed mode literal (hydration directive, HTTP verb, flag), a test-only edit, a `test.skip`, any contract probe | Test & Probe Efficacy | 6 |
 
 ### Auth & Session Security
 
@@ -112,6 +112,7 @@ consolidation into the cross-project engineering-craft skill.
 - **Anchor assertions on tokens with exactly one producer** (session 2026-08-06): `not.toContain('data-certifications')` asserted the absence of a string that had NEVER existed anywhere in the repo — unfailable by construction. Symmetrically, a "both columns are min-w-0 tracks" test passed on unrelated `min-w-0` elements deeper in the subtree. Before asserting containment or absence, `grep` the token: zero non-test producers means vacuous, many producers means under-scoped. Add a data attribute when no unique anchor exists.
 - **A skip reason is a claim that expires** (session 2026-08-06): A permanently skipped test carried the reason "headphones storefront is hidden (un-routed)" — false since the route was restored — and its assertions still targeted a retired UI, so re-enabling it as written would have FAILED against correct code. Disabled tests with stale justifications read like coverage while being anti-coverage. Give every unconditional skip a machine-checkable expiry predicate (a path that must exist/not exist, or a date) and fail CI when the predicate no longer holds.
 - **Skip only on static config, never on observed state** (session 2026-08-06, strengthens *Opt in smoke skip flag only fail on missing creds*): The deployed VIP-pricing test skips when a login RESPONSE says the seeded account is absent — a skip predicate that reads live state converts a real environment regression into silent green. Let a deployed test skip only on a static configuration predicate evaluated BEFORE its first network call; once it has talked to the environment, any unexpected state is a failure, not a skip.
+- **A tracked-state probe must detect desync not lag** (`f96b75b`): A verifier asserting a tracked registry's recorded SHA against live git HEAD cannot require strict equality — committing the registry itself advances HEAD, so the probe self-fails after every commit (a passing assertion violated by the artifact's own lifecycle). Pass when the recorded SHA is an ancestor of the live head (`git merge-base --is-ancestor`), fail only when it is NOT an ancestor (rebase/reset/force-push desync); compare the remote against the remote-tracking ref the same way. Found by critically re-running the probe after its own commit instead of trusting the green run.
 
 ### Deploy & CI/CD
 
