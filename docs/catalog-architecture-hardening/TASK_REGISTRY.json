@@ -43,13 +43,13 @@
       "remoteBranch": "origin/refactor/catalog-architecture-hardening",
       "worktree": "/Users/SeanCai/Desktop/projects/channel-catalog-architecture-refactor",
       "baseSha": "9ddda85593517bc9d1d2bea81c4862ce492b144f",
-      "claimedLocalHead": "f96b75b9114f8aa5b694963cca9a783acf192106",
-      "claimedRemoteHead": "f96b75b9114f8aa5b694963cca9a783acf192106",
+      "claimedLocalHead": "c2f0027e85c7bf2e5051333d39c213ca0d1d106d",
+      "claimedRemoteHead": "c2f0027e85c7bf2e5051333d39c213ca0d1d106d",
       "status": "implementation-in-progress",
-      "currentMiu": "02",
+      "currentMiu": "03",
       "dependencies": [],
       "activeExactReservations": [],
-      "activeReservationPurpose": "MIU 01 released; no active file claim until MIU 02 activates.",
+      "activeReservationPurpose": "MIU 02 released; no active file claim until MIU 03 activates.",
       "externalGates": {
         "D1": {
           "scope": ["26", "27", "28"],
@@ -364,7 +364,7 @@
       },
       "miuReservationStates": {
         "01": { "reservationState": "released" },
-        "02": { "reservationState": "planned" },
+        "02": { "reservationState": "released" },
         "03": { "reservationState": "planned" },
         "04": { "reservationState": "planned" },
         "05": { "reservationState": "planned" },
