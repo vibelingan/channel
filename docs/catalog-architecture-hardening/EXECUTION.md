@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-03 released; MIU 04 planned and inactive.
+Status: MIUs 01-03 released; MIU 04 implemented and active for local validation; MIU 05 planned and inactive.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implementation`.
 
-**Current/next MIU:** No MIU is active. MIUs 01-03 are released; MIU 04 requires separate activation after live-ref and dependency checks pass.
+**Current/next MIU:** MIU 04 is active for local validation only. MIU 05 remains planned and inactive.
 
 ## Git Truth
 
@@ -17,6 +17,7 @@ Branch: `refactor/catalog-architecture-hardening`
 - MIU 03 implementation was pushed at `d00a923076d04646f22b211f13288c4c8c8f0c21`. Premature closure
   `2f0fbd43ac1f7e05aa0a2b2a1fee111eea93bd7e` was superseded by published corrective active evidence
   `1e4523c9f1fd67f469a94b46dab13a8a8ddc7e67` and release transition `57e2e77`.
+- MIU 04 TDD activation is `a1759e9`; implementation is `1ea2669`. Both are local until review and push.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -24,9 +25,9 @@ Branch: `refactor/catalog-architecture-hardening`
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. No MIU or exact file is currently active; future MIU file plans
-remain `planned|blocked` claims. Activation is one MIU at a time and shared files use references or
-explicit transfer.
+rather than trusted from JSON strings. MIU 04 actively reserves its four exact owner files, including a
+released-to-active transfer of `packages/shared/package.json`. Other MIU file plans remain
+`planned|blocked` claims. Activation is one MIU at a time.
 
 ## Planning Review Gate
 
@@ -125,9 +126,22 @@ MIU 03 (public-read product normalizer), implementation commit `d00a923076d04646
 - `npx pnpm@11.5.0 build`: 15 pages, exit 0.
 - Hidden issue found standing outside the design: a real alibaba-linked DB row stores supplier offer keys inside `alibabaCatalogPricing`, so the initial allowlist-copy + strict-schema approach fail-closed REJECTED every alibaba-linked product (`unrecognized_keys: sourceOfferKey...`). Fixed by sub-projecting Alibaba pricing (strip `sourceOfferKey`/`sourceProductId`/`sourceSkuId`) and masking `alibabaPrimarySourceKey` to the constant `'linked'`, matching the public projection exactly. Verified by a critical probe (row now normalizes, no supplier keys leak) plus a dedicated test.
 
+## MIU 04 Local Validation
+
+MIU 04 (schema-checked Public API projection), implementation commit `1ea2669`:
+
+- Focused handler contract: 5/5 pass after an observed 2-pass/3-fail TDD baseline.
+- Full Public API suite: 65/65 pass, including list/ID/slug parity, auth/VIP, Overstock, media, and Alibaba projection.
+- Public API and shared package typechecks: 0 errors; touched-file Biome and `git diff --check`: pass.
+- Local function build/package: admin, public-api, and alibaba-catalog-sync artifacts built and packaged.
+- Bare cold-start smoke: all three packaged artifacts load with a `main` export in isolated temp directories.
+- CloudBase test deployment: not run and not authorized for MIU 04.
+
 ## Deviations
 
 Deviations: MIU 03 implementation and premature closure were pushed without a tracked active state.
 Corrective active evidence was reviewed, validated, and published at `1e4523c`, then released separately
 at `57e2e77`. MIU 03 also gained Alibaba-pricing sub-projection after a validation probe exposed the hidden
 fail-closed rejection of alibaba-linked rows.
+MIU 04 added an explicit `packages/shared/package.json` ownership transfer because MIU 03's normalizer had
+no legal package export; the dedicated subpath avoids cross-workspace deep imports and an index cycle.
