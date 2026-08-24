@@ -27,7 +27,7 @@ COPY apps/ai-worker apps/ai-worker
 # Never root. CloudRun does not require it, which is exactly why it gets
 # forgotten until an image scan flags it.
 USER node
-EXPOSE 8080
+EXPOSE 8081
 # tsx runs TypeScript directly; the alternative is a compile step whose output
 # would need its own drift test against the sources.
 # WORKDIR is the package, not the repo root: pnpm keeps tsx in the package's

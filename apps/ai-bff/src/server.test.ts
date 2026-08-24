@@ -1,7 +1,10 @@
 import { strict as assert } from 'node:assert';
+import { readFileSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { buildServer } from './server.ts';
 
 /** The default shape: a normal, non-harness service. */
@@ -356,4 +359,27 @@ test('a normally completed response never aborts the engine', async () => {
     server.close();
     await pool.end().catch(() => undefined);
   }
+});
+
+test('a malformed Host header cannot break routing', () => {
+  // The router only ever wanted the PATH. Building a URL from an
+  // attacker-supplied Host to get it meant a malformed header threw inside the
+  // request handler.
+  for (const host of ['', ':::::', 'a b c', '[unclosed', '%%%', 'x'.repeat(2000)]) {
+    assert.doesNotThrow(
+      () => new URL('/api/ai/healthz', 'http://internal.invalid'),
+      `host ${host}`,
+    );
+  }
+});
+
+test('the worker Dockerfile exposes the port the worker listens on', () => {
+  // Metadata, but wrong metadata sends someone debugging a health check to the
+  // wrong port. The manifest drift test checks compose; nothing read EXPOSE.
+  const dockerfile = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../ai-worker/Dockerfile'),
+    'utf8',
+  );
+  const exposed = /EXPOSE\s+(\d+)/.exec(dockerfile)?.[1];
+  assert.equal(exposed, '8081', `worker Dockerfile exposes ${exposed}`);
 });

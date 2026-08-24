@@ -31,7 +31,10 @@ export function buildWorker(config: WorkerConfig) {
   const readiness = createStoreReadiness(pool);
 
   const server = createServer(async (req, res) => {
-    const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+    // A fixed base, never the Host header. Only the PATH is wanted here, and
+    // parsing an attacker-supplied Host to get it means a malformed header can
+    // throw inside the request handler.
+    const url = new URL(req.url ?? '/', 'http://internal.invalid');
     if (url.pathname === '/healthz') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));

@@ -53,7 +53,7 @@ any claim made about progress is checkable against it.
 | 7 | Adapter does not run the shared conformance suite | `FIXED` | 3 |
 | 8 | Output/tool limits: contract promised a token bound nothing could keep — reopened R5, R6, R8 | `FIXED` | 3 |
 | 9 | Corrupt or truncated SSE treated as success | `FIXED` | 3 |
-| 10 | Corpus refresh deletes before it uploads | `PHASE_4` | 4 |
+| 10 | Corpus refresh deletes before it uploads | `FIXED` | 4 |
 | 11 | Workspace policy applied without read-back | `PHASE_4` | 4 |
 | 12 | Readiness ignores the engine; version defaults to `unpinned` | `PHASE_4` | 4 |
 | 13 | Reasoning filter leaks split attribute-bearing tags — reopened R5 | `FIXED` | 3 |
@@ -62,9 +62,9 @@ any claim made about progress is checkable against it.
 | 16 | Ordinary CI job runs database tests without a database | `FIXED` | 1 |
 | 17 | `mintplexlabs/anythingllm:latest` is a mutable tag | `PHASE_4` | 4 |
 | 18 | Docker build-context safety | `WITHDRAWN` | — |
-| 19 | Worker `EXPOSE 8080` vs actual 8081 | `PHASE_4` | 4 |
+| 19 | Worker `EXPOSE 8080` vs actual 8081 | `FIXED` | 4 |
 | 20 | Shutdown does not drain | `PHASE_4` | 4 |
-| 21 | Routing URL built from the `Host` header | `PHASE_4` | 4 |
+| 21 | Routing URL built from the `Host` header | `FIXED` | 4 |
 | 22 | CloudRun manifest has no deploy consumer | `GATE_PENDING` | — |
 | 23 | VPC / TencentDB / TLS validation | `GATE_PENDING` | — |
 | 24 | Production secret management | `GATE_PENDING` | — |
@@ -88,10 +88,10 @@ any claim made about progress is checkable against it.
 
 | Status | Count | IDs |
 |---|---|---|
-| `FIXED` | 26 | 2, 3, 4, 5, 6, 7, 8, 9, 13, 15, 16, 25, R1–R14 |
+| `FIXED` | 29 | 2–10, 13, 15, 16, 19, 21, 25, R1–R14 |
 | `PARTIAL` | 1 | 1 |
 | `WITHDRAWN` | 1 | 18 |
-| `PHASE_4` | 8 | 10, 11, 12, 14, 17, 19, 20, 21 |
+| `PHASE_4` | 5 | 11, 12, 14, 17, 20 |
 | `GATE_PENDING` | 3 | 22, 23, 24 |
 | **Total** | **39** | 25 + 7 + 5 + 1 + 1, one row per finding, never renumbered |
 
@@ -476,6 +476,45 @@ one.
 
 A test suite that silently shrinks is worse than one that fails, and this one
 shrank at exactly the moment new code arrived.
+
+---
+
+## Phase 4a — the corpus can no longer be destroyed by a failed refresh
+
+**#10 was the most damaging item left, and reproducing it took nothing.** The
+refresh deleted every attached document first, then uploaded, then embedded. A
+failure at either later step — a blip, a rejected document, an interrupted run —
+left the assistant with NO corpus and no error. It would keep answering,
+ungrounded, until somebody noticed.
+
+Replaced by a generation swap: upload the new set, embed it alongside the old,
+**verify it is attached and actually retrieves**, and only then remove the
+previous generation. Any failure before that rolls the partial generation back
+and leaves the corpus exactly as it was. Proven by pointing the embed step at a
+non-existent workspace — the rollback fired and the real workspace still held
+its six documents.
+
+Two defects surfaced while building it, both from real runs rather than
+reasoning:
+
+- **The migration case.** Documents uploaded before the namespace existed were
+  not recognised as ours, so the first run left them attached and the workspace
+  held twelve documents where six belonged. The duplication pushed the MOQ fact
+  out of the top results and the assistant stopped answering a question the
+  website answers — the exact "stale answer with a real citation" failure the
+  original comment warned about.
+- **Case.** The engine slugs the title it is given, so `en-US.md` becomes
+  `raw-en-us-home-…`. Matching case-sensitively removed only seven of twelve and
+  left the corpus still duplicated. Repeated runs now hold steady at six.
+
+Rollback also detaches and deletes **independently**. Chained, a failed detach —
+which is precisely what happens when the workspace is the problem — skipped the
+delete and orphaned the uploads in storage.
+
+**#21** — the router built a URL from the `Host` header to obtain a path it
+already had. A fixed base removes the parse of attacker-supplied input entirely.
+**#19** — the worker Dockerfile exposed 8080 while the worker listens on 8081;
+the manifest drift test checked compose and nothing read `EXPOSE`.
 
 ---
 

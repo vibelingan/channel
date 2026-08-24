@@ -213,6 +213,29 @@ export function keyFactsDocument(homeYaml) {
   return lines.join('\n');
 }
 
+/** Marks documents this script owns, and which run created them. */
+const DOCUMENT_NAMESPACE = 'channelkb';
+const OWNED_DOCUMENT = new RegExp(`${DOCUMENT_NAMESPACE}-g(\\d+)-`);
+
+/**
+ * Documents this script uploaded BEFORE the namespace existed.
+ *
+ * Without this the first namespaced run treats them as somebody else's, leaves
+ * them attached, and the workspace ends up holding two copies of every page.
+ * Observed: 12 documents where there should be 6, and the duplication pushed
+ * the MOQ fact out of the top results — the assistant stopped answering a
+ * question the website answers. Recognising them by the exact names this
+ * script generated is precise enough to migrate them without touching a
+ * document a person attached by hand.
+ */
+function legacyDocumentNames() {
+  const names = ['key-facts-home'];
+  for (const source of SOURCES) {
+    names.push(`${basename(source.file, '.md')}-${source.url.replace(/\W+/g, '') || 'home'}`);
+  }
+  return names;
+}
+
 async function api(base, key, path, init = {}) {
   const res = await fetch(`${base}${path}`, {
     ...init,
@@ -257,54 +280,148 @@ async function main() {
     return;
   }
 
-  // Re-ingest must replace, not accumulate. Without this, editing one heading
-  // and re-running leaves both versions embedded and the assistant retrieves
-  // whichever the vector search happens to prefer — a stale answer with a real
-  // citation, which is the worst failure shape this product has.
-  const existing = await api(base, key, `/api/v1/workspace/${workspace}`);
-  const stale = (existing.workspace?.[0]?.documents ?? []).map((d) => d.docpath).filter(Boolean);
-  if (stale.length > 0) {
-    await api(base, key, `/api/v1/workspace/${workspace}/update-embeddings`, {
-      method: 'POST',
-      body: JSON.stringify({ deletes: stale }),
-    });
-    console.log(`removed ${stale.length} previously embedded document(s)`);
+  // GENERATION SWAP, not delete-then-upload.
+  //
+  // The previous order deleted every attached document first and only then
+  // uploaded replacements. A failure at upload or embed — a network blip, a
+  // rejected document, an interrupted run — left the assistant with NO corpus
+  // and no error: it would keep answering, ungrounded, until someone noticed.
+  //
+  // Now the new generation is uploaded and embedded alongside the old one, and
+  // the old one is removed only after the new one is verified. A failure at any
+  // earlier point rolls the partial generation back and leaves the corpus
+  // exactly as it was.
+  const generation = Date.now();
+  const legacy = legacyDocumentNames();
+  const owned = (docpath) => {
+    // Compared lower-cased: the engine slugs the title it is given, so
+    // `en-US.md` becomes `raw-en-us-home-…`. Matching case-sensitively left
+    // five of twelve stale documents attached and the corpus still duplicated.
+    const path = String(docpath ?? '').toLowerCase();
+    if (OWNED_DOCUMENT.test(path)) return true;
+    // Pre-namespace uploads: `custom-documents/raw-<name>-<uuid>.json`.
+    return legacy.some((name) => path.includes(`raw-${name.toLowerCase()}-`));
+  };
+  const generationOf = (docpath) => Number(OWNED_DOCUMENT.exec(String(docpath ?? ''))?.[1] ?? 0);
+
+  const before = await api(base, key, `/api/v1/workspace/${workspace}`);
+  const attachedBefore = (before.workspace?.[0]?.documents ?? [])
+    .map((document) => document.docpath)
+    .filter(Boolean);
+  const previousGeneration = attachedBefore.filter(owned);
+  const foreign = attachedBefore.filter((docpath) => !owned(docpath));
+  if (foreign.length > 0) {
+    // Someone attached documents by hand through the engine's own UI. They are
+    // not ours to delete.
+    console.log(`leaving ${foreign.length} document(s) this script does not own`);
   }
 
   const uploadedLocations = [];
-  for (const { source, text } of docs) {
-    const res = await fetch(`${base}/api/v1/document/raw-text`, {
+
+  /** Undo a partial generation so a failure never costs the corpus. */
+  async function rollback(reason) {
+    if (uploadedLocations.length === 0) return;
+    console.error(`\n${reason}\nrolling back ${uploadedLocations.length} uploaded document(s)…`);
+    // Detach and delete are attempted INDEPENDENTLY. Chaining them meant a
+    // failed detach — which is exactly what happens when the workspace itself
+    // is the problem — skipped the delete and left the uploads orphaned in
+    // storage forever.
+    const detached = await api(base, key, `/api/v1/workspace/${workspace}/update-embeddings`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        textContent: text,
-        metadata: {
-          title: `${basename(source.file, '.md')}-${source.url.replace(/\W+/g, '') || 'home'}.txt`,
-          docSource: source.url,
-          description: source.title,
-        },
-      }),
-    });
-    const body = await res.json();
-    if (!res.ok || body.error)
-      throw new Error(`upload failed for ${source.file}: ${JSON.stringify(body).slice(0, 300)}`);
-    const location = body.documents?.[0]?.location;
-    if (!location) throw new Error(`no document location returned for ${source.file}`);
-    uploadedLocations.push(location);
-    console.log(`uploaded  ${source.file}  →  ${location}`);
+      body: JSON.stringify({ deletes: uploadedLocations }),
+    })
+      .then(() => true)
+      .catch(() => false);
+
+    const deleted = await api(base, key, '/api/v1/system/remove-documents', {
+      method: 'DELETE',
+      body: JSON.stringify({ names: uploadedLocations }),
+    })
+      .then(() => true)
+      .catch(() => false);
+
+    if (detached && deleted) {
+      console.error('rolled back; the previous corpus is untouched');
+    } else {
+      console.error(
+        `rollback incomplete (detached=${detached}, deleted=${deleted}); the previous corpus is still attached and still serving. Re-run to replace it.`,
+      );
+    }
   }
 
-  // Uploading only parks a document in the system; a workspace only retrieves
-  // what has been explicitly embedded into it.
-  const res = await fetch(`${base}/api/v1/workspace/${workspace}/update-embeddings`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ adds: uploadedLocations }),
-  });
-  const body = await res.json();
-  if (!res.ok || body.error)
-    throw new Error(`embedding failed: ${JSON.stringify(body).slice(0, 300)}`);
-  console.log(`\nembedded ${uploadedLocations.length} document(s) into "${workspace}"`);
+  try {
+    for (const { source, text } of docs) {
+      const res = await fetch(`${base}/api/v1/document/raw-text`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          textContent: text,
+          metadata: {
+            // The generation tag rides in the title, which becomes part of the
+            // docpath — so ownership and vintage are both readable from the
+            // path alone, with no side table to keep in step.
+            title: `${DOCUMENT_NAMESPACE}-g${generation}-${basename(source.file, '.md')}-${source.url.replace(/\W+/g, '') || 'home'}.txt`,
+            docSource: source.url,
+            description: source.title,
+          },
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok || body.error) {
+        throw new Error(`upload failed for ${source.file}: ${JSON.stringify(body).slice(0, 300)}`);
+      }
+      const location = body.documents?.[0]?.location;
+      if (!location) throw new Error(`no document location returned for ${source.file}`);
+      uploadedLocations.push(location);
+      console.log(`uploaded  ${source.file}`);
+    }
+
+    // Uploading only parks a document in the system; a workspace only retrieves
+    // what has been explicitly embedded into it.
+    await api(base, key, `/api/v1/workspace/${workspace}/update-embeddings`, {
+      method: 'POST',
+      body: JSON.stringify({ adds: uploadedLocations }),
+    });
+
+    // VERIFY BEFORE REMOVING. Embedding reporting success is not the same as
+    // the documents being attached and retrievable.
+    const after = await api(base, key, `/api/v1/workspace/${workspace}`);
+    const attachedAfter = (after.workspace?.[0]?.documents ?? [])
+      .map((document) => document.docpath)
+      .filter(Boolean);
+    const missing = uploadedLocations.filter((location) => !attachedAfter.includes(location));
+    if (missing.length > 0) {
+      throw new Error(`${missing.length} document(s) did not attach to the workspace`);
+    }
+
+    const probe = await api(base, key, `/api/v1/workspace/${workspace}/vector-search`, {
+      method: 'POST',
+      body: JSON.stringify({ query: 'minimum order quantity', topN: 3, scoreThreshold: 0 }),
+    });
+    if (!Array.isArray(probe.results) || probe.results.length === 0) {
+      throw new Error('the new corpus embedded but retrieved nothing');
+    }
+    console.log(`\nembedded and verified ${uploadedLocations.length} document(s)`);
+  } catch (error) {
+    await rollback(error.message);
+    throw error;
+  }
+
+  // Only now is the old generation safe to remove.
+  const superseded = previousGeneration.filter(
+    (docpath) => generationOf(docpath) !== generation && !uploadedLocations.includes(docpath),
+  );
+  if (superseded.length > 0) {
+    await api(base, key, `/api/v1/workspace/${workspace}/update-embeddings`, {
+      method: 'POST',
+      body: JSON.stringify({ deletes: superseded }),
+    });
+    await api(base, key, '/api/v1/system/remove-documents', {
+      method: 'DELETE',
+      body: JSON.stringify({ names: superseded }),
+    }).catch(() => undefined);
+    console.log(`removed ${superseded.length} superseded document(s)`);
+  }
 }
 
 if (process.argv[1]?.endsWith('ai-ingest-content.mjs')) {

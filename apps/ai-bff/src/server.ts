@@ -68,7 +68,10 @@ export function buildServer(config: BffConfig, deps: BffDependencies = {}) {
       return;
     }
 
-    const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+    // A fixed base, never the Host header. Only the PATH is wanted here, and
+    // parsing an attacker-supplied Host to get it means a malformed header can
+    // throw inside the request handler.
+    const url = new URL(req.url ?? '/', 'http://internal.invalid');
 
     // Liveness: unauthenticated, no dependencies. Answers "is this process up",
     // never "is it able to serve" — conflating the two makes a database blip
@@ -94,8 +97,9 @@ export function buildServer(config: BffConfig, deps: BffDependencies = {}) {
     }
 
     // A development-only harness for using the assistant by hand. Guarded on
-    // NODE_ENV so it cannot be reached from a production image, which is set to
-    // production in the Dockerfile.
+    // the harness flag, which production refuses to accept at all — see
+    // config.ts. It used to key off NODE_ENV, a different switch that a
+    // deployment sets for unrelated reasons.
     if (url.pathname === '/dev/chat' && config.localHarness) {
       try {
         const page = readFileSync(
