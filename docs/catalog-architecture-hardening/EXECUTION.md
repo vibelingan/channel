@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-02 released; MIU 03 implementation complete with governance correction active; MIU 04 planned and inactive.
+Status: MIUs 01-03 released; MIU 04 planned and inactive.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implementation`.
 
-**Current/next MIU:** MIU 03 is active only to establish the activation evidence omitted before its implementation was pushed. MIU 04 remains planned and inactive.
+**Current/next MIU:** No MIU is active. MIUs 01-03 are released; MIU 04 requires separate activation after live-ref and dependency checks pass.
 
 ## Git Truth
 
@@ -14,8 +14,9 @@ Branch: `refactor/catalog-architecture-hardening`
   closure record at `6398a58e6c420686283556ff3b37a837dc93b55e`; both are ancestors of the remote branch.
 - MIU 02 implementation was pushed at `c2f0027e85c7bf2e5051333d39c213ca0d1d106d` and its
   closure record at `fa498a05e8dca9412b1ae53b42a5e9ef4f0015b2`; both are ancestors of the remote branch.
-- MIU 03 implementation was pushed at `d00a923076d04646f22b211f13288c4c8c8f0c21`; the premature
-  closure record is `2f0fbd43ac1f7e05aa0a2b2a1fee111eea93bd7e` and is superseded by this governance correction.
+- MIU 03 implementation was pushed at `d00a923076d04646f22b211f13288c4c8c8f0c21`. Premature closure
+  `2f0fbd43ac1f7e05aa0a2b2a1fee111eea93bd7e` was superseded by published corrective active evidence
+  `1e4523c9f1fd67f469a94b46dab13a8a8ddc7e67` and release transition `57e2e77`.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -23,9 +24,9 @@ Branch: `refactor/catalog-architecture-hardening`
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. MIU 03 currently reserves its three exact owner files solely to
-repair omitted activation evidence; all other MIU file plans remain future `planned|blocked` claims.
-Activation is one MIU at a time and shared files use references or explicit transfer.
+rather than trusted from JSON strings. No MIU or exact file is currently active; future MIU file plans
+remain `planned|blocked` claims. Activation is one MIU at a time and shared files use references or
+explicit transfer.
 
 ## Planning Review Gate
 
@@ -126,7 +127,7 @@ MIU 03 (public-read product normalizer), implementation commit `d00a923076d04646
 
 ## Deviations
 
-Deviations: MIU 03 implementation and premature closure were pushed without a tracked active state. The
-current governance-correction commit establishes the missing exact-file activation before a separate
-release commit. MIU 03 also gained Alibaba-pricing sub-projection after a validation probe exposed the
-hidden fail-closed rejection of alibaba-linked rows.
+Deviations: MIU 03 implementation and premature closure were pushed without a tracked active state.
+Corrective active evidence was reviewed, validated, and published at `1e4523c`, then released separately
+at `57e2e77`. MIU 03 also gained Alibaba-pricing sub-projection after a validation probe exposed the hidden
+fail-closed rejection of alibaba-linked rows.

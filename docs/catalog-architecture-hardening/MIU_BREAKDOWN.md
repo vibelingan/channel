@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening MIU Breakdown
 
-Status: published; MIUs 01-02 released; MIU 03 governance correction active; MIU 04 planned and inactive.
+Status: published; MIUs 01-03 released; MIU 04 planned and inactive.
 
 ```mermaid
 flowchart TD
@@ -57,8 +57,8 @@ flowchart TD
 
 ## Reservation Lifecycle
 
-- MIU 03 is active only for governance correction and review validation; its three exact owner files are
-  reserved. MIUs 01-02 are released, MIU 04 remains planned, and MIUs 26-28 remain blocked by D1.
+- No MIU or exact file is active. MIUs 01-03 are released, MIU 04 remains planned, and MIUs 26-28 remain
+  blocked by D1.
 - Activation follows `TASK_REGISTRY.json`: verify dependencies, gates, live refs/worktrees, and zero
   conflicting active owner claims, then atomically mark one MIU `active`. Completion marks it `released`
   before any explicit successor transfer activates.
@@ -117,7 +117,7 @@ flowchart TD
 - **Files:** `packages/shared/src/catalog/normalize-public-product.ts`, `packages/shared/src/catalog/normalize-public-product.test.ts`, `packages/shared/src/catalog-product.ts`
 - **Type:** new-file
 - **Depends on:** MIU 02
-- **Reservation state:** `active`; governance correction for activation evidence omitted before implementation commit `d00a923076d04646f22b211f13288c4c8c8f0c21`.
+- **Reservation state:** `released`; previous state `active` is tracked by corrective evidence `1e4523c9f1fd67f469a94b46dab13a8a8ddc7e67`.
 - **What it does:**
   - Implements `normalizePublicProduct(row): NormalizedPublicProductResult` using MIU 02's
     `packages/shared/src/catalog/index.ts` contract as an immutable public-read transformation returning
