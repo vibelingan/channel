@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIU 01 foundational verifier and MIU 02 shared catalog schema released; MIU 03 planned and inactive.
+Status: MIU 01 foundational verifier, MIU 02 shared catalog schema, and MIU 03 public-read normalizer released; MIU 04 planned and inactive.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implementation`.
 
-**Current/next MIU:** No MIU is active. MIUs 01-02 are released; MIU 03 requires a separate activation after live-ref and dependency checks pass.
+**Current/next MIU:** No MIU is active. MIUs 01-03 are released; MIU 04 requires a separate activation after live-ref and dependency checks pass.
 
 ## Git Truth
 
@@ -14,6 +14,8 @@ Branch: `refactor/catalog-architecture-hardening`
   closure record at `6398a58e6c420686283556ff3b37a837dc93b55e`; both are ancestors of the remote branch.
 - MIU 02 implementation was pushed at `c2f0027e85c7bf2e5051333d39c213ca0d1d106d` and its
   closure record at `fa498a05e8dca9412b1ae53b42a5e9ef4f0015b2`; both are ancestors of the remote branch.
+- MIU 03 implementation was pushed at `ded73933e2123ef49dd8803119c4dff69bfeaa7d`; its closure
+  record is an ancestor of the remote branch once the pending push completes.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -111,6 +113,17 @@ MIU 02 (shared catalog public schema and envelope subpath), implementation commi
 - Isolated subpath import: `import ... from '@vibelingan-channel/shared/catalog'` self-resolves via Node exports resolution with no root-barrel dependency, verified by a package-internal probe.
 - Critical injection: a realistic public-API-shaped DTO parses, while role-gated (`vipPrice`), server-side (`imageIds`), supplier-offer (`sourceOfferKey`), empty-`_id`, and non-canonical-family variants are each rejected, and an unknown envelope key is rejected. The schema is not a rubber stamp.
 
+## MIU 03 Validation
+
+MIU 03 (public-read product normalizer), implementation commit `ded73933e2123ef49dd8803119c4dff69bfeaa7d`:
+
+- `npx tsx --test src/catalog/*.test.ts`: 17/17 pass (8 schema + 9 normalizer). Normalizer cases cover frozen oldest-Headphones immutability and `_id` detail-capability, explicit invalid-family rejection, non-Headphones stale-category drop, explicit-family no-diagnostic, missing-family rejection, schema-violation rejection, Admin/write + role-gated/server-side strip, nested-field immutability, and Alibaba sub-projection.
+- `npx tsx --test src/**/*.test.ts` (all shared): 117/117 pass, no regression to the existing 108.
+- `npx pnpm@11.5.0 typecheck`: 0 errors across all workspaces.
+- `npx biome check .`: 334 files, exit 0.
+- `npx pnpm@11.5.0 build`: 15 pages, exit 0.
+- Hidden issue found standing outside the design: a real alibaba-linked DB row stores supplier offer keys inside `alibabaCatalogPricing`, so the initial allowlist-copy + strict-schema approach fail-closed REJECTED every alibaba-linked product (`unrecognized_keys: sourceOfferKey...`). Fixed by sub-projecting Alibaba pricing (strip `sourceOfferKey`/`sourceProductId`/`sourceSkuId`) and masking `alibabaPrimarySourceKey` to the constant `'linked'`, matching the public projection exactly. Verified by a critical probe (row now normalizes, no supplier keys leak) plus a dedicated test.
+
 ## Deviations
 
-Deviations: none. MIU 01 and MIU 02 executed and validated as planned; stale-sha detection was refined to ancestor-based during MIU 01 validation.
+Deviations: none. MIU 01-03 executed and validated as planned; stale-sha detection was refined to ancestor-based during MIU 01 validation, and MIU 03 gained Alibaba-pricing sub-projection after a validation probe exposed the hidden fail-closed rejection of alibaba-linked rows.
