@@ -220,9 +220,9 @@ use case is not ours, so upstream changes may not serve us.
 
 | # | Question | Blocks |
 |---|---|---|
-| 1 | Does AnythingLLM expose **retrieval separately from generation**? | The preferred integration shape in §4 |
+| 1 | Does AnythingLLM expose **retrieval separately from generation**? **Resolved 2026-08-25:** the supplied compatible deployment's `/vector-search` returned ranked results independently of chat. | The preferred integration shape in §4 |
 | 2 | Does its API return citations mappable to `EngineCitation`? | `supportsCitations`; the answer policy |
-| 3 | Does streaming work through its OpenAI-compatible endpoint? | Token-by-token delivery |
+| 3 | Does streaming work through its OpenAI-compatible endpoint? **Partly observed:** the thread SSE route responded but aborted on an upstream model 403, so successful token delivery is still unproved. | Token-by-token delivery |
 | 4 | Can it parse the certificate PDFs we actually have? | If not, RAGFlow becomes the candidate |
 | 5 | What is its full enabled tool/agent surface? | Same class as the Hermes toolset gate |
 
@@ -234,7 +234,9 @@ stand unchanged.
 
 ## 7. Model provider (unchanged by this ADR, recorded for completeness)
 
-zenmux, OpenAI-compatible, `https://zenmux.ai/api/v1`, 156 models. Verified live:
+zenmux, OpenAI-compatible, `https://zenmux.ai/api/v1`, 156 models. Verified live
+on 2026-08-17 (the supplied deployment's current provider permission failed on
+2026-08-25):
 **`z-ai/glm-5.2`** primary, **`moonshotai/kimi-k3`** fallback. Neither
 `z-ai/glm-5.3` nor `kimi/k3` exists.
 

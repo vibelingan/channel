@@ -1,6 +1,6 @@
 # Engine evaluation — AnythingLLM for the Channel assistant
 
-**Date:** 2026-08-17
+**Date:** 2026-08-17; live integration evidence updated 2026-08-25
 **Question:** is AnythingLLM the right retrieval+chat engine for local development,
 and is it good enough for production for a ~100-person enterprise?
 **Short answer:** yes for local development, unreservedly. For production it is a
@@ -94,9 +94,10 @@ is a startup blocker:
 |---|---|---|
 | `supportsStop` (owner-cancellable) | **Blocking**, but satisfied by aborting the connection — the port's `AbortSignal`. Verified at protocol level: aborting a live stream terminated cleanly | **Resolved** |
 | `supportsOutOfBandStop` | **Not blocking** since ADR-002 §3 split the capability. Expected `false`; costs bounded token waste when an owning worker dies | **Resolved as expected-false** |
+| Separate retrieval | Lets the BFF enforce grounding/refusal before generation | **Resolved** against the supplied production-compatible API: `/vector-search` returned ranked results |
 | `supportsCitations` | The answer policy requires citations; AnythingLLM has them in the UI, but the API response *shape* must map to `EngineCitation` (`sourceId`, `title`, `url`, `snippet`, `retrievedAt`) | **Unverified** |
 | `supportsIdempotentCreate` | Chat-completions style APIs usually lack it. If absent, LLD-001 §7's operation-id mapping layer becomes mandatory — which is already designed | **Likely false** |
-| Streaming | Token-by-token delivery. AnythingLLM streams by default | Likely true, verify |
+| Streaming | Token-by-token delivery. AnythingLLM streams by default | **Transport observed, success unverified:** SSE returned an `abort` event because the provider denied the model request |
 
 None of these is a reason not to proceed locally. All are answerable in a day
 once the container is running.
@@ -105,8 +106,11 @@ once the container is running.
 
 ## 5. Model provider — corrected
 
-zenmux is confirmed reachable and working. Base URL `https://zenmux.ai/api/v1`,
-OpenAI-compatible, 156 models available.
+The ZenMux protocol and model IDs were confirmed reachable on 2026-08-17. That
+is historical provider evidence, not current end-to-end readiness: on 2026-08-25
+the supplied production-compatible instance reached its configured provider but
+received `403` permission errors, and this checkout had no approved local model
+key for a fresh local generation test.
 
 **The two model ids requested do not exist. The correct ones are:**
 

@@ -32,7 +32,9 @@
     "lint": "npx biome check .",
     "format": "npx biome format --write .",
     "test:ai:store": "node scripts/probe-ai-store.mjs --url ${DATABASE_URL:-postgres://ai:ai@localhost:55432/ai_assistant}",
+    "test:ai:kb": "node --env-file-if-exists=.env.ai-probe scripts/probe-anythingllm.mjs",
     "dev:ai": "docker compose -f docker-compose.ai.yml up -d postgres",
+    "dev:ai:full": "docker compose --env-file .env.ai -f docker-compose.ai.yml up -d postgres anythingllm",
     "dev:ai:down": "docker compose -f docker-compose.ai.yml down"
   },
   "devDependencies": {

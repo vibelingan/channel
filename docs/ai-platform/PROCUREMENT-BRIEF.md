@@ -1,7 +1,7 @@
 # AI Assistant — What to buy, and why
 
 **For:** the architect / whoever approves spend
-**Last updated:** 2026-08-17 (third revision — staged development and purchase timing)
+**Last updated:** 2026-08-25 (live environment and runtime health rechecked)
 **Environment inspected:** `diversity-123-d9grnqfux221323bb` (ap-shanghai), plan
 标准版 `baas_pf_standard`, prepaid to 2027-07-31
 
@@ -14,7 +14,7 @@ explicit assumptions or open decisions.
 
 | # | Item | Status | Spend |
 |---|---|---|---|
-| 1 | CloudRun (云托管) | ✅ Platform activated and SSE proven; production services not deployed | Usage-based; existing-point coverage is unknown until load and bill measurement |
+| 1 | CloudRun (云托管) | Platform activated; SSE was proven 2026-08-17, but `ai-probe` returned 503 on 2026-08-25; production services not deployed | Usage-based; existing-point coverage is unknown until load and bill measurement |
 | 2 | Database | PostgreSQL design retained; **no long-term instance purchased during local development** | Docker/CI now; temporary pay-as-you-go TencentDB for cloud integration; long-term instance at pilot gate |
 | 3 | Lexiang public space + scoped MCP serving credential | Outstanding | Confirm current licence and K1-K5 contract; do not assume zero cost |
 | 4 | Hermes HTTP API, restricted + pinned | Outstanding | Hosting and operations cost depends on isolation decision |
@@ -34,15 +34,19 @@ remain separate operating-cost decisions.
 | CloudBase environment | 标准版, paid, prepaid to 2027-07-31, credits deduction, QPS quota 500 |
 | Cloud functions | 3 live: `admin`, `public-api`, `alibaba-catalog-sync` |
 | Databases enabled | NoSQL ✅ · PostgreSQL ❌ · MySQL ❌ |
-| CloudRun (云托管) | ✅ **Activated 2026-08-16 and proven** (was off until then) |
+| CloudRun (云托管) | Activated 2026-08-16; historical SSE proof retained; current `ai-probe` health failed with HTTP 503 on 2026-08-25 |
 | Storage + static hosting | Active |
 
 ---
 
 ## Item 1 — Somewhere to run the assistant's server
 
-**Status: ✅ DONE.** Activated by the owner on 2026-08-16, and verified by
-deploying a throwaway service end to end.
+**Status: platform capability proved historically; current probe unhealthy.**
+Activated by the owner on 2026-08-16 and verified then by deploying a throwaway
+service end to end. A read-only recheck on 2026-08-25 found the control plane
+still reporting `normal`, while the public HTTPS endpoint timed out once and
+then returned HTTP 503 after scale-from-zero. Production BFF/worker deployment
+and current runtime health therefore remain open.
 
 **Why this runtime was selected.** The website's three existing services are
 Event Functions and cannot be reused in place as the assistant BFF/worker. A new
@@ -68,6 +72,13 @@ A throwaway service (`ai-probe`) was deployed to the real environment and tested
 | Time to first response | ~120s (the service object exists before its first version builds; a 404 in that window is normal) |
 | Plain HTTP | ✅ `HTTP 200` |
 | **Streaming (server-sent events)** | ✅ **Works.** `content-type: text/event-stream`, `transfer-encoding: chunked`, `cache-control: no-cache`; events arrived incrementally with multi-line frames and UTF-8 intact |
+
+The table above is dated 2026-08-17 evidence. On 2026-08-25 the same service was
+still configured as function mode, 1 CPU / 2 GiB, min 0 / max 5, with no
+VPC/subnet attachment and public egress enabled; its public endpoint returned
+503. Keep the historical gateway/SSE capability result, but do not cite this
+service as currently healthy until its runtime failure is diagnosed or it is
+replaced by the real BFF.
 
 **Why the streaming result matters most.** It was the riskiest unproven
 assumption in the entire design — streaming that dies quietly behind a proxy
@@ -403,7 +414,7 @@ notification services.
 ### 已有资源和已完成证明
 
 - 继续保留现有 CloudBase NoSQL 环境、三个 Event Functions、存储和静态托管；AI 项目不迁移或替换这些业务。
-- CloudRun 已开通；真实 `ai-probe` 已证明普通 HTTP 和 SSE 增量流式输出可用。正式 BFF 和 Worker 尚未部署，探针应在证据保存后删除。
+- CloudRun 已开通；`ai-probe` 在 2026-08-17 证明过普通 HTTP 和 SSE 增量流式输出，但 2026-08-25 复查公网端点返回 503。正式 BFF 和 Worker 尚未部署，不能把控制台 `normal` 当作当前运行健康。
 - 本地 Hermes + 模型 + 乐享链路只证明技术可行，不代表公网生产安全门已关闭。
 
 ### 开发阶段：暂不购买长期云资源

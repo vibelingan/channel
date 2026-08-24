@@ -49,3 +49,5 @@ Thumbs.db
 # AI assistant local secrets — the real file never, the template always
 .env.ai
 !.env.ai.example
+.env.ai-probe
+!.env.ai-probe.example
