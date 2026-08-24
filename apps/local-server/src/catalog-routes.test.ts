@@ -153,8 +153,20 @@ test('local catalog route mirrors production OPTIONS and unsupported-method resp
 test('local slug route mirrors production canonical and malformed path behavior', async (t) => {
   setAdapter(
     new CatalogMemoryAdapter([
-      { _id: 'product-1', name: 'Desk Lamp', slug: 'desk-lamp', published: true },
-      { _id: 'draft', name: 'Draft', slug: 'draft-product', published: false },
+      {
+        _id: 'product-1',
+        name: 'Desk Lamp',
+        productFamily: 'misc',
+        slug: 'desk-lamp',
+        published: true,
+      },
+      {
+        _id: 'draft',
+        name: 'Draft',
+        productFamily: 'misc',
+        slug: 'draft-product',
+        published: false,
+      },
     ]),
   );
   const server = testServer();

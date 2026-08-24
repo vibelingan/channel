@@ -52,6 +52,7 @@
         "apps/functions/public-api/src/catalog/project-public-product.ts",
         "apps/functions/public-api/src/handler.ts",
         "apps/functions/public-api/src/handler.test.ts",
+        "apps/local-server/src/catalog-routes.test.ts",
         "packages/shared/package.json"
       ],
       "activeReservationPurpose": "MIU 04 schema-checked Public API projection and legal normalizer package export; local validation only, no deployment.",
@@ -90,6 +91,7 @@
           "apps/functions/public-api/src/catalog/project-public-product.ts",
           "apps/functions/public-api/src/handler.ts",
           "apps/functions/public-api/src/handler.test.ts",
+          "apps/local-server/src/catalog-routes.test.ts",
           "packages/shared/package.json"
         ],
         "05": [
