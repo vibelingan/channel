@@ -126,10 +126,10 @@ for full retirement: `CatalogFamilyGrid`, `HeadphonesProductCard`, `HeadphonesPr
 
 ## Reservation And Deployment Control
 
-The only active Catalog claim during planning is `docs/catalog-architecture-hardening/**`; MIU plans
-are not active claims. Activation and release follow the lifecycle in `TASK_REGISTRY.json`. Shared
+No Catalog MIU or exact-file claim is active. MIUs 01-02 are released and MIU 03 remains planned.
+Activation and release follow the lifecycle in `TASK_REGISTRY.json`. Shared
 files have one owner and later consumer/reference entries, or an explicit release/activation transfer.
-Select-owned Admin files remain blocked in MIUs 26-28 through final Select merge and the full D1 suite.
+Select-owned Admin files remain blocked in MIUs 26-28 until final-code WebKit and the full D1 suite pass.
 MIUs 39-43 finish and test the deploy script, API/route smoke, and browser smoke before authorization.
 MIU 44 produces `RELEASE_MANIFEST.json` plus its validator/test after independent review; MIU 45 consumes
 that exact artifact before credentials and owns `.github/workflows/deploy-test.yml`. It disables push
