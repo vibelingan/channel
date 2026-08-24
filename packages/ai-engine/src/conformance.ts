@@ -28,7 +28,7 @@ export interface ConformanceHarness {
   ): void;
   /** Make the next stream exceed its duration limit. */
   scriptTimeout(engine: ConversationEngine): void;
-  /** Make the next stream emit more output than `maxOutputTokens` allows. */
+  /** Make the next stream emit more output than `maxDeliveredOutputUnits` allows. */
   scriptOverlongOutput(engine: ConversationEngine): void;
   /** Rotate the knowledge credential, so the attestation counter must move. */
   rotateKnowledgeCredential(engine: ConversationEngine): void;
@@ -57,7 +57,7 @@ const SAMPLE_REQUEST: EngineRunRequest = {
   turns: [{ role: 'visitor', text: 'What is your MOQ?' }],
   profileId: 'public-cs@1',
   locale: 'en',
-  limits: { maxOutputTokens: 256, maxStreamDurationMs: 5_000, maxToolCalls: 4 },
+  limits: { maxDeliveredOutputUnits: 256, maxStreamDurationMs: 5_000, maxToolCalls: 4 },
 };
 
 const EVENT_TYPES = new Set(['token', 'citation', 'final', 'error']);
@@ -252,15 +252,15 @@ export function runConformanceSuite(label: string, harness: ConformanceHarness):
     assert.equal(error.category, 'timeout');
   });
 
-  test(`${label}: exceeding maxOutputTokens ends the stream`, async () => {
+  test(`${label}: exceeding maxDeliveredOutputUnits ends the stream`, async () => {
     const engine = harness.create();
     harness.scriptOverlongOutput(engine);
     const handle = await engine.createRun(SAMPLE_REQUEST, new AbortController().signal);
     const events = await collect(engine.streamRun(handle, new AbortController().signal));
     const tokenCount = events.filter((event) => event.type === 'token').length;
     assert.ok(
-      tokenCount <= SAMPLE_REQUEST.limits.maxOutputTokens,
-      `emitted ${tokenCount} tokens against a limit of ${SAMPLE_REQUEST.limits.maxOutputTokens}`,
+      tokenCount <= SAMPLE_REQUEST.limits.maxDeliveredOutputUnits,
+      `emitted ${tokenCount} tokens against a limit of ${SAMPLE_REQUEST.limits.maxDeliveredOutputUnits}`,
     );
     assert.ok(events.at(-1), 'stream ended with no events at all');
   });

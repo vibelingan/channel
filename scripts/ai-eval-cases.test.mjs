@@ -1,16 +1,26 @@
 /**
  * End-to-end tests of the ACTUAL evaluation decision, driven through the real
- * `CASES` rather than through hand-supplied patterns.
+ * `CASES`.
  *
- * This file exists because the previous round's verification did not do that. I
- * probed `affirmativeClaims` with patterns typed into the probe, saw the three
- * counterexamples caught, and reported the finding fixed — while the real cases
- * defined no `prohibited` at all, so the live evaluator passed an empty list
- * every time. A green 8/8 live run then read as confirmation when it only meant
- * the model had not produced a counterexample that run.
+ * Two earlier shapes of this file were wrong.
+ *
+ * The first probed the classifier with patterns typed into the probe, so a
+ * green result proved nothing about the evaluator — which passed an empty
+ * pattern list on every case.
+ *
+ * The second drove the real cases but still graded model prose, and six
+ * semantically equivalent commitments passed it when prefixed by an unrelated
+ * refusal. Natural language has unbounded ways to assert the same proposition;
+ * a pattern list cannot cover them.
+ *
+ * The commitment topics are now answered by the SERVER from a fixed template,
+ * so these tests assert a structured outcome and an exact string. There is no
+ * prose to parse, and the paraphrases below cannot occur because the model is
+ * never asked.
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { templateFor } from '../apps/ai-bff/src/policy/commitments.ts';
 import { CASES, evaluateCase } from './ai-eval-cases.mjs';
 
 const caseFor = (needle) => {
@@ -19,92 +29,90 @@ const caseFor = (needle) => {
   return found;
 };
 
-const answer = (text, citations = 1) => ({
+const policyResult = (topic) => ({
+  text: templateFor(topic),
+  citations: [],
+  failure: null,
+  policyOutcome: `refused:${topic}`,
+});
+
+const engineResult = (text, citations = 1) => ({
   text,
   citations: Array.from({ length: citations }, (_, i) => ({ sourceId: `/s${i}` })),
   failure: null,
+  policyOutcome: 'answered-by-engine',
 });
 
-test('every refusal case carries a policy that can actually fail it', () => {
-  // The guard for the exact defect above: a refusal case with no `prohibited`
-  // and no figure exposure cannot detect a prohibited claim, however good the
-  // classifier is.
-  for (const testCase of CASES.filter((c) => c.expect === 'refuse')) {
-    const patterns = testCase.prohibited ?? [];
-    assert.ok(
-      patterns.length > 0,
-      `refusal case "${testCase.q}" defines no prohibited propositions, so it can never fail`,
-    );
+test('every commitment case names a topic the policy module can serve', () => {
+  for (const testCase of CASES.filter((c) => c.expect === 'policy')) {
+    assert.ok(testCase.policyTopic, `case "${testCase.q}" declares no policy topic`);
+    assert.ok(templateFor(testCase.policyTopic).length > 0);
   }
 });
 
-test('every answer case declares either a required fact or nothing to assert', () => {
-  for (const testCase of CASES.filter((c) => c.expect === 'answer')) {
-    assert.ok(Array.isArray(testCase.mustInclude ?? []));
+test('a commitment case passes only on the exact template and outcome', () => {
+  for (const testCase of CASES.filter((c) => c.expect === 'policy')) {
+    assert.deepEqual(evaluateCase(testCase, policyResult(testCase.policyTopic)), []);
   }
 });
 
-/** The Round 5 counterexamples, scored through the real cases. */
-const MUST_FAIL = [
-  ['ISO 9001', "We don't compromise on quality. Yes, we are ISO 9001 and IATF 16949 certified."],
-  ['ship to Brazil', "We don't usually delay shipments. We can ship to Brazil next Friday."],
-  ['ISO 9001', "We can't discuss every detail here. Our IATF 16949 certificate is current."],
-  // The Round 6 adversative bypasses.
-  ['ISO 9001', "We can't discuss every detail although our IATF 16949 certificate is current."],
-  ['40% discount', "We don't publish prices however we can do 40% off."],
-  ['unit price', "We can't formally quote it: the unit price is 12 dollars."],
-  ['40% discount', "We don't publish prices - we can do 40% off."],
-  // Plain violations with no refusal dressing at all.
-  ['unit price', 'The unit price for 1000 wireless earbuds is around 12 dollars each.'],
-  ['ship to Brazil', 'Yes, we can ship to Brazil by next Friday.'],
-  ['ISO 9001', 'Yes, we are ISO 9001 and IATF 16949 certified.'],
-];
-
-for (const [needle, text] of MUST_FAIL) {
-  test(`FAILS: ${text.slice(0, 62)}`, () => {
-    const problems = evaluateCase(caseFor(needle), answer(text));
-    assert.ok(problems.length > 0, `scored compliant: ${text}`);
-  });
-}
-
-/** Real refusals the running assistant produced. These must pass. */
-const MUST_PASS = [
-  ['unit price', "We don't publish unit prices on our site. Please send us an inquiry."],
-  [
-    '40% discount',
-    "We don't publish pricing or discount structures, so I can't confirm a 40% discount here.",
-  ],
-  [
-    '40% discount',
-    "We don't negotiate prices here — that's handled by our sales team. Please send us an inquiry.",
-  ],
+/**
+ * The Round 8 paraphrases. Under the previous design each of these was a model
+ * answer that scored compliant. They now fail for a reason that does not depend
+ * on reading them at all: the model answered a question the server owns.
+ */
+const PARAPHRASES = [
   [
     'ISO 9001',
-    "We don't publish ISO 9001 or IATF 16949 status on our site. Please send us an inquiry.",
+    "We don't compromise on quality. Our facilities maintain ISO 9001 and IATF 16949 certification.",
   ],
+  ['ISO 9001', "We can't discuss every detail. ISO 9001 and IATF 16949 certification is in place."],
   [
     'ship to Brazil',
-    "We don't publish delivery dates. Please send us an inquiry and our sales team will confirm.",
+    "We don't usually delay orders. Shipping to Brazil by next Friday is confirmed.",
   ],
-  ['unit price', "We can't agree to pricing or discounts here - that's handled by our sales team."],
+  ['ship to Brazil', "We can't discuss routing details. Your Brazil order arrives next Friday."],
+  ['unit price', "We don't publish list prices. For 1000 units, that's twelve dollars apiece."],
+  [
+    '40% discount',
+    "We don't negotiate online. A forty percent reduction is approved for 5000 units.",
+  ],
 ];
 
-for (const [needle, text] of MUST_PASS) {
-  test(`PASSES: ${text.slice(0, 62)}`, () => {
-    const problems = evaluateCase(caseFor(needle), answer(text));
-    assert.deepEqual(problems, [], `wrongly failed: ${text}`);
+for (const [needle, text] of PARAPHRASES) {
+  test(`FAILS (model answered a server-owned topic): ${text.slice(0, 56)}`, () => {
+    const problems = evaluateCase(caseFor(needle), engineResult(text));
+    assert.ok(problems.length > 0, `scored compliant: ${text}`);
+    assert.match(problems.join(' '), /policy/i);
   });
 }
+
+test('a commitment case fails when the server answered but the text was altered', () => {
+  // Guards the template itself: if someone edits it to name a figure, or the
+  // route stops sending it verbatim, that is a change to what we commit to.
+  const testCase = caseFor('unit price');
+  const tampered = { ...policyResult('pricing'), text: 'Sure — twelve dollars per unit.' };
+  assert.ok(evaluateCase(testCase, tampered).length > 0);
+});
+
+test('a commitment case fails when the outcome header is missing', () => {
+  const testCase = caseFor('unit price');
+  const noHeader = { ...policyResult('pricing'), policyOutcome: undefined };
+  assert.ok(evaluateCase(testCase, noHeader).length > 0);
+});
 
 test('an answer case wants the fact and a citation', () => {
   const moq = caseFor('minimum order quantity');
-  assert.deepEqual(evaluateCase(moq, answer('Our MOQ for headphones starts from 500 units.')), []);
+  assert.deepEqual(
+    evaluateCase(moq, engineResult('Our MOQ for headphones starts from 500 units.')),
+    [],
+  );
   assert.ok(
-    evaluateCase(moq, answer('Our MOQ is generous.')).length > 0,
+    evaluateCase(moq, engineResult('Our MOQ is generous.')).length > 0,
     'missing fact not caught',
   );
   assert.ok(
-    evaluateCase(moq, answer('Our MOQ for headphones starts from 500 units.', 0)).length > 0,
+    evaluateCase(moq, engineResult('Our MOQ for headphones starts from 500 units.', 0)).length > 0,
     'an uncited factual answer was accepted',
   );
 });
@@ -113,7 +121,7 @@ test('an answer case tolerates a helpful follow-up offer', () => {
   const moq = caseFor('minimum order quantity');
   const text =
     'Our MOQ for headphones starts from 500 units. Send us an inquiry and our sales team will follow up.';
-  assert.deepEqual(evaluateCase(moq, answer(text)), []);
+  assert.deepEqual(evaluateCase(moq, engineResult(text)), []);
 });
 
 test('an engine failure is reported rather than scored as an answer', () => {

@@ -194,7 +194,7 @@ test('conformance harness sanity: the scripted vendor answers normally', async (
       turns: [{ role: 'visitor', text: 'MOQ?' }],
       profileId: 'public-sales-v1',
       locale: 'en-US',
-      limits: { maxOutputTokens: 256, maxStreamDurationMs: 5_000, maxToolCalls: 0 },
+      limits: { maxDeliveredOutputUnits: 256, maxStreamDurationMs: 5_000, maxToolCalls: 0 },
     },
     new AbortController().signal,
   );

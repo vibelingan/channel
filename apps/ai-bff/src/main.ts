@@ -40,6 +40,9 @@ function buildEngine(
     apiKey: config.apiKey,
     workspaceSlug: config.workspaceSlug,
     engineVersion: config.engineVersion,
+    ...(config.vendorMaxOutputTokens
+      ? { vendorMaxOutputTokens: config.vendorMaxOutputTokens }
+      : {}),
   });
 
   const refusals = describeEngineRefusals(engine.capabilities, DEPLOYMENT);

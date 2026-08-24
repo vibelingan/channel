@@ -53,7 +53,7 @@ test('the fully capable fake exposes the lookup method and resolves a live handl
       turns: [{ role: 'visitor', text: 'hello' }],
       profileId: 'public-cs@1',
       locale: 'en',
-      limits: { maxOutputTokens: 16, maxStreamDurationMs: 1_000, maxToolCalls: 0 },
+      limits: { maxDeliveredOutputUnits: 16, maxStreamDurationMs: 1_000, maxToolCalls: 0 },
     },
     new AbortController().signal,
   );

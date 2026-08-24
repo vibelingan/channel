@@ -39,6 +39,16 @@ export interface EngineCapabilities {
   supportsOutOfBandStop: boolean;
   /** Retrieval returns source references. */
   supportsCitations: boolean;
+  /**
+   * The engine's OWN configured ceiling on generated tokens per answer, where
+   * it has one — the number the vendor actually enforces.
+   *
+   * This is the honest input to a cost model. `maxDeliveredOutputUnits` bounds
+   * what we receive; only this bounds what is generated and billed, which is
+   * what LLD-001 needs when a worker dies holding a stream and nothing can stop
+   * the vendor finishing. Absent when the engine exposes no such setting.
+   */
+  vendorMaxOutputTokens?: number;
 }
 
 /**

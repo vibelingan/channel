@@ -17,6 +17,7 @@
 import type { ServerResponse } from 'node:http';
 import type { ConversationEngine, EngineTurn } from '@vibelingan-channel/ai-engine';
 import type { ConversationStore } from './conversations.ts';
+import { classifyCommitmentRequest } from './policy/commitments.ts';
 
 /** A public endpoint takes a bounded message or none at all. */
 const MAX_MESSAGE_CHARS = 2_000;
@@ -83,7 +84,7 @@ export interface StreamChatOptions {
   conversations: ConversationStore;
   res: ServerResponse;
   signal: AbortSignal;
-  limits?: { maxOutputTokens: number; maxStreamDurationMs: number };
+  limits?: { maxDeliveredOutputUnits: number; maxStreamDurationMs: number };
 }
 
 function sse(res: ServerResponse, payload: unknown): void {
@@ -96,7 +97,7 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
     // Real headroom, not a tight cap: these are reasoning models and the
     // reasoning is billed inside this budget. Too small and the visitor gets a
     // blank answer with no error at all (ADR-002 §7).
-    maxOutputTokens: options.limits?.maxOutputTokens ?? 1_500,
+    maxDeliveredOutputUnits: options.limits?.maxDeliveredOutputUnits ?? 1_500,
     maxStreamDurationMs: options.limits?.maxStreamDurationMs ?? 120_000,
     maxToolCalls: 0,
   };
@@ -151,6 +152,13 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
   };
   const priorTurns = conversations.turns(conversationId);
 
+  // A question asking for a price, a discount, a delivery date or a
+  // certification is answered by US, from a fixed template. The engine is never
+  // called, so there is no generated text that could commit the company to
+  // anything — see policy/commitments.ts for why detecting a bad ANSWER was the
+  // wrong boundary.
+  const policy = classifyCommitmentRequest(request.message);
+
   res.writeHead(200, {
     'content-type': 'text/event-stream',
     'cache-control': 'no-cache, no-transform',
@@ -161,8 +169,20 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
     // How the client continues this conversation. It is an opaque handle, not
     // a container for history.
     'x-conversation-id': conversationId,
+    // The structured outcome. Something to assert instead of prose to parse.
+    'x-policy-outcome': policy ? `refused:${policy.topic}` : 'answered-by-engine',
   });
   res.flushHeaders?.();
+
+  if (policy) {
+    sse(res, { type: 'token', text: policy.template });
+    sse(res, { type: 'final', text: policy.template, citations: [] });
+    conversations.append(conversationId, visitorTurn);
+    conversations.append(conversationId, { role: 'assistant', text: policy.template });
+    conversations.endTurn(conversationId);
+    res.end();
+    return;
+  }
 
   /**
    * The answer, but ONLY once the engine has said it finished.

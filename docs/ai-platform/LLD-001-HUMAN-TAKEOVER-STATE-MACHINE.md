@@ -625,7 +625,7 @@ Owning worker, between streamed events
 
      The residual gap is a worker that has DIED holding a stream. Nothing can
      abort its connection. The vendor finishes the run at its own pace, bounded
-     by maxOutputTokens. That waste is bounded and belongs in the budget model;
+     by vendorMaxOutputTokens. That waste is bounded and belongs in the budget model;
      the visitor is unaffected, because the fence means none of it can commit.
 
 Run terminalization (every path: completed, failed, cancelled, reaped)
@@ -969,7 +969,7 @@ TEST_STRATEGY.md §4.
 | Failure | Behaviour |
 |---|---|
 | Vendor stop endpoint fails, or the engine has no out-of-band stop at all | The fence still blocks all output (I7) — `cancel_requested_at` is a fence term, not just a work item. The owning worker aborts itself at its next append. Retry with backoff; alert on repeated failure; the visitor is unaffected. |
-| Owning worker dies holding a stream, engine has no out-of-band stop | Nothing can abort that connection. The vendor completes the run and bills for it, bounded by `maxOutputTokens`. Correctness is untouched: the run's `claim_epoch` is stale, so not one byte of it can commit (I10). Record the bound in the budget model. |
+| Owning worker dies holding a stream, engine has no out-of-band stop | Nothing can abort that connection. The vendor completes the run and bills for it, bounded by `vendorMaxOutputTokens`. Correctness is untouched: the run's `claim_epoch` is stale, so not one byte of it can commit (I10). Record the bound in the budget model. |
 | Worker crashes mid-stream | The lease expires and the run is terminalized as `FAILED` — by a reclaiming worker or by the stall reaper, whichever arrives first, and the CAS in §5 makes sure only one of them does it. The zombie cannot commit (I10). The visitor sees an interrupted answer and a retry affordance. |
 | Worker stalls but stays alive past its lease | Same as above. This is the case a lease alone does not cover and `claim_epoch` does. |
 | Database unavailable | Fail closed. No streaming, no run creation; widget falls back to the inquiry form. |

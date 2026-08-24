@@ -51,6 +51,7 @@ async function ask(message) {
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
+  const policyOutcome = res.headers.get('x-policy-outcome');
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
@@ -80,7 +81,7 @@ async function ask(message) {
       if (event.type === 'error') failure = event.category;
     }
   }
-  return { text: text.trim(), citations, failure };
+  return { text: text.trim(), citations, failure, policyOutcome };
 }
 
 let failures = 0;

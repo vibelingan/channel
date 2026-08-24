@@ -48,7 +48,7 @@ const REQUEST: EngineRunRequest = {
   turns: [{ role: 'visitor', text: 'What is your MOQ?' }],
   profileId: 'public-sales-v1',
   locale: 'en-US',
-  limits: { maxOutputTokens: 500, maxStreamDurationMs: 5_000, maxToolCalls: 0 },
+  limits: { maxDeliveredOutputUnits: 500, maxStreamDurationMs: 5_000, maxToolCalls: 0 },
 };
 
 async function collect(script: Scripted, request: EngineRunRequest = REQUEST) {
@@ -317,7 +317,7 @@ test('an answer that runs past its output budget is stopped and reported', async
   // until the vendor felt like stopping.
   const events = await collect(
     { frames: [...Array.from({ length: 200 }, (_, i) => chunk(`overlong sentence ${i}. `))] },
-    { ...REQUEST, limits: { ...REQUEST.limits, maxOutputTokens: 20 } },
+    { ...REQUEST, limits: { ...REQUEST.limits, maxDeliveredOutputUnits: 20 } },
   );
   const last = events.at(-1) as { type: string; category?: string; retriable?: boolean };
   assert.equal(last.type, 'error');
@@ -346,7 +346,7 @@ test('the output budget counts hidden reasoning, not just visible text', async (
         { type: 'finalizeResponseStream', close: true },
       ],
     },
-    { ...REQUEST, limits: { ...REQUEST.limits, maxOutputTokens: 30 } },
+    { ...REQUEST, limits: { ...REQUEST.limits, maxDeliveredOutputUnits: 30 } },
   );
   const last = events.at(-1) as { type: string; category?: string };
   assert.equal(last.type, 'error', 'reasoning tokens were not counted against the budget');
@@ -622,7 +622,7 @@ test('combining marks and mixed scripts are counted, not skipped', () => {
 test('a CJK answer cannot run four times past its budget', async () => {
   const events = await collect(
     { frames: Array.from({ length: 40 }, () => chunk('产'.repeat(10))) },
-    { ...REQUEST, limits: { ...REQUEST.limits, maxOutputTokens: 20 } },
+    { ...REQUEST, limits: { ...REQUEST.limits, maxDeliveredOutputUnits: 20 } },
   );
   const last = events.at(-1) as { type: string; category?: string };
   assert.equal(last.type, 'error', 'a CJK answer ran past its budget unchecked');
@@ -634,7 +634,7 @@ test('a CJK answer cannot run four times past its budget', async () => {
 test('a mixed-script answer is bounded too', async () => {
   const events = await collect(
     { frames: Array.from({ length: 40 }, () => chunk('MOQ 产品 500 单位 🙂 ')) },
-    { ...REQUEST, limits: { ...REQUEST.limits, maxOutputTokens: 25 } },
+    { ...REQUEST, limits: { ...REQUEST.limits, maxDeliveredOutputUnits: 25 } },
   );
   assert.equal((events.at(-1) as { type: string }).type, 'error');
 });

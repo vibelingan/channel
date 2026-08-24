@@ -40,6 +40,17 @@ export interface AnythingLlmEngineConfig {
   imageDigest?: string;
   /** Bumped by whoever rotates the key, so a swap is visible in attestation. */
   rotationCounter?: number;
+  /**
+   * The workspace's own generated-token ceiling — for AnythingLLM, the
+   * `GENERIC_OPEN_AI_MAX_TOKENS` its provider is configured with.
+   *
+   * This is the ONLY number the vendor honours per answer. Probed on the
+   * running instance: `max_tokens`, `maxTokens` and `maxOutputTokens` in the
+   * request body are all accepted with HTTP 200 and all ignored, so a per-run
+   * limit cannot be sent. Surfaced so the cost model bounds what is generated
+   * rather than what we happen to receive.
+   */
+  vendorMaxOutputTokens?: number;
   fetchImpl?: typeof fetch;
 }
 
@@ -97,7 +108,7 @@ function isAlphabeticCodePoint(code: number): boolean {
  *
  * Deliberately not called a token count. This protocol reports real usage only
  * in its final frame, far too late to stop a runaway answer, so the budget is
- * enforced on an estimate and the name says so. `maxOutputTokens` is therefore
+ * enforced on an estimate and the name says so. `maxDeliveredOutputUnits` is therefore
  * an approximate ceiling, not a guarantee — the durable fix is a tokenizer for
  * the configured model family, which belongs with the engine that has one.
  *
@@ -276,6 +287,9 @@ export class AnythingLlmEngine implements ConversationEngine {
       // No stop-by-run-id exists in this protocol family. ADR-002 §3.
       supportsOutOfBandStop: false,
       supportsCitations: true,
+      ...(config.vendorMaxOutputTokens
+        ? { vendorMaxOutputTokens: config.vendorMaxOutputTokens }
+        : {}),
     };
   }
 
@@ -326,7 +340,7 @@ export class AnythingLlmEngine implements ConversationEngine {
     // See `estimateTokens`: approximate, script-aware, and biased to trip early.
     // See `estimateOutputUnits`: an approximate ceiling, script-aware, biased
     // to trip early. Not a token guarantee.
-    const maxOutputUnits = request.limits.maxOutputTokens;
+    const maxOutputUnits = request.limits.maxDeliveredOutputUnits;
     let producedUnits = 0;
     let visible = '';
     let sawTerminalFrame = false;
@@ -421,7 +435,7 @@ export class AnythingLlmEngine implements ConversationEngine {
         // the port and belongs with its owners.
         yield this.#error(
           'invalid_request',
-          'engine output exceeded the estimated output budget; raise maxOutputTokens or narrow the profile',
+          'engine output exceeded the estimated output budget; raise maxDeliveredOutputUnits or narrow the profile',
         );
         return;
       }

@@ -3,11 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts", "./pool": "./src/pool.ts" },
+  "exports": {
+    ".": "./src/index.ts",
+    "./pool": "./src/pool.ts"
+  },
   "scripts": {
-    "test": "tsx --test src/**/*.test.ts",
+    "test": "tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": { "pg": "^8.16.3" },
-  "devDependencies": { "@types/node": "^22.10.2", "@types/pg": "^8.11.10", "tsx": "^4.22.4" }
+  "dependencies": {
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.22.4"
+  }
 }

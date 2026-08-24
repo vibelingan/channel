@@ -90,6 +90,10 @@ services:
       # inside this container is the BFF itself.
       ANYTHINGLLM_BASE_URL: http://anythingllm:3001
       ANYTHINGLLM_WORKSPACE: channel-public-assistant
+      # The engine's OWN ceiling — must match GENERIC_OPEN_AI_MAX_TOKENS on the
+      # anythingllm service. It is the only per-answer bound the vendor honours,
+      # so it is what the cost model uses for an abandoned run.
+      ANYTHINGLLM_MAX_TOKENS: "4096"
       ANYTHINGLLM_API_KEY: ${ANYTHINGLLM_API_KEY:?set it in .env.ai}
       # ONE switch for everything that must not face the internet: the
       # /dev/chat page, the /api/ai/chat route, and permission to serve with

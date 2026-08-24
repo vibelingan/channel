@@ -139,7 +139,7 @@ it finishes on its own.
    already does, per §4.3's fence terms) and aborts its own connection.
 3. Add `supportsOutOfBandStop` as a **separate, non-blocking** capability. True
    for Hermes, false for OpenAI-compatible engines. Where false, the worst case is
-   bounded waste of one run's remaining `maxOutputTokens`, and that bound must be
+   bounded waste of one run's remaining `maxDeliveredOutputUnits` (formerly `maxOutputTokens`), and that bound must be
    recorded in the budget model.
 
 ---
@@ -261,6 +261,6 @@ zenmux, OpenAI-compatible, `https://zenmux.ai/api/v1`, 156 models. Verified live
 Both are **reasoning models whose reasoning tokens are billed inside the
 completion budget**. At `max_tokens: 30` both returned an **empty answer with no
 error**; Kimi spent 103 reasoning tokens on a one-sentence reply. Therefore
-`maxOutputTokens` must carry reasoning headroom, and the adapter must treat empty
+`maxDeliveredOutputUnits` (formerly `maxOutputTokens`) must carry reasoning headroom, and the adapter must treat empty
 content with non-zero completion tokens as a **failure**, not a successful blank
 answer.

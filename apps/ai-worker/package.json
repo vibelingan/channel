@@ -6,12 +6,15 @@
   "scripts": {
     "start": "tsx src/worker.ts",
     "build": "tsc --noEmit",
-    "test": "tsx --test src/**/*.test.ts",
+    "test": "tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@vibelingan-channel/ai-engine": "workspace:*",
     "@vibelingan-channel/ai-store": "workspace:*"
   },
-  "devDependencies": { "@types/node": "^22.10.2", "tsx": "^4.22.4" }
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.22.4"
+  }
 }

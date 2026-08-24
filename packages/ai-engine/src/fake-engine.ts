@@ -185,12 +185,12 @@ export class FakeEngine implements ConversationEngine {
     let emitted = 0;
     for (const text of tokens) {
       if (signal.aborted) return;
-      if (emitted >= state.limits.maxOutputTokens) {
+      if (emitted >= state.limits.maxDeliveredOutputUnits) {
         // The limit is the adapter's to enforce — a vendor that keeps talking
         // past it must not be able to keep the BFF appending. Per LLD-002 §9
         // this ends the run rather than truncating silently.
         state.status = 'finished';
-        yield this.#error('timeout', 'exceeded maxOutputTokens');
+        yield this.#error('timeout', 'exceeded maxDeliveredOutputUnits');
         return;
       }
       yield { type: 'token', text };

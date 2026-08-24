@@ -210,3 +210,27 @@ test('the disproven fail-closed claim appears nowhere in the deployment docs', (
     }
   }
 });
+
+test('no package collects its tests with an unquoted recursive glob', () => {
+  // `sh` — which pnpm uses to run scripts — expands `src/**/*.test.ts` as a
+  // SINGLE level. The moment a subdirectory appeared, apps/ai-bff silently
+  // dropped from 76 tests to 27 and reported green, hiding eight real failures.
+  // Quoting hands the pattern to Node, which expands it recursively.
+  const packages = [
+    'apps/ai-bff',
+    'apps/ai-worker',
+    'packages/ai-engine',
+    'packages/ai-store',
+    'packages/ai-engine-anythingllm',
+  ];
+  for (const relative of packages) {
+    const manifest = JSON.parse(readFileSync(join(repoRoot, relative, 'package.json'), 'utf8'));
+    const script = manifest.scripts?.test ?? '';
+    if (!script.includes('**')) continue;
+    assert.match(
+      script,
+      /"[^"]*\*\*[^"]*"/,
+      `${relative} test script has an unquoted ** glob, which sh collapses to one level: ${script}`,
+    );
+  }
+});

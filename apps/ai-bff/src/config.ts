@@ -45,6 +45,12 @@ export interface EngineConfig {
   apiKey: string;
   workspaceSlug: string;
   engineVersion: string;
+  /**
+   * The engine's own generated-token ceiling. The only bound the vendor
+   * honours, and therefore the only honest input to a cost model — see
+   * LLD-002's output-limits table.
+   */
+  vendorMaxOutputTokens?: number;
 }
 
 export class ConfigError extends Error {
@@ -128,6 +134,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BffConfig {
         apiKey: engineFields.apiKey as string,
         workspaceSlug: engineFields.workspaceSlug as string,
         engineVersion: env.ANYTHINGLLM_VERSION?.trim() || 'unpinned',
+        ...(Number(env.ANYTHINGLLM_MAX_TOKENS)
+          ? { vendorMaxOutputTokens: Number(env.ANYTHINGLLM_MAX_TOKENS) }
+          : {}),
       };
     }
   }

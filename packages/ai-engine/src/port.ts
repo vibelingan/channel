@@ -42,7 +42,24 @@ export interface EngineRunRequest {
 }
 
 export interface EngineRunLimits {
-  maxOutputTokens: number;
+  /**
+   * Ceiling on output DELIVERED to this process, in estimated units.
+   *
+   * Renamed from `maxOutputTokens`, which promised something no adapter could
+   * keep. It is not a token count and not a vendor-side cap:
+   *
+   *  - it is an estimate, because chat protocols in this family report real
+   *    usage only after the answer is complete — too late to stop anything;
+   *  - it bounds what this process RECEIVES, not what the vendor generates or
+   *    bills. Engines in the retrieval-chat family measured for this port
+   *    accept a per-run token field, return success, and ignore it — so there
+   *    is no per-run limit an adapter can meaningfully send.
+   *
+   * For the worst-case vendor generation and cost, use
+   * `EngineCapabilities.vendorMaxOutputTokens` — the engine's own configured
+   * ceiling, which is the only number the vendor actually honours.
+   */
+  maxDeliveredOutputUnits: number;
   maxStreamDurationMs: number;
   maxToolCalls: number;
 }

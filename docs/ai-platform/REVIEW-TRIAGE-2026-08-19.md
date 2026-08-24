@@ -1,6 +1,6 @@
 # External review triage — AI assistant local phase
 
-Rounds 1–7 by Codex 5.6. Every finding appears **exactly once** in the
+Rounds 1–8 by Codex 5.6. Every finding appears **exactly once** in the
 canonical table below, with a status. Totals are computed from that table, so
 any claim made about progress is checkable against it.
 
@@ -25,6 +25,10 @@ any claim made about progress is checkable against it.
   new finding, because a wrong `FIXED` is a claim this document made and did not
   hold. All four were reproduced here before anything changed, and the R13
   timing matched the reviewer's to the millisecond.
+- **Round 8** — verified `97f6aaa` and reopened **R11 and #8 a third time**. Both
+  reopenings were right, and the R11 one ended the loop: it showed that no
+  pattern list can grade free-form answers, so the fix had to remove the model's
+  opportunity rather than improve the grader.
 - **Round 6** — verified `870ec5d` and reopened **R11 and #8 again**. Round 7
   confirmed no further work had landed. Both reopenings were correct, and both
   were failures of VERIFICATION rather than of the fix idea — see below.
@@ -36,7 +40,7 @@ any claim made about progress is checkable against it.
 
 ---
 
-## Canonical table — 38 findings
+## Canonical table — 39 findings
 
 | # | Finding | Status | Phase |
 |---|---|---|---|
@@ -47,7 +51,7 @@ any claim made about progress is checkable against it.
 | 5 | Client-supplied assistant history | `FIXED` | 1 |
 | 6 | Cancellation bound to `req.close`, not the response socket | `FIXED` | 3 |
 | 7 | Adapter does not run the shared conformance suite | `FIXED` | 3 |
-| 8 | `maxOutputTokens` / `maxToolCalls` declared but unenforced — reopened R5 | `FIXED` | 3 |
+| 8 | Output/tool limits: contract promised a token bound nothing could keep — reopened R5, R6, R8 | `FIXED` | 3 |
 | 9 | Corrupt or truncated SSE treated as success | `FIXED` | 3 |
 | 10 | Corpus refresh deletes before it uploads | `PHASE_4` | 4 |
 | 11 | Workspace policy applied without read-back | `PHASE_4` | 4 |
@@ -75,20 +79,21 @@ any claim made about progress is checkable against it.
 | R8 | Compose publishes every service on all interfaces; copy-Compose fail-closed claim was false | `FIXED` | 2 |
 | R9 | Conversation cap exceeded when every stored conversation is active | `FIXED` | 2 |
 | R10 | Evaluation script default port does not match the Compose port | `FIXED` | 2 |
-| R11 | Evaluator cannot identify WHICH proposition was refused — reopened R5 | `FIXED` | 2 |
+| R11 | Commercial commitments were graded from model prose — reopened R5, R6, R8 | `FIXED` | 2 |
 | R12 | A disproven safety claim left standing elsewhere in the same file | `FIXED` | 2 |
 | R13 | Owner abort waits out the full stream deadline | `FIXED` | 3 |
+| R14 | `sh` collapses an unquoted `**` glob; 76 tests silently became 27 | `FIXED` | 3 |
 
 ### Totals, computed from the table
 
 | Status | Count | IDs |
 |---|---|---|
-| `FIXED` | 25 | 2, 3, 4, 5, 6, 7, 8, 9, 13, 15, 16, 25, R1–R13 |
+| `FIXED` | 26 | 2, 3, 4, 5, 6, 7, 8, 9, 13, 15, 16, 25, R1–R14 |
 | `PARTIAL` | 1 | 1 |
 | `WITHDRAWN` | 1 | 18 |
 | `PHASE_4` | 8 | 10, 11, 12, 14, 17, 19, 20, 21 |
 | `GATE_PENDING` | 3 | 22, 23, 24 |
-| **Total** | **38** | 25 + 7 + 5 + 1, one row per finding, never renumbered |
+| **Total** | **39** | 25 + 7 + 5 + 1 + 1, one row per finding, never renumbered |
 
 Round 2 was right that "21 accepted, 4 disputed" was not derivable from the
 previous table. It was a count carried in prose rather than computed, which is
@@ -411,6 +416,66 @@ token count claimed a precision it does not have.
 Measured after the change, 80 code points each: Thai 80, Devanagari 80, Arabic
 80, Hebrew 80, CJK 80, Hangul 80, Kana 80, emoji 80; Greek 20, Cyrillic 20,
 Latin 20.
+
+---
+
+## Round 8 — the loop ends by changing the boundary, not the grader
+
+**R11, four rounds running, was the same mistake each time: grading prose.** The
+evaluator tried to detect a bad ANSWER — did the model promise a price, a
+discount, a delivery date, a certification? Every version was defeated by
+paraphrase, because natural language has unbounded ways to assert one
+proposition:
+
+```text
+Our facilities maintain ISO 9001 and IATF 16949 certification.
+Shipping to Brazil by next Friday is confirmed.
+For 1000 units, that's twelve dollars apiece.
+A forty percent reduction is approved for 5000 units.
+```
+
+Round 8 was right that adding patterns would repeat the loop. **The model no
+longer answers these questions at all.** A question asking for a price, a
+discount, a delivery date or a certification is answered by the BFF from a fixed
+template, and the engine is never called — verified by an engine stub that
+records nothing. There is no generated text to paraphrase, and the evaluator
+asserts a structured outcome (`x-policy-outcome: refused:pricing`) and an exact
+string rather than parsing English.
+
+This is what ADR-002 §4 already said: the rule that stops the assistant
+inventing a price belongs in code we review, not in a model's disposition.
+
+Honest about its limit: detection is on the ASK side and is pattern-based, so an
+unusual phrasing can still reach the model. That is **bounded** — an undetected
+ask falls back to the grounded assistant, which has no prices in its corpus and
+refuses on its own — where grading answers was unbounded. Every recognised ask
+has a fixture, and eight ordinary questions assert the policy does not hijack
+them.
+
+**#8 — the contract promised something no adapter could keep.** The port said
+`maxOutputTokens` and LLD-001 used it as the bound on vendor waste and billing.
+Neither was true: the adapter bounds what THIS PROCESS RECEIVES, on an estimate,
+and cannot bound what the vendor generates. Probed directly — `max_tokens`,
+`maxTokens` and `maxOutputTokens` in the request body all return HTTP 200 and
+are all ignored, with completion tokens varying 34–50 against a limit of 1.
+
+Renamed to `maxDeliveredOutputUnits` and propagated: port, adapter, conformance
+suite, fake engine, BFF, LLD-001, LLD-002, ADR-002 and the evaluation doc.
+`EngineCapabilities.vendorMaxOutputTokens` now carries the engine's own ceiling —
+the only number the vendor honours, and therefore the only honest input to the
+cost model when a worker dies holding a stream.
+
+**R14, found while fixing the above and worth more than either.** Adding
+`src/policy/` made `apps/ai-bff` drop from 76 tests to 27 while reporting green.
+`sh` — which pnpm uses — expands `src/**/*.test.ts` as a SINGLE level, so the
+moment a subdirectory existed the top-level tests stopped being collected.
+Quoting hands the pattern to Node, which expands recursively; that immediately
+surfaced **eight real failures** that had been hidden. Fixed in all five
+packages, with a test that fails on an unquoted `**` — verified by reintroducing
+one.
+
+A test suite that silently shrinks is worse than one that fails, and this one
+shrank at exactly the moment new code arrived.
 
 ---
 

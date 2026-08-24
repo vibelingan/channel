@@ -124,7 +124,7 @@ export interface EngineRunRequest {
   profileId: string;
   locale: string;
   limits: {
-    maxOutputTokens: number;
+    maxDeliveredOutputUnits: number;
     maxStreamDurationMs: number;
     maxToolCalls: number;
   };
@@ -277,7 +277,7 @@ So the single `supportsStop` flag conflated two different guarantees:
 correctness: LLD-001 §4.2's fence means no assistant text is ever *committed*
 after a takeover regardless of what the model is doing. The cost is bounded
 waste — a run whose owner has died keeps generating until the vendor finishes it
-or its own limits stop it. The bound is one run's remaining `maxOutputTokens`,
+or its own limits stop it. The bound is one run's remaining `maxDeliveredOutputUnits`,
 and that figure belongs in the budget model (MIU 14b).
 
 ## 8. Rules that keep the boundary real
@@ -314,7 +314,7 @@ cannot pass it is not swappable, whatever its README claims.
 | `cancelRun` on an unknown id | `unknown_run`, not a thrown error |
 | Abort the signal mid-stream | Iterator terminates promptly; no further events |
 | Vendor 500 / socket reset / malformed frame | Surfaces as `error` with the right category; never throws raw vendor objects |
-| Exceeding `maxOutputTokens` / `maxStreamDurationMs` | Stream ends; run is failed with `timeout` |
+| Exceeding `maxDeliveredOutputUnits` / `maxStreamDurationMs` | Stream ends; run is failed with `timeout` |
 | Every event | Matches the schema exactly; unknown vendor fields are dropped, not passed through |
 | `health()` output | Contains no credential, host, or path |
 | `attestKnowledgeCredential()` | Returns a stable id and space id, contains no secret material, and changes its rotation counter when the credential is rotated |
@@ -330,3 +330,32 @@ cannot pass it is not swappable, whatever its README claims.
    no, so `EngineEvent` has no `tool_call` variant. Adding one later is additive.
 4. Multi-turn context window policy: how many prior turns are sent, and whether
    summarization is the BFF's job or the profile's.
+
+---
+
+## Output limits — what is and is not bounded
+
+`EngineRunLimits.maxDeliveredOutputUnits` was called `maxOutputTokens` and that
+name promised something no adapter in this engine family can keep.
+
+| | Bounded by | Enforced where |
+|---|---|---|
+| Output **delivered to this process** | `maxDeliveredOutputUnits` | The adapter, on a script-aware estimate, aborting mid-stream |
+| Tokens **generated and billed by the vendor** | `EngineCapabilities.vendorMaxOutputTokens` | The engine's own configuration; we cannot influence it per run |
+
+Two facts force the split.
+
+**The protocol reports usage only when the answer is complete.** A limit that
+can act during the stream therefore has to work from an estimate. The estimate
+is script-aware and biased to trip early — see `estimateOutputUnits` — but it is
+an estimate, and calling it a token count claimed a precision it does not have.
+
+**The vendor accepts no per-run limit.** Probed directly against the running
+instance: `max_tokens`, `maxTokens` and `maxOutputTokens` in the request body
+all return HTTP 200 and are all ignored; completion tokens varied 34–50 with the
+limit set to 1. There is nothing to send.
+
+The consequence for LLD-001's cost model is stated plainly rather than implied:
+aborting a stream stops what *we* receive. It does not stop the vendor
+finishing. The worst case per abandoned run is `vendorMaxOutputTokens`, not
+`maxDeliveredOutputUnits`.
