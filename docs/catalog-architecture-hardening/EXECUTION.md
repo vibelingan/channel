@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-03 released; MIU 04 implemented and active for local validation; MIU 05 planned and inactive.
+Status: MIUs 01-04 released; MIU 05 planned and inactive.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implementation`.
 
-**Current/next MIU:** MIU 04 is active for local validation only. MIU 05 remains planned and inactive.
+**Current/next MIU:** No MIU is active. MIUs 01-04 are released; MIU 05 requires separate activation.
 
 ## Git Truth
 
@@ -17,7 +17,8 @@ Branch: `refactor/catalog-architecture-hardening`
 - MIU 03 implementation was pushed at `d00a923076d04646f22b211f13288c4c8c8f0c21`. Premature closure
   `2f0fbd43ac1f7e05aa0a2b2a1fee111eea93bd7e` was superseded by published corrective active evidence
   `1e4523c9f1fd67f469a94b46dab13a8a8ddc7e67` and release transition `57e2e77`.
-- MIU 04 TDD activation is `a1759e9`; implementation is `1ea2669`. Both are local until review and push.
+- MIU 04 TDD activation `a1759e9`, implementation `1ea2669`, and reviewed active head `104390d` were pushed;
+  release transition is `687b0a1`. No CloudBase deployment was run.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -25,8 +26,7 @@ Branch: `refactor/catalog-architecture-hardening`
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. MIU 04 actively reserves its five exact owner files, including a
-released-to-active transfer of `packages/shared/package.json`. Other MIU file plans remain
+rather than trusted from JSON strings. No MIU or exact file is active. Future MIU file plans remain
 `planned|blocked` claims. Activation is one MIU at a time.
 
 ## Planning Review Gate

@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening MIU Breakdown
 
-Status: published; MIUs 01-03 released; MIU 04 active for local validation; MIU 05 planned and inactive.
+Status: published; MIUs 01-04 released; MIU 05 planned and inactive.
 
 ```mermaid
 flowchart TD
@@ -57,8 +57,8 @@ flowchart TD
 
 ## Reservation Lifecycle
 
-- MIU 04 is active for local validation with five exact owner files. MIUs 01-03 are released, MIU 05
-  remains planned, and MIUs 26-28 remain blocked by D1.
+- No MIU or exact file is active. MIUs 01-04 are released, MIU 05 remains planned, and MIUs 26-28 remain
+  blocked by D1.
 - Activation follows `TASK_REGISTRY.json`: verify dependencies, gates, live refs/worktrees, and zero
   conflicting active owner claims, then atomically mark one MIU `active`. Completion marks it `released`
   before any explicit successor transfer activates.
@@ -138,7 +138,7 @@ flowchart TD
 - **Files:** `apps/functions/public-api/src/catalog/project-public-product.ts`, `apps/functions/public-api/src/handler.ts`, `apps/functions/public-api/src/handler.test.ts`, `apps/local-server/src/catalog-routes.test.ts`, `packages/shared/package.json`
 - **Type:** refactor
 - **Depends on:** MIUs 02, 03
-- **Reservation state:** `active`; `packages/shared/package.json` transfers from released MIU 02 to expose MIU 03's normalizer without a deep import or module cycle. The local parity test is an observed consumer owned here by the MIU 04 done criterion.
+- **Reservation state:** `released`; previous state `active`. `packages/shared/package.json` transferred from released MIU 02 to expose MIU 03's normalizer without a deep import or module cycle. The local parity test is an observed consumer owned by the MIU 04 done criterion.
 - **What it does:**
   - Implements `projectPublicProduct(row): PublicProduct | null`, consuming MIU 02's schema/envelope from
     `packages/shared/src/catalog/index.ts` and MIU 03's normalizer for list/ID/slug paths.
