@@ -46,14 +46,10 @@
       "claimedLocalHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "claimedRemoteHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "status": "implementation-in-progress",
-      "currentMiu": "03",
+      "currentMiu": null,
       "dependencies": [],
-      "activeExactReservations": [
-        "packages/shared/src/catalog/normalize-public-product.ts",
-        "packages/shared/src/catalog/normalize-public-product.test.ts",
-        "packages/shared/src/catalog-product.ts"
-      ],
-      "activeReservationPurpose": "MIU 03 governance correction and review validation: establish omitted activation evidence and prove nested output independence before release.",
+      "activeExactReservations": [],
+      "activeReservationPurpose": "",
       "externalGates": {
         "D1": {
           "scope": ["26", "27", "28"],
@@ -371,7 +367,7 @@
       "miuReservationStates": {
         "01": { "reservationState": "released", "previousReservationState": "active" },
         "02": { "reservationState": "released", "previousReservationState": "active" },
-        "03": { "reservationState": "active", "previousReservationState": "planned" },
+        "03": { "reservationState": "released", "previousReservationState": "active" },
         "04": { "reservationState": "planned" },
         "05": { "reservationState": "planned" },
         "06": { "reservationState": "planned" },
@@ -670,7 +666,7 @@
           "branchOrPrStatusMayResolveTo": "HEAD"
         }
       },
-      "handoff": "MIUs 01-02 are released. MIU 03 is active only to repair omitted activation evidence; validate and release it before MIU 04 activation."
+      "handoff": "MIUs 01-03 are released with no active exact-file reservation. MIU 04 remains planned and requires separate activation after local/remote branch equality is proven."
     }
   ]
 }
