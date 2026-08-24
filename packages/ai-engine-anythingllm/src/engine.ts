@@ -64,45 +64,64 @@ interface VendorSource {
   published?: string;
 }
 
-/**
- * Latin-ish characters per token. Applies only to scripts where a token spans
- * several characters — English, and most European languages.
- */
-const LATIN_CHARS_PER_TOKEN = 4;
+/** Code points per output unit for scripts that tokenize several characters at a time. */
+const ALPHABETIC_CHARS_PER_UNIT = 4;
 
 /**
- * Estimate the tokens a piece of output costs.
+ * Scripts with evidence of multi-character tokens: Latin and its extensions,
+ * Greek, Cyrillic, and general punctuation.
  *
- * APPROXIMATE, and named so. This protocol reports real usage only in its final
- * frame, which is far too late to stop a runaway answer, so the budget has to
- * be enforced on an estimate.
- *
- * It is script-aware because a flat four-characters-per-token is an ENGLISH
- * rule and this assistant answers multilingual customers. Measured: 80 Chinese
- * characters passed a 20-token budget, because 80 characters divided by four
- * read as 20 tokens — while common tokenizers charge close to one token per CJK
- * character, so the real cost was around four times the limit. The old comment
- * claimed four-per-token was a conservative over-estimate; for CJK it is the
- * opposite.
- *
- * Deliberately errs high: CJK, Hangul, Kana, emoji and other non-Latin code
- * points are charged a full token each, so the guard trips a little early
- * rather than a little late.
+ * This is an ALLOWLIST on purpose. The previous version used a numeric cutoff —
+ * "anything above U+2E80 is dense" — and silently gave Thai (U+0E00) and
+ * Devanagari (U+0900) the cheap Latin rate while a comment claimed to cover
+ * them: 80 Thai code points estimated at 20 units, the same defect shape as the
+ * original CJK bug, in two scripts the comment named. With an allowlist, a
+ * script nobody has classified is charged the expensive rate rather than the
+ * cheap one, so the next unlisted script under-serves the customer instead of
+ * over-spending the budget.
  */
-export function estimateTokens(text: string): number {
+const ALPHABETIC_RANGES: readonly (readonly [number, number])[] = [
+  [0x0000, 0x024f], // Basic Latin, Latin-1 Supplement, Latin Extended-A and -B
+  [0x0370, 0x03ff], // Greek and Coptic
+  [0x0400, 0x04ff], // Cyrillic
+  [0x1e00, 0x1eff], // Latin Extended Additional
+  [0x2000, 0x206f], // General punctuation: dashes, curly quotes, ellipsis
+];
+
+function isAlphabeticCodePoint(code: number): boolean {
+  return ALPHABETIC_RANGES.some(([low, high]) => code >= low && code <= high);
+}
+
+/**
+ * Estimate the OUTPUT UNITS a piece of text costs.
+ *
+ * Deliberately not called a token count. This protocol reports real usage only
+ * in its final frame, far too late to stop a runaway answer, so the budget is
+ * enforced on an estimate and the name says so. `maxOutputTokens` is therefore
+ * an approximate ceiling, not a guarantee — the durable fix is a tokenizer for
+ * the configured model family, which belongs with the engine that has one.
+ *
+ * A flat four-characters-per-unit is an ENGLISH rule and this assistant answers
+ * multilingual customers: 80 Chinese characters once passed a 20-unit budget
+ * because 80/4 read as 20, while common tokenizers charge close to one token per
+ * CJK character.
+ *
+ * Biased to trip early. Anything outside the alphabetic allowlist — CJK, Kana,
+ * Hangul, Thai, Devanagari, Arabic, Hebrew, emoji — is charged a full unit per
+ * code point.
+ */
+export function estimateOutputUnits(text: string): number {
   let dense = 0;
-  let latin = 0;
+  let alphabetic = 0;
   for (const character of text) {
     const code = character.codePointAt(0) ?? 0;
-    // Everything above the Latin/Greek/Cyrillic range: CJK, Kana, Hangul,
-    // Thai, Devanagari, emoji and the rest. Charged one token per code point.
-    if (code > 0x2e80 || (code >= 0x0590 && code <= 0x08ff)) {
-      dense += 1;
+    if (isAlphabeticCodePoint(code)) {
+      alphabetic += 1;
     } else {
-      latin += 1;
+      dense += 1;
     }
   }
-  return dense + Math.ceil(latin / LATIN_CHARS_PER_TOKEN);
+  return dense + Math.ceil(alphabetic / ALPHABETIC_CHARS_PER_UNIT);
 }
 
 /** How many finished runs are remembered, so `cancelRun` can distinguish
@@ -217,7 +236,6 @@ class Deadline {
     clearTimeout(this.#timer);
   }
 }
-
 function categoryForStatus(status: number): EngineErrorCategory {
   if (status === 429) return 'quota';
   if (status === 400 || status === 422) return 'invalid_request';
@@ -306,8 +324,10 @@ export class AnythingLlmEngine implements ConversationEngine {
     const filter = createReasoningFilter();
     const citations = new Map<string, EngineCitation>();
     // See `estimateTokens`: approximate, script-aware, and biased to trip early.
-    const maxOutputTokens = request.limits.maxOutputTokens;
-    let producedTokens = 0;
+    // See `estimateOutputUnits`: an approximate ceiling, script-aware, biased
+    // to trip early. Not a token guarantee.
+    const maxOutputUnits = request.limits.maxOutputTokens;
+    let producedUnits = 0;
     let visible = '';
     let sawTerminalFrame = false;
 
@@ -368,8 +388,8 @@ export class AnythingLlmEngine implements ConversationEngine {
           // Counted RAW, before the reasoning filter. The models bill their
           // private reasoning inside the same completion budget, so counting
           // only what a visitor sees would let a run spend far past its limit.
-          producedTokens += estimateTokens(frame.textResponse);
-          if (producedTokens > maxOutputTokens) {
+          producedUnits += estimateOutputUnits(frame.textResponse);
+          if (producedUnits > maxOutputUnits) {
             overlong = true;
             break;
           }
@@ -401,7 +421,7 @@ export class AnythingLlmEngine implements ConversationEngine {
         // the port and belongs with its owners.
         yield this.#error(
           'invalid_request',
-          'engine output exceeded the estimated run budget; raise maxOutputTokens or narrow the profile',
+          'engine output exceeded the estimated output budget; raise maxOutputTokens or narrow the profile',
         );
         return;
       }

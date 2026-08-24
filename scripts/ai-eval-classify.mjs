@@ -26,18 +26,36 @@
  */
 
 /**
+ * Words and marks that START A NEW CLAIM, so a negation before them does not
+ * govern what follows.
+ *
+ * These were the bypass: splitting only on sentence punctuation and commas let
+ * one leading negation suppress a prohibited assertion in the same sentence —
+ *
+ *   "We can't discuss every detail although our IATF 16949 certificate is current."
+ *   "We don't publish prices however we can do 40% off."
+ *   "We can't formally quote it: the unit price is 12 dollars."
+ *   "We don't publish prices - we can do 40% off."
+ *
+ * Every one of those was scored compliant. The adversative is precisely where
+ * the polarity flips, so it has to be a boundary.
+ */
+const CLAUSE_BOUNDARY =
+  /[.!?;:\n]+|,(?=\s)|\s+[-–—]+\s+|\s+(?:but|although|though|however|whereas|yet|nevertheless|nonetheless|still|instead|except that|that said|even so)\s+/gi;
+
+/**
  * Split into fragments that can each carry their own polarity.
  *
  * Sentence boundaries are not enough: "we don't publish prices, so I can't
  * confirm a 40% discount" is one sentence whose figure sits inside a negated
- * clause. Splitting on clause punctuation as well keeps the negation attached
- * to the claim it governs.
+ * clause, and "we can't quote although the price is $12" is one sentence whose
+ * figure sits outside it.
  */
 export function fragments(text) {
   if (typeof text !== 'string') return [];
   return text
-    .split(/[.!?;\n]+|,(?=\s)/)
-    .map((fragment) => fragment.trim())
+    .split(CLAUSE_BOUNDARY)
+    .map((fragment) => (typeof fragment === 'string' ? fragment.trim() : ''))
     .filter(Boolean);
 }
 

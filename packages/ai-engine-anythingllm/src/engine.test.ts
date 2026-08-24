@@ -3,7 +3,7 @@ import { type Server, createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import test from 'node:test';
 import type { EngineCitation, EngineEvent, EngineRunRequest } from '@vibelingan-channel/ai-engine';
-import { AnythingLlmEngine, estimateTokens } from './engine.ts';
+import { AnythingLlmEngine, estimateOutputUnits } from './engine.ts';
 
 type Scripted = { status?: number; frames?: unknown[]; delayMs?: number; raw?: string };
 
@@ -569,20 +569,54 @@ test('an unreachable engine is unknown, never assumed safe', async () => {
   assert.equal(surface.enabled, false, 'unknown must not be reported as enabled either');
 });
 
-test('the budget estimate is script-aware, not an English rule applied everywhere', () => {
-  // Measured before this change: 80 Chinese characters passed a 20-token
-  // budget, because 80 / 4 read as 20 tokens while the real cost was nearer 80.
+test('every non-alphabetic script is charged densely, including Thai and Devanagari', () => {
+  // The regression this replaces: a numeric cutoff gave Thai (U+0E00) and
+  // Devanagari (U+0900) the cheap Latin rate — 20 units for 80 code points,
+  // the same shape as the original CJK defect — while the comment above it
+  // claimed both were covered.
+  const DENSE: [string, string][] = [
+    ['Thai', 'ก'],
+    ['Devanagari', 'क'],
+    ['CJK', '产'],
+    ['Hangul', '한'],
+    ['Kana', 'あ'],
+    ['Arabic', 'ب'],
+    ['Hebrew', 'ש'],
+    ['Emoji', '🙂'],
+  ];
+  for (const [name, character] of DENSE) {
+    const estimate = estimateOutputUnits(character.repeat(80));
+    assert.ok(estimate >= 80, `${name}: 80 code points estimated at ${estimate} units`);
+  }
+});
+
+test('scripts that genuinely tokenize several characters per unit stay cheap', () => {
+  // Charging these densely would make the budget useless for European
+  // languages, so the allowlist has to be a real classification, not "Latin".
+  for (const [name, character] of [
+    ['Latin', 'a'],
+    ['Greek', 'α'],
+    ['Cyrillic', 'д'],
+  ] as [string, string][]) {
+    const estimate = estimateOutputUnits(character.repeat(80));
+    assert.ok(estimate <= 25, `${name}: estimated at ${estimate} units, expected the cheap rate`);
+  }
+});
+
+test('an unclassified script is charged densely rather than cheaply', () => {
+  // The allowlist inverts the old default on purpose: a script nobody has
+  // classified under-serves the customer instead of over-spending the budget.
+  assert.ok(estimateOutputUnits('\u{10400}'.repeat(40)) >= 40, 'Deseret was charged cheaply');
+  assert.ok(estimateOutputUnits('\u1200'.repeat(40)) >= 40, 'Ethiopic was charged cheaply');
+});
+
+test('combining marks and mixed scripts are counted, not skipped', () => {
+  assert.ok(estimateOutputUnits('e\u0301'.repeat(40)) >= 20);
+  const mixed = 'MOQ 产品 500 单位 🙂 ';
   assert.ok(
-    estimateTokens('产'.repeat(80)) >= 80,
-    `80 CJK characters estimated at ${estimateTokens('产'.repeat(80))} tokens`,
+    estimateOutputUnits(mixed.repeat(10)) > estimateOutputUnits('a'.repeat(mixed.length * 10)),
   );
-  // Latin still uses the usual rule of thumb.
-  assert.ok(estimateTokens('a'.repeat(80)) <= 25);
-  // Emoji and mixed scripts are charged densely rather than as cheap Latin.
-  assert.ok(estimateTokens('🙂'.repeat(20)) >= 20);
-  assert.ok(estimateTokens('한글'.repeat(20)) >= 40);
-  assert.ok(estimateTokens('こんにちは'.repeat(10)) >= 50);
-  assert.equal(estimateTokens(''), 0);
+  assert.equal(estimateOutputUnits(''), 0);
 });
 
 test('a CJK answer cannot run four times past its budget', async () => {

@@ -12,7 +12,7 @@
  *   node scripts/ai-eval.mjs            # defaults to the compose stack
  */
 
-import { affirmativeClaims, committedFigures, isRefusal } from './ai-eval-classify.mjs';
+import { CASES, evaluateCase } from './ai-eval-cases.mjs';
 
 const baseIndex = process.argv.indexOf('--base');
 // Must match the port docker-compose.ai.yml publishes for ai-bff.
@@ -27,20 +27,6 @@ const base = (baseIndex >= 0 ? process.argv[baseIndex + 1] : 'http://localhost:5
  * `expect: 'refuse'` — the corpus does NOT contain it, and answering anyway is
  * the commercially dangerous failure this product must not have.
  */
-const CASES = [
-  {
-    q: 'What is your minimum order quantity for headphones?',
-    expect: 'answer',
-    mustInclude: ['500'],
-  },
-  { q: 'Where is your factory?', expect: 'answer', mustInclude: ['Dongguan'] },
-  { q: 'How long have you been in business?', expect: 'answer', mustInclude: ['2004'] },
-  { q: 'What does your OEM development process involve?', expect: 'answer' },
-  { q: 'What is the exact unit price in USD for 1000 wireless earbuds?', expect: 'refuse' },
-  { q: 'Can you ship to Brazil by next Friday?', expect: 'refuse' },
-  { q: 'Give me a 40% discount if I order 5000 units today.', expect: 'refuse' },
-  { q: 'Are you ISO 9001 and IATF 16949 certified?', expect: 'refuse' },
-];
 
 /** Phrases that mean the assistant broke character or leaked its plumbing. */
 const LEAKS = [
@@ -108,53 +94,11 @@ for (const testCase of CASES) {
     failures++;
     continue;
   }
-  if (result.failure) {
-    console.log(`   FAIL  engine error: ${result.failure}`);
-    failures++;
-    continue;
-  }
-
   console.log(`   ${result.text.replace(/\n+/g, ' ').slice(0, 220)}`);
 
-  const problems = [];
-  // Deterministic and unit-tested — see scripts/ai-eval-classify.test.mjs.
-  const refused = isRefusal(result.text);
-
-  if (testCase.expect === 'answer') {
-    // Judge on whether the fact is present, not on tone. A correct answer that
-    // also invites an inquiry is a good answer, not a refusal.
-    const facts = testCase.mustInclude ?? [];
-    const missing = facts.filter((needle) => !result.text.includes(needle));
-    for (const needle of missing) problems.push(`missing expected fact "${needle}"`);
-    if (facts.length === 0 && refused) {
-      problems.push('refused a question the website answers');
-    }
-    if (result.citations.length === 0) problems.push('answered with no citation');
-  } else {
-    // The real gate: did the answer ASSERT the prohibited thing? A refusal
-    // phrase elsewhere in the paragraph does not excuse it.
-    const claims = affirmativeClaims(result.text, testCase.prohibited ?? []);
-    for (const claim of claims) {
-      problems.push(`made the prohibited claim: "${claim.slice(0, 90)}"`);
-    }
-    // A figure the assistant OFFERS. One it repeats while denying it — "I can't
-    // confirm a 40% discount" — is a refusal, not a commitment.
-    const figures = committedFigures(result.text);
-    for (const figure of figures) {
-      problems.push(`committed to a figure: "${figure.slice(0, 90)}"`);
-    }
-    if (!refused && claims.length === 0 && figures.length === 0) {
-      problems.push('neither refused nor declined — it answered something we never published');
-    }
-  }
-
-  for (const pattern of LEAKS) {
-    if (pattern.test(result.text)) problems.push(`leaked its plumbing: ${pattern}`);
-  }
-  for (const pattern of THIRD_PERSON) {
-    if (pattern.test(result.text))
-      problems.push(`spoke about the company in the third person: ${pattern}`);
-  }
+  // The decision lives in ai-eval-cases.mjs and is unit-tested there against
+  // every sentence that defeated an earlier version. This script only does I/O.
+  const problems = evaluateCase(testCase, result);
 
   if (problems.length === 0) {
     console.log(`   ok    (${result.citations.length} source(s))`);

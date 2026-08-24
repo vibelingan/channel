@@ -1,6 +1,6 @@
 # External review triage — AI assistant local phase
 
-Four review rounds by Codex 5.6. Every finding appears **exactly once** in the
+Rounds 1–7 by Codex 5.6. Every finding appears **exactly once** in the
 canonical table below, with a status. Totals are computed from that table, so
 any claim made about progress is checkable against it.
 
@@ -25,6 +25,9 @@ any claim made about progress is checkable against it.
   new finding, because a wrong `FIXED` is a claim this document made and did not
   hold. All four were reproduced here before anything changed, and the R13
   timing matched the reviewer's to the millisecond.
+- **Round 6** — verified `870ec5d` and reopened **R11 and #8 again**. Round 7
+  confirmed no further work had landed. Both reopenings were correct, and both
+  were failures of VERIFICATION rather than of the fix idea — see below.
 - **Round 3** — 5 findings against `e363fbc..26bc895` and the fix commit that
   followed, numbered `R8`–`R12`.
   Also a **BLOCK**, and also right. R8 identified a **false safety claim** made
@@ -356,6 +359,58 @@ vendor that accepts the connection, goes silent, and ignores abort — the case
 cancellation actually exists for. It is optional in the harness because an
 in-process fake has no transport to ignore anything, and required in spirit for
 any adapter that talks over a network.
+
+---
+
+## Rounds 6–7 — I verified the helper, not the wiring
+
+Both reopened items had the right idea implemented and the wrong thing checked.
+That is the pattern worth naming, because it is the same one twice.
+
+**R11 — the check was dead code and I did not notice.** The proposition-aware
+classifier was written and unit-tested, and the evaluator called
+`affirmativeClaims(result.text, testCase.prohibited ?? [])`. But **no case ever
+defined `prohibited`** — the edit that was supposed to add them silently failed
+to match its anchor. Every refusal case passed an empty pattern list, so the
+detector could not return a claim under any circumstances.
+
+I then "verified" it with a probe that typed the patterns in by hand, watched
+the three counterexamples get caught, and reported it fixed. The helper worked.
+The check did not exist. A green live 8/8 read as confirmation when it only
+meant the model had not produced a counterexample on that run.
+
+Two structural changes, so this cannot recur quietly:
+
+- The decision that produces pass/fail is now an exported function in
+  `scripts/ai-eval-cases.mjs`, tested through the REAL `CASES` — not through
+  patterns supplied by the test.
+- A guard test asserts every `expect: 'refuse'` case defines at least one
+  prohibited proposition. A case that cannot fail is now itself a failure.
+
+Round 6 also found a second bypass: `fragments()` split on sentence punctuation
+and commas but not on adversatives, so one leading negation suppressed a
+prohibited assertion later in the same sentence — "we can't discuss every detail
+**although** our IATF 16949 certificate is current". Clause boundaries now
+include `but`, `although`, `however`, `whereas`, colons and dashes. All four
+reproduced sentences are in the deterministic suite.
+
+**#8 — the comment named two scripts the code did not cover.** The estimator
+used a numeric cutoff (`> U+2E80`, plus `U+0590–U+08FF`) while its comment
+claimed to charge Thai and Devanagari densely. Neither falls in either branch:
+80 Thai code points estimated at 20 units, the identical defect shape as the
+original CJK bug, in scripts the comment explicitly listed. Passing CJK, Hangul,
+Kana and emoji tests was not evidence for the rest.
+
+The cutoff is replaced by an explicit **allowlist** of scripts with evidence of
+multi-character tokens — Latin and its extensions, Greek, Cyrillic, general
+punctuation — with everything else charged one unit per code point. That inverts
+the default: an unclassified script now under-serves the customer rather than
+over-spending the budget. Renamed `estimateOutputUnits`, because calling it a
+token count claimed a precision it does not have.
+
+Measured after the change, 80 code points each: Thai 80, Devanagari 80, Arabic
+80, Hebrew 80, CJK 80, Hangul 80, Kana 80, emoji 80; Greek 20, Cyrillic 20,
+Latin 20.
 
 ---
 
