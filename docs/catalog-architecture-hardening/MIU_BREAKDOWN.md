@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening MIU Breakdown
 
-Status: published; MIUs 01-04 released; MIU 05 active for local validation; MIU 06 planned and inactive.
+Status: published; MIUs 01-05 released; MIU 06 planned and inactive.
 
 ```mermaid
 flowchart TD
@@ -57,8 +57,8 @@ flowchart TD
 
 ## Reservation Lifecycle
 
-- MIU 05 is active for local browser/SSR validation with three exact owner files. MIUs 01-04 are released,
-  MIU 06 remains planned, and MIUs 26-28 remain blocked by D1.
+- No MIU or exact file is active. MIUs 01-05 are released, MIU 06 remains planned, and MIUs 26-28 remain
+  blocked by D1.
 - Activation follows `TASK_REGISTRY.json`: verify dependencies, gates, live refs/worktrees, and zero
   conflicting active owner claims, then atomically mark one MIU `active`. Completion marks it `released`
   before any explicit successor transfer activates.
@@ -157,7 +157,7 @@ flowchart TD
 - **Files:** `apps/site/src/catalog/infrastructure/catalog-api.ts`, `apps/site/src/catalog/infrastructure/catalog-api.test.ts`, `apps/site/src/test/factories/catalog.ts`
 - **Type:** new-file
 - **Depends on:** MIUs 02, 04
-- **Reservation state:** `active`; local browser/SSR validation only.
+- **Reservation state:** `released`; previous state `active`. Browser/SSR validation was local only.
 - **What it does:**
   - Exposes `fetchCatalogPage(query, signal): Promise<CatalogPage<PublicProduct>>`, consuming MIU 02's
     schema/envelope from `packages/shared/src/catalog/index.ts` without redeclaring fields.
