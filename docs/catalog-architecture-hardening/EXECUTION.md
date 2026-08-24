@@ -1,18 +1,17 @@
 # Catalog Architecture Hardening - Execution
-Status: 49-MIU planning packet reviewed and committed; pending push and remote-SHA equality proof; no application code implemented.
+Status: MIU 01 foundational architecture verifier implemented and validated; planning packet and MIU 01 implementation pushed; MIU 02 pending activation.
 Branch: `refactor/catalog-architecture-hardening`
 
-**Current phase:** `plan`.
+**Current phase:** `implementation`.
 
-**Current/next MIU:** none active; MIU 01 is planned and cannot activate until the task-level docs claim is released after review/push.
+**Current/next MIU:** MIU 01 released; MIU 02 is next and activates after the live-ref and dependency checks pass.
 
 ## Git Truth
 
 - Base SHA: `9ddda85593517bc9d1d2bea81c4862ce492b144f`.
-- Local HEAD contains the reviewed packet commit; the remote branch still resolves to the base SHA
-  until the pending push completes.
-- The branch ref exists remotely, but this packet is not a portable handoff until local/remote SHA
-  equality is observed after push.
+- Planning packet reviewed and pushed at `bc1e69e25e9e8d453584be0fde9279f7bdf0c006`.
+- MIU 01 implementation reviewed and pushed at `f96b75b9114f8aa5b694963cca9a783acf192106`; the
+  remote branch resolves to a descendant of this SHA once the pending push completes.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -87,8 +86,21 @@ git status --short --branch
 git rev-parse HEAD origin/refactor/catalog-architecture-hardening
 ```
 
-Implementation validation is intentionally absent. Do not describe planned tests as passed evidence.
+Implementation validation is intentionally absent for planned MIUs. Do not describe planned tests as passed evidence.
+
+## MIU 01 Validation
+
+MIU 01 (foundational architecture verifier), implementation commit `f96b75b9114f8aa5b694963cca9a783acf192106`:
+
+- `node --test scripts/verify-catalog-architecture.test.mjs`: 25/25 pass. Synthetic cases cover forbidden edge, cycle, duplicate governance owner, unrooted discovery, two active exact-file owners, stale SHA, worktree mismatch, illegal transition, missing derived consumer, glob-only plan, local-only completion, released-to-active transfer, and sibling-worktree-ignored.
+- `node --test scripts/*.test.mjs` (`test:deploy-smoke`): 49/49 pass, no regression to the existing 24.
+- `npx biome check .`: 330 files, exit 0.
+- `pnpm typecheck`: 0 errors.
+- `pnpm build`: 15 pages, exit 0.
+- `node scripts/verify-catalog-architecture.mjs` on the live repo: 0 issues.
+- Critical injection: three planted real violations (stale-sha, illegal-transition, glob-only) were each named with exact paths, then the repo was restored to 0 issues.
+- Design refinement found during validation: stale-sha detection changed from strict equality to ancestor-based (`git merge-base --is-ancestor`) so the tracked registry does not self-stale after normal commits.
 
 ## Deviations
 
-Deviations: none. This is an unapproved plan rewrite, not an executed MIU.
+Deviations: none. MIU 01 executed and validated as planned; stale-sha detection was refined to ancestor-based during validation.
