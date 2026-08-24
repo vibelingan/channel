@@ -12,12 +12,12 @@ import {
   err,
   normalizeCatalogImageIds,
   normalizeProductSlug,
-  normalizeSkuCode,
   ok,
-  productFamilyForDoc,
   toRole,
   validateManualCatalogPricing,
 } from '@vibelingan-channel/shared';
+import { CatalogPageSchema, type PublicProduct } from '@vibelingan-channel/shared/catalog';
+import { projectPublicProduct } from './catalog/project-public-product.ts';
 
 const CATALOGS = PUBLIC_CATALOG_COLLECTIONS;
 const MAX_PUBLIC_PAGE_SIZE = 48;
@@ -204,19 +204,39 @@ function publicAlibabaCatalogPricing(value: unknown): unknown {
  */
 const GATED_CATALOG_FIELDS = ['vipPrice'] as const;
 
+function productProjection(doc: CollectionDoc, config: PublicApiConfig): PublicProduct | null {
+  return projectPublicProduct({
+    ...doc,
+    images: catalogImages('products', doc, config),
+  });
+}
+
+function withViewerPricing(
+  product: PublicProduct,
+  source: CollectionDoc,
+  viewer: CatalogViewer,
+): CollectionDoc {
+  const out: CollectionDoc = { ...product };
+  if (viewer.canSeeVipPricing && 'vipPrice' in source) out.vipPrice = source.vipPrice;
+  return out;
+}
+
 export function publicDoc(
   collection: PublicCatalog,
   doc: CollectionDoc,
   config: PublicApiConfig,
   viewer: CatalogViewer = ANONYMOUS_VIEWER,
-): CollectionDoc {
+): CollectionDoc | null {
+  if (collection === 'products') {
+    const product = productProjection(doc, config);
+    return product ? withViewerPricing(product, doc, viewer) : null;
+  }
   // Constructed as a CollectionDoc with `_id` set unconditionally, so the
   // result is structurally guaranteed (no cast) — dropping `_id` from the
   // allowlist can never silently ship an id-less doc.
   const out: CollectionDoc = { _id: doc._id, images: catalogImages(collection, doc, config) };
   for (const key of PUBLIC_CATALOG_FIELDS) {
     if (key !== '_id' && key in doc) {
-      if (collection === 'products' && key === 'category') continue;
       if (key === 'manualCatalogPricing') {
         const pricing = validateManualCatalogPricing(doc[key]);
         if (pricing.ok) out.manualCatalogPricing = pricing.value;
@@ -229,19 +249,6 @@ export function publicDoc(
             ? publicAlibabaSourceKey(doc[key])
             : doc[key];
     }
-  }
-  if (collection === 'products') {
-    const productFamily = productFamilyForDoc(doc);
-    if (productFamily !== null) {
-      out.productFamily = productFamily;
-      if (productFamily === 'headphones' && typeof doc.category === 'string') {
-        out.category = doc.category;
-      }
-    }
-    const skuCode = normalizeSkuCode(doc.skuCode);
-    const slug = normalizeProductSlug(doc.slug);
-    if (skuCode !== null) out.skuCode = skuCode;
-    if (slug !== null) out.slug = slug;
   }
   if (viewer.canSeeVipPricing) {
     for (const key of GATED_CATALOG_FIELDS) {
@@ -289,6 +296,27 @@ export async function listCatalog(
     sort: [{ field: '_id', dir: 'asc' }],
   });
 
+  if (collection === 'products') {
+    const projected = result.items.flatMap((doc) => {
+      const product = productProjection(doc, config);
+      return product ? [{ product, source: doc }] : [];
+    });
+    const pageResult = CatalogPageSchema.safeParse({
+      items: projected.map(({ product }) => product),
+      total: result.total,
+      page: result.page,
+      pageSize: result.pageSize,
+    });
+    if (!pageResult.success) return err('INTERNAL_ERROR', 'Catalog projection failed');
+    return ok({
+      ...pageResult.data,
+      items: pageResult.data.items.map((product, index) => {
+        const pair = projected[index];
+        return pair ? withViewerPricing(product, pair.source, viewer) : product;
+      }),
+    });
+  }
+
   return ok({
     items: result.items.map((doc) => publicDoc(collection, doc, config, viewer)),
     total: result.total,
@@ -311,7 +339,8 @@ export async function getCatalogItem(
   ) {
     return err('NOT_FOUND', 'Item not found');
   }
-  return ok(publicDoc(collection, doc, config, viewer));
+  const projected = publicDoc(collection, doc, config, viewer);
+  return projected ? ok(projected) : err('NOT_FOUND', 'Item not found');
 }
 
 export async function getCatalogItemBySlug(
@@ -328,7 +357,8 @@ export async function getCatalogItemBySlug(
   ) {
     return err('NOT_FOUND', 'Item not found');
   }
-  return ok(publicDoc('products', doc, config, viewer));
+  const projected = publicDoc('products', doc, config, viewer);
+  return projected ? ok(projected) : err('NOT_FOUND', 'Item not found');
 }
 
 async function publishedCatalogReferencesImage(

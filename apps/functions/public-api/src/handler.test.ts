@@ -58,6 +58,7 @@ test('public products project valid manual tiers and Headphones subcategory', ()
     config,
   );
 
+  assert.ok(projected);
   assert.equal(projected.category, 'studio');
   assert.deepEqual(projected.manualCatalogPricing, {
     schemaVersion: 'manual-catalog-pricing-v1',
@@ -86,6 +87,7 @@ test('public products omit malformed manual pricing and stale non-Headphones cat
     config,
   );
 
+  assert.ok(projected);
   assert.equal(projected.name, 'Interactive Toy');
   assert.equal(Object.hasOwn(projected, 'category'), false);
   assert.equal(Object.hasOwn(projected, 'manualCatalogPricing'), false);
