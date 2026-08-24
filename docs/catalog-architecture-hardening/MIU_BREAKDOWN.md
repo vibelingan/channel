@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening MIU Breakdown
 
-Status: published; MIUs 01-03 released; MIU 04 planned and inactive.
+Status: published; MIUs 01-03 released; MIU 04 active for local validation; MIU 05 planned and inactive.
 
 ```mermaid
 flowchart TD
@@ -57,8 +57,8 @@ flowchart TD
 
 ## Reservation Lifecycle
 
-- No MIU or exact file is active. MIUs 01-03 are released, MIU 04 remains planned, and MIUs 26-28 remain
-  blocked by D1.
+- MIU 04 is active for local validation with five exact owner files. MIUs 01-03 are released, MIU 05
+  remains planned, and MIUs 26-28 remain blocked by D1.
 - Activation follows `TASK_REGISTRY.json`: verify dependencies, gates, live refs/worktrees, and zero
   conflicting active owner claims, then atomically mark one MIU `active`. Completion marks it `released`
   before any explicit successor transfer activates.
