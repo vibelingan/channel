@@ -126,7 +126,8 @@ for full retirement: `CatalogFamilyGrid`, `HeadphonesProductCard`, `HeadphonesPr
 
 ## Reservation And Deployment Control
 
-No Catalog MIU or exact-file claim is active. MIUs 01-04 are released and MIU 05 remains planned.
+MIU 05 is active for local browser/SSR validation with three exact owner files. MIUs 01-04 are released
+and MIU 06 remains planned.
 Activation and release follow the lifecycle in `TASK_REGISTRY.json`. Shared
 files have one owner and later consumer/reference entries, or an explicit release/activation transfer.
 Select-owned Admin files remain blocked in MIUs 26-28 until final-code WebKit and the full D1 suite pass.
