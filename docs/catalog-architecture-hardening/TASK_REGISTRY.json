@@ -43,8 +43,8 @@
       "remoteBranch": "origin/refactor/catalog-architecture-hardening",
       "worktree": "/Users/SeanCai/Desktop/projects/channel-catalog-miu01-review",
       "baseSha": "9ddda85593517bc9d1d2bea81c4862ce492b144f",
-      "claimedLocalHead": "f96b75b9114f8aa5b694963cca9a783acf192106",
-      "claimedRemoteHead": "f96b75b9114f8aa5b694963cca9a783acf192106",
+      "claimedLocalHead": "c2f0027e85c7bf2e5051333d39c213ca0d1d106d",
+      "claimedRemoteHead": "c2f0027e85c7bf2e5051333d39c213ca0d1d106d",
       "status": "implementation-in-progress",
       "currentMiu": null,
       "dependencies": [],
@@ -54,14 +54,10 @@
         "D1": {
           "scope": ["26", "27", "28"],
           "taskLevelDependency": false,
-          "satisfiedMergedSha": "78506d525eefcd6410ff0d85a1a020d834f4ab02",
+          "mergedSha": "78506d525eefcd6410ff0d85a1a020d834f4ab02",
           "deployedTestSha": "026e18b45c2bf8b61d54049e7a58bdf22466bfaa",
-          "validationEvidence": [
-            "Shared selector merge and repository validation completed on origin/main.",
-            "CloudBase test deployment rerun completed successfully.",
-            "Focused live shared-selector E2E passed 9/9."
-          ],
-          "satisfaction": "D1 is satisfied. MIUs 26-28 remain inactive until their ordinary dependencies and reservation checks pass."
+          "remainingEvidence": "Final-code WebKit validation was unavailable and is not claimed.",
+          "satisfaction": "MIUs 26-28 remain blocked until the full inherited suite, including final-code WebKit, passes on the recorded merge."
         },
         "D2": {
           "scope": ["46"],
@@ -370,7 +366,7 @@
       },
       "miuReservationStates": {
         "01": { "reservationState": "released", "previousReservationState": "active" },
-        "02": { "reservationState": "planned" },
+        "02": { "reservationState": "released", "previousReservationState": "active" },
         "03": { "reservationState": "planned" },
         "04": { "reservationState": "planned" },
         "05": { "reservationState": "planned" },
@@ -394,9 +390,21 @@
         "23": { "reservationState": "planned" },
         "24": { "reservationState": "planned" },
         "25": { "reservationState": "planned" },
-        "26": { "reservationState": "planned" },
-        "27": { "reservationState": "planned" },
-        "28": { "reservationState": "planned" },
+        "26": {
+          "reservationState": "blocked",
+          "blockedBy": "D1 final-code WebKit plus full inherited suite",
+          "transferredFromTaskAfterRelease": "shared-form-select"
+        },
+        "27": {
+          "reservationState": "blocked",
+          "blockedBy": "D1 final-code WebKit plus full inherited suite",
+          "transferredFromTaskAfterRelease": "shared-form-select"
+        },
+        "28": {
+          "reservationState": "blocked",
+          "blockedBy": "D1 final-code WebKit plus full inherited suite",
+          "transferredFromTaskAfterRelease": "shared-form-select"
+        },
         "29": { "reservationState": "planned" },
         "30": { "reservationState": "planned" },
         "31": { "reservationState": "planned" },

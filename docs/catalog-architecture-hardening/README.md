@@ -78,10 +78,10 @@ reset, rebase, cherry-pick, or create another branch to manufacture that equalit
 
 ## Select Branch Exclusion
 
-D1 is satisfied by shared selector merge `78506d525eefcd6410ff0d85a1a020d834f4ab02`, successful
-CloudBase test deployment `026e18b45c2bf8b61d54049e7a58bdf22466bfaa`, and focused live E2E
-passing 9/9. MIUs 26-28 are planned, not active, and still require ordinary dependency and reservation
-checks before activation.
+Shared selector merge `78506d525eefcd6410ff0d85a1a020d834f4ab02`, successful CloudBase test deployment
+`026e18b45c2bf8b61d54049e7a58bdf22466bfaa`, and focused live E2E passing 9/9 are recorded.
+Final-code WebKit validation was unavailable and is not claimed, so D1 remains unsatisfied and MIUs
+26-28 remain blocked.
 
 ## Completion
 

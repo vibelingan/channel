@@ -523,13 +523,12 @@ function validateRegistryShape(root, task, registry, issues) {
   }
   if (
     task.miuReservationStates?.['01']?.reservationState === 'released' &&
-    task.currentMiu == null &&
-    task.miuReservationStates?.['02']?.reservationState !== 'planned'
+    !['planned', 'active', 'released'].includes(task.miuReservationStates?.['02']?.reservationState)
   ) {
     issues.push(
       issue(
         ISSUE_CODES.NEXT_MIU_STATE_MISMATCH,
-        'MIU 02 must remain planned when MIU 01 closes; activation is a separate step',
+        'MIU 02 must be planned, active, or released after MIU 01 closes',
         'MIU 02',
       ),
     );

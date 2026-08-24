@@ -994,6 +994,30 @@ fixtureTest(
 );
 
 fixtureTest(
+  'allows MIU 02 release after a valid activation',
+  () => ({
+    task: baseTask({
+      currentMiu: null,
+      activeExactReservations: [],
+      activeReservationPurpose: '',
+      miuFilePlans: {
+        '01': ['scripts/verify-catalog-architecture.mjs'],
+        '02': ['packages/shared/src/catalog/index.ts'],
+        '03': ['packages/shared/src/catalog/normalize-public-product.ts'],
+      },
+      miuTypes: { '01': 'new-file', '02': 'new-file', '03': 'new-file' },
+      miuDependencies: { '01': [], '02': ['01'], '03': ['02'] },
+      miuReservationStates: {
+        '01': { reservationState: 'released', previousReservationState: 'active' },
+        '02': { reservationState: 'released', previousReservationState: 'active' },
+        '03': { reservationState: 'planned' },
+      },
+    }),
+  }),
+  (issues) => assert.ok(!codes(issues).includes(ISSUE_CODES.NEXT_MIU_STATE_MISMATCH)),
+);
+
+fixtureTest(
   'discovers a second Catalog knowledge authority from Markdown paths',
   () => ({
     config: baseConfig({

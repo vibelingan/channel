@@ -46,10 +46,10 @@ flowchart TD
 
 ## External Gates
 
-- **D1 Select merge (satisfied; MIU-scoped, not a task dependency):** merge
+- **D1 Select merge (partially evidenced; MIU-scoped, not a task dependency):** merge
   `78506d525eefcd6410ff0d85a1a020d834f4ab02` is on `origin/main`, test deployment
   `026e18b45c2bf8b61d54049e7a58bdf22466bfaa` succeeded, and focused live E2E passed 9/9.
-  MIUs 26-28 are planned but inactive; they never claim Select files.
+  Final-code WebKit validation was unavailable and is not claimed, so MIUs 26-28 remain blocked.
 - **D2 sole LIVE mutation:** immediately after MIU 45's workflow, manifest, deploy, and smoke code are
   independently reviewed and pushed, and immediately before MIU 46, a human approves the immutable
   manifest's reviewed implementation SHA and rollback SHA plus `confirm_live`. Production, self-report-only
@@ -57,7 +57,7 @@ flowchart TD
 
 ## Reservation Lifecycle
 
-- No MIU or exact file is active. MIU 01 is released; every future MIU remains planned until activation.
+- No MIU or exact file is active. MIUs 01-02 are released; MIU 03 is planned, while MIUs 26-28 remain blocked by D1.
 - Activation follows `TASK_REGISTRY.json`: verify dependencies, gates, live refs/worktrees, and zero
   conflicting active owner claims, then atomically mark one MIU `active`. Completion marks it `released`
   before any explicit successor transfer activates.
@@ -583,7 +583,7 @@ flowchart TD
 - **Files:** `apps/site/src/islands/admin/RecordForm.tsx`, `apps/site/src/islands/admin/CollectionView.tsx`, `apps/site/src/islands/admin/product-form.test.ts`
 - **Type:** refactor
 - **Depends on:** MIU 22 and external D1
-- **Reservation state:** `planned`; D1 is satisfied, but ordinary MIU 22 dependency and activation checks still apply.
+- **Reservation state:** `blocked`; the merge/deploy/Chromium evidence is recorded, but final-code WebKit remains outstanding.
 - **What it does:**
   - Applies only controlled updates against final merged `Select.tsx`; parent prefill/change/reset and required
     validation/focus map to MIU 02's canonical family, and Headphones-to-other clears category once.
