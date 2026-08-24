@@ -53,7 +53,7 @@
         "packages/shared/src/catalog/normalize-public-product.test.ts",
         "packages/shared/src/catalog-product.ts"
       ],
-      "activeReservationPurpose": "MIU 03 governance correction: establish the omitted tracked activation before release.",
+      "activeReservationPurpose": "MIU 03 governance correction and review validation: establish omitted activation evidence and prove nested output independence before release.",
       "externalGates": {
         "D1": {
           "scope": ["26", "27", "28"],

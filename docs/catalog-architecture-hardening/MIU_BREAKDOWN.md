@@ -57,7 +57,8 @@ flowchart TD
 
 ## Reservation Lifecycle
 
-- No MIU or exact file is active. MIUs 01-02 are released; MIU 03 is planned, while MIUs 26-28 remain blocked by D1.
+- MIU 03 is active only for governance correction and review validation; its three exact owner files are
+  reserved. MIUs 01-02 are released, MIU 04 remains planned, and MIUs 26-28 remain blocked by D1.
 - Activation follows `TASK_REGISTRY.json`: verify dependencies, gates, live refs/worktrees, and zero
   conflicting active owner claims, then atomically mark one MIU `active`. Completion marks it `released`
   before any explicit successor transfer activates.
