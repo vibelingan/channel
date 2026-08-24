@@ -135,10 +135,10 @@ flowchart TD
 ## MIU 4: Schema-checked Public API projection
 
 - **Block:** BACKEND
-- **Files:** `apps/functions/public-api/src/catalog/project-public-product.ts`, `apps/functions/public-api/src/handler.ts`, `apps/functions/public-api/src/handler.test.ts`
+- **Files:** `apps/functions/public-api/src/catalog/project-public-product.ts`, `apps/functions/public-api/src/handler.ts`, `apps/functions/public-api/src/handler.test.ts`, `packages/shared/package.json`
 - **Type:** refactor
 - **Depends on:** MIUs 02, 03
-- **Reservation state:** `planned`.
+- **Reservation state:** `active`; `packages/shared/package.json` transfers from released MIU 02 to expose MIU 03's normalizer without a deep import or module cycle.
 - **What it does:**
   - Implements `projectPublicProduct(row): PublicProduct | null`, consuming MIU 02's schema/envelope from
     `packages/shared/src/catalog/index.ts` and MIU 03's normalizer for list/ID/slug paths.

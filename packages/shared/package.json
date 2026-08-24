@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./api": "./src/api.ts",
     "./catalog": "./src/catalog/index.ts",
+    "./catalog/normalize-public-product": "./src/catalog/normalize-public-product.ts",
     "./errors": "./src/errors.ts",
     "./env": "./src/env.ts",
     "./collections": "./src/collections.ts",
