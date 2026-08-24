@@ -891,6 +891,36 @@ fixtureTest(
 );
 
 fixtureTest(
+  'rejects D2 approval whose implementation or rollback SHA is not pushed',
+  () => ({
+    task: baseTask({
+      currentMiu: '46',
+      activeExactReservations: ['deploy-evidence.md'],
+      externalGates: {
+        D1: { scope: ['26', '27', '28'], taskLevelDependency: false },
+        D2: {
+          scope: ['46'],
+          taskLevelDependency: false,
+          confirmLive: true,
+          approvedImplementationSha: 'unpushed-implementation',
+          approvedRollbackSha: 'unpushed-rollback',
+        },
+      },
+      miuFilePlans: { '01': ['one.ts'], '02': ['two.ts'], 46: ['deploy-evidence.md'] },
+      miuTypes: { '01': 'new-file', '02': 'new-file', 46: 'modify-existing' },
+      miuDependencies: { '01': [], '02': ['01'], 46: ['02'] },
+      miuReservationStates: {
+        '01': { reservationState: 'released', previousReservationState: 'active' },
+        '02': { reservationState: 'released', previousReservationState: 'active' },
+        46: { reservationState: 'active', previousReservationState: 'planned' },
+      },
+    }),
+    files: { 'deploy-evidence.md': '# deploy\n' },
+  }),
+  (issues) => assert.ok(codes(issues).includes(ISSUE_CODES.UNSATISFIED_EXTERNAL_GATE)),
+);
+
+fixtureTest(
   'rejects removing permanent compatibility owners or underscore references',
   () => ({
     task: baseTask({ permanentCompatibilityOwner: { files: [], permanentReadOnlyReferences: [] } }),
@@ -1051,4 +1081,22 @@ test('git remote probing applies a bounded timeout', () => {
   });
   probe.remoteSha('origin/refactor/catalog-architecture-hardening');
   assert.equal(calls[0].options.timeout, 10_000);
+});
+
+test('git remote probing fetches a newly observed remote commit before ancestry checks', () => {
+  const calls = [];
+  let objectChecks = 0;
+  const probe = createGitProbe('/repo', {
+    exec(command, args) {
+      calls.push([command, ...args]);
+      if (args[0] === 'ls-remote') {
+        return 'remote-sha\trefs/heads/refactor/catalog-architecture-hardening\n';
+      }
+      if (args[0] === 'cat-file' && objectChecks++ === 0) throw new Error('object missing');
+      return '';
+    },
+  });
+  assert.equal(probe.remoteSha('origin/refactor/catalog-architecture-hardening'), 'remote-sha');
+  assert.ok(calls.some((call) => call[1] === 'fetch'));
+  assert.equal(objectChecks, 2);
 });

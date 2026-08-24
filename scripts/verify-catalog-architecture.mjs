@@ -1142,12 +1142,14 @@ function validateExternalGates(task, gitProbe, issues) {
   if (d2Unblocked) {
     const implementationSha = deployGate.approvedImplementationSha;
     const rollbackSha = deployGate.approvedRollbackSha;
+    const remoteHead = gitProbe.remoteSha(task.remoteBranch);
     if (
       deployGate.confirmLive !== true ||
       !implementationSha ||
       !rollbackSha ||
-      !gitProbe.isAncestor(implementationSha, implementationSha) ||
-      !gitProbe.isAncestor(rollbackSha, rollbackSha)
+      !remoteHead ||
+      !gitProbe.isAncestor(implementationSha, remoteHead) ||
+      !gitProbe.isAncestor(rollbackSha, remoteHead)
     ) {
       issues.push(
         issue(
@@ -1216,6 +1218,18 @@ export function createGitProbe(root, options = {}) {
       return '';
     }
   }
+  function succeeds(args) {
+    try {
+      execute('git', args, {
+        cwd: root,
+        stdio: 'ignore',
+        timeout: timeoutMs,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
   return {
     localSha(branch) {
       return run(['rev-parse', '--verify', `refs/heads/${branch}`]) || null;
@@ -1226,19 +1240,19 @@ export function createGitProbe(root, options = {}) {
       const remote = slash < 0 ? 'origin' : normalizedRemote.slice(0, slash);
       const branch = slash < 0 ? normalizedRemote : normalizedRemote.slice(slash + 1);
       const live = run(['ls-remote', '--heads', remote, branch]);
-      return live.split(/\s+/)[0] || null;
+      const liveSha = live.split(/\s+/)[0];
+      if (!liveSha) return null;
+      if (!succeeds(['cat-file', '-e', `${liveSha}^{commit}`])) {
+        if (!succeeds(['fetch', '--no-tags', '--quiet', '--no-write-fetch-head', remote, branch])) {
+          return null;
+        }
+        if (!succeeds(['cat-file', '-e', `${liveSha}^{commit}`])) return null;
+      }
+      return liveSha;
     },
     isAncestor(ancestor, descendant) {
       if (!ancestor || !descendant) return false;
-      try {
-        execFileSync('git', ['merge-base', '--is-ancestor', ancestor, descendant], {
-          cwd: root,
-          stdio: 'ignore',
-        });
-        return true;
-      } catch {
-        return false;
-      }
+      return succeeds(['merge-base', '--is-ancestor', ancestor, descendant]);
     },
     worktrees() {
       const output = run(['worktree', 'list', '--porcelain']);
