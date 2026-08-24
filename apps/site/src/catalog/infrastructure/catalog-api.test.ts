@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   createCurrentPublicProducts,
+  createOldestHeadphonesPublicProduct,
   createPublicCatalogPage,
 } from '../../test/factories/catalog.ts';
 import { fetchCatalogPage } from './catalog-api.ts';
@@ -75,4 +76,28 @@ test('rejects role-gated fields outside the PublicProduct base contract', async 
   });
 
   await assert.rejects(fetchCatalogPage(), /Invalid catalog response/);
+});
+
+test('decodes the oldest Headphones fixture and normalizes only API media URLs', async (t) => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    Response.json({
+      ok: true,
+      data: createPublicCatalogPage({
+        items: [
+          createOldestHeadphonesPublicProduct({
+            images: ['api/images/legacy-1', 'https://cdn.example.test/legacy-2.webp'],
+          }),
+        ],
+      }),
+    });
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const page = await fetchCatalogPage();
+  assert.deepEqual(page.items[0]?.images, [
+    '/api/images/legacy-1',
+    'https://cdn.example.test/legacy-2.webp',
+  ]);
 });
