@@ -117,3 +117,57 @@ test('invalid link identity fails closed to Alibaba unavailable', () => {
     mode: 'unavailable',
   });
 });
+
+test('rejects malformed timestamps and contradictory mode fields', () => {
+  for (const provider of [
+    { ...base, syncedAt: 'yesterday', mode: 'negotiable' },
+    { ...base, sourceUpdatedAt: '2026-08-25 00:00:00', mode: 'negotiable' },
+    {
+      ...base,
+      mode: 'fixed',
+      currency: 'USD',
+      amountMinor: 250,
+      minAmountMinor: 100,
+    },
+    {
+      ...base,
+      mode: 'tiered',
+      currency: 'USD',
+      sourceMoq: 50,
+      tiers: [{ minQuantity: 100, unitAmountMinor: 250 }],
+    },
+    {
+      ...base,
+      mode: 'tiered',
+      currency: 'USD',
+      tiers: [
+        { minQuantity: 1, unitAmountMinor: 250 },
+        { minQuantity: 10, unitAmountMinor: 200 },
+      ],
+    },
+  ]) {
+    assert.deepEqual(adapter.resolve('linked', provider), {
+      source: 'alibaba',
+      state: 'unavailable',
+      mode: 'unavailable',
+    });
+  }
+});
+
+test('tier decisions do not alias provider arrays or tier objects', () => {
+  const provider = {
+    ...base,
+    mode: 'tiered',
+    currency: 'USD',
+    tiers: [{ minQuantity: 1, unitAmountMinor: 250 }],
+  } as const;
+  const decision = adapter.resolve('linked', provider);
+  assert.equal(decision.state, 'available');
+  if (decision.state !== 'available' || decision.mode !== 'tiered') return;
+  assert.notEqual(decision.tiers, provider.tiers);
+  assert.notEqual(decision.tiers[0], provider.tiers[0]);
+  const firstTier = decision.tiers[0];
+  assert.ok(firstTier);
+  firstTier.unitAmountMinor = 100;
+  assert.equal(provider.tiers[0]?.unitAmountMinor, 250);
+});

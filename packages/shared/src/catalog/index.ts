@@ -12,50 +12,19 @@
 import { z } from 'zod';
 import { PRODUCT_FAMILY_OPTIONS } from '../catalog-product.ts';
 import { manualCatalogPricingSchema } from '../manual-catalog-pricing.ts';
+import { alibabaCatalogPricingSchema } from './alibaba-pricing-adapter.ts';
 
 export {
+  ALIBABA_CATALOG_PRICING_SCHEMA_VERSION,
   type AlibabaPricingAdapter,
   type AlibabaPricingDecision,
+  alibabaCatalogPricingSchema,
   createAlibabaPricingAdapter,
 } from './alibaba-pricing-adapter.ts';
-
-export const ALIBABA_CATALOG_PRICING_SCHEMA_VERSION = 'alibaba-catalog-pricing-v1';
 
 const nonEmptyString = z.string().trim().min(1);
 const nonNegativeInt = z.number().int().nonnegative().finite();
 const nonNegativeNumber = z.number().nonnegative().finite();
-const minorAmount = z.number().int().nonnegative().safe();
-const positiveSafeInt = z.number().int().positive().safe();
-
-const alibabaPricingTierSchema = z
-  .object({
-    minQuantity: positiveSafeInt,
-    maxQuantity: positiveSafeInt.optional(),
-    unitAmountMinor: minorAmount,
-  })
-  .strict();
-
-/**
- * Public sub-projection of Alibaba-linked pricing. Supplier offer identifiers
- * (sourceOfferKey/sourceProductId/sourceSkuId) are stripped server-side and are
- * therefore rejected here — a visitor must never locate the source listing and
- * buy direct (docs/alibaba-linked-catalog-sync).
- */
-export const alibabaCatalogPricingSchema = z
-  .object({
-    schemaVersion: z.literal(ALIBABA_CATALOG_PRICING_SCHEMA_VERSION),
-    source: z.literal('alibaba'),
-    currency: z.enum(['CNY', 'USD']).optional(),
-    mode: z.enum(['fixed', 'range', 'tiered', 'negotiable', 'unavailable']),
-    amountMinor: minorAmount.optional(),
-    minAmountMinor: minorAmount.optional(),
-    maxAmountMinor: minorAmount.optional(),
-    tiers: z.array(alibabaPricingTierSchema).optional(),
-    sourceMoq: positiveSafeInt.optional(),
-    sourceUpdatedAt: z.string().optional(),
-    syncedAt: z.string().min(1),
-  })
-  .strict();
 
 /**
  * Strict public product contract. `_id`, `name`, and the canonical
