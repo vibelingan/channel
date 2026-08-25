@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening MIU Breakdown
 
-Status: published; MIUs 01-05 released; MIU 06 active for local validation; MIU 07 planned and inactive.
+Status: published; MIUs 01-06 released; MIU 07 planned and inactive.
 
 ```mermaid
 flowchart TD
@@ -57,8 +57,8 @@ flowchart TD
 
 ## Reservation Lifecycle
 
-- MIU 06 is active for local shared/site validation with three exact owner files. MIUs 01-05 are released,
-  MIU 07 remains planned, and MIUs 26-28 remain blocked by D1.
+- No MIU or exact file is active. MIUs 01-06 are released, MIU 07 remains planned, and MIUs 26-28 remain
+  blocked by D1.
 - Activation follows `TASK_REGISTRY.json`: verify dependencies, gates, live refs/worktrees, and zero
   conflicting active owner claims, then atomically mark one MIU `active`. Completion marks it `released`
   before any explicit successor transfer activates.
@@ -179,7 +179,7 @@ flowchart TD
 - **Files:** `packages/shared/src/catalog/alibaba-pricing-adapter.ts`, `packages/shared/src/catalog/alibaba-pricing-adapter.test.ts`, `packages/shared/src/catalog/index.ts`
 - **Type:** new-file
 - **Depends on:** MIU 02
-- **Reservation state:** `active`; `packages/shared/src/catalog/index.ts` transfers from released MIU 02 and transfers next to MIU 07 after release.
+- **Reservation state:** `released`; previous state `active`. `packages/shared/src/catalog/index.ts` transferred from MIU 02 and transfers next to MIU 07 after release.
 - **What it does:**
   - Defines `AlibabaPricingAdapter.resolve(link, provider): AlibabaPricingDecision` with available,
     unavailable, and quote states normalized from current provider fields.
