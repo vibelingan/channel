@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening Handoff
 
-Status: 49-MIU packet published; MIUs 01-08 released; MIU 09 active for local validation; MIU 10 planned and inactive.
+Status: 49-MIU packet published; MIUs 01-09 released; MIU 10 planned and inactive.
 Branch: `refactor/catalog-architecture-hardening`
 Planning packet SHA: `bc1e69e25e9e8d453584be0fde9279f7bdf0c006`.
 
@@ -68,8 +68,8 @@ reset, rebase, cherry-pick, or create another branch to manufacture that equalit
 - Active `/headphones` remains built and must return 200. Targeted pruning preserves the real deploy
 	contract: `/overstock`, `/overstock-item`, temporarily hidden `/teardown-lab` and `/blue-ocean`, and
 	the existing retired media allowlist. Route smoke enumerates each status; no blanket delete is allowed.
-- MIU 09 is active for local validation with three exact owner files. Future MIU plans have lifecycle
-	state and exact owner files, with references/transfers for sequential reuse.
+- No MIU or exact file is active. Future MIU plans have lifecycle state and exact owner files, with
+	references/transfers for sequential reuse.
 - MIUs 39-43 separately own the real deploy script modification, its new test, the existing smoke script
 	modification, its new test, and the new browser smoke. MIU 44 produces and validates the immutable
 	`RELEASE_MANIFEST.json`; MIU 45 consumes it before credentials, disables push deployment, and owns the
