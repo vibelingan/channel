@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-08 released; MIU 09 planned and inactive.
+Status: MIUs 01-08 released; MIU 09 implemented and active for local validation; MIU 10 planned and inactive.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implementation`.
 
-**Current/next MIU:** No MIU is active. MIUs 01-08 are released; MIU 09 requires separate activation.
+**Current/next MIU:** MIU 09 is active for local hydrated/SSR validation only. MIU 10 remains planned and inactive.
 
 ## Git Truth
 
@@ -27,6 +27,8 @@ Branch: `refactor/catalog-architecture-hardening`
   No CloudBase deployment was run.
 - MIU 08 TDD activation `4e9b5ca`, implementation `d9decd4`, and reviewed active head `aa18b0a` were pushed.
   No CloudBase deployment was run.
+- MIU 09 implementation is `449469d`; corrective tracked activation follows because its TDD activation
+  files were not committed before implementation. Both remain local until review and push.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -34,8 +36,19 @@ Branch: `refactor/catalog-architecture-hardening`
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. No MIU or exact file is active; future MIU file plans remain
-`planned|blocked` claims. Activation is one MIU at a time.
+rather than trusted from JSON strings. MIU 09 actively reserves its three exact owner files; other MIU
+file plans remain `planned|blocked` claims. Activation is one MIU at a time.
+
+## MIU 09 Local Validation
+
+- Focused grid/source suite: 11/11 pass; full site suite: 213/213 pass.
+- Site typecheck: 0 errors; production Astro build: 15 pages; Biome and architecture verifier: pass.
+- Fixed/range/tiered/manual/scalar/quote/unavailable output parity is preserved.
+- Grid source contains no independent pricing precedence or legacy helper calls; MOQ reads the decision.
+- CloudBase test deployment: not run and not authorized for MIU 09.
+
+Deviation: MIU 09's implementation commit preceded its tracked activation commit. The exact three-file
+reservation is established in a separate corrective commit before source publication and release.
 
 ## MIU 08 Local Validation
 
