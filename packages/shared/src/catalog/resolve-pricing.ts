@@ -1,4 +1,7 @@
-import type { ManualCatalogPricing } from '../manual-catalog-pricing.ts';
+import {
+  type ManualCatalogPricing,
+  validateManualCatalogPricing,
+} from '../manual-catalog-pricing.ts';
 import type { AlibabaPricingAdapter, AlibabaPricingDecision } from './alibaba-pricing-adapter.ts';
 
 export interface CatalogPricingInput {
@@ -21,8 +24,27 @@ export type CatalogPricingDecision =
   | { source: 'quote-required' };
 
 export function resolveCatalogPricing(
-  _product: CatalogPricingInput,
-  _alibabaAdapter: AlibabaPricingAdapter,
+  product: CatalogPricingInput,
+  alibabaAdapter: AlibabaPricingAdapter,
 ): CatalogPricingDecision {
-  throw new Error('MIU 07 catalog pricing resolver not implemented');
+  if (Object.hasOwn(product, 'alibabaPrimarySourceKey')) {
+    return {
+      source: 'alibaba',
+      pricing: alibabaAdapter.resolve(
+        product.alibabaPrimarySourceKey,
+        product.alibabaCatalogPricing,
+      ),
+    };
+  }
+
+  const manual = validateManualCatalogPricing(product.manualCatalogPricing);
+  if (manual.ok) return { source: 'manual-tiered', pricing: manual.value };
+
+  for (const field of ['wholesalePrice', 'unitPrice'] as const) {
+    const amount = product[field];
+    if (typeof amount === 'number' && Number.isFinite(amount) && amount >= 0) {
+      return { source: 'scalar', field, amount, currency: 'USD' };
+    }
+  }
+  return { source: 'quote-required' };
 }
