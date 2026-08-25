@@ -92,15 +92,16 @@ const event = await store.appendEventFenced({
 ### Risk / test
 
 Tests are written against the public store and HTTP seams. They prove migration
-rollback, direct-writer constraint rejection, concurrent gapless append,
+idempotence, direct-writer constraint rejection, concurrent gapless append,
 idempotent message replay, credential scope/expiry, CORS refusal and SSE resume.
 
 Commands:
 
 ```bash
+AI_POSTGRES_PORT=55433 docker compose -f docker-compose.ai.yml stop ai-worker
 DATABASE_URL=postgres://ai:ai@localhost:55433/ai_assistant pnpm --filter @vibelingan-channel/ai-store test
-pnpm --filter @vibelingan-channel/ai-bff test
-docker compose -f docker-compose.ai.yml up --build
+DATABASE_URL=postgres://ai:ai@localhost:55433/ai_assistant pnpm test:ai:runtime
+AI_POSTGRES_PORT=55433 docker compose -f docker-compose.ai.yml up -d --no-build ai-worker
 ```
 
 ### Business correction

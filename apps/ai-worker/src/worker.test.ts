@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
 import { FakeEngine } from '@vibelingan-channel/ai-engine/fake';
-import { AiStore, migrateDown, migrateUp } from '@vibelingan-channel/ai-store';
+import { AiStore, migrateUp } from '@vibelingan-channel/ai-store';
 import {
   type WorkerConfig,
   processOne,
@@ -42,7 +42,6 @@ test('worker refuses a knowledge credential whose attested identity drifts', asy
 
 before(async () => {
   if (!store) return;
-  await migrateDown(store.pool);
   await migrateUp(store.pool);
 });
 
@@ -55,7 +54,9 @@ beforeEach(async () => {
 
 after(async () => {
   if (!store) return;
-  await migrateDown(store.pool);
+  await store.pool.query(
+    'TRUNCATE ai_rate_limit_buckets, audit_events, outbox, leads, conversation_events, conversation_messages, engine_run_handles, conversation_credentials, conversations, ai_runs RESTART IDENTITY CASCADE',
+  );
   await store.close();
 });
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
-import { migrateDown, migrateUp } from './migrations.ts';
+import { migrateUp } from './migrations.ts';
 import { AiStore } from './store.ts';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -9,7 +9,6 @@ const store = databaseUrl ? new AiStore(databaseUrl, 20) : null;
 
 before(async () => {
   if (!store) return;
-  await migrateDown(store.pool);
   await migrateUp(store.pool);
 });
 
@@ -22,11 +21,13 @@ beforeEach(async () => {
 
 after(async () => {
   if (!store) return;
-  await migrateDown(store.pool);
+  await store.pool.query(
+    'TRUNCATE ai_rate_limit_buckets, audit_events, outbox, leads, conversation_events, conversation_messages, engine_run_handles, conversation_credentials, conversations, ai_runs RESTART IDENTITY CASCADE',
+  );
   await store.close();
 });
 
-test('migration applies once and rollback removes the schema', { skip }, async () => {
+test('migration is idempotent and leaves the runtime schema available', { skip }, async () => {
   assert.ok(store);
   await migrateUp(store.pool);
   const applied = await store.pool.query(

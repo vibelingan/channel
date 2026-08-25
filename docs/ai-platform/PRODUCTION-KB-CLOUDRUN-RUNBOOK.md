@@ -147,12 +147,18 @@ version and digest.
 
 ```bash
 DATABASE_URL=postgres://ai:ai@localhost:55433/ai_assistant pnpm test:ai:store
+AI_POSTGRES_PORT=55433 docker compose -f docker-compose.ai.yml stop ai-worker
 DATABASE_URL=postgres://ai:ai@localhost:55433/ai_assistant pnpm test:ai:runtime
+AI_POSTGRES_PORT=55433 docker compose -f docker-compose.ai.yml up -d --no-build ai-worker
 ```
 
+The runtime contract tests truncate their target database between cases. Use a
+dedicated test database in shared environments. For this single-machine setup,
+pause the local worker as shown so it cannot compete for test outbox rows; the
+tests keep the migrated schema in place and the worker is restarted afterward.
+
 Observed S0-S11 all passed, including READ COMMITTED, blocked conditional-update
-predicate re-evaluation, rollback, partial uniqueness and multi-statement
-transactions.
+predicate re-evaluation, partial uniqueness and multi-statement transactions.
 
 `packages/ai-store/src/migrations` is now the durable schema source of truth.
 The BFF and worker apply it idempotently at startup; the CLI provides explicit

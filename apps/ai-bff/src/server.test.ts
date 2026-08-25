@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { after, before, beforeEach, test } from 'node:test';
-import { AiStore, migrateDown, migrateUp } from '@vibelingan-channel/ai-store';
+import { AiStore, migrateUp } from '@vibelingan-channel/ai-store';
 import { type AiBffConfig, createAiBffServer } from './server.ts';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -25,7 +25,6 @@ let baseUrl = '';
 
 before(async () => {
   if (!store || !server) return;
-  await migrateDown(store.pool);
   await migrateUp(store.pool);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address() as AddressInfo;
@@ -44,7 +43,9 @@ after(async () => {
   await new Promise<void>((resolve, reject) =>
     server.close((error) => (error ? reject(error) : resolve())),
   );
-  await migrateDown(store.pool);
+  await store.pool.query(
+    'TRUNCATE ai_rate_limit_buckets, audit_events, outbox, leads, conversation_events, conversation_messages, engine_run_handles, conversation_credentials, conversations, ai_runs RESTART IDENTITY CASCADE',
+  );
   await store.close();
 });
 
