@@ -6,6 +6,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import type { CatalogContent, CatalogFamilyContent } from '../../i18n/catalog.ts';
+import { DEFAULT_ALIBABA_PRICING_LABELS } from './AlibabaCatalogPricingBlock.tsx';
 import {
   CatalogFamilyGrid,
   catalogProductPrice,
@@ -35,6 +36,14 @@ const parse = (fileName: string) => {
   assert.deepEqual(result.diagnostics ?? [], [], `${fileName} parses`);
   return source;
 };
+
+function sourceBetween(source: string, start: string, end: string): string {
+  const startAt = source.indexOf(start);
+  const endAt = source.indexOf(end, startAt);
+  assert.ok(startAt >= 0, `missing source boundary: ${start}`);
+  assert.ok(endAt > startAt, `missing source boundary: ${end}`);
+  return source.slice(startAt, endAt);
+}
 
 const family: CatalogFamilyContent = {
   key: 'headphones',
@@ -155,9 +164,105 @@ test('family cards choose source, public, or quote pricing and require usable sl
     catalogProductPrice({ _id: 'quote', name: 'Quote' }, 'Request a Quote'),
     'Request a Quote',
   );
+  assert.equal(
+    catalogProductPrice(
+      {
+        _id: 'range',
+        name: 'Range',
+        alibabaPrimarySourceKey: 'linked',
+        alibabaCatalogPricing: {
+          schemaVersion: 'alibaba-catalog-pricing-v1',
+          source: 'alibaba',
+          mode: 'range',
+          currency: 'CNY',
+          minAmountMinor: 150,
+          maxAmountMinor: 230,
+          syncedAt: '2026-08-20T00:00:00.000Z',
+        },
+      },
+      'Request a Quote',
+    ),
+    'CN¥1.50 – CN¥2.30',
+  );
+  assert.equal(
+    catalogProductPrice(
+      {
+        _id: 'tiered',
+        name: 'Tiered',
+        alibabaPrimarySourceKey: 'linked',
+        alibabaCatalogPricing: {
+          schemaVersion: 'alibaba-catalog-pricing-v1',
+          source: 'alibaba',
+          mode: 'tiered',
+          currency: 'USD',
+          tiers: [
+            { minQuantity: 50, maxQuantity: 499, unitAmountMinor: 250 },
+            { minQuantity: 500, unitAmountMinor: 115 },
+          ],
+          syncedAt: '2026-08-20T00:00:00.000Z',
+        },
+      },
+      'Request a Quote',
+    ),
+    'From $1.15',
+  );
+  assert.equal(
+    catalogProductPrice(
+      {
+        _id: 'manual',
+        name: 'Manual',
+        manualCatalogPricing: {
+          schemaVersion: 'manual-catalog-pricing-v1',
+          currency: 'USD',
+          tiers: [{ minQuantity: 1, unitAmountMinor: 900 }],
+        },
+        wholesalePrice: 8,
+      },
+      'Request a Quote',
+    ),
+    'From $9.00',
+  );
+  for (const pricing of [
+    undefined,
+    {
+      schemaVersion: 'alibaba-catalog-pricing-v1' as const,
+      source: 'alibaba' as const,
+      mode: 'unavailable' as const,
+      syncedAt: '2026-08-20T00:00:00.000Z',
+    },
+  ]) {
+    assert.equal(
+      catalogProductPrice(
+        {
+          _id: 'linked-unavailable',
+          name: 'Linked Unavailable',
+          alibabaPrimarySourceKey: 'linked',
+          alibabaCatalogPricing: pricing,
+          wholesalePrice: 8,
+        },
+        'Request a Quote',
+      ),
+      DEFAULT_ALIBABA_PRICING_LABELS.unavailableLabel,
+    );
+  }
   assert.equal(hasUsableCatalogSlug({ _id: 'valid', name: 'Valid', slug: ' valid ' }), true);
   assert.equal(hasUsableCatalogSlug({ _id: 'blank', name: 'Blank', slug: '   ' }), false);
   assert.equal(hasUsableCatalogSlug({ _id: 'missing', name: 'Missing' }), false);
+});
+
+test('grid source contains no local pricing precedence or legacy helper calls', () => {
+  const source = read('./CatalogFamilyGrid.tsx');
+  assert.match(source, /resolveCatalogPricing/);
+  assert.doesNotMatch(source, /publicManualPrice|alibabaPriceSummary/);
+  const pricingFunction = sourceBetween(
+    source,
+    'export function catalogProductPrice',
+    'export function CatalogFamilyGrid',
+  );
+  assert.doesNotMatch(
+    pricingFunction,
+    /alibabaPrimarySourceKey|manualCatalogPricing|wholesalePrice|unitPrice/,
+  );
 });
 
 test('family controller owns family/filter/search generation resets and abortable fetches', () => {
@@ -230,8 +335,8 @@ test('family grid source keeps public card fields and excludes VIP and video', (
   assert.match(source, /data-product-card=\{product\._id\}/);
   assert.match(source, /onOpenProduct\(product\._id\)/);
   assert.match(source, /ProductMedia/);
-  assert.match(source, /alibabaPriceSummary/);
-  assert.match(source, /publicManualPrice/);
+  assert.match(source, /resolveCatalogPricing/);
+  assert.match(source, /pricingDecisionLabel/);
   assert.match(source, /quote/iu);
   assert.match(source, /initial-error/);
   assert.match(source, /loading-initial/);

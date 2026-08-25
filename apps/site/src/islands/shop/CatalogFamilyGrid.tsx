@@ -1,12 +1,16 @@
+import {
+  type CatalogPricingDecision,
+  createAlibabaPricingAdapter,
+  resolveCatalogPricing,
+} from '@vibelingan-channel/shared/catalog';
 import type { CatalogContent, CatalogFamilyContent } from '../../i18n/catalog.ts';
 import {
   DEFAULT_ALIBABA_PRICING_LABELS,
-  alibabaPriceSummary,
+  formatMinorAmount,
 } from './AlibabaCatalogPricingBlock.tsx';
 import { ProductMedia } from './ProductMedia.tsx';
 import { quantityTierPriceSummary } from './QuantityTierPricingBlock.tsx';
 import { formatPrice } from './api.ts';
-import { publicManualPrice } from './catalog-pricing.ts';
 import type { Product } from './catalog-types.ts';
 import { type HeadphonesCatalogState, hasMoreProducts } from './headphonesCatalogState.ts';
 
@@ -24,6 +28,40 @@ interface Props {
 }
 
 const SKELETON_KEYS = ['family-1', 'family-2', 'family-3', 'family-4'] as const;
+const alibabaAdapter = createAlibabaPricingAdapter();
+
+function pricingDecision(product: Product): CatalogPricingDecision {
+  return resolveCatalogPricing(product, alibabaAdapter);
+}
+
+function pricingDecisionLabel(decision: CatalogPricingDecision, quoteLabel: string): string {
+  switch (decision.source) {
+    case 'alibaba':
+      if (decision.pricing.state !== 'available') {
+        return DEFAULT_ALIBABA_PRICING_LABELS.unavailableLabel;
+      }
+      switch (decision.pricing.mode) {
+        case 'fixed':
+          return formatMinorAmount(decision.pricing.amountMinor, decision.pricing.currency);
+        case 'range':
+          return `${formatMinorAmount(decision.pricing.minAmountMinor, decision.pricing.currency)} – ${formatMinorAmount(decision.pricing.maxAmountMinor, decision.pricing.currency)}`;
+        case 'tiered': {
+          const minimum = Math.min(...decision.pricing.tiers.map((tier) => tier.unitAmountMinor));
+          return `From ${formatMinorAmount(minimum, decision.pricing.currency)}`;
+        }
+      }
+    case 'manual-tiered':
+      return quantityTierPriceSummary(decision.pricing);
+    case 'scalar':
+      return formatPrice(decision.amount);
+    case 'quote-required':
+      return quoteLabel;
+    default: {
+      const exhaustive: never = decision;
+      return exhaustive;
+    }
+  }
+}
 
 export function hasUsableCatalogSlug(product: Product): product is Product & { slug: string } {
   return Boolean(product.slug?.trim());
@@ -45,9 +83,8 @@ function CatalogProductCard({
   onOpenProduct,
 }: { product: Product; content: CatalogContent; onOpenProduct: (productId: string) => void }) {
   const { list, detail } = content;
-  const moq = product.alibabaPrimarySourceKey
-    ? product.alibabaCatalogPricing?.sourceMoq
-    : product.moq;
+  const decision = pricingDecision(product);
+  const moq = decision.source === 'alibaba' ? decision.pricing.sourceMoq : product.moq;
   const identifier = product.skuCode ?? product.modName ?? product.productCode;
   return (
     <button
@@ -81,7 +118,7 @@ function CatalogProductCard({
           </span>
         )}
         <span className="ml-auto text-right font-semibold text-brand-700" data-product-card-price>
-          {catalogProductPrice(product, detail.inquiryCta)}
+          {pricingDecisionLabel(decision, detail.inquiryCta)}
         </span>
       </div>
       {/* The action affordance stays the quietest line in the card: identity reads
@@ -94,15 +131,7 @@ function CatalogProductCard({
 }
 
 export function catalogProductPrice(product: Product, quoteLabel: string): string {
-  if (product.alibabaPrimarySourceKey) {
-    return (
-      alibabaPriceSummary(product.alibabaCatalogPricing) ??
-      DEFAULT_ALIBABA_PRICING_LABELS.unavailableLabel
-    );
-  }
-  if (product.manualCatalogPricing) return quantityTierPriceSummary(product.manualCatalogPricing);
-  const publicPrice = publicManualPrice(product);
-  return publicPrice === undefined ? quoteLabel : formatPrice(publicPrice);
+  return pricingDecisionLabel(pricingDecision(product), quoteLabel);
 }
 
 export function CatalogFamilyGrid({
