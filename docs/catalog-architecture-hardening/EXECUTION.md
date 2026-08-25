@@ -27,8 +27,8 @@ Branch: `refactor/catalog-architecture-hardening`
   No CloudBase deployment was run.
 - MIU 08 TDD activation `4e9b5ca`, implementation `d9decd4`, and reviewed active head `aa18b0a` were pushed.
   No CloudBase deployment was run.
-- MIU 09 implementation is `449469d`; corrective tracked activation follows because its TDD activation
-  files were not committed before implementation. Both remain local until review and push.
+- MIU 09 implementation is `449469d`; corrective tracked activation is `0d2929a` because its TDD
+  activation files were not committed before implementation. Both remain local until review and push.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
