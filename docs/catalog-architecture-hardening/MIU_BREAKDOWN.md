@@ -220,7 +220,7 @@ flowchart TD
 - **Files:** `apps/site/src/islands/shop/catalog-pricing.ts`, `apps/site/src/islands/shop/alibaba-catalog-pricing.test.ts`
 - **Type:** refactor
 - **Depends on:** MIU 07
-- **Reservation state:** `planned`.
+- **Reservation state:** `active`; local compatibility validation only.
 - **What it does:**
   - Reimplements current exported helpers as thin adapters over `resolveCatalogPricing` from
     `packages/shared/src/catalog/resolve-pricing.ts`, preserving signatures while call sites migrate.

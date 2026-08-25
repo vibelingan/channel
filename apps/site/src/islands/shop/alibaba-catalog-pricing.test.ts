@@ -12,6 +12,8 @@ import {
   alibabaPriceSummary,
   formatMinorAmount,
 } from './AlibabaCatalogPricingBlock.tsx';
+import { publicManualPrice, validAlibabaTiers, validMinorAmount } from './catalog-pricing.ts';
+import type { AlibabaCatalogPricing, Product } from './catalog-types.ts';
 
 const renderBlock = (props: Parameters<typeof AlibabaCatalogPricingBlock>[0]): string =>
   renderToStaticMarkup(createElement(AlibabaCatalogPricingBlock, props));
@@ -158,4 +160,81 @@ test('factory defaults: createProduct is unlinked, createAlibabaLinkedProduct is
   const linked = createAlibabaLinkedProduct();
   assert.equal(linked.alibabaPrimarySourceKey?.length, 64);
   assert.equal(linked.alibabaCatalogPricing?.mode, 'fixed');
+});
+
+test('compatibility helpers preserve legacy amount and tier validation outputs', () => {
+  const legacyMinor = (value: unknown): boolean =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+  for (const value of [0, 1, Number.MAX_SAFE_INTEGER, -1, 1.5, Number.NaN, '1', null]) {
+    assert.equal(validMinorAmount(value), legacyMinor(value), String(value));
+  }
+
+  const validTiered = createAlibabaCatalogPricing({
+    mode: 'tiered',
+    sourceMoq: 50,
+    tiers: [
+      { minQuantity: 50, maxQuantity: 499, unitAmountMinor: 250 },
+      { minQuantity: 500, unitAmountMinor: 115 },
+    ],
+  });
+  const invalidTiered = [
+    { ...validTiered, tiers: [] },
+    { ...validTiered, tiers: [{ minQuantity: 1, unitAmountMinor: 1.5 }] },
+    {
+      ...validTiered,
+      tiers: [
+        { minQuantity: 1, unitAmountMinor: 250 },
+        { minQuantity: 10, unitAmountMinor: 200 },
+      ],
+    },
+  ];
+  assert.equal(validAlibabaTiers(validTiered), true);
+  for (const pricing of invalidTiered) assert.equal(validAlibabaTiers(pricing), false);
+});
+
+test('publicManualPrice preserves unlinked scalar compatibility', () => {
+  const legacy = (product: Product): number | undefined => {
+    for (const amount of [product.wholesalePrice, product.unitPrice]) {
+      if (amount !== undefined && Number.isFinite(amount) && amount >= 0) return amount;
+    }
+    return undefined;
+  };
+  for (const product of [
+    createProduct({ wholesalePrice: 0, unitPrice: 12.5 }),
+    createProduct({ wholesalePrice: -1, unitPrice: 12.5 }),
+    createProduct({ wholesalePrice: Number.NaN, unitPrice: Number.POSITIVE_INFINITY }),
+    createProduct({ wholesalePrice: undefined, unitPrice: undefined }),
+    createProduct({
+      manualCatalogPricing: {
+        schemaVersion: 'manual-catalog-pricing-v1',
+        currency: 'USD',
+        tiers: [{ minQuantity: 1, unitAmountMinor: 100 }],
+      },
+      wholesalePrice: 9,
+    }),
+  ]) {
+    assert.equal(publicManualPrice(product), legacy(product));
+  }
+});
+
+test('linked missing or unavailable pricing never exposes manual or scalar display', () => {
+  for (const product of [
+    createAlibabaLinkedProduct({
+      alibabaCatalogPricing: undefined,
+      manualCatalogPricing: {
+        schemaVersion: 'manual-catalog-pricing-v1',
+        currency: 'USD',
+        tiers: [{ minQuantity: 1, unitAmountMinor: 100 }],
+      },
+      wholesalePrice: 9,
+      unitPrice: 12,
+    }),
+    createAlibabaLinkedProduct({
+      alibabaCatalogPricing: createAlibabaCatalogPricing({ mode: 'unavailable' }),
+      wholesalePrice: 9,
+      unitPrice: 12,
+    }),
+  ]) {
+    assert.equal(publicManualPrice(product), undefined);
+  }
 });
