@@ -199,7 +199,7 @@ flowchart TD
 - **Files:** `packages/shared/src/catalog/resolve-pricing.ts`, `packages/shared/src/catalog/resolve-pricing.test.ts`, `packages/shared/src/catalog/index.ts`
 - **Type:** new-file
 - **Depends on:** MIU 06
-- **Reservation state:** `planned`.
+- **Reservation state:** `active`; `packages/shared/src/catalog/index.ts` transfers from released MIU 06.
 - **What it does:**
   - Implements `resolveCatalogPricing(product, alibabaAdapter): CatalogPricingDecision` from the
     `AlibabaPricingDecision` contract in `packages/shared/src/catalog/alibaba-pricing-adapter.ts`, returning

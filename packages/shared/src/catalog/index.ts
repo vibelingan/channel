@@ -21,6 +21,11 @@ export {
   alibabaCatalogPricingSchema,
   createAlibabaPricingAdapter,
 } from './alibaba-pricing-adapter.ts';
+export {
+  type CatalogPricingDecision,
+  type CatalogPricingInput,
+  resolveCatalogPricing,
+} from './resolve-pricing.ts';
 
 const nonEmptyString = z.string().trim().min(1);
 const nonNegativeInt = z.number().int().nonnegative().finite();
