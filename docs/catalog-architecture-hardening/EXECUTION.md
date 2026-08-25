@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-07 released; MIU 08 planned and inactive.
+Status: MIUs 01-07 released; MIU 08 implemented and active for local validation; MIU 09 planned and inactive.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implementation`.
 
-**Current/next MIU:** No MIU is active. MIUs 01-07 are released; MIU 08 requires separate activation.
+**Current/next MIU:** MIU 08 is active for local compatibility validation only. MIU 09 remains planned and inactive.
 
 ## Git Truth
 
@@ -25,6 +25,7 @@ Branch: `refactor/catalog-architecture-hardening`
   No CloudBase deployment was run.
 - MIU 07 TDD activation `f224a13`, implementation `403d8c9`, and reviewed active head `ac861b9` were pushed.
   No CloudBase deployment was run.
+- MIU 08 TDD activation is `4e9b5ca`; implementation is `d9decd4`. Both are local until review and push.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -32,8 +33,17 @@ Branch: `refactor/catalog-architecture-hardening`
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. No MIU or exact file is active; future MIU file plans remain
-`planned|blocked` claims. Activation is one MIU at a time.
+rather than trusted from JSON strings. MIU 08 actively reserves its two exact owner files; other MIU
+file plans remain `planned|blocked` claims. Activation is one MIU at a time.
+
+## MIU 08 Local Validation
+
+- Compatibility suite: 11/11 pass after an observed 10-pass/1-fail TDD baseline.
+- Full site suite: 211/211 pass; all workspace tests and typechecks: pass; production build: 15 pages.
+- Repository Biome and `git diff --check`: pass; architecture verifier has only expected pre-push mismatch.
+- Legacy helper signatures remain available; minor/tier validation and scalar outputs match characterization.
+- Linked missing/unavailable provider decisions expose no manual/scalar display.
+- CloudBase test deployment: not run and not authorized for MIU 08.
 
 ## MIU 07 Local Validation
 
