@@ -46,13 +46,10 @@
       "claimedLocalHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "claimedRemoteHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "status": "implementation-in-progress",
-      "currentMiu": "08",
+      "currentMiu": null,
       "dependencies": [],
-      "activeExactReservations": [
-        "apps/site/src/islands/shop/catalog-pricing.ts",
-        "apps/site/src/islands/shop/alibaba-catalog-pricing.test.ts"
-      ],
-      "activeReservationPurpose": "MIU 08 resolver-backed legacy pricing compatibility bridge; local validation only, no deployment.",
+      "activeExactReservations": [],
+      "activeReservationPurpose": "",
       "externalGates": {
         "D1": {
           "scope": ["26", "27", "28"],
@@ -377,7 +374,7 @@
         "05": { "reservationState": "released", "previousReservationState": "active" },
         "06": { "reservationState": "released", "previousReservationState": "active" },
         "07": { "reservationState": "released", "previousReservationState": "active" },
-        "08": { "reservationState": "active", "previousReservationState": "planned" },
+        "08": { "reservationState": "released", "previousReservationState": "active" },
         "09": { "reservationState": "planned" },
         "10": { "reservationState": "planned" },
         "11": { "reservationState": "planned" },
@@ -675,7 +672,7 @@
           "branchOrPrStatusMayResolveTo": "HEAD"
         }
       },
-      "handoff": "MIUs 01-07 are released. MIU 08 is active for local implementation and validation only; no CloudBase test deployment is authorized."
+      "handoff": "MIUs 01-08 are released with no active exact-file reservation. MIU 09 remains planned and requires separate activation; no CloudBase test deployment was run for MIU 08."
     }
   ]
 }
