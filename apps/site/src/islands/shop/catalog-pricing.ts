@@ -1,3 +1,7 @@
+import {
+  createAlibabaPricingAdapter,
+  resolveCatalogPricing,
+} from '@vibelingan-channel/shared/catalog';
 import type { AlibabaCatalogPricing, Product, ProductFamily } from './catalog-types.ts';
 
 type PublicationCompleteCatalogProduct = Product & {
@@ -8,48 +12,45 @@ type PublicationCompleteCatalogProduct = Product & {
   images: string[];
 };
 
-export function validMinorAmount(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
-}
+const alibabaAdapter = createAlibabaPricingAdapter();
+const VALIDATION_TIMESTAMP = '2026-01-01T00:00:00.000Z';
 
-function validPositiveInteger(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+export function validMinorAmount(value: unknown): value is number {
+  const decision = alibabaAdapter.resolve('validation', {
+    schemaVersion: 'alibaba-catalog-pricing-v1',
+    source: 'alibaba',
+    mode: 'fixed',
+    currency: 'USD',
+    amountMinor: value,
+    syncedAt: VALIDATION_TIMESTAMP,
+  });
+  return decision.state === 'available' && decision.mode === 'fixed';
 }
 
 export function validAlibabaTiers(pricing: AlibabaCatalogPricing): boolean {
-  const tiers = pricing.tiers;
-  if (!Array.isArray(tiers) || tiers.length === 0) return false;
-  for (const [index, tier] of tiers.entries()) {
-    if (
-      !validPositiveInteger(tier.minQuantity) ||
-      !validMinorAmount(tier.unitAmountMinor) ||
-      (tier.maxQuantity !== undefined &&
-        (!validPositiveInteger(tier.maxQuantity) || tier.maxQuantity < tier.minQuantity)) ||
-      (tier.maxQuantity === undefined && index !== tiers.length - 1)
-    ) {
-      return false;
-    }
-    const next = tiers[index + 1];
-    if (
-      next &&
-      (!validPositiveInteger(next.minQuantity) ||
-        next.minQuantity <= tier.minQuantity ||
-        (tier.maxQuantity !== undefined && next.minQuantity <= tier.maxQuantity))
-    ) {
-      return false;
-    }
-  }
-  return (
-    pricing.sourceMoq === undefined ||
-    (validPositiveInteger(pricing.sourceMoq) && tiers[0].minQuantity <= pricing.sourceMoq)
-  );
+  const decision = alibabaAdapter.resolve('validation', {
+    schemaVersion: pricing.schemaVersion,
+    source: pricing.source,
+    mode: 'tiered',
+    currency: pricing.currency,
+    tiers: pricing.tiers,
+    sourceMoq: pricing.sourceMoq,
+    sourceUpdatedAt: pricing.sourceUpdatedAt,
+    syncedAt: pricing.syncedAt,
+  });
+  return decision.state === 'available' && decision.mode === 'tiered';
 }
 
 export function publicManualPrice(product: Product): number | undefined {
-  for (const amount of [product.wholesalePrice, product.unitPrice]) {
-    if (amount !== undefined && Number.isFinite(amount) && amount >= 0) return amount;
-  }
-  return undefined;
+  const decision = resolveCatalogPricing(product, alibabaAdapter);
+  if (decision.source === 'scalar') return decision.amount;
+  if (decision.source !== 'manual-tiered') return undefined;
+
+  const scalarDecision = resolveCatalogPricing(
+    { ...product, manualCatalogPricing: undefined },
+    alibabaAdapter,
+  );
+  return scalarDecision.source === 'scalar' ? scalarDecision.amount : undefined;
 }
 
 export function isPublicationCompleteCatalogProduct(
