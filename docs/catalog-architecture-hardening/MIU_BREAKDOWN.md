@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening MIU Breakdown
 
-Status: published; MIUs 01-08 released; MIU 09 planned and inactive.
+Status: published; MIUs 01-08 released; MIU 09 active for local validation; MIU 10 planned and inactive.
 
 ```mermaid
 flowchart TD
@@ -57,8 +57,8 @@ flowchart TD
 
 ## Reservation Lifecycle
 
-- No MIU or exact file is active. MIUs 01-08 are released, MIU 09 remains planned, and MIUs 26-28 remain
-  blocked by D1.
+- MIU 09 is active for local hydrated/SSR validation with three exact owner files. MIUs 01-08 are released,
+  MIU 10 remains planned, and MIUs 26-28 remain blocked by D1.
 - Activation follows `TASK_REGISTRY.json`: verify dependencies, gates, live refs/worktrees, and zero
   conflicting active owner claims, then atomically mark one MIU `active`. Completion marks it `released`
   before any explicit successor transfer activates.
@@ -242,7 +242,7 @@ flowchart TD
 - **Files:** `apps/site/src/islands/shop/CatalogFamilyGrid.tsx`, `apps/site/src/islands/shop/catalog-family-render.test.ts`, `apps/site/src/headphones-source-contract.test.ts`
 - **Type:** refactor
 - **Depends on:** MIU 08
-- **Reservation state:** `planned`.
+- **Reservation state:** `active`; local hydrated/SSR parity validation only.
 - **What it does:**
   - Replaces live `CatalogFamilyGrid.catalogProductPrice(product): CatalogPricingDecision` policy with
     `resolveCatalogPricing` from `packages/shared/src/catalog/resolve-pricing.ts`; the grid only renders its decision.

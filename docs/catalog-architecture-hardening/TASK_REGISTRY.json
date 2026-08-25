@@ -46,10 +46,14 @@
       "claimedLocalHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "claimedRemoteHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "status": "implementation-in-progress",
-      "currentMiu": null,
+      "currentMiu": "09",
       "dependencies": [],
-      "activeExactReservations": [],
-      "activeReservationPurpose": "",
+      "activeExactReservations": [
+        "apps/site/src/islands/shop/CatalogFamilyGrid.tsx",
+        "apps/site/src/islands/shop/catalog-family-render.test.ts",
+        "apps/site/src/headphones-source-contract.test.ts"
+      ],
+      "activeReservationPurpose": "MIU 09 live CatalogFamilyGrid pricing-owner migration; local validation only, no deployment.",
       "externalGates": {
         "D1": {
           "scope": ["26", "27", "28"],
@@ -375,7 +379,7 @@
         "06": { "reservationState": "released", "previousReservationState": "active" },
         "07": { "reservationState": "released", "previousReservationState": "active" },
         "08": { "reservationState": "released", "previousReservationState": "active" },
-        "09": { "reservationState": "planned" },
+        "09": { "reservationState": "active", "previousReservationState": "planned" },
         "10": { "reservationState": "planned" },
         "11": { "reservationState": "planned" },
         "12": { "reservationState": "planned" },
@@ -672,7 +676,7 @@
           "branchOrPrStatusMayResolveTo": "HEAD"
         }
       },
-      "handoff": "MIUs 01-08 are released with no active exact-file reservation. MIU 09 remains planned and requires separate activation; no CloudBase test deployment was run for MIU 08."
+      "handoff": "MIUs 01-08 are released. MIU 09 is active for local implementation and validation only; no CloudBase test deployment is authorized."
     }
   ]
 }

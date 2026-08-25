@@ -60,3 +60,12 @@ test('the Headphones island stays a thin controller', () => {
   assert.match(islandSource, /CatalogFamilyGrid/);
   assert.match(islandSource, /headphonesCatalogState/);
 });
+
+test('CatalogFamilyGrid delegates pricing policy to the shared resolver', () => {
+  const gridSource = readFileSync(
+    fileURLToPath(new URL('./islands/shop/CatalogFamilyGrid.tsx', import.meta.url)),
+    'utf8',
+  );
+  assert.match(gridSource, /resolveCatalogPricing/);
+  assert.doesNotMatch(gridSource, /publicManualPrice|alibabaPriceSummary/);
+});
