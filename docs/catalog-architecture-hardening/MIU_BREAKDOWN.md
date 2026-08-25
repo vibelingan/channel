@@ -179,7 +179,7 @@ flowchart TD
 - **Files:** `packages/shared/src/catalog/alibaba-pricing-adapter.ts`, `packages/shared/src/catalog/alibaba-pricing-adapter.test.ts`, `packages/shared/src/catalog/index.ts`
 - **Type:** new-file
 - **Depends on:** MIU 02
-- **Reservation state:** `planned`.
+- **Reservation state:** `active`; `packages/shared/src/catalog/index.ts` transfers from released MIU 02 and transfers next to MIU 07 after release.
 - **What it does:**
   - Defines `AlibabaPricingAdapter.resolve(link, provider): AlibabaPricingDecision` with available,
     unavailable, and quote states normalized from current provider fields.

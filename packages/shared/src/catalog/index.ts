@@ -13,6 +13,12 @@ import { z } from 'zod';
 import { PRODUCT_FAMILY_OPTIONS } from '../catalog-product.ts';
 import { manualCatalogPricingSchema } from '../manual-catalog-pricing.ts';
 
+export {
+  type AlibabaPricingAdapter,
+  type AlibabaPricingDecision,
+  createAlibabaPricingAdapter,
+} from './alibaba-pricing-adapter.ts';
+
 export const ALIBABA_CATALOG_PRICING_SCHEMA_VERSION = 'alibaba-catalog-pricing-v1';
 
 const nonEmptyString = z.string().trim().min(1);
