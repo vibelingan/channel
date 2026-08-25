@@ -12,6 +12,7 @@ import SiteHeader from '../components/SiteHeader.astro';
 import WhyChooseUsSection from '../components/WhyChooseUsSection.astro';
 import { getOemContent } from '../i18n/oem.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
+import { AssistantWidget } from '../islands/ai/AssistantWidget.tsx';
 import BaseLayout from '../layouts/BaseLayout.astro';
 
 const content = getSiteContent(DEFAULT_LOCALE);
@@ -65,4 +66,5 @@ const {
   </main>
 
   <SiteFooter brand={brand} footer={footer} />
+  <AssistantWidget client:load />
 </BaseLayout>

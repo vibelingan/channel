@@ -67,7 +67,7 @@ jobs:
 
       - name: Scan built site for server secret names
         run: |
-          if grep -R -I -n -E 'JWT_SECRET|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|EMAIL_PASSWORD|EMAIL_USER|TENCENTCLOUD_SECRET(ID|KEY)|TENCENTCLOUD_SESSIONTOKEN|ALI_APP_KEY|ALI_APP_SECRET|ALI_OAUTH_CALLBACK_URL|ALI_TOKEN_ENCRYPTION_KEY_V1|WECOM_WEBHOOK_URL' apps/site/dist; then
+          if grep -R -I -n -E 'JWT_SECRET|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|EMAIL_PASSWORD|EMAIL_USER|TENCENTCLOUD_SECRET(ID|KEY)|TENCENTCLOUD_SESSIONTOKEN|ALI_APP_KEY|ALI_APP_SECRET|ALI_OAUTH_CALLBACK_URL|ALI_TOKEN_ENCRYPTION_KEY_V1|WECOM_WEBHOOK_URL|DATABASE_URL|ANYTHINGLLM_API_KEY|AI_IP_HASH_SECRET' apps/site/dist; then
             echo "Server secret names were found in the public site build." >&2
             exit 1
           fi
@@ -129,3 +129,9 @@ jobs:
       # assumption is caught here rather than in production.
       - name: Store contract probe
         run: pnpm test:ai:store
+
+      - name: AI runtime integration tests
+        run: pnpm test:ai:runtime
+
+      - name: Build AI containers' entry artifacts
+        run: pnpm build:ai

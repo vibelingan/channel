@@ -1,6 +1,6 @@
 # Production KB and CloudRun/PostgreSQL runbook
 
-**Status:** live KB probe completed; local substrate healthy; production release blocked
+**Status:** local BFF/worker/store/widget implemented and verified; production release blocked
 **Evidence date:** 2026-08-25 (Asia/Tokyo)
 **Scope:** Channel public website assistant only
 
@@ -13,7 +13,9 @@ password, or private network identifier.
 
 | Surface | Observed result | Release meaning |
 | --- | --- | --- |
-| Local PostgreSQL 16 | Healthy on an overrideable high port; S0-S11 PASS | Store contract is suitable for MIU 2a |
+| Local PostgreSQL 16 | Healthy on an overrideable high port; S0-S11 and application integration tests PASS | Durable store and migration path implemented |
+| Local BFF + worker | Containers healthy; authenticated create/message/SSE round trip PASS | Production-shaped runtime is implemented locally |
+| Public widget | Real-browser create/message/SSE/citation flow PASS on the three allowed public routes | UI is implemented; production endpoint remains gated |
 | Local AnythingLLM | Container and `/api/ping` healthy | Runtime shape works; model E2E is not proven without a local model key |
 | Production KB auth | PASS | Supplied developer token is valid |
 | Production vector search | PASS, four results returned | Retrieval is separately callable from generation |
@@ -122,16 +124,20 @@ Set `GENERIC_OPEN_AI_API_KEY` from an approved local secret store, generate the
 three signing values, and choose `AI_POSTGRES_PORT` if the default is occupied.
 Do not print a secret to the terminal merely to copy it into the file.
 
-### 2. Start the full substrate
+### 2. Start the application runtime
 
 ```bash
-pnpm dev:ai:full
+AI_POSTGRES_PORT=55433 pnpm dev:ai
 docker compose -f docker-compose.ai.yml ps
-curl -fsS http://localhost:53001/api/ping
+pnpm smoke:ai:bff
+pnpm smoke:ai:worker
 ```
 
 The verified machine needed `AI_POSTGRES_PORT=55433` because another project
-already owned `55432`; the other container was preserved. AnythingLLM resolved
+already owned `55432`; the other container was preserved. The default runtime
+uses the deterministic fake engine so the full outbox/SSE path can be checked
+without a provider key. For optional local KB work, `pnpm dev:ai:full` starts
+AnythingLLM, which resolved
 to image digest
 `sha256:a5de2ba74bf28dfadeb2e09fab202efbd358c4a7127d040373f2588eea928bea`.
 `latest` is acceptable for this local probe only; production must pin a reviewed
@@ -141,17 +147,18 @@ version and digest.
 
 ```bash
 DATABASE_URL=postgres://ai:ai@localhost:55433/ai_assistant pnpm test:ai:store
+DATABASE_URL=postgres://ai:ai@localhost:55433/ai_assistant pnpm test:ai:runtime
 ```
 
 Observed S0-S11 all passed, including READ COMMITTED, blocked conditional-update
 predicate re-evaluation, rollback, partial uniqueness and multi-statement
 transactions.
 
-There is deliberately no durable application seed yet. This branch has no BFF
-schema or migrations, and `MIU_BREAKDOWN.md` assigns that work to MIU 2c. The
-Postgres image initializes the empty `ai_assistant` database; the store probe
-creates and removes its own contract objects. Inventing a durable seed before
-the owning schema would create a second, unofficial data contract.
+`packages/ai-store/src/migrations` is now the durable schema source of truth.
+The BFF and worker apply it idempotently at startup; the CLI provides explicit
+up/down commands. No business-data seed is required: conversations, opaque
+credentials, runs, messages, events, outbox work and rate-limit buckets are
+created through the same application paths used in production.
 
 ## Production KB findings and required corrections
 
@@ -279,6 +286,9 @@ must be taken from the logged-in calculator at purchase time.
 | `DATABASE_URL` | BFF and worker protected runtime environment |
 | `ANYTHINGLLM_BASE_URL` | BFF/worker runtime environment; HTTPS/private only |
 | `ANYTHINGLLM_API_KEY` | BFF/worker protected runtime environment |
+| `AI_KNOWLEDGE_CREDENTIAL_ID` | non-secret approved attestation identity; worker startup must match it |
+| `AI_IP_HASH_SECRET` | BFF protected runtime environment; HMAC-pseudonymizes rate-limit subjects |
+| `AI_WORKER_LEASE_SECONDS` | worker runtime; must exceed maximum stream duration by at least five seconds |
 | `VPC_ID`, CloudRun subnet ID | protected deployment inventory |
 | TencentDB instance ID, private host, port, database | protected deployment inventory |
 | provider model/key and spend cap | protected runtime/provider console |
