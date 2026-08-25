@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening MIU Breakdown
 
-Status: published; MIUs 01-07 released; MIU 08 active for local validation; MIU 09 planned and inactive.
+Status: published; MIUs 01-08 released; MIU 09 planned and inactive.
 
 ```mermaid
 flowchart TD
@@ -57,8 +57,8 @@ flowchart TD
 
 ## Reservation Lifecycle
 
-- MIU 08 is active for local compatibility validation with two exact owner files. MIUs 01-07 are released,
-  MIU 09 remains planned, and MIUs 26-28 remain blocked by D1.
+- No MIU or exact file is active. MIUs 01-08 are released, MIU 09 remains planned, and MIUs 26-28 remain
+  blocked by D1.
 - Activation follows `TASK_REGISTRY.json`: verify dependencies, gates, live refs/worktrees, and zero
   conflicting active owner claims, then atomically mark one MIU `active`. Completion marks it `released`
   before any explicit successor transfer activates.
@@ -220,7 +220,7 @@ flowchart TD
 - **Files:** `apps/site/src/islands/shop/catalog-pricing.ts`, `apps/site/src/islands/shop/alibaba-catalog-pricing.test.ts`
 - **Type:** refactor
 - **Depends on:** MIU 07
-- **Reservation state:** `active`; local compatibility validation only.
+- **Reservation state:** `released`; previous state `active`. Compatibility validation was local only.
 - **What it does:**
   - Reimplements current exported helpers as thin adapters over `resolveCatalogPricing` from
     `packages/shared/src/catalog/resolve-pricing.ts`, preserving signatures while call sites migrate.
