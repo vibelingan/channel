@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { canManageUsers, getUser } from '../../lib/session.ts';
 import { CollectionView } from './CollectionView.tsx';
 import { AlibabaCatalogSyncPage } from './alibaba-catalog-sync/AlibabaCatalogSyncPage.tsx';
+import { CatalogImportPage } from './catalog-import/CatalogImportPage.tsx';
 import { DASHBOARD_SECTIONS, type DashboardSection } from './sections.ts';
 
 export function DashboardShell({ onLogout }: { onLogout: () => void }) {
@@ -65,6 +66,10 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
         {section?.custom === 'alibaba-sync' ? (
           <div className="p-6">
             <AlibabaCatalogSyncPage />
+          </div>
+        ) : section?.custom === 'catalog-import' ? (
+          <div className="p-6">
+            <CatalogImportPage />
           </div>
         ) : section && collection ? (
           <CollectionView key={collection.name} collection={collection} section={section} />
