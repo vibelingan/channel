@@ -44,3 +44,36 @@ export {
   sourceProductKey,
   sourceVariantKey,
 } from './identity.ts';
+export {
+  type DescriptionResult,
+  type SanitizeReport,
+  normalizeDescription,
+  sanitizeSourceHtml,
+  sanitizeSourceHtmlWithReport,
+  sourceHtmlToText,
+} from './descriptions.ts';
+
+export {
+  type DateParseResult,
+  type MoneyParseResult,
+  OPEN_ENDED_DATE_SENTINEL,
+  type QuantityParseResult,
+  SOURCE_TIMEZONE_OFFSET_MINUTES,
+  dedupeImageUrls,
+  excelSerialToNaiveDateTime,
+  parseSourceDate,
+  parseSourceMoney,
+  parseSourceQuantity,
+  parseSourceUrl,
+} from './values.ts';
+
+export {
+  MAX_COLUMNS,
+  MAX_ROWS,
+  type SourceCell,
+  type SourceRow,
+  type SourceSheet,
+  SpreadsheetFormatError,
+  looksLikeSpreadsheet,
+  readFirstSheet,
+} from './xlsx-sheet.ts';
