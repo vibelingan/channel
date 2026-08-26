@@ -24,6 +24,14 @@ import {
 } from '../../grouping.ts';
 import { type DianxiaomiRow, detectDianxiaomiWorkbook, readDianxiaomiRows } from './workbook.ts';
 
+export {
+  type DianxiaomiReadResult,
+  type DianxiaomiRow,
+  SOURCE_CURRENCY,
+  detectDianxiaomiWorkbook,
+  readDianxiaomiRows,
+} from './workbook.ts';
+
 /** Marketplace channel these exports describe. */
 export const DIANXIAOMI_TAXONOMY = 'lazada';
 

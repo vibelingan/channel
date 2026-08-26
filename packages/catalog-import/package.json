@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Provider-neutral catalog import contract plus the Dianxiaomi workbook adapter. Parsing, validation, grouping and diffing only — no database, no network, no provider SDK.",
+  "description": "Provider-neutral catalog import contract plus the Dianxiaomi workbook adapter. Parsing, validation, grouping and diffing only \u2014 no database, no network, no provider SDK.",
   "exports": {
     ".": "./src/index.ts",
     "./dianxiaomi": "./src/providers/dianxiaomi/adapter.ts",
-    "./testing": "./src/testing/xlsx-fixture.ts"
+    "./testing": "./src/testing/xlsx-fixture.ts",
+    "./testing/dianxiaomi-acceptance": "./src/testing/dianxiaomi-acceptance-fixture.ts"
   },
   "scripts": {
     "test": "tsx --test 'src/**/*.test.ts'",

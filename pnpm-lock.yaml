@@ -29,6 +29,9 @@ importers:
       '@vibelingan-channel/auth':
         specifier: workspace:*
         version: link:../../../packages/auth
+      '@vibelingan-channel/catalog-import':
+        specifier: workspace:*
+        version: link:../../../packages/catalog-import
       '@vibelingan-channel/db':
         specifier: workspace:*
         version: link:../../../packages/db
@@ -116,6 +119,9 @@ importers:
       '@vibelingan-channel/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@vibelingan-channel/catalog-import':
+        specifier: workspace:*
+        version: link:../../packages/catalog-import
       '@vibelingan-channel/db':
         specifier: workspace:*
         version: link:../../packages/db

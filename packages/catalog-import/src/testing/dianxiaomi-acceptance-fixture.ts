@@ -189,7 +189,9 @@ export function buildAcceptanceWorkbook(options: AcceptanceFixtureOptions = {}):
     imageCursor = nextCursor;
 
     const listed = row.familyIndex < LISTED_FAMILY_COUNT;
-    const bumped = revision === 'changed' && row.familyIndex === 20;
+    // Family index 1 is inside the bounded publish sample, so the delta this
+    // produces is one an operator can actually see against stored state.
+    const bumped = revision === 'changed' && row.familyIndex === 1;
     const priceMinorish = 1999 + row.familyIndex * 100 + row.skuIndex * 25 + (bumped ? 500 : 0);
 
     rows.push([

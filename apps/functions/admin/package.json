@@ -6,7 +6,11 @@
   "main": "dist/index.js",
   "exports": {
     ".": "./src/index.ts",
-    "./handler": "./src/handler.ts"
+    "./handler": "./src/handler.ts",
+    "./catalog-import-service": "./src/catalog-import-service.ts",
+    "./catalog-import-store": "./src/catalog-import-store.ts",
+    "./catalog-import-publish": "./src/catalog-import-publish.ts",
+    "./catalog-import-media": "./src/catalog-import-media.ts"
   },
   "scripts": {
     "build": "tsup",
@@ -15,6 +19,7 @@
   },
   "dependencies": {
     "@vibelingan-channel/auth": "workspace:*",
+    "@vibelingan-channel/catalog-import": "workspace:*",
     "@vibelingan-channel/db": "workspace:*",
     "@vibelingan-channel/email": "workspace:*",
     "@vibelingan-channel/media-storage": "workspace:*",
