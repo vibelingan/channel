@@ -77,3 +77,21 @@ export {
   looksLikeSpreadsheet,
   readFirstSheet,
 } from './xlsx-sheet.ts';
+
+export {
+  type CatalogImportDetail,
+  type GroupingCounts,
+  type GroupingResult,
+  type QuarantinedVariant,
+  type SourceListing,
+  type StoreListingRecord,
+  type VariantInventory,
+  countListings,
+  groupListings,
+} from './grouping.ts';
+
+export {
+  type InventoryResolution,
+  displayQuantity,
+  reconcileInventory,
+} from './inventory.ts';

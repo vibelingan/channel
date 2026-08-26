@@ -36,10 +36,10 @@ const COL = Object.fromEntries(HEADERS.map((name, index) => [name, index])) as R
 
 function row(overrides: Record<string, FixtureCell>): FixtureCell[] {
   const cells: FixtureCell[] = new Array(HEADERS.length).fill(null);
-  cells[COL['父SKU'] as number] = 'P-1';
+  cells[COL.父SKU as number] = 'P-1';
   cells[COL.SKU as number] = 'S-1';
-  cells[COL['商品标题'] as number] = 'Bluetooth earbuds';
-  cells[COL['店铺'] as number] = 'ShopA_MY';
+  cells[COL.商品标题 as number] = 'Bluetooth earbuds';
+  cells[COL.店铺 as number] = 'ShopA_MY';
   for (const [header, value] of Object.entries(overrides)) {
     cells[COL[header] as number] = value;
   }
