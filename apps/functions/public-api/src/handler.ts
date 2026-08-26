@@ -198,6 +198,89 @@ function publicAlibabaCatalogPricing(value: unknown): unknown {
 }
 
 /**
+ * Public projection of an imported product's variants.
+ *
+ * The allowlist is three fields wide and stays that way. `productVariants`
+ * rows also carry `inventorySnapshots` (which names the merchant's SHOPS),
+ * `sourceRegularPrice`/`sourcePromotionPrice` (source CNY, while the website
+ * quotes USD) and the reconciliation state — none of which a visitor has any
+ * business seeing, and the first of which would publish the merchant's channel
+ * strategy to their competitors.
+ *
+ * `inventory` is attached ONLY when reconciliation produced an exact count.
+ * A conflict or an unknown ships no number at all: the merchant asked for an
+ * exact figure, and a fabricated one would be a promise the warehouse cannot
+ * keep.
+ */
+const PUBLIC_VARIANT_FIELDS = ['sku', 'optionValues'] as const;
+
+interface PublicVariant {
+  id: string;
+  sku: string;
+  optionValues: Record<string, string>;
+  inventory?: number;
+}
+
+function publicVariant(doc: CollectionDoc): PublicVariant {
+  const options = doc.optionValues;
+  const optionValues: Record<string, string> = {};
+  if (typeof options === 'object' && options !== null && !Array.isArray(options)) {
+    for (const [name, value] of Object.entries(options)) {
+      if (typeof value === 'string') optionValues[name] = value;
+    }
+  }
+  const exact =
+    doc.inventoryState === 'known' &&
+    typeof doc.inventoryQuantity === 'number' &&
+    Number.isSafeInteger(doc.inventoryQuantity) &&
+    doc.inventoryQuantity >= 0;
+  return {
+    id: doc._id,
+    sku: typeof doc.sku === 'string' ? doc.sku : '',
+    optionValues,
+    ...(exact ? { inventory: doc.inventoryQuantity as number } : {}),
+  };
+}
+
+/**
+ * Attach variants to the products on one page, in ONE query rather than one
+ * query per product. Products with no variants are left byte-identical — every
+ * legacy and Alibaba-linked row predates this collection and must not gain an
+ * empty `variants` key it never had.
+ */
+async function attachVariants(
+  collection: PublicCatalog,
+  docs: readonly CollectionDoc[],
+): Promise<Map<string, PublicVariant[]>> {
+  const byProduct = new Map<string, PublicVariant[]>();
+  if (collection !== 'products' || docs.length === 0) return byProduct;
+
+  const page = await list({
+    collection: 'productVariants',
+    page: 1,
+    pageSize: MAX_PUBLIC_PAGE_SIZE * PUBLIC_VARIANTS_PER_PRODUCT_CAP,
+    filter: {
+      combinator: 'and',
+      clauses: [{ field: 'productId', op: 'in', value: docs.map((doc) => doc._id) }],
+    },
+    sort: [{ field: 'position', dir: 'asc' }],
+  });
+  for (const doc of page.items) {
+    if (doc.archived === true) continue;
+    const productId = typeof doc.productId === 'string' ? doc.productId : '';
+    if (productId === '') continue;
+    const existing = byProduct.get(productId) ?? [];
+    if (existing.length >= PUBLIC_VARIANTS_PER_PRODUCT_CAP) continue;
+    existing.push(publicVariant(doc));
+    byProduct.set(productId, existing);
+  }
+  return byProduct;
+}
+
+/** Ceiling on variants shipped per product, so one row cannot bloat a page. */
+const PUBLIC_VARIANTS_PER_PRODUCT_CAP = 50;
+
+/**
  * Role-gated pricing tiers. Attached ONLY when the resolved viewer is entitled
  * (`canSeeVipPricing`). Never in `PUBLIC_CATALOG_FIELDS` — the anonymous path
  * must never ship these.
@@ -289,8 +372,15 @@ export async function listCatalog(
     sort: [{ field: '_id', dir: 'asc' }],
   });
 
+  const variants = await attachVariants(collection, result.items);
   return ok({
-    items: result.items.map((doc) => publicDoc(collection, doc, config, viewer)),
+    items: result.items.map((doc) => {
+      const projected = publicDoc(collection, doc, config, viewer);
+      const own = variants.get(doc._id);
+      // Only products that actually have variants gain the key, so existing
+      // legacy and Alibaba-linked payloads stay byte-identical.
+      return own === undefined || own.length === 0 ? projected : { ...projected, variants: own };
+    }),
     total: result.total,
     page: result.page,
     pageSize: result.pageSize,
@@ -311,7 +401,7 @@ export async function getCatalogItem(
   ) {
     return err('NOT_FOUND', 'Item not found');
   }
-  return ok(publicDoc(collection, doc, config, viewer));
+  return ok(await withVariants(collection, doc, publicDoc(collection, doc, config, viewer)));
 }
 
 export async function getCatalogItemBySlug(
@@ -328,7 +418,17 @@ export async function getCatalogItemBySlug(
   ) {
     return err('NOT_FOUND', 'Item not found');
   }
-  return ok(publicDoc('products', doc, config, viewer));
+  return ok(await withVariants('products', doc, publicDoc('products', doc, config, viewer)));
+}
+
+/** Attach variants to one already-projected document, when it has any. */
+async function withVariants(
+  collection: PublicCatalog,
+  doc: CollectionDoc,
+  projected: CollectionDoc,
+): Promise<CollectionDoc> {
+  const variants = (await attachVariants(collection, [doc])).get(doc._id);
+  return variants === undefined || variants.length === 0 ? projected : { ...projected, variants };
 }
 
 async function publishedCatalogReferencesImage(
