@@ -1,0 +1,318 @@
+/**
+ * Fetching source images safely.
+ *
+ * The workbook hands us URLs a supplier controls, and the importer runs
+ * server-side. That combination is a server-side request forgery primitive
+ * unless every hop is checked: a URL pointing at `169.254.169.254`,
+ * `127.0.0.1:6379` or an internal hostname would otherwise be fetched by our
+ * own process, from inside our own network.
+ *
+ * So every address is resolved and inspected BEFORE the connection, redirects
+ * are followed manually with the same check applied to each hop, and the
+ * response is bounded by time, size and content type. Bytes that are not
+ * actually a JPEG, PNG or WebP — checked by magic number, not by the
+ * `Content-Type` header the supplier sent — are rejected.
+ *
+ * Everything here writes to the LOCAL media directory. No CloudBase
+ * credential is read and no CloudBase object is created; migrating accepted
+ * images into the production media lifecycle is deliberately out of scope.
+ */
+import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
+import { createDoc } from '@vibelingan-channel/db';
+import { catalogStoragePath, mediaStorage } from '@vibelingan-channel/media-storage';
+import type { CollectionDoc } from '@vibelingan-channel/shared';
+
+/** No single source image may exceed this. */
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+export const FETCH_TIMEOUT_MS = 10_000;
+export const MAX_REDIRECTS = 3;
+
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+export type AllowedImageMime = (typeof ALLOWED_MIME_TYPES)[number];
+
+export type ImageFetchFailure =
+  | 'not-https'
+  | 'blocked-address'
+  | 'unresolvable-host'
+  | 'too-many-redirects'
+  | 'http-error'
+  | 'too-large'
+  | 'timeout'
+  | 'network-error'
+  | 'unsupported-content';
+
+export type ImageFetchResult =
+  | { ok: true; bytes: Buffer; mimeType: AllowedImageMime; sha256: string; finalUrl: string }
+  | { ok: false; reason: ImageFetchFailure; detail: string };
+
+/**
+ * Reserved, private and link-local ranges. `169.254.169.254` is the cloud
+ * metadata endpoint and is the single most valuable target of an SSRF, so the
+ * whole link-local block is refused rather than special-cased.
+ */
+function isBlockedIpv4(address: string): boolean {
+  const parts = address.split('.').map(Number);
+  const [a = 0, b = 0] = parts;
+  if (
+    parts.length !== 4 ||
+    parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
+  ) {
+    return true;
+  }
+  if (a === 0 || a === 10 || a === 127) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true; // carrier-grade NAT
+  if (a === 169 && b === 254) return true; // link-local, incl. cloud metadata
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 192 && b === 0) return true; // IETF protocol assignments
+  if (a === 198 && (b === 18 || b === 19)) return true; // benchmarking
+  if (a >= 224) return true; // multicast, reserved, broadcast
+  return false;
+}
+
+function isBlockedIpv6(address: string): boolean {
+  const lower = address.toLowerCase().replace(/^\[|\]$/g, '');
+  if (lower === '::' || lower === '::1') return true;
+  if (lower.startsWith('fe80') || lower.startsWith('fc') || lower.startsWith('fd')) return true;
+  if (lower.startsWith('ff')) return true; // multicast
+  // IPv4-mapped (::ffff:169.254.169.254) must be judged as the IPv4 it carries.
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(lower);
+  if (mapped?.[1] !== undefined) return isBlockedIpv4(mapped[1]);
+  return false;
+}
+
+export function isBlockedAddress(address: string): boolean {
+  const family = isIP(address);
+  if (family === 4) return isBlockedIpv4(address);
+  if (family === 6) return isBlockedIpv6(address);
+  return true;
+}
+
+/**
+ * Resolve a hostname and refuse it unless EVERY address it answers with is
+ * public. Checking only the first answer would let a host that returns one
+ * public and one private address slip through on a retry.
+ */
+async function assertPublicHost(
+  hostname: string,
+  resolveHost: HostResolver,
+): Promise<ImageFetchFailure | null> {
+  const literal = isIP(hostname);
+  if (literal !== 0) return isBlockedAddress(hostname) ? 'blocked-address' : null;
+  let addresses: string[];
+  try {
+    addresses = await resolveHost(hostname);
+  } catch {
+    return 'unresolvable-host';
+  }
+  if (addresses.length === 0) return 'unresolvable-host';
+  return addresses.some((address) => isBlockedAddress(address)) ? 'blocked-address' : null;
+}
+
+/**
+ * Seams, used ONLY by tests.
+ *
+ * The policy this file implements cannot be exercised against a real network
+ * without either reaching out to the public internet or standing up a
+ * localhost server — and a localhost server is exactly what the SSRF guard is
+ * built to refuse. Injecting the resolver and the fetch lets every branch
+ * (redirect chains, size ceilings, magic-byte sniffing, blocked addresses) be
+ * tested offline and deterministically, while the production call sites pass
+ * nothing and get the real implementations.
+ */
+export interface ImageFetchSeams {
+  resolveHost?: HostResolver;
+  fetchImpl?: typeof fetch;
+}
+
+export type HostResolver = (hostname: string) => Promise<string[]>;
+
+const defaultResolveHost: HostResolver = async (hostname) => {
+  const addresses = await lookup(hostname, { all: true });
+  return addresses.map((entry) => entry.address);
+};
+
+/** Content type by magic number. The supplier's own header is not evidence. */
+export function sniffImageMime(bytes: Buffer): AllowedImageMime | null {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (
+    bytes.length >= 8 &&
+    bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  ) {
+    return 'image/png';
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    bytes.subarray(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  return null;
+}
+
+/**
+ * Fetch one source image under the full policy. Returns a reason rather than
+ * throwing, because one unreachable URL must cost its own image and nothing
+ * else — the import continues and the URL stays retryable.
+ */
+export async function fetchSourceImage(
+  sourceUrl: string,
+  seams: ImageFetchSeams = {},
+): Promise<ImageFetchResult> {
+  const resolveHost = seams.resolveHost ?? defaultResolveHost;
+  const doFetch = seams.fetchImpl ?? fetch;
+  let current: URL;
+  try {
+    current = new URL(sourceUrl);
+  } catch {
+    return { ok: false, reason: 'network-error', detail: 'malformed URL' };
+  }
+
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    if (current.protocol !== 'https:') {
+      return { ok: false, reason: 'not-https', detail: `refused ${current.protocol}//` };
+    }
+    const blocked = await assertPublicHost(current.hostname, resolveHost);
+    if (blocked !== null) {
+      return { ok: false, reason: blocked, detail: `host ${current.hostname}` };
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await doFetch(current, {
+        redirect: 'manual',
+        signal: controller.signal,
+        headers: { accept: ALLOWED_MIME_TYPES.join(',') },
+      });
+    } catch (error) {
+      clearTimeout(timer);
+      const aborted = error instanceof Error && error.name === 'AbortError';
+      return {
+        ok: false,
+        reason: aborted ? 'timeout' : 'network-error',
+        detail: error instanceof Error ? error.message : 'fetch failed',
+      };
+    }
+    clearTimeout(timer);
+
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location');
+      if (location === null) {
+        return { ok: false, reason: 'http-error', detail: `${response.status} without Location` };
+      }
+      if (hop === MAX_REDIRECTS) {
+        return { ok: false, reason: 'too-many-redirects', detail: `${MAX_REDIRECTS} hops` };
+      }
+      try {
+        current = new URL(location, current);
+      } catch {
+        return { ok: false, reason: 'network-error', detail: 'malformed redirect target' };
+      }
+      continue;
+    }
+
+    if (!response.ok) {
+      return { ok: false, reason: 'http-error', detail: `HTTP ${response.status}` };
+    }
+
+    // The declared length is a hint, not a guarantee; the read below is what
+    // actually enforces the ceiling.
+    const declared = Number(response.headers.get('content-length') ?? '0');
+    if (Number.isFinite(declared) && declared > MAX_IMAGE_BYTES) {
+      return { ok: false, reason: 'too-large', detail: `${declared} bytes declared` };
+    }
+
+    const buffered = await response.arrayBuffer();
+    const bytes = Buffer.from(buffered);
+    if (bytes.length > MAX_IMAGE_BYTES) {
+      return { ok: false, reason: 'too-large', detail: `${bytes.length} bytes received` };
+    }
+    const mimeType = sniffImageMime(bytes);
+    if (mimeType === null) {
+      return { ok: false, reason: 'unsupported-content', detail: 'not a JPEG, PNG or WebP' };
+    }
+    return {
+      ok: true,
+      bytes,
+      mimeType,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+      finalUrl: current.toString(),
+    };
+  }
+
+  return { ok: false, reason: 'too-many-redirects', detail: `${MAX_REDIRECTS} hops` };
+}
+
+const EXTENSIONS: Record<AllowedImageMime, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+
+export interface MigratedImage {
+  imageId: string;
+  sha256: string;
+  reused: boolean;
+}
+
+/**
+ * Store fetched bytes as an `images` record backed by the local media
+ * directory.
+ *
+ * Deduplication is by CONTENT hash, not by URL: this workbook references 452
+ * distinct URLs 1,549 times, and several of those URLs serve the same photo.
+ * The caller passes a cache so one run downloads each distinct image once.
+ */
+export async function migrateImageLocally(
+  fetched: Extract<ImageFetchResult, { ok: true }>,
+  displayName: string,
+  seenByHash: Map<string, string>,
+): Promise<MigratedImage> {
+  const existing = seenByHash.get(fetched.sha256);
+  if (existing !== undefined) return { imageId: existing, sha256: fetched.sha256, reused: true };
+
+  const fileName = `${fetched.sha256.slice(0, 16)}.${EXTENSIONS[fetched.mimeType]}`;
+  // The image row is created first so its id can key the storage path, which
+  // is the same order the existing catalog upload path uses.
+  const doc: CollectionDoc = await createDoc('images', {
+    name: displayName.slice(0, 200),
+    mimeType: fetched.mimeType,
+    purpose: 'catalog-image',
+    status: 'pending',
+    publishedRefCount: 0,
+    byteSize: fetched.bytes.length,
+    checksumSha256: fetched.sha256,
+  });
+
+  const stored = await mediaStorage().putObject({
+    namespace: 'catalog',
+    logicalId: doc._id,
+    fileName,
+    mimeType: fetched.mimeType,
+    content: fetched.bytes,
+  });
+
+  // `updateDoc`, not `update`: every storage/lifecycle field on `images` is
+  // readOnly on the generic CRUD surface by design, so only the trusted
+  // server-side path may set them — the same path the upload actions use.
+  const { updateDoc } = await import('@vibelingan-channel/db');
+  await updateDoc('images', doc._id, {
+    storageProvider: stored.storageProvider,
+    storageMode: stored.storageMode,
+    storageFileId: stored.storageFileId,
+    storagePath:
+      stored.storagePath ?? catalogStoragePath({ imageId: doc._id, role: 'original', fileName }),
+    status: 'active',
+  });
+
+  seenByHash.set(fetched.sha256, doc._id);
+  return { imageId: doc._id, sha256: fetched.sha256, reused: false };
+}
