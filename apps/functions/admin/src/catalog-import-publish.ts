@@ -1,3 +1,4 @@
+import type { Buffer } from 'node:buffer';
 /**
  * Promoting staged candidates into the Channel catalog.
  *
@@ -22,6 +23,7 @@
  * `unitPrice`, `wholesalePrice` or `vipPrice`, and publication says so rather
  * than quietly shipping a CNY number as if it were dollars.
  */
+import { createHash } from 'node:crypto';
 import type {
   CatalogProductCandidate,
   CatalogVariantCandidate,
@@ -31,7 +33,7 @@ import type {
 import { get, saveCatalogProductWithIdentities, updateDoc } from '@vibelingan-channel/db';
 import { normalizeProductSlug } from '@vibelingan-channel/shared';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
-import { fetchSourceImage, migrateImageLocally } from './catalog-import-media.ts';
+import { fetchSourceImage, migrateImageLocally, sniffImageMime } from './catalog-import-media.ts';
 import {
   IMPORT_ITEMS,
   assertNoAlibabaFields,
@@ -123,6 +125,14 @@ export interface PublishSampleInput {
   fetchImages?: number;
   /** Make the sample publicly visible when it satisfies publication rules. */
   makePublic?: boolean;
+  /**
+   * LOCAL PROOF ONLY. A stand-in image used when no source image could be
+   * fetched, so the storefront path can be exercised end to end on a machine
+   * that cannot reach the supplier CDN. It goes through the same validation,
+   * hashing and media-migration code as a real download — only the transport
+   * differs — and production has no call site that supplies it.
+   */
+  localSeedImage?: { bytes: Buffer; name: string };
   now?: string;
 }
 
@@ -240,6 +250,27 @@ export async function publishImportedSample(
       );
       if (!migrated.reused) result.imagesMigrated += 1;
       imageIds.push(migrated.imageId);
+    }
+
+    // Local-proof fallback: only when the supplier images were unreachable and
+    // the caller explicitly supplied a stand-in.
+    if (imageIds.length === 0 && input.localSeedImage !== undefined) {
+      const mimeType = sniffImageMime(input.localSeedImage.bytes);
+      if (mimeType !== null) {
+        const migrated = await migrateImageLocally(
+          {
+            ok: true,
+            bytes: input.localSeedImage.bytes,
+            mimeType,
+            sha256: createHash('sha256').update(input.localSeedImage.bytes).digest('hex'),
+            finalUrl: `local-proof:${input.localSeedImage.name}`,
+          },
+          `LOCAL PROOF placeholder for ${candidate.parentSku}`,
+          seenImageHashes,
+        );
+        if (!migrated.reused) result.imagesMigrated += 1;
+        imageIds.push(migrated.imageId);
+      }
     }
 
     // 4. Write the product. On a repeat import every operator-owned field is

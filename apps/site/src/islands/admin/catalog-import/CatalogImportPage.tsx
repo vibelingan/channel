@@ -55,10 +55,11 @@ pnpm --filter @vibelingan-channel/local-server import:dianxiaomi -- \\
     );
   }
 
+  const staged = items.data?.products ?? [];
   const visible =
     filter === 'problems'
-      ? (items.data ?? []).filter((item) => item.status === 'rejected' || item.findings.length > 0)
-      : (items.data ?? []);
+      ? staged.filter((item) => item.status === 'rejected' || item.findings.length > 0)
+      : staged;
 
   return (
     <div className="space-y-6">
@@ -100,7 +101,14 @@ pnpm --filter @vibelingan-channel/local-server import:dianxiaomi -- \\
           Could not load staged products: {(items.error as Error).message}
         </p>
       ) : (
-        <CatalogImportProductTable products={visible} />
+        <>
+          {items.data?.truncated === true ? (
+            <p className="text-sm text-slate-600">
+              Showing the first {staged.length} of {items.data.total} staged products.
+            </p>
+          ) : null}
+          <CatalogImportProductTable products={visible} />
+        </>
       )}
     </div>
   );

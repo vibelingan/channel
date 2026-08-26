@@ -33,7 +33,7 @@ import {
   parseDianxiaomiWorkbook,
   readDianxiaomiRows,
 } from '@vibelingan-channel/catalog-import/dianxiaomi';
-import { setAdapter } from '@vibelingan-channel/db';
+import { setAdapter, upsertDocWithId } from '@vibelingan-channel/db';
 import { publishImportedSample } from '@vibelingan-channel/fn-admin/catalog-import-publish';
 import {
   computeImportDelta,
@@ -52,6 +52,9 @@ const { values } = parseArgs({
     replay: { type: 'boolean', default: false },
     publish: { type: 'string' },
     'fetch-images': { type: 'string' },
+    'seed-image': { type: 'string' },
+    'map-source-categories': { type: 'string' },
+    'make-public': { type: 'boolean', default: false },
     json: { type: 'string' },
     help: { type: 'boolean', default: false },
   },
@@ -68,6 +71,12 @@ function usage(): never {
       '  --replay             re-import bytes already imported, as a new job',
       '  --publish <n>        publish at most n staged products into the catalog',
       '  --fetch-images <n>   download at most n source images into LOCAL_MEDIA_DIR',
+      '  --make-public        publish the sample if it passes the catalog rules',
+      '  --map-source-categories <family>',
+      '                       record operator mappings from every source category',
+      '                       in the job to one Channel product family',
+      '  --seed-image <path>  LOCAL PROOF ONLY: stand-in image when the supplier',
+      '                       CDN is unreachable from this machine',
       '  --json <path>        write a redacted machine-readable summary',
       '',
       'Environment: LOCAL_DB_FILE, LOCAL_MEDIA_DIR',
@@ -222,11 +231,43 @@ if (typeof values.publish === 'string') {
     console.error('--publish expects a non-negative whole number');
     process.exit(1);
   }
+  // An operator decision, recorded as data: publication must never invent a
+  // category mapping, but an operator may declare one for a whole job.
+  if (typeof values['map-source-categories'] === 'string') {
+    const family = values['map-source-categories'];
+    const seen = new Set<string>();
+    for (const product of result.detail.bundle.products) {
+      const sourceCategoryId = product.category?.sourceCategoryId;
+      const sourceTaxonomy = product.category?.sourceTaxonomy;
+      if (sourceCategoryId === undefined || sourceTaxonomy === undefined) continue;
+      const key = `${sourceTaxonomy}|${sourceCategoryId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      await upsertDocWithId('sourceCategoryMappings', `${result.detail.bundle.provider}:${key}`, {
+        provider: result.detail.bundle.provider,
+        sourceTaxonomy,
+        sourceCategoryId,
+        productFamily: family,
+        notes: 'Recorded by the local import CLI for the acceptance run.',
+      });
+    }
+    console.log(`  recorded ${seen.size} source-category mappings -> ${family}`);
+  }
+
   published = await publishImportedSample({
     jobId: String(result.job._id),
     limit,
+    ...(values['make-public'] === true ? { makePublic: true } : {}),
     ...(typeof values['fetch-images'] === 'string'
       ? { fetchImages: Number.parseInt(values['fetch-images'], 10) }
+      : {}),
+    ...(typeof values['seed-image'] === 'string'
+      ? {
+          localSeedImage: {
+            bytes: readFileSync(resolve(process.cwd(), values['seed-image'])),
+            name: values['seed-image'],
+          },
+        }
       : {}),
   });
   console.log('  publish');

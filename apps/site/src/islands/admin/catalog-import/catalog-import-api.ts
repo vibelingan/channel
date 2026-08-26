@@ -248,13 +248,30 @@ export async function fetchImportJobs(limit = 25): Promise<JobView[]> {
   return page.items.map(toJobView);
 }
 
-export async function fetchImportItems(jobId: string, limit = 200): Promise<ProductView[]> {
+/** The generic admin list action caps a page at 100 rows. */
+export const MAX_PREVIEW_ITEMS = 100;
+
+export interface ImportItemPage {
+  products: ProductView[];
+  total: number;
+  /** True when the job staged more products than one page can show. */
+  truncated: boolean;
+}
+
+export async function fetchImportItems(
+  jobId: string,
+  limit = MAX_PREVIEW_ITEMS,
+): Promise<ImportItemPage> {
   const page = await listRecords({
     collection: 'catalogImportItems',
     page: 1,
-    pageSize: limit,
+    pageSize: Math.min(limit, MAX_PREVIEW_ITEMS),
     filter: { combinator: 'and', clauses: [{ field: 'jobId', op: 'eq', value: jobId }] },
     sort: [{ field: 'parentSku', dir: 'asc' }],
   });
-  return page.items.map(toProductView);
+  return {
+    products: page.items.map(toProductView),
+    total: page.total,
+    truncated: page.total > page.items.length,
+  };
 }
