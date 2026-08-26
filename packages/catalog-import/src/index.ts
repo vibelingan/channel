@@ -1,0 +1,46 @@
+/**
+ * Public surface of the provider-neutral catalog import package.
+ *
+ * Consumers (admin function, local CLI, admin UI) import from here. The
+ * Dianxiaomi adapter is deliberately NOT re-exported from the root: a caller
+ * that wants the Excel adapter asks for it by name via
+ * `@vibelingan-channel/catalog-import/dianxiaomi`, which keeps the provider
+ * boundary visible at every call site.
+ */
+export {
+  CATALOG_IMPORT_SCHEMA_VERSION,
+  type CandidateCategory,
+  type CandidateMedia,
+  type CatalogImportBundle,
+  type CatalogProductCandidate,
+  type CatalogProvider,
+  type CatalogSourceAdapter,
+  type CatalogVariantCandidate,
+  type ImportFinding,
+  type InventorySnapshot,
+  type MatchHints,
+  type Money,
+  type SourceIdentity,
+} from './contracts.ts';
+
+export {
+  FINDING_CODES,
+  type FindingCode,
+  type FindingLocation,
+  STRUCTURAL_FINDING_CODES,
+  errorFinding,
+  hasErrors,
+  isStructuralFinding,
+  sortFindings,
+  warningFinding,
+} from './findings.ts';
+
+export {
+  type SourceKeyInput,
+  candidateGroupKey,
+  candidateSkuKey,
+  normalizeIdentifier,
+  normalizeStoreKey,
+  sourceProductKey,
+  sourceVariantKey,
+} from './identity.ts';
