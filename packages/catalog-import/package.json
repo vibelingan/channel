@@ -1,0 +1,20 @@
+{
+  "name": "@vibelingan-channel/catalog-import",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Provider-neutral catalog import contract plus the Dianxiaomi workbook adapter. Parsing, validation, grouping and diffing only — no database, no network, no provider SDK.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./dianxiaomi": "./src/providers/dianxiaomi/adapter.ts",
+    "./testing": "./src/testing/xlsx-fixture.ts"
+  },
+  "scripts": {
+    "test": "tsx --test 'src/**/*.test.ts'",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.22.4"
+  }
+}
