@@ -33,12 +33,19 @@ import type {
 import { get, saveCatalogProductWithIdentities, updateDoc } from '@vibelingan-channel/db';
 import { normalizeProductSlug } from '@vibelingan-channel/shared';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
-import { fetchSourceImage, migrateImageLocally, sniffImageMime } from './catalog-import-media.ts';
+import {
+  fetchSourceImage,
+  migrateImageLocally,
+  readImageDimensions,
+  sniffImageMime,
+} from './catalog-import-media.ts';
 import {
   IMPORT_ITEMS,
+  SOURCE_LINKS,
   assertNoAlibabaFields,
   bindProduct,
   bindVariant,
+  groupLinkId,
   listImportItems,
   recordStoreLink,
   resolveCategoryMapping,
@@ -115,6 +122,158 @@ async function writeProduct(
     return { blocked: describeSaveFailure(retry) };
   }
   return { blocked: describeSaveFailure(first) };
+}
+
+// ---------------------------------------------------------------------------
+// Publish plan (read-only)
+// ---------------------------------------------------------------------------
+
+export interface PublishPlanBlock {
+  parentSku: string;
+  reason: string;
+}
+
+export interface PublishPlan {
+  /** Staged products considered, i.e. everything not already rejected. */
+  considered: number;
+  /** Items rejected at parse time; they are not publishable at all. */
+  rejected: number;
+  /** Would create a new Channel product (no canonical link exists yet). */
+  create: number;
+  /** Would update an existing Channel product through its canonical link. */
+  update: number;
+  /** Would become publicly visible if published now. */
+  publishable: number;
+  /** Would be created as a draft but NOT made public, with the reason. */
+  blocked: PublishPlanBlock[];
+  blockedByUnmappedCategory: number;
+  blockedByMissingImage: number;
+  blockedByMissingDescription: number;
+  /** Seeded slug already reserved by a different product. */
+  slugCollisions: PublishPlanBlock[];
+  /** Distinct source image URLs the full job would need to migrate. */
+  distinctImageUrls: number;
+  /** Products whose rows carry no usable source image at all. */
+  productsWithoutImages: number;
+  /** Source records present in the catalog but absent from this file. */
+  sourceMissing: number;
+  /** False when the file could not be fully read, so absence proves nothing. */
+  completeSource: boolean;
+}
+
+/**
+ * Work out what publishing the WHOLE job would do, without doing any of it.
+ *
+ * Every read here is a read. Nothing is created, no image is downloaded and no
+ * product changes, so this can be run against the full 77-product workbook as
+ * a rehearsal before anyone commits to it.
+ *
+ * The counts an operator actually needs before saying yes are: how many
+ * products appear for the first time, how many already exist, and — for the
+ * ones that would land as unpublished drafts — exactly which decision is
+ * missing.
+ */
+export async function planImportedPublish(input: {
+  jobId: string;
+  delta?: { sourceMissing: number; completeSource: boolean };
+}): Promise<PublishPlan> {
+  const items = await listImportItems(input.jobId);
+  const rejected = items.filter((item) => item.status === 'rejected').length;
+  const staged = items
+    .map(readStagedItem)
+    .filter((item): item is StagedItem => item !== null)
+    .filter((item) => item.doc.status !== 'rejected');
+
+  const plan: PublishPlan = {
+    considered: staged.length,
+    rejected,
+    create: 0,
+    update: 0,
+    publishable: 0,
+    blocked: [],
+    blockedByUnmappedCategory: 0,
+    blockedByMissingImage: 0,
+    blockedByMissingDescription: 0,
+    slugCollisions: [],
+    distinctImageUrls: 0,
+    productsWithoutImages: 0,
+    sourceMissing: input.delta?.sourceMissing ?? 0,
+    completeSource: input.delta?.completeSource ?? true,
+  };
+
+  const distinctImages = new Set<string>();
+  // Slugs are checked against each other as well as against the catalog: two
+  // families in the SAME file can seed the same slug, and that collision would
+  // only appear at write time.
+  const seenSlugs = new Map<string, string>();
+
+  for (const item of staged) {
+    const { candidate } = item;
+    const groupKey = candidate.identity.sourceProductKey;
+
+    const existingLink = await get(SOURCE_LINKS, groupLinkId(groupKey));
+    const boundProductId =
+      typeof existingLink?.productId === 'string' ? existingLink.productId : null;
+    const existingProduct = boundProductId === null ? null : await get('products', boundProductId);
+    if (existingProduct === null) plan.create += 1;
+    else plan.update += 1;
+
+    for (const media of [...candidate.media, ...candidate.variants.flatMap((v) => v.media)]) {
+      distinctImages.add(media.sourceUrl);
+    }
+    const hasImage = candidate.media.length > 0;
+    if (!hasImage) plan.productsWithoutImages += 1;
+
+    const mapping = await resolveCategoryMapping(
+      candidate.identity.provider,
+      candidate.category?.sourceTaxonomy ?? '',
+      candidate.category?.sourceCategoryId,
+    );
+
+    const reasons: string[] = [];
+    if (mapping === null && typeof existingProduct?.productFamily !== 'string') {
+      reasons.push('source category is not mapped to a Channel product family');
+      plan.blockedByUnmappedCategory += 1;
+    }
+    if ((candidate.descriptionText ?? '').trim() === '') {
+      reasons.push('no usable description could be derived');
+      plan.blockedByMissingDescription += 1;
+    }
+    if (!hasImage && !Array.isArray(existingProduct?.imageIds)) {
+      reasons.push('no source image to migrate');
+      plan.blockedByMissingImage += 1;
+    }
+
+    const slug = seedSlug(candidate);
+    if (slug !== null) {
+      const owner = seenSlugs.get(slug);
+      if (owner !== undefined && owner !== candidate.parentSku) {
+        plan.slugCollisions.push({
+          parentSku: candidate.parentSku,
+          reason: `seeded slug "${slug}" is also seeded by ${owner}`,
+        });
+      } else {
+        seenSlugs.set(slug, candidate.parentSku);
+        const reserved = await get('catalogProductIdentities', `slug:${slug}`);
+        if (
+          reserved !== null &&
+          typeof reserved.productId === 'string' &&
+          reserved.productId !== boundProductId
+        ) {
+          plan.slugCollisions.push({
+            parentSku: candidate.parentSku,
+            reason: `seeded slug "${slug}" is already reserved by another product`,
+          });
+        }
+      }
+    }
+
+    if (reasons.length === 0) plan.publishable += 1;
+    else plan.blocked.push({ parentSku: candidate.parentSku, reason: reasons.join('; ') });
+  }
+
+  plan.distinctImageUrls = distinctImages.size;
+  return plan;
 }
 
 export interface PublishSampleInput {
@@ -256,7 +415,11 @@ export async function publishImportedSample(
     // the caller explicitly supplied a stand-in.
     if (imageIds.length === 0 && input.localSeedImage !== undefined) {
       const mimeType = sniffImageMime(input.localSeedImage.bytes);
-      if (mimeType !== null) {
+      // The stand-in goes through the same sniffing and dimension checks as a
+      // downloaded image; only the transport differs.
+      const dimensions =
+        mimeType === null ? null : readImageDimensions(input.localSeedImage.bytes, mimeType);
+      if (mimeType !== null && dimensions !== null) {
         const migrated = await migrateImageLocally(
           {
             ok: true,
@@ -264,6 +427,7 @@ export async function publishImportedSample(
             mimeType,
             sha256: createHash('sha256').update(input.localSeedImage.bytes).digest('hex'),
             finalUrl: `local-proof:${input.localSeedImage.name}`,
+            dimensions,
           },
           `LOCAL PROOF placeholder for ${candidate.parentSku}`,
           seenImageHashes,

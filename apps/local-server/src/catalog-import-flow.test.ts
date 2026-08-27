@@ -403,6 +403,7 @@ function fetched(bytes: Buffer) {
     mimeType: 'image/jpeg' as const,
     sha256: createHash('sha256').update(bytes).digest('hex'),
     finalUrl: 'https://cdn.example/a.jpg',
+    dimensions: { width: 200, height: 100 },
   };
 }
 

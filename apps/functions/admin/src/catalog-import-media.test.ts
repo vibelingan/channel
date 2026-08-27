@@ -6,20 +6,45 @@ import {
   MAX_REDIRECTS,
   fetchSourceImage,
   isBlockedAddress,
+  readImageDimensions,
   sniffImageMime,
 } from './catalog-import-media.ts';
 
-const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64, 7)]);
-const PNG = Buffer.concat([
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-  Buffer.alloc(64, 3),
+/**
+ * Minimal but WELL-FORMED headers. The fetcher reads pixel dimensions from the
+ * header, so a bare magic-number stub is now correctly refused — these carry
+ * real dimensions so the tests exercise the path they mean to.
+ */
+const JPEG = Buffer.concat([
+  Buffer.from([0xff, 0xd8]), // SOI
+  Buffer.from([0xff, 0xc0, 0x00, 0x11, 0x08]), // SOF0, length 17, 8-bit
+  Buffer.from([0x00, 0x64]), // height 100
+  Buffer.from([0x00, 0xc8]), // width 200
+  Buffer.alloc(48, 7),
 ]);
-const WEBP = Buffer.concat([
-  Buffer.from('RIFF'),
-  Buffer.alloc(4),
-  Buffer.from('WEBP'),
-  Buffer.alloc(64, 1),
-]);
+
+const PNG = (() => {
+  const png = Buffer.alloc(64, 3);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(png, 0);
+  png.writeUInt32BE(13, 8);
+  png.write('IHDR', 12, 'ascii');
+  png.writeUInt32BE(200, 16);
+  png.writeUInt32BE(100, 20);
+  return png;
+})();
+
+const WEBP = (() => {
+  const webp = Buffer.alloc(64, 1);
+  webp.write('RIFF', 0, 'ascii');
+  webp.write('WEBP', 8, 'ascii');
+  webp.write('VP8 ', 12, 'ascii');
+  webp[23] = 0x9d;
+  webp[24] = 0x01;
+  webp[25] = 0x2a;
+  webp.writeUInt16LE(200, 26);
+  webp.writeUInt16LE(100, 28);
+  return webp;
+})();
 
 const publicHost = async () => ['203.0.113.10'];
 
@@ -237,4 +262,162 @@ test('hashes the bytes so identical images can be deduplicated', async () => {
 test('a malformed URL is reported, not thrown', async () => {
   const result = await fetchSourceImage('not a url at all');
   assert.equal(result.ok, false);
+});
+
+// --- streaming byte cap -----------------------------------------------------
+
+/** A response whose body streams forever, ignoring what Content-Length claims. */
+function endlessBody(headers: Record<string, string> = {}): Response {
+  const chunk = new Uint8Array(64 * 1024).fill(0x41);
+  let sent = 0;
+  const stream = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      sent += chunk.byteLength;
+      // Well past the ceiling; the reader must abort long before this.
+      if (sent > 80 * 1024 * 1024) controller.close();
+      else controller.enqueue(chunk);
+    },
+  });
+  return new Response(stream, { headers });
+}
+
+test('a body that streams past the ceiling is aborted mid-transfer', async () => {
+  const result = await fetchSourceImage('https://cdn.example/a.jpg', {
+    resolveHost: publicHost,
+    fetchImpl: async () => endlessBody(),
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.reason, 'too-large');
+    assert.match(result.detail, /aborted/);
+  }
+});
+
+test('a lying Content-Length does not get past the streamed cap', async () => {
+  // Declares 1 KB, then streams tens of megabytes. Checking only the header
+  // would let the whole thing land in memory.
+  const result = await fetchSourceImage('https://cdn.example/a.jpg', {
+    resolveHost: publicHost,
+    fetchImpl: async () => endlessBody({ 'content-length': '1024' }),
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.reason, 'too-large');
+});
+
+// --- dimension limits -------------------------------------------------------
+
+/** A PNG header declaring the given pixel dimensions; body is not decoded. */
+function pngOf(width: number, height: number): Buffer {
+  const png = Buffer.alloc(64);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(png, 0);
+  png.writeUInt32BE(13, 8);
+  png.write('IHDR', 12, 'ascii');
+  png.writeUInt32BE(width, 16);
+  png.writeUInt32BE(height, 20);
+  return png;
+}
+
+test('dimensions are read from the header of each accepted format', () => {
+  assert.deepEqual(readImageDimensions(pngOf(800, 600), 'image/png'), {
+    width: 800,
+    height: 600,
+  });
+
+  // JPEG: SOI, then a SOF0 frame declaring 480 high by 640 wide.
+  const jpeg = Buffer.concat([
+    Buffer.from([0xff, 0xd8]),
+    Buffer.from([0xff, 0xc0, 0x00, 0x11, 0x08]),
+    Buffer.from([0x01, 0xe0]),
+    Buffer.from([0x02, 0x80]),
+    Buffer.alloc(16),
+  ]);
+  assert.deepEqual(readImageDimensions(jpeg, 'image/jpeg'), { width: 640, height: 480 });
+
+  // WebP lossy: RIFF/WEBP/VP8 with the 0x9d012a start code.
+  const webp = Buffer.alloc(40);
+  webp.write('RIFF', 0, 'ascii');
+  webp.write('WEBP', 8, 'ascii');
+  webp.write('VP8 ', 12, 'ascii');
+  webp[23] = 0x9d;
+  webp[24] = 0x01;
+  webp[25] = 0x2a;
+  webp.writeUInt16LE(320, 26);
+  webp.writeUInt16LE(240, 28);
+  assert.deepEqual(readImageDimensions(webp, 'image/webp'), { width: 320, height: 240 });
+});
+
+test('a pixel bomb is refused on its declared dimensions, not on its size', async () => {
+  // 30,000 x 30,000 is 900 megapixels — a few hundred bytes on the wire and
+  // gigabytes of RAM for anything that decodes it.
+  const result = await fetchSourceImage('https://cdn.example/a.png', {
+    resolveHost: publicHost,
+    fetchImpl: async () => new Response(new Uint8Array(pngOf(30_000, 30_000))),
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.reason, 'oversized-dimensions');
+    assert.equal(result.detail, '30000x30000');
+  }
+});
+
+test('a single oversized side is refused even within the pixel budget', async () => {
+  const result = await fetchSourceImage('https://cdn.example/a.png', {
+    resolveHost: publicHost,
+    fetchImpl: async () => new Response(new Uint8Array(pngOf(25_000, 10))),
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.reason, 'oversized-dimensions');
+});
+
+test('a zero-dimension image is refused', async () => {
+  const result = await fetchSourceImage('https://cdn.example/a.png', {
+    resolveHost: publicHost,
+    fetchImpl: async () => new Response(new Uint8Array(pngOf(0, 0))),
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.reason, 'oversized-dimensions');
+});
+
+test('an ordinary image passes and reports its dimensions', async () => {
+  const result = await fetchSourceImage('https://cdn.example/a.png', {
+    resolveHost: publicHost,
+    fetchImpl: async () => new Response(new Uint8Array(pngOf(1200, 1200))),
+  });
+  assert.equal(result.ok, true);
+  if (result.ok) assert.deepEqual(result.dimensions, { width: 1200, height: 1200 });
+});
+
+test('a file whose dimensions cannot be located is refused, not assumed safe', async () => {
+  // Valid PNG signature, truncated before IHDR.
+  const stub = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00]);
+  const result = await fetchSourceImage('https://cdn.example/a.png', {
+    resolveHost: publicHost,
+    fetchImpl: async () => new Response(new Uint8Array(stub)),
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.reason, 'undecodable-dimensions');
+});
+
+// --- non-raster and active content -----------------------------------------
+
+test('vector, document and markup payloads are all refused', async () => {
+  const payloads: [string, Buffer][] = [
+    ['svg', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script/></svg>')],
+    ['html', Buffer.from('<!DOCTYPE html><html><body>hi</body></html>')],
+    ['pdf', Buffer.from('%PDF-1.7\n1 0 obj')],
+    ['gif', Buffer.from('GIF89a')],
+    ['bmp', Buffer.from('BM')],
+    ['zip', Buffer.from([0x50, 0x4b, 0x03, 0x04])],
+    ['ico', Buffer.from([0x00, 0x00, 0x01, 0x00])],
+  ];
+  for (const [label, bytes] of payloads) {
+    const result = await fetchSourceImage('https://cdn.example/x', {
+      resolveHost: publicHost,
+      // Each one is served as image/png to prove the header is not trusted.
+      fetchImpl: async () =>
+        new Response(new Uint8Array(bytes), { headers: { 'content-type': 'image/png' } }),
+    });
+    assert.equal(result.ok, false, `${label} must be refused`);
+    if (!result.ok) assert.equal(result.reason, 'unsupported-content', label);
+  }
 });

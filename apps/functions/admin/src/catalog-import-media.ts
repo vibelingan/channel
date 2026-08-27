@@ -29,6 +29,15 @@ import type { CollectionDoc } from '@vibelingan-channel/shared';
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 export const FETCH_TIMEOUT_MS = 10_000;
 export const MAX_REDIRECTS = 3;
+/**
+ * Pixel ceiling. Bytes alone are not enough: a "decompression bomb" image can
+ * be a few hundred KB on the wire and 100+ megapixels once decoded, which is
+ * gigabytes of RAM in whatever eventually resizes it. Dimensions are read from
+ * the file header, so nothing is decoded to find out.
+ */
+export const MAX_IMAGE_PIXELS = 40_000_000;
+/** No single side may exceed this, even within the pixel budget. */
+export const MAX_IMAGE_SIDE = 20_000;
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 export type AllowedImageMime = (typeof ALLOWED_MIME_TYPES)[number];
@@ -42,10 +51,24 @@ export type ImageFetchFailure =
   | 'too-large'
   | 'timeout'
   | 'network-error'
-  | 'unsupported-content';
+  | 'unsupported-content'
+  | 'oversized-dimensions'
+  | 'undecodable-dimensions';
+
+export interface ImageDimensions {
+  width: number;
+  height: number;
+}
 
 export type ImageFetchResult =
-  | { ok: true; bytes: Buffer; mimeType: AllowedImageMime; sha256: string; finalUrl: string }
+  | {
+      ok: true;
+      bytes: Buffer;
+      mimeType: AllowedImageMime;
+      sha256: string;
+      finalUrl: string;
+      dimensions: ImageDimensions;
+    }
   | { ok: false; reason: ImageFetchFailure; detail: string };
 
 /**
@@ -157,6 +180,116 @@ export function sniffImageMime(bytes: Buffer): AllowedImageMime | null {
 }
 
 /**
+ * Read the pixel dimensions from a file HEADER, without decoding the image.
+ *
+ * This is the guard against a decompression bomb: a 300 KB PNG can declare
+ * 30,000 x 30,000, which is 900 megapixels and several gigabytes once anything
+ * expands it. Reading the header costs a handful of bytes and refuses the file
+ * before that can happen.
+ *
+ * Returns `null` when the dimensions cannot be located, which is treated as a
+ * rejection rather than as "probably fine".
+ */
+export function readImageDimensions(
+  bytes: Buffer,
+  mimeType: AllowedImageMime,
+): ImageDimensions | null {
+  if (mimeType === 'image/png') {
+    // 8-byte signature, 4-byte length, "IHDR", then width and height.
+    if (bytes.length < 24 || bytes.subarray(12, 16).toString('ascii') !== 'IHDR') return null;
+    return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+  }
+
+  if (mimeType === 'image/jpeg') {
+    // Walk the segment chain to a start-of-frame marker.
+    let offset = 2;
+    while (offset + 9 < bytes.length) {
+      if (bytes[offset] !== 0xff) return null;
+      const marker = bytes[offset + 1] as number;
+      const length = bytes.readUInt16BE(offset + 2);
+      if (length < 2) return null;
+      // SOF0..SOF15, excluding DHT (C4), JPG (C8) and DAC (CC).
+      const isFrame =
+        marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
+      if (isFrame) {
+        if (offset + 9 > bytes.length) return null;
+        return { height: bytes.readUInt16BE(offset + 5), width: bytes.readUInt16BE(offset + 7) };
+      }
+      offset += 2 + length;
+    }
+    return null;
+  }
+
+  // WebP: RIFF container, then one of three frame encodings.
+  if (bytes.length < 30) return null;
+  const chunk = bytes.subarray(12, 16).toString('ascii');
+  if (chunk === 'VP8X') {
+    // 24-bit little-endian canvas size, stored as (size - 1).
+    const width =
+      1 + (bytes[24] as number) + ((bytes[25] as number) << 8) + ((bytes[26] as number) << 16);
+    const height =
+      1 + (bytes[27] as number) + ((bytes[28] as number) << 8) + ((bytes[29] as number) << 16);
+    return { width, height };
+  }
+  if (chunk === 'VP8L') {
+    if (bytes.length < 25 || bytes[20] !== 0x2f) return null;
+    const bits =
+      (bytes[21] as number) |
+      ((bytes[22] as number) << 8) |
+      ((bytes[23] as number) << 16) |
+      ((bytes[24] as number) << 24);
+    return { width: 1 + (bits & 0x3fff), height: 1 + ((bits >> 14) & 0x3fff) };
+  }
+  if (chunk === 'VP8 ') {
+    // Lossy: 3-byte start code 0x9d 0x01 0x2a, then 14-bit width and height.
+    if (bytes.length < 30) return null;
+    if (bytes[23] !== 0x9d || bytes[24] !== 0x01 || bytes[25] !== 0x2a) return null;
+    return {
+      width: bytes.readUInt16LE(26) & 0x3fff,
+      height: bytes.readUInt16LE(28) & 0x3fff,
+    };
+  }
+  return null;
+}
+
+/**
+ * Read the body with a running byte cap, aborting the transfer the moment it
+ * is exceeded.
+ *
+ * `Content-Length` is a claim, not a guarantee: a hostile or broken server can
+ * declare 1 KB and stream forever. Buffering the whole body first and checking
+ * afterwards would mean the damage is already done, so the cap is enforced
+ * chunk by chunk and the connection is dropped rather than drained.
+ */
+async function readBodyWithCap(
+  response: Response,
+  limit: number,
+  controller: AbortController,
+): Promise<Buffer | 'too-large'> {
+  const stream = response.body;
+  if (stream === null) return Buffer.alloc(0);
+  const reader = stream.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value === undefined) continue;
+      total += value.byteLength;
+      if (total > limit) {
+        controller.abort();
+        return 'too-large';
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks, total);
+}
+
+/**
  * Fetch one source image under the full policy. Returns a reason rather than
  * throwing, because one unreachable URL must cost its own image and nothing
  * else — the import continues and the URL stays retryable.
@@ -223,28 +356,61 @@ export async function fetchSourceImage(
       return { ok: false, reason: 'http-error', detail: `HTTP ${response.status}` };
     }
 
-    // The declared length is a hint, not a guarantee; the read below is what
-    // actually enforces the ceiling.
+    // The declared length is a hint that lets an obvious offender be refused
+    // without transferring anything; the streamed cap below is what actually
+    // enforces the ceiling.
     const declared = Number(response.headers.get('content-length') ?? '0');
     if (Number.isFinite(declared) && declared > MAX_IMAGE_BYTES) {
+      controller.abort();
       return { ok: false, reason: 'too-large', detail: `${declared} bytes declared` };
     }
 
-    const buffered = await response.arrayBuffer();
-    const bytes = Buffer.from(buffered);
-    if (bytes.length > MAX_IMAGE_BYTES) {
-      return { ok: false, reason: 'too-large', detail: `${bytes.length} bytes received` };
+    const body = await readBodyWithCap(response, MAX_IMAGE_BYTES, controller);
+    if (body === 'too-large') {
+      return {
+        ok: false,
+        reason: 'too-large',
+        detail: `stream exceeded ${MAX_IMAGE_BYTES} bytes and was aborted`,
+      };
     }
+    const bytes = body;
+
+    // Content type comes from the bytes, never from the supplier's header, so
+    // an HTML page or an SVG served as image/jpeg is refused here.
     const mimeType = sniffImageMime(bytes);
     if (mimeType === null) {
       return { ok: false, reason: 'unsupported-content', detail: 'not a JPEG, PNG or WebP' };
     }
+
+    const dimensions = readImageDimensions(bytes, mimeType);
+    if (dimensions === null) {
+      return {
+        ok: false,
+        reason: 'undecodable-dimensions',
+        detail: `${mimeType} header did not yield dimensions`,
+      };
+    }
+    if (
+      dimensions.width < 1 ||
+      dimensions.height < 1 ||
+      dimensions.width > MAX_IMAGE_SIDE ||
+      dimensions.height > MAX_IMAGE_SIDE ||
+      dimensions.width * dimensions.height > MAX_IMAGE_PIXELS
+    ) {
+      return {
+        ok: false,
+        reason: 'oversized-dimensions',
+        detail: `${dimensions.width}x${dimensions.height}`,
+      };
+    }
+
     return {
       ok: true,
       bytes,
       mimeType,
       sha256: createHash('sha256').update(bytes).digest('hex'),
       finalUrl: current.toString(),
+      dimensions,
     };
   }
 
