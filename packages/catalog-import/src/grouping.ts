@@ -140,33 +140,104 @@ interface VariantAccumulator {
 interface ProductAccumulator {
   candidateGroupKey: string;
   parentSku: string;
-  title: string;
-  // Written with `undefined` while accumulating (exactOptionalPropertyTypes
-  // forbids assigning undefined to an optional property); the emitted
-  // candidate omits the key entirely instead.
-  brand: string | undefined;
-  descriptionHtml: string | undefined;
-  descriptionText: string | undefined;
-  descriptionSource: DescriptionProvenance | undefined;
+  // Candidate values from every row of the family, resolved at emit time by a
+  // rule that does not depend on the order they arrived in.
+  titles: (string | undefined)[];
+  brands: (string | undefined)[];
+  externalProductIds: (string | undefined)[];
+  descriptions: DescriptionCandidate[];
   attributes: Record<string, string | number | boolean>;
   category?: CandidateCategory;
   media: string[];
   variantKeys: string[];
   firstRow: number;
-  externalProductId: string | undefined;
   /** Most-available status wins: one live store listing makes the family live. */
   statuses: Set<SourceListing['sourceListingStatus']>;
 }
 
 /**
- * Product-level fields come from the FIRST row that supplies a non-empty
- * value, in workbook order. Deterministic and explainable ("row 12 is where
- * the title came from") beats any cleverer merge that an operator cannot
- * predict or audit.
+ * Product-level field selection, invariant under any re-ordering of a family's
+ * rows.
+ *
+ * "First non-empty in workbook order" was the earlier rule, and it broke once
+ * the description fallback chain started filling every row: the first row's
+ * GENERATED copy would beat a sibling row's authored description purely on
+ * position. It also meant a merchant re-exporting the same catalog with rows
+ * in a different order got a different product page, with no source change to
+ * explain it.
+ *
+ * So selection is a function of the VALUES, never of their position:
+ *
+ *   1. the value the most rows agree on — a family's rows normally repeat the
+ *      same title and description, so the majority is what the family is
+ *      actually called;
+ *   2. ties broken by the longer value, which carries more of what the
+ *      merchant supplied;
+ *   3. remaining ties broken lexicographically, purely so the result is total.
+ *
+ * The operator owns these fields after import, so the rule only has to be
+ * predictable and stable — which "whichever row happened to be first" is not.
  */
-function firstNonEmpty(current: string | undefined, next: string | undefined): string | undefined {
-  if (current !== undefined && current !== '') return current;
-  return next !== undefined && next !== '' ? next : current;
+export function pickCanonicalValue(values: readonly (string | undefined)[]): string | undefined {
+  const counts = new Map<string, number>();
+  for (const value of values) {
+    if (value === undefined || value === '') continue;
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  let best: string | undefined;
+  let bestCount = 0;
+  for (const [value, count] of counts) {
+    if (
+      best === undefined ||
+      count > bestCount ||
+      (count === bestCount &&
+        (value.length > best.length || (value.length === best.length && value < best)))
+    ) {
+      best = value;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+/** Authored copy outranks generated copy, whatever order the rows arrive in. */
+const DESCRIPTION_RANK: Record<DescriptionProvenance, number> = {
+  description: 4,
+  shortDescription: 3,
+  structured: 2,
+  titleAndSpecs: 1,
+  none: 0,
+};
+
+interface DescriptionCandidate {
+  text: string | undefined;
+  html: string | undefined;
+  source: DescriptionProvenance | undefined;
+}
+
+/**
+ * Choose one description for the family: best provenance first, then the same
+ * value-based rule as everything else. The html and the provenance travel with
+ * the text that won, so a product can never show one row's copy under another
+ * row's markup.
+ */
+function pickDescription(candidates: readonly DescriptionCandidate[]): DescriptionCandidate {
+  const usable = candidates.filter((entry) => entry.text !== undefined && entry.text !== '');
+  if (usable.length === 0) return { text: undefined, html: undefined, source: undefined };
+
+  const bestRank = Math.max(
+    ...usable.map((entry) => DESCRIPTION_RANK[entry.source ?? 'description'] ?? 0),
+  );
+  const contenders = usable.filter(
+    (entry) => (DESCRIPTION_RANK[entry.source ?? 'description'] ?? 0) === bestRank,
+  );
+  const text = pickCanonicalValue(contenders.map((entry) => entry.text));
+  const winner = contenders.find((entry) => entry.text === text);
+  return {
+    text,
+    html: winner?.html,
+    source: winner?.source,
+  };
 }
 
 function appendUnique(target: string[], values: readonly string[]): void {
@@ -339,12 +410,10 @@ export function groupListings(listings: readonly SourceListing[]): GroupingResul
       product = {
         candidateGroupKey: groupKey,
         parentSku: listing.parentSku,
-        title: listing.title,
-        brand: undefined,
-        descriptionHtml: undefined,
-        descriptionText: undefined,
-        descriptionSource: undefined,
-        externalProductId: undefined,
+        titles: [],
+        brands: [],
+        externalProductIds: [],
+        descriptions: [],
         attributes: {},
         media: [],
         variantKeys: [],
@@ -353,21 +422,16 @@ export function groupListings(listings: readonly SourceListing[]): GroupingResul
       };
       products.set(groupKey, product);
     }
-    product.title = firstNonEmpty(product.title, listing.title) ?? listing.title;
-    product.brand = firstNonEmpty(product.brand, listing.brand);
-    const previousDescription = product.descriptionText;
-    product.descriptionHtml = firstNonEmpty(product.descriptionHtml, listing.descriptionHtml);
-    product.descriptionText = firstNonEmpty(product.descriptionText, listing.descriptionText);
-    // Keep the provenance attached to the row the copy actually came from; a
-    // stale label would tell a reviewer the text was authored when it was
-    // generated, which is the one thing this field exists to prevent.
-    if (
-      previousDescription !== product.descriptionText ||
-      product.descriptionSource === undefined
-    ) {
-      product.descriptionSource = listing.descriptionSource;
-    }
-    product.externalProductId = firstNonEmpty(product.externalProductId, listing.externalProductId);
+    // Collect, do not decide. Every row of the family contributes a candidate;
+    // the choice is made once, at emit time, from the values alone.
+    product.titles.push(listing.title);
+    product.brands.push(listing.brand);
+    product.externalProductIds.push(listing.externalProductId);
+    product.descriptions.push({
+      text: listing.descriptionText,
+      html: listing.descriptionHtml,
+      source: listing.descriptionSource,
+    });
     if (product.category === undefined && listing.category !== undefined) {
       product.category = listing.category;
     }
@@ -478,34 +542,33 @@ export function groupListings(listings: readonly SourceListing[]): GroupingResul
       });
     }
 
+    // One resolution point for every product-level scalar, so the outcome is a
+    // function of the family's values and not of the order they arrived in.
+    const title = pickCanonicalValue(product.titles) ?? product.parentSku;
+    const brand = pickCanonicalValue(product.brands);
+    const externalProductId = pickCanonicalValue(product.externalProductIds);
+    const description = pickDescription(product.descriptions);
+
     result.push({
       identity: {
         provider,
         sourceProductKey: product.candidateGroupKey,
-        ...(product.externalProductId === undefined
-          ? {}
-          : { externalProductId: product.externalProductId }),
+        ...(externalProductId === undefined ? {} : { externalProductId }),
       },
       matchHints: {
         parentSku: product.parentSku,
-        ...(product.brand === undefined ? {} : { brand: product.brand }),
+        ...(brand === undefined ? {} : { brand }),
       },
       parentSku: product.parentSku,
-      title: product.title,
+      title,
       attributes: product.attributes,
       media: mediaFor(product.media),
       variants: variantCandidates,
       sourceListingStatus: resolveStatus(product.statuses),
-      ...(product.brand === undefined ? {} : { brand: product.brand }),
-      ...(product.descriptionHtml === undefined
-        ? {}
-        : { descriptionHtml: product.descriptionHtml }),
-      ...(product.descriptionText === undefined
-        ? {}
-        : { descriptionText: product.descriptionText }),
-      ...(product.descriptionSource === undefined
-        ? {}
-        : { descriptionSource: product.descriptionSource }),
+      ...(brand === undefined ? {} : { brand }),
+      ...(description.html === undefined ? {} : { descriptionHtml: description.html }),
+      ...(description.text === undefined ? {} : { descriptionText: description.text }),
+      ...(description.source === undefined ? {} : { descriptionSource: description.source }),
       ...(product.category === undefined ? {} : { category: product.category }),
     });
   }

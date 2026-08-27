@@ -221,16 +221,22 @@ test('one live store listing makes the family read as published', () => {
   assert.equal(result.products[0]?.sourceListingStatus, 'published');
 });
 
-test('product fields come from the first row that supplies them', () => {
+test('product fields are chosen from the family values, not from row position', () => {
+  // Previously this asserted "the first row wins". That rule was wrong once
+  // the description fallback filled every row: it let a generated line beat a
+  // sibling row's authored copy purely on position, and it made the product
+  // change when a merchant re-exported the same data in a different order.
+  // See grouping-row-order.test.ts.
   const result = groupListings([
-    listing({ rowNumber: 10, title: 'First title' }),
-    listing({ rowNumber: 11, title: 'Second title', brand: 'Acme', storeKey: 'ShopB' }),
+    listing({ rowNumber: 10, title: 'Agreed title' }),
+    listing({ rowNumber: 11, title: 'Agreed title', brand: 'Acme', storeKey: 'ShopB' }),
+    listing({ rowNumber: 12, title: 'Outlier title', storeKey: 'ShopC' }),
   ]);
-  assert.equal(result.products[0]?.title, 'First title');
+  assert.equal(result.products[0]?.title, 'Agreed title', 'the value most rows agree on');
   assert.equal(
     result.products[0]?.brand,
     'Acme',
-    'a later row may fill a field the first left blank',
+    'a field only one row supplies is still picked up',
   );
 });
 
