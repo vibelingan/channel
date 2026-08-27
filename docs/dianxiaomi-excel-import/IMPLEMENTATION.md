@@ -136,19 +136,72 @@ minting a second one.
    CLI, so the admin surface is "see what this file would do" and adds no new
    server action or authorization path.
 
-## Blocked deliverable: the customer workbook
+## The real workbook (resolved 2026-08-27)
 
-`<merchant-export>.xlsx` is **not present on
-this machine** (searched `~/Downloads`, `~/Desktop` and the wider home
-directory; the only 2026 `.xlsx` files are unrelated sprint trackers). So the
-real-workbook run in handoff §14 Task 5, §17 and §20.4 could not be performed.
+The customer workbook was supplied in a signed transfer package
+(`dianxiaomi_lazada_export_original.xlsx`, SHA-256 `57b29269…6582`, all five
+package checksums verified). It was kept outside the repository for the whole
+run and is not committed.
 
-What was done instead: a generated fixture reproduces the workbook's VERIFIED
-SHAPE exactly — 312 rows, 77 parent SKUs, 289 SKUs, 100 store-products, 312
-store-variants, 4 stores, 452 unique images over 1,549 references, 16
-marketplace ids on 129 rows, and 23 SKUs repeated across shops with equal stock
-in both. Parsing it yields exactly 77 products and 289 variants.
+**Every authoritative measure reproduced exactly on the first calibrated run:**
 
-That proves the grouping, reconciliation and identity logic against the
-documented shape. It does NOT prove the header alias table, which is the one
-thing that genuinely depends on the file. See `CALIBRATION.md`.
+| Measure | Expected | Produced |
+|---|---:|---:|
+| Data rows | 312 | 312 |
+| Columns | 44 | 44 |
+| Distinct global parent SKUs | 77 | 77 |
+| Distinct global SKUs | 289 | 289 |
+| Distinct (store, parent SKU) | 100 | 100 |
+| Distinct (store, SKU) | 312 | 312 |
+| Stores | 4 | 4 |
+| Unique image URLs | 452 | 452 |
+| Image references | 1,549 | 1,549 |
+| Lazada product IDs | 16 | 16 |
+| Rows with a Lazada product ID | 129 | 129 |
+| SKUs repeated across stores | 23 | 23 |
+
+No test or expectation was changed to reach these numbers. The redacted job
+summary is `REAL-WORKBOOK-SUMMARY.json`.
+
+### What the first, uncalibrated run got wrong — and how it showed
+
+On first contact six of the eight printed cardinalities were already exact.
+The two image counts came back **zero**, because this template names its
+gallery `产品图片主图(URL)` and `附图1…附图7`, which the alias table did not
+recognise. The design's "report unknown columns" rule turned that into a named
+list of 24 headings rather than silence, so the cause was visible before the
+first row was read.
+
+Four alias gaps, all evidence-backed and now pinned by
+`providers/dianxiaomi/real-template.test.ts`:
+
+1. the gallery is a main column plus `附图1…附图7`, not `图片N`;
+2. option slots are numbered with Chinese numerals (`变种属性名称一`), not digits;
+3. `关键属性` is the attributes column;
+4. `平台刊登时间` is the platform listing timestamp §9 needs.
+
+`来源URL` was deliberately NOT treated as an image: including it gives 1,697
+references over 511 unique URLs, against the authoritative 1,549 / 452. It is a
+supplier listing address, and it is one of eight columns the table now
+recognises and explicitly declines to import.
+
+### Description fallback on real data
+
+201 of 312 rows carry no usable description of their own — 200 placeholders
+plus one genuinely empty cell, which is why the placeholder finding count is
+200 and the fallback count is 201. The chain resolved all of them:
+
+| Rung | Rows |
+|---|---:|
+| 2 — the merchant's short description | 130 |
+| 3 — structured copy from title, brand and attributes | 71 |
+
+Before this pass the implementation stopped at "treat placeholder as absent",
+which blocked publication. That was a real gap against §11 and is now closed.
+
+### Bounded image validation
+
+Six distinct source images were probed through the full SSRF policy: all six
+reachable, 64–292 KB, and — the reason magic-byte sniffing exists — served as
+**PNG and WebP** regardless of URL extension. Nothing was stored and no URL was
+printed. A separate bounded publish migrated 12 real images with zero failures.

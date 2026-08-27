@@ -1,5 +1,15 @@
 # Calibrating the header table against the real export
 
+## Status: done for the current template (2026-08-27)
+
+The alias table was calibrated against the real export
+(`dianxiaomi_lazada_export_original.xlsx`, SHA-256 `57b29269…6582`). All 44 of
+its columns are recognised — 36 imported, 8 recognised and deliberately not
+imported — and `providers/dianxiaomi/real-template.test.ts` pins that so a
+future edit cannot quietly break it.
+
+The procedure below is what to run when a NEW template revision appears.
+
 ## Why this step exists
 
 Columns are located by NAME, never by position, so a reordered template still

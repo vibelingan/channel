@@ -37,10 +37,11 @@ The local proof path (`--seed-image`) exists only so the storefront can be
 exercised on a machine that cannot reach the supplier CDN. It has no production
 call site.
 
-## 3. The header alias table needs one calibration pass
+## 3. Header alias table — done for this template
 
-See `CALIBRATION.md`. Roughly one line per unrecognised column, made against
-evidence the tool prints rather than against a guess.
+Calibrated against the real export on 2026-08-27; all 44 columns recognised and
+pinned by a regression test. A future template revision needs the same pass,
+which `CALIBRATION.md` describes. Not a blocker.
 
 ## 4. Category mappings are an operator decision
 
@@ -62,6 +63,14 @@ A record absent from a later export is marked, not deleted or unpublished, and
 a workbook that could not be fully read marks nothing at all. Whether a
 long-missing record should eventually be retired is a policy decision nobody has
 made yet.
+
+## 7. The CloudBase SDK contract gate has not been run
+
+`APPROVED_DESIGN_SPEC.md` §17 requires `pnpm verify:cloudbase-sdk` against the
+pinned `@cloudbase/node-sdk@3.17.2` and `wx-server-sdk@4.0.2`, with runtime
+evidence rather than TypeScript declarations. That gate contacts CloudBase, and
+this phase is local-only by instruction, so it was not run. It is required
+before the production upload and media-migration work in items 1 and 2.
 
 ## Known risks
 
