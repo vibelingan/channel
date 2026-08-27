@@ -7,11 +7,8 @@ merchant's export filename) that does not belong in it. They are held with the
 reviewer; their checksums are `7cd605da…7459` and `9615166a…8e398`.
 
 This file records where the current `main` demonstrably differs from a
-repository fact those documents assumed.
-
-This file records where the current `main` demonstrably differs from a
-repository fact the design assumed, and what the implementation does instead.
-Every substantive decision in the design is preserved.
+repository fact those documents assumed, and what the implementation does
+instead. Every substantive decision in the design is preserved.
 
 ---
 
