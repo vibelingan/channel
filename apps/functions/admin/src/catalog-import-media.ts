@@ -20,10 +20,11 @@
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
-import { isIP } from 'node:net';
+import { type LookupFunction, isIP } from 'node:net';
 import { createDoc } from '@vibelingan-channel/db';
 import { catalogStoragePath, mediaStorage } from '@vibelingan-channel/media-storage';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { Agent, fetch as undiciFetch } from 'undici';
 
 /** No single source image may exceed this. */
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -101,9 +102,20 @@ function isBlockedIpv6(address: string): boolean {
   if (lower === '::' || lower === '::1') return true;
   if (lower.startsWith('fe80') || lower.startsWith('fc') || lower.startsWith('fd')) return true;
   if (lower.startsWith('ff')) return true; // multicast
-  // IPv4-mapped (::ffff:169.254.169.254) must be judged as the IPv4 it carries.
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(lower);
-  if (mapped?.[1] !== undefined) return isBlockedIpv4(mapped[1]);
+  // IPv4-mapped addresses must be judged as the IPv4 they carry, in EITHER of
+  // the two forms an implementation may hand back: dotted-decimal
+  // (::ffff:169.254.169.254) or the equivalent two hex 16-bit groups
+  // (::ffff:a9fe:a9fe is the same address) -- a check for only one form is a
+  // bypass for the other.
+  const dotted = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(lower);
+  if (dotted?.[1] !== undefined) return isBlockedIpv4(dotted[1]);
+  const hexGroups = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(lower);
+  if (hexGroups?.[1] !== undefined && hexGroups[2] !== undefined) {
+    const high = Number.parseInt(hexGroups[1], 16);
+    const low = Number.parseInt(hexGroups[2], 16);
+    const asIpv4 = [(high >> 8) & 0xff, high & 0xff, (low >> 8) & 0xff, low & 0xff].join('.');
+    return isBlockedIpv4(asIpv4);
+  }
   return false;
 }
 
@@ -123,8 +135,16 @@ async function assertPublicHost(
   hostname: string,
   resolveHost: HostResolver,
 ): Promise<ImageFetchFailure | null> {
-  const literal = isIP(hostname);
-  if (literal !== 0) return isBlockedAddress(hostname) ? 'blocked-address' : null;
+  // WHATWG `URL.hostname` keeps the brackets on an IPv6 literal ("[::1]"),
+  // but `net.isIP`/`dns.lookup` expect the bare address. Without stripping
+  // them, every literal-IPv6 URL falls through past this check entirely and
+  // is reported as an unresolvable HOSTNAME instead of ever reaching the
+  // address check below -- accidentally fail-closed for public IPv6 hosts
+  // too, and it means the IPv6 blocklist is never actually exercised here.
+  const bareHost =
+    hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
+  const literal = isIP(bareHost);
+  if (literal !== 0) return isBlockedAddress(bareHost) ? 'blocked-address' : null;
   let addresses: string[];
   try {
     addresses = await resolveHost(hostname);
@@ -157,6 +177,45 @@ const defaultResolveHost: HostResolver = async (hostname) => {
   const addresses = await lookup(hostname, { all: true });
   return addresses.map((entry) => entry.address);
 };
+
+/**
+ * A `dns.lookup`-compatible resolver that validates addresses AT THE MOMENT OF
+ * CONNECTING, not earlier. `assertPublicHost` below resolves and checks
+ * *before* the request is even built, as a fast-fail; without this, `fetch`
+ * would then run its OWN, separate DNS resolution when it actually opens the
+ * socket -- a window in which a short-TTL record can rebind from a public
+ * answer to `127.0.0.1` or `169.254.169.254` between the two lookups.
+ * Undici's connector forwards `Agent`'s `connect` options straight to
+ * `net.connect`/`tls.connect`, both of which accept a `lookup` override with
+ * this exact signature, so wiring one in here makes the address that gets
+ * validated the same one that gets connected to -- closing the gap instead of
+ * narrowing it.
+ */
+export function makeValidatingLookup(resolveHost: HostResolver): LookupFunction {
+  return (hostname, options, callback) => {
+    const wantsAll = typeof options === 'object' && options !== null && options.all === true;
+    resolveHost(hostname)
+      .then((addresses) => {
+        const safe = addresses.filter((address) => !isBlockedAddress(address));
+        if (safe.length === 0) {
+          callback(new Error(`no public address for ${hostname}`), '', 0);
+          return;
+        }
+        if (wantsAll) {
+          callback(
+            null,
+            safe.map((address) => ({ address, family: isIP(address) })),
+          );
+          return;
+        }
+        const chosen = safe[0] as string;
+        callback(null, chosen, isIP(chosen));
+      })
+      .catch((error: unknown) => {
+        callback(error instanceof Error ? error : new Error('lookup failed'), '', 0);
+      });
+  };
+}
 
 /** Content type by magic number. The supplier's own header is not evidence. */
 export function sniffImageMime(bytes: Buffer): AllowedImageMime | null {
@@ -299,7 +358,30 @@ export async function fetchSourceImage(
   seams: ImageFetchSeams = {},
 ): Promise<ImageFetchResult> {
   const resolveHost = seams.resolveHost ?? defaultResolveHost;
-  const doFetch = seams.fetchImpl ?? fetch;
+  // Only the real network fetch needs connection pinning -- a test's injected
+  // fetchImpl never opens a socket, so there is no DNS-rebinding window to close.
+  const pinnedDispatcher =
+    seams.fetchImpl === undefined
+      ? new Agent({ connect: { lookup: makeValidatingLookup(resolveHost) } })
+      : null;
+  // Node's global `fetch` is powered by an INTERNAL copy of undici baked into
+  // the runtime, which enforces its own handler protocol -- driving it with a
+  // dispatcher built from the separately-installed `undici` package throws
+  // ("invalid onRequestStart method") because the two copies' internals don't
+  // agree, even though their public types look compatible. Using `undici`'s
+  // own `fetch` alongside its own `Agent` keeps both halves from the same
+  // package version, which is what actually works at runtime (verified
+  // against a live HTTPS host, not just by reading the types).
+  const doFetch: typeof fetch =
+    seams.fetchImpl ??
+    ((url, init) =>
+      undiciFetch(
+        url as unknown as string,
+        {
+          ...(init as object),
+          dispatcher: pinnedDispatcher ?? undefined,
+        } as Parameters<typeof undiciFetch>[1],
+      ) as unknown as Promise<Response>);
   let current: URL;
   try {
     current = new URL(sourceUrl);
@@ -307,114 +389,122 @@ export async function fetchSourceImage(
     return { ok: false, reason: 'network-error', detail: 'malformed URL' };
   }
 
-  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
-    if (current.protocol !== 'https:') {
-      return { ok: false, reason: 'not-https', detail: `refused ${current.protocol}//` };
-    }
-    const blocked = await assertPublicHost(current.hostname, resolveHost);
-    if (blocked !== null) {
-      return { ok: false, reason: blocked, detail: `host ${current.hostname}` };
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    let response: Response;
-    try {
-      response = await doFetch(current, {
-        redirect: 'manual',
-        signal: controller.signal,
-        headers: { accept: ALLOWED_MIME_TYPES.join(',') },
-      });
-    } catch (error) {
-      clearTimeout(timer);
-      const aborted = error instanceof Error && error.name === 'AbortError';
-      return {
-        ok: false,
-        reason: aborted ? 'timeout' : 'network-error',
-        detail: error instanceof Error ? error.message : 'fetch failed',
-      };
-    }
-    clearTimeout(timer);
-
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get('location');
-      if (location === null) {
-        return { ok: false, reason: 'http-error', detail: `${response.status} without Location` };
-      }
-      if (hop === MAX_REDIRECTS) {
-        return { ok: false, reason: 'too-many-redirects', detail: `${MAX_REDIRECTS} hops` };
-      }
-      try {
-        current = new URL(location, current);
-      } catch {
-        return { ok: false, reason: 'network-error', detail: 'malformed redirect target' };
-      }
-      continue;
-    }
-
-    if (!response.ok) {
-      return { ok: false, reason: 'http-error', detail: `HTTP ${response.status}` };
-    }
-
-    // The declared length is a hint that lets an obvious offender be refused
-    // without transferring anything; the streamed cap below is what actually
-    // enforces the ceiling.
-    const declared = Number(response.headers.get('content-length') ?? '0');
-    if (Number.isFinite(declared) && declared > MAX_IMAGE_BYTES) {
-      controller.abort();
-      return { ok: false, reason: 'too-large', detail: `${declared} bytes declared` };
-    }
-
-    const body = await readBodyWithCap(response, MAX_IMAGE_BYTES, controller);
-    if (body === 'too-large') {
-      return {
-        ok: false,
-        reason: 'too-large',
-        detail: `stream exceeded ${MAX_IMAGE_BYTES} bytes and was aborted`,
-      };
-    }
-    const bytes = body;
-
-    // Content type comes from the bytes, never from the supplier's header, so
-    // an HTML page or an SVG served as image/jpeg is refused here.
-    const mimeType = sniffImageMime(bytes);
-    if (mimeType === null) {
-      return { ok: false, reason: 'unsupported-content', detail: 'not a JPEG, PNG or WebP' };
-    }
-
-    const dimensions = readImageDimensions(bytes, mimeType);
-    if (dimensions === null) {
-      return {
-        ok: false,
-        reason: 'undecodable-dimensions',
-        detail: `${mimeType} header did not yield dimensions`,
-      };
-    }
-    if (
-      dimensions.width < 1 ||
-      dimensions.height < 1 ||
-      dimensions.width > MAX_IMAGE_SIDE ||
-      dimensions.height > MAX_IMAGE_SIDE ||
-      dimensions.width * dimensions.height > MAX_IMAGE_PIXELS
-    ) {
-      return {
-        ok: false,
-        reason: 'oversized-dimensions',
-        detail: `${dimensions.width}x${dimensions.height}`,
-      };
-    }
-
-    return {
-      ok: true,
-      bytes,
-      mimeType,
-      sha256: createHash('sha256').update(bytes).digest('hex'),
-      finalUrl: current.toString(),
-      dimensions,
-    };
+  try {
+    return await fetchImage();
+  } finally {
+    await pinnedDispatcher?.close();
   }
 
-  return { ok: false, reason: 'too-many-redirects', detail: `${MAX_REDIRECTS} hops` };
+  async function fetchImage(): Promise<ImageFetchResult> {
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+      if (current.protocol !== 'https:') {
+        return { ok: false, reason: 'not-https', detail: `refused ${current.protocol}//` };
+      }
+      const blocked = await assertPublicHost(current.hostname, resolveHost);
+      if (blocked !== null) {
+        return { ok: false, reason: blocked, detail: `host ${current.hostname}` };
+      }
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      let response: Response;
+      try {
+        response = await doFetch(current, {
+          redirect: 'manual',
+          signal: controller.signal,
+          headers: { accept: ALLOWED_MIME_TYPES.join(',') },
+        });
+      } catch (error) {
+        clearTimeout(timer);
+        const aborted = error instanceof Error && error.name === 'AbortError';
+        return {
+          ok: false,
+          reason: aborted ? 'timeout' : 'network-error',
+          detail: error instanceof Error ? error.message : 'fetch failed',
+        };
+      }
+      clearTimeout(timer);
+
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (location === null) {
+          return { ok: false, reason: 'http-error', detail: `${response.status} without Location` };
+        }
+        if (hop === MAX_REDIRECTS) {
+          return { ok: false, reason: 'too-many-redirects', detail: `${MAX_REDIRECTS} hops` };
+        }
+        try {
+          current = new URL(location, current);
+        } catch {
+          return { ok: false, reason: 'network-error', detail: 'malformed redirect target' };
+        }
+        continue;
+      }
+
+      if (!response.ok) {
+        return { ok: false, reason: 'http-error', detail: `HTTP ${response.status}` };
+      }
+
+      // The declared length is a hint that lets an obvious offender be refused
+      // without transferring anything; the streamed cap below is what actually
+      // enforces the ceiling.
+      const declared = Number(response.headers.get('content-length') ?? '0');
+      if (Number.isFinite(declared) && declared > MAX_IMAGE_BYTES) {
+        controller.abort();
+        return { ok: false, reason: 'too-large', detail: `${declared} bytes declared` };
+      }
+
+      const body = await readBodyWithCap(response, MAX_IMAGE_BYTES, controller);
+      if (body === 'too-large') {
+        return {
+          ok: false,
+          reason: 'too-large',
+          detail: `stream exceeded ${MAX_IMAGE_BYTES} bytes and was aborted`,
+        };
+      }
+      const bytes = body;
+
+      // Content type comes from the bytes, never from the supplier's header, so
+      // an HTML page or an SVG served as image/jpeg is refused here.
+      const mimeType = sniffImageMime(bytes);
+      if (mimeType === null) {
+        return { ok: false, reason: 'unsupported-content', detail: 'not a JPEG, PNG or WebP' };
+      }
+
+      const dimensions = readImageDimensions(bytes, mimeType);
+      if (dimensions === null) {
+        return {
+          ok: false,
+          reason: 'undecodable-dimensions',
+          detail: `${mimeType} header did not yield dimensions`,
+        };
+      }
+      if (
+        dimensions.width < 1 ||
+        dimensions.height < 1 ||
+        dimensions.width > MAX_IMAGE_SIDE ||
+        dimensions.height > MAX_IMAGE_SIDE ||
+        dimensions.width * dimensions.height > MAX_IMAGE_PIXELS
+      ) {
+        return {
+          ok: false,
+          reason: 'oversized-dimensions',
+          detail: `${dimensions.width}x${dimensions.height}`,
+        };
+      }
+
+      return {
+        ok: true,
+        bytes,
+        mimeType,
+        sha256: createHash('sha256').update(bytes).digest('hex'),
+        finalUrl: current.toString(),
+        dimensions,
+      };
+    }
+
+    return { ok: false, reason: 'too-many-redirects', detail: `${MAX_REDIRECTS} hops` };
+  }
 }
 
 const EXTENSIONS: Record<AllowedImageMime, string> = {

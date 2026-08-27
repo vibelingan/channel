@@ -573,9 +573,18 @@ function buildCell(
  * one whose values come from somewhere else entirely.
  */
 function assertNoRefusedParts(names: readonly string[]): void {
+  // OPC part names are case-insensitive (ECMA-376 Part 2, §10.1.2.3): a
+  // compliant reader treats `xl/VbaProject.bin` as the same part as
+  // `xl/vbaProject.bin`. Comparing case-sensitively would let an archive
+  // smuggle a macro/external-link/etc. part past this refusal purely by
+  // recasing its name -- this reader never executes the part either way, but
+  // the whole point of refusing the workbook is to not accept it as though it
+  // were a plain export, and a recased part slipping through defeats that.
   for (const name of names) {
+    const lower = name.toLowerCase();
     for (const [prefix, reason] of REFUSED_PART_PREFIXES) {
-      if (name === prefix || name.startsWith(prefix)) {
+      const lowerPrefix = prefix.toLowerCase();
+      if (lower === lowerPrefix || lower.startsWith(lowerPrefix)) {
         throw new SpreadsheetFormatError(`${reason} (${name})`);
       }
     }

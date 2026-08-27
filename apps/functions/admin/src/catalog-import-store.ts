@@ -133,23 +133,7 @@ export async function startImportJob(input: StartImportJobInput): Promise<StartI
 
   if (existing !== null && input.replay !== true) return { job: existing, reused: true };
 
-  let jobId = baseId;
-  let replayOfJobId = '';
-  if (existing !== null) {
-    // Find the next free attempt id. Bounded: an operator replaying a file 100
-    // times is a different problem from the one this loop is solving.
-    replayOfJobId = baseId;
-    for (let attempt = 1; attempt <= 100; attempt += 1) {
-      const candidate = importJobId(input.provider, input.sourceFileSha256, attempt);
-      if ((await get(IMPORT_JOBS, candidate)) === null) {
-        jobId = candidate;
-        break;
-      }
-    }
-    if (jobId === baseId) throw new Error('too many replays of the same source file');
-  }
-
-  const job = await upsertDocWithId(IMPORT_JOBS, jobId, {
+  const buildJobDoc = (replayOfJobId: string): Record<string, unknown> => ({
     provider: input.provider,
     status: 'created',
     sourceFileName: input.sourceFileName,
@@ -159,7 +143,37 @@ export async function startImportJob(input: StartImportJobInput): Promise<StartI
     startedAt: input.now,
     ...(replayOfJobId === '' ? {} : { replayOfJobId }),
   });
-  return { job, reused: false };
+
+  if (existing === null) {
+    // create-if-absent, not read-then-write: two concurrent first imports of
+    // the identical file must converge on ONE job record, not have the second
+    // caller's upsert silently overwrite the first's (different settings, a
+    // different `now`) without either caller knowing it lost.
+    const outcome = await createDocWithId(IMPORT_JOBS, baseId, buildJobDoc(''));
+    if (outcome === 'exists') {
+      const winner = await get(IMPORT_JOBS, baseId);
+      if (winner !== null) return { job: winner, reused: true };
+    }
+    const job = await get(IMPORT_JOBS, baseId);
+    if (job === null) throw new Error('import job vanished immediately after creation');
+    return { job, reused: false };
+  }
+
+  // Replay: find the next free attempt id via genuine create-if-absent
+  // retries, not a check-then-write loop. Two concurrent replays of the same
+  // source file must never both "win" the same attempt slot -- a read-then-
+  // write loop lets exactly that happen, with the second writer's
+  // upsertDocWithId silently clobbering the first's job record.
+  for (let attempt = 1; attempt <= 100; attempt += 1) {
+    const candidate = importJobId(input.provider, input.sourceFileSha256, attempt);
+    const outcome = await createDocWithId(IMPORT_JOBS, candidate, buildJobDoc(baseId));
+    if (outcome === 'created') {
+      const job = await get(IMPORT_JOBS, candidate);
+      if (job === null) throw new Error('import job vanished immediately after creation');
+      return { job, reused: false };
+    }
+  }
+  throw new Error('too many replays of the same source file');
 }
 
 export interface JobSummary {

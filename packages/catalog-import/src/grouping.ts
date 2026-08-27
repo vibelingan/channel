@@ -232,7 +232,15 @@ function pickDescription(candidates: readonly DescriptionCandidate[]): Descripti
     (entry) => (DESCRIPTION_RANK[entry.source ?? 'description'] ?? 0) === bestRank,
   );
   const text = pickCanonicalValue(contenders.map((entry) => entry.text));
-  const winner = contenders.find((entry) => entry.text === text);
+  // Rows can share the winning text while disagreeing on its html or provenance
+  // (e.g. one row's source is explicitly 'description', another's is undefined
+  // but ranks the same) -- `.find()` on the original array would then hand back
+  // whichever row happened to come first, reintroducing the row-order dependence
+  // this function exists to remove. Break that tie the same value-based way.
+  const tied = contenders.filter((entry) => entry.text === text);
+  const metaKey = (entry: DescriptionCandidate) => `${entry.html ?? ''} ${entry.source ?? ''}`;
+  const winningMeta = pickCanonicalValue(tied.map(metaKey));
+  const winner = tied.find((entry) => metaKey(entry) === winningMeta) ?? tied[0];
   return {
     text,
     html: winner?.html,

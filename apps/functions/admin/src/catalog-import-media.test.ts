@@ -6,6 +6,7 @@ import {
   MAX_REDIRECTS,
   fetchSourceImage,
   isBlockedAddress,
+  makeValidatingLookup,
   readImageDimensions,
   sniffImageMime,
 } from './catalog-import-media.ts';
@@ -75,6 +76,12 @@ test('refuses loopback, private, link-local and reserved addresses', () => {
     'ff02::1',
     '::ffff:169.254.169.254',
     '::ffff:127.0.0.1',
+    // The same IPv4-mapped addresses again, in the hex-groups form -- a
+    // resolver or a crafted response can hand back either notation for the
+    // identical address, and a check for only the dotted-decimal form is a
+    // bypass for this one.
+    '::ffff:a9fe:a9fe', // 169.254.169.254
+    '::ffff:7f00:1', // 127.0.0.1
     'not-an-address',
   ]) {
     assert.equal(isBlockedAddress(address), true, `${address} should be blocked`);
@@ -85,6 +92,23 @@ test('allows ordinary public addresses', () => {
   for (const address of ['203.0.113.10', '8.8.8.8', '172.32.0.1', '2606:4700::1111']) {
     assert.equal(isBlockedAddress(address), false, `${address} should be allowed`);
   }
+});
+
+test('a bracketed IPv6 literal in the URL is evaluated, not just refused as unresolvable', async () => {
+  // WHATWG URL.hostname keeps the brackets on a literal IPv6 host
+  // ("[::1]"); assertPublicHost must strip them before the address check --
+  // otherwise a literal IPv6 host is never actually judged by the blocklist,
+  // it just fails as "the hostname doesn't resolve", and a PUBLIC IPv6
+  // literal would be wrongly refused right alongside a blocked one.
+  const blocked = await fetchSourceImage('https://[::1]/x.jpg', { resolveHost: publicHost });
+  assert.equal(blocked.ok, false);
+  if (!blocked.ok) assert.equal(blocked.reason, 'blocked-address');
+
+  const allowed = await fetchSourceImage('https://[2606:4700::1111]/x.jpg', {
+    resolveHost: publicHost,
+    fetchImpl: async () => respond(JPEG),
+  });
+  assert.equal(allowed.ok, true);
 });
 
 test('refuses a host that resolves to any private address', () => {
@@ -420,4 +444,81 @@ test('vector, document and markup payloads are all refused', async () => {
     assert.equal(result.ok, false, `${label} must be refused`);
     if (!result.ok) assert.equal(result.reason, 'unsupported-content', label);
   }
+});
+
+/**
+ * `assertPublicHost` alone leaves a DNS-rebinding window: it resolves and
+ * validates a hostname BEFORE the request is built, but `fetch` then performs
+ * its own, separate resolution when it actually opens the socket. A record
+ * with a short TTL can answer public on the first lookup and
+ * `127.0.0.1`/`169.254.169.254` on the second, connecting to a blocked
+ * address despite the earlier check passing.
+ *
+ * `makeValidatingLookup` closes that window by being the resolver used AT
+ * CONNECT TIME (wired into `undici.Agent`'s `connect.lookup`), so the address
+ * that gets validated is the address that gets connected to -- there is no
+ * second, later lookup for a rebound record to answer differently to.
+ */
+test('the connect-time lookup refuses a hostname whose only address is blocked', async () => {
+  const lookup = makeValidatingLookup(async () => ['127.0.0.1']);
+  await new Promise<void>((resolve) => {
+    lookup('rebinding.example', {}, (error, address) => {
+      assert.ok(error instanceof Error, 'a blocked-only resolution must error, not connect');
+      assert.equal(address, '');
+      resolve();
+    });
+  });
+});
+
+test('the connect-time lookup refuses when every resolved address is blocked, even mixed', async () => {
+  // A host answering one address this call happens to be all-private is still
+  // refused outright -- this lookup makes no "at least one address" exception,
+  // matching assertPublicHost's own "ANY blocked address refuses the host" rule.
+  const lookup = makeValidatingLookup(async () => ['10.0.0.1', '192.168.1.1']);
+  await new Promise<void>((resolve) => {
+    lookup('all-private.example', { all: true }, (error) => {
+      assert.ok(error instanceof Error);
+      resolve();
+    });
+  });
+});
+
+test('the connect-time lookup passes only the public addresses through', async () => {
+  // If a rebinding attempt mixes a public decoy with a private target, the
+  // private one must never reach the caller -- filtering, not first-wins.
+  const lookup = makeValidatingLookup(async () => ['203.0.113.10', '127.0.0.1']);
+  await new Promise<void>((resolve) => {
+    lookup('mixed.example', { all: true }, (error, addresses) => {
+      assert.equal(error, null);
+      const list = addresses as { address: string }[];
+      assert.deepEqual(
+        list.map((entry) => entry.address),
+        ['203.0.113.10'],
+      );
+      resolve();
+    });
+  });
+});
+
+test('the connect-time lookup resolves fresh on every call, not from a cached earlier check', async () => {
+  // Simulates a rebinding record: public on the Nth call, private after.
+  let calls = 0;
+  const rebinding = async () => (calls++ === 0 ? ['203.0.113.10'] : ['169.254.169.254']);
+  const lookup = makeValidatingLookup(rebinding);
+
+  await new Promise<void>((resolve) => {
+    lookup('rebinds.example', {}, (error, address) => {
+      assert.equal(error, null);
+      assert.equal(address, '203.0.113.10');
+      resolve();
+    });
+  });
+  // The second call -- standing in for "the socket's own resolution" -- must
+  // re-validate rather than trust the first call's now-stale answer.
+  await new Promise<void>((resolve) => {
+    lookup('rebinds.example', {}, (error) => {
+      assert.ok(error instanceof Error, 'the rebound address must be refused, not connected to');
+      resolve();
+    });
+  });
 });

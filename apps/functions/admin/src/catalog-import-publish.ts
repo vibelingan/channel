@@ -320,9 +320,57 @@ interface StagedItem {
   inventory: VariantInventory[];
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isValidSourceIdentity(value: unknown): boolean {
+  return (
+    isPlainObject(value) &&
+    typeof value.provider === 'string' &&
+    typeof value.sourceProductKey === 'string'
+  );
+}
+
+function isValidVariantCandidate(value: unknown): value is CatalogVariantCandidate {
+  return (
+    isPlainObject(value) &&
+    isValidSourceIdentity(value.identity) &&
+    typeof value.sku === 'string' &&
+    isPlainObject(value.optionValues) &&
+    Array.isArray(value.inventory) &&
+    Array.isArray(value.media)
+  );
+}
+
+const VALID_LISTING_STATUSES = new Set(['published', 'draft', 'missing', 'unknown']);
+
+/**
+ * `doc` is a document read back from the local/CloudBase store, i.e. a JSON
+ * round-trip -- not a live object our own code just constructed. A stale
+ * schema after a migration, or a hand-edited local DB file, must fail here
+ * with a candidate the caller drops, not pass an `as` cast and write
+ * `undefined`-derived fields into a real product or variant three functions
+ * later with a confusing error, or none at all.
+ */
+function isValidProductCandidate(value: unknown): value is CatalogProductCandidate {
+  return (
+    isPlainObject(value) &&
+    isValidSourceIdentity(value.identity) &&
+    typeof value.parentSku === 'string' &&
+    typeof value.title === 'string' &&
+    isPlainObject(value.attributes) &&
+    Array.isArray(value.media) &&
+    Array.isArray(value.variants) &&
+    value.variants.every(isValidVariantCandidate) &&
+    typeof value.sourceListingStatus === 'string' &&
+    VALID_LISTING_STATUSES.has(value.sourceListingStatus)
+  );
+}
+
 function readStagedItem(doc: CollectionDoc): StagedItem | null {
-  const candidate = doc.candidate as CatalogProductCandidate | undefined;
-  if (candidate === undefined || !Array.isArray(candidate.variants)) return null;
+  const candidate = doc.candidate;
+  if (!isValidProductCandidate(candidate)) return null;
   return {
     doc,
     candidate,

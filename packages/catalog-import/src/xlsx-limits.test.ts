@@ -199,6 +199,17 @@ test('a macro-enabled workbook is refused', () => {
   );
 });
 
+test('a macro part is refused even when its name is recased', () => {
+  // OPC part names are case-insensitive, so a compliant reader treats
+  // xl/VbaProject.bin as the exact same part as xl/vbaProject.bin -- a
+  // case-sensitive refusal check would let this one slip past as though the
+  // workbook carried no macro at all.
+  refuses(
+    packageOf({ extraParts: [['xl/VbaProject.bin', Buffer.from([0xd0, 0xcf, 0x11, 0xe0])]] }),
+    /macros/,
+  );
+});
+
 test('a workbook carrying external link parts is refused', () => {
   refuses(
     packageOf({

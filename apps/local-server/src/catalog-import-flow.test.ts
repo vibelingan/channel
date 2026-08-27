@@ -123,6 +123,29 @@ test('an explicit replay is a new job that remembers what it replays', async (t)
   assert.equal(await countOf('catalogImportJobs'), 2);
 });
 
+test('RACE: two concurrent replays of the same file never collide on one attempt id', async (t) => {
+  // startImportJob's replay branch used to find the next free attempt id by
+  // reading, then writing -- two concurrent replays could both see attempt 1
+  // as free before either one's write landed, and the second writer would
+  // silently overwrite the first's job record. It now creates each attempt
+  // id with a genuine create-if-absent, so this must always resolve to two
+  // distinct jobs, whichever order the writes actually land in.
+  const { cleanup } = harness();
+  t.after(cleanup);
+
+  await runCatalogImport({ bytes: WORKBOOK, sourceFileName: 'export.xlsx' });
+
+  const [a, b] = await Promise.all([
+    runCatalogImport({ bytes: WORKBOOK, sourceFileName: 'export.xlsx', replay: true }),
+    runCatalogImport({ bytes: WORKBOOK, sourceFileName: 'export.xlsx', replay: true }),
+  ]);
+
+  assert.equal(a.reused, false);
+  assert.equal(b.reused, false);
+  assert.notEqual(a.job._id, b.job._id, 'a read-then-write race would let both land on attempt 1');
+  assert.equal(await countOf('catalogImportJobs'), 3);
+});
+
 test('a workbook that cannot be read still leaves a failed job behind', async (t) => {
   const { cleanup } = harness();
   t.after(cleanup);
