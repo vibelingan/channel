@@ -302,6 +302,28 @@ interface SheetRef {
   relationshipId: string;
 }
 
+/**
+ * Excel can be told to count days from 1904 instead of 1900
+ * (`<workbookPr date1904="1"/>`), a legacy Mac setting. Every serial in such a
+ * file is 1,462 days — four years and a day — from what the 1900 reader would
+ * make of it. Supporting it silently is not an option and neither is guessing,
+ * so this reader refuses the file. A workbook that trips this needs the epoch
+ * added deliberately, with a test, not discovered later as a shipped date that
+ * is four years wrong.
+ */
+function assertNot1904(xml: string): void {
+  for (const event of scanXml(xml)) {
+    if (event.type === 'open' && event.name === 'workbookpr') {
+      const flag = event.attrs.get('date1904');
+      if (flag === '1' || flag === 'true') {
+        throw new SpreadsheetFormatError(
+          'workbook uses the 1904 date system, which this reader does not support',
+        );
+      }
+    }
+  }
+}
+
 function parseWorkbookSheets(xml: string): SheetRef[] {
   const sheets: SheetRef[] = [];
   for (const event of scanXml(xml)) {
@@ -519,6 +541,7 @@ export function readFirstSheet(bytes: Buffer): SourceSheet {
   const workbookXml = archive.readText('xl/workbook.xml');
   if (workbookXml === null) throw new SpreadsheetFormatError('workbook part is missing');
 
+  assertNot1904(workbookXml);
   const sheets = parseWorkbookSheets(workbookXml);
   const first = sheets[0];
   if (first === undefined) throw new SpreadsheetFormatError('workbook declares no worksheets');

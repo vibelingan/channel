@@ -65,6 +65,22 @@ test('rejects an unsupported compression method', () => {
   assert.throws(() => new ZipArchive(bytes).read('xl/workbook.xml'), ZipFormatError);
 });
 
+test('refuses a workbook that uses the 1904 date system', () => {
+  // Every serial in a 1904 workbook is 1,462 days from its 1900 reading — four
+  // years and a day. A silently mis-read date is worse than a refused file.
+  const bytes = buildXlsx({
+    sheets: [{ name: 'S', rows: [[{ dateSerial: 46260 }]] }],
+    date1904: true,
+  });
+  assert.throws(
+    () => readFirstSheet(bytes),
+    (error: unknown) => error instanceof SpreadsheetFormatError && /1904/.test(error.message),
+  );
+  // The same workbook without the flag reads normally.
+  const ok = buildXlsx({ sheets: [{ name: 'S', rows: [[{ dateSerial: 46260 }]] }] });
+  assert.equal(readFirstSheet(ok).rows[0]?.cells[0]?.text, '46260');
+});
+
 // --- XML safety -------------------------------------------------------------
 
 test('refuses spreadsheet XML that declares a DTD', () => {

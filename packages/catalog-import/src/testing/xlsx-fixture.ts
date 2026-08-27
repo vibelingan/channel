@@ -133,6 +133,8 @@ export interface FixtureOptions {
   sheets: readonly FixtureSheet[];
   /** Deflate entries (what Excel does) instead of storing them. */
   compress?: boolean;
+  /** Emit the legacy Mac 1904 epoch flag, which the reader must refuse. */
+  date1904?: boolean;
 }
 
 function columnName(index: number): string {
@@ -203,7 +205,8 @@ export function buildXlsx(options: FixtureOptions): Buffer {
         `<sheet name="${escapeXml(sheet.name)}" sheetId="${index + 1}" r:id="rId${index + 1}"/>`,
     )
     .join('');
-  const workbookXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheetTags}</sheets></workbook>`;
+  const workbookPr = options.date1904 === true ? '<workbookPr date1904="1"/>' : '';
+  const workbookXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${workbookPr}<sheets>${sheetTags}</sheets></workbook>`;
 
   const workbookRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${options.sheets
     .map(
