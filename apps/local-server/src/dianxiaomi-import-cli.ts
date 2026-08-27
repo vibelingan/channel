@@ -34,6 +34,7 @@ import {
   readDianxiaomiRows,
 } from '@vibelingan-channel/catalog-import/dianxiaomi';
 import { setAdapter, upsertDocWithId } from '@vibelingan-channel/db';
+import { fetchSourceImage } from '@vibelingan-channel/fn-admin/catalog-import-media';
 import { publishImportedSample } from '@vibelingan-channel/fn-admin/catalog-import-publish';
 import {
   computeImportDelta,
@@ -53,6 +54,7 @@ const { values } = parseArgs({
     publish: { type: 'string' },
     'fetch-images': { type: 'string' },
     'seed-image': { type: 'string' },
+    'probe-images': { type: 'string' },
     'map-source-categories': { type: 'string' },
     'make-public': { type: 'boolean', default: false },
     json: { type: 'string' },
@@ -71,6 +73,8 @@ function usage(): never {
       '  --replay             re-import bytes already imported, as a new job',
       '  --publish <n>        publish at most n staged products into the catalog',
       '  --fetch-images <n>   download at most n source images into LOCAL_MEDIA_DIR',
+      '  --probe-images <n>   reachability-check n distinct source images and',
+      '                       exit; stores no bytes and prints no URLs',
       '  --make-public        publish the sample if it passes the catalog rules',
       '  --map-source-categories <family>',
       '                       record operator mappings from every source category',
@@ -136,6 +140,9 @@ function printSummary(detail: ReturnType<typeof parseDianxiaomiWorkbook>): void 
   console.log(`    stores           ${detail.counts.stores}`);
   console.log(`    uniqueImageUrls  ${detail.counts.uniqueImageUrls}`);
   console.log(`    imageReferences  ${detail.counts.imageReferences}`);
+  console.log(`    marketplaceIds   ${detail.counts.marketplaceIds}`);
+  console.log(`    rowsWithMktId    ${detail.counts.rowsWithMarketplaceId}`);
+  console.log(`    skusIn2+Stores   ${detail.counts.skusInMultipleStores}`);
   console.log('');
   console.log('  candidates');
   console.log(`    products         ${detail.bundle.products.length}`);
@@ -169,6 +176,63 @@ function printSummary(detail: ReturnType<typeof parseDianxiaomiWorkbook>): void 
   console.log('  Prices above are SOURCE CNY. USD website prices stay OFF until the');
   console.log('  margin mode, input price, FX source and rounding rule are settled.');
   console.log('');
+}
+
+// --- --probe-images: bounded reachability check, nothing stored ------------
+//
+// Deliberately separate from --fetch-images. This reaches a third-party CDN
+// with the merchant's own URLs, so it is bounded, opt-in, stores no bytes, and
+// reports only shapes: the host is reduced to a registrable-domain hash, and
+// no URL, path or filename is printed. That keeps the output attachable to a
+// review without leaking the merchant's supplier relationships.
+if (typeof values['probe-images'] === 'string') {
+  const limit = Number.parseInt(values['probe-images'], 10);
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 25) {
+    console.error('--probe-images expects a whole number between 1 and 25');
+    process.exit(1);
+  }
+  const detail = parseDianxiaomiWorkbook(bytes);
+  const urls: string[] = [];
+  const seen = new Set<string>();
+  for (const product of detail.bundle.products) {
+    for (const media of [...product.media, ...product.variants.flatMap((v) => v.media)]) {
+      if (seen.has(media.sourceUrl)) continue;
+      seen.add(media.sourceUrl);
+      urls.push(media.sourceUrl);
+    }
+  }
+  console.log('');
+  console.log(`  distinct source image URLs in file: ${seen.size}`);
+  console.log(`  probing a bounded sample of ${Math.min(limit, urls.length)}; storing nothing`);
+  console.log('');
+
+  const hosts = new Map<string, string>();
+  const hostLabel = (raw: string): string => {
+    const host = new URL(raw).hostname;
+    if (!hosts.has(host)) hosts.set(host, `host-${hosts.size + 1}`);
+    return hosts.get(host) as string;
+  };
+
+  let reachable = 0;
+  for (const url of urls.slice(0, limit)) {
+    const label = hostLabel(url);
+    const result = await fetchSourceImage(url);
+    if (result.ok) {
+      reachable += 1;
+      console.log(
+        `    ${label.padEnd(8)} ok      ${result.mimeType.padEnd(11)} ${String(result.bytes.length).padStart(8)} bytes  sha256:${result.sha256.slice(0, 12)}…`,
+      );
+    } else {
+      console.log(`    ${label.padEnd(8)} FAILED  ${result.reason} (${result.detail})`);
+    }
+  }
+  console.log('');
+  console.log(
+    `  reachable: ${reachable}/${Math.min(limit, urls.length)}  distinct hosts: ${hosts.size}`,
+  );
+  console.log('  No bytes were written and no URL was printed.');
+  console.log('');
+  process.exit(0);
 }
 
 // --- --dry-run: parse and report, touch nothing ----------------------------

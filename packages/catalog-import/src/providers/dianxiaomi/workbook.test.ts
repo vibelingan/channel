@@ -13,6 +13,7 @@ const HEADERS = [
   '店铺',
   '品牌',
   '商品描述',
+  '短描述',
   '价格',
   '促销价',
   '促销开始时间',
@@ -252,17 +253,31 @@ test('reports an unusable date without dropping the row', () => {
 
 // --- descriptions -----------------------------------------------------------
 
-test('treats placeholder descriptions as absent and says so', () => {
-  const result = read([row({ 商品描述: { inline: '<p>1</p>' } })]);
-  assert.equal(result.rows[0]?.description.placeholder, true);
-  assert.equal(result.rows[0]?.description.text, undefined);
+test('a placeholder description is reported and replaced by a deterministic fallback', () => {
+  // APPROVED_DESIGN_SPEC §11: placeholder is treated as absent, then the
+  // fallback chain runs. It must NOT simply leave the product description-less.
+  const result = read([row({ 商品描述: { inline: '<p>1</p>' }, 品牌: 'Acme' })]);
+  const description = result.rows[0]?.description;
+  assert.equal(description?.source, 'structured');
+  assert.ok(description?.text.includes('Bluetooth earbuds'));
+  assert.ok(description?.text.includes('Brand: Acme'));
   assert.ok(codes(result.findings).includes(FINDING_CODES.DESCRIPTION_PLACEHOLDER));
+  assert.ok(codes(result.findings).includes(FINDING_CODES.DESCRIPTION_FALLBACK_STRUCTURED));
+});
+
+test('a placeholder description prefers the short description over generated copy', () => {
+  const result = read([
+    row({ 商品描述: { inline: '<p>1</p>' }, 短描述: { inline: '<p>Real short copy.</p>' } }),
+  ]);
+  assert.equal(result.rows[0]?.description.source, 'shortDescription');
+  assert.equal(result.rows[0]?.description.text, 'Real short copy.');
+  assert.ok(codes(result.findings).includes(FINDING_CODES.DESCRIPTION_FALLBACK_SHORT));
 });
 
 test('never carries unsafe description markup through', () => {
   const result = read([row({ 商品描述: { inline: '<p>Good</p><script>steal()</script>' } })]);
   const description = result.rows[0]?.description;
-  assert.equal(description?.placeholder, false);
+  assert.equal(description?.source, 'description');
   assert.equal(description?.html, '<p>Good</p>');
   assert.equal(description?.text, 'Good');
   assert.ok(codes(result.findings).includes(FINDING_CODES.DESCRIPTION_HTML_SANITIZED));

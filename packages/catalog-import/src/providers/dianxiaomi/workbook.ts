@@ -15,7 +15,11 @@
 import type { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import type { ImportFinding, Money } from '../../contracts.ts';
-import { type DescriptionResult, normalizeDescription } from '../../descriptions.ts';
+import {
+  type DescriptionSource,
+  type ResolvedDescription,
+  resolveDescription,
+} from '../../description-fallback.ts';
 import { FINDING_CODES, errorFinding, warningFinding } from '../../findings.ts';
 import {
   dedupeImageUrls,
@@ -44,6 +48,13 @@ export const SOURCE_CURRENCY = 'CNY';
 /** Exports occasionally carry a title banner above the real header row. */
 const MAX_HEADER_SCAN_ROWS = 10;
 
+/**
+ * Gallery ceiling per row (APPROVED_DESIGN_SPEC §12.2). Mirrors the catalog's
+ * own `PRODUCT_IMAGE_MAX_COUNT`. Kept as a local constant so this package stays
+ * dependency-free; the publish path enforces the catalog's value again.
+ */
+export const MAX_PRODUCT_GALLERY_IMAGES = 9;
+
 export interface SourceDateValue {
   /** Instant derived by reading the cell as UTC+8. */
   iso: string;
@@ -61,8 +72,11 @@ export interface DianxiaomiRow {
   title: string;
   store: string;
   brand?: string;
-  description: DescriptionResult;
+  /** Resolved through the fallback chain; carries which rung supplied it. */
+  description: ResolvedDescription;
   shortDescription?: string;
+  /** Human-readable variant label, when the source supplies one. */
+  variantName?: string;
   categoryId?: string;
   categoryName?: string;
   /** The marketplace's own product id; absent means a draft/global record. */
@@ -79,6 +93,8 @@ export interface DianxiaomiRow {
   sourceListingStatus: 'published' | 'draft' | 'unknown';
   sourceCreatedAt?: SourceDateValue;
   sourceUpdatedAt?: SourceDateValue;
+  /** When the marketplace listed the product; pairs with platformProductId. */
+  platformListedAt?: SourceDateValue;
 }
 
 export type DianxiaomiReadResult =
@@ -92,6 +108,8 @@ export type DianxiaomiReadResult =
       dataRowCount: number;
       findings: ImportFinding[];
       ignoredHeaders: string[];
+      /** Columns the table recognises but deliberately does not import. */
+      recognisedUnusedHeaders: string[];
       headerLabels: string[];
     }
   | { ok: false; findings: ImportFinding[]; headerLabels: string[] };
@@ -278,7 +296,17 @@ function readImageUrls(
       raw.push(part);
     }
   }
-  return dedupeImageUrls(raw);
+  const deduped = dedupeImageUrls(raw);
+  if (deduped.length > MAX_PRODUCT_GALLERY_IMAGES) {
+    findings.push(
+      warningFinding(
+        FINDING_CODES.GALLERY_TRUNCATED,
+        `Row lists ${deduped.length} images; the catalog shows at most ${MAX_PRODUCT_GALLERY_IMAGES}, so the extras were dropped.`,
+        location,
+      ),
+    );
+  }
+  return deduped.slice(0, MAX_PRODUCT_GALLERY_IMAGES);
 }
 
 const PUBLISHED_STATUS_WORDS: ReadonlySet<string> = new Set([
@@ -322,6 +350,49 @@ function readListingStatus(
   }
   if (platformProductId !== '') return 'published';
   return 'draft';
+}
+
+/** Which finding, if any, records the rung the description came from. */
+const DESCRIPTION_FALLBACK_FINDINGS: Partial<
+  Record<
+    DescriptionSource,
+    { code: (typeof FINDING_CODES)[keyof typeof FINDING_CODES]; message: string }
+  >
+> = {
+  shortDescription: {
+    code: FINDING_CODES.DESCRIPTION_FALLBACK_SHORT,
+    message: 'Description was taken from the short-description column.',
+  },
+  structured: {
+    code: FINDING_CODES.DESCRIPTION_FALLBACK_STRUCTURED,
+    message:
+      'Description was assembled from the title, brand and supplied attributes. It restates source fields only.',
+  },
+  titleAndSpecs: {
+    code: FINDING_CODES.DESCRIPTION_FALLBACK_TITLE_ONLY,
+    message:
+      'Description was assembled from the title and specification columns only. An operator should review it before publication.',
+  },
+  none: {
+    code: FINDING_CODES.DESCRIPTION_MISSING,
+    message: 'No description could be derived from any source field.',
+  },
+};
+
+/** Physical specifications, used by the last rung of the fallback chain. */
+function readSpecs(row: SourceRow, mapping: HeaderMapping): Record<string, string> {
+  const pairs: [string, string][] = [];
+  const specFields: [DianxiaomiField, string][] = [
+    ['weightKg', 'Weight (kg)'],
+    ['lengthCm', 'Length (cm)'],
+    ['widthCm', 'Width (cm)'],
+    ['heightCm', 'Height (cm)'],
+  ];
+  for (const [field, label] of specFields) {
+    const value = textAt(row, mapping, field);
+    if (value !== '') pairs.push([label, value]);
+  }
+  return Object.fromEntries(pairs);
 }
 
 function readOptionValues(row: SourceRow, mapping: HeaderMapping): Record<string, string> {
@@ -433,6 +504,9 @@ export function readDianxiaomiRows(bytes: Buffer): DianxiaomiReadResult {
   }
 
   const findings: ImportFinding[] = [];
+  // Recognised-but-unused columns are NOT reported as findings: they are an
+  // expected, understood part of this template, and reporting 7 of them on
+  // every job would bury the findings that need action.
   for (const unknown of mapping.unknown) {
     findings.push(
       warningFinding(
@@ -503,8 +577,21 @@ export function readDianxiaomiRows(bytes: Buffer): DianxiaomiReadResult {
       continue;
     }
 
-    const description = normalizeDescription(rawAt(row, mapping, 'description'));
-    if (description.placeholder && rawAt(row, mapping, 'description').trim() !== '') {
+    const rawDescription = rawAt(row, mapping, 'description');
+    const rawShortDescription = rawAt(row, mapping, 'shortDescription');
+    const rowAttributes = parseAttributes(rawAt(row, mapping, 'attributes'), location, findings);
+    const rowOptionValues = readOptionValues(row, mapping);
+    const description = resolveDescription({
+      description: rawDescription,
+      shortDescription: rawShortDescription,
+      title,
+      brand: textAt(row, mapping, 'brand') || undefined,
+      attributes: rowAttributes,
+      optionValues: rowOptionValues,
+      specs: readSpecs(row, mapping),
+    });
+
+    if (description.source !== 'description' && rawDescription.trim() !== '') {
       findings.push(
         warningFinding(
           FINDING_CODES.DESCRIPTION_PLACEHOLDER,
@@ -521,6 +608,10 @@ export function readDianxiaomiRows(bytes: Buffer): DianxiaomiReadResult {
           location,
         ),
       );
+    }
+    const fallbackFinding = DESCRIPTION_FALLBACK_FINDINGS[description.source];
+    if (fallbackFinding !== undefined) {
+      findings.push(warningFinding(fallbackFinding.code, fallbackFinding.message, location));
     }
 
     let stock: number | undefined;
@@ -546,6 +637,7 @@ export function readDianxiaomiRows(bytes: Buffer): DianxiaomiReadResult {
     const categoryName = textAt(row, mapping, 'categoryName');
     const platformProductId = textAt(row, mapping, 'platformProductId');
     const variantImageUrl = textAt(row, mapping, 'variantImageUrl');
+    const variantName = textAt(row, mapping, 'variantName');
     const regularPrice = readMoney(
       rawAt(row, mapping, 'regularPrice'),
       'regular',
@@ -566,8 +658,8 @@ export function readDianxiaomiRows(bytes: Buffer): DianxiaomiReadResult {
       title,
       store,
       description,
-      attributes: parseAttributes(rawAt(row, mapping, 'attributes'), location, findings),
-      optionValues: readOptionValues(row, mapping),
+      attributes: rowAttributes,
+      optionValues: rowOptionValues,
       imageUrls: readImageUrls(row, mapping, location, findings),
       sourceListingStatus: readListingStatus(
         textAt(row, mapping, 'sourceStatus'),
@@ -612,6 +704,14 @@ export function readDianxiaomiRows(bytes: Buffer): DianxiaomiReadResult {
         location,
         findings,
       ),
+      ...withDate(
+        'platformListedAt',
+        dateTextAt(row, mapping, 'platformListedAt'),
+        'Platform listed at',
+        location,
+        findings,
+      ),
+      ...(variantName === '' ? {} : { variantName }),
     });
   }
 
@@ -624,6 +724,7 @@ export function readDianxiaomiRows(bytes: Buffer): DianxiaomiReadResult {
     dataRowCount,
     findings,
     ignoredHeaders: mapping.unknown.map((entry) => entry.label),
+    recognisedUnusedHeaders: mapping.recognisedUnused.map((entry) => entry.label),
     headerLabels,
   };
 }

@@ -53,7 +53,19 @@ export type DianxiaomiField =
   | 'sourceCreatedAt'
   | 'sourceUpdatedAt'
   | 'imageUrls'
-  | 'variantImageUrl';
+  | 'variantImageUrl'
+  | 'variantName'
+  | 'platformListedAt'
+  // Recognised but deliberately NOT imported. They are listed so the import
+  // report can say "seen and skipped" instead of "unknown", which is a
+  // materially different message to whoever is calibrating the table.
+  | 'marketingImageUrls'
+  | 'videoUrl'
+  | 'warrantyType'
+  | 'taxClass'
+  | 'packageContents'
+  | 'sourcePageUrl'
+  | 'operatorNotes';
 
 /**
  * Without these four there is no identity: no way to say which product a row
@@ -67,8 +79,41 @@ export const REQUIRED_FIELDS: readonly DianxiaomiField[] = [
   'store',
 ] as const;
 
-/** Fields that legitimately span several columns (image1…image9). */
-export const MULTI_VALUE_FIELDS: ReadonlySet<DianxiaomiField> = new Set(['imageUrls']);
+/** Fields that legitimately span several columns (main image + gallery). */
+export const MULTI_VALUE_FIELDS: ReadonlySet<DianxiaomiField> = new Set([
+  'imageUrls',
+  'marketingImageUrls',
+]);
+
+/**
+ * Columns this adapter recognises and deliberately does not import.
+ *
+ * They are kept out of `ignoredHeaders` because "we have seen this column and
+ * chose not to use it" and "we do not know what this column is" are different
+ * messages to an operator calibrating the table — collapsing them would bury a
+ * genuinely unknown column in a list of expected ones.
+ *
+ * Why each is excluded:
+ *   marketingImageUrls  storefront/marketing assets, not the product gallery;
+ *                       importing them would inflate the gallery past the
+ *                       catalog's own image ceiling
+ *   videoUrl            the Channel catalog has no video field
+ *   warrantyType, taxClass, packageContents
+ *                       commercial metadata with no catalog field yet; they
+ *                       reach the candidate through the attributes column
+ *   sourcePageUrl       supplier listing address — provenance, and precisely
+ *                       the thing that must never reach a public response
+ *   operatorNotes       the exporting merchant's internal remarks
+ */
+export const RECOGNISED_UNUSED_FIELDS: ReadonlySet<DianxiaomiField> = new Set([
+  'marketingImageUrls',
+  'videoUrl',
+  'warrantyType',
+  'taxClass',
+  'packageContents',
+  'sourcePageUrl',
+  'operatorNotes',
+]);
 
 /**
  * Normalized header aliases. Every entry must already be in the form produced
@@ -116,11 +161,41 @@ export const HEADER_ALIASES: Readonly<Record<DianxiaomiField, readonly string[]>
   ],
   promotionEnd: ['促销结束时间', '活动结束时间', '促销结束', 'promotion end', 'sale end date'],
   stock: ['库存', '可用库存', '数量', 'stock', 'quantity', 'available stock'],
-  attributes: ['属性', '商品属性', '销售属性', 'attributes', 'attribute'],
-  optionName1: ['属性名1', '规格名1', '销售属性名1', 'variation name 1', 'option name 1'],
-  optionValue1: ['属性值1', '规格值1', '销售属性值1', 'variation 1', 'option value 1'],
-  optionName2: ['属性名2', '规格名2', '销售属性名2', 'variation name 2', 'option name 2'],
-  optionValue2: ['属性值2', '规格值2', '销售属性值2', 'variation 2', 'option value 2'],
+  attributes: ['属性', '商品属性', '销售属性', '关键属性', 'attributes', 'attribute'],
+  // The real export numbers its option slots with Chinese numerals
+  // (一 / 二), not Arabic digits.
+  optionName1: [
+    '属性名1',
+    '规格名1',
+    '销售属性名1',
+    '变种属性名称一',
+    'variation name 1',
+    'option name 1',
+  ],
+  optionValue1: [
+    '属性值1',
+    '规格值1',
+    '销售属性值1',
+    '变种属性值一',
+    'variation 1',
+    'option value 1',
+  ],
+  optionName2: [
+    '属性名2',
+    '规格名2',
+    '销售属性名2',
+    '变种属性名称二',
+    'variation name 2',
+    'option name 2',
+  ],
+  optionValue2: [
+    '属性值2',
+    '规格值2',
+    '销售属性值2',
+    '变种属性值二',
+    'variation 2',
+    'option value 2',
+  ],
   lengthCm: ['长', '包装长度', '长度', 'length', 'package length'],
   widthCm: ['宽', '包装宽度', '宽度', 'width', 'package width'],
   heightCm: ['高', '包装高度', '高度', 'height', 'package height'],
@@ -128,15 +203,38 @@ export const HEADER_ALIASES: Readonly<Record<DianxiaomiField, readonly string[]>
   sourceStatus: ['状态', '商品状态', '上架状态', 'status', 'product status'],
   sourceCreatedAt: ['创建时间', '添加时间', 'created at', 'create time'],
   sourceUpdatedAt: ['更新时间', '修改时间', 'updated at', 'update time', 'last modified'],
-  imageUrls: ['图片', '图片地址', '主图', '商品图片', '图片链接', 'image', 'images', 'image url'],
-  variantImageUrl: ['变体图片', 'sku图片', '规格图片', 'variation image', 'sku image'],
+  imageUrls: [
+    '图片',
+    '图片地址',
+    '主图',
+    '商品图片',
+    '图片链接',
+    // Calibrated against the real Dianxiaomi Lazada export (2026-08-26): the
+    // main image column and seven numbered gallery columns.
+    '产品图片主图',
+    '产品主图',
+    'image',
+    'images',
+    'image url',
+  ],
+  variantImageUrl: ['变种图片', '变体图片', 'sku图片', '规格图片', 'variation image', 'sku image'],
+  variantName: ['变种名称', '变体名称', '规格名称', 'variation name', 'variant name'],
+  platformListedAt: ['平台刊登时间', '刊登时间', '上架时间', 'listed at', 'published at'],
+  marketingImageUrls: ['营销图-场景图', '营销图-白底图', '营销图', 'marketing image'],
+  videoUrl: ['视频url', '视频链接', 'video url'],
+  warrantyType: ['质保类型', '保修类型', 'warranty type'],
+  taxClass: ['税', '税率', '税类', 'tax', 'tax class'],
+  packageContents: ['包装内容', '包装清单', 'package contents'],
+  sourcePageUrl: ['来源url', '来源链接', '采集链接', 'source url'],
+  operatorNotes: ['备注', '内部备注', 'remark', 'remarks', 'notes'],
 };
 
 /**
  * A numbered image column (`图片1`, `image 3`, `主图2`). Matched after the
  * alias table so an exact alias always wins.
  */
-const NUMBERED_IMAGE = /^(图片|主图|商品图片|图片地址|image|images|photo)\s*[-_ ]?([0-9]{1,2})$/;
+const NUMBERED_IMAGE =
+  /^(图片|主图|附图|产品图片|商品图片|图片地址|image|images|photo)\s*[-_ ]?([0-9]{1,2})$/;
 
 const ZERO_WIDTH_CODE_POINTS: ReadonlySet<number> = new Set([
   0x200b, 0x200c, 0x200d, 0x2060, 0xfeff,
@@ -199,7 +297,10 @@ export interface HeaderMapping {
   columns: Map<DianxiaomiField, number>;
   /** Column indices, in workbook order, for each multi-valued field. */
   multiColumns: Map<DianxiaomiField, number[]>;
+  /** Columns whose meaning is genuinely not recognised. */
   unknown: UnknownHeader[];
+  /** Columns recognised by the table but deliberately not imported. */
+  recognisedUnused: UnknownHeader[];
   /** Required fields with no matching column — a structural rejection. */
   missingRequired: DianxiaomiField[];
   /** Single-valued fields matched by more than one column — ambiguous. */
@@ -235,6 +336,7 @@ export function mapHeaders(headerCells: readonly (string | undefined)[]): Header
   const multiColumns = new Map<DianxiaomiField, number[]>();
   const duplicateLabels = new Map<DianxiaomiField, string[]>();
   const unknown: UnknownHeader[] = [];
+  const recognisedUnused: UnknownHeader[] = [];
   const presentHeaders: string[] = [];
 
   headerCells.forEach((cell, columnIndex) => {
@@ -245,6 +347,10 @@ export function mapHeaders(headerCells: readonly (string | undefined)[]): Header
     const field = fieldForHeader(label);
     if (field === null) {
       unknown.push({ columnIndex, label });
+      return;
+    }
+    if (RECOGNISED_UNUSED_FIELDS.has(field)) {
+      recognisedUnused.push({ columnIndex, label });
       return;
     }
     if (MULTI_VALUE_FIELDS.has(field)) {
@@ -265,5 +371,13 @@ export function mapHeaders(headerCells: readonly (string | undefined)[]): Header
   const duplicates = [...duplicateLabels.entries()].map(([field, labels]) => ({ field, labels }));
   const missingRequired = REQUIRED_FIELDS.filter((field) => !columns.has(field));
 
-  return { columns, multiColumns, unknown, missingRequired, duplicates, presentHeaders };
+  return {
+    columns,
+    multiColumns,
+    unknown,
+    recognisedUnused,
+    missingRequired,
+    duplicates,
+    presentHeaders,
+  };
 }

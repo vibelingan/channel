@@ -58,6 +58,9 @@ test('the parsed workbook reproduces every documented count', () => {
   assert.equal(parsed.counts.stores, ACCEPTANCE_COUNTS.stores);
   assert.equal(parsed.counts.uniqueImageUrls, ACCEPTANCE_COUNTS.uniqueImageUrls);
   assert.equal(parsed.counts.imageReferences, ACCEPTANCE_COUNTS.imageReferences);
+  assert.equal(parsed.counts.marketplaceIds, ACCEPTANCE_COUNTS.marketplaceIds);
+  assert.equal(parsed.counts.rowsWithMarketplaceId, ACCEPTANCE_COUNTS.rowsWithMarketplaceId);
+  assert.equal(parsed.counts.skusInMultipleStores, ACCEPTANCE_COUNTS.skusRepeatedAcrossStores);
 });
 
 test('312 source rows collapse to 77 products and 289 variants', () => {
@@ -115,13 +118,31 @@ test('prices are CNY minor units and no legacy USD field is produced', () => {
   assert.equal('unitPrice' in (variant ?? {}), false);
 });
 
-test('placeholder descriptions are reported and not carried as content', () => {
+test('placeholder descriptions are reported and replaced by deterministic copy', () => {
   const placeholders = parsed.bundle.findings.filter(
     (finding) => finding.code === FINDING_CODES.DESCRIPTION_PLACEHOLDER,
   );
-  assert.ok(placeholders.length > 0);
-  const bare = parsed.bundle.products.find((product) => product.descriptionText === undefined);
-  assert.ok(bare, 'at least one family has no usable description');
+  assert.ok(placeholders.length > 0, 'the fixture contains placeholder descriptions');
+
+  // APPROVED_DESIGN_SPEC §11: a placeholder must not leave the product without
+  // a description — the fallback chain supplies one from source fields.
+  const derived = parsed.bundle.products.filter(
+    (product) =>
+      product.descriptionSource !== undefined && product.descriptionSource !== 'description',
+  );
+  assert.ok(derived.length > 0, 'some families fall back');
+  for (const product of derived) {
+    assert.ok(
+      (product.descriptionText ?? '').trim().length > 0,
+      `${product.parentSku} fell back to nothing`,
+    );
+    // Generated copy may only restate supplied fields; the title is always one.
+    assert.ok((product.descriptionText ?? '').includes(product.title));
+  }
+  assert.ok(
+    parsed.bundle.findings.some((finding) => finding.code.startsWith('DESCRIPTION_FALLBACK_')),
+    'the rung used is recorded under a stable finding code',
+  );
 });
 
 test('the open-ended promotion sentinel is flagged, not shown as a date', () => {

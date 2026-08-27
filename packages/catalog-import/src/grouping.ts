@@ -24,6 +24,7 @@ import type {
   CatalogProductCandidate,
   CatalogProvider,
   CatalogVariantCandidate,
+  DescriptionProvenance,
   ImportFinding,
   InventorySnapshot,
   MatchHints,
@@ -53,6 +54,8 @@ export interface SourceListing {
   brand?: string;
   descriptionHtml?: string;
   descriptionText?: string;
+  /** Which rung of the fallback chain supplied `descriptionText`. */
+  descriptionSource?: DescriptionProvenance;
   attributes: Record<string, string | number | boolean>;
   optionValues: Record<string, string>;
   category?: CandidateCategory;
@@ -144,6 +147,7 @@ interface ProductAccumulator {
   brand: string | undefined;
   descriptionHtml: string | undefined;
   descriptionText: string | undefined;
+  descriptionSource: DescriptionProvenance | undefined;
   attributes: Record<string, string | number | boolean>;
   category?: CandidateCategory;
   media: string[];
@@ -339,6 +343,7 @@ export function groupListings(listings: readonly SourceListing[]): GroupingResul
         brand: undefined,
         descriptionHtml: undefined,
         descriptionText: undefined,
+        descriptionSource: undefined,
         externalProductId: undefined,
         attributes: {},
         media: [],
@@ -350,8 +355,18 @@ export function groupListings(listings: readonly SourceListing[]): GroupingResul
     }
     product.title = firstNonEmpty(product.title, listing.title) ?? listing.title;
     product.brand = firstNonEmpty(product.brand, listing.brand);
+    const previousDescription = product.descriptionText;
     product.descriptionHtml = firstNonEmpty(product.descriptionHtml, listing.descriptionHtml);
     product.descriptionText = firstNonEmpty(product.descriptionText, listing.descriptionText);
+    // Keep the provenance attached to the row the copy actually came from; a
+    // stale label would tell a reviewer the text was authored when it was
+    // generated, which is the one thing this field exists to prevent.
+    if (
+      previousDescription !== product.descriptionText ||
+      product.descriptionSource === undefined
+    ) {
+      product.descriptionSource = listing.descriptionSource;
+    }
     product.externalProductId = firstNonEmpty(product.externalProductId, listing.externalProductId);
     if (product.category === undefined && listing.category !== undefined) {
       product.category = listing.category;
@@ -488,6 +503,9 @@ export function groupListings(listings: readonly SourceListing[]): GroupingResul
       ...(product.descriptionText === undefined
         ? {}
         : { descriptionText: product.descriptionText }),
+      ...(product.descriptionSource === undefined
+        ? {}
+        : { descriptionSource: product.descriptionSource }),
       ...(product.category === undefined ? {} : { category: product.category }),
     });
   }
@@ -504,6 +522,16 @@ export interface GroupingCounts {
   stores: number;
   uniqueImageUrls: number;
   imageReferences: number;
+  /** Distinct marketplace product ids across the file. */
+  marketplaceIds: number;
+  /** Rows that carry a marketplace product id. */
+  rowsWithMarketplaceId: number;
+  /**
+   * SKUs listed by more than one store. This is the population the inventory
+   * reconciliation rule exists for, so it belongs in the summary rather than
+   * being inferred from the gap between `skus` and `storeVariants`.
+   */
+  skusInMultipleStores: number;
 }
 
 /**
@@ -519,7 +547,10 @@ export function countListings(listings: readonly SourceListing[]): GroupingCount
   const storeVariants = new Set<string>();
   const stores = new Set<string>();
   const images = new Set<string>();
+  const marketplaceIds = new Set<string>();
+  const storesPerSku = new Map<string, Set<string>>();
   let imageReferences = 0;
+  let rowsWithMarketplaceId = 0;
 
   for (const listing of listings) {
     const group = candidateGroupKey(listing.provider, listing.parentSku);
@@ -529,7 +560,14 @@ export function countListings(listings: readonly SourceListing[]): GroupingCount
     if (sku !== null) skus.add(sku);
     if (store !== null) stores.add(store);
     if (group !== null) storeProducts.add(`${store ?? ''}|${group}`);
-    if (sku !== null) storeVariants.add(`${store ?? ''}|${sku}`);
+    if (sku !== null) {
+      storeVariants.add(`${store ?? ''}|${sku}`);
+      storesPerSku.set(sku, (storesPerSku.get(sku) ?? new Set()).add(store ?? ''));
+    }
+    if (listing.externalProductId !== undefined && listing.externalProductId !== '') {
+      marketplaceIds.add(listing.externalProductId);
+      rowsWithMarketplaceId += 1;
+    }
     for (const url of listing.productMedia) {
       images.add(url);
       imageReferences += 1;
@@ -549,6 +587,9 @@ export function countListings(listings: readonly SourceListing[]): GroupingCount
     stores: stores.size,
     uniqueImageUrls: images.size,
     imageReferences,
+    marketplaceIds: marketplaceIds.size,
+    rowsWithMarketplaceId,
+    skusInMultipleStores: [...storesPerSku.values()].filter((set) => set.size > 1).length,
   };
 }
 
