@@ -86,6 +86,19 @@ export interface CatalogVariantCandidate {
   media: CandidateMedia[];
 }
 
+/**
+ * Which rung of the description fallback chain supplied the copy. Additive and
+ * provider-neutral: any source can have an authored description, a short one,
+ * or none at all, and a reviewer needs to know which they are looking at
+ * before deciding whether it may go public.
+ */
+export type DescriptionProvenance =
+  | 'description'
+  | 'shortDescription'
+  | 'structured'
+  | 'titleAndSpecs'
+  | 'none';
+
 export interface CatalogProductCandidate {
   identity: SourceIdentity;
   matchHints: MatchHints;
@@ -94,6 +107,8 @@ export interface CatalogProductCandidate {
   brand?: string;
   descriptionHtml?: string;
   descriptionText?: string;
+  /** Where `descriptionText` came from; absent means the source's own copy. */
+  descriptionSource?: DescriptionProvenance;
   attributes: Record<string, string | number | boolean>;
   category?: CandidateCategory;
   media: CandidateMedia[];
