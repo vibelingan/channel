@@ -23,6 +23,34 @@ import { ZipArchive, ZipFormatError, looksLikeZip } from './xlsx-zip.ts';
 export const MAX_ROWS = 200_000;
 /** Excel's own column ceiling is 16384; a product export uses tens. */
 export const MAX_COLUMNS = 2_048;
+/**
+ * SpreadsheetML nests about six deep. A document that nests hundreds of levels
+ * is either corrupt or an attempt to exhaust the stack of whatever reads it.
+ */
+export const MAX_XML_DEPTH = 64;
+/** Largest single run of character data. A cell is not a megabyte of prose. */
+export const MAX_TEXT_NODE_CHARS = 1_000_000;
+/** Largest attribute value; real ones are cell references and short ids. */
+export const MAX_ATTRIBUTE_CHARS = 8_192;
+/** A shared-string table larger than this is not a product export. */
+export const MAX_SHARED_STRINGS = 1_000_000;
+
+/**
+ * Parts whose presence means the file is something this reader will not touch.
+ *
+ * Macros are the obvious one: an `.xlsm` carries executable VBA, and while
+ * nothing here would run it, accepting the file at all invites it to be passed
+ * along to something that would. External links are the subtler one — they make
+ * a workbook's contents depend on a path or URL the merchant controls, so the
+ * "data" being imported is no longer in the file that was checksummed.
+ */
+const REFUSED_PART_PREFIXES: readonly [string, string][] = [
+  ['xl/vbaProject.bin', 'workbook contains macros'],
+  ['xl/externalLinks/', 'workbook contains external links'],
+  ['xl/activeX/', 'workbook contains ActiveX controls'],
+  ['xl/embeddings/', 'workbook contains embedded objects'],
+  ['customXml/', 'workbook contains custom XML parts'],
+];
 
 export class SpreadsheetFormatError extends Error {
   constructor(message: string) {
@@ -81,14 +109,21 @@ function localName(name: string): string {
 
 export function* scanXml(xml: string): Generator<XmlEvent> {
   let index = 0;
+  let depth = 0;
   while (index < xml.length) {
     const next = xml.indexOf('<', index);
     if (next === -1) {
       const text = xml.slice(index);
+      if (text.length > MAX_TEXT_NODE_CHARS) {
+        throw new SpreadsheetFormatError('spreadsheet XML has an oversized text node');
+      }
       if (text !== '') yield { type: 'text', text: decodeXmlEntities(text) };
       return;
     }
     if (next > index) {
+      if (next - index > MAX_TEXT_NODE_CHARS) {
+        throw new SpreadsheetFormatError('spreadsheet XML has an oversized text node');
+      }
       yield { type: 'text', text: decodeXmlEntities(xml.slice(index, next)) };
     }
 
@@ -131,6 +166,7 @@ export function* scanXml(xml: string): Generator<XmlEvent> {
     if (closing) {
       const close = xml.indexOf('>', cursor);
       index = close === -1 ? xml.length : close + 1;
+      depth = Math.max(0, depth - 1);
       yield { type: 'close', name };
       continue;
     }
@@ -180,11 +216,22 @@ export function* scanXml(xml: string): Generator<XmlEvent> {
         cursor = xml.length;
         break;
       }
+      if (valueEnd - valueStart > MAX_ATTRIBUTE_CHARS) {
+        throw new SpreadsheetFormatError('spreadsheet XML has an oversized attribute value');
+      }
       attrs.set(attrName, decodeXmlEntities(xml.slice(valueStart, valueEnd)));
       cursor = valueEnd + 1;
     }
 
     index = cursor;
+    if (!selfClosing) {
+      depth += 1;
+      if (depth > MAX_XML_DEPTH) {
+        throw new SpreadsheetFormatError(
+          `spreadsheet XML nests deeper than ${MAX_XML_DEPTH} levels`,
+        );
+      }
+    }
     yield { type: 'open', name, attrs, selfClosing };
   }
 }
@@ -233,6 +280,11 @@ function parseSharedStrings(xml: string | null): string[] {
       if (event.name === 't') collecting = false;
       else if (event.name === 'rph') phoneticDepth = Math.max(0, phoneticDepth - 1);
       else if (event.name === 'si') {
+        if (strings.length >= MAX_SHARED_STRINGS) {
+          throw new SpreadsheetFormatError(
+            `shared-string table exceeds ${MAX_SHARED_STRINGS} entries`,
+          );
+        }
         strings.push(decodeExcelEscapes(current));
         inItem = false;
         current = '';
@@ -513,6 +565,78 @@ function buildCell(
 // Entry point
 // ---------------------------------------------------------------------------
 
+/**
+ * Refuse a workbook that carries a part this reader will not interpret.
+ *
+ * Ignoring them would be worse than refusing: the file would import as though
+ * it were a plain data export while actually being a macro-enabled workbook or
+ * one whose values come from somewhere else entirely.
+ */
+function assertNoRefusedParts(names: readonly string[]): void {
+  for (const name of names) {
+    for (const [prefix, reason] of REFUSED_PART_PREFIXES) {
+      if (name === prefix || name.startsWith(prefix)) {
+        throw new SpreadsheetFormatError(`${reason} (${name})`);
+      }
+    }
+  }
+}
+
+/**
+ * Refuse a workbook that declares external references. Such a workbook's cell
+ * values can depend on another file, so what was checksummed is not what would
+ * be imported.
+ */
+function assertNoExternalReferences(workbookXml: string): void {
+  for (const event of scanXml(workbookXml)) {
+    if (
+      event.type === 'open' &&
+      (event.name === 'externalreference' || event.name === 'externalreferences')
+    ) {
+      throw new SpreadsheetFormatError('workbook declares external references');
+    }
+  }
+}
+
+/** `worksheets/sheet1.xml` and `/xl/worksheets/sheet1.xml` both mean the same part. */
+function resolvePartPath(target: string): string | null {
+  if (target === '' || target.includes('\u0000')) return null;
+  const trimmed = target.startsWith('/') ? target.slice(1) : target;
+  // A relationship target is a package-relative path; `..` would step outside
+  // the package, which the OPC spec does not permit for these parts.
+  if (trimmed.split('/').includes('..')) return null;
+  return trimmed.startsWith('xl/') ? trimmed : `xl/${trimmed}`;
+}
+
+/**
+ * A worksheet may declare its own extent up front. Checking it BEFORE parsing
+ * means a file claiming a million rows is refused in microseconds rather than
+ * after the reader has walked it.
+ */
+function assertDeclaredDimensionFits(sheetXml: string): void {
+  for (const event of scanXml(sheetXml)) {
+    if (event.type === 'open' && event.name === 'dimension') {
+      const ref = event.attrs.get('ref') ?? '';
+      const end = ref.includes(':') ? (ref.split(':')[1] ?? '') : ref;
+      const column = columnIndexFromReference(end);
+      const row = Number.parseInt(end.replace(/^[A-Za-z]+/, ''), 10);
+      if (column >= MAX_COLUMNS) {
+        throw new SpreadsheetFormatError(
+          `worksheet declares ${column + 1} columns, over the ${MAX_COLUMNS} limit`,
+        );
+      }
+      if (Number.isFinite(row) && row > MAX_ROWS) {
+        throw new SpreadsheetFormatError(
+          `worksheet declares ${row} rows, over the ${MAX_ROWS} limit`,
+        );
+      }
+      return;
+    }
+    // The dimension element, when present, precedes sheetData.
+    if (event.type === 'open' && event.name === 'sheetdata') return;
+  }
+}
+
 /** True when the bytes are a ZIP that carries the OOXML spreadsheet parts. */
 export function looksLikeSpreadsheet(bytes: Buffer): boolean {
   if (!looksLikeZip(bytes)) return false;
@@ -538,24 +662,35 @@ export function readFirstSheet(bytes: Buffer): SourceSheet {
     throw error;
   }
 
+  assertNoRefusedParts(archive.names());
+
   const workbookXml = archive.readText('xl/workbook.xml');
   if (workbookXml === null) throw new SpreadsheetFormatError('workbook part is missing');
 
   assertNot1904(workbookXml);
+  assertNoExternalReferences(workbookXml);
   const sheets = parseWorkbookSheets(workbookXml);
   const first = sheets[0];
   if (first === undefined) throw new SpreadsheetFormatError('workbook declares no worksheets');
 
   const rels = parseRelationships(archive.readText('xl/_rels/workbook.xml.rels'));
-  const target = rels.get(first.relationshipId) ?? 'worksheets/sheet1.xml';
-  const path = target.startsWith('/')
-    ? target.slice(1)
-    : target.startsWith('xl/')
-      ? target
-      : `xl/${target}`;
+  const target = rels.get(first.relationshipId);
+  if (target === undefined) {
+    // Fail closed rather than guessing `worksheets/sheet1.xml`. The workbook
+    // named a relationship; if it does not resolve, the file is inconsistent
+    // and the "obvious" default could be a different sheet entirely.
+    throw new SpreadsheetFormatError(
+      `worksheet relationship ${first.relationshipId} does not resolve`,
+    );
+  }
+  const path = resolvePartPath(target);
+  if (path === null) {
+    throw new SpreadsheetFormatError('worksheet relationship target is not a package part');
+  }
 
   const sheetXml = archive.readText(path);
   if (sheetXml === null) throw new SpreadsheetFormatError(`worksheet part ${path} is missing`);
+  assertDeclaredDimensionFits(sheetXml);
 
   const shared = parseSharedStrings(archive.readText('xl/sharedStrings.xml'));
   const styles = parseStyles(archive.readText('xl/styles.xml'));

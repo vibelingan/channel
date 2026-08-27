@@ -70,6 +70,56 @@ were "read arbitrary spreadsheets users upload", exceljs would be the answer.
 The requirement here is narrower: read one known export template from one
 authenticated admin path, and fail closed on everything else.
 
+## Complete fail-closed limit table
+
+Every limit is exercised by a test that supplies a file actually violating it
+(`packages/catalog-import/src/xlsx-limits.test.ts`, 20 tests). A documented
+limit nobody tested is a limit that does not exist.
+
+| Limit | Value | Behaviour when exceeded | Test |
+|---|---|---|---|
+| ZIP entries | 512 | refuse archive | "too many entries" |
+| Per-entry expansion | 128 MiB | refuse on the DECLARED size, before allocating | "per-entry ceiling" |
+| Total expansion across all parts read | 256 MiB | refuse archive | accumulated in `ZipArchive` |
+| Compression ratio, per entry | 200:1 | refuse archive | "compression-ratio ceiling" |
+| Worksheet rows | 200,000 | refuse worksheet | "declares more rows" |
+| Worksheet columns | 2,048 | refuse worksheet | "declares more columns" |
+| Declared `<dimension>` extent | as above | refuse BEFORE parsing rows | "refused up front" |
+| XML nesting depth | 64 | refuse part | "nests deeper" |
+| XML text node | 1,000,000 chars | refuse part | "oversized text node" |
+| XML attribute value | 8,192 chars | refuse part | "oversized attribute" |
+| Shared strings | 1,000,000 | refuse part | ceiling in `parseSharedStrings` |
+| DTD / entity declaration | any | refuse part | "DTD is refused outright" |
+| Macros (`xl/vbaProject.bin`) | any | refuse workbook | "macro-enabled workbook" |
+| External links (`xl/externalLinks/`) | any | refuse workbook | "external link parts" |
+| `externalReferences` in workbook.xml | any | refuse workbook | "declares external references" |
+| ActiveX / embeddings / customXml | any | refuse workbook | "ActiveX, embedded objects" |
+| Encrypted archive | flag bit 0 | refuse archive | flag check in `readZipDirectory` |
+| Zip64 | any | refuse archive | locator + sentinel check |
+| Compression method other than 0/8 | any | refuse entry | "unsupported compression method" |
+| CRC mismatch | any | refuse entry | "fails its CRC check" |
+| Entry name absolute, `..`, or NUL | any | refuse archive | `assertSafeEntryName` |
+| Unresolvable worksheet relationship | any | refuse, never guess `sheet1.xml` | "does not resolve" |
+| Relationship target escaping the package | any | refuse | "not a package part" |
+| Missing worksheet part | any | refuse | "is missing" |
+| 1904 date system | any | refuse workbook | "uses the 1904 date system" |
+
+Two of these deserve their reasoning stated.
+
+**Unresolvable relationships fail closed rather than defaulting.** Falling back
+to the conventional `worksheets/sheet1.xml` when a named relationship does not
+resolve would silently import a *different sheet* than the workbook pointed at.
+
+**Macros and external links refuse the whole workbook, not just the part.**
+Ignoring them would let the file import as though it were a plain data export
+while actually being macro-enabled, or having values that depend on a file the
+checksum never covered.
+
+**Resource cleanup.** The reader takes a `Buffer` and returns plain objects. It
+opens no file handle, spawns nothing, and registers no listener, so there is
+nothing to leak; a test reads the same workbook 25 times and asserts external
+memory does not grow.
+
 ## Supported subset, and what fails closed
 
 Per the review's decision rule, the custom reader's intentionally supported
