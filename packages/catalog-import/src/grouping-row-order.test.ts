@@ -86,6 +86,62 @@ test('a sibling row with authored copy beats a row with generated copy', () => {
   }
 });
 
+test('two rows that agree on the winning text but disagree on its html or source still resolve identically', () => {
+  // Both rows tie for the winning TEXT at the same provenance rank, so
+  // pickCanonicalValue's text-only vote can't break the tie by itself --
+  // whichever row `.find()` happened to hit first used to decide the html
+  // and source, which is exactly the row-order dependence this file exists
+  // to rule out. Neither row has a majority on its own, so this also proves
+  // the tie-break is itself deterministic, not just "some" fixed answer.
+  const rowA = listing({
+    sku: 'S-A',
+    descriptionText: 'authored',
+    descriptionHtml: '<p>A</p>',
+    descriptionSource: 'description',
+  });
+  const rowB = listing({
+    sku: 'S-B',
+    descriptionText: 'authored',
+    descriptionHtml: '<div>B</div>',
+    descriptionSource: 'description',
+  });
+
+  const outcomes = new Set(
+    permutations([rowA, rowB]).map((order) => {
+      const product = productOf(order);
+      return JSON.stringify([
+        product?.descriptionText,
+        product?.descriptionHtml,
+        product?.descriptionSource,
+      ]);
+    }),
+  );
+  assert.equal(outcomes.size, 1, `orderings disagreed: ${[...outcomes].join(' | ')}`);
+});
+
+test('a tied row whose source is unspecified resolves the same way regardless of order', () => {
+  // descriptionSource undefined ranks the same as 'description' (grouping.ts's
+  // DESCRIPTION_RANK fallback), so this row and an explicitly-sourced row can
+  // tie on text while their raw `source` fields genuinely differ -- not just
+  // their html.
+  const explicit = listing({
+    sku: 'S-A',
+    descriptionText: 'authored',
+    descriptionSource: 'description',
+  });
+  const unspecified = listing({
+    sku: 'S-B',
+    descriptionText: 'authored',
+  });
+
+  const outcomes = new Set(
+    permutations([explicit, unspecified]).map(
+      (order) => productOf(order)?.descriptionSource ?? '(none)',
+    ),
+  );
+  assert.equal(outcomes.size, 1, `orderings disagreed: ${[...outcomes].join(' | ')}`);
+});
+
 test('the fallback ranking holds across every rung', () => {
   const rungs: [NonNullable<SourceListing['descriptionSource']>, string][] = [
     ['titleAndSpecs', 'title only'],
