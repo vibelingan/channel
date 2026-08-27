@@ -1,7 +1,10 @@
-export { type AiPoolConfig, createAiPool, withTransaction } from './pool.ts';
+export { migrateDown, migrateUp } from './migrations.ts';
 export {
-  createStoreReadiness,
-  proveStore,
-  type StoreProof,
-  type StoreReadiness,
-} from './readiness.ts';
+  AiStore,
+  type ConversationRow,
+  type EventRow,
+  type EventType,
+  type NewRun,
+  type OutboxItem,
+  type RunExecutionContext,
+} from './store.ts';

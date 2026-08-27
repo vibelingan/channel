@@ -4,19 +4,23 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./pool": "./src/pool.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
+    "build": "tsup src/index.ts src/migrate-cli.ts --format esm --clean",
+    "migrate": "tsx src/migrate-cli.ts up",
+    "migrate:down": "tsx src/migrate-cli.ts down",
     "test": "tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "pg": "^8.16.3"
+    "pg": "^8.23.0"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
-    "@types/pg": "^8.11.10",
-    "tsx": "^4.22.4"
+    "@types/node": "^22.19.21",
+    "@types/pg": "^8.15.5",
+    "tsx": "^4.22.4",
+    "tsup": "^8.5.0",
+    "typescript": "^5.6.3"
   }
 }

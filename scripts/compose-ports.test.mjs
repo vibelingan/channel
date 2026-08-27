@@ -70,13 +70,26 @@ function renderWithDocker() {
   }
 }
 
+/**
+ * Replace `${NAME:-default}` with its default.
+ *
+ * The published port became overridable when the two lines of work merged, and
+ * a naive split on ':' turned `127.0.0.1:${AI_POSTGRES_PORT:-55432}:5432` into
+ * four fields — which silently mis-parsed the host interface and would have let
+ * the loopback check pass on a binding it never actually read. The default is
+ * what the file declares, so it is what these checks are about.
+ */
+function expandDefaults(entry) {
+  return String(entry).replace(/\$\{[A-Z0-9_]+:-([^}]*)\}/g, '$1');
+}
+
 function parseComposeFile() {
   const compose = parseYaml(readFileSync(COMPOSE_FILE, 'utf8'));
   const ports = [];
   for (const [service, definition] of Object.entries(compose.services ?? {})) {
     for (const entry of definition.ports ?? []) {
       // Short syntax only, which is all this file uses: [host_ip:]published:target
-      const parts = String(entry).split(':');
+      const parts = expandDefaults(entry).split(':');
       ports.push(
         parts.length === 3
           ? { service, hostIp: parts[0], published: parts[1], target: parts[2] }
@@ -240,15 +253,21 @@ test('the advertised engine ceiling matches the engine actually configured', () 
   // they must match and nothing enforced it, so one edit could make the BFF
   // advertise a cost ceiling the engine does not have — and the cost model
   // multiplies by it.
+  // The engine moved from the BFF to the WORKER when the runtime split
+  // generation out, so the consumer side of this pair moved with it. The check
+  // is unchanged in substance: two operator assertions of the same number, in
+  // two services, that nothing previously forced to agree.
   const compose = parseYaml(readFileSync(COMPOSE_FILE, 'utf8'));
-  const advertised = compose.services?.['ai-bff']?.environment?.ANYTHINGLLM_MAX_TOKENS;
+  const advertised = expandDefaults(
+    compose.services?.['ai-worker']?.environment?.AI_MAX_OUTPUT_TOKENS ?? '',
+  );
   const configured = compose.services?.anythingllm?.environment?.GENERIC_OPEN_AI_MAX_TOKENS;
-  assert.ok(advertised, 'ai-bff advertises no engine ceiling');
+  assert.ok(advertised, 'ai-worker advertises no engine ceiling');
   assert.ok(configured, 'the engine declares no generation ceiling');
   assert.equal(
     String(advertised),
     String(configured),
-    `ai-bff advertises ${advertised} while the engine is configured for ${configured}`,
+    `ai-worker advertises ${advertised} while the engine is configured for ${configured}`,
   );
 });
 
@@ -261,7 +280,7 @@ test('the retired output-limit name is gone from code and design docs', () => {
     'packages/ai-engine/src/port.ts',
     'packages/ai-engine/src/capabilities.ts',
     'packages/ai-engine-anythingllm/src/engine.ts',
-    'apps/ai-bff/src/chat.ts',
+    'apps/ai-worker/src/worker.ts',
     'docs/ai-platform/LLD-001-HUMAN-TAKEOVER-STATE-MACHINE.md',
     'docs/ai-platform/LLD-002-CONVERSATION-ENGINE-INTERFACE.md',
     'docs/ai-platform/ENGINE-EVALUATION-ANYTHINGLLM.md',
@@ -368,14 +387,21 @@ test('the version readiness advertises matches the version the pinned digest is'
   // moving one without the other a failing test rather than a silent lie.
   const composeText = readFileSync(COMPOSE_FILE, 'utf8');
   const compose = parseYaml(composeText);
-  const advertised = compose.services?.['ai-bff']?.environment?.ANYTHINGLLM_VERSION;
-  assert.ok(advertised, 'ai-bff advertises no engine version, so /readyz reports "unpinned"');
+  const workerEnv = compose.services?.['ai-worker']?.environment ?? {};
+  const advertised = expandDefaults(workerEnv.AI_ENGINE_VERSION ?? '');
+  assert.ok(advertised, 'ai-worker advertises no engine version, so a run records none');
+
+  // The digest the worker attests must be the digest the stack actually runs.
+  // Two places naming the same bytes is exactly how they drift apart.
+  const attested = expandDefaults(workerEnv.AI_ENGINE_IMAGE_DIGEST ?? '');
+  const running = String(compose.services?.anythingllm?.image ?? '').split('@')[1] ?? '';
+  assert.equal(attested, running, `the worker attests ${attested} while the stack runs ${running}`);
 
   const documented = composeText.match(/#\s*anythingllm\s+(\d+\.\d+\.\d+)\b/i)?.[1];
   assert.ok(documented, 'the digest is not accompanied by a version comment naming its release');
   assert.equal(
     String(advertised),
     documented,
-    `ai-bff advertises ${advertised} while the pinned digest is documented as ${documented}`,
+    `ai-worker advertises ${advertised} while the pinned digest is documented as ${documented}`,
   );
 });

@@ -29,38 +29,59 @@ importers:
 
   apps/ai-bff:
     dependencies:
-      '@vibelingan-channel/ai-engine':
+      '@vibelingan-channel/ai-contracts':
         specifier: workspace:*
-        version: link:../../packages/ai-engine
-      '@vibelingan-channel/ai-engine-anythingllm':
-        specifier: workspace:*
-        version: link:../../packages/ai-engine-anythingllm
+        version: link:../../packages/ai-contracts
       '@vibelingan-channel/ai-store':
         specifier: workspace:*
         version: link:../../packages/ai-store
+      pg:
+        specifier: ^8.23.0
+        version: 8.23.0
     devDependencies:
       '@types/node':
-        specifier: ^22.10.2
+        specifier: ^22.19.21
         version: 22.19.21
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.4
         version: 4.22.4
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
 
   apps/ai-worker:
     dependencies:
       '@vibelingan-channel/ai-engine':
         specifier: workspace:*
         version: link:../../packages/ai-engine
+      '@vibelingan-channel/ai-engine-anythingllm':
+        specifier: workspace:*
+        version: link:../../packages/ai-engine-anythingllm
+      '@vibelingan-channel/ai-policy':
+        specifier: workspace:*
+        version: link:../../packages/ai-policy
       '@vibelingan-channel/ai-store':
         specifier: workspace:*
         version: link:../../packages/ai-store
+      pg:
+        specifier: ^8.23.0
+        version: 8.23.0
     devDependencies:
       '@types/node':
-        specifier: ^22.10.2
+        specifier: ^22.19.21
         version: 22.19.21
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.4
         version: 4.22.4
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
 
   apps/functions/admin:
     dependencies:
@@ -203,6 +224,9 @@ importers:
       '@tanstack/react-table':
         specifier: ^8.21.3
         version: 8.21.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@vibelingan-channel/ai-contracts':
+        specifier: workspace:*
+        version: link:../../packages/ai-contracts
       '@vibelingan-channel/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -241,6 +265,18 @@ importers:
         specifier: ^7.0.0
         version: 7.3.5(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0)
 
+  packages/ai-contracts:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.19.21
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+
   packages/ai-engine:
     devDependencies:
       '@types/node':
@@ -257,27 +293,52 @@ importers:
         version: link:../ai-engine
     devDependencies:
       '@types/node':
-        specifier: ^22.10.2
+        specifier: ^22.19.21
         version: 22.19.21
       tsx:
         specifier: ^4.22.4
         version: 4.22.4
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+
+  packages/ai-policy:
+    dependencies:
+      '@vibelingan-channel/ai-engine':
+        specifier: workspace:*
+        version: link:../ai-engine
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.19.21
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
 
   packages/ai-store:
     dependencies:
       pg:
-        specifier: ^8.16.3
+        specifier: ^8.23.0
         version: 8.23.0
     devDependencies:
       '@types/node':
-        specifier: ^22.10.2
+        specifier: ^22.19.21
         version: 22.19.21
       '@types/pg':
-        specifier: ^8.11.10
-        version: 8.21.0
+        specifier: ^8.15.5
+        version: 8.23.1
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.4
         version: 4.22.4
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
 
   packages/alibaba-catalog-sync:
     devDependencies:
@@ -1518,8 +1579,8 @@ packages:
   '@types/nodemailer@6.4.24':
     resolution: {integrity: sha512-Ww4u0rT9wQNXh4JiQaIwx3QWdcOFXzOjQA2zc+jtFYNmQiT4mIUqcDin51bDFdkzKubFnQCZNK7FIHlPKQ/q9w==}
 
-  '@types/pg@8.21.0':
-    resolution: {integrity: sha512-AYdtudzabjLZgVgRZmAnU8bAnVUXzuJX2IYHeSIiIHm68olD+LgQYCGWdtcNYnP0uq9c4S4NibVG3Ni7VbKW7Q==}
+  '@types/pg@8.23.1':
+    resolution: {integrity: sha512-fKVHpikPdg4GKks3JuLEhvwSyvwzF23hnabPy6DD8ljVbC7+6J5dQzdv4arV6jqq57djnMgs1HKBxX4P8aBI3A==}
 
   '@types/qs@6.15.1':
     resolution: {integrity: sha512-GZHUBZR9hckSUhrxmp1nG6NwdpM9fCunJwyThLW1X3AyHgd9IlHb6VANpQQqDr2o/qQp6McZ3y/IA2rVzKzSbw==}
@@ -4512,7 +4573,7 @@ snapshots:
     dependencies:
       '@types/node': 22.19.21
 
-  '@types/pg@8.21.0':
+  '@types/pg@8.23.1':
     dependencies:
       '@types/node': 22.19.21
       pg-protocol: 1.16.0

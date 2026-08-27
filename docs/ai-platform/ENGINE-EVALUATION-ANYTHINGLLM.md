@@ -1,6 +1,6 @@
 # Engine evaluation — AnythingLLM for the Channel assistant
 
-**Date:** 2026-08-17
+**Date:** 2026-08-17; live integration evidence updated 2026-08-25
 **Question:** is AnythingLLM the right retrieval+chat engine for local development,
 and is it good enough for production for a ~100-person enterprise?
 **Short answer:** yes for local development, unreservedly. For production it is a
@@ -94,9 +94,15 @@ is a startup blocker:
 |---|---|---|
 | `supportsStop` (owner-cancellable) | **Blocking**, but satisfied by aborting the connection — the port's `AbortSignal`. Verified at protocol level: aborting a live stream terminated cleanly | **Resolved** |
 | `supportsOutOfBandStop` | **Not blocking** since ADR-002 §3 split the capability. Expected `false`; costs bounded token waste when an owning worker dies | **Resolved as expected-false** |
-| `supportsCitations` | The answer policy requires citations; the API's source shape must map to `EngineCitation` | **Verified true.** Mapped in the adapter; deduplicated to the page rather than the chunk |
-| `supportsIdempotentCreate` | Chat-completions style APIs usually lack it. If absent, LLD-001 §7's operation-id mapping layer becomes mandatory | **Confirmed false.** The startup gate refuses on it today; the local harness (`AI_LOCAL_HARNESS=1`) opts out explicitly and logs every refusal, and production refuses to start with that flag set |
-| Streaming | Token-by-token delivery | **Verified true**, with two frame-order traps recorded in ADR-002 §6 |
+| Separate retrieval | Lets the answer path enforce grounding/refusal before generation | **Resolved on both.** Local `/vector-search` and the supplied production fork's `/vector-search` each returned ranked results without a model call |
+| `supportsCitations` | The answer policy requires citations; the API's source shape must map to `EngineCitation` (`sourceId`, `title`, `url`, `snippet`, `retrievedAt`) | **Local: verified true** — mapped in the adapter, deduplicated to the page rather than the chunk. **Supplied production fork: unverified**, and unverifiable while generation 403s, since no citation has been returned to map. The adapter therefore takes this as an explicit operator assertion (`citationsVerified`) rather than assuming it |
+| `supportsIdempotentCreate` | Chat-completions style APIs usually lack it. If absent, LLD-001 §7's operation-id mapping layer becomes mandatory — which is already designed | **Confirmed false** on both. The adapter declares it false and the composed worker/store compensate |
+| Streaming | Token-by-token delivery | **Local: verified true**, with two frame-order traps recorded in ADR-002 §6. **Supplied production fork: transport observed, success unverified** — SSE returned an `abort` event because the provider denied the model request |
+
+Every row above answers for two different systems: the digest-pinned
+`mintplexlabs/anythingllm` 1.16.0 container this repository runs locally, and
+the separately supplied, externally hosted fork that speaks a compatible API.
+A capability proven on one is not proven on the other.
 
 None of these is a reason not to proceed locally. All are answerable in a day
 once the container is running.
@@ -105,8 +111,11 @@ once the container is running.
 
 ## 5. Model provider — corrected
 
-zenmux is confirmed reachable and working. Base URL `https://zenmux.ai/api/v1`,
-OpenAI-compatible, 156 models available.
+The ZenMux protocol and model IDs were confirmed reachable on 2026-08-17. That
+is historical provider evidence, not current end-to-end readiness: on 2026-08-25
+the supplied production-compatible instance reached its configured provider but
+received `403` permission errors, and this checkout had no approved local model
+key for a fresh local generation test.
 
 **The two model ids requested do not exist. The correct ones are:**
 

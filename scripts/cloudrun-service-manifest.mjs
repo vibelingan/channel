@@ -88,7 +88,7 @@ export function buildCloudRunServiceDefs(ctx) {
       dockerfile: 'apps/ai-worker/Dockerfile',
       buildContext: '.',
       image: `${ctx.imageTag}/ai-worker`,
-      containerPort: 8081,
+      containerPort: 8080,
       healthPath: '/healthz',
       readyPath: '/readyz',
       // Private. The worker has no visitor-facing routes — it holds engine

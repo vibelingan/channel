@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "test": "tsx --test src/**/*.test.ts",
+    "test": "tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

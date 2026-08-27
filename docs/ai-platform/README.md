@@ -1,7 +1,7 @@
 # AI Architecture Documentation Index
 
 **Status:** Canonical documentation index  
-**Last reviewed:** 2026-08-17
+**Last reviewed:** 2026-08-25
 
 This directory contains the AI architecture for the Diversity Technology Channel website. It does not define the architecture of the separate Vibelingan Enterprise Brain product.
 
@@ -27,6 +27,8 @@ the architecture above wins and the specifying document is corrected.
 | [TEST_STRATEGY.md](./TEST_STRATEGY.md) | Architecture §11 — which test proves each gate, and which claims cannot be proven offline | Planning any MIU's verification |
 | [PROCUREMENT-BRIEF.md](./PROCUREMENT-BRIEF.md) | Architecture §14 — staged development, CloudRun cost model, database alternatives, purchase timing, and the architect checklist | Approving or buying any AI infrastructure |
 | [MIU-0-RUNBOOK.md](./MIU-0-RUNBOOK.md) | The executable preflight for local Docker, cloud integration probes, credentials, external providers, and human decisions | Starting infrastructure or MIU 0 work |
+| [PRODUCTION-KB-CLOUDRUN-RUNBOOK.md](./PRODUCTION-KB-CLOUDRUN-RUNBOOK.md) | Live AnythingLLM-compatible KB probe, secret audit, reproducible local setup, and CloudBase Run + TencentDB PostgreSQL deployment gate | Connecting a real KB or preparing the first cloud integration window |
+| [MIU-IMPLEMENTATION-TRACE.md](./MIU-IMPLEMENTATION-TRACE.md) | Implemented BFF, worker, store, widget, engine adapter and deployment-preparation trace with checks | Reviewing or continuing the current implementation |
 
 ## Historical and Supporting Documents
 

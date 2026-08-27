@@ -11,6 +11,7 @@ import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import { getOemContent } from '../i18n/oem.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
+import { AssistantWidget } from '../islands/ai/AssistantWidget.tsx';
 import BaseLayout from '../layouts/BaseLayout.astro';
 
 const site = getSiteContent(DEFAULT_LOCALE);
@@ -107,6 +108,7 @@ const { meta, hero, capabilities, process, whyUs, submit, factoryVideo } = oem;
   </main>
 
   <SiteFooter brand={brand} footer={footer} />
+  <AssistantWidget client:load />
 
   <script is:inline>
     const initialFragmentTarget = document.getElementById(window.location.hash.slice(1));

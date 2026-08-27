@@ -67,7 +67,7 @@ jobs:
 
       - name: Scan built site for server secret names
         run: |
-          if grep -R -I -n -E 'JWT_SECRET|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|EMAIL_PASSWORD|EMAIL_USER|TENCENTCLOUD_SECRET(ID|KEY)|TENCENTCLOUD_SESSIONTOKEN|ALI_APP_KEY|ALI_APP_SECRET|ALI_OAUTH_CALLBACK_URL|ALI_TOKEN_ENCRYPTION_KEY_V1|WECOM_WEBHOOK_URL' apps/site/dist; then
+          if grep -R -I -n -E 'JWT_SECRET|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|EMAIL_PASSWORD|EMAIL_USER|TENCENTCLOUD_SECRET(ID|KEY)|TENCENTCLOUD_SESSIONTOKEN|ALI_APP_KEY|ALI_APP_SECRET|ALI_OAUTH_CALLBACK_URL|ALI_TOKEN_ENCRYPTION_KEY_V1|WECOM_WEBHOOK_URL|DATABASE_URL|ANYTHINGLLM_API_KEY|AI_IP_HASH_SECRET' apps/site/dist; then
             echo "Server secret names were found in the public site build." >&2
             exit 1
           fi
@@ -130,17 +130,24 @@ jobs:
       - name: Store contract probe
         run: pnpm test:ai:store
 
-      # Root `pnpm test` deliberately EXCLUDES the three AI packages that need a
+      # Root `pnpm test` deliberately EXCLUDES the AI packages that need a
       # database, because the `checks` job has no PostgreSQL service. They run
       # here instead, where one exists. Without that split the ordinary build
       # fails on ECONNREFUSED and everyone learns to ignore a red check.
-      - name: AI package tests (store, engine, BFF, worker)
+      - name: AI runtime integration tests
+        run: pnpm test:ai:runtime
+
+      - name: AI package tests (engine, adapter, policy)
         run: pnpm test:ai
 
-      # The smoke scripts are the artifact MIU 2a is actually judged on: the
+      # The smoke scripts are the artifact this work is actually judged on: the
       # same file must pass locally, here, and against the deployed CloudRun
       # origin. Running them in CI against a real server — not a mock — is what
-      # makes the third run meaningful.
+      # makes the third run meaningful. The services run from `dist`, so the
+      # build is a precondition rather than a separate nicety.
+      - name: Build AI containers' entry artifacts
+        run: pnpm build:ai
+
       - name: Start BFF and worker
         run: |
           PORT=58080 CORS_ALLOWED_ORIGINS=https://ci.invalid \

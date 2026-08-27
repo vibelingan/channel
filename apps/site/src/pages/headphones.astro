@@ -3,6 +3,7 @@ import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import { getHeadphonesContent } from '../i18n/headphones.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
+import { AssistantWidget } from '../islands/ai/AssistantWidget.tsx';
 import { HeadphonesPage } from '../islands/shop/HeadphonesPage.tsx';
 import { ProductMedia } from '../islands/shop/ProductMedia.tsx';
 import BaseLayout from '../layouts/BaseLayout.astro';
@@ -161,4 +162,5 @@ const seoDescription =
   </main>
 
   <SiteFooter brand={brand} footer={footer} />
+  <AssistantWidget client:load />
 </BaseLayout>

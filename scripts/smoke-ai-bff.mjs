@@ -1,42 +1,96 @@
-#!/usr/bin/env node
-/**
- * Smoke test for the AI BFF. Runs unchanged against local compose, CI, and the
- * deployed CloudRun origin:
- *
- *   node scripts/smoke-ai-bff.mjs --base http://localhost:58080
- */
-
-import { checkHealthAndReadiness, createChecks, getJson, parseArgs } from './smoke-ai-service.mjs';
-
-const { base } = parseArgs(process.argv, 'http://localhost:58080');
-const checks = createChecks();
-console.log(`smoke: ai-bff @ ${base}\n`);
-
-await checkHealthAndReadiness({
-  base,
-  healthPath: '/api/ai/healthz',
-  readyPath: '/api/ai/readyz',
-  checks,
+const baseUrl = (process.argv[2] ?? process.env.AI_BFF_URL ?? 'http://localhost:58080').replace(
+  /\/$/,
+  '',
+);
+const response = await fetch(`${baseUrl}/api/ai/healthz`, {
+  signal: AbortSignal.timeout(10_000),
 });
+if (!response.ok) throw new Error(`AI BFF health returned HTTP ${response.status}`);
+const payload = await response.json();
+if (
+  payload?.status !== 'live' ||
+  payload?.service !== 'channel-ai-bff' ||
+  payload?.database?.isolation !== 'read committed'
+) {
+  throw new Error('AI BFF health contract mismatch');
+}
 
-// Only the negative CORS direction is asserted. A smoke test cannot know a
-// deployed environment's allowlist, but "an origin nobody configured is never
-// echoed back" must hold everywhere — and reflecting the caller's origin is the
-// actual bug this guards against.
-const foreign = 'https://smoke-not-an-allowed-origin.example';
-const cors = await getJson(`${base}/api/ai/healthz`, { origin: foreign });
-checks.check(
-  'an unconfigured origin is not echoed back',
-  cors.headers.get('access-control-allow-origin') !== foreign,
-  'the server reflected an arbitrary origin, defeating CORS',
+const conversationResponse = await fetch(`${baseUrl}/api/ai/conversations`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ locale: 'en' }),
+  signal: AbortSignal.timeout(10_000),
+});
+if (!conversationResponse.ok) {
+  throw new Error(`AI BFF conversation returned HTTP ${conversationResponse.status}`);
+}
+const conversation = await conversationResponse.json();
+if (!conversation?.conversationId || !conversation?.credential) {
+  throw new Error('AI BFF conversation contract mismatch');
+}
+
+const messageResponse = await fetch(
+  `${baseUrl}/api/ai/conversations/${conversation.conversationId}/messages`,
+  {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${conversation.credential}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      message: process.env.AI_SMOKE_QUESTION ?? 'What is your MOQ?',
+      idempotencyKey: crypto.randomUUID(),
+    }),
+    signal: AbortSignal.timeout(10_000),
+  },
 );
+if (messageResponse.status !== 202) {
+  throw new Error(`AI BFF message returned HTTP ${messageResponse.status}`);
+}
 
-const missing = await getJson(`${base}/api/ai/nope`);
-checks.check('unknown routes return 404', missing.status === 404, `got ${missing.status}`);
-checks.check(
-  'unknown routes use the shared error envelope',
-  missing.json?.ok === false && missing.json?.error?.code === 'NOT_FOUND',
-  missing.text.slice(0, 120),
-);
+const streamController = new AbortController();
+const streamTimer = setTimeout(() => streamController.abort(), 20_000);
+try {
+  const streamResponse = await fetch(
+    `${baseUrl}/api/ai/conversations/${conversation.conversationId}/events`,
+    {
+      headers: {
+        authorization: `Bearer ${conversation.credential}`,
+        'last-event-id': '0',
+      },
+      signal: streamController.signal,
+    },
+  );
+  if (!streamResponse.ok || !streamResponse.body) {
+    throw new Error(`AI BFF stream returned HTTP ${streamResponse.status}`);
+  }
+  const reader = streamResponse.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let finalSeen = false;
+  while (!finalSeen) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+    const frames = buffer.split(/\r?\n\r?\n/);
+    buffer = frames.pop() ?? '';
+    for (const frame of frames) {
+      const data = frame
+        .split(/\r?\n/)
+        .find((line) => line.startsWith('data: '))
+        ?.slice(6);
+      if (!data) continue;
+      const event = JSON.parse(data);
+      if (event.type === 'error' || event.type === 'run.failed') {
+        throw new Error(`AI BFF smoke run failed: ${event.category ?? 'unknown'}`);
+      }
+      if (event.type === 'final') finalSeen = true;
+    }
+  }
+  await reader.cancel();
+  if (!finalSeen) throw new Error('AI BFF stream ended without final event');
+} finally {
+  clearTimeout(streamTimer);
+}
 
-checks.finish('ai-bff');
+console.log('AI BFF round-trip smoke: PASS');

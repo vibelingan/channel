@@ -20,7 +20,7 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { templateFor } from '../apps/ai-bff/src/policy/commitments.ts';
+import { templateFor } from '../packages/ai-policy/src/commitments.ts';
 import { CASES, evaluateCase } from './ai-eval-cases.mjs';
 
 const caseFor = (needle) => {

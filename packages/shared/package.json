@@ -13,7 +13,7 @@
     "./release": "./src/release.ts"
   },
   "scripts": {
-    "test": "tsx --test src/**/*.test.ts",
+    "test": "tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

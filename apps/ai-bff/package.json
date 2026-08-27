@@ -4,18 +4,21 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "tsx src/main.ts",
-    "build": "tsc --noEmit",
+    "build": "tsup && node ../../scripts/copy-ai-migrations.mjs dist/migrations",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
     "test": "tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vibelingan-channel/ai-engine": "workspace:*",
+    "@vibelingan-channel/ai-contracts": "workspace:*",
     "@vibelingan-channel/ai-store": "workspace:*",
-    "@vibelingan-channel/ai-engine-anythingllm": "workspace:*"
+    "pg": "^8.23.0"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
-    "tsx": "^4.22.4"
+    "@types/node": "^22.19.21",
+    "tsx": "^4.22.4",
+    "tsup": "^8.5.0",
+    "typescript": "^5.6.3"
   }
 }

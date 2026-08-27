@@ -6,7 +6,7 @@
  * process, so the "unknown" branch shipped as a warning nobody had asserted on.
  */
 
-import type { ToolSurface } from '@vibelingan-channel/ai-engine-anythingllm';
+import type { ToolSurface } from './engine.ts';
 
 /**
  * The run contract sets `maxToolCalls: 0`. This protocol never reports a tool

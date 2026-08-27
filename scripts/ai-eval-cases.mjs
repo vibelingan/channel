@@ -13,12 +13,12 @@
  * exercised directly against the sentences that defeated earlier versions.
  */
 
-import { templateFor } from '../apps/ai-bff/src/policy/commitments.ts';
+import { templateFor } from '../packages/ai-policy/src/commitments.ts';
 import { isRefusal } from './ai-eval-classify.mjs';
 
 /**
  * `expect: 'policy'` means the SERVER answers, not the model — see
- * apps/ai-bff/src/policy/commitments.ts. The case asserts a structured outcome
+ * packages/ai-policy/src/commitments.ts. The case asserts a structured outcome
  * and an exact template, so there is no prose to parse and no paraphrase to
  * miss. `policyTopic` is the outcome the route must report.
  *

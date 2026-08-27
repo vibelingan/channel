@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
-import type { ToolSurface } from '@vibelingan-channel/ai-engine-anythingllm';
+import type { ToolSurface } from './engine.ts';
 import { assertNoToolSurface } from './tool-surface.ts';
 
 const surface = (partial: Partial<ToolSurface>): ToolSurface => ({

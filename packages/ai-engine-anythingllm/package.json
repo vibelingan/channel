@@ -3,11 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": {
-    ".": "./src/index.ts"
-  },
+  "exports": { ".": "./src/index.ts" },
   "scripts": {
-    "build": "tsc --noEmit",
     "test": "tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
@@ -15,7 +12,8 @@
     "@vibelingan-channel/ai-engine": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
-    "tsx": "^4.22.4"
+    "@types/node": "^22.19.21",
+    "tsx": "^4.22.4",
+    "typescript": "^5.6.3"
   }
 }

@@ -116,6 +116,7 @@ test('fetchCatalog reads the current session token for every request', async () 
 });
 
 test('fetchCatalog propagates AbortError and never returns a successful page after abort', async () => {
+  setLocalStorage(new MemoryStorage());
   const controller = new AbortController();
   let settledAsSuccess = false;
   globalThis.fetch = (_input, init) =>

@@ -220,11 +220,18 @@ use case is not ours, so upstream changes may not serve us.
 
 | # | Question | Result |
 |---|---|---|
-| 1 | Retrieval separately from generation? | **Yes.** `POST /api/v1/workspace/{slug}/vector-search`, ~100ms, no model call. Takes `topN` and `scoreThreshold`. Returns `{results:[{id,text,metadata,distance,score}]}`. §4's preferred shape is therefore available |
-| 2 | Citations mappable to `EngineCitation`? | **Yes.** Sources carry `id`, `title`, `description`, `docSource`, `text`, `published` — mapped in the adapter. `supportsCitations: true` |
-| 3 | Streaming? | **Yes.** SSE, `textResponseChunk` frames then `finalizeResponseStream`. Two frame-order traps, both found only by running it — see below |
+| 1 | Retrieval separately from generation? | **Yes, on both.** Local: `POST /api/v1/workspace/{slug}/vector-search`, ~100ms, no model call, takes `topN` and `scoreThreshold`, returns `{results:[{id,text,metadata,distance,score}]}`. Supplied production fork (2026-08-25): `/vector-search` returned ranked results independently of chat. §4's preferred shape is available on both |
+| 2 | Citations mappable to `EngineCitation`? | **Local: yes** — sources carry `id`, `title`, `description`, `docSource`, `text`, `published`, mapped in the adapter. **Supplied production fork: UNVERIFIED**, because generation never succeeds there, so no citation has ever been returned to map. The answer policy requires citations, so this is a release blocker for that KB and not a detail |
+| 3 | Streaming? | **Local: yes** — SSE, `textResponseChunk` frames then `finalizeResponseStream`. Two frame-order traps, both found only by running it — see below. **Supplied production fork: transport only** — the thread SSE route responded and then aborted on an upstream model 403, so successful token delivery is unproved |
 | 4 | Certificate PDF parsing? | **Untested.** No certificate PDFs in hand yet. Remains open |
-| 5 | Enabled tool/agent surface? | **None enabled.** `agentProvider` and `agentModel` are both null on the workspace; no agent skills are configured |
+| 5 | Enabled tool/agent surface? | **Local: none enabled** — `agentProvider` and `agentModel` are both null on the workspace; no agent skills are configured. **Supplied production fork: NOT isolated** — `/vector-search` returned `hermes-skills-*` documents, so that workspace is not an approved public corpus |
+
+Rows 1-5 answer two different systems and must not be read as one. The local
+answers are measured against the digest-pinned `mintplexlabs/anythingllm` 1.16.0
+container this repository runs. The production answers are measured against a
+separately supplied, externally hosted **fork** that speaks a compatible API.
+Compatibility is only established for the routes someone actually called, and
+the two lines of work called different ones.
 
 **Two integration traps, both invisible to unit tests and to reading the docs:**
 
@@ -254,7 +261,9 @@ stand unchanged.
 
 ## 7. Model provider (unchanged by this ADR, recorded for completeness)
 
-zenmux, OpenAI-compatible, `https://zenmux.ai/api/v1`, 156 models. Verified live:
+zenmux, OpenAI-compatible, `https://zenmux.ai/api/v1`, 156 models. Verified live
+on 2026-08-17 (the supplied deployment's current provider permission failed on
+2026-08-25):
 **`z-ai/glm-5.2`** primary, **`moonshotai/kimi-k3`** fallback. Neither
 `z-ai/glm-5.3` nor `kimi/k3` exists.
 

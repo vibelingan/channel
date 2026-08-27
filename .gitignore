@@ -10,6 +10,7 @@ dist/
 output/playwright/
 playwright-report/
 test-results/
+.playwright-cli/
 
 # Local DB (file-backed mock for development)
 apps/local-server/data/
@@ -49,4 +50,7 @@ Thumbs.db
 # AI assistant local secrets — the real file never, the template always
 .env.ai
 !.env.ai.example
+!.env.ai-runtime.example
+.env.ai-probe
+!.env.ai-probe.example
 scripts/pipeline-e2e.sh

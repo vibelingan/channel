@@ -1,543 +1,191 @@
-import { strict as assert } from 'node:assert';
-import { readFileSync } from 'node:fs';
-import { request as httpRequest } from 'node:http';
-import { connect } from 'node:net';
+import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
-import { dirname, join } from 'node:path';
-import test from 'node:test';
-import { fileURLToPath } from 'node:url';
-import { buildServer, startServer } from './server.ts';
+import { after, before, beforeEach, test } from 'node:test';
+import { AiStore, migrateUp } from '@vibelingan-channel/ai-store';
+import { type AiBffConfig, createAiBffServer } from './server.ts';
 
-/** The default shape: a normal, non-harness service. */
-const config = {
-  port: 0,
-  databaseUrl: process.env.DATABASE_URL ?? 'postgres://ai:ai@localhost:55432/ai_assistant',
-  corsAllowedOrigins: ['https://allowed.example'],
-  localHarness: false,
-  siteOrigin: 'https://site.example',
+const databaseUrl = process.env.DATABASE_URL;
+const skip = databaseUrl ? false : 'DATABASE_URL is required for BFF integration tests';
+const store = databaseUrl ? new AiStore(databaseUrl, 10) : null;
+const config: AiBffConfig = {
+  allowedOrigins: new Set(['https://site.example']),
+  credentialTtlSeconds: 60,
+  engineId: 'fake',
+  engineVersion: '0.1.0',
+  globalRequestsPerMinute: 10_000,
+  ipRequestsPerMinute: 10_000,
+  ipHashSecret: 'test-only-ip-hash-secret-0001',
+  trustProxy: true,
+  ssePollMs: 5,
+  sseHeartbeatMs: 20,
+  sseMaxDurationMs: 40,
 };
+const server = store ? createAiBffServer(store, config) : null;
+let baseUrl = '';
 
-async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
-  const { server, pool } = buildServer(config);
-  await new Promise<void>((resolve) => server.listen(0, resolve));
-  const { port } = server.address() as AddressInfo;
-  try {
-    return await fn(`http://127.0.0.1:${port}`);
-  } finally {
-    server.close();
-    await pool.end().catch(() => undefined);
-  }
-}
+before(async () => {
+  if (!store || !server) return;
+  await migrateUp(store.pool);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address() as AddressInfo;
+  baseUrl = `http://127.0.0.1:${address.port}`;
+});
 
-test('liveness answers without touching the database', async () => {
-  await withServer(async (base) => {
-    const res = await fetch(`${base}/api/ai/healthz`);
-    assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { ok: true });
+beforeEach(async () => {
+  if (!store) return;
+  await store.pool.query(
+    'TRUNCATE ai_rate_limit_buckets, audit_events, outbox, leads, conversation_events, conversation_messages, engine_run_handles, conversation_credentials, conversations, ai_runs RESTART IDENTITY CASCADE',
+  );
+});
+
+after(async () => {
+  if (!store || !server) return;
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
+  await store.pool.query(
+    'TRUNCATE ai_rate_limit_buckets, audit_events, outbox, leads, conversation_events, conversation_messages, engine_run_handles, conversation_credentials, conversations, ai_runs RESTART IDENTITY CASCADE',
+  );
+  await store.close();
+});
+
+test('liveness answers without touching the database', { skip }, async () => {
+  // Deliberately asserts the ABSENCE of a database field. Liveness that checks
+  // a dependency turns a database blip into a container restart loop.
+  const response = await fetch(`${baseUrl}/api/ai/healthz`);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    status: 'live',
+    service: 'channel-ai-bff',
   });
 });
 
-test('readiness proves a transaction and the isolation level, not just a connection', async () => {
-  // `select 1` also succeeds against a read-only replica and against a role
-  // that cannot open a transaction. LLD-001's fence needs both, so readiness
-  // reports what it actually established — and the deployed environment's
-  // isolation level is a property of the managed database, not of our code,
-  // which is exactly why it is worth reading back from a running instance.
-  await withServer(async (base) => {
-    const res = await fetch(`${base}/api/ai/readyz`);
-    assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), {
-      ok: true,
-      store: 'live',
-      txn: 'proven',
-      isolation: 'read committed',
-    });
+test('readiness proves the BFF and READ COMMITTED database contract', { skip }, async () => {
+  const response = await fetch(`${baseUrl}/api/ai/readyz`);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    status: 'ready',
+    database: { database: 'live', isolation: 'read committed' },
+    service: 'channel-ai-bff',
   });
 });
 
-test('readiness reports 503, not 200, when the store is unreachable', async () => {
-  const { server, pool } = buildServer({
-    ...config,
-    databaseUrl: 'postgres://ai:ai@127.0.0.1:1/nope',
+test('unknown browser origin is rejected before conversation creation', { skip }, async () => {
+  const response = await fetch(`${baseUrl}/api/ai/conversations`, {
+    method: 'POST',
+    headers: { origin: 'https://evil.example', 'content-type': 'application/json' },
+    body: '{}',
   });
-  pool.on('error', () => undefined);
-  await new Promise<void>((resolve) => server.listen(0, resolve));
-  const { port } = server.address() as AddressInfo;
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/api/ai/readyz`);
-    assert.equal(res.status, 503);
-    assert.deepEqual(await res.json(), { ok: false, store: 'unavailable' });
-  } finally {
-    server.close();
-    await pool.end().catch(() => undefined);
-  }
+  assert.equal(response.status, 403);
 });
 
-test('readiness output carries no host, path, or credential', async () => {
-  await withServer(async (base) => {
-    const body = await (await fetch(`${base}/api/ai/readyz`)).text();
-    assert.ok(!/postgres:\/\//.test(body), 'readiness leaked a connection string');
-    assert.ok(!/(password|secret|token)/i.test(body), 'readiness looks credential-shaped');
-  });
-});
-
-test('an allowed origin gets CORS headers; an unlisted one gets none', async () => {
-  await withServer(async (base) => {
-    const ok = await fetch(`${base}/api/ai/healthz`, {
-      headers: { origin: 'https://allowed.example' },
-    });
-    assert.equal(ok.headers.get('access-control-allow-origin'), 'https://allowed.example');
-    assert.equal(ok.headers.get('vary'), 'origin');
-
-    const denied = await fetch(`${base}/api/ai/healthz`, {
-      headers: { origin: 'https://evil.example' },
-    });
-    // Not an error status — the browser enforces CORS. The server's job is to
-    // withhold the header, and reflecting the origin back is the actual bug.
-    assert.equal(denied.headers.get('access-control-allow-origin'), null);
-  });
-});
-
-test('preflight is answered for an allowed origin', async () => {
-  await withServer(async (base) => {
-    const res = await fetch(`${base}/api/ai/healthz`, {
-      method: 'OPTIONS',
-      headers: { origin: 'https://allowed.example' },
-    });
-    assert.equal(res.status, 204);
-    assert.equal(res.headers.get('access-control-allow-origin'), 'https://allowed.example');
-  });
-});
-
-test('unknown routes return the shared error envelope', async () => {
-  await withServer(async (base) => {
-    const res = await fetch(`${base}/api/ai/nope`);
-    assert.equal(res.status, 404);
-    const body = (await res.json()) as { ok: boolean; error: { code: string } };
-    assert.equal(body.ok, false);
-    assert.equal(body.error.code, 'NOT_FOUND');
-  });
-});
-
-test('a cross-origin caller can actually read the conversation handle', async () => {
-  // Browsers hide every response header from cross-origin JavaScript except a
-  // short safelist, unless the server names it in access-control-expose-headers.
-  // The assistant runs on its own hostname by design, so without this the
-  // website can never read x-conversation-id and every follow-up question
-  // starts a brand-new conversation — while a same-origin local harness works
-  // perfectly and hides the defect.
-  await withServer(async (base) => {
-    const res = await fetch(`${base}/api/ai/healthz`, {
-      headers: { origin: 'https://allowed.example' },
-    });
-    const exposed = (res.headers.get('access-control-expose-headers') ?? '')
-      .split(',')
-      .map((name) => name.trim().toLowerCase());
-    assert.ok(
-      exposed.includes('x-conversation-id'),
-      'x-conversation-id is not readable by a cross-origin client',
-    );
-  });
-});
-
-test('an unlisted origin gets no expose-headers either', async () => {
-  await withServer(async (base) => {
-    const res = await fetch(`${base}/api/ai/healthz`, {
-      headers: { origin: 'https://evil.example' },
-    });
-    assert.equal(res.headers.get('access-control-expose-headers'), null);
-  });
-});
-
-const harnessConfig = { ...config, localHarness: true };
-
-async function withHarnessServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
-  const { server, pool } = buildServer(harnessConfig, {});
-  await new Promise<void>((resolve) => server.listen(0, resolve));
-  const { port } = server.address() as AddressInfo;
-  try {
-    return await fn(`http://127.0.0.1:${port}`);
-  } finally {
-    server.close();
-    await pool.end().catch(() => undefined);
-  }
-}
-
-test('outside the harness the conversation route does not exist at all', async () => {
-  // 404, not 503. Not "exists but refuses", and not "exists when an engine
-  // happens to be injected" — that was the defect this closes. CORS is not a
-  // control here: the request below carries no Origin, exactly like curl.
-  await withServer(async (base) => {
-    const res = await fetch(`${base}/api/ai/chat`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message: 'What is your MOQ?' }),
-    });
-    assert.equal(res.status, 404);
-    const body = (await res.json()) as { error: { code: string } };
-    assert.equal(body.error.code, 'NOT_FOUND');
-  });
-});
-
-test('outside the harness the route stays absent even with an engine injected', async () => {
-  // The previous shape registered the route whenever deps.engine existed, so
-  // hiding the page did nothing for the route.
-  const stub = {
-    capabilities: {
-      engineId: 'stub',
-      engineVersion: '0',
-      supportsIdempotentCreate: false,
-      supportsRunLookupByOperationId: false,
-      supportsStop: true,
-      supportsOutOfBandStop: false,
-      supportsCitations: true,
+test('rate-limit storage pseudonymizes a trusted proxy client address', { skip }, async () => {
+  assert.ok(store);
+  const rawAddress = '203.0.113.42';
+  const response = await fetch(`${baseUrl}/api/ai/conversations`, {
+    method: 'POST',
+    headers: {
+      origin: 'https://site.example',
+      'content-type': 'application/json',
+      'x-forwarded-for': rawAddress,
     },
-  };
-  const { server, pool } = buildServer(config, { engine: stub as never });
-  await new Promise<void>((resolve) => server.listen(0, resolve));
-  const { port } = server.address() as AddressInfo;
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/api/ai/chat`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message: 'hi' }),
-    });
-    assert.equal(res.status, 404, 'the route existed outside the harness');
-  } finally {
-    server.close();
-    await pool.end().catch(() => undefined);
-  }
+    body: '{}',
+  });
+  assert.equal(response.status, 201);
+  const buckets = await store.pool.query<{ bucket_key: string }>(
+    `SELECT bucket_key FROM ai_rate_limit_buckets WHERE bucket_key LIKE 'ip:%'`,
+  );
+  assert.equal(buckets.rows.length, 1);
+  assert.doesNotMatch(buckets.rows[0]?.bucket_key ?? '', /203\.0\.113\.42/);
+  assert.match(buckets.rows[0]?.bucket_key ?? '', /^ip:[a-f0-9]{64}$/);
 });
 
-test('inside the harness the route exists and reports a missing engine', async () => {
-  await withHarnessServer(async (base) => {
-    const res = await fetch(`${base}/api/ai/chat`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message: 'hi' }),
-    });
-    assert.equal(res.status, 503);
-    const body = (await res.json()) as { error: { code: string } };
-    assert.equal(body.error.code, 'ENGINE_NOT_CONFIGURED');
-  });
-});
-
-test('the dev page follows the harness flag, not NODE_ENV', async () => {
-  // It used to key off NODE_ENV, which is a different switch that a deployment
-  // sets for unrelated reasons.
-  await withServer(async (base) => {
-    assert.equal((await fetch(`${base}/dev/chat`)).status, 404);
-  });
-  await withHarnessServer(async (base) => {
-    assert.equal((await fetch(`${base}/dev/chat`)).status, 200);
-  });
-});
-
-/**
- * Cancellation over a real socket.
- *
- * The unit tests drive `streamChatToResponse` with a fake response object,
- * which cannot express "the client went away". These use an actual HTTP
- * connection and destroy it, because the defect being guarded against —
- * cancellation bound to the request rather than the response — is invisible to
- * anything that does not have a socket to close.
- */
-function countingEngine(onSignal: (signal: AbortSignal) => void) {
-  return {
-    capabilities: {
-      engineId: 'stub',
-      engineVersion: '0',
-      supportsIdempotentCreate: false,
-      supportsRunLookupByOperationId: false,
-      supportsStop: true,
-      supportsOutOfBandStop: false,
-      supportsCitations: true,
-    },
-    async createRun(request: { operationId: string }, signal: AbortSignal) {
-      onSignal(signal);
-      return { operationId: request.operationId, engineRunId: 'stub-run' };
-    },
-    async *streamRun(_handle: unknown, signal: AbortSignal) {
-      for (let i = 0; i < 50; i++) {
-        if (signal.aborted) return;
-        yield { type: 'token' as const, text: `chunk-${i} ` };
-        await new Promise((resolve) => setTimeout(resolve, 30));
-      }
-      yield { type: 'final' as const, text: 'done', citations: [] };
-    },
-    async cancelRun() {
-      return 'stopped' as const;
-    },
-    async health() {
-      return { status: 'live' as const, checkedAt: new Date().toISOString() };
-    },
-    async attestKnowledgeCredential() {
-      return { credentialId: 'stub', rotationCounter: 0, spaceId: 'stub' };
-    },
-  };
-}
-
-test('destroying the client socket mid-stream aborts the engine exactly once', async () => {
-  let aborts = 0;
-  let captured: AbortSignal | undefined;
-  const engine = countingEngine((signal) => {
-    captured = signal;
-    signal.addEventListener('abort', () => {
-      aborts++;
-    });
-  });
-
-  const { server, pool } = buildServer(harnessConfig, { engine: engine as never });
-  await new Promise<void>((resolve) => server.listen(0, resolve));
-  const { port } = server.address() as AddressInfo;
-
-  try {
-    const body = JSON.stringify({ message: 'What is your MOQ?' });
-    const request = httpRequest({
-      host: '127.0.0.1',
-      port,
-      method: 'POST',
-      path: '/api/ai/chat',
-      headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) },
-    });
-    request.end(body);
-
-    const response = await new Promise<import('node:http').IncomingMessage>((resolve, reject) => {
-      request.once('response', resolve);
-      request.once('error', reject);
-    });
-
-    // Read one chunk so the stream is genuinely in progress, then cut the wire.
-    await new Promise<void>((resolve) => response.once('data', () => resolve()));
-    assert.equal(aborts, 0, 'the engine was aborted while the client was still connected');
-
-    request.destroy();
-
-    // Give the server a moment to notice the socket is gone.
-    const deadline = Date.now() + 3_000;
-    while (aborts === 0 && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-
-    assert.equal(aborts, 1, `expected exactly one abort, saw ${aborts}`);
-    assert.equal(captured?.aborted, true);
-  } finally {
-    server.close();
-    await pool.end().catch(() => undefined);
-  }
-});
-
-test('a normally completed response never aborts the engine', async () => {
-  // The previous wiring listened on the REQUEST, which closes as soon as its
-  // body is read — on every successful call, not only on disconnect.
-  let aborts = 0;
-  const engine = {
-    ...countingEngine((signal) => {
-      signal.addEventListener('abort', () => {
-        aborts++;
+test(
+  'credential is scoped to one conversation and message replay is idempotent',
+  { skip },
+  async () => {
+    const first = await createConversation();
+    const second = await createConversation();
+    const append = () =>
+      fetch(`${baseUrl}/api/ai/conversations/${first.conversationId}/messages`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${first.credential}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ message: 'What is your MOQ?', idempotencyKey: 'message-0001' }),
       });
-    }),
-    async *streamRun() {
-      yield { type: 'token' as const, text: 'Our MOQ is 500.' };
-      yield { type: 'final' as const, text: 'Our MOQ is 500.', citations: [] };
-    },
-  };
+    const accepted = await append();
+    const replay = await append();
+    assert.equal(accepted.status, 202);
+    assert.equal(replay.status, 200);
+    assert.equal(((await accepted.json()) as { disposition: string }).disposition, 'started');
+    assert.equal(((await replay.json()) as { disposition: string }).disposition, 'replayed');
 
-  const { server, pool } = buildServer(harnessConfig, { engine: engine as never });
-  await new Promise<void>((resolve) => server.listen(0, resolve));
-  const { port } = server.address() as AddressInfo;
-
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/api/ai/chat`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message: 'MOQ?' }),
-    });
-    const text = await res.text();
-    assert.ok(text.includes('"type":"final"'), 'the stream did not complete');
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    assert.equal(aborts, 0, 'a completed response aborted the engine');
-  } finally {
-    server.close();
-    await pool.end().catch(() => undefined);
-  }
-});
-
-/**
- * Malformed Host headers, sent over a real socket to a real server.
- *
- * The previous version of this test looped over malformed hosts and then
- * asserted `new URL('/x', 'http://internal.invalid')` — it never used the host
- * and never called the server. Reverting the router to the vulnerable
- * Host-based URL would not have failed it. A test that cannot fail is not
- * evidence, and the triage's own definition of FIXED requires one that can.
- */
-const MALFORMED_HOSTS = ['', ':::::', 'a b c', '[unclosed', '%%%', 'x'.repeat(2000), 'http://evil'];
-
-/** Raw request, because fetch() will not send a deliberately invalid Host. */
-function rawRequest(port: number, path: string, host: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const socket = connect(port, '127.0.0.1', () => {
-      socket.write(`GET ${path} HTTP/1.1\r\nHost: ${host}\r\nConnection: close\r\n\r\n`);
-    });
-    let received = '';
-    socket.setTimeout(5_000, () => {
-      socket.destroy();
-      reject(new Error('timed out'));
-    });
-    socket.on('data', (chunk) => {
-      received += chunk.toString('utf8');
-    });
-    socket.on('end', () => resolve(received));
-    socket.on('error', reject);
-  });
-}
-
-test('the BFF routes correctly despite a malformed Host header', async () => {
-  await withServer(async (base) => {
-    const port = Number(new URL(base).port);
-    for (const host of MALFORMED_HOSTS) {
-      const response = await rawRequest(port, '/api/ai/healthz', host);
-      assert.match(
-        response,
-        /^HTTP\/1\.1 200/,
-        `host ${JSON.stringify(host.slice(0, 20))} did not route to healthz: ${response.slice(0, 60)}`,
-      );
-      assert.match(response, /"ok":true/);
-    }
-  });
-});
-
-test('the BFF still 404s an unknown route despite a malformed Host header', async () => {
-  // Proves routing is happening from the PATH, not merely that nothing threw.
-  await withServer(async (base) => {
-    const port = Number(new URL(base).port);
-    const response = await rawRequest(port, '/api/ai/nope', '[unclosed');
-    assert.match(response, /^HTTP\/1\.1 404/);
-  });
-});
-
-test('the worker Dockerfile exposes the port the worker listens on', () => {
-  // Metadata, but wrong metadata sends someone debugging a health check to the
-  // wrong port. The manifest drift test checks compose; nothing read EXPOSE.
-  const dockerfile = readFileSync(
-    join(dirname(fileURLToPath(import.meta.url)), '../../ai-worker/Dockerfile'),
-    'utf8',
-  );
-  const exposed = /EXPOSE\s+(\d+)/.exec(dockerfile)?.[1];
-  assert.equal(exposed, '8081', `worker Dockerfile exposes ${exposed}`);
-});
-
-test('readiness reports the engine, not just the store', async () => {
-  // It used to prove the store alone, so an engine that was down left the
-  // service reporting ready while every answer failed — a broken instance kept
-  // in the load balancer by a check that ignored the dependency the product is
-  // built on.
-  const engine = {
-    capabilities: { engineId: 'stub', engineVersion: '1.16.0' },
-    async health() {
-      return { status: 'live' as const, checkedAt: new Date().toISOString() };
-    },
-  };
-  const { server, pool } = buildServer(config, { engine: engine as never });
-  await new Promise<void>((resolve) => server.listen(0, resolve));
-  const { port } = server.address() as AddressInfo;
-  try {
-    const body = (await (await fetch(`http://127.0.0.1:${port}/api/ai/readyz`)).json()) as {
-      engine: string;
-      engineVersion: string;
-    };
-    assert.equal(body.engine, 'live');
-    assert.equal(body.engineVersion, '1.16.0');
-  } finally {
-    server.close();
-    await pool.end().catch(() => undefined);
-  }
-});
-
-test('readiness fails when the engine is down, even though the store is fine', async () => {
-  const engine = {
-    capabilities: { engineId: 'stub', engineVersion: '1.16.0' },
-    async health() {
-      return { status: 'disabled' as const, checkedAt: new Date().toISOString() };
-    },
-  };
-  const { server, pool } = buildServer(config, { engine: engine as never });
-  await new Promise<void>((resolve) => server.listen(0, resolve));
-  const { port } = server.address() as AddressInfo;
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/api/ai/readyz`);
-    assert.equal(res.status, 503, 'a dead engine still reported ready');
-    const body = (await res.json()) as { engine: string };
-    assert.equal(body.engine, 'disabled');
-  } finally {
-    server.close();
-    await pool.end().catch(() => undefined);
-  }
-});
-
-test('readiness still leaks nothing when it reports the engine', async () => {
-  const engine = {
-    capabilities: { engineId: 'stub', engineVersion: '1.16.0' },
-    async health() {
-      return { status: 'live' as const, checkedAt: new Date().toISOString() };
-    },
-  };
-  const { server, pool } = buildServer(config, { engine: engine as never });
-  await new Promise<void>((resolve) => server.listen(0, resolve));
-  const { port } = server.address() as AddressInfo;
-  try {
-    const text = await (await fetch(`http://127.0.0.1:${port}/api/ai/readyz`)).text();
-    assert.ok(!/https?:\/\//.test(text), 'readiness leaked a URL');
-    assert.ok(
-      !/(secret|token|key|password|bearer)/i.test(text),
-      'readiness looks credential-shaped',
+    const crossScope = await fetch(
+      `${baseUrl}/api/ai/conversations/${second.conversationId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${first.credential}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ message: 'cross scope', idempotencyKey: 'message-0002' }),
+      },
     );
-  } finally {
-    server.close();
-    await pool.end().catch(() => undefined);
-  }
-});
+    assert.equal(crossScope.status, 401);
+  },
+);
 
-test('shutdown closes the pool only after connections have drained', async () => {
-  // The previous version called server.close() without awaiting it and closed
-  // the pool immediately, so an in-flight request lost its database connection
-  // mid-answer.
-  const { server, pool, shutdown } = startServer({ ...config, port: 0 });
-  await new Promise<void>((resolve) => server.once('listening', resolve));
-  const { port } = server.address() as AddressInfo;
-
-  await fetch(`http://127.0.0.1:${port}/api/ai/healthz`);
-  await shutdown('TEST');
-
-  assert.equal(pool.ended, true, 'the pool was not closed');
-  await assert.rejects(
-    fetch(`http://127.0.0.1:${port}/api/ai/healthz`),
-    'the server still accepted a connection after shutdown',
+test('SSE Last-Event-ID resumes with no duplicate committed event', { skip }, async () => {
+  assert.ok(store);
+  const created = await createConversation();
+  const acceptedResponse = await fetch(
+    `${baseUrl}/api/ai/conversations/${created.conversationId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${created.credential}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ message: 'hello', idempotencyKey: 'message-sse1' }),
+    },
   );
+  const accepted = (await acceptedResponse.json()) as { runId: string };
+  const claim = await store.claimRun(accepted.runId);
+  assert.ok(claim);
+  await store.appendEventFenced({
+    conversationId: created.conversationId,
+    runId: accepted.runId,
+    expectedControlVersion: claim.controlVersion,
+    claimEpoch: claim.claimEpoch,
+    type: 'token',
+    payload: { text: 'one' },
+  });
+  await store.appendEventFenced({
+    conversationId: created.conversationId,
+    runId: accepted.runId,
+    expectedControlVersion: claim.controlVersion,
+    claimEpoch: claim.claimEpoch,
+    type: 'token',
+    payload: { text: 'two' },
+  });
+
+  const response = await fetch(`${baseUrl}/api/ai/conversations/${created.conversationId}/events`, {
+    headers: { authorization: `Bearer ${created.credential}`, 'last-event-id': '1' },
+  });
+  const body = await response.text();
+  assert.equal(response.status, 200);
+  assert.doesNotMatch(body, /data: .*"one"/);
+  assert.match(body, /id: 2\nevent: token\ndata: .*"two"/);
 });
 
-test('shutdown is idempotent and the second caller waits for the first', async () => {
-  const { server, shutdown } = startServer({ ...config, port: 0 });
-  await new Promise<void>((resolve) => server.once('listening', resolve));
-  const [a, b] = await Promise.all([shutdown('SIGTERM'), shutdown('SIGINT')]);
-  assert.equal(a, b, 'two shutdowns produced two different runs');
-});
-
-test('a connection that will not close is forced after the drain deadline', async () => {
-  // A deadline that never fires is not a deadline. An SSE stream held open by a
-  // client would otherwise keep the process alive indefinitely.
-  const { server, shutdown } = startServer({ ...config, port: 0 });
-  await new Promise<void>((resolve) => server.once('listening', resolve));
-  const { port } = server.address() as AddressInfo;
-
-  const held = connect(port, '127.0.0.1');
-  await new Promise<void>((resolve) => held.once('connect', () => resolve()));
-
-  const started = Date.now();
-  await shutdown('TEST');
-  const elapsed = Date.now() - started;
-
-  assert.ok(elapsed < 12_000, `shutdown took ${elapsed}ms — the deadline did not fire`);
-  held.destroy();
-});
+async function createConversation(): Promise<{ conversationId: string; credential: string }> {
+  const response = await fetch(`${baseUrl}/api/ai/conversations`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: 'https://site.example' },
+    body: '{}',
+  });
+  assert.equal(response.status, 201);
+  return response.json() as Promise<{ conversationId: string; credential: string }>;
+}

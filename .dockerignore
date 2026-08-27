@@ -16,6 +16,8 @@
 !.env.example
 !.env.ai.example
 !.env.e2e.example
+!.env.ai-runtime.example
+!.env.ai-probe.example
 !**/*.example
 *.pem
 *.key
@@ -43,6 +45,7 @@ id_rsa*
 node_modules
 **/node_modules
 dist
+**/dist
 build
 .next
 .astro
@@ -72,3 +75,6 @@ scratchpad
 docs
 *.md
 !README.md
+
+# Large site media the services never read. The site app builds elsewhere.
+apps/site/public/media
