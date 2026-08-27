@@ -35,7 +35,10 @@ import {
 } from '@vibelingan-channel/catalog-import/dianxiaomi';
 import { setAdapter, upsertDocWithId } from '@vibelingan-channel/db';
 import { fetchSourceImage } from '@vibelingan-channel/fn-admin/catalog-import-media';
-import { publishImportedSample } from '@vibelingan-channel/fn-admin/catalog-import-publish';
+import {
+  planImportedPublish,
+  publishImportedSample,
+} from '@vibelingan-channel/fn-admin/catalog-import-publish';
 import {
   computeImportDelta,
   runCatalogImport,
@@ -55,6 +58,7 @@ const { values } = parseArgs({
     'fetch-images': { type: 'string' },
     'seed-image': { type: 'string' },
     'probe-images': { type: 'string' },
+    'publish-plan': { type: 'boolean', default: false },
     'map-source-categories': { type: 'string' },
     'make-public': { type: 'boolean', default: false },
     json: { type: 'string' },
@@ -75,6 +79,8 @@ function usage(): never {
       '  --fetch-images <n>   download at most n source images into LOCAL_MEDIA_DIR',
       '  --probe-images <n>   reachability-check n distinct source images and',
       '                       exit; stores no bytes and prints no URLs',
+      '  --publish-plan       report what publishing the WHOLE job would do,',
+      '                       writing nothing and downloading nothing',
       '  --make-public        publish the sample if it passes the catalog rules',
       '  --map-source-categories <family>',
       '                       record operator mappings from every source category',
@@ -287,6 +293,33 @@ for (const entry of delta.changed.slice(0, 5)) {
   console.log(`      ${entry.storeKey} / ${entry.sku}: ${fields}`);
 }
 console.log('');
+
+if (values['publish-plan'] === true) {
+  const plan = await planImportedPublish({
+    jobId: String(result.job._id),
+    delta: { sourceMissing: delta.sourceMissing.length, completeSource: delta.completeSource },
+  });
+  console.log('  publish plan for the WHOLE job (nothing written, nothing downloaded)');
+  console.log(`    staged products      ${plan.considered}`);
+  console.log(`    rejected at parse    ${plan.rejected}`);
+  console.log(`    would create         ${plan.create}`);
+  console.log(`    would update         ${plan.update}`);
+  console.log(`    would go public      ${plan.publishable}`);
+  console.log(`    would stay draft     ${plan.blocked.length}`);
+  console.log(`      unmapped category  ${plan.blockedByUnmappedCategory}`);
+  console.log(`      no description     ${plan.blockedByMissingDescription}`);
+  console.log(`      no source image    ${plan.blockedByMissingImage}`);
+  console.log(`    slug collisions      ${plan.slugCollisions.length}`);
+  for (const collision of plan.slugCollisions.slice(0, 5)) {
+    console.log(`      ${collision.parentSku}: ${collision.reason}`);
+  }
+  console.log(`    distinct images      ${plan.distinctImageUrls} would need migrating`);
+  console.log(`    products w/o images  ${plan.productsWithoutImages}`);
+  console.log(
+    `    source-missing       ${plan.sourceMissing} (complete source: ${plan.completeSource})`,
+  );
+  console.log('');
+}
 
 let published: Awaited<ReturnType<typeof publishImportedSample>> | null = null;
 if (typeof values.publish === 'string') {

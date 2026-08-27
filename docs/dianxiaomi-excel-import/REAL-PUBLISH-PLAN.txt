@@ -1,0 +1,15 @@
+  publish plan for the WHOLE job (nothing written, nothing downloaded)
+    staged products      77
+    rejected at parse    0
+    would create         77
+    would update         0
+    would go public      77
+    would stay draft     0
+      unmapped category  0
+      no description     0
+      no source image    0
+    slug collisions      0
+    distinct images      452 would need migrating
+    products w/o images  0
+    source-missing       0 (complete source: true)
+
