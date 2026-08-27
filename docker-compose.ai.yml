@@ -120,6 +120,11 @@ services:
       ANYTHINGLLM_BASE_URL: http://anythingllm:3001
       ANYTHINGLLM_WORKSPACE_SLUG: channel-public-assistant
       ANYTHINGLLM_API_KEY: ${ANYTHINGLLM_API_KEY:-}
+      # Container-to-container on a private docker network, so http is the only
+      # option here and the engine would otherwise refuse to start. This is the
+      # ONLY place this flag belongs: any remote knowledge base must be HTTPS,
+      # because the token it carries can read the whole instance.
+      ALLOW_INSECURE_ANYTHINGLLM: "true"
       # The engine's OWN generation ceiling — must match
       # GENERIC_OPEN_AI_MAX_TOKENS on the anythingllm service. It is the only
       # per-answer bound the vendor honours, so it is what the cost model uses

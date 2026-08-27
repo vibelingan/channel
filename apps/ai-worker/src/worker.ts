@@ -309,7 +309,10 @@ function engineFromEnvironment(): ConversationEngine {
       citations: [
         {
           sourceId: 'local-public-faq',
-          title: 'Local public FAQ fixture',
+          // Named the way the approved corpus names its documents, because the
+          // answer gate only grounds on that namespace. A fixture that would be
+          // refused in production is a fixture that proves nothing.
+          title: 'channelkb-g1-local-public-faq',
           retrievedAt: '2026-01-01T00:00:00.000Z',
         },
       ],
@@ -323,6 +326,13 @@ function engineFromEnvironment(): ConversationEngine {
     baseUrl,
     apiKey,
     workspaceSlug,
+    // The knowledge base holds an INSTANCE-WIDE developer token, not a
+    // workspace-scoped read-only one: the same authenticated surface can read
+    // system configuration and enumerate workspaces. Plain HTTP puts that
+    // bearer in cleartext on the network path, and the supplied hosted KB was
+    // found on exactly that footing on 2026-08-25. Remote HTTP therefore has to
+    // be asked for by name, once, in a file that is not production.
+    allowInsecureRemoteHttp: process.env.ALLOW_INSECURE_ANYTHINGLLM === 'true',
     version: requiredEnv('AI_ENGINE_VERSION'),
     imageDigest: requiredEnv('AI_ENGINE_IMAGE_DIGEST'),
     citationsVerified: process.env.ANYTHINGLLM_CITATIONS_VERIFIED === '1',

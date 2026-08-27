@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { EngineCitation } from '@vibelingan-channel/ai-engine/port';
 import { enforceGroundedFinal, preparePublicTurns, redactContactData } from './index.ts';
 
 test('contact details are removed before context crosses the model boundary', () => {
@@ -27,4 +28,92 @@ test('empty or uncited final is converted to a fail-closed knowledge error', () 
     retriable: false,
     safeDetail: 'grounded final required',
   });
+});
+
+/**
+ * The gate, end to end. Each case below passed the previous "did any citation
+ * come back" check, which is the whole reason these exist.
+ */
+const approved = (title: string, snippet: string): EngineCitation => ({
+  sourceId: 'src-1',
+  title: `channelkb-g1000-${title}`,
+  snippet,
+  retrievedAt: '2026-08-27T00:00:00.000Z',
+});
+
+test('a price the sources do not state is replaced by a refusal, not published', () => {
+  const result = enforceGroundedFinal({
+    type: 'final',
+    text: 'The unit price is $12 each.',
+    citations: [approved('company', 'Founded in 2012. We make headphones.')],
+  });
+  assert.equal(result.type, 'final');
+  assert.match(result.type === 'final' ? result.text : '', /don’t publish prices/);
+  assert.doesNotMatch(result.type === 'final' ? result.text : '', /\$12/);
+});
+
+test('a certification the sources DENY is refused', () => {
+  const result = enforceGroundedFinal({
+    type: 'final',
+    text: 'Yes, we hold ISO 9001.',
+    citations: [approved('quality', 'We do not hold ISO 9001 at this time.')],
+  });
+  assert.equal(result.type, 'final');
+  assert.match(result.type === 'final' ? result.text : '', /certification details/);
+});
+
+test('a value the sources DO state is published unchanged', () => {
+  const cited = approved('moq', 'Minimum order quantity is 500 units.');
+  const result = enforceGroundedFinal({
+    type: 'final',
+    text: 'Our minimum order quantity is 500 units.',
+    citations: [cited],
+  });
+  assert.deepEqual(result, {
+    type: 'final',
+    text: 'Our minimum order quantity is 500 units.',
+    citations: [cited],
+  });
+});
+
+test('an internal document cannot ground a public answer', () => {
+  // The exact failure the hosted KB probe found: `hermes-skills-*` returned by
+  // vector search on the workspace the website would have used.
+  const result = enforceGroundedFinal({
+    type: 'final',
+    text: 'Our internal escalation path is described below.',
+    citations: [
+      {
+        sourceId: 'src-2',
+        title: 'hermes-skills-escalation',
+        snippet: 'Internal only.',
+        retrievedAt: '2026-08-27T00:00:00.000Z',
+      },
+    ],
+  });
+  assert.deepEqual(result, {
+    type: 'error',
+    category: 'knowledge_empty',
+    retriable: false,
+    safeDetail: 'no publishable source',
+  });
+});
+
+test('an internal source is not shown even when an approved one also matched', () => {
+  const result = enforceGroundedFinal({
+    type: 'final',
+    text: 'We make headphones.',
+    citations: [
+      approved('company', 'We make headphones.'),
+      {
+        sourceId: 'src-3',
+        title: 'hermes-skills-escalation',
+        snippet: 'Internal only.',
+        retrievedAt: '2026-08-27T00:00:00.000Z',
+      },
+    ],
+  });
+  assert.equal(result.type, 'final');
+  const titles = result.type === 'final' ? result.citations.map((c) => c.title) : [];
+  assert.deepEqual(titles, ['channelkb-g1000-company']);
 });

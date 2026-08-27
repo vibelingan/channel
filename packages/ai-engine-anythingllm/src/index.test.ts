@@ -103,3 +103,47 @@ test('remote HTTP is rejected and unverified citations are declared false', () =
   assert.equal(local.capabilities.supportsIdempotentCreate, false);
   assert.equal(local.capabilities.supportsOutOfBandStop, false);
 });
+
+test('a remote knowledge base on plain HTTP is refused', () => {
+  // The supplied hosted KB was reachable over plain HTTP on a public port while
+  // carrying an instance-wide developer token. Constructing the engine against
+  // that must fail loudly at startup, not send the bearer in cleartext.
+  assert.throws(
+    () =>
+      new AnythingLlmEngine({
+        baseUrl: 'http://kb.example.com',
+        apiKey: 'x'.repeat(24),
+        workspaceSlug: 'public',
+        version: '1.16.0',
+        citationsVerified: false,
+        credentialRotationCounter: 1,
+      }),
+    /HTTPS/,
+  );
+});
+
+test('the same host over HTTPS is accepted', () => {
+  const engine = new AnythingLlmEngine({
+    baseUrl: 'https://kb.example.com',
+    apiKey: 'x'.repeat(24),
+    workspaceSlug: 'public',
+    version: '1.16.0',
+    citationsVerified: false,
+    credentialRotationCounter: 1,
+  });
+  assert.equal(engine.capabilities.engineId, 'anythingllm');
+});
+
+test('unverified citations are never advertised as supported', () => {
+  // supportsCitations is an operator assertion, not an assumption: the hosted
+  // KB has never returned a citation, because generation 403s before it can.
+  const engine = new AnythingLlmEngine({
+    baseUrl: 'https://kb.example.com',
+    apiKey: 'x'.repeat(24),
+    workspaceSlug: 'public',
+    version: '1.16.0',
+    citationsVerified: false,
+    credentialRotationCounter: 1,
+  });
+  assert.equal(engine.capabilities.supportsCitations, false);
+});

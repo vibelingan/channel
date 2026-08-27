@@ -84,16 +84,31 @@ any claim made about progress is checkable against it.
 | R13 | Owner abort waits out the full stream deadline | `FIXED` | 3 |
 | R14 | `sh` collapses an unquoted `**` glob; 76 tests silently became 27 | `FIXED` | 3 |
 | R15 | A user-local absolute symlink was swept into a feature commit | `FIXED` | 3 |
+| K1 | Retrieval workspace is not an approved public corpus; internal `hermes-skills-*` documents are returned to a public query | `FIXED` | KB |
+| K2 | A remote knowledge base carrying an instance-wide token is reachable over plain HTTP | `FIXED` | KB |
+| K3 | Liveness checked the database, so a database blip restarts a healthy container | `FIXED` | KB |
+| K4 | Citations are unverified on the supplied hosted KB, because generation 403s before one is ever returned | `GATE_PENDING` | KB |
+| K5 | The hosted KB's model provider denies every generation request (upstream 403) | `GATE_PENDING` | KB |
+
+The K rows come from the 2026-08-25 probe of the separately supplied hosted
+knowledge base, recorded in PRODUCTION-KB-CLOUDRUN-RUNBOOK.md. They are not
+review findings; they are things the KB swap introduced.
+
+K1 and K2 are fixed on OUR side and stay fixed however the knowledge base is
+repaired: an answer may only be grounded on documents published under the
+approved corpus namespace, and a remote knowledge base must be HTTPS. K4 and K5
+cannot be closed from this repository at all — they need the workspace, the
+token and the provider permission repaired by whoever owns that deployment.
 
 ### Totals, computed from the table
 
 | Status | Count | IDs |
 |---|---|---|
-| `FIXED` | 34 | 2–17, 19–21, 25, R1–R10, R12–R15 |
+| `FIXED` | 37 | 2–17, 19–21, 25, R1–R10, R12–R15, K1–K3 |
 | `PARTIAL` | 2 | 1, R11 |
 | `WITHDRAWN` | 1 | 18 |
-| `GATE_PENDING` | 3 | 22, 23, 24 |
-| **Total** | **40** | 34 + 2 + 1 + 3, one row per finding, never renumbered |
+| `GATE_PENDING` | 5 | 22, 23, 24, K4, K5 |
+| **Total** | **45** | 37 + 2 + 1 + 5, one row per finding, never renumbered |
 
 Round 2 was right that "21 accepted, 4 disputed" was not derivable from the
 previous table. It was a count carried in prose rather than computed, which is

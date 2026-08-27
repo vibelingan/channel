@@ -75,7 +75,7 @@ test(
     });
     const engine = new FakeEngine({
       script: ['Grounded ', 'answer.'],
-      citations: [{ sourceId: 'faq-1', title: 'Public FAQ' }],
+      citations: [{ sourceId: 'faq-1', title: 'channelkb-g1-public-faq' }],
     });
     assert.equal(await processOne(store, engine, config), 'processed');
     const events = await store.listEvents(conversation.id);
@@ -119,7 +119,7 @@ test(
     });
     const engine = new FakeEngine({
       script: ['done'],
-      citations: [{ sourceId: 'faq-1', title: 'Public FAQ' }],
+      citations: [{ sourceId: 'faq-1', title: 'channelkb-g1-public-faq' }],
     });
     assert.equal(await processOne(store, engine, config), 'processed');
     const current = await store.getConversation(conversation.id);
