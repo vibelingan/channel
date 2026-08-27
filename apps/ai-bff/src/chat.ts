@@ -17,6 +17,7 @@
 import type { ServerResponse } from 'node:http';
 import type { ConversationEngine, EngineTurn } from '@vibelingan-channel/ai-engine';
 import type { ConversationStore } from './conversations.ts';
+import { normalizeCitations } from './policy/citations.ts';
 import { classifyCommitmentRequest, templateFor } from './policy/commitments.ts';
 import { topicForCommitments, ungroundedCommitments } from './policy/grounding.ts';
 
@@ -85,6 +86,8 @@ export interface StreamChatOptions {
   conversations: ConversationStore;
   res: ServerResponse;
   signal: AbortSignal;
+  /** Where citation paths resolve to — the website, not this service. */
+  siteOrigin?: string;
   limits?: { maxDeliveredOutputUnits: number; maxStreamDurationMs: number };
 }
 
@@ -281,8 +284,13 @@ export async function streamChatToResponse(options: StreamChatOptions): Promise<
           terminated = true;
           break;
         }
-        // Validated. Release the answer and the citations that justify it.
-        for (const citation of citations) sse(res, { type: 'citation', citation });
+        // Validated. Release the answer and the citations that justify it —
+        // with their links resolved against the website and checked, since a
+        // citation target is untrusted text from a document store.
+        const safeCitations = normalizeCitations(citations, {
+          siteOrigin: options.siteOrigin ?? '',
+        });
+        for (const citation of safeCitations) sse(res, { type: 'citation', citation });
         if (event.text) sse(res, { type: 'token', text: event.text });
         sse(res, event);
         completedAnswer = event.text;

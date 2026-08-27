@@ -15,6 +15,7 @@
  *   node scripts/ai-configure-workspace.mjs
  */
 
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -47,21 +48,80 @@ const settings = {
   chatMode: 'query',
 };
 
-const res = await fetch(`${base}/api/v1/workspace/${workspace}/update`, {
+/**
+ * Apply, then READ BACK and compare.
+ *
+ * HTTP 200 is not proof a setting was applied. This engine accepts unknown
+ * fields and returns success — the same behaviour that made `max_tokens` look
+ * like it worked when it was ignored entirely. A policy that silently failed to
+ * apply is the worst case here: the assistant keeps answering, with the old
+ * rules, and nothing says so.
+ */
+function hash(value) {
+  return createHash('sha256')
+    .update(String(value ?? ''))
+    .digest('hex')
+    .slice(0, 12);
+}
+
+async function api(path, init = {}) {
+  const res = await fetch(`${base}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+      ...init.headers,
+    },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || body.error) {
+    throw new Error(`${path} failed: ${res.status} ${JSON.stringify(body).slice(0, 300)}`);
+  }
+  return body;
+}
+
+await api(`/api/v1/workspace/${workspace}/update`, {
   method: 'POST',
-  headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
   body: JSON.stringify(settings),
 });
-const body = await res.json().catch(() => ({}));
-if (!res.ok || body.error) {
-  console.error(`failed: ${res.status} ${JSON.stringify(body).slice(0, 300)}`);
+
+const readBack = await api(`/api/v1/workspace/${workspace}`);
+const applied = readBack.workspace?.[0] ?? {};
+
+/**
+ * Compared field by field. The policy text is compared by hash rather than
+ * printed: it is long, and a diff of the whole prompt in a terminal buries the
+ * one line that changed.
+ */
+const CHECKS = [
+  ['chatMode', settings.chatMode, applied.chatMode],
+  ['openAiTemp', settings.openAiTemp, applied.openAiTemp],
+  ['topN', settings.topN, applied.topN],
+  ['similarityThreshold', settings.similarityThreshold, applied.similarityThreshold],
+  ['queryRefusalResponse', settings.queryRefusalResponse, applied.queryRefusalResponse],
+  ['openAiPrompt (sha256)', hash(settings.openAiPrompt), hash(applied.openAiPrompt)],
+];
+
+const mismatches = [];
+for (const [name, requested, actual] of CHECKS) {
+  const same = String(requested) === String(actual);
+  console.log(`  ${same ? 'ok  ' : 'FAIL'} ${name.padEnd(22)} ${String(actual)}`);
+  if (!same) mismatches.push(`${name}: asked for ${requested}, engine reports ${actual}`);
+}
+
+// The tool surface is not something we set — it is something we require to be
+// off, because the run contract permits zero tool calls.
+if (applied.agentProvider || applied.agentModel) {
+  mismatches.push(
+    `an agent surface is enabled (agentProvider=${applied.agentProvider}, agentModel=${applied.agentModel}); the run contract permits zero tool calls`,
+  );
+}
+
+if (mismatches.length > 0) {
+  console.error(`\nthe engine did not apply ${mismatches.length} setting(s):`);
+  for (const mismatch of mismatches) console.error(`  - ${mismatch}`);
+  console.error('\nThe assistant is still answering under its previous policy.');
   process.exit(1);
 }
 
-const applied = body.workspace ?? {};
-console.log(`configured "${workspace}"`);
-console.log(`  chatMode            ${applied.chatMode}`);
-console.log(`  temperature         ${applied.openAiTemp}`);
-console.log(`  topN                ${applied.topN}`);
-console.log(`  similarityThreshold ${applied.similarityThreshold}`);
-console.log(`  policy              ${String(applied.openAiPrompt ?? '').length} chars`);
+console.log(`\nconfigured "${workspace}" and verified every setting by read-back`);

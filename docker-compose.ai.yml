@@ -88,12 +88,21 @@ services:
       CORS_ALLOWED_ORIGINS: http://localhost:4321,http://localhost:4324,http://localhost:58080
       # Container-to-container, so the service name — not localhost, which
       # inside this container is the BFF itself.
+      # Citations are site-relative paths; a browser would otherwise resolve
+      # them against the ASSISTANT's hostname, which serves no pages.
+      SITE_ORIGIN: http://localhost:4321
       ANYTHINGLLM_BASE_URL: http://anythingllm:3001
       ANYTHINGLLM_WORKSPACE: channel-public-assistant
       # The engine's OWN ceiling — must match GENERIC_OPEN_AI_MAX_TOKENS on the
       # anythingllm service. It is the only per-answer bound the vendor honours,
       # so it is what the cost model uses for an abandoned run.
       ANYTHINGLLM_MAX_TOKENS: "4096"
+      # The version the pinned digest below actually is. Readiness advertises
+      # this, and an answer a customer quotes back has to be traceable to what
+      # produced it — so leaving it unset made /readyz report "unpinned" while
+      # running a pinned image, which is the contradiction the pin exists to
+      # remove. Change this in the SAME edit as the digest.
+      ANYTHINGLLM_VERSION: "1.16.0"
       ANYTHINGLLM_API_KEY: ${ANYTHINGLLM_API_KEY:?set it in .env.ai}
       # ONE switch for everything that must not face the internet: the
       # /dev/chat page, the /api/ai/chat route, and permission to serve with
@@ -155,7 +164,15 @@ services:
   # from the command line (a key on argv is visible in `ps` to every process on
   # the machine). Create it from .env.ai.example.
   anythingllm:
-    image: mintplexlabs/anythingllm:latest
+    # PINNED BY DIGEST, never `:latest`. ADR-002 §4 required this and the file
+    # contradicted it: `latest` means the engine can change under a stack whose
+    # answers are its whole product, with no diff and no way to tell afterwards
+    # which version produced an answer a customer is quoting back at you.
+    #
+    # anythingllm 1.16.0. To move: pull the new tag, read its digest with
+    #   docker image inspect mintplexlabs/anythingllm:<tag> --format '{{index .RepoDigests 0}}'
+    # and change BOTH the digest and the version comment in the same edit.
+    image: mintplexlabs/anythingllm@sha256:68bcedecb720e3fadde986bcc4f3aad20059fa64805bc9b306a3023244947515
     container_name: channel-ai-anythingllm
     env_file:
       - .env.ai

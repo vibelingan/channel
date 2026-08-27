@@ -336,3 +336,46 @@ test('the abandoned-run cost bound is stated as the vendor ceiling everywhere', 
     }
   }
 });
+
+test('no service runs a mutable image tag', () => {
+  // `latest` means the engine can change under a stack whose answers are its
+  // whole product — silently, with no diff, and with no way to tell afterwards
+  // which version produced an answer a customer is quoting back at you.
+  // ADR-002 §4 required a pinned digest; the compose file said `latest`.
+  const compose = parseYaml(readFileSync(COMPOSE_FILE, 'utf8'));
+  const MUTABLE = /:(?:latest|main|master|stable|edge|dev)$/;
+  for (const [service, definition] of Object.entries(compose.services ?? {})) {
+    const image = definition.image;
+    if (!image) continue; // built from a Dockerfile in this repo
+    assert.ok(!MUTABLE.test(image), `${service} runs a mutable tag (${image}); pin it by digest`);
+  }
+});
+
+test('the third-party engine is pinned by digest, not merely by version', () => {
+  // A version tag is still mutable — a vendor can republish it. Only a digest
+  // names the exact bytes.
+  const compose = parseYaml(readFileSync(COMPOSE_FILE, 'utf8'));
+  const engine = compose.services?.anythingllm?.image ?? '';
+  assert.match(engine, /@sha256:[0-9a-f]{64}$/, `the engine image is not digest-pinned: ${engine}`);
+});
+
+test('the version readiness advertises matches the version the pinned digest is', () => {
+  // A digest names bytes; it does not say which release those bytes are. The
+  // BFF reports ANYTHINGLLM_VERSION on /readyz for incident scoping, and with
+  // it unset the service ran a pinned image while telling operators
+  // "unpinned" — so an answer a customer quoted back could not be traced to
+  // anything. The version lives in the comment above the digest; this makes
+  // moving one without the other a failing test rather than a silent lie.
+  const composeText = readFileSync(COMPOSE_FILE, 'utf8');
+  const compose = parseYaml(composeText);
+  const advertised = compose.services?.['ai-bff']?.environment?.ANYTHINGLLM_VERSION;
+  assert.ok(advertised, 'ai-bff advertises no engine version, so /readyz reports "unpinned"');
+
+  const documented = composeText.match(/#\s*anythingllm\s+(\d+\.\d+\.\d+)\b/i)?.[1];
+  assert.ok(documented, 'the digest is not accompanied by a version comment naming its release');
+  assert.equal(
+    String(advertised),
+    documented,
+    `ai-bff advertises ${advertised} while the pinned digest is documented as ${documented}`,
+  );
+});

@@ -38,6 +38,15 @@ export interface BffConfig {
    * this is set in a production environment.
    */
   localHarness: boolean;
+  /**
+   * The public website the corpus was built from.
+   *
+   * Citations arrive as site-relative paths, and a browser resolves those
+   * against whoever served the page — the assistant's own hostname, which
+   * serves nothing. Required whenever an engine is configured, because an
+   * answer with broken sources is an answer nobody can check.
+   */
+  siteOrigin: string;
 }
 
 export interface EngineConfig {
@@ -134,6 +143,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BffConfig {
   if (origins.includes('*'))
     problems.push("CORS_ALLOWED_ORIGINS contains '*', which is never valid here");
 
+  // Required alongside an engine: citations are useless without it.
+  const siteOrigin = env.SITE_ORIGIN?.trim() ?? '';
+  if (siteOrigin) {
+    try {
+      const parsed = new URL(siteOrigin);
+      if (parsed.protocol !== 'https:' && parsed.hostname !== 'localhost') {
+        problems.push(`SITE_ORIGIN must be https (or localhost), got: ${siteOrigin}`);
+      }
+    } catch {
+      problems.push(`SITE_ORIGIN is not a valid URL: ${siteOrigin}`);
+    }
+  }
+
   // The engine block is all-or-nothing: a half-configured engine would fail at
   // the first visitor instead of at startup.
   const engineFields = {
@@ -150,6 +172,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BffConfig {
     if (missing.length > 0) {
       problems.push(`engine is partially configured; missing: ${missing.join(', ')}`);
     } else {
+      if (!siteOrigin) {
+        problems.push(
+          'SITE_ORIGIN is required when an engine is configured; citations resolve against it',
+        );
+      }
       engine = {
         baseUrl: engineFields.baseUrl as string,
         apiKey: engineFields.apiKey as string,
@@ -167,6 +194,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BffConfig {
     databaseUrl: databaseUrl as string,
     corsAllowedOrigins: origins,
     localHarness,
+    siteOrigin,
     ...(engine ? { engine } : {}),
   };
 }

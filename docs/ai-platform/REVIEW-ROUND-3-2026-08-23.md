@@ -1,8 +1,8 @@
 # AI Assistant Phase 1/2 Review - Round 3
 
-**Date:** 2026-08-23  
-**Reviewed HEAD:** `26bc895f73127b8f4f56c183ace0ebc4afe0bfb5`  
-**Review base:** `e363fbced635397a4096dcdaed64d47fe2faf43e`  
+**Date:** 2026-08-23
+**Reviewed HEAD:** `26bc895f73127b8f4f56c183ace0ebc4afe0bfb5`
+**Review base:** `e363fbced635397a4096dcdaed64d47fe2faf43e`
 **Commits reviewed:** `9f1879b`, `26bc895`
 
 ## Verdict
@@ -19,7 +19,7 @@ Phase 1 is materially improved, but its bounded conversation-store claim is also
 
 ### R8 - P1 - The local harness and supporting services are exposed beyond loopback
 
-**Status:** `PHASE_2`  
+**Status:** `PHASE_2`
 **Files:** `docker-compose.ai.yml`, `apps/ai-bff/src/config.test.ts`, `docs/ai-platform/LOCAL-DEV-RUNBOOK.md`
 
 `docker-compose.ai.yml` currently combines these settings:
@@ -77,7 +77,7 @@ The test named `the local compose environment, deployed to production, refuses t
 
 ### R9 - P2 - The bounded conversation store exceeds its cap when all entries are active
 
-**Status:** `PHASE_2`  
+**Status:** `PHASE_2`
 **Files:** `apps/ai-bff/src/conversations.ts`, `apps/ai-bff/src/conversations.test.ts`, `apps/ai-bff/src/chat.ts`
 
 `create()` excludes active conversations from eviction. When all existing entries are active, the eviction list is empty, but the implementation still inserts a new conversation.
@@ -102,7 +102,7 @@ Phase 2 currently prevents this temporary store from serving production traffic,
 
 ### R10 - P2 - The documented default evaluation command targets the wrong port
 
-**Status:** `PHASE_2`  
+**Status:** `PHASE_2`
 **Files:** `scripts/ai-eval.mjs`, `docs/ai-platform/LOCAL-DEV-RUNBOOK.md`, `docker-compose.ai.yml`
 
 The runbook tells developers to run:
@@ -213,9 +213,9 @@ Finding #25, real container validation, may remain `FIXED`: fresh container evid
 
 # Round 4 - Verification of `889d8ab`
 
-**Date:** 2026-08-23  
-**Reviewed HEAD:** `889d8ab36a152a6b1f046c9a691e0ddd4d0b3a2d`  
-**Review base:** `26bc895f73127b8f4f56c183ace0ebc4afe0bfb5`  
+**Date:** 2026-08-23
+**Reviewed HEAD:** `889d8ab36a152a6b1f046c9a691e0ddd4d0b3a2d`
+**Review base:** `26bc895f73127b8f4f56c183ace0ebc4afe0bfb5`
 **Commit reviewed:** `889d8ab` (`fix(ai): the local stack was on every network, and I said otherwise`)
 
 ## Round 4 verdict
@@ -241,7 +241,7 @@ controls, not regressions in the controls themselves.
 
 ### R11 - P2 - The live evaluator can reject a valid commercial refusal
 
-**Status:** `PHASE_2`  
+**Status:** `PHASE_2`
 **File:** `scripts/ai-eval.mjs`
 
 The discount case produced this answer:
@@ -284,7 +284,7 @@ the check.
 
 ### R12 - P2 - One Compose comment still repeats the disproven safety claim
 
-**Status:** `PHASE_2`  
+**Status:** `PHASE_2`
 **File:** `docker-compose.ai.yml`
 
 The file header and runbook now correctly say that copying Compose does not fail
@@ -409,9 +409,9 @@ Totals after Round 4:
 
 # Round 5 - Phase 2 Remainder and Phase 3 Review
 
-**Date:** 2026-08-23  
-**Reviewed HEAD:** `9fc4720c7525874b4710894103226a4e65062293`  
-**Review base:** `889d8ab36a152a6b1f046c9a691e0ddd4d0b3a2d`  
+**Date:** 2026-08-23
+**Reviewed HEAD:** `9fc4720c7525874b4710894103226a4e65062293`
+**Review base:** `889d8ab36a152a6b1f046c9a691e0ddd4d0b3a2d`
 **Commits reviewed:** `18ff88f`, `9fc4720`
 
 ## Round 5 verdict
@@ -438,7 +438,7 @@ new finding R13 because #6 specifically concerned binding disconnect to
 
 ### R11 - P1 - The evaluator still cannot safely identify a refusal
 
-**Corrected status:** `PHASE_2`  
+**Corrected status:** `PHASE_2`
 **Files:** `scripts/ai-eval-classify.mjs`, `scripts/ai-eval-classify.test.mjs`,
 `scripts/ai-eval.mjs`
 
@@ -486,7 +486,7 @@ alone. At minimum:
 
 ### #8 - P1 - Output and tool limits are still not enforced as claimed
 
-**Corrected status:** `PHASE_3`  
+**Corrected status:** `PHASE_3`
 **Files:** `packages/ai-engine-anythingllm/src/engine.ts`,
 `apps/ai-bff/src/main.ts`, `packages/ai-engine-anythingllm/src/engine.test.ts`
 
@@ -543,7 +543,7 @@ does not make warning-through a fail-closed control.
 
 ### #13 - P1 - Split reasoning tags with attributes or whitespace still leak
 
-**Corrected status:** `PHASE_3`  
+**Corrected status:** `PHASE_3`
 **Files:** `packages/ai-engine-anythingllm/src/reasoning.ts`,
 `packages/ai-engine-anythingllm/src/reasoning.test.ts`
 
@@ -571,7 +571,7 @@ opening and closing tags.
 
 ### R13 - P2 - Owner abort can wait for the full stream deadline
 
-**Status:** `PHASE_3`  
+**Status:** `PHASE_3`
 **Files:** `packages/ai-engine-anythingllm/src/engine.ts`,
 `packages/ai-engine/src/conformance.ts`,
 `packages/ai-engine-anythingllm/src/conformance.test.ts`
@@ -712,9 +712,9 @@ Totals after Round 5:
 
 # Round 6 - Verification of `870ec5d`
 
-**Date:** 2026-08-24  
-**Reviewed HEAD:** `870ec5dc85ab02e92420253727bc40afae3d0add`  
-**Review base:** `9fc4720c7525874b4710894103226a4e65062293`  
+**Date:** 2026-08-24
+**Reviewed HEAD:** `870ec5dc85ab02e92420253727bc40afae3d0add`
+**Review base:** `9fc4720c7525874b4710894103226a4e65062293`
 **Commit reviewed:** `870ec5d`
 
 ## Round 6 verdict
@@ -743,7 +743,7 @@ The branch reports `25 of 38 fixed`. The independently supported count is
 
 ### R11 - P1 - Proposition-aware checks are not wired into the live evaluator
 
-**Status remains:** `PHASE_2`  
+**Status remains:** `PHASE_2`
 **Files:** `scripts/ai-eval.mjs`, `scripts/ai-eval-classify.mjs`,
 `scripts/ai-eval-classify.test.mjs`
 
@@ -799,7 +799,7 @@ for those sentences.
 
 ### #8 - P1 - The output estimator still undercounts supported scripts
 
-**Status remains:** `PHASE_3`  
+**Status remains:** `PHASE_3`
 **Files:** `packages/ai-engine-anythingllm/src/engine.ts`,
 `packages/ai-engine-anythingllm/src/engine.test.ts`
 
@@ -942,8 +942,8 @@ Totals after Round 6:
 
 # Round 7 - No Implementation Delta
 
-**Date:** 2026-08-24  
-**Current HEAD:** `870ec5dc85ab02e92420253727bc40afae3d0add`  
+**Date:** 2026-08-24
+**Current HEAD:** `870ec5dc85ab02e92420253727bc40afae3d0add`
 **Previous review HEAD:** `870ec5dc85ab02e92420253727bc40afae3d0add`
 
 ## Verdict
@@ -998,9 +998,9 @@ or starting Phase 4.
 
 # Round 8 - Verification of `97f6aaa`
 
-**Date:** 2026-08-24  
-**Reviewed HEAD:** `97f6aaa3fbc56b3d43921c84878508c7acd43a11`  
-**Review base:** `870ec5dc85ab02e92420253727bc40afae3d0add`  
+**Date:** 2026-08-24
+**Reviewed HEAD:** `97f6aaa3fbc56b3d43921c84878508c7acd43a11`
+**Review base:** `870ec5dc85ab02e92420253727bc40afae3d0add`
 **Commit reviewed:** `97f6aaa`
 
 ## Round 8 verdict
@@ -1028,7 +1028,7 @@ The supported status remains **23 of 38 fixed**.
 
 ### R11 - P1 - The real evaluator remains a surface-form oracle
 
-**Status remains:** `PHASE_2`  
+**Status remains:** `PHASE_2`
 **Files:** `scripts/ai-eval-cases.mjs`, `scripts/ai-eval-cases.test.mjs`,
 `scripts/ai-eval-classify.mjs`
 
@@ -1077,7 +1077,7 @@ Choose one defensible boundary instead of extending this regex oracle again:
 
 ### #8 - P1 - The output-unit guard does not satisfy the token-bound contract
 
-**Status remains:** `PHASE_3`  
+**Status remains:** `PHASE_3`
 **Files:** `packages/ai-engine/src/port.ts`,
 `packages/ai-engine-anythingllm/src/engine.ts`,
 `docs/ai-platform/LLD-001-HUMAN-TAKEOVER-STATE-MACHINE.md`,
@@ -1190,9 +1190,9 @@ Keep the total and statuses unchanged from Round 6:
 
 # Round 9 - Policy Boundary, Test Discovery, and Phase 4a
 
-**Date:** 2026-08-24  
-**Reviewed HEAD:** `9b115ae3b2180ed1a4428b7f589746f27a48a739`  
-**Review base:** `97f6aaa3fbc56b3d43921c84878508c7acd43a11`  
+**Date:** 2026-08-24
+**Reviewed HEAD:** `9b115ae3b2180ed1a4428b7f589746f27a48a739`
+**Review base:** `97f6aaa3fbc56b3d43921c84878508c7acd43a11`
 **Commits reviewed:** `094a756`, `9b115ae`
 
 ## Round 9 verdict
@@ -1224,7 +1224,7 @@ accidentally committed with the AI changes.
 
 ### R11 - P1 - Ask-side patterns do not remove the model's authority
 
-**Status remains:** `PHASE_2`  
+**Status remains:** `PHASE_2`
 **Files:** `apps/ai-bff/src/policy/commitments.ts`,
 `apps/ai-bff/src/chat.ts`, `scripts/ai-eval-cases.mjs`
 
@@ -1271,7 +1271,7 @@ still deliberately sends unmatched commitment asks to that model.
 
 ### #10 - P1 - Retrieval verification can be satisfied by the old generation
 
-**Status remains:** `PHASE_4`  
+**Status remains:** `PHASE_4`
 **File:** `scripts/ai-ingest-content.mjs`
 
 The generation swap fixes the original delete-before-upload order, and live
@@ -1322,7 +1322,7 @@ rollback, migration, or generation cleanup; the evidence is manual/live only.
 
 ### #8 - P1 - The renamed output contract is not yet internally consistent
 
-**Status remains:** `PHASE_3`  
+**Status remains:** `PHASE_3`
 **Files:** `packages/ai-engine/src/capabilities.ts`,
 `docs/ai-platform/LLD-002-CONVERSATION-ENGINE-INTERFACE.md`,
 `docs/ai-platform/ENGINE-EVALUATION-ANYTHINGLLM.md`, `docker-compose.ai.yml`
@@ -1365,7 +1365,7 @@ engine setting. Then #8 can close.
 
 ### #21 - P2 - Routing code is fixed, but its regression test is vacuous
 
-**Status remains:** `PHASE_4`  
+**Status remains:** `PHASE_4`
 **Files:** `apps/ai-bff/src/server.test.ts`, `apps/ai-bff/src/server.ts`,
 `apps/ai-worker/src/worker.ts`
 
@@ -1393,7 +1393,7 @@ the expected route/status. The test must fail when either server again parses
 
 ### R15 - P1 - A user-local absolute symlink was committed
 
-**Status:** `PHASE_3`  
+**Status:** `PHASE_3`
 **File:** `scripts/pipeline-e2e.sh`
 
 `094a756` added this Git symlink:
@@ -1495,9 +1495,9 @@ does not meet the review tracker's test-backed closure rule.
 
 # Round 10 - Verification of `29bcf26`
 
-**Date:** 2026-08-24  
-**Reviewed HEAD:** `29bcf267299cfb5d9702df1012b1b705e14de8db`  
-**Review base:** `9b115ae3b2180ed1a4428b7f589746f27a48a739`  
+**Date:** 2026-08-24
+**Reviewed HEAD:** `29bcf267299cfb5d9702df1012b1b705e14de8db`
+**Review base:** `9b115ae3b2180ed1a4428b7f589746f27a48a739`
 **Commit reviewed:** `29bcf26`
 
 ## Round 10 verdict
@@ -1514,7 +1514,7 @@ confuses unrelated or explicitly negative evidence with authorization.
 
 ### R11 - P0 - The answer-side gate runs after the answer reaches the visitor
 
-**Status remains:** `PHASE_2`  
+**Status remains:** `PHASE_2`
 **Files:** `apps/ai-bff/src/chat.ts`,
 `apps/ai-bff/src/policy/grounding.ts`,
 `apps/ai-bff/src/policy/grounding.test.ts`
@@ -1596,7 +1596,7 @@ substring checks is defense in depth, not structural prevention.
 
 ### #8 - P2 - One contradictory cost bound remains in the LLD
 
-**Status remains:** `PHASE_3`  
+**Status remains:** `PHASE_3`
 **Files:** `docs/ai-platform/LLD-002-CONVERSATION-ENGINE-INTERFACE.md`,
 `scripts/compose-ports.test.mjs`
 
@@ -1716,3 +1716,185 @@ Keep R11 and #8 open; close #10, #21, and R15:
 - [ ] AI tests, script tests, refresh/eval, smoke, typechecks, and lint remain
    green.
 - [ ] Canonical triage reports 28 of 40 fixed with R11 and #8 open exactly once.
+
+---
+
+# Round 11 - Verification of `4c6fdcb`
+
+**Date:** 2026-08-24
+**Reviewed HEAD:** `4c6fdcb35dd45620a54af79f2b5daae57d9d9a0a`
+**Review base:** `29bcf267299cfb5d9702df1012b1b705e14de8db`
+**Commit reviewed:** `4c6fdcb`
+
+## Round 11 verdict
+
+**#8 closes. R11 is correctly marked `PARTIAL`, but its stated guaranteed
+subset is still too broad. The supported count is 29 of 40 fixed.**
+
+The P0 wire leak from Round 10 is fixed: no candidate answer token is sent until
+the terminal answer and citations have been validated. Split unsafe values and
+partial output before an engine error also remain absent from the wire.
+
+The source check now rejects the four exact false-evidence cases from Round 10.
+It still does not establish proposition support. Same-kind values in unrelated
+or logically different source claims can authorize an unsafe commitment. This
+fits an honest `PARTIAL` status; it does not support the stronger sentence that
+every unsupported money, percentage, weekday, or certification value is now
+guaranteed to be replaced.
+
+The five remaining mechanical Phase 4 items may proceed. Public commitment
+safety remains gated on the R11 design decision described in the implementation
+summary.
+
+## R11 - Partial, with a narrower proven guarantee
+
+### What is fixed
+
+#### No unsafe answer bytes leave before validation
+
+All engine tokens and citations are buffered. Before terminal validation the
+wire carries only SSE comments such as `: working`, which contain no retractable
+answer text.
+
+The direct Round 10 attack now yields:
+
+```json
+{
+   "splitLeaked": false,
+   "splitData": ["token", "final", "policy"],
+   "failedLeaked": false,
+   "failedData": ["error"]
+}
+```
+
+The `token` in `splitData` is the fixed refusal template, not the invented
+price. A safe answer is released once as one buffered token plus its final event;
+the current browser renders it once.
+
+#### The four Round 10 substring attacks are rejected
+
+The source matcher now compares normalized values of the same kind, splits
+source text into fragments, rejects denial fragments, requires delivery context
+for weekdays, and canonicalizes thousands separators.
+
+The committed tests cover:
+
+- `$12` versus `Founded in 2012`;
+- `40%` versus `40,000 units`;
+- delivery Friday versus Friday office hours;
+- positive ISO 9001 versus an explicit ISO 9001 denial.
+
+### What remains outside the guarantee
+
+#### Same kind and value is still not the same proposition
+
+Additional evidence probes reproduced false grounding:
+
+| Unsafe answer | Citation accepted as support |
+|---|---|
+| `We hold ISO 9001.` | `It is false that we lack ISO 9001.` |
+| `The price is $12.` | `Sample code ABC-$12 is retired.` |
+| `A 40% discount is approved.` | `The report compares 40% defect reduction, not discounts.` |
+
+The first example is logically positive but demonstrates that the denial parser
+is lexical rather than semantic. The latter two demonstrate the core defect:
+matching kind and value does not prove the citation states a price or discount.
+
+The implementation summary already acknowledges value-free commitments such as
+`yes, we can do that` remain uncontrolled. The same honesty should be applied to
+value-bearing support: this gate catches a useful subset, not every unsupported
+commercial proposition.
+
+#### The policy outcome protocol remains incoherent
+
+For answer-side replacement:
+
+- response headers still say `x-policy-outcome: answered-by-engine` because the
+   decision is made after headers are sent;
+- the server emits a custom `policy` event after terminal `final`;
+- no site or development client handles the `policy` event;
+- `x-policy-outcome` is not exposed through CORS.
+
+This does not leak unsafe answer text, but it means the structured outcome is
+not reliably observable by a real cross-origin client. Resolve it as part of
+the R11 redesign rather than adding another trailing protocol exception.
+
+### Required design decision
+
+The implementation's proposed next step is the correct one: deterministic code
+must decide commercial outcomes from retrieved evidence, and the model may only
+word a decision it cannot change. That design can restore streaming by
+retrieving evidence before generation and can produce one coherent policy
+outcome before the terminal event.
+
+Until then, document R11 as defense in depth with explicit residuals, not as a
+complete commitment-prevention control.
+
+## #8 - Fixed
+
+The output-limit contract now consistently distinguishes:
+
+- `maxDeliveredOutputUnits`: estimated output received by this process;
+- `vendorMaxOutputTokens`: the engine's configured generation and billing
+   ceiling.
+
+LLD-002 section 7.1 now uses the vendor ceiling for abandoned-run waste and
+explicitly says the delivered-output budget is not that bound. The capability
+documentation agrees. Compose parity and startup validation tests ensure the
+advertised ceiling is a positive integer matching the engine configuration.
+
+The focused contract suite passes all 13 checks, including vendor-ceiling
+parity, retired-name scanning, absolute symlink hygiene, and the semantic
+abandoned-run bound check.
+
+One non-functional cleanup remains: the edited LLD paragraph contains the stray
+fragment `and that figure belongs in the budget model`. Remove it when touching
+the document next; it does not change the contract.
+
+## Independent validation
+
+| Check | Result |
+|---|---|
+| Complete AI package tests | PASS - 283 total, 281 passed, 2 fake-only skips |
+| Script tests | PASS - 113 |
+| Focused BFF tests | PASS - 143 |
+| Focused #8 contract tests | PASS - 13 |
+| Workspace package/app typechecks | PASS - 16 projects |
+| E2E TypeScript check | PASS |
+| Lint | PASS - 347 files |
+| Rebuilt Compose stack | PASS - four services healthy/running |
+| BFF and Worker smoke tests | PASS |
+| Live answer evaluation | PASS - 8/8 |
+| Live bypass wire | PASS - content-free heartbeats, no unsafe money |
+| Whole/split unsafe-token probes | PASS - no unsafe text on wire |
+| Buffered error path | PASS - no partial text on wire |
+| Four Round 10 evidence attacks | PASS - rejected |
+| Additional proposition evidence probes | FAIL - 3 false-grounding cases |
+| R11 policy outcome observability | FAIL - late unhandled event, stale header |
+
+## Accounting
+
+The canonical tracker is arithmetically correct:
+
+| Status | Count |
+|---|---:|
+| `FIXED` | 29 |
+| `PARTIAL` | 2 |
+| `WITHDRAWN` | 1 |
+| `PHASE_4` | 5 |
+| `GATE_PENDING` | 3 |
+| **Total** | **40** |
+
+The partial rows are #1 key rotation and R11 commitment safety.
+
+## Next actions
+
+- [ ] Keep R11 `PARTIAL`; narrow its documented guaranteed subset to what is
+         actually proven.
+- [ ] Decide the retrieve-before-generate deterministic commercial policy
+         architecture before claiming R11 fixed.
+- [ ] Make policy outcome part of one coherent pre-terminal protocol.
+- [ ] Preserve the buffered wire-leak and false-evidence regression tests.
+- [ ] Remove the stray LLD sentence fragment during the next documentation edit.
+- [ ] Continue the five mechanical Phase 4 items: #11, #12, #14, #17, #20.
+- [ ] Keep tests, refresh/eval, smoke, typechecks, and lint green.

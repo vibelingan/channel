@@ -148,6 +148,7 @@ test('the advertised engine ceiling must be a positive integer', () => {
   // rather than a crash. `Number(x) ? …` accepted "4096abc" and dropped 0.
   const withEngine = {
     ...BASE_ENV,
+    SITE_ORIGIN: 'https://site.example',
     ANYTHINGLLM_BASE_URL: 'http://engine.invalid',
     ANYTHINGLLM_API_KEY: 'k',
     ANYTHINGLLM_WORKSPACE: 'ws',
@@ -165,4 +166,39 @@ test('the advertised engine ceiling must be a positive integer', () => {
   }
   // Absent is allowed: an engine with no configurable ceiling advertises none.
   assert.equal(loadConfig(withEngine).engine?.vendorMaxOutputTokens, undefined);
+});
+
+test('an engine without a site origin is refused', () => {
+  // Citations arrive as site-relative paths. Without an origin to resolve them
+  // against, every source link in every answer points at the assistant's own
+  // hostname, which serves no pages — an answer nobody can check.
+  assert.throws(
+    () =>
+      loadConfig({
+        ...BASE_ENV,
+        ANYTHINGLLM_BASE_URL: 'http://engine.invalid',
+        ANYTHINGLLM_API_KEY: 'k',
+        ANYTHINGLLM_WORKSPACE: 'ws',
+      }),
+    /SITE_ORIGIN is required/,
+  );
+});
+
+test('the site origin must be https, or localhost for development', () => {
+  const base = {
+    ...BASE_ENV,
+    ANYTHINGLLM_BASE_URL: 'http://engine.invalid',
+    ANYTHINGLLM_API_KEY: 'k',
+    ANYTHINGLLM_WORKSPACE: 'ws',
+  };
+  assert.equal(
+    loadConfig({ ...base, SITE_ORIGIN: 'https://site.example' }).siteOrigin,
+    'https://site.example',
+  );
+  assert.equal(
+    loadConfig({ ...base, SITE_ORIGIN: 'http://localhost:4321' }).siteOrigin,
+    'http://localhost:4321',
+  );
+  assert.throws(() => loadConfig({ ...base, SITE_ORIGIN: 'http://site.example' }), /SITE_ORIGIN/);
+  assert.throws(() => loadConfig({ ...base, SITE_ORIGIN: 'not a url' }), /SITE_ORIGIN/);
 });

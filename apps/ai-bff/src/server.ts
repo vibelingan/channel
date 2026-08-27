@@ -9,6 +9,7 @@
 
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import type { Socket } from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ConversationEngine } from '@vibelingan-channel/ai-engine';
@@ -82,13 +83,33 @@ export function buildServer(config: BffConfig, deps: BffDependencies = {}) {
       return;
     }
 
-    // Readiness: dependencies checked, and it returns only safe status —
-    // never a host, path, or credential (SECURITY.md §7).
+    // Readiness: EVERY configured dependency checked, and it returns only safe
+    // status — never a host, path, or credential (SECURITY.md §7).
+    //
+    // It used to prove the store alone, so an engine that was down left the
+    // service reporting ready while every answer failed. A readiness check that
+    // ignores the dependency the product is built on is a check that keeps a
+    // broken instance in the load balancer.
     if (url.pathname === '/api/ai/readyz') {
       try {
         const proof = await readiness.check();
+        const body: Record<string, unknown> = { ok: true, store: 'live', ...proof };
+
+        if (deps.engine) {
+          const health = await deps.engine.health();
+          body.engine = health.status;
+          // The version is recorded on every run for incident scoping, so an
+          // unpinned one means an answer cannot be traced to what produced it.
+          body.engineVersion = deps.engine.capabilities.engineVersion;
+          if (health.status !== 'live') {
+            res.writeHead(503, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, store: 'live', engine: health.status }));
+            return;
+          }
+        }
+
         res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, store: 'live', ...proof }));
+        res.end(JSON.stringify(body));
       } catch {
         res.writeHead(503, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ ok: false, store: 'unavailable' }));
@@ -177,6 +198,7 @@ export function buildServer(config: BffConfig, deps: BffDependencies = {}) {
           conversations,
           res,
           signal: controller.signal,
+          siteOrigin: config.siteOrigin,
         });
       } finally {
         res.off('close', onResponseClosed);
@@ -193,6 +215,9 @@ export function buildServer(config: BffConfig, deps: BffDependencies = {}) {
   return { server, pool };
 }
 
+/** How long a shutdown waits for open connections before forcing them closed. */
+const DRAIN_TIMEOUT_MS = 10_000;
+
 export function startServer(config: BffConfig, deps: BffDependencies = {}) {
   const { server, pool } = buildServer(config, deps);
 
@@ -206,19 +231,65 @@ export function startServer(config: BffConfig, deps: BffDependencies = {}) {
     }
     throw error;
   });
+
+  // Sockets still open when shutdown begins. `server.close()` stops accepting
+  // NEW connections and then waits for existing ones — which, for an SSE
+  // stream, is forever. Tracking them is what makes a deadline enforceable.
+  const openSockets = new Set<Socket>();
+  server.on('connection', (socket) => {
+    openSockets.add(socket);
+    socket.once('close', () => openSockets.delete(socket));
+  });
+
   server.listen(config.port);
 
-  // Graceful shutdown matters more here than in a request/response service:
-  // MIU 7 will hold SSE connections open for tens of seconds, and killing the
-  // process mid-stream drops a visitor's answer with no error event.
-  const shutdown = async (signal: string) => {
-    console.log(JSON.stringify({ event: 'shutdown.begin', signal }));
-    server.close();
+  /**
+   * Drain, then close.
+   *
+   * The previous version called `server.close()` without awaiting it and then
+   * closed the pool immediately, so an in-flight answer lost its database
+   * connection mid-request and the process exited while the visitor was still
+   * reading. The order now is: stop accepting, wait for open connections up to
+   * a deadline, force whatever is left, and close the pool LAST.
+   */
+  async function performShutdown(signal: string): Promise<void> {
+    console.log(JSON.stringify({ event: 'shutdown.begin', signal, open: openSockets.size }));
+
+    const closed = new Promise<void>((resolve) => server.close(() => resolve()));
+    const drained = await Promise.race([
+      closed.then(() => true),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), DRAIN_TIMEOUT_MS)),
+    ]);
+
+    if (!drained) {
+      // A deadline that never fires is not a deadline. Say how many were cut
+      // off, because that number is the visible cost of the restart.
+      console.warn(
+        JSON.stringify({
+          event: 'shutdown.forced',
+          detail: `${openSockets.size} connection(s) still open after ${DRAIN_TIMEOUT_MS}ms`,
+        }),
+      );
+      for (const socket of openSockets) socket.destroy();
+      await closed.catch(() => undefined);
+    }
+
+    // Last, so nothing in flight loses its database connection first.
     await pool.end().catch(() => undefined);
-    console.log(JSON.stringify({ event: 'shutdown.complete' }));
+    console.log(JSON.stringify({ event: 'shutdown.complete', drained }));
+  }
+
+  // Idempotent: two signals in quick succession must not run this twice, and
+  // the second caller waits for the first rather than returning while the
+  // process is still draining.
+  let shuttingDown: Promise<void> | null = null;
+  const shutdown = (signal: string): Promise<void> => {
+    shuttingDown ??= performShutdown(signal);
+    return shuttingDown;
   };
+
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
   process.on('SIGINT', () => void shutdown('SIGINT'));
 
-  return { server, pool };
+  return { server, pool, shutdown };
 }

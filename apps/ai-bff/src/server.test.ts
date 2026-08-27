@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { buildServer } from './server.ts';
+import { buildServer, startServer } from './server.ts';
 
 /** The default shape: a normal, non-harness service. */
 const config = {
@@ -14,6 +14,7 @@ const config = {
   databaseUrl: process.env.DATABASE_URL ?? 'postgres://ai:ai@localhost:55432/ai_assistant',
   corsAllowedOrigins: ['https://allowed.example'],
   localHarness: false,
+  siteOrigin: 'https://site.example',
 };
 
 async function withServer<T>(fn: (base: string) => Promise<T>): Promise<T> {
@@ -425,4 +426,118 @@ test('the worker Dockerfile exposes the port the worker listens on', () => {
   );
   const exposed = /EXPOSE\s+(\d+)/.exec(dockerfile)?.[1];
   assert.equal(exposed, '8081', `worker Dockerfile exposes ${exposed}`);
+});
+
+test('readiness reports the engine, not just the store', async () => {
+  // It used to prove the store alone, so an engine that was down left the
+  // service reporting ready while every answer failed — a broken instance kept
+  // in the load balancer by a check that ignored the dependency the product is
+  // built on.
+  const engine = {
+    capabilities: { engineId: 'stub', engineVersion: '1.16.0' },
+    async health() {
+      return { status: 'live' as const, checkedAt: new Date().toISOString() };
+    },
+  };
+  const { server, pool } = buildServer(config, { engine: engine as never });
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const { port } = server.address() as AddressInfo;
+  try {
+    const body = (await (await fetch(`http://127.0.0.1:${port}/api/ai/readyz`)).json()) as {
+      engine: string;
+      engineVersion: string;
+    };
+    assert.equal(body.engine, 'live');
+    assert.equal(body.engineVersion, '1.16.0');
+  } finally {
+    server.close();
+    await pool.end().catch(() => undefined);
+  }
+});
+
+test('readiness fails when the engine is down, even though the store is fine', async () => {
+  const engine = {
+    capabilities: { engineId: 'stub', engineVersion: '1.16.0' },
+    async health() {
+      return { status: 'disabled' as const, checkedAt: new Date().toISOString() };
+    },
+  };
+  const { server, pool } = buildServer(config, { engine: engine as never });
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const { port } = server.address() as AddressInfo;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/ai/readyz`);
+    assert.equal(res.status, 503, 'a dead engine still reported ready');
+    const body = (await res.json()) as { engine: string };
+    assert.equal(body.engine, 'disabled');
+  } finally {
+    server.close();
+    await pool.end().catch(() => undefined);
+  }
+});
+
+test('readiness still leaks nothing when it reports the engine', async () => {
+  const engine = {
+    capabilities: { engineId: 'stub', engineVersion: '1.16.0' },
+    async health() {
+      return { status: 'live' as const, checkedAt: new Date().toISOString() };
+    },
+  };
+  const { server, pool } = buildServer(config, { engine: engine as never });
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const { port } = server.address() as AddressInfo;
+  try {
+    const text = await (await fetch(`http://127.0.0.1:${port}/api/ai/readyz`)).text();
+    assert.ok(!/https?:\/\//.test(text), 'readiness leaked a URL');
+    assert.ok(
+      !/(secret|token|key|password|bearer)/i.test(text),
+      'readiness looks credential-shaped',
+    );
+  } finally {
+    server.close();
+    await pool.end().catch(() => undefined);
+  }
+});
+
+test('shutdown closes the pool only after connections have drained', async () => {
+  // The previous version called server.close() without awaiting it and closed
+  // the pool immediately, so an in-flight request lost its database connection
+  // mid-answer.
+  const { server, pool, shutdown } = startServer({ ...config, port: 0 });
+  await new Promise<void>((resolve) => server.once('listening', resolve));
+  const { port } = server.address() as AddressInfo;
+
+  await fetch(`http://127.0.0.1:${port}/api/ai/healthz`);
+  await shutdown('TEST');
+
+  assert.equal(pool.ended, true, 'the pool was not closed');
+  await assert.rejects(
+    fetch(`http://127.0.0.1:${port}/api/ai/healthz`),
+    'the server still accepted a connection after shutdown',
+  );
+});
+
+test('shutdown is idempotent and the second caller waits for the first', async () => {
+  const { server, shutdown } = startServer({ ...config, port: 0 });
+  await new Promise<void>((resolve) => server.once('listening', resolve));
+  const [a, b] = await Promise.all([shutdown('SIGTERM'), shutdown('SIGINT')]);
+  assert.equal(a, b, 'two shutdowns produced two different runs');
+});
+
+test('a connection that will not close is forced after the drain deadline', async () => {
+  // A deadline that never fires is not a deadline. An SSE stream held open by a
+  // client would otherwise keep the process alive indefinitely.
+  const { server, shutdown } = startServer({ ...config, port: 0 });
+  await new Promise<void>((resolve) => server.once('listening', resolve));
+  const { port } = server.address() as AddressInfo;
+
+  const held = connect(port, '127.0.0.1');
+  await new Promise<void>((resolve) => held.once('connect', () => resolve()));
+
+  const started = Date.now();
+  await shutdown('TEST');
+  const elapsed = Date.now() - started;
+
+  assert.ok(elapsed < 12_000, `shutdown took ${elapsed}ms — the deadline did not fire`);
+  held.destroy();
 });
