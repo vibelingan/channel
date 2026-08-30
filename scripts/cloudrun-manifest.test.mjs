@@ -23,7 +23,10 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ctx = {
   envId: 'env-fixture',
   appEnv: 'test',
-  imageTag: 'registry.example/channel@sha256:deadbeef',
+  images: {
+    'ai-bff': `registry.example/channel/ai-bff@sha256:${'a'.repeat(64)}`,
+    'ai-worker': `registry.example/channel/ai-worker@sha256:${'b'.repeat(64)}`,
+  },
   siteOrigins: 'https://site.example',
   requireEnv: (name) => `secret://${name}`,
   optionalEnv: () => undefined,
@@ -31,7 +34,24 @@ const ctx = {
 const defs = buildCloudRunServiceDefs(ctx);
 
 test('a floating image tag is refused', () => {
-  assert.throws(() => buildCloudRunServiceDefs({ ...ctx, imageTag: undefined }), /imageTag/);
+  assert.throws(
+    () =>
+      buildCloudRunServiceDefs({
+        ...ctx,
+        images: { ...ctx.images, 'ai-worker': 'registry.example/channel/ai-worker:latest' },
+      }),
+    /immutable sha256 OCI reference/,
+  );
+  assert.throws(
+    () => buildCloudRunServiceDefs({ ...ctx, images: { 'ai-bff': ctx.images['ai-bff'] } }),
+    /ai-worker image/,
+  );
+});
+
+test('the manifest emits the exact complete immutable service references', () => {
+  assert.equal(defs.find((def) => def.name === 'ai-bff').image, ctx.images['ai-bff']);
+  assert.equal(defs.find((def) => def.name === 'ai-worker').image, ctx.images['ai-worker']);
+  for (const def of defs) assert.match(def.image, /@sha256:[0-9a-f]{64}$/);
 });
 
 test('every deployable AI app is in the manifest', () => {
@@ -63,6 +83,11 @@ test('container ports match the local compose stack', () => {
     const service = compose.services[def.name];
     assert.ok(service, `docker-compose.ai.yml has no ${def.name} service`);
     assert.equal(String(service.environment.PORT), String(def.containerPort));
+    assert.equal(
+      String(def.envVariables.PORT),
+      String(def.containerPort),
+      `${def.name} listens on a different port than CloudRun routes`,
+    );
     // Short syntax is [host_ip:]published:target, so the CONTAINER port is the
     // last segment. Assuming two segments broke the moment ports were bound to
     // 127.0.0.1 and grew a third.
@@ -70,6 +95,55 @@ test('container ports match the local compose stack', () => {
     assert.ok(
       containerPorts.includes(String(def.containerPort)),
       `${def.name} does not publish container port ${def.containerPort} in compose`,
+    );
+  }
+});
+
+test('the production services carry every runtime gate needed by the local Phase 1 path', () => {
+  const required = {
+    'ai-bff': [
+      'DATABASE_URL',
+      'CORS_ALLOWED_ORIGINS',
+      'AI_ENGINE_ID',
+      'AI_ENGINE_VERSION',
+      'AI_ENGINE_IMAGE_DIGEST',
+      'AI_IP_HASH_SECRET',
+      'AI_TRUST_PROXY',
+    ],
+    'ai-worker': [
+      'DATABASE_URL',
+      'AI_ENGINE_ID',
+      'AI_ENGINE_VERSION',
+      'AI_ENGINE_IMAGE_DIGEST',
+      'AI_PROFILE_ID',
+      'AI_WORKER_LEASE_SECONDS',
+      'AI_MAX_STREAM_DURATION_MS',
+      'AI_MAX_OUTPUT_TOKENS',
+      'AI_MAX_TOOL_CALLS',
+      'ANYTHINGLLM_BASE_URL',
+      'ANYTHINGLLM_API_KEY',
+      'ANYTHINGLLM_WORKSPACE_SLUG',
+      'AI_KNOWLEDGE_CREDENTIAL_ID',
+      'ANYTHINGLLM_CITATIONS_VERIFIED',
+      'ANYTHINGLLM_CREDENTIAL_ROTATION',
+      'AI_APPROVED_SOURCE_PREFIX',
+      'AI_SITE_ORIGIN',
+    ],
+  };
+  for (const def of defs) {
+    for (const key of required[def.name]) {
+      assert.notEqual(def.envVariables[key], undefined, `${def.name} is missing ${key}`);
+    }
+  }
+});
+
+test('BFF and worker attest the same engine identity in local compose', () => {
+  const compose = parseYaml(readFileSync(join(repoRoot, 'docker-compose.ai.yml'), 'utf8'));
+  for (const key of ['AI_ENGINE_ID', 'AI_ENGINE_VERSION', 'AI_ENGINE_IMAGE_DIGEST']) {
+    assert.equal(
+      compose.services['ai-bff'].environment[key],
+      compose.services['ai-worker'].environment[key],
+      `local BFF and worker disagree on ${key}`,
     );
   }
 });

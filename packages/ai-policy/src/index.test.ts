@@ -35,7 +35,7 @@ test('empty or uncited final is converted to a fail-closed knowledge error', () 
  * come back" check, which is the whole reason these exist.
  */
 const approved = (title: string, snippet: string): EngineCitation => ({
-  sourceId: 'src-1',
+  sourceId: `channelkb-g1000-${title}`,
   title: `channelkb-g1000-${title}`,
   snippet,
   retrievedAt: '2026-08-27T00:00:00.000Z',
@@ -84,7 +84,7 @@ test('an internal document cannot ground a public answer', () => {
     text: 'Our internal escalation path is described below.',
     citations: [
       {
-        sourceId: 'src-2',
+        sourceId: 'hermes-skills-escalation',
         title: 'hermes-skills-escalation',
         snippet: 'Internal only.',
         retrievedAt: '2026-08-27T00:00:00.000Z',
@@ -99,21 +99,24 @@ test('an internal document cannot ground a public answer', () => {
   });
 });
 
-test('an internal source is not shown even when an approved one also matched', () => {
+test('a mixed public and internal citation set refuses the whole answer', () => {
   const result = enforceGroundedFinal({
     type: 'final',
     text: 'We make headphones.',
     citations: [
       approved('company', 'We make headphones.'),
       {
-        sourceId: 'src-3',
+        sourceId: 'hermes-skills-escalation',
         title: 'hermes-skills-escalation',
         snippet: 'Internal only.',
         retrievedAt: '2026-08-27T00:00:00.000Z',
       },
     ],
   });
-  assert.equal(result.type, 'final');
-  const titles = result.type === 'final' ? result.citations.map((c) => c.title) : [];
-  assert.deepEqual(titles, ['channelkb-g1000-company']);
+  assert.deepEqual(result, {
+    type: 'error',
+    category: 'knowledge_empty',
+    retriable: false,
+    safeDetail: 'mixed publishable and unpublishable sources',
+  });
 });

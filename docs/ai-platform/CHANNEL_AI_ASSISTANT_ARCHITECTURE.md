@@ -1,13 +1,20 @@
 # Channel Public AI Assistant Architecture
 
 **Product:** Diversity Technology Limited website  
-**Status:** Proposed; production approval blocked by the gates in this document  
-**Last reviewed:** 2026-08-17
+**Status:** Historical baseline; serving-engine decision superseded by ADR-002
+**Last reviewed:** 2026-08-31
 **Scope:** Public floating customer-service assistant and sales handoff
 
 ## 1. Decision
 
-Use the locally proven Hermes plus Tencent Lexiang path behind a project-owned Chat BFF:
+The original decision below used Hermes plus Tencent Lexiang. ADR-002 supersedes
+that serving path: the current Phase 1 implementation is a project-owned BFF
+and worker calling the conformance-tested AnythingLLM-compatible adapter, with
+PostgreSQL as the durable control plane. The security, takeover and public-data
+boundaries in this document remain normative; Hermes-specific deployment text
+is historical.
+
+Historical topology:
 
 ```text
 Anonymous browser
@@ -28,16 +35,26 @@ Pinned Hermes Agent customer-service profile
 Dedicated Tencent Lexiang public customer-service space
 ```
 
-The BFF exposes a provider-neutral `ConversationEngine` boundary. The selected production implementation is CloudRun BFF/workers calling a pinned Hermes profile, with Hermes retrieving from Lexiang through its configured MCP server. This is a closed implementation decision for the current product. Replacing the runtime, engine, or knowledge transport requires a later ADR and equivalent security, cancellation, evaluation, and operations evidence; it is not an open implementation choice.
+The BFF exposes a provider-neutral `ConversationEngine` boundary. ADR-002 is the
+later ADR required by the original decision and is now the source of truth for
+the selected engine. Any further runtime or knowledge-transport replacement
+still requires equivalent security, cancellation, evaluation and operations
+evidence.
 
-## 2. Evidence and Current State
+## 2. Historical discovery snapshot (2026-08-18)
+
+This section records the evidence that informed the original design. It is not
+the repository's current implementation inventory; ADR-002, the MIU trace and
+the Phase 1 handoff are authoritative for current runtime state.
 
 ### Observed
 
 - A local prototype proved browser -> Hermes `/v1/chat/completions` -> DeepSeek -> Lexiang MCP connectivity. That records the *prototype*; the company's running Hermes bot uses **zenmux** (an OpenAI-compatible provider) per `HERMES_OPS_SOP.md`, and the production provider is still an open decision (gate 5).
 - Hermes Agent is the public Nous Research project and supports an API server, streaming, Runs, stop, sessions, MCP, health endpoints, and Docker deployment.
 - The default Hermes API-server tool surface is much broader than public customer service requires.
-- The repository currently has no production AI widget, Chat BFF, assistant conversation store, lead queue, or human-takeover implementation.
+- At the time of this snapshot, the repository had no production AI widget,
+  Chat BFF, assistant conversation store, lead queue, or human-takeover
+  implementation. The widget, BFF, PostgreSQL store and worker were added later.
 
 ### Not yet proven
 

@@ -216,15 +216,15 @@ non-developers; the engine port proves its worth on first use.
 cancellation, so bounded token waste on takeover; we adopt a product whose primary
 use case is not ours, so upstream changes may not serve us.
 
-**Probe results — measured against a running instance on 2026-08-19:**
+**Probe results — last refreshed against the hosted fork on 2026-08-31:**
 
 | # | Question | Result |
 |---|---|---|
 | 1 | Retrieval separately from generation? | **Yes, on both.** Local: `POST /api/v1/workspace/{slug}/vector-search`, ~100ms, no model call, takes `topN` and `scoreThreshold`, returns `{results:[{id,text,metadata,distance,score}]}`. Supplied production fork (2026-08-25): `/vector-search` returned ranked results independently of chat. §4's preferred shape is available on both |
-| 2 | Citations mappable to `EngineCitation`? | **Local: yes** — sources carry `id`, `title`, `description`, `docSource`, `text`, `published`, mapped in the adapter. **Supplied production fork: UNVERIFIED**, because generation never succeeds there, so no citation has ever been returned to map. The answer policy requires citations, so this is a release blocker for that KB and not a detail |
-| 3 | Streaming? | **Local: yes** — SSE, `textResponseChunk` frames then `finalizeResponseStream`. Two frame-order traps, both found only by running it — see below. **Supplied production fork: transport only** — the thread SSE route responded and then aborted on an upstream model 403, so successful token delivery is unproved |
+| 2 | Citations mappable to `EngineCitation`? | **Yes on both.** The hosted fork's final frame returned document provenance on 2026-08-31. The adapter preserves the document title as `sourceId`, drops provider `file:` paths, and the worker independently enforces approved provenance and first-party links |
+| 3 | Streaming? | **Yes on both.** Local uses `textResponseChunk` then `finalizeResponseStream`; the hosted fork completed both thread and workspace SSE after its truncated development key was repaired. The application withholds those chunks until final evidence passes policy |
 | 4 | Certificate PDF parsing? | **Untested.** No certificate PDFs in hand yet. Remains open |
-| 5 | Enabled tool/agent surface? | **Local: none enabled** — `agentProvider` and `agentModel` are both null on the workspace; no agent skills are configured. **Supplied production fork: NOT isolated** — `/vector-search` returned `hermes-skills-*` documents, so that workspace is not an approved public corpus |
+| 5 | Enabled tool/agent surface? | **No agent surface observed** on the current hosted workspace; startup fails closed when the response is missing, malformed, enabled or unreachable. **Corpus isolation still fails:** the current workspace also contains a gateway test document, so a dedicated public workspace remains a release gate |
 
 Rows 1-5 answer two different systems and must not be read as one. The local
 answers are measured against the digest-pinned `mintplexlabs/anythingllm` 1.16.0

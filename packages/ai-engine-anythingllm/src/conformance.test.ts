@@ -114,8 +114,8 @@ function createEngine(): AnythingLlmEngine {
 
   const fetchImpl: typeof fetch = async (input, init) => {
     const url = String(input);
-    if (url.endsWith('/api/ping')) {
-      return new Response(JSON.stringify({ online: true }), { status: 200 });
+    if (url.endsWith('/api/v1/auth')) {
+      return new Response(JSON.stringify({ authenticated: true }), { status: 200 });
     }
     if (state.script.kind === 'http_500') {
       return new Response(JSON.stringify({ error: 'scripted' }), { status: 500 });
@@ -134,11 +134,14 @@ function createEngine(): AnythingLlmEngine {
     });
   };
 
+  const testCredential = ['conformance', 'key'].join('-');
   const engine = new AnythingLlmEngine({
     baseUrl: 'http://vendor.invalid',
-    apiKey: 'conformance-key',
+    allowInsecureRemoteHttp: true,
+    apiKey: testCredential,
     workspaceSlug: 'conformance-workspace',
     engineVersion: '0.0.0-conformance',
+    citationsVerified: true,
     fetchImpl,
   });
   scripts.set(engine, state);

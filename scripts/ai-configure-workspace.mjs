@@ -23,8 +23,11 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const POLICY_PATH = join(repoRoot, 'apps/ai-bff/policy/public-sales-v1.txt');
 
-const base = process.env.ANYTHINGLLM_BASE_URL ?? 'http://localhost:53001';
-const workspace = process.env.ANYTHINGLLM_WORKSPACE ?? 'channel-public-assistant';
+const base = process.env.ANYTHINGLLM_LOCAL_ADMIN_URL ?? 'http://127.0.0.1:53001';
+const workspace =
+  process.env.ANYTHINGLLM_WORKSPACE_SLUG ??
+  process.env.ANYTHINGLLM_WORKSPACE ??
+  'channel-public-assistant';
 const key = process.env.ANYTHINGLLM_API_KEY;
 if (!key) {
   console.error('ANYTHINGLLM_API_KEY is not set');

@@ -222,3 +222,221 @@ test(
     assert.equal((await store.listEvents(conversation.id)).length, 12);
   },
 );
+
+test(
+  'approved events, assistant turn, and completed status commit as one fenced transaction',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const conversation = await store.createConversation();
+    const accepted = await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'atomic-final-1',
+      content: 'hello',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(accepted.run);
+    const claim = await store.claimRun(accepted.run.id);
+    assert.ok(claim);
+
+    assert.equal(
+      await store.finishRunFenced({
+        conversationId: conversation.id,
+        runId: accepted.run.id,
+        expectedControlVersion: claim.controlVersion,
+        claimEpoch: claim.claimEpoch,
+        status: 'completed',
+        events: [
+          { type: 'token', payload: { text: 'approved answer' } },
+          {
+            type: 'citation',
+            payload: { sourceId: 'channelkb-g1-faq', title: 'Public FAQ' },
+          },
+          { type: 'final', payload: { text: 'approved answer' } },
+        ],
+      }),
+      true,
+    );
+
+    assert.deepEqual(
+      (await store.listEvents(conversation.id)).map((event) => event.type),
+      ['token', 'citation', 'final'],
+    );
+    const run = await store.pool.query<{ status: string }>(
+      'SELECT status FROM ai_runs WHERE id=$1',
+      [accepted.run.id],
+    );
+    assert.equal(run.rows[0]?.status, 'completed');
+    assert.equal((await store.getConversation(conversation.id))?.activeRunId, null);
+    const assistant = await store.pool.query<{ content: string }>(
+      `SELECT content FROM conversation_messages
+       WHERE conversation_id=$1 AND role='assistant'`,
+      [conversation.id],
+    );
+    assert.deepEqual(assistant.rows, [{ content: 'approved answer' }]);
+  },
+);
+
+test('a mid-batch database rejection rolls back events and run completion', { skip }, async () => {
+  assert.ok(store);
+  const conversation = await store.createConversation();
+  const accepted = await store.appendVisitorMessage({
+    conversationId: conversation.id,
+    idempotencyKey: 'atomic-final-rollback',
+    content: 'hello',
+    engineId: 'fake',
+    engineVersion: '0.1.0',
+  });
+  assert.ok(accepted.run);
+  const claim = await store.claimRun(accepted.run.id);
+  assert.ok(claim);
+
+  await assert.rejects(
+    store.finishRunFenced({
+      conversationId: conversation.id,
+      runId: accepted.run.id,
+      expectedControlVersion: claim.controlVersion,
+      claimEpoch: claim.claimEpoch,
+      status: 'completed',
+      events: [
+        { type: 'token', payload: { text: 'must roll back' } },
+        { type: 'final', payload: {} },
+      ],
+    }),
+    /constraint|null value|violates/i,
+  );
+  assert.deepEqual(await store.listEvents(conversation.id), []);
+  const run = await store.pool.query<{ status: string }>('SELECT status FROM ai_runs WHERE id=$1', [
+    accepted.run.id,
+  ]);
+  assert.equal(run.rows[0]?.status, 'running');
+});
+
+test('terminalization requires its durable authority and cancellation wins', { skip }, async () => {
+  assert.ok(store);
+  const conversation = await store.createConversation();
+  const accepted = await store.appendVisitorMessage({
+    conversationId: conversation.id,
+    idempotencyKey: 'terminal-authority',
+    content: 'stop this answer',
+    engineId: 'fake',
+    engineVersion: '0.1.0',
+  });
+  assert.ok(accepted.run);
+
+  assert.equal(
+    await store.terminalizeRun({
+      runId: accepted.run.id,
+      reason: 'cancel_requested',
+    }),
+    false,
+  );
+  assert.equal(await store.requestCancellation(conversation.id, conversation.controlVersion), true);
+  assert.equal(
+    await store.terminalizeRun({
+      runId: accepted.run.id,
+      reason: 'cancel_requested',
+    }),
+    true,
+  );
+
+  const run = await store.pool.query<{ status: string }>('SELECT status FROM ai_runs WHERE id=$1', [
+    accepted.run.id,
+  ]);
+  assert.equal(run.rows[0]?.status, 'cancelled');
+  assert.deepEqual(
+    (await store.listEvents(conversation.id)).map((event) => event.type),
+    ['assistant.cancelled'],
+  );
+});
+
+test(
+  'reclaim terminalization is claim-fenced and preserves cancellation precedence',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const conversation = await store.createConversation();
+    const accepted = await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'terminal-reclaim',
+      content: 'question',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(accepted.run);
+    const first = await store.claimRun(accepted.run.id);
+    const reclaimed = await store.claimRun(accepted.run.id);
+    assert.ok(first);
+    assert.ok(reclaimed?.reclaimed);
+
+    assert.equal(
+      await store.terminalizeRun({
+        runId: accepted.run.id,
+        reason: 'reclaimed',
+        claimEpoch: first.claimEpoch,
+      }),
+      false,
+    );
+    assert.equal(
+      await store.requestCancellation(conversation.id, conversation.controlVersion),
+      true,
+    );
+    assert.equal(
+      await store.terminalizeRun({
+        runId: accepted.run.id,
+        reason: 'reclaimed',
+        claimEpoch: reclaimed.claimEpoch,
+        failurePayload: { category: 'transient' },
+      }),
+      true,
+    );
+    const run = await store.pool.query<{ status: string }>(
+      'SELECT status FROM ai_runs WHERE id=$1',
+      [accepted.run.id],
+    );
+    assert.equal(run.rows[0]?.status, 'cancelled');
+  },
+);
+
+test('dead-letter terminalization proves the matching start-run record', { skip }, async () => {
+  assert.ok(store);
+  const conversation = await store.createConversation();
+  const accepted = await store.appendVisitorMessage({
+    conversationId: conversation.id,
+    idempotencyKey: 'terminal-dead-letter',
+    content: 'question',
+    engineId: 'fake',
+    engineVersion: '0.1.0',
+  });
+  assert.ok(accepted.run);
+  const outbox = await store.pool.query<{ id: string }>(
+    "SELECT id FROM outbox WHERE run_id=$1 AND type='start_run'",
+    [accepted.run.id],
+  );
+  const outboxId = outbox.rows[0]?.id;
+  assert.ok(outboxId);
+
+  assert.equal(
+    await store.terminalizeRun({
+      runId: accepted.run.id,
+      reason: 'start_run_dead_letter',
+      outboxId,
+    }),
+    false,
+  );
+  await store.pool.query("UPDATE outbox SET status='dead_letter' WHERE id=$1", [outboxId]);
+  assert.equal(
+    await store.terminalizeRun({
+      runId: accepted.run.id,
+      reason: 'start_run_dead_letter',
+      outboxId,
+      failurePayload: { category: 'unavailable' },
+    }),
+    true,
+  );
+  const run = await store.pool.query<{ status: string }>('SELECT status FROM ai_runs WHERE id=$1', [
+    accepted.run.id,
+  ]);
+  assert.equal(run.rows[0]?.status, 'failed');
+});

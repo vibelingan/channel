@@ -15,16 +15,11 @@ const server = createServer(async (request, response) => {
     response.end('{"authenticated":true}');
     return;
   }
-  if (request.method === 'POST' && url.pathname.endsWith('/thread/new')) {
-    response.setHeader('content-type', 'application/json');
-    response.end('{"thread":{"slug":"thread-1"}}');
-    return;
-  }
-  if (request.method === 'POST' && url.pathname.endsWith('/thread/thread-1/stream-chat')) {
+  if (request.method === 'POST' && url.pathname.endsWith('/workspace/public-kb/stream-chat')) {
     response.writeHead(200, { 'content-type': 'text/event-stream' });
     response.write('data: {"type":"textResponseChunk","textResponse":"Grounded "}\n\n');
     response.end(
-      'data: {"type":"final","textResponse":"answer.","sources":[{"title":"Public FAQ","id":"faq-1"}],"close":true}\n\n',
+      'data: {"type":"finalizeResponseStream","textResponse":"answer.","sources":[{"title":"Public FAQ","id":"faq-1"}],"close":true}\n\n',
     );
     return;
   }
@@ -47,7 +42,7 @@ test('adapter streams normalized tokens, citation and final without leaking cred
     baseUrl,
     apiKey,
     workspaceSlug: 'public-kb',
-    version: '1.0.0',
+    engineVersion: '1.0.0',
     citationsVerified: true,
     credentialRotationCounter: 2,
     now: () => '2026-08-25T00:00:00.000Z',
@@ -69,7 +64,7 @@ test('adapter streams normalized tokens, citation and final without leaking cred
   }
   assert.deepEqual(
     events.map((event) => event.type),
-    ['token', 'token', 'citation', 'final'],
+    ['token', 'citation', 'token', 'final'],
   );
   const finalEvent = events.at(-1);
   assert.equal(finalEvent?.type === 'final' ? finalEvent.text : null, 'Grounded answer.');
@@ -85,7 +80,7 @@ test('remote HTTP is rejected and unverified citations are declared false', () =
         baseUrl: 'http://203.0.113.10:3001',
         apiKey,
         workspaceSlug: 'public-kb',
-        version: '1.0.0',
+        engineVersion: '1.0.0',
         citationsVerified: false,
         credentialRotationCounter: 1,
       }),
@@ -95,7 +90,7 @@ test('remote HTTP is rejected and unverified citations are declared false', () =
     baseUrl,
     apiKey,
     workspaceSlug: 'public-kb',
-    version: '1.0.0',
+    engineVersion: '1.0.0',
     citationsVerified: false,
     credentialRotationCounter: 1,
   });
@@ -114,7 +109,7 @@ test('a remote knowledge base on plain HTTP is refused', () => {
         baseUrl: 'http://kb.example.com',
         apiKey: 'x'.repeat(24),
         workspaceSlug: 'public',
-        version: '1.16.0',
+        engineVersion: '1.16.0',
         citationsVerified: false,
         credentialRotationCounter: 1,
       }),
@@ -127,7 +122,7 @@ test('the same host over HTTPS is accepted', () => {
     baseUrl: 'https://kb.example.com',
     apiKey: 'x'.repeat(24),
     workspaceSlug: 'public',
-    version: '1.16.0',
+    engineVersion: '1.16.0',
     citationsVerified: false,
     credentialRotationCounter: 1,
   });
@@ -141,7 +136,7 @@ test('unverified citations are never advertised as supported', () => {
     baseUrl: 'https://kb.example.com',
     apiKey: 'x'.repeat(24),
     workspaceSlug: 'public',
-    version: '1.16.0',
+    engineVersion: '1.16.0',
     citationsVerified: false,
     credentialRotationCounter: 1,
   });

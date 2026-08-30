@@ -69,7 +69,6 @@ export class FakeEngine implements ConversationEngine {
   /** Present only when the capability is declared — see the constructor. */
   findRunByOperationId?: (operationId: string) => Promise<EngineRunHandle | null>;
 
-  #nextRunSeq = 1;
   #scriptedFailure: ScriptedFailure | undefined;
   #credentialId: string;
   #spaceId: string;
@@ -130,7 +129,10 @@ export class FakeEngine implements ConversationEngine {
 
     const handle: EngineRunHandle = {
       operationId: request.operationId,
-      engineRunId: `fake-run-${this.#nextRunSeq++}`,
+      // Stable across process restarts and unique across operations. A local
+      // counter restarted at 1, collided with the durable UNIQUE(engine_run_id)
+      // constraint, and made the second smoke after a container restart fail.
+      engineRunId: `fake:${request.operationId}`,
     };
     const state: RunState = { handle, status: 'running', limits: request.limits };
     this.#runsByEngineRunId.set(handle.engineRunId, state);

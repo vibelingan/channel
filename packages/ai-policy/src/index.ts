@@ -51,12 +51,11 @@ export interface GroundingPolicy {
 /**
  * KNOWN LIMIT, stated because the next reader will otherwise assume more.
  *
- * This matches on the citation TITLE, which is the document name the engine
- * reports — not a cryptographic identity. The adapter hashes `sourceId` because
- * raw vendor ids are internal handles, so the title is the only stable name we
- * get back. Two consequences:
+ * This matches on `sourceId`, which the adapter derives from the document name,
+ * not from a vendor chunk id. It is a provenance label, not a cryptographic
+ * identity. Two consequences:
  *
- *  - If the engine ever stops putting the document name in `title`, every
+ *  - If the engine ever stops putting the document name in `sourceId`, every
  *    answer is refused. That is the safe direction, and readiness will keep
  *    reporting live, so the symptom is an assistant that says nothing rather
  *    than an alarm. `safeDetail: 'no publishable source'` on the event is how
@@ -80,7 +79,7 @@ export function publishableCitations(
 ): EngineCitation[] {
   const prefix = policy.approvedSourcePrefix;
   if (!prefix) return [];
-  return citations.filter((citation) => (citation.title ?? '').startsWith(prefix));
+  return citations.filter((citation) => citation.sourceId.startsWith(prefix));
 }
 
 /**
@@ -128,6 +127,18 @@ export function enforceGroundedFinal(
       safeDetail: 'no publishable source',
     };
   }
+  if (publishable.length !== event.citations.length) {
+    // A model may combine facts from every retrieved source. Removing the
+    // internal citation does not remove the internal facts from its prose, so
+    // a mixed evidence set must fail as a unit. Filtering only the citation
+    // list would make an unsupported leak look cleanly sourced.
+    return {
+      type: 'error',
+      category: 'knowledge_empty',
+      retriable: false,
+      safeDetail: 'mixed publishable and unpublishable sources',
+    };
+  }
 
   const invented = ungroundedCommitments(event.text, publishable);
   if (invented.length > 0) {
@@ -147,11 +158,8 @@ export function enforceGroundedFinal(
  * process — and the worker, which now owns generation, is where they have to
  * run.
  *
- * `enforceGroundedFinal` above only asks whether ANY citation came back.
- * `ungroundedCommitments` asks the question that actually matters: do the
- * citations state the value the answer commits us to? Wiring the second into
- * the first is the next phase, and is deliberately not done in the same change
- * that moved the files.
+ * `enforceGroundedFinal` also calls `ungroundedCommitments`: citations must be
+ * publishable and must state any commercial value the answer commits us to.
  */
 export {
   commitmentValues,

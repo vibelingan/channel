@@ -54,6 +54,11 @@ export interface RunExecutionContext {
   turns: Array<{ role: 'visitor' | 'assistant'; text: string }>;
 }
 
+export interface FencedTerminalEvent {
+  type: 'token' | 'citation' | 'final' | 'error';
+  payload: Record<string, unknown>;
+}
+
 export class AiStore {
   readonly pool: Pool;
 
@@ -415,58 +420,101 @@ export class AiStore {
 
   async terminalizeRun(input: {
     runId: string;
-    status: 'completed' | 'failed' | 'cancelled';
-    eventType?: 'assistant.cancelled' | 'run.failed';
-    eventPayload?: Record<string, unknown>;
+    reason: 'cancel_requested' | 'reclaimed' | 'start_run_dead_letter';
+    claimEpoch?: number;
+    outboxId?: string;
+    failurePayload?: Record<string, unknown>;
   }): Promise<boolean> {
     return this.transaction(async (client) => {
-      const run = await client.query<{
-        conversation_id: string;
-        engine_id: string;
-        engine_version: string;
-        image_digest: string | null;
-      }>(
-        `UPDATE ai_runs SET status = $2, updated_at = clock_timestamp()
-         WHERE id = $1 AND status IN ('creating', 'running')
-         RETURNING conversation_id, engine_id, engine_version, image_digest`,
-        [input.runId, input.status],
+      // Discover the parent without locking it, then take every write lock in
+      // the global conversation -> run order. Locking the run first here used
+      // to invert finishRunFenced's order and made a cancellation/final race
+      // capable of deadlocking.
+      const parent = await client.query<{ conversation_id: string }>(
+        'SELECT conversation_id FROM ai_runs WHERE id = $1',
+        [input.runId],
       );
-      const row = run.rows[0];
-      if (!row) return false;
+      const conversationId = parent.rows[0]?.conversation_id;
+      if (!conversationId) return false;
 
       const conversation = await client.query<{
         status: ConversationRow['status'];
         takeover_epoch: string;
         next_event_sequence: string;
       }>(
-        `UPDATE conversations
-         SET active_run_id = NULL, updated_at = clock_timestamp()
-         WHERE id = $1 AND active_run_id = $2
-         RETURNING status, takeover_epoch, next_event_sequence`,
-        [row.conversation_id, input.runId],
+        `SELECT status, takeover_epoch, next_event_sequence
+         FROM conversations WHERE id = $1 FOR UPDATE`,
+        [conversationId],
       );
       const control = conversation.rows[0];
-      if (!control) return true;
+      if (!control) return false;
 
-      if (input.eventType) {
-        const sequence = Number(control.next_event_sequence);
-        await client.query(
-          `INSERT INTO conversation_events(conversation_id, run_id, sequence, type, payload)
-           VALUES ($1, $2, $3, $4, $5::jsonb)`,
-          [
-            row.conversation_id,
-            input.runId,
-            sequence,
-            input.eventType,
-            JSON.stringify(input.eventPayload ?? {}),
-          ],
-        );
-        await client.query(
-          `UPDATE conversations SET next_event_sequence = next_event_sequence + 1
-           WHERE id = $1`,
-          [row.conversation_id],
-        );
+      const run = await client.query<{
+        status: 'creating' | 'running' | 'completed' | 'failed' | 'cancelled';
+        claim_epoch: string;
+        cancel_requested_at: Date | null;
+        conversation_id: string;
+        engine_id: string;
+        engine_version: string;
+        image_digest: string | null;
+      }>(
+        `SELECT status, claim_epoch, cancel_requested_at, conversation_id,
+                engine_id, engine_version, image_digest
+         FROM ai_runs WHERE id = $1 AND conversation_id = $2 FOR UPDATE`,
+        [input.runId, conversationId],
+      );
+      const row = run.rows[0];
+      if (!row) return false;
+      if (row.status !== 'creating' && row.status !== 'running') return false;
+
+      const cancellationRecorded = row.cancel_requested_at !== null;
+      if (input.reason === 'cancel_requested' && !cancellationRecorded) return false;
+      if (
+        input.reason === 'reclaimed' &&
+        (row.status !== 'running' || Number(row.claim_epoch) !== input.claimEpoch)
+      ) {
+        return false;
       }
+      if (input.reason === 'start_run_dead_letter') {
+        if (row.status !== 'creating' || !input.outboxId) return false;
+        const deadLetter = await client.query(
+          `SELECT 1 FROM outbox
+           WHERE id = $1 AND run_id = $2 AND type = 'start_run' AND status = 'dead_letter'`,
+          [input.outboxId, input.runId],
+        );
+        if (deadLetter.rowCount !== 1) return false;
+      }
+
+      // Cancellation always wins over a concurrent failure once its durable
+      // request exists. This is evaluated while both parent and run are locked.
+      const terminalStatus = cancellationRecorded ? 'cancelled' : 'failed';
+      const eventType: EventType =
+        terminalStatus === 'cancelled' ? 'assistant.cancelled' : 'run.failed';
+      await client.query(
+        `UPDATE ai_runs SET status = $2, updated_at = clock_timestamp()
+         WHERE id = $1`,
+        [input.runId, terminalStatus],
+      );
+      const sequence = Number(control.next_event_sequence);
+      await client.query(
+        `INSERT INTO conversation_events(conversation_id, run_id, sequence, type, payload)
+         VALUES ($1, $2, $3, $4, $5::jsonb)`,
+        [
+          conversationId,
+          input.runId,
+          sequence,
+          eventType,
+          JSON.stringify(terminalStatus === 'failed' ? (input.failurePayload ?? {}) : {}),
+        ],
+      );
+      await client.query(
+        `UPDATE conversations
+         SET active_run_id = CASE WHEN active_run_id = $2 THEN NULL ELSE active_run_id END,
+             next_event_sequence = next_event_sequence + 1,
+             updated_at = clock_timestamp()
+         WHERE id = $1`,
+        [conversationId, input.runId],
+      );
 
       if (control.status !== 'ai') return true;
       const queued = await client.query<{ id: string }>(
@@ -474,7 +522,7 @@ export class AiStore {
          WHERE conversation_id = $1 AND role = 'visitor'
            AND answered_by_run IS NULL AND accepted_in_epoch = $2
          ORDER BY created_at ASC, id ASC FOR UPDATE SKIP LOCKED LIMIT 1`,
-        [row.conversation_id, control.takeover_epoch],
+        [conversationId, control.takeover_epoch],
       );
       const message = queued.rows[0];
       if (!message) return true;
@@ -487,7 +535,7 @@ export class AiStore {
          ) SELECT $2, id, $3, control_version, $4, $5, $6
            FROM conversations WHERE id = $1`,
         [
-          row.conversation_id,
+          conversationId,
           nextRunId,
           `run:${nextRunId}`,
           row.engine_id,
@@ -500,13 +548,13 @@ export class AiStore {
         nextRunId,
       ]);
       await client.query('UPDATE conversations SET active_run_id = $2 WHERE id = $1', [
-        row.conversation_id,
+        conversationId,
         nextRunId,
       ]);
       await client.query(
         `INSERT INTO outbox(conversation_id, run_id, type, payload)
          VALUES ($1, $2, 'start_run', jsonb_build_object('messageId', $3::text))`,
-        [row.conversation_id, nextRunId, message.id],
+        [conversationId, nextRunId, message.id],
       );
       return true;
     });
@@ -626,6 +674,188 @@ export class AiStore {
       ],
     );
     return result.rows[0] ? mapEvent(result.rows[0]) : null;
+  }
+
+  async isRunCommitAuthorized(
+    input: Pick<RunExecutionContext, 'conversationId' | 'runId' | 'controlVersion' | 'claimEpoch'>,
+  ): Promise<boolean> {
+    const result = await this.pool.query<{ allowed: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM conversations AS c
+         JOIN ai_runs AS r ON r.conversation_id = c.id
+         WHERE c.id = $1
+           AND r.id = $2
+           AND c.status = 'ai'
+           AND c.control_version = $3
+           AND c.active_run_id = r.id
+           AND r.status = 'running'
+           AND r.claim_epoch = $4
+           AND r.cancel_requested_at IS NULL
+       ) AS allowed`,
+      [input.conversationId, input.runId, input.controlVersion, input.claimEpoch],
+    );
+    return result.rows[0]?.allowed === true;
+  }
+
+  /**
+   * Publish one already-approved terminal result and complete its run in the
+   * same transaction. The event set is deliberately a batch: after the worker
+   * withholds provider chunks for policy, a crash must not expose an orphan
+   * token without its citations/final or leave a displayed final on RUNNING.
+   */
+  async finishRunFenced(input: {
+    conversationId: string;
+    runId: string;
+    expectedControlVersion: number;
+    claimEpoch: number;
+    status: 'completed' | 'failed';
+    events: FencedTerminalEvent[];
+  }): Promise<boolean> {
+    const finalCount = input.events.filter((event) => event.type === 'final').length;
+    if (input.events.length === 0) throw new Error('terminal_event_set_empty');
+    if (input.status === 'completed' && finalCount !== 1) {
+      throw new Error('completed_run_requires_one_final');
+    }
+    if (input.status === 'failed' && finalCount !== 0) {
+      throw new Error('failed_run_cannot_publish_final');
+    }
+
+    return this.transaction(async (client) => {
+      const fence = await client.query<{
+        first_sequence: string;
+        takeover_epoch: string;
+      }>(
+        `UPDATE conversations AS c
+         SET next_event_sequence = c.next_event_sequence + $5,
+             updated_at = clock_timestamp()
+         FROM ai_runs AS r
+         WHERE c.id = $1
+           AND r.id = $2
+           AND r.conversation_id = c.id
+           AND c.status = 'ai'
+           AND c.control_version = $3
+           AND c.active_run_id = r.id
+           AND r.status = 'running'
+           AND r.claim_epoch = $4
+           AND r.cancel_requested_at IS NULL
+         RETURNING c.next_event_sequence - $5 AS first_sequence, c.takeover_epoch`,
+        [
+          input.conversationId,
+          input.runId,
+          input.expectedControlVersion,
+          input.claimEpoch,
+          input.events.length,
+        ],
+      );
+      const control = fence.rows[0];
+      if (!control) return false;
+
+      const firstSequence = Number(control.first_sequence);
+      for (const [offset, event] of input.events.entries()) {
+        await client.query(
+          `INSERT INTO conversation_events(conversation_id, run_id, sequence, type, payload)
+           VALUES ($1, $2, $3, $4, $5::jsonb)`,
+          [
+            input.conversationId,
+            input.runId,
+            firstSequence + offset,
+            event.type,
+            JSON.stringify(event.payload),
+          ],
+        );
+      }
+
+      const finalOffset = input.events.findIndex((event) => event.type === 'final');
+      if (finalOffset >= 0) {
+        const finalEvent = input.events[finalOffset];
+        await client.query(
+          `INSERT INTO conversation_messages(
+             conversation_id, role, content, idempotency_key, accepted_in_epoch,
+             answered_by_run, event_sequence
+           ) VALUES (
+             $1, 'assistant', $2, 'assistant:' || $3::uuid::text,
+             $4, $3::uuid, $5
+           )`,
+          [
+            input.conversationId,
+            finalEvent?.payload.text,
+            input.runId,
+            Number(control.takeover_epoch),
+            firstSequence + finalOffset,
+          ],
+        );
+      }
+
+      const run = await client.query<{
+        engine_id: string;
+        engine_version: string;
+        image_digest: string | null;
+      }>(
+        `UPDATE ai_runs
+         SET status = $5, updated_at = clock_timestamp()
+         WHERE id = $1 AND conversation_id = $2 AND status = 'running'
+           AND control_version = $3 AND claim_epoch = $4
+           AND cancel_requested_at IS NULL
+         RETURNING engine_id, engine_version, image_digest`,
+        [
+          input.runId,
+          input.conversationId,
+          input.expectedControlVersion,
+          input.claimEpoch,
+          input.status,
+        ],
+      );
+      const runMetadata = run.rows[0];
+      if (!runMetadata) throw new Error('terminal_run_fence_lost_inside_transaction');
+
+      await client.query(
+        `UPDATE conversations SET active_run_id = NULL, updated_at = clock_timestamp()
+         WHERE id = $1 AND active_run_id = $2`,
+        [input.conversationId, input.runId],
+      );
+
+      const queued = await client.query<{ id: string }>(
+        `SELECT id FROM conversation_messages
+         WHERE conversation_id = $1 AND role = 'visitor'
+           AND answered_by_run IS NULL AND accepted_in_epoch = $2
+         ORDER BY created_at ASC, id ASC FOR UPDATE SKIP LOCKED LIMIT 1`,
+        [input.conversationId, control.takeover_epoch],
+      );
+      const message = queued.rows[0];
+      if (!message) return true;
+
+      const nextRunId = randomUUID();
+      await client.query(
+        `INSERT INTO ai_runs(
+           id, conversation_id, operation_id, control_version,
+           engine_id, engine_version, image_digest
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          nextRunId,
+          input.conversationId,
+          `run:${nextRunId}`,
+          input.expectedControlVersion,
+          runMetadata.engine_id,
+          runMetadata.engine_version,
+          runMetadata.image_digest,
+        ],
+      );
+      await client.query('UPDATE conversation_messages SET answered_by_run = $2 WHERE id = $1', [
+        message.id,
+        nextRunId,
+      ]);
+      await client.query('UPDATE conversations SET active_run_id = $2 WHERE id = $1', [
+        input.conversationId,
+        nextRunId,
+      ]);
+      await client.query(
+        `INSERT INTO outbox(conversation_id, run_id, type, payload)
+         VALUES ($1, $2, 'start_run', jsonb_build_object('messageId', $3::text))`,
+        [input.conversationId, nextRunId, message.id],
+      );
+      return true;
+    });
   }
 
   async transitionControl(input: {

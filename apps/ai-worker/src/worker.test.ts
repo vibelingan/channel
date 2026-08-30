@@ -19,7 +19,9 @@ const config: WorkerConfig = {
   profileId: 'channel-public-v1',
   maxDeliveredOutputUnits: 100,
   maxStreamDurationMs: 1_000,
-  maxToolCalls: 1,
+  maxToolCalls: 0,
+  approvedSourcePrefix: 'channelkb',
+  citationSiteOrigin: 'https://site.example',
 };
 
 test('worker lease must outlive the longest permitted provider stream', () => {
@@ -75,17 +77,23 @@ test(
     });
     const engine = new FakeEngine({
       script: ['Grounded ', 'answer.'],
-      citations: [{ sourceId: 'faq-1', title: 'channelkb-g1-public-faq' }],
+      citations: [
+        {
+          sourceId: 'channelkb-g1-public-faq',
+          title: 'Public FAQ',
+          url: 'https://site.example/public-faq',
+        },
+      ],
     });
     assert.equal(await processOne(store, engine, config), 'processed');
     const events = await store.listEvents(conversation.id);
     assert.deepEqual(
       events.map((event) => event.type),
-      ['token', 'token', 'citation', 'final'],
+      ['token', 'citation', 'final'],
     );
     assert.deepEqual(
       events.map((event) => event.sequence),
-      [1, 2, 3, 4],
+      [1, 2, 3],
     );
     assert.equal((await store.getConversation(conversation.id))?.activeRunId, null);
     const assistantMessages = await store.pool.query<{ content: string }>(
@@ -94,6 +102,69 @@ test(
       [conversation.id],
     );
     assert.deepEqual(assistantMessages.rows, [{ content: 'Grounded answer.' }]);
+    assert.equal(events[1]?.payload.url, 'https://site.example/public-faq');
+  },
+);
+
+test(
+  'worker drops an off-site citation link before the approved event batch commits',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const conversation = await store.createConversation();
+    await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'worker-message-offsite-link',
+      content: 'What is public?',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    const engine = new FakeEngine({
+      script: ['Public answer.'],
+      citations: [
+        {
+          sourceId: 'channelkb-g1-public-faq',
+          title: 'Public FAQ',
+          url: 'https://site.example.evil.test/phish',
+        },
+      ],
+    });
+
+    assert.equal(await processOne(store, engine, config), 'processed');
+    const citation = (await store.listEvents(conversation.id)).find(
+      (event) => event.type === 'citation',
+    );
+    assert.ok(citation);
+    assert.equal(citation.payload.url, undefined);
+  },
+);
+
+test(
+  'worker never publishes streamed tokens or citations rejected by the final public-source gate',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const conversation = await store.createConversation();
+    await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'worker-message-unpublishable',
+      content: 'Tell me the internal escalation path',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    const engine = new FakeEngine({
+      script: ['INTERNAL_ONLY_ANSWER'],
+      citations: [{ sourceId: 'internal-1', title: 'hermes-skills-escalation' }],
+    });
+
+    assert.equal(await processOne(store, engine, config), 'processed');
+    const events = await store.listEvents(conversation.id);
+
+    assert.deepEqual(
+      events.map((event) => event.type),
+      ['error'],
+    );
+    assert.doesNotMatch(JSON.stringify(events), /INTERNAL_ONLY_ANSWER|hermes-skills/);
   },
 );
 
@@ -119,7 +190,7 @@ test(
     });
     const engine = new FakeEngine({
       script: ['done'],
-      citations: [{ sourceId: 'faq-1', title: 'channelkb-g1-public-faq' }],
+      citations: [{ sourceId: 'channelkb-g1-public-faq', title: 'Public FAQ' }],
     });
     assert.equal(await processOne(store, engine, config), 'processed');
     const current = await store.getConversation(conversation.id);

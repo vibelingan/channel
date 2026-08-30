@@ -62,6 +62,21 @@ test('the fully capable fake exposes the lookup method and resolves a live handl
   assert.equal(await engine.findRunByOperationId('op-never-created'), null);
 });
 
+test('fresh fake-engine processes cannot mint the same durable engine run id', async () => {
+  const request = (operationId: string) => ({
+    operationId,
+    conversationRef: 'conv-restart',
+    turns: [{ role: 'visitor' as const, text: 'hello' }],
+    profileId: 'public-cs@1',
+    locale: 'en',
+    limits: { maxDeliveredOutputUnits: 16, maxStreamDurationMs: 1_000, maxToolCalls: 0 },
+  });
+  const signal = new AbortController().signal;
+  const one = await new FakeEngine().createRun(request('op-process-one'), signal);
+  const two = await new FakeEngine().createRun(request('op-process-two'), signal);
+  assert.notEqual(one.engineRunId, two.engineRunId);
+});
+
 test('the degraded fake still passes the whole shared suite', () => {
   // Guards the swap promise: a vendor missing one optional capability must not
   // fail the contract, it must fail only the startup check that cares.

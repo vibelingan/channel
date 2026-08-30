@@ -79,8 +79,14 @@ function renderWithDocker() {
  * the loopback check pass on a binding it never actually read. The default is
  * what the file declares, so it is what these checks are about.
  */
+function expandComposeValue(entry, overrides = {}) {
+  return String(entry).replace(/\$\{([A-Z0-9_]+):-([^}]*)\}/g, (_, name, fallback) =>
+    Object.hasOwn(overrides, name) ? String(overrides[name]) : fallback,
+  );
+}
+
 function expandDefaults(entry) {
-  return String(entry).replace(/\$\{[A-Z0-9_]+:-([^}]*)\}/g, '$1');
+  return expandComposeValue(entry);
 }
 
 function parseComposeFile() {
@@ -378,30 +384,58 @@ test('the third-party engine is pinned by digest, not merely by version', () => 
   assert.match(engine, /@sha256:[0-9a-f]{64}$/, `the engine image is not digest-pinned: ${engine}`);
 });
 
-test('the version readiness advertises matches the version the pinned digest is', () => {
-  // A digest names bytes; it does not say which release those bytes are. The
-  // BFF reports ANYTHINGLLM_VERSION on /readyz for incident scoping, and with
-  // it unset the service ran a pinned image while telling operators
-  // "unpinned" — so an answer a customer quoted back could not be traced to
-  // anything. The version lives in the comment above the digest; this makes
-  // moving one without the other a failing test rather than a silent lie.
+test('fake defaults and explicit AnythingLLM provenance stay consistent across services', () => {
+  // Compose starts safely and without cost on the fake engine. AnythingLLM is
+  // an explicit opt-in, at which point both services must attest the exact
+  // version and digest of the image this stack runs.
   const composeText = readFileSync(COMPOSE_FILE, 'utf8');
   const compose = parseYaml(composeText);
+  const bffEnv = compose.services?.['ai-bff']?.environment ?? {};
   const workerEnv = compose.services?.['ai-worker']?.environment ?? {};
-  const advertised = expandDefaults(workerEnv.AI_ENGINE_VERSION ?? '');
-  assert.ok(advertised, 'ai-worker advertises no engine version, so a run records none');
+  for (const [service, environment] of [
+    ['ai-bff', bffEnv],
+    ['ai-worker', workerEnv],
+  ]) {
+    assert.equal(
+      expandDefaults(environment.AI_ENGINE_ID ?? ''),
+      'fake',
+      `${service} default engine`,
+    );
+    assert.equal(
+      expandDefaults(environment.AI_ENGINE_VERSION ?? ''),
+      '0.1.0',
+      `${service} fake-engine version`,
+    );
+    assert.equal(
+      expandDefaults(environment.AI_ENGINE_IMAGE_DIGEST ?? ''),
+      '',
+      `${service} must not claim an image digest for the in-process fake engine`,
+    );
+  }
 
-  // The digest the worker attests must be the digest the stack actually runs.
-  // Two places naming the same bytes is exactly how they drift apart.
-  const attested = expandDefaults(workerEnv.AI_ENGINE_IMAGE_DIGEST ?? '');
   const running = String(compose.services?.anythingllm?.image ?? '').split('@')[1] ?? '';
-  assert.equal(attested, running, `the worker attests ${attested} while the stack runs ${running}`);
-
   const documented = composeText.match(/#\s*anythingllm\s+(\d+\.\d+\.\d+)\b/i)?.[1];
   assert.ok(documented, 'the digest is not accompanied by a version comment naming its release');
-  assert.equal(
-    String(advertised),
-    documented,
-    `ai-worker advertises ${advertised} while the pinned digest is documented as ${documented}`,
-  );
+
+  const anythingllm = {
+    AI_ENGINE_ID: 'anythingllm',
+    AI_ENGINE_VERSION: documented,
+    AI_ENGINE_IMAGE_DIGEST: running,
+  };
+  for (const [service, environment] of [
+    ['ai-bff', bffEnv],
+    ['ai-worker', workerEnv],
+  ]) {
+    assert.equal(expandComposeValue(environment.AI_ENGINE_ID ?? '', anythingllm), 'anythingllm');
+    assert.equal(
+      expandComposeValue(environment.AI_ENGINE_VERSION ?? '', anythingllm),
+      documented,
+      `${service} does not advertise the reviewed AnythingLLM version`,
+    );
+    assert.equal(
+      expandComposeValue(environment.AI_ENGINE_IMAGE_DIGEST ?? '', anythingllm),
+      running,
+      `${service} does not attest the digest the stack runs`,
+    );
+  }
 });

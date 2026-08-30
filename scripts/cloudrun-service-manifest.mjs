@@ -25,7 +25,7 @@ export const CLOUDRUN_SERVICE_NAMES = ['ai-bff', 'ai-worker'];
  * Environment values that must come from a secret store at deploy time and
  * must never appear as literals in this repository.
  */
-export const SECRET_ENV_KEYS = ['DATABASE_URL', 'ZENMUX_API_KEY', 'ANYTHINGLLM_API_KEY'];
+export const SECRET_ENV_KEYS = ['DATABASE_URL', 'ANYTHINGLLM_API_KEY', 'AI_IP_HASH_SECRET'];
 
 /**
  * Switches that must never appear in a deployed service definition.
@@ -54,14 +54,21 @@ export function envEntries(record) {
 
 /**
  * Build the per-service deploy definitions from a deploy context:
- * { envId, appEnv, imageTag, siteOrigins, requireEnv, optionalEnv }.
+ * { envId, appEnv, images, siteOrigins, requireEnv, optionalEnv }.
  *
- * `imageTag` is required and must be a digest or an immutable tag. ADR-002 §4
- * requires pinned images for the engine; the same rule applies to our own
- * services, because "redeploy the same manifest" has to mean the same bytes.
+ * Each complete service image reference must end in a sha256 digest. Appending
+ * a service path after a digest produces an invalid OCI reference, so callers
+ * pass the two final references rather than a pseudo-prefix.
  */
 export function buildCloudRunServiceDefs(ctx) {
-  if (!ctx.imageTag) throw new Error('imageTag is required; a floating tag is not deployable');
+  const digestReference =
+    /^(?:[a-z0-9]+(?:[._-][a-z0-9]+)*(?::[0-9]+)?\/)?[a-z0-9]+(?:[._/-][a-z0-9]+)*@sha256:[0-9a-f]{64}$/;
+  for (const service of CLOUDRUN_SERVICE_NAMES) {
+    const image = ctx.images?.[service];
+    if (!image || !digestReference.test(image)) {
+      throw new Error(`${service} image must be a complete immutable sha256 OCI reference`);
+    }
+  }
 
   return [
     {
@@ -69,7 +76,7 @@ export function buildCloudRunServiceDefs(ctx) {
       workspacePackage: '@vibelingan-channel/ai-bff',
       dockerfile: 'apps/ai-bff/Dockerfile',
       buildContext: '.',
-      image: `${ctx.imageTag}/ai-bff`,
+      image: ctx.images['ai-bff'],
       containerPort: 8080,
       healthPath: '/api/ai/healthz',
       readyPath: '/api/ai/readyz',
@@ -89,6 +96,11 @@ export function buildCloudRunServiceDefs(ctx) {
         TCB_ENV: ctx.envId,
         DATABASE_URL: ctx.requireEnv('DATABASE_URL'),
         CORS_ALLOWED_ORIGINS: ctx.siteOrigins,
+        AI_ENGINE_ID: ctx.requireEnv('AI_ENGINE_ID'),
+        AI_ENGINE_VERSION: ctx.requireEnv('AI_ENGINE_VERSION'),
+        AI_ENGINE_IMAGE_DIGEST: ctx.requireEnv('AI_ENGINE_IMAGE_DIGEST'),
+        AI_IP_HASH_SECRET: ctx.requireEnv('AI_IP_HASH_SECRET'),
+        AI_TRUST_PROXY: ctx.requireEnv('AI_TRUST_PROXY'),
       }),
     },
     {
@@ -96,7 +108,7 @@ export function buildCloudRunServiceDefs(ctx) {
       workspacePackage: '@vibelingan-channel/ai-worker',
       dockerfile: 'apps/ai-worker/Dockerfile',
       buildContext: '.',
-      image: `${ctx.imageTag}/ai-worker`,
+      image: ctx.images['ai-worker'],
       containerPort: 8080,
       healthPath: '/healthz',
       readyPath: '/readyz',
@@ -114,9 +126,25 @@ export function buildCloudRunServiceDefs(ctx) {
       envVariables: envEntries({
         NODE_ENV: 'production',
         APP_ENV: ctx.appEnv,
-        PORT: '8081',
+        PORT: '8080',
         TCB_ENV: ctx.envId,
         DATABASE_URL: ctx.requireEnv('DATABASE_URL'),
+        AI_ENGINE_ID: ctx.requireEnv('AI_ENGINE_ID'),
+        AI_ENGINE_VERSION: ctx.requireEnv('AI_ENGINE_VERSION'),
+        AI_ENGINE_IMAGE_DIGEST: ctx.requireEnv('AI_ENGINE_IMAGE_DIGEST'),
+        AI_PROFILE_ID: ctx.requireEnv('AI_PROFILE_ID'),
+        AI_WORKER_LEASE_SECONDS: ctx.requireEnv('AI_WORKER_LEASE_SECONDS'),
+        AI_MAX_STREAM_DURATION_MS: ctx.requireEnv('AI_MAX_STREAM_DURATION_MS'),
+        AI_MAX_OUTPUT_TOKENS: ctx.requireEnv('AI_MAX_OUTPUT_TOKENS'),
+        AI_MAX_TOOL_CALLS: ctx.requireEnv('AI_MAX_TOOL_CALLS'),
+        ANYTHINGLLM_BASE_URL: ctx.requireEnv('ANYTHINGLLM_BASE_URL'),
+        ANYTHINGLLM_API_KEY: ctx.requireEnv('ANYTHINGLLM_API_KEY'),
+        ANYTHINGLLM_WORKSPACE_SLUG: ctx.requireEnv('ANYTHINGLLM_WORKSPACE_SLUG'),
+        AI_KNOWLEDGE_CREDENTIAL_ID: ctx.requireEnv('AI_KNOWLEDGE_CREDENTIAL_ID'),
+        ANYTHINGLLM_CITATIONS_VERIFIED: ctx.requireEnv('ANYTHINGLLM_CITATIONS_VERIFIED'),
+        ANYTHINGLLM_CREDENTIAL_ROTATION: ctx.requireEnv('ANYTHINGLLM_CREDENTIAL_ROTATION'),
+        AI_APPROVED_SOURCE_PREFIX: ctx.requireEnv('AI_APPROVED_SOURCE_PREFIX'),
+        AI_SITE_ORIGIN: ctx.requireEnv('AI_SITE_ORIGIN'),
       }),
     },
   ];

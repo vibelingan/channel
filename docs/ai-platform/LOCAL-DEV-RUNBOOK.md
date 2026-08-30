@@ -9,35 +9,58 @@ the model itself, billed per question through zenmux.
 
 ## 1. One-time setup
 
-You need Docker running and a `.env.ai` file in the repo root. It is gitignored;
-copy `.env.ai.example` and fill it in. It holds four values:
+You need Docker running. The normal application path uses the deterministic
+fake engine and needs no `.env.ai` or model key:
+
+```bash
+pnpm dev:ai
+pnpm smoke:ai
+```
+
+For the optional pinned local AnythingLLM profile, copy `.env.ai.example` to
+the gitignored `.env.ai` and fill every attestation/corpus field, not only the
+provider key:
 
 | Key | What it is |
 |---|---|
 | `GENERIC_OPEN_AI_API_KEY` | The zenmux key. The model provider |
 | `ANYTHINGLLM_API_KEY` | Generated locally, see below |
+| `AI_KNOWLEDGE_CREDENTIAL_ID` | First 16 lowercase hex characters of SHA-256 of the API key |
+| `AI_ENGINE_VERSION`, `AI_ENGINE_IMAGE_DIGEST` | Must remain `1.16.0` and the pinned digest unless the image is deliberately reviewed and upgraded |
+| `ANYTHINGLLM_WORKSPACE_SLUG`, `AI_APPROVED_SOURCE_PREFIX` | The dedicated public corpus and its document namespace |
+| `ANYTHINGLLM_CITATIONS_VERIFIED` | Set to `1` only after this exact workspace returns real citations |
 | `JWT_SECRET`, `SIG_KEY`, `SIG_SALT` | Any long random strings, set once |
 
-Start everything:
+Start PostgreSQL and the pinned KB first:
 
 ```bash
-pnpm dev:ai
+pnpm dev:ai:full
 ```
 
-That brings up four containers: PostgreSQL, AnythingLLM (the retrieval engine),
-the BFF, and the worker.
-
-If `ANYTHINGLLM_API_KEY` is not yet in `.env.ai`, generate one against the
-running container and paste it in:
+If `ANYTHINGLLM_API_KEY` is not yet in `.env.ai`, use the non-printing helper.
+It calls only the loopback container, atomically stores both the key and its
+attestation in `.env.ai`, and sets the file mode to `0600`; the key never goes
+to terminal output:
 
 ```bash
-curl -s -X POST http://localhost:53001/api/system/generate-api-key
+pnpm ai:key:generate
 ```
+
+Configure the dedicated workspace, then set
+`ANYTHINGLLM_CITATIONS_VERIFIED=1` only after a successful citation-bearing
+probe:
 
 Then load the content and the answer policy:
 
 ```bash
 pnpm ai:setup
+```
+
+Finally build and start the BFF and worker with the complete profile:
+
+```bash
+pnpm dev:ai:build
+pnpm smoke:ai
 ```
 
 This is safe to re-run. It replaces the previous content rather than adding a
@@ -102,7 +125,11 @@ Ports are all in the 5xxxx range on purpose — see the note at the top of
 
 ---
 
-## 5. What is deliberately not built yet
+## 5. Historical limitations of the old local harness
+
+The bullets below describe the pre-MIU runtime retained for historical review;
+they are not the current BFF/store/worker implementation status. ADR-002, the
+MIU trace and the Phase 1 handoff are authoritative for the current path.
 
 Worth knowing before you judge what you are looking at.
 

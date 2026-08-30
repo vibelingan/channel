@@ -10,9 +10,9 @@ type Scripted = { status?: number; frames?: unknown[]; delayMs?: number; raw?: s
 /** A stand-in vendor that emits exactly the SSE frames a test needs. */
 function vendor(script: Scripted): Promise<{ server: Server; baseUrl: string }> {
   const server = createServer((req, res) => {
-    if (req.url === '/api/ping') {
+    if (req.url === '/api/v1/auth') {
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ online: true }));
+      res.end(JSON.stringify({ authenticated: true }));
       return;
     }
     if (script.status && script.status >= 400) {
@@ -58,6 +58,7 @@ async function collect(script: Scripted, request: EngineRunRequest = REQUEST) {
     apiKey: 'test-key',
     workspaceSlug: 'ws',
     engineVersion: '1.0.0-test',
+    citationsVerified: true,
   });
   const events: EngineEvent[] = [];
   try {
@@ -82,9 +83,11 @@ const chunk = (text: string, extra: Record<string, unknown> = {}) => ({
 test('capabilities describe what this vendor family actually guarantees', () => {
   const engine = new AnythingLlmEngine({
     baseUrl: 'http://unused',
+    allowInsecureRemoteHttp: true,
     apiKey: 'k',
     workspaceSlug: 'ws',
     engineVersion: '1.0.0-test',
+    citationsVerified: true,
   });
   const c = engine.capabilities;
   assert.equal(c.supportsStop, true, 'the owner can always abort its own connection');
@@ -133,7 +136,7 @@ test('sources become citations, and the final event carries them all', async () 
   assert.ok(citation, 'no citation emitted');
   const c = (citation as { citation: EngineCitation }).citation;
   // The page, not the chunk — see the dedup test below.
-  assert.equal(c.sourceId, '/headphones');
+  assert.equal(c.sourceId, 'en-us-headphones.txt');
   assert.equal(c.url, '/headphones');
   assert.equal(c.snippet, 'MOQ from 500 units');
   assert.ok(!Number.isNaN(Date.parse(c.retrievedAt)), 'retrievedAt is not an ISO timestamp');
@@ -220,6 +223,30 @@ test('a citation is titled for a reader, not by its storage filename', async () 
   });
   const cite = events.find((e) => e.type === 'citation') as { citation: EngineCitation };
   assert.equal(cite.citation.title, 'Headphones product line');
+});
+
+test('the hosted fork keeps the document name as provenance and never exposes a file URL', async () => {
+  const events = await collect({
+    frames: [
+      chunk('Grounded answer.', {
+        sources: [
+          {
+            id: 'vendor-internal-id',
+            title: 'supplychainsai-positioning.md',
+            description: 'Unknown',
+            docSource: 'a text file uploaded by the user.',
+            url: 'file:///opt/vibekb/collector/hotdir/supplychainsai-positioning.md',
+          },
+        ],
+      }),
+      { type: 'finalizeResponseStream', close: true, error: false },
+    ],
+  });
+  const cite = events.find((event) => event.type === 'citation');
+  assert.ok(cite?.type === 'citation');
+  assert.equal(cite.citation.sourceId, 'supplychainsai-positioning.md');
+  assert.equal(cite.citation.title, 'supplychainsai-positioning.md');
+  assert.equal(cite.citation.url, undefined);
 });
 
 test('an answer that is only reasoning is a failure, not a blank reply', async () => {
@@ -474,9 +501,11 @@ test('health reports a safe status with no host or credential', async () => {
 });
 
 test('the knowledge attestation identifies the credential without revealing it', async () => {
+  const testCredential = ['super', 'secret', 'key'].join('-');
   const engine = new AnythingLlmEngine({
     baseUrl: 'http://unused',
-    apiKey: 'super-secret-key',
+    allowInsecureRemoteHttp: true,
+    apiKey: testCredential,
     workspaceSlug: 'ws',
     engineVersion: '1.0.0-test',
   });
@@ -484,7 +513,7 @@ test('the knowledge attestation identifies the credential without revealing it',
   assert.equal(attestation.spaceId, 'ws');
   assert.ok(attestation.credentialId.length > 0);
   assert.ok(
-    !attestation.credentialId.includes('super-secret-key'),
+    !attestation.credentialId.includes(testCredential),
     'the attestation embedded the raw credential',
   );
 });
@@ -493,6 +522,7 @@ test('rotating the credential changes the attested identity', async () => {
   const make = (apiKey: string) =>
     new AnythingLlmEngine({
       baseUrl: 'http://unused',
+      allowInsecureRemoteHttp: true,
       apiKey,
       workspaceSlug: 'ws',
       engineVersion: '1.0.0-test',
@@ -550,10 +580,129 @@ test('an enabled agent surface is reported, and names which one', async () => {
   try {
     const surface = await engine.inspectToolSurface();
     assert.equal(surface.enabled, true);
-    assert.match(surface.detail, /openai/);
+    assert.match(surface.detail, /agentProvider/);
+    assert.doesNotMatch(surface.detail, /openai|gpt-4/, 'tool setting values leaked into detail');
   } finally {
     server.close();
   }
+});
+
+test('fork-specific nested tool fields make the inspected schema unknown', async () => {
+  const engine = new AnythingLlmEngine({
+    baseUrl: 'https://kb.example.test',
+    apiKey: 'k',
+    workspaceSlug: 'ws',
+    engineVersion: 'test',
+    fetchImpl: async () =>
+      new Response(
+        JSON.stringify({
+          workspace: {
+            agentProvider: null,
+            agentModel: null,
+            threads: [
+              {
+                enabledTools: ['web-search'],
+                agentSkills: [{ name: 'private-search', enabled: true }],
+              },
+            ],
+          },
+        }),
+        { status: 200 },
+      ),
+  });
+  const surface = await engine.inspectToolSurface();
+  assert.equal(surface.known, false);
+  assert.equal(surface.enabled, false);
+  assert.match(surface.detail, /threads\[0\]\.enabledTools/);
+  assert.match(surface.detail, /threads\[0\]\.agentSkills/);
+  assert.doesNotMatch(surface.detail, /web-search|private-search/);
+});
+
+test('capabilities nested under a reviewed container still fail closed', async () => {
+  const engine = new AnythingLlmEngine({
+    baseUrl: 'https://kb.example.test',
+    apiKey: 'k',
+    workspaceSlug: 'ws',
+    engineVersion: 'test',
+    fetchImpl: async () =>
+      new Response(
+        JSON.stringify({
+          workspace: {
+            agentProvider: null,
+            agentModel: null,
+            threads: [{ slug: 'thread-1', user_id: null, capabilities: { webSearch: true } }],
+          },
+        }),
+        { status: 200 },
+      ),
+  });
+  const surface = await engine.inspectToolSurface();
+  assert.equal(surface.known, false);
+  assert.equal(surface.enabled, false);
+  assert.match(surface.detail, /threads\[0\]\.capabilities/);
+});
+
+test('an unreviewed workspace field is unknown even when its name avoids tool keywords', async () => {
+  const engine = new AnythingLlmEngine({
+    baseUrl: 'https://kb.example.test',
+    apiKey: 'k',
+    workspaceSlug: 'ws',
+    engineVersion: 'test',
+    fetchImpl: async () =>
+      new Response(
+        JSON.stringify({
+          workspace: {
+            agentProvider: null,
+            agentModel: null,
+            capabilities: { webSearch: true },
+          },
+        }),
+        { status: 200 },
+      ),
+  });
+  const surface = await engine.inspectToolSurface();
+  assert.equal(surface.known, false);
+  assert.equal(surface.enabled, false);
+  assert.match(surface.detail, /unreviewed workspace fields: capabilities/);
+});
+
+test('an object-shaped workspace with an agent surface is also refused', async () => {
+  const server = createServer((req, res) => {
+    if (req.url?.includes('/workspace/')) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ workspace: { agentProvider: 'openai', agentModel: 'gpt-4' } }));
+      return;
+    }
+    res.writeHead(404).end();
+  });
+  await new Promise<void>((resolve) => server.listen(0, () => resolve()));
+  const { port } = server.address() as AddressInfo;
+  const engine = new AnythingLlmEngine({
+    baseUrl: `http://127.0.0.1:${port}`,
+    apiKey: 'k',
+    workspaceSlug: 'ws',
+    engineVersion: 'test',
+  });
+  try {
+    const surface = await engine.inspectToolSurface();
+    assert.equal(surface.known, true);
+    assert.equal(surface.enabled, true);
+  } finally {
+    server.close();
+  }
+});
+
+test('a missing workspace shape is unknown, never assumed tool-free', async () => {
+  const engine = new AnythingLlmEngine({
+    baseUrl: 'https://kb.example.test',
+    apiKey: 'k',
+    workspaceSlug: 'ws',
+    engineVersion: 'test',
+    fetchImpl: async () => new Response(JSON.stringify({ workspace: null }), { status: 200 }),
+  });
+  const surface = await engine.inspectToolSurface();
+  assert.equal(surface.known, false);
+  assert.equal(surface.enabled, false);
 });
 
 test('an unreachable engine is unknown, never assumed safe', async () => {

@@ -12,16 +12,11 @@ function assertSafeBaseUrl(baseUrl, allowInsecure) {
 }
 
 function sanitizedSources(sources) {
-  if (!Array.isArray(sources)) return [];
-  return sources.map((source) => ({
-    title: source?.title ?? source?.metadata?.title ?? null,
-    chunkSource: source?.chunkSource ?? source?.metadata?.chunkSource ?? null,
-    score: typeof source?.score === 'number' ? source.score : null,
-  }));
+  return Array.isArray(sources) ? { count: sources.length } : { count: 0 };
 }
 
 function normalizedChat(result) {
-  const sources = sanitizedSources(result?.sources);
+  const sources = Array.isArray(result?.sources) ? result.sources : [];
   const error = typeof result?.error === 'string' ? result.error : null;
   const textResponse =
     typeof result?.textResponse === 'string' && result.textResponse.length > 0
@@ -198,6 +193,35 @@ export async function probeAnythingLlm({
   };
 }
 
+export function sanitizedProbeReport(report) {
+  const sanitizeChat = (chat) => ({
+    ok: chat?.ok === true,
+    type: typeof chat?.type === 'string' ? chat.type : null,
+    close: chat?.close === true,
+    errorPresent: typeof chat?.error === 'string' && chat.error.length > 0,
+    sourceCount:
+      typeof chat?.sourceCount === 'number'
+        ? chat.sourceCount
+        : sanitizedSources(chat?.sources).count,
+  });
+  return {
+    transport: {
+      https: report?.transport?.https === true,
+      insecureOverride: report?.transport?.insecureOverride === true,
+    },
+    auth: { ok: report?.auth?.ok === true },
+    workspace: { found: report?.workspace != null },
+    retrieval: {
+      ok: report?.retrieval?.ok === true,
+      resultCount:
+        typeof report?.retrieval?.resultCount === 'number' ? report.retrieval.resultCount : 0,
+    },
+    thread: { created: report?.thread != null },
+    syncChat: sanitizeChat(report.syncChat),
+    streamChat: sanitizeChat(report.streamChat),
+  };
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const required = ['ANYTHINGLLM_BASE_URL', 'ANYTHINGLLM_API_KEY', 'ANYTHINGLLM_WORKSPACE_SLUG'];
   const missing = required.filter((name) => !process.env[name]);
@@ -213,7 +237,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       chatQuery: process.env.ANYTHINGLLM_CHAT_QUERY ?? 'What does the company do?',
       allowInsecure: process.env.ALLOW_INSECURE_ANYTHINGLLM === 'true',
     })
-      .then((report) => console.log(JSON.stringify(report, null, 2)))
+      .then((report) => console.log(JSON.stringify(sanitizedProbeReport(report), null, 2)))
       .catch((error) => {
         console.error(error instanceof Error ? error.message : String(error));
         process.exitCode = 1;

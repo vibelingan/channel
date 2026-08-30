@@ -7,19 +7,18 @@
  */
 
 import { createHash } from 'node:crypto';
-import {
-  type ConversationEngine,
-  type EngineCancelResult,
-  type EngineCapabilities,
-  type EngineCitation,
-  EngineError,
-  type EngineErrorCategory,
-  type EngineEvent,
-  type EngineHealth,
-  type EngineRunHandle,
-  type EngineRunRequest,
-  type KnowledgeAttestation,
-} from '@vibelingan-channel/ai-engine';
+import type { EngineCapabilities } from '@vibelingan-channel/ai-engine/capabilities';
+import { EngineError, type EngineErrorCategory } from '@vibelingan-channel/ai-engine/errors';
+import type {
+  ConversationEngine,
+  EngineCancelResult,
+  EngineCitation,
+  EngineEvent,
+  EngineHealth,
+  EngineRunHandle,
+  EngineRunRequest,
+  KnowledgeAttestation,
+} from '@vibelingan-channel/ai-engine/port';
 import { createReasoningFilter } from './reasoning.ts';
 
 /** Result of asking the engine what it is permitted to do on our behalf. */
@@ -38,6 +37,12 @@ export interface AnythingLlmEngineConfig {
   /** Pinned vendor release, recorded on every run row for incident scoping. */
   engineVersion: string;
   imageDigest?: string;
+  /** Operator assertion from a successful citation-bearing probe. */
+  citationsVerified?: boolean;
+  /** Bumped whenever the knowledge credential changes. */
+  credentialRotationCounter?: number;
+  /** Development-only escape hatch for a bounded probe on remote HTTP. */
+  allowInsecureRemoteHttp?: boolean;
   /** Bumped by whoever rotates the key, so a swap is visible in attestation. */
   rotationCounter?: number;
   /**
@@ -52,6 +57,7 @@ export interface AnythingLlmEngineConfig {
    */
   vendorMaxOutputTokens?: number;
   fetchImpl?: typeof fetch;
+  now?: () => string;
 }
 
 /** Vendor SSE frame. Only the fields we depend on are named. */
@@ -260,6 +266,7 @@ export class AnythingLlmEngine implements ConversationEngine {
 
   #config: AnythingLlmEngineConfig;
   readonly #fetch: typeof fetch;
+  readonly #now: () => string;
   /** Pending request bodies, keyed by operationId, awaiting their stream. */
   readonly #pending = new Map<string, EngineRunRequest>();
   /** In-flight streams this process owns, so it can abort what it holds. */
@@ -271,8 +278,14 @@ export class AnythingLlmEngine implements ConversationEngine {
   readonly #finished = new Set<string>();
 
   constructor(config: AnythingLlmEngineConfig) {
-    this.#config = config;
+    if (!config.apiKey) throw new Error('AnythingLLM API key is required');
+    if (!config.workspaceSlug) throw new Error('AnythingLLM workspace slug is required');
+    this.#config = {
+      ...config,
+      baseUrl: safeBaseUrl(config.baseUrl, config.allowInsecureRemoteHttp === true),
+    };
     this.#fetch = config.fetchImpl ?? fetch;
+    this.#now = config.now ?? (() => new Date().toISOString());
     this.capabilities = {
       engineId: 'anythingllm',
       engineVersion: config.engineVersion,
@@ -286,7 +299,7 @@ export class AnythingLlmEngine implements ConversationEngine {
       supportsStop: true,
       // No stop-by-run-id exists in this protocol family. ADR-002 §3.
       supportsOutOfBandStop: false,
-      supportsCitations: true,
+      supportsCitations: config.citationsVerified === true,
       ...(config.vendorMaxOutputTokens
         ? { vendorMaxOutputTokens: config.vendorMaxOutputTokens }
         : {}),
@@ -518,10 +531,11 @@ export class AnythingLlmEngine implements ConversationEngine {
    * compares "which credential is serving" against the one that was probed.
    */
   rotateKnowledgeCredential(apiKey: string): void {
+    if (!apiKey) throw new Error('AnythingLLM API key is required');
     this.#config = {
       ...this.#config,
       apiKey,
-      rotationCounter: (this.#config.rotationCounter ?? 0) + 1,
+      credentialRotationCounter: (this.#config.credentialRotationCounter ?? 1) + 1,
     };
   }
 
@@ -555,19 +569,46 @@ export class AnythingLlmEngine implements ConversationEngine {
       );
       if (!response.ok)
         return { known: false, enabled: false, detail: `status ${response.status}` };
-      const body = (await response.json()) as {
-        workspace?: { agentProvider?: string | null; agentModel?: string | null }[];
-      };
-      const workspace = body.workspace?.[0] ?? {};
-      const enabled = Boolean(workspace.agentProvider) || Boolean(workspace.agentModel);
+      const body: unknown = await response.json();
+      const workspaceValue = isRecord(body) ? body.workspace : undefined;
+      const workspace = Array.isArray(workspaceValue)
+        ? isRecord(workspaceValue[0])
+          ? workspaceValue[0]
+          : null
+        : isRecord(workspaceValue)
+          ? workspaceValue
+          : null;
+      if (!workspace) {
+        return { known: false, enabled: false, detail: 'workspace shape could not be verified' };
+      }
+      const unreviewedFields = Object.keys(workspace)
+        .filter((field) => !REVIEWED_WORKSPACE_FIELDS.has(field))
+        .sort();
+      if (unreviewedFields.length > 0) {
+        return {
+          known: false,
+          enabled: false,
+          detail: `unreviewed workspace fields: ${unreviewedFields.join(', ')}`,
+        };
+      }
+      const unreviewedNested = unreviewedWorkspaceChildren(workspace);
+      if (unreviewedNested.length > 0) {
+        return {
+          known: false,
+          enabled: false,
+          detail: `unreviewed nested workspace fields: ${unreviewedNested.join(', ')}`,
+        };
+      }
+      const enabledPaths = enabledCapabilityPaths(workspace);
+      const enabled = enabledPaths.length > 0;
       return {
         known: true,
         enabled,
-        // Named, not the value — an operator needs to know WHICH surface is on,
-        // and a provider name is not a credential.
+        // Field paths, never values: enough to identify every enabled surface
+        // without copying a provider setting or fork-specific value into logs.
         detail: enabled
-          ? `agentProvider=${workspace.agentProvider ?? 'unset'}`
-          : 'no agent surface',
+          ? `enabled capability fields: ${enabledPaths.join(', ')}`
+          : 'no tool surface',
       };
     } catch {
       // Unreachable is not the same as "tools are on". Report that we could not
@@ -577,14 +618,19 @@ export class AnythingLlmEngine implements ConversationEngine {
   }
 
   async health(): Promise<EngineHealth> {
-    const checkedAt = new Date().toISOString();
+    const checkedAt = this.#now();
     try {
-      const res = await this.#fetch(`${this.#config.baseUrl}/api/ping`, {
+      const res = await this.#fetch(`${this.#config.baseUrl}/api/v1/auth`, {
+        headers: { Authorization: `Bearer ${this.#config.apiKey}` },
         signal: AbortSignal.timeout(5_000),
       });
-      return { status: res.ok ? 'live' : 'degraded', checkedAt };
+      const body: unknown = await res.json().catch(() => null);
+      return {
+        status: res.ok && isRecord(body) && body.authenticated === true ? 'live' : 'degraded',
+        checkedAt,
+      };
     } catch {
-      return { status: 'disabled', checkedAt };
+      return { status: 'degraded', checkedAt };
     }
   }
 
@@ -592,8 +638,8 @@ export class AnythingLlmEngine implements ConversationEngine {
     return {
       // A hash, never the key. SECURITY.md §4 wants the identity of the
       // credential that is serving, not its value.
-      credentialId: createHash('sha256').update(this.#config.apiKey).digest('hex').slice(0, 32),
-      rotationCounter: this.#config.rotationCounter ?? 0,
+      credentialId: createHash('sha256').update(this.#config.apiKey).digest('hex').slice(0, 16),
+      rotationCounter: this.#config.credentialRotationCounter ?? 1,
       spaceId: this.#config.workspaceSlug,
     };
   }
@@ -627,22 +673,28 @@ export class AnythingLlmEngine implements ConversationEngine {
 
   #citationsFrom(sources: VendorSource[] | undefined): EngineCitation[] {
     if (!Array.isArray(sources)) return [];
-    const now = new Date().toISOString();
+    const now = this.#now();
     return sources
       .filter((s) => s && (s.id || s.title))
       .map((s) => {
-        const url = s.docSource ?? s.url;
+        const provenance = String(s.title ?? s.docSource ?? s.id);
+        const url = publicSourceUrl(s.url, s.docSource);
         const snippet = stripDocumentMetadata(s.text);
+        const description = s.description?.trim();
+        const readerTitle =
+          description && description.toLowerCase() !== 'unknown'
+            ? description
+            : String(s.title ?? s.id);
         return {
           // The PAGE, not the chunk. Retrieval hands back several chunks of one
           // document; citing each one sends the visitor to the same page three
           // times. The chunk id is a vendor-internal handle anyway, which the
           // port explicitly says a sourceId must not be.
-          sourceId: String(s.docSource ?? s.title ?? s.id),
+          sourceId: provenance,
           // Prefer the human description supplied at ingest. The raw title is the
           // storage filename, and "en-us-headphones.txt" is not a citation a
           // customer can act on.
-          title: String(s.description ?? s.title ?? s.id),
+          title: readerTitle,
           retrievedAt: parseVendorDate(s.published) ?? now,
           // Spread rather than assign undefined: the workspace runs with
           // exactOptionalPropertyTypes, where an explicit undefined is not the
@@ -652,6 +704,21 @@ export class AnythingLlmEngine implements ConversationEngine {
         };
       });
   }
+}
+
+function publicSourceUrl(...candidates: Array<string | undefined>): string | undefined {
+  for (const value of candidates) {
+    if (!value) continue;
+    if (value.startsWith('/') && !value.startsWith('//')) return value;
+    try {
+      const url = new URL(value);
+      if (url.protocol === 'https:' || url.protocol === 'http:') return url.toString();
+    } catch {
+      // A vendor description such as "a text file uploaded by the user" is
+      // not a URL. Try the next candidate without exposing it as a link.
+    }
+  }
+  return undefined;
 }
 
 /** The vendor prefixes chunk text with a metadata block that is not prose. */
@@ -664,6 +731,144 @@ function parseVendorDate(value: string | undefined): string | null {
   if (!value) return null;
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? null : new Date(parsed).toISOString();
+}
+
+function safeBaseUrl(value: string, allowInsecure: boolean): string {
+  const url = new URL(value);
+  const local = ['localhost', '127.0.0.1', '::1', 'anythingllm'].includes(url.hostname);
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && (local || allowInsecure))) {
+    throw new Error('AnythingLLM requires HTTPS for remote endpoints');
+  }
+  return url.toString().replace(/\/$/, '');
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+const CAPABILITY_FIELD = /(agent|tool|skill|mcp|plugin|function|action)/i;
+
+// Exact top-level shape observed from both `/api/v1/workspaces` and the
+// selected hosted fork's `/api/v1/workspace/{slug}` on 2026-08-31. A new field
+// is not assumed passive: startup stops until someone reviews and adds it.
+const REVIEWED_WORKSPACE_FIELDS = new Set([
+  'agentModel',
+  'agentProvider',
+  'chatMode',
+  'chatModel',
+  'chatProvider',
+  'createdAt',
+  'documents',
+  'id',
+  'lastUpdatedAt',
+  'name',
+  'openAiHistory',
+  'openAiPrompt',
+  'openAiTemp',
+  'pfpFilename',
+  'queryRefusalResponse',
+  'router_id',
+  'similarityThreshold',
+  'slug',
+  'threads',
+  'topN',
+  'vectorSearchMode',
+  'vectorTag',
+]);
+
+const REVIEWED_DOCUMENT_FIELDS = new Set([
+  'createdAt',
+  'docId',
+  'docpath',
+  'filename',
+  'id',
+  'lastUpdatedAt',
+  'metadata',
+  'pinned',
+  'watched',
+  'workspaceId',
+]);
+const REVIEWED_THREAD_FIELDS = new Set(['slug', 'user_id']);
+
+function unreviewedWorkspaceChildren(workspace: Record<string, unknown>): string[] {
+  const failures: string[] = [];
+  const inspect = (name: 'documents' | 'threads', allowed: Set<string>): void => {
+    const collection = workspace[name];
+    if (collection === undefined || collection === null) return;
+    if (!Array.isArray(collection)) {
+      failures.push(`${name} (not an array)`);
+      return;
+    }
+    collection.forEach((entry, index) => {
+      if (!isRecord(entry)) {
+        failures.push(`${name}[${index}] (not an object)`);
+        return;
+      }
+      for (const field of Object.keys(entry)) {
+        if (!allowed.has(field)) failures.push(`${name}[${index}].${field}`);
+      }
+    });
+  };
+  inspect('documents', REVIEWED_DOCUMENT_FIELDS);
+  inspect('threads', REVIEWED_THREAD_FIELDS);
+  return failures.sort();
+}
+
+function hasEnabledValue(value: unknown): boolean {
+  if (value === null || value === undefined || value === false || value === '' || value === 0) {
+    return false;
+  }
+  if (Array.isArray(value)) return value.some(hasEnabledValue);
+  if (isRecord(value)) return Object.values(value).some(hasEnabledValue);
+  return true;
+}
+
+/**
+ * Enumerate every capability-shaped field exposed by the workspace response,
+ * including fork-specific nested tool/skill fields. The protocol has no
+ * mid-stream tool-call frame, so an enabled field we did not enumerate would
+ * bypass maxToolCalls=0. Values are deliberately not returned or logged.
+ */
+function enabledCapabilityPaths(value: Record<string, unknown>): string[] {
+  const paths: string[] = [];
+  const visit = (record: Record<string, unknown>, prefix: string): void => {
+    for (const [key, child] of Object.entries(record)) {
+      const path = prefix ? `${prefix}.${key}` : key;
+      if (CAPABILITY_FIELD.test(key) && hasEnabledValue(child)) paths.push(path);
+      if (isRecord(child)) visit(child, path);
+      if (Array.isArray(child)) {
+        child.forEach((entry, index) => {
+          if (isRecord(entry)) visit(entry, `${path}[${index}]`);
+        });
+      }
+    }
+  };
+  visit(value, '');
+  return [...new Set(paths)].sort();
+}
+
+function vendorSource(value: unknown): VendorSource | null {
+  if (!isRecord(value)) return null;
+  const source: VendorSource = {};
+  const id = optionalString(value.id);
+  const title = optionalString(value.title);
+  const description = optionalString(value.description);
+  const docSource = optionalString(value.docSource);
+  const url = optionalString(value.url);
+  const text = optionalString(value.text);
+  const published = optionalString(value.published);
+  if (id) source.id = id;
+  if (title) source.title = title;
+  if (description) source.description = description;
+  if (docSource) source.docSource = docSource;
+  if (url) source.url = url;
+  if (text) source.text = text;
+  if (published) source.published = published;
+  return source;
 }
 
 /** One SSE block to a frame, or null when it is empty or unparseable. */
@@ -681,10 +886,35 @@ function parseSseFrame(raw: string): VendorFrame | null {
     // empty-but-valid one, and the hole would be silent. It matters more now
     // that the production knowledge base is a third-party fork whose frame
     // shape is nobody's contract.
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    if (!isRecord(parsed)) {
       return { malformed: true };
     }
-    return parsed as VendorFrame;
+    const type = optionalString(parsed.type);
+    const textResponse = parsed.textResponse === null ? null : optionalString(parsed.textResponse);
+    const close = typeof parsed.close === 'boolean' ? parsed.close : undefined;
+    const error =
+      parsed.error === null || typeof parsed.error === 'boolean' || typeof parsed.error === 'string'
+        ? parsed.error
+        : undefined;
+    if (
+      ('type' in parsed && type === undefined) ||
+      ('textResponse' in parsed && textResponse === undefined) ||
+      ('close' in parsed && close === undefined) ||
+      ('error' in parsed && error === undefined)
+    ) {
+      return { malformed: true };
+    }
+    const sources = Array.isArray(parsed.sources)
+      ? parsed.sources.map(vendorSource).filter((source): source is VendorSource => source !== null)
+      : undefined;
+    if ('sources' in parsed && !Array.isArray(parsed.sources)) return { malformed: true };
+    return {
+      ...(type === undefined ? {} : { type }),
+      ...(textResponse === undefined ? {} : { textResponse }),
+      ...(sources === undefined ? {} : { sources }),
+      ...(close === undefined ? {} : { close }),
+      ...(error === undefined ? {} : { error }),
+    };
   } catch {
     // Reported, not skipped. Silently dropping a fragment hands the visitor an
     // answer with a hole in it that reads as complete — and for a sales

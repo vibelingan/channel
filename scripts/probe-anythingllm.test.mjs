@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { after, before, test } from 'node:test';
-import { probeAnythingLlm } from './probe-anythingllm.mjs';
+import { probeAnythingLlm, sanitizedProbeReport } from './probe-anythingllm.mjs';
 
 const testCredential = ['fixture', 'value', 'must', 'not', 'leak'].join('-');
 const workspaceSlug = 'workspace-1';
@@ -160,4 +160,32 @@ test('probe classifies an SSE abort as a generation failure', async () => {
   assert.equal(report.streamChat.type, 'abort');
   assert.match(report.streamChat.error, /403/);
   assert.doesNotMatch(JSON.stringify(report), new RegExp(testCredential));
+});
+
+test('the CLI-safe report exposes counts and status only', () => {
+  const safe = sanitizedProbeReport({
+    transport: { baseUrl: 'http://internal-kb.example:3001', https: false },
+    auth: { ok: true },
+    workspace: { name: 'INTERNAL WORKSPACE', slug: 'internal-workspace' },
+    retrieval: {
+      ok: true,
+      resultCount: 1,
+      results: [{ title: 'hermes-skills-private.md', chunkSource: '/opt/private/source.md' }],
+    },
+    thread: { slug: 'INTERNAL THREAD', name: 'probe' },
+    syncChat: {
+      ok: true,
+      textResponse: 'INTERNAL GENERATED ANSWER',
+      sources: [{ title: 'hermes-skills-private.md', text: 'INTERNAL SOURCE CHUNK' }],
+    },
+    streamChat: {
+      ok: true,
+      textResponse: 'STREAMED INTERNAL ANSWER',
+      sources: [],
+    },
+  });
+  const serialized = JSON.stringify(safe);
+  assert.doesNotMatch(serialized, /INTERNAL|STREAMED|hermes|private|source\.md|internal-kb/);
+  assert.equal(safe.retrieval.resultCount, 1);
+  assert.equal(safe.syncChat.sourceCount, 1);
 });

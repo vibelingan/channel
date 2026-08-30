@@ -240,8 +240,11 @@ async function api(base, key, path, init = {}) {
 
 async function main() {
   const dryRun = process.argv.includes('--dry-run');
-  const base = process.env.ANYTHINGLLM_BASE_URL ?? 'http://localhost:53001';
-  const workspace_ = process.env.ANYTHINGLLM_WORKSPACE ?? 'channel-public-assistant';
+  const base = process.env.ANYTHINGLLM_LOCAL_ADMIN_URL ?? 'http://127.0.0.1:53001';
+  const workspace_ =
+    process.env.ANYTHINGLLM_WORKSPACE_SLUG ??
+    process.env.ANYTHINGLLM_WORKSPACE ??
+    'channel-public-assistant';
   const key = process.env.ANYTHINGLLM_API_KEY;
   if (!key && !dryRun) throw new Error('ANYTHINGLLM_API_KEY is not set');
 

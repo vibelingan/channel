@@ -1,7 +1,7 @@
 # Production KB and CloudRun/PostgreSQL runbook
 
 **Status:** local BFF/worker/store/widget implemented and verified; production release blocked
-**Evidence date:** 2026-08-25 (Asia/Tokyo)
+**Evidence date:** 2026-08-31 (Asia/Tokyo)
 **Scope:** Channel public website assistant only
 
 This runbook joins the local Docker substrate, the supplied production
@@ -19,10 +19,12 @@ password, or private network identifier.
 | Local AnythingLLM | Container and `/api/ping` healthy | Runtime shape works; model E2E is not proven without a local model key |
 | Production KB auth | PASS | Supplied developer token is valid |
 | Production vector search | PASS, four results returned | Retrieval is separately callable from generation |
-| Production sync chat | FAIL: HTTP 500 wrapping upstream model 403 | Model/provider permission is broken |
-| Production SSE chat | Transport responds, then `type=abort` with the same upstream 403 | SSE route exists; successful token streaming is not proven |
-| Production citations | Zero, because generation aborts | `supportsCitations` remains unproven |
-| Public-corpus isolation | FAIL: `hermes-skills-*` appeared in results | This workspace must not serve public website traffic |
+| Production sync chat | PASS on the current hosted workspace | The reported truncated development key/provider 403 was repaired upstream |
+| Production SSE chat | PASS on both thread and workspace routes | The installed fork can complete a streamed generation |
+| Production citations | PASS: the final frame contains document provenance | The adapter may set `supportsCitations` only for this probed workspace/credential pair |
+| Public-corpus isolation | FAIL: the current workspace also contains a gateway test document | The application gate blocks it, but production still requires a dedicated public-only workspace |
+| Local application -> production KB | PASS: local BFF, PostgreSQL and worker completed one approved query | Phase 1 integration works without exposing the KB token to the browser |
+| Negative source-boundary probe | PASS: the gateway-document query emitted one error and zero token/citation events | Unapproved provider output is withheld before publication |
 | Transport security | FAIL: remote service is plain HTTP on a public high port | Rotate the exposed token and require HTTPS before reuse |
 | CloudBase environment | PASS: Shanghai, Standard plan, prepaid through 2027-07-31 | Existing environment is usable, but it is not pay-as-you-go |
 | CloudBase database mode | NoSQL only; PostgreSQL is not provisioned | Use a separate pay-as-you-go TencentDB PostgreSQL for the bounded integration window |
@@ -74,10 +76,10 @@ sequenceDiagram
   Probe->>KB: POST /thread/new
   Probe->>KB: POST /thread/{id}/chat
   KB->>Model: generate
-  Model-->>KB: 403 permission denied
-  KB-->>Probe: HTTP 500 classified as generation failure
+  Model-->>KB: generated answer
+  KB-->>Probe: HTTP 200 answer and sources
   Probe->>KB: POST /thread/{id}/stream-chat
-  KB-->>Probe: SSE abort classified as generation failure
+  KB-->>Probe: SSE tokens and citation-bearing final frame
 ```
 
 ### Best-practice fix
@@ -98,7 +100,7 @@ sequenceDiagram
 - Recording raw responses: rejected because source chunks can contain internal
   material and logs can become a second leak.
 - Treating `200 /api/ping` as readiness: rejected because the observed model
-  path still returns 403.
+  path is rechecked through authenticated chat rather than inferred from ping.
 
 ### Risk / test
 
@@ -137,11 +139,9 @@ The verified machine needed `AI_POSTGRES_PORT=55433` because another project
 already owned `55432`; the other container was preserved. The default runtime
 uses the deterministic fake engine so the full outbox/SSE path can be checked
 without a provider key. For optional local KB work, `pnpm dev:ai:full` starts
-AnythingLLM, which resolved
-to image digest
-`sha256:a5de2ba74bf28dfadeb2e09fab202efbd358c4a7127d040373f2588eea928bea`.
-`latest` is acceptable for this local probe only; production must pin a reviewed
-version and digest.
+the AnythingLLM image pinned in `docker-compose.ai.yml`. The compose file and
+worker attestation must move version and digest together; `latest` is not
+accepted even for the normal local stack.
 
 ### 3. Verify PostgreSQL
 
@@ -168,26 +168,59 @@ created through the same application paths used in production.
 
 ## Production KB findings and required corrections
 
-### What is working
+### What is working now
 
 - API authentication succeeds.
 - Workspace lookup succeeds.
 - `/vector-search` returns ranked results, closing ADR-002 question 1 for this
   installed fork.
-- The thread create, sync chat and SSE routes exist.
+- Thread creation, sync chat, thread SSE and workspace SSE all complete.
+- The final hosted-fork frame includes citations. The local adapter preserves
+  the document title as provenance, removes `file:` URLs, and presents a human
+  description only when the provider supplies one.
+- A complete local Phase 1 path was rerun on 2026-08-31 against an isolated
+  PostgreSQL database: browser contract -> BFF -> outbox -> worker -> hosted KB
+  -> publication policy -> SSE final.
 - System settings report `generic-openai`, a ZenMux-compatible base path, native
   embeddings and LanceDB. Secret setting values are returned as booleans, not
   raw strings.
 
-### What is broken
+### What remains broken or release-blocking
 
-- Both chat routes fail with upstream `403 You have no permission to access this
-  resource`. The current model permission/model selection must be repaired at
-  the provider; changing retrieval code will not fix this.
-- Successful token streaming and citations remain unverified until generation
-  succeeds.
-- Vector results include `hermes-skills-*`. That is direct evidence that the
-  workspace is not an isolated, approved public FAQ corpus.
+- The original upstream model `403` is no longer reproducible. It was reported
+  fixed by replacing the truncated development key, and authenticated live
+  calls now independently confirm sync chat, SSE and citations.
+- The workspace identifier in the supplied screenshot is stale. The current
+  authenticated workspace inventory contains a different workspace; operators
+  must discover and approve the target instead of copying the screenshot slug.
+- The current workspace contains both an approved positioning document and a
+  gateway test document. The application now refuses any answer with mixed or
+  unapproved provenance, but a policy gate is defense in depth, not corpus
+  isolation. Create a dedicated public-only workspace before release.
+- The hosted service is still plain HTTP. The successful Phase 1 check used the
+  explicitly named diagnostic override; that override is forbidden by the
+  production manifest.
+- The independently described lightweight MCP/FTS service on port 9021 is a
+  different product surface and remains unreachable remotely. It is not the
+  `ConversationEngine` used by this Phase 1 path.
+
+### Phase 1 acceptance recorded on 2026-08-31
+
+The acceptance used local built artifacts, an isolated local PostgreSQL
+database, the local BFF and worker, and the current hosted KB. No cloud resource
+was created or changed.
+
+| Probe | Expected | Observed |
+| --- | --- | --- |
+| BFF and worker readiness | both ready before traffic | PASS |
+| Approved company question | token, approved citation, final | PASS (`token`, `citation`, `final`) |
+| Provenance | approved document namespace; no `file:` URL | PASS |
+| Gateway test question | fail closed before publication | PASS (`error` only) |
+| Rejected-output leakage | no token and no citation | PASS (0 / 0) |
+
+This proves the Phase 1 application integration. It does **not** authorize a
+production launch: HTTPS, token rotation, a dedicated public corpus, immutable
+engine provenance, and the approved PostgreSQL/VPC deployment are still open.
 
 ### Secret and authority audit
 
@@ -265,14 +298,16 @@ The following is a starting hypothesis, not a production sizing claim:
 
 | Service | CPU / memory | Min / max instances | Why |
 | --- | --- | --- | --- |
-| BFF during private integration | 0.5 CPU / 1 GiB | 0 / 3 | low spend; cold starts accepted |
-| Worker during private integration | 0.5 CPU / 1 GiB | 0 / 2 | no idle worker spend |
-| BFF at customer pilot | 0.5 CPU / 1 GiB | 1 / measured max | remove first-token cold-start penalty |
+| BFF during private integration | 0.5 CPU / 1 GiB | 1 / 5 | match the deploy manifest and avoid first-request cold start |
+| Worker during private integration | 0.5 CPU / 1 GiB | 1 / 3 | an outbox worker cannot wake itself from zero |
+| BFF at customer pilot | 0.5 CPU / 1 GiB | 1 / measured max | retain one warm instance and tune the ceiling from measurements |
 
 CloudBase fixes memory at twice CPU and permits scale-to-zero or a warm minimum.
-Move from zero to one warm BFF only after measuring cold-start and first-token
-latency. The existing `ai-probe` is larger (1 CPU / 2 GiB, min 0 / max 5), but
-its current 503 means it is not sizing evidence for the production service.
+The committed production manifest deliberately keeps both services at one:
+the BFF avoids a first-visitor cold start, while the worker must already be
+running to discover queued work. The existing `ai-probe` is larger (1 CPU / 2
+GiB, min 0 / max 5), but its current 503 means it is not sizing evidence for
+the production service.
 TencentDB PostgreSQL supports hourly postpaid billing and can be
 released after a bounded integration window; actual instance/storage prices
 must be taken from the logged-in calculator at purchase time.
@@ -290,11 +325,12 @@ must be taken from the logged-in calculator at purchase time.
 | Variable / identifier | Where it belongs |
 | --- | --- |
 | `DATABASE_URL` | BFF and worker protected runtime environment |
-| `ANYTHINGLLM_BASE_URL` | BFF/worker runtime environment; HTTPS/private only |
-| `ANYTHINGLLM_API_KEY` | BFF/worker protected runtime environment |
+| `ANYTHINGLLM_BASE_URL` | worker runtime environment; HTTPS/private only |
+| `ANYTHINGLLM_API_KEY` | worker protected runtime environment |
 | `AI_KNOWLEDGE_CREDENTIAL_ID` | non-secret approved attestation identity; worker startup must match it |
 | `AI_IP_HASH_SECRET` | BFF protected runtime environment; HMAC-pseudonymizes rate-limit subjects |
 | `AI_WORKER_LEASE_SECONDS` | worker runtime; must exceed maximum stream duration by at least five seconds |
+| `AI_SITE_ORIGIN` | worker runtime; exact first-party origin allowed for citation links |
 | `VPC_ID`, CloudRun subnet ID | protected deployment inventory |
 | TencentDB instance ID, private host, port, database | protected deployment inventory |
 | provider model/key and spend cap | protected runtime/provider console |
