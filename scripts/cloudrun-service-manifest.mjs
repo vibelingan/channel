@@ -36,7 +36,16 @@ export const SECRET_ENV_KEYS = ['DATABASE_URL', 'ZENMUX_API_KEY', 'ANYTHINGLLM_A
  * last line rather than the first: a deploy manifest that sets it at all is a
  * mistake, and the manifest test fails on its presence.
  */
-export const FORBIDDEN_ENV_KEYS = ['AI_LOCAL_HARNESS', 'AI_DEV_UNSAFE_ALLOW_UNGATED_ENGINE'];
+// Flags that disable a control. Each one is legitimate on a developer's machine
+// and never in production, so production refuses to deploy carrying any of them.
+// ALLOW_INSECURE_ANYTHINGLLM turns off the HTTPS requirement on the knowledge
+// base — which carries an INSTANCE-WIDE developer token — so it belongs here
+// beside the harness flag rather than relying on nobody copying a compose file.
+export const FORBIDDEN_ENV_KEYS = [
+  'AI_LOCAL_HARNESS',
+  'AI_DEV_UNSAFE_ALLOW_UNGATED_ENGINE',
+  'ALLOW_INSECURE_ANYTHINGLLM',
+];
 
 /** Drop undefined values so optional variables are omitted, not set to "undefined". */
 export function envEntries(record) {

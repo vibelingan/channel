@@ -2,17 +2,33 @@ const baseUrl = (process.argv[2] ?? process.env.AI_BFF_URL ?? 'http://localhost:
   /\/$/,
   '',
 );
+// Liveness and readiness are SEPARATE probes and assert different things.
+// Liveness must not touch the database — a database blip restarting a healthy
+// container makes the outage longer, not shorter — so the database contract is
+// asserted against readiness, which is the probe that is allowed to fail.
 const response = await fetch(`${baseUrl}/api/ai/healthz`, {
   signal: AbortSignal.timeout(10_000),
 });
 if (!response.ok) throw new Error(`AI BFF health returned HTTP ${response.status}`);
 const payload = await response.json();
+if (payload?.status !== 'live' || payload?.service !== 'channel-ai-bff') {
+  throw new Error('AI BFF liveness contract mismatch');
+}
+if (payload?.database !== undefined) {
+  throw new Error('AI BFF liveness must not report a database; that belongs on readiness');
+}
+
+const readyResponse = await fetch(`${baseUrl}/api/ai/readyz`, {
+  signal: AbortSignal.timeout(10_000),
+});
+if (!readyResponse.ok) throw new Error(`AI BFF readiness returned HTTP ${readyResponse.status}`);
+const readyPayload = await readyResponse.json();
 if (
-  payload?.status !== 'live' ||
-  payload?.service !== 'channel-ai-bff' ||
-  payload?.database?.isolation !== 'read committed'
+  readyPayload?.status !== 'ready' ||
+  readyPayload?.service !== 'channel-ai-bff' ||
+  readyPayload?.database?.isolation !== 'read committed'
 ) {
-  throw new Error('AI BFF health contract mismatch');
+  throw new Error('AI BFF readiness contract mismatch');
 }
 
 const conversationResponse = await fetch(`${baseUrl}/api/ai/conversations`, {

@@ -48,6 +48,26 @@ export interface GroundingPolicy {
   approvedSourcePrefix: string;
 }
 
+/**
+ * KNOWN LIMIT, stated because the next reader will otherwise assume more.
+ *
+ * This matches on the citation TITLE, which is the document name the engine
+ * reports — not a cryptographic identity. The adapter hashes `sourceId` because
+ * raw vendor ids are internal handles, so the title is the only stable name we
+ * get back. Two consequences:
+ *
+ *  - If the engine ever stops putting the document name in `title`, every
+ *    answer is refused. That is the safe direction, and readiness will keep
+ *    reporting live, so the symptom is an assistant that says nothing rather
+ *    than an alarm. `safeDetail: 'no publishable source'` on the event is how
+ *    you tell that apart from an outage.
+ *  - Anyone who can upload to the retrieval workspace can name a document with
+ *    this prefix. That is acceptable only while the workspace is one we control.
+ *    It is NOT acceptable on the shared hosted workspace the 2026-08-25 probe
+ *    found, which is why a dedicated public workspace is a release gate (K4/K5
+ *    in the review triage) and not a nicety.
+ */
+
 export const DEFAULT_GROUNDING_POLICY: GroundingPolicy = Object.freeze({
   // What scripts/ai-corpus-refresh.mjs names every document it publishes.
   approvedSourcePrefix: 'channelkb',
