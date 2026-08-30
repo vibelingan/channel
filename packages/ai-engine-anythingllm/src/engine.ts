@@ -675,7 +675,16 @@ function parseSseFrame(raw: string): VendorFrame | null {
     .join('');
   if (!payload || payload === '[DONE]') return null;
   try {
-    return JSON.parse(payload) as VendorFrame;
+    const parsed: unknown = JSON.parse(payload);
+    // Every VendorFrame field is optional, so casting would accept a bare
+    // scalar — `42` would become a frame with no text and no sources, i.e. an
+    // empty-but-valid one, and the hole would be silent. It matters more now
+    // that the production knowledge base is a third-party fork whose frame
+    // shape is nobody's contract.
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      return { malformed: true };
+    }
+    return parsed as VendorFrame;
   } catch {
     // Reported, not skipped. Silently dropping a fragment hands the visitor an
     // answer with a hole in it that reads as complete — and for a sales

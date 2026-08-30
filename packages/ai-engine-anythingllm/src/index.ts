@@ -187,7 +187,9 @@ export class AnythingLlmEngine implements ConversationEngine {
     if (!response.ok) {
       throw new EngineError(response.status === 429 ? 'quota' : 'unavailable');
     }
-    return response.json() as Promise<unknown>;
+    // No assertion: the declared Promise<unknown> return already forces every
+    // caller to narrow, which is the property we want at a vendor boundary.
+    return response.json();
   }
 
   #headers(extra: Record<string, string> = {}): Record<string, string> {

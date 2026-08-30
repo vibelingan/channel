@@ -96,7 +96,7 @@ export function AssistantWidget() {
         },
       );
       if (!response.ok) throw new Error('message_failed');
-      const accepted = (await response.json()) as AppendMessageResponse;
+      const accepted = parseAppendMessage(await response.json());
       if (accepted.disposition !== 'replayed') await stream(active);
     } catch (caught) {
       if (isAbortError(caught)) return;
@@ -280,6 +280,14 @@ export function AssistantWidget() {
               </a>
             ) : (
               <form
+                // The panel only renders once hydrated, so this form never
+                // reaches a browser with no JavaScript. `method="post"` is
+                // declared anyway: a <form> with no method natively submits
+                // GET, which would put whatever the visitor typed into the URL,
+                // their history and the Referer header. Making that safe by
+                // construction beats relying on a render-order argument that a
+                // later refactor can silently invalidate.
+                method="post"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void submit();
@@ -360,7 +368,53 @@ async function createConversation(apiBase: string): Promise<StoredConversation> 
     body: JSON.stringify({ locale: 'en' }),
   });
   if (!response.ok) throw new Error('conversation_failed');
-  return response.json() as Promise<CreateConversationResponse>;
+  return parseCreateConversation(await response.json());
+}
+
+/**
+ * Narrow, rather than assert, at the boundary.
+ *
+ * A type assertion is erased at build time and checks nothing. A response
+ * missing `credential` would sail through, then surface much later in an
+ * Authorization header reading "Bearer undefined" and fail with an HTTP 401
+ * nowhere near the cause. These throw where the bad data actually arrives.
+ */
+function parseCreateConversation(value: unknown): CreateConversationResponse {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('conversationId' in value) ||
+    typeof value.conversationId !== 'string' ||
+    !('credential' in value) ||
+    typeof value.credential !== 'string' ||
+    !('expiresAt' in value) ||
+    typeof value.expiresAt !== 'string'
+  ) {
+    throw new Error('conversation_malformed');
+  }
+  return {
+    conversationId: value.conversationId,
+    credential: value.credential,
+    expiresAt: value.expiresAt,
+  };
+}
+
+function parseAppendMessage(value: unknown): AppendMessageResponse {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('messageId' in value) ||
+    typeof value.messageId !== 'string' ||
+    !('runId' in value) ||
+    (value.runId !== null && typeof value.runId !== 'string') ||
+    !('disposition' in value) ||
+    (value.disposition !== 'started' &&
+      value.disposition !== 'queued' &&
+      value.disposition !== 'replayed')
+  ) {
+    throw new Error('message_malformed');
+  }
+  return { messageId: value.messageId, runId: value.runId, disposition: value.disposition };
 }
 
 function readConversation(): StoredConversation | null {
