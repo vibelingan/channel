@@ -15,22 +15,17 @@ Its observed size was `101210` bytes. The stable staged summary matches
 [`REAL-WORKBOOK-SUMMARY.json`](./REAL-WORKBOOK-SUMMARY.json) when the generated timestamp
 is omitted.
 
-## Fail-closed hash gate — run before any parser command
+## One fail-closed sequence: hash gate, then Node 22 parser commands
 
 ```bash
 : "${CHANNEL_IMPORT_WORKBOOK:?set CHANNEL_IMPORT_WORKBOOK to the supplied .xlsx file}"
 expected_sha256='57b29269f60752efcf0c0f7c3e188b4ff8d80faff82802471049a8f461416582'
 actual_sha256="$(shasum -a 256 "$CHANNEL_IMPORT_WORKBOOK" | awk '{print $1}')"
-test "$actual_sha256" = "$expected_sha256"
-```
+if [ "$actual_sha256" != "$expected_sha256" ]; then
+  printf 'ERROR: refusing to parse: SHA-256 mismatch\n' >&2
+  exit 1
+fi
 
-This command was re-run before the Node 22 dry-run and stage commands below. It passed:
-both `expected_sha256` and `actual_sha256` were the fixed digest above. A missing
-environment variable or non-matching digest exits before parsing.
-
-## Node 22 dry-run and isolated stage
-
-```bash
 mise exec node@22.13.0 -- node --version
 # v22.13.0
 
@@ -49,6 +44,14 @@ LOCAL_DB_FILE="$LOCAL_DB_FILE" LOCAL_MEDIA_DIR="$LOCAL_MEDIA_DIR" \
   src/dianxiaomi-import-cli.ts --file "$CHANNEL_IMPORT_WORKBOOK" --publish-plan \
   --json "$STAGE_SUMMARY"
 ```
+
+Run this block as one shell sequence. A missing environment variable stops at the first
+line; a missing/unreadable file yields a non-matching actual digest; and the explicit
+mismatch branch prints its error to stderr and exits `1` before either parser command is
+reached. It does not rely on the caller enabling `set -e`.
+
+This sequence was re-run before the Node 22 dry-run and stage commands. It passed: both
+`expected_sha256` and `actual_sha256` were the fixed digest above.
 
 The direct package-local `tsx` invocation is intentional. The documented package-script
 form with an additional delimiter passed `--file` as an unexpected positional argument
