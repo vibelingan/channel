@@ -34,7 +34,9 @@ The following boundaries are non-negotiable:
 5. Worker-created catalog content is staged and unpublished. A fresh,
    revision-bound admin approval is required before apply/publication.
 6. Public media remains behind the existing `images.publishedRefCount` gate and
-   `/api/images/:id`; storage privacy is never weakened to make preview easier.
+   `/api/images/:id`; a durable `catalogMediaReferences` relation separately
+   protects staged, draft, and public uses. Storage privacy is never weakened to
+   make preview easier.
 7. Durable work is represented in NoSQL before dispatch. In-memory promises or
    a successful HTTP response are not job state.
 8. Every storage/database saga has compensation plus a dry-run reconciliation
@@ -116,12 +118,15 @@ worker dispatch, deployed auth, networking, cost, or operational recovery.
 Allowed high-level flows:
 
 ```text
-Browser/Admin UI -> Admin Function -> private Storage + NoSQL
-Timer dispatcher -> signed private worker invocation
+Browser/Admin UI -> Admin Function (session, intent, finalize, preview)
+Browser/Admin UI -> private Storage (short-lived one-object raw PUT only)
+Admin Function -> private Storage + NoSQL (object verification and metadata only)
+Timer Dispatcher/Event Function -> NoSQL (eligible-job scan)
+Timer Dispatcher/Event Function -> Worker (platform-authenticated private invocation)
 Worker <-> private Storage + NoSQL
 Worker -> validated HTTPS supplier image origin
 NoSQL/private Storage -> Public API -> Browser, only after publish/refcount eligibility
-Private Storage -> authenticated Admin preview -> browser-local Blob URL
+Private Storage -> authenticated Admin Function -> Browser-local Blob URL
 ```
 
 No flow permits browser -> worker, supplier -> application callback, public API
@@ -150,7 +155,7 @@ internet paths.
 | --- | --- | --- |
 | `createCatalogImportUploadIntent` | `admin` (optionally `contributor` after confirmation) | Validate metadata/admission caps, reserve a generation, choose a private key, mint one-object raw `PUT` credential. |
 | `completeCatalogImportUpload` | Same actor as intent | Consume once; verify intent/generation/object identity, measure bytes and server-side SHA-256, then mark the immutable upload received and create/reuse the deterministic job. No parse. |
-| `retryCatalogImportJob` | `admin` | Increment attempt/revision after checking failure disposition; never overwrite the original object or prior audit. |
+| `retryCatalogImportJob` | `admin` | Retry the same logical job by incrementing `processingAttempt` and revision after checking failure disposition. It does not allocate a replay job or overwrite the original object/audit. |
 | `cancelCatalogImportJob` | `admin` | Persist cancellation request; worker compensates only pre-publication owned resources. |
 | `approveCatalogImportJob` | `admin` | Bind actor/time/job revision/source digest/settings digest/preview digest. Any staged edit invalidates approval. |
 | `applyCatalogImportJob` | `admin` | CAS the approved revision to `applying`; dispatch worker apply. It does not apply synchronously. |
@@ -201,7 +206,11 @@ Requirements:
    Losers read/delete/mutate nothing. The winner verifies the exact object,
    recomputes actual byte size and SHA-256 server-side, and rejects mismatch.
 7. Persist the immutable upload receipt and create/reuse the import job before
-   dispatch. The source object remains private even after job completion.
+   dispatch. Without an explicit replay request, byte-identical input returns
+   the existing base job and the redundant upload generation becomes bounded
+   cleanup work. An explicit replay allocates the next create-if-absent `:rN`
+   job described in section 6.3. The source object remains private even after
+   job completion.
 
 **Gate:** choose the original XLSX compressed-byte cap and intent TTL from real
 workbook sizes and platform request/memory limits. The ZIP expansion/entry/XML
@@ -212,7 +221,7 @@ caps remain separate preflight controls and cannot be inferred from upload size.
 1. Dispatcher invokes the private worker.
 2. Worker finds one `status=created`, `uploadStatus=received` job or one expired
    retryable lease and CASes `revision`, `leaseOwner`, `leaseExpiresAt`,
-   `workerReleaseId`, and `attempt`.
+   `workerReleaseId`, and `processingAttempt`.
 3. Worker reads the original from private storage and reruns digest/size checks.
 4. Channel preflight examines **every archive entry**, including unreferenced
    parts, and fails closed on the limits/forbidden features in
@@ -242,12 +251,19 @@ lease. A retry adopts deterministic records instead of inventing new IDs.
   Metrics use job ID plus sanitized failure code/host label.
 - One failed image costs that image, not unrelated items. Publication still
   requires the existing minimum-image rule.
+- Before an imported image is previewable, the worker idempotently creates its
+  deterministic live `catalogMediaReferences` row for the staged item/slot.
+  Hash deduplication may reuse an image object, but it never reuses or omits the
+  importing job's reference row.
 
 ### 5.4 Private preview
 
 1. Admin requests preview by job/item/image ID through the authenticated app.
-2. Backend verifies current role, job ownership/scope, recognized storage
-   provider, `active` state, and byte-size/MIME allowlist.
+2. Backend verifies current role and job scope, then requires a live
+   `catalogMediaReferences` row whose `jobId`, `itemId`, slot, job revision, and
+   `imageId` match the request. It also verifies the image's recognized storage
+   provider, `active` state, and byte-size/MIME allowlist. Knowing an image ID
+   alone never authorizes preview.
 3. Backend returns bytes with `Cache-Control: private, no-store`,
    `X-Content-Type-Options: nosniff`, and exact allowlisted content type.
 4. Browser builds `Blob` + `URL.createObjectURL(blob)` and revokes the URL when
@@ -266,9 +282,12 @@ not the production contract.
    inputs increments revision and invalidates approval.
 4. Apply action CASes the approved revision. Worker re-reads approval and job
    state, then uses existing idempotent canonical link/product/variant services.
-5. Media rows remain `publishedRefCount: 0` until an actually published catalog
-   document references them. Refcount maintenance uses the existing shared
-   boundary.
+5. Apply creates live deterministic draft/public reference rows before releasing
+   the staged rows, so there is no liveness gap. Media rows remain
+   `publishedRefCount: 0` until
+   an actually published catalog relation references them. The counter is an
+   eligibility cache derived only from live public reference rows; private
+   staged/draft liveness comes from the relation, not from this counter.
 6. Terminal success requires NoSQL readback, expected product/variant/link counts,
    refcount reconciliation, public API readback, every selected public image
    returning 200 with an allowed type, and browser card/detail verification.
@@ -283,6 +302,7 @@ not the production contract.
 | --- | --- |
 | `catalogImportJobs` | Workflow source of truth and operator summary. Read-only through generic admin. |
 | `catalogImportItems` | Staged candidate/findings/apply state. Read-only through generic admin. |
+| `catalogMediaReferences` (new) | Authoritative staged/draft/public image-use relation and safe-cleanup input. No browser writes. |
 | `productVariants` | Canonical variant/inventory projection. Generic admin hidden. |
 | `catalogSourceLinks` | Deterministic group/variant/store bindings and source provenance. Generic admin hidden. |
 | `sourceCategoryMappings` | Operator-owned provider category mapping. |
@@ -295,7 +315,8 @@ The implementation task must add and runtime-validate fields equivalent to:
 - upload: `uploadIntentId`, `uploadGeneration`, `uploadStatus`,
   `sourceStorageFileId`, `sourceStoragePath`, measured `sourceByteSize`,
   `sourceFileSha256`, `sourceReceivedAt`, `sourceRetentionUntil`;
-- concurrency: integer `revision`, `attempt`, `leaseOwner`, `leaseStartedAt`,
+- identity/concurrency: integer `replayOrdinal`, `revision`,
+  `processingAttempt`, `leaseOwner`, `leaseStartedAt`,
   `leaseExpiresAt`, `lastHeartbeatAt`, `nextAttemptAt`;
 - provenance: `appReleaseId`, `workerReleaseId`, `parserPolicyVersion`,
   `settingsDigest`, `previewDigest`;
@@ -309,19 +330,81 @@ Unknown runtime state, non-integer counters/revisions, malformed timestamps, or 
 missing object identity fail closed. Secret values and raw supplier URLs do not
 belong in these documents.
 
-### 6.3 Required indexes and uniqueness
+### 6.3 Source identity, replay identity, and processing retries
+
+The current implementation already defines the contract to preserve:
+
+- stable source identity is `sourceKey = {provider}:{sourceFileSha256}`;
+- the first/base job ID is exactly `{provider}:{sourceFileSha256}` with
+  `replayOrdinal=0`;
+- byte-identical completion without explicit replay returns that base job
+  untouched;
+- explicit replay creates a new audit job with ID
+  `{provider}:{sourceFileSha256}:r{N}`, `replayOrdinal=N`, and
+  `replayOfJobId={provider}:{sourceFileSha256}`;
+- concurrent replays allocate `N=1..100` by create-if-absent in ascending order,
+  so only one caller wins each ID. Exhaustion fails closed.
+
+Therefore `catalogImportJobs` must **not** have a unique compound index on
+`(provider, sourceFileSha256)`: valid replay jobs intentionally repeat those
+fields. Document `_id` uniqueness is the source/attempt uniqueness boundary. A
+non-unique source-history index supports lookup. `uploadGeneration` identifies
+an immutable browser-upload object, `replayOrdinal` identifies a logical replay
+job, `processingAttempt` counts retries of that same job, and `revision` guards
+state changes; none may substitute for another.
+
+### 6.4 Media reference identity and concurrency
+
+`catalogMediaReferences` is the authoritative relation for every imported image
+use, including private staged items, canonical drafts, and published products.
+Each row contains fields equivalent to:
+
+- deterministic `_id = sha256("catalog-media-ref:v1\0" + subjectType + "\0" +
+  subjectId + "\0" + subjectRevision + "\0" + slot)`, where `subjectType` is
+  `importItem`, `productDraft`, or `productPublic`;
+- `imageId`, `subjectType`, `subjectId`, integer `subjectRevision`, `slot`,
+  `visibility` (`private` or `public`), `state` (`reserved`, `live`, or
+  `released`), integer `revision`, and `reservationExpiresAt`;
+- for imports: `jobId`, `itemId`, `jobRevision`, and `createdByJobId`;
+- timestamps plus release reason/actor when released.
+
+The image row may record `ingestOwnerJobId` while an object is `pending`, but
+that is creation/compensation provenance, not permanent exclusive ownership.
+Once active/deduplicated, liveness is owned by non-released reference rows.
+Writers create the deterministic `reserved` row before touching/reusing the
+object, then verify an `active` image and CAS the row to `live`; a retry adopts
+the exact row. Replacing a slot requires a new subject/job revision, creates the
+new reservation/live row first, then releases the prior row. Cancellation or
+rejection releases only rows for the expected job revision.
+
+Because image metadata, relation, and object writes may not share one atomic
+transaction, cleanup is a two-phase saga. A candidate image is CASed to
+`gcPending` only after an absolute query finds zero `reserved` or `live` media
+references and `publishedRefCount=0`. A writer that reserved while GC raced must
+restore/retry a `gcPending` image before activating the relation. After a grace
+interval, the collector rechecks the same image revision and zero-non-released-
+reference condition, deletes the object, then retires metadata. Any race, stale
+reservation, failed delete, or uncertain read leaves the object and records
+reconciliation work.
+
+### 6.5 Required indexes and uniqueness
 
 Exact CloudBase index syntax must be verified before creation. The logical gates
 are:
 
-- unique first import by `(provider, sourceFileSha256)`; explicit replay uses a
-  separate attempt/generation;
+- job identity by unique document `_id` using the base/`:rN` contract above;
+- source history by non-unique `(provider, sourceFileSha256, replayOrdinal, _id)`;
 - eligible dispatch by `(status, uploadStatus, nextAttemptAt)`;
 - expired lease scan by `(status, leaseExpiresAt)`;
 - item paging by `(jobId, parentSku, _id)` with a unique tiebreaker;
 - current source links by `(provider, linkKind, sourceVariantKey)` and existing
   deterministic IDs;
 - approval/reconciliation queries by `(approvalStatus, status, updatedAt)`.
+- unique media-reference document `_id` derived from
+  `(subjectType, subjectId, subjectRevision, slot)`;
+- media liveness/GC by `(imageId, state, visibility, _id)`;
+- import release/preview by `(jobId, itemId, state, _id)` and canonical subject
+  replacement by `(subjectType, subjectId, state, _id)`.
 
 Creation is additive. A same-name index with different key order/direction/
 uniqueness blocks deployment; no workflow drops/recreates it automatically.
@@ -346,21 +429,31 @@ pending intent -> received/private -> processing/private
 ```text
 source URL -> worker fetch/validate/hash
   -> pending image row + private object
-  -> active, publishedRefCount=0
+  -> active image + deterministic live staged reference, publishedRefCount=0
   -> authenticated preview only
-  -> approved catalog publish increments/refills refcount
+  -> approved apply creates draft/public references and releases staged reference
+  -> public-reference count fills publishedRefCount
   -> /api/images/:id public only while active + eligible + refcount > 0
+  -> zero reserved/live references -> gcPending grace/recheck -> delete -> retired
 ```
 
-- If object upload succeeds but metadata activation fails or returns null, delete
-  the object. If that compensation fails, record the leaked storage ID in a
-  restricted operator result and alert; never report success.
+- If object upload succeeds but metadata activation fails, keep the image
+  `pending`, release only the creator's expected reservation, and compensate
+  only after CAS plus an absolute zero-`reserved`/`live` reference check. Delete
+  the object before retiring metadata. Another claim, a failed delete, or an
+  uncertain result leaves reconciliation work and alerts; never report success.
 - Content hash deduplication must verify the existing row/object is active and
-  compatible before reuse.
-- Cancellation/rejection compensates only import-owned, still-unreferenced media.
-  It may not delete a deduplicated object referenced by another job/catalog row.
-- Refcounts are derived, non-transactional state. Hot-path failures are logged;
-  an idempotent, dry-run absolute recomputation owns drift repair.
+  compatible before reuse, then create the caller's own deterministic live
+  reference. `ingestOwnerJobId` never proves exclusive ownership after activation.
+- Cancellation/rejection releases only the expected job revision's staged
+  references. It may not delete a deduplicated object referenced by another
+  staged job, draft, or public catalog row.
+- Deletion requires the two-phase `gcPending` protocol in section 6.4. A zero
+  `publishedRefCount` alone is never deletion evidence because private relations
+  intentionally do not contribute to it.
+- `publishedRefCount` is derived, non-transactional public-reference state.
+  Hot-path failures are logged; an idempotent, dry-run absolute recomputation
+  from live public relation rows owns drift repair.
 
 ## 8. Reconciliation and crash recovery
 
@@ -384,10 +477,16 @@ Provide a dry-run-first admin/CLI command that reports:
 3. jobs stuck past lease/deadline or with unknown states;
 4. staged items/counts inconsistent with the job summary;
 5. canonical links missing products/variants or pointing to mismatched identities;
-6. active imported images with missing objects, orphan objects, or checksum/size
-   mismatch;
-7. expected versus stored `publishedRefCount`;
-8. `applied` jobs whose public catalog/media/browser verification is incomplete.
+6. staged item or canonical draft/public image slots missing their deterministic
+   live `catalogMediaReferences` row, plus stale reservations and non-released
+   rows whose subject/job revision is absent, released, or superseded;
+7. active imported images with missing objects, orphan objects, checksum/size
+   mismatch, invalid ingest ownership, or stale `gcPending` state;
+8. per-image live private/public relation counts and expected public-relation
+   count versus stored `publishedRefCount`;
+9. objects selected for deletion that gained a live reference or changed image
+   revision during the grace window;
+10. `applied` jobs whose public catalog/media/browser verification is incomplete.
 
 Repair mode requires an admin, the exact EnvId, a captured dry-run artifact, and
 an explicit confirmation of the selected rows. It uses absolute-set repair where
@@ -401,7 +500,8 @@ results, and writes an audit record. No blanket storage prefix delete exists.
 Every admin/dispatcher/worker event includes:
 
 - `appEnv`, exact EnvId alias-safe label, service, immutable release ID;
-- correlation/request ID, job ID, job revision, attempt, phase;
+- correlation/request ID, job ID, replay ordinal, job revision,
+  processing attempt, phase;
 - action/state transition, duration, bounded counts, result/failure code;
 - lease owner hash and CloudBase request/build ID where available.
 
@@ -419,8 +519,9 @@ Minimum signals:
 - preflight/parser rejection by stable code, never raw workbook text;
 - supplier fetch success/failure/SSRF blocks/bytes and per-job budget exhaustion;
 - storage upload/delete/compensation leaks and NoSQL errors;
-- preview authorization failures and stale-approval conflicts;
-- jobs in `reconciliationRequired`, refcount drift, public verification failures;
+- preview authorization/reference failures and stale-approval conflicts;
+- jobs in `reconciliationRequired`, missing/dangling media references,
+  `gcPending` age, refcount drift, public verification failures;
 - CloudRun instances/compute, storage growth/egress, function invocations, and
   CLS ingestion/retention against budget.
 
@@ -537,7 +638,7 @@ in an older document.
 | Cost | Monthly ceiling and alerts for CloudRun compute/min instances, CLS ingestion/retention, NoSQL, storage capacity/operations, CDN/bandwidth and supplier egress. | Pricing snapshot/date, budget owner, thresholds and notification target. |
 | Storage | Exact private bucket/EnvId/region, `imports/xlsx/` and catalog namespaces, server-generated key policy, CORS for exact browser origins/raw PUT headers, encryption, lifecycle and success/failure retention. | ACL/CORS/lifecycle readback plus upload/finalize/private-read/public-403 probes. |
 | Upload policy | Maximum compressed XLSX bytes, pending cap per actor/global, intent TTL, replay/generation policy, accepted MIME aliases, server-side digest behavior. | Contract tests and deployed test smoke. |
-| Database | Collection/index/ACL plan, additive migration, backup/restore point, retention/audit policy, and who can run repair mode. | Exact schema/index/rule readback and dry-run reconciliation artifact. |
+| Database | Collection/index/ACL plan including `catalogMediaReferences`, replay-safe job identity, reference reservation/GC indexes, additive migration, backup/restore point, retention/audit policy, and who can run repair mode. | Exact schema/index/rule readback and dry-run reconciliation artifact. |
 | Auth roles | Confirm whether contributors may upload/preview. Recommended: only admins approve/apply/retry/cancel; viewers/members/blank denied. | Server negative authorization tests and named business approver. |
 | Worker identity/secrets | Platform identity preferred; otherwise exact HMAC scheme/name, storage mechanism, rotation/revocation owner. Confirm no JWT/CAM reuse. | IAM/runtime config key names and redacted rotation drill. |
 | Domain topology | Exact site and API origins; choose default CloudBase domains, one custom domain, or split `www`/`api`; exact DNS zone owner and CORS allowlist. | DNS/route plan and HTTP/CORS smoke. |
@@ -567,9 +668,10 @@ Production readiness requires all of the following at the exact release:
   absent from the DOM/network contract.
 - Before approval, product/media public controls are 404/absent. After a bounded
   approval, catalog, refcounts, all selected images, and browser card/detail pass.
-- Crash injection at claim, parse, each media stage, draft persistence, approval,
-  product/link/variant writes, refcount maintenance, and public verification
-  recovers without duplicate or false success.
+- Crash injection at claim, parse, each media reservation/activation/release/GC
+  stage, draft persistence, approval, product/link/variant writes, refcount
+  maintenance, and public verification recovers without duplicate, unsafe
+  deletion, or false success.
 - Reconciliation dry-run is empty or every finding has an approved disposition.
 - Observability/alerts and rollback drill pass; recorded spend stays within the
   approved budget.

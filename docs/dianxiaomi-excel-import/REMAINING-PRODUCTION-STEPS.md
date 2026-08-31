@@ -69,7 +69,8 @@ At minimum, record all of these values together:
   `MinNum`, `MaxNum`, retry/deadline;
 - exact private storage bucket/region/namespaces, raw-PUT CORS origins/headers,
   encryption and lifecycle/retention;
-- NoSQL collections, additive fields, indexes, ACLs, backup/restore point;
+- NoSQL collections, including `catalogMediaReferences`, additive fields,
+  indexes, ACLs, backup/restore point;
 - site/API origins, one-domain versus split-domain routing, DNS owner;
 - current ICP requirement/filing status for the selected mainland-China domain;
 - SSL certificate SANs/owner/validation/renewal/expiry alert;
@@ -95,6 +96,8 @@ are not deployment authorization.
 - Server-chosen immutable `imports/xlsx/{intent}/{generation}/source.xlsx` key.
 - Verified node-sdk 3.x raw `PUT` credential, exact-object finalize, measured
   size/SHA-256, single-winner claim, pending caps/TTL/rate limits, cleanup.
+- Browser sends the signed raw `PUT` directly to the exact private Storage
+  object; Admin Function writes/verifies only intent, object, and job metadata.
 - Never send XLSX bytes through the Event Function body.
 
 ### 2. Add the private CloudBase Run worker and dispatcher
@@ -102,19 +105,29 @@ are not deployment authorization.
 - Container mode, Node 22-compatible pinned image, non-root/stateless/bounded
   scratch, immutable release digest.
 - `PUBLIC` access off; platform-authenticated private invocation proven.
-- Durable one-minute dispatcher, CAS lease/heartbeat/expiry/retry, concurrency 1
-  initially, unknown states fail closed.
+- Durable one-minute Dispatcher/Event Function scans NoSQL and invokes the worker
+  through the proven platform-authenticated private route; Admin Function never
+  invokes the worker directly.
+- CAS lease/heartbeat/expiry/retry, concurrency 1 initially, unknown states fail
+  closed.
 - Worker owns preflight -> SheetJS -> stage -> media -> reconciliation; parser
   phase has no general outbound access.
 
 ### 3. Extend durable job/approval state
 
-- Add upload receipt/generation/object metadata, integer revision, attempt,
-  lease, retry, parser/worker release, per-phase timestamps, sanitized failures.
+- Preserve the current job IDs exactly: base `{provider}:{sha256}`; explicit
+  replay `{provider}:{sha256}:rN` allocated create-if-absent with
+  `replayOfJobId` and `replayOrdinal`. Do not add unique
+  `(provider, sourceFileSha256)` on jobs.
+- Add upload receipt/generation/object metadata, integer revision,
+  `processingAttempt`, lease, retry, parser/worker release, per-phase timestamps,
+  sanitized failures. Upload generation, replay ordinal, processing attempt, and
+  revision are distinct identities.
 - Bind approval to actor/time/job revision/source/settings/preview digests; edits
   invalidate approval.
-- Add exact dispatch/lease/item paging/unique-source indexes and deny browser
-  writes. Keep generic writes to jobs/items/links/variants denied.
+- Add exact dispatch/lease/item paging, non-unique source-history, and
+  media-reference indexes; deny browser writes. Keep generic writes to
+  jobs/items/links/variants/media references denied.
 
 ### 4. Move import media into the CloudBase lifecycle
 
@@ -122,6 +135,12 @@ are not deployment authorization.
 - Preserve current HTTPS/redirect/DNS/connect-time/stream/type/dimension limits.
 - Store originals privately, content-hash dedupe, compensate object-without-row,
   start `publishedRefCount` at zero.
+- Add deterministic `catalogMediaReferences` rows for every staged item/draft/
+  public slot. Preview authorization requires the live job/item/image relation;
+  knowing an image ID is insufficient.
+- Treat `ingestOwnerJobId` as pending-ingest provenance only. Release claims by
+  revision and delete only after two-phase `gcPending` grace/recheck proves zero
+  reserved/live private/public relations and zero public refcount.
 - Import preview uses authenticated app bytes -> browser `Blob` object URL ->
   `URL.revokeObjectURL`; no supplier/COS URL in the DOM.
 - Public `/api/images/:id` remains active/publish/refcount gated.
@@ -131,7 +150,8 @@ are not deployment authorization.
 - Admin approve/apply/retry/cancel actions; apply runs asynchronously.
 - Revision CAS and idempotent canonical link/product/variant writes.
 - Dry-run-first reconciliation for uploads/objects/jobs/items/links/products/
-  variants/images/refcounts/public verification; no blanket prefix delete.
+  variants/images/media references/GC candidates/refcounts/public verification;
+  no blanket prefix delete.
 - Ambiguous partial publication becomes `reconciliationRequired`, never success.
 
 ### 6. Add worker CI/CD and observability
@@ -161,7 +181,8 @@ Run against the exact candidate release and exact test EnvId:
 7. Bounded admin approval produces expected catalog/variant/link/refcount state,
    public image 200 responses, and browser card/detail rendering.
 8. Crash injection at every durable boundary resumes without duplicate object,
-   media, product, link, variant, refcount, or false terminal success.
+   media reference, product, link, variant, refcount, replay job collision, or
+   false terminal success.
 9. Reconciliation dry run is empty or every finding has an approved disposition.
 10. Alerts fire in test, rollback drill restores the prior release, and measured
     cost remains inside the approved ceiling.
@@ -200,7 +221,8 @@ blind deletion.
   approved apply.
 - **Supplier dependency:** source images can disappear or change; private copied
   media is mandatory before publication.
-- **Derived counter drift:** `publishedRefCount` needs ongoing absolute
-  reconciliation.
+- **Reference/counter drift:** live `catalogMediaReferences` protect staged and
+  draft uses; `publishedRefCount` is only the public eligibility cache. Both need
+  ongoing absolute reconciliation before GC or publication claims are trusted.
 - **Historical CloudBase evidence:** prior EnvId/service/log/bucket observations
   may be stale and must be refreshed before action.
