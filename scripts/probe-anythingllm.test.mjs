@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { after, before, test } from 'node:test';
-import { probeAnythingLlm, sanitizedProbeReport } from './probe-anythingllm.mjs';
+import {
+  knowledgeEvidence,
+  knowledgeEvidenceRefusals,
+  probeAnythingLlm,
+  sanitizedProbeReport,
+} from './probe-anythingllm.mjs';
 
 const testCredential = ['fixture', 'value', 'must', 'not', 'leak'].join('-');
 const workspaceSlug = 'workspace-1';
@@ -188,4 +193,110 @@ test('the CLI-safe report exposes counts and status only', () => {
   assert.doesNotMatch(serialized, /INTERNAL|STREAMED|hermes|private|source\.md|internal-kb/);
   assert.equal(safe.retrieval.resultCount, 1);
   assert.equal(safe.syncChat.sourceCount, 1);
+});
+
+/**
+ * The evidence artifact is what startup will trust, so it must be secret-free
+ * and it must be able to say "no".
+ */
+const goodReport = {
+  transport: { https: true, insecureOverride: false },
+  auth: { ok: true, credentialId: 'abc123', rotationCounter: 2 },
+  workspace: { slug: 'supplychainsai-public-prod', id: 'ws-1' },
+  retrieval: { ok: true, resultCount: 4, approvedSourceCount: 4 },
+  syncChat: { ok: true, sourceCount: 2 },
+  toolSurface: { inspected: true, enabledCount: 0 },
+};
+
+test('evidence carries the identity and the positive control, and no secret', () => {
+  const evidence = knowledgeEvidence(goodReport, { corpusGeneration: 'g1000' });
+  assert.equal(evidence.schema, 'channel.ai.kb-evidence/1');
+  assert.equal(evidence.credentialId, 'abc123');
+  assert.equal(evidence.workspaceSlug, 'supplychainsai-public-prod');
+  assert.equal(evidence.rotationCounter, 2);
+  assert.equal(evidence.corpusGeneration, 'g1000');
+  assert.equal(evidence.positiveControl.retrieved, true);
+  assert.equal(evidence.toolSurface.verdict, 'none');
+  assert.ok(Date.parse(evidence.recordedAt) > 0);
+
+  // Nothing in the artifact may carry the key, a document title, or answer text.
+  const serialized = JSON.stringify(evidence);
+  for (const forbidden of [testCredential, 'Bearer', 'apiKey', 'textResponse']) {
+    assert.doesNotMatch(serialized, new RegExp(forbidden, 'i'), `evidence leaked ${forbidden}`);
+  }
+});
+
+test('evidence from an EMPTY workspace is refused', () => {
+  const evidence = knowledgeEvidence({
+    ...goodReport,
+    retrieval: { ok: true, resultCount: 0, approvedSourceCount: 0 },
+  });
+  const reasons = knowledgeEvidenceRefusals(evidence, {});
+  assert.ok(
+    reasons.some((r) => /no positive-control retrieval/.test(r)),
+    `an empty corpus was accepted: ${reasons.join('; ')}`,
+  );
+});
+
+test('evidence with an enabled tool surface is refused', () => {
+  const evidence = knowledgeEvidence({
+    ...goodReport,
+    toolSurface: { inspected: true, enabledCount: 3 },
+  });
+  assert.ok(knowledgeEvidenceRefusals(evidence, {}).some((r) => /tool surface enabled/.test(r)));
+});
+
+test('evidence gathered over plaintext is refused', () => {
+  const evidence = knowledgeEvidence({
+    ...goodReport,
+    transport: { https: false, insecureOverride: true },
+  });
+  assert.ok(knowledgeEvidenceRefusals(evidence, {}).some((r) => /plaintext/.test(r)));
+});
+
+test('good evidence against matching expectations is accepted', () => {
+  const evidence = knowledgeEvidence(goodReport, { corpusGeneration: 'g1000' });
+  assert.deepEqual(
+    knowledgeEvidenceRefusals(evidence, {
+      credentialId: 'abc123',
+      workspaceSlug: 'supplychainsai-public-prod',
+      rotationCounter: 2,
+      maxAgeMs: 60_000,
+    }),
+    [],
+  );
+});
+
+test('a credential-shaped vendor error is never echoed by the CLI failure path', async () => {
+  // The KB has been observed echoing the submitted request in its error body,
+  // which for an authenticated call contains the bearer. This asserts the
+  // failure message carries the status and nothing from the body.
+  const leaky = createServer((request, response) => {
+    response.writeHead(403, { 'content-type': 'application/json' });
+    response.end(
+      JSON.stringify({ error: `invalid token: Bearer ${testCredential} for ${request.url}` }),
+    );
+  });
+  await new Promise((resolve) => leaky.listen(0, '127.0.0.1', resolve));
+  const leakyUrl = `http://127.0.0.1:${leaky.address().port}`;
+  try {
+    await assert.rejects(
+      probeAnythingLlm({
+        baseUrl: leakyUrl,
+        apiKey: testCredential,
+        workspaceSlug,
+        retrievalQuery: 'q',
+        chatQuery: 'q',
+        allowInsecure: true,
+      }),
+      (error) => {
+        assert.doesNotMatch(error.message, new RegExp(testCredential), 'the key was echoed');
+        assert.doesNotMatch(error.message, /Bearer/, 'an Authorization header was echoed');
+        assert.match(error.message, /HTTP 403/, 'the status is what an operator needs');
+        return true;
+      },
+    );
+  } finally {
+    await new Promise((resolve) => leaky.close(resolve));
+  }
 });

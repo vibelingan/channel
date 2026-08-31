@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 
 function assertSafeBaseUrl(baseUrl, allowInsecure) {
@@ -68,6 +69,19 @@ function parseStreamBody(body) {
   return normalizedChat({ ...finalEvent, textResponse: combinedText || finalEvent?.textResponse });
 }
 
+/**
+ * The upstream HTTP status a vendor wrapped inside its own error, if any.
+ *
+ * Digits only. Deliberately not a substring of the message: the point is to
+ * carry the one classifying fact across the boundary and leave every
+ * vendor-controlled character behind.
+ */
+function upstreamStatus(body) {
+  const text = typeof body?.error === 'string' ? body.error : '';
+  const match = text.match(/\b([45]\d{2})\b/);
+  return match ? Number(match[1]) : null;
+}
+
 async function requestJson(url, apiKey, options = {}) {
   const response = await fetch(url, {
     ...options,
@@ -80,7 +94,19 @@ async function requestJson(url, apiKey, options = {}) {
   });
   const body = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${body?.error ?? response.statusText}`);
+    // The vendor's error TEXT is never surfaced: it is vendor- and
+    // attacker-controlled, it reaches an operator terminal and any CI log that
+    // captures this run, and this API family has been observed echoing the
+    // submitted request — which for an authenticated call carries the bearer.
+    //
+    // One bounded fact IS extracted, because losing it costs real diagnosis:
+    // this KB wraps an upstream provider denial in its own 500, and "500
+    // wrapping an upstream 403" is a different incident from "500". Only the
+    // three digits are taken, never the surrounding words.
+    const upstream = upstreamStatus(body);
+    throw new Error(
+      `HTTP ${response.status} ${response.statusText || 'request failed'}${upstream ? ` (upstream ${upstream})` : ''}`,
+    );
   }
   return body;
 }
@@ -222,6 +248,97 @@ export function sanitizedProbeReport(report) {
   };
 }
 
+/**
+ * A secret-free record of what a real authenticated round-trip actually saw.
+ *
+ * Startup used to "verify" the knowledge credential by asking the adapter what
+ * it was configured with and comparing that to the same environment variables
+ * the adapter was configured FROM. That compares configuration with itself: it
+ * passes against an empty workspace, a wrong workspace, and a credential that
+ * can read everything, because none of those facts are inputs to the check.
+ *
+ * This artifact is independent evidence — produced by an authenticated call to
+ * the live knowledge base at a recorded time, including a positive control that
+ * retrieval actually returned approved material. Startup verifies THIS.
+ *
+ * Deliberately excluded: the key, source titles, document text, answer text,
+ * and any URL that could carry a token. Counts, hashes, verdicts and a
+ * timestamp are enough to decide, and nothing here is worth leaking.
+ */
+export function knowledgeEvidence(report, { corpusGeneration = null } = {}) {
+  const retrieval = report?.retrieval ?? {};
+  return {
+    schema: 'channel.ai.kb-evidence/1',
+    recordedAt: new Date().toISOString(),
+    credentialId: report?.auth?.credentialId ?? null,
+    workspaceSlug: report?.workspace?.slug ?? null,
+    workspaceId: report?.workspace?.id ?? null,
+    rotationCounter: report?.auth?.rotationCounter ?? null,
+    corpusGeneration,
+    // The positive control. `ok` alone would be true for an empty workspace
+    // that answered without error, which is the exact state this must catch.
+    positiveControl: {
+      retrieved: retrieval.ok === true && Number(retrieval.resultCount ?? 0) > 0,
+      resultCount: Number(retrieval.resultCount ?? 0),
+      approvedSourceCount: Number(retrieval.approvedSourceCount ?? 0),
+      citationsObserved: Number(report?.syncChat?.sourceCount ?? 0),
+    },
+    toolSurface: {
+      inspected: report?.toolSurface?.inspected === true,
+      enabledCount: Number(report?.toolSurface?.enabledCount ?? 0),
+      verdict: report?.toolSurface?.enabledCount ? 'enabled' : 'none',
+    },
+    transport: {
+      https: report?.transport?.https === true,
+      insecureOverride: report?.transport?.insecureOverride === true,
+    },
+  };
+}
+
+/**
+ * Is this evidence good enough to serve public traffic?
+ *
+ * Returns the reasons it is NOT, so a refusal says which fact was missing
+ * rather than "attestation failed".
+ */
+export function knowledgeEvidenceRefusals(evidence, expected) {
+  const reasons = [];
+  if (evidence?.schema !== 'channel.ai.kb-evidence/1') reasons.push('unrecognised evidence schema');
+  if (!evidence?.recordedAt) reasons.push('evidence has no timestamp');
+  if (!evidence?.credentialId) reasons.push('evidence names no credential');
+  if (expected?.credentialId && evidence?.credentialId !== expected.credentialId) {
+    reasons.push('serving credential is not the one the evidence was produced with');
+  }
+  if (expected?.workspaceSlug && evidence?.workspaceSlug !== expected.workspaceSlug) {
+    reasons.push('serving workspace is not the one the evidence was produced against');
+  }
+  if (
+    expected?.rotationCounter !== undefined &&
+    Number(evidence?.rotationCounter) !== Number(expected.rotationCounter)
+  ) {
+    reasons.push('credential rotation counter does not match the evidence');
+  }
+  if (!evidence?.positiveControl?.retrieved) {
+    reasons.push(
+      'no positive-control retrieval: the corpus returned nothing, so readiness proves nothing',
+    );
+  }
+  if (Number(evidence?.positiveControl?.approvedSourceCount ?? 0) < 1) {
+    reasons.push('positive control returned no APPROVED source');
+  }
+  if (evidence?.toolSurface?.inspected !== true) reasons.push('tool surface was never inspected');
+  if (evidence?.toolSurface?.verdict !== 'none')
+    reasons.push('the workspace has an agent/tool surface enabled');
+  if (evidence?.transport?.https !== true) reasons.push('evidence was gathered over plaintext');
+  if (expected?.maxAgeMs !== undefined) {
+    const age = Date.now() - Date.parse(evidence?.recordedAt ?? 0);
+    if (!Number.isFinite(age) || age > expected.maxAgeMs) {
+      reasons.push('evidence is older than the accepted window');
+    }
+  }
+  return reasons;
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const required = ['ANYTHINGLLM_BASE_URL', 'ANYTHINGLLM_API_KEY', 'ANYTHINGLLM_WORKSPACE_SLUG'];
   const missing = required.filter((name) => !process.env[name]);
@@ -237,9 +354,24 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       chatQuery: process.env.ANYTHINGLLM_CHAT_QUERY ?? 'What does the company do?',
       allowInsecure: process.env.ALLOW_INSECURE_ANYTHINGLLM === 'true',
     })
-      .then((report) => console.log(JSON.stringify(sanitizedProbeReport(report), null, 2)))
+      .then(async (report) => {
+        console.log(JSON.stringify(sanitizedProbeReport(report), null, 2));
+        // Written only when asked for, so an ordinary diagnostic run never
+        // leaves a file that a later startup might treat as fresh evidence.
+        const out = process.env.AI_KB_EVIDENCE_FILE;
+        if (out) {
+          const evidence = knowledgeEvidence(report, {
+            corpusGeneration: process.env.AI_CORPUS_GENERATION ?? null,
+          });
+          await writeFile(out, `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o600 });
+          console.error(`evidence written: ${out}`);
+        }
+      })
       .catch((error) => {
-        console.error(error instanceof Error ? error.message : String(error));
+        // The message, never the cause chain: a vendor body or a URL with a
+        // token can ride in on `error.cause` and this lands in operator
+        // terminals and CI logs.
+        console.error(error instanceof Error ? error.message : 'probe failed');
         process.exitCode = 1;
       });
   }

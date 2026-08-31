@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { type Server, createServer } from 'node:http';
 import { AnythingLlmEngine, assertNoToolSurface } from '@vibelingan-channel/ai-engine-anythingllm';
 import {
@@ -46,17 +47,82 @@ export function validateWorkerConfig(config: WorkerConfig): WorkerConfig {
   return config;
 }
 
+/**
+ * Evidence produced by an authenticated round-trip against the live knowledge
+ * base, written by scripts/probe-anythingllm.mjs. Secret-free by construction.
+ */
+export interface KnowledgeEvidence {
+  schema: string;
+  recordedAt: string;
+  credentialId: string | null;
+  workspaceSlug: string | null;
+  rotationCounter: number | null;
+  corpusGeneration: string | null;
+  positiveControl: {
+    retrieved: boolean;
+    resultCount: number;
+    approvedSourceCount: number;
+    citationsObserved: number;
+  };
+  toolSurface: { inspected: boolean; enabledCount: number; verdict: string };
+  transport: { https: boolean; insecureOverride: boolean };
+}
+
+/**
+ * Prove the engine that is about to serve is the one the evidence was gathered
+ * from — against the EVIDENCE, not against the environment.
+ *
+ * The previous check asked the adapter what it had been configured with and
+ * compared that to the same variables the adapter was configured from. That is
+ * a tautology: it passes against an empty workspace, against the wrong
+ * workspace, and against a credential that can read the whole instance,
+ * because none of those facts are inputs to it. It cannot fail for any reason
+ * that matters, which is the most expensive kind of green.
+ */
 export async function verifyKnowledgeAttestation(
   engine: ConversationEngine,
-  expected: { credentialId: string; spaceId: string; rotationCounter: number },
+  evidence: KnowledgeEvidence,
+  options: { maxAgeMs?: number } = {},
 ): Promise<void> {
   const actual = await engine.attestKnowledgeCredential();
-  if (
-    actual.credentialId !== expected.credentialId ||
-    actual.spaceId !== expected.spaceId ||
-    actual.rotationCounter !== expected.rotationCounter
-  ) {
-    throw new Error('knowledge credential attestation mismatch');
+  const reasons: string[] = [];
+
+  if (evidence.schema !== 'channel.ai.kb-evidence/1') reasons.push('unrecognised evidence schema');
+  if (actual.credentialId !== evidence.credentialId) {
+    reasons.push('the serving credential is not the one the evidence was produced with');
+  }
+  if (actual.spaceId !== evidence.workspaceSlug) {
+    reasons.push('the serving workspace is not the one the evidence was produced against');
+  }
+  if (Number(actual.rotationCounter) !== Number(evidence.rotationCounter)) {
+    reasons.push('credential rotation counter does not match the evidence');
+  }
+  // The positive control is the part the old check had no equivalent of: an
+  // empty workspace authenticates perfectly and answers nothing.
+  if (!evidence.positiveControl?.retrieved || evidence.positiveControl.resultCount < 1) {
+    reasons.push('no positive-control retrieval; an empty corpus cannot be ready');
+  }
+  if (Number(evidence.positiveControl?.approvedSourceCount ?? 0) < 1) {
+    reasons.push('the positive control returned no approved source');
+  }
+  if (evidence.toolSurface?.inspected !== true) reasons.push('tool surface was never inspected');
+  if (evidence.toolSurface?.verdict !== 'none') {
+    reasons.push('the workspace has an agent or tool surface enabled');
+  }
+  if (evidence.transport?.https !== true) reasons.push('evidence was gathered over plaintext');
+
+  const maxAgeMs = options.maxAgeMs;
+  if (maxAgeMs !== undefined) {
+    const age = Date.now() - Date.parse(evidence.recordedAt);
+    if (!Number.isFinite(age) || age < 0 || age > maxAgeMs) {
+      reasons.push('the evidence is older than the accepted window');
+    }
+  }
+
+  if (reasons.length > 0) {
+    throw new Error(
+      `refusing to serve; knowledge evidence is not acceptable:\n${reasons.map((r) => `  - ${r}`).join('\n')}`,
+    );
   }
 }
 
@@ -373,10 +439,20 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     knowledgeSourceConfigured: true,
   });
   if ((process.env.AI_ENGINE_ID ?? 'fake') === 'anythingllm') {
-    await verifyKnowledgeAttestation(engine, {
-      credentialId: requiredEnv('AI_KNOWLEDGE_CREDENTIAL_ID'),
-      spaceId: requiredEnv('ANYTHINGLLM_WORKSPACE_SLUG'),
-      rotationCounter: envNumber('ANYTHINGLLM_CREDENTIAL_ROTATION', 1),
+    // Load the evidence a real probe produced, and check the engine against
+    // THAT. Reading the expected values out of the same environment the adapter
+    // was built from proved only that two copies of one variable agree.
+    const evidencePath = requiredEnv('AI_KB_EVIDENCE_FILE');
+    let evidence: KnowledgeEvidence;
+    try {
+      evidence = JSON.parse(await readFile(evidencePath, 'utf8')) as KnowledgeEvidence;
+    } catch {
+      throw new Error(
+        `refusing to serve; no readable knowledge evidence at ${evidencePath}. Run \`pnpm test:ai:kb\` with AI_KB_EVIDENCE_FILE set against the approved workspace first.`,
+      );
+    }
+    await verifyKnowledgeAttestation(engine, evidence, {
+      maxAgeMs: envNumber('AI_KB_EVIDENCE_MAX_AGE_MS', 7 * 24 * 60 * 60 * 1000),
     });
     if (!(engine instanceof AnythingLlmEngine)) {
       throw new Error('AnythingLLM engine construction mismatch');

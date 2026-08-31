@@ -3,6 +3,7 @@ import { after, before, beforeEach, test } from 'node:test';
 import { FakeEngine } from '@vibelingan-channel/ai-engine/fake';
 import { AiStore, migrateUp } from '@vibelingan-channel/ai-store';
 import {
+  type KnowledgeEvidence,
   type WorkerConfig,
   processOne,
   validateWorkerConfig,
@@ -32,13 +33,125 @@ test('worker lease must outlive the longest permitted provider stream', () => {
   assert.equal(validateWorkerConfig(config), config);
 });
 
+/**
+ * Startup must check the engine against INDEPENDENT evidence.
+ *
+ * The old check compared the adapter's configuration with the environment the
+ * adapter was configured from, which cannot fail for any reason that matters.
+ * Each case below is one it used to pass.
+ */
+function evidenceFor(attested: {
+  credentialId: string;
+  spaceId: string;
+  rotationCounter: number;
+}): KnowledgeEvidence {
+  return {
+    schema: 'channel.ai.kb-evidence/1',
+    recordedAt: new Date().toISOString(),
+    credentialId: attested.credentialId,
+    workspaceSlug: attested.spaceId,
+    rotationCounter: attested.rotationCounter,
+    corpusGeneration: 'g1000',
+    positiveControl: {
+      retrieved: true,
+      resultCount: 4,
+      approvedSourceCount: 4,
+      citationsObserved: 2,
+    },
+    toolSurface: { inspected: true, enabledCount: 0, verdict: 'none' },
+    transport: { https: true, insecureOverride: false },
+  };
+}
+
+test('worker accepts an engine that matches real evidence', async () => {
+  const engine = new FakeEngine();
+  const attested = await engine.attestKnowledgeCredential();
+  await verifyKnowledgeAttestation(engine, evidenceFor(attested));
+});
+
 test('worker refuses a knowledge credential whose attested identity drifts', async () => {
   const engine = new FakeEngine();
-  const actual = await engine.attestKnowledgeCredential();
-  await verifyKnowledgeAttestation(engine, actual);
+  const attested = await engine.attestKnowledgeCredential();
   await assert.rejects(
-    verifyKnowledgeAttestation(engine, { ...actual, credentialId: 'unexpected' }),
-    /attestation mismatch/,
+    verifyKnowledgeAttestation(engine, {
+      ...evidenceFor(attested),
+      credentialId: 'unexpected',
+    }),
+    /serving credential is not the one the evidence/,
+  );
+  await assert.rejects(
+    verifyKnowledgeAttestation(engine, {
+      ...evidenceFor(attested),
+      workspaceSlug: 'some-other-workspace',
+    }),
+    /serving workspace is not the one the evidence/,
+  );
+  await assert.rejects(
+    verifyKnowledgeAttestation(engine, { ...evidenceFor(attested), rotationCounter: 99 }),
+    /rotation counter does not match/,
+  );
+});
+
+test('an EMPTY workspace is refused, however cleanly it authenticates', async () => {
+  // The case the tautology could never catch: credentials valid, workspace
+  // real, retrieval returning nothing. Readiness would have said live.
+  const engine = new FakeEngine();
+  const attested = await engine.attestKnowledgeCredential();
+  const evidence = evidenceFor(attested);
+  await assert.rejects(
+    verifyKnowledgeAttestation(engine, {
+      ...evidence,
+      positiveControl: { ...evidence.positiveControl, retrieved: false, resultCount: 0 },
+    }),
+    /no positive-control retrieval/,
+  );
+  await assert.rejects(
+    verifyKnowledgeAttestation(engine, {
+      ...evidence,
+      positiveControl: { ...evidence.positiveControl, approvedSourceCount: 0 },
+    }),
+    /no approved source/,
+  );
+});
+
+test('an enabled tool surface, or one never looked at, is refused', async () => {
+  const engine = new FakeEngine();
+  const attested = await engine.attestKnowledgeCredential();
+  const evidence = evidenceFor(attested);
+  await assert.rejects(
+    verifyKnowledgeAttestation(engine, {
+      ...evidence,
+      toolSurface: { inspected: true, enabledCount: 1, verdict: 'enabled' },
+    }),
+    /agent or tool surface enabled/,
+  );
+  await assert.rejects(
+    verifyKnowledgeAttestation(engine, {
+      ...evidence,
+      toolSurface: { inspected: false, enabledCount: 0, verdict: 'none' },
+    }),
+    /never inspected/,
+  );
+});
+
+test('evidence gathered over plaintext, or gone stale, is refused', async () => {
+  const engine = new FakeEngine();
+  const attested = await engine.attestKnowledgeCredential();
+  const evidence = evidenceFor(attested);
+  await assert.rejects(
+    verifyKnowledgeAttestation(engine, {
+      ...evidence,
+      transport: { https: false, insecureOverride: true },
+    }),
+    /gathered over plaintext/,
+  );
+  await assert.rejects(
+    verifyKnowledgeAttestation(
+      engine,
+      { ...evidence, recordedAt: new Date(Date.now() - 60_000).toISOString() },
+      { maxAgeMs: 1_000 },
+    ),
+    /older than the accepted window/,
   );
 });
 

@@ -33,8 +33,7 @@ export function assertProvenance(value: EngineProvenance): EngineProvenance {
   if (value.kind === 'oci') {
     if (!OCI_DIGEST.test(value.imageDigest)) {
       throw new Error(
-        `engine provenance declares kind "oci" but ${JSON.stringify(value.imageDigest)} is not a sha256 image digest. ` +
-          'A git commit is not an image digest; declare kind "git" instead.',
+        `engine provenance declares kind "oci" but ${JSON.stringify(value.imageDigest)} is not a sha256 image digest. A git commit is not an image digest; declare kind "git" instead.`,
       );
     }
     return value;

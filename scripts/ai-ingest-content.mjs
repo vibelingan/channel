@@ -81,8 +81,7 @@ export function assertSourcesArePublished(sources = SOURCES, pagesDir = PAGES_DI
   }
   if (offenders.length > 0) {
     throw new Error(
-      `refusing to ingest unpublished content:\n${offenders.map((o) => `  - ${o}`).join('\n')}\n` +
-        'A source the site does not serve must not become a citation. Remove it, or publish the page.',
+      `refusing to ingest unpublished content:\n${offenders.map((o) => `  - ${o}`).join('\n')}\nA source the site does not serve must not become a citation. Remove it, or publish the page.`,
     );
   }
   return sources;
@@ -339,9 +338,7 @@ export async function preflightPublicTargets(sources, siteOrigin, fetchImpl = fe
   }
   if (failures.length > 0) {
     throw new Error(
-      `refusing to ingest; these citation targets are not live on ${origin.origin}:\n` +
-        `${failures.map((f) => `  - ${f}`).join('\n')}\n` +
-        'Nothing was uploaded, so the previous corpus is still serving.',
+      `refusing to ingest; these citation targets are not live on ${origin.origin}:\n${failures.map((f) => `  - ${f}`).join('\n')}\nNothing was uploaded, so the previous corpus is still serving.`,
     );
   }
   return checked;
