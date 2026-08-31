@@ -1,6 +1,10 @@
 import { type Server, createServer } from 'node:http';
 import { AnythingLlmEngine, assertNoToolSurface } from '@vibelingan-channel/ai-engine-anythingllm';
-import { assertEngineUsable } from '@vibelingan-channel/ai-engine/capabilities';
+import {
+  type EngineProvenance,
+  assertEngineUsable,
+  provenanceFromEnv,
+} from '@vibelingan-channel/ai-engine/capabilities';
 import { EngineError } from '@vibelingan-channel/ai-engine/errors';
 import { FakeEngine } from '@vibelingan-channel/ai-engine/fake';
 import type { ConversationEngine, EngineEvent } from '@vibelingan-channel/ai-engine/port';
@@ -444,10 +448,24 @@ function engineFromEnvironment(): ConversationEngine {
     // be asked for by name, once, in a file that is not production.
     allowInsecureRemoteHttp: process.env.ALLOW_INSECURE_ANYTHINGLLM === 'true',
     engineVersion: requiredEnv('AI_ENGINE_VERSION'),
-    imageDigest: requiredEnv('AI_ENGINE_IMAGE_DIGEST'),
+    provenance: provenanceFromEnvironment(),
     citationsVerified: process.env.ANYTHINGLLM_CITATIONS_VERIFIED === '1',
     credentialRotationCounter: envNumber('ANYTHINGLLM_CREDENTIAL_ROTATION', 1),
   });
+}
+
+/**
+ * Read the engine's provenance, saying which KIND of artifact it names.
+ *
+ * The previous contract required AI_ENGINE_IMAGE_DIGEST unconditionally. The
+ * knowledge base this now talks to is a Git checkout on a VM, so the only
+ * values an operator could supply were a Git SHA or a placeholder — both of
+ * them false in a field named for an OCI digest, and false in the direction
+ * that makes an audit look successful. `assertProvenance` rejects a commit sha
+ * offered as a digest rather than storing it.
+ */
+export function provenanceFromEnvironment(env: NodeJS.ProcessEnv = process.env): EngineProvenance {
+  return provenanceFromEnv(env);
 }
 
 function requiredEnv(name: string): string {

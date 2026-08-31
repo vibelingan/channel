@@ -7,7 +7,11 @@
  */
 
 import { createHash } from 'node:crypto';
-import type { EngineCapabilities } from '@vibelingan-channel/ai-engine/capabilities';
+import {
+  type EngineCapabilities,
+  type EngineProvenance,
+  assertProvenance,
+} from '@vibelingan-channel/ai-engine/capabilities';
 import { EngineError, type EngineErrorCategory } from '@vibelingan-channel/ai-engine/errors';
 import type {
   ConversationEngine,
@@ -36,7 +40,7 @@ export interface AnythingLlmEngineConfig {
   workspaceSlug: string;
   /** Pinned vendor release, recorded on every run row for incident scoping. */
   engineVersion: string;
-  imageDigest?: string;
+  provenance?: EngineProvenance;
   /** Operator assertion from a successful citation-bearing probe. */
   citationsVerified?: boolean;
   /** Bumped whenever the knowledge credential changes. */
@@ -289,7 +293,7 @@ export class AnythingLlmEngine implements ConversationEngine {
     this.capabilities = {
       engineId: 'anythingllm',
       engineVersion: config.engineVersion,
-      ...(config.imageDigest ? { imageDigest: config.imageDigest } : {}),
+      ...(config.provenance ? { provenance: assertProvenance(config.provenance) } : {}),
       // The chat API creates and answers in one call, so there is no run to
       // create idempotently. LLD-001 §7's operation-id mapping layer is the
       // compensation, and the startup check enforces that it is configured.

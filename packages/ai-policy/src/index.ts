@@ -43,6 +43,15 @@ export function redactContactData(text: string): string {
  * for the obvious reason: the next internal corpus somebody attaches has a name
  * nobody wrote down, and it would be published.
  */
+/**
+ * The one stable, public code that means "the publication gate refused".
+ *
+ * Exported so the acceptance test, the BFF and this module all name the same
+ * string, and so a rename breaks the build instead of quietly making the
+ * negative test unsatisfiable — which would look like a pass.
+ */
+export const PUBLICATION_BLOCKED = 'publication_blocked' as const;
+
 export interface GroundingPolicy {
   /** Document-name prefix the approved public corpus is published under. */
   approvedSourcePrefix: string;
@@ -122,7 +131,7 @@ export function enforceGroundedFinal(
     // it would be a leak stated with citations, which is worse than silence.
     return {
       type: 'error',
-      category: 'knowledge_empty',
+      category: PUBLICATION_BLOCKED,
       retriable: false,
       safeDetail: 'no publishable source',
     };
@@ -134,7 +143,7 @@ export function enforceGroundedFinal(
     // list would make an unsupported leak look cleanly sourced.
     return {
       type: 'error',
-      category: 'knowledge_empty',
+      category: PUBLICATION_BLOCKED,
       retriable: false,
       safeDetail: 'mixed publishable and unpublishable sources',
     };

@@ -60,6 +60,45 @@ export function envEntries(record) {
  * a service path after a digest produces an invalid OCI reference, so callers
  * pass the two final references rather than a pseudo-prefix.
  */
+/**
+ * The engine's provenance, as a discriminated pair of variables.
+ *
+ * `AI_ENGINE_IMAGE_DIGEST` used to be required unconditionally. The knowledge
+ * base this deployment talks to is a Git checkout on a VM, so the only values
+ * an operator could put there were a Git SHA or a placeholder — false in a
+ * variable named for an OCI digest, and false in the direction that makes an
+ * audit succeed. A deployment now says which kind of artifact it runs, and
+ * supplies the fields that kind actually has.
+ *
+ * Emitted identically for BFF and worker: the BFF stamps the run row, the
+ * worker serves the run, and a difference between them would make every run's
+ * provenance unfalsifiable.
+ */
+export function provenanceEnv(ctx) {
+  // Read from the deployment context, NOT requireEnv: the kind decides which
+  // other variables exist, so it is a shape decision the manifest must know at
+  // build time. Indirecting it through a secret reference would make the
+  // manifest emit a branch it cannot evaluate.
+  const kind = ctx.engineProvenanceKind;
+  if (kind === 'oci') {
+    return {
+      AI_ENGINE_PROVENANCE_KIND: kind,
+      AI_ENGINE_IMAGE_DIGEST: ctx.requireEnv('AI_ENGINE_IMAGE_DIGEST'),
+    };
+  }
+  if (kind === 'git') {
+    return {
+      AI_ENGINE_PROVENANCE_KIND: kind,
+      AI_ENGINE_GIT_COMMIT: ctx.requireEnv('AI_ENGINE_GIT_COMMIT'),
+      AI_ENGINE_GIT_REPOSITORY: ctx.requireEnv('AI_ENGINE_GIT_REPOSITORY'),
+      ...(ctx.optionalEnv?.('AI_ENGINE_CONFIG_DIGEST')
+        ? { AI_ENGINE_CONFIG_DIGEST: ctx.optionalEnv('AI_ENGINE_CONFIG_DIGEST') }
+        : {}),
+    };
+  }
+  throw new Error(`AI_ENGINE_PROVENANCE_KIND must be "oci" or "git", got: ${JSON.stringify(kind)}`);
+}
+
 export function buildCloudRunServiceDefs(ctx) {
   const digestReference =
     /^(?:[a-z0-9]+(?:[._-][a-z0-9]+)*(?::[0-9]+)?\/)?[a-z0-9]+(?:[._/-][a-z0-9]+)*@sha256:[0-9a-f]{64}$/;
@@ -98,7 +137,7 @@ export function buildCloudRunServiceDefs(ctx) {
         CORS_ALLOWED_ORIGINS: ctx.siteOrigins,
         AI_ENGINE_ID: ctx.requireEnv('AI_ENGINE_ID'),
         AI_ENGINE_VERSION: ctx.requireEnv('AI_ENGINE_VERSION'),
-        AI_ENGINE_IMAGE_DIGEST: ctx.requireEnv('AI_ENGINE_IMAGE_DIGEST'),
+        ...provenanceEnv(ctx),
         AI_IP_HASH_SECRET: ctx.requireEnv('AI_IP_HASH_SECRET'),
         AI_TRUST_PROXY: ctx.requireEnv('AI_TRUST_PROXY'),
       }),
@@ -131,7 +170,7 @@ export function buildCloudRunServiceDefs(ctx) {
         DATABASE_URL: ctx.requireEnv('DATABASE_URL'),
         AI_ENGINE_ID: ctx.requireEnv('AI_ENGINE_ID'),
         AI_ENGINE_VERSION: ctx.requireEnv('AI_ENGINE_VERSION'),
-        AI_ENGINE_IMAGE_DIGEST: ctx.requireEnv('AI_ENGINE_IMAGE_DIGEST'),
+        ...provenanceEnv(ctx),
         AI_PROFILE_ID: ctx.requireEnv('AI_PROFILE_ID'),
         AI_WORKER_LEASE_SECONDS: ctx.requireEnv('AI_WORKER_LEASE_SECONDS'),
         AI_MAX_STREAM_DURATION_MS: ctx.requireEnv('AI_MAX_STREAM_DURATION_MS'),

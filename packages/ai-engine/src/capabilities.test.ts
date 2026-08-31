@@ -4,7 +4,10 @@ import {
   type DeploymentCompensations,
   type EngineCapabilities,
   assertEngineUsable,
+  assertProvenance,
   describeEngineRefusals,
+  describeProvenance,
+  provenanceFromEnv,
 } from './capabilities.ts';
 
 /**
@@ -123,5 +126,77 @@ test('the thrown error names every reason, so a restart loop is diagnosable', ()
       assert.match(error.message, /citation/i);
       return true;
     },
+  );
+});
+
+/**
+ * Provenance must not be able to lie about which KIND of artifact it names.
+ * The whole failure this replaces was a well-typed `string` holding a Git SHA
+ * in a field called `imageDigest`.
+ */
+test('a git commit offered as an image digest is refused', () => {
+  assert.throws(
+    () => assertProvenance({ kind: 'oci', imageDigest: 'a'.repeat(40) }),
+    /not a sha256 image digest[\s\S]*declare kind "git"/,
+  );
+});
+
+test('a placeholder is refused as an image digest', () => {
+  for (const bad of ['unpinned', 'sha256:deadbeef', '', 'latest']) {
+    assert.throws(() => assertProvenance({ kind: 'oci', imageDigest: bad }), /not a sha256/);
+  }
+});
+
+test('a real oci digest and a real git commit are both accepted', () => {
+  assert.doesNotThrow(() =>
+    assertProvenance({ kind: 'oci', imageDigest: `sha256:${'a'.repeat(64)}` }),
+  );
+  assert.doesNotThrow(() =>
+    assertProvenance({ kind: 'git', commit: 'b'.repeat(40), repository: 'vibelingan/channel' }),
+  );
+});
+
+test('a git commit with no repository names nothing anyone can find', () => {
+  assert.throws(
+    () => assertProvenance({ kind: 'git', commit: 'b'.repeat(40), repository: '  ' }),
+    /needs the repository/,
+  );
+});
+
+test('an abbreviated commit is refused', () => {
+  assert.throws(
+    () => assertProvenance({ kind: 'git', commit: 'b'.repeat(12), repository: 'r' }),
+    /not a 40-character commit sha/,
+  );
+});
+
+test('the environment parser refuses a deployment that will not say what it runs', () => {
+  assert.throws(() => provenanceFromEnv({}), /must be "oci" or "git"/);
+  assert.throws(
+    () => provenanceFromEnv({ AI_ENGINE_PROVENANCE_KIND: 'git' }),
+    /AI_ENGINE_GIT_COMMIT is required/,
+  );
+  assert.throws(
+    () =>
+      provenanceFromEnv({
+        AI_ENGINE_PROVENANCE_KIND: 'oci',
+        AI_ENGINE_IMAGE_DIGEST: 'a'.repeat(40),
+      }),
+    /not a sha256 image digest/,
+  );
+  assert.deepEqual(
+    provenanceFromEnv({
+      AI_ENGINE_PROVENANCE_KIND: 'git',
+      AI_ENGINE_GIT_COMMIT: 'c'.repeat(40),
+      AI_ENGINE_GIT_REPOSITORY: 'vibelingan/channel',
+    }),
+    { kind: 'git', commit: 'c'.repeat(40), repository: 'vibelingan/channel' },
+  );
+});
+
+test('the description never leaks anything but the identity itself', () => {
+  assert.equal(
+    describeProvenance({ kind: 'git', commit: 'd'.repeat(40), repository: 'vibelingan/channel' }),
+    `git:vibelingan/channel@${'d'.repeat(40)}`,
   );
 });

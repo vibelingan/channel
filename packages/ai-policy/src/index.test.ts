@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { EngineCitation } from '@vibelingan-channel/ai-engine/port';
-import { enforceGroundedFinal, preparePublicTurns, redactContactData } from './index.ts';
+import {
+  PUBLICATION_BLOCKED,
+  enforceGroundedFinal,
+  preparePublicTurns,
+  redactContactData,
+} from './index.ts';
 
 test('contact details are removed before context crosses the model boundary', () => {
   const input = 'Email alice@example.com or call +1 (415) 555-0123 about MOQ.';
@@ -93,7 +98,7 @@ test('an internal document cannot ground a public answer', () => {
   });
   assert.deepEqual(result, {
     type: 'error',
-    category: 'knowledge_empty',
+    category: PUBLICATION_BLOCKED,
     retriable: false,
     safeDetail: 'no publishable source',
   });
@@ -115,8 +120,17 @@ test('a mixed public and internal citation set refuses the whole answer', () => 
   });
   assert.deepEqual(result, {
     type: 'error',
-    category: 'knowledge_empty',
+    category: PUBLICATION_BLOCKED,
     retriable: false,
     safeDetail: 'mixed publishable and unpublishable sources',
   });
+});
+
+test('an ordinary empty answer is NOT reported as a publication block', () => {
+  // The distinction the acceptance test depends on: retrieval finding nothing
+  // is routine, and must not be mistakable for the gate refusing to publish.
+  const result = enforceGroundedFinal({ type: 'final', text: 'anything', citations: [] });
+  assert.equal(result.type, 'error');
+  assert.equal(result.type === 'error' ? result.category : '', 'knowledge_empty');
+  assert.notEqual(result.type === 'error' ? result.category : '', PUBLICATION_BLOCKED);
 });

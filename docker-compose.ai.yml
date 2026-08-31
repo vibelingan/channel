@@ -78,7 +78,15 @@ services:
       CORS_ALLOWED_ORIGINS: ${AI_CORS_ALLOWED_ORIGINS:-http://localhost:4321}
       AI_ENGINE_ID: ${AI_ENGINE_ID:-fake}
       AI_ENGINE_VERSION: ${AI_ENGINE_VERSION:-0.1.0}
+      # WHICH KIND of artifact produced the answer, then the fields that kind
+      # has. `oci` for a pinned container, `git` for a source checkout on a VM —
+      # which is what the hosted knowledge base actually is. A git sha in a
+      # variable named for an image digest is a lie an audit cannot detect.
+      AI_ENGINE_PROVENANCE_KIND: ${AI_ENGINE_PROVENANCE_KIND:-oci}
       AI_ENGINE_IMAGE_DIGEST: ${AI_ENGINE_IMAGE_DIGEST:-}
+      AI_ENGINE_GIT_COMMIT: ${AI_ENGINE_GIT_COMMIT:-}
+      AI_ENGINE_GIT_REPOSITORY: ${AI_ENGINE_GIT_REPOSITORY:-}
+      AI_ENGINE_CONFIG_DIGEST: ${AI_ENGINE_CONFIG_DIGEST:-}
     ports:
       # The loopback prefix is NOT optional and is not decoration. Without it
       # this publishes an unauthenticated conversation API on every network the
@@ -118,7 +126,15 @@ services:
       # run records for incident scoping. Read only when AI_ENGINE_ID is
       # anythingllm. Change it in the SAME edit as the image digest below it.
       AI_ENGINE_VERSION: ${AI_ENGINE_VERSION:-0.1.0}
+      # WHICH KIND of artifact produced the answer, then the fields that kind
+      # has. `oci` for a pinned container, `git` for a source checkout on a VM —
+      # which is what the hosted knowledge base actually is. A git sha in a
+      # variable named for an image digest is a lie an audit cannot detect.
+      AI_ENGINE_PROVENANCE_KIND: ${AI_ENGINE_PROVENANCE_KIND:-oci}
       AI_ENGINE_IMAGE_DIGEST: ${AI_ENGINE_IMAGE_DIGEST:-}
+      AI_ENGINE_GIT_COMMIT: ${AI_ENGINE_GIT_COMMIT:-}
+      AI_ENGINE_GIT_REPOSITORY: ${AI_ENGINE_GIT_REPOSITORY:-}
+      AI_ENGINE_CONFIG_DIGEST: ${AI_ENGINE_CONFIG_DIGEST:-}
       ANYTHINGLLM_BASE_URL: ${ANYTHINGLLM_BASE_URL:-http://anythingllm:3001}
       ANYTHINGLLM_WORKSPACE_SLUG: ${ANYTHINGLLM_WORKSPACE_SLUG:-channel-public-assistant}
       ANYTHINGLLM_API_KEY: ${ANYTHINGLLM_API_KEY:-}

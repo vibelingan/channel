@@ -32,6 +32,9 @@ importers:
       '@vibelingan-channel/ai-contracts':
         specifier: workspace:*
         version: link:../../packages/ai-contracts
+      '@vibelingan-channel/ai-engine':
+        specifier: workspace:*
+        version: link:../../packages/ai-engine
       '@vibelingan-channel/ai-store':
         specifier: workspace:*
         version: link:../../packages/ai-store
@@ -320,6 +323,9 @@ importers:
 
   packages/ai-store:
     dependencies:
+      '@vibelingan-channel/ai-engine':
+        specifier: workspace:*
+        version: link:../ai-engine
       pg:
         specifier: ^8.23.0
         version: 8.23.0

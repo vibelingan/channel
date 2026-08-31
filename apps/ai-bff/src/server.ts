@@ -9,6 +9,10 @@ import {
   isAppendMessageRequest,
   isCreateConversationRequest,
 } from '@vibelingan-channel/ai-contracts';
+import {
+  type EngineProvenance,
+  provenanceFromEnv,
+} from '@vibelingan-channel/ai-engine/capabilities';
 import { AiStore, type EventRow, migrateUp } from '@vibelingan-channel/ai-store';
 
 export interface AiBffConfig {
@@ -16,7 +20,8 @@ export interface AiBffConfig {
   credentialTtlSeconds: number;
   engineId: string;
   engineVersion: string;
-  engineImageDigest?: string;
+  /** What produced the answers this BFF records. Must match the worker's. */
+  engineProvenance?: EngineProvenance;
   globalRequestsPerMinute: number;
   ipRequestsPerMinute: number;
   ipHashSecret: string;
@@ -123,7 +128,7 @@ export function createAiBffServer(store: AiStore, config: AiBffConfig): Server {
           content: body.message.trim(),
           engineId: config.engineId,
           engineVersion: config.engineVersion,
-          ...(config.engineImageDigest ? { imageDigest: config.engineImageDigest } : {}),
+          ...(config.engineProvenance ? { provenance: config.engineProvenance } : {}),
         });
         const payload: AppendMessageResponse = {
           messageId: accepted.messageId,
@@ -365,8 +370,11 @@ function configFromEnvironment(): AiBffConfig {
     credentialTtlSeconds: numberEnv('AI_CREDENTIAL_TTL_SECONDS', 86_400),
     engineId: process.env.AI_ENGINE_ID ?? 'fake',
     engineVersion: process.env.AI_ENGINE_VERSION ?? '0.1.0',
-    ...(process.env.AI_ENGINE_IMAGE_DIGEST
-      ? { engineImageDigest: process.env.AI_ENGINE_IMAGE_DIGEST }
+    // Read through the SAME parser the worker uses, so the two processes cannot
+    // disagree about what produced a run: the BFF stamps the row, the worker
+    // serves it, and a mismatch would make every run's provenance unfalsifiable.
+    ...(process.env.AI_ENGINE_PROVENANCE_KIND
+      ? { engineProvenance: provenanceFromEnv(process.env) }
       : {}),
     globalRequestsPerMinute: numberEnv('AI_GLOBAL_REQUESTS_PER_MINUTE', 600),
     ipRequestsPerMinute: numberEnv('AI_IP_REQUESTS_PER_MINUTE', 60),

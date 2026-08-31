@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { EngineProvenance } from '@vibelingan-channel/ai-engine/capabilities';
 import { Pool, type PoolClient } from 'pg';
 
 export type EventType =
@@ -57,6 +58,22 @@ export interface RunExecutionContext {
 export interface FencedTerminalEvent {
   type: 'token' | 'citation' | 'final' | 'error';
   payload: Record<string, unknown>;
+}
+
+/**
+ * The JSON body stored beside the discriminator.
+ *
+ * The `kind` lives in its own column so the database CHECK can branch on it,
+ * so it is not repeated inside the document — one fact, one place.
+ */
+function provenanceRecord(value: EngineProvenance): Record<string, string> {
+  return value.kind === 'oci'
+    ? { imageDigest: value.imageDigest }
+    : {
+        commit: value.commit,
+        repository: value.repository,
+        ...(value.configDigest ? { configDigest: value.configDigest } : {}),
+      };
 }
 
 export interface TerminalizeRunInput {
@@ -219,7 +236,7 @@ export class AiStore {
     content: string;
     engineId: string;
     engineVersion: string;
-    imageDigest?: string;
+    provenance?: EngineProvenance;
   }): Promise<{ messageId: string; run: NewRun | null; replayed: boolean }> {
     return this.transaction(async (client) => {
       const conversation = await client.query<{
@@ -267,8 +284,8 @@ export class AiStore {
       await client.query(
         `INSERT INTO ai_runs(
            id, conversation_id, operation_id, control_version,
-           engine_id, engine_version, image_digest
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+           engine_id, engine_version, engine_provenance_kind, engine_provenance
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
         [
           runId,
           input.conversationId,
@@ -276,7 +293,8 @@ export class AiStore {
           row.control_version,
           input.engineId,
           input.engineVersion,
-          input.imageDigest ?? null,
+          input.provenance?.kind ?? null,
+          input.provenance ? JSON.stringify(provenanceRecord(input.provenance)) : null,
         ],
       );
       await client.query(
@@ -516,10 +534,11 @@ export class AiStore {
         conversation_id: string;
         engine_id: string;
         engine_version: string;
-        image_digest: string | null;
+        engine_provenance_kind: string | null;
+        engine_provenance: Record<string, unknown> | null;
       }>(
         `SELECT status, claim_epoch, cancel_requested_at, conversation_id,
-                engine_id, engine_version, image_digest
+                engine_id, engine_version, engine_provenance_kind, engine_provenance
          FROM ai_runs WHERE id = $1 AND conversation_id = $2 FOR UPDATE`,
         [input.runId, conversationId],
       );
@@ -591,8 +610,8 @@ export class AiStore {
       await client.query(
         `INSERT INTO ai_runs(
            id, conversation_id, operation_id, control_version,
-           engine_id, engine_version, image_digest
-         ) SELECT $2, id, $3, control_version, $4, $5, $6
+           engine_id, engine_version, engine_provenance_kind, engine_provenance
+         ) SELECT $2, id, $3, control_version, $4, $5, $6, $7::jsonb
            FROM conversations WHERE id = $1`,
         [
           conversationId,
@@ -600,7 +619,8 @@ export class AiStore {
           `run:${nextRunId}`,
           row.engine_id,
           row.engine_version,
-          row.image_digest,
+          row.engine_provenance_kind,
+          row.engine_provenance ? JSON.stringify(row.engine_provenance) : null,
         ],
       );
       await client.query('UPDATE conversation_messages SET answered_by_run = $2 WHERE id = $1', [
@@ -850,14 +870,15 @@ export class AiStore {
       const run = await client.query<{
         engine_id: string;
         engine_version: string;
-        image_digest: string | null;
+        engine_provenance_kind: string | null;
+        engine_provenance: Record<string, unknown> | null;
       }>(
         `UPDATE ai_runs
          SET status = $5, updated_at = clock_timestamp()
          WHERE id = $1 AND conversation_id = $2 AND status = 'running'
            AND control_version = $3 AND claim_epoch = $4
            AND cancel_requested_at IS NULL
-         RETURNING engine_id, engine_version, image_digest`,
+         RETURNING engine_id, engine_version, engine_provenance_kind, engine_provenance`,
         [
           input.runId,
           input.conversationId,
@@ -889,8 +910,8 @@ export class AiStore {
       await client.query(
         `INSERT INTO ai_runs(
            id, conversation_id, operation_id, control_version,
-           engine_id, engine_version, image_digest
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+           engine_id, engine_version, engine_provenance_kind, engine_provenance
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
         [
           nextRunId,
           input.conversationId,
@@ -898,7 +919,8 @@ export class AiStore {
           input.expectedControlVersion,
           runMetadata.engine_id,
           runMetadata.engine_version,
-          runMetadata.image_digest,
+          runMetadata.engine_provenance_kind,
+          runMetadata.engine_provenance ? JSON.stringify(runMetadata.engine_provenance) : null,
         ],
       );
       await client.query('UPDATE conversation_messages SET answered_by_run = $2 WHERE id = $1', [

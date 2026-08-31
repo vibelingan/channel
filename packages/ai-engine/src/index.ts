@@ -16,9 +16,13 @@ export {
 
 export {
   assertEngineUsable,
+  assertProvenance,
   type DeploymentCompensations,
   describeEngineRefusals,
+  describeProvenance,
+  provenanceFromEnv,
   type EngineCapabilities,
+  type EngineProvenance,
 } from './capabilities.ts';
 
 export type {

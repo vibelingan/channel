@@ -28,6 +28,7 @@ const ctx = {
     'ai-worker': `registry.example/channel/ai-worker@sha256:${'b'.repeat(64)}`,
   },
   siteOrigins: 'https://site.example',
+  engineProvenanceKind: 'oci',
   requireEnv: (name) => `secret://${name}`,
   optionalEnv: () => undefined,
 };
@@ -221,4 +222,43 @@ test('the manifest declares no gateway prefix route', () => {
   // admin. A route here would divert storefront traffic, not gain assistant
   // traffic. The BFF is reached on its own CloudRun hostname instead.
   for (const def of defs) assert.equal(def.routePath, undefined);
+});
+
+test('git provenance emits commit and repository, never an image digest', () => {
+  const defs = buildCloudRunServiceDefs({ ...ctx, engineProvenanceKind: 'git' });
+  for (const def of defs) {
+    assert.equal(def.envVariables.AI_ENGINE_PROVENANCE_KIND, 'git');
+    assert.equal(def.envVariables.AI_ENGINE_GIT_COMMIT, 'secret://AI_ENGINE_GIT_COMMIT');
+    assert.equal(def.envVariables.AI_ENGINE_GIT_REPOSITORY, 'secret://AI_ENGINE_GIT_REPOSITORY');
+    assert.equal(
+      def.envVariables.AI_ENGINE_IMAGE_DIGEST,
+      undefined,
+      `${def.name} still claims an image digest while running a git checkout`,
+    );
+  }
+});
+
+test('BFF and worker are given IDENTICAL provenance', () => {
+  // The BFF stamps the run row and the worker serves the run. If they disagree,
+  // every run records a provenance nothing can check.
+  for (const kind of ['oci', 'git']) {
+    const [bff, worker] = buildCloudRunServiceDefs({ ...ctx, engineProvenanceKind: kind });
+    const keys = Object.keys(bff.envVariables).filter((k) => k.startsWith('AI_ENGINE_'));
+    for (const key of keys.filter(
+      (k) => k.includes('PROVENANCE') || k.includes('GIT') || k.includes('DIGEST'),
+    )) {
+      assert.equal(worker.envVariables[key], bff.envVariables[key], `${key} differs (${kind})`);
+    }
+  }
+});
+
+test('an unknown provenance kind is refused rather than defaulted', () => {
+  assert.throws(
+    () => buildCloudRunServiceDefs({ ...ctx, engineProvenanceKind: 'sha' }),
+    /must be "oci" or "git"/,
+  );
+  assert.throws(
+    () => buildCloudRunServiceDefs({ ...ctx, engineProvenanceKind: undefined }),
+    /must be/,
+  );
 });

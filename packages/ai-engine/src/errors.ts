@@ -21,6 +21,21 @@ export const ENGINE_ERROR_CATEGORIES = [
   'content_filtered',
   /** No grounding evidence found. */
   'knowledge_empty',
+  /**
+   * The answer-side publication gate refused to publish.
+   *
+   * Distinct from `knowledge_empty` on purpose, and emitted by NOTHING else.
+   * `knowledge_empty` means retrieval came back with nothing to say, which is
+   * an ordinary outcome. This means retrieval DID find material and the
+   * publication/provenance rules forbade using it — an unapproved source, or a
+   * mix of approved and unapproved evidence.
+   *
+   * The negative acceptance test asserts exactly this code. When any error
+   * satisfied that assertion, a provider outage, a quota trip or a timeout
+   * proved the gate worked, which is how a security test passes while the
+   * control it covers is switched off.
+   */
+  'publication_blocked',
 ] as const;
 
 export type EngineErrorCategory = (typeof ENGINE_ERROR_CATEGORIES)[number];

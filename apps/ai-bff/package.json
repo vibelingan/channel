@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@vibelingan-channel/ai-contracts": "workspace:*",
+    "@vibelingan-channel/ai-engine": "workspace:*",
     "@vibelingan-channel/ai-store": "workspace:*",
     "pg": "^8.23.0"
   },
