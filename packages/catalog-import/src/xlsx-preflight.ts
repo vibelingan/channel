@@ -7,7 +7,7 @@
  * any workbook data. Numeric `<v>` text is retained by cell address because a
  * JavaScript number cannot preserve the merchant's original decimal lexeme.
  */
-import { isUtf8, type Buffer } from 'node:buffer';
+import { type Buffer, isUtf8 } from 'node:buffer';
 import { ZipArchive, ZipFormatError } from './xlsx-zip.ts';
 
 /** A worksheet larger than this is not a Dianxiaomi product export. */
@@ -20,6 +20,7 @@ export const MAX_ATTRIBUTE_CHARS = 8_192;
 
 const REFUSED_PART_PREFIXES: readonly [string, string][] = [
   ['xl/vbaProject.bin', 'workbook contains macros'],
+  ['xl/macrosheets/', 'workbook contains macros'],
   ['xl/externalLinks/', 'workbook contains external links'],
   ['xl/activeX/', 'workbook contains ActiveX controls'],
   ['xl/embeddings/', 'workbook contains embedded objects'],

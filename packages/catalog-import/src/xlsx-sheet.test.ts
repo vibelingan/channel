@@ -111,7 +111,9 @@ test('decodes only the predefined entities and character references', () => {
 
 test('carries numeric cells as their stored lexeme, never as a number', () => {
   const bytes = buildXlsx({
-    sheets: [{ name: 'S', rows: [[{ inline: '0012300' }, { inline: '1e5' }, { numeric: '19.9900' }]] }],
+    sheets: [
+      { name: 'S', rows: [[{ inline: '0012300' }, { inline: '1e5' }, { numeric: '19.9900' }]] },
+    ],
   });
   const rows = readFirstSheet(bytes).rows;
   const cells = rows[0]?.cells ?? [];

@@ -12,8 +12,8 @@ import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   ALIBABA_SYNC_TIMER,
   DESIRED_TIMER_TRIGGERS,

@@ -8,8 +8,10 @@ choice, not complete production approval.
 
 This is a narrow library decision. It does not transfer input-security policy, provider
 mapping, product grouping, staging, media ingestion, or publication policy to SheetJS.
-Exact Node 20 runtime execution, the fully bundled artifact gate, and an actual
-CloudBase smoke are pending; no deployment was authorized for this work.
+The fully bundled artifact cold-start gate passed locally under the exact
+CloudBase `Nodejs20.19` runtime with an empty production dependency map. An
+actual CloudBase smoke remains pending; no deployment was authorized for this
+work.
 
 ## Evidence
 

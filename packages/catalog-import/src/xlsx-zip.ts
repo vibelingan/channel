@@ -158,9 +158,7 @@ export function readZipDirectory(bytes: Buffer): Map<string, ZipEntry> {
     const lowerName = name.toLowerCase();
     const caseVariant = namesByLowerCase.get(lowerName);
     if (caseVariant !== undefined) {
-      throw new ZipFormatError(
-        `ZIP entry names collide by case: ${caseVariant} and ${name}`,
-      );
+      throw new ZipFormatError(`ZIP entry names collide by case: ${caseVariant} and ${name}`);
     }
 
     const compressionMethod = bytes.readUInt16LE(cursor + 10);
@@ -179,10 +177,7 @@ export function readZipDirectory(bytes: Buffer): Map<string, ZipEntry> {
         `ZIP entry ${name} declares zero compressed bytes for non-empty content`,
       );
     }
-    if (
-      compressedSize > 0 &&
-      uncompressedSize / compressedSize > MAX_COMPRESSION_RATIO
-    ) {
+    if (compressedSize > 0 && uncompressedSize / compressedSize > MAX_COMPRESSION_RATIO) {
       throw new ZipFormatError(`ZIP entry ${name} exceeds the compression-ratio limit`);
     }
     declaredTotal += uncompressedSize;

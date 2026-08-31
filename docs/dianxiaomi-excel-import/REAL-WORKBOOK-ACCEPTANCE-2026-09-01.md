@@ -3,7 +3,9 @@
 ## Scope and result
 
 **Observed:** the requested local parser/staging acceptance passed on Node `22.13.0`.
-This is not a CloudBase deployment, Node 20 runtime, or production-media acceptance.
+This is not a CloudBase deployment or production-media acceptance. Separately,
+the fully bundled Cloud Function artifacts cold-started with an empty production
+dependency map under the exact CloudBase `Nodejs20.19` runtime.
 
 The supplied workbook is identified by the fixed SHA-256:
 
@@ -111,9 +113,10 @@ transitive-dependency surface.
 
 This supports SheetJS as the branch implementation choice because it keeps the
 synchronous contract and provides the typed cell data required by the private adapter.
-It is not complete production approval. The exact Node 20 runtime, fully bundled
-artifact, and actual CloudBase smoke remain pending because no deployment was authorized.
-Any single-run timing or RSS observation is directional only, not acceptance evidence.
+It is not complete production approval. The exact Node 20.19 runtime cold-started
+the fully bundled artifacts locally; actual CloudBase smoke remains pending because
+no deployment was authorized. Any single-run timing or RSS observation is directional
+only, not acceptance evidence.
 
 ## Focused regression check
 

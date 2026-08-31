@@ -63,10 +63,7 @@ function addressFor(rowNumber: number, columnIndex: number): string {
 }
 
 /** Decode with SheetJS CE 0.20.3 and normalize into the stable contract. */
-export function readSheetJs(
-  bytes: Buffer,
-  completedPreflight?: XlsxPreflightResult,
-): SourceSheet {
+export function readSheetJs(bytes: Buffer, completedPreflight?: XlsxPreflightResult): SourceSheet {
   const preflight = completedPreflight ?? preflightXlsx(bytes);
   try {
     const workbook = XLSX.read(bytes, {
@@ -88,13 +85,11 @@ export function readSheetJs(
 
     const rows: SourceRow[] = preflight.selectedRowNumbers.map((rowNumber) => {
       const libraryRow = denseRows[rowNumber - 1] ?? [];
-      const cells = Array.from(
-        { length: libraryRow.length },
-        (_unused, columnIndex) =>
-          normalizeCell(
-            libraryRow[columnIndex],
-            preflight.numericLexemesByAddress.get(addressFor(rowNumber, columnIndex)),
-          ),
+      const cells = Array.from({ length: libraryRow.length }, (_unused, columnIndex) =>
+        normalizeCell(
+          libraryRow[columnIndex],
+          preflight.numericLexemesByAddress.get(addressFor(rowNumber, columnIndex)),
+        ),
       );
       return { rowNumber, cells };
     });

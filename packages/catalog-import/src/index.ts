@@ -74,11 +74,11 @@ export {
   looksLikeSpreadsheet,
   readFirstSheet,
 } from './xlsx-sheet.ts';
-export {
-  type SourceCell,
-  type SourceCellKind,
-  type SourceRow,
-  type SourceSheet,
+export type {
+  SourceCell,
+  SourceCellKind,
+  SourceRow,
+  SourceSheet,
 } from './xlsx-contract.ts';
 
 export {

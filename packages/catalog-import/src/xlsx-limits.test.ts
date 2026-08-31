@@ -326,6 +326,18 @@ test('a macro part is refused even when its name is recased', () => {
   );
 });
 
+test('an unreferenced macrosheet XML part is refused even when its name is recased', () => {
+  // Macro sheets are executable workbook content even when no workbook
+  // relationship reaches them. OPC part names are case-insensitive, so this
+  // mixed-case path must be rejected before a third-party parser sees it.
+  refuses(
+    packageOf({
+      extraParts: [['xl/MacroSheets/macroSheet1.XML', Buffer.from('<macrosheet/>')]],
+    }),
+    /macros/,
+  );
+});
+
 test('a workbook carrying external link parts is refused', () => {
   refuses(
     packageOf({
