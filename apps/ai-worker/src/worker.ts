@@ -69,6 +69,69 @@ export interface KnowledgeEvidence {
 }
 
 /**
+ * Narrow the evidence file's contents, rather than asserting a shape over it.
+ *
+ * The file crosses a trust boundary — it is disk I/O, and on a compromised or
+ * simply half-written probe run it can be truncated, `null`, or the wrong JSON
+ * entirely. A cast would let any of those through as a well-typed object whose
+ * nested fields are `undefined`, and `verifyKnowledgeAttestation` would then
+ * reason about `undefined` instead of refusing outright — the worst case being
+ * a crash on `evidence.positiveControl.retrieved` deep inside the readiness
+ * path rather than the clear refusal this exists to produce.
+ */
+export function parseKnowledgeEvidence(value: unknown, sourcePath: string): KnowledgeEvidence {
+  if (typeof value !== 'object' || value === null) {
+    throw new Error(`knowledge evidence at ${sourcePath} is not a JSON object`);
+  }
+  const record = value as Record<string, unknown>;
+  if (typeof record.schema !== 'string' || typeof record.recordedAt !== 'string') {
+    throw new Error(`knowledge evidence at ${sourcePath} is missing schema or recordedAt`);
+  }
+  const positiveControl = record.positiveControl;
+  if (typeof positiveControl !== 'object' || positiveControl === null) {
+    throw new Error(`knowledge evidence at ${sourcePath} is missing positiveControl`);
+  }
+  const toolSurface = record.toolSurface;
+  if (typeof toolSurface !== 'object' || toolSurface === null) {
+    throw new Error(`knowledge evidence at ${sourcePath} is missing toolSurface`);
+  }
+  const transport = record.transport;
+  if (typeof transport !== 'object' || transport === null) {
+    throw new Error(`knowledge evidence at ${sourcePath} is missing transport`);
+  }
+  const num = (value: unknown): number => {
+    const n = Number(value ?? 0);
+    return Number.isFinite(n) ? n : 0;
+  };
+  return {
+    schema: record.schema,
+    recordedAt: record.recordedAt,
+    credentialId: typeof record.credentialId === 'string' ? record.credentialId : null,
+    workspaceSlug: typeof record.workspaceSlug === 'string' ? record.workspaceSlug : null,
+    rotationCounter: typeof record.rotationCounter === 'number' ? record.rotationCounter : null,
+    corpusGeneration: typeof record.corpusGeneration === 'string' ? record.corpusGeneration : null,
+    positiveControl: {
+      retrieved: (positiveControl as Record<string, unknown>).retrieved === true,
+      resultCount: num((positiveControl as Record<string, unknown>).resultCount),
+      approvedSourceCount: num((positiveControl as Record<string, unknown>).approvedSourceCount),
+      citationsObserved: num((positiveControl as Record<string, unknown>).citationsObserved),
+    },
+    toolSurface: {
+      inspected: (toolSurface as Record<string, unknown>).inspected === true,
+      enabledCount: num((toolSurface as Record<string, unknown>).enabledCount),
+      verdict:
+        typeof (toolSurface as Record<string, unknown>).verdict === 'string'
+          ? ((toolSurface as Record<string, unknown>).verdict as string)
+          : 'unknown',
+    },
+    transport: {
+      https: (transport as Record<string, unknown>).https === true,
+      insecureOverride: (transport as Record<string, unknown>).insecureOverride === true,
+    },
+  };
+}
+
+/**
  * Prove the engine that is about to serve is the one the evidence was gathered
  * from — against the EVIDENCE, not against the environment.
  *
@@ -445,10 +508,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const evidencePath = requiredEnv('AI_KB_EVIDENCE_FILE');
     let evidence: KnowledgeEvidence;
     try {
-      evidence = JSON.parse(await readFile(evidencePath, 'utf8')) as KnowledgeEvidence;
-    } catch {
+      const raw: unknown = JSON.parse(await readFile(evidencePath, 'utf8'));
+      evidence = parseKnowledgeEvidence(raw, evidencePath);
+    } catch (caught) {
+      const detail = caught instanceof Error ? caught.message : 'unreadable';
       throw new Error(
-        `refusing to serve; no readable knowledge evidence at ${evidencePath}. Run \`pnpm test:ai:kb\` with AI_KB_EVIDENCE_FILE set against the approved workspace first.`,
+        `refusing to serve; knowledge evidence at ${evidencePath} is unusable (${detail}). Run \`pnpm test:ai:kb\` with AI_KB_EVIDENCE_FILE set against the approved workspace first.`,
       );
     }
     await verifyKnowledgeAttestation(engine, evidence, {

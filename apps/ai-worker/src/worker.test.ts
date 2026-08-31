@@ -6,6 +6,7 @@ import { AiStore, migrateUp } from '@vibelingan-channel/ai-store';
 import {
   type KnowledgeEvidence,
   type WorkerConfig,
+  parseKnowledgeEvidence,
   processOne,
   validateWorkerConfig,
   verifyKnowledgeAttestation,
@@ -352,3 +353,88 @@ test(
     assert.deepEqual(await store.listEvents(conversation.id), []);
   },
 );
+
+/**
+ * The evidence file crosses a trust boundary (disk I/O from a probe run) and
+ * must be narrowed, not cast. A cast would let a truncated or malformed file
+ * through as a well-typed object whose fields are `undefined`, and the
+ * verifier would then reason about `undefined` instead of refusing outright.
+ */
+test('null evidence is refused with a clear message, not a crash', () => {
+  assert.throws(() => parseKnowledgeEvidence(null, '/tmp/evidence.json'), /not a JSON object/);
+});
+
+test('a bare scalar (e.g. a truncated file parsing to a number) is refused', () => {
+  assert.throws(() => parseKnowledgeEvidence(42, '/tmp/evidence.json'), /not a JSON object/);
+  assert.throws(() => parseKnowledgeEvidence('oops', '/tmp/evidence.json'), /not a JSON object/);
+});
+
+test('an object missing schema or recordedAt is refused, not silently accepted', () => {
+  assert.throws(
+    () => parseKnowledgeEvidence({ recordedAt: '2026-01-01T00:00:00Z' }, '/tmp/evidence.json'),
+    /missing schema or recordedAt/,
+  );
+});
+
+test('an object missing the nested positiveControl/toolSurface/transport is refused', () => {
+  const base = { schema: 'channel.ai.kb-evidence/1', recordedAt: '2026-01-01T00:00:00Z' };
+  assert.throws(
+    () => parseKnowledgeEvidence(base, '/tmp/evidence.json'),
+    /missing positiveControl/,
+  );
+  assert.throws(
+    () => parseKnowledgeEvidence({ ...base, positiveControl: {} }, '/tmp/evidence.json'),
+    /missing toolSurface/,
+  );
+  assert.throws(
+    () =>
+      parseKnowledgeEvidence(
+        { ...base, positiveControl: {}, toolSurface: {} },
+        '/tmp/evidence.json',
+      ),
+    /missing transport/,
+  );
+});
+
+test('a well-formed evidence object narrows cleanly, coercing loose types', () => {
+  const parsed = parseKnowledgeEvidence(
+    {
+      schema: 'channel.ai.kb-evidence/1',
+      recordedAt: '2026-01-01T00:00:00Z',
+      credentialId: 'abc',
+      workspaceSlug: 'ws',
+      rotationCounter: 2,
+      corpusGeneration: 'g1000',
+      positiveControl: {
+        retrieved: true,
+        resultCount: 4,
+        approvedSourceCount: 4,
+        citationsObserved: 2,
+      },
+      toolSurface: { inspected: true, enabledCount: 0, verdict: 'none' },
+      transport: { https: true, insecureOverride: false },
+    },
+    '/tmp/evidence.json',
+  );
+  assert.equal(parsed.credentialId, 'abc');
+  assert.equal(parsed.positiveControl.retrieved, true);
+  assert.equal(parsed.toolSurface.verdict, 'none');
+});
+
+test('a stray field never survives narrowing, and nested junk defaults safely', () => {
+  const parsed = parseKnowledgeEvidence(
+    {
+      schema: 'channel.ai.kb-evidence/1',
+      recordedAt: '2026-01-01T00:00:00Z',
+      injected: 'DROP TABLE ai_runs;',
+      positiveControl: { retrieved: 'yes', resultCount: 'many' },
+      toolSurface: {},
+      transport: {},
+    },
+    '/tmp/evidence.json',
+  );
+  assert.equal((parsed as unknown as Record<string, unknown>).injected, undefined);
+  assert.equal(parsed.positiveControl.retrieved, false); // "yes" !== true
+  assert.equal(parsed.positiveControl.resultCount, 0); // Number('many') is NaN -> coerced to 0 below
+  assert.equal(parsed.toolSurface.verdict, 'unknown');
+});
