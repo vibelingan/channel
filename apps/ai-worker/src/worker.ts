@@ -149,6 +149,7 @@ export async function verifyKnowledgeAttestation(
   evidence: KnowledgeEvidence,
   options: {
     maxAgeMs?: number;
+    expectedCredentialId?: string;
     expectedWorkspaceId?: string;
     expectedCorpusGeneration?: string;
     allowInsecureTransport?: boolean;
@@ -160,6 +161,9 @@ export async function verifyKnowledgeAttestation(
   if (evidence.schema !== 'channel.ai.kb-evidence/1') reasons.push('unrecognised evidence schema');
   if (actual.credentialId !== evidence.credentialId) {
     reasons.push('the serving credential is not the one the evidence was produced with');
+  }
+  if (options.expectedCredentialId && evidence.credentialId !== options.expectedCredentialId) {
+    reasons.push('the evidence credential is not the operator-approved credential');
   }
   if (actual.spaceId !== evidence.workspaceSlug) {
     reasons.push('the serving workspace is not the one the evidence was produced against');
@@ -553,6 +557,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     }
     await verifyKnowledgeAttestation(engine, evidence, {
       maxAgeMs: envNumber('AI_KB_EVIDENCE_MAX_AGE_MS', 7 * 24 * 60 * 60 * 1000),
+      expectedCredentialId: requiredEnv('AI_KNOWLEDGE_CREDENTIAL_ID'),
       expectedWorkspaceId: requiredEnv('ANYTHINGLLM_WORKSPACE_ID'),
       expectedCorpusGeneration: requiredEnv('AI_CORPUS_GENERATION'),
       allowInsecureTransport: process.env.ALLOW_INSECURE_ANYTHINGLLM === 'true',

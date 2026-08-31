@@ -70,6 +70,7 @@ test('worker accepts an engine that matches real evidence', async () => {
   const engine = new FakeEngine();
   const attested = await engine.attestKnowledgeCredential();
   await verifyKnowledgeAttestation(engine, evidenceFor(attested), {
+    expectedCredentialId: attested.credentialId,
     expectedWorkspaceId: 'workspace-id-1',
     expectedCorpusGeneration: 'g1000',
   });
@@ -91,6 +92,17 @@ test('worker binds evidence to the deployed workspace id and corpus generation',
       expectedCorpusGeneration: 'g9999',
     }),
     /corpus generation does not match/,
+  );
+});
+
+test('worker binds evidence to the operator-approved credential id', async () => {
+  const engine = new FakeEngine();
+  const attested = await engine.attestKnowledgeCredential();
+  await assert.rejects(
+    verifyKnowledgeAttestation(engine, evidenceFor(attested), {
+      expectedCredentialId: 'not-the-approved-credential',
+    }),
+    /operator-approved credential/,
   );
 });
 
