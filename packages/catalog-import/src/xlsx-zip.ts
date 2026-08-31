@@ -174,6 +174,11 @@ export function readZipDirectory(bytes: Buffer): Map<string, ZipEntry> {
     if (uncompressedSize > MAX_ENTRY_BYTES) {
       throw new ZipFormatError(`ZIP entry ${name} declares ${uncompressedSize} bytes`);
     }
+    if (compressedSize === 0 && uncompressedSize > 0) {
+      throw new ZipFormatError(
+        `ZIP entry ${name} declares zero compressed bytes for non-empty content`,
+      );
+    }
     if (
       compressedSize > 0 &&
       uncompressedSize / compressedSize > MAX_COMPRESSION_RATIO

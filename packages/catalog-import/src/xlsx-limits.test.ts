@@ -123,6 +123,18 @@ function corruptCentralDirectoryCrc(bytes: Buffer, name: string): void {
   assert.fail(`central-directory entry ${name} was not found`);
 }
 
+function zeroCentralDirectoryCompressedSize(bytes: Buffer, name: string): void {
+  for (let offset = 0; offset <= bytes.length - 46; offset += 1) {
+    if (bytes.readUInt32LE(offset) !== 0x02014b50) continue;
+    const nameLength = bytes.readUInt16LE(offset + 28);
+    const entryName = bytes.toString('utf8', offset + 46, offset + 46 + nameLength);
+    if (entryName !== name) continue;
+    bytes.writeUInt32LE(0, offset + 20);
+    return;
+  }
+  assert.fail(`central-directory entry ${name} was not found`);
+}
+
 const refuses = (bytes: Buffer, pattern: RegExp) =>
   assert.throws(
     () => readFirstSheet(bytes),
@@ -154,6 +166,16 @@ test('an entry over the compression-ratio ceiling is refused', () => {
   // 40 MB of one repeated byte compresses far past 200:1.
   const padded = ' '.repeat(40 * 1024 * 1024);
   refuses(packageOf({ sheet: SHEET(`<sheetData/><!--${padded}-->`) }), /bytes|ratio/);
+});
+
+test('a non-empty entry declaring zero compressed bytes is refused in the directory', () => {
+  const bytes = packageOf({});
+  zeroCentralDirectoryCompressedSize(bytes, 'xl/workbook.xml');
+  assert.throws(
+    () => readZipDirectory(bytes),
+    (error: unknown) =>
+      error instanceof ZipFormatError && /compressed|ratio|zero/i.test(error.message),
+  );
 });
 
 test('a truncated archive is refused rather than partially read', () => {
@@ -215,6 +237,25 @@ test('a DTD in an unselected worksheet is refused before a parser can ignore it'
   );
 });
 
+test('a DTD in a BOM-marked UTF-16 XML part is refused before SheetJS runs', () => {
+  const workbook =
+    '<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="First" sheetId="1" r:id="rId1"/><sheet name="Second" sheetId="2" r:id="rId2"/></sheets></workbook>';
+  const rels =
+    '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>';
+  const hostile =
+    '<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE worksheet [<!ENTITY ignored "ignored">]><worksheet><sheetData/></worksheet>';
+  const utf16 = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(hostile, 'utf16le')]);
+
+  refuses(
+    packageOf({
+      workbook,
+      workbookRels: rels,
+      extraParts: [['xl/worksheets/sheet2.xml', utf16]],
+    }),
+    /encoding|UTF-16|DTD/i,
+  );
+});
+
 // --- XML limits -------------------------------------------------------------
 
 test('XML nested past the depth ceiling is refused', () => {
@@ -235,6 +276,15 @@ test('an oversized text node is refused', () => {
   const text = 'x'.repeat(MAX_TEXT_NODE_CHARS + 1);
   assert.throws(
     () => [...scanXml(`<t>${text}</t>`)],
+    (error: unknown) =>
+      error instanceof SpreadsheetFormatError && /oversized text node/.test(error.message),
+  );
+});
+
+test('an oversized CDATA node is refused by the text-node ceiling', () => {
+  const text = 'x'.repeat(MAX_TEXT_NODE_CHARS + 1);
+  assert.throws(
+    () => [...scanXml(`<t><![CDATA[${text}]]></t>`)],
     (error: unknown) =>
       error instanceof SpreadsheetFormatError && /oversized text node/.test(error.message),
   );

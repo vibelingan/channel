@@ -7,7 +7,7 @@
  * any workbook data. Numeric `<v>` text is retained by cell address because a
  * JavaScript number cannot preserve the merchant's original decimal lexeme.
  */
-import type { Buffer } from 'node:buffer';
+import { isUtf8, type Buffer } from 'node:buffer';
 import { ZipArchive, ZipFormatError } from './xlsx-zip.ts';
 
 /** A worksheet larger than this is not a Dianxiaomi product export. */
@@ -104,6 +104,9 @@ export function* scanXml(xml: string): Generator<XmlEvent> {
     if (xml.startsWith('<![CDATA[', next)) {
       const close = xml.indexOf(']]>', next + 9);
       const end = close === -1 ? xml.length : close;
+      if (end - (next + 9) > MAX_TEXT_NODE_CHARS) {
+        throw new SpreadsheetFormatError('spreadsheet XML has an oversized text node');
+      }
       yield { type: 'text', text: xml.slice(next + 9, end) };
       index = close === -1 ? xml.length : close + 3;
       continue;
@@ -417,6 +420,25 @@ function isXmlPart(name: string): boolean {
   return lower.endsWith('.xml') || lower.endsWith('.rels');
 }
 
+function decodeUtf8XmlPart(name: string, bytes: Buffer): string {
+  if (!isUtf8(bytes)) {
+    throw new SpreadsheetFormatError(`XML part ${name} uses non-UTF-8 encoding`);
+  }
+  const xml = bytes.toString('utf8').replace(/^\uFEFF/, '');
+  const declaration = xml.match(/^\s*<\?xml\b[^>]*\bencoding\s*=\s*["']([^"']+)["']/i);
+  const declaredEncoding = declaration?.[1]?.toLowerCase().replace(/[_\s]/g, '-');
+  if (
+    declaredEncoding !== undefined &&
+    declaredEncoding !== 'utf-8' &&
+    declaredEncoding !== 'utf8'
+  ) {
+    throw new SpreadsheetFormatError(
+      `XML part ${name} declares unsupported encoding ${declaration?.[1] ?? ''}`,
+    );
+  }
+  return xml;
+}
+
 export interface XlsxPreflightResult {
   selectedSheetName: string;
   selectedRowNumbers: readonly number[];
@@ -431,7 +453,7 @@ export function preflightXlsx(bytes: Buffer): XlsxPreflightResult {
 
     archive.verifyAllEntries((name, part) => {
       if (isXmlPart(name)) {
-        for (const _event of scanXml(part.toString('utf8'))) {
+        for (const _event of scanXml(decodeUtf8XmlPart(name, part))) {
           // Exhaust the generator: limits and DTD refusal are the validation.
         }
       }
