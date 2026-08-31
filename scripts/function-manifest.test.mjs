@@ -8,6 +8,11 @@
  * it can un-set live env vars.
  */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import {
   ALIBABA_SYNC_TIMER,
@@ -17,6 +22,22 @@ import {
   desiredTriggersFor,
   envEntries,
 } from './cloudbase-function-manifest.mjs';
+
+const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
+
+function run(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: root,
+    encoding: 'utf8',
+    ...options,
+  });
+  assert.equal(
+    result.status,
+    0,
+    `${command} ${args.join(' ')} failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+  );
+  return result;
+}
 
 const requireEnvFixture = (name) => {
   const values = {
@@ -144,4 +165,69 @@ test('the 15-minute tick stays DECLARED so enabling it is one edit', () => {
 
 test('envEntries drops undefined and keeps empty strings', () => {
   assert.deepEqual(envEntries({ a: '1', b: undefined, c: '' }), { a: '1', c: '' });
+});
+
+test('admin tsup configuration bundles xlsx', () => {
+  const config = readFileSync(join(root, 'apps', 'functions', 'admin', 'tsup.config.ts'), 'utf8');
+  assert.match(config, /noExternal:\s*\[[\s\S]*['"]xlsx['"]/);
+});
+
+test('admin artifact packages xlsx and cold-starts without production dependencies', () => {
+  run('pnpm', ['build:functions']);
+  run(process.execPath, ['scripts/package-functions.mjs']);
+
+  const artifactDir = join(root, '.cloudbase-artifacts', 'functions', 'admin');
+  const bundle = readFileSync(join(artifactDir, 'index.js'), 'utf8');
+  assert.doesNotMatch(bundle, /require\(["']xlsx["']\)/, 'xlsx must be bundled into admin');
+  const artifactPackage = JSON.parse(readFileSync(join(artifactDir, 'package.json'), 'utf8'));
+  assert.deepEqual(artifactPackage.dependencies, {});
+  assert.equal(existsSync(join(artifactDir, 'node_modules')), false);
+
+  const tempRoot = mkdtempSync(join(tmpdir(), 'channel-admin-artifact-'));
+  const copiedArtifactDir = join(tempRoot, 'admin');
+  try {
+    cpSync(artifactDir, copiedArtifactDir, { recursive: true });
+    const coldStart = run(
+      process.execPath,
+      [
+        '-e',
+        "const mod = require('./index.js'); if (typeof mod.main !== 'function') throw new Error('missing main export');",
+      ],
+      {
+        cwd: copiedArtifactDir,
+        env: {
+          ...process.env,
+          TCB_ENV: 'artifact-smoke-env',
+          JWT_SECRET: 'artifact-smoke-jwt-secret',
+          BOOTSTRAP_ENABLED: '0',
+        },
+      },
+    );
+    assert.equal(coldStart.stderr, '');
+  } finally {
+    rmSync(tempRoot, { force: true, recursive: true });
+  }
+});
+
+test('artifact smoke rejects a residual xlsx import before cold start', () => {
+  run('pnpm', ['build:functions']);
+  run(process.execPath, ['scripts/package-functions.mjs']);
+
+  const indexFile = join(root, '.cloudbase-artifacts', 'functions', 'admin', 'index.js');
+  const original = readFileSync(indexFile, 'utf8');
+  try {
+    writeFileSync(indexFile, "require('xlsx');\nexports.main = () => {};\n", 'utf8');
+    const smoke = spawnSync(process.execPath, ['scripts/smoke-function-artifacts.mjs'], {
+      cwd: root,
+      encoding: 'utf8',
+    });
+    assert.notEqual(smoke.status, 0, 'the deliberately broken artifact must fail smoke');
+    assert.match(
+      `${smoke.stdout}\n${smoke.stderr}`,
+      /admin artifact still contains xlsx require/,
+      'the static unresolved-import check must report xlsx before cold start',
+    );
+  } finally {
+    writeFileSync(indexFile, original, 'utf8');
+  }
 });

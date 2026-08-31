@@ -20,6 +20,7 @@ function assertNoUnresolvedImports(name, indexFile) {
     [/require\(["']nodemailer["']\)/, 'nodemailer require'],
     [/require\(["']hash-wasm["']\)/, 'hash-wasm require'],
     [/require\(["']wx-server-sdk["']\)/, 'wx-server-sdk require'],
+    [/require\(["']xlsx["']\)/, 'xlsx require'],
     [/require\(["']@cloudbase\/node-sdk["']\)/, '@cloudbase/node-sdk require'],
     [/require\(["']json-bigint["']\)/, 'json-bigint require'],
     [/require\(["']protobufjs/, 'protobufjs require'],
