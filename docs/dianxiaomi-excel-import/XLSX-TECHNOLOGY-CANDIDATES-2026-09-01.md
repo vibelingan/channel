@@ -1,16 +1,18 @@
 # XLSX core technology candidates — production-readiness research
 
 **Research snapshot:** 2026-09-01
-**Status:** controlled spike complete; SheetJS is selected below. Deployment-specific
-CloudBase gates remain separate and unproven by this local acceptance.
+**Status:** SheetJS is the implemented branch choice, based on the controlled local
+spike below. This is not production approval: exact Node 20 runtime, fully bundled
+artifact, and an actual CloudBase smoke remain pending because no deployment was
+authorized.
 **Scope:** the XLSX core behind one shared security boundary and one provider-neutral
 adapter. This document does not compare a naked third-party parser with the hardened
 current reader.
 
 ## Executive finding
 
-All four candidates should enter the controlled spike. None should be installed or
-selected from documentation alone.
+The controlled spike compared all four candidates. Its result supports implementing
+SheetJS for this branch; it does not replace the separate production-approval gates.
 
 - **SheetJS Community Edition `xlsx@0.20.3`** is a real candidate, not the obsolete
   npm-registry `xlsx@0.18.5`. It has the broadest format model of the small-dependency
@@ -324,8 +326,10 @@ Required compatibility evidence for each candidate:
 - resulting zipped function artifact fits the CloudBase upload limit with margin;
 - actual CloudBase function smoke parses the small canonical fixture after deployment.
 
-The current machine's Node `25.6.1` result does not satisfy the Node 22 or CloudBase
-runtime checks.
+The earlier Node `25.6.1` research result did not satisfy the Node 22 gate. The branch
+adapter has since passed the real-workbook local acceptance under Node `22.13.0`; exact
+Node 20 runtime, packaged-artifact, and actual CloudBase smoke checks remain pending
+because no deployment was authorized.
 
 ## Controlled spike matrix
 
@@ -367,9 +371,10 @@ an intentional, classified refusal.
   lockfile—not package-level estimates;
 - repeatability across three runs.
 
-## Decision rule after the spike
+## Production-approval gate after branch selection
 
-A third-party core may replace the current parser only if it:
+The local comparison is sufficient to choose the branch implementation, but it is not a
+complete production approval. Before a deployed third-party core is approved, it must:
 
 1. produces the same accepted real-workbook counts and all required source identifiers;
 2. preserves required lexemes or proves from the real/domain contract that those lexemes
@@ -380,11 +385,12 @@ A third-party core may replace the current parser only if it:
 6. reduces owned OOXML code without moving equivalent undocumented complexity into its
    adapter.
 
-If more than one mature candidate passes, prefer the smallest deep interface and lowest
-ongoing operational burden. If none passes, retaining custom code is permitted only with
-the acknowledged compatibility budget, a fuzzing plan and a scheduled reassessment.
+If more than one mature candidate passes these production gates, prefer the smallest deep
+interface and lowest ongoing operational burden. If none passes, retaining custom code is
+permitted only with the acknowledged compatibility budget, a fuzzing plan and a scheduled
+reassessment.
 
-## Test hypotheses — not a selection
+## Pre-spike hypotheses (historical)
 
 1. **SheetJS hypothesis:** best compatibility-to-dependency ratio; likely blocked only if
    raw numeric lexemes are domain-required or the fully bundled artifact is too large.
@@ -397,28 +403,40 @@ the acknowledged compatibility budget, a fuzzing plan and a scheduled reassessme
    long-term default if valid-workbook compatibility or maintenance evidence shows the
    project is reimplementing a growing share of OOXML.
 
-No dependency, lockfile or production code should change until this spike produces an
-approved technology decision record.
+The branch implementation now follows the recorded local choice. It remains ineligible
+for production approval until every gate above is independently satisfied.
 
 ## Controlled-spike outcome and selection — 2026-09-01
 
-**Selected core: SheetJS CE `xlsx@0.20.3`, behind the private Channel adapter.**
+**Branch implementation choice: SheetJS CE `xlsx@0.20.3`, behind the private Channel
+adapter. This is not complete production approval.**
 
 The controlled spike was executed under Node `22.13.0` against the customer workbook
 only after its SHA-256 was verified as
 `57b29269f60752efcf0c0f7c3e188b4ff8d80faff82802471049a8f461416582`.
-The SheetJS-backed production reader produced the expected 312 source rows, 77 parent
+The SheetJS-backed branch reader produced the expected 312 source rows, 77 parent
 products, 289 variants, 452 unique source image URLs and 1,549 image references, with
 zero quarantined products. A fresh local stage then persisted 77 import items and 289
 variants; its normalized, redacted summary matched
 [`REAL-WORKBOOK-SUMMARY.json`](./REAL-WORKBOOK-SUMMARY.json) after excluding the
 run timestamp.
 
-This result selects SheetJS for the commodity cell-decoding layer, not as a replacement
-for Channel's trust boundary. The all-entry ZIP/OPC and XML preflight still runs before
-SheetJS, including forbidden-part and resource-limit checks; the preflight numeric
-lexeme sidecar overlays SheetJS numeric values where the source contract needs the
-original lexeme.
+The comparative local spike also recorded the following normalized-grid result on this
+customer workbook (313 rows by 44 columns):
+
+| Reader | Result | Decision-relevant limitation |
+| --- | --- | --- |
+| Current parser | Baseline grid | Retained as the comparison baseline. |
+| SheetJS CE `0.20.3` | Exact match; 0 cell mismatches | Numeric lexemes need the preflight sidecar. |
+| `read-excel-file@9.3.10` | Exact match; 0 cell mismatches with `trim: false` and its raw-number `parseNumber` seam | Async Node API and different sheet-name API; weaker typed-cell contract. |
+| ExcelJS `4.4.0` | Exact match; 0 cell mismatches | Larger package and transitive-dependency surface. |
+
+This result selects SheetJS for the commodity cell-decoding layer in this branch, not as
+a replacement for Channel's trust boundary or as production approval. The all-entry
+ZIP/OPC and XML preflight still runs before SheetJS, including forbidden-part and
+resource-limit checks; the preflight numeric lexeme sidecar overlays SheetJS numeric
+values where the source contract needs the original lexeme. Single-run timing and RSS
+observations are directional only, not acceptance evidence.
 
 `read-excel-file` did not win because its asynchronous Node API would change the
 existing synchronous parser contract and its public output loses typed-cell detail that
@@ -429,13 +447,15 @@ synchronous call shape, exposes the typed/error/formula/date cell information ne
 the private adapter, and has no runtime dependencies.
 
 The parser-only acceptance deliberately supplied neither `--fetch-images` nor category
-mapping nor publication flags. The fresh `LOCAL_MEDIA_DIR` contained **0 media objects**.
-The publish plan's 452 “would need migrating” entries are source URLs, not downloaded
-media. This is local file-backed staging evidence only; it does not establish CloudBase
-media-storage or deployment acceptance. Earlier evidence of 447 content-deduplicated
-media objects, if consulted, is a **prior-run result** and was not re-downloaded here.
+mapping nor publication flags. The configured fresh `LOCAL_MEDIA_DIR` path remained
+absent, therefore it held **0 media objects**; an existing empty directory was not
+inspected. The publish plan's 452 “would need migrating” entries are source URLs, not
+downloaded media. This is local file-backed staging evidence only; it does not establish
+CloudBase media-storage or deployment acceptance. Earlier evidence of 447
+content-deduplicated media objects, if consulted, is a **prior-run result** and was not
+re-downloaded here.
 
 See [`XLSX-TECHNOLOGY-DECISION-2026-09-01.md`](./XLSX-TECHNOLOGY-DECISION-2026-09-01.md)
 for the decision record and
-[`task-4-report.md`](../../.superpowers/sdd/2026-09-01-xlsx-library-production-readiness/task-4-report.md)
-for reproducible acceptance evidence.
+[`REAL-WORKBOOK-ACCEPTANCE-2026-09-01.md`](./REAL-WORKBOOK-ACCEPTANCE-2026-09-01.md)
+for durable reproducible acceptance evidence.
