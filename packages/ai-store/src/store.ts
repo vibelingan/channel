@@ -59,6 +59,14 @@ export interface FencedTerminalEvent {
   payload: Record<string, unknown>;
 }
 
+export interface TerminalizeRunInput {
+  runId: string;
+  reason: 'cancel_requested' | 'reclaimed' | 'start_run_dead_letter';
+  claimEpoch?: number;
+  outboxId?: string;
+  failurePayload?: Record<string, unknown>;
+}
+
 export class AiStore {
   readonly pool: Pool;
 
@@ -347,14 +355,57 @@ export class AiStore {
     return result.rowCount === 1;
   }
 
-  async retryOutbox(input: {
+  /**
+   * Record a failed attempt AND, when that attempt was the last one, finish the
+   * run it belonged to — in a single transaction.
+   *
+   * This is the only correct entry point for the failure path. `retryOutbox`
+   * alone commits the item as permanently dead-lettered while the run is still
+   * `creating`; anything that stops the process between the two statements
+   * leaves the conversation pointing at a run no worker will ever pick up.
+   * Either both facts are durable or neither is.
+   */
+  async failOutboxAttempt(input: {
     id: string;
     claimEpoch: number;
     category: string;
     delaySeconds: number;
     maxAttempts: number;
+    runId?: string | null;
+    type?: string;
+    failurePayload?: Record<string, unknown>;
   }): Promise<'retry' | 'dead_letter' | 'stale'> {
-    const result = await this.pool.query<{ status: 'pending' | 'dead_letter' }>(
+    return this.transaction(async (client) => {
+      const disposition = await this.#retryOutboxInTx(client, input);
+      if (disposition === 'dead_letter' && input.runId && input.type === 'start_run') {
+        await this.#terminalizeRunInTx(client, {
+          runId: input.runId,
+          reason: 'start_run_dead_letter',
+          outboxId: input.id,
+          failurePayload: input.failurePayload ?? { category: input.category },
+        });
+      }
+      return disposition;
+    });
+  }
+
+  // There is deliberately NO public `retryOutbox`. It existed, nothing calls it
+  // any more, and leaving it would leave a second entry point that reproduces
+  // exactly the defect above: dead-lettering an item without finishing its run.
+  // A method that is correct only if the caller remembers a follow-up is not a
+  // safe method to offer.
+
+  async #retryOutboxInTx(
+    client: PoolClient,
+    input: {
+      id: string;
+      claimEpoch: number;
+      category: string;
+      delaySeconds: number;
+      maxAttempts: number;
+    },
+  ): Promise<'retry' | 'dead_letter' | 'stale'> {
+    const result = await client.query<{ status: 'pending' | 'dead_letter' }>(
       `UPDATE outbox
        SET status = CASE WHEN attempts >= $5 THEN 'dead_letter' ELSE 'pending' END,
            available_at = CASE WHEN attempts >= $5 THEN available_at
@@ -418,14 +469,23 @@ export class AiStore {
     return row ? { operationId: row.operation_id, engineRunId: row.engine_run_id } : null;
   }
 
-  async terminalizeRun(input: {
-    runId: string;
-    reason: 'cancel_requested' | 'reclaimed' | 'start_run_dead_letter';
-    claimEpoch?: number;
-    outboxId?: string;
-    failurePayload?: Record<string, unknown>;
-  }): Promise<boolean> {
-    return this.transaction(async (client) => {
+  async terminalizeRun(input: TerminalizeRunInput): Promise<boolean> {
+    return this.transaction((client) => this.#terminalizeRunInTx(client, input));
+  }
+
+  /**
+   * The terminalization itself, taking a caller's transaction.
+   *
+   * Extracted so the dead-letter path can perform the outbox transition and
+   * this in ONE transaction. They used to be two: `retryOutbox` committed the
+   * row as permanently dead-lettered, and only then did a second statement try
+   * to fail the run. A crash, a lost connection or a killed container in that
+   * window left durable state with an active run nothing would ever finish and
+   * a dead-letter item nothing could ever claim — the visitor watching a
+   * spinner that never resolves, and no operator signal that anything is wrong.
+   */
+  async #terminalizeRunInTx(client: PoolClient, input: TerminalizeRunInput): Promise<boolean> {
+    {
       // Discover the parent without locking it, then take every write lock in
       // the global conversation -> run order. Locking the run first here used
       // to invert finishRunFenced's order and made a cancellation/final race
@@ -557,7 +617,7 @@ export class AiStore {
         [conversationId, nextRunId, message.id],
       );
       return true;
-    });
+    }
   }
 
   async claimRun(runId: string): Promise<{

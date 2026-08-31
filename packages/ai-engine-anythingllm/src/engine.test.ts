@@ -787,3 +787,45 @@ test('a mixed-script answer is bounded too', async () => {
   );
   assert.equal((events.at(-1) as { type: string }).type, 'error');
 });
+
+/**
+ * The transport control must not be satisfiable by a hostname.
+ *
+ * `anythingllm` used to be treated as intrinsically local, so any host that
+ * resolved that name got plaintext — and this engine sends an instance-wide
+ * developer token on every request.
+ */
+function build(baseUrl: string, allowInsecureRemoteHttp?: boolean) {
+  return new AnythingLlmEngine({
+    baseUrl,
+    apiKey: 'test-key-at-least-16-chars',
+    workspaceSlug: 'ws',
+    engineVersion: '1.0.0-test',
+    citationsVerified: true,
+    ...(allowInsecureRemoteHttp === undefined ? {} : { allowInsecureRemoteHttp }),
+  });
+}
+
+test('the literal hostname `anythingllm` over http is REFUSED without the override', () => {
+  assert.throws(() => build('http://anythingllm:3001'), /requires HTTPS/);
+});
+
+test('the same hostname is permitted when the override is set explicitly', () => {
+  assert.doesNotThrow(() => build('http://anythingllm:3001', true));
+});
+
+test('loopback stays intrinsically local, with no override needed', () => {
+  for (const host of ['http://localhost:3001', 'http://127.0.0.1:3001', 'http://[::1]:3001']) {
+    assert.doesNotThrow(() => build(host), `${host} should not need an override`);
+  }
+});
+
+test('a public host over http is refused, and no name gets it a pass', () => {
+  for (const host of ['http://kb.example.com', 'http://anythingllm.evil.example']) {
+    assert.throws(() => build(host), /requires HTTPS/, `${host} must be refused`);
+  }
+});
+
+test('https needs no override anywhere', () => {
+  assert.doesNotThrow(() => build('https://kb.supplychainsai.com'));
+});

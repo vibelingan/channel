@@ -85,21 +85,21 @@ export async function processOne(
         stage: failure.message,
       }),
     );
-    const disposition = await store.retryOutbox({
+    // ONE transaction. These were two statements: the outbox row committed as
+    // permanently dead-lettered, and only then was the run failed. Anything
+    // that stopped the process in between — a crash, a lost connection, a
+    // container restart — left a conversation pointing at a run no worker would
+    // ever claim, with the visitor watching a spinner that never resolves.
+    const disposition = await store.failOutboxAttempt({
       id: item.id,
       claimEpoch: item.claimEpoch,
       category: failure.category,
       delaySeconds: Math.min(60, 2 ** Math.min(item.attempts, 5)),
       maxAttempts: config.maxAttempts,
+      runId: item.runId,
+      type: item.type,
+      failurePayload: { category: failure.category },
     });
-    if (disposition === 'dead_letter' && item.runId && item.type === 'start_run') {
-      await store.terminalizeRun({
-        runId: item.runId,
-        reason: 'start_run_dead_letter',
-        outboxId: item.id,
-        failurePayload: { category: failure.category },
-      });
-    }
     return disposition === 'dead_letter' ? 'dead_letter' : 'retried';
   }
 }

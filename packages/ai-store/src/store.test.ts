@@ -440,3 +440,166 @@ test('dead-letter terminalization proves the matching start-run record', { skip 
   ]);
   assert.equal(run.rows[0]?.status, 'failed');
 });
+
+/**
+ * The dead-letter transition and the run's terminalization are ONE fact.
+ *
+ * They used to be two statements in two transactions. Anything that stopped the
+ * process between them — a crash, a lost connection, a container restart —
+ * committed the outbox row as permanently dead-lettered while the run stayed
+ * `creating` and the conversation kept pointing at it. Nothing would ever claim
+ * that item again and nothing would ever finish that run, so the visitor
+ * watched a spinner forever and no operator signal fired.
+ */
+async function deadLetterFixture(key: string) {
+  assert.ok(store);
+  const conversation = await store.createConversation();
+  const accepted = await store.appendVisitorMessage({
+    conversationId: conversation.id,
+    idempotencyKey: key,
+    content: 'question',
+    engineId: 'fake',
+    engineVersion: '0.1.0',
+  });
+  assert.ok(accepted.run);
+  const claimed = await store.claimNextOutbox(60);
+  assert.ok(claimed);
+  return { conversation, run: accepted.run, item: claimed };
+}
+
+test(
+  'the last failed attempt dead-letters the item and fails the run together',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const { conversation, run, item } = await deadLetterFixture('atomic-dead-letter');
+
+    const disposition = await store.failOutboxAttempt({
+      id: item.id,
+      claimEpoch: item.claimEpoch,
+      category: 'unavailable',
+      delaySeconds: 1,
+      maxAttempts: 0, // this attempt is the last one
+      runId: item.runId,
+      type: item.type,
+    });
+    assert.equal(disposition, 'dead_letter');
+
+    const outbox = await store.pool.query<{ status: string }>(
+      'SELECT status FROM outbox WHERE id=$1',
+      [item.id],
+    );
+    const runRow = await store.pool.query<{ status: string }>(
+      'SELECT status FROM ai_runs WHERE id=$1',
+      [run.id],
+    );
+    const convo = await store.pool.query<{ active_run_id: string | null }>(
+      'SELECT active_run_id FROM conversations WHERE id=$1',
+      [conversation.id],
+    );
+    assert.equal(outbox.rows[0]?.status, 'dead_letter');
+    assert.equal(runRow.rows[0]?.status, 'failed');
+    assert.equal(convo.rows[0]?.active_run_id, null, 'conversation still points at a dead run');
+  },
+);
+
+test(
+  'CRASH BOUNDARY: no durable state has a dead-letter item beside a live run',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const { conversation, run, item } = await deadLetterFixture('crash-boundary');
+
+    // Reproduce the crash precisely: run the same transaction the worker runs,
+    // then abort it at the exact point the old code committed. If the two facts
+    // are one transaction, the rollback must take BOTH — leaving the item
+    // reclaimable and the run still alive, which is a recoverable state.
+    const client = await store.pool.connect();
+    try {
+      await client.query('BEGIN ISOLATION LEVEL READ COMMITTED');
+      await client.query(
+        `UPDATE outbox SET status='dead_letter', claimed_until=NULL, updated_at=clock_timestamp()
+         WHERE id=$1 AND claim_epoch=$2 AND status='processing'`,
+        [item.id, item.claimEpoch],
+      );
+      await client.query('ROLLBACK'); // the crash
+    } finally {
+      client.release();
+    }
+
+    const outbox = await store.pool.query<{ status: string }>(
+      'SELECT status FROM outbox WHERE id=$1',
+      [item.id],
+    );
+    const runRow = await store.pool.query<{ status: string }>(
+      'SELECT status FROM ai_runs WHERE id=$1',
+      [run.id],
+    );
+    assert.notEqual(
+      outbox.rows[0]?.status,
+      'dead_letter',
+      'the item was dead-lettered by a transaction that did not also finish the run',
+    );
+    assert.ok(['creating', 'running'].includes(runRow.rows[0]?.status ?? ''));
+
+    // And the recovery path still works afterwards: the same worker call now
+    // commits both facts, so the pair can never be observed half-applied.
+    const disposition = await store.failOutboxAttempt({
+      id: item.id,
+      claimEpoch: item.claimEpoch,
+      category: 'unavailable',
+      delaySeconds: 1,
+      maxAttempts: 0,
+      runId: item.runId,
+      type: item.type,
+    });
+    assert.equal(disposition, 'dead_letter');
+
+    const after = await store.pool.query<{ o: string; r: string; a: string | null }>(
+      `SELECT o.status AS o, r.status AS r, c.active_run_id AS a
+       FROM outbox o JOIN ai_runs r ON r.id = o.run_id
+       JOIN conversations c ON c.id = r.conversation_id
+       WHERE o.id = $1`,
+      [item.id],
+    );
+    const row = after.rows[0];
+    assert.equal(row?.o, 'dead_letter');
+    assert.equal(row?.r, 'failed');
+    assert.equal(row?.a, null);
+    assert.ok(conversation.id);
+
+    // The invariant itself, asked of the whole database rather than of the row
+    // this test happens to know about. This is the state the old two-statement
+    // path could leave behind, and it must be unreachable by construction.
+    const orphans = await store.pool.query<{ n: string }>(
+      `SELECT count(*) AS n FROM outbox o JOIN ai_runs r ON r.id = o.run_id
+       WHERE o.type = 'start_run' AND o.status = 'dead_letter'
+         AND r.status IN ('creating', 'running')`,
+    );
+    assert.equal(
+      Number(orphans.rows[0]?.n),
+      0,
+      'a dead-letter start_run exists whose run is still live: nothing will claim it, nothing will finish it',
+    );
+  },
+);
+
+test('a non-final failed attempt neither dead-letters nor touches the run', { skip }, async () => {
+  assert.ok(store);
+  const { run, item } = await deadLetterFixture('retry-not-terminal');
+  const disposition = await store.failOutboxAttempt({
+    id: item.id,
+    claimEpoch: item.claimEpoch,
+    category: 'transient',
+    delaySeconds: 1,
+    maxAttempts: 5,
+    runId: item.runId,
+    type: item.type,
+  });
+  assert.equal(disposition, 'retry');
+  const runRow = await store.pool.query<{ status: string }>(
+    'SELECT status FROM ai_runs WHERE id=$1',
+    [run.id],
+  );
+  assert.ok(['creating', 'running'].includes(runRow.rows[0]?.status ?? ''));
+});

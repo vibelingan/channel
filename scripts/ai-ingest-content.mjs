@@ -15,7 +15,7 @@
  *   node scripts/ai-ingest-content.mjs --dry-run  # print what would be sent
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
@@ -23,6 +23,7 @@ import { refreshCorpus } from './ai-corpus-refresh.mjs';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CONTENT_DIR = join(repoRoot, 'apps/site/src/i18n/content');
+const PAGES_DIR = join(repoRoot, 'apps/site/src/pages');
 
 /** Each source file, and the page a visitor would open to read the same thing. */
 const SOURCES = [
@@ -30,8 +31,62 @@ const SOURCES = [
   { file: 'oem/en-US.md', title: 'OEM development service and process', url: '/oem' },
   { file: 'headphones/en-US.md', title: 'Headphones product line', url: '/headphones' },
   { file: 'portfolio/en-US.md', title: 'Success stories and case studies', url: '/portfolio' },
-  { file: 'overstock/en-US.md', title: 'Overstock and ready stock', url: '/overstock' },
 ];
+
+/**
+ * Which routes the website actually publishes, read from the router itself.
+ *
+ * Astro does not route a file whose name begins with `_`. `_overstock.astro` is
+ * deliberately unrouted and `apps/site/src/i18n/hidden-sections.test.ts` exists
+ * to keep it that way — yet this manifest listed `overstock/en-US.md` against
+ * the URL `/overstock`, so the assistant would have quoted an unpublished page
+ * and cited a link that answers 404 in production. Grounding an answer in
+ * content the visitor cannot open is a leak with a footnote.
+ *
+ * Derived, never hand-maintained: a hand-kept second list is exactly what drifts.
+ */
+export function publishedRoutes(pagesDir = PAGES_DIR) {
+  const routes = new Set();
+  for (const entry of readdirSync(pagesDir, { withFileTypes: true })) {
+    // Astro's own rule. Underscore means "not a route", for files and folders.
+    if (entry.name.startsWith('_')) continue;
+    if (entry.isDirectory()) {
+      routes.add(`/${entry.name}`);
+      continue;
+    }
+    const match = entry.name.match(/^(.+)\.(astro|md|mdx|html)$/);
+    if (!match) continue;
+    routes.add(match[1] === 'index' ? '/' : `/${match[1]}`);
+  }
+  return routes;
+}
+
+/**
+ * Every ingested source must map to a route the site really serves.
+ *
+ * Throws rather than filtering: silently dropping a source would make the
+ * assistant refuse questions the website answers, and nobody would know why.
+ */
+export function assertSourcesArePublished(sources = SOURCES, pagesDir = PAGES_DIR) {
+  const routes = publishedRoutes(pagesDir);
+  const offenders = [];
+  for (const source of sources) {
+    if (!existsSync(join(CONTENT_DIR, source.file))) {
+      offenders.push(`${source.file} -> ${source.url} (content file is missing)`);
+      continue;
+    }
+    if (!routes.has(source.url)) {
+      offenders.push(`${source.file} -> ${source.url} (no published route serves this URL)`);
+    }
+  }
+  if (offenders.length > 0) {
+    throw new Error(
+      `refusing to ingest unpublished content:\n${offenders.map((o) => `  - ${o}`).join('\n')}\n` +
+        'A source the site does not serve must not become a citation. Remove it, or publish the page.',
+    );
+  }
+  return sources;
+}
 
 /** Keys that carry layout or asset wiring rather than anything a visitor asks about. */
 const NOISE_KEYS = new Set([
@@ -238,6 +293,60 @@ async function api(base, key, path, init = {}) {
   return body;
 }
 
+/**
+ * Confirm every citation target is live on the configured first-party origin,
+ * BEFORE the first byte is uploaded.
+ *
+ * Ordering is the whole point. Checking as we upload would leave a corpus that
+ * is half the new generation and half the old one, which is the state the
+ * generation swap exists to make impossible. A failure here costs nothing
+ * because nothing has been written yet.
+ *
+ * Cross-origin targets are refused rather than fetched: a manifest URL that
+ * resolves somewhere else is the bug, not something to go and validate.
+ */
+export async function preflightPublicTargets(sources, siteOrigin, fetchImpl = fetch) {
+  const origin = new URL(siteOrigin);
+  if (origin.protocol !== 'https:' && origin.hostname !== 'localhost') {
+    throw new Error(`SITE_ORIGIN must be https (or localhost), got: ${siteOrigin}`);
+  }
+  const failures = [];
+  const checked = [];
+  for (const url of [...new Set(sources.map((source) => source.url))]) {
+    const target = new URL(url, origin);
+    if (target.origin !== origin.origin) {
+      failures.push(`${url} resolves to ${target.origin}, not the configured site`);
+      continue;
+    }
+    let status;
+    try {
+      const res = await fetchImpl(target.toString(), {
+        method: 'GET',
+        redirect: 'manual',
+        signal: AbortSignal.timeout(15_000),
+      });
+      status = res.status;
+    } catch (caught) {
+      failures.push(
+        `${url} could not be reached (${caught instanceof Error ? caught.message : 'unknown'})`,
+      );
+      continue;
+    }
+    // 200 only. A redirect means the citation would land somewhere other than
+    // the page the answer was grounded in.
+    if (status !== 200) failures.push(`${url} returned HTTP ${status}`);
+    else checked.push(target.toString());
+  }
+  if (failures.length > 0) {
+    throw new Error(
+      `refusing to ingest; these citation targets are not live on ${origin.origin}:\n` +
+        `${failures.map((f) => `  - ${f}`).join('\n')}\n` +
+        'Nothing was uploaded, so the previous corpus is still serving.',
+    );
+  }
+  return checked;
+}
+
 async function main() {
   const dryRun = process.argv.includes('--dry-run');
   const base = process.env.ANYTHINGLLM_LOCAL_ADMIN_URL ?? 'http://127.0.0.1:53001';
@@ -247,6 +356,10 @@ async function main() {
     'channel-public-assistant';
   const key = process.env.ANYTHINGLLM_API_KEY;
   if (!key && !dryRun) throw new Error('ANYTHINGLLM_API_KEY is not set');
+
+  // Two gates, both before any upload: the manifest may only name routes the
+  // router publishes, and each of those routes must actually answer 200 now.
+  assertSourcesArePublished();
 
   const docs = SOURCES.map((source) => ({
     source,
@@ -268,6 +381,20 @@ async function main() {
     }
     return;
   }
+
+  // Last gate before anything is written: every page a citation will point at
+  // must answer 200 on the real site right now. Deliberately after the dry-run
+  // return — a dry run must not depend on the network — and before the client
+  // is even built, so a failure cannot leave a half-swapped corpus.
+  const siteOrigin = process.env.SITE_ORIGIN;
+  if (!siteOrigin) {
+    throw new Error(
+      'SITE_ORIGIN is not set. Every citation resolves against it, and an ingest ' +
+        'that cannot check its targets is an ingest that can publish dead links.',
+    );
+  }
+  const verified = await preflightPublicTargets(SOURCES, siteOrigin);
+  console.log(`preflight: ${verified.length} public page(s) live on ${new URL(siteOrigin).origin}`);
 
   // The swap algorithm lives in ai-corpus-refresh.mjs behind an injectable
   // client, so rollback, migration and generation cleanup are covered by

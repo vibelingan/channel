@@ -733,9 +733,26 @@ function parseVendorDate(value: string | undefined): string | null {
   return Number.isNaN(parsed) ? null : new Date(parsed).toISOString();
 }
 
+/**
+ * Only loopback is intrinsically local. Everything else must say so.
+ *
+ * `anythingllm` was on this list, and that was a hostname-shaped hole in a
+ * transport control: ANY host resolving that name — a container on a shared
+ * network, a DNS entry someone adds, a `/etc/hosts` line — got plaintext, and
+ * the bearer this engine sends is an INSTANCE-WIDE developer token that can
+ * read system configuration and enumerate workspaces. A control that a name can
+ * satisfy is not a control.
+ *
+ * The Docker compose stack still reaches the engine over http on a private
+ * network; it now does so by setting ALLOW_INSECURE_ANYTHINGLLM explicitly,
+ * which is auditable, refused in production by FORBIDDEN_ENV_KEYS, and cannot
+ * be arrived at by accident.
+ */
+const INTRINSICALLY_LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
 function safeBaseUrl(value: string, allowInsecure: boolean): string {
   const url = new URL(value);
-  const local = ['localhost', '127.0.0.1', '::1', 'anythingllm'].includes(url.hostname);
+  const local = INTRINSICALLY_LOCAL_HOSTS.has(url.hostname);
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && (local || allowInsecure))) {
     throw new Error('AnythingLLM requires HTTPS for remote endpoints');
   }

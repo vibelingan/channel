@@ -126,7 +126,11 @@ services:
       # option here and the engine would otherwise refuse to start. This is the
       # ONLY place this flag belongs: any remote knowledge base must be HTTPS,
       # because the token it carries can read the whole instance.
-      ALLOW_INSECURE_ANYTHINGLLM: ${ALLOW_INSECURE_ANYTHINGLLM:-false}
+      # Defaults TRUE for this stack only, and is what now permits the plaintext
+      # hop — the engine no longer treats the hostname `anythingllm` as local,
+      # because a name is not a network boundary. Set it to false the moment
+      # ANYTHINGLLM_BASE_URL points anywhere but this compose network.
+      ALLOW_INSECURE_ANYTHINGLLM: ${ALLOW_INSECURE_ANYTHINGLLM:-true}
       ANYTHINGLLM_CITATIONS_VERIFIED: ${ANYTHINGLLM_CITATIONS_VERIFIED:-0}
       ANYTHINGLLM_CREDENTIAL_ROTATION: ${ANYTHINGLLM_CREDENTIAL_ROTATION:-1}
       AI_KNOWLEDGE_CREDENTIAL_ID: ${AI_KNOWLEDGE_CREDENTIAL_ID:-}
