@@ -40,7 +40,7 @@ any claim made about progress is checkable against it.
 
 ---
 
-## Canonical table — 40 findings
+## Canonical table — 61 findings
 
 | # | Finding | Status | Phase |
 |---|---|---|---|
@@ -98,6 +98,13 @@ any claim made about progress is checkable against it.
 | K12 | The probe CLI echoed the vendor's error body, which can carry the bearer | `FIXED` | 5 |
 | K13 | The built BFF bundle left a workspace package external and imported TypeScript at runtime | `FIXED` | 5 |
 | K14 | `pnpm test:ai` ran suites concurrently while three of them TRUNCATE the same tables | `FIXED` | 5 |
+| K15 | Probe evidence omitted required identity fields and was not wired into Compose or CloudRun | `FIXED` | 5 |
+| K16 | Default FakeEngine Compose selected OCI provenance with an empty digest and could not boot | `FIXED` | 5 |
+| K17 | Dead-letter terminalization rejected the real claimed run state (`running`) | `FIXED` | 5 |
+| K18 | Git provenance named source but not the applied service configuration | `FIXED` | 5 |
+| K19 | The Node 22 probe imported a TypeScript source file directly | `FIXED` | 5 |
+| K20 | Provenance migrations rejected populated legacy databases | `FIXED` | 5 |
+| K21 | Adapter test-file concurrency raced a deliberate five-second deadline | `FIXED` | 5 |
 
 The K rows come from the 2026-08-25 probe of the separately supplied hosted
 knowledge base, recorded in PRODUCTION-KB-CLOUDRUN-RUNBOOK.md. They are not
@@ -113,11 +120,11 @@ token and the provider permission repaired by whoever owns that deployment.
 
 | Status | Count | IDs |
 |---|---|---|
-| `FIXED` | 46 | 2–17, 19–21, 25, R1–R10, R12–R15, K1–K3, K6–K14 |
+| `FIXED` | 53 | 2–17, 19–21, 25, R1–R10, R12–R15, K1–K3, K6–K21 |
 | `PARTIAL` | 2 | 1, R11 |
 | `WITHDRAWN` | 1 | 18 |
 | `GATE_PENDING` | 5 | 22, 23, 24, K4, K5 |
-| **Total** | **54** | 46 + 2 + 1 + 5, one row per finding, never renumbered |
+| **Total** | **61** | 53 + 2 + 1 + 5, one row per finding, never renumbered |
 
 Round 2 was right that "21 accepted, 4 disputed" was not derivable from the
 previous table. It was a count carried in prose rather than computed, which is

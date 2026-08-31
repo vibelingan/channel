@@ -2,17 +2,18 @@
 
 **Branch:** `feat/ai-assistant-platform-design`
 **Audience:** implementation, infrastructure and KB owners
-**Last verified:** 2026-08-31 (Asia/Tokyo)
-**End SHA:** `9660a30b38144e95bbbe648931d85d087a9d4617`
+**Last verified:** 2026-09-01 (Asia/Tokyo)
+**End SHA:** `62433986156d81617d9435c743a05e21d6462bbe`
 **Scope:** local application acceptance against the hosted
 AnythingLLM-compatible KB. This document does not authorize cloud purchases or
 production mutations.
 
 ## Outcome
 
-**Phase 1 is NOT accepted.** An earlier revision of this document said it worked
-end to end. That claim rested on an observer that could not fail for the right
-reason, and it is withdrawn here rather than edited quietly.
+**The local deterministic Phase 1 path is accepted. The hosted-KB path is not
+yet accepted.** An earlier revision said the hosted path worked end to end.
+That claim rested on an observer that could not fail for the right reason, and
+it remains withdrawn rather than edited quietly.
 
 The negative case — "an unapproved source is refused" — was asserted as "the
 stream produced exactly one `error` event, of any kind". A provider outage, a
@@ -20,17 +21,22 @@ quota trip, a timeout or a dropped connection all satisfied it. The hosted KB
 was, at the time, returning HTTP 500 wrapping an upstream provider 403 on every
 generation, so the evidence that hidden content stays hidden was very likely an
 unrelated provider failure. The gate may well have been working; nothing in that
-run distinguished the two.
+run distinguished the two. The corrected local acceptance now does: its
+negative fixture can only produce `publication_blocked`, and the observer
+requires that exact category.
 
 ### What IS verified, at this SHA
 
 | Check | Result |
 | --- | --- |
-| Build, typecheck, biome | pass; 370 files linted, 0 type errors |
-| Deterministic contracts (dedicated DB `ai_phase1_e2e_20260831`) | engine 54 pass/2 skip, policy 80, store 24, adapter 101, BFF 6, worker 11, scripts 154 |
+| Build, typecheck, biome | pass; Node 22 production bundles cold-import |
+| Deterministic contracts (real PostgreSQL) | engine 56 pass/2 skip, policy 80, store 24, adapter 101, BFF 6, worker 20, scripts 156 |
 | Built runtime bundle | `check-ai-runtime-bundle.mjs` passes — this caught a real defect, see below |
 | Liveness / readiness, BFF 58180 and worker 58181 | all four endpoints answer; liveness carries no database, readiness proves READ COMMITTED |
-| Positive SSE shape (fake engine) | `token`, `citation`, `final`; one approved citation; no `file:` URL |
+| Positive SSE shape (fresh containers) | `token`, `citation`, `final`; one approved citation; no `file:` URL |
+| Negative SSE shape (fresh containers) | only `publication_blocked`; zero leaked token/citation events |
+| Legacy database upgrades | pre-002 invalid provenance and pre-003 Git provenance both migrate; old claims are preserved in audit events |
+| Pinned probe runtime | shared workspace inspector executes on Node 22.13.0 without a TypeScript loader |
 | Ingest preflight against the LIVE site | `/`, `/oem`, `/headphones`, `/portfolio` all 200 on `https://www.supplychainsai.com` |
 | `/overstock` | **404 in production**, and the ingest now refuses it — see finding 1 |
 
@@ -41,15 +47,16 @@ run distinguished the two.
 | Workspace policy read-back | the rotated KB credential, delivered separately |
 | Corpus ingest with generation swap | same |
 | Direct KB probe + evidence artifact | same |
-| Positive SSE against the hosted KB | same |
-| **Negative SSE (publication gate)** | same. It needs the KB to serve a genuinely unapproved document; the fake engine has only approved fixtures, so this half cannot be proved locally by construction |
+| Positive SSE against the hosted KB | the rotated credential and approved diagnostic spend |
+| Negative SSE against the hosted KB | same; local proof is complete, remote proof is still required |
 | Provider generation succeeding at all | KB owner — the model permission 403 is upstream and no code change reaches it |
 
-The acceptance observer reports the negative case as `ok: false` with
-`errorCategories: []` under the fake engine. That is correct, not a regression:
-nothing unapproved was offered, so nothing was blocked.
+The fake engine now has one request-specific, acceptance-only unapproved
+fixture. It is never part of the production KB path. Removing the publication
+gate makes the negative acceptance fail instead of allowing an unrelated
+provider error to satisfy it.
 
-## Round 5 findings, all closed in code
+## Round 5 findings, closed locally in code
 
 1. **The corpus published an unrouted page.** `overstock/en-US.md` was ingested
    against `/overstock`, which Astro does not route and which answers 404 in
@@ -79,14 +86,27 @@ Two further defects surfaced while running the acceptance:
   built artifact showed it.
 - `pnpm test:ai` ran suites concurrently while three of them `TRUNCATE` the same
   tables, so results depended on scheduling.
+- The probe imported a TypeScript source file directly. Node 25 accepted it,
+  but the pinned Node 22 runtime refused it. The shared inspector is executable
+  plain ESM now.
+- The provenance migrations worked on an empty database but rejected legacy
+  rows. Upgrade tests now preserve invalid historical claims in `audit_events`
+  and keep canonical provenance honest.
+
+The independent Standards and Specification findings, kept separate with their
+dispositions, are recorded in `REVIEW-ROUND-5-2026-08-31.md`.
 
 ## Current live facts
 
+- `https://kb.supplychainsai.com/api/ping` answers 200; the workspace endpoint
+  without a token answers 403. Raw public ports 3001 and 8888 time out. These
+  public boundary checks were repeated on 2026-09-01.
 - `https://www.supplychainsai.com` serves `/`, `/oem`, `/headphones`,
-  `/portfolio` (200 each) and `/overstock` 404, confirmed at this SHA.
-- The hosted KB endpoint and its dedicated-corpus status are unchanged from the
-  CVM operator's report and remain **unverified from this checkout**: no
-  credential is present here, and none was requested.
+  `/portfolio` (200 each) and `/overstock` 404, repeated on 2026-09-01.
+- The CVM operator reports that `supplychainsai-public-prod` exists, is empty,
+  and the old credential is invalid. Its authenticated contents and the rotated
+  credential remain **unverified from this checkout** because no credential is
+  present here.
 
 ## What changed in the application
 
@@ -115,15 +135,23 @@ Two further defects surfaced while running the acceptance:
 Copy `.env.ai-runtime.example` to a gitignored local file and inject real
 values from the approved secret source. Never paste them into this document.
 
+Required for both BFF and worker when the hosted KB is a Git checkout:
+
+```dotenv
+AI_ENGINE_ID=anythingllm
+AI_ENGINE_VERSION=<reviewed-hosted-fork-version>
+AI_ENGINE_PROVENANCE_KIND=git
+AI_ENGINE_GIT_COMMIT=<full-40-hex-commit>
+AI_ENGINE_GIT_REPOSITORY=<owner/repository>
+AI_ENGINE_CONFIG_DIGEST=sha256:<64-hex-canonical-config-digest>
+```
+
 Required for the BFF:
 
 ```dotenv
 DATABASE_URL=postgres://<user>:<password>@127.0.0.1:<port>/<database>
 PORT=58080
 CORS_ALLOWED_ORIGINS=http://localhost:4321
-AI_ENGINE_ID=anythingllm
-AI_ENGINE_VERSION=<reviewed-hosted-fork-version>
-AI_ENGINE_IMAGE_DIGEST=<immutable-reviewed-provenance>
 AI_IP_HASH_SECRET=<random-value-at-least-24-characters>
 ```
 
@@ -132,15 +160,15 @@ Required for the worker:
 ```dotenv
 DATABASE_URL=postgres://<user>:<password>@127.0.0.1:<port>/<database>
 PORT=58081
-AI_ENGINE_ID=anythingllm
-AI_ENGINE_VERSION=<reviewed-hosted-fork-version>
-AI_ENGINE_IMAGE_DIGEST=<immutable-reviewed-provenance>
 ANYTHINGLLM_BASE_URL=https://<approved-kb-host>
 ANYTHINGLLM_API_KEY=<secret-manager-value>
 ANYTHINGLLM_WORKSPACE_SLUG=<dedicated-public-workspace>
+ANYTHINGLLM_WORKSPACE_ID=<vendor-workspace-id>
 AI_KNOWLEDGE_CREDENTIAL_ID=<first-16-hex-of-sha256-api-key>
 ANYTHINGLLM_CITATIONS_VERIFIED=1
 ANYTHINGLLM_CREDENTIAL_ROTATION=<monotonic-counter>
+AI_CORPUS_GENERATION=<approved-ingest-generation>
+AI_KB_EVIDENCE_JSON=<single-line-secret-free-probe-evidence>
 AI_APPROVED_SOURCE_PREFIX=<approved-document-prefix>
 AI_SITE_ORIGIN=https://<public-website-host>
 AI_MAX_OUTPUT_TOKENS=4096
@@ -149,9 +177,9 @@ AI_WORKER_LEASE_SECONDS=90
 AI_MAX_STREAM_DURATION_MS=55000
 ```
 
-`ALLOW_INSECURE_ANYTHINGLLM=true` was used only for the bounded diagnostic
-against the current HTTP endpoint. It is forbidden by the production manifest
-and must not appear in a production environment.
+`ALLOW_INSECURE_ANYTHINGLLM=true` is for the loopback/private local container
+only. It is forbidden by the production manifest and must not appear in a
+production environment; the hosted endpoint is HTTPS.
 
 ## Repeatable local checks
 
@@ -189,10 +217,10 @@ does not inherit the KB developer token:
 
 ```text
 .env.ai-bff.local       DATABASE_URL, PORT=58180, CORS_ALLOWED_ORIGINS,
-                        AI_ENGINE_ID/VERSION/IMAGE_DIGEST, AI_IP_HASH_SECRET
+                        AI_ENGINE_ID/VERSION/provenance, AI_IP_HASH_SECRET
 .env.ai-worker.local    DATABASE_URL, PORT=58181, AI_ENGINE_* runtime values,
-                        KB URL/key/workspace/attestation, source prefix,
-                        AI_SITE_ORIGIN and worker limits
+                        KB URL/key/workspace/evidence/corpus generation,
+                        source prefix, AI_SITE_ORIGIN and worker limits
 ```
 
 Use a newly created, dedicated local database. Build and migrate before starting
@@ -232,16 +260,21 @@ Accept only these terminal shapes:
 
 ## Current blockers and owners
 
-1. **KB/infrastructure owner:** terminate the hosted KB on HTTPS before issuing
-   a replacement developer token. Do not retain the HTTP diagnostic override.
-2. **Security/KB owner:** rotate the token visible in supplied screenshots and
-   increment `ANYTHINGLLM_CREDENTIAL_ROTATION`; update the expected credential
-   attestation in the secret inventory.
-3. **Content owner:** create a dedicated public workspace containing only
-   approved Supply Chains AI material. The current workspace also contains a
-   gateway test document. Re-run positive, negative and forbidden-write probes.
-4. **KB owner:** provide immutable provenance for the hosted fork version. Do
-   not invent an image digest for a third-party deployment.
+1. **KB/security owner:** deliver the already-rotated token through the approved
+   encrypted channel, never chat or a committed file. The code derives its
+   attestation and checks it against `AI_KNOWLEDGE_CREDENTIAL_ID`.
+2. **KB owner:** provide the hosted checkout's repository id, full 40-character
+   commit and canonical applied-configuration digest. Do not invent an image
+   digest for a Git deployment.
+3. **Content owner:** approve the four currently published site sources for the
+   empty `supplychainsai-public-prod` workspace. Run the rollback-safe ingest,
+   authenticated probe/evidence write and hosted positive acceptance. Do not
+   add an internal negative-test document to production; the publication gate's
+   negative case is proven locally, or separately in a disposable test
+   workspace whose corpus is never used by the public service.
+4. **KB owner:** confirm through that probe that provider generation and real
+   citations now work; the earlier upstream 403 is not considered fixed merely
+   because an unauthenticated health endpoint is green.
 5. **Infrastructure owner:** provision TencentDB PostgreSQL only after approval,
    in the same Shanghai-region VPC path as CloudBase Run, private port 5432.
 6. **Infrastructure owner:** deploy BFF publicly and worker privately from the
