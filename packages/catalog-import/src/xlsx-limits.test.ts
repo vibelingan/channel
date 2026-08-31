@@ -78,8 +78,9 @@ function zipOf(entries: readonly (readonly [string, Buffer])[]): Buffer {
   return Buffer.concat([...locals, directory, eocd]);
 }
 
-const CONTENT_TYPES =
-  '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/></Types>';
+function contentTypesXml(extra = ''): string {
+  return `<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/>${extra}</Types>`;
+}
 const ROOT_RELS =
   '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
 const WORKBOOK_RELS =
@@ -95,11 +96,12 @@ const SHEET = (body: string) =>
 function packageOf(options: {
   sheet?: string;
   workbook?: string;
+  contentTypes?: string;
   extraParts?: readonly (readonly [string, Buffer])[];
   workbookRels?: string;
 }): Buffer {
   return zipOf([
-    ['[Content_Types].xml', Buffer.from(CONTENT_TYPES)],
+    ['[Content_Types].xml', Buffer.from(options.contentTypes ?? contentTypesXml())],
     ['_rels/.rels', Buffer.from(ROOT_RELS)],
     ['xl/workbook.xml', Buffer.from(options.workbook ?? workbookXml())],
     ['xl/_rels/workbook.xml.rels', Buffer.from(options.workbookRels ?? WORKBOOK_RELS)],
@@ -336,6 +338,44 @@ test('an unreferenced macrosheet XML part is refused even when its name is recas
     }),
     /macros/,
   );
+});
+
+test('an unreferenced arbitrary part declared as a macro sheet is refused', () => {
+  for (const contentType of [
+    'application/vnd.ms-excel.macrosheet+xml',
+    'APPLICATION/VND.MS-EXCEL.INTLMACROSHEET+XML',
+  ]) {
+    refuses(
+      packageOf({
+        contentTypes: contentTypesXml(
+          `<Override PartName="/xl/not-macro/sheet1.xml" ContentType="${contentType}"/>`,
+        ),
+        extraParts: [['xl/not-macro/sheet1.xml', Buffer.from('<macrosheet/>')]],
+      }),
+      /macros/,
+    );
+  }
+});
+
+test('an unreferenced arbitrary relationship declaring a macro sheet is refused', () => {
+  for (const relationshipType of [
+    'http://schemas.microsoft.com/office/2006/relationships/xlMacrosheet',
+    'HTTP://SCHEMAS.MICROSOFT.COM/OFFICE/2006/RELATIONSHIPS/XLINTLMACROSHEET',
+  ]) {
+    refuses(
+      packageOf({
+        extraParts: [
+          [
+            'xl/not-macro/_rels/sheet1.xml.rels',
+            Buffer.from(
+              `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${relationshipType}" Target="sheet1.xml"/></Relationships>`,
+            ),
+          ],
+        ],
+      }),
+      /macros/,
+    );
+  }
 });
 
 test('a workbook carrying external link parts is refused', () => {

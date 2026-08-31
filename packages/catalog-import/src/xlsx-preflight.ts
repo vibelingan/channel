@@ -27,6 +27,16 @@ const REFUSED_PART_PREFIXES: readonly [string, string][] = [
   ['customXml/', 'workbook contains custom XML parts'],
 ];
 
+const REFUSED_MACRO_CONTENT_TYPES = new Set([
+  'application/vnd.ms-excel.macrosheet+xml',
+  'application/vnd.ms-excel.intlmacrosheet+xml',
+]);
+
+const REFUSED_MACRO_RELATIONSHIP_TYPES = new Set([
+  'http://schemas.microsoft.com/office/2006/relationships/xlmacrosheet',
+  'http://schemas.microsoft.com/office/2006/relationships/xlintlmacrosheet',
+]);
+
 export class SpreadsheetFormatError extends Error {
   constructor(message: string) {
     super(message);
@@ -274,6 +284,36 @@ function assertNoRefusedParts(names: readonly string[]): void {
   }
 }
 
+function normalizedContentType(value: string): string {
+  return (value.split(';', 1)[0] ?? '').trim().toLowerCase();
+}
+
+function assertNoMacroContentTypes(xml: string): void {
+  for (const event of scanXml(xml)) {
+    if (event.type !== 'open' || (event.name !== 'default' && event.name !== 'override')) continue;
+    const contentType = event.attrs.get('contenttype');
+    if (
+      contentType !== undefined &&
+      REFUSED_MACRO_CONTENT_TYPES.has(normalizedContentType(contentType))
+    ) {
+      throw new SpreadsheetFormatError(`workbook declares macros (${contentType})`);
+    }
+  }
+}
+
+function assertNoMacroRelationships(xml: string, partName: string): void {
+  for (const event of scanXml(xml)) {
+    if (event.type !== 'open' || event.name !== 'relationship') continue;
+    const relationshipType = event.attrs.get('type');
+    if (
+      relationshipType !== undefined &&
+      REFUSED_MACRO_RELATIONSHIP_TYPES.has(relationshipType.trim().toLowerCase())
+    ) {
+      throw new SpreadsheetFormatError(`workbook declares macros (${partName})`);
+    }
+  }
+}
+
 function resolvePartPath(target: string): string | null {
   if (target === '' || target.includes('\u0000')) return null;
   const trimmed = target.startsWith('/') ? target.slice(1) : target;
@@ -454,9 +494,13 @@ export function preflightXlsx(bytes: Buffer): XlsxPreflightResult {
 
     archive.verifyAllEntries((name, part) => {
       if (isXmlPart(name)) {
-        for (const _event of scanXml(decodeUtf8XmlPart(name, part))) {
+        const xml = decodeUtf8XmlPart(name, part);
+        for (const _event of scanXml(xml)) {
           // Exhaust the generator: limits and DTD refusal are the validation.
         }
+        const lowerName = name.toLowerCase();
+        if (lowerName === '[content_types].xml') assertNoMacroContentTypes(xml);
+        if (lowerName.endsWith('.rels')) assertNoMacroRelationships(xml, name);
       }
     });
 
