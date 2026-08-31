@@ -378,6 +378,34 @@ test('an unreferenced arbitrary relationship declaring a macro sheet is refused'
   }
 });
 
+test('an unreferenced arbitrary part declared as a VBA project is refused', () => {
+  refuses(
+    packageOf({
+      contentTypes: contentTypesXml(
+        '<Override PartName="/xl/not-macro/project.bin" ContentType="APPLICATION/VND.MS-OFFICE.VBAPROJECT"/>',
+      ),
+      extraParts: [['xl/not-macro/project.bin', Buffer.from([0xd0, 0xcf, 0x11, 0xe0])]],
+    }),
+    /macros/,
+  );
+});
+
+test('an unreferenced arbitrary relationship declaring a VBA project is refused', () => {
+  refuses(
+    packageOf({
+      extraParts: [
+        [
+          'xl/not-macro/_rels/project.bin.rels',
+          Buffer.from(
+            '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="HTTP://SCHEMAS.MICROSOFT.COM/OFFICE/2006/RELATIONSHIPS/VBAPROJECT" Target="project.bin"/></Relationships>',
+          ),
+        ],
+      ],
+    }),
+    /macros/,
+  );
+});
+
 test('a workbook carrying external link parts is refused', () => {
   refuses(
     packageOf({

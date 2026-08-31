@@ -30,11 +30,13 @@ const REFUSED_PART_PREFIXES: readonly [string, string][] = [
 const REFUSED_MACRO_CONTENT_TYPES = new Set([
   'application/vnd.ms-excel.macrosheet+xml',
   'application/vnd.ms-excel.intlmacrosheet+xml',
+  'application/vnd.ms-office.vbaproject',
 ]);
 
 const REFUSED_MACRO_RELATIONSHIP_TYPES = new Set([
   'http://schemas.microsoft.com/office/2006/relationships/xlmacrosheet',
   'http://schemas.microsoft.com/office/2006/relationships/xlintlmacrosheet',
+  'http://schemas.microsoft.com/office/2006/relationships/vbaproject',
 ]);
 
 export class SpreadsheetFormatError extends Error {
