@@ -122,5 +122,5 @@ only, not acceptance evidence.
 
 ```text
 mise exec node@22.13.0 -- pnpm --filter @vibelingan-channel/catalog-import test
-243 passed, 0 failed; duration 1.44 s
+248 passed, 0 failed; duration 1.27 s
 ```

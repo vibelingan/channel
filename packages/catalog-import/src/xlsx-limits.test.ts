@@ -301,6 +301,32 @@ test('an oversized attribute value is refused', () => {
   );
 });
 
+test('an XML attribute without an equals sign is refused as malformed', () => {
+  assert.throws(
+    () => [...scanXml('<c r "A1"/>')],
+    (error: unknown) =>
+      error instanceof SpreadsheetFormatError && /malformed attribute/.test(error.message),
+  );
+});
+
+test('an oversized unquoted XML attribute is refused as malformed', () => {
+  const value = 'y'.repeat(MAX_ATTRIBUTE_CHARS + 1);
+  assert.throws(
+    () => [...scanXml(`<c r=${value}/>`)],
+    (error: unknown) =>
+      error instanceof SpreadsheetFormatError && /malformed attribute/.test(error.message),
+  );
+});
+
+test('an unterminated quoted XML attribute is refused as malformed', () => {
+  const value = 'y'.repeat(MAX_ATTRIBUTE_CHARS + 1);
+  assert.throws(
+    () => [...scanXml(`<c r="${value}`)],
+    (error: unknown) =>
+      error instanceof SpreadsheetFormatError && /malformed attribute/.test(error.message),
+  );
+});
+
 test('a DTD is refused outright, so entity expansion is unreachable', () => {
   assert.throws(
     () => [...scanXml('<!DOCTYPE x [<!ENTITY a "boom">]><x>&a;</x>')],
@@ -357,6 +383,24 @@ test('an unreferenced arbitrary part declared as a macro sheet is refused', () =
   }
 });
 
+test('an arbitrary part declared as a macro-enabled workbook main part is refused', () => {
+  for (const contentType of [
+    'application/vnd.ms-excel.sheet.macroEnabled.main+xml',
+    'APPLICATION/VND.MS-EXCEL.TEMPLATE.MACROENABLED.MAIN+XML',
+    'application/vnd.ms-excel.addin.MacroEnabled.main+xml',
+  ]) {
+    refuses(
+      packageOf({
+        contentTypes: contentTypesXml(
+          `<Override PartName="/xl/not-macro/workbook.xml" ContentType="${contentType}"/>`,
+        ),
+        extraParts: [['xl/not-macro/workbook.xml', Buffer.from('<workbook/>')]],
+      }),
+      /macros/,
+    );
+  }
+});
+
 test('an unreferenced arbitrary relationship declaring a macro sheet is refused', () => {
   for (const relationshipType of [
     'http://schemas.microsoft.com/office/2006/relationships/xlMacrosheet',
@@ -404,6 +448,16 @@ test('an unreferenced arbitrary relationship declaring a VBA project is refused'
     }),
     /macros/,
   );
+});
+
+test('malformed unreferenced XML attributes are refused before SheetJS runs', () => {
+  const oversized = 'y'.repeat(MAX_ATTRIBUTE_CHARS + 1);
+  for (const [part, xml] of [
+    ['xl/not-macro/unquoted.xml', `<part value=${oversized}/>`],
+    ['xl/not-macro/unterminated.xml', `<part value="${oversized}`],
+  ] as const) {
+    refuses(packageOf({ extraParts: [[part, Buffer.from(xml)]] }), /malformed attribute/);
+  }
 });
 
 test('a workbook carrying external link parts is refused', () => {

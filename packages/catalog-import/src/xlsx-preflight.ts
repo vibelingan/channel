@@ -30,6 +30,9 @@ const REFUSED_PART_PREFIXES: readonly [string, string][] = [
 const REFUSED_MACRO_CONTENT_TYPES = new Set([
   'application/vnd.ms-excel.macrosheet+xml',
   'application/vnd.ms-excel.intlmacrosheet+xml',
+  'application/vnd.ms-excel.sheet.macroenabled.main+xml',
+  'application/vnd.ms-excel.template.macroenabled.main+xml',
+  'application/vnd.ms-excel.addin.macroenabled.main+xml',
   'application/vnd.ms-office.vbaproject',
 ]);
 
@@ -176,25 +179,19 @@ export function* scanXml(xml: string): Generator<XmlEvent> {
       const attrName = xml.slice(attrStart, cursor).toLowerCase();
       while (cursor < xml.length && /\s/.test(xml[cursor] as string)) cursor += 1;
       if (xml[cursor] !== '=') {
-        attrs.set(attrName, '');
-        continue;
+        throw new SpreadsheetFormatError('spreadsheet XML has a malformed attribute');
       }
       cursor += 1;
       while (cursor < xml.length && /\s/.test(xml[cursor] as string)) cursor += 1;
       const quote = xml[cursor];
       if (quote !== '"' && quote !== "'") {
-        const valueStart = cursor;
-        while (cursor < xml.length && !/[\s>]/.test(xml[cursor] as string)) cursor += 1;
-        attrs.set(attrName, decodeXmlEntities(xml.slice(valueStart, cursor)));
-        continue;
+        throw new SpreadsheetFormatError('spreadsheet XML has a malformed attribute');
       }
       cursor += 1;
       const valueStart = cursor;
       const valueEnd = xml.indexOf(quote, cursor);
       if (valueEnd === -1) {
-        attrs.set(attrName, decodeXmlEntities(xml.slice(valueStart)));
-        cursor = xml.length;
-        break;
+        throw new SpreadsheetFormatError('spreadsheet XML has a malformed attribute');
       }
       if (valueEnd - valueStart > MAX_ATTRIBUTE_CHARS) {
         throw new SpreadsheetFormatError('spreadsheet XML has an oversized attribute value');

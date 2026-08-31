@@ -2,9 +2,9 @@
 
 **Research snapshot:** 2026-09-01
 **Status:** SheetJS is the implemented branch choice, based on the controlled local
-spike below. This is not production approval: exact Node 20 runtime, fully bundled
-artifact, and an actual CloudBase smoke remain pending because no deployment was
-authorized.
+spike below. Exact Node 20.19 dependency-empty packaged-artifact cold-start has
+passed locally. This is not production approval: an actual CloudBase smoke remains
+pending because no deployment was authorized.
 **Scope:** the XLSX core behind one shared security boundary and one provider-neutral
 adapter. This document does not compare a naked third-party parser with the hardened
 current reader.
@@ -327,9 +327,9 @@ Required compatibility evidence for each candidate:
 - actual CloudBase function smoke parses the small canonical fixture after deployment.
 
 The earlier Node `25.6.1` research result did not satisfy the Node 22 gate. The branch
-adapter has since passed the real-workbook local acceptance under Node `22.13.0`; exact
-Node 20 runtime, packaged-artifact, and actual CloudBase smoke checks remain pending
-because no deployment was authorized.
+adapter has since passed real-workbook local acceptance under Node `22.13.0` and the
+dependency-empty packaged artifacts cold-started under exact Node `20.19.0`. Actual
+CloudBase smoke remains pending because no deployment was authorized.
 
 ## Controlled spike matrix
 
