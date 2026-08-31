@@ -17,5 +17,8 @@
   "devDependencies": {
     "@types/node": "^22.10.2",
     "tsx": "^4.22.4"
+  },
+  "dependencies": {
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
 }

@@ -1,13 +1,9 @@
 /**
- * Minimal, hardened ZIP container reader — enough of the format to open an
- * `.xlsx`, and deliberately no more.
+ * Hardened ZIP preflight for customer-supplied `.xlsx` archives.
  *
- * Why not a library: the npm `xlsx` package is pinned at 0.18.5 there and
- * carries CVE-2023-30533 (prototype pollution) and CVE-2024-22363 (ReDoS),
- * with newer releases published only outside npm; `exceljs` drags in a
- * ~15-package dependency subtree for a repo whose entire runtime surface is
- * six packages. The part of ZIP an OOXML file uses is small and closed, so a
- * focused reader with explicit limits is both smaller and safer than either.
+ * SheetJS owns workbook decoding. This module owns the trust boundary that a
+ * general workbook parser cannot provide: unique OPC names, declared resource
+ * ceilings, supported compression, and a CRC pass over every entry.
  *
  * The limits below are the point of this file. The input is a customer-
  * supplied archive, so every one of them is a hard stop rather than a warning:
@@ -138,6 +134,8 @@ export function readZipDirectory(bytes: Buffer): Map<string, ZipEntry> {
   }
 
   const entries = new Map<string, ZipEntry>();
+  const namesByLowerCase = new Map<string, string>();
+  let declaredTotal = 0;
   let cursor = directoryOffset;
   for (let index = 0; index < totalEntries; index += 1) {
     if (cursor + 46 > bytes.length || bytes.readUInt32LE(cursor) !== SIGNATURE_CENTRAL) {
@@ -156,27 +154,58 @@ export function readZipDirectory(bytes: Buffer): Map<string, ZipEntry> {
     const name = bytes.toString('utf8', nameStart, nameStart + nameLength);
     assertSafeEntryName(name);
 
+    if (entries.has(name)) throw new ZipFormatError(`ZIP contains duplicate entry ${name}`);
+    const lowerName = name.toLowerCase();
+    const caseVariant = namesByLowerCase.get(lowerName);
+    if (caseVariant !== undefined) {
+      throw new ZipFormatError(
+        `ZIP entry names collide by case: ${caseVariant} and ${name}`,
+      );
+    }
+
+    const compressionMethod = bytes.readUInt16LE(cursor + 10);
+    const compressedSize = bytes.readUInt32LE(cursor + 20);
+    const uncompressedSize = bytes.readUInt32LE(cursor + 24);
+    if (compressionMethod !== METHOD_STORED && compressionMethod !== METHOD_DEFLATE) {
+      throw new ZipFormatError(
+        `ZIP entry ${name} uses unsupported compression method ${compressionMethod}`,
+      );
+    }
+    if (uncompressedSize > MAX_ENTRY_BYTES) {
+      throw new ZipFormatError(`ZIP entry ${name} declares ${uncompressedSize} bytes`);
+    }
+    if (
+      compressedSize > 0 &&
+      uncompressedSize / compressedSize > MAX_COMPRESSION_RATIO
+    ) {
+      throw new ZipFormatError(`ZIP entry ${name} exceeds the compression-ratio limit`);
+    }
+    declaredTotal += uncompressedSize;
+    if (declaredTotal > MAX_TOTAL_BYTES) {
+      throw new ZipFormatError('ZIP decompresses to more than the total byte limit');
+    }
+
     entries.set(name, {
       name,
-      compressionMethod: bytes.readUInt16LE(cursor + 10),
+      compressionMethod,
       crc32: bytes.readUInt32LE(cursor + 16),
-      compressedSize: bytes.readUInt32LE(cursor + 20),
-      uncompressedSize: bytes.readUInt32LE(cursor + 24),
+      compressedSize,
+      uncompressedSize,
       localHeaderOffset: bytes.readUInt32LE(cursor + 42),
     });
+    namesByLowerCase.set(lowerName, name);
     cursor = nameStart + nameLength + extraLength + commentLength;
+  }
+  if (cursor !== directoryOffset + directorySize) {
+    throw new ZipFormatError('ZIP central-directory size does not match its entries');
   }
   return entries;
 }
 
-/**
- * A ZIP archive opened for reading. `totalRead` accumulates across calls so a
- * bomb cannot be assembled from many individually-legal parts.
- */
+/** A ZIP archive whose aggregate declaration was validated at construction. */
 export class ZipArchive {
   private readonly bytes: Buffer;
   private readonly entries: Map<string, ZipEntry>;
-  private totalRead = 0;
 
   constructor(bytes: Buffer) {
     this.bytes = bytes;
@@ -196,34 +225,40 @@ export class ZipArchive {
     const entry = this.entries.get(name);
     if (entry === undefined) return null;
 
-    if (entry.uncompressedSize > MAX_ENTRY_BYTES) {
-      throw new ZipFormatError(`ZIP entry ${name} declares ${entry.uncompressedSize} bytes`);
-    }
-    if (
-      entry.compressedSize > 0 &&
-      entry.uncompressedSize / entry.compressedSize > MAX_COMPRESSION_RATIO
-    ) {
-      throw new ZipFormatError(`ZIP entry ${name} exceeds the compression-ratio limit`);
-    }
-    if (this.totalRead + entry.uncompressedSize > MAX_TOTAL_BYTES) {
-      throw new ZipFormatError('ZIP decompresses to more than the total byte limit');
-    }
-
     const header = entry.localHeaderOffset;
     if (header + 30 > this.bytes.length || this.bytes.readUInt32LE(header) !== SIGNATURE_LOCAL) {
       throw new ZipFormatError(`ZIP entry ${name} has no local header`);
     }
     const flags = this.bytes.readUInt16LE(header + 6);
     if ((flags & FLAG_ENCRYPTED) !== 0) throw new ZipFormatError('encrypted ZIP is not supported');
+    const localMethod = this.bytes.readUInt16LE(header + 8);
+    if (localMethod !== entry.compressionMethod) {
+      throw new ZipFormatError(`ZIP entry ${name} has inconsistent compression methods`);
+    }
     const nameLength = this.bytes.readUInt16LE(header + 26);
     const extraLength = this.bytes.readUInt16LE(header + 28);
+    const localNameEnd = header + 30 + nameLength;
+    if (localNameEnd > this.bytes.length) {
+      throw new ZipFormatError(`ZIP entry ${name} has a truncated local name`);
+    }
+    const localName = this.bytes.toString('utf8', header + 30, localNameEnd);
+    if (localName !== name) {
+      throw new ZipFormatError(`ZIP entry ${name} has an inconsistent local name`);
+    }
     const dataStart = header + 30 + nameLength + extraLength;
     // With a data descriptor the local header's sizes are zero, so the central
     // directory — already validated above — is the only trustworthy source.
-    const compressedSize =
-      (flags & FLAG_DATA_DESCRIPTOR) !== 0
-        ? entry.compressedSize
-        : this.bytes.readUInt32LE(header + 18) || entry.compressedSize;
+    if ((flags & FLAG_DATA_DESCRIPTOR) === 0) {
+      const localCompressedSize = this.bytes.readUInt32LE(header + 18);
+      const localUncompressedSize = this.bytes.readUInt32LE(header + 22);
+      if (
+        localCompressedSize !== entry.compressedSize ||
+        localUncompressedSize !== entry.uncompressedSize
+      ) {
+        throw new ZipFormatError(`ZIP entry ${name} has inconsistent local metadata`);
+      }
+    }
+    const compressedSize = entry.compressedSize;
     const dataEnd = dataStart + compressedSize;
     if (dataEnd > this.bytes.length) throw new ZipFormatError(`ZIP entry ${name} is truncated`);
     const raw = this.bytes.subarray(dataStart, dataEnd);
@@ -250,8 +285,20 @@ export class ZipArchive {
       throw new ZipFormatError(`ZIP entry ${name} failed its CRC check`);
     }
 
-    this.totalRead += output.length;
     return output;
+  }
+
+  /**
+   * Inflate and CRC-check every entry before a general workbook parser sees
+   * the original archive. The visitor is used by OOXML preflight to scan every
+   * XML and relationship part, including parts the selected sheet never uses.
+   */
+  verifyAllEntries(visitor?: (name: string, bytes: Buffer) => void): void {
+    for (const name of this.entries.keys()) {
+      const bytes = this.read(name);
+      if (bytes === null) throw new ZipFormatError(`ZIP entry ${name} disappeared`);
+      visitor?.(name, bytes);
+    }
   }
 
   /** Decompressed entry decoded as UTF-8, or `null` when absent. */
