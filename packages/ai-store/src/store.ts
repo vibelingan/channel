@@ -72,7 +72,7 @@ function provenanceRecord(value: EngineProvenance): Record<string, string> {
     : {
         commit: value.commit,
         repository: value.repository,
-        ...(value.configDigest ? { configDigest: value.configDigest } : {}),
+        configDigest: value.configDigest,
       };
 }
 
@@ -555,7 +555,12 @@ export class AiStore {
         return false;
       }
       if (input.reason === 'start_run_dead_letter') {
-        if (row.status !== 'creating' || !input.outboxId) return false;
+        // The real worker claims the run before the provider operation, so a
+        // provider failure reaches this path with status=running. The outbox
+        // claim is the durable authority: if this transaction just changed
+        // that exact start_run item to dead_letter, either live run state is
+        // safe to terminate here.
+        if (!input.outboxId) return false;
         const deadLetter = await client.query(
           `SELECT 1 FROM outbox
            WHERE id = $1 AND run_id = $2 AND type = 'start_run' AND status = 'dead_letter'`,

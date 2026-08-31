@@ -52,6 +52,7 @@ function evidenceFor(attested: {
     recordedAt: new Date().toISOString(),
     credentialId: attested.credentialId,
     workspaceSlug: attested.spaceId,
+    workspaceId: 'workspace-id-1',
     rotationCounter: attested.rotationCounter,
     corpusGeneration: 'g1000',
     positiveControl: {
@@ -68,7 +69,29 @@ function evidenceFor(attested: {
 test('worker accepts an engine that matches real evidence', async () => {
   const engine = new FakeEngine();
   const attested = await engine.attestKnowledgeCredential();
-  await verifyKnowledgeAttestation(engine, evidenceFor(attested));
+  await verifyKnowledgeAttestation(engine, evidenceFor(attested), {
+    expectedWorkspaceId: 'workspace-id-1',
+    expectedCorpusGeneration: 'g1000',
+  });
+});
+
+test('worker binds evidence to the deployed workspace id and corpus generation', async () => {
+  const engine = new FakeEngine();
+  const attested = await engine.attestKnowledgeCredential();
+  await assert.rejects(
+    verifyKnowledgeAttestation(engine, evidenceFor(attested), {
+      expectedWorkspaceId: 'different-workspace-id',
+      expectedCorpusGeneration: 'g1000',
+    }),
+    /workspace id does not match/,
+  );
+  await assert.rejects(
+    verifyKnowledgeAttestation(engine, evidenceFor(attested), {
+      expectedWorkspaceId: 'workspace-id-1',
+      expectedCorpusGeneration: 'g9999',
+    }),
+    /corpus generation does not match/,
+  );
 });
 
 test('worker refuses a knowledge credential whose attested identity drifts', async () => {
@@ -155,6 +178,16 @@ test('evidence gathered over plaintext, or gone stale, is refused', async () => 
     ),
     /older than the accepted window/,
   );
+});
+
+test('local plaintext evidence needs the same explicit override as the engine transport', async () => {
+  const engine = new FakeEngine();
+  const attested = await engine.attestKnowledgeCredential();
+  const evidence = {
+    ...evidenceFor(attested),
+    transport: { https: false, insecureOverride: true },
+  };
+  await verifyKnowledgeAttestation(engine, evidence, { allowInsecureTransport: true });
 });
 
 before(async () => {
@@ -403,6 +436,7 @@ test('a well-formed evidence object narrows cleanly, coercing loose types', () =
       recordedAt: '2026-01-01T00:00:00Z',
       credentialId: 'abc',
       workspaceSlug: 'ws',
+      workspaceId: 'workspace-id-1',
       rotationCounter: 2,
       corpusGeneration: 'g1000',
       positiveControl: {

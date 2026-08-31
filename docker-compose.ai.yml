@@ -82,7 +82,7 @@ services:
       # has. `oci` for a pinned container, `git` for a source checkout on a VM —
       # which is what the hosted knowledge base actually is. A git sha in a
       # variable named for an image digest is a lie an audit cannot detect.
-      AI_ENGINE_PROVENANCE_KIND: ${AI_ENGINE_PROVENANCE_KIND:-oci}
+      AI_ENGINE_PROVENANCE_KIND: ${AI_ENGINE_PROVENANCE_KIND:-}
       AI_ENGINE_IMAGE_DIGEST: ${AI_ENGINE_IMAGE_DIGEST:-}
       AI_ENGINE_GIT_COMMIT: ${AI_ENGINE_GIT_COMMIT:-}
       AI_ENGINE_GIT_REPOSITORY: ${AI_ENGINE_GIT_REPOSITORY:-}
@@ -130,13 +130,14 @@ services:
       # has. `oci` for a pinned container, `git` for a source checkout on a VM —
       # which is what the hosted knowledge base actually is. A git sha in a
       # variable named for an image digest is a lie an audit cannot detect.
-      AI_ENGINE_PROVENANCE_KIND: ${AI_ENGINE_PROVENANCE_KIND:-oci}
+      AI_ENGINE_PROVENANCE_KIND: ${AI_ENGINE_PROVENANCE_KIND:-}
       AI_ENGINE_IMAGE_DIGEST: ${AI_ENGINE_IMAGE_DIGEST:-}
       AI_ENGINE_GIT_COMMIT: ${AI_ENGINE_GIT_COMMIT:-}
       AI_ENGINE_GIT_REPOSITORY: ${AI_ENGINE_GIT_REPOSITORY:-}
       AI_ENGINE_CONFIG_DIGEST: ${AI_ENGINE_CONFIG_DIGEST:-}
       ANYTHINGLLM_BASE_URL: ${ANYTHINGLLM_BASE_URL:-http://anythingllm:3001}
       ANYTHINGLLM_WORKSPACE_SLUG: ${ANYTHINGLLM_WORKSPACE_SLUG:-channel-public-assistant}
+      ANYTHINGLLM_WORKSPACE_ID: ${ANYTHINGLLM_WORKSPACE_ID:-}
       ANYTHINGLLM_API_KEY: ${ANYTHINGLLM_API_KEY:-}
       # Container-to-container on a private docker network, so http is the only
       # option here and the engine would otherwise refuse to start. This is the
@@ -149,6 +150,12 @@ services:
       ALLOW_INSECURE_ANYTHINGLLM: ${ALLOW_INSECURE_ANYTHINGLLM:-true}
       ANYTHINGLLM_CITATIONS_VERIFIED: ${ANYTHINGLLM_CITATIONS_VERIFIED:-0}
       ANYTHINGLLM_CREDENTIAL_ROTATION: ${ANYTHINGLLM_CREDENTIAL_ROTATION:-1}
+      AI_CORPUS_GENERATION: ${AI_CORPUS_GENERATION:-}
+      # Secret-free JSON emitted by the authenticated probe. The process also
+      # accepts a file path, but an env value works in both Compose and
+      # CloudRun without pretending a host file was mounted into the container.
+      AI_KB_EVIDENCE_JSON: ${AI_KB_EVIDENCE_JSON:-}
+      AI_KB_EVIDENCE_FILE: /run/channel/kb-evidence.json
       AI_KNOWLEDGE_CREDENTIAL_ID: ${AI_KNOWLEDGE_CREDENTIAL_ID:-}
       AI_APPROVED_SOURCE_PREFIX: ${AI_APPROVED_SOURCE_PREFIX:-channelkb}
       AI_SITE_ORIGIN: ${AI_SITE_ORIGIN:-http://localhost:4321}
@@ -163,6 +170,8 @@ services:
       AI_MAX_STREAM_DURATION_MS: "55000"
     ports:
       - "127.0.0.1:${AI_WORKER_PORT:-58081}:8080"
+    volumes:
+      - "${AI_KB_EVIDENCE_HOST_FILE:-./scripts/fixtures/empty-kb-evidence.json}:/run/channel/kb-evidence.json:ro"
     depends_on:
       postgres:
         condition: service_healthy

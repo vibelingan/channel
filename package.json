@@ -46,7 +46,7 @@
     "accept:ai:phase1": "node scripts/accept-ai-phase1.mjs",
     "test:ai": "pnpm --workspace-concurrency=1 --filter @vibelingan-channel/ai-engine --filter @vibelingan-channel/ai-engine-anythingllm --filter @vibelingan-channel/ai-policy --filter @vibelingan-channel/ai-store --filter @vibelingan-channel/ai-bff --filter @vibelingan-channel/ai-worker test",
     "test:ai:runtime": "pnpm --filter @vibelingan-channel/ai-store test && pnpm --filter @vibelingan-channel/ai-bff test && pnpm --filter @vibelingan-channel/ai-worker test",
-    "test:ai:kb": "node --env-file-if-exists=.env.ai-probe scripts/probe-anythingllm.mjs",
+    "test:ai:kb": "node --env-file-if-exists=.env.ai --env-file-if-exists=.env.ai-probe scripts/probe-anythingllm.mjs",
     "ai:key:generate": "node --env-file-if-exists=.env.ai scripts/generate-local-anythingllm-key.mjs",
     "ai:ingest": "node --env-file-if-exists=.env.ai scripts/ai-ingest-content.mjs",
     "ai:configure": "node --env-file-if-exists=.env.ai scripts/ai-configure-workspace.mjs",

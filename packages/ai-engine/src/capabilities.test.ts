@@ -152,20 +152,37 @@ test('a real oci digest and a real git commit are both accepted', () => {
     assertProvenance({ kind: 'oci', imageDigest: `sha256:${'a'.repeat(64)}` }),
   );
   assert.doesNotThrow(() =>
-    assertProvenance({ kind: 'git', commit: 'b'.repeat(40), repository: 'vibelingan/channel' }),
+    assertProvenance({
+      kind: 'git',
+      commit: 'b'.repeat(40),
+      repository: 'vibelingan/channel',
+      configDigest: `sha256:${'c'.repeat(64)}`,
+    }),
   );
 });
 
 test('a git commit with no repository names nothing anyone can find', () => {
   assert.throws(
-    () => assertProvenance({ kind: 'git', commit: 'b'.repeat(40), repository: '  ' }),
+    () =>
+      assertProvenance({
+        kind: 'git',
+        commit: 'b'.repeat(40),
+        repository: '  ',
+        configDigest: `sha256:${'c'.repeat(64)}`,
+      }),
     /needs the repository/,
   );
 });
 
 test('an abbreviated commit is refused', () => {
   assert.throws(
-    () => assertProvenance({ kind: 'git', commit: 'b'.repeat(12), repository: 'r' }),
+    () =>
+      assertProvenance({
+        kind: 'git',
+        commit: 'b'.repeat(12),
+        repository: 'r',
+        configDigest: `sha256:${'c'.repeat(64)}`,
+      }),
     /not a 40-character commit sha/,
   );
 });
@@ -189,14 +206,38 @@ test('the environment parser refuses a deployment that will not say what it runs
       AI_ENGINE_PROVENANCE_KIND: 'git',
       AI_ENGINE_GIT_COMMIT: 'c'.repeat(40),
       AI_ENGINE_GIT_REPOSITORY: 'vibelingan/channel',
+      AI_ENGINE_CONFIG_DIGEST: `sha256:${'d'.repeat(64)}`,
     }),
-    { kind: 'git', commit: 'c'.repeat(40), repository: 'vibelingan/channel' },
+    {
+      kind: 'git',
+      commit: 'c'.repeat(40),
+      repository: 'vibelingan/channel',
+      configDigest: `sha256:${'d'.repeat(64)}`,
+    },
   );
 });
 
 test('the description never leaks anything but the identity itself', () => {
   assert.equal(
-    describeProvenance({ kind: 'git', commit: 'd'.repeat(40), repository: 'vibelingan/channel' }),
-    `git:vibelingan/channel@${'d'.repeat(40)}`,
+    describeProvenance({
+      kind: 'git',
+      commit: 'd'.repeat(40),
+      repository: 'vibelingan/channel',
+      configDigest: `sha256:${'e'.repeat(64)}`,
+    }),
+    `git:vibelingan/channel@${'d'.repeat(40)}+cfg:sha256:${'e'.repeat(64)}`,
+  );
+});
+
+test('git provenance refuses a missing or malformed configuration digest', () => {
+  assert.throws(
+    () =>
+      assertProvenance({
+        kind: 'git',
+        commit: 'b'.repeat(40),
+        repository: 'vibelingan/channel',
+        configDigest: '',
+      }),
+    /CONFIG_DIGEST/,
   );
 });

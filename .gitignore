@@ -53,4 +53,5 @@ Thumbs.db
 !.env.ai-runtime.example
 .env.ai-probe
 !.env.ai-probe.example
+.ai-kb-evidence.json
 scripts/pipeline-e2e.sh

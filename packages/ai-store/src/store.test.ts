@@ -464,6 +464,8 @@ async function deadLetterFixture(key: string) {
   assert.ok(accepted.run);
   const claimed = await store.claimNextOutbox(60);
   assert.ok(claimed);
+  const runClaim = await store.claimRun(accepted.run.id);
+  assert.ok(runClaim, 'the real worker claims the run before engine work can fail');
   return { conversation, run: accepted.run, item: claimed };
 }
 

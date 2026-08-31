@@ -36,6 +36,11 @@ export interface FakeEngineOptions {
   script?: string[];
   /** Citations a successful run emits before its final event. */
   citations?: Array<{ sourceId: string; title: string; url?: string; retrievedAt?: string }>;
+  /** Request-specific citation fixtures for full-stack publication-gate tests. */
+  citationScenarios?: Array<{
+    whenMessageIncludes: string;
+    citations: Array<{ sourceId: string; title: string; url?: string; retrievedAt?: string }>;
+  }>;
   knowledgeCredentialId?: string;
   knowledgeSpaceId?: string;
 }
@@ -45,6 +50,7 @@ interface RunState {
   status: 'running' | 'finished';
   /** Captured at create, the way a real adapter configures the vendor up front. */
   limits: EngineRunRequest['limits'];
+  lastMessage: string;
 }
 
 const DEFAULT_CAPABILITIES: EngineCapabilities = {
@@ -63,6 +69,7 @@ export class FakeEngine implements ConversationEngine {
   readonly #now: string;
   readonly #script: string[];
   readonly #citations: FakeEngineOptions['citations'];
+  readonly #citationScenarios: FakeEngineOptions['citationScenarios'];
   readonly #runsByOperationId = new Map<string, RunState>();
   readonly #runsByEngineRunId = new Map<string, RunState>();
 
@@ -81,6 +88,7 @@ export class FakeEngine implements ConversationEngine {
     this.#now = options.now ?? '2026-01-01T00:00:00.000Z';
     this.#script = options.script ?? ['Our ', 'MOQ ', 'is ', '500 ', 'units.'];
     this.#citations = options.citations;
+    this.#citationScenarios = options.citationScenarios;
     this.#credentialId = options.knowledgeCredentialId ?? 'cred-fake-0001';
     this.#spaceId = options.knowledgeSpaceId ?? 'space-public-cs';
 
@@ -134,7 +142,12 @@ export class FakeEngine implements ConversationEngine {
       // constraint, and made the second smoke after a container restart fail.
       engineRunId: `fake:${request.operationId}`,
     };
-    const state: RunState = { handle, status: 'running', limits: request.limits };
+    const state: RunState = {
+      handle,
+      status: 'running',
+      limits: request.limits,
+      lastMessage: request.turns.at(-1)?.text ?? '',
+    };
     this.#runsByEngineRunId.set(handle.engineRunId, state);
 
     if (this.#dropNextRecord) {
@@ -201,7 +214,11 @@ export class FakeEngine implements ConversationEngine {
 
     if (signal.aborted) return;
 
-    const citations = (this.#citations ?? []).map((citation) => ({
+    const selectedCitations =
+      this.#citationScenarios?.find((scenario) =>
+        state.lastMessage.includes(scenario.whenMessageIncludes),
+      )?.citations ?? this.#citations;
+    const citations = (selectedCitations ?? []).map((citation) => ({
       sourceId: citation.sourceId,
       title: citation.title,
       ...(citation.url === undefined ? {} : { url: citation.url }),

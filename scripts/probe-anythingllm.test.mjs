@@ -30,6 +30,7 @@ before(async () => {
         JSON.stringify({
           workspace: [
             {
+              id: 41,
               name: 'Public KB',
               slug: workspaceSlug,
               similarityThreshold: 0.25,
@@ -226,6 +227,36 @@ test('evidence carries the identity and the positive control, and no secret', ()
   }
 });
 
+test('the REAL probe result fills every startup field (local plaintext is the only refusal)', async () => {
+  const report = await probeAnythingLlm({
+    baseUrl,
+    apiKey: testCredential,
+    workspaceSlug,
+    retrievalQuery: 'What does the company do?',
+    chatQuery: 'What does the company do?',
+    approvedSourcePrefix: 'public-',
+    credentialRotationCounter: 2,
+  });
+  const evidence = knowledgeEvidence(report, { corpusGeneration: 'g1000' });
+
+  assert.equal(evidence.workspaceId, '41');
+  assert.equal(evidence.rotationCounter, 2);
+  assert.match(evidence.credentialId, /^[0-9a-f]{16}$/);
+  assert.equal(evidence.positiveControl.approvedSourceCount, 1);
+  assert.equal(evidence.toolSurface.inspected, true);
+  assert.deepEqual(
+    knowledgeEvidenceRefusals(evidence, {
+      credentialId: evidence.credentialId,
+      workspaceSlug,
+      workspaceId: '41',
+      rotationCounter: 2,
+      corpusGeneration: 'g1000',
+      maxAgeMs: 60_000,
+    }),
+    ['evidence was gathered over plaintext'],
+  );
+});
+
 test('evidence from an EMPTY workspace is refused', () => {
   const evidence = knowledgeEvidence({
     ...goodReport,
@@ -247,11 +278,25 @@ test('evidence with an enabled tool surface is refused', () => {
 });
 
 test('evidence gathered over plaintext is refused', () => {
-  const evidence = knowledgeEvidence({
-    ...goodReport,
-    transport: { https: false, insecureOverride: true },
-  });
+  const evidence = knowledgeEvidence(
+    {
+      ...goodReport,
+      transport: { https: false, insecureOverride: true },
+    },
+    { corpusGeneration: 'g1000' },
+  );
   assert.ok(knowledgeEvidenceRefusals(evidence, {}).some((r) => /plaintext/.test(r)));
+});
+
+test('a bounded local plaintext probe is accepted only with the explicit override', () => {
+  const evidence = knowledgeEvidence(
+    {
+      ...goodReport,
+      transport: { https: false, insecureOverride: true },
+    },
+    { corpusGeneration: 'g1000' },
+  );
+  assert.deepEqual(knowledgeEvidenceRefusals(evidence, { allowInsecureTransport: true }), []);
 });
 
 test('good evidence against matching expectations is accepted', () => {

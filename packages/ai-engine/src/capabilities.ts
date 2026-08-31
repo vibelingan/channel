@@ -18,10 +18,11 @@
  */
 export type EngineProvenance =
   | { kind: 'oci'; imageDigest: string }
-  | { kind: 'git'; commit: string; repository: string; configDigest?: string };
+  | { kind: 'git'; commit: string; repository: string; configDigest: string };
 
 const OCI_DIGEST = /^sha256:[0-9a-f]{64}$/;
 const GIT_COMMIT = /^[0-9a-f]{40}$/;
+const CONFIG_DIGEST = /^sha256:[0-9a-f]{64}$/;
 
 /**
  * Reject provenance that cannot be what it claims.
@@ -48,6 +49,11 @@ export function assertProvenance(value: EngineProvenance): EngineProvenance {
       'engine provenance of kind "git" needs the repository it came from; a commit alone names nothing you can find.',
     );
   }
+  if (!CONFIG_DIGEST.test(value.configDigest)) {
+    throw new Error(
+      'engine provenance of kind "git" needs AI_ENGINE_CONFIG_DIGEST as sha256:<64 lowercase hex>; a commit does not identify the deployed service configuration.',
+    );
+  }
   return value;
 }
 
@@ -68,12 +74,11 @@ export function provenanceFromEnv(env: Record<string, string | undefined>): Engi
     });
   }
   if (kind === 'git') {
-    const configDigest = env.AI_ENGINE_CONFIG_DIGEST?.trim();
     return assertProvenance({
       kind: 'git',
       commit: requiredVar(env, 'AI_ENGINE_GIT_COMMIT'),
       repository: requiredVar(env, 'AI_ENGINE_GIT_REPOSITORY'),
-      ...(configDigest ? { configDigest } : {}),
+      configDigest: requiredVar(env, 'AI_ENGINE_CONFIG_DIGEST'),
     });
   }
   throw new Error(
@@ -92,7 +97,7 @@ function requiredVar(env: Record<string, string | undefined>, name: string): str
 export function describeProvenance(value: EngineProvenance): string {
   return value.kind === 'oci'
     ? `oci:${value.imageDigest}`
-    : `git:${value.repository}@${value.commit}${value.configDigest ? `+cfg:${value.configDigest}` : ''}`;
+    : `git:${value.repository}@${value.commit}+cfg:${value.configDigest}`;
 }
 
 export interface EngineCapabilities {

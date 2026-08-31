@@ -16,11 +16,23 @@ BEGIN;
 ALTER TABLE ai_runs ADD COLUMN engine_provenance_kind text;
 ALTER TABLE ai_runs ADD COLUMN engine_provenance jsonb;
 
--- Anything already recorded was, by the old contract, an OCI digest.
+-- Anything already recorded was, by the old contract, an OCI digest. In
+-- practice the old field sometimes held a Git SHA or placeholder. Preserve
+-- that claim in the audit log, but do not relabel it as OCI provenance: an
+-- honest NULL is safer than a value an operator believes they can pull.
+INSERT INTO audit_events(conversation_id, actor_type, action, metadata)
+SELECT conversation_id,
+       'system',
+       'engine_provenance_legacy_invalidated',
+       jsonb_build_object('runId', id, 'legacyImageDigestClaim', image_digest)
+FROM ai_runs
+WHERE image_digest IS NOT NULL
+  AND image_digest !~ '^sha256:[0-9a-f]{64}$';
+
 UPDATE ai_runs
 SET engine_provenance_kind = 'oci',
     engine_provenance = jsonb_build_object('imageDigest', image_digest)
-WHERE image_digest IS NOT NULL;
+WHERE image_digest ~ '^sha256:[0-9a-f]{64}$';
 
 ALTER TABLE ai_runs DROP COLUMN image_digest;
 

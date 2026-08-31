@@ -411,6 +411,11 @@ test('fake defaults and explicit AnythingLLM provenance stay consistent across s
       '',
       `${service} must not claim an image digest for the in-process fake engine`,
     );
+    assert.equal(
+      expandDefaults(environment.AI_ENGINE_PROVENANCE_KIND ?? ''),
+      '',
+      `${service} must not claim OCI provenance for the in-process fake engine`,
+    );
   }
 
   const running = String(compose.services?.anythingllm?.image ?? '').split('@')[1] ?? '';
@@ -420,6 +425,7 @@ test('fake defaults and explicit AnythingLLM provenance stay consistent across s
   const anythingllm = {
     AI_ENGINE_ID: 'anythingllm',
     AI_ENGINE_VERSION: documented,
+    AI_ENGINE_PROVENANCE_KIND: 'oci',
     AI_ENGINE_IMAGE_DIGEST: running,
   };
   for (const [service, environment] of [
@@ -431,6 +437,11 @@ test('fake defaults and explicit AnythingLLM provenance stay consistent across s
       expandComposeValue(environment.AI_ENGINE_VERSION ?? '', anythingllm),
       documented,
       `${service} does not advertise the reviewed AnythingLLM version`,
+    );
+    assert.equal(
+      expandComposeValue(environment.AI_ENGINE_PROVENANCE_KIND ?? '', anythingllm),
+      'oci',
+      `${service} does not declare OCI provenance for AnythingLLM`,
     );
     assert.equal(
       expandComposeValue(environment.AI_ENGINE_IMAGE_DIGEST ?? '', anythingllm),

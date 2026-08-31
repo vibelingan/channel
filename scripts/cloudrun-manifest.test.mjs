@@ -124,9 +124,12 @@ test('the production services carry every runtime gate needed by the local Phase
       'ANYTHINGLLM_BASE_URL',
       'ANYTHINGLLM_API_KEY',
       'ANYTHINGLLM_WORKSPACE_SLUG',
+      'ANYTHINGLLM_WORKSPACE_ID',
       'AI_KNOWLEDGE_CREDENTIAL_ID',
       'ANYTHINGLLM_CITATIONS_VERIFIED',
       'ANYTHINGLLM_CREDENTIAL_ROTATION',
+      'AI_CORPUS_GENERATION',
+      'AI_KB_EVIDENCE_JSON',
       'AI_APPROVED_SOURCE_PREFIX',
       'AI_SITE_ORIGIN',
     ],
@@ -230,6 +233,7 @@ test('git provenance emits commit and repository, never an image digest', () => 
     assert.equal(def.envVariables.AI_ENGINE_PROVENANCE_KIND, 'git');
     assert.equal(def.envVariables.AI_ENGINE_GIT_COMMIT, 'secret://AI_ENGINE_GIT_COMMIT');
     assert.equal(def.envVariables.AI_ENGINE_GIT_REPOSITORY, 'secret://AI_ENGINE_GIT_REPOSITORY');
+    assert.equal(def.envVariables.AI_ENGINE_CONFIG_DIGEST, 'secret://AI_ENGINE_CONFIG_DIGEST');
     assert.equal(
       def.envVariables.AI_ENGINE_IMAGE_DIGEST,
       undefined,

@@ -17,7 +17,11 @@ async function sqlFile(name: string): Promise<string> {
  * database that already had the first — the schema would diverge from the code
  * with nothing reporting it.
  */
-export const MIGRATIONS = ['001_ai_assistant', '002_engine_provenance'] as const;
+export const MIGRATIONS = [
+  '001_ai_assistant',
+  '002_engine_provenance',
+  '003_git_config_provenance',
+] as const;
 
 export async function migrateUp(pool: Pool): Promise<void> {
   const exists = await pool.query<{ exists: boolean }>(

@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
+import { inspectWorkspaceToolSurface } from '../packages/ai-engine-anythingllm/src/workspace-inspection.mjs';
 
 function assertSafeBaseUrl(baseUrl, allowInsecure) {
   const url = new URL(baseUrl);
@@ -118,6 +120,8 @@ export async function probeAnythingLlm({
   retrievalQuery,
   chatQuery,
   allowInsecure = false,
+  approvedSourcePrefix,
+  credentialRotationCounter,
   threadName = `channel-probe-${new Date().toISOString()}`,
 }) {
   if (!apiKey) throw new Error('apiKey is required');
@@ -144,12 +148,21 @@ export async function probeAnythingLlm({
     },
   );
   const retrievalResults = Array.isArray(retrievalResponse?.results)
-    ? retrievalResponse.results.map((result) => ({
-        title: result?.metadata?.title ?? null,
-        chunkSource: result?.metadata?.chunkSource ?? null,
-        score: typeof result?.score === 'number' ? result.score : null,
-      }))
+    ? retrievalResponse.results.map((result) => {
+        const sourceId =
+          result?.metadata?.title ?? result?.metadata?.docSource ?? result?.id ?? null;
+        return {
+          sourceId: sourceId === null ? null : String(sourceId),
+          title: result?.metadata?.title ?? null,
+          chunkSource: result?.metadata?.chunkSource ?? null,
+          score: typeof result?.score === 'number' ? result.score : null,
+        };
+      })
     : [];
+  const approvedSourceCount = approvedSourcePrefix
+    ? retrievalResults.filter((result) => result.sourceId?.startsWith(approvedSourcePrefix)).length
+    : 0;
+  const inspectedSurface = inspectWorkspaceToolSurface(workspaceResponse);
 
   const newThread = await requestJson(
     `${apiRoot}/workspace/${encodeURIComponent(workspaceSlug)}/thread/new`,
@@ -186,13 +199,16 @@ export async function probeAnythingLlm({
   if (streamResponse.ok) {
     streamChat = parseStreamBody(streamBody);
   } else {
-    let detail = streamResponse.statusText;
+    let parsed = null;
     try {
-      detail = JSON.parse(streamBody)?.error ?? detail;
+      parsed = JSON.parse(streamBody);
     } catch {
-      // Preserve the status text when the error body is not JSON.
+      // Only the status survives this boundary.
     }
-    streamChat = failedChat(new Error(`HTTP ${streamResponse.status}: ${detail}`));
+    const upstream = upstreamStatus(parsed);
+    streamChat = failedChat(
+      new Error(`HTTP ${streamResponse.status}${upstream ? ` (upstream ${upstream})` : ''}`),
+    );
   }
 
   return {
@@ -201,8 +217,16 @@ export async function probeAnythingLlm({
       https: safeBaseUrl.startsWith('https://'),
       insecureOverride: allowInsecure,
     },
-    auth: { ok: auth?.authenticated === true },
+    auth: {
+      ok: auth?.authenticated === true,
+      credentialId: createHash('sha256').update(apiKey).digest('hex').slice(0, 16),
+      rotationCounter:
+        Number.isSafeInteger(credentialRotationCounter) && credentialRotationCounter > 0
+          ? credentialRotationCounter
+          : null,
+    },
     workspace: {
+      id: workspace.id == null ? null : String(workspace.id),
       name: workspace.name ?? null,
       slug: workspace.slug ?? workspaceSlug,
       similarityThreshold: workspace.similarityThreshold ?? null,
@@ -211,7 +235,13 @@ export async function probeAnythingLlm({
     retrieval: {
       ok: retrievalResults.length > 0,
       resultCount: retrievalResults.length,
+      approvedSourceCount,
       results: retrievalResults,
+    },
+    toolSurface: {
+      inspected: inspectedSurface.known,
+      enabledCount: inspectedSurface.enabled ? 1 : 0,
+      verdict: !inspectedSurface.known ? 'unknown' : inspectedSurface.enabled ? 'enabled' : 'none',
     },
     thread: { slug: threadSlug, name: newThread?.thread?.name ?? threadName },
     syncChat,
@@ -286,7 +316,12 @@ export function knowledgeEvidence(report, { corpusGeneration = null } = {}) {
     toolSurface: {
       inspected: report?.toolSurface?.inspected === true,
       enabledCount: Number(report?.toolSurface?.enabledCount ?? 0),
-      verdict: report?.toolSurface?.enabledCount ? 'enabled' : 'none',
+      verdict:
+        typeof report?.toolSurface?.verdict === 'string'
+          ? report.toolSurface.verdict
+          : report?.toolSurface?.enabledCount
+            ? 'enabled'
+            : 'none',
     },
     transport: {
       https: report?.transport?.https === true,
@@ -306,11 +341,19 @@ export function knowledgeEvidenceRefusals(evidence, expected) {
   if (evidence?.schema !== 'channel.ai.kb-evidence/1') reasons.push('unrecognised evidence schema');
   if (!evidence?.recordedAt) reasons.push('evidence has no timestamp');
   if (!evidence?.credentialId) reasons.push('evidence names no credential');
+  if (!evidence?.workspaceId) reasons.push('evidence names no workspace id');
+  if (!evidence?.corpusGeneration) reasons.push('evidence names no corpus generation');
   if (expected?.credentialId && evidence?.credentialId !== expected.credentialId) {
     reasons.push('serving credential is not the one the evidence was produced with');
   }
   if (expected?.workspaceSlug && evidence?.workspaceSlug !== expected.workspaceSlug) {
     reasons.push('serving workspace is not the one the evidence was produced against');
+  }
+  if (expected?.workspaceId && String(evidence?.workspaceId) !== String(expected.workspaceId)) {
+    reasons.push('workspace id does not match the evidence');
+  }
+  if (expected?.corpusGeneration && evidence?.corpusGeneration !== expected.corpusGeneration) {
+    reasons.push('corpus generation does not match the evidence');
   }
   if (
     expected?.rotationCounter !== undefined &&
@@ -329,10 +372,12 @@ export function knowledgeEvidenceRefusals(evidence, expected) {
   if (evidence?.toolSurface?.inspected !== true) reasons.push('tool surface was never inspected');
   if (evidence?.toolSurface?.verdict !== 'none')
     reasons.push('the workspace has an agent/tool surface enabled');
-  if (evidence?.transport?.https !== true) reasons.push('evidence was gathered over plaintext');
+  if (evidence?.transport?.https !== true && expected?.allowInsecureTransport !== true) {
+    reasons.push('evidence was gathered over plaintext');
+  }
   if (expected?.maxAgeMs !== undefined) {
     const age = Date.now() - Date.parse(evidence?.recordedAt ?? 0);
-    if (!Number.isFinite(age) || age > expected.maxAgeMs) {
+    if (!Number.isFinite(age) || age < 0 || age > expected.maxAgeMs) {
       reasons.push('evidence is older than the accepted window');
     }
   }
@@ -353,6 +398,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       retrievalQuery: process.env.ANYTHINGLLM_RETRIEVAL_QUERY ?? 'What does the company do?',
       chatQuery: process.env.ANYTHINGLLM_CHAT_QUERY ?? 'What does the company do?',
       allowInsecure: process.env.ALLOW_INSECURE_ANYTHINGLLM === 'true',
+      approvedSourcePrefix: process.env.AI_APPROVED_SOURCE_PREFIX,
+      credentialRotationCounter: Number(process.env.ANYTHINGLLM_CREDENTIAL_ROTATION),
     })
       .then(async (report) => {
         console.log(JSON.stringify(sanitizedProbeReport(report), null, 2));
@@ -360,9 +407,30 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         // leaves a file that a later startup might treat as fresh evidence.
         const out = process.env.AI_KB_EVIDENCE_FILE;
         if (out) {
+          const evidenceRequired = [
+            'AI_APPROVED_SOURCE_PREFIX',
+            'ANYTHINGLLM_CREDENTIAL_ROTATION',
+            'AI_CORPUS_GENERATION',
+          ];
+          const evidenceMissing = evidenceRequired.filter((name) => !process.env[name]);
+          if (evidenceMissing.length > 0) {
+            throw new Error(`cannot write evidence; missing: ${evidenceMissing.join(', ')}`);
+          }
           const evidence = knowledgeEvidence(report, {
-            corpusGeneration: process.env.AI_CORPUS_GENERATION ?? null,
+            corpusGeneration: process.env.AI_CORPUS_GENERATION,
           });
+          const refusals = knowledgeEvidenceRefusals(evidence, {
+            credentialId: report.auth.credentialId,
+            workspaceSlug: process.env.ANYTHINGLLM_WORKSPACE_SLUG,
+            workspaceId: report.workspace.id,
+            rotationCounter: Number(process.env.ANYTHINGLLM_CREDENTIAL_ROTATION),
+            corpusGeneration: process.env.AI_CORPUS_GENERATION,
+            allowInsecureTransport: process.env.ALLOW_INSECURE_ANYTHINGLLM === 'true',
+            maxAgeMs: 60_000,
+          });
+          if (refusals.length > 0) {
+            throw new Error(`cannot write unacceptable evidence: ${refusals.join('; ')}`);
+          }
           await writeFile(out, `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o600 });
           console.error(`evidence written: ${out}`);
         }

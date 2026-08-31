@@ -91,9 +91,7 @@ export function provenanceEnv(ctx) {
       AI_ENGINE_PROVENANCE_KIND: kind,
       AI_ENGINE_GIT_COMMIT: ctx.requireEnv('AI_ENGINE_GIT_COMMIT'),
       AI_ENGINE_GIT_REPOSITORY: ctx.requireEnv('AI_ENGINE_GIT_REPOSITORY'),
-      ...(ctx.optionalEnv?.('AI_ENGINE_CONFIG_DIGEST')
-        ? { AI_ENGINE_CONFIG_DIGEST: ctx.optionalEnv('AI_ENGINE_CONFIG_DIGEST') }
-        : {}),
+      AI_ENGINE_CONFIG_DIGEST: ctx.requireEnv('AI_ENGINE_CONFIG_DIGEST'),
     };
   }
   throw new Error(`AI_ENGINE_PROVENANCE_KIND must be "oci" or "git", got: ${JSON.stringify(kind)}`);
@@ -179,9 +177,12 @@ export function buildCloudRunServiceDefs(ctx) {
         ANYTHINGLLM_BASE_URL: ctx.requireEnv('ANYTHINGLLM_BASE_URL'),
         ANYTHINGLLM_API_KEY: ctx.requireEnv('ANYTHINGLLM_API_KEY'),
         ANYTHINGLLM_WORKSPACE_SLUG: ctx.requireEnv('ANYTHINGLLM_WORKSPACE_SLUG'),
+        ANYTHINGLLM_WORKSPACE_ID: ctx.requireEnv('ANYTHINGLLM_WORKSPACE_ID'),
         AI_KNOWLEDGE_CREDENTIAL_ID: ctx.requireEnv('AI_KNOWLEDGE_CREDENTIAL_ID'),
         ANYTHINGLLM_CITATIONS_VERIFIED: ctx.requireEnv('ANYTHINGLLM_CITATIONS_VERIFIED'),
         ANYTHINGLLM_CREDENTIAL_ROTATION: ctx.requireEnv('ANYTHINGLLM_CREDENTIAL_ROTATION'),
+        AI_CORPUS_GENERATION: ctx.requireEnv('AI_CORPUS_GENERATION'),
+        AI_KB_EVIDENCE_JSON: ctx.requireEnv('AI_KB_EVIDENCE_JSON'),
         AI_APPROVED_SOURCE_PREFIX: ctx.requireEnv('AI_APPROVED_SOURCE_PREFIX'),
         AI_SITE_ORIGIN: ctx.requireEnv('AI_SITE_ORIGIN'),
       }),

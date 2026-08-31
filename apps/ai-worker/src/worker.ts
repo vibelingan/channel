@@ -56,6 +56,7 @@ export interface KnowledgeEvidence {
   recordedAt: string;
   credentialId: string | null;
   workspaceSlug: string | null;
+  workspaceId: string | null;
   rotationCounter: number | null;
   corpusGeneration: string | null;
   positiveControl: {
@@ -66,6 +67,10 @@ export interface KnowledgeEvidence {
   };
   toolSurface: { inspected: boolean; enabledCount: number; verdict: string };
   transport: { https: boolean; insecureOverride: boolean };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -80,53 +85,50 @@ export interface KnowledgeEvidence {
  * path rather than the clear refusal this exists to produce.
  */
 export function parseKnowledgeEvidence(value: unknown, sourcePath: string): KnowledgeEvidence {
-  if (typeof value !== 'object' || value === null) {
+  if (!isRecord(value)) {
     throw new Error(`knowledge evidence at ${sourcePath} is not a JSON object`);
   }
-  const record = value as Record<string, unknown>;
+  const record = value;
   if (typeof record.schema !== 'string' || typeof record.recordedAt !== 'string') {
     throw new Error(`knowledge evidence at ${sourcePath} is missing schema or recordedAt`);
   }
   const positiveControl = record.positiveControl;
-  if (typeof positiveControl !== 'object' || positiveControl === null) {
+  if (!isRecord(positiveControl)) {
     throw new Error(`knowledge evidence at ${sourcePath} is missing positiveControl`);
   }
   const toolSurface = record.toolSurface;
-  if (typeof toolSurface !== 'object' || toolSurface === null) {
+  if (!isRecord(toolSurface)) {
     throw new Error(`knowledge evidence at ${sourcePath} is missing toolSurface`);
   }
   const transport = record.transport;
-  if (typeof transport !== 'object' || transport === null) {
+  if (!isRecord(transport)) {
     throw new Error(`knowledge evidence at ${sourcePath} is missing transport`);
   }
   const num = (value: unknown): number => {
-    const n = Number(value ?? 0);
-    return Number.isFinite(n) ? n : 0;
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
   };
   return {
     schema: record.schema,
     recordedAt: record.recordedAt,
     credentialId: typeof record.credentialId === 'string' ? record.credentialId : null,
     workspaceSlug: typeof record.workspaceSlug === 'string' ? record.workspaceSlug : null,
+    workspaceId: typeof record.workspaceId === 'string' ? record.workspaceId : null,
     rotationCounter: typeof record.rotationCounter === 'number' ? record.rotationCounter : null,
     corpusGeneration: typeof record.corpusGeneration === 'string' ? record.corpusGeneration : null,
     positiveControl: {
-      retrieved: (positiveControl as Record<string, unknown>).retrieved === true,
-      resultCount: num((positiveControl as Record<string, unknown>).resultCount),
-      approvedSourceCount: num((positiveControl as Record<string, unknown>).approvedSourceCount),
-      citationsObserved: num((positiveControl as Record<string, unknown>).citationsObserved),
+      retrieved: positiveControl.retrieved === true,
+      resultCount: num(positiveControl.resultCount),
+      approvedSourceCount: num(positiveControl.approvedSourceCount),
+      citationsObserved: num(positiveControl.citationsObserved),
     },
     toolSurface: {
-      inspected: (toolSurface as Record<string, unknown>).inspected === true,
-      enabledCount: num((toolSurface as Record<string, unknown>).enabledCount),
-      verdict:
-        typeof (toolSurface as Record<string, unknown>).verdict === 'string'
-          ? ((toolSurface as Record<string, unknown>).verdict as string)
-          : 'unknown',
+      inspected: toolSurface.inspected === true,
+      enabledCount: num(toolSurface.enabledCount),
+      verdict: typeof toolSurface.verdict === 'string' ? toolSurface.verdict : 'unknown',
     },
     transport: {
-      https: (transport as Record<string, unknown>).https === true,
-      insecureOverride: (transport as Record<string, unknown>).insecureOverride === true,
+      https: transport.https === true,
+      insecureOverride: transport.insecureOverride === true,
     },
   };
 }
@@ -145,7 +147,12 @@ export function parseKnowledgeEvidence(value: unknown, sourcePath: string): Know
 export async function verifyKnowledgeAttestation(
   engine: ConversationEngine,
   evidence: KnowledgeEvidence,
-  options: { maxAgeMs?: number } = {},
+  options: {
+    maxAgeMs?: number;
+    expectedWorkspaceId?: string;
+    expectedCorpusGeneration?: string;
+    allowInsecureTransport?: boolean;
+  } = {},
 ): Promise<void> {
   const actual = await engine.attestKnowledgeCredential();
   const reasons: string[] = [];
@@ -156,6 +163,17 @@ export async function verifyKnowledgeAttestation(
   }
   if (actual.spaceId !== evidence.workspaceSlug) {
     reasons.push('the serving workspace is not the one the evidence was produced against');
+  }
+  if (!evidence.workspaceId) reasons.push('the evidence names no workspace id');
+  if (options.expectedWorkspaceId && evidence.workspaceId !== options.expectedWorkspaceId) {
+    reasons.push('the serving workspace id does not match the evidence');
+  }
+  if (!evidence.corpusGeneration) reasons.push('the evidence names no corpus generation');
+  if (
+    options.expectedCorpusGeneration &&
+    evidence.corpusGeneration !== options.expectedCorpusGeneration
+  ) {
+    reasons.push('the serving corpus generation does not match the evidence');
   }
   if (Number(actual.rotationCounter) !== Number(evidence.rotationCounter)) {
     reasons.push('credential rotation counter does not match the evidence');
@@ -172,7 +190,9 @@ export async function verifyKnowledgeAttestation(
   if (evidence.toolSurface?.verdict !== 'none') {
     reasons.push('the workspace has an agent or tool surface enabled');
   }
-  if (evidence.transport?.https !== true) reasons.push('evidence was gathered over plaintext');
+  if (evidence.transport?.https !== true && options.allowInsecureTransport !== true) {
+    reasons.push('evidence was gathered over plaintext');
+  }
 
   const maxAgeMs = options.maxAgeMs;
   if (maxAgeMs !== undefined) {
@@ -505,19 +525,37 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     // Load the evidence a real probe produced, and check the engine against
     // THAT. Reading the expected values out of the same environment the adapter
     // was built from proved only that two copies of one variable agree.
-    const evidencePath = requiredEnv('AI_KB_EVIDENCE_FILE');
+    const evidenceJson = process.env.AI_KB_EVIDENCE_JSON?.trim();
+    const evidencePath = process.env.AI_KB_EVIDENCE_FILE?.trim();
+    if (!evidenceJson && !evidencePath) {
+      throw new Error('AI_KB_EVIDENCE_JSON or AI_KB_EVIDENCE_FILE is required for AnythingLLM');
+    }
+    let evidenceSource: string;
+    let serialized: string;
     let evidence: KnowledgeEvidence;
     try {
-      const raw: unknown = JSON.parse(await readFile(evidencePath, 'utf8'));
-      evidence = parseKnowledgeEvidence(raw, evidencePath);
+      if (evidenceJson) {
+        evidenceSource = 'AI_KB_EVIDENCE_JSON';
+        serialized = evidenceJson;
+      } else if (evidencePath) {
+        evidenceSource = evidencePath;
+        serialized = await readFile(evidencePath, 'utf8');
+      } else {
+        throw new Error('knowledge evidence location disappeared during startup');
+      }
+      const raw: unknown = JSON.parse(serialized);
+      evidence = parseKnowledgeEvidence(raw, evidenceSource);
     } catch (caught) {
       const detail = caught instanceof Error ? caught.message : 'unreadable';
       throw new Error(
-        `refusing to serve; knowledge evidence at ${evidencePath} is unusable (${detail}). Run \`pnpm test:ai:kb\` with AI_KB_EVIDENCE_FILE set against the approved workspace first.`,
+        `refusing to serve; knowledge evidence is unusable (${detail}). Run \`pnpm test:ai:kb\` with AI_KB_EVIDENCE_FILE set against the approved workspace first.`,
       );
     }
     await verifyKnowledgeAttestation(engine, evidence, {
       maxAgeMs: envNumber('AI_KB_EVIDENCE_MAX_AGE_MS', 7 * 24 * 60 * 60 * 1000),
+      expectedWorkspaceId: requiredEnv('ANYTHINGLLM_WORKSPACE_ID'),
+      expectedCorpusGeneration: requiredEnv('AI_CORPUS_GENERATION'),
+      allowInsecureTransport: process.env.ALLOW_INSECURE_ANYTHINGLLM === 'true',
     });
     if (!(engine instanceof AnythingLlmEngine)) {
       throw new Error('AnythingLLM engine construction mismatch');
@@ -569,6 +607,23 @@ function engineFromEnvironment(): ConversationEngine {
           // refused in production is a fixture that proves nothing.
           title: 'channelkb-g1-local-public-faq',
           retrievedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+      // A harmless synthetic source outside the public namespace gives the
+      // process-level acceptance test a deterministic way to prove the final
+      // publication gate fired. The production workspace stays public-only;
+      // it is never polluted with a fake internal document just to make a
+      // security observer turn green.
+      citationScenarios: [
+        {
+          whenMessageIncludes: 'gateway test document',
+          citations: [
+            {
+              sourceId: 'acceptance-unapproved-fixture',
+              title: 'Acceptance-only unapproved fixture',
+              retrievedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ],
         },
       ],
     });

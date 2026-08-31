@@ -77,6 +77,33 @@ test('fresh fake-engine processes cannot mint the same durable engine run id', a
   assert.notEqual(one.engineRunId, two.engineRunId);
 });
 
+test('the fake can select an unapproved citation for a process-level gate acceptance case', async () => {
+  const engine = new FakeEngine({
+    citations: [{ sourceId: 'channelkb-g1-public', title: 'Public' }],
+    citationScenarios: [
+      {
+        whenMessageIncludes: 'gateway test document',
+        citations: [{ sourceId: 'acceptance-unapproved-fixture', title: 'Fixture' }],
+      },
+    ],
+  });
+  const request = {
+    operationId: 'op-publication-gate-fixture',
+    conversationRef: 'conv-publication-gate-fixture',
+    turns: [{ role: 'visitor' as const, text: 'What does the gateway test document say?' }],
+    profileId: 'public-cs@1',
+    locale: 'en',
+    limits: { maxDeliveredOutputUnits: 16, maxStreamDurationMs: 1_000, maxToolCalls: 0 },
+  };
+  const signal = new AbortController().signal;
+  const handle = await engine.createRun(request, signal);
+  const events = [];
+  for await (const event of engine.streamRun(handle, signal)) events.push(event);
+  const final = events.find((event) => event.type === 'final');
+  assert.equal(final?.type, 'final');
+  assert.equal(final.citations[0]?.sourceId, 'acceptance-unapproved-fixture');
+});
+
 test('the degraded fake still passes the whole shared suite', () => {
   // Guards the swap promise: a vendor missing one optional capability must not
   // fail the contract, it must fail only the startup check that cares.

@@ -32,7 +32,7 @@ test('AI PostgreSQL host port can be overridden without editing compose', () => 
 test('AI KB probe has a secret-safe local environment contract', () => {
   assert.equal(
     rootPackage.scripts?.['test:ai:kb'],
-    'node --env-file-if-exists=.env.ai-probe scripts/probe-anythingllm.mjs',
+    'node --env-file-if-exists=.env.ai --env-file-if-exists=.env.ai-probe scripts/probe-anythingllm.mjs',
   );
   assert.match(probeEnvExample, /^ANYTHINGLLM_BASE_URL=https:\/\//m);
   assert.match(probeEnvExample, /^ANYTHINGLLM_API_KEY=$/m);
@@ -40,6 +40,7 @@ test('AI KB probe has a secret-safe local environment contract', () => {
   assert.doesNotMatch(probeEnvExample, /https?:\/\/\d{1,3}(?:\.\d{1,3}){3}/);
   assert.match(gitignore, /^\.env\.ai-probe$/m);
   assert.match(gitignore, /^!\.env\.ai-probe\.example$/m);
+  assert.match(gitignore, /^\.ai-kb-evidence\.json$/m);
 });
 
 test('host-side local KB setup never uses the Docker-only engine hostname', () => {
