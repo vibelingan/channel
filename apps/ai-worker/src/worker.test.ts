@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
 import { FakeEngine } from '@vibelingan-channel/ai-engine/fake';
+import { PUBLICATION_BLOCKED } from '@vibelingan-channel/ai-policy';
 import { AiStore, migrateUp } from '@vibelingan-channel/ai-store';
 import {
   type KnowledgeEvidence,
@@ -276,6 +277,14 @@ test(
     assert.deepEqual(
       events.map((event) => event.type),
       ['error'],
+    );
+    // The CATEGORY, not merely that an error occurred. "An error happened" is
+    // satisfied by a provider outage or a timeout, so on its own it is not
+    // evidence that the publication gate is what stopped this.
+    assert.equal(
+      (events[0]?.payload as { category?: string } | undefined)?.category,
+      PUBLICATION_BLOCKED,
+      'the internal source was blocked by something other than the publication gate',
     );
     assert.doesNotMatch(JSON.stringify(events), /INTERNAL_ONLY_ANSWER|hermes-skills/);
   },
