@@ -111,6 +111,18 @@ function packageOf(options: {
   ]);
 }
 
+function corruptCentralDirectoryCrc(bytes: Buffer, name: string): void {
+  for (let offset = 0; offset <= bytes.length - 46; offset += 1) {
+    if (bytes.readUInt32LE(offset) !== 0x02014b50) continue;
+    const nameLength = bytes.readUInt16LE(offset + 28);
+    const entryName = bytes.toString('utf8', offset + 46, offset + 46 + nameLength);
+    if (entryName !== name) continue;
+    bytes.writeUInt32LE((bytes.readUInt32LE(offset + 16) ^ 0xffffffff) >>> 0, offset + 16);
+    return;
+  }
+  assert.fail(`central-directory entry ${name} was not found`);
+}
+
 const refuses = (bytes: Buffer, pattern: RegExp) =>
   assert.throws(
     () => readFirstSheet(bytes),
@@ -147,6 +159,60 @@ test('an entry over the compression-ratio ceiling is refused', () => {
 test('a truncated archive is refused rather than partially read', () => {
   const bytes = buildXlsx({ sheets: [{ name: 'S', rows: [['a']] }] });
   refuses(bytes.subarray(0, bytes.length - 40), /.+/);
+});
+
+test('an unreferenced oversized part is refused before a parser can ignore it', () => {
+  const oversized = Buffer.alloc(MAX_ENTRY_BYTES + 1, 0x20);
+  refuses(packageOf({ extraParts: [['xl/media/unreferenced.bin', oversized]] }), /bytes/);
+});
+
+test('an unreferenced high-ratio part is refused before a parser can ignore it', () => {
+  const highRatio = Buffer.alloc(40 * 1024 * 1024, 0x20);
+  refuses(packageOf({ extraParts: [['xl/media/unreferenced.bin', highRatio]] }), /ratio/);
+});
+
+test('a duplicate OPC part is refused before a parser can choose one copy', () => {
+  refuses(
+    packageOf({ extraParts: [['xl/workbook.xml', Buffer.from(workbookXml())]] }),
+    /duplicate/i,
+  );
+});
+
+test('case-colliding OPC parts are refused before a parser chooses a case variant', () => {
+  refuses(
+    packageOf({ extraParts: [['xl/WORKBOOK.xml', Buffer.from(workbookXml())]] }),
+    /case|duplicate/i,
+  );
+});
+
+test('a CRC mismatch in an unreferenced part is refused before a parser can ignore it', () => {
+  const bytes = packageOf({
+    extraParts: [['xl/worksheets/sheet2.xml', Buffer.from(SHEET('<sheetData/>'))]],
+  });
+  corruptCentralDirectoryCrc(bytes, 'xl/worksheets/sheet2.xml');
+  refuses(bytes, /CRC/);
+});
+
+test('a DTD in an unselected worksheet is refused before a parser can ignore it', () => {
+  const workbook =
+    '<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="First" sheetId="1" r:id="rId1"/><sheet name="Second" sheetId="2" r:id="rId2"/></sheets></workbook>';
+  const rels =
+    '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>';
+  refuses(
+    packageOf({
+      workbook,
+      workbookRels: rels,
+      extraParts: [
+        [
+          'xl/worksheets/sheet2.xml',
+          Buffer.from(
+            '<?xml version="1.0"?><!DOCTYPE worksheet [<!ENTITY ignored "ignored">]><worksheet><sheetData/></worksheet>',
+          ),
+        ],
+      ],
+    }),
+    /DTD/,
+  );
 });
 
 // --- XML limits -------------------------------------------------------------

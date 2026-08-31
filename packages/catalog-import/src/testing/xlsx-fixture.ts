@@ -114,6 +114,18 @@ export interface InlineStringCell {
 export interface FormulaStringCell {
   formula: string;
 }
+/** A numeric cell whose decimal lexeme must be preserved exactly. */
+export interface RawNumericCell {
+  numeric: string;
+}
+/** A SpreadsheetML boolean cell. */
+export interface BooleanCell {
+  boolean: boolean;
+}
+/** A SpreadsheetML error cell, such as `#DIV/0!`. */
+export interface ErrorCell {
+  error: string;
+}
 
 export type FixtureCell =
   | string
@@ -122,7 +134,10 @@ export type FixtureCell =
   | undefined
   | DateSerialCell
   | InlineStringCell
-  | FormulaStringCell;
+  | FormulaStringCell
+  | RawNumericCell
+  | BooleanCell
+  | ErrorCell;
 
 export interface FixtureSheet {
   name: string;
@@ -156,6 +171,15 @@ function isInline(cell: FixtureCell): cell is InlineStringCell {
 function isFormula(cell: FixtureCell): cell is FormulaStringCell {
   return typeof cell === 'object' && cell !== null && 'formula' in cell;
 }
+function isRawNumeric(cell: FixtureCell): cell is RawNumericCell {
+  return typeof cell === 'object' && cell !== null && 'numeric' in cell;
+}
+function isBoolean(cell: FixtureCell): cell is BooleanCell {
+  return typeof cell === 'object' && cell !== null && 'boolean' in cell;
+}
+function isError(cell: FixtureCell): cell is ErrorCell {
+  return typeof cell === 'object' && cell !== null && 'error' in cell;
+}
 
 /** Build a complete, Excel-readable `.xlsx` from plain cell values. */
 export function buildXlsx(options: FixtureOptions): Buffer {
@@ -186,6 +210,15 @@ export function buildXlsx(options: FixtureOptions): Buffer {
             }
             if (isFormula(cell)) {
               return `<c r="${reference}" t="str"><f>A1</f><v>${escapeXml(cell.formula)}</v></c>`;
+            }
+            if (isRawNumeric(cell)) {
+              return `<c r="${reference}"><v>${cell.numeric}</v></c>`;
+            }
+            if (isBoolean(cell)) {
+              return `<c r="${reference}" t="b"><v>${cell.boolean ? '1' : '0'}</v></c>`;
+            }
+            if (isError(cell)) {
+              return `<c r="${reference}" t="e"><v>${escapeXml(cell.error)}</v></c>`;
             }
             if (typeof cell === 'number') {
               return `<c r="${reference}"><v>${cell}</v></c>`;
@@ -225,7 +258,12 @@ export function buildXlsx(options: FixtureOptions): Buffer {
   // is what tells the reader to treat the serial in that cell as a timestamp.
   const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="176" formatCode="yyyy\\-mm\\-dd\\ hh:mm:ss"/></numFmts><cellXfs count="3"><xf numFmtId="0" xfId="0"/><xf numFmtId="14" applyNumberFormat="1" xfId="0"/><xf numFmtId="176" applyNumberFormat="1" xfId="0"/></cellXfs></styleSheet>`;
 
-  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>`;
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${options.sheets
+    .map(
+      (_sheet, index) =>
+        `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`,
+    )
+    .join('')}</Types>`;
 
   const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
 

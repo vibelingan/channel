@@ -111,16 +111,28 @@ test('decodes only the predefined entities and character references', () => {
 
 test('carries numeric cells as their stored lexeme, never as a number', () => {
   const bytes = buildXlsx({
-    sheets: [{ name: 'S', rows: [[{ inline: '0012300' }, { inline: '1e5' }, 19.99]] }],
+    sheets: [{ name: 'S', rows: [[{ inline: '0012300' }, { inline: '1e5' }, { numeric: '19.9900' }]] }],
   });
   const rows = readFirstSheet(bytes).rows;
   const cells = rows[0]?.cells ?? [];
   assert.equal(cells[0]?.text, '0012300');
   assert.equal(cells[0]?.kind, 'text');
   assert.equal(cells[1]?.text, '1e5');
-  assert.equal(cells[2]?.text, '19.99');
+  assert.equal(cells[2]?.text, '19.9900');
   assert.equal(cells[2]?.kind, 'number');
   assert.equal(typeof cells[2]?.text, 'string');
+});
+
+test('reads boolean and error cell forms from the generated workbook', () => {
+  const bytes = buildXlsx({
+    sheets: [{ name: 'S', rows: [[{ boolean: true }, { boolean: false }, { error: '#DIV/0!' }]] }],
+  });
+  const cells = readFirstSheet(bytes).rows[0]?.cells ?? [];
+  assert.deepEqual(cells, [
+    { text: 'TRUE', kind: 'boolean', dateFormatted: false },
+    { text: 'FALSE', kind: 'boolean', dateFormatted: false },
+    { text: '#DIV/0!', kind: 'error', dateFormatted: false },
+  ]);
 });
 
 test('reads shared, inline and formula-result strings alike', () => {
