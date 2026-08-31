@@ -3,27 +3,90 @@
 **Branch:** `feat/ai-assistant-platform-design`
 **Audience:** implementation, infrastructure and KB owners
 **Last verified:** 2026-08-31 (Asia/Tokyo)
+**End SHA:** `9660a30b38144e95bbbe648931d85d087a9d4617`
 **Scope:** local application acceptance against the hosted
 AnythingLLM-compatible KB. This document does not authorize cloud purchases or
 production mutations.
 
 ## Outcome
 
-Phase 1 works end to end from the local application to the current hosted KB:
+**Phase 1 is NOT accepted.** An earlier revision of this document said it worked
+end to end. That claim rested on an observer that could not fail for the right
+reason, and it is withdrawn here rather than edited quietly.
 
-```text
-local client -> local BFF -> local PostgreSQL -> local worker
-             -> hosted KB -> publication policy -> local SSE
-```
+The negative case — "an unapproved source is refused" — was asserted as "the
+stream produced exactly one `error` event, of any kind". A provider outage, a
+quota trip, a timeout or a dropped connection all satisfied it. The hosted KB
+was, at the time, returning HTTP 500 wrapping an upstream provider 403 on every
+generation, so the evidence that hidden content stays hidden was very likely an
+unrelated provider failure. The gate may well have been working; nothing in that
+run distinguished the two.
 
-The positive query produced `token`, `citation`, `final`, using one approved
-document identity and no provider `file:` URL. The negative query targeting the
-gateway test document produced `error` only, with zero token and zero citation
-events. The BFF and worker readiness checks passed before both probes.
+### What IS verified, at this SHA
 
-This is integration acceptance, not production acceptance. The hosted endpoint
-is still HTTP, its developer token has been exposed in supplied material, and
-the workspace is not a dedicated public corpus.
+| Check | Result |
+| --- | --- |
+| Build, typecheck, biome | pass; 370 files linted, 0 type errors |
+| Deterministic contracts (dedicated DB `ai_phase1_e2e_20260831`) | engine 54 pass/2 skip, policy 80, store 24, adapter 101, BFF 6, worker 11, scripts 154 |
+| Built runtime bundle | `check-ai-runtime-bundle.mjs` passes — this caught a real defect, see below |
+| Liveness / readiness, BFF 58180 and worker 58181 | all four endpoints answer; liveness carries no database, readiness proves READ COMMITTED |
+| Positive SSE shape (fake engine) | `token`, `citation`, `final`; one approved citation; no `file:` URL |
+| Ingest preflight against the LIVE site | `/`, `/oem`, `/headphones`, `/portfolio` all 200 on `https://www.supplychainsai.com` |
+| `/overstock` | **404 in production**, and the ingest now refuses it — see finding 1 |
+
+### What is NOT verified, and why
+
+| Check | Blocked on |
+| --- | --- |
+| Workspace policy read-back | the rotated KB credential, delivered separately |
+| Corpus ingest with generation swap | same |
+| Direct KB probe + evidence artifact | same |
+| Positive SSE against the hosted KB | same |
+| **Negative SSE (publication gate)** | same. It needs the KB to serve a genuinely unapproved document; the fake engine has only approved fixtures, so this half cannot be proved locally by construction |
+| Provider generation succeeding at all | KB owner — the model permission 403 is upstream and no code change reaches it |
+
+The acceptance observer reports the negative case as `ok: false` with
+`errorCategories: []` under the fake engine. That is correct, not a regression:
+nothing unapproved was offered, so nothing was blocked.
+
+## Round 5 findings, all closed in code
+
+1. **The corpus published an unrouted page.** `overstock/en-US.md` was ingested
+   against `/overstock`, which Astro does not route and which answers 404 in
+   production. The manifest is now derived from the router, and a live preflight
+   requires every citation target to answer 200 before the first upload.
+2. **A hostname bought plaintext.** The literal host `anythingllm` was treated
+   as local, so any host resolving that name received an instance-wide bearer
+   over HTTP. Only loopback is intrinsically local now.
+3. **A dead letter could orphan its run.** The outbox transition and the run's
+   terminalization were two transactions; a crash between them left an
+   unclaimable item beside a run nothing would finish. They now commit together.
+4. **Any error proved the gate fired.** The gate emits `publication_blocked`,
+   which nothing else emits, and the observer requires exactly that code.
+5. **A git checkout claimed an image digest.** Provenance is now a discriminated
+   `oci` | `git` record, refused at startup if a commit is offered as a digest,
+   and carried through run rows (migration 002) and the CloudRun manifest.
+6. **Readiness compared configuration with itself.** Startup now verifies a
+   secret-free evidence artifact written by a real authenticated probe,
+   including a positive control that retrieval returned approved material — an
+   empty workspace can no longer be ready. The probe no longer echoes the
+   vendor's error body; only a bounded upstream status code survives.
+
+Two further defects surfaced while running the acceptance:
+
+- The built BFF bundle left `@vibelingan-channel/ai-engine` external. Workspace
+  packages publish TypeScript, so the container died on a `.ts` import. Only the
+  built artifact showed it.
+- `pnpm test:ai` ran suites concurrently while three of them `TRUNCATE` the same
+  tables, so results depended on scheduling.
+
+## Current live facts
+
+- `https://www.supplychainsai.com` serves `/`, `/oem`, `/headphones`,
+  `/portfolio` (200 each) and `/overstock` 404, confirmed at this SHA.
+- The hosted KB endpoint and its dedicated-corpus status are unchanged from the
+  CVM operator's report and remain **unverified from this checkout**: no
+  credential is present here, and none was requested.
 
 ## What changed in the application
 

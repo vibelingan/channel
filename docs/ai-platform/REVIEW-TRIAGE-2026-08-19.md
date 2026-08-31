@@ -89,6 +89,15 @@ any claim made about progress is checkable against it.
 | K3 | Liveness checked the database, so a database blip restarts a healthy container | `FIXED` | KB |
 | K4 | Citations are unverified on the supplied hosted KB, because generation 403s before one is ever returned | `GATE_PENDING` | KB |
 | K5 | The hosted KB's model provider denies every generation request (upstream 403) | `GATE_PENDING` | KB |
+| K6 | Ingest published `/overstock`, a page Astro does not route and production answers 404 | `FIXED` | 5 |
+| K7 | The literal hostname `anythingllm` was treated as local, so any host with that name received the bearer over HTTP | `FIXED` | 5 |
+| K8 | Dead-lettering an outbox item and failing its run were separate transactions | `FIXED` | 5 |
+| K9 | The negative acceptance test accepted ANY error as proof the publication gate fired | `FIXED` | 5 |
+| K10 | The worker recorded a git checkout under a field named for an OCI image digest | `FIXED` | 5 |
+| K11 | Startup "verified" the knowledge credential by comparing configuration with itself | `FIXED` | 5 |
+| K12 | The probe CLI echoed the vendor's error body, which can carry the bearer | `FIXED` | 5 |
+| K13 | The built BFF bundle left a workspace package external and imported TypeScript at runtime | `FIXED` | 5 |
+| K14 | `pnpm test:ai` ran suites concurrently while three of them TRUNCATE the same tables | `FIXED` | 5 |
 
 The K rows come from the 2026-08-25 probe of the separately supplied hosted
 knowledge base, recorded in PRODUCTION-KB-CLOUDRUN-RUNBOOK.md. They are not
@@ -104,11 +113,11 @@ token and the provider permission repaired by whoever owns that deployment.
 
 | Status | Count | IDs |
 |---|---|---|
-| `FIXED` | 37 | 2–17, 19–21, 25, R1–R10, R12–R15, K1–K3 |
+| `FIXED` | 46 | 2–17, 19–21, 25, R1–R10, R12–R15, K1–K3, K6–K14 |
 | `PARTIAL` | 2 | 1, R11 |
 | `WITHDRAWN` | 1 | 18 |
 | `GATE_PENDING` | 5 | 22, 23, 24, K4, K5 |
-| **Total** | **45** | 37 + 2 + 1 + 5, one row per finding, never renumbered |
+| **Total** | **54** | 46 + 2 + 1 + 5, one row per finding, never renumbered |
 
 Round 2 was right that "21 accepted, 4 disputed" was not derivable from the
 previous table. It was a count carried in prose rather than computed, which is
