@@ -262,7 +262,7 @@ flowchart TD
 - **Files:** `apps/site/src/catalog/presentation/CatalogCard.tsx`, `apps/site/src/catalog/presentation/catalog-card.test.ts`, `apps/site/src/islands/shop/HeadphonesProductCard.tsx`
 - **Type:** refactor
 - **Depends on:** MIUs 05, 07
-- **Reservation state:** `planned`.
+- **Reservation state:** `active`; local hydrated/SSR card parity validation only.
 - **What it does:**
   - Defines `CatalogCard({ product, pricing, facts, onActivate, deepLink? })`, consuming
     `CatalogPricingDecision` from `packages/shared/src/catalog/resolve-pricing.ts`; activation uses `_id`.
