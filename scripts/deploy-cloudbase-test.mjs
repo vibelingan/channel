@@ -15,6 +15,15 @@ const targetRuntime = process.env.CLOUDBASE_FUNCTION_RUNTIME || 'Nodejs20.19';
 const webAppServiceName = process.env.CLOUDBASE_WEBAPP_SERVICE || 'channel-test';
 const functionActiveTimeoutMs = positiveIntegerEnv('CLOUDBASE_FUNCTION_ACTIVE_TIMEOUT_MS', 300_000);
 const functionPollIntervalMs = positiveIntegerEnv('CLOUDBASE_FUNCTION_POLL_INTERVAL_MS', 5_000);
+/**
+ * CloudBase reports a function Active BEFORE its config update has fully
+ * settled, so `waitForActive` can return while `updateFunctionConfig` still
+ * answers "当前函数处于Updating状态". Observed 2026-09-01: three attempts fired
+ * ~5s apart and all three lost the race, failing the whole deploy after every
+ * gate had passed. Settle for a beat after Active before retrying.
+ */
+const functionSettleMs = positiveIntegerEnv('CLOUDBASE_FUNCTION_SETTLE_MS', 10_000);
+const functionConfigAttempts = positiveIntegerEnv('CLOUDBASE_FUNCTION_CONFIG_ATTEMPTS', 6);
 const cloudBaseCliPackage = process.env.CLOUDBASE_CLI_PACKAGE || '@cloudbase/cli@3.5.9';
 const cloudBaseCliDeployModes = (process.env.CLOUDBASE_CLI_DEPLOY_MODES || 'zip,cos')
   .split(',')
@@ -402,7 +411,7 @@ function envEntries(record) {
 
 function updateFunctionConfig(def) {
   let configResult = null;
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
+  for (let attempt = 1; attempt <= functionConfigAttempts; attempt += 1) {
     configResult = callTool('cloudbase.manageFunctions', {
       action: 'updateFunctionConfig',
       functionName: def.name,
@@ -413,7 +422,7 @@ function updateFunctionConfig(def) {
     if (
       configResult.success !== false ||
       !isFunctionUpdatingResult(configResult) ||
-      attempt === 3
+      attempt === functionConfigAttempts
     ) {
       break;
     }
@@ -421,6 +430,10 @@ function updateFunctionConfig(def) {
       `${def.name}: config update hit Updating state; waiting before retry ${attempt + 1}`,
     );
     waitForActive(def.name);
+    // Active is necessary but NOT sufficient — the platform still rejects the
+    // config write for a short window after it reports Active. Without this
+    // pause the retries simply re-lose the same race a few seconds apart.
+    sleep(functionSettleMs);
   }
   assertToolSucceeded(configResult, `${def.name}: updateFunctionConfig`);
   return requestIdFrom(configResult) ?? 'unknown';
