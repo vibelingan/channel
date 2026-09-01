@@ -86,8 +86,13 @@ test('buildAuthorizeUrl sends exactly the parameters Alibaba support supplied', 
   );
   assert.equal(parsed.searchParams.get('sp'), 'icbu');
   assert.equal(parsed.searchParams.get('state'), 'abc123');
-  // Absent by design — none appear in support's link.
+  // force_auth arrived in support's 2026-08-31 message. It also forces
+  // re-authentication, which matters because the app allows ONE authorized
+  // user — a merchant on a stale session could otherwise bind the wrong
+  // account.
+  assert.equal(parsed.searchParams.get('force_auth'), 'true');
+  // Still absent by design: the duplicate casing that caused the original
+  // failure, and view=web which neither support message includes.
   assert.equal(parsed.searchParams.get('State'), null, 'no duplicate casing');
-  assert.equal(parsed.searchParams.get('force_auth'), null);
   assert.equal(parsed.searchParams.get('view'), null);
 });
