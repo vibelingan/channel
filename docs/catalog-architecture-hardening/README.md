@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening Handoff
 
-Status: 49-MIU packet published; MIUs 01-09 released; MIU 10 planned and inactive.
+Status: 49-MIU packet published; MIUs 01-09 released; MIU 10 active for local implementation and validation.
 Branch: `refactor/catalog-architecture-hardening`
 Planning packet SHA: `bc1e69e25e9e8d453584be0fde9279f7bdf0c006`.
 
@@ -20,9 +20,9 @@ git status --short
 git rev-parse HEAD origin/refactor/catalog-architecture-hardening
 ```
 
-Expected branch: `refactor/catalog-architecture-hardening`. No MIU may activate until local HEAD and
-`origin/refactor/catalog-architecture-hardening` match after the reviewed closure is pushed. Do not
-reset, rebase, cherry-pick, or create another branch to manufacture that equality.
+Expected branch: `refactor/catalog-architecture-hardening`. MIU 10 activated from equal local and remote
+closure `635569d`; later local-ahead commits are in progress until independently reviewed and pushed. Do
+not reset, rebase, cherry-pick, or create another branch to manufacture equality.
 
 ## Reading Order
 
@@ -68,8 +68,8 @@ reset, rebase, cherry-pick, or create another branch to manufacture that equalit
 - Active `/headphones` remains built and must return 200. Targeted pruning preserves the real deploy
 	contract: `/overstock`, `/overstock-item`, temporarily hidden `/teardown-lab` and `/blue-ocean`, and
 	the existing retired media allowlist. Route smoke enumerates each status; no blanket delete is allowed.
-- No MIU or exact file is active. Future MIU plans have lifecycle state and exact owner files, with
-	references/transfers for sequential reuse.
+- MIU 10 is the sole active exact-file claim. Future MIU plans have lifecycle state and exact owner
+	files, with references/transfers for sequential reuse.
 - MIUs 39-43 separately own the real deploy script modification, its new test, the existing smoke script
 	modification, its new test, and the new browser smoke. MIU 44 produces and validates the immutable
 	`RELEASE_MANIFEST.json`; MIU 45 consumes it before credentials, disables push deployment, and owns the

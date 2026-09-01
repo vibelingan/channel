@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening MIU Breakdown
 
-Status: published; MIUs 01-09 released; MIU 10 planned and inactive.
+Status: published; MIUs 01-09 released; MIU 10 active for local implementation and validation.
 
 ```mermaid
 flowchart TD
@@ -57,8 +57,7 @@ flowchart TD
 
 ## Reservation Lifecycle
 
-- No MIU or exact file is active. MIUs 01-09 are released, MIU 10 remains planned, and MIUs 26-28 remain
-  blocked by D1.
+- MIU 10 is the sole active MIU. MIUs 01-09 are released, and MIUs 26-28 remain blocked by D1.
 - Activation follows `TASK_REGISTRY.json`: verify dependencies, gates, live refs/worktrees, and zero
   conflicting active owner claims, then atomically mark one MIU `active`. Completion marks it `released`
   before any explicit successor transfer activates.
@@ -266,7 +265,9 @@ flowchart TD
 - **What it does:**
   - Defines `CatalogCard({ product, pricing, facts, onActivate, deepLink? })`, consuming
     `CatalogPricingDecision` from `packages/shared/src/catalog/resolve-pricing.ts`; activation uses `_id`.
-  - Switches Headphones card call site without family imports in presentation; old card remains rollback wrapper.
+  - Switches Headphones card call site without family imports in presentation; old card remains a rollback wrapper.
+    Its named input adapter preserves the pre-migration card's unit-price display and treats a nullish removed
+    Alibaba link as absent, while linked products and the generic card still consume the canonical resolver decision.
 - **Build/Deploy/Runtime impact:** Hydrated/SSR card rendering and responsive site build.
 - **Test plan (TDD - write FIRST):**
   - Assert slugless oldest row renders, calls `onActivate(_id)`, and emits no unusable deep link.
