@@ -711,3 +711,82 @@ verify, 3 artifact smokes, site build.
   limit at the 5,000-product catalog size §11 targets.
 - **No production deploy exists.** `PRODUCTION_DESIRED_TIMER_TRIGGERS` is
   referenced only by a test; nothing applies the 15-minute timer.
+
+## Root cause found — retired hostname (2026-08-16)
+
+Alibaba support identified it: `oauth.alibaba.com` is the OLD domain. The
+correct host is `open-api.alibaba.com`. Confirmed live the same day with a
+credential-free control probe:
+
+```text
+open-api.alibaba.com + 511630    -> IncompleteSignature  (key RESOLVED)
+open-api.alibaba.com + 999999999 -> InvalidAppKey        (control)
+old oauth.alibaba.com/authorize  -> 302 to login, then fails after login
+new open-api.../oauth/authorize  -> 200, renders the consent page
+```
+
+The app key was correctly provisioned all along. No Alibaba backend repair was
+ever needed.
+
+**My TOP conversion was reverted.** I inferred from the dotted method names
+that ICBU ran on the Taobao Open Platform. Wrong: the Alibaba.com Open Platform
+serves those same methods over its own REST gateway. The protocol never needed
+changing — only the hostname. That is two incorrect protocol conclusions in
+this feature (`sp=ICBU`, then TOP), both reached by reading documentation
+instead of probing. The probe that settled it takes two curl commands and no
+credentials.
+
+**Why ten days passed.** The retired host answers and redirects to a login
+page, so every unauthenticated check looked healthy; the failure only appeared
+after a real merchant authenticated. Compounding it, an early probe used
+`openapi-api.alibaba.com` — a different host from `open-api.alibaba.com` —
+returned `InvalidAppKey`, and that false negative pointed the investigation at
+Alibaba's backend.
+
+The endpoint test now pins the exact host and fails on either retired name, so
+this cannot silently regress.
+
+Gates: 9/9 suites, 0 type errors, biome clean, 21 script tests, SDK contract
+verify, 3 artifact smokes, site build.
+
+## Authorize URL — force_auth added per support (2026-08-31)
+
+Support sent a second authorize shape, and it differs from their first:
+
+```text
+2026-08-16: ...?response_type=code&client_id=511630&redirect_uri=<cb>&sp=icbu
+2026-08-31: ...?response_type=code&force_auth=true&redirect_uri=<cb>&client_id=<appKey>
+```
+
+Host and API domain are unchanged and match what is deployed
+(`open-api.alibaba.com`), so the earlier correction stands.
+
+**We now send the UNION** — `response_type`, `client_id`, `redirect_uri`,
+`state`, `sp=icbu`, `force_auth=true`.
+
+Why the union rather than picking one: all three shapes return 200 and render
+an identical login page unauthenticated. A fabricated app key renders the same
+page too, so the authorize endpoint does not validate the key before login —
+**probing cannot distinguish these variants at all.** That is precisely how the
+retired-host bug survived ten days. Given no way to test, an
+unnecessary-but-accepted parameter costs nothing while a missing required one
+costs another round trip through support.
+
+`force_auth=true` also earns its place operationally: it forces
+re-authentication instead of reusing whatever Alibaba session the browser
+holds. With an authorized-user limit of 1, a merchant already logged in as the
+wrong account would otherwise bind the wrong one.
+
+`state` stays. Neither support message mentions it because it is our CSRF
+control, not a platform parameter — the callback validates it against a
+hashed, single-use, expiring record.
+
+### Divergence found: `main` still has the RETIRED host
+
+`test` carries the host fix and is deployed. `main` does not — it still reads
+`oauth.alibaba.com` / `openapi-api.alibaba.com`, and `test` is 27 commits
+ahead. Anyone branching from `main` inherits the exact bug that cost ten days.
+
+This needs a PR from a feature branch into `main` (merging `test` into `main`
+reverses the intended flow and is not the fix). Flagged rather than actioned —
+27 commits of unrelated work is a review someone must own.

@@ -31,7 +31,7 @@ test('signs and posts form-encoded params to the gateway path', async () => {
   });
   assert.equal(result.ok, true);
   assert.ok(captured);
-  assert.equal(captured.url, 'https://openapi-api.alibaba.com/rest/alibaba/icbu/product/list');
+  assert.equal(captured.url, 'https://open-api.alibaba.com/rest/alibaba/icbu/product/list');
   const params = new URLSearchParams(captured.body);
   assert.equal(params.get('app_key'), '511630');
   assert.equal(params.get('page_size'), '30');
