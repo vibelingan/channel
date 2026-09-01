@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import {
   assertSourcesArePublished,
+  contentToText,
   preflightPublicTargets,
   publishedRoutes,
 } from './ai-ingest-content.mjs';
@@ -35,6 +36,29 @@ test('the real repository still routes every page this manifest cites', () => {
   // Runs against the ACTUAL pages directory, so publishing or un-publishing a
   // page without updating the manifest fails here rather than in production.
   assert.doesNotThrow(() => assertSourcesArePublished());
+});
+
+test('public corpus projection drops internal media identifiers and integrity metadata', () => {
+  const text = contentToText(
+    `---
+hero:
+  title: Customer-visible product
+  sources:
+    - imageId: 0e0afdc26a68209e00523aa031e56460
+      width: 800
+      height: 800
+      sha256: c214432ede60268b25c7001dc06873240a533094c3adc89760df95c2f4e7179c
+  imageWidth: 825
+  imageHeight: 776
+  proof: MOQ from 500 units
+---
+`,
+    { title: 'Products', url: '/headphones' },
+  );
+
+  assert.match(text, /Customer-visible product/);
+  assert.match(text, /MOQ from 500 units/);
+  assert.doesNotMatch(text, /image id|imageId|sha256|0e0afdc|c214432e|800/i);
 });
 
 test('a source pointing at an underscored page is refused, naming the page', () => {

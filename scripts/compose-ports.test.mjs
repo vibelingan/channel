@@ -450,3 +450,14 @@ test('fake defaults and explicit AnythingLLM provenance stay consistent across s
     );
   }
 });
+
+test('the BFF receives its IP-hashing secret through compose', () => {
+  const compose = parseYaml(readFileSync(COMPOSE_FILE, 'utf8'));
+  const value = compose.services?.['ai-bff']?.environment?.AI_IP_HASH_SECRET;
+  assert.ok(value, 'ai-bff would fail startup on a real engine without AI_IP_HASH_SECRET');
+  assert.match(
+    String(value),
+    /\$\{AI_IP_HASH_SECRET:/,
+    'the secret must be injected, not committed',
+  );
+});

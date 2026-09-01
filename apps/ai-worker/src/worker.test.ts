@@ -48,7 +48,7 @@ function evidenceFor(attested: {
   rotationCounter: number;
 }): KnowledgeEvidence {
   return {
-    schema: 'channel.ai.kb-evidence/1',
+    schema: 'channel.ai.kb-evidence/2',
     recordedAt: new Date().toISOString(),
     credentialId: attested.credentialId,
     workspaceSlug: attested.spaceId,
@@ -60,6 +60,10 @@ function evidenceFor(attested: {
       resultCount: 4,
       approvedSourceCount: 4,
       citationsObserved: 2,
+    },
+    generationControl: {
+      sync: { ok: true, citationCount: 2 },
+      stream: { ok: true, citationCount: 2 },
     },
     toolSurface: { inspected: true, enabledCount: 0, verdict: 'none' },
     transport: { https: true, insecureOverride: false },
@@ -148,6 +152,22 @@ test('an EMPTY workspace is refused, however cleanly it authenticates', async ()
       positiveControl: { ...evidence.positiveControl, approvedSourceCount: 0 },
     }),
     /no approved source/,
+  );
+});
+
+test('worker refuses evidence from a failed or uncited generation surface', async () => {
+  const engine = new FakeEngine();
+  const attested = await engine.attestKnowledgeCredential();
+  const evidence = evidenceFor(attested);
+  await assert.rejects(
+    verifyKnowledgeAttestation(engine, {
+      ...evidence,
+      generationControl: {
+        ...evidence.generationControl,
+        stream: { ok: false, citationCount: 0 },
+      },
+    }),
+    /streaming generation did not complete/,
   );
 });
 
@@ -421,20 +441,37 @@ test('an object missing schema or recordedAt is refused, not silently accepted',
   );
 });
 
-test('an object missing the nested positiveControl/toolSurface/transport is refused', () => {
-  const base = { schema: 'channel.ai.kb-evidence/1', recordedAt: '2026-01-01T00:00:00Z' };
+test('an object missing the nested positiveControl/generationControl/toolSurface/transport is refused', () => {
+  const base = { schema: 'channel.ai.kb-evidence/2', recordedAt: '2026-01-01T00:00:00Z' };
   assert.throws(
     () => parseKnowledgeEvidence(base, '/tmp/evidence.json'),
     /missing positiveControl/,
   );
   assert.throws(
     () => parseKnowledgeEvidence({ ...base, positiveControl: {} }, '/tmp/evidence.json'),
+    /missing generationControl/,
+  );
+  assert.throws(
+    () =>
+      parseKnowledgeEvidence(
+        { ...base, positiveControl: {}, generationControl: {} },
+        '/tmp/evidence.json',
+      ),
+    /missing generationControl sync or stream/,
+  );
+  const generationControl = { sync: {}, stream: {} };
+  assert.throws(
+    () =>
+      parseKnowledgeEvidence(
+        { ...base, positiveControl: {}, generationControl },
+        '/tmp/evidence.json',
+      ),
     /missing toolSurface/,
   );
   assert.throws(
     () =>
       parseKnowledgeEvidence(
-        { ...base, positiveControl: {}, toolSurface: {} },
+        { ...base, positiveControl: {}, generationControl, toolSurface: {} },
         '/tmp/evidence.json',
       ),
     /missing transport/,
@@ -444,7 +481,7 @@ test('an object missing the nested positiveControl/toolSurface/transport is refu
 test('a well-formed evidence object narrows cleanly, coercing loose types', () => {
   const parsed = parseKnowledgeEvidence(
     {
-      schema: 'channel.ai.kb-evidence/1',
+      schema: 'channel.ai.kb-evidence/2',
       recordedAt: '2026-01-01T00:00:00Z',
       credentialId: 'abc',
       workspaceSlug: 'ws',
@@ -457,6 +494,10 @@ test('a well-formed evidence object narrows cleanly, coercing loose types', () =
         approvedSourceCount: 4,
         citationsObserved: 2,
       },
+      generationControl: {
+        sync: { ok: true, citationCount: 2 },
+        stream: { ok: true, citationCount: 2 },
+      },
       toolSurface: { inspected: true, enabledCount: 0, verdict: 'none' },
       transport: { https: true, insecureOverride: false },
     },
@@ -464,16 +505,18 @@ test('a well-formed evidence object narrows cleanly, coercing loose types', () =
   );
   assert.equal(parsed.credentialId, 'abc');
   assert.equal(parsed.positiveControl.retrieved, true);
+  assert.equal(parsed.generationControl.stream.ok, true);
   assert.equal(parsed.toolSurface.verdict, 'none');
 });
 
 test('a stray field never survives narrowing, and nested junk defaults safely', () => {
   const parsed = parseKnowledgeEvidence(
     {
-      schema: 'channel.ai.kb-evidence/1',
+      schema: 'channel.ai.kb-evidence/2',
       recordedAt: '2026-01-01T00:00:00Z',
       injected: 'DROP TABLE ai_runs;',
       positiveControl: { retrieved: 'yes', resultCount: 'many' },
+      generationControl: { sync: {}, stream: {} },
       toolSurface: {},
       transport: {},
     },

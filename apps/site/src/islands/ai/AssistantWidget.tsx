@@ -32,9 +32,14 @@ export function AssistantWidget() {
   );
   const [conversation, setConversation] = useState<StoredConversation | null>(null);
   const [lastSequence, setLastSequence] = useState(0);
+  const transcriptVersion = messages.reduce(
+    (size, message) => size + message.text.length + (message.citations?.length ?? 0),
+    0,
+  );
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const transcriptRef = useRef<HTMLDivElement | null>(null);
 
   function closeAssistant() {
     abortRef.current?.abort();
@@ -67,6 +72,19 @@ export function AssistantWidget() {
   }, [open]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  useEffect(() => {
+    if (!open || transcriptVersion === 0) return;
+    const frame = requestAnimationFrame(() => {
+      const transcript = transcriptRef.current;
+      if (!transcript) return;
+      transcript.scrollTo({
+        top: transcript.scrollHeight,
+        behavior: status === 'streaming' ? 'auto' : 'smooth',
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open, status, transcriptVersion]);
 
   async function submit() {
     const message = draft.trim();
@@ -227,7 +245,11 @@ export function AssistantWidget() {
             </button>
           </header>
 
-          <div className="flex-1 space-y-3 overflow-y-auto bg-surface-alt p-4" aria-live="polite">
+          <div
+            ref={transcriptRef}
+            className="flex-1 space-y-3 overflow-y-auto bg-surface-alt p-4"
+            aria-live="polite"
+          >
             {messages.length === 0 && (
               <div className="rounded-xl bg-white p-4 text-sm leading-relaxed text-ink-soft shadow-sm">
                 Ask about our OEM process, products, MOQ, quality controls, or certifications. I

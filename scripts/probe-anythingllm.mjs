@@ -298,7 +298,7 @@ export function sanitizedProbeReport(report) {
 export function knowledgeEvidence(report, { corpusGeneration = null } = {}) {
   const retrieval = report?.retrieval ?? {};
   return {
-    schema: 'channel.ai.kb-evidence/1',
+    schema: 'channel.ai.kb-evidence/2',
     recordedAt: new Date().toISOString(),
     credentialId: report?.auth?.credentialId ?? null,
     workspaceSlug: report?.workspace?.slug ?? null,
@@ -312,6 +312,16 @@ export function knowledgeEvidence(report, { corpusGeneration = null } = {}) {
       resultCount: Number(retrieval.resultCount ?? 0),
       approvedSourceCount: Number(retrieval.approvedSourceCount ?? 0),
       citationsObserved: Number(report?.syncChat?.sourceCount ?? 0),
+    },
+    generationControl: {
+      sync: {
+        ok: report?.syncChat?.ok === true,
+        citationCount: Number(report?.syncChat?.sourceCount ?? 0),
+      },
+      stream: {
+        ok: report?.streamChat?.ok === true,
+        citationCount: Number(report?.streamChat?.sourceCount ?? 0),
+      },
     },
     toolSurface: {
       inspected: report?.toolSurface?.inspected === true,
@@ -338,7 +348,7 @@ export function knowledgeEvidence(report, { corpusGeneration = null } = {}) {
  */
 export function knowledgeEvidenceRefusals(evidence, expected) {
   const reasons = [];
-  if (evidence?.schema !== 'channel.ai.kb-evidence/1') reasons.push('unrecognised evidence schema');
+  if (evidence?.schema !== 'channel.ai.kb-evidence/2') reasons.push('unrecognised evidence schema');
   if (!evidence?.recordedAt) reasons.push('evidence has no timestamp');
   if (!evidence?.credentialId) reasons.push('evidence names no credential');
   if (!evidence?.workspaceId) reasons.push('evidence names no workspace id');
@@ -368,6 +378,18 @@ export function knowledgeEvidenceRefusals(evidence, expected) {
   }
   if (Number(evidence?.positiveControl?.approvedSourceCount ?? 0) < 1) {
     reasons.push('positive control returned no APPROVED source');
+  }
+  if (evidence?.generationControl?.sync?.ok !== true) {
+    reasons.push('synchronous generation did not complete');
+  }
+  if (Number(evidence?.generationControl?.sync?.citationCount ?? 0) < 1) {
+    reasons.push('synchronous generation returned no citation');
+  }
+  if (evidence?.generationControl?.stream?.ok !== true) {
+    reasons.push('streaming generation did not complete');
+  }
+  if (Number(evidence?.generationControl?.stream?.citationCount ?? 0) < 1) {
+    reasons.push('streaming generation returned no citation');
   }
   if (evidence?.toolSurface?.inspected !== true) reasons.push('tool surface was never inspected');
   if (evidence?.toolSurface?.verdict !== 'none')

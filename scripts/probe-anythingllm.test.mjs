@@ -73,6 +73,22 @@ before(async () => {
       request.method === 'POST' &&
       url.pathname === `/api/v1/workspace/${workspaceSlug}/thread/thread-1/chat`
     ) {
+      const chunks = [];
+      for await (const chunk of request) chunks.push(chunk);
+      const payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      if (payload.message === 'successful-generation') {
+        response.setHeader('Content-Type', 'application/json');
+        response.end(
+          JSON.stringify({
+            id: 'sync-1',
+            type: 'textResponse',
+            close: true,
+            textResponse: 'Grounded answer',
+            sources: [{ title: 'public-faq.md' }],
+          }),
+        );
+        return;
+      }
       response.writeHead(500, { 'Content-Type': 'application/json' });
       response.end(
         JSON.stringify({
@@ -97,6 +113,19 @@ before(async () => {
             type: 'abort',
             close: true,
             error: '403 upstream model denied access',
+          })}\n\n`,
+        );
+        return;
+      }
+      if (payload.message === 'successful-generation') {
+        response.writeHead(200, { 'Content-Type': 'text/event-stream' });
+        response.end(
+          `data: ${JSON.stringify({
+            id: 'stream-1',
+            type: 'finalizeResponseStream',
+            close: true,
+            textResponse: 'Grounded answer',
+            sources: [{ title: 'public-faq.md' }],
           })}\n\n`,
         );
         return;
@@ -206,17 +235,22 @@ const goodReport = {
   workspace: { slug: 'supplychainsai-public-prod', id: 'ws-1' },
   retrieval: { ok: true, resultCount: 4, approvedSourceCount: 4 },
   syncChat: { ok: true, sourceCount: 2 },
+  streamChat: { ok: true, sourceCount: 2 },
   toolSurface: { inspected: true, enabledCount: 0 },
 };
 
 test('evidence carries the identity and the positive control, and no secret', () => {
   const evidence = knowledgeEvidence(goodReport, { corpusGeneration: 'g1000' });
-  assert.equal(evidence.schema, 'channel.ai.kb-evidence/1');
+  assert.equal(evidence.schema, 'channel.ai.kb-evidence/2');
   assert.equal(evidence.credentialId, 'abc123');
   assert.equal(evidence.workspaceSlug, 'supplychainsai-public-prod');
   assert.equal(evidence.rotationCounter, 2);
   assert.equal(evidence.corpusGeneration, 'g1000');
   assert.equal(evidence.positiveControl.retrieved, true);
+  assert.deepEqual(evidence.generationControl, {
+    sync: { ok: true, citationCount: 2 },
+    stream: { ok: true, citationCount: 2 },
+  });
   assert.equal(evidence.toolSurface.verdict, 'none');
   assert.ok(Date.parse(evidence.recordedAt) > 0);
 
@@ -233,7 +267,7 @@ test('the REAL probe result fills every startup field (local plaintext is the on
     apiKey: testCredential,
     workspaceSlug,
     retrievalQuery: 'What does the company do?',
-    chatQuery: 'What does the company do?',
+    chatQuery: 'successful-generation',
     approvedSourcePrefix: 'public-',
     credentialRotationCounter: 2,
   });
@@ -267,6 +301,24 @@ test('evidence from an EMPTY workspace is refused', () => {
     reasons.some((r) => /no positive-control retrieval/.test(r)),
     `an empty corpus was accepted: ${reasons.join('; ')}`,
   );
+});
+
+test('evidence is refused unless synchronous and streaming generation both complete with citations', () => {
+  for (const report of [
+    { ...goodReport, syncChat: { ok: false, sourceCount: 0 } },
+    { ...goodReport, streamChat: { ok: false, sourceCount: 0 } },
+    { ...goodReport, syncChat: { ok: true, sourceCount: 0 } },
+    { ...goodReport, streamChat: { ok: true, sourceCount: 0 } },
+  ]) {
+    const reasons = knowledgeEvidenceRefusals(
+      knowledgeEvidence(report, { corpusGeneration: 'g1000' }),
+      {},
+    );
+    assert.ok(
+      reasons.some((reason) => /generation|citation/.test(reason)),
+      `partial generation was accepted: ${reasons.join('; ')}`,
+    );
+  }
 });
 
 test('evidence with an enabled tool surface is refused', () => {

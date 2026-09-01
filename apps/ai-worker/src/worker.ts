@@ -65,6 +65,10 @@ export interface KnowledgeEvidence {
     approvedSourceCount: number;
     citationsObserved: number;
   };
+  generationControl: {
+    sync: { ok: boolean; citationCount: number };
+    stream: { ok: boolean; citationCount: number };
+  };
   toolSurface: { inspected: boolean; enabledCount: number; verdict: string };
   transport: { https: boolean; insecureOverride: boolean };
 }
@@ -96,6 +100,17 @@ export function parseKnowledgeEvidence(value: unknown, sourcePath: string): Know
   if (!isRecord(positiveControl)) {
     throw new Error(`knowledge evidence at ${sourcePath} is missing positiveControl`);
   }
+  const generationControl = record.generationControl;
+  if (!isRecord(generationControl)) {
+    throw new Error(`knowledge evidence at ${sourcePath} is missing generationControl`);
+  }
+  const syncGeneration = generationControl.sync;
+  const streamGeneration = generationControl.stream;
+  if (!isRecord(syncGeneration) || !isRecord(streamGeneration)) {
+    throw new Error(
+      `knowledge evidence at ${sourcePath} is missing generationControl sync or stream`,
+    );
+  }
   const toolSurface = record.toolSurface;
   if (!isRecord(toolSurface)) {
     throw new Error(`knowledge evidence at ${sourcePath} is missing toolSurface`);
@@ -120,6 +135,16 @@ export function parseKnowledgeEvidence(value: unknown, sourcePath: string): Know
       resultCount: num(positiveControl.resultCount),
       approvedSourceCount: num(positiveControl.approvedSourceCount),
       citationsObserved: num(positiveControl.citationsObserved),
+    },
+    generationControl: {
+      sync: {
+        ok: syncGeneration.ok === true,
+        citationCount: num(syncGeneration.citationCount),
+      },
+      stream: {
+        ok: streamGeneration.ok === true,
+        citationCount: num(streamGeneration.citationCount),
+      },
     },
     toolSurface: {
       inspected: toolSurface.inspected === true,
@@ -158,7 +183,7 @@ export async function verifyKnowledgeAttestation(
   const actual = await engine.attestKnowledgeCredential();
   const reasons: string[] = [];
 
-  if (evidence.schema !== 'channel.ai.kb-evidence/1') reasons.push('unrecognised evidence schema');
+  if (evidence.schema !== 'channel.ai.kb-evidence/2') reasons.push('unrecognised evidence schema');
   if (actual.credentialId !== evidence.credentialId) {
     reasons.push('the serving credential is not the one the evidence was produced with');
   }
@@ -189,6 +214,18 @@ export async function verifyKnowledgeAttestation(
   }
   if (Number(evidence.positiveControl?.approvedSourceCount ?? 0) < 1) {
     reasons.push('the positive control returned no approved source');
+  }
+  if (evidence.generationControl?.sync?.ok !== true) {
+    reasons.push('synchronous generation did not complete');
+  }
+  if (Number(evidence.generationControl?.sync?.citationCount ?? 0) < 1) {
+    reasons.push('synchronous generation returned no citation');
+  }
+  if (evidence.generationControl?.stream?.ok !== true) {
+    reasons.push('streaming generation did not complete');
+  }
+  if (Number(evidence.generationControl?.stream?.citationCount ?? 0) < 1) {
+    reasons.push('streaming generation returned no citation');
   }
   if (evidence.toolSurface?.inspected !== true) reasons.push('tool surface was never inspected');
   if (evidence.toolSurface?.verdict !== 'none') {

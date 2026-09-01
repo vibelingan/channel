@@ -76,6 +76,10 @@ services:
       DATABASE_URL: postgres://ai:ai@postgres:5432/ai_assistant
       PORT: "8080"
       CORS_ALLOWED_ORIGINS: ${AI_CORS_ALLOWED_ORIGINS:-http://localhost:4321}
+      # Required whenever the real engine is selected. Hashes visitor IPs for
+      # rate limiting; the raw address is never persisted. Keep the value in a
+      # gitignored env file, not in this compose document.
+      AI_IP_HASH_SECRET: ${AI_IP_HASH_SECRET:-local-development-only-secret}
       AI_ENGINE_ID: ${AI_ENGINE_ID:-fake}
       AI_ENGINE_VERSION: ${AI_ENGINE_VERSION:-0.1.0}
       # WHICH KIND of artifact produced the answer, then the fields that kind
