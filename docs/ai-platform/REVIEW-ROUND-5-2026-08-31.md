@@ -261,3 +261,59 @@ because this checkout still has no rotated KB credential. The next run needs:
 The probe derives the vendor workspace id and writes the remaining evidence.
 Until that run succeeds, the hosted path is not production-accepted even though
 the local application path is.
+
+## Hosted acceptance follow-up — 2026-09-01
+
+**Reviewed base:** `12a2b50cad88d2f226b1cfa7975e21dde37186f2`
+
+**Implementation commit:** `a31b46cb5bb6e1e8dcbcdf6b17f1101c27828a35`
+
+**Decision:** LOCAL + HOSTED PHASE 1 ACCEPT. Production CloudBase deployment is
+still a separate infrastructure change and was not performed here.
+
+The missing inputs are resolved and independently checked: the RSA-delivered
+credential matches attestation `80aec2792f15695b` (rotation 2); the deployed
+workspace is `supplychainsai-public-prod` / id `4`; the source is
+`https://github.com/vibelingan/vibekb` at
+`76b94c2f052d79685d2ccbc4e41456d412e3777b`; and the applied secret-free local
+configuration digest is
+`sha256:bd3b275f06a1b69fa37f793405aaa4747ff16d733935323d997edfdbb697998d`.
+
+### Corrections found only by the live path
+
+1. The corpus projector exposed internal media delivery metadata (`imageId`,
+   `sha256`, dimensions). Those fields are now excluded while visible facts
+   remain. Five approved documents were ingested as generation
+   `1788241419198`.
+2. Probe evidence proved retrieval but not generation. Schema v2 now requires
+   successful synchronous and streaming chat with citations. Live evidence
+   observed four approved results and four citations on both surfaces.
+3. Compose omitted `AI_IP_HASH_SECRET`, so the real-engine BFF could not start.
+   It is now injected from the gitignored environment and contract-tested.
+4. The first browser attempt exposed a truthful configuration refusal:
+   `AI_SITE_ORIGIN=http://127.0.0.1:4322` is not the allowed local-HTTP form.
+   Local runtime and attestation now use `http://localhost:4322`.
+5. Mobile follow-up messages rendered below the visible transcript. The
+   existing widget now follows newly streamed content inside the transcript
+   without scrolling the page.
+
+### Actual end-to-end evidence
+
+| Boundary | Observed result |
+| --- | --- |
+| Hosted auth/workspace | authenticated; id `4`; five approved documents; no tool surface |
+| Hosted retrieval | 4/4 results use `channelkb` identities |
+| Hosted sync + SSE | both complete; four citations each |
+| Local services | PostgreSQL, BFF and worker healthy on loopback |
+| Local app smoke | BFF -> outbox -> worker -> hosted KB -> ordered SSE: PASS |
+| Browser | real OEM answer plus four clickable first-party citations |
+| Continuation/mobile | reused conversation; 390x844 latest answer at transcript bottom |
+| Sensitive unknown | passport-number question disclosed no data and returned a privacy refusal |
+
+The strict negative observer still exits non-zero for the sensitive-unknown
+case because it accepts only the publication gate's exact
+`publication_blocked` event. Here the provider safely refused before that gate
+and returned approved citations; there was no leak or transport failure. The
+mixed/unapproved-source branch cannot be live-tested without contaminating the
+production workspace, so it remains proven by the deterministic fake engine
+and mutation-bound policy tests.

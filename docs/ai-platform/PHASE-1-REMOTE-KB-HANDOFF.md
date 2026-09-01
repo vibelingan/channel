@@ -290,3 +290,33 @@ Production is allowed only after HTTPS, token rotation, public-only corpus,
 immutable engine provenance, approved PostgreSQL/VPC connectivity, deploy-time
 secret injection, and the same positive/negative BFF acceptance all pass. No
 passing unit test or direct provider response substitutes for that gate.
+
+## Current executable status — 2026-09-01 (supersedes earlier blockers)
+
+**Verified implementation:** `a31b46cb5bb6e1e8dcbcdf6b17f1101c27828a35`
+
+Phase 1 now works locally against the deployed KB. No additional RSA exchange,
+workspace creation or corpus ingest is required to reproduce it on this
+machine.
+
+- Hosted KB: `https://kb.supplychainsai.com`
+- Workspace: `supplychainsai-public-prod` / id `4`
+- Corpus: five public-only documents, generation `1788241419198`
+- Credential: rotation 2; plaintext exists only in mode-0600 local files and
+  gitignored `.env.ai-hosted`
+
+```bash
+docker compose --env-file .env.ai-hosted -f docker-compose.ai.yml up -d --build postgres ai-bff ai-worker
+PUBLIC_CB_PROXY=0 PUBLIC_AI_API_BASE_URL=http://127.0.0.1:58080 \
+  pnpm --filter @vibelingan-channel/site dev --host 127.0.0.1 --port 4322
+```
+
+Open `http://localhost:4322`, click **Ask our AI**, and send a product
+question. The streamed answer is followed by first-party citations. The BFF,
+worker and PostgreSQL remain loopback-only, and the browser never receives the
+KB token.
+
+Do not copy `.env.ai-hosted`, the RSA private key or decrypted token into Git,
+CloudBase variables, chat, screenshots or browser storage. Production still
+needs approved TencentDB PostgreSQL and CloudRun deployment; that is the next
+infrastructure phase, not a local E2E blocker.

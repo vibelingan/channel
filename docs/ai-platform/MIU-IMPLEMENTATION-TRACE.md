@@ -221,3 +221,141 @@ loadability and manifest parity. A live Phase 1 acceptance additionally proved:
   observed, not assumed, compatibility contract.
 - User-visible truth: visitors see either the exact approved final answer and
   sources, or a bounded refusal. They never see text later retracted by policy.
+
+## MIU 4 - public corpus projection excludes delivery metadata
+
+### Runtime problem
+
+The hosted workspace is intentionally public-only, but the ingest flattener
+walked every non-layout YAML field. Product image delivery records therefore
+became searchable prose such as `image id`, `sha256`, `image width` and
+`image height`. Those values are needed by the website renderer, not by a
+customer answer, and must not cross the public knowledge boundary.
+
+Current risky shape:
+
+```text
+site YAML { public copy, imageId, sha256, dimensions }
+  -> generic recursive flatten
+  -> customer-facing KB document
+```
+
+### Data shape
+
+| Value | Example | Lifetime | Scope |
+| --- | --- | --- | --- |
+| Customer-visible fact | `MOQ from 500 units` | content release | public page and KB |
+| Media object identity | 32-character `imageId` | storage object | renderer/backend only |
+| Integrity digest | 64-character `sha256` | derivative lifetime | build/validation only |
+| Display dimensions | `825 x 776` | asset version | renderer only |
+
+### Technology constraint
+
+The source documents are structured frontmatter used by both rendering and
+delivery. A generic recursive text projection cannot infer that every stored
+field is publishable merely because the containing page is public. The KB is a
+second delivery surface and needs its own explicit projection boundary.
+
+### Design / flow
+
+```mermaid
+sequenceDiagram
+  participant YAML as Site frontmatter
+  participant Projector as Corpus projector
+  participant KB as Public KB
+  YAML->>Projector: visible copy + delivery metadata
+  Projector->>Projector: drop media identity, digest and dimensions
+  Projector->>KB: customer-readable facts only
+```
+
+### Best-practice fix
+
+Extend the corpus noise allowlist with the exact media delivery keys used by
+the current site: `sources`, `imageId`, `imageWidth`, `imageHeight`, `width`,
+`height` and `sha256`. Keep customer-facing copy such as product names, proof
+points and MOQ values. The projection test carries both categories in one
+fixture so dropping the whole product record cannot make it pass.
+
+### Alternatives rejected
+
+- Upload the rendered HTML: rejected because navigation and layout chrome would
+  dominate retrieval and the reviewed structured-source contract would be lost.
+- Block only hash-looking values: rejected because internal identifiers and
+  dimensions are not all hashes, while a legitimate public fact may contain a
+  number or checksum-like string.
+- Accept the metadata because the page is public: rejected because these fields
+  are not rendered as customer claims and provide no answer value.
+
+### Code translation
+
+```js
+const NOISE_KEYS = new Set([
+  'sources',
+  'imageId',
+  'imageWidth',
+  'imageHeight',
+  'width',
+  'height',
+  'sha256',
+]);
+```
+
+### Risk / test
+
+The focused test proves visible title and MOQ survive while image identity,
+digest and dimensions do not. A second dry-run scans all four real source
+documents for the forbidden output labels before remote ingest.
+
+```bash
+node --test scripts/ai-ingest-content.test.mjs
+pnpm exec node scripts/ai-ingest-content.mjs --dry-run
+```
+
+### Business correction
+
+- Ownership: public copy is owned by the published site; storage identity stays
+  with the internal media subsystem.
+- Actor: customers may retrieve the projected facts; only backend/build code
+  consumes storage identifiers and integrity digests.
+- Durable data: the KB stores projected public text, never the media registry.
+- External provider: AnythingLLM receives only the explicit public projection.
+- User-visible truth: answers cite facts a visitor can read on the linked page,
+  not implementation metadata that happens to share its YAML file.
+
+## MIU 5 - hosted KB to browser tracer bullet
+
+### Business correction
+
+- Actor: an anonymous buyer on the public Supply Chains AI site.
+- Smallest action: ask one product question and receive one useful answer with
+  links they can inspect.
+- Durable state: conversation, visitor message, run provenance and ordered
+  public events in local PostgreSQL.
+- External boundary: the worker alone holds the hosted KB credential; the BFF
+  and browser never receive it.
+- Failure correction: liveness is insufficient. Startup requires live v2
+  evidence for auth, public retrieval, sync generation, SSE generation,
+  citations, corpus generation and disabled tool surface.
+
+### Verified flow
+
+```mermaid
+sequenceDiagram
+  participant Browser
+  participant BFF
+  participant PG as PostgreSQL
+  participant Worker
+  participant KB as kb.supplychainsai.com
+  Browser->>BFF: create conversation + append question
+  BFF->>PG: transaction + outbox
+  Worker->>PG: lease run
+  Worker->>KB: authenticated thread stream
+  KB-->>Worker: answer + approved sources
+  Worker->>PG: grounded token + citations + final
+  BFF-->>Browser: ordered SSE
+  Browser->>Browser: render answer, citations, follow latest message
+```
+
+Observed on 2026-09-01 with desktop and 390x844 mobile browser sessions. Two
+consecutive questions reused one conversation, produced cited answers and kept
+the latest mobile response visible.
