@@ -225,7 +225,7 @@ caps remain separate preflight controls and cannot be inferred from upload size.
 3. Worker reads the original from private storage and reruns digest/size checks.
 4. Channel preflight examines **every archive entry**, including unreferenced
    parts, and fails closed on the limits/forbidden features in
-   `specs/xlsx-core-production-readiness/requirements.md`.
+   `xlsx-preflight.ts` and `xlsx-zip.ts`.
 5. Only after preflight succeeds does `xlsx-sheetjs.ts` receive bytes and emit the
    stable `SourceSheet`/`SourceCell` contract.
 6. Worker groups/validates/reconciles and writes deterministic staged items.
@@ -680,8 +680,10 @@ Production readiness requires all of the following at the exact release:
 
 Repository sources of truth:
 
-- [`specs/xlsx-core-production-readiness/requirements.md`](../../specs/xlsx-core-production-readiness/requirements.md)
-- [`specs/xlsx-core-production-readiness/design.md`](../../specs/xlsx-core-production-readiness/design.md)
+- [`XLSX-TECHNOLOGY-DECISION-2026-09-01.md`](XLSX-TECHNOLOGY-DECISION-2026-09-01.md)
+- [`XLSX-TECHNOLOGY-CANDIDATES-2026-09-01.md`](XLSX-TECHNOLOGY-CANDIDATES-2026-09-01.md)
+- [`../../packages/catalog-import/src/xlsx-preflight.ts`](../../packages/catalog-import/src/xlsx-preflight.ts)
+- [`../../packages/catalog-import/src/xlsx-zip.ts`](../../packages/catalog-import/src/xlsx-zip.ts)
 - [`IMAGE-FETCH-POLICY.md`](IMAGE-FETCH-POLICY.md)
 - [`../CLOUDBASE_SDK_CONTRACT_VERIFICATION.md`](../CLOUDBASE_SDK_CONTRACT_VERIFICATION.md)
 - [`../ENGINEERING_CRAFT.md`](../ENGINEERING_CRAFT.md)

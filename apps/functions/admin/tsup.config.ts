@@ -26,7 +26,6 @@ export default defineConfig({
     'jose',
     'nodemailer',
     'wx-server-sdk',
-    'xlsx',
     'zod',
   ],
 });

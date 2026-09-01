@@ -18,6 +18,16 @@ export const MAX_XML_DEPTH = 64;
 export const MAX_TEXT_NODE_CHARS = 1_000_000;
 export const MAX_ATTRIBUTE_CHARS = 8_192;
 
+/**
+ * Built-in number-format ids that denote dates or times. The CJK ranges are
+ * intentionally explicit because SheetJS does not expose format text for most
+ * of them, while Dianxiaomi exports originate in a Chinese ERP.
+ */
+const BUILTIN_DATE_FORMATS: ReadonlySet<number> = new Set([
+  14, 15, 16, 17, 18, 19, 20, 21, 22, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 45, 46, 47, 50, 51,
+  52, 53, 54, 55, 56, 57, 58,
+]);
+
 const REFUSED_PART_PREFIXES: readonly [string, string][] = [
   ['xl/vbaProject.bin', 'workbook contains macros'],
   ['xl/macrosheets/', 'workbook contains macros'],
@@ -90,6 +100,30 @@ function decodeXmlEntities(value: string): string {
 function localName(name: string): string {
   const colon = name.indexOf(':');
   return (colon === -1 ? name : name.slice(colon + 1)).toLowerCase();
+}
+
+function parseDateStyleIndexes(xml: string | null): ReadonlySet<number> {
+  if (xml === null) return new Set();
+  const dateStyles = new Set<number>();
+  let inCellXfs = false;
+  let styleIndex = 0;
+
+  for (const event of scanXml(xml)) {
+    if (event.type === 'open') {
+      if (event.name === 'cellxfs') {
+        inCellXfs = true;
+        styleIndex = 0;
+      } else if (event.name === 'xf' && inCellXfs) {
+        const formatId = Number(event.attrs.get('numfmtid') ?? '0');
+        if (BUILTIN_DATE_FORMATS.has(formatId)) dateStyles.add(styleIndex);
+        styleIndex += 1;
+      }
+    } else if (event.type === 'close' && event.name === 'cellxfs') {
+      inCellXfs = false;
+    }
+  }
+
+  return dateStyles;
 }
 
 export function* scanXml(xml: string): Generator<XmlEvent> {
@@ -350,19 +384,33 @@ function columnName(index: number): string {
   return name;
 }
 
+/** Canonical A1 address shared by preflight metadata and the SheetJS adapter. */
+export function cellAddress(rowNumber: number, columnIndex: number): string {
+  return `${columnName(columnIndex)}${rowNumber}`;
+}
+
 interface WorksheetShape {
   rowNumbers: number[];
   numericLexemes: Map<string, string>;
+  dateFormattedAddresses: Set<string>;
+  isoDateLexemes: Map<string, string>;
 }
 
-function inspectWorksheet(xml: string, retainLexemes: boolean): WorksheetShape {
+function inspectWorksheet(
+  xml: string,
+  retainLexemes: boolean,
+  dateStyleIndexes: ReadonlySet<number>,
+): WorksheetShape {
   const rowNumbers: number[] = [];
   const numericLexemes = new Map<string, string>();
+  const dateFormattedAddresses = new Set<string>();
+  const isoDateLexemes = new Map<string, string>();
   const seenRows = new Set<number>();
   let currentRow = 0;
   let previousRow = 0;
   let columnIndex = -1;
   let cellType = '';
+  let styleIndex = 0;
   let address = '';
   let value = '';
   let collectingValue = false;
@@ -424,7 +472,8 @@ function inspectWorksheet(xml: string, retainLexemes: boolean): WorksheetShape {
           );
         }
         cellType = event.attrs.get('t') ?? 'n';
-        address = `${columnName(columnIndex)}${currentRow}`;
+        styleIndex = Number(event.attrs.get('s') ?? '0');
+        address = cellAddress(currentRow, columnIndex);
         value = '';
         inCell = true;
         collectingValue = false;
@@ -445,6 +494,12 @@ function inspectWorksheet(xml: string, retainLexemes: boolean): WorksheetShape {
       if (retainLexemes && (cellType === '' || cellType === 'n') && value !== '') {
         numericLexemes.set(address, value);
       }
+      if (retainLexemes && dateStyleIndexes.has(styleIndex)) {
+        dateFormattedAddresses.add(address);
+      }
+      if (retainLexemes && cellType === 'd' && value !== '') {
+        isoDateLexemes.set(address, value);
+      }
       inCell = false;
       collectingValue = false;
     } else if (event.name === 'row') {
@@ -452,7 +507,7 @@ function inspectWorksheet(xml: string, retainLexemes: boolean): WorksheetShape {
     }
   }
 
-  return { rowNumbers, numericLexemes };
+  return { rowNumbers, numericLexemes, dateFormattedAddresses, isoDateLexemes };
 }
 
 function isXmlPart(name: string): boolean {
@@ -483,6 +538,8 @@ export interface XlsxPreflightResult {
   selectedSheetName: string;
   selectedRowNumbers: readonly number[];
   numericLexemesByAddress: ReadonlyMap<string, string>;
+  dateFormattedAddresses: ReadonlySet<string>;
+  isoDateLexemesByAddress: ReadonlyMap<string, string>;
 }
 
 /** Run the complete archive and OOXML preflight required before SheetJS. */
@@ -516,6 +573,7 @@ export function preflightXlsx(bytes: Buffer): XlsxPreflightResult {
     if (first === undefined) throw new SpreadsheetFormatError('workbook declares no worksheets');
 
     const relationships = parseRelationships(archive.readText('xl/_rels/workbook.xml.rels'));
+    const dateStyleIndexes = parseDateStyleIndexes(archive.readText('xl/styles.xml'));
     let selectedShape: WorksheetShape | undefined;
     for (let index = 0; index < sheets.length; index += 1) {
       const sheet = sheets[index] as SheetRef;
@@ -533,7 +591,7 @@ export function preflightXlsx(bytes: Buffer): XlsxPreflightResult {
       if (sheetXml === null) {
         throw new SpreadsheetFormatError(`worksheet part ${path} is missing`);
       }
-      const shape = inspectWorksheet(sheetXml, index === 0);
+      const shape = inspectWorksheet(sheetXml, index === 0, dateStyleIndexes);
       if (index === 0) selectedShape = shape;
     }
 
@@ -544,6 +602,8 @@ export function preflightXlsx(bytes: Buffer): XlsxPreflightResult {
       selectedSheetName: first.name,
       selectedRowNumbers: selectedShape.rowNumbers,
       numericLexemesByAddress: selectedShape.numericLexemes,
+      dateFormattedAddresses: selectedShape.dateFormattedAddresses,
+      isoDateLexemesByAddress: selectedShape.isoDateLexemes,
     };
   } catch (error) {
     if (error instanceof ZipFormatError) throw new SpreadsheetFormatError(error.message);

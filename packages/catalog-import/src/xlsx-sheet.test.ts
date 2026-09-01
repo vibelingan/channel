@@ -157,6 +157,51 @@ test('marks date-formatted numbers so a serial is not mistaken for a count', () 
   assert.equal(cells[1]?.dateFormatted, false);
 });
 
+test('recognizes every CJK built-in date format retained from the Chinese ERP reader', () => {
+  const formatIds = [27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 50, 51, 52, 53, 54, 55, 56, 57, 58];
+  const bytes = buildXlsx({
+    sheets: [
+      {
+        name: 'S',
+        rows: [formatIds.map((numFmtId) => ({ dateSerial: 46260, numFmtId }))],
+      },
+    ],
+  });
+  const cells = readFirstSheet(bytes).rows[0]?.cells ?? [];
+  assert.equal(cells.length, formatIds.length);
+  assert.deepEqual(
+    cells.map((cell) => ({
+      text: cell?.text,
+      kind: cell?.kind,
+      dateFormatted: cell?.dateFormatted,
+    })),
+    formatIds.map(() => ({ text: '46260', kind: 'number', dateFormatted: true })),
+  );
+});
+
+test('preserves ECMA-376 ISO date cells as their original timestamp text', () => {
+  const bytes = buildXlsx({
+    sheets: [{ name: 'S', rows: [[{ isoDate: '2026-08-29T10:30:00' }]] }],
+  });
+  assert.deepEqual(readFirstSheet(bytes).rows[0]?.cells[0], {
+    text: '2026-08-29T10:30:00',
+    kind: 'text',
+    dateFormatted: true,
+  });
+});
+
+test('reports malformed shared-string references without leaking a SheetJS TypeError', () => {
+  const bytes = buildXlsx({
+    sheets: [{ name: 'S', rows: [[{ sharedStringIndex: 99 }]] }],
+  });
+  assert.throws(
+    () => readFirstSheet(bytes),
+    (error: unknown) =>
+      error instanceof SpreadsheetFormatError &&
+      error.message === 'SheetJS could not parse workbook',
+  );
+});
+
 test('preserves row numbers and leaves gaps for empty cells', () => {
   const bytes = buildXlsx({ sheets: [{ name: 'S', rows: [['a', null, 'c'], [], ['d']] }] });
   const parsed = readFirstSheet(bytes);

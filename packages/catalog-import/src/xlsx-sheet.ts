@@ -1,7 +1,7 @@
 /** Stable spreadsheet facade: sniff, preflight every part, then decode. */
 import type { Buffer } from 'node:buffer';
 import type { SourceSheet } from './xlsx-contract.ts';
-import { SpreadsheetFormatError, preflightXlsx } from './xlsx-preflight.ts';
+import { SpreadsheetFormatError } from './xlsx-preflight.ts';
 import { readSheetJs } from './xlsx-sheetjs.ts';
 import { ZipArchive, looksLikeZip } from './xlsx-zip.ts';
 
@@ -38,6 +38,5 @@ export function readFirstSheet(bytes: Buffer): SourceSheet {
   if (!looksLikeZip(bytes)) {
     throw new SpreadsheetFormatError('file is not an OOXML spreadsheet');
   }
-  const preflight = preflightXlsx(bytes);
-  return readSheetJs(bytes, preflight);
+  return readSheetJs(bytes);
 }

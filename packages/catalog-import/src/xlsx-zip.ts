@@ -5,9 +5,10 @@
  * general workbook parser cannot provide: unique OPC names, declared resource
  * ceilings, supported compression, and a CRC pass over every entry.
  *
- * The limits below are the point of this file. The input is a customer-
- * supplied archive, so every one of them is a hard stop rather than a warning:
- * an archive that needs more than these is not a product export.
+ * The limits below are hard acceptance stops rather than warnings. They bound
+ * declared/inflated archive work, but they are not a promise that every future
+ * deployment can process inputs near those ceilings: the worker still needs a
+ * measured memory/deadline admission limit before production is enabled.
  */
 import { Buffer } from 'node:buffer';
 import { inflateRawSync } from 'node:zlib';

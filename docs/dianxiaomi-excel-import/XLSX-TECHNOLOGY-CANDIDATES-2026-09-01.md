@@ -2,9 +2,11 @@
 
 **Research snapshot:** 2026-09-01
 **Status:** SheetJS is the implemented branch choice, based on the controlled local
-spike below. Exact Node 20.19 dependency-empty packaged-artifact cold-start has
-passed locally. This is not production approval: an actual CloudBase smoke remains
-pending because no deployment was authorized.
+spike below. Existing Cloud Function artifacts cold-started in a dependency-empty
+Node 20.19 environment, but their current entry graphs do not reach the XLSX parser;
+that result is not SheetJS packaging evidence. This is not production approval: the
+private import worker and its positive parse smoke do not exist yet, and no deployment
+was authorized.
 **Scope:** the XLSX core behind one shared security boundary and one provider-neutral
 adapter. This document does not compare a naked third-party parser with the hardened
 current reader.
@@ -192,9 +194,9 @@ reason to distort the first migration.
   because the ESM build requires explicit injection for optional filesystem, stream and
   legacy-codepage features. Buffer-based `XLSX.read` may not need those features, but
   that must be proven in the adapter bundle.
-- Channel source is ESM while Cloud Functions are bundled as **CJS targeting Node 20**.
-  This candidate therefore needs two tests: native ESM import in exact Node 22 and a
-  bundled CJS CloudBase artifact.
+- Channel source is ESM while the planned CloudBase Run worker will target Node 20.
+  This candidate therefore needs native ESM parsing in exact Node 22 now and a positive
+  dependency-empty worker parse smoke once that worker entry point exists.
 
 **Spike hypothesis**
 
@@ -305,31 +307,32 @@ The repository currently has three different facts that must not be collapsed in
 single “Node compatible” statement:
 
 1. Root [`package.json`](../../package.json) requires Node `>=22.12.0`.
-2. Function [`tsup.config.ts`](../../apps/functions/admin/tsup.config.ts) targets Node 20
-   and emits CJS.
-3. [`package-functions.mjs`](../../scripts/package-functions.mjs) writes production
+2. Existing Cloud Functions target Node 20 and emit CJS, but the admin entry graph does
+   not expose or import `catalog-import-service.ts`.
+3. [`package-functions.mjs`](../../scripts/package-functions.mjs) writes those existing
    function artifacts with an empty dependency map and copies only `index.js`.
 
-Therefore every production candidate must be **fully bundled** into the admin function.
-Leaving `require('xlsx')`, `require('read-excel-file/node')`, or `require('exceljs')` in
-the artifact will fail after deployment even if local tests pass. The candidate must be
-included in the appropriate `noExternal` configuration, and the artifact smoke must add
-an unresolved-import check for the selected package.
+Therefore the current admin artifact cannot prove parser packaging: absence of a residual
+`require('xlsx')` is vacuous when the entry graph contains no XLSX code. The production
+topology deliberately places parsing in a future private CloudBase Run worker. That
+worker must bundle or install the exact pinned parser and prove the positive behavior by
+parsing a canonical workbook in a dependency-empty image/runtime smoke. The existing
+unresolved-import denylist remains a tripwire, not proof of parser presence.
 
 Required compatibility evidence for each candidate:
 
 - exact Node `22.x` ESM import, parse and adapter tests;
 - repository typecheck with `moduleResolution: bundler` and `verbatimModuleSyntax`;
-- admin tsup CJS build targeting Node 20 with the candidate fully bundled;
-- artifact package has no unresolved parser dependency;
-- cold-start `require('./index.js')` succeeds in a dependency-empty temporary directory;
-- resulting zipped function artifact fits the CloudBase upload limit with margin;
-- actual CloudBase function smoke parses the small canonical fixture after deployment.
+- future worker build targeting Node 20 contains the selected adapter;
+- worker artifact/image has no unresolved parser dependency;
+- dependency-empty worker cold start succeeds and positively parses a canonical fixture;
+- resulting worker image/artifact fits the selected CloudBase Run limits with margin;
+- actual private CloudBase Run smoke parses the same fixture after deployment.
 
 The earlier Node `25.6.1` research result did not satisfy the Node 22 gate. The branch
-adapter has since passed real-workbook local acceptance under Node `22.13.0` and the
-dependency-empty packaged artifacts cold-started under exact Node `20.19.0`. Actual
-CloudBase smoke remains pending because no deployment was authorized.
+adapter has since passed real-workbook local acceptance under Node `22.13.0`. Existing,
+parser-free Cloud Function artifacts also cold-started under exact Node `20.19.0`, but
+that is separate evidence. Worker packaging and actual CloudBase smoke remain pending.
 
 ## Controlled spike matrix
 
@@ -380,7 +383,8 @@ complete production approval. Before a deployed third-party core is approved, it
 2. preserves required lexemes or proves from the real/domain contract that those lexemes
    are never needed;
 3. cannot bypass the shared forbidden-part and resource policy;
-4. passes exact Node 22, Node 20 CJS bundle, artifact and CloudBase smoke gates;
+4. passes exact Node 22 plus the future Node 20 worker build, positive parse, artifact,
+   and CloudBase smoke gates;
 5. has an explicit version/checksum/update-monitoring policy; and
 6. reduces owned OOXML code without moving equivalent undocumented complexity into its
    adapter.
@@ -393,7 +397,7 @@ reassessment.
 ## Pre-spike hypotheses (historical)
 
 1. **SheetJS hypothesis:** best compatibility-to-dependency ratio; likely blocked only if
-   raw numeric lexemes are domain-required or the fully bundled artifact is too large.
+   raw numeric lexemes cannot be preserved or the future worker artifact is too large.
 2. **`read-excel-file` hypothesis:** best narrow-reader fit and cleanest numeric-lexeme
    seam; likely blocked if formula/error semantics or date-source fidelity cannot be made
    fail-closed.
