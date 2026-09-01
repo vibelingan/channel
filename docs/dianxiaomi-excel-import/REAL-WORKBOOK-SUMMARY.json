@@ -1,0 +1,46 @@
+{
+  "generatedAt": "2026-08-31T16:53:12.644Z",
+  "sourceFileSha256": "57b29269f60752efcf0c0f7c3e188b4ff8d80faff82802471049a8f461416582",
+  "sourceByteSize": 101210,
+  "templateId": "dianxiaomi:lazada-global:2e8ba43f7510",
+  "structurallyValid": true,
+  "counts": {
+    "rows": 312,
+    "parentSkus": 77,
+    "skus": 289,
+    "storeProducts": 100,
+    "storeVariants": 312,
+    "stores": 4,
+    "uniqueImageUrls": 452,
+    "imageReferences": 1549,
+    "marketplaceIds": 16,
+    "rowsWithMarketplaceId": 129,
+    "skusInMultipleStores": 23
+  },
+  "candidates": {
+    "products": 77,
+    "variants": 289,
+    "storeListings": 312,
+    "quarantined": 0
+  },
+  "inventory": {
+    "known": 289,
+    "conflict": 0,
+    "unknown": 0
+  },
+  "findingsByCode": {
+    "DESCRIPTION_FALLBACK_STRUCTURED": 71,
+    "DESCRIPTION_PLACEHOLDER": 200,
+    "DESCRIPTION_FALLBACK_SHORT": 130,
+    "DESCRIPTION_HTML_SANITIZED": 161,
+    "PROMOTION_DATE_OPEN_ENDED": 126
+  },
+  "unrecognisedColumnCount": 0,
+  "delta": {
+    "added": 312,
+    "changed": 0,
+    "unchanged": 0,
+    "sourceMissing": 0,
+    "completeSource": true
+  }
+}

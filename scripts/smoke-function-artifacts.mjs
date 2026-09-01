@@ -1,12 +1,14 @@
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FUNCTION_NAMES } from './cloudbase-function-manifest.mjs';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
-const artifactRoot = join(root, '.cloudbase-artifacts', 'functions');
+const artifactRoot = resolve(
+  process.env.CHANNEL_FUNCTION_ARTIFACT_ROOT ?? join(root, '.cloudbase-artifacts', 'functions'),
+);
 const functions = FUNCTION_NAMES;
 
 function assertNoUnresolvedImports(name, indexFile) {
@@ -20,6 +22,7 @@ function assertNoUnresolvedImports(name, indexFile) {
     [/require\(["']nodemailer["']\)/, 'nodemailer require'],
     [/require\(["']hash-wasm["']\)/, 'hash-wasm require'],
     [/require\(["']wx-server-sdk["']\)/, 'wx-server-sdk require'],
+    [/require\(["']xlsx["']\)/, 'xlsx require'],
     [/require\(["']@cloudbase\/node-sdk["']\)/, '@cloudbase/node-sdk require'],
     [/require\(["']json-bigint["']\)/, 'json-bigint require'],
     [/require\(["']protobufjs/, 'protobufjs require'],

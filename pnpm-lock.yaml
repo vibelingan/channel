@@ -29,6 +29,9 @@ importers:
       '@vibelingan-channel/auth':
         specifier: workspace:*
         version: link:../../../packages/auth
+      '@vibelingan-channel/catalog-import':
+        specifier: workspace:*
+        version: link:../../../packages/catalog-import
       '@vibelingan-channel/db':
         specifier: workspace:*
         version: link:../../../packages/db
@@ -41,6 +44,9 @@ importers:
       '@vibelingan-channel/shared':
         specifier: workspace:*
         version: link:../../../packages/shared
+      undici:
+        specifier: ^8.10.0
+        version: 8.10.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -116,6 +122,9 @@ importers:
       '@vibelingan-channel/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@vibelingan-channel/catalog-import':
+        specifier: workspace:*
+        version: link:../../packages/catalog-import
       '@vibelingan-channel/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -232,6 +241,19 @@ importers:
       jose:
         specifier: ^5.9.6
         version: 5.10.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.21
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+
+  packages/catalog-import:
+    dependencies:
+      xlsx:
+        specifier: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
+        version: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
     devDependencies:
       '@types/node':
         specifier: ^22.10.2
@@ -3043,6 +3065,10 @@ packages:
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
+  undici@8.10.0:
+    resolution: {integrity: sha512-HvltHd7avK13QIw/oLe4qoOLyoVSoafqJ2jYOrtMRBkbYT31eiBQ8O0ehRKZiEZCMEyLFQNIADpgCWC5fALvYQ==}
+    engines: {node: '>=22.19.0'}
+
   unified@11.0.5:
     resolution: {integrity: sha512-xKvGhPWw3k84Qjh8bI3ZeJjqnyadK+GEFtazSfZv/rKeTkTjOJho6mFqh2SM96iIcZokxiOpg78GazTSg8+KHA==}
 
@@ -3336,6 +3362,12 @@ packages:
 
   wx-server-sdk@4.0.2:
     resolution: {integrity: sha512-dgpgWxYvOFWnQdGOb78sU+uQGELoEQSKzmJ7m8Y6eTCJKsfkdIHLMhRrdN5S5oDfAqr8Pc83jZKQeNRMZASIcg==}
+
+  xlsx@https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz:
+    resolution: {integrity: sha512-oLDq3jw7AcLqKWH2AhCpVTZl8mf6X2YReP+Neh0SJUzV/BdZYjth94tG5toiMB1PPrYtxOCfaoUCkvtuH+3AJA==, tarball: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz}
+    version: 0.20.3
+    engines: {node: '>=0.8'}
+    hasBin: true
 
   xml2js@0.6.2:
     resolution: {integrity: sha512-T4rieHaC1EXcES0Kxxj4JWgaUQHDk+qwHcYOCFHfiwKz7tOVPLq7Hjq9dM1WCMhylqMEfP7hMcOIChvotiZegA==}
@@ -6378,6 +6410,8 @@ snapshots:
 
   undici-types@7.18.2: {}
 
+  undici@8.10.0: {}
+
   unified@11.0.5:
     dependencies:
       '@types/unist': 3.0.3
@@ -6627,6 +6661,8 @@ snapshots:
       - debug
       - supports-color
       - ws
+
+  xlsx@https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz: {}
 
   xml2js@0.6.2:
     dependencies:

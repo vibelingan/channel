@@ -8,7 +8,12 @@
  * it can un-set live env vars.
  */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   ALIBABA_SYNC_TIMER,
   DESIRED_TIMER_TRIGGERS,
@@ -17,6 +22,22 @@ import {
   desiredTriggersFor,
   envEntries,
 } from './cloudbase-function-manifest.mjs';
+
+const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
+
+function run(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: root,
+    encoding: 'utf8',
+    ...options,
+  });
+  assert.equal(
+    result.status,
+    0,
+    `${command} ${args.join(' ')} failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+  );
+  return result;
+}
 
 const requireEnvFixture = (name) => {
   const values = {
@@ -144,4 +165,31 @@ test('the 15-minute tick stays DECLARED so enabling it is one edit', () => {
 
 test('envEntries drops undefined and keeps empty strings', () => {
   assert.deepEqual(envEntries({ a: '1', b: undefined, c: '' }), { a: '1', c: '' });
+});
+
+test('artifact smoke rejects a residual xlsx import before cold start', () => {
+  run('pnpm', ['build:functions']);
+  run(process.execPath, ['scripts/package-functions.mjs']);
+
+  const sourceArtifactRoot = join(root, '.cloudbase-artifacts', 'functions');
+  const tempRoot = mkdtempSync(join(tmpdir(), 'channel-function-artifacts-'));
+  const copiedArtifactRoot = join(tempRoot, 'functions');
+  cpSync(sourceArtifactRoot, copiedArtifactRoot, { recursive: true });
+  const indexFile = join(copiedArtifactRoot, 'admin', 'index.js');
+  try {
+    writeFileSync(indexFile, "require('xlsx');\nexports.main = () => {};\n", 'utf8');
+    const smoke = spawnSync(process.execPath, ['scripts/smoke-function-artifacts.mjs'], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, CHANNEL_FUNCTION_ARTIFACT_ROOT: copiedArtifactRoot },
+    });
+    assert.notEqual(smoke.status, 0, 'the deliberately broken artifact must fail smoke');
+    assert.match(
+      `${smoke.stdout}\n${smoke.stderr}`,
+      /admin artifact still contains xlsx require/,
+      'the static unresolved-import check must report xlsx before cold start',
+    );
+  } finally {
+    rmSync(tempRoot, { force: true, recursive: true });
+  }
 });
