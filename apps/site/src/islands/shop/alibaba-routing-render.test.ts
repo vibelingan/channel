@@ -36,8 +36,6 @@ const LIST: HeadphonesContent['list'] = {
   resultProgressLabel: 'Showing {shown} of {total}',
   categories: [{ key: 'all', label: 'All' }],
   wholesaleLabel: 'Wholesale',
-  vipLabel: 'VIP',
-  vipLockedLabel: 'Sign in',
   viewDetail: 'View details',
   moqLabel: 'MOQ',
 };
@@ -51,8 +49,6 @@ const DETAIL: HeadphonesContent['detail'] = {
   moqLabel: 'Minimum Order Quantity',
   unitPriceLabel: 'Unit price',
   wholesaleLabel: 'Wholesale price',
-  vipLabel: 'VIP price',
-  vipLockedLabel: 'Sign in to view VIP price',
   inquiryCta: 'Price inquiry',
   oemInquiryCta: 'Start Your OEM Enquiry',
   viewAllLabel: 'View All',
@@ -74,13 +70,12 @@ const renderCard = (product: Product): string =>
     }),
   );
 
-const renderDetail = (product: Product, registered = false): string =>
+const renderDetail = (product: Product): string =>
   renderToStaticMarkup(
     createElement(HeadphonesProductDetail, {
       product,
       detail: DETAIL,
       categoryLabel: 'True Wireless',
-      registered,
       onBack: () => {},
     }),
   );
@@ -94,10 +89,9 @@ test('MATRIX unlinked: card and detail render the legacy pricing surfaces unchan
   assert.ok(card.includes('<strong>1000</strong>'));
   assert.ok(!card.includes('data-alibaba'), 'no alibaba markup on legacy cards');
 
-  const detail = renderDetail(legacyProduct(), true);
-  assert.ok(detail.includes('$18.90'), 'spec-sheet unit price');
-  assert.ok(detail.includes('$15.50'), 'wholesale via PriceBlock');
-  assert.ok(detail.includes('$13.20'), 'vip for registered viewer');
+  const detail = renderDetail(legacyProduct());
+  assert.ok(detail.includes('$15.50'), 'public wholesale price');
+  assert.ok(!detail.includes('$13.20'), 'VIP is never presented');
   assert.ok(!detail.includes('data-alibaba'), 'no alibaba markup on legacy detail');
 });
 
@@ -120,7 +114,7 @@ test('MATRIX linked+priced: every legacy price surface is replaced by the Alibab
   assert.ok(!card.includes('$18.90'), 'legacy unit price never renders');
   assert.ok(!card.includes('<strong>1000</strong>'), 'legacy moq never renders');
 
-  const detail = renderDetail(product, true);
+  const detail = renderDetail(product);
   assert.ok(detail.includes('data-alibaba-pricing'));
   assert.ok(detail.includes('$2.50'));
   assert.ok(detail.includes('data-alibaba-source-moq'));
@@ -146,7 +140,7 @@ test('MATRIX linked+missing: quote-required state renders and legacy values stay
   // marker renders where the price would.
   assert.ok(card.includes('data-alibaba-card-unavailable'), 'card renders the unavailable label');
 
-  const detail = renderDetail(product, true);
+  const detail = renderDetail(product);
   assert.ok(detail.includes('data-alibaba-unavailable'), 'quote-required state renders');
   assert.ok(!detail.includes('$18.90'));
   assert.ok(!detail.includes('$15.50'));

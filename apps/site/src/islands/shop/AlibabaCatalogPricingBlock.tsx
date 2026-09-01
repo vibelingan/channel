@@ -11,6 +11,7 @@
  * headphones i18n content grows an alibaba group (typed-content follow-up).
  */
 import type { ReactNode } from 'react';
+import { validAlibabaTiers, validMinorAmount } from './catalog-pricing.ts';
 import type { AlibabaCatalogPricing } from './catalog-types.ts';
 
 export interface AlibabaPricingLabels {
@@ -51,16 +52,18 @@ export function alibabaPriceSummary(pricing: AlibabaCatalogPricing | undefined):
   if (!pricing || !pricing.currency) return null;
   switch (pricing.mode) {
     case 'fixed':
-      return pricing.amountMinor !== undefined
+      return validMinorAmount(pricing.amountMinor)
         ? formatMinorAmount(pricing.amountMinor, pricing.currency)
         : null;
     case 'range':
-      return pricing.minAmountMinor !== undefined && pricing.maxAmountMinor !== undefined
+      return validMinorAmount(pricing.minAmountMinor) &&
+        validMinorAmount(pricing.maxAmountMinor) &&
+        pricing.maxAmountMinor >= pricing.minAmountMinor
         ? `${formatMinorAmount(pricing.minAmountMinor, pricing.currency)} – ${formatMinorAmount(pricing.maxAmountMinor, pricing.currency)}`
         : null;
     case 'tiered': {
       const amounts = (pricing.tiers ?? []).map((tier) => tier.unitAmountMinor);
-      if (amounts.length === 0) return null;
+      if (!validAlibabaTiers(pricing)) return null;
       return `From ${formatMinorAmount(Math.min(...amounts), pricing.currency)}`;
     }
     default:
@@ -81,7 +84,7 @@ export function AlibabaCatalogPricingBlock({ pricing, labels, size = 'sm' }: Pro
   const currency = pricing?.currency;
 
   let bodyContent: ReactNode;
-  if (mode === 'fixed' && pricing?.amountMinor !== undefined && currency) {
+  if (mode === 'fixed' && validMinorAmount(pricing?.amountMinor) && currency) {
     bodyContent = (
       <p className={`font-display font-bold text-brand-700 ${priceClass}`} data-alibaba-amount>
         {formatMinorAmount(pricing.amountMinor, currency)}
@@ -89,8 +92,9 @@ export function AlibabaCatalogPricingBlock({ pricing, labels, size = 'sm' }: Pro
     );
   } else if (
     mode === 'range' &&
-    pricing?.minAmountMinor !== undefined &&
-    pricing?.maxAmountMinor !== undefined &&
+    validMinorAmount(pricing?.minAmountMinor) &&
+    validMinorAmount(pricing?.maxAmountMinor) &&
+    pricing.maxAmountMinor >= pricing.minAmountMinor &&
     currency
   ) {
     bodyContent = (
@@ -100,7 +104,7 @@ export function AlibabaCatalogPricingBlock({ pricing, labels, size = 'sm' }: Pro
         {formatMinorAmount(pricing.maxAmountMinor, currency)}
       </p>
     );
-  } else if (mode === 'tiered' && (pricing?.tiers?.length ?? 0) > 0 && currency) {
+  } else if (mode === 'tiered' && pricing !== undefined && validAlibabaTiers(pricing) && currency) {
     bodyContent = (
       <table className="w-full text-sm" data-alibaba-tiers>
         <thead>

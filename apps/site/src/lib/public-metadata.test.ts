@@ -6,6 +6,7 @@ import { parse } from '@astrojs/compiler';
 import type { Node as AstroNode, ComponentNode } from '@astrojs/compiler/types';
 import ts from 'typescript';
 import { parseDocument } from 'yaml';
+import { includeInSitemap, isSitemapPathIncluded } from '../../astro.config.ts';
 
 const read = (relativePath: string) =>
   readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8');
@@ -28,6 +29,8 @@ const parseFrontmatter = (relativePath: string) => {
   return document.toJS() as {
     brand?: { name: string };
     meta?: { title: string; description: string };
+    hub?: { seoTitle: string; seoDescription: string };
+    families?: Array<{ key: string; seoTitle: string; seoDescription: string }>;
   };
 };
 
@@ -117,29 +120,46 @@ const assertBaseLayoutBindings = async (
   });
 };
 
+const routablePageFiles = (relativeDirectory = '../pages', prefix = ''): string[] => {
+  const directory = fileURLToPath(new URL(relativeDirectory, import.meta.url));
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const relativePath = `${prefix}${entry.name}`;
+    if (entry.isDirectory()) {
+      if (entry.name.startsWith('_')) return [];
+      return routablePageFiles(`${relativeDirectory}/${entry.name}`, `${relativePath}/`);
+    }
+    return entry.name.endsWith('.astro') && !entry.name.startsWith('_') ? [relativePath] : [];
+  });
+};
+
 test('public pages keep dedicated SEO metadata within review limits', async () => {
-  const routableTopLevelPages = readdirSync(fileURLToPath(new URL('../pages', import.meta.url)))
-    .filter((fileName) => fileName.endsWith('.astro') && !fileName.startsWith('_'))
+  const routablePublicPages = routablePageFiles()
     .filter((fileName) => !noindexTopLevelPages.has(fileName))
     .sort();
-  assert.deepEqual(routableTopLevelPages, [
-    'headphones.astro',
-    'index.astro',
-    'oem.astro',
-    'portfolio.astro',
-  ]);
 
   const site = parseFrontmatter('../i18n/content/en-US.md');
   const oem = parseFrontmatter('../i18n/content/oem/en-US.md');
   const portfolio = parseFrontmatter('../i18n/content/portfolio/en-US.md');
+  const catalog = parseFrontmatter('../i18n/content/catalog/en-US.md');
   assert.ok(site.brand);
   assert.ok(oem.meta);
   assert.ok(portfolio.meta);
+  assert.ok(catalog.hub);
+  assert.ok(catalog.families);
   assert.ok(oem.meta.title.trim());
   assert.ok(oem.meta.description.trim());
   assert.ok(portfolio.meta.title.trim());
   assert.ok(portfolio.meta.description.trim());
   const brandName = site.brand.name;
+  const familyMetadata = new Map(catalog.families.map((family) => [family.key, family]));
+  const headphones = familyMetadata.get('headphones');
+  const aiGadgets = familyMetadata.get('ai-gadgets');
+  const toys = familyMetadata.get('toys');
+  const misc = familyMetadata.get('misc');
+  assert.ok(headphones);
+  assert.ok(aiGadgets);
+  assert.ok(toys);
+  assert.ok(misc);
 
   const metadata = [
     {
@@ -158,9 +178,40 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
     },
     {
       name: 'headphones',
-      ...extractPageMetadata('../pages/headphones.astro', brandName),
+      title: `${headphones.seoTitle} | ${brandName}`,
+      description: headphones.seoDescription,
+    },
+    {
+      name: 'electronics-toys',
+      title: `${catalog.hub.seoTitle} | ${brandName}`,
+      description: catalog.hub.seoDescription,
+    },
+    {
+      name: 'ai-gadgets',
+      title: `${aiGadgets.seoTitle} | ${brandName}`,
+      description: aiGadgets.seoDescription,
+    },
+    {
+      name: 'toys',
+      title: `${toys.seoTitle} | ${brandName}`,
+      description: toys.seoDescription,
+    },
+    {
+      name: 'misc',
+      title: `${misc.seoTitle} | ${brandName}`,
+      description: misc.seoDescription,
+    },
+    {
+      name: 'products/item',
+      ...extractPageMetadata('../pages/products/item.astro', brandName),
     },
   ];
+
+  assert.deepEqual(
+    metadata.map(({ name }) => `${name === 'home' ? 'index' : name}.astro`).sort(),
+    routablePublicPages,
+    'every discovered public route has audited metadata',
+  );
 
   for (const { name, title, description } of metadata) {
     assert.ok(title.length <= 60, `${name} title is ${title.length} characters`);
@@ -179,6 +230,26 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
       title: 'seoTitle',
       description: 'seoDescription',
     }),
+    assertBaseLayoutBindings('../pages/electronics-toys.astro', {
+      title: 'seoTitle',
+      description: 'seoDescription',
+    }),
+    assertBaseLayoutBindings('../pages/ai-gadgets.astro', {
+      title: 'seoTitle',
+      description: 'seoDescription',
+    }),
+    assertBaseLayoutBindings('../pages/toys.astro', {
+      title: 'seoTitle',
+      description: 'seoDescription',
+    }),
+    assertBaseLayoutBindings('../pages/misc.astro', {
+      title: 'seoTitle',
+      description: 'seoDescription',
+    }),
+    assertBaseLayoutBindings('../pages/products/item.astro', {
+      title: 'seoTitle',
+      description: 'seoDescription',
+    }),
     assertBaseLayoutBindings('../pages/oem.astro', {
       title: '`${meta.title} — ${brand.name}`',
       description: 'meta.description',
@@ -188,4 +259,24 @@ test('public pages keep dedicated SEO metadata within review limits', async () =
       description: 'meta.description',
     }),
   ]);
+});
+
+test('sitemap follows published catalog content and excludes private routes', () => {
+  for (const path of ['/electronics-toys/', '/headphones/', '/ai-gadgets/', '/toys/', '/misc/']) {
+    assert.equal(includeInSitemap(`https://example.test${path}`), true, path);
+  }
+  for (const path of ['/admin/', '/login/', '/register/', '/products/item/', '/success-stories/']) {
+    assert.equal(includeInSitemap(`https://example.test${path}`), false, path);
+  }
+  assert.equal(
+    isSitemapPathIncluded('/misc', new Set(['/headphones', '/ai-gadgets', '/toys'])),
+    false,
+    'known family absent from published catalog content is excluded',
+  );
+});
+
+test('dynamic SKU shell stays noindex-follow until product metadata is server-rendered', () => {
+  const source = read('../pages/products/item.astro');
+  assert.match(source, /robots="noindex,follow"/);
+  assert.doesNotMatch(source, /schemaNodes|['"]@type['"]\s*:\s*['"](?:Product|Offer)['"]/);
 });

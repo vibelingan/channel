@@ -64,6 +64,7 @@ import {
   OEM_UPLOAD_RATE_WINDOW_MS,
   PASSWORD_RESET_SWEEP_LIMIT,
   PASSWORD_RESET_TTL_MS,
+  PRODUCT_FAMILY_OPTIONS,
   PUBLIC_CATALOG_COLLECTIONS,
   PUBLIC_RATE_WINDOW_MS,
   RATE_LIMIT_HITS_SWEEP_LIMIT,
@@ -77,6 +78,7 @@ import {
   SUBMIT_PROJECT_RATE_MAX_PER_SOURCE,
   SYSTEM_FIELDS,
   adminVisibleCollections,
+  buildWriteSchema,
   canEditCollection,
   canEditRegisteredCollection,
   canReadCollection,
@@ -100,6 +102,11 @@ import {
 } from '@vibelingan-channel/shared';
 import { releaseInfo } from '@vibelingan-channel/shared/release';
 import { z } from 'zod';
+import {
+  CatalogProductWriteError,
+  createCatalogProductRecord,
+  updateCatalogProductRecord,
+} from './catalog-product-identities.ts';
 
 export interface AdminConfig {
   jwtSecret: string;
@@ -188,6 +195,7 @@ const sortClauseSchema = z.object({
 });
 const listSchema = z.object({
   collection: z.string(),
+  productFamily: z.enum(PRODUCT_FAMILY_OPTIONS).optional(),
   page: z.number().int().positive().default(1),
   pageSize: z.number().int().positive().max(100).default(20),
   search: z.string().max(200).default(''),
@@ -579,6 +587,13 @@ export async function handleAdminRequest(
     }
   } catch (e) {
     if (e instanceof UnknownCollectionError) return err('UNKNOWN_COLLECTION', e.message);
+    if (e instanceof CatalogProductWriteError) {
+      if (e.code === 'IDENTITY_CONFLICT' || e.code === 'PRODUCT_EXISTS') {
+        return err('CONFLICT', e.message);
+      }
+      if (e.code === 'PRODUCT_NOT_FOUND') return err('NOT_FOUND', e.message);
+      return err('VALIDATION_ERROR', e.message);
+    }
     if (e instanceof z.ZodError) {
       return err('VALIDATION_ERROR', e.issues.map((i) => i.message).join('; '));
     }
@@ -1237,11 +1252,15 @@ async function listAction(req: AdminRequest, claims: SessionClaims): Promise<Api
   if (!canReadRegisteredCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have access to this collection.');
   }
-  const { filter, sort, ...rest } = parsed.data;
+  if (parsed.data.productFamily && parsed.data.collection !== 'products') {
+    return err('BAD_REQUEST', 'Product family filtering is only available for products.');
+  }
+  const { filter, productFamily, sort, ...rest } = parsed.data;
   const badClause = validateQueryClauses(parsed.data.collection, filter, sort);
   if (badClause) return badClause;
   const result = await list({
     ...rest,
+    ...(productFamily ? { productFamily } : {}),
     ...(filter ? { filter } : {}),
     ...(sort ? { sort } : {}),
   });
@@ -1563,9 +1582,23 @@ async function createAction(req: AdminRequest, claims: SessionClaims): Promise<A
   );
   if (locks.error) return locks.error;
   try {
-    const doc = await create(parsed.data.collection, parsed.data.values);
+    let doc: CollectionDoc;
+    let authoritativeBefore: CollectionDoc | null = null;
+    if (parsed.data.collection === 'products') {
+      const definition = getCollection('products');
+      if (!definition) return err('UNKNOWN_COLLECTION', 'Unknown collection: products');
+      if (Object.hasOwn(parsed.data.values, 'vipPrice')) {
+        return err('VALIDATION_ERROR', 'VIP price is deprecated and cannot be changed.');
+      }
+      const values = buildWriteSchema(definition).parse(parsed.data.values);
+      const transition = await createCatalogProductRecord(values);
+      doc = transition.doc;
+      authoritativeBefore = transition.previous;
+    } else {
+      doc = await create(parsed.data.collection, parsed.data.values);
+    }
     if (tracksImageVisibility(parsed.data.collection)) {
-      await applyImageVisibilityDelta(null, doc);
+      await applyImageVisibilityDelta(authoritativeBefore, doc);
     }
     return ok(redact(parsed.data.collection, doc));
   } finally {
@@ -1581,6 +1614,9 @@ async function updateAction(req: AdminRequest, claims: SessionClaims): Promise<A
   }
   const tracks = tracksImageVisibility(parsed.data.collection);
   const before = tracks ? await get(parsed.data.collection, parsed.data.id) : null;
+  if (parsed.data.collection === 'products' && !before) {
+    return err('NOT_FOUND', 'Document not found');
+  }
   const changesImageIds =
     collectionUsesImageIds(parsed.data.collection) && Object.hasOwn(parsed.data.values, 'imageIds');
   const locks = await acquireImageReferenceLocks(
@@ -1588,9 +1624,28 @@ async function updateAction(req: AdminRequest, claims: SessionClaims): Promise<A
   );
   if (locks.error) return locks.error;
   try {
-    const doc = await update(parsed.data.collection, parsed.data.id, parsed.data.values);
+    let doc: CollectionDoc | null;
+    let authoritativeBefore = before;
+    if (parsed.data.collection === 'products') {
+      const definition = getCollection('products');
+      if (!definition) return err('UNKNOWN_COLLECTION', 'Unknown collection: products');
+      if (Object.hasOwn(parsed.data.values, 'vipPrice')) {
+        return err('VALIDATION_ERROR', 'VIP price is deprecated and cannot be changed.');
+      }
+      const clearsManualPricing = parsed.data.values.manualCatalogPricing === null;
+      const { manualCatalogPricing: _clearCommand, ...productValuesWithoutPricing } =
+        parsed.data.values;
+      const productValues = clearsManualPricing ? productValuesWithoutPricing : parsed.data.values;
+      const values = buildWriteSchema(definition).partial().parse(productValues);
+      if (clearsManualPricing) values.manualCatalogPricing = '';
+      const transition = await updateCatalogProductRecord(parsed.data.id, values);
+      doc = transition.doc;
+      authoritativeBefore = transition.previous;
+    } else {
+      doc = await update(parsed.data.collection, parsed.data.id, parsed.data.values);
+    }
     if (!doc) return err('NOT_FOUND', 'Document not found');
-    if (tracks) await applyImageVisibilityDelta(before, doc);
+    if (tracks) await applyImageVisibilityDelta(authoritativeBefore, doc);
     return ok(redact(parsed.data.collection, doc));
   } finally {
     await releaseImageReferenceLocks(locks.imageIds, locks.owner);
@@ -1605,6 +1660,9 @@ async function removeAction(req: AdminRequest, claims: SessionClaims): Promise<A
   }
   if (parsed.data.collection === 'images') {
     return err('BAD_REQUEST', 'Images must be removed through abandonUpload.');
+  }
+  if (parsed.data.collection === 'products') {
+    return err('BAD_REQUEST', 'Products must be archived instead of deleted.');
   }
   const tracks = tracksImageVisibility(parsed.data.collection);
   const before = tracks ? await get(parsed.data.collection, parsed.data.id) : null;
@@ -1624,6 +1682,9 @@ async function batchUpdateAction(
   if (unknown) return unknown;
   if (!canEditRegisteredCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have permission to modify this collection.');
+  }
+  if (parsed.data.collection === 'products') {
+    return err('BAD_REQUEST', 'Products must be updated individually.');
   }
   const tracks = tracksImageVisibility(parsed.data.collection);
   // Capture before-states once per unique id (a duplicate id must not double
@@ -1673,6 +1734,9 @@ async function batchRemoveAction(
   }
   if (parsed.data.collection === 'images') {
     return err('BAD_REQUEST', 'Images cannot be removed through batchRemove.');
+  }
+  if (parsed.data.collection === 'products') {
+    return err('BAD_REQUEST', 'Products must be archived instead of deleted.');
   }
   const tracks = tracksImageVisibility(parsed.data.collection);
   // Capture before-states per unique id, then decrement only for ids this call

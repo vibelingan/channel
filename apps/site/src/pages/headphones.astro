@@ -1,16 +1,20 @@
 ---
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
+import { getCatalogContent, getCatalogFamily } from '../i18n/catalog.ts';
 import { getHeadphonesContent } from '../i18n/headphones.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
-import { HeadphonesPage } from '../islands/shop/HeadphonesPage.tsx';
+import { CatalogFamilyPage } from '../islands/shop/CatalogFamilyPage.tsx';
 import { ProductMedia } from '../islands/shop/ProductMedia.tsx';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { apiMediaUrl } from '../lib/api-url.ts';
+import { catalogBreadcrumbSchema, familyBreadcrumbs } from '../lib/catalog-seo.ts';
 import { OEM_INQUIRY_HREF } from '../lib/site-navigation.ts';
 
 const site = getSiteContent(DEFAULT_LOCALE);
 const hp = getHeadphonesContent(DEFAULT_LOCALE);
+const catalog = getCatalogContent(DEFAULT_LOCALE);
+const family = getCatalogFamily('headphones', DEFAULT_LOCALE);
 const { brand, nav, footer } = site;
 
 // The reviewed hero provenance: three gated 800x800 product images, tried in
@@ -19,15 +23,23 @@ const { brand, nav, footer } = site;
 const heroSources = hp.hero.sources.map((source) => apiMediaUrl(`/api/images/${source.imageId}`));
 
 // SEO metadata
-const seoTitle = `OEM Headphone Manufacturer | ${brand.name}`;
-const seoDescription =
-  'OEM headphone manufacturer in Dongguan for wired, Bluetooth, over-ear, and kid-safe models. MOQ from 500 units, OEM/ODM customization, and global delivery.';
+const seoTitle = `${family.seoTitle} | ${brand.name}`;
+const seoDescription = family.seoDescription;
+const breadcrumbs = familyBreadcrumbs(family.heading, family.href);
+const schemaNodes = [catalogBreadcrumbSchema(breadcrumbs, Astro.site ?? Astro.url.origin)];
 ---
 
-<BaseLayout title={seoTitle} description={seoDescription} lang="en" canonicalPath="/headphones/">
+<BaseLayout title={seoTitle} description={seoDescription} lang="en" canonicalPath="/headphones/" schemaNodes={schemaNodes}>
   <SiteHeader brand={brand} nav={nav} />
 
   <main>
+    <nav aria-label="Breadcrumb" class="mx-auto max-w-[var(--width-container)] px-4 py-4 text-sm text-ink-muted sm:px-6 lg:px-8">
+      {breadcrumbs.map((breadcrumb, index) => (
+        index < breadcrumbs.length - 1 ? (
+          <><a href={breadcrumb.href} class="hover:text-brand-700">{breadcrumb.label}</a><span class="px-2" aria-hidden="true">/</span></>
+        ) : <span aria-current="page">{breadcrumb.label}</span>
+      ))}
+    </nav>
     <!-- ===== Hero: real gated product media, 55/45 unframed on desktop,
          media before the proof/CTA row on mobile ===== -->
     <section class="relative overflow-hidden bg-gradient-to-br from-brand-950 via-brand-900 to-brand-800 text-white">
@@ -48,7 +60,10 @@ const seoDescription =
             <p class="text-sm font-semibold uppercase tracking-[0.15em] text-accent-300">
               {hp.hero.eyebrow}
             </p>
-            <h1 class="mt-4 font-display text-[34px] font-bold leading-tight sm:text-5xl">
+            <h1
+              data-catalog-heading
+              class="mt-4 font-display text-[34px] font-bold leading-tight sm:text-5xl"
+            >
               {hp.hero.heading}
             </h1>
             <p class="mt-6 max-w-xl text-lg leading-relaxed text-slate-300">
@@ -155,8 +170,39 @@ const seoDescription =
           </p>
         </div>
       </noscript>
-      <HeadphonesPage content={hp} client:load />
+      <div class="mx-auto max-w-[var(--width-container)] px-4 py-12 sm:px-6 lg:px-8">
+        <CatalogFamilyPage content={catalog} family={family} client:load />
+      </div>
     </div>
+
+    <section
+      id="headphones-inquiry"
+      class="border-t border-slate-200 bg-surface-alt py-16 sm:py-20"
+    >
+      <div class="mx-auto max-w-2xl px-4 text-center sm:px-6 lg:px-8">
+        <p class="text-sm font-semibold uppercase tracking-[0.15em] text-brand-600">
+          {hp.oemCta.eyebrow}
+        </p>
+        <h2 class="mt-4 font-display text-3xl font-bold text-ink sm:text-4xl">
+          {hp.oemCta.heading}
+        </h2>
+        <p class="mt-4 text-lg leading-relaxed text-ink-soft">{hp.oemCta.body}</p>
+        <div class="mt-8 flex flex-wrap justify-center gap-4">
+          <a
+            href={OEM_INQUIRY_HREF}
+            class="inline-flex min-h-11 items-center justify-center rounded-lg bg-accent-500 px-7 py-3.5 text-base font-semibold text-brand-950 shadow-sm transition hover:bg-accent-400"
+          >
+            {hp.oemCta.primaryLabel}
+          </a>
+          <a
+            href="/oem"
+            class="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-7 py-3.5 text-base font-semibold text-ink transition hover:border-brand-300 hover:text-brand-700"
+          >
+            {hp.oemCta.secondaryLabel}
+          </a>
+        </div>
+      </div>
+    </section>
 
   </main>
 

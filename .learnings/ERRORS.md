@@ -1,5 +1,139 @@
 # Resolved Errors
 
+## [ERR-20260821-002] WebKit project assumed but not configured
+
+**Logged**: 2026-08-21T13:27:00Z
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+
+A final validation command selected `--project=webkit`, but `playwright.config.ts` exposes only the
+`chromium` project.
+
+### Resolution
+
+Read the configuration, did not retry an invented environment switch, and corrected the handoff so
+historical WebKit results are not presented as final-code evidence.
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: `playwright.config.ts`, `docs/form-select-refactor/progress.md`
+- Source: error
+
+---
+
+## [ERR-20260821-001] independent review provider capacity
+
+**Logged**: 2026-08-21T13:15:00Z
+**Priority**: low
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+
+The first independent review agent failed before producing a result because its upstream provider
+was at capacity.
+
+### Resolution
+
+Retried with the dedicated review agent, which completed and found actionable regressions before
+delivery.
+
+### Metadata
+
+- Reproducible: unknown
+- Related Files: `apps/site/src/components/form/Select.tsx`
+- Source: error
+
+---
+
+## [ERR-20260820-002] push command blessed SHA from wrong persistent cwd
+
+**Logged**: 2026-08-20T04:18:00-07:00
+**Priority**: high
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+
+The push reached the correct remote ref but the persistent terminal had drifted to the main checkout, so `.last-reviewed-sha` was written from an unrelated branch.
+
+### Resolution
+
+Re-entered the absolute feature worktree, rewrote the marker from its HEAD, and verified local HEAD, remote-tracking HEAD, and blessed SHA all equal `9c380360a4bfdad62875ee94825ec937e6784f9c`.
+
+### Suggested Fix
+
+Every bless/push command must begin with an absolute `cd` and assert `$PWD`, even when the immediately preceding command ran in the intended worktree.
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: `.claude/.last-reviewed-sha`
+- Source: error
+
+---
+
+## [ERR-20260820-001] ripgrep unavailable in linked worktree terminal
+
+**Logged**: 2026-08-20T03:12:00-07:00
+**Priority**: low
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+
+The linked worktree terminal could not resolve `rg` even though repository searches were needed.
+
+### Resolution
+
+Used a narrowly scoped recursive `grep` over the intended source extensions and retained the absolute-worktree guard.
+
+### Metadata
+
+- Reproducible: environment-dependent
+- Related Files: `apps/site/src/`
+- Source: error
+
+---
+
+## [ERR-20260726-001] Playwright reused another checkout's server
+
+**Logged**: 2026-07-26T01:50:00-07:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+
+A focused E2E test targeted the default localhost port, which was occupied by a server from another checkout and returned a misleading 404.
+
+### Error
+
+```text
+404: Not Found — Path: /electronics-toys/
+```
+
+### Context
+
+- The Playwright config defaults to `http://localhost:4321` and does not own a web server.
+- The active server on that port served a different checkout without the new route.
+
+### Suggested Fix
+
+Start the intended worktree's server on an isolated port and set `E2E_SITE_URL` explicitly for focused browser runs.
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: `playwright.config.ts`, `tests/e2e/catalog-hub.spec.ts`
+- Source: error
+
+---
+
 ## [ERR-20260729-002] worktree-playwright-module-resolution
 
 **Logged**: 2026-07-29T12:00:00Z

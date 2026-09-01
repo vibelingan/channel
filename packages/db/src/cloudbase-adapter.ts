@@ -1,10 +1,12 @@
 import * as cloudbase from '@cloudbase/node-sdk';
 import type { CloudBase } from '@cloudbase/node-sdk';
 import {
+  LEGACY_HEADPHONES_CATEGORY_OPTIONS,
   type CollectionDoc,
   type FilterClause,
   type ListResult,
   getCollection,
+  isProductFamily,
 } from '@vibelingan-channel/shared';
 /**
  * CloudBase (wx-server-sdk) implementation of `DbAdapter`.
@@ -15,6 +17,7 @@ import {
 import cloud from 'wx-server-sdk';
 import type {
   AlibabaLeaseGrant,
+  CatalogProductSaveResult,
   DbAdapter,
   ImageMutationAcquireResult,
   ImageMutationReleaseResult,
@@ -22,6 +25,7 @@ import type {
 import {
   ALIBABA_SYNC_LEASE_COLLECTION,
   holdsAlibabaLease,
+  planCatalogProductSave,
   transitionAlibabaLeaseAcquire,
   transitionAlibabaLeaseRelease,
   transitionAlibabaLeaseRenew,
@@ -68,6 +72,7 @@ interface WxCommand {
   lte(value: unknown): unknown;
   in(values: unknown[]): unknown;
   nin(values: unknown[]): unknown;
+  exists(value: boolean): unknown;
   /**
    * Update command: replace a field WHOLESALE instead of the default
    * dot-path merge. Present on the installed wx-server-sdk 4.0.2 command
@@ -101,6 +106,7 @@ interface NodeSdkTransaction {
        * scripts/verify-cloudbase-sdk-contract.mjs.
        */
       set(data: Record<string, unknown>): Promise<{ updated?: number }>;
+      remove(): Promise<{ deleted?: number }>;
     };
   };
 }
@@ -164,6 +170,16 @@ export const cloudBaseAdapter: DbAdapter = {
     const _ = db.command;
 
     const ands: Record<string, unknown>[] = [];
+
+    if (query.productFamily) {
+      ands.push(
+        clauseToWhere(db, _, {
+          field: 'productFamily',
+          op: 'matchesProductFamily',
+          value: query.productFamily,
+        }) ?? { _id: _.exists(false) },
+      );
+    }
 
     // Free-text search across the collection's searchable fields.
     if (query.search && def && def.searchableFields.length > 0) {
@@ -331,6 +347,79 @@ export const cloudBaseAdapter: DbAdapter = {
     });
   },
 
+  async removeDocIfFieldEquals(collection, id, field, expectedValue): Promise<boolean> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection(collection).doc(id);
+      const got = await ref.get();
+      const existing = normalizeSingle(got.data);
+      if (!existing || existing[field] !== expectedValue) return false;
+      const removed = await ref.remove();
+      return (removed.deleted ?? 0) > 0;
+    });
+  },
+
+  async saveCatalogProductWithIdentities(input): Promise<CatalogProductSaveResult> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const productRef = transaction.collection('products').doc(input.productId);
+      const existing = normalizeSingle((await productRef.get()).data);
+      const now = new Date().toISOString();
+      const plan = planCatalogProductSave(existing, input, now);
+      if (plan.result !== 'ready') return plan;
+
+      const identityById = new Map<string, CollectionDoc | null>();
+      for (const identity of [...plan.identities, ...plan.staleIdentities]) {
+        if (!identityById.has(identity.id)) {
+          const ref = transaction.collection('catalogProductIdentities').doc(identity.id);
+          identityById.set(identity.id, normalizeSingle((await ref.get()).data));
+        }
+      }
+      for (const identity of plan.identities) {
+        const existingIdentity = identityById.get(identity.id);
+        if (
+          existingIdentity &&
+          (existingIdentity.productId !== input.productId ||
+            existingIdentity.kind !== identity.kind ||
+            existingIdentity.normalizedValue !== identity.normalizedValue)
+        ) {
+          return {
+            result: 'conflict',
+            kind: identity.kind,
+            normalizedValue: identity.normalizedValue,
+          };
+        }
+      }
+
+      for (const identity of plan.identities) {
+        if (!identityById.get(identity.id)) {
+          await transaction.collection('catalogProductIdentities').doc(identity.id).set({
+            kind: identity.kind,
+            normalizedValue: identity.normalizedValue,
+            productId: input.productId,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+      }
+      const { _id, ...productData } = plan.doc;
+      if (input.mode === 'create') {
+        await productRef.set(productData);
+      } else {
+        if (existing?.createdAt !== undefined && existing.createdAt !== null) {
+          delete productData.createdAt;
+        }
+        await productRef.update(replaceNestedObjects(productData, db.command));
+      }
+      for (const identity of plan.staleIdentities) {
+        if (identityById.get(identity.id)?.productId === input.productId) {
+          await transaction.collection('catalogProductIdentities').doc(identity.id).remove();
+        }
+      }
+      return { result: 'saved', doc: plan.doc, previous: existing };
+    });
+  },
+
   async upsertDocWithId(collection, id, data): Promise<CollectionDoc> {
     const db = cloudStorageSdk().database();
     return db.runTransaction(async (transaction: NodeSdkTransaction) => {
@@ -493,6 +582,22 @@ function clauseToWhere(
       return { [field]: _.in(['', null]) };
     case 'isNotEmpty':
       return { [field]: _.nin(['', null]) };
+    case 'isLiteralTrue':
+      return { [field]: _.eq(true) };
+    case 'isFalseOrMissing':
+      return _.or([{ [field]: _.exists(false) }, { [field]: _.eq(false) }]);
+    case 'matchesProductFamily':
+      if (!isProductFamily(value)) return { _id: _.exists(false) };
+      if (value === 'headphones') {
+        return _.or([
+          { [field]: _.eq('headphones') },
+          _.and([
+            { [field]: _.exists(false) },
+            { category: _.in([...LEGACY_HEADPHONES_CATEGORY_OPTIONS]) },
+          ]),
+        ]);
+      }
+      return { [field]: _.eq(value) };
     default:
       return null;
   }

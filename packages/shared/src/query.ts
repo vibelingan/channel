@@ -1,3 +1,5 @@
+import { isProductFamily, productFamilyForDoc } from './catalog-product.ts';
+
 /**
  * Server-side query model — shared by the admin grid (UI), the API handler, and
  * the storage adapters. A query is built in the browser, validated on the
@@ -23,7 +25,11 @@ export const FILTER_OPERATORS = [
   'isNotEmpty',
 ] as const;
 
-export type FilterOperator = (typeof FILTER_OPERATORS)[number];
+export type FilterOperator =
+  | (typeof FILTER_OPERATORS)[number]
+  | 'isLiteralTrue'
+  | 'isFalseOrMissing'
+  | 'matchesProductFamily';
 
 /** A single field/operator/value condition. */
 export interface FilterClause {
@@ -48,7 +54,9 @@ export interface SortClause {
 
 /** Operators that do not take a value. */
 export function isValuelessOperator(op: FilterOperator): boolean {
-  return op === 'isEmpty' || op === 'isNotEmpty';
+  return (
+    op === 'isEmpty' || op === 'isNotEmpty' || op === 'isLiteralTrue' || op === 'isFalseOrMissing'
+  );
 }
 
 /** Whether a sensible default set of operators applies to a field type. */
@@ -78,6 +86,9 @@ const OPERATOR_LABELS: Record<FilterOperator, string> = {
   in: 'is any of',
   isEmpty: 'is empty',
   isNotEmpty: 'is not empty',
+  isLiteralTrue: 'is literal true',
+  isFalseOrMissing: 'is false or missing',
+  matchesProductFamily: 'matches product family',
 };
 
 export function operatorLabel(op: FilterOperator): string {
@@ -124,6 +135,12 @@ function matchesClause(doc: Record<string, unknown>, clause: FilterClause): bool
       return actual === undefined || actual === null || actual === '';
     case 'isNotEmpty':
       return !(actual === undefined || actual === null || actual === '');
+    case 'isLiteralTrue':
+      return actual === true;
+    case 'isFalseOrMissing':
+      return !Object.hasOwn(doc, clause.field) || actual === false;
+    case 'matchesProductFamily':
+      return isProductFamily(value) && productFamilyForDoc(doc) === value;
     default:
       return false;
   }

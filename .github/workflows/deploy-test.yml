@@ -135,6 +135,8 @@ jobs:
         env:
           TENCENTCLOUD_SECRETID: ${{ secrets.TENCENTCLOUD_SECRETID }}
           TENCENTCLOUD_SECRETKEY: ${{ secrets.TENCENTCLOUD_SECRETKEY }}
+          E2E_ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL || 'admin@channel.local' }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
         run: pnpm smoke:cloudbase
 
       - name: Install Playwright Chromium
@@ -143,7 +145,7 @@ jobs:
 
       - name: Run public browser E2E
         if: ${{ github.event_name == 'push' || github.event.inputs.run_public_e2e == 'true' }}
-        run: pnpm test:e2e:public
+        run: pnpm test:e2e:public && pnpm test:e2e:catalog
 
       - name: Run media upload smoke
         if: ${{ github.event.inputs.run_media_upload_smoke == 'true' }}

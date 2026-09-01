@@ -143,9 +143,15 @@ test('site header renders the CHANNEL wordmark with company name but no MOQ', ()
     'header exposes the visible company name for responsive browser verification',
   );
   assert.ok(!headerSource.includes('{brand.minOrder}'), 'header does not render the MOQ badge');
-  assert.ok(
-    headerSource.includes('orderedMenuItems.map'),
-    'desktop and mobile menus consume OEM-first items',
+  assert.equal(
+    headerSource.match(/beforeCatalog\.map/g)?.length,
+    2,
+    'desktop and mobile render ordered items before the catalog slot',
+  );
+  assert.equal(
+    headerSource.match(/afterCatalog\.map/g)?.length,
+    2,
+    'desktop and mobile render ordered items after the catalog slot',
   );
   assert.ok(
     headerSource.includes('border-b-2 border-brand-700'),
@@ -641,6 +647,35 @@ test('OEM content keeps an independent service narrative and approved response-t
   );
   assert.doesNotMatch(normalizedOemContent, /15\+|business day/i);
   assert.ok(oemPageSource.includes('<ProjectForm'));
+});
+
+test('OEM content carries the homepage proof points customers need before enquiry', () => {
+  const frontmatterSource = oemContent.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  assert.ok(frontmatterSource, 'OEM content has YAML frontmatter');
+  const document = parseDocument(frontmatterSource[1], { uniqueKeys: true });
+  assert.deepEqual(document.errors, []);
+  const content = document.toJS() as {
+    capabilities?: { items?: Array<{ title?: string; desc?: string }> };
+    whyUs?: { reasons?: Array<{ label?: string; desc?: string }> };
+  };
+  const quality = content.capabilities?.items?.find(
+    (item) => item.title === 'Quality & Global Delivery',
+  );
+  assert.equal(
+    quality?.desc,
+    'Verify products through production, coordinate available CE, EMC, FCC, and JD compliance and test reports, then manage export and worldwide delivery.',
+  );
+  const iteration = content.whyUs?.reasons?.find(
+    (reason) => reason.label === 'Long-Term Product Iteration',
+  );
+  assert.equal(
+    iteration?.desc,
+    'Use market feedback and cost optimization to improve later product generations instead of treating OEM as a one-time build.',
+  );
+  assert.doesNotMatch(
+    `${quality?.desc ?? ''} ${iteration?.desc ?? ''}`,
+    /in-house reliability|documentation service|live system interface|performance guarantee/i,
+  );
 });
 
 test('OemContent restores independent page fields without restoring unsupported claims', () => {

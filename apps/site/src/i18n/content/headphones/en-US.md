@@ -5,7 +5,7 @@ meta:
   title: Headphones
   description: >-
     Wholesale headphones catalog — wired, office, and Bluetooth models. Request a
-    quote for VIP pricing and full specifications.
+    quote for OEM pricing and full specifications.
 
 shopNav:
   - { label: Login / Register, href: '/admin' }
@@ -63,8 +63,6 @@ list:
     - { key: office, label: Office Headphones }
     - { key: bluetooth, label: Bluetooth Headphones }
   wholesaleLabel: Wholesale
-  vipLabel: VIP price
-  vipLockedLabel: Sign in to view VIP price
   viewDetail: View details
   moqLabel: MOQ
 
@@ -77,8 +75,6 @@ detail:
   moqLabel: Minimum Order Quantity
   unitPriceLabel: Unit price
   wholesaleLabel: Wholesale price
-  vipLabel: VIP price
-  vipLockedLabel: Sign in to view VIP price
   inquiryCta: Price inquiry
   oemInquiryCta: Start Your OEM Enquiry
   viewAllLabel: View All

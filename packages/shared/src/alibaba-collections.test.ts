@@ -76,6 +76,7 @@ test('category mapping is operator-writable with the Channel category enum', () 
 const ALIBABA_PRODUCT_FIELDS = [
   'alibabaPrimarySourceKey',
   'alibabaPrimaryOfferKey',
+  'alibabaPinnedOfferKey',
   'alibabaCatalogPricing',
   'alibabaSourceStatus',
   'alibabaSourceLastSyncedAt',
@@ -105,9 +106,29 @@ test('generic write schema rejects Alibaba fields as unknown keys', () => {
   assert.equal(result.success, false, 'readOnly field must be rejected on generic write');
 });
 
+test('V1.1 curated product fields remain operator-writable while Alibaba fields remain read-only', () => {
+  const def = getCollection('products');
+  assert.ok(def);
+  const writable = new Set(writableFields(def).map((field) => field.name));
+  for (const name of [
+    'productFamily',
+    'category',
+    'slug',
+    'skuCode',
+    'imageIds',
+    'published',
+    'archived',
+  ]) {
+    assert.equal(writable.has(name), true, `${name} remains curated`);
+  }
+  for (const name of ALIBABA_PRODUCT_FIELDS) {
+    assert.equal(writable.has(name), false, `${name} remains server-owned`);
+  }
+});
+
 // --- protected legacy pricing surfaces (EXECUTION_HANDOFF §3 snapshot) ------
 
-test('SNAPSHOT: legacy pricing field definitions are byte-identical to the pre-feature contract', () => {
+test('legacy pricing fields stay compatible while product VIP is hidden and deprecated', () => {
   const products = getCollection('products');
   const overstock = getCollection('overstock');
   assert.ok(products && overstock);
@@ -119,7 +140,13 @@ test('SNAPSHOT: legacy pricing field definitions are byte-identical to the pre-f
       { name: 'moq', label: 'MOQ', type: 'number' },
       { name: 'unitPrice', label: 'Unit Price', type: 'number' },
       { name: 'wholesalePrice', label: 'Wholesale Price', type: 'number' },
-      { name: 'vipPrice', label: 'VIP Price', type: 'number' },
+      {
+        name: 'vipPrice',
+        label: 'VIP Price',
+        type: 'number',
+        hideInForm: true,
+        deprecated: true,
+      },
     ],
   );
   assert.deepEqual(
@@ -208,9 +235,10 @@ test('admin-visible registry dump omits none collections and keeps the rest', ()
   for (const [name, access] of Object.entries(EXPECTED_ACCESS)) {
     assert.equal(visible.includes(name), access !== 'none', name);
   }
+  const hiddenCount = COLLECTIONS.filter((def) => def.adminAccess === 'none').length;
   assert.equal(
     visible.length,
-    COLLECTIONS.length - 4,
-    'exactly the four none collections are omitted',
+    COLLECTIONS.length - hiddenCount,
+    'every none collection is omitted',
   );
 });

@@ -15,6 +15,7 @@ import { promoteLinkedProduct } from './promotion.ts';
 type Store = Record<string, CollectionDoc[]>;
 
 class FencedMemoryAdapter implements DbAdapter {
+  lastPromotionPatch: Record<string, unknown> | null = null;
   constructor(readonly store: Store) {}
   private docs(collection: string): CollectionDoc[] {
     this.store[collection] ??= [];
@@ -72,6 +73,7 @@ class FencedMemoryAdapter implements DbAdapter {
   ): Promise<boolean> {
     const lease = this.docs('alibabaSyncLeases').find((d) => d._id === guard.connectionId) ?? null;
     if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+    this.lastPromotionPatch = { ...patch };
     const docs = this.docs(collection);
     const index = docs.findIndex((d) => d._id === id);
     if (index < 0) return false;
@@ -121,6 +123,7 @@ function offerDoc(
 }
 
 let store: Store = {};
+let adapter: FencedMemoryAdapter;
 function setup(overrides: Partial<Store> = {}): Store {
   store = {
     alibabaSyncLeases: [liveLease],
@@ -143,20 +146,28 @@ function setup(overrides: Partial<Store> = {}): Store {
       {
         _id: 'p-1',
         name: 'Curated Name',
+        productFamily: 'headphones',
         category: 'bluetooth',
+        slug: 'curated-headphones',
+        skuCode: 'HP-CURATED-1',
+        series: 'Curated Series',
+        modName: 'Curated Model',
+        modType: 'Over Ear',
         description: 'curated description',
         moq: 10,
         unitPrice: 12.5,
         wholesalePrice: 10,
         vipPrice: 8,
         published: true,
+        archived: false,
         imageIds: ['img-1'],
         alibabaPrimarySourceKey: SOURCE_KEY,
       } as CollectionDoc,
     ],
     ...overrides,
   };
-  setAdapter(new FencedMemoryAdapter(store));
+  adapter = new FencedMemoryAdapter(store);
+  setAdapter(adapter);
   return store;
 }
 
@@ -173,11 +184,43 @@ test('promotion materializes the primary offer through the fenced write, touchin
   assert.equal((after.alibabaCatalogPricing as { amountMinor?: number }).amountMinor, 250);
   assert.equal(after.alibabaSourceStatus, 'available');
   assert.equal(after.alibabaSourceLastSyncedAt, NOW);
+  assert.deepEqual(Object.keys(adapter.lastPromotionPatch ?? {}).sort(), [
+    'alibabaCatalogPricing',
+    'alibabaPrimaryOfferKey',
+    'alibabaSourceLastSyncedAt',
+    'alibabaSourceStatus',
+  ]);
   // Every non-Alibaba field is byte-identical (protected-surface proof).
   for (const key of Object.keys(before)) {
     if (key.startsWith('alibaba')) continue;
     assert.deepEqual(after[key], before[key], `${key} must be untouched`);
   }
+  assert.deepEqual(
+    {
+      productFamily: after.productFamily,
+      category: after.category,
+      slug: after.slug,
+      skuCode: after.skuCode,
+      series: after.series,
+      modName: after.modName,
+      modType: after.modType,
+      imageIds: after.imageIds,
+      published: after.published,
+      archived: after.archived,
+    },
+    {
+      productFamily: 'headphones',
+      category: 'bluetooth',
+      slug: 'curated-headphones',
+      skuCode: 'HP-CURATED-1',
+      series: 'Curated Series',
+      modName: 'Curated Model',
+      modType: 'Over Ear',
+      imageIds: ['img-1'],
+      published: true,
+      archived: false,
+    },
+  );
 });
 
 test('a stale holder cannot promote after fence takeover (write rejected, doc untouched)', async () => {
