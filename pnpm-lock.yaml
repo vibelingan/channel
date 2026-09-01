@@ -250,6 +250,10 @@ importers:
         version: 4.22.4
 
   packages/catalog-import:
+    dependencies:
+      xlsx:
+        specifier: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
+        version: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
     devDependencies:
       '@types/node':
         specifier: ^22.10.2
@@ -3358,6 +3362,12 @@ packages:
 
   wx-server-sdk@4.0.2:
     resolution: {integrity: sha512-dgpgWxYvOFWnQdGOb78sU+uQGELoEQSKzmJ7m8Y6eTCJKsfkdIHLMhRrdN5S5oDfAqr8Pc83jZKQeNRMZASIcg==}
+
+  xlsx@https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz:
+    resolution: {integrity: sha512-oLDq3jw7AcLqKWH2AhCpVTZl8mf6X2YReP+Neh0SJUzV/BdZYjth94tG5toiMB1PPrYtxOCfaoUCkvtuH+3AJA==, tarball: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz}
+    version: 0.20.3
+    engines: {node: '>=0.8'}
+    hasBin: true
 
   xml2js@0.6.2:
     resolution: {integrity: sha512-T4rieHaC1EXcES0Kxxj4JWgaUQHDk+qwHcYOCFHfiwKz7tOVPLq7Hjq9dM1WCMhylqMEfP7hMcOIChvotiZegA==}
@@ -6651,6 +6661,8 @@ snapshots:
       - debug
       - supports-color
       - ws
+
+  xlsx@https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz: {}
 
   xml2js@0.6.2:
     dependencies:

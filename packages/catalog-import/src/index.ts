@@ -70,13 +70,16 @@ export {
 export {
   MAX_COLUMNS,
   MAX_ROWS,
-  type SourceCell,
-  type SourceRow,
-  type SourceSheet,
   SpreadsheetFormatError,
   looksLikeSpreadsheet,
   readFirstSheet,
 } from './xlsx-sheet.ts';
+export type {
+  SourceCell,
+  SourceCellKind,
+  SourceRow,
+  SourceSheet,
+} from './xlsx-contract.ts';
 
 export {
   type CatalogImportDetail,

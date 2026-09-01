@@ -105,6 +105,16 @@ function escapeXml(value: string): string {
 /** A date-formatted number: the workbook stores an Excel serial, not text. */
 export interface DateSerialCell {
   dateSerial: number;
+  /** Optional built-in/custom number format id used by the cell style. */
+  numFmtId?: number;
+}
+/** An ECMA-376 second-edition ISO date cell (`t="d"`). */
+export interface IsoDateCell {
+  isoDate: string;
+}
+/** A deliberately raw shared-string index for malformed-workbook tests. */
+export interface SharedStringIndexCell {
+  sharedStringIndex: number;
 }
 /** A string stored in the cell itself rather than the shared-string table. */
 export interface InlineStringCell {
@@ -114,6 +124,18 @@ export interface InlineStringCell {
 export interface FormulaStringCell {
   formula: string;
 }
+/** A numeric cell whose decimal lexeme must be preserved exactly. */
+export interface RawNumericCell {
+  numeric: string;
+}
+/** A SpreadsheetML boolean cell. */
+export interface BooleanCell {
+  boolean: boolean;
+}
+/** A SpreadsheetML error cell, such as `#DIV/0!`. */
+export interface ErrorCell {
+  error: string;
+}
 
 export type FixtureCell =
   | string
@@ -121,8 +143,13 @@ export type FixtureCell =
   | null
   | undefined
   | DateSerialCell
+  | IsoDateCell
+  | SharedStringIndexCell
   | InlineStringCell
-  | FormulaStringCell;
+  | FormulaStringCell
+  | RawNumericCell
+  | BooleanCell
+  | ErrorCell;
 
 export interface FixtureSheet {
   name: string;
@@ -150,11 +177,26 @@ function columnName(index: number): string {
 function isDateSerial(cell: FixtureCell): cell is DateSerialCell {
   return typeof cell === 'object' && cell !== null && 'dateSerial' in cell;
 }
+function isIsoDate(cell: FixtureCell): cell is IsoDateCell {
+  return typeof cell === 'object' && cell !== null && 'isoDate' in cell;
+}
+function isSharedStringIndex(cell: FixtureCell): cell is SharedStringIndexCell {
+  return typeof cell === 'object' && cell !== null && 'sharedStringIndex' in cell;
+}
 function isInline(cell: FixtureCell): cell is InlineStringCell {
   return typeof cell === 'object' && cell !== null && 'inline' in cell;
 }
 function isFormula(cell: FixtureCell): cell is FormulaStringCell {
   return typeof cell === 'object' && cell !== null && 'formula' in cell;
+}
+function isRawNumeric(cell: FixtureCell): cell is RawNumericCell {
+  return typeof cell === 'object' && cell !== null && 'numeric' in cell;
+}
+function isBoolean(cell: FixtureCell): cell is BooleanCell {
+  return typeof cell === 'object' && cell !== null && 'boolean' in cell;
+}
+function isError(cell: FixtureCell): cell is ErrorCell {
+  return typeof cell === 'object' && cell !== null && 'error' in cell;
 }
 
 /** Build a complete, Excel-readable `.xlsx` from plain cell values. */
@@ -170,6 +212,17 @@ export function buildXlsx(options: FixtureOptions): Buffer {
     return next;
   };
 
+  const dateFormatIds = [
+    ...new Set(
+      options.sheets.flatMap((sheet) =>
+        sheet.rows.flatMap((row) => row.filter(isDateSerial).map((cell) => cell.numFmtId ?? 14)),
+      ),
+    ),
+  ];
+  const dateStyleByFormatId = new Map(
+    dateFormatIds.map((formatId, index) => [formatId, index + 1] as const),
+  );
+
   const sheetParts = options.sheets.map((sheet) => {
     const rowsXml = sheet.rows
       .map((row, rowIndex) => {
@@ -179,13 +232,29 @@ export function buildXlsx(options: FixtureOptions): Buffer {
             if (cell === null || cell === undefined || cell === '') return '';
             const reference = `${columnName(columnIndex)}${rowNumber}`;
             if (isDateSerial(cell)) {
-              return `<c r="${reference}" s="1"><v>${cell.dateSerial}</v></c>`;
+              const style = dateStyleByFormatId.get(cell.numFmtId ?? 14);
+              return `<c r="${reference}" s="${style}"><v>${cell.dateSerial}</v></c>`;
+            }
+            if (isIsoDate(cell)) {
+              return `<c r="${reference}" t="d"><v>${escapeXml(cell.isoDate)}</v></c>`;
+            }
+            if (isSharedStringIndex(cell)) {
+              return `<c r="${reference}" t="s"><v>${cell.sharedStringIndex}</v></c>`;
             }
             if (isInline(cell)) {
               return `<c r="${reference}" t="inlineStr"><is><t>${escapeXml(cell.inline)}</t></is></c>`;
             }
             if (isFormula(cell)) {
               return `<c r="${reference}" t="str"><f>A1</f><v>${escapeXml(cell.formula)}</v></c>`;
+            }
+            if (isRawNumeric(cell)) {
+              return `<c r="${reference}"><v>${cell.numeric}</v></c>`;
+            }
+            if (isBoolean(cell)) {
+              return `<c r="${reference}" t="b"><v>${cell.boolean ? '1' : '0'}</v></c>`;
+            }
+            if (isError(cell)) {
+              return `<c r="${reference}" t="e"><v>${escapeXml(cell.error)}</v></c>`;
             }
             if (typeof cell === 'number') {
               return `<c r="${reference}"><v>${cell}</v></c>`;
@@ -221,11 +290,19 @@ export function buildXlsx(options: FixtureOptions): Buffer {
     .map((value) => `<si><t xml:space="preserve">${escapeXml(value)}</t></si>`)
     .join('')}</sst>`;
 
-  // cellXfs index 0 is General; index 1 uses built-in numFmt 14 (a date), which
-  // is what tells the reader to treat the serial in that cell as a timestamp.
-  const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="176" formatCode="yyyy\\-mm\\-dd\\ hh:mm:ss"/></numFmts><cellXfs count="3"><xf numFmtId="0" xfId="0"/><xf numFmtId="14" applyNumberFormat="1" xfId="0"/><xf numFmtId="176" applyNumberFormat="1" xfId="0"/></cellXfs></styleSheet>`;
+  // cellXfs index 0 is General. Every date format used by the fixture gets a
+  // distinct style so tests can cover locale-specific built-in ids.
+  const dateXfs = dateFormatIds
+    .map((formatId) => `<xf numFmtId="${formatId}" applyNumberFormat="1" xfId="0"/>`)
+    .join('');
+  const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cellXfs count="${dateFormatIds.length + 1}"><xf numFmtId="0" xfId="0"/>${dateXfs}</cellXfs></styleSheet>`;
 
-  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>`;
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${options.sheets
+    .map(
+      (_sheet, index) =>
+        `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`,
+    )
+    .join('')}</Types>`;
 
   const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
 

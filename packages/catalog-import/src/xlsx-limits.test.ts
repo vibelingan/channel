@@ -78,8 +78,9 @@ function zipOf(entries: readonly (readonly [string, Buffer])[]): Buffer {
   return Buffer.concat([...locals, directory, eocd]);
 }
 
-const CONTENT_TYPES =
-  '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/></Types>';
+function contentTypesXml(extra = ''): string {
+  return `<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/>${extra}</Types>`;
+}
 const ROOT_RELS =
   '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
 const WORKBOOK_RELS =
@@ -95,11 +96,12 @@ const SHEET = (body: string) =>
 function packageOf(options: {
   sheet?: string;
   workbook?: string;
+  contentTypes?: string;
   extraParts?: readonly (readonly [string, Buffer])[];
   workbookRels?: string;
 }): Buffer {
   return zipOf([
-    ['[Content_Types].xml', Buffer.from(CONTENT_TYPES)],
+    ['[Content_Types].xml', Buffer.from(options.contentTypes ?? contentTypesXml())],
     ['_rels/.rels', Buffer.from(ROOT_RELS)],
     ['xl/workbook.xml', Buffer.from(options.workbook ?? workbookXml())],
     ['xl/_rels/workbook.xml.rels', Buffer.from(options.workbookRels ?? WORKBOOK_RELS)],
@@ -109,6 +111,30 @@ function packageOf(options: {
     ],
     ...(options.extraParts ?? []),
   ]);
+}
+
+function corruptCentralDirectoryCrc(bytes: Buffer, name: string): void {
+  for (let offset = 0; offset <= bytes.length - 46; offset += 1) {
+    if (bytes.readUInt32LE(offset) !== 0x02014b50) continue;
+    const nameLength = bytes.readUInt16LE(offset + 28);
+    const entryName = bytes.toString('utf8', offset + 46, offset + 46 + nameLength);
+    if (entryName !== name) continue;
+    bytes.writeUInt32LE((bytes.readUInt32LE(offset + 16) ^ 0xffffffff) >>> 0, offset + 16);
+    return;
+  }
+  assert.fail(`central-directory entry ${name} was not found`);
+}
+
+function zeroCentralDirectoryCompressedSize(bytes: Buffer, name: string): void {
+  for (let offset = 0; offset <= bytes.length - 46; offset += 1) {
+    if (bytes.readUInt32LE(offset) !== 0x02014b50) continue;
+    const nameLength = bytes.readUInt16LE(offset + 28);
+    const entryName = bytes.toString('utf8', offset + 46, offset + 46 + nameLength);
+    if (entryName !== name) continue;
+    bytes.writeUInt32LE(0, offset + 20);
+    return;
+  }
+  assert.fail(`central-directory entry ${name} was not found`);
 }
 
 const refuses = (bytes: Buffer, pattern: RegExp) =>
@@ -144,9 +170,92 @@ test('an entry over the compression-ratio ceiling is refused', () => {
   refuses(packageOf({ sheet: SHEET(`<sheetData/><!--${padded}-->`) }), /bytes|ratio/);
 });
 
+test('a non-empty entry declaring zero compressed bytes is refused in the directory', () => {
+  const bytes = packageOf({});
+  zeroCentralDirectoryCompressedSize(bytes, 'xl/workbook.xml');
+  assert.throws(
+    () => readZipDirectory(bytes),
+    (error: unknown) =>
+      error instanceof ZipFormatError && /compressed|ratio|zero/i.test(error.message),
+  );
+});
+
 test('a truncated archive is refused rather than partially read', () => {
   const bytes = buildXlsx({ sheets: [{ name: 'S', rows: [['a']] }] });
   refuses(bytes.subarray(0, bytes.length - 40), /.+/);
+});
+
+test('an unreferenced oversized part is refused before a parser can ignore it', () => {
+  const oversized = Buffer.alloc(MAX_ENTRY_BYTES + 1, 0x20);
+  refuses(packageOf({ extraParts: [['xl/media/unreferenced.bin', oversized]] }), /bytes/);
+});
+
+test('an unreferenced high-ratio part is refused before a parser can ignore it', () => {
+  const highRatio = Buffer.alloc(40 * 1024 * 1024, 0x20);
+  refuses(packageOf({ extraParts: [['xl/media/unreferenced.bin', highRatio]] }), /ratio/);
+});
+
+test('a duplicate OPC part is refused before a parser can choose one copy', () => {
+  refuses(
+    packageOf({ extraParts: [['xl/workbook.xml', Buffer.from(workbookXml())]] }),
+    /duplicate/i,
+  );
+});
+
+test('case-colliding OPC parts are refused before a parser chooses a case variant', () => {
+  refuses(
+    packageOf({ extraParts: [['xl/WORKBOOK.xml', Buffer.from(workbookXml())]] }),
+    /case|duplicate/i,
+  );
+});
+
+test('a CRC mismatch in an unreferenced part is refused before a parser can ignore it', () => {
+  const bytes = packageOf({
+    extraParts: [['xl/worksheets/sheet2.xml', Buffer.from(SHEET('<sheetData/>'))]],
+  });
+  corruptCentralDirectoryCrc(bytes, 'xl/worksheets/sheet2.xml');
+  refuses(bytes, /CRC/);
+});
+
+test('a DTD in an unselected worksheet is refused before a parser can ignore it', () => {
+  const workbook =
+    '<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="First" sheetId="1" r:id="rId1"/><sheet name="Second" sheetId="2" r:id="rId2"/></sheets></workbook>';
+  const rels =
+    '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>';
+  refuses(
+    packageOf({
+      workbook,
+      workbookRels: rels,
+      extraParts: [
+        [
+          'xl/worksheets/sheet2.xml',
+          Buffer.from(
+            '<?xml version="1.0"?><!DOCTYPE worksheet [<!ENTITY ignored "ignored">]><worksheet><sheetData/></worksheet>',
+          ),
+        ],
+      ],
+    }),
+    /DTD/,
+  );
+});
+
+test('a DTD in a BOM-marked UTF-16 XML part is refused before SheetJS runs', () => {
+  const workbook =
+    '<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="First" sheetId="1" r:id="rId1"/><sheet name="Second" sheetId="2" r:id="rId2"/></sheets></workbook>';
+  const rels =
+    '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>';
+  const hostile =
+    '<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE worksheet [<!ENTITY ignored "ignored">]><worksheet><sheetData/></worksheet>';
+  const utf16 = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(hostile, 'utf16le')]);
+
+  refuses(
+    packageOf({
+      workbook,
+      workbookRels: rels,
+      extraParts: [['xl/worksheets/sheet2.xml', utf16]],
+    }),
+    /encoding|UTF-16|DTD/i,
+  );
 });
 
 // --- XML limits -------------------------------------------------------------
@@ -174,12 +283,47 @@ test('an oversized text node is refused', () => {
   );
 });
 
+test('an oversized CDATA node is refused by the text-node ceiling', () => {
+  const text = 'x'.repeat(MAX_TEXT_NODE_CHARS + 1);
+  assert.throws(
+    () => [...scanXml(`<t><![CDATA[${text}]]></t>`)],
+    (error: unknown) =>
+      error instanceof SpreadsheetFormatError && /oversized text node/.test(error.message),
+  );
+});
+
 test('an oversized attribute value is refused', () => {
   const value = 'y'.repeat(MAX_ATTRIBUTE_CHARS + 1);
   assert.throws(
     () => [...scanXml(`<c r="${value}"/>`)],
     (error: unknown) =>
       error instanceof SpreadsheetFormatError && /oversized attribute/.test(error.message),
+  );
+});
+
+test('an XML attribute without an equals sign is refused as malformed', () => {
+  assert.throws(
+    () => [...scanXml('<c r "A1"/>')],
+    (error: unknown) =>
+      error instanceof SpreadsheetFormatError && /malformed attribute/.test(error.message),
+  );
+});
+
+test('an oversized unquoted XML attribute is refused as malformed', () => {
+  const value = 'y'.repeat(MAX_ATTRIBUTE_CHARS + 1);
+  assert.throws(
+    () => [...scanXml(`<c r=${value}/>`)],
+    (error: unknown) =>
+      error instanceof SpreadsheetFormatError && /malformed attribute/.test(error.message),
+  );
+});
+
+test('an unterminated quoted XML attribute is refused as malformed', () => {
+  const value = 'y'.repeat(MAX_ATTRIBUTE_CHARS + 1);
+  assert.throws(
+    () => [...scanXml(`<c r="${value}`)],
+    (error: unknown) =>
+      error instanceof SpreadsheetFormatError && /malformed attribute/.test(error.message),
   );
 });
 
@@ -208,6 +352,112 @@ test('a macro part is refused even when its name is recased', () => {
     packageOf({ extraParts: [['xl/VbaProject.bin', Buffer.from([0xd0, 0xcf, 0x11, 0xe0])]] }),
     /macros/,
   );
+});
+
+test('an unreferenced macrosheet XML part is refused even when its name is recased', () => {
+  // Macro sheets are executable workbook content even when no workbook
+  // relationship reaches them. OPC part names are case-insensitive, so this
+  // mixed-case path must be rejected before a third-party parser sees it.
+  refuses(
+    packageOf({
+      extraParts: [['xl/MacroSheets/macroSheet1.XML', Buffer.from('<macrosheet/>')]],
+    }),
+    /macros/,
+  );
+});
+
+test('an unreferenced arbitrary part declared as a macro sheet is refused', () => {
+  for (const contentType of [
+    'application/vnd.ms-excel.macrosheet+xml',
+    'APPLICATION/VND.MS-EXCEL.INTLMACROSHEET+XML',
+  ]) {
+    refuses(
+      packageOf({
+        contentTypes: contentTypesXml(
+          `<Override PartName="/xl/not-macro/sheet1.xml" ContentType="${contentType}"/>`,
+        ),
+        extraParts: [['xl/not-macro/sheet1.xml', Buffer.from('<macrosheet/>')]],
+      }),
+      /macros/,
+    );
+  }
+});
+
+test('an arbitrary part declared as a macro-enabled workbook main part is refused', () => {
+  for (const contentType of [
+    'application/vnd.ms-excel.sheet.macroEnabled.main+xml',
+    'APPLICATION/VND.MS-EXCEL.TEMPLATE.MACROENABLED.MAIN+XML',
+    'application/vnd.ms-excel.addin.MacroEnabled.main+xml',
+  ]) {
+    refuses(
+      packageOf({
+        contentTypes: contentTypesXml(
+          `<Override PartName="/xl/not-macro/workbook.xml" ContentType="${contentType}"/>`,
+        ),
+        extraParts: [['xl/not-macro/workbook.xml', Buffer.from('<workbook/>')]],
+      }),
+      /macros/,
+    );
+  }
+});
+
+test('an unreferenced arbitrary relationship declaring a macro sheet is refused', () => {
+  for (const relationshipType of [
+    'http://schemas.microsoft.com/office/2006/relationships/xlMacrosheet',
+    'HTTP://SCHEMAS.MICROSOFT.COM/OFFICE/2006/RELATIONSHIPS/XLINTLMACROSHEET',
+  ]) {
+    refuses(
+      packageOf({
+        extraParts: [
+          [
+            'xl/not-macro/_rels/sheet1.xml.rels',
+            Buffer.from(
+              `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${relationshipType}" Target="sheet1.xml"/></Relationships>`,
+            ),
+          ],
+        ],
+      }),
+      /macros/,
+    );
+  }
+});
+
+test('an unreferenced arbitrary part declared as a VBA project is refused', () => {
+  refuses(
+    packageOf({
+      contentTypes: contentTypesXml(
+        '<Override PartName="/xl/not-macro/project.bin" ContentType="APPLICATION/VND.MS-OFFICE.VBAPROJECT"/>',
+      ),
+      extraParts: [['xl/not-macro/project.bin', Buffer.from([0xd0, 0xcf, 0x11, 0xe0])]],
+    }),
+    /macros/,
+  );
+});
+
+test('an unreferenced arbitrary relationship declaring a VBA project is refused', () => {
+  refuses(
+    packageOf({
+      extraParts: [
+        [
+          'xl/not-macro/_rels/project.bin.rels',
+          Buffer.from(
+            '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="HTTP://SCHEMAS.MICROSOFT.COM/OFFICE/2006/RELATIONSHIPS/VBAPROJECT" Target="project.bin"/></Relationships>',
+          ),
+        ],
+      ],
+    }),
+    /macros/,
+  );
+});
+
+test('malformed unreferenced XML attributes are refused before SheetJS runs', () => {
+  const oversized = 'y'.repeat(MAX_ATTRIBUTE_CHARS + 1);
+  for (const [part, xml] of [
+    ['xl/not-macro/unquoted.xml', `<part value=${oversized}/>`],
+    ['xl/not-macro/unterminated.xml', `<part value="${oversized}`],
+  ] as const) {
+    refuses(packageOf({ extraParts: [[part, Buffer.from(xml)]] }), /malformed attribute/);
+  }
 });
 
 test('a workbook carrying external link parts is refused', () => {

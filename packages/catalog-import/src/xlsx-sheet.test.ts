@@ -111,16 +111,30 @@ test('decodes only the predefined entities and character references', () => {
 
 test('carries numeric cells as their stored lexeme, never as a number', () => {
   const bytes = buildXlsx({
-    sheets: [{ name: 'S', rows: [[{ inline: '0012300' }, { inline: '1e5' }, 19.99]] }],
+    sheets: [
+      { name: 'S', rows: [[{ inline: '0012300' }, { inline: '1e5' }, { numeric: '19.9900' }]] },
+    ],
   });
   const rows = readFirstSheet(bytes).rows;
   const cells = rows[0]?.cells ?? [];
   assert.equal(cells[0]?.text, '0012300');
   assert.equal(cells[0]?.kind, 'text');
   assert.equal(cells[1]?.text, '1e5');
-  assert.equal(cells[2]?.text, '19.99');
+  assert.equal(cells[2]?.text, '19.9900');
   assert.equal(cells[2]?.kind, 'number');
   assert.equal(typeof cells[2]?.text, 'string');
+});
+
+test('reads boolean and error cell forms from the generated workbook', () => {
+  const bytes = buildXlsx({
+    sheets: [{ name: 'S', rows: [[{ boolean: true }, { boolean: false }, { error: '#DIV/0!' }]] }],
+  });
+  const cells = readFirstSheet(bytes).rows[0]?.cells ?? [];
+  assert.deepEqual(cells, [
+    { text: 'TRUE', kind: 'boolean', dateFormatted: false },
+    { text: 'FALSE', kind: 'boolean', dateFormatted: false },
+    { text: '#DIV/0!', kind: 'error', dateFormatted: false },
+  ]);
 });
 
 test('reads shared, inline and formula-result strings alike', () => {
@@ -141,6 +155,51 @@ test('marks date-formatted numbers so a serial is not mistaken for a count', () 
   assert.equal(cells[0]?.dateFormatted, true);
   assert.equal(cells[0]?.text, '46260');
   assert.equal(cells[1]?.dateFormatted, false);
+});
+
+test('recognizes every CJK built-in date format retained from the Chinese ERP reader', () => {
+  const formatIds = [27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 50, 51, 52, 53, 54, 55, 56, 57, 58];
+  const bytes = buildXlsx({
+    sheets: [
+      {
+        name: 'S',
+        rows: [formatIds.map((numFmtId) => ({ dateSerial: 46260, numFmtId }))],
+      },
+    ],
+  });
+  const cells = readFirstSheet(bytes).rows[0]?.cells ?? [];
+  assert.equal(cells.length, formatIds.length);
+  assert.deepEqual(
+    cells.map((cell) => ({
+      text: cell?.text,
+      kind: cell?.kind,
+      dateFormatted: cell?.dateFormatted,
+    })),
+    formatIds.map(() => ({ text: '46260', kind: 'number', dateFormatted: true })),
+  );
+});
+
+test('preserves ECMA-376 ISO date cells as their original timestamp text', () => {
+  const bytes = buildXlsx({
+    sheets: [{ name: 'S', rows: [[{ isoDate: '2026-08-29T10:30:00' }]] }],
+  });
+  assert.deepEqual(readFirstSheet(bytes).rows[0]?.cells[0], {
+    text: '2026-08-29T10:30:00',
+    kind: 'text',
+    dateFormatted: true,
+  });
+});
+
+test('reports malformed shared-string references without leaking a SheetJS TypeError', () => {
+  const bytes = buildXlsx({
+    sheets: [{ name: 'S', rows: [[{ sharedStringIndex: 99 }]] }],
+  });
+  assert.throws(
+    () => readFirstSheet(bytes),
+    (error: unknown) =>
+      error instanceof SpreadsheetFormatError &&
+      error.message === 'SheetJS could not parse workbook',
+  );
 });
 
 test('preserves row numbers and leaves gaps for empty cells', () => {
