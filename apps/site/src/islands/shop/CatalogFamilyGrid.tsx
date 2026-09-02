@@ -36,7 +36,7 @@ function pricingDecision(product: Product): CatalogPricingDecision {
 
 function pricingDecisionLabel(decision: CatalogPricingDecision, quoteLabel: string): string {
   switch (decision.source) {
-    case 'alibaba':
+    case 'alibaba': {
       if (decision.pricing.state !== 'available') {
         return DEFAULT_ALIBABA_PRICING_LABELS.unavailableLabel;
       }
@@ -49,7 +49,12 @@ function pricingDecisionLabel(decision: CatalogPricingDecision, quoteLabel: stri
           const minimum = Math.min(...decision.pricing.tiers.map((tier) => tier.unitAmountMinor));
           return `From ${formatMinorAmount(minimum, decision.pricing.currency)}`;
         }
+        default: {
+          const exhaustive: never = decision.pricing;
+          return exhaustive;
+        }
       }
+    }
     case 'manual-tiered':
       return quantityTierPriceSummary(decision.pricing);
     case 'scalar':
