@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-09 released; MIU 10 active for local implementation and validation.
+Status: MIUs 01-10 released; MIU 11 planned and inactive.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implementation`.
 
-**Current/next MIU:** MIU 10 is the sole active MIU; MIU 11 remains planned.
+**Current/next MIU:** No MIU is active. MIU 11 requires separate activation.
 
 ## Git Truth
 
@@ -31,7 +31,8 @@ Branch: `refactor/catalog-architecture-hardening`
   activation files were not committed before implementation. Both remain local until review and push.
   Reviewed active head `0f9f07f` was pushed; no CloudBase deployment was run.
 - MIU 10 activated from released closure `635569d`; behavior-first contract and exact three-file
-  reservation are tracked at `b7f35c0`. Runtime implementation and local validation are not yet published.
+  reservation are tracked at `b7f35c0`. Implementation `f98c8d3` and reviewed active head `d33505f`
+  were pushed; release transition is `0c2465d`. No CloudBase deployment was run.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -39,8 +40,20 @@ Branch: `refactor/catalog-architecture-hardening`
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. MIU 10 is the only active exact-file claim; future plans remain
+rather than trusted from JSON strings. No MIU or exact file is active; future plans remain
 `planned|blocked` claims. Activation is one MIU at a time.
+
+## MIU 10 Local Validation
+
+- Card and inherited pricing parity suite: 11/11 pass; full site suite: 219/219 pass.
+- Workspace and E2E typechecks: 0 errors; Astro check: 0 errors with 7 existing hints.
+- Production Astro build: 15 pages; architecture verifier: 0 issues; script suite: 93/93 pass.
+- MIU 10 owned-file Biome and `git diff --check`: pass. Repository-wide Biome still reports the released
+  MIU 09 grid switch's missing explicit exhaustive branch; that separate ownership correction is not
+  folded into MIU 10's approved three-file boundary.
+- Family-neutral presentation covers all pricing decisions and modes, `_id` activation, optional deep
+  links, missing media, and the legacy Headphones unit-price compatibility path.
+- CloudBase test deployment: not run and not authorized for MIU 10.
 
 ## MIU 09 Local Validation
 
