@@ -1,4 +1,9 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
+import {
+  advanceFailedMedia,
+  catalogMediaSourceId,
+  createCatalogMediaState,
+} from '../../catalog/application/catalog-media.ts';
 import { apiMediaUrl } from '../../lib/api-url.ts';
 
 export interface ProductMediaState {
@@ -58,10 +63,16 @@ export function productMediaReducer(
 }
 
 function normalizeSources(sources: readonly string[]): string[] {
-  return sources
-    .map((source) => source.trim())
-    .filter(Boolean)
-    .map(apiMediaUrl);
+  return createCatalogMediaState(sources).sources.map(apiMediaUrl);
+}
+
+type CatalogMediaAction = { type: 'sourceFailed'; sourceId: string };
+
+function catalogMediaReducer(
+  state: ReturnType<typeof createCatalogMediaState>,
+  action: CatalogMediaAction,
+) {
+  return action.type === 'sourceFailed' ? advanceFailedMedia(state, action.sourceId) : state;
 }
 
 function ProductMediaSession({
@@ -75,10 +86,10 @@ function ProductMediaSession({
   loading = 'lazy',
   fetchPriority = 'auto',
 }: ProductMediaProps) {
-  const [state, dispatch] = useReducer(productMediaReducer, undefined, createProductMediaState);
+  const [state, dispatch] = useReducer(catalogMediaReducer, sources, createCatalogMediaState);
   const [unavailableAnnouncement, setUnavailableAnnouncement] = useState('');
   const imageRef = useRef<HTMLImageElement | null>(null);
-  const source = sources[state.activeIndex];
+  const source = state.sources[state.activeIndex];
 
   useEffect(() => {
     setUnavailableAnnouncement(source === undefined && alt ? `${alt}. ${unavailableLabel}` : '');
@@ -93,9 +104,9 @@ function ProductMediaSession({
     const image = imageRef.current;
     if (!image || source === undefined) return;
     if (image.complete && image.naturalWidth === 0) {
-      dispatch({ type: 'sourceFailed', sourceIndex: activeIndex, source, sources });
+      dispatch({ type: 'sourceFailed', sourceId: catalogMediaSourceId(activeIndex, source) });
     }
-  }, [activeIndex, source, sources]);
+  }, [activeIndex, source]);
 
   return (
     <>
@@ -129,7 +140,10 @@ function ProductMediaSession({
           decoding="async"
           className={`h-full w-full object-contain ${imageClassName} ${className}`}
           onError={() =>
-            dispatch({ type: 'sourceFailed', sourceIndex: state.activeIndex, source, sources })
+            dispatch({
+              type: 'sourceFailed',
+              sourceId: catalogMediaSourceId(state.activeIndex, source),
+            })
           }
         />
       )}

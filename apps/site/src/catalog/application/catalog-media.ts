@@ -8,13 +8,31 @@ export function catalogMediaSourceId(sourceIndex: number, source: string): strin
   return `${sourceIndex}:${source}`;
 }
 
-export function createCatalogMediaState(_sources: readonly string[]): CatalogMediaState {
-  throw new Error('MIU 12 catalog media state not implemented');
+export function createCatalogMediaState(sources: readonly string[]): CatalogMediaState {
+  const uniqueSources: string[] = [];
+  const seen = new Set<string>();
+  for (const candidate of sources) {
+    const source = candidate.trim();
+    if (!source || seen.has(source)) continue;
+    seen.add(source);
+    uniqueSources.push(source);
+    if (uniqueSources.length === 9) break;
+  }
+  return { sources: uniqueSources, activeIndex: 0, failedSourceIds: [] };
 }
 
-export function advanceFailedMedia(
-  _state: CatalogMediaState,
-  _sourceId: string,
-): CatalogMediaState {
-  throw new Error('MIU 12 catalog media state not implemented');
+export function advanceFailedMedia(state: CatalogMediaState, sourceId: string): CatalogMediaState {
+  const activeSource = state.sources[state.activeIndex];
+  if (
+    activeSource === undefined ||
+    catalogMediaSourceId(state.activeIndex, activeSource) !== sourceId ||
+    state.failedSourceIds.includes(sourceId)
+  ) {
+    return state;
+  }
+  return {
+    ...state,
+    activeIndex: state.activeIndex + 1,
+    failedSourceIds: [...state.failedSourceIds, sourceId],
+  };
 }
