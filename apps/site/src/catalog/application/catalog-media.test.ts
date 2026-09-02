@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { boundedGalleryImages } from '../../islands/shop/Gallery.tsx';
 import {
   advanceFailedMedia,
   catalogMediaSourceId,
@@ -36,6 +37,25 @@ test('deduplicates mapped aliases before applying the nine-source bound', () => 
     (source) => (source.startsWith('api/') ? `/${source}` : source),
   );
   assert.deepEqual(state.sources, [
+    '/api/one',
+    'unique-1',
+    'unique-2',
+    'unique-3',
+    'unique-4',
+    'unique-5',
+    'unique-6',
+    'unique-7',
+    'unique-8',
+  ]);
+});
+
+test('Gallery consumer delegates effective alias dedupe before bounding', () => {
+  const images = boundedGalleryImages([
+    ' api/one ',
+    '/api/one',
+    ...Array.from({ length: 9 }, (_, index) => `unique-${index + 1}`),
+  ]);
+  assert.deepEqual(images, [
     '/api/one',
     'unique-1',
     'unique-2',
