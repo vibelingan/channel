@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening MIU Breakdown
 
-Status: published; MIUs 01-11 released; MIU 12 planned and inactive.
+Status: published; MIUs 01-11 released; MIU 12 active for local implementation and validation.
 
 ```mermaid
 flowchart TD
@@ -57,8 +57,7 @@ flowchart TD
 
 ## Reservation Lifecycle
 
-- No MIU or exact file is active. MIUs 01-11 are released, MIU 12 remains planned, and MIUs 26-28
-  remain blocked by D1.
+- MIU 12 is the sole active MIU. MIUs 01-11 are released, and MIUs 26-28 remain blocked by D1.
 - Activation follows `TASK_REGISTRY.json`: verify dependencies, gates, live refs/worktrees, and zero
   conflicting active owner claims, then atomically mark one MIU `active`. Completion marks it `released`
   before any explicit successor transfer activates.
@@ -302,7 +301,7 @@ flowchart TD
 - **Files:** `apps/site/src/catalog/application/catalog-media.ts`, `apps/site/src/catalog/application/catalog-media.test.ts`, `apps/site/src/islands/shop/ProductMedia.tsx`
 - **Type:** refactor
 - **Depends on:** MIUs 02, 05
-- **Reservation state:** `planned`.
+- **Reservation state:** `active`; local media-state and SSR/hydration validation only.
 - **What it does:**
   - Implements `createCatalogMediaState(sources)` and `advanceFailedMedia(state, sourceId)`, consuming
     `PublicProduct` media fields from MIU 02's `packages/shared/src/catalog/index.ts`, for trim,
