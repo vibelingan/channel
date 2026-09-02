@@ -30,6 +30,24 @@ test('normalizes blank, duplicate, and over-limit media into nine ordered source
   assert.deepEqual(input.slice(0, 3), [' one ', '', 'one']);
 });
 
+test('deduplicates mapped aliases before applying the nine-source bound', () => {
+  const state = createCatalogMediaState(
+    [' api/one ', '/api/one', ...Array.from({ length: 9 }, (_, index) => `unique-${index + 1}`)],
+    (source) => (source.startsWith('api/') ? `/${source}` : source),
+  );
+  assert.deepEqual(state.sources, [
+    '/api/one',
+    'unique-1',
+    'unique-2',
+    'unique-3',
+    'unique-4',
+    'unique-5',
+    'unique-6',
+    'unique-7',
+    'unique-8',
+  ]);
+});
+
 test('only the current source identity advances once and exhaustion is terminal', () => {
   let state = createCatalogMediaState(['one', 'two']);
   const firstId = catalogMediaSourceId(0, 'one');

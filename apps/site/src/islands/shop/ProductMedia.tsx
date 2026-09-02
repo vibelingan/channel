@@ -63,7 +63,7 @@ export function productMediaReducer(
 }
 
 function normalizeSources(sources: readonly string[]): string[] {
-  return createCatalogMediaState(sources).sources.map(apiMediaUrl);
+  return createCatalogMediaState(sources, apiMediaUrl).sources.slice();
 }
 
 type CatalogMediaAction = { type: 'sourceFailed'; sourceId: string };

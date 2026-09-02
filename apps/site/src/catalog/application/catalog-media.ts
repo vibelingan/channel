@@ -8,11 +8,14 @@ export function catalogMediaSourceId(sourceIndex: number, source: string): strin
   return `${sourceIndex}:${source}`;
 }
 
-export function createCatalogMediaState(sources: readonly string[]): CatalogMediaState {
+export function createCatalogMediaState(
+  sources: readonly string[],
+  mapSource: (source: string) => string = (source) => source,
+): CatalogMediaState {
   const uniqueSources: string[] = [];
   const seen = new Set<string>();
   for (const candidate of sources) {
-    const source = candidate.trim();
+    const source = mapSource(candidate.trim()).trim();
     if (!source || seen.has(source)) continue;
     seen.add(source);
     uniqueSources.push(source);
