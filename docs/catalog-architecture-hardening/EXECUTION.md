@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-11 released; MIU 12 active for local implementation and validation.
+Status: MIUs 01-12 released; MIU 13 planned and inactive.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implementation`.
 
-**Current/next MIU:** MIU 12 is the sole active MIU; MIU 13 remains planned.
+**Current/next MIU:** No MIU is active. MIU 13 requires separate activation.
 
 ## Git Truth
 
@@ -45,7 +45,8 @@ Branch: `refactor/catalog-architecture-hardening`
   state and ProductMedia delegation implementation is `775bd2d`; effective-URL alias correction is
   `dd1d557`. Gallery consumer regression `7d8309b` proved duplicate effective URLs excluded a later unique
   fallback; independently reviewed correction `ed58f66` delegates its pre-bound normalization. Final
-  release validation is in progress.
+  corrected active packet `7e12025` was pushed and verified; release transition is `cda0def`. No CloudBase
+  deployment was run.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -53,8 +54,20 @@ Branch: `refactor/catalog-architecture-hardening`
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. MIU 12 is the only active exact-file claim; future plans remain
+rather than trusted from JSON strings. No MIU or exact file is active; future plans remain
 `planned|blocked` claims. Activation is one MIU at a time.
+
+## MIU 12 Local Validation
+
+- Catalog media plus inherited ProductMedia/Gallery slice: 16/16 pass; full site suite: 229/229 pass.
+- Workspace and E2E typechecks: 0 errors; Astro check: 0 errors with 7 existing hints.
+- Production Astro build: 15 pages; repository-wide Biome: 347 files; architecture verifier: 0 issues;
+  post-push script suite: 93/93 pass.
+- Application state owns trim, effective URL mapping, deduplication, order, nine-item bounding, active
+  identity, immutable failure progression, and terminal fallback.
+- Gallery consumer regression `7d8309b` failed on duplicate effective aliases before correction;
+  reviewed correction `ed58f66` delegates the consumer path without expanding MIU 12's three owner files.
+- CloudBase test deployment: not run and not authorized for MIU 12.
 
 ## MIU 11 Local Validation
 
