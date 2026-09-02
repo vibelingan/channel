@@ -46,14 +46,10 @@
       "claimedLocalHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "claimedRemoteHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "status": "implementation-in-progress",
-      "currentMiu": "10",
+      "currentMiu": null,
       "dependencies": [],
-      "activeExactReservations": [
-        "apps/site/src/catalog/presentation/CatalogCard.tsx",
-        "apps/site/src/catalog/presentation/catalog-card.test.ts",
-        "apps/site/src/islands/shop/HeadphonesProductCard.tsx"
-      ],
-      "activeReservationPurpose": "MIU 10 family-neutral CatalogCard and Headphones rollback wrapper; local validation only, no deployment.",
+      "activeExactReservations": [],
+      "activeReservationPurpose": "",
       "externalGates": {
         "D1": {
           "scope": ["26", "27", "28"],
@@ -380,7 +376,7 @@
         "07": { "reservationState": "released", "previousReservationState": "active" },
         "08": { "reservationState": "released", "previousReservationState": "active" },
         "09": { "reservationState": "released", "previousReservationState": "active" },
-        "10": { "reservationState": "active", "previousReservationState": "planned" },
+        "10": { "reservationState": "released", "previousReservationState": "active" },
         "11": { "reservationState": "planned" },
         "12": { "reservationState": "planned" },
         "13": { "reservationState": "planned" },
@@ -676,7 +672,7 @@
           "branchOrPrStatusMayResolveTo": "HEAD"
         }
       },
-      "handoff": "MIUs 01-09 are released. MIU 10 is active for local implementation and validation only; no deployment is authorized."
+      "handoff": "MIUs 01-10 are released with no active exact-file reservation. MIU 11 remains planned; no CloudBase test deployment was run for MIU 10."
     }
   ]
 }
