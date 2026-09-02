@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { CatalogPricingDecision } from '@vibelingan-channel/shared/catalog';
 import { Children, type ReactElement, type ReactNode, createElement, isValidElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { CatalogDetail } from '../../catalog/presentation/CatalogDetail.tsx';
 import {
   type SkuDetailCopy,
   SkuDetailPageView,
@@ -44,6 +46,15 @@ const copy: SkuDetailCopy = {
   relatedHeading: 'Related Products',
   scalarLabels: { wholesalePrice: 'Wholesale price', unitPrice: 'Unit price' },
   quoteLabel: 'Request a Quote',
+  sourcePricingLabels: {
+    heading: 'Live source pricing',
+    tierQuantityLabel: 'Quantity',
+    tierPriceLabel: 'Unit price',
+    negotiableLabel: 'Price on request',
+    unavailableLabel: 'Pricing unavailable — request a quote',
+    moqLabel: 'Source MOQ',
+    updatedLabel: 'Updated',
+  },
 };
 
 const renderView = (state: SkuDetailViewState) =>
@@ -137,6 +148,10 @@ test('canonical ready SKU consumes resolved pricing, ordered facts, media, and r
         { key: 'sku', label: 'SKU', value: 'AI-100' },
         { key: 'moq', label: 'MOQ', value: 100 },
       ],
+      breadcrumbs: [
+        { label: 'Home', href: '/' },
+        { label: 'VisionClip', href: '/products/item/?slug=visionclip' },
+      ],
       media: createElement('div', { 'data-media-slot': true }),
       related: [
         {
@@ -153,8 +168,147 @@ test('canonical ready SKU consumes resolved pricing, ordered facts, media, and r
   assert.match(markup, /data-media-slot/);
   assert.match(markup, /Wholesale price|\$15\.50/);
   assert.match(markup, /AI-100|MOQ|100/);
+  assert.match(markup, /aria-label="Breadcrumb"/);
+  assert.match(markup, /<ol[^>]*><li/);
+  assert.match(markup, /href="\/"/);
+  assert.match(markup, /aria-current="page">VisionClip/);
   assert.match(markup, /href="\/products\/item\/\?slug=translator"/);
   assert.match(markup, /data-catalog-schema/);
+});
+
+test('canonical SKU and inline detail render the same result for every pricing decision', () => {
+  const cases: Array<[CatalogPricingDecision, string]> = [
+    [
+      {
+        source: 'manual-tiered',
+        pricing: {
+          schemaVersion: 'manual-catalog-pricing-v1',
+          currency: 'USD',
+          tiers: [{ minQuantity: 1, unitAmountMinor: 900 }],
+        },
+      },
+      'From $9.00',
+    ],
+    [{ source: 'scalar', field: 'wholesalePrice', amount: 15.5, currency: 'USD' }, '$15.50'],
+    [{ source: 'scalar', field: 'unitPrice', amount: 18.9, currency: 'USD' }, '$18.90'],
+    [{ source: 'quote-required' }, 'Request a Quote'],
+    [
+      {
+        source: 'alibaba',
+        pricing: {
+          source: 'alibaba',
+          state: 'available',
+          mode: 'fixed',
+          currency: 'USD',
+          amountMinor: 250,
+          sourceMoq: 100,
+        },
+      },
+      '$2.50',
+    ],
+    [
+      {
+        source: 'alibaba',
+        pricing: {
+          source: 'alibaba',
+          state: 'available',
+          mode: 'range',
+          currency: 'USD',
+          minAmountMinor: 250,
+          maxAmountMinor: 499,
+        },
+      },
+      '$4.99',
+    ],
+    [
+      {
+        source: 'alibaba',
+        pricing: {
+          source: 'alibaba',
+          state: 'available',
+          mode: 'tiered',
+          currency: 'USD',
+          tiers: [{ minQuantity: 100, unitAmountMinor: 225 }],
+        },
+      },
+      '$2.25',
+    ],
+    [
+      {
+        source: 'alibaba',
+        pricing: { source: 'alibaba', state: 'quote', mode: 'negotiable' },
+      },
+      'Price on request',
+    ],
+    [
+      {
+        source: 'alibaba',
+        pricing: { source: 'alibaba', state: 'unavailable', mode: 'unavailable' },
+      },
+      'Pricing unavailable',
+    ],
+  ];
+  for (const [pricing, expected] of cases) {
+    const sourceMoq = pricing.source === 'alibaba' ? pricing.pricing.sourceMoq : undefined;
+    const media = createElement('div', { 'data-parity-media': true });
+    const sku = renderToStaticMarkup(
+      createElement(SkuDetailPageView, {
+        status: 'ready',
+        copy,
+        product: { _id: 'same', name: 'Same product' },
+        pricing,
+        facts: [
+          { key: 'shared', label: 'Shared fact', value: 'Shared value' },
+          ...(sourceMoq === undefined
+            ? []
+            : [{ key: 'moq', label: 'MOQ', value: sourceMoq, supplierOwned: true }]),
+        ],
+        breadcrumbs: [],
+        media,
+        related: [],
+        schema: null,
+        sourceUpdated: '2026-08-01T02:00:00.000Z',
+      }),
+    );
+    const inline = renderToStaticMarkup(
+      createElement(CatalogDetail, {
+        product: { _id: 'same', name: 'Same product' },
+        pricing,
+        facts: {
+          rows: [
+            { key: 'shared', label: 'Shared fact', value: 'Shared value' },
+            ...(sourceMoq === undefined
+              ? []
+              : [{ key: 'moq', label: 'MOQ', value: sourceMoq, marker: 'supplier-moq' as const }]),
+          ],
+          backLabel: 'Back',
+          scalarLabels: copy.scalarLabels,
+          quoteLabel: copy.quoteLabel,
+          inquiryLabel: copy.inquiryLabel,
+          sourcePricingLabels: copy.sourcePricingLabels,
+          sourceUpdated: '2026-08-01T02:00:00.000Z',
+        },
+        media,
+        onBack: () => undefined,
+      }),
+    );
+    assert.ok(sku.includes(expected), `SKU missing ${expected}`);
+    assert.ok(inline.includes(expected), `inline detail missing ${expected}`);
+    assert.ok(sku.includes('data-sku-fact="shared"'));
+    assert.ok(inline.includes('data-detail-fact="shared"'));
+    assert.ok(sku.includes('data-parity-media'));
+    assert.ok(inline.includes('data-parity-media'));
+    if (pricing.source === 'alibaba') {
+      assert.ok(sku.includes('data-alibaba-pricing'));
+      assert.ok(inline.includes('data-alibaba-pricing'));
+      assert.ok(sku.includes('data-alibaba-updated'));
+      assert.ok(inline.includes('data-alibaba-updated'));
+    }
+    if (sourceMoq !== undefined) {
+      assert.ok(sku.includes('data-alibaba-source-moq'));
+      assert.ok(inline.includes('data-alibaba-source-moq'));
+    }
+  }
 });
 
 test('published detail renders facts, quote pricing, fallback media, and valid related links', () => {
