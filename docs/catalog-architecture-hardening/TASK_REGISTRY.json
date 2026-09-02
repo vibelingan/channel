@@ -672,7 +672,23 @@
           "branchOrPrStatusMayResolveTo": "HEAD"
         }
       },
-      "handoff": "MIUs 01-10 are released with no active exact-file reservation. MIU 11 remains planned; no CloudBase test deployment was run for MIU 10."
+      "postReleaseCorrections": [
+        {
+          "miu": "09",
+          "commit": "c98250b16d7c2989203ec53672484dd6314bddf6",
+          "files": ["apps/site/src/islands/shop/CatalogFamilyGrid.tsx"],
+          "reason": "Add the explicit exhaustive Alibaba pricing-mode branch required by repository-wide Biome after MIU 10 exposed the inherited lint failure.",
+          "reservationStateChanged": false,
+          "validation": [
+            "catalog-family-render 7/7",
+            "full site suite 219/219",
+            "site test typecheck; Astro check 0 errors and 7 existing hints",
+            "production Astro build 15 pages",
+            "repository-wide Biome 343 files"
+          ]
+        }
+      ],
+      "handoff": "MIUs 01-10 are released with no active exact-file reservation. MIU 11 remains planned; MIU 09 post-release lint correction c98250b is locally validated and not yet published. No CloudBase test deployment was run for MIU 10."
     }
   ]
 }

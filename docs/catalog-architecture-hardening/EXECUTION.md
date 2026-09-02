@@ -32,7 +32,11 @@ Branch: `refactor/catalog-architecture-hardening`
   Reviewed active head `0f9f07f` was pushed; no CloudBase deployment was run.
 - MIU 10 activated from released closure `635569d`; behavior-first contract and exact three-file
   reservation are tracked at `b7f35c0`. Implementation `f98c8d3` and reviewed active head `d33505f`
-  were pushed; release transition is `0c2465d`. No CloudBase deployment was run.
+  were pushed; release transition is `0c2465d` and published closure is `afe6591`. No CloudBase deployment was run.
+- MIU 09 post-release lint correction `c98250b` makes its existing pricing decision switch explicitly
+  exhaustive. It changes one released owner file without changing the 49-MIU denominator or reopening
+  lifecycle state; focused render, full site, site/Astro typecheck, 15-page build, and repository-wide
+  Biome pass locally.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -48,9 +52,8 @@ rather than trusted from JSON strings. No MIU or exact file is active; future pl
 - Card and inherited pricing parity suite: 11/11 pass; full site suite: 219/219 pass.
 - Workspace and E2E typechecks: 0 errors; Astro check: 0 errors with 7 existing hints.
 - Production Astro build: 15 pages; architecture verifier: 0 issues; script suite: 93/93 pass.
-- MIU 10 owned-file Biome and `git diff --check`: pass. Repository-wide Biome still reports the released
-  MIU 09 grid switch's missing explicit exhaustive branch; that separate ownership correction is not
-  folded into MIU 10's approved three-file boundary.
+- MIU 10 owned-file Biome and `git diff --check`: pass. The separate one-file MIU 09 post-release
+  correction `c98250b` restores repository-wide Biome without expanding MIU 10's approved boundary.
 - Family-neutral presentation covers all pricing decisions and modes, `_id` activation, optional deep
   links, missing media, and the legacy Headphones unit-price compatibility path.
 - CloudBase test deployment: not run and not authorized for MIU 10.
@@ -65,6 +68,9 @@ rather than trusted from JSON strings. No MIU or exact file is active; future pl
 
 Deviation: MIU 09's implementation commit preceded its tracked activation commit. The exact three-file
 reservation is established in a separate corrective commit before source publication and release.
+Post-release correction `c98250b` adds only compile-time exhaustiveness to the existing Alibaba render
+branch; focused grid behavior remains 7/7, full site remains 219/219, the production build emits 15 pages,
+and repository-wide Biome checks all 343 files successfully.
 
 ## MIU 08 Local Validation
 
