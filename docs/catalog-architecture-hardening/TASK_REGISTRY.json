@@ -46,14 +46,10 @@
       "claimedLocalHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "claimedRemoteHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "status": "implementation-in-progress",
-      "currentMiu": "12",
+      "currentMiu": null,
       "dependencies": [],
-      "activeExactReservations": [
-        "apps/site/src/catalog/application/catalog-media.ts",
-        "apps/site/src/catalog/application/catalog-media.test.ts",
-        "apps/site/src/islands/shop/ProductMedia.tsx"
-      ],
-      "activeReservationPurpose": "MIU 12 family-neutral bounded media state and ProductMedia delegation; local validation only, no deployment.",
+      "activeExactReservations": [],
+      "activeReservationPurpose": "",
       "externalGates": {
         "D1": {
           "scope": ["26", "27", "28"],
@@ -382,7 +378,7 @@
         "09": { "reservationState": "released", "previousReservationState": "active" },
         "10": { "reservationState": "released", "previousReservationState": "active" },
         "11": { "reservationState": "released", "previousReservationState": "active" },
-        "12": { "reservationState": "active", "previousReservationState": "planned" },
+        "12": { "reservationState": "released", "previousReservationState": "active" },
         "13": { "reservationState": "planned" },
         "14": { "reservationState": "planned" },
         "15": { "reservationState": "planned" },
@@ -696,7 +692,7 @@
       "preReleaseCorrections": [
         {
           "miu": "12",
-          "status": "resolved-awaiting-release-validation",
+          "status": "validated",
           "file": "apps/site/src/islands/shop/Gallery.tsx",
           "reason": "Gallery bounds raw aliases before effective URL deduplication, so duplicate thumbnails can exclude a later unique fallback.",
           "requiredChange": "Delegate effective URL normalization, deduplication, ordering, and the nine-item bound to createCatalogMediaState.",
@@ -708,11 +704,14 @@
             "catalog media and inherited ProductMedia/Gallery suite 16/16",
             "site test typecheck",
             "repository-wide Biome 347 files",
-            "independent assumption review pass"
+            "independent assumption review pass",
+            "corrected packet local and remote equality",
+            "architecture verifier 0 issues",
+            "script suite 93/93"
           ]
         }
       ],
-      "handoff": "MIUs 01-11 are released. MIU 12 is active with three exact owner files; its Gallery consumer blocker is resolved and awaits final release validation. No CloudBase test deployment is authorized."
+      "handoff": "MIUs 01-12 are released with no active exact-file reservation. MIU 13 remains planned; no CloudBase test deployment was run for MIU 12."
     }
   ]
 }
