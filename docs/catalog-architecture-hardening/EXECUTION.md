@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-12 released; MIU 13 planned and inactive.
+Status: MIUs 01-12 released; MIU 13 active for local implementation and validation.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implementation`.
 
-**Current/next MIU:** No MIU is active. MIU 13 requires separate activation.
+**Current/next MIU:** MIU 13 is the sole active MIU; MIU 14 remains planned.
 
 ## Git Truth
 
@@ -47,6 +47,8 @@ Branch: `refactor/catalog-architecture-hardening`
   fallback; independently reviewed correction `ed58f66` delegates its pre-bound normalization. Final
   corrected active packet `7e12025` was pushed and verified; release transition is `cda0def`. No CloudBase
   deployment was run.
+- MIU 13 behavior-first contract and exact three-file reservation are tracked at `0c25770`; canonical
+  SKU view and orchestration adapter implementation is `b387f61`. Local validation is in progress.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -54,7 +56,7 @@ Branch: `refactor/catalog-architecture-hardening`
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. No MIU or exact file is active; future plans remain
+rather than trusted from JSON strings. MIU 13 is the only active exact-file claim; future plans remain
 `planned|blocked` claims. Activation is one MIU at a time.
 
 ## MIU 12 Local Validation
