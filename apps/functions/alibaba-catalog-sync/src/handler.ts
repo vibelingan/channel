@@ -20,6 +20,7 @@ import { type AlibabaSyncFunctionConfig, resolveOAuthConfig } from './config.ts'
 export type { AlibabaSyncFunctionConfig } from './config.ts';
 import { linkExistingProduct, setPinnedOffer, unlinkProduct } from './linking.ts';
 import { importCandidateImage, removeImportedCandidate } from './media-import.ts';
+import { recentAttempts } from './oauth-attempts.ts';
 import {
   type OAuthDeps,
   connectionStatusView,
@@ -138,6 +139,14 @@ export async function handleAlibabaSyncRequest(
       const started = await startOAuth(runtime.runtime.deps, admin.data.userId);
       if (!started.ok) return err('INTERNAL_ERROR', 'Could not start the authorization flow.');
       return ok({ authorizeUrl: started.authorizeUrl });
+    }
+    case 'oauthAttempts': {
+      // Admin-only diagnostic read. The projection in recentAttempts() is the
+      // redaction boundary — it names the safe fields explicitly rather than
+      // filtering a document, so a new field cannot leak by being added.
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      return ok({ attempts: await recentAttempts(10) });
     }
     case 'connectionStatus': {
       const admin = await requireLiveAdmin(config, token);

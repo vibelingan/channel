@@ -790,3 +790,77 @@ ahead. Anyone branching from `main` inherits the exact bug that cost ten days.
 This needs a PR from a feature branch into `main` (merging `test` into `main`
 reverses the intended flow and is not the fix). Flagged rather than actioned —
 27 commits of unrelated work is a review someone must own.
+
+## OAuth attempt diagnostics + strict support URL (2026-09-02)
+
+The merchant test still loops between `open-api.alibaba.com/oauth/authorize`
+and `login.alibaba.com/newlogin/icbuLogin.htm`. Two changes, both on
+`feat/alibaba-icbu-top`.
+
+### 1. Durable, secret-free attempt trail — the real gap
+
+`startOAuth()` calls `sweepExpiredStates()` BEFORE minting a new state, so the
+next Connect deletes the previous attempt's only record. After a failed test
+there was nothing left to answer the one question that matters: **did Alibaba
+ever return the browser to our callback?** That decides whether the problem is
+theirs or ours, and we could not tell.
+
+New `alibabaOAuthAttempts` collection (adminAccess `readOnly`, 7-day
+retention, swept independently of the 10-minute state TTL). The state row now
+carries an `attemptId` so the callback can advance the right attempt from the
+state HASH — never the raw state.
+
+Every callback boundary now records where it stopped:
+
+```text
+started -> callback_received -> exchange_started -> connected
+                 |                     |
+                 |                     +-> exchange_failed_transport | _response
+                 +-> rejected_unknown_state | _expired_state | _replayed_state
+```
+
+The diagnostic value is in the stuck state: an attempt that stays `started`
+means Alibaba never came back — escalate to them, stop changing our code. Any
+`rejected_*` means the failure is ours.
+
+Stored: attempt id, timestamps, status, failure CLASS, authorization variant,
+host, and parameter NAMES. Never: raw state, code, tokens, signatures, full
+URLs, cookies, IPs. The admin read (`oauthAttempts` action) projects an
+explicit field list, so a future field cannot leak by being added. Every write
+is wrapped — a diagnostics outage must never block authorization, and there is
+a test that breaks the diagnostics backend and asserts Connect still works.
+
+### 2. Authorization URL — strictly the 2026-08-31 support shape
+
+| Variant | `sp=icbu` | `force_auth` | Result |
+|---|---|---|---|
+| 2026-08-16 support | yes | no | merchant login loop |
+| union of both replies | yes | yes | merchant login loop |
+| 2026-08-31 support (now) | **no** | yes | untested |
+
+`sp` removed. Both shapes containing it failed a real merchant test, and
+support's latest reply omits it. This is the only single-variable experiment
+the history justifies. `state` stays — it is our CSRF control, not a platform
+parameter, which is why support examples omit it.
+
+The endpoint test now asserts the EXACT key set and explicitly asserts `sp`,
+`State`, `view` and `force_login` are absent, each with the reason. Its old
+name claimed it tested "exactly the parameters support supplied" while the
+code sent a union of two conflicting replies — renamed.
+
+### 3. Stale config corrected
+
+`.env.example` still showed `openapi-auth.alibaba.com` and
+`openapi-api.alibaba.com` — both retired hosts, and exactly the kind of stale
+example that sent this investigation sideways once already.
+
+### Still open — NOT resolved by this change
+
+- **Phase 0 belongs to a human:** the ticket still needs the seller `loginId`
+  and loop timestamp that Alibaba asked for on 2026-08-20. No artifact shows it
+  was ever sent. This code cannot substitute for that.
+- Only a merchant reaching `connected` proves OAuth works. A deployed build,
+  green CI, and a healthy function prove none of it.
+
+Gates: 10/10 suites, 0 type errors, biome clean, 25 script tests, SDK contract
+verify, 3 artifact smokes, site build.

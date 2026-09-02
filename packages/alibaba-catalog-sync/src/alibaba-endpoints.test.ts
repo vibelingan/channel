@@ -70,7 +70,10 @@ test('the default authorize host is the NEW open-api domain, not the old one', (
   }
 });
 
-test('buildAuthorizeUrl sends exactly the parameters Alibaba support supplied', () => {
+test('buildAuthorizeUrl sends the 2026-08-31 support shape PLUS required state', () => {
+  // Named precisely: this is NOT "every parameter support ever supplied" — the
+  // previous name said that while the code sent a union of two conflicting
+  // replies, and that union failed a real merchant test.
   const url = buildAuthorizeUrl(DEFAULT_ALIBABA_ENDPOINTS, {
     appKey: '511630',
     redirectUri: 'https://supplychainsai.com/api/alibaba-catalog-sync/oauth/callback',
@@ -78,21 +81,28 @@ test('buildAuthorizeUrl sends exactly the parameters Alibaba support supplied', 
   });
   const parsed = new URL(url);
   assert.equal(parsed.origin + parsed.pathname, 'https://open-api.alibaba.com/oauth/authorize');
+
+  // EXACT key set — a new parameter must be a deliberate change, not a drift.
+  assert.deepEqual([...parsed.searchParams.keys()].sort(), [
+    'client_id',
+    'force_auth',
+    'redirect_uri',
+    'response_type',
+    'state',
+  ]);
+
   assert.equal(parsed.searchParams.get('response_type'), 'code');
   assert.equal(parsed.searchParams.get('client_id'), '511630');
   assert.equal(
     parsed.searchParams.get('redirect_uri'),
     'https://supplychainsai.com/api/alibaba-catalog-sync/oauth/callback',
   );
-  assert.equal(parsed.searchParams.get('sp'), 'icbu');
-  assert.equal(parsed.searchParams.get('state'), 'abc123');
-  // force_auth arrived in support's 2026-08-31 message. It also forces
-  // re-authentication, which matters because the app allows ONE authorized
-  // user — a merchant on a stale session could otherwise bind the wrong
-  // account.
   assert.equal(parsed.searchParams.get('force_auth'), 'true');
-  // Still absent by design: the duplicate casing that caused the original
-  // failure, and view=web which neither support message includes.
-  assert.equal(parsed.searchParams.get('State'), null, 'no duplicate casing');
-  assert.equal(parsed.searchParams.get('view'), null);
+  assert.equal(parsed.searchParams.get('state'), 'abc123');
+
+  // Each absence is a specific failed hypothesis; naming them stops a revert.
+  assert.equal(parsed.searchParams.get('sp'), null, 'sp shapes failed merchant tests twice');
+  assert.equal(parsed.searchParams.get('State'), null, 'duplicate casing was the original bug');
+  assert.equal(parsed.searchParams.get('view'), null, 'not in any support reply');
+  assert.equal(parsed.searchParams.get('force_login'), null, 'no support evidence');
 });

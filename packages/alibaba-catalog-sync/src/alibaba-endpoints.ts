@@ -102,31 +102,23 @@ export function buildAuthorizeUrl(
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('client_id', input.appKey);
   url.searchParams.set('redirect_uri', input.redirectUri);
-  // Alibaba support has now sent TWO authorize shapes for this app, and they
-  // differ. Rather than pick one and hope, we send the UNION — every parameter
-  // either message specified:
+  // STRICTLY the 2026-08-31 support shape, plus our required `state`.
   //
-  //   2026-08-16: response_type, client_id, redirect_uri, sp=icbu
-  //   2026-08-31: response_type, client_id, redirect_uri, force_auth=true
+  // History, because this parameter set has now been wrong twice:
+  //   2026-08-16 support: sp=icbu, no force_auth   -> merchant login loop
+  //   union of both:      sp=icbu + force_auth     -> merchant login loop
+  //   2026-08-31 support: force_auth, NO sp        -> this shape, untested
   //
-  // All three shapes (either alone, or both together) return 200 and render
-  // the same login page unauthenticated, so a probe CANNOT tell them apart —
-  // the failure only ever surfaces after a real merchant logs in, which is
-  // exactly how the retired-host bug stayed hidden for ten days. Given that,
-  // the union is the lower-risk bet: an unnecessary-but-accepted parameter
-  // costs nothing, while a missing required one costs another round trip
-  // through support.
+  // Removing `sp` is the only single-variable experiment the support history
+  // justifies. Both shapes containing `sp` have failed a real merchant test,
+  // and support's latest reply omits it entirely. Unauthenticated probes
+  // cannot distinguish these variants — all four permutations return the same
+  // ICBU login page — so only a merchant attempt settles it.
   //
-  // `force_auth=true` also has a concrete operational benefit here: it forces
-  // re-authentication instead of silently reusing whatever Alibaba session the
-  // browser already holds. With an authorized-user limit of 1, a merchant
-  // logged in as the wrong account would otherwise bind the wrong one.
-  //
-  // `state` is ours and is NOT optional — the callback validates it against a
-  // hashed, single-use, expiring record. Neither support message mentions it
-  // because it is the integrator's CSRF control, not a platform parameter.
+  // `state` stays and is NOT optional: support examples omit it because it is
+  // the integrator's CSRF control, not a platform parameter. The callback
+  // validates it against a hashed, single-use, expiring record.
   url.searchParams.set('state', input.state);
-  url.searchParams.set('sp', 'icbu');
   url.searchParams.set('force_auth', 'true');
   return url.toString();
 }
