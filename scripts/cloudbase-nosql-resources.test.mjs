@@ -159,7 +159,9 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
 
   // Anchor: a silent registry change must fail here, not slip through the
   // derived expectations below (2 auth/abuse + 1 catalog + 10 alibaba collections).
-  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 13);
+  // 14 after adding alibabaOAuthAttempts (the durable OAuth diagnostic trail).
+  // This count is deliberate: a new collection must be a conscious change.
+  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 14);
   assert.equal(collections.size, REQUIRED_NOSQL_RESOURCES.length);
   assert.equal(
     [...indexesByCollection.values()].reduce((total, indexes) => total + indexes.size, 0),

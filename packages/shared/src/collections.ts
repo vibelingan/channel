@@ -733,6 +733,42 @@ export const COLLECTIONS: readonly CollectionDef[] = [
       { name: 'consumeClaim', label: 'Consume Claim', type: 'number', readOnly: true },
       { name: 'expiresAt', label: 'Expires', type: 'date', readOnly: true },
       { name: 'consumedAt', label: 'Consumed', type: 'date', readOnly: true },
+      // Links a state to its durable attempt record so the callback can
+      // advance the right attempt without ever handling the raw state.
+      { name: 'attemptId', label: 'Attempt', type: 'string', readOnly: true, hideInTable: true },
+    ],
+  },
+  {
+    // DURABLE OAuth attempt trail. The state records above are swept the
+    // moment the NEXT Connect starts, so a failed attempt erases the only
+    // evidence of itself — which is why we could not say whether a merchant
+    // reached our callback. These rows outlive the 10-minute state TTL and
+    // hold NO secret: no raw state, no code, no token, no full URL.
+    name: 'alibabaOAuthAttempts',
+    label: 'Alibaba OAuth Attempts',
+    description: 'Secret-free OAuth attempt trail for diagnosing the merchant Connect flow.',
+    searchableFields: [],
+    hideFromNav: true,
+    adminAccess: 'readOnly',
+    fields: [
+      { name: 'requestedByUserId', label: 'Requested By', type: 'string', readOnly: true },
+      { name: 'status', label: 'Status', type: 'string', readOnly: true },
+      { name: 'failureCategory', label: 'Failure', type: 'string', readOnly: true },
+      { name: 'authorizationVariant', label: 'URL Variant', type: 'string', readOnly: true },
+      { name: 'authorizationHost', label: 'Auth Host', type: 'string', readOnly: true },
+      {
+        name: 'authorizationParameterNames',
+        label: 'Param Names',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'startedAt', label: 'Started', type: 'date', readOnly: true },
+      { name: 'callbackReceivedAt', label: 'Callback', type: 'date', readOnly: true },
+      { name: 'exchangeStartedAt', label: 'Exchange', type: 'date', readOnly: true },
+      { name: 'completedAt', label: 'Completed', type: 'date', readOnly: true },
+      { name: 'expiresAt', label: 'Retain Until', type: 'date', readOnly: true },
+      { name: 'lastUpdatedAt', label: 'Updated', type: 'date', readOnly: true },
     ],
   },
   {

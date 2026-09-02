@@ -45,6 +45,13 @@ export const REQUIRED_NOSQL_RESOURCES = [
     indexes: [index('alibaba_oauth_state_expires_at', [['expiresAt', '1']])],
   },
   {
+    // Durable secret-free attempt trail (7-day retention) — outlives the
+    // 10-minute state TTL so a failed Connect is still diagnosable later.
+    collectionName: 'alibabaOAuthAttempts',
+    permission: 'ADMINONLY',
+    indexes: [index('alibaba_oauth_attempt_started', [['startedAt', '-1']])],
+  },
+  {
     collectionName: 'alibabaSyncLeases',
     permission: 'ADMINONLY',
     indexes: [],
