@@ -36,7 +36,8 @@ Branch: `refactor/catalog-architecture-hardening`
 - MIU 09 post-release lint correction `c98250b` makes its existing pricing decision switch explicitly
   exhaustive. It changes one released owner file without changing the 49-MIU denominator or reopening
   lifecycle state; focused render, full site, site/Astro typecheck, 15-page build, and repository-wide
-  Biome pass locally.
+  Biome pass. Reviewed correction packet `d97c7fb` was pushed with local/remote equality, architecture
+  verification, and the 93-script suite passing afterward.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 

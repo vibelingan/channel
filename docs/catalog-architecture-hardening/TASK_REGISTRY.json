@@ -688,7 +688,7 @@
           ]
         }
       ],
-      "handoff": "MIUs 01-10 are released with no active exact-file reservation. MIU 11 remains planned; MIU 09 post-release lint correction c98250b is locally validated and not yet published. No CloudBase test deployment was run for MIU 10."
+      "handoff": "MIUs 01-10 are released with no active exact-file reservation. MIU 11 remains planned; MIU 09 post-release lint correction c98250b is published in reviewed packet d97c7fb. No CloudBase test deployment was run for MIU 10."
     }
   ]
 }
