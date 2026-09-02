@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createElement } from 'react';
+import { Children, type ReactElement, type ReactNode, createElement, isValidElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import {
+  type SkuDetailCopy,
+  SkuDetailPageView,
+} from '../../catalog/presentation/SkuDetailPage.tsx';
 import type { CatalogContent } from '../../i18n/catalog.ts';
 import { boundedGalleryImages } from './Gallery.tsx';
 import { SkuDetailView, type SkuDetailViewState } from './SkuDetailPage.tsx';
@@ -27,6 +31,21 @@ const content = {
   },
 } as CatalogContent;
 
+const copy: SkuDetailCopy = {
+  loadingLabel: 'Loading products',
+  errorLabel: 'Load failed',
+  retryLabel: 'Try Again',
+  notFoundLabel: 'Product not found.',
+  backLabel: 'Back to products',
+  inquiryLabel: 'Request a Quote',
+  oemEyebrow: 'OEM / ODM Programs',
+  oemHeading: 'Build This Product for Your Market',
+  oemBody: 'Share your requirements with our OEM team.',
+  relatedHeading: 'Related Products',
+  scalarLabels: { wholesalePrice: 'Wholesale price', unitPrice: 'Unit price' },
+  quoteLabel: 'Request a Quote',
+};
+
 const renderView = (state: SkuDetailViewState) =>
   renderToStaticMarkup(
     createElement(SkuDetailView, {
@@ -35,6 +54,19 @@ const renderView = (state: SkuDetailViewState) =>
       onRetry: () => undefined,
     }),
   );
+
+function findElement(
+  node: ReactNode,
+  predicate: (element: ReactElement<Record<string, unknown>>) => boolean,
+): ReactElement<Record<string, unknown>> | undefined {
+  if (!isValidElement<Record<string, unknown>>(node)) return undefined;
+  if (predicate(node)) return node;
+  for (const child of Children.toArray(node.props.children as ReactNode)) {
+    const match = findElement(child, predicate);
+    if (match) return match;
+  }
+  return undefined;
+}
 
 test('detail gallery preserves order and caps product media at nine', () => {
   const images = Array.from({ length: 10 }, (_, index) => ` /image-${index + 1}.jpg `);
@@ -57,6 +89,72 @@ test('detail loading, not-found, and retryable error states are mutually exclusi
   assert.match(error, /role="alert"/);
   assert.match(error, /Try Again/);
   assert.doesNotMatch(error, /Product not found|data-sku-detail|data-catalog-schema/);
+});
+
+test('canonical SKU view keeps exclusive status markup and retry command', () => {
+  const loading = renderToStaticMarkup(
+    createElement(SkuDetailPageView, { status: 'loading', copy }),
+  );
+  assert.match(loading, /Loading products/);
+  assert.doesNotMatch(loading, /Try Again|Product not found|data-sku-detail/);
+
+  const notFound = renderToStaticMarkup(
+    createElement(SkuDetailPageView, { status: 'not-found', copy }),
+  );
+  assert.match(notFound, /Product not found/);
+  assert.doesNotMatch(notFound, /Try Again|data-sku-detail/);
+
+  let retries = 0;
+  const errorElement = SkuDetailPageView({
+    status: 'error',
+    copy,
+    onRetry: () => {
+      retries += 1;
+    },
+  });
+  const button = findElement(errorElement, (element) => element.type === 'button');
+  assert.ok(button);
+  assert.equal(typeof button.props.onClick, 'function');
+  (button.props.onClick as () => void)();
+  assert.equal(retries, 1);
+});
+
+test('canonical ready SKU consumes resolved pricing, ordered facts, media, and related links', () => {
+  const markup = renderToStaticMarkup(
+    createElement(SkuDetailPageView, {
+      status: 'ready',
+      copy,
+      product: {
+        _id: 'current',
+        name: 'VisionClip',
+        slug: 'visionclip',
+        productFamily: 'ai-gadgets',
+        skuCode: 'AI-100',
+        description: 'Compact connected camera.',
+      },
+      pricing: { source: 'scalar', field: 'wholesalePrice', amount: 15.5, currency: 'USD' },
+      facts: [
+        { key: 'sku', label: 'SKU', value: 'AI-100' },
+        { key: 'moq', label: 'MOQ', value: 100 },
+      ],
+      media: createElement('div', { 'data-media-slot': true }),
+      related: [
+        {
+          _id: 'related',
+          name: 'Translator',
+          slug: 'translator',
+          productFamily: 'ai-gadgets',
+        },
+      ],
+      schema: createElement('script', { 'data-catalog-schema': true }),
+    }),
+  );
+  assert.match(markup, /data-sku-detail="current"/);
+  assert.match(markup, /data-media-slot/);
+  assert.match(markup, /Wholesale price|\$15\.50/);
+  assert.match(markup, /AI-100|MOQ|100/);
+  assert.match(markup, /href="\/products\/item\/\?slug=translator"/);
+  assert.match(markup, /data-catalog-schema/);
 });
 
 test('published detail renders facts, quote pricing, fallback media, and valid related links', () => {

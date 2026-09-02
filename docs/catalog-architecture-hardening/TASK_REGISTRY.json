@@ -46,10 +46,14 @@
       "claimedLocalHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "claimedRemoteHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "status": "implementation-in-progress",
-      "currentMiu": null,
+      "currentMiu": "13",
       "dependencies": [],
-      "activeExactReservations": [],
-      "activeReservationPurpose": "",
+      "activeExactReservations": [
+        "apps/site/src/catalog/presentation/SkuDetailPage.tsx",
+        "apps/site/src/islands/shop/SkuDetailPage.tsx",
+        "apps/site/src/islands/shop/sku-detail-render.test.ts"
+      ],
+      "activeReservationPurpose": "MIU 13 canonical SKU detail view with existing fetch/retry orchestration; local validation only, no deployment.",
       "externalGates": {
         "D1": {
           "scope": ["26", "27", "28"],
@@ -379,7 +383,7 @@
         "10": { "reservationState": "released", "previousReservationState": "active" },
         "11": { "reservationState": "released", "previousReservationState": "active" },
         "12": { "reservationState": "released", "previousReservationState": "active" },
-        "13": { "reservationState": "planned" },
+        "13": { "reservationState": "active", "previousReservationState": "planned" },
         "14": { "reservationState": "planned" },
         "15": { "reservationState": "planned" },
         "16": { "reservationState": "planned" },
@@ -711,7 +715,7 @@
           ]
         }
       ],
-      "handoff": "MIUs 01-12 are released with no active exact-file reservation. MIU 13 remains planned; no CloudBase test deployment was run for MIU 12."
+      "handoff": "MIUs 01-12 are released. MIU 13 is active with three exact owner files for local implementation and validation only; no CloudBase test deployment is authorized."
     }
   ]
 }
