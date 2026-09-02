@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-12 released; MIU 13 active for local implementation and validation.
+Status: MIUs 01-13 released; MIU 14 planned and inactive.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implementation`.
 
-**Current/next MIU:** MIU 13 is the sole active MIU; MIU 14 remains planned.
+**Current/next MIU:** No MIU is active. MIU 14 requires separate activation.
 
 ## Git Truth
 
@@ -48,7 +48,8 @@ Branch: `refactor/catalog-architecture-hardening`
   corrected active packet `7e12025` was pushed and verified; release transition is `cda0def`. No CloudBase
   deployment was run.
 - MIU 13 behavior-first contract and exact three-file reservation are tracked at `0c25770`; canonical
-  SKU view and orchestration adapter implementation is `b387f61`. Local validation is in progress.
+  SKU view and orchestration adapter implementation is `b387f61`, reviewed active head is `d9b1e00`,
+  and release transition is `24259dc`. No CloudBase deployment was run.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -56,8 +57,20 @@ Branch: `refactor/catalog-architecture-hardening`
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. MIU 13 is the only active exact-file claim; future plans remain
+rather than trusted from JSON strings. No MIU or exact file is active; future plans remain
 `planned|blocked` claims. Activation is one MIU at a time.
+
+## MIU 13 Local Validation
+
+- Canonical SKU plus retained tier characterization: 8/8 pass; full site suite: 232/232 pass.
+- Workspace and E2E typechecks: 0 errors; Astro check: 0 errors with 7 existing hints.
+- Production Astro build: 15 pages; repository-wide Biome: 348 files; architecture verifier: 0 issues;
+  post-push script suite: 93/93 pass.
+- SKU view owns status and ready presentation from resolved pricing, typed facts, media, related products,
+  breadcrumbs, and schema slots; the island retains fetch/retry/abort/canonical and SEO assembly.
+- Direct SKU/inline parity covers manual, wholesale, unit, quote, all Alibaba modes, source MOQ/update,
+  facts, and media; related products require usable slugs and emit no empty detail links.
+- CloudBase test deployment: not run and not authorized for MIU 13.
 
 ## MIU 12 Local Validation
 

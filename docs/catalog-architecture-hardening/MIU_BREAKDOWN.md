@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening MIU Breakdown
 
-Status: published; MIUs 01-12 released; MIU 13 active for local implementation and validation.
+Status: published; MIUs 01-13 released; MIU 14 planned and inactive.
 
 ```mermaid
 flowchart TD
@@ -57,7 +57,8 @@ flowchart TD
 
 ## Reservation Lifecycle
 
-- MIU 13 is the sole active MIU. MIUs 01-12 are released, and MIUs 26-28 remain blocked by D1.
+- No MIU or exact file is active. MIUs 01-13 are released, MIU 14 remains planned, and MIUs 26-28
+  remain blocked by D1.
 - Activation follows `TASK_REGISTRY.json`: verify dependencies, gates, live refs/worktrees, and zero
   conflicting active owner claims, then atomically mark one MIU `active`. Completion marks it `released`
   before any explicit successor transfer activates.
@@ -323,7 +324,7 @@ flowchart TD
 - **Files:** `apps/site/src/catalog/presentation/SkuDetailPage.tsx`, `apps/site/src/islands/shop/SkuDetailPage.tsx`, `apps/site/src/islands/shop/sku-detail-render.test.ts`
 - **Type:** refactor
 - **Depends on:** MIUs 07, 11, 12
-- **Reservation state:** `active`; local SKU browser/SSR parity validation only.
+- **Reservation state:** `released`; previous state `active`. SKU browser/SSR parity validation was local only.
 - **What it does:**
   - Defines `SkuDetailPageView({ product, pricing, facts, media, status })` using pricing from
     `packages/shared/src/catalog/resolve-pricing.ts` and media state from
