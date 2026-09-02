@@ -5,7 +5,13 @@ import { fileURLToPath } from 'node:url';
 import type { CatalogPricingDecision } from '@vibelingan-channel/shared/catalog';
 import { Children, type ReactElement, type ReactNode, createElement, isValidElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import type { HeadphonesContent } from '../../i18n/headphones.ts';
+import { HeadphonesProductDetail } from '../../islands/shop/HeadphonesProductDetail.tsx';
 import { OEM_INQUIRY_HREF } from '../../lib/site-navigation.ts';
+import {
+  createAlibabaCatalogPricing,
+  createAlibabaLinkedProduct,
+} from '../../test/factories/catalog.ts';
 import { CatalogDetail, type CatalogDetailProps } from './CatalogDetail.tsx';
 
 const product = {
@@ -26,13 +32,42 @@ const facts = {
   scalarLabels: { wholesalePrice: 'Wholesale price', unitPrice: 'Unit price' },
   quoteLabel: 'Price inquiry',
   inquiryLabel: 'Price inquiry',
+  sourcePricingLabels: {
+    heading: 'Live source pricing',
+    tierQuantityLabel: 'Quantity',
+    tierPriceLabel: 'Unit price',
+    negotiableLabel: 'Price on request',
+    unavailableLabel: 'Pricing unavailable — request a quote',
+    moqLabel: 'Source MOQ',
+    updatedLabel: 'Updated',
+  },
 };
 
-const media = {
-  images: [] as string[],
+const mediaUnavailableLabel = 'Product image unavailable';
+const media = createElement(
+  'div',
+  {
+    'data-product-media': 'fallback',
+    className: 'aspect-square',
+  },
+  mediaUnavailableLabel,
+);
+
+const detail: HeadphonesContent['detail'] = {
+  backLabel: 'Back',
+  backToModelsLabel: 'Back to all models',
+  seriesLabel: 'Series',
+  modelLabel: 'Model',
+  typeLabel: 'Type',
+  moqLabel: 'Minimum Order Quantity',
+  unitPriceLabel: 'Unit price',
+  wholesaleLabel: 'Wholesale price',
+  inquiryCta: 'Price inquiry',
+  oemInquiryCta: 'Start Your OEM Enquiry',
   viewAllLabel: 'View All',
   showLessLabel: 'Show Less',
-  unavailableLabel: 'Product image unavailable',
+  imageUnavailableLabel: 'Product image unavailable',
+  notFound: 'Product not found.',
 };
 
 function render(
@@ -87,7 +122,7 @@ test('slugless detail preserves _id identity, Gallery geometry, focus target, an
   assert.ok(html.includes('data-product-detail="legacy-detail-id"'));
   assert.match(html, /<h2[^>]*tabindex="-1"[^>]*data-detail-heading/);
   assert.ok(html.includes('data-product-media="fallback"'));
-  assert.ok(html.includes(media.unavailableLabel));
+  assert.ok(html.includes(mediaUnavailableLabel));
   assert.ok(html.includes('aspect-square'));
   assert.match(html, /data-detail-media-column[^>]*class="[^"]*min-w-0/);
   assert.match(html, /data-detail-info-column[^>]*class="[^"]*min-w-0/);
@@ -100,8 +135,8 @@ test('ordered facts, public scalar pricing, and OEM inquiry semantics render wit
     amount: 15.5,
     currency: 'USD',
   });
-  assert.ok(html.indexOf('Legacy Series') < html.indexOf('100'));
-  assert.ok(html.indexOf('100') < html.indexOf('HP-100-BLK'));
+  assert.ok(html.indexOf('data-detail-fact="series"') < html.indexOf('data-detail-fact="moq"'));
+  assert.ok(html.indexOf('data-detail-fact="moq"') < html.indexOf('data-detail-fact="code"'));
   assert.ok(html.includes('Wholesale price'));
   assert.ok(html.includes('$15.50'));
   assert.ok(html.includes(`href="${OEM_INQUIRY_HREF}"`));
@@ -193,6 +228,26 @@ test('manual, scalar, quote, and every Alibaba decision render exhaustive pricin
     assert.ok(html.includes(marker));
     assert.ok(html.includes(expected));
   }
+});
+
+test('Headphones wrapper preserves supplier MOQ and source update metadata', () => {
+  const html = renderToStaticMarkup(
+    createElement(HeadphonesProductDetail, {
+      product: createAlibabaLinkedProduct({
+        alibabaCatalogPricing: createAlibabaCatalogPricing({
+          sourceMoq: 100,
+          sourceUpdatedAt: '2026-08-01T02:00:00.000Z',
+        }),
+      }),
+      detail,
+      categoryLabel: 'True Wireless',
+      onBack: () => {},
+    }),
+  );
+  assert.ok(html.includes('data-alibaba-source-moq'));
+  assert.ok(html.includes('data-alibaba-moq'));
+  assert.ok(html.includes('data-alibaba-updated'));
+  assert.ok(html.includes('Updated: 2026-08-01'));
 });
 
 test('presentation and rollback wrapper preserve their dependency boundaries', () => {

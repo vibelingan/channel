@@ -11,13 +11,17 @@
  * widening the page. Focus movement (heading focus after expansion, card
  * focus restoration on Back) belongs to the MIU 13 controller.
  */
+import {
+  createAlibabaPricingAdapter,
+  resolveCatalogPricing,
+} from '@vibelingan-channel/shared/catalog';
+import {
+  CatalogDetail,
+  type CatalogDetailFact,
+} from '../../catalog/presentation/CatalogDetail.tsx';
 import type { HeadphonesContent } from '../../i18n/headphones.ts';
-import { OEM_INQUIRY_HREF } from '../../lib/site-navigation.ts';
-import { AlibabaCatalogPricingBlock } from './AlibabaCatalogPricingBlock.tsx';
+import { DEFAULT_ALIBABA_PRICING_LABELS } from './AlibabaCatalogPricingBlock.tsx';
 import { Gallery } from './Gallery.tsx';
-import { QuantityTierPricingBlock } from './QuantityTierPricingBlock.tsx';
-import { formatPrice } from './api.ts';
-import { publicManualPrice } from './catalog-pricing.ts';
 import type { Product } from './catalog-types.ts';
 
 export interface HeadphonesProductDetailProps {
@@ -34,164 +38,60 @@ export function HeadphonesProductDetail({
   categoryLabel,
   onBack,
 }: HeadphonesProductDetailProps) {
-  // Alibaba-linked branch (docs/alibaba-linked-catalog-sync, MIU 10): the
-  // branch is LINK IDENTITY, never price presence. A linked product renders
-  // AlibabaCatalogPricingBlock and suppresses EVERY legacy price surface —
-  // spec-sheet unitPrice row, legacy moq row (sourceMoq renders instead), and
-  // PriceBlock — with no fallback when Alibaba pricing is missing. Unlinked
-  // products render byte-identically to the pre-feature page.
-  const alibabaLinked = Boolean(product.alibabaPrimarySourceKey);
-  const publicAmount = publicManualPrice(product);
+  const { alibabaPrimarySourceKey, ...unlinkedProduct } = product;
+  const pricing = resolveCatalogPricing(
+    alibabaPrimarySourceKey == null ? unlinkedProduct : product,
+    createAlibabaPricingAdapter(),
+  );
+  const moq = pricing.source === 'alibaba' ? pricing.pricing.sourceMoq : product.moq;
+  const factRows: CatalogDetailFact[] = [
+    ...(product.series
+      ? [{ key: 'series', label: detail.seriesLabel, value: product.series }]
+      : []),
+    ...(product.modType ? [{ key: 'type', label: detail.typeLabel, value: product.modType }] : []),
+    ...(moq !== undefined
+      ? [
+          {
+            key: 'moq',
+            label: detail.moqLabel,
+            value: moq,
+            ...(pricing.source === 'alibaba' ? { marker: 'supplier-moq' as const } : {}),
+          },
+        ]
+      : []),
+    ...(product.productCode
+      ? [{ key: 'product-code', label: 'Product Code', value: product.productCode }]
+      : []),
+  ];
+
   return (
-    <section
-      data-product-detail={product._id}
-      className="border-t border-slate-200 bg-surface-alt py-16 sm:py-20"
-    >
-      <div className="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
-        <button
-          type="button"
-          data-detail-back
-          onClick={onBack}
-          className="mb-8 inline-flex items-center gap-2 rounded text-sm font-medium text-ink-soft transition hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2"
-        >
-          <svg
-            className="h-4 w-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            aria-hidden="true"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-          {detail.backToModelsLabel}
-        </button>
-
-        <div className="grid gap-10 lg:grid-cols-2">
-          {/* Both columns are min-w-0 tracks: a grid item's default min-width
-              is auto, so a long title/spec value would otherwise widen the
-              document at 768-1024px instead of wrapping. */}
-          <div data-detail-media-column className="min-w-0">
-            <Gallery
-              images={product.images ?? []}
-              alt={product.name}
-              productId={product._id}
-              viewAllLabel={detail.viewAllLabel}
-              showLessLabel={detail.showLessLabel}
-              unavailableLabel={detail.imageUnavailableLabel}
-            />
-          </div>
-
-          <div data-detail-info-column className="min-w-0">
-            <span className="inline-flex rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
-              {categoryLabel}
-            </span>
-            {/* tabIndex -1: the MIU 13 controller moves focus here after in-page expansion. */}
-            <h2
-              tabIndex={-1}
-              data-detail-heading
-              className="mt-3 break-words font-display text-3xl font-bold text-ink outline-none"
-            >
-              {product.name}
-            </h2>
-            {product.modName && (
-              <p className="mt-1 text-sm font-medium uppercase tracking-wide text-ink-muted">
-                {product.modName}
-              </p>
-            )}
-            {product.description && (
-              <p className="mt-4 break-words text-base leading-relaxed text-ink-soft">
-                {product.description}
-              </p>
-            )}
-
-            <dl className="mt-6 divide-y divide-slate-100 rounded-[var(--radius-card)] border border-slate-200 bg-white">
-              {product.series && (
-                <div className="flex items-center justify-between gap-4 px-4 py-3">
-                  <dt className="text-sm text-ink-muted">{detail.seriesLabel}</dt>
-                  <dd className="min-w-0 break-words text-right text-sm font-semibold text-ink">
-                    {product.series}
-                  </dd>
-                </div>
-              )}
-              {product.modType && (
-                <div className="flex items-center justify-between gap-4 px-4 py-3">
-                  <dt className="text-sm text-ink-muted">{detail.typeLabel}</dt>
-                  <dd className="min-w-0 break-words text-right text-sm font-semibold text-ink">
-                    {product.modType}
-                  </dd>
-                </div>
-              )}
-              {!alibabaLinked && product.moq !== undefined && (
-                <div className="flex items-center justify-between gap-4 px-4 py-3">
-                  <dt className="text-sm text-ink-muted">{detail.moqLabel}</dt>
-                  <dd className="text-sm font-semibold text-ink">{product.moq}</dd>
-                </div>
-              )}
-              {alibabaLinked && product.alibabaCatalogPricing?.sourceMoq !== undefined && (
-                <div className="flex items-center justify-between gap-4 px-4 py-3">
-                  <dt className="text-sm text-ink-muted">{detail.moqLabel}</dt>
-                  <dd className="text-sm font-semibold text-ink" data-alibaba-source-moq>
-                    {product.alibabaCatalogPricing.sourceMoq}
-                  </dd>
-                </div>
-              )}
-              {product.productCode && (
-                <div className="flex items-center justify-between gap-4 px-4 py-3">
-                  <dt className="text-sm text-ink-muted">Product Code</dt>
-                  <dd className="min-w-0 break-words text-right text-sm font-medium text-ink">
-                    {product.productCode}
-                  </dd>
-                </div>
-              )}
-            </dl>
-
-            <div className="mt-6 rounded-[var(--radius-card)] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-              {alibabaLinked ? (
-                <AlibabaCatalogPricingBlock pricing={product.alibabaCatalogPricing} size="lg" />
-              ) : product.manualCatalogPricing ? (
-                <QuantityTierPricingBlock pricing={product.manualCatalogPricing} />
-              ) : (
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-                    {publicAmount !== undefined && publicAmount === product.wholesalePrice
-                      ? detail.wholesaleLabel
-                      : publicAmount !== undefined
-                        ? detail.unitPriceLabel
-                        : detail.inquiryCta}
-                  </p>
-                  <p className="mt-2 font-display text-3xl font-bold text-brand-700">
-                    {publicAmount !== undefined ? formatPrice(publicAmount) : detail.inquiryCta}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-6">
-              <a
-                href={OEM_INQUIRY_HREF}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent-500 px-6 py-3.5 text-base font-semibold text-brand-950 shadow-sm transition hover:bg-accent-400 sm:w-auto"
-              >
-                <svg
-                  className="h-5 w-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M3 8l9 6 9-6M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2z"
-                  />
-                </svg>
-                {detail.inquiryCta}
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
+    <CatalogDetail
+      product={product}
+      pricing={pricing}
+      facts={{
+        categoryLabel,
+        rows: factRows,
+        backLabel: detail.backToModelsLabel,
+        scalarLabels: {
+          wholesalePrice: detail.wholesaleLabel,
+          unitPrice: detail.unitPriceLabel,
+        },
+        quoteLabel: detail.inquiryCta,
+        inquiryLabel: detail.inquiryCta,
+        sourcePricingLabels: DEFAULT_ALIBABA_PRICING_LABELS,
+        sourceUpdated: product.alibabaCatalogPricing?.sourceUpdatedAt,
+      }}
+      media={
+        <Gallery
+          images={product.images ?? []}
+          alt={product.name}
+          productId={product._id}
+          viewAllLabel={detail.viewAllLabel}
+          showLessLabel={detail.showLessLabel}
+          unavailableLabel={detail.imageUnavailableLabel}
+        />
+      }
+      onBack={onBack}
+    />
   );
 }
