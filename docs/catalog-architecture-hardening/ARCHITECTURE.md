@@ -126,8 +126,8 @@ for full retirement: `CatalogFamilyGrid`, `HeadphonesProductCard`, `HeadphonesPr
 
 ## Reservation And Deployment Control
 
-No Catalog MIU or exact-file claim is active. MIUs 01-11 are released and MIU 12 remains planned.
-Activation and release follow the lifecycle in `TASK_REGISTRY.json`. Shared
+MIU 12 is the sole active Catalog MIU with the exact files reserved in `TASK_REGISTRY.json`; MIUs 01-11
+are released. Activation and release follow the lifecycle in `TASK_REGISTRY.json`. Shared
 files have one owner and later consumer/reference entries, or an explicit release/activation transfer.
 Select-owned Admin files remain blocked in MIUs 26-28 until final-code WebKit and the full D1 suite pass.
 MIUs 39-43 finish and test the deploy script, API/route smoke, and browser smoke before authorization.
