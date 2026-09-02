@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-10 released; MIU 11 active for local implementation and validation.
+Status: MIUs 01-11 released; MIU 12 planned and inactive.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implementation`.
 
-**Current/next MIU:** MIU 11 is the sole active MIU; MIU 12 remains planned.
+**Current/next MIU:** No MIU is active. MIU 12 requires separate activation.
 
 ## Git Truth
 
@@ -39,7 +39,8 @@ Branch: `refactor/catalog-architecture-hardening`
   Biome pass. Reviewed correction packet `d97c7fb` was pushed with local/remote equality, architecture
   verification, and the 93-script suite passing afterward.
 - MIU 11 activated from published correction reconciliation `a8e307c`; behavior-first contract and exact
-  three-file reservation are tracked at `54d81c6`. Runtime implementation remains local and incomplete.
+  three-file reservation are tracked at `54d81c6`, lifecycle sync at `052255c`, implementation and reviewed
+  active head at `03933c5`, and release transition at `65e4091`. No CloudBase deployment was run.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -47,8 +48,20 @@ Branch: `refactor/catalog-architecture-hardening`
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. MIU 11 is the only active exact-file claim; future plans remain
+rather than trusted from JSON strings. No MIU or exact file is active; future plans remain
 `planned|blocked` claims. Activation is one MIU at a time.
+
+## MIU 11 Local Validation
+
+- Detail, pricing, and media parity slice: 33/33 pass; full site suite: 224/224 pass.
+- Workspace and E2E typechecks: 0 errors; Astro check: 0 errors with 7 existing hints.
+- Production Astro build: 15 pages; repository-wide Biome: 345 files; architecture verifier: 0 issues;
+  post-push script suite: 93/93 pass.
+- Family-neutral presentation covers `_id` detail identity, Back/focus prerequisites, ordered facts,
+  Gallery composition, manual/scalar/quote and all Alibaba modes, source MOQ, and source update metadata.
+- The Headphones wrapper retains its old signature and direct typed Gallery labels for rollback/source
+  compatibility while delegating resolved pricing and neutral facts to `CatalogDetail`.
+- CloudBase test deployment: not run and not authorized for MIU 11.
 
 ## MIU 10 Local Validation
 

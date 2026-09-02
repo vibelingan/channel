@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening MIU Breakdown
 
-Status: published; MIUs 01-10 released; MIU 11 active for local implementation and validation.
+Status: published; MIUs 01-11 released; MIU 12 planned and inactive.
 
 ```mermaid
 flowchart TD
@@ -57,7 +57,8 @@ flowchart TD
 
 ## Reservation Lifecycle
 
-- MIU 11 is the sole active MIU. MIUs 01-10 are released, and MIUs 26-28 remain blocked by D1.
+- No MIU or exact file is active. MIUs 01-11 are released, MIU 12 remains planned, and MIUs 26-28
+  remain blocked by D1.
 - Activation follows `TASK_REGISTRY.json`: verify dependencies, gates, live refs/worktrees, and zero
   conflicting active owner claims, then atomically mark one MIU `active`. Completion marks it `released`
   before any explicit successor transfer activates.
@@ -282,7 +283,7 @@ flowchart TD
 - **Files:** `apps/site/src/catalog/presentation/CatalogDetail.tsx`, `apps/site/src/catalog/presentation/catalog-detail.test.ts`, `apps/site/src/islands/shop/HeadphonesProductDetail.tsx`
 - **Type:** refactor
 - **Depends on:** MIUs 05, 07
-- **Reservation state:** `active`; local hydrated/SSR detail parity validation only.
+- **Reservation state:** `released`; previous state `active`. Hydrated/SSR detail parity validation was local only.
 - **What it does:**
   - Defines `CatalogDetail({ product, pricing, facts, media, onBack })` using `CatalogPricingDecision` from
     `packages/shared/src/catalog/resolve-pricing.ts` for inline `_id` detail with no family import.
