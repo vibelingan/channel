@@ -307,12 +307,14 @@ flowchart TD
     `PublicProduct` media fields from MIU 02's `packages/shared/src/catalog/index.ts`, for trim,
     dedupe, order, nine-item bound, active identity, and terminal fallback.
   - `ProductMedia` consumes state/commands without family or pricing decisions; SSR/hydration share sequence.
+  - `Gallery.tsx` is a consumer/reference and must delegate effective URL deduplication and the nine-item
+    bound before release; it is not a fourth MIU owner.
 - **Build/Deploy/Runtime impact:** Browser image/gallery runtime and SSR site build.
 - **Test plan (TDD - write FIRST):**
   - Assert blank/duplicate/ten-source input yields first nine unique valid sources in order.
   - Assert repeated failures advance once, preserve selection identity, and terminate at fallback.
 - **Done when:**
-  - Reducer/render/browser assertions pass and consumers stop normalizing independently.
+  - Reducer/render/browser assertions pass and `ProductMedia` plus the Gallery consumer stop normalizing independently.
   - Site typechecks/build pass in SSR and hydrated contexts.
 
 ## MIU 13: SKU detail view-model migration

@@ -499,6 +499,7 @@
         ],
         "05": ["apps/site/src/islands/shop/api.test.ts"],
         "08": ["apps/site/src/islands/shop/quantity-tier-pricing.test.ts"],
+        "12": ["apps/site/src/islands/shop/Gallery.tsx"],
         "13": [
           "apps/site/src/islands/shop/sku-detail-tier-pricing.test.ts",
           "apps/site/src/pages/products/item.astro"
@@ -692,7 +693,19 @@
           ]
         }
       ],
-      "handoff": "MIUs 01-11 are released. MIU 12 is active with three exact owner files for local implementation and validation only; no CloudBase test deployment is authorized."
+      "preReleaseCorrections": [
+        {
+          "miu": "12",
+          "status": "release-blocker",
+          "file": "apps/site/src/islands/shop/Gallery.tsx",
+          "reason": "Gallery bounds raw aliases before effective URL deduplication, so duplicate thumbnails can exclude a later unique fallback.",
+          "requiredChange": "Delegate effective URL normalization, deduplication, ordering, and the nine-item bound to createCatalogMediaState.",
+          "reservationStateChanged": false,
+          "commit": null,
+          "validation": []
+        }
+      ],
+      "handoff": "MIUs 01-11 are released. MIU 12 is active with three exact owner files and a Gallery consumer release blocker; no CloudBase test deployment is authorized."
     }
   ]
 }
