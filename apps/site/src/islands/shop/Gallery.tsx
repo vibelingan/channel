@@ -1,5 +1,5 @@
-import { PRODUCT_IMAGE_MAX_COUNT } from '@vibelingan-channel/shared';
 import { useState } from 'react';
+import { createCatalogMediaState } from '../../catalog/application/catalog-media.ts';
 import { apiMediaUrl } from '../../lib/api-url.ts';
 import { ProductMedia, productMediaKey } from './ProductMedia.tsx';
 
@@ -54,11 +54,7 @@ export function visibleGalleryThumbnails(
 }
 
 export function boundedGalleryImages(images: readonly string[]): string[] {
-  return images
-    .map((image) => image.trim())
-    .filter(Boolean)
-    .map(apiMediaUrl)
-    .slice(0, PRODUCT_IMAGE_MAX_COUNT);
+  return createCatalogMediaState(images, apiMediaUrl).sources.slice();
 }
 
 export function gallerySessionKey(
