@@ -43,8 +43,9 @@ Branch: `refactor/catalog-architecture-hardening`
   active head at `03933c5`, and release transition at `65e4091`. No CloudBase deployment was run.
 - MIU 12 behavior-first contract and exact three-file reservation are tracked at `53f8c51`; application
   state and ProductMedia delegation implementation is `775bd2d`; effective-URL alias correction is
-  `dd1d557`. Local validation passes, but release is blocked until the unowned Gallery consumer delegates
-  its pre-bound normalization in a separately reviewed correction.
+  `dd1d557`. Gallery consumer regression `7d8309b` proved duplicate effective URLs excluded a later unique
+  fallback; independently reviewed correction `ed58f66` delegates its pre-bound normalization. Final
+  release validation is in progress.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 

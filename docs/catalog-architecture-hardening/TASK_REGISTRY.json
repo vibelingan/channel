@@ -696,16 +696,23 @@
       "preReleaseCorrections": [
         {
           "miu": "12",
-          "status": "release-blocker",
+          "status": "resolved-awaiting-release-validation",
           "file": "apps/site/src/islands/shop/Gallery.tsx",
           "reason": "Gallery bounds raw aliases before effective URL deduplication, so duplicate thumbnails can exclude a later unique fallback.",
           "requiredChange": "Delegate effective URL normalization, deduplication, ordering, and the nine-item bound to createCatalogMediaState.",
           "reservationStateChanged": false,
-          "commit": null,
-          "validation": []
+          "testCommit": "7d8309b58937c4edb6d1e80106d88861d73637ca",
+          "commit": "ed58f667d5af5e337bdcb9c1dc9a4e4c2d6175fe",
+          "validation": [
+            "Gallery alias regression fails before and passes after correction",
+            "catalog media and inherited ProductMedia/Gallery suite 16/16",
+            "site test typecheck",
+            "repository-wide Biome 347 files",
+            "independent assumption review pass"
+          ]
         }
       ],
-      "handoff": "MIUs 01-11 are released. MIU 12 is active with three exact owner files and a Gallery consumer release blocker; no CloudBase test deployment is authorized."
+      "handoff": "MIUs 01-11 are released. MIU 12 is active with three exact owner files; its Gallery consumer blocker is resolved and awaits final release validation. No CloudBase test deployment is authorized."
     }
   ]
 }
