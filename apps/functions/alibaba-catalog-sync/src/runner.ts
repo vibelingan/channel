@@ -965,6 +965,10 @@ async function completeRun(
     status: 'completed',
     counters,
     completedAt: now,
+    // A retryable page failure remains visible while the run is continuing,
+    // but once the same durable checkpoint reaches completion it is history,
+    // not a current run error. Raw payload evidence remains stored separately.
+    errorSummary: '',
   });
   return true;
 }

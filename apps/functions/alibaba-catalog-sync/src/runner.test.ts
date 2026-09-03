@@ -237,7 +237,7 @@ interface FakeItem {
 /** Signed-client-compatible fetch backed by a synthetic catalog. */
 function fakeBackend(items: () => FakeItem[]): { fetchImpl: typeof fetch; calls: string[] } {
   const calls: string[] = [];
-  const fetchImpl = (async (url: unknown, init?: RequestInit) => {
+  const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
     const requestUrl = new URL(String(url));
     const params = new URLSearchParams(String(init?.body ?? ''));
     const method = params.get('method') ?? '';
@@ -439,6 +439,48 @@ test('continuation: an exhausted budget checkpoints durably and the next tick co
   const run = store.alibabaSyncRuns?.[0] as CollectionDoc;
   assert.equal(run.status, 'completed');
   assert.equal((store.alibabaSyncCheckpoints?.[0] as CollectionDoc).activeRunId, '');
+});
+
+test('a transient page error is cleared after the resumed run succeeds', async () => {
+  setup();
+  const backend = fakeBackend(() => [{ id: 'item-1', modifiedMs: ITEM_TIME, priceLexeme: '2.50' }]);
+  let failListOnce = true;
+  const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
+    const params = new URLSearchParams(String(init?.body ?? ''));
+    if (failListOnce && params.get('method') === 'alibaba.icbu.product.list') {
+      failListOnce = false;
+      return new Response(
+        JSON.stringify({
+          error_response: {
+            code: '15',
+            type: 'ISP',
+            msg: 'Remote service error',
+          },
+        }),
+        { status: 200 },
+      );
+    }
+    return backend.fetchImpl(url, init);
+  }) as typeof fetch;
+  const deps = makeDeps(fetchImpl);
+
+  const first = await runSyncTick({ deps, trigger: 'timer' });
+  assert.equal(first.outcome, 'continued');
+  assert.equal(
+    (store.alibabaSyncRuns?.[0] as CollectionDoc).errorSummary,
+    'page-failure:api-error',
+  );
+
+  clockMs += 15 * 60_000;
+  const second = await runSyncTick({ deps, trigger: 'timer' });
+  assert.equal(second.outcome, 'completed', JSON.stringify(second));
+  const run = store.alibabaSyncRuns?.[0] as CollectionDoc;
+  assert.equal(run.status, 'completed');
+  assert.equal(
+    run.errorSummary,
+    '',
+    'recovered transient error must not remain in the Errors column',
+  );
 });
 
 test('a token failure at start leaves NO phantom run and NO claimed slot', async () => {
