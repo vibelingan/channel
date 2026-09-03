@@ -3,9 +3,9 @@ import { createAlibabaClient } from '@vibelingan-channel/alibaba-catalog-sync';
  * Action handler for the alibaba-catalog-sync function (MIU 5 surface).
  *
  * POST actions (admin-authenticated, Bearer/JSON — never cookies): oauthStart,
- * connectionStatus, disconnect. The OAuth callback arrives as a GET routed by
- * the HTTP adapter (unauthenticated, state-bound, rate-limited). Later MIUs
- * add run controls, linking, and quarantine actions here.
+ * connectionStatus, disconnect, and inspectProductDetail. The OAuth callback
+ * arrives as a GET routed by the HTTP adapter (unauthenticated, state-bound,
+ * rate-limited). Run controls, linking, and quarantine actions also live here.
  *
  * Authorization: every connection-lifecycle action requires the LIVE users
  * row to carry role 'admin' (NOT canAccessAdmin — contributors must not
@@ -16,6 +16,7 @@ import { type ApiResult, err, ok, toRole } from '@vibelingan-channel/shared';
 import { z } from 'zod';
 import { type AlertSender, createAlertSender } from './alerts.ts';
 import { type AlibabaSyncFunctionConfig, resolveOAuthConfig } from './config.ts';
+import { inspectAlibabaProductDetail, isAlibabaProductId } from './detail-inspection.ts';
 
 export type { AlibabaSyncFunctionConfig } from './config.ts';
 import { linkExistingProduct, setPinnedOffer, unlinkProduct } from './linking.ts';
@@ -252,6 +253,43 @@ export async function handleAlibabaSyncRequest(
       }
       return ok(report);
     }
+    case 'inspectProductDetail': {
+      // Admin-only, read-only live contract probe: the exact TOP response is
+      // stored privately, while the response exposes structure only. This is
+      // intentionally not a shortcut around the runner-owned mirror writes.
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = inspectProductSchema.safeParse(parsed.data.data);
+      if (!payload.success) {
+        return err('VALIDATION_ERROR', 'A valid Alibaba sourceProductId is required.');
+      }
+      const runtime = resolveRuntime(config, runtimeOverrides);
+      if (!runtime.ok) {
+        return err('CONFLICT', NOT_CONFIGURED_MESSAGE + runtime.missing.join(', '));
+      }
+      const result = await inspectAlibabaProductDetail({
+        sourceProductId: payload.data.sourceProductId,
+        deps: {
+          client: runtime.runtime.deps.client,
+          // Resolved only after the inspection owns the shared sync lease.
+          getAccessToken: () => getConnectionAccessToken(runtime.runtime.deps),
+          now: runtime.runtime.deps.now,
+        },
+      });
+      if (!result.ok) {
+        if (result.reason === 'invalid-product-id') {
+          return err('VALIDATION_ERROR', 'A valid Alibaba sourceProductId is required.');
+        }
+        if (result.reason === 'lease-busy') {
+          return err('CONFLICT', 'An Alibaba sync operation is already active.');
+        }
+        if (result.reason === 'not-connected') {
+          return err('CONFLICT', 'The Alibaba connection is unavailable.');
+        }
+        return err('INTERNAL_ERROR', `Alibaba detail inspection failed: ${result.reason}.`);
+      }
+      return ok(result.summary);
+    }
     case 'approveQuarantine': {
       const admin = await requireLiveAdmin(config, token);
       if (!admin.ok) return admin;
@@ -319,6 +357,9 @@ const pinOfferSchema = z.object({
   offerKey: z.string(),
 });
 const approveSchema = z.object({ runId: z.string().min(1), candidateHash: z.string().min(1) });
+const inspectProductSchema = z.object({
+  sourceProductId: z.string().trim().refine(isAlibabaProductId),
+});
 const importImageSchema = z.object({ url: z.string().min(1) });
 const removeImageSchema = z.object({ imageId: z.string().min(1) });
 

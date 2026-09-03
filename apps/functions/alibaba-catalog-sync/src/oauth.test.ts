@@ -463,6 +463,33 @@ test('connectionStatus is redacted and disconnect destroys the envelope', async 
   assert.equal(connection?.tokenEnvelope, null, 'secret material destroyed');
 });
 
+test('inspectProductDetail is admin-only and validates one bounded provider id', async () => {
+  setup();
+  const contributor = await contributorToken();
+  const forbidden = await handleAlibabaSyncRequest(
+    {
+      action: 'inspectProductDetail',
+      token: contributor,
+      data: { sourceProductId: 'AAGmBBhgAOVTpOOZBg7MoZq_' },
+    },
+    baseConfig,
+  );
+  assert.equal(forbidden.ok, false);
+  if (!forbidden.ok) assert.equal(forbidden.error.code, 'FORBIDDEN');
+
+  const admin = await adminToken();
+  const invalid = await handleAlibabaSyncRequest(
+    {
+      action: 'inspectProductDetail',
+      token: admin,
+      data: { sourceProductId: '../not-a-product-id' },
+    },
+    baseConfig,
+  );
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.equal(invalid.error.code, 'VALIDATION_ERROR');
+});
+
 // --- http adapter ------------------------------------------------------------
 
 test('http adapter: OPTIONS preflight, health, callback redirect, POST envelope, 405', async () => {

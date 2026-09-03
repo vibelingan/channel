@@ -18,7 +18,7 @@ projection interface as an integration dependency, not as today's write base.
 
 | Workstream | Verified head | Current meaning |
 | --- | --- | --- |
-| Alibaba live sync | `fix/alibaba-sync-storage-wiring`, nine commits ahead of upstream base `26eb279` after MIU 17 is committed | OAuth/TOP/full-sync/SKU-contract fixes exist locally; no Alibaba PR to `main` exists yet |
+| Alibaba live sync | `fix/alibaba-sync-storage-wiring`, ten commits ahead of upstream base `26eb279` after MIU 18 is committed | OAuth/TOP/full-sync/SKU-contract fixes and the one-product inspection path exist locally; no Alibaba PR to `main` exists yet |
 | Dianxiaomi/Lazada import | remote `0cf5526` | import core is on the feature branch; PR #29 to `main` remains draft |
 | Catalog architecture refactor | remote `03b5f17` | actively implementing MIU 14; later public seams are not released |
 | `main` | remote `78506d5` | does not contain the three workstreams above |
@@ -30,7 +30,7 @@ bulk-merged or discarded.
 
 ## Ownership and write scope
 
-This Alibaba MIU may write only:
+MIUs 16 and 17 wrote only:
 
 - `packages/alibaba-catalog-sync/src/alibaba-json.ts`;
 - `packages/alibaba-catalog-sync/src/alibaba-json.test.ts`;
@@ -40,7 +40,8 @@ This Alibaba MIU may write only:
 - `packages/alibaba-catalog-sync/src/alibaba-contracts.test.ts`;
 - Alibaba-specific design/execution documentation.
 
-It must not write `apps/site`, `apps/functions/public-api`,
+MIU 18 additionally owns the Alibaba function's handler, inspection module and
+focused tests. It must not write `apps/site`, `apps/functions/public-api`,
 `packages/catalog-import`, the Dianxiaomi worktree, or the catalog-refactor
 worktree. This keeps the live contract correction independently mergeable.
 
@@ -254,12 +255,53 @@ descriptions show three real shapes: div-heavy content with image runs,
 list/table content, and simpler semantic headings/lists/tables. This variance
 is why HTML is evidence, not a public rendering contract.
 
-The deployed action surface has no “fetch one provider product by id”
-diagnostic. Adding one would require a code deployment and authenticated admin
-call; do not reveal or decrypt the merchant token locally merely to run a
-probe. If a fresh provider call is still wanted after this local MIU, add a
-bounded admin-only read probe, deploy it under the explicit deployment gate,
-and return only a structural summary plus the new private payload id.
+## MIU 18 — Admin-only one-product detail inspection
+
+Alibaba already exposes the remote detail method
+`alibaba.icbu.product.get`, and the full-sync runner already calls it once per
+listed `product_id`. What was missing was a bounded application action that can
+ask for one fresh detail during diagnosis without starting or mutating a whole
+catalog run.
+
+The new `inspectProductDetail` action has this contract:
+
+- require the live `admin` role and a bounded provider product id;
+- acquire the same per-connection fenced lease as scheduled/manual sync, then
+  resolve or refresh the token under that lease;
+- call TOP `alibaba.icbu.product.get` once with `product_id` and English;
+- persist the exact response to private hash-addressed raw storage before
+  parsing;
+- run the production lossless parser, live-detail extractor and normalizer;
+- verify the returned product id equals the requested id;
+- return only an allowlisted structural summary: raw byte count, description
+  kind/length, image/SKU/attribute/tier counts, price modes, currency, status,
+  deduplication result and private payload id.
+
+The action deliberately does **not** upsert `alibabaSourceProducts` or
+`alibabaSupplierOffers`. Those rows use runner-owned `lastSeenRunId`, checkpoint,
+tombstone, quarantine and promotion semantics. A direct diagnostic write would
+look like a real catalog run without owning those invariants and could race a
+full-run disappearance sweep. If product-by-product mutation is later required,
+it should be a first-class `targeted` sync run, not a side effect of inspection.
+
+Focused verification covers admin authorization, invalid ids before any lease
+or provider call, the exact TOP method/parameters, raw-before-parse persistence,
+provider-id mismatch, lease release, zero source-mirror/offer writes, and the
+absence of token/title/description/image URL content from the response.
+
+### Deployment and live data-analysis gate
+
+The user approved deploying the finalized Alibaba function to the current
+CloudBase environment. Release verification must prove:
+
+1. the function health endpoint reports the deployed commit under remote Node
+   20.19;
+2. one authenticated admin inspection produces a fresh or deduplicated private
+   `product.get` payload and a safe structural summary;
+3. the payload metadata hash matches its private storage object;
+4. source-mirror and offer counts/content are unchanged by the inspection;
+5. current completed full-run rows, all active source products and all supplier
+   offers remain mutually referential before any shared schema/UI integration.
 
 ## Pricing and content decisions carried into integration
 
