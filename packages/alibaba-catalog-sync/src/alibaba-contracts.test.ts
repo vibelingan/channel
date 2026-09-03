@@ -29,6 +29,18 @@ test('error envelope surfaces code/message/request id', () => {
   }
 });
 
+test('TOP error envelope surfaces code/message/request id', () => {
+  const envelope = parseAlibabaApiResponse(
+    '{"type":"ISV","code":"InvalidApiPath","message":"bad path","request_id":"r-top"}',
+  );
+  assert.deepEqual(envelope, {
+    kind: 'api-error',
+    errorCode: 'InvalidApiPath',
+    errorMessage: 'bad path',
+    requestId: 'r-top',
+  });
+});
+
 test('malformed body is reported, never thrown', () => {
   const envelope = parseAlibabaApiResponse('<html>gateway error</html>');
   assert.equal(envelope.kind, 'malformed');
@@ -69,6 +81,39 @@ test('extracts a product list page (documented shape)', () => {
     gmtModified: '2026-08-01 10:00:00',
   });
   assert.equal(page.items[1]?.sourceProductId, '2345678');
+});
+
+test('extracts the live TOP wrapper around product-list arrays', () => {
+  const envelope = parseAlibabaApiResponse(
+    JSON.stringify({
+      alibaba_icbu_product_list_response: {
+        total_item: 3,
+        products: {
+          alibaba_product_brief_response: [
+            {
+              product_id: 'AAGGBBhgAOVTpOKZBnRd99iV',
+              subject: 'AI Translation Earphones',
+              gmt_modified: '2026-01-13 22:28:43',
+            },
+            { product_id: 'AAEtBBhgAOVTpOKZBnRh_y7a' },
+          ],
+        },
+      },
+    }),
+  );
+  assert.equal(envelope.kind, 'success');
+  if (envelope.kind !== 'success') return;
+  assert.deepEqual(extractProductListPage(envelope.root), {
+    totalItems: 3,
+    items: [
+      {
+        sourceProductId: 'AAGGBBhgAOVTpOKZBnRd99iV',
+        subject: 'AI Translation Earphones',
+        gmtModified: '2026-01-13 22:28:43',
+      },
+      { sourceProductId: 'AAEtBBhgAOVTpOKZBnRh_y7a' },
+    ],
+  });
 });
 
 test('list extraction degrades to empty on unknown shapes', () => {

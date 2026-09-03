@@ -30,16 +30,31 @@ export function parseAlibabaApiResponse(bodyText: string): AlibabaResponseEnvelo
   if (!parsed.ok) return { kind: 'malformed', error: parsed.error };
   const root = parsed.value;
   // GOP error envelope: {"error_code": "...", "error_message"/"error_msg": "...", "request_id": "..."}
+  const topCode = asLexeme(getPath(root, ['code']));
+  const topMessage = asLexeme(getPath(root, ['message'])) ?? asLexeme(getPath(root, ['msg']));
+  const topType = asLexeme(getPath(root, ['type']));
+  const topErrorCode =
+    topCode !== undefined && topCode !== '0' && (topType !== undefined || topMessage !== undefined)
+      ? topCode
+      : undefined;
   const errorCode =
-    asLexeme(getPath(root, ['error_code'])) ?? asLexeme(getPath(root, ['error', 'code']));
+    asLexeme(getPath(root, ['error_code'])) ??
+    asLexeme(getPath(root, ['error', 'code'])) ??
+    asLexeme(getPath(root, ['error_response', 'code'])) ??
+    topErrorCode;
   if (errorCode !== undefined) {
     const envelope: AlibabaResponseEnvelope = { kind: 'api-error', errorCode };
     const message =
       asLexeme(getPath(root, ['error_message'])) ??
       asLexeme(getPath(root, ['error_msg'])) ??
-      asLexeme(getPath(root, ['error', 'message']));
+      asLexeme(getPath(root, ['error', 'message'])) ??
+      asLexeme(getPath(root, ['error_response', 'message'])) ??
+      asLexeme(getPath(root, ['error_response', 'msg'])) ??
+      topMessage;
     const requestId =
-      asLexeme(getPath(root, ['request_id'])) ?? asLexeme(getPath(root, ['trace_id']));
+      asLexeme(getPath(root, ['request_id'])) ??
+      asLexeme(getPath(root, ['trace_id'])) ??
+      asLexeme(getPath(root, ['error_response', 'request_id']));
     if (message !== undefined) envelope.errorMessage = message;
     if (requestId !== undefined) envelope.requestId = requestId;
     return envelope;
@@ -108,7 +123,15 @@ function resolveRoot(
 export function extractProductListPage(root: LosslessJsonValue): AlibabaProductListPage {
   const result = resolveRoot(root, LIST_RESULT_PATHS);
   const totalItems = firstDefined(TOTAL_ITEM_KEYS.map((key) => asInteger(getPath(result, [key]))));
-  const rawItems = firstDefined(LIST_ITEMS_KEYS.map((key) => getPath(result, [key])));
+  const rawItemsContainer = firstDefined(LIST_ITEMS_KEYS.map((key) => getPath(result, [key])));
+  const wrappedItems = getPath(rawItemsContainer, ['alibaba_product_brief_response']);
+  const rawItems = Array.isArray(rawItemsContainer)
+    ? rawItemsContainer
+    : Array.isArray(wrappedItems)
+      ? wrappedItems
+      : wrappedItems !== undefined && wrappedItems !== null
+        ? [wrappedItems]
+        : undefined;
   const items: AlibabaProductListItem[] = [];
   if (Array.isArray(rawItems)) {
     for (const raw of rawItems) {
