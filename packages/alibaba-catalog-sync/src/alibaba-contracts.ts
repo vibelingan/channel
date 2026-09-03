@@ -11,6 +11,7 @@
  */
 
 import {
+  JsonNumberLexeme,
   type LosslessJsonValue,
   asInteger,
   asLexeme,
@@ -134,6 +135,90 @@ function unwrapArray(
   return undefined;
 }
 
+function asObject(
+  value: LosslessJsonValue | undefined,
+): { [key: string]: LosslessJsonValue } | undefined {
+  if (
+    value === null ||
+    value === undefined ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    value instanceof JsonNumberLexeme
+  ) {
+    return undefined;
+  }
+  return value;
+}
+
+interface AlibabaSkuAttributeDefinition {
+  name: string;
+  valuesById: Map<string, string>;
+}
+
+function firstNonBlank(candidates: (string | undefined)[]): string | undefined {
+  for (const candidate of candidates) {
+    if (candidate !== undefined && candidate.trim().length > 0) return candidate;
+  }
+  return undefined;
+}
+
+function extractSkuAttributeDefinitions(
+  product: LosslessJsonValue | undefined,
+): Map<string, AlibabaSkuAttributeDefinition> {
+  const definitions = new Map<string, AlibabaSkuAttributeDefinition>();
+  const container = firstDefined([
+    getPath(product, ['product_sku', 'sku_attributes']),
+    getPath(product, ['sku_attributes']),
+  ]);
+  const rawDefinitions = unwrapArray(container, ['sku_attribute']);
+  if (!rawDefinitions) return definitions;
+
+  for (const rawDefinition of rawDefinitions) {
+    const attributeId = asLexeme(getPath(rawDefinition, ['attribute_id']));
+    const name = firstNonBlank([
+      asLexeme(getPath(rawDefinition, ['attribute_name'])),
+      asLexeme(getPath(rawDefinition, ['name'])),
+    ]);
+    if (attributeId === undefined || name === undefined) continue;
+
+    const rawValues = unwrapArray(getPath(rawDefinition, ['values']), ['sku_attribute_value']);
+    const valuesById = new Map<string, string>();
+    if (rawValues) {
+      for (const rawValue of rawValues) {
+        const valueId = asLexeme(getPath(rawValue, ['value_id']));
+        const valueName = firstNonBlank([
+          asLexeme(getPath(rawValue, ['system_value_name'])),
+          asLexeme(getPath(rawValue, ['value_name'])),
+          asLexeme(getPath(rawValue, ['custom_value_name'])),
+        ]);
+        if (valueId !== undefined && valueName !== undefined) {
+          valuesById.set(valueId, valueName);
+        }
+      }
+    }
+    definitions.set(attributeId, { name, valuesById });
+  }
+  return definitions;
+}
+
+function extractSkuAttributeSelections(value: LosslessJsonValue | undefined): Map<string, string> {
+  let selectionValue = value;
+  if (typeof value === 'string') {
+    const parsed = parseJsonPreservingNumbers(value);
+    if (!parsed.ok) return new Map();
+    selectionValue = parsed.value;
+  }
+  const selectionObject = asObject(selectionValue);
+  if (!selectionObject) return new Map();
+
+  const selections = new Map<string, string>();
+  for (const [attributeId, rawValueId] of Object.entries(selectionObject)) {
+    const valueId = asLexeme(rawValueId);
+    if (valueId !== undefined) selections.set(attributeId, valueId);
+  }
+  return selections;
+}
+
 export function extractProductListPage(root: LosslessJsonValue): AlibabaProductListPage {
   const result = resolveRoot(root, LIST_RESULT_PATHS);
   const totalItems = firstDefined(TOTAL_ITEM_KEYS.map((key) => asInteger(getPath(result, [key]))));
@@ -201,6 +286,7 @@ export interface AlibabaProductDetailDraft {
 export function extractProductDetail(root: LosslessJsonValue): AlibabaProductDetailDraft {
   const product = resolveRoot(root, DETAIL_ROOT_PATHS);
   const draft: AlibabaProductDetailDraft = { imageUrls: [], ladderPrices: [], skus: [] };
+  const skuAttributeDefinitions = extractSkuAttributeDefinitions(product);
 
   const setIf = <K extends keyof AlibabaProductDetailDraft>(
     key: K,
@@ -368,6 +454,16 @@ export function extractProductDetail(root: LosslessJsonValue): AlibabaProductDet
             asLexeme(getPath(attribute, ['value'])),
           ]);
           if (name !== undefined && value !== undefined) skuDraft.attributes[name] = value;
+        }
+      }
+      const attributeSelections = extractSkuAttributeSelections(getPath(sku, ['attr2_value']));
+      for (const [attributeId, valueId] of attributeSelections) {
+        const definition = skuAttributeDefinitions.get(attributeId);
+        const valueName = definition?.valuesById.get(valueId);
+        if (definition !== undefined && valueName !== undefined) {
+          // `attr2_value` is the live TOP per-SKU selection and therefore wins
+          // over a same-named compatibility attribute when both are present.
+          skuDraft.attributes[definition.name] = valueName;
         }
       }
       const skuLadders = unwrapArray(getPath(sku, ['bulk_discount_prices']), [

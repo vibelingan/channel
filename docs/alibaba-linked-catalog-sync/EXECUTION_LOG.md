@@ -864,3 +864,37 @@ example that sent this investigation sideways once already.
 
 Gates: 10/10 suites, 0 type errors, biome clean, 25 script tests, SDK contract
 verify, 3 artifact smokes, site build.
+
+## MIU 16 — Live TOP SKU attribute contract correction (2026-09-03)
+
+The first completed full run produced 3,672 active SKU offers whose
+`sourceAttributes` were all empty. Read-only inspection of three persisted raw
+detail payloads proved the source data was present in a two-part live TOP
+contract: product-level `sku_attributes.sku_attribute[]` defines attribute and
+value ids, while each `sku_definition.attr2_value` JSON string selects those
+ids for one SKU.
+
+Added a product-scoped definition lookup and a lossless `attr2_value` join. The
+direct `sku.attributes[]` form remains as a compatibility fallback. Unknown ids
+and malformed embedded JSON are ignored without throwing; the raw payload
+remains available for future replay. A live-observed negative value id (`-2`)
+is covered as valid source identity rather than rejected by sign.
+
+The behavioral tests were first observed failing with empty attributes, then
+passed after the extractor change. Local gates:
+
+- Alibaba package: 122/122 tests passed;
+- Alibaba package TypeScript: 0 errors;
+- no CloudBase deployment or source-mirror mutation performed in this MIU.
+
+Then downloaded the private `alibaba-raw/` directory to an isolated `/tmp`
+directory and replayed the exact 1,074 payload ids currently referenced by
+`alibabaSourceProducts` through the changed extractor. All 1,074 matched and
+parsed; the result contained 3,672 SKUs, 3,661 with attributes (99.70%), and
+10,100 recovered attribute pairs. The other 11 were all Alibaba default SKU
+`-1` records whose source payload had neither an attribute dictionary nor an
+`attr2_value`. There were zero malformed embedded maps, API envelopes, or raw
+JSON documents in the selected current set. No database write was made.
+
+The workstream and later cross-source integration decision are recorded in
+`POST-LIVE-SYNC-INTEGRATION-PLAN-2026-09-03.md`.

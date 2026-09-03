@@ -248,6 +248,132 @@ test('extracts live TOP detail wrappers and nested sourcing trade fields', () =>
   ]);
 });
 
+test('joins live TOP SKU attribute dictionaries with each SKU attr2_value selection', () => {
+  const envelope = parseAlibabaApiResponse(
+    JSON.stringify({
+      alibaba_icbu_product_get_response: {
+        product: {
+          product_id: 'live-product',
+          product_sku: {
+            sku_attributes: {
+              sku_attribute: [
+                {
+                  attribute_id: 19089,
+                  attribute_name: 'Connectors',
+                  values: {
+                    sku_attribute_value: [
+                      { value_id: 3236313, system_value_name: '3.5 mm' },
+                      // Alibaba uses negative ids for some merchant-defined values.
+                      { value_id: -2, system_value_name: 'USB + 3.5mm' },
+                      {
+                        value_id: -3,
+                        system_value_name: '',
+                        custom_value_name: 'USB-C',
+                      },
+                    ],
+                  },
+                },
+                {
+                  attribute_id: 191288010,
+                  attribute_name: 'color',
+                  values: {
+                    sku_attribute_value: [
+                      { value_id: 3327837, system_value_name: 'Black' },
+                      { value_id: 3331260, system_value_name: 'Red' },
+                    ],
+                  },
+                },
+              ],
+            },
+            skus: {
+              sku_definition: [
+                {
+                  sku_id: 1000089617928,
+                  attr2_value: '{"19089":3236313,"191288010":3327837}',
+                },
+                {
+                  sku_id: 1000089617929,
+                  attr2_value: '{"19089":-2,"191288010":3331260}',
+                },
+                {
+                  sku_id: 1000089617930,
+                  attr2_value: '{"19089":-3,"191288010":3331260}',
+                },
+              ],
+            },
+          },
+        },
+      },
+    }),
+  );
+  assert.equal(envelope.kind, 'success');
+  if (envelope.kind !== 'success') return;
+  assert.deepEqual(extractProductDetail(envelope.root).skus, [
+    {
+      sourceSkuId: '1000089617928',
+      attributes: { Connectors: '3.5 mm', color: 'Black' },
+    },
+    {
+      sourceSkuId: '1000089617929',
+      attributes: { Connectors: 'USB + 3.5mm', color: 'Red' },
+    },
+    {
+      sourceSkuId: '1000089617930',
+      attributes: { Connectors: 'USB-C', color: 'Red' },
+    },
+  ]);
+});
+
+test('malformed or unknown attr2_value entries do not erase direct SKU attributes', () => {
+  const envelope = parseAlibabaApiResponse(
+    JSON.stringify({
+      product: {
+        product_id: 'mixed-shape',
+        product_sku: {
+          sku_attributes: {
+            sku_attribute: {
+              attribute_id: 1,
+              attribute_name: 'Color',
+              values: {
+                sku_attribute_value: { value_id: 10, system_value_name: 'Red' },
+              },
+            },
+          },
+          skus: {
+            sku_definition: [
+              {
+                sku_id: 'known',
+                attributes: [
+                  { attribute_name: 'Material', attribute_value: 'ABS' },
+                  { attribute_name: 'Color', attribute_value: 'stale-direct-value' },
+                ],
+                attr2_value: '{"1":10,"999":42}',
+              },
+              {
+                sku_id: 'malformed',
+                attributes: [{ attribute_name: 'Material', attribute_value: 'Metal' }],
+                attr2_value: 'not-json',
+              },
+            ],
+          },
+        },
+      },
+    }),
+  );
+  assert.equal(envelope.kind, 'success');
+  if (envelope.kind !== 'success') return;
+  assert.deepEqual(extractProductDetail(envelope.root).skus, [
+    {
+      sourceSkuId: 'known',
+      attributes: { Material: 'ABS', Color: 'Red' },
+    },
+    {
+      sourceSkuId: 'malformed',
+      attributes: { Material: 'Metal' },
+    },
+  ]);
+});
+
 test('parses a string fob_price range', () => {
   const envelope = parseAlibabaApiResponse(
     JSON.stringify({
