@@ -26,7 +26,7 @@ export interface AlibabaClientConfig {
 }
 
 export interface ApiCallInput {
-  /** Gateway API path, e.g. '/alibaba/icbu/product/list'. */
+  /** Gateway API path, e.g. '/alibaba.icbu.product.list'. */
   apiPath: string;
   params?: Record<string, string>;
   accessToken?: string;

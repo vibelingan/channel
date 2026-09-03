@@ -6,7 +6,7 @@
  *   1. take every request parameter EXCEPT `sign` itself;
  *   2. sort keys by ASCII code ascending;
  *   3. concatenate `key + value` pairs with no separators;
- *   4. prepend the API path (e.g. `/alibaba/icbu/product/list`);
+ *   4. prepend the API path (e.g. `/alibaba.icbu.product.list`);
  *   5. HMAC-SHA256 the result with the app secret, uppercase hex output.
  *
  * The module is endpoint-agnostic and pure; it never logs or throws values.

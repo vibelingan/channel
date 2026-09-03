@@ -52,8 +52,8 @@ import { PRIMARY_CONNECTION_ID } from './oauth.ts';
 import { promoteLinkedProduct } from './promotion.ts';
 import { type CollectionDoc, createDocWithId, getDoc, updateDoc, upsertDocWithId } from './repo.ts';
 
-const LIST_PATH = '/alibaba/icbu/product/list';
-const DETAIL_PATH = '/alibaba/icbu/product/get';
+const LIST_PATH = '/alibaba.icbu.product.list';
+const DETAIL_PATH = '/alibaba.icbu.product.get';
 /** Full enumeration window start: safely before any live listing. */
 const FULL_WINDOW_START = '2010-01-01T00:00:00.000Z';
 const INCREMENTAL_LOOKBACK_MS = 4 * 3_600_000;

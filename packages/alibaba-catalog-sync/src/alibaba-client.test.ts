@@ -25,13 +25,13 @@ test('signs and posts form-encoded params to the gateway path', async () => {
     return okResponse('{"ok":true}');
   });
   const result = await client.callApi({
-    apiPath: '/alibaba/icbu/product/list',
+    apiPath: '/alibaba.icbu.product.list',
     params: { page_size: '30' },
     accessToken: 'tok-123',
   });
   assert.equal(result.ok, true);
   assert.ok(captured);
-  assert.equal(captured.url, 'https://open-api.alibaba.com/rest/alibaba/icbu/product/list');
+  assert.equal(captured.url, 'https://open-api.alibaba.com/rest/alibaba.icbu.product.list');
   const params = new URLSearchParams(captured.body);
   assert.equal(params.get('app_key'), '511630');
   assert.equal(params.get('page_size'), '30');

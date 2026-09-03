@@ -241,7 +241,7 @@ function fakeBackend(items: () => FakeItem[]): { fetchImpl: typeof fetch; calls:
     const path = new URL(String(url)).pathname;
     const params = new URLSearchParams(String(init?.body ?? ''));
     calls.push(path);
-    if (path.endsWith('/product/list')) {
+    if (path.endsWith('/alibaba.icbu.product.list')) {
       const from = Date.parse(params.get('gmt_modified_from') ?? '1970-01-01');
       const to = Date.parse(params.get('gmt_modified_to') ?? '2100-01-01');
       const inWindow = items().filter(
@@ -258,7 +258,7 @@ function fakeBackend(items: () => FakeItem[]): { fetchImpl: typeof fetch; calls:
         { status: 200 },
       );
     }
-    if (path.endsWith('/product/get')) {
+    if (path.endsWith('/alibaba.icbu.product.get')) {
       const id = params.get('product_id') ?? '';
       const item = items().find((candidate) => candidate.id === id);
       if (!item || item.removed) {
@@ -356,6 +356,15 @@ test('incremental tick: enumerates the window, ingests, promotes linked, advance
 
   const report = await runSyncTick({ deps: makeDeps(backend.fetchImpl), trigger: 'timer' });
   assert.equal(report.outcome, 'completed', JSON.stringify(report));
+
+  assert.ok(
+    backend.calls.includes('/rest/alibaba.icbu.product.list'),
+    'Alibaba ICBU method names stay dotted in the REST path',
+  );
+  assert.ok(
+    backend.calls.includes('/rest/alibaba.icbu.product.get'),
+    'the detail method name stays dotted in the REST path',
+  );
 
   // Mirror + offers ingested with raw evidence.
   assert.ok((store.alibabaSourceProducts?.length ?? 0) >= 1);
@@ -744,7 +753,7 @@ test('full run: a vanished item is CONFIRMED before tombstoning and demotes its 
   assert.equal(gone?.active, false, 'tombstoned only after detail confirmation');
   assert.ok(typeof gone?.tombstonedAt === 'string' && gone.tombstonedAt !== '');
   assert.ok(
-    backend.calls.filter((path) => path.endsWith('/product/get')).length >= 2,
+    backend.calls.filter((path) => path.endsWith('/alibaba.icbu.product.get')).length >= 2,
     'confirmation fetch happened',
   );
   const product = store.products?.[0] as CollectionDoc;
