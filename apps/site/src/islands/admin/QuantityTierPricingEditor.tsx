@@ -5,6 +5,7 @@ import {
   validateManualCatalogPricing,
 } from '@vibelingan-channel/shared';
 import { useEffect, useRef, useState } from 'react';
+import { Select } from '../../components/form/Select.tsx';
 
 interface Props {
   value: string;
@@ -221,22 +222,17 @@ export function QuantityTierPricingEditor({ value, error, onValidityChange, onCh
         Optional. Configure up to four quantity ranges; legacy MOQ and scalar prices remain
         available.
       </p>
-      <label className="block text-sm text-slate-700" htmlFor="manualCatalogPricing-currency">
-        Currency
-      </label>
-      <select
+      <Select
         id="manualCatalogPricing-currency"
+        label="Currency"
+        options={['USD', 'CNY']}
         value={draft.currency}
-        onChange={(event) =>
-          setDraft((current) => ({ ...current, currency: event.target.value as 'USD' | 'CNY' }))
+        onChange={(currency) =>
+          setDraft((current) => ({ ...current, currency: currency as 'USD' | 'CNY' }))
         }
-        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-        aria-invalid={Boolean(shownError) || undefined}
-        aria-describedby={describedBy}
-      >
-        <option value="USD">USD</option>
-        <option value="CNY">CNY</option>
-      </select>
+        invalid={Boolean(shownError)}
+        describedBy={describedBy}
+      />
 
       {draft.tiers.map((tier, index) => (
         <fieldset

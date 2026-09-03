@@ -1,5 +1,55 @@
 # Resolved Errors
 
+## [ERR-20260821-002] WebKit project assumed but not configured
+
+**Logged**: 2026-08-21T13:27:00Z
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+
+A final validation command selected `--project=webkit`, but `playwright.config.ts` exposes only the
+`chromium` project.
+
+### Resolution
+
+Read the configuration, did not retry an invented environment switch, and corrected the handoff so
+historical WebKit results are not presented as final-code evidence.
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: `playwright.config.ts`, `docs/form-select-refactor/progress.md`
+- Source: error
+
+---
+
+## [ERR-20260821-001] independent review provider capacity
+
+**Logged**: 2026-08-21T13:15:00Z
+**Priority**: low
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+
+The first independent review agent failed before producing a result because its upstream provider
+was at capacity.
+
+### Resolution
+
+Retried with the dedicated review agent, which completed and found actionable regressions before
+delivery.
+
+### Metadata
+
+- Reproducible: unknown
+- Related Files: `apps/site/src/components/form/Select.tsx`
+- Source: error
+
+---
+
 ## [ERR-20260820-002] push command blessed SHA from wrong persistent cwd
 
 **Logged**: 2026-08-20T04:18:00-07:00
