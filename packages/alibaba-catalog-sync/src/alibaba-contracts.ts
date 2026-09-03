@@ -120,18 +120,25 @@ function resolveRoot(
   return undefined;
 }
 
+/** IOP's live JSON serializer wraps Java lists as `{type_name: [...]}`. */
+function unwrapArray(
+  value: LosslessJsonValue | undefined,
+  wrapperKeys: string[],
+): LosslessJsonValue[] | undefined {
+  if (Array.isArray(value)) return value;
+  for (const key of wrapperKeys) {
+    const wrapped = getPath(value, [key]);
+    if (Array.isArray(wrapped)) return wrapped;
+    if (wrapped !== undefined && wrapped !== null) return [wrapped];
+  }
+  return undefined;
+}
+
 export function extractProductListPage(root: LosslessJsonValue): AlibabaProductListPage {
   const result = resolveRoot(root, LIST_RESULT_PATHS);
   const totalItems = firstDefined(TOTAL_ITEM_KEYS.map((key) => asInteger(getPath(result, [key]))));
   const rawItemsContainer = firstDefined(LIST_ITEMS_KEYS.map((key) => getPath(result, [key])));
-  const wrappedItems = getPath(rawItemsContainer, ['alibaba_product_brief_response']);
-  const rawItems = Array.isArray(rawItemsContainer)
-    ? rawItemsContainer
-    : Array.isArray(wrappedItems)
-      ? wrappedItems
-      : wrappedItems !== undefined && wrappedItems !== null
-        ? [wrappedItems]
-        : undefined;
+  const rawItems = unwrapArray(rawItemsContainer, ['alibaba_product_brief_response']);
   const items: AlibabaProductListItem[] = [];
   if (Array.isArray(rawItems)) {
     for (const raw of rawItems) {
@@ -166,6 +173,7 @@ export interface AlibabaSkuDraft {
   priceLexeme?: string;
   availableQuantity?: number;
   attributes: Record<string, string>;
+  ladderPrices?: AlibabaLadderPriceDraft[];
 }
 
 export interface AlibabaLadderPriceDraft {
@@ -230,11 +238,13 @@ export function extractProductDetail(root: LosslessJsonValue): AlibabaProductDet
     firstDefined([
       asLexeme(getPath(product, ['min_order_quantity'])),
       asLexeme(getPath(product, ['moq'])),
+      asLexeme(getPath(product, ['sourcing_trade', 'min_order_quantity'])),
+      asLexeme(getPath(product, ['wholesale_trade', 'min_order_quantity'])),
     ]),
   );
 
-  const categoryPath = getPath(product, ['category_path']);
-  if (Array.isArray(categoryPath)) {
+  const categoryPath = unwrapArray(getPath(product, ['category_path']), ['string']);
+  if (categoryPath) {
     const segments = categoryPath
       .map((seg) => asLexeme(seg))
       .filter((seg): seg is string => seg !== undefined);
@@ -246,8 +256,9 @@ export function extractProductDetail(root: LosslessJsonValue): AlibabaProductDet
     getPath(product, ['images']),
     getPath(product, ['main_image', 'images']),
   ]);
-  if (Array.isArray(images)) {
-    for (const image of images) {
+  const imageItems = unwrapArray(images, ['string']);
+  if (imageItems) {
+    for (const image of imageItems) {
       const url = firstDefined([asLexeme(image), asLexeme(getPath(image, ['url']))]);
       if (url !== undefined) draft.imageUrls.push(url);
     }
@@ -259,15 +270,18 @@ export function extractProductDetail(root: LosslessJsonValue): AlibabaProductDet
     firstDefined([
       asLexeme(getPath(product, ['fob_currency'])),
       asLexeme(getPath(product, ['currency'])),
+      asLexeme(getPath(product, ['sourcing_trade', 'fob_currency'])),
     ]),
   );
   const fobMin = firstDefined([
     asLexeme(getPath(product, ['fob_min_price'])),
     asLexeme(getPath(product, ['fob_price_min'])),
+    asLexeme(getPath(product, ['sourcing_trade', 'fob_min_price'])),
   ]);
   const fobMax = firstDefined([
     asLexeme(getPath(product, ['fob_max_price'])),
     asLexeme(getPath(product, ['fob_price_max'])),
+    asLexeme(getPath(product, ['sourcing_trade', 'fob_max_price'])),
   ]);
   const fobRange = asLexeme(getPath(product, ['fob_price']));
   if (fobMin !== undefined || fobMax !== undefined) {
@@ -288,8 +302,12 @@ export function extractProductDetail(root: LosslessJsonValue): AlibabaProductDet
     getPath(product, ['ladder_prices']),
     getPath(product, ['ladder_price']),
   ]);
-  if (Array.isArray(ladders)) {
-    for (const ladder of ladders) {
+  const ladderItems = unwrapArray(ladders, [
+    'alibaba_ladder_price_response',
+    'bulk_discount_price',
+  ]);
+  if (ladderItems) {
+    for (const ladder of ladderItems) {
       const entry: AlibabaLadderPriceDraft = {};
       const minQuantity = firstDefined([
         asLexeme(getPath(ladder, ['min_quantity'])),
@@ -304,8 +322,13 @@ export function extractProductDetail(root: LosslessJsonValue): AlibabaProductDet
     }
   }
 
-  const skus = firstDefined([getPath(product, ['sku_infos']), getPath(product, ['skus'])]);
-  if (Array.isArray(skus)) {
+  const skuContainer = firstDefined([
+    getPath(product, ['sku_infos']),
+    getPath(product, ['skus']),
+    getPath(product, ['product_sku', 'skus']),
+  ]);
+  const skus = unwrapArray(skuContainer, ['sku_definition', 'alibaba_sku_response']);
+  if (skus) {
     for (const sku of skus) {
       const sourceSkuId = firstDefined([
         asLexeme(getPath(sku, ['sku_id'])),
@@ -318,6 +341,21 @@ export function extractProductDetail(root: LosslessJsonValue): AlibabaProductDet
       const available =
         asInteger(getPath(sku, ['available_quantity'])) ?? asInteger(getPath(sku, ['stock']));
       if (available !== undefined) skuDraft.availableQuantity = available;
+      const inventories = unwrapArray(getPath(sku, ['inventory_dto_list']), [
+        'product_inventory_dto',
+      ]);
+      if (skuDraft.availableQuantity === undefined && inventories) {
+        let total = 0;
+        let found = false;
+        for (const inventory of inventories) {
+          const value = asInteger(getPath(inventory, ['inventory']));
+          if (value !== undefined && value >= 0) {
+            total += value;
+            found = true;
+          }
+        }
+        if (found && Number.isSafeInteger(total)) skuDraft.availableQuantity = total;
+      }
       const attributes = getPath(sku, ['attributes']);
       if (Array.isArray(attributes)) {
         for (const attribute of attributes) {
@@ -331,6 +369,26 @@ export function extractProductDetail(root: LosslessJsonValue): AlibabaProductDet
           ]);
           if (name !== undefined && value !== undefined) skuDraft.attributes[name] = value;
         }
+      }
+      const skuLadders = unwrapArray(getPath(sku, ['bulk_discount_prices']), [
+        'bulk_discount_price',
+      ]);
+      if (skuLadders) {
+        const parsed: AlibabaLadderPriceDraft[] = [];
+        for (const ladder of skuLadders) {
+          const minQuantity = firstDefined([
+            asLexeme(getPath(ladder, ['start_quantity'])),
+            asLexeme(getPath(ladder, ['min_quantity'])),
+          ]);
+          const ladderPrice = asLexeme(getPath(ladder, ['price']));
+          const entry: AlibabaLadderPriceDraft = {};
+          if (minQuantity !== undefined) entry.minQuantityLexeme = minQuantity;
+          if (ladderPrice !== undefined) entry.priceLexeme = ladderPrice;
+          if (entry.minQuantityLexeme !== undefined || entry.priceLexeme !== undefined) {
+            parsed.push(entry);
+          }
+        }
+        if (parsed.length > 0) skuDraft.ladderPrices = parsed;
       }
       draft.skus.push(skuDraft);
     }

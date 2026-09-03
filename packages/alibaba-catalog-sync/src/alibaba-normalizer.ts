@@ -267,10 +267,13 @@ export function normalizeProductDetail(input: {
     for (const sku of detail.skus) {
       const offerKey = alibabaOfferKey(connectionId, sourceProductId, sku.sourceSkuId);
       const context: PricingContext = { ...contextBase, offerKey, sourceSkuId: sku.sourceSkuId };
-      const pricing =
-        unsupported || sku.priceLexeme === undefined
-          ? unavailablePricing(context)
-          : fixedPricing(sku.priceLexeme, context);
+      const pricing = unsupported
+        ? unavailablePricing(context)
+        : sku.ladderPrices && sku.ladderPrices.length > 0
+          ? tieredPricing(sku.ladderPrices, context)
+          : sku.priceLexeme !== undefined
+            ? fixedPricing(sku.priceLexeme, context)
+            : unavailablePricing(context);
       const offer: NormalizedSupplierOffer = {
         offerKey,
         sourceKey,

@@ -188,6 +188,66 @@ test('extracts product detail with exact money lexemes', () => {
   });
 });
 
+test('extracts live TOP detail wrappers and nested sourcing trade fields', () => {
+  const envelope = parseAlibabaApiResponse(
+    JSON.stringify({
+      alibaba_icbu_product_get_response: {
+        product: {
+          product_id: 'AAGmBBhgAOVTpOOZBg7MoZq_',
+          subject: 'Live headset',
+          main_image: { images: { string: ['https://sc04.alicdn.com/a.jpg'] } },
+          sourcing_trade: {
+            fob_currency: 'USD',
+            fob_min_price: '12.34',
+            fob_max_price: '56.78',
+            min_order_quantity: '3',
+          },
+          product_sku: {
+            skus: {
+              sku_definition: [
+                {
+                  sku_id: 29581034890,
+                  inventory_dto_list: {
+                    product_inventory_dto: [
+                      { store_code: 'CN_OWN_01', inventory: 20 },
+                      { store_code: 'CN_OWN_02', inventory: 30 },
+                    ],
+                  },
+                  bulk_discount_prices: {
+                    bulk_discount_price: [
+                      { start_quantity: 500, price: '3.50' },
+                      { start_quantity: 1000, price: '3.17' },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    }),
+  );
+  assert.equal(envelope.kind, 'success');
+  if (envelope.kind !== 'success') return;
+  const draft = extractProductDetail(envelope.root);
+  assert.deepEqual(draft.imageUrls, ['https://sc04.alicdn.com/a.jpg']);
+  assert.equal(draft.currencyLexeme, 'USD');
+  assert.equal(draft.fobMinLexeme, '12.34');
+  assert.equal(draft.fobMaxLexeme, '56.78');
+  assert.equal(draft.moqLexeme, '3');
+  assert.deepEqual(draft.skus, [
+    {
+      sourceSkuId: '29581034890',
+      availableQuantity: 50,
+      attributes: {},
+      ladderPrices: [
+        { minQuantityLexeme: '500', priceLexeme: '3.50' },
+        { minQuantityLexeme: '1000', priceLexeme: '3.17' },
+      ],
+    },
+  ]);
+});
+
 test('parses a string fob_price range', () => {
   const envelope = parseAlibabaApiResponse(
     JSON.stringify({
