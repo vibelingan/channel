@@ -50,6 +50,10 @@ Branch: `refactor/catalog-architecture-hardening`
 - MIU 13 behavior-first contract and exact three-file reservation are tracked at `0c25770`; canonical
   SKU view and orchestration adapter implementation is `b387f61`, reviewed active head is `d9b1e00`,
   and release transition is `24259dc`. No CloudBase deployment was run.
+- Latest `origin/main` at `78506d5` was merged into the published MIU 13 closure with merge commit
+  `0e9d584`. The full workspace tests, workspace/E2E typechecks, 15-page site build, repository-wide
+  Biome, and an independent merge audit passed locally. This updates only the feature branch; no test
+  branch merge, workflow dispatch, or CloudBase deployment was performed.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
