@@ -61,6 +61,53 @@ const DEFAULT_MAX_ATTEMPTS = 3;
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
 const RETRY_BASE_DELAY_MS = 500;
 
+type CappedBodyResult = { ok: true; bodyText: string } | { ok: false };
+
+async function cancelBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Best effort only: the caller is already rejecting this response.
+  }
+}
+
+/** Decode UTF-8 incrementally so the cap prevents buffering an oversized body. */
+async function readBodyCapped(response: Response, maxBytes: number): Promise<CappedBodyResult> {
+  const declaredLength = response.headers.get('content-length');
+  if (/^[0-9]+$/.test(declaredLength ?? '')) {
+    try {
+      if (BigInt(declaredLength as string) > BigInt(maxBytes)) {
+        await cancelBody(response);
+        return { ok: false };
+      }
+    } catch {
+      // An unusable length is ignored; streamed byte counting remains authoritative.
+    }
+  }
+
+  if (!response.body) return { ok: true, bodyText: '' };
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const parts: string[] = [];
+  let bytesRead = 0;
+  for (;;) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    bytesRead += chunk.value.byteLength;
+    if (bytesRead > maxBytes) {
+      try {
+        await reader.cancel();
+      } catch {
+        // Best effort only: the response is rejected regardless.
+      }
+      return { ok: false };
+    }
+    parts.push(decoder.decode(chunk.value, { stream: true }));
+  }
+  parts.push(decoder.decode());
+  return { ok: true, bodyText: parts.join('') };
+}
+
 /** Keys that must never appear in fingerprints or errors. */
 const SECRET_PARAM_KEYS = new Set([
   'access_token',
@@ -151,8 +198,8 @@ export function createAlibabaClient(config: AlibabaClientConfig): AlibabaClient 
         signal: controller.signal,
         redirect: 'error',
       });
-      const bodyText = await response.text();
-      if (bodyText.length > MAX_BODY_BYTES) {
+      const body = await readBodyCapped(response, MAX_BODY_BYTES);
+      if (!body.ok) {
         return {
           ok: false,
           kind: 'body-too-large',
@@ -160,6 +207,7 @@ export function createAlibabaClient(config: AlibabaClientConfig): AlibabaClient 
           error: `response for ${input.apiPath} exceeded ${MAX_BODY_BYTES} bytes`,
         };
       }
+      const { bodyText } = body;
       if (!response.ok) {
         return {
           ok: false,

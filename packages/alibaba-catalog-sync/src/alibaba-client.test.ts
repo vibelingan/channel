@@ -127,6 +127,38 @@ test('errors never contain secrets or tokens', async () => {
   }
 });
 
+test('response cap is measured in UTF-8 bytes, not JavaScript characters', async () => {
+  // Each character is three UTF-8 bytes. The character count is below 8 MiB,
+  // but the response bytes exceed it and must be rejected before parsing.
+  const body = '界'.repeat(2_796_203);
+  const client = makeClient(async () => okResponse(body));
+  const result = await client.callApi({ apiPath: '/large', maxAttempts: 1 });
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.kind, 'body-too-large');
+});
+
+test('response cap cancels the stream as soon as the byte budget is crossed', async () => {
+  const chunk = new Uint8Array(1024 * 1024);
+  let pulls = 0;
+  let cancelled = false;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      pulls += 1;
+      if (pulls <= 20) controller.enqueue(chunk);
+      else controller.close();
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  const client = makeClient(async () => new Response(body, { status: 200 }));
+  const result = await client.callApi({ apiPath: '/stream-too-large', maxAttempts: 1 });
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.kind, 'body-too-large');
+  assert.equal(cancelled, true, 'oversized stream is cancelled instead of fully buffered');
+  assert.ok(pulls < 20, 'not every provider byte is pulled after the cap is known');
+});
+
 test('fingerprint excludes secret params and is order-insensitive', () => {
   const a = fingerprintRequest('/p', {
     b: '2',

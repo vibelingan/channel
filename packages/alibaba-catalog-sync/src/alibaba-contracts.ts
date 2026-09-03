@@ -155,6 +155,8 @@ interface AlibabaSkuAttributeDefinition {
   valuesById: Map<string, string>;
 }
 
+const MAX_SKU_SELECTION_JSON_CHARS = 64 * 1024;
+
 function firstNonBlank(candidates: (string | undefined)[]): string | undefined {
   for (const candidate of candidates) {
     if (candidate !== undefined && candidate.trim().length > 0) return candidate;
@@ -204,7 +206,9 @@ function extractSkuAttributeDefinitions(
 function extractSkuAttributeSelections(value: LosslessJsonValue | undefined): Map<string, string> {
   let selectionValue = value;
   if (typeof value === 'string') {
-    const parsed = parseJsonPreservingNumbers(value);
+    const parsed = parseJsonPreservingNumbers(value, {
+      maxChars: MAX_SKU_SELECTION_JSON_CHARS,
+    });
     if (!parsed.ok) return new Map();
     selectionValue = parsed.value;
   }

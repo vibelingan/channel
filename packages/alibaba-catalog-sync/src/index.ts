@@ -14,6 +14,7 @@ export {
   validateAlibabaCatalogPricing,
 } from './alibaba-pricing.ts';
 export {
+  type LosslessParseOptions,
   type LosslessJsonValue,
   JsonNumberLexeme,
   asInteger,

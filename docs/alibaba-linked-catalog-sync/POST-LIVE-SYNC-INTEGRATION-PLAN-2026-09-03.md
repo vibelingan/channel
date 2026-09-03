@@ -5,8 +5,8 @@
 Continue on `fix/alibaba-sync-storage-wiring` for the next isolated Alibaba
 correction. Do not merge the older `origin/feat/alibaba-icbu-top` into `main`
 first: the current branch already contains that branch plus the seven live-sync
-fix commits that preceded this MIU, so merging the older head would deliberately
-land the incomplete state.
+fix commits plus the two post-live contract/hardening MIUs, so merging the older
+head would deliberately land the incomplete state.
 
 Do not start public-catalog integration from
 `origin/refactor/catalog-architecture-hardening` yet. The branch is active, not
@@ -18,7 +18,7 @@ projection interface as an integration dependency, not as today's write base.
 
 | Workstream | Verified head | Current meaning |
 | --- | --- | --- |
-| Alibaba live sync | `fix/alibaba-sync-storage-wiring`, eight commits ahead of upstream base `26eb279` | OAuth/TOP/full-sync/SKU-contract fixes exist locally; no Alibaba PR to `main` exists yet |
+| Alibaba live sync | `fix/alibaba-sync-storage-wiring`, nine commits ahead of upstream base `26eb279` after MIU 17 is committed | OAuth/TOP/full-sync/SKU-contract fixes exist locally; no Alibaba PR to `main` exists yet |
 | Dianxiaomi/Lazada import | remote `0cf5526` | import core is on the feature branch; PR #29 to `main` remains draft |
 | Catalog architecture refactor | remote `03b5f17` | actively implementing MIU 14; later public seams are not released |
 | `main` | remote `78506d5` | does not contain the three workstreams above |
@@ -32,6 +32,10 @@ bulk-merged or discarded.
 
 This Alibaba MIU may write only:
 
+- `packages/alibaba-catalog-sync/src/alibaba-json.ts`;
+- `packages/alibaba-catalog-sync/src/alibaba-json.test.ts`;
+- `packages/alibaba-catalog-sync/src/alibaba-client.ts`;
+- `packages/alibaba-catalog-sync/src/alibaba-client.test.ts`;
 - `packages/alibaba-catalog-sync/src/alibaba-contracts.ts`;
 - `packages/alibaba-catalog-sync/src/alibaba-contracts.test.ts`;
 - Alibaba-specific design/execution documentation.
@@ -98,6 +102,13 @@ The existing direct `sku.attributes[]` shape remains a compatibility fallback.
 When both shapes provide the same named option, the live TOP `attr2_value`
 selection wins because it is explicitly scoped to that SKU.
 
+“Scoped to that SKU” means the product-level dictionary only says which option
+values are possible, while each `sku_definition` identifies one sellable
+variant and its `attr2_value` says which values that exact variant selected.
+For example, a product may define both Black and Red; the Black SKU's embedded
+map selects Black and the Red SKU's embedded map selects Red. A generic/direct
+compatibility field cannot override that variant-specific fact.
+
 ### Best-practice fix
 
 Build the product-level lookup once, then join it for every SKU. Keep malformed
@@ -162,25 +173,123 @@ then map it to a canonical option key during reviewed catalog integration.
 
 Deployment and mutation of the live source mirror remain a separate gate.
 
+## MIU 17 — Provider-boundary JSON hardening
+
+### Decision
+
+Keep the existing bounded lossless parser and harden its boundary rather than
+adding lodash or replacing it with an incomplete parser stack.
+
+- lodash is an object/path utility, not a JSON grammar, numeric-lexeme, depth,
+  or prototype-poisoning boundary;
+- the maintained `lossless-json` package preserves numeric source text, but its
+  parser does not supply this integration's explicit maximum-depth policy and
+  does not by itself replace the need for dangerous-key handling;
+- `secure-json-parse` protects ordinary `JSON.parse` output against prototype
+  poisoning, but ordinary parsing has already converted Alibaba decimal and id
+  lexemes to JavaScript numbers;
+- Zod is already used in the deployed function and remains the right tool for
+  strict normalized/admin DTOs. It validates values after JSON syntax parsing;
+  it is not a substitute for the lossless source parser.
+
+The result is layered:
+
+```text
+streamed 8 MiB transport cap
+  -> bounded lossless JSON syntax parse
+  -> reject dangerous/duplicate keys
+  -> tolerant Alibaba source extraction
+  -> strict normalized/public DTO validation
+  -> allowlisted frontend projection (never raw JSON)
+```
+
+The embedded `attr2_value` parser also receives a 64 KiB cap. Real selections
+are tiny maps; an oversized value is treated as absent evidence for that SKU,
+not allowed to spend the remaining function slice parsing a pathological
+second JSON document.
+
+### Required behavior
+
+- empty/whitespace, `null`, `undefined`, scalar, array, malformed, oversized,
+  and over-depth embedded values do not throw from product extraction;
+- forbidden `__proto__`, `prototype`, and `constructor` object keys fail the
+  JSON boundary before the object is used;
+- duplicate keys fail rather than silently applying a first/last-wins policy;
+- path reads accept own properties only and never treat `Object.prototype`
+  members such as `toString` as provider data;
+- source number lexemes remain exact;
+- malformed source data never reaches the frontend: raw bytes remain durable,
+  the ingest reports a coarse parse failure, and no parsed mirror row is
+  promoted from that body.
+
+### Verification result
+
+Five boundary failures were observed before the implementation: the
+old code accepted dangerous/duplicate keys, accepted a multibyte response over
+8 MiB because it counted JavaScript characters, buffered the complete response
+before checking its size, treated inherited object properties as source data,
+and had no caller-specific embedded JSON cap. The
+oversized-SKU test was also mutation-checked by removing the cap call: it failed
+by incorrectly accepting the oversized map and overwriting the direct
+compatibility value.
+
+After the change, package tests and both Alibaba package/function typechecks
+pass. A fresh read-only replay streamed all 1,074 raw objects referenced by the
+current source mirror from CloudBase through the hardened parser: 1,074
+successes, zero read failures, malformed envelopes, API errors, or missing
+product ids; 3,672 SKUs, 3,661 attributed SKUs and 10,100 attribute pairs were
+recovered, exactly matching the pre-hardening replay.
+
+### Raw/detail evidence and probe boundary
+
+`alibabaSourcePayloads` is not a second or simplified API. For
+`endpointId = product.get`, its storage object is the exact HTTP response returned by
+`alibaba.icbu.product.get`, persisted before parsing and addressed by that
+body's SHA-256. The parsed source mirror is the simpler internal projection.
+
+A read-only check on three current products confirmed three distinct
+`product.get` payloads (5,144, 15,508 and 8,759 bytes), each with a payload id
+equal to `responseSha256` and a private `alibaba-raw/...json` object. Their
+descriptions show three real shapes: div-heavy content with image runs,
+list/table content, and simpler semantic headings/lists/tables. This variance
+is why HTML is evidence, not a public rendering contract.
+
+The deployed action surface has no “fetch one provider product by id”
+diagnostic. Adding one would require a code deployment and authenticated admin
+call; do not reveal or decrypt the merchant token locally merely to run a
+probe. If a fresh provider call is still wanted after this local MIU, add a
+bounded admin-only read probe, deploy it under the explicit deployment gate,
+and return only a structural summary plus the new private payload id.
+
 ## Pricing and content decisions carried into integration
 
 Alibaba tiered prices represent supplier quantity breaks, for example one unit
-price from MOQ 500 and a lower unit price from 1,000. This is related to the
-customer's earlier quantity-based quotation requirement, but it is not the same
-thing as Channel's existing `vipPrice` entitlement. Preserve the source tiers
-exactly first; later pricing policy may derive customer/VIP selling prices from
-them with explicit margin, currency, rounding and visibility rules. Never copy
-a supplier tier amount directly into `vipPrice`.
+price from MOQ 500 and a lower unit price from 1,000. Preserve those supplier
+tiers exactly. The customer has said the existing `vipPrice` behavior is not
+needed now, so VIP mapping, policy and UI are out of this integration scope.
+The legacy field remains untouched only for backward compatibility; Alibaba
+sync never reads or writes it.
 
 The exact current-payload replay found HTML-like tags in 1,073 of 1,074 Alibaba
 TOP `product.get` descriptions; this is API data, not only an Excel concern.
-The Dianxiaomi branch already has
-HTML sanitization and description fallback work. During integration, extract
-that capability behind one provider-neutral content-evidence module; do not
-copy a second sanitizer into the Alibaba package. The browser renders only
-approved structured public content.
+Do not attempt to “understand arbitrary HTML” with one brittle selector set.
+Keep the exact source once, sanitize through a reviewed tag/attribute/protocol
+allowlist, and extract only conservative structures (headings, paragraphs,
+lists and two-column label/value tables). Unrecognized content degrades to
+sanitized text/evidence, never direct `innerHTML`. The Dianxiaomi branch already
+has HTML sanitization and description fallback work. During integration,
+extract that capability behind one provider-neutral content-evidence module;
+do not copy a second sanitizer into the Alibaba package.
 
-## Integration gates after MIU 16
+Option-name normalization (`color` / `Color` / `颜色`) does not require a source
+mirror schema change. `sourceAttributes` keeps the provider labels today; the
+future common adapter maps them to canonical keys and records provenance.
+Evidence means both the immutable raw-object reference and compact field-level
+facts such as source path/label, normalized key, confidence and conflicts. The
+large raw body is stored once by content hash; field evidence references its
+payload id rather than duplicating the JSON.
+
+## Integration gates after MIU 17
 
 1. Preserve and inventory the uncommitted Dianxiaomi UI/prototype files.
 2. **Completed:** Alibaba raw-payload replay report; no canonical products were

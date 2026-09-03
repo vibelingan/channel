@@ -374,6 +374,61 @@ test('malformed or unknown attr2_value entries do not erase direct SKU attribute
   ]);
 });
 
+test('unexpected embedded SKU selections degrade to direct attributes without throwing', () => {
+  const strangeSelections: unknown[] = [
+    '',
+    '   ',
+    null,
+    false,
+    42,
+    [],
+    '[1,2,3]',
+    'null',
+    'false',
+    '42',
+    '{',
+    `${'['.repeat(70)}0${']'.repeat(70)}`,
+    `{"1":10,"padding":"${'x'.repeat(70_000)}"}`,
+  ];
+  const envelope = parseAlibabaApiResponse(
+    JSON.stringify({
+      product: {
+        product_id: 'strange-embedded-json',
+        product_sku: {
+          sku_attributes: {
+            sku_attribute: {
+              attribute_id: 1,
+              attribute_name: 'Color',
+              values: {
+                sku_attribute_value: { value_id: 10, system_value_name: 'Red' },
+              },
+            },
+          },
+          skus: {
+            sku_definition: strangeSelections.map((attr2Value, index) => ({
+              sku_id: `sku-${index}`,
+              attributes: [
+                { attribute_name: 'Material', attribute_value: 'ABS' },
+                { attribute_name: 'Color', attribute_value: 'direct-fallback' },
+              ],
+              attr2_value: attr2Value,
+            })),
+          },
+        },
+      },
+    }),
+  );
+  assert.equal(envelope.kind, 'success');
+  if (envelope.kind !== 'success') return;
+  assert.deepEqual(
+    extractProductDetail(envelope.root).skus,
+    strangeSelections.map((_value, index) => ({
+      sourceSkuId: `sku-${index}`,
+      attributes: { Material: 'ABS', Color: 'direct-fallback' },
+    })),
+  );
+});
+
 test('parses a string fob_price range', () => {
   const envelope = parseAlibabaApiResponse(
     JSON.stringify({

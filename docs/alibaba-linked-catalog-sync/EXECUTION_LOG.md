@@ -898,3 +898,50 @@ JSON documents in the selected current set. No database write was made.
 
 The workstream and later cross-source integration decision are recorded in
 `POST-LIVE-SYNC-INTEGRATION-PLAN-2026-09-03.md`.
+
+## MIU 17 — Provider-boundary JSON hardening (2026-09-03)
+
+The live SKU fix exposed a second JSON boundary: `attr2_value` is provider JSON
+encoded inside the outer provider JSON. Hardened the existing lossless parser
+instead of using lodash (not a JSON parser) or combining dependencies that each
+cover only half the requirement. The boundary now:
+
+- preserves exact number lexemes;
+- rejects non-string, malformed, over-depth, dangerous-key and duplicate-key
+  input as a result value rather than throwing to the runner;
+- reads own object properties only, so inherited names such as `toString` are
+  never mistaken for provider fields;
+- supports a caller-specific size cap; `attr2_value` is capped at 64 KiB;
+- measures the transport's 8 MiB response cap in UTF-8 bytes rather than
+  JavaScript character count, and cancels the response stream as soon as that
+  byte budget is crossed instead of buffering the whole response first.
+
+Tests include `null`, `undefined`, empty/whitespace, booleans, numbers, arrays,
+malformed strings, excessive depth, oversized embedded maps, duplicate keys,
+and `__proto__`/`prototype`/`constructor`. Five boundary failures were observed
+against the old implementation, including the inherited-property assertion.
+The oversized embedded-map assertion was also mutation-proved by removing the
+cap call and observing the test accept and join the oversized selection
+incorrectly.
+
+Local gates:
+
+- Alibaba package: 128/128 tests passed;
+- Alibaba function: 82/82 tests passed;
+- package and function TypeScript: 0 errors;
+- Biome: 7 changed TypeScript files clean;
+- Node 20 function bundle: built successfully with tsup;
+- `git diff --check`: clean.
+
+Then performed a new read-only CloudBase replay, selecting the exact 1,074
+payload ids currently referenced by `alibabaSourceProducts`, reading every
+private hash-addressed storage object, and streaming it through the hardened
+parser. Result: 1,074/1,074 reads and parses succeeded; zero malformed/API-error
+envelopes or missing product ids; 3,672 SKUs, 3,661 attributed SKUs and 10,100
+attribute pairs recovered. This exactly matches MIU 16, so the stricter policy
+closed abnormal-input paths without changing the real merchant projection.
+
+No provider call, database write, deployment, or source-mirror mutation was
+performed. The deployed function currently has no single-product diagnostic
+action; fresh live detail probing remains behind an explicit deploy gate rather
+than exposing the encrypted merchant token to a local process.
