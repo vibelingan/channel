@@ -303,6 +303,16 @@ CloudBase environment. Release verification must prove:
 5. current completed full-run rows, all active source products and all supplier
    offers remain mutually referential before any shared schema/UI integration.
 
+Live status on 2026-09-04: gates 1, 3, 4 and 5 passed. Gate 2 passed its
+deployment and authorization boundary—the new action is recognized and rejects
+an anonymous caller with 401—but a fresh authenticated one-product inspection
+was not invoked because the current Admin UI has no diagnostic control and the
+browser session credential was not exported. Separately, the existing
+authenticated Admin action completed a new incremental run, persisted its exact
+zero-item TOP list response and advanced the committed cursor without changing
+product or offer rows. The full post-deploy evidence is recorded in
+`LIVE-DATA-STRUCTURE-AUDIT-2026-09-04.md`.
+
 ## Pricing and content decisions carried into integration
 
 Alibaba tiered prices represent supplier quantity breaks, for example one unit

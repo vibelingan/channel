@@ -945,3 +945,48 @@ No provider call, database write, deployment, or source-mirror mutation was
 performed. The deployed function currently has no single-product diagnostic
 action; fresh live detail probing remains behind an explicit deploy gate rather
 than exposing the encrypted merchant token to a local process.
+
+## MIU 18 — Guarded one-product inspection and post-deploy audit (2026-09-04)
+
+Added an admin-only `inspectProductDetail` action. It acquires the same fenced
+connection lease as the sync runner, resolves the token only under that lease,
+calls TOP `alibaba.icbu.product.get` once, stores the exact private response
+before parsing, verifies the returned provider id and returns an allowlisted
+structural summary. It deliberately makes no source-product, offer, link or
+canonical-product write.
+
+Focused tests cover admin authorization, bounded ids, exact TOP
+method/parameters, raw-before-parse persistence, mismatched provider ids, lease
+release, zero mirror/offer writes and response redaction. Local gates passed:
+
+- Alibaba function: 86/86 tests;
+- Alibaba package: 128/128 tests;
+- both TypeScript checks and Biome: clean;
+- CloudBase SDK contract verification: passed;
+- deployment-contract tests: 25/25;
+- all three packaged function artifact cold-start smokes: passed.
+
+Committed and pushed `fa45c3c04a5f5839f5375ae05e34ad8cbe2871e1` on
+`fix/alibaba-sync-storage-wiring`, then updated only the
+`alibaba-catalog-sync` CloudBase function. Remote health returned that exact
+release under `Nodejs20.19`; the function was `Active/Available`.
+
+An existing authenticated Admin session then ran
+`incremental-2026-09-03T15-47-19-818Z`. It completed in about two seconds,
+stored a 173-byte `product.list` body with `total_item: 0`, advanced the cursor
+and left 1,074 active source products and 3,672 active/129 inactive offers
+unchanged. The Admin page displayed the completed run and had no console
+warning/error.
+
+The post-deploy database/storage audit is recorded in
+`LIVE-DATA-STRUCTURE-AUDIT-2026-09-04.md`. It found no duplicate source ids,
+orphan offers, provider-id mismatches, missing payload references or storage
+hash/byte mismatches. It also confirmed the expected stale-derived-data gap:
+all current active offer attributes are empty because the full run predates MIU
+16, while read-only raw replay recovers 3,661 attributed SKUs and 10,100 pairs.
+
+The new action's live route/admin boundary was verified with a 401 anonymous
+request. Its fresh authenticated detail call remains open because the current
+Admin UI has no inspection control and the browser session token was not
+exported or weakened for automation. The ordinary authenticated sync smoke and
+existing raw-detail replay remain independently verified.
