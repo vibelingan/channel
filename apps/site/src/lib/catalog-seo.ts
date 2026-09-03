@@ -1,5 +1,12 @@
 import { type ProductFamily, isProductFamily } from '@vibelingan-channel/shared';
-import { publicManualPrice, validMinorAmount } from '../islands/shop/catalog-pricing.ts';
+import {
+  createAlibabaPricingAdapter,
+  resolveCatalogPricing,
+} from '@vibelingan-channel/shared/catalog';
+import {
+  type CatalogSeoOffer,
+  toCatalogSeoView,
+} from '../catalog/presentation/catalog-seo-view.ts';
 import type { Product } from '../islands/shop/catalog-types.ts';
 
 export interface CatalogBreadcrumb {
@@ -55,13 +62,7 @@ export function hasAddressableProductDetail(product: Product): product is Produc
   description: string;
   images: string[];
 } {
-  return Boolean(
-    isProductFamily(product.productFamily) &&
-      product.name.trim() &&
-      product.slug?.trim() &&
-      product.description?.trim() &&
-      product.images?.some(Boolean),
-  );
+  return toCatalogSeoView(product, { source: 'quote-required' }).canonicalPath !== undefined;
 }
 
 export function catalogBreadcrumbSchema(
@@ -79,51 +80,32 @@ export function catalogBreadcrumbSchema(
   };
 }
 
-function realOffer(product: Product, origin: string | URL): CatalogSchemaNode | null {
-  const url = absoluteUrl(
-    `/products/item/?slug=${encodeURIComponent(product.slug?.trim() ?? '')}`,
-    origin,
-  );
-  if (product.alibabaPrimarySourceKey) {
-    const pricing = product.alibabaCatalogPricing;
-    if (!pricing?.currency) return null;
-    if (pricing.mode === 'range') {
-      if (
-        !validMinorAmount(pricing.minAmountMinor) ||
-        !validMinorAmount(pricing.maxAmountMinor) ||
-        pricing.maxAmountMinor < pricing.minAmountMinor
-      ) {
-        return null;
-      }
-      return {
-        '@type': 'AggregateOffer',
-        priceCurrency: pricing.currency,
-        lowPrice: (pricing.minAmountMinor / 100).toFixed(2),
-        highPrice: (pricing.maxAmountMinor / 100).toFixed(2),
+function schemaOffer(offer: CatalogSeoOffer, url: string): CatalogSchemaNode {
+  const eligibleQuantity =
+    offer.minimumOrderQuantity === undefined
+      ? {}
+      : {
+          eligibleQuantity: {
+            '@type': 'QuantitativeValue',
+            minValue: offer.minimumOrderQuantity,
+          },
+        };
+  return offer.type === 'Offer'
+    ? {
+        '@type': offer.type,
+        priceCurrency: offer.priceCurrency,
+        price: offer.price,
         url,
+        ...eligibleQuantity,
+      }
+    : {
+        '@type': offer.type,
+        priceCurrency: offer.priceCurrency,
+        lowPrice: offer.lowPrice,
+        highPrice: offer.highPrice,
+        url,
+        ...eligibleQuantity,
       };
-    }
-    if (pricing.mode !== 'fixed' || !validMinorAmount(pricing.amountMinor)) return null;
-    return {
-      '@type': 'Offer',
-      priceCurrency: pricing.currency,
-      price: (pricing.amountMinor / 100).toFixed(2),
-      url,
-    };
-  }
-  if (product.manualCatalogPricing) {
-    const amounts = product.manualCatalogPricing.tiers.map((tier) => tier.unitAmountMinor);
-    return {
-      '@type': 'AggregateOffer',
-      priceCurrency: product.manualCatalogPricing.currency,
-      lowPrice: (Math.min(...amounts) / 100).toFixed(2),
-      highPrice: (Math.max(...amounts) / 100).toFixed(2),
-      url,
-    };
-  }
-  const amount = publicManualPrice(product);
-  if (amount === undefined) return null;
-  return { '@type': 'Offer', priceCurrency: 'USD', price: amount.toFixed(2), url };
 }
 
 export function catalogProductSchema(
@@ -131,20 +113,23 @@ export function catalogProductSchema(
   origin: string | URL,
   options: { published: boolean },
 ): CatalogSchemaNode | null {
-  if (!options.published || !hasAddressableProductDetail(product)) {
-    return null;
-  }
+  const { alibabaPrimarySourceKey, ...unlinkedProduct } = product;
+  const pricing = resolveCatalogPricing(
+    alibabaPrimarySourceKey == null ? unlinkedProduct : product,
+    createAlibabaPricingAdapter(),
+  );
+  const view = toCatalogSeoView(product, pricing);
+  if (!options.published || !view.canonicalPath) return null;
   const schema: CatalogSchemaNode = {
     '@type': 'Product',
-    name: product.name,
-    url: absoluteUrl(`/products/item/?slug=${encodeURIComponent(product.slug.trim())}`, origin),
+    name: view.name,
+    url: absoluteUrl(view.canonicalPath, origin),
   };
-  schema.description = product.description.trim();
-  if (product.skuCode?.trim()) schema.sku = product.skuCode.trim();
-  const images = (product.images ?? []).filter(Boolean).map((image) => absoluteUrl(image, origin));
+  schema.description = view.description;
+  if (view.sku) schema.sku = view.sku;
+  const images = view.images.map((image) => absoluteUrl(image, origin));
   if (images.length > 0) schema.image = images;
-  const offer = realOffer(product, origin);
-  if (offer) schema.offers = offer;
+  if (view.offer) schema.offers = schemaOffer(view.offer, absoluteUrl(view.canonicalPath, origin));
   return schema;
 }
 

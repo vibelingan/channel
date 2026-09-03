@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import type { CatalogPricingDecision } from '@vibelingan-channel/shared/catalog';
 import { toCatalogSeoView } from '../catalog/presentation/catalog-seo-view.ts';
@@ -36,6 +37,7 @@ test('SEO view derives canonical, offer, and MOQ from every pricing decision', (
         high?: string;
         price?: string;
         moq?: number;
+        currency?: 'CNY' | 'USD';
       },
     ]
   > = [
@@ -51,15 +53,15 @@ test('SEO view derives canonical, offer, and MOQ from every pricing decision', (
           ],
         },
       },
-      { type: 'AggregateOffer', low: '9.00', high: '12.00', moq: 25 },
+      { type: 'AggregateOffer', low: '9.00', high: '12.00', moq: 25, currency: 'USD' },
     ],
     [
       { source: 'scalar', field: 'wholesalePrice', amount: 15.5, currency: 'USD' },
-      { type: 'Offer', price: '15.50', moq: 25 },
+      { type: 'Offer', price: '15.50', moq: 25, currency: 'USD' },
     ],
     [
       { source: 'scalar', field: 'unitPrice', amount: 18.9, currency: 'USD' },
-      { type: 'Offer', price: '18.90', moq: 25 },
+      { type: 'Offer', price: '18.90', moq: 25, currency: 'USD' },
     ],
     [{ source: 'quote-required' }, { moq: 25 }],
     [
@@ -74,7 +76,7 @@ test('SEO view derives canonical, offer, and MOQ from every pricing decision', (
           sourceMoq: 100,
         },
       },
-      { type: 'Offer', price: '2.50', moq: 100 },
+      { type: 'Offer', price: '2.50', moq: 100, currency: 'CNY' },
     ],
     [
       {
@@ -89,7 +91,7 @@ test('SEO view derives canonical, offer, and MOQ from every pricing decision', (
           sourceMoq: 100,
         },
       },
-      { type: 'AggregateOffer', low: '1.50', high: '2.30', moq: 100 },
+      { type: 'AggregateOffer', low: '1.50', high: '2.30', moq: 100, currency: 'USD' },
     ],
     [
       {
@@ -106,7 +108,7 @@ test('SEO view derives canonical, offer, and MOQ from every pricing decision', (
           sourceMoq: 100,
         },
       },
-      { type: 'AggregateOffer', low: '2.00', high: '3.00', moq: 100 },
+      { type: 'AggregateOffer', low: '2.00', high: '3.00', moq: 100, currency: 'USD' },
     ],
     [
       {
@@ -128,6 +130,8 @@ test('SEO view derives canonical, offer, and MOQ from every pricing decision', (
     assert.equal(view.canonicalPath, '/products/item/?slug=visionclip-camera');
     assert.equal(view.minimumOrderQuantity, expected.moq);
     assert.equal(view.offer?.type, expected.type);
+    assert.equal(view.offer?.priceCurrency, expected.currency);
+    assert.equal(view.offer?.minimumOrderQuantity, expected.type ? expected.moq : undefined);
     if (view.offer?.type === 'Offer') assert.equal(view.offer.price, expected.price);
     if (view.offer?.type === 'AggregateOffer') {
       assert.equal(view.offer.lowPrice, expected.low);
@@ -144,6 +148,62 @@ test('slugless public product remains a valid inline view without canonical enha
   assert.equal(view.name, 'Legacy product');
   assert.equal(view.canonicalPath, undefined);
   assert.equal(view.offer, undefined);
+});
+
+test('Product JSON-LD uses the decision MOQ and SEO helper owns no pricing precedence', () => {
+  const schema = catalogProductSchema({ ...product, moq: 25 }, origin, { published: true });
+  assert.deepEqual((schema?.offers as Record<string, unknown>).eligibleQuantity, {
+    '@type': 'QuantitativeValue',
+    minValue: 25,
+  });
+  const source = readFileSync(new URL('./catalog-seo.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(
+    source,
+    /manualCatalogPricing|alibabaCatalogPricing|wholesalePrice|unitPrice|publicManualPrice|validMinorAmount/,
+  );
+  assert.match(source, /resolveCatalogPricing/);
+  assert.match(source, /toCatalogSeoView/);
+});
+
+test('zero prices survive and removed versus malformed links preserve ownership', () => {
+  assert.equal(
+    (
+      catalogProductSchema({ ...product, wholesalePrice: 0 }, origin, { published: true })
+        ?.offers as {
+        price?: string;
+      }
+    ).price,
+    '0.00',
+  );
+  assert.equal(
+    (
+      catalogProductSchema(
+        {
+          ...product,
+          alibabaPrimarySourceKey: 'source-1',
+          alibabaCatalogPricing: {
+            schemaVersion: 'alibaba-catalog-pricing-v1',
+            source: 'alibaba',
+            mode: 'fixed',
+            currency: 'USD',
+            amountMinor: 0,
+            syncedAt: '2026-08-20T00:00:00.000Z',
+          },
+        },
+        origin,
+        { published: true },
+      )?.offers as { price?: string }
+    ).price,
+    '0.00',
+  );
+  const removed = catalogProductSchema({ ...product, alibabaPrimarySourceKey: undefined }, origin, {
+    published: true,
+  });
+  assert.equal((removed?.offers as { price?: string }).price, '15.50');
+  const malformed = catalogProductSchema({ ...product, alibabaPrimarySourceKey: '' }, origin, {
+    published: true,
+  });
+  assert.equal(Object.hasOwn(malformed ?? {}, 'offers'), false);
 });
 
 test('family visible breadcrumbs and BreadcrumbList share labels, positions, and URLs', () => {
