@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-13 released; MIU 14 active for local implementation and validation.
+Status: MIUs 01-14 released; MIU 15 planned and inactive.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implementation`.
 
-**Current/next MIU:** MIU 14 is the sole active MIU; MIU 15 remains planned.
+**Current/next MIU:** No MIU is active. MIU 15 requires separate activation.
 
 ## Git Truth
 
@@ -55,8 +55,10 @@ Branch: `refactor/catalog-architecture-hardening`
   Biome, and an independent merge audit passed locally. This updates only the feature branch; no test
   branch merge, workflow dispatch, or CloudBase deployment was performed.
 - MIU 14 behavior-first contract and exact three-file reservation are tracked at `fc9048b`; canonical
-  SEO pricing view implementation is `49e5ae3`. This MIU preserves the intentionally client-populated,
-  noindex SKU shell and the existing public image-string contract; changing either is outside pricing parity.
+  SEO pricing view implementation is `49e5ae3`, reviewed active head is `03b5f17`, and release transition
+  is `67218de`. This MIU preserves the intentionally client-populated, noindex SKU shell and the existing
+  public image-string contract; changing either is outside pricing parity. Currency/MOQ, zero-price, and
+  malformed-link boundary assertions were completed in the implementation commit rather than a separate red commit.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -64,8 +66,21 @@ Branch: `refactor/catalog-architecture-hardening`
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. MIU 14 is the only active exact-file claim; future plans remain
+rather than trusted from JSON strings. No MIU or exact file is active; future plans remain
 `planned|blocked` claims. Activation is one MIU at a time.
+
+## MIU 14 Local Validation
+
+- Canonical SEO plus SKU integration slice: 20/20 pass; full site suite: 240/240 pass; all workspace tests pass.
+- Workspace and E2E typechecks: 0 errors; Astro check: 0 errors with 7 existing hints.
+- Production-origin Astro build: 15 pages; repository-wide Biome: 352 files; architecture verifier: 0 issues;
+  post-push script suite: 93/93 pass.
+- `toCatalogSeoView` owns addressability plus decision-to-offer/MOQ projection; `catalog-seo.ts` contains no
+  raw manual, provider, wholesale, or unit pricing precedence and retains its public schema API.
+- Manual/scalar/quote and every Alibaba decision preserve price, currency, extrema, zero, source MOQ,
+  removed/malformed-link ownership, canonical, SKU, image, and serialization behavior.
+- Latest main remains integrated only into this feature branch. No test-branch merge, workflow dispatch,
+  or CloudBase test deployment was performed.
 
 ## MIU 13 Local Validation
 
