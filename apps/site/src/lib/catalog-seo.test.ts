@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { CatalogPricingDecision } from '@vibelingan-channel/shared/catalog';
+import { toCatalogSeoView } from '../catalog/presentation/catalog-seo-view.ts';
 import type { Product } from '../islands/shop/catalog-types.ts';
 import {
   catalogBreadcrumbSchema,
@@ -23,6 +25,126 @@ const product: Product = {
   unitPrice: 18.9,
   images: ['/media/camera.jpg'],
 };
+
+test('SEO view derives canonical, offer, and MOQ from every pricing decision', () => {
+  const decisions: Array<
+    [
+      CatalogPricingDecision,
+      {
+        type?: 'Offer' | 'AggregateOffer';
+        low?: string;
+        high?: string;
+        price?: string;
+        moq?: number;
+      },
+    ]
+  > = [
+    [
+      {
+        source: 'manual-tiered',
+        pricing: {
+          schemaVersion: 'manual-catalog-pricing-v1',
+          currency: 'USD',
+          tiers: [
+            { minQuantity: 1, unitAmountMinor: 1200 },
+            { minQuantity: 10, unitAmountMinor: 900 },
+          ],
+        },
+      },
+      { type: 'AggregateOffer', low: '9.00', high: '12.00', moq: 25 },
+    ],
+    [
+      { source: 'scalar', field: 'wholesalePrice', amount: 15.5, currency: 'USD' },
+      { type: 'Offer', price: '15.50', moq: 25 },
+    ],
+    [
+      { source: 'scalar', field: 'unitPrice', amount: 18.9, currency: 'USD' },
+      { type: 'Offer', price: '18.90', moq: 25 },
+    ],
+    [{ source: 'quote-required' }, { moq: 25 }],
+    [
+      {
+        source: 'alibaba',
+        pricing: {
+          source: 'alibaba',
+          state: 'available',
+          mode: 'fixed',
+          currency: 'CNY',
+          amountMinor: 250,
+          sourceMoq: 100,
+        },
+      },
+      { type: 'Offer', price: '2.50', moq: 100 },
+    ],
+    [
+      {
+        source: 'alibaba',
+        pricing: {
+          source: 'alibaba',
+          state: 'available',
+          mode: 'range',
+          currency: 'USD',
+          minAmountMinor: 150,
+          maxAmountMinor: 230,
+          sourceMoq: 100,
+        },
+      },
+      { type: 'AggregateOffer', low: '1.50', high: '2.30', moq: 100 },
+    ],
+    [
+      {
+        source: 'alibaba',
+        pricing: {
+          source: 'alibaba',
+          state: 'available',
+          mode: 'tiered',
+          currency: 'USD',
+          tiers: [
+            { minQuantity: 1, unitAmountMinor: 300 },
+            { minQuantity: 100, unitAmountMinor: 200 },
+          ],
+          sourceMoq: 100,
+        },
+      },
+      { type: 'AggregateOffer', low: '2.00', high: '3.00', moq: 100 },
+    ],
+    [
+      {
+        source: 'alibaba',
+        pricing: { source: 'alibaba', state: 'quote', mode: 'negotiable', sourceMoq: 100 },
+      },
+      { moq: 100 },
+    ],
+    [
+      {
+        source: 'alibaba',
+        pricing: { source: 'alibaba', state: 'unavailable', mode: 'unavailable', sourceMoq: 100 },
+      },
+      { moq: 100 },
+    ],
+  ];
+  for (const [pricing, expected] of decisions) {
+    const view = toCatalogSeoView({ ...product, moq: 25 }, pricing);
+    assert.equal(view.canonicalPath, '/products/item/?slug=visionclip-camera');
+    assert.equal(view.minimumOrderQuantity, expected.moq);
+    assert.equal(view.offer?.type, expected.type);
+    if (view.offer?.type === 'Offer') assert.equal(view.offer.price, expected.price);
+    if (view.offer?.type === 'AggregateOffer') {
+      assert.equal(view.offer.lowPrice, expected.low);
+      assert.equal(view.offer.highPrice, expected.high);
+    }
+  }
+});
+
+test('slugless public product remains a valid inline view without canonical enhancement', () => {
+  const view = toCatalogSeoView(
+    { name: 'Legacy product', productFamily: 'headphones', description: 'Legacy', images: [] },
+    { source: 'quote-required' },
+  );
+  assert.equal(view.name, 'Legacy product');
+  assert.equal(view.canonicalPath, undefined);
+  assert.equal(view.offer, undefined);
+});
 
 test('family visible breadcrumbs and BreadcrumbList share labels, positions, and URLs', () => {
   const breadcrumbs = familyBreadcrumbs('AI Gadgets', '/ai-gadgets/');

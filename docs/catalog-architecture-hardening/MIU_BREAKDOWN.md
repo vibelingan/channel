@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening MIU Breakdown
 
-Status: published; MIUs 01-13 released; MIU 14 planned and inactive.
+Status: published; MIUs 01-13 released; MIU 14 active for local implementation and validation.
 
 ```mermaid
 flowchart TD
@@ -57,8 +57,7 @@ flowchart TD
 
 ## Reservation Lifecycle
 
-- No MIU or exact file is active. MIUs 01-13 are released, MIU 14 remains planned, and MIUs 26-28
-  remain blocked by D1.
+- MIU 14 is the sole active MIU. MIUs 01-13 are released, and MIUs 26-28 remain blocked by D1.
 - Activation follows `TASK_REGISTRY.json`: verify dependencies, gates, live refs/worktrees, and zero
   conflicting active owner claims, then atomically mark one MIU `active`. Completion marks it `released`
   before any explicit successor transfer activates.
@@ -348,7 +347,7 @@ flowchart TD
 - **Files:** `apps/site/src/catalog/presentation/catalog-seo-view.ts`, `apps/site/src/lib/catalog-seo.ts`, `apps/site/src/lib/catalog-seo.test.ts`
 - **Type:** refactor
 - **Depends on:** MIUs 07, 13
-- **Reservation state:** `planned`.
+- **Reservation state:** `active`; local metadata/JSON-LD and production-origin build validation only.
 - **What it does:**
   - Implements `toCatalogSeoView(product, pricing): CatalogSeoView` using `CatalogPricingDecision` from
     `packages/shared/src/catalog/resolve-pricing.ts` for canonical and JSON-LD offer fields.
