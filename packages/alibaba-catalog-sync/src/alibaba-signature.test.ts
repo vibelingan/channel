@@ -1,7 +1,12 @@
 import { strict as assert } from 'node:assert';
 import { createHmac } from 'node:crypto';
 import test from 'node:test';
-import { canonicalSignBase, signGopRequest } from './alibaba-signature.ts';
+import {
+  canonicalSignBase,
+  canonicalTopSignBase,
+  signGopRequest,
+  signTopRequest,
+} from './alibaba-signature.ts';
 
 test('canonical base is apiPath + ASCII-sorted key/value concatenation', () => {
   const base = canonicalSignBase('/alibaba.icbu.product.list', {
@@ -55,4 +60,26 @@ test('deterministic for permuted param insertion order', () => {
 
 test('rejects apiPath without leading slash', () => {
   assert.throws(() => signGopRequest({ apiPath: 'x', params: {}, appSecret: 's' }));
+});
+
+test('TOP signs sorted non-empty params without a path prefix', () => {
+  const params = {
+    method: 'alibaba.icbu.product.list',
+    app_key: '511630',
+    timestamp: '1722900000000',
+    format: 'json',
+    v: '2.0',
+    sign_method: 'sha256',
+    session: 'tok-123',
+    page_size: '30',
+    ignored: '',
+  };
+  assert.equal(
+    canonicalTopSignBase(params),
+    'app_key511630formatjsonmethodalibaba.icbu.product.listpage_size30sessiontok-123sign_methodsha256timestamp1722900000000v2.0',
+  );
+  assert.equal(
+    signTopRequest({ params, appSecret: 'secret' }),
+    'C394D67DA43DDA765722730925EAFD3A96085531A1422D32FBD9B64FBC6D41BE',
+  );
 });

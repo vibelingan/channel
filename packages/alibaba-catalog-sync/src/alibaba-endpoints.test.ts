@@ -66,7 +66,7 @@ test('the default authorize host is the NEW open-api domain, not the old one', (
       !value.includes('openapi-api.alibaba.com'),
       'openapi-api.alibaba.com is a different host that rejects every key',
     );
-    assert.ok(!value.includes('eco.taobao.com'), 'this app is not on the TOP platform');
+    assert.ok(!value.includes('eco.taobao.com'), 'this app stays on the current Alibaba IOP host');
   }
 });
 

@@ -238,12 +238,15 @@ interface FakeItem {
 function fakeBackend(items: () => FakeItem[]): { fetchImpl: typeof fetch; calls: string[] } {
   const calls: string[] = [];
   const fetchImpl = (async (url: unknown, init?: RequestInit) => {
-    const path = new URL(String(url)).pathname;
+    const requestUrl = new URL(String(url));
     const params = new URLSearchParams(String(init?.body ?? ''));
-    calls.push(path);
-    if (path.endsWith('/alibaba.icbu.product.list')) {
-      const from = Date.parse(params.get('gmt_modified_from') ?? '1970-01-01');
-      const to = Date.parse(params.get('gmt_modified_to') ?? '2100-01-01');
+    const method = params.get('method') ?? '';
+    calls.push(`${requestUrl.pathname}:${method}`);
+    if (requestUrl.pathname === '/sync' && method === 'alibaba.icbu.product.list') {
+      const fromTop = (value: string | null, fallback: number): number =>
+        value ? Date.parse(`${value.replace(' ', 'T')}+08:00`) : fallback;
+      const from = fromTop(params.get('gmt_modified_from'), 0);
+      const to = fromTop(params.get('gmt_modified_to'), Date.parse('2100-01-01T00:00:00Z'));
       const inWindow = items().filter(
         (item) => !item.removed && item.modifiedMs >= from && item.modifiedMs <= to,
       );
@@ -258,7 +261,7 @@ function fakeBackend(items: () => FakeItem[]): { fetchImpl: typeof fetch; calls:
         { status: 200 },
       );
     }
-    if (path.endsWith('/alibaba.icbu.product.get')) {
+    if (requestUrl.pathname === '/sync' && method === 'alibaba.icbu.product.get') {
       const id = params.get('product_id') ?? '';
       const item = items().find((candidate) => candidate.id === id);
       if (!item || item.removed) {
@@ -358,12 +361,12 @@ test('incremental tick: enumerates the window, ingests, promotes linked, advance
   assert.equal(report.outcome, 'completed', JSON.stringify(report));
 
   assert.ok(
-    backend.calls.includes('/rest/alibaba.icbu.product.list'),
-    'Alibaba ICBU method names stay dotted in the REST path',
+    backend.calls.includes('/sync:alibaba.icbu.product.list'),
+    'Alibaba ICBU list uses the TOP /sync transport',
   );
   assert.ok(
-    backend.calls.includes('/rest/alibaba.icbu.product.get'),
-    'the detail method name stays dotted in the REST path',
+    backend.calls.includes('/sync:alibaba.icbu.product.get'),
+    'Alibaba ICBU detail uses the TOP /sync transport',
   );
 
   // Mirror + offers ingested with raw evidence.
@@ -753,7 +756,7 @@ test('full run: a vanished item is CONFIRMED before tombstoning and demotes its 
   assert.equal(gone?.active, false, 'tombstoned only after detail confirmation');
   assert.ok(typeof gone?.tombstonedAt === 'string' && gone.tombstonedAt !== '');
   assert.ok(
-    backend.calls.filter((path) => path.endsWith('/alibaba.icbu.product.get')).length >= 2,
+    backend.calls.filter((call) => call === '/sync:alibaba.icbu.product.get').length >= 2,
     'confirmation fetch happened',
   );
   const product = store.products?.[0] as CollectionDoc;

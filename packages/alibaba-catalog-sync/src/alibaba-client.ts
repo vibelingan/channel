@@ -13,7 +13,7 @@
 
 import { createHash } from 'node:crypto';
 import type { AlibabaEndpoints } from './alibaba-endpoints.ts';
-import { signGopRequest } from './alibaba-signature.ts';
+import { signGopRequest, signTopRequest } from './alibaba-signature.ts';
 
 export interface AlibabaClientConfig {
   appKey: string;
@@ -26,8 +26,10 @@ export interface AlibabaClientConfig {
 }
 
 export interface ApiCallInput {
-  /** Gateway API path, e.g. '/alibaba.icbu.product.list'. */
+  /** GOP path or TOP dotted method name. */
   apiPath: string;
+  /** OAuth defaults to GOP; ICBU business APIs explicitly select TOP. */
+  protocol?: 'gop' | 'top';
   params?: Record<string, string>;
   accessToken?: string;
   timeoutMs?: number;
@@ -63,6 +65,7 @@ const RETRY_BASE_DELAY_MS = 500;
 const SECRET_PARAM_KEYS = new Set([
   'access_token',
   'refresh_token',
+  'session',
   'sign',
   'client_secret',
   'code',
@@ -97,7 +100,7 @@ export function createAlibabaClient(config: AlibabaClientConfig): AlibabaClient 
   const sleep = config.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const now = config.now ?? Date.now;
 
-  const buildParams = (input: ApiCallInput): Record<string, string> => {
+  const buildGopParams = (input: ApiCallInput): Record<string, string> => {
     const params: Record<string, string> = {
       ...input.params,
       app_key: config.appKey,
@@ -113,6 +116,21 @@ export function createAlibabaClient(config: AlibabaClientConfig): AlibabaClient 
     return params;
   };
 
+  const buildTopParams = (input: ApiCallInput): Record<string, string> => {
+    const params: Record<string, string> = {
+      ...input.params,
+      method: input.apiPath,
+      app_key: config.appKey,
+      timestamp: String(now()),
+      format: 'json',
+      v: '2.0',
+      sign_method: 'sha256',
+    };
+    if (input.accessToken !== undefined) params.session = input.accessToken;
+    params.sign = signTopRequest({ params, appSecret: config.appSecret });
+    return params;
+  };
+
   const attemptOnce = async (
     input: ApiCallInput,
     params: Record<string, string>,
@@ -121,7 +139,12 @@ export function createAlibabaClient(config: AlibabaClientConfig): AlibabaClient 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetchImpl(`${config.endpoints.apiBaseUrl}${input.apiPath}`, {
+      const protocol = input.protocol ?? 'gop';
+      const requestUrl =
+        protocol === 'top'
+          ? `${new URL(config.endpoints.apiBaseUrl).origin}/sync?method=${encodeURIComponent(input.apiPath)}`
+          : `${config.endpoints.apiBaseUrl}${input.apiPath}`;
+      const response = await fetchImpl(requestUrl, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams(params).toString(),
@@ -180,7 +203,8 @@ export function createAlibabaClient(config: AlibabaClientConfig): AlibabaClient 
       };
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         // Re-sign each attempt so the timestamp stays fresh.
-        last = await attemptOnce(input, buildParams(input));
+        const params = input.protocol === 'top' ? buildTopParams(input) : buildGopParams(input);
+        last = await attemptOnce(input, params);
         if (!retryable(last) || attempt === maxAttempts) return last;
         await sleep(RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
       }

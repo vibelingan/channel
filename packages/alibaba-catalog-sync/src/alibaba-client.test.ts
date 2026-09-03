@@ -18,27 +18,47 @@ const makeClient = (fetchImpl: typeof fetch) =>
 const okResponse = (body: string) =>
   new Response(body, { status: 200, headers: { 'content-type': 'application/json' } });
 
-test('signs and posts form-encoded params to the gateway path', async () => {
+test('uses documented TOP transport for ICBU business methods', async () => {
   let captured: { url: string; body: string } | undefined;
   const client = makeClient(async (url, init) => {
     captured = { url: String(url), body: String(init?.body) };
     return okResponse('{"ok":true}');
   });
   const result = await client.callApi({
-    apiPath: '/alibaba.icbu.product.list',
+    apiPath: 'alibaba.icbu.product.list',
+    protocol: 'top',
     params: { page_size: '30' },
     accessToken: 'tok-123',
   });
   assert.equal(result.ok, true);
   assert.ok(captured);
-  assert.equal(captured.url, 'https://open-api.alibaba.com/rest/alibaba.icbu.product.list');
+  assert.equal(captured.url, 'https://open-api.alibaba.com/sync?method=alibaba.icbu.product.list');
   const params = new URLSearchParams(captured.body);
+  assert.equal(params.get('method'), 'alibaba.icbu.product.list');
   assert.equal(params.get('app_key'), '511630');
   assert.equal(params.get('page_size'), '30');
-  assert.equal(params.get('access_token'), 'tok-123');
+  assert.equal(params.get('session'), 'tok-123');
+  assert.equal(params.get('access_token'), null);
+  assert.equal(params.get('format'), 'json');
+  assert.equal(params.get('v'), '2.0');
   assert.equal(params.get('sign_method'), 'sha256');
   assert.equal(params.get('timestamp'), '1722900000000');
   assert.match(params.get('sign') ?? '', /^[0-9A-F]{64}$/);
+});
+
+test('keeps OAuth system methods on documented GOP REST transport', async () => {
+  let captured: { url: string; body: string } | undefined;
+  const client = makeClient(async (url, init) => {
+    captured = { url: String(url), body: String(init?.body) };
+    return okResponse('{"ok":true}');
+  });
+  await client.callApi({ apiPath: '/auth/token/refresh', params: { refresh_token: 'refresh' } });
+  assert.ok(captured);
+  assert.equal(captured.url, 'https://open-api.alibaba.com/rest/auth/token/refresh');
+  const params = new URLSearchParams(captured.body);
+  assert.equal(params.get('method'), null);
+  assert.equal(params.get('session'), null);
+  assert.equal(params.get('sign_method'), 'sha256');
 });
 
 test('retries network failures then succeeds', async () => {
