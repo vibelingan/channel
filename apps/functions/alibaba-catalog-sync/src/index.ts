@@ -7,13 +7,16 @@
  * boots every function with stub env only).
  */
 import { setAdapter } from '@vibelingan-channel/db';
-import { cloudBaseAdapter, initCloudBase } from '@vibelingan-channel/db/cloudbase';
+import { cloudBaseAdapter, cloudStorageSdk, initCloudBase } from '@vibelingan-channel/db/cloudbase';
+import { setMediaStorage } from '@vibelingan-channel/media-storage';
+import { createCloudBaseMediaStorage } from '@vibelingan-channel/media-storage/cloudbase';
 import { optionalEnv, requireEnv } from '@vibelingan-channel/shared';
 import type { AlibabaSyncFunctionConfig } from './config.ts';
 import { handleAlibabaSyncFunctionEvent, parseAllowedOrigins } from './http-adapter.ts';
 
 initCloudBase(requireEnv('TCB_ENV'));
 setAdapter(cloudBaseAdapter);
+setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 
 const config: AlibabaSyncFunctionConfig = {
   jwtSecret: requireEnv('JWT_SECRET'),
