@@ -149,8 +149,7 @@ export function toJobView(doc: CollectionDoc): JobView {
   const failureCode = asString(doc.failureCode);
   const sourceEvidenceStatus = hasSourceEvidencePointer
     ? 'retained'
-    : failureCode === 'source-evidence-write-failed' ||
-        failureCode === 'source-evidence-attach-failed'
+    : failureCode === 'source-evidence-attach-failed'
       ? 'absent'
       : 'unknown';
   return {

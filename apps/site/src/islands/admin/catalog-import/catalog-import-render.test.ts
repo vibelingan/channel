@@ -121,7 +121,7 @@ test('the preview labels its prices as source CNY in words, above the numbers', 
   assert.ok(!markup.includes('workbook itself is not stored'));
 });
 
-test('a failed evidence write does not claim the workbook was retained', () => {
+test('a failed evidence write reports retention as unconfirmed', () => {
   const markup = renderToStaticMarkup(
     createElement(CatalogImportSummary, {
       job: toJobView({
@@ -134,7 +134,8 @@ test('a failed evidence write does not claim the workbook was retained', () => {
       } as CollectionDoc),
     }),
   );
-  assert.ok(markup.includes('exact workbook is not available'));
+  assert.ok(markup.includes('workbook retention could not be confirmed'));
+  assert.ok(!markup.includes('exact workbook is not available'));
   assert.ok(!markup.includes('exact workbook is retained as private source evidence'));
 });
 
