@@ -116,6 +116,8 @@ test('the preview labels its prices as source CNY in words, above the numbers', 
   assert.ok(markup.includes('USD website prices are not'));
   assert.ok(markup.includes('312'));
   assert.ok(markup.includes('289'));
+  assert.ok(markup.includes('exact workbook is retained as private source evidence'));
+  assert.ok(!markup.includes('workbook itself is not stored'));
 });
 
 // --- inventory --------------------------------------------------------------

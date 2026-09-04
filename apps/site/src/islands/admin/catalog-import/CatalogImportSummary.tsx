@@ -105,7 +105,8 @@ export function CatalogImportSummary({ job }: { job: JobView }) {
       ) : null}
 
       <p className="text-xs text-slate-400">
-        Source digest {job.sourceFileSha256.slice(0, 16)}… · the workbook itself is not stored.
+        Source digest {job.sourceFileSha256.slice(0, 16)}… · the exact workbook is retained as
+        private source evidence.
       </p>
     </section>
   );

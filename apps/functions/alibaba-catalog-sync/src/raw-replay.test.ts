@@ -235,6 +235,37 @@ test('a manifest requires canonical instants and an exact two-hour expiry', asyn
   }
 });
 
+test('manifest status and apply cursor must describe the same committed prefix', async () => {
+  const harness = port();
+  const dry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, harness.p);
+  assert.equal(dry.ok, true);
+  if (!dry.ok) return;
+  const manifest = harness.manifests.get(dry.manifestId);
+  assert.ok(manifest);
+  manifest.status = 'ready';
+  manifest.nextApplyIndex = 1;
+
+  assert.deepEqual(
+    await replayAlibabaRawPage(
+      {
+        mode: 'apply',
+        limit: 10,
+        expectedPageHash: dry.pageHash,
+        expectedTotalSourceProducts: 1,
+        manifestId: dry.manifestId,
+      },
+      harness.p,
+    ),
+    { ok: false, reason: 'manifest-invalid' },
+  );
+  assert.equal(
+    harness.updatedOffers.length,
+    0,
+    'an impossible committed prefix cannot skip writes',
+  );
+  assert.equal(harness.observations.length, 0);
+});
+
 test('an id mismatch blocks the whole page before any derived write', async () => {
   const f = fixture('provider-id');
   f.source.sourceProductId = 'mirror-id';

@@ -348,13 +348,21 @@ function parseReplayManifest(doc: CollectionDoc | null, now: string): ReplayMani
       return null;
     }
   }
-  if (status === 'applied' && Number(doc.nextApplyIndex) !== pages.length) return null;
+  const nextApplyIndex = Number(doc.nextApplyIndex);
+  if (
+    ((status === 'collecting' || status === 'ready' || status === 'failed') &&
+      nextApplyIndex !== 0) ||
+    (status === 'applying' && (nextApplyIndex < 1 || nextApplyIndex >= pages.length)) ||
+    (status === 'applied' && nextApplyIndex !== pages.length)
+  ) {
+    return null;
+  }
   return {
     requestedBy: doc.requestedBy,
     status,
     totalSourceProducts: Number(doc.totalSourceProducts),
     pages,
-    nextApplyIndex: Number(doc.nextApplyIndex),
+    nextApplyIndex,
     createdAt: doc.createdAt as string,
     expiresAt: doc.expiresAt as string,
   };
