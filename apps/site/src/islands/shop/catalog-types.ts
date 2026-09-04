@@ -27,6 +27,21 @@ export interface AlibabaCatalogPricing {
 
 export type AlibabaSourceStatus = 'available' | 'limited' | 'unavailable' | 'removed' | 'unknown';
 
+/**
+ * Public projection of one imported variant. Three fields plus an id, and the
+ * inventory number is present ONLY when the shops agreed on it: a disputed or
+ * unknown count ships nothing rather than a figure the warehouse cannot honour.
+ * Store names, source CNY prices and reconciliation state are stripped
+ * server-side and never reach this shape.
+ */
+export interface ProductVariant {
+  id: string;
+  sku: string;
+  optionValues: Record<string, string>;
+  /** Exact reconciled count; absent when it is disputed or unknown. */
+  inventory?: number;
+}
+
 export interface Product {
   _id: string;
   name: string;
@@ -56,6 +71,8 @@ export interface Product {
   alibabaCatalogPricing?: AlibabaCatalogPricing;
   alibabaSourceStatus?: AlibabaSourceStatus;
   alibabaSourceLastSyncedAt?: string;
+  /** Imported variants, present only on products that have any. */
+  variants?: ProductVariant[];
 }
 
 export interface CatalogPage {

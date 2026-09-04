@@ -8,10 +8,12 @@
     "dev": "tsx watch --clear-screen=false src/main.ts",
     "start": "tsx src/main.ts",
     "test": "tsx --test src/**/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "import:dianxiaomi": "tsx src/dianxiaomi-import-cli.ts"
   },
   "dependencies": {
     "@vibelingan-channel/auth": "workspace:*",
+    "@vibelingan-channel/catalog-import": "workspace:*",
     "@vibelingan-channel/db": "workspace:*",
     "@vibelingan-channel/fn-admin": "workspace:*",
     "@vibelingan-channel/fn-alibaba-catalog-sync": "workspace:*",

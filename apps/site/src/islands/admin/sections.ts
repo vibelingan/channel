@@ -21,7 +21,7 @@ export interface DashboardSection {
    */
   catalog?: boolean;
   /** Custom page id: renders a dedicated component instead of CollectionView. */
-  custom?: 'alibaba-sync';
+  custom?: 'alibaba-sync' | 'catalog-import';
 }
 
 export const DASHBOARD_SECTIONS: readonly DashboardSection[] = [
@@ -45,6 +45,20 @@ export const DASHBOARD_SECTIONS: readonly DashboardSection[] = [
     custom: 'alibaba-sync',
   },
   { label: 'Alibaba Categories', collection: 'alibabaCategoryMappings' },
+  // Provider-neutral catalog import (docs/dianxiaomi-excel-import). Read-only:
+  // importing and publishing run from the local CLI in this branch, so the
+  // admin surface is "see what this file would do" and nothing else.
+  // catalogImportJobs is hideFromNav + adminAccess 'readOnly', so CollectionView
+  // would render New/Edit/Delete buttons that can only 403 — hence a custom page.
+  {
+    label: 'Catalog Import',
+    collection: 'catalogImportJobs',
+    adminOnly: true,
+    custom: 'catalog-import',
+  },
+  // Source category -> Channel product family. Ordinary contributor-editable
+  // CRUD, because it is the operator decision that gates publication.
+  { label: 'Import Categories', collection: 'sourceCategoryMappings' },
   // NOT alibabaSourceProducts / alibabaSupplierOffers: both are hideFromNav by
   // registry contract (MIU 3 acceptance criterion), and CollectionView renders
   // New/Edit/Delete unconditionally — on an adminAccess 'readOnly' collection
