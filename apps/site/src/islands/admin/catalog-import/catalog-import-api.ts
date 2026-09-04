@@ -77,6 +77,7 @@ export interface JobView {
   summary: Record<string, number>;
   ignoredHeaders: string[];
   errorSummary: string;
+  sourceEvidenceStatus: 'retained' | 'absent' | 'unknown';
 }
 
 const asString = (value: unknown): string => (typeof value === 'string' ? value : '');
@@ -140,6 +141,18 @@ export function formatInventory(resolution: unknown): { label: string; conflict:
 }
 
 export function toJobView(doc: CollectionDoc): JobView {
+  const hasSourceEvidencePointer = [
+    doc.sourceStorageFileId,
+    doc.retainedSourceStorageFileId,
+    doc.orphanedSourceStorageFileId,
+  ].some((value) => typeof value === 'string' && value !== '');
+  const failureCode = asString(doc.failureCode);
+  const sourceEvidenceStatus = hasSourceEvidencePointer
+    ? 'retained'
+    : failureCode === 'source-evidence-write-failed' ||
+        failureCode === 'source-evidence-attach-failed'
+      ? 'absent'
+      : 'unknown';
   return {
     id: doc._id,
     provider: asString(doc.provider),
@@ -153,6 +166,7 @@ export function toJobView(doc: CollectionDoc): JobView {
     summary: asRecordOfNumbers(doc.summary),
     ignoredHeaders: asStringArray(doc.ignoredHeaders),
     errorSummary: asString(doc.errorSummary),
+    sourceEvidenceStatus,
   };
 }
 

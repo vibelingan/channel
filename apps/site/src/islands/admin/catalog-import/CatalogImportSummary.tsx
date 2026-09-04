@@ -105,8 +105,12 @@ export function CatalogImportSummary({ job }: { job: JobView }) {
       ) : null}
 
       <p className="text-xs text-slate-400">
-        Source digest {job.sourceFileSha256.slice(0, 16)}… · the exact workbook is retained as
-        private source evidence.
+        Source digest {job.sourceFileSha256.slice(0, 16)}… ·{' '}
+        {job.sourceEvidenceStatus === 'retained'
+          ? 'the exact workbook is retained as private source evidence.'
+          : job.sourceEvidenceStatus === 'absent'
+            ? 'the exact workbook is not available; the digest is retained for diagnosis.'
+            : 'workbook retention could not be confirmed; the digest is retained for diagnosis.'}
       </p>
     </section>
   );

@@ -107,6 +107,7 @@ test('the preview labels its prices as source CNY in words, above the numbers', 
         status: 'previewReady',
         sourceFileName: 'export.xlsx',
         sourceFileSha256: 'a'.repeat(64),
+        sourceStorageFileId: 'cloud://private/import.xlsx',
         counts: { rows: 312, parentSkus: 77, skus: 289 },
         summary: { products: 77, variants: 289, errors: 0 },
       } as CollectionDoc),
@@ -118,6 +119,56 @@ test('the preview labels its prices as source CNY in words, above the numbers', 
   assert.ok(markup.includes('289'));
   assert.ok(markup.includes('exact workbook is retained as private source evidence'));
   assert.ok(!markup.includes('workbook itself is not stored'));
+});
+
+test('a failed evidence write does not claim the workbook was retained', () => {
+  const markup = renderToStaticMarkup(
+    createElement(CatalogImportSummary, {
+      job: toJobView({
+        _id: 'failed-job',
+        provider: 'dianxiaomi',
+        status: 'failed',
+        failureCode: 'source-evidence-write-failed',
+        sourceFileName: 'export.xlsx',
+        sourceFileSha256: 'b'.repeat(64),
+      } as CollectionDoc),
+    }),
+  );
+  assert.ok(markup.includes('exact workbook is not available'));
+  assert.ok(!markup.includes('exact workbook is retained as private source evidence'));
+});
+
+test('a failed evidence attachment with successful cleanup reports the workbook absent', () => {
+  const markup = renderToStaticMarkup(
+    createElement(CatalogImportSummary, {
+      job: toJobView({
+        _id: 'cleaned-up-job',
+        provider: 'dianxiaomi',
+        status: 'failed',
+        failureCode: 'source-evidence-attach-failed',
+        sourceFileName: 'export.xlsx',
+        sourceFileSha256: 'c'.repeat(64),
+      } as CollectionDoc),
+    }),
+  );
+  assert.ok(markup.includes('exact workbook is not available'));
+  assert.ok(!markup.includes('exact workbook is retained as private source evidence'));
+});
+
+test('a legacy job without evidence metadata reports retention as unconfirmed', () => {
+  const markup = renderToStaticMarkup(
+    createElement(CatalogImportSummary, {
+      job: toJobView({
+        _id: 'legacy-job',
+        provider: 'dianxiaomi',
+        status: 'failed',
+        sourceFileName: 'export.xlsx',
+        sourceFileSha256: 'd'.repeat(64),
+      } as CollectionDoc),
+    }),
+  );
+  assert.ok(markup.includes('workbook retention could not be confirmed'));
+  assert.ok(!markup.includes('exact workbook is retained as private source evidence'));
 });
 
 // --- inventory --------------------------------------------------------------
