@@ -1,12 +1,18 @@
 import { type SubmitEventHandler, useState } from 'react';
-import { type ProductDetailInspectionSummary, isAlibabaSourceProductId } from './alibaba-api.ts';
+import {
+  type ProductDetailInspectionSummary,
+  type SelectedProductSyncSummary,
+  isAlibabaSourceProductId,
+} from './alibaba-api.ts';
 
 export interface AlibabaProductDetailInspectionProps {
   connected: boolean;
   busy: boolean;
   inspecting?: boolean;
   result: ProductDetailInspectionSummary | null;
+  syncResult?: SelectedProductSyncSummary | null;
   onInspect: (sourceProductId: string) => void;
+  onSync?: (sourceProductId: string) => void;
 }
 
 function yesNo(value: boolean): string {
@@ -18,7 +24,9 @@ export function AlibabaProductDetailInspection({
   busy,
   inspecting = false,
   result,
+  syncResult = null,
   onInspect,
+  onSync,
 }: AlibabaProductDetailInspectionProps) {
   const [sourceProductId, setSourceProductId] = useState('');
 
@@ -70,14 +78,27 @@ export function AlibabaProductDetailInspection({
             className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
           />
         </label>
-        <button
-          type="submit"
-          data-inspect-product-submit
-          disabled={!connected || busy}
-          className="min-h-11 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {inspecting ? 'Inspecting…' : 'Inspect detail'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            data-inspect-product-submit
+            disabled={!connected || busy}
+            className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {inspecting ? 'Inspecting…' : 'Inspect detail'}
+          </button>
+          {onSync && (
+            <button
+              type="button"
+              data-sync-product-submit
+              disabled={!connected || busy || !isAlibabaSourceProductId(sourceProductId.trim())}
+              onClick={() => onSync(sourceProductId.trim())}
+              className="min-h-11 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Sync to Products
+            </button>
+          )}
+        </div>
       </form>
 
       {!connected && (
@@ -162,6 +183,13 @@ export function AlibabaProductDetailInspection({
             </p>
           </div>
         </div>
+      )}
+      {syncResult && (
+        <p data-selected-sync-result aria-live="polite" className="mt-4 text-sm text-emerald-700">
+          {syncResult.draftCreated ? 'Created' : 'Updated'} product draft{' '}
+          <code>{syncResult.productId}</code> with {syncResult.offerCount} offer(s). It remains
+          unpublished.
+        </p>
       )}
     </section>
   );

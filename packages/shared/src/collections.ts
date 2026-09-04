@@ -274,7 +274,7 @@ export const COLLECTIONS: readonly CollectionDef[] = [
     name: 'products',
     label: 'Products',
     description: 'Catalog products (headphones and other categories).',
-    searchableFields: ['name', 'series', 'modName'],
+    searchableFields: ['name', 'series', 'modName', 'alibabaSourceProductId'],
     fields: [
       { name: 'name', label: 'Name', type: 'string', required: true },
       {
@@ -332,6 +332,26 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         hideInTable: true,
       },
       {
+        name: 'alibabaSourceProductId',
+        label: 'Alibaba Product ID',
+        type: 'string',
+        readOnly: true,
+      },
+      {
+        name: 'alibabaSourceCategoryId',
+        label: 'Alibaba Category ID',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'alibabaSourceImageUrls',
+        label: 'Alibaba Source Images',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
         name: 'alibabaPrimaryOfferKey',
         label: 'Alibaba Offer Key',
         type: 'string',
@@ -364,7 +384,6 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         type: 'select',
         options: ALIBABA_SOURCE_STATUS_OPTIONS,
         readOnly: true,
-        hideInTable: true,
       },
       {
         name: 'alibabaSourceLastSyncedAt',
@@ -1158,7 +1177,7 @@ export const COLLECTIONS: readonly CollectionDef[] = [
     name: 'alibabaCategoryMappings',
     label: 'Alibaba Category Mappings',
     description:
-      'Operator-owned mapping from Alibaba source categories to Channel categories; drafts are created only for mapped categories.',
+      'Compatibility mapping from Alibaba source categories to Channel categories. Unmapped products remain visible as uncategorized drafts and cannot be published until classified.',
     searchableFields: ['alibabaCategoryId', 'alibabaCategoryLabel'],
     adminAccess: 'crud',
     fields: [

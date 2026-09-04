@@ -17,6 +17,7 @@ import { z } from 'zod';
 import { type AlertSender, createAlertSender } from './alerts.ts';
 import { type AlibabaSyncFunctionConfig, resolveOAuthConfig } from './config.ts';
 import { inspectAlibabaProductDetail, isAlibabaProductId } from './detail-inspection.ts';
+import { materializeAlibabaDraftPage } from './draft-materialization.ts';
 
 export type { AlibabaSyncFunctionConfig } from './config.ts';
 import { linkExistingProduct, setPinnedOffer, unlinkProduct } from './linking.ts';
@@ -36,6 +37,7 @@ import { enforceOAuthRateLimit, hashSourceIp } from './rate-limit.ts';
 import { replayAlibabaRawPage } from './raw-replay.ts';
 import { getDoc } from './repo.ts';
 import { runSyncTick } from './runner.ts';
+import { syncSelectedAlibabaProduct } from './selected-sync.ts';
 
 export interface AlibabaSyncRequest {
   action?: unknown;
@@ -254,6 +256,31 @@ export async function handleAlibabaSyncRequest(
       }
       return ok(report);
     }
+    case 'materializeDrafts': {
+      // Catch-up path for source mirrors created before every observed product
+      // became an admin-visible draft. It uses the same idempotent primitive as
+      // ordinary sync and can never set published=true.
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = materializeDraftsSchema.safeParse(parsed.data.data);
+      if (!payload.success) {
+        return err(
+          'VALIDATION_ERROR',
+          'The draft cursor, page limit or source category is invalid.',
+        );
+      }
+      return ok(
+        await materializeAlibabaDraftPage({
+          ...(payload.data.afterSourceKey === undefined
+            ? {}
+            : { afterSourceKey: payload.data.afterSourceKey }),
+          ...(payload.data.limit === undefined ? {} : { limit: payload.data.limit }),
+          ...(payload.data.sourceCategoryId === undefined
+            ? {}
+            : { sourceCategoryId: payload.data.sourceCategoryId }),
+        }),
+      );
+    }
     case 'inspectProductDetail': {
       // Admin-only, read-only live contract probe: the exact TOP response is
       // stored privately, while the response exposes structure only. This is
@@ -290,6 +317,38 @@ export async function handleAlibabaSyncRequest(
         return err('INTERNAL_ERROR', `Alibaba detail inspection failed: ${result.reason}.`);
       }
       return ok(result.summary);
+    }
+    case 'syncProduct': {
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = inspectProductSchema.safeParse(parsed.data.data);
+      if (!payload.success) {
+        return err('VALIDATION_ERROR', 'A valid Alibaba sourceProductId is required.');
+      }
+      const runtime = resolveRuntime(config, runtimeOverrides);
+      if (!runtime.ok) {
+        return err('CONFLICT', NOT_CONFIGURED_MESSAGE + runtime.missing.join(', '));
+      }
+      const result = await syncSelectedAlibabaProduct({
+        sourceProductId: payload.data.sourceProductId,
+        deps: {
+          client: runtime.runtime.deps.client,
+          getAccessToken: () => getConnectionAccessToken(runtime.runtime.deps),
+          now: runtime.runtime.deps.now,
+        },
+      });
+      if (!result.ok) {
+        const code =
+          result.reason === 'lease-busy'
+            ? 'CONFLICT'
+            : result.reason === 'not-connected'
+              ? 'CONFLICT'
+              : result.reason === 'product-id-mismatch'
+                ? 'CONFLICT'
+                : 'INTERNAL_ERROR';
+        return err(code, `Alibaba product sync failed: ${result.reason}.`);
+      }
+      return ok(result);
     }
     case 'replaySourceObservations': {
       // Admin-only migration surface. Dry-run and apply read the same bounded
@@ -403,6 +462,13 @@ const approveSchema = z.object({ runId: z.string().min(1), candidateHash: z.stri
 const inspectProductSchema = z.object({
   sourceProductId: z.string().trim().refine(isAlibabaProductId),
 });
+const materializeDraftsSchema = z
+  .object({
+    afterSourceKey: z.string().max(256).optional(),
+    limit: z.number().int().min(1).max(20).optional(),
+    sourceCategoryId: z.string().trim().min(1).max(128).optional(),
+  })
+  .strict();
 const rawReplaySchema = z
   .object({
     mode: z.enum(['dry-run', 'apply']),

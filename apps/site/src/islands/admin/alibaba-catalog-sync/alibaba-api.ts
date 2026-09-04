@@ -110,6 +110,101 @@ export function runSyncNow(): Promise<TickReport> {
   return call<TickReport>('runNow');
 }
 
+export interface DraftMaterializationProgress {
+  visited: number;
+  created: number;
+  existing: number;
+  failures: number;
+}
+
+interface DraftMaterializationPage extends DraftMaterializationProgress {
+  afterSourceKey: string;
+  nextSourceKey: string;
+  done: boolean;
+}
+
+function decodeDraftMaterializationPage(value: unknown): DraftMaterializationPage | null {
+  const keys = [
+    'afterSourceKey',
+    'nextSourceKey',
+    'done',
+    'visited',
+    'created',
+    'existing',
+    'failures',
+  ] as const;
+  if (!isRecord(value) || !hasExactKeys(value, keys)) return null;
+  const visited = readNonNegativeSafeInteger(value.visited);
+  const created = readNonNegativeSafeInteger(value.created);
+  const existing = readNonNegativeSafeInteger(value.existing);
+  if (
+    typeof value.afterSourceKey !== 'string' ||
+    typeof value.nextSourceKey !== 'string' ||
+    typeof value.done !== 'boolean' ||
+    visited === null ||
+    created === null ||
+    existing === null ||
+    !Array.isArray(value.failures) ||
+    value.failures.length > 20 ||
+    !value.failures.every(
+      (failure) =>
+        isRecord(failure) &&
+        hasExactKeys(failure, ['sourceKey', 'reason']) &&
+        typeof failure.sourceKey === 'string' &&
+        (failure.reason === 'source-not-found' || failure.reason === 'linked-elsewhere'),
+    ) ||
+    created + existing + value.failures.length !== visited ||
+    (!value.done && (visited !== 20 || value.nextSourceKey === value.afterSourceKey))
+  ) {
+    return null;
+  }
+  return {
+    afterSourceKey: value.afterSourceKey,
+    nextSourceKey: value.nextSourceKey,
+    done: value.done,
+    visited,
+    created,
+    existing,
+    failures: value.failures.length,
+  };
+}
+
+/** Materialize every current active source row using bounded idempotent pages. */
+export async function materializeAlibabaDrafts(
+  onProgress?: (progress: DraftMaterializationProgress) => void,
+  sourceCategoryId?: string,
+): Promise<DraftMaterializationProgress> {
+  const total: DraftMaterializationProgress = {
+    visited: 0,
+    created: 0,
+    existing: 0,
+    failures: 0,
+  };
+  let afterSourceKey = '';
+  for (let pageNumber = 0; pageNumber < 1_000; pageNumber += 1) {
+    const raw = await call<unknown>('materializeDrafts', {
+      afterSourceKey,
+      limit: 20,
+      ...(sourceCategoryId?.trim() ? { sourceCategoryId: sourceCategoryId.trim() } : {}),
+    });
+    const page = decodeDraftMaterializationPage(raw);
+    if (!page || page.afterSourceKey !== afterSourceKey) {
+      throw new AlibabaSyncApiError(
+        'INTERNAL_ERROR',
+        'Draft materialization returned an invalid page summary.',
+      );
+    }
+    total.visited += page.visited;
+    total.created += page.created;
+    total.existing += page.existing;
+    total.failures += page.failures;
+    onProgress?.({ ...total });
+    if (page.done) return total;
+    afterSourceKey = page.nextSourceKey;
+  }
+  throw new AlibabaSyncApiError('CONFLICT', 'Draft materialization exceeded the page limit.');
+}
+
 export type SourceObservationReplayMode = 'dry-run' | 'apply';
 
 export interface SourceObservationReplayCounts {
@@ -625,6 +720,48 @@ export async function inspectProductDetail(
   return summary;
 }
 
+export interface SelectedProductSyncSummary {
+  sourceProductId: string;
+  productId: string;
+  draftCreated: boolean;
+  offerCount: number;
+}
+
+export async function syncProduct(sourceProductId: string): Promise<SelectedProductSyncSummary> {
+  const raw = await call<unknown>('syncProduct', { sourceProductId });
+  if (
+    !isRecord(raw) ||
+    !hasExactKeys(raw, [
+      'ok',
+      'sourceProductId',
+      'sourceKey',
+      'productId',
+      'draftCreated',
+      'offerCount',
+    ]) ||
+    raw.ok !== true ||
+    typeof raw.sourceProductId !== 'string' ||
+    !isAlibabaSourceProductId(raw.sourceProductId) ||
+    typeof raw.sourceKey !== 'string' ||
+    raw.sourceKey.length === 0 ||
+    typeof raw.productId !== 'string' ||
+    raw.productId.length === 0 ||
+    typeof raw.draftCreated !== 'boolean'
+  ) {
+    throw new AlibabaSyncApiError('INTERNAL_ERROR', 'Alibaba returned an invalid sync summary.');
+  }
+  const offerCount = readNonNegativeSafeInteger(raw.offerCount);
+  if (offerCount === null) {
+    throw new AlibabaSyncApiError('INTERNAL_ERROR', 'Alibaba returned an invalid sync summary.');
+  }
+  return {
+    sourceProductId: raw.sourceProductId,
+    productId: raw.productId,
+    draftCreated: raw.draftCreated,
+    offerCount,
+  };
+}
+
 export function approveQuarantine(
   runId: string,
   candidateHash: string,
@@ -643,4 +780,14 @@ export function unlinkSourceProduct(
   productId: string,
 ): Promise<{ productId: string; clearedLinks: number }> {
   return call('unlinkProduct', { productId });
+}
+
+export function importAlibabaSourceImage(
+  url: string,
+): Promise<{ imageId: string; deduplicated: boolean }> {
+  return call('importSourceImage', { url });
+}
+
+export function removeAlibabaImportedImage(imageId: string): Promise<{ imageId: string }> {
+  return call('removeImportedImage', { imageId });
 }

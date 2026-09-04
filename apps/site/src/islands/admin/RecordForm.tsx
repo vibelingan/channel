@@ -10,6 +10,11 @@ import { Select } from '../../components/form/Select.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { ImageManager } from './ImageManager.tsx';
 import { QuantityTierPricingEditor } from './QuantityTierPricingEditor.tsx';
+import {
+  importAlibabaSourceImage,
+  removeAlibabaImportedImage,
+} from './alibaba-catalog-sync/alibaba-api.ts';
+import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { AdminApiError } from './api.ts';
 
 interface RecordFormProps {
@@ -155,6 +160,9 @@ export function RecordForm({
   const [localError, setLocalError] = useState('');
   const [fieldAnnouncement, setFieldAnnouncement] = useState('');
   const [imageBusy, setImageBusy] = useState(false);
+  const [sourceImageBusy, setSourceImageBusy] = useState(false);
+  const [sourceImageNotice, setSourceImageNotice] = useState('');
+  const [newSourceImageIds, setNewSourceImageIds] = useState<string[]>([]);
   const [pricingInvalid, setPricingInvalid] = useState(false);
 
   function setField(name: string, value: string | boolean) {
@@ -176,6 +184,47 @@ export function RecordForm({
     } catch (e) {
       setLocalError(e instanceof Error ? e.message : 'Invalid input');
     }
+  }
+
+  const sourcePreviewUrl = alibabaSourcePreviewUrls(initial?.alibabaSourceImageUrls, 1)[0];
+
+  async function importPrimarySourceImage() {
+    if (!sourcePreviewUrl || sourceImageBusy) return;
+    setSourceImageBusy(true);
+    setSourceImageNotice('');
+    try {
+      const imported = await importAlibabaSourceImage(sourcePreviewUrl);
+      let currentIds: string[] = [];
+      try {
+        const parsed: unknown = JSON.parse(String(state.imageIds || '[]'));
+        if (Array.isArray(parsed)) {
+          currentIds = parsed.filter((value): value is string => typeof value === 'string');
+        }
+      } catch {
+        currentIds = [];
+      }
+      if (!currentIds.includes(imported.imageId)) {
+        setField('imageIds', JSON.stringify([...currentIds, imported.imageId]));
+      }
+      if (!imported.deduplicated) {
+        setNewSourceImageIds((ids) =>
+          ids.includes(imported.imageId) ? ids : [...ids, imported.imageId],
+        );
+      }
+      setSourceImageNotice('Alibaba primary image imported. Save to attach it to this draft.');
+    } catch (importError) {
+      setSourceImageNotice(
+        importError instanceof Error ? importError.message : 'Alibaba image import failed.',
+      );
+    } finally {
+      setSourceImageBusy(false);
+    }
+  }
+
+  async function cancelWithCandidateCleanup() {
+    setSourceImageBusy(true);
+    await Promise.allSettled(newSourceImageIds.map(removeAlibabaImportedImage));
+    onCancel();
   }
 
   const editableFields = productEditableFields(collection);
@@ -222,6 +271,34 @@ export function RecordForm({
                       onChange={(value) => setField(field.name, value)}
                     />
                   ),
+                )}
+                {section.heading === 'Media' && sourcePreviewUrl && (
+                  <div className="rounded-lg border border-dashed border-slate-300 p-3">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={sourcePreviewUrl}
+                        alt="Alibaba source preview"
+                        referrerPolicy="no-referrer"
+                        className="h-12 w-12 rounded-md object-cover"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-slate-500">Alibaba source preview</p>
+                        <button
+                          type="button"
+                          disabled={sourceImageBusy || imageBusy}
+                          onClick={() => void importPrimarySourceImage()}
+                          className="mt-1 text-sm font-medium text-brand-700 hover:text-brand-900 disabled:opacity-50"
+                        >
+                          {sourceImageBusy ? 'Importing…' : 'Import primary image'}
+                        </button>
+                      </div>
+                    </div>
+                    {sourceImageNotice && (
+                      <p className="mt-2 text-xs text-slate-600" aria-live="polite">
+                        {sourceImageNotice}
+                      </p>
+                    )}
+                  </div>
                 )}
               </fieldset>
             ))}
@@ -272,14 +349,15 @@ export function RecordForm({
         <div className="mt-6 flex justify-end gap-2">
           <button
             type="button"
-            onClick={onCancel}
+            onClick={() => void cancelWithCandidateCleanup()}
+            disabled={sourceImageBusy}
             className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
           >
             Cancel
           </button>
           <button
             type="submit"
-            disabled={submitting || imageBusy || pricingInvalid}
+            disabled={submitting || imageBusy || sourceImageBusy || pricingInvalid}
             className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
           >
             {imageBusy ? 'Waiting for uploads…' : submitting ? 'Saving…' : 'Save'}

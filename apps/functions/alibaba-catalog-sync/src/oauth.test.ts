@@ -490,6 +490,65 @@ test('inspectProductDetail is admin-only and validates one bounded provider id',
   if (!invalid.ok) assert.equal(invalid.error.code, 'VALIDATION_ERROR');
 });
 
+test('draft materialization is admin-only and validates its bounded cursor page', async () => {
+  setup();
+  const contributor = await contributorToken();
+  const forbidden = await handleAlibabaSyncRequest(
+    { action: 'materializeDrafts', token: contributor, data: { afterSourceKey: '', limit: 20 } },
+    baseConfig,
+  );
+  assert.equal(forbidden.ok, false);
+  if (!forbidden.ok) assert.equal(forbidden.error.code, 'FORBIDDEN');
+
+  const admin = await adminToken();
+  const invalid = await handleAlibabaSyncRequest(
+    { action: 'materializeDrafts', token: admin, data: { limit: 21 } },
+    baseConfig,
+  );
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.equal(invalid.error.code, 'VALIDATION_ERROR');
+
+  const empty = await handleAlibabaSyncRequest(
+    { action: 'materializeDrafts', token: admin, data: { afterSourceKey: '', limit: 20 } },
+    baseConfig,
+  );
+  assert.equal(empty.ok, true);
+  if (empty.ok) {
+    assert.deepEqual(empty.data, {
+      afterSourceKey: '',
+      nextSourceKey: '',
+      done: true,
+      visited: 0,
+      created: 0,
+      existing: 0,
+      failures: [],
+    });
+  }
+});
+
+test('selected product sync is admin-only and rejects malformed provider ids', async () => {
+  setup();
+  const contributor = await contributorToken();
+  const forbidden = await handleAlibabaSyncRequest(
+    {
+      action: 'syncProduct',
+      token: contributor,
+      data: { sourceProductId: 'AAGmBBhgAOVTpOOZBg7MoZq_' },
+    },
+    baseConfig,
+  );
+  assert.equal(forbidden.ok, false);
+  if (!forbidden.ok) assert.equal(forbidden.error.code, 'FORBIDDEN');
+
+  const admin = await adminToken();
+  const invalid = await handleAlibabaSyncRequest(
+    { action: 'syncProduct', token: admin, data: { sourceProductId: '../../secret' } },
+    baseConfig,
+  );
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.equal(invalid.error.code, 'VALIDATION_ERROR');
+});
+
 test('raw observation replay is admin-only and apply requires hash, total and manifest', async () => {
   setup();
   const contributor = await contributorToken();

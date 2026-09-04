@@ -772,22 +772,18 @@ async function executeSlice(
     // drafts behind that no approval path would ever roll back. The new links
     // become ordinary candidates on the next run, so this run's frozen
     // candidate hash stays exactly what the approval path recomputes.
-    let draftsCreated = 0;
-    let draftsUnmapped = 0;
+    let draftFailures = 0;
     for (const sourceKey of unlinkedSources) {
       // Runs to completion for the same reason as the walk above: breaking
       // here and then falling through to completeRun would advance
       // committedCursor past sources that never got a draft.
       if (!(await keepLease())) return { outcome: 'lease-lost', runId: state.activeRunId };
       const draft = await createDraftForSource(sourceKey, { now: deps.now() });
-      if (draft.ok) draftsCreated += 1;
-      else if (draft.reason === 'no-category-mapping') draftsUnmapped += 1;
+      if (!draft.ok) draftFailures += 1;
     }
-    if (draftsUnmapped > 0) {
-      // Operators cannot act on what they cannot see: an unmapped category
-      // silently withholds every product behind it.
+    if (draftFailures > 0) {
       await deps.alert(
-        `Alibaba sync: ${draftsUnmapped} source product(s) have no category mapping and were skipped; ${draftsCreated} draft(s) created.`,
+        `Alibaba sync: ${draftFailures} source product draft(s) could not be created or repaired.`,
       );
     }
 

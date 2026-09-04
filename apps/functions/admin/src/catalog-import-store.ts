@@ -48,6 +48,9 @@ export const CATEGORY_MAPPINGS = 'sourceCategoryMappings';
 /** Fields on `products` that belong to the Alibaba sync and to nothing else. */
 export const ALIBABA_OWNED_PRODUCT_FIELDS: readonly string[] = [
   'alibabaPrimarySourceKey',
+  'alibabaSourceProductId',
+  'alibabaSourceCategoryId',
+  'alibabaSourceImageUrls',
   'alibabaPrimaryOfferKey',
   'alibabaPinnedOfferKey',
   'alibabaCatalogPricing',

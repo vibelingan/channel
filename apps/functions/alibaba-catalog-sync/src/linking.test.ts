@@ -9,7 +9,12 @@ import {
   compareBySort,
   matchesFilter,
 } from '@vibelingan-channel/shared';
-import { createDraftForSource, linkExistingProduct, unlinkProduct } from './linking.ts';
+import {
+  createDraftForSource,
+  draftProductId,
+  linkExistingProduct,
+  unlinkProduct,
+} from './linking.ts';
 
 type Store = Record<string, CollectionDoc[]>;
 
@@ -114,6 +119,7 @@ function setup(extra: Store = {}): Store {
         sourceTitle: 'BT Headphones',
         sourceDescription: 'desc',
         sourceCategoryId: 'cat-100',
+        sourceImageUrls: ['https://sc04.alicdn.com/product.jpg'],
         active: true,
       } as CollectionDoc,
     ],
@@ -154,6 +160,9 @@ test('explicit link claims the source and stamps only Alibaba-owned fields', asy
   assert.equal(link?.linkedByUserId, 'admin-1');
   const product = store.products?.[0];
   assert.equal(product?.alibabaPrimarySourceKey, SOURCE_KEY);
+  assert.equal(product?.alibabaSourceProductId, '987');
+  assert.equal(product?.alibabaSourceCategoryId, 'cat-100');
+  assert.deepEqual(product?.alibabaSourceImageUrls, ['https://sc04.alicdn.com/product.jpg']);
   assert.equal(product?.alibabaSourceStatus, 'available');
   // Legacy and curated surfaces untouched.
   assert.equal(product?.unitPrice, 12.5);
@@ -237,21 +246,19 @@ const MAPPING: CollectionDoc = {
   channelCategory: 'bluetooth',
 } as CollectionDoc;
 
-test('draft creation requires an explicit category mapping', async () => {
+test('an unmapped source still creates a visible unpublished draft', async () => {
   setup();
-  const beforeIds = store.products?.map((product) => product._id);
-  const denied = await createDraftForSource(SOURCE_KEY, CTX);
-  assert.deepEqual(denied, { ok: false, reason: 'no-category-mapping' });
-  assert.equal(store.products?.length, 1, 'no draft without a mapping');
-  assert.deepEqual(
-    store.products?.map((product) => product._id),
-    beforeIds,
-  );
-  assert.equal(
-    store.products?.some((product) => product.productFamily === 'misc'),
-    false,
-    'unmapped sources never default to Misc',
-  );
+  const result = await createDraftForSource(SOURCE_KEY, CTX);
+  assert.deepEqual(result, { ok: true, productId: draftProductId(SOURCE_KEY), created: true });
+  const draft = store.products?.find((product) => product._id === draftProductId(SOURCE_KEY));
+  assert.ok(draft);
+  assert.equal(draft.published, false);
+  assert.equal(draft.archived, false);
+  assert.equal(draft.productFamily, undefined, 'unmapped source remains uncategorized');
+  assert.equal(draft.category, undefined, 'no category is invented');
+  assert.equal(draft.alibabaSourceProductId, '987');
+  assert.equal(draft.alibabaSourceCategoryId, 'cat-100');
+  assert.deepEqual(draft.alibabaSourceImageUrls, ['https://sc04.alicdn.com/product.jpg']);
 });
 
 test('a mapped source creates an UNPUBLISHED draft with source suggestions', async () => {
@@ -265,7 +272,7 @@ test('a mapped source creates an UNPUBLISHED draft with source suggestions', asy
   assert.equal(draft.published, false, 'worker-created drafts are never published');
   assert.equal(draft.name, 'BT Headphones');
   assert.equal(draft.category, 'bluetooth');
-  assert.equal(draft.productFamily, undefined, 'operator must curate family before publication');
+  assert.equal(draft.productFamily, 'headphones');
   assert.equal(draft.slug, undefined, 'worker never invents public identity');
   assert.equal(draft.skuCode, undefined, 'worker never invents operator SKU identity');
   assert.equal(draft.alibabaPrimarySourceKey, SOURCE_KEY);
@@ -282,14 +289,15 @@ test('RACE: concurrent draft creation converges on one product', async () => {
   ]);
   assert.equal(a.ok, true);
   assert.equal(b.ok, true);
-  // Exactly one link row exists and both callers converge on ITS product;
-  // a lost interleaving may create an orphan draft doc but never a second
-  // linked/published product (drafts are unpublished and invisible).
+  // Exactly one link row and one deterministic draft exist; retries cannot
+  // create an orphan product.
   assert.equal(store.alibabaProductLinks?.length, 1);
+  assert.equal(store.products?.filter((product) => product._id !== 'p-1').length, 1);
   const linked = store.alibabaProductLinks?.[0]?.productId;
   assert.ok(linked);
   if (a.ok && b.ok) {
-    assert.ok(a.productId === linked || b.productId === linked);
+    assert.equal(a.productId, linked);
+    assert.equal(b.productId, linked);
   }
 });
 

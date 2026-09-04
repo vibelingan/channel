@@ -84,7 +84,14 @@ test('inspection control renders bounded input, disconnected state, and safe sum
       connected: true,
       busy: false,
       result: validSummary,
+      syncResult: {
+        sourceProductId: validSummary.sourceProductId,
+        productId: 'draft-1',
+        draftCreated: true,
+        offerCount: 3,
+      },
       onInspect: () => {},
+      onSync: () => {},
     }),
   );
   assert.ok(result.includes('data-detail-inspection-result'));
@@ -92,6 +99,9 @@ test('inspection control renders bounded input, disconnected state, and safe sum
   assert.ok(result.includes('3 / 3'));
   assert.ok(result.includes('tiered'));
   assert.ok(result.includes('Color'));
+  assert.ok(result.includes('Sync to Products'));
+  assert.ok(result.includes('Created product draft'));
+  assert.ok(result.includes('It remains unpublished'));
   assert.ok(!result.includes('<script>'));
   assert.ok(!result.includes('Bearer '));
   assert.ok(!result.includes('access-token'));

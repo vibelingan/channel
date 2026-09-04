@@ -1,6 +1,7 @@
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatPrice } from '../shop/api.ts';
+import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { getImagePreview } from './api.ts';
 
 interface Props {
@@ -15,6 +16,7 @@ interface Props {
  */
 export function PreviewModal({ doc, onClose, onEdit }: Props) {
   const imageIds = Array.isArray(doc.imageIds) ? (doc.imageIds as string[]) : [];
+  const sourceImageUrls = alibabaSourcePreviewUrls(doc.alibabaSourceImageUrls);
   const published = doc.published === true;
 
   // Only the ids actually rendered (cover + up to four thumbnails). Memoized on
@@ -133,12 +135,24 @@ export function PreviewModal({ doc, onClose, onEdit }: Props) {
                   alt={String(doc.name ?? '')}
                   className="h-full w-full object-cover"
                 />
+              ) : !imageIds[0] && sourceImageUrls[0] ? (
+                <img
+                  src={sourceImageUrls[0]}
+                  alt={String(doc.name ?? '')}
+                  referrerPolicy="no-referrer"
+                  className="h-full w-full object-cover"
+                />
               ) : (
                 <div className="grid h-full place-items-center text-sm text-slate-400">
                   {imageIds[0] ? '…' : 'No image'}
                 </div>
               )}
             </div>
+            {imageIds.length === 0 && sourceImageUrls.length > 0 && (
+              <p className="mt-2 text-xs text-amber-700">
+                Alibaba source preview only. Import or upload an image before publishing.
+              </p>
+            )}
             {imageIds.length > 1 && (
               <div className="mt-3 flex gap-2">
                 {shownIds.slice(1).map((id) =>

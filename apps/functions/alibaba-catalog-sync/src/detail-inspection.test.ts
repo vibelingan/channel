@@ -14,6 +14,7 @@ import {
 } from '@vibelingan-channel/media-storage';
 import type { CollectionDoc, ListResult } from '@vibelingan-channel/shared';
 import { inspectAlibabaProductDetail } from './detail-inspection.ts';
+import { syncSelectedAlibabaProduct } from './selected-sync.ts';
 
 const NOW = '2026-09-04T04:00:00.000Z';
 
@@ -80,6 +81,37 @@ class InspectionAdapter implements DbAdapter {
     if (docs.some((doc) => doc._id === id)) return 'exists';
     docs.push({ _id: id, ...data } as CollectionDoc);
     return 'created';
+  }
+
+  async upsertDocWithId(
+    collection: string,
+    id: string,
+    data: Record<string, unknown>,
+  ): Promise<CollectionDoc> {
+    const current = await this.get(collection, id);
+    if (current) return (await this.update(collection, id, data)) as CollectionDoc;
+    await this.createDocWithId(collection, id, data);
+    return (await this.get(collection, id)) as CollectionDoc;
+  }
+
+  async upsertDocWithAlibabaLease(
+    collection: string,
+    id: string,
+    patch: Record<string, unknown>,
+    createOnly: Record<string, unknown>,
+  ): Promise<boolean> {
+    const current = await this.get(collection, id);
+    if (current) await this.update(collection, id, patch);
+    else await this.createDocWithId(collection, id, { ...createOnly, ...patch });
+    return true;
+  }
+
+  async updateDocWithAlibabaLease(
+    collection: string,
+    id: string,
+    patch: Record<string, unknown>,
+  ): Promise<boolean> {
+    return (await this.update(collection, id, patch)) !== null;
   }
 
   async acquireAlibabaSyncLease(
@@ -310,4 +342,40 @@ test('one-product inspection validates ids before taking the lease or calling Al
   assert.deepEqual(result, { ok: false, reason: 'invalid-product-id' });
   assert.equal(providerCalls, 0);
   assert.equal(adapter.store.alibabaSyncLeases, undefined);
+});
+
+test('selected product sync ingests detail and creates one unpublished visible draft', async () => {
+  const adapter = new InspectionAdapter();
+  const storage = new InspectionStorage();
+  setAdapter(adapter);
+  setMediaStorage(storage);
+
+  const result = await syncSelectedAlibabaProduct({
+    sourceProductId: 'AAGmBBhgAOVTpOOZBg7MoZq_',
+    deps: {
+      now: () => NOW,
+      getAccessToken: async () => ({ ok: true, accessToken: 'secret-access-token' }),
+      client: {
+        fingerprintFor: () => 'safe-fingerprint',
+        callApi: async () => ({ ok: true, status: 200, bodyText: liveDetailBody() }),
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.draftCreated, true);
+  assert.equal(result.offerCount, 1);
+  const product = adapter.store.products?.find((candidate) => candidate._id === result.productId);
+  assert.ok(product);
+  assert.equal(product.published, false);
+  assert.equal(product.archived, false);
+  assert.equal(product.name, 'Sensitive supplier title');
+  assert.equal(product.description, 'Private supplier description');
+  assert.equal(product.alibabaSourceProductId, 'AAGmBBhgAOVTpOOZBg7MoZq_');
+  assert.equal((product.alibabaCatalogPricing as { mode?: string })?.mode, 'tiered');
+  assert.equal(adapter.store.alibabaSourceProducts?.length, 1);
+  assert.equal(adapter.store.catalogSourceObservations?.length, 1);
+  assert.equal(adapter.store.alibabaProductLinks?.length, 1);
+  assert.notEqual(adapter.store.alibabaSyncLeases?.[0]?.releasedAt, '');
 });

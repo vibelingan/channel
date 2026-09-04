@@ -9,6 +9,7 @@ import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { listRecords } from '../api.ts';
 import { AlibabaConnectionPanel } from './AlibabaConnectionPanel.tsx';
+import { AlibabaDraftMaterialization } from './AlibabaDraftMaterialization.tsx';
 import { AlibabaObservationReplay } from './AlibabaObservationReplay.tsx';
 import { AlibabaProductDetailInspection } from './AlibabaProductDetailInspection.tsx';
 import { AlibabaProductLinkAction } from './AlibabaProductLinkAction.tsx';
@@ -24,8 +25,10 @@ import {
   fetchConnectionStatus,
   inspectProductDetail,
   linkSourceProduct,
+  materializeAlibabaDrafts,
   runSyncNow,
   startOAuthFlow,
+  syncProduct,
   unlinkSourceProduct,
   validateSourceObservationReplay,
 } from './alibaba-api.ts';
@@ -79,12 +82,21 @@ export function AlibabaCatalogSyncPage() {
     null,
   );
   const [inspectingDetail, setInspectingDetail] = useState(false);
+  const [selectedSyncResult, setSelectedSyncResult] = useState<Awaited<
+    ReturnType<typeof syncProduct>
+  > | null>(null);
   const [replayPlan, setReplayPlan] = useState<SourceObservationReplayPlan | null>(null);
   const [replayPhase, setReplayPhase] = useState<
     'idle' | 'validating' | 'validated' | 'applying' | 'applied' | 'failed'
   >('idle');
   const [replayProgress, setReplayProgress] = useState<string | null>(null);
   const [replayApplied, setReplayApplied] = useState<number | null>(null);
+  const [draftProgress, setDraftProgress] = useState<{
+    visited: number;
+    created: number;
+    existing: number;
+    failures: number;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -158,6 +170,7 @@ export function AlibabaCatalogSyncPage() {
         busy={busy}
         inspecting={inspectingDetail}
         result={detailInspection}
+        syncResult={selectedSyncResult}
         onInspect={(sourceProductId) => {
           setInspectingDetail(true);
           void guard(async () => {
@@ -166,6 +179,28 @@ export function AlibabaCatalogSyncPage() {
             setDetailInspection(summary);
             return `Detail inspection completed for ${summary.sourceProductId}.`;
           }).finally(() => setInspectingDetail(false));
+        }}
+        onSync={(sourceProductId) => {
+          setInspectingDetail(true);
+          void guard(async () => {
+            setSelectedSyncResult(null);
+            const result = await syncProduct(sourceProductId);
+            setSelectedSyncResult(result);
+            return `${result.draftCreated ? 'Created' : 'Updated'} an unpublished product draft for ${result.sourceProductId}.`;
+          }).finally(() => setInspectingDetail(false));
+        }}
+      />
+      <AlibabaDraftMaterialization
+        connected={status?.status === 'active'}
+        busy={busy}
+        progress={draftProgress}
+        onMaterialize={(sourceCategoryId) => {
+          setDraftProgress({ visited: 0, created: 0, existing: 0, failures: 0 });
+          void guard(async () => {
+            const result = await materializeAlibabaDrafts(setDraftProgress, sourceCategoryId);
+            setDraftProgress(result);
+            return `Product drafts ready: ${result.created} created, ${result.existing} already present, ${result.failures} failed.`;
+          });
         }}
       />
       <AlibabaObservationReplay

@@ -96,7 +96,7 @@ export interface IngestDetailInput {
   runId: string;
   now: string;
   /** Acquisition context only; product.get itself is always a full product detail. */
-  captureMode?: 'full' | 'incremental';
+  captureMode?: 'full' | 'incremental' | 'selected';
   /** Fresh lease guard factory; every mutable mirror write rechecks it atomically. */
   leaseGuard: () => AlibabaLeaseGuard;
   contentType?: string;

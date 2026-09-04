@@ -4,12 +4,17 @@
  * `alibabaProductLinks._id = sourceKey` and create-if-absent enforce ONE
  * Channel product per source product under any concurrency; a Channel product
  * may aggregate several source products (DESIGN_CHARTER §9). No fuzzy
- * matching exists anywhere — links come from an explicit admin action or a
- * category-mapped draft creation, and worker-created drafts are runtime-
+ * matching exists anywhere — links come from an explicit admin action or an
+ * observed-source draft creation, and worker-created drafts are runtime-
  * verified `published: false` (synchronization invariant 1).
  */
+import { createHash } from 'node:crypto';
+import {
+  sourceObservationDocumentId,
+  validateCatalogSourceObservation,
+} from '@vibelingan-channel/catalog-import';
 import { list, remove } from '@vibelingan-channel/db';
-import { createDoc, createDocWithId, getDoc, updateDoc } from './repo.ts';
+import { createDocWithId, getDoc, updateDoc } from './repo.ts';
 
 export interface LinkContext {
   now: string;
@@ -44,13 +49,13 @@ export async function linkExistingProduct(
     createdAt: context.now,
     updatedAt: context.now,
   });
+  let alreadyLinked = false;
   if (created === 'exists') {
     const existing = await getDoc('alibabaProductLinks', sourceKey);
     if (existing?.productId === productId) {
-      return { ok: true, sourceKey, productId, alreadyLinked: true };
-    }
-    // Repair path: a crashed draft claim leaves productId '' — adopt it.
-    if (existing && existing.productId === '') {
+      alreadyLinked = true;
+    } else if (existing && existing.productId === '') {
+      // Repair path: a crashed draft claim leaves productId '' — adopt it.
       await updateDoc('alibabaProductLinks', sourceKey, {
         productId,
         linkedByUserId: context.userId ?? '',
@@ -65,10 +70,15 @@ export async function linkExistingProduct(
   // fenced promotion — here only the link identity + a conservative status.
   await updateDoc('products', productId, {
     alibabaPrimarySourceKey: sourceKey,
+    alibabaSourceProductId: String(source.sourceProductId ?? ''),
+    alibabaSourceCategoryId: String(source.sourceCategoryId ?? ''),
+    alibabaSourceImageUrls: Array.isArray(source.sourceImageUrls)
+      ? source.sourceImageUrls.filter((value): value is string => typeof value === 'string')
+      : [],
     alibabaSourceStatus: source.active === true ? 'available' : 'removed',
     alibabaSourceLastSyncedAt: context.now,
   });
-  return { ok: true, sourceKey, productId, alreadyLinked: false };
+  return { ok: true, sourceKey, productId, alreadyLinked };
 }
 
 export type UnlinkResult =
@@ -76,7 +86,7 @@ export type UnlinkResult =
   | { ok: false; reason: 'product-not-found' };
 
 /**
- * Explicit unlink: remove the link rows and clear ONLY the five Alibaba-owned
+ * Explicit unlink: remove the link rows and clear ONLY the Alibaba-owned
  * product fields — legacy pricing was never touched, so the legacy rendering
  * path resumes immediately (COMPATIBILITY plan §4; the rollback command
  * shares this implementation and must never modify legacy fields).
@@ -98,6 +108,9 @@ export async function unlinkProduct(
   }
   await updateDoc('products', productId, {
     alibabaPrimarySourceKey: null,
+    alibabaSourceProductId: null,
+    alibabaSourceCategoryId: null,
+    alibabaSourceImageUrls: null,
     alibabaPrimaryOfferKey: null,
     // The operator pin must clear too (blessing-gate P2): unlink is the
     // documented rollback command, and a surviving pin would silently rebind
@@ -112,14 +125,73 @@ export async function unlinkProduct(
 
 export type DraftResult =
   | { ok: true; productId: string; created: boolean }
-  | { ok: false; reason: 'source-not-found' | 'no-category-mapping' | 'linked-elsewhere' };
+  | { ok: false; reason: 'source-not-found' | 'linked-elsewhere' };
 
 /**
- * Create an UNPUBLISHED draft for a new source product — only when an
- * explicit category mapping exists (never fuzzy, never auto-published, never
- * auto-imaged). Race-safe: the link row is claimed FIRST (single winner);
- * a crash between claim and draft leaves productId '' which this function
- * repairs on retry.
+ * Stable opaque id for the first Channel draft created from one source row.
+ * The link remains the authority; the deterministic id only makes a retry or
+ * concurrent materialization converge without leaving orphan draft products.
+ */
+export function draftProductId(sourceKey: string): string {
+  const hex = createHash('sha256').update(`channel-product\0${sourceKey}`).digest('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
+async function mappedCategory(sourceCategoryId: string): Promise<{
+  productFamily?: string;
+  channelCategory?: string;
+}> {
+  if (sourceCategoryId === '') return {};
+
+  // New provider-neutral mapping is authoritative when present.
+  const common = await list({
+    collection: 'sourceCategoryMappings',
+    page: 1,
+    pageSize: 1,
+    filter: {
+      combinator: 'and',
+      clauses: [
+        { field: 'provider', op: 'eq', value: 'alibaba' },
+        { field: 'sourceTaxonomy', op: 'eq', value: 'alibaba:icbu' },
+        { field: 'sourceCategoryId', op: 'eq', value: sourceCategoryId },
+      ],
+    },
+  });
+  const commonMapping = common.items[0];
+  if (typeof commonMapping?.productFamily === 'string' && commonMapping.productFamily !== '') {
+    return {
+      productFamily: commonMapping.productFamily,
+      ...(typeof commonMapping.channelCategory === 'string' && commonMapping.channelCategory !== ''
+        ? { channelCategory: commonMapping.channelCategory }
+        : {}),
+    };
+  }
+
+  // Compatibility with the original Alibaba-only headphones mapping.
+  const legacy = await list({
+    collection: 'alibabaCategoryMappings',
+    page: 1,
+    pageSize: 1,
+    filter: {
+      combinator: 'and',
+      clauses: [{ field: 'alibabaCategoryId', op: 'eq', value: sourceCategoryId }],
+    },
+  });
+  const legacyMapping = legacy.items[0];
+  return typeof legacyMapping?.channelCategory === 'string' && legacyMapping.channelCategory !== ''
+    ? { productFamily: 'headphones', channelCategory: legacyMapping.channelCategory }
+    : {};
+}
+
+/**
+ * Create an UNPUBLISHED draft for every observed source product. Category
+ * mapping enriches the draft but is no longer a visibility gate: an unmapped
+ * product remains visible under "All products" and publication validation
+ * still requires an operator-chosen family. Never fuzzy-map, auto-publish, or
+ * auto-import media.
+ *
+ * Race-safe: the link row is claimed FIRST with a deterministic product id;
+ * a crash between link and product is repaired by the next invocation.
  */
 export async function createDraftForSource(
   sourceKey: string,
@@ -128,25 +200,14 @@ export async function createDraftForSource(
   const source = await getDoc('alibabaSourceProducts', sourceKey);
   if (!source) return { ok: false, reason: 'source-not-found' };
 
-  const mappings = await list({
-    collection: 'alibabaCategoryMappings',
-    page: 1,
-    pageSize: 1,
-    filter: {
-      combinator: 'and',
-      clauses: [
-        { field: 'alibabaCategoryId', op: 'eq', value: String(source.sourceCategoryId ?? '') },
-      ],
-    },
-  });
-  const mapping = mappings.items[0];
-  if (!mapping) return { ok: false, reason: 'no-category-mapping' };
+  const category = await mappedCategory(String(source.sourceCategoryId ?? ''));
+  const proposedProductId = draftProductId(sourceKey);
 
   const claim = await createDocWithId('alibabaProductLinks', sourceKey, {
     sourceKey,
     connectionId: source.connectionId,
     sourceProductId: source.sourceProductId,
-    productId: '',
+    productId: proposedProductId,
     linkedByUserId: '',
     linkedAt: context.now,
     createdAt: context.now,
@@ -155,26 +216,76 @@ export async function createDraftForSource(
   if (claim === 'exists') {
     const existing = await getDoc('alibabaProductLinks', sourceKey);
     if (existing && typeof existing.productId === 'string' && existing.productId !== '') {
-      return { ok: true, productId: existing.productId, created: false };
+      const linkedProduct = await getDoc('products', existing.productId);
+      if (linkedProduct) return { ok: true, productId: existing.productId, created: false };
+      // A previous invocation committed the link then crashed. Recreate the
+      // missing product at the id already named by the authoritative link.
+      return createLinkedDraft(source, existing.productId, category, context.now);
     }
     if (!existing) return { ok: false, reason: 'linked-elsewhere' };
-    // fall through: claimed-but-unfinished — this invocation completes it.
+    // Compatibility repair for old empty claims written by the previous
+    // algorithm. Every retry chooses the same id.
+    await updateDoc('alibabaProductLinks', sourceKey, { productId: proposedProductId });
   }
 
+  return createLinkedDraft(source, proposedProductId, category, context.now);
+}
+
+async function createLinkedDraft(
+  source: Record<string, unknown> & { _id: string },
+  productId: string,
+  category: { productFamily?: string; channelCategory?: string },
+  now: string,
+): Promise<DraftResult> {
+  const observationDoc = await getDoc(
+    'catalogSourceObservations',
+    sourceObservationDocumentId('alibaba', source._id),
+  );
+  const validated = validateCatalogSourceObservation(observationDoc?.observation);
+  const observation =
+    validated.ok &&
+    validated.value.source.provider === 'alibaba' &&
+    validated.value.source.sourceProductKey === source._id
+      ? validated.value
+      : null;
+  const observedTitle = observation?.identity.title;
+  const observedDescription = observation?.content.description?.text;
+
   const draft: Record<string, unknown> = {
-    name: source.sourceTitle ?? `Alibaba product ${source.sourceProductId}`,
-    category: mapping.channelCategory,
-    description: source.sourceDescription ?? '',
+    name:
+      typeof observedTitle === 'string' && observedTitle.trim() !== ''
+        ? observedTitle
+        : typeof source.sourceTitle === 'string' && source.sourceTitle.trim() !== ''
+          ? source.sourceTitle
+          : `Alibaba product ${String(source.sourceProductId ?? '')}`,
+    ...(typeof observedDescription === 'string' && observedDescription.trim() !== ''
+      ? { description: observedDescription }
+      : {}),
+    ...(category.productFamily === undefined ? {} : { productFamily: category.productFamily }),
+    ...(category.channelCategory === undefined ? {} : { category: category.channelCategory }),
     published: false,
-    alibabaPrimarySourceKey: sourceKey,
-    alibabaSourceStatus: 'available',
-    alibabaSourceLastSyncedAt: context.now,
+    archived: false,
+    alibabaPrimarySourceKey: source._id,
+    alibabaSourceProductId: String(source.sourceProductId ?? ''),
+    alibabaSourceCategoryId: String(source.sourceCategoryId ?? ''),
+    alibabaSourceImageUrls: Array.isArray(source.sourceImageUrls)
+      ? source.sourceImageUrls.filter((value): value is string => typeof value === 'string')
+      : [],
+    alibabaSourceStatus: source.active === true ? 'available' : 'removed',
+    alibabaSourceLastSyncedAt: now,
+    createdAt: now,
+    updatedAt: now,
   };
   // Runtime invariant, not just a default: the worker can never publish.
   if (draft.published !== false) throw new Error('draft must be unpublished');
-  const product = await createDoc('products', draft);
-  await updateDoc('alibabaProductLinks', sourceKey, { productId: product._id });
-  return { ok: true, productId: product._id, created: true };
+  const created = await createDocWithId('products', productId, draft);
+  if (created === 'exists') {
+    const existingProduct = await getDoc('products', productId);
+    if (existingProduct?.alibabaPrimarySourceKey !== source._id) {
+      return { ok: false, reason: 'linked-elsewhere' };
+    }
+  }
+  return { ok: true, productId, created: created === 'created' };
 }
 
 export type SetPinnedOfferResult =

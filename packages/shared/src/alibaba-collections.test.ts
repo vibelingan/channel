@@ -76,6 +76,9 @@ test('category mapping is operator-writable with the Channel category enum', () 
 
 const ALIBABA_PRODUCT_FIELDS = [
   'alibabaPrimarySourceKey',
+  'alibabaSourceProductId',
+  'alibabaSourceCategoryId',
+  'alibabaSourceImageUrls',
   'alibabaPrimaryOfferKey',
   'alibabaPinnedOfferKey',
   'alibabaCatalogPricing',
@@ -83,7 +86,7 @@ const ALIBABA_PRODUCT_FIELDS = [
   'alibabaSourceLastSyncedAt',
 ];
 
-test('products gains the five additive Alibaba fields, all read-only', () => {
+test('products exposes every additive Alibaba field as read-only', () => {
   const def = getCollection('products');
   assert.ok(def);
   for (const name of ALIBABA_PRODUCT_FIELDS) {

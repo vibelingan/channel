@@ -21,6 +21,7 @@ import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { FilterBuilder } from './FilterBuilder.tsx';
 import { PreviewModal } from './PreviewModal.tsx';
 import { RecordForm } from './RecordForm.tsx';
+import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import {
   batchRemoveRecords,
   batchUpdateRecords,
@@ -764,6 +765,18 @@ function Thumb({ doc }: { doc: CollectionDoc }) {
         src={imageUrl(ids[0])}
         alt=""
         className="h-10 w-10 rounded-md border border-slate-200 object-cover"
+      />
+    );
+  }
+  const sourceUrl = alibabaSourcePreviewUrls(doc.alibabaSourceImageUrls, 1)[0];
+  if (sourceUrl) {
+    return (
+      <img
+        src={sourceUrl}
+        alt=""
+        referrerPolicy="no-referrer"
+        className="h-10 w-10 rounded-md border border-dashed border-slate-300 object-cover"
+        title="Alibaba source preview; not yet imported for publication"
       />
     );
   }

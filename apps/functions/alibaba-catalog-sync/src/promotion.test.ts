@@ -131,7 +131,14 @@ function setup(overrides: Partial<Store> = {}): Store {
       { _id: SOURCE_KEY, sourceKey: SOURCE_KEY, productId: 'p-1' } as CollectionDoc,
     ],
     alibabaSourceProducts: [
-      { _id: SOURCE_KEY, sourceKey: SOURCE_KEY, active: true } as CollectionDoc,
+      {
+        _id: SOURCE_KEY,
+        sourceKey: SOURCE_KEY,
+        sourceProductId: '987',
+        sourceCategoryId: '44',
+        sourceImageUrls: ['https://sc04.alicdn.com/product.jpg'],
+        active: true,
+      } as CollectionDoc,
     ],
     alibabaSupplierOffers: [
       {
@@ -183,11 +190,17 @@ test('promotion materializes the primary offer through the fenced write, touchin
   assert.equal(after.alibabaPrimaryOfferKey, OFFER_KEY);
   assert.equal((after.alibabaCatalogPricing as { amountMinor?: number }).amountMinor, 250);
   assert.equal(after.alibabaSourceStatus, 'available');
+  assert.equal(after.alibabaSourceProductId, '987');
+  assert.equal(after.alibabaSourceCategoryId, '44');
+  assert.deepEqual(after.alibabaSourceImageUrls, ['https://sc04.alicdn.com/product.jpg']);
   assert.equal(after.alibabaSourceLastSyncedAt, NOW);
   assert.deepEqual(Object.keys(adapter.lastPromotionPatch ?? {}).sort(), [
     'alibabaCatalogPricing',
     'alibabaPrimaryOfferKey',
+    'alibabaSourceCategoryId',
+    'alibabaSourceImageUrls',
     'alibabaSourceLastSyncedAt',
+    'alibabaSourceProductId',
     'alibabaSourceStatus',
   ]);
   // Every non-Alibaba field is byte-identical (protected-surface proof).
