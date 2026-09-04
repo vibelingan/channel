@@ -228,6 +228,7 @@ interface ReplayManifest {
   totalSourceProducts: number;
   pages: ReplayManifestPage[];
   nextApplyIndex: number;
+  createdAt: string;
   expiresAt: string;
 }
 
@@ -238,6 +239,13 @@ function textField(doc: CollectionDoc, field: string): string | null {
 
 function sameKeys(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((key, index) => key === right[index]);
+}
+
+function canonicalInstantMs(value: unknown): number | null {
+  if (typeof value !== 'string') return null;
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed) || new Date(parsed).toISOString() !== value) return null;
+  return parsed;
 }
 
 function pageFingerprint(
@@ -264,6 +272,9 @@ function pageFingerprint(
 
 function parseReplayManifest(doc: CollectionDoc | null, now: string): ReplayManifest | null {
   if (!doc || !Array.isArray(doc.pages)) return null;
+  const createdAtMs = canonicalInstantMs(doc.createdAt);
+  const expiresAtMs = canonicalInstantMs(doc.expiresAt);
+  const nowMs = canonicalInstantMs(now);
   if (
     doc.connectionId !== PRIMARY_CONNECTION_ID ||
     typeof doc.requestedBy !== 'string' ||
@@ -273,10 +284,11 @@ function parseReplayManifest(doc: CollectionDoc | null, now: string): ReplayMani
     Number(doc.totalSourceProducts) < 0 ||
     !Number.isSafeInteger(doc.nextApplyIndex) ||
     Number(doc.nextApplyIndex) < 0 ||
-    typeof doc.expiresAt !== 'string' ||
-    !Number.isFinite(Date.parse(doc.expiresAt)) ||
-    !Number.isFinite(Date.parse(now)) ||
-    Date.parse(doc.expiresAt) <= Date.parse(now) ||
+    createdAtMs === null ||
+    expiresAtMs === null ||
+    nowMs === null ||
+    expiresAtMs - createdAtMs !== REPLAY_MANIFEST_TTL_MS ||
+    expiresAtMs <= nowMs ||
     doc.pages.length > MAX_REPLAY_MANIFEST_PAGES
   ) {
     return null;
@@ -343,7 +355,8 @@ function parseReplayManifest(doc: CollectionDoc | null, now: string): ReplayMani
     totalSourceProducts: Number(doc.totalSourceProducts),
     pages,
     nextApplyIndex: Number(doc.nextApplyIndex),
-    expiresAt: doc.expiresAt,
+    createdAt: doc.createdAt as string,
+    expiresAt: doc.expiresAt as string,
   };
 }
 
@@ -602,6 +615,7 @@ export async function replayAlibabaRawPage(
       const covered = pages.reduce((total, page) => total + page.sourceProducts, 0);
       manifestReady = failures.length === 0 && done && covered === totalSourceProducts;
       const manifestFailed = failures.length > 0 || (done && covered !== totalSourceProducts);
+      const manifestWriteNow = port.now();
       const persisted = await port.upsertReplayManifest(
         manifestId,
         {
@@ -611,14 +625,14 @@ export async function replayAlibabaRawPage(
           nextApplyIndex: 0,
           expiresAt:
             existingManifest?.expiresAt ??
-            new Date(Date.parse(port.now()) + REPLAY_MANIFEST_TTL_MS).toISOString(),
+            new Date(Date.parse(manifestWriteNow) + REPLAY_MANIFEST_TTL_MS).toISOString(),
         },
-        manifestCreateFields(requestedBy, totalSourceProducts, port.now()),
+        manifestCreateFields(requestedBy, totalSourceProducts, manifestWriteNow),
         {
           connectionId: PRIMARY_CONNECTION_ID,
           holder,
           fence: grant.fence,
-          now: port.now(),
+          now: manifestWriteNow,
         },
       );
       if (!persisted) return { ok: false, reason: 'lease-lost' };

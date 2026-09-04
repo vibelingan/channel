@@ -166,7 +166,24 @@ export async function runSyncTick(input: {
     { ok: true; accessToken: string } | { ok: false; report: TickReport }
   > => {
     const access = await deps.getAccessToken();
-    if (access.ok) return { ok: true, accessToken: access.accessToken };
+    if (access.ok) {
+      // Token refresh is an external call and may outlive the lease. Renew at
+      // the CURRENT time before any run/checkpoint write; a successful token
+      // must not let an expired holder commit with its acquisition timestamp.
+      const renewedAt = deps.now();
+      const renewed = await renewAlibabaSyncLease(
+        PRIMARY_CONNECTION_ID,
+        holder,
+        fence,
+        renewedAt,
+        ALIBABA_SYNC_LEASE_TTL_MS,
+      );
+      if (!renewed) {
+        await release();
+        return { ok: false, report: { outcome: 'lease-lost' } };
+      }
+      return { ok: true, accessToken: access.accessToken };
+    }
     await release();
     return { ok: false, report: { outcome: 'not-connected', detail: access.reason } };
   };
@@ -188,7 +205,7 @@ export async function runSyncTick(input: {
           nextIncrementalDueAt: computeNextIncrementalDueAt(now),
           committedCursor: '',
         },
-        guard(now),
+        guard(deps.now()),
       );
       if (!bootstrapped) return { outcome: 'lease-lost' };
       checkpointDoc = await getDoc('alibabaSyncCheckpoints', PRIMARY_CONNECTION_ID);
@@ -299,7 +316,7 @@ export async function runSyncTick(input: {
           'alibabaSyncCheckpoints',
           PRIMARY_CONNECTION_ID,
           { continuationCount: state.continuationCount },
-          guard(now),
+          guard(deps.now()),
         ))
       ) {
         return { outcome: 'lease-lost', runId: state.activeRunId };
@@ -365,7 +382,7 @@ export async function runSyncTick(input: {
           windowEnd: now,
           continuationCount: 0,
         },
-        guard(now),
+        guard(deps.now()),
       );
       if (claimResult !== 'claimed') {
         await release();

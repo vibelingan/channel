@@ -16,6 +16,7 @@ import type {
   DbAdapter,
 } from '@vibelingan-channel/db';
 import {
+  ALIBABA_SYNC_LEASE_TTL_MS,
   holdsAlibabaLease,
   setAdapter,
   transitionAlibabaLeaseAcquire,
@@ -484,6 +485,26 @@ test('lease takeover before the atomic run claim creates no run and claims no ch
     '',
     'stale holder cannot claim the shared checkpoint',
   );
+});
+
+test('token resolution that crosses the lease TTL cannot claim a run with stale time', async () => {
+  setup();
+  const backend = fakeBackend(() => []);
+  const deps = makeDeps(backend.fetchImpl);
+  deps.getAccessToken = async () => {
+    clockMs += ALIBABA_SYNC_LEASE_TTL_MS + 1;
+    return { ok: true as const, accessToken: 'late-token' };
+  };
+
+  const report = await runSyncTick({ deps, trigger: 'timer' });
+  assert.equal(report.outcome, 'lease-lost');
+  assert.equal(store.alibabaSyncRuns?.length ?? 0, 0, 'expired holder creates no orphan run');
+  assert.equal(
+    (store.alibabaSyncCheckpoints?.[0] as CollectionDoc).activeRunId,
+    '',
+    'expired holder cannot claim the shared checkpoint',
+  );
+  assert.equal(backend.calls.length, 0, 'no Alibaba data call starts under the expired lease');
 });
 
 test('checkpoint race before the atomic run claim creates no orphan run', async () => {
