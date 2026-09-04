@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 import { alibabaSourceKey } from '@vibelingan-channel/alibaba-catalog-sync';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import';
 import type { AdapterListQuery, DbAdapter } from '@vibelingan-channel/db';
 import { setAdapter } from '@vibelingan-channel/db';
 import {
@@ -107,6 +108,92 @@ const NOW = '2026-08-06T11:00:00.000Z';
 const CTX = { now: NOW, userId: 'admin-1' };
 const SOURCE_KEY = alibabaSourceKey('primary', '987');
 
+const SOURCE_OBSERVATION: CollectionDoc = {
+  _id: sourceObservationDocumentId('alibaba', SOURCE_KEY),
+  provider: 'alibaba',
+  sourceProductKey: SOURCE_KEY,
+  observation: {
+    schemaVersion: 'catalog-source-observation-v1',
+    source: {
+      provider: 'alibaba',
+      sourceProductKey: SOURCE_KEY,
+      externalProductId: '987',
+      observedAt: NOW,
+      sourceUpdatedAt: '2026-08-05T10:00:00.000Z',
+      captureMode: 'full',
+      completeness: 'full-product',
+    },
+    identity: {
+      title: 'Observed BT Headphones',
+      matchHints: {},
+      category: {
+        sourceTaxonomy: 'alibaba:icbu',
+        sourceCategoryId: 'cat-100',
+        sourceCategoryName: 'Consumer Electronics > Headphones',
+      },
+      attributes: [],
+    },
+    content: {
+      description: {
+        text: 'Observed description',
+        placeholder: false,
+        sanitized: true,
+        provenance: 'provider-description',
+      },
+      media: [{ sourceUrl: 'https://sc04.alicdn.com/product.jpg', role: 'primary', position: 0 }],
+    },
+    lifecycle: { sourceListingStatus: 'published' },
+    variants: [
+      {
+        sourceVariantKey: 'variant-black',
+        externalVariantId: 'sku-black',
+        options: [
+          { sourceName: 'color', value: 'Black' },
+          { sourceName: 'model number', value: 'WH-3' },
+        ],
+        inventory: [{ quantity: 50, semantics: 'sellable' }],
+        media: [],
+      },
+      {
+        sourceVariantKey: 'variant-white',
+        externalVariantId: 'sku-white',
+        options: [
+          { sourceName: 'Color', value: 'White' },
+          { sourceName: 'Model No.', value: 'WH-3' },
+        ],
+        inventory: [],
+        media: [],
+      },
+    ],
+    offers: [
+      {
+        sourceOfferKey: 'offer-black',
+        sourceVariantKey: 'variant-black',
+        externalVariantId: 'sku-black',
+        kind: 'supplier',
+        pricing: {
+          mode: 'tiered',
+          currency: 'USD',
+          minimumOrderQuantity: 10,
+          tiers: [
+            { minimumQuantity: 10, maximumQuantity: 99, unitAmountMinor: 515 },
+            { minimumQuantity: 100, unitAmountMinor: 357 },
+          ],
+        },
+      },
+      {
+        sourceOfferKey: 'offer-white',
+        sourceVariantKey: 'variant-white',
+        externalVariantId: 'sku-white',
+        kind: 'supplier',
+        pricing: { mode: 'unavailable', minimumOrderQuantity: 20 },
+      },
+    ],
+    evidence: [{ kind: 'raw-payload', evidenceId: 'a'.repeat(64), sha256: 'a'.repeat(64) }],
+    warnings: [],
+  },
+} as CollectionDoc;
+
 let store: Store = {};
 function setup(extra: Store = {}): Store {
   store = {
@@ -137,6 +224,7 @@ function setup(extra: Store = {}): Store {
         archived: false,
       } as CollectionDoc,
     ],
+    catalogSourceObservations: [SOURCE_OBSERVATION],
     ...extra,
   };
   setAdapter(new MemoryAdapter(store));
@@ -226,6 +314,7 @@ test('unlink clears ONLY Alibaba fields and removes link rows (legacy path resto
   assert.equal(product?.alibabaPrimarySourceKey, null);
   assert.equal(product?.alibabaCatalogPricing, null);
   assert.equal(product?.alibabaSourceStatus, null);
+  assert.equal(product?.alibabaSourceReview, null);
   // Legacy pricing byte-identical — nothing was destroyed.
   assert.equal(product?.unitPrice, 12.5);
   assert.equal(product?.published, true);
@@ -271,13 +360,36 @@ test('a mapped source creates an UNPUBLISHED draft with source suggestions', asy
   const draft = store.products?.find((p) => p._id === result.productId);
   assert.ok(draft);
   assert.equal(draft.published, false, 'worker-created drafts are never published');
-  assert.equal(draft.name, 'BT Headphones');
+  assert.equal(draft.name, 'Observed BT Headphones');
   assert.equal(draft.category, 'bluetooth');
   assert.equal(draft.productFamily, 'headphones');
   assert.equal(draft.slug, undefined, 'worker never invents public identity');
   assert.equal(draft.skuCode, undefined, 'worker never invents operator SKU identity');
   assert.equal(draft.alibabaPrimarySourceKey, SOURCE_KEY);
   assert.equal(draft.imageIds, undefined, 'no automatic public image selection');
+  assert.deepEqual(draft.alibabaSourceReview, {
+    schemaVersion: 'alibaba-source-review-v1',
+    provider: 'alibaba',
+    externalProductId: '987',
+    sourceCategoryId: 'cat-100',
+    sourceCategoryName: 'Consumer Electronics > Headphones',
+    sourceUpdatedAt: '2026-08-05T10:00:00.000Z',
+    sourceListingStatus: 'published',
+    variantCount: 2,
+    offerCount: 2,
+    modelNumbers: ['WH-3'],
+    optionNames: ['color', 'model number'],
+    minimumOrderQuantity: 10,
+    primaryPricing: {
+      mode: 'tiered',
+      currency: 'USD',
+      minimumOrderQuantity: 10,
+      tiers: [
+        { minimumQuantity: 10, maximumQuantity: 99, unitAmountMinor: 515 },
+        { minimumQuantity: 100, unitAmountMinor: 357 },
+      ],
+    },
+  });
   const link = store.alibabaProductLinks?.[0];
   assert.equal(link?.productId, result.productId);
 });
@@ -330,6 +442,43 @@ test('an existing complete link returns the linked product without creating', as
   assert.deepEqual(result, { ok: true, productId: 'p-1', created: false });
   assert.equal(store.products?.length, 1, 'no draft for an already-linked source');
   assert.equal(store.products?.[0]?.alibabaReviewPending, true, 'legacy linked row is backfilled');
+  assert.equal(
+    (store.products?.[0]?.alibabaSourceReview as { variantCount?: number }).variantCount,
+    2,
+    'the current source review is refreshed without another product.get call',
+  );
+});
+
+test('a later category mapping backfills an existing generated draft without overwriting review edits', async () => {
+  setup();
+  const first = await createDraftForSource(SOURCE_KEY, CTX);
+  assert.equal(first.ok, true);
+  const draft = store.products?.find((product) => product._id === draftProductId(SOURCE_KEY));
+  assert.ok(draft);
+  draft.name = 'Operator edited name';
+  draft.description = 'Operator edited description';
+  store.sourceCategoryMappings = [
+    {
+      _id: 'common-map-1',
+      provider: 'alibaba',
+      sourceTaxonomy: 'alibaba:icbu',
+      sourceCategoryId: 'cat-100',
+      productFamily: 'headphones',
+      channelCategory: 'bluetooth',
+    } as CollectionDoc,
+  ];
+
+  const second = await createDraftForSource(SOURCE_KEY, {
+    now: '2026-08-07T00:00:00.000Z',
+  });
+
+  assert.deepEqual(second, { ok: true, productId: draftProductId(SOURCE_KEY), created: false });
+  const refreshed = store.products?.find((product) => product._id === draftProductId(SOURCE_KEY));
+  assert.equal(refreshed?.productFamily, 'headphones');
+  assert.equal(refreshed?.category, 'bluetooth');
+  assert.equal(refreshed?.name, 'Operator edited name');
+  assert.equal(refreshed?.description, 'Operator edited description');
+  assert.equal(refreshed?.published, false);
 });
 
 test('draft retry never reopens a product an admin already reviewed', async () => {

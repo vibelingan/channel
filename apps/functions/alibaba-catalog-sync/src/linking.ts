@@ -10,6 +10,8 @@
  */
 import { createHash } from 'node:crypto';
 import {
+  type CatalogSourceObservation,
+  type CatalogSourcePricing,
   sourceObservationDocumentId,
   validateCatalogSourceObservation,
 } from '@vibelingan-channel/catalog-import';
@@ -119,6 +121,7 @@ export async function unlinkProduct(
     alibabaCatalogPricing: null,
     alibabaSourceStatus: null,
     alibabaSourceLastSyncedAt: context.now,
+    alibabaSourceReview: null,
     alibabaReviewPending: null,
     alibabaReviewedAt: null,
     alibabaReviewedByUserId: null,
@@ -140,16 +143,186 @@ export function draftProductId(sourceKey: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
-async function ensureAlibabaReviewState(
+export interface AlibabaSourceReview {
+  schemaVersion: 'alibaba-source-review-v1';
+  provider: 'alibaba';
+  externalProductId: string;
+  sourceCategoryId?: string;
+  sourceCategoryName?: string;
+  sourceUpdatedAt?: string;
+  sourceListingStatus: CatalogSourceObservation['lifecycle']['sourceListingStatus'];
+  variantCount: number;
+  offerCount: number;
+  modelNumbers: string[];
+  optionNames: string[];
+  minimumOrderQuantity?: number;
+  primaryPricing?: CatalogSourcePricing;
+}
+
+function normalizedOptionName(value: string): string {
+  const normalized = value
+    .normalize('NFKC')
+    .trim()
+    .toLocaleLowerCase('en-US')
+    .replace(/[._-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (/^model (?:no|number)$/.test(normalized) || normalized === '型号') return 'model number';
+  return normalized;
+}
+
+function minimumUnitAmount(pricing: CatalogSourcePricing): number | undefined {
+  switch (pricing.mode) {
+    case 'fixed':
+      return pricing.amountMinor;
+    case 'range':
+      return pricing.minimumAmountMinor;
+    case 'tiered':
+      return Math.min(...pricing.tiers.map((tier) => tier.unitAmountMinor));
+    default:
+      return undefined;
+  }
+}
+
+function pricingCurrency(pricing: CatalogSourcePricing): string | undefined {
+  return 'currency' in pricing ? pricing.currency : undefined;
+}
+
+function primaryReviewPricing(
+  offers: CatalogSourceObservation['offers'],
+): CatalogSourcePricing | undefined {
+  const priced = offers.filter((offer) => minimumUnitAmount(offer.pricing) !== undefined);
+  if (priced.length > 0) {
+    const currencies = [
+      ...new Set(
+        priced
+          .map((offer) => pricingCurrency(offer.pricing))
+          .filter((value): value is string => value !== undefined),
+      ),
+    ];
+    currencies.sort((left, right) => {
+      const rank = (value: string) => (value === 'USD' ? 0 : value === 'CNY' ? 1 : 2);
+      return rank(left) - rank(right) || left.localeCompare(right);
+    });
+    const preferredCurrency = currencies[0];
+    return [...priced]
+      .filter((offer) => pricingCurrency(offer.pricing) === preferredCurrency)
+      .sort(
+        (left, right) =>
+          (minimumUnitAmount(left.pricing) ?? Number.MAX_SAFE_INTEGER) -
+            (minimumUnitAmount(right.pricing) ?? Number.MAX_SAFE_INTEGER) ||
+          left.sourceOfferKey.localeCompare(right.sourceOfferKey),
+      )[0]?.pricing;
+  }
+  return [...offers].sort((left, right) => {
+    const rank = (pricing: CatalogSourcePricing) =>
+      pricing.mode === 'negotiable' ? 0 : pricing.mode === 'unavailable' ? 1 : 2;
+    return (
+      rank(left.pricing) - rank(right.pricing) ||
+      left.sourceOfferKey.localeCompare(right.sourceOfferKey)
+    );
+  })[0]?.pricing;
+}
+
+export function buildAlibabaSourceReview(
+  observation: CatalogSourceObservation,
+): AlibabaSourceReview {
+  const optionNames = new Set<string>();
+  const modelNumbers = new Map<string, string>();
+  for (const variant of observation.variants) {
+    for (const option of variant.options) {
+      const name = normalizedOptionName(option.sourceName);
+      if (name !== '') optionNames.add(name);
+      if (name === 'model number') {
+        const value = String(option.value).trim();
+        if (value !== '') modelNumbers.set(value.toLocaleLowerCase('en-US'), value);
+      }
+    }
+  }
+  const minimumOrderQuantities = observation.offers
+    .map((offer) => offer.pricing.minimumOrderQuantity)
+    .filter((value): value is number => typeof value === 'number');
+  const primaryPricing = primaryReviewPricing(observation.offers);
+  const sourceCategoryId = observation.identity.category?.sourceCategoryId;
+  const sourceCategoryName = observation.identity.category?.sourceCategoryName;
+  return {
+    schemaVersion: 'alibaba-source-review-v1',
+    provider: 'alibaba',
+    externalProductId: observation.source.externalProductId ?? '',
+    ...(sourceCategoryId === undefined ? {} : { sourceCategoryId }),
+    ...(sourceCategoryName === undefined ? {} : { sourceCategoryName }),
+    ...(observation.source.sourceUpdatedAt === undefined
+      ? {}
+      : { sourceUpdatedAt: observation.source.sourceUpdatedAt }),
+    sourceListingStatus: observation.lifecycle.sourceListingStatus,
+    variantCount: observation.variants.length,
+    offerCount: observation.offers.length,
+    modelNumbers: [...modelNumbers.values()].sort((left, right) => left.localeCompare(right)),
+    optionNames: [...optionNames].sort((left, right) => left.localeCompare(right)),
+    ...(minimumOrderQuantities.length === 0
+      ? {}
+      : { minimumOrderQuantity: Math.min(...minimumOrderQuantities) }),
+    ...(primaryPricing === undefined ? {} : { primaryPricing }),
+  };
+}
+
+async function loadAlibabaObservation(
+  source: Record<string, unknown> & { _id: string },
+): Promise<CatalogSourceObservation | null> {
+  const observationDoc = await getDoc(
+    'catalogSourceObservations',
+    sourceObservationDocumentId('alibaba', source._id),
+  );
+  const validated = validateCatalogSourceObservation(observationDoc?.observation);
+  return validated.ok &&
+    validated.value.source.provider === 'alibaba' &&
+    validated.value.source.sourceProductKey === source._id
+    ? validated.value
+    : null;
+}
+
+export async function loadAlibabaSourceReview(
+  source: Record<string, unknown> & { _id: string },
+): Promise<AlibabaSourceReview | null> {
+  const observation = await loadAlibabaObservation(source);
+  return observation === null ? null : buildAlibabaSourceReview(observation);
+}
+
+async function reconcileLinkedDraft(
   productId: string,
   product: Record<string, unknown>,
+  source: Record<string, unknown> & { _id: string },
+  category: { productFamily?: string; channelCategory?: string },
+  observation: CatalogSourceObservation | null,
 ): Promise<void> {
-  if (typeof product.alibabaReviewPending === 'boolean') return;
   // A legacy row may already carry acknowledgement evidence from a partially
   // rolled-out release. In that case materialization must not resurrect it.
   const reviewed =
     typeof product.alibabaReviewedAt === 'string' && product.alibabaReviewedAt.trim() !== '';
-  await updateDoc('products', productId, { alibabaReviewPending: !reviewed });
+  const generatedDraft =
+    productId === draftProductId(source._id) &&
+    product.alibabaPrimarySourceKey === source._id &&
+    product.published !== true;
+  const pendingReview = product.alibabaReviewPending !== false && !reviewed;
+  const patch: Record<string, unknown> = {
+    ...(typeof product.alibabaReviewPending === 'boolean'
+      ? {}
+      : { alibabaReviewPending: !reviewed }),
+    ...(observation === null ? {} : { alibabaSourceReview: buildAlibabaSourceReview(observation) }),
+    ...(generatedDraft &&
+    pendingReview &&
+    product.productFamily === undefined &&
+    category.productFamily
+      ? { productFamily: category.productFamily }
+      : {}),
+    ...(generatedDraft &&
+    pendingReview &&
+    product.category === undefined &&
+    category.channelCategory
+      ? { category: category.channelCategory }
+      : {}),
+  };
+  if (Object.keys(patch).length > 0) await updateDoc('products', productId, patch);
 }
 
 async function mappedCategory(sourceCategoryId: string): Promise<{
@@ -216,6 +389,7 @@ export async function createDraftForSource(
   if (!source) return { ok: false, reason: 'source-not-found' };
 
   const category = await mappedCategory(String(source.sourceCategoryId ?? ''));
+  const observation = await loadAlibabaObservation(source);
   const proposedProductId = draftProductId(sourceKey);
 
   const claim = await createDocWithId('alibabaProductLinks', sourceKey, {
@@ -233,12 +407,18 @@ export async function createDraftForSource(
     if (existing && typeof existing.productId === 'string' && existing.productId !== '') {
       const linkedProduct = await getDoc('products', existing.productId);
       if (linkedProduct) {
-        await ensureAlibabaReviewState(existing.productId, linkedProduct);
+        await reconcileLinkedDraft(
+          existing.productId,
+          linkedProduct,
+          source,
+          category,
+          observation,
+        );
         return { ok: true, productId: existing.productId, created: false };
       }
       // A previous invocation committed the link then crashed. Recreate the
       // missing product at the id already named by the authoritative link.
-      return createLinkedDraft(source, existing.productId, category, context.now);
+      return createLinkedDraft(source, existing.productId, category, observation, context.now);
     }
     if (!existing) return { ok: false, reason: 'linked-elsewhere' };
     // Compatibility repair for old empty claims written by the previous
@@ -246,26 +426,16 @@ export async function createDraftForSource(
     await updateDoc('alibabaProductLinks', sourceKey, { productId: proposedProductId });
   }
 
-  return createLinkedDraft(source, proposedProductId, category, context.now);
+  return createLinkedDraft(source, proposedProductId, category, observation, context.now);
 }
 
 async function createLinkedDraft(
   source: Record<string, unknown> & { _id: string },
   productId: string,
   category: { productFamily?: string; channelCategory?: string },
+  observation: CatalogSourceObservation | null,
   now: string,
 ): Promise<DraftResult> {
-  const observationDoc = await getDoc(
-    'catalogSourceObservations',
-    sourceObservationDocumentId('alibaba', source._id),
-  );
-  const validated = validateCatalogSourceObservation(observationDoc?.observation);
-  const observation =
-    validated.ok &&
-    validated.value.source.provider === 'alibaba' &&
-    validated.value.source.sourceProductKey === source._id
-      ? validated.value
-      : null;
   const observedTitle = observation?.identity.title;
   const observedDescription = observation?.content.description?.text;
 
@@ -292,6 +462,7 @@ async function createLinkedDraft(
     alibabaSourceStatus: source.active === true ? 'available' : 'removed',
     alibabaSourceLastSyncedAt: now,
     alibabaReviewPending: true,
+    ...(observation === null ? {} : { alibabaSourceReview: buildAlibabaSourceReview(observation) }),
     createdAt: now,
     updatedAt: now,
   };
@@ -303,7 +474,7 @@ async function createLinkedDraft(
     if (existingProduct?.alibabaPrimarySourceKey !== source._id) {
       return { ok: false, reason: 'linked-elsewhere' };
     }
-    await ensureAlibabaReviewState(productId, existingProduct);
+    await reconcileLinkedDraft(productId, existingProduct, source, category, observation);
   }
   return { ok: true, productId, created: created === 'created' };
 }

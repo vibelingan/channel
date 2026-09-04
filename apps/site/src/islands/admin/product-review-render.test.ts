@@ -13,6 +13,28 @@ const pending = {
   alibabaPrimarySourceKey: 'source-1',
   alibabaReviewPending: true,
   alibabaSourceImageUrls: ['https://sc04.alicdn.com/new-product.jpg'],
+  alibabaSourceReview: {
+    schemaVersion: 'alibaba-source-review-v1',
+    provider: 'alibaba',
+    externalProductId: 'AAEHBBhgAOVTpOKZBnRePx0I',
+    sourceCategoryId: '201745901',
+    sourceCategoryName: 'Consumer Electronics > Headphones',
+    sourceListingStatus: 'published',
+    variantCount: 3,
+    offerCount: 3,
+    modelNumbers: ['SY-T11'],
+    optionNames: ['color', 'model number'],
+    minimumOrderQuantity: 2,
+    primaryPricing: {
+      mode: 'tiered',
+      currency: 'USD',
+      minimumOrderQuantity: 2,
+      tiers: [
+        { minimumQuantity: 2, maximumQuantity: 499, unitAmountMinor: 570 },
+        { minimumQuantity: 500, unitAmountMinor: 380 },
+      ],
+    },
+  },
 } as CollectionDoc;
 
 test('pending product thumbnail renders New at the top-left overlay', () => {
@@ -58,4 +80,21 @@ test('pending product preview offers an explicit admin review acknowledgement', 
   assert.ok(html.includes('New · review needed'));
   assert.ok(html.includes('Mark reviewed'));
   assert.ok(html.includes('Disabled (not public)'));
+  assert.ok(html.includes('AAEHBBhgAOVTpOKZBnRePx0I'));
+  assert.ok(html.includes('Consumer Electronics &gt; Headphones'));
+  assert.ok(html.includes('SY-T11'));
+  assert.ok(html.includes('3 variants · 3 offers'));
+  assert.ok(html.includes('USD 3.80–5.70 / unit · tiered from 2'));
+});
+
+test('malformed source review data degrades without throwing or rendering attacker keys', () => {
+  const html = renderToStaticMarkup(
+    createElement(PreviewModal, {
+      doc: { ...pending, alibabaSourceReview: { __proto__: { polluted: true } } },
+      onClose: () => {},
+      onEdit: () => {},
+    }),
+  );
+  assert.ok(html.includes('New Alibaba product'));
+  assert.ok(!html.includes('polluted'));
 });

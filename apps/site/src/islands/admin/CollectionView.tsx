@@ -22,6 +22,7 @@ import { FilterBuilder } from './FilterBuilder.tsx';
 import { PreviewModal } from './PreviewModal.tsx';
 import { RecordForm } from './RecordForm.tsx';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
+import { productReviewCellValue } from './alibaba-source-review.ts';
 import {
   batchRemoveRecords,
   batchUpdateRecords,
@@ -199,10 +200,18 @@ export function CollectionView({ collection, section, role }: Props) {
     return () => window.removeEventListener('popstate', recoverFamily);
   }, [isProducts]);
 
-  const tableFields = useMemo(
-    () => collection.fields.filter((f) => !f.hideInTable && !(isCatalog && f.name === 'published')),
-    [collection.fields, isCatalog],
-  );
+  const tableFields = useMemo(() => {
+    const visible = collection.fields.filter(
+      (field) => !field.hideInTable && !(isCatalog && field.name === 'published'),
+    );
+    // Product rows are an operator review queue, not a raw dump of the legacy
+    // product document. Fields that Alibaba does not supply (slug, series,
+    // website prices) stay editable in the form but do not become columns full
+    // of misleading blanks. The source evidence columns below replace them.
+    return isProducts
+      ? visible.filter((field) => ['name', 'productFamily', 'category'].includes(field.name))
+      : visible;
+  }, [collection.fields, isCatalog, isProducts]);
 
   const total = data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -265,6 +274,29 @@ export function CollectionView({ collection, section, role }: Props) {
       });
     }
 
+    if (isProducts) {
+      for (const sourceColumn of [
+        { id: 'reviewIdentity', label: 'SKU / Source ID', cell: 'identity' },
+        { id: 'reviewSourceCategory', label: 'Source Category', cell: 'category' },
+        { id: 'reviewModel', label: 'Model', cell: 'model' },
+        { id: 'reviewVariants', label: 'Variants', cell: 'variants' },
+        { id: 'reviewMoq', label: 'MOQ', cell: 'moq' },
+        { id: 'reviewPricing', label: 'Pricing', cell: 'pricing' },
+      ] as const) {
+        cols.push({
+          id: sourceColumn.id,
+          header: sourceColumn.label,
+          enableSorting: false,
+          cell: ({ row }) => (
+            <TextCell
+              field={sourceColumn.id}
+              value={productReviewCellValue(row.original, sourceColumn.cell)}
+            />
+          ),
+        });
+      }
+    }
+
     if (isCatalog) {
       cols.push({
         id: 'status',
@@ -320,7 +352,7 @@ export function CollectionView({ collection, section, role }: Props) {
     });
 
     return cols;
-  }, [tableFields, isCatalog, inlineEdit]);
+  }, [tableFields, isCatalog, isProducts, inlineEdit]);
 
   const table = useReactTable({
     data: rows,
@@ -899,6 +931,11 @@ const TEXT_CELL_WIDTHS: Record<string, string> = {
   slug: 'max-w-48',
   skuCode: 'max-w-40',
   modName: 'max-w-40',
+  reviewIdentity: 'max-w-44',
+  reviewSourceCategory: 'max-w-48',
+  reviewModel: 'max-w-40',
+  reviewVariants: 'max-w-36',
+  reviewPricing: 'max-w-56',
 };
 const DEFAULT_TEXT_CELL_WIDTH = 'max-w-48';
 

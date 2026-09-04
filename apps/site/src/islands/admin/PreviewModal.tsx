@@ -2,6 +2,7 @@ import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatPrice } from '../shop/api.ts';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
+import { decodeAlibabaSourceReview, formatAlibabaSourcePricing } from './alibaba-source-review.ts';
 import { getImagePreview } from './api.ts';
 
 interface Props {
@@ -29,6 +30,7 @@ export function PreviewModal({
 }: Props) {
   const imageIds = Array.isArray(doc.imageIds) ? (doc.imageIds as string[]) : [];
   const sourceImageUrls = alibabaSourcePreviewUrls(doc.alibabaSourceImageUrls);
+  const sourceReview = decodeAlibabaSourceReview(doc.alibabaSourceReview);
   const published = doc.published === true;
 
   // Only the ids actually rendered (cover + up to four thumbnails). Memoized on
@@ -210,6 +212,30 @@ export function PreviewModal({
             )}
 
             <dl className="mt-4 divide-y divide-slate-100 rounded-xl border border-slate-200 text-sm">
+              {sourceReview && (
+                <>
+                  <Row label="Alibaba product ID" value={sourceReview.externalProductId || '—'} />
+                  <Row
+                    label="Source category"
+                    value={sourceReview.sourceCategoryName ?? sourceReview.sourceCategoryId ?? '—'}
+                  />
+                  {sourceReview.modelNumbers.length > 0 && (
+                    <Row label="Source model" value={sourceReview.modelNumbers.join(', ')} />
+                  )}
+                  <Row
+                    label="Variants"
+                    value={`${sourceReview.variantCount} variants · ${sourceReview.offerCount} offers`}
+                  />
+                  {sourceReview.minimumOrderQuantity !== undefined && (
+                    <Row label="Source MOQ" value={String(sourceReview.minimumOrderQuantity)} />
+                  )}
+                  <Row
+                    label="Source pricing"
+                    value={formatAlibabaSourcePricing(sourceReview.primaryPricing)}
+                  />
+                  <Row label="Source status" value={sourceReview.sourceListingStatus} />
+                </>
+              )}
               {Boolean(doc.modName) && <Row label="Model" value={String(doc.modName)} />}
               {Boolean(doc.productCode) && (
                 <Row label="Product code" value={String(doc.productCode)} />

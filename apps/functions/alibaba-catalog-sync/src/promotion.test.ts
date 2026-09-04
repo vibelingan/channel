@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 import { alibabaOfferKey, alibabaSourceKey } from '@vibelingan-channel/alibaba-catalog-sync';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import';
 import type { AdapterListQuery, AlibabaLeaseGuard, DbAdapter } from '@vibelingan-channel/db';
 import { holdsAlibabaLease, setAdapter } from '@vibelingan-channel/db';
 import {
@@ -234,6 +235,54 @@ test('promotion materializes the primary offer through the fenced write, touchin
       archived: false,
     },
   );
+});
+
+test('ordinary linked-product promotion refreshes the compact source review projection', async () => {
+  setup({
+    catalogSourceObservations: [
+      {
+        _id: sourceObservationDocumentId('alibaba', SOURCE_KEY),
+        observation: {
+          schemaVersion: 'catalog-source-observation-v1',
+          source: {
+            provider: 'alibaba',
+            sourceProductKey: SOURCE_KEY,
+            externalProductId: '987',
+            observedAt: NOW,
+            captureMode: 'incremental',
+            completeness: 'full-product',
+          },
+          identity: {
+            title: 'Source title',
+            matchHints: {},
+            category: { sourceTaxonomy: 'alibaba:icbu', sourceCategoryId: '44' },
+            attributes: [],
+          },
+          content: { media: [] },
+          lifecycle: { sourceListingStatus: 'published' },
+          variants: [],
+          offers: [],
+          evidence: [{ kind: 'raw-payload', evidenceId: 'a'.repeat(64) }],
+          warnings: [],
+        },
+      } as CollectionDoc,
+    ],
+  });
+
+  const result = await promoteLinkedProduct({ sourceKey: SOURCE_KEY, guard: GUARD, now: NOW });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(store.products?.[0]?.alibabaSourceReview, {
+    schemaVersion: 'alibaba-source-review-v1',
+    provider: 'alibaba',
+    externalProductId: '987',
+    sourceCategoryId: '44',
+    sourceListingStatus: 'published',
+    variantCount: 0,
+    offerCount: 0,
+    modelNumbers: [],
+    optionNames: [],
+  });
 });
 
 test('a stale holder cannot promote after fence takeover (write rejected, doc untouched)', async () => {

@@ -16,6 +16,7 @@ import {
   priceMoveExceedsThreshold,
 } from '@vibelingan-channel/alibaba-catalog-sync';
 import { type AlibabaLeaseGuard, list, updateDocWithAlibabaLease } from '@vibelingan-channel/db';
+import { loadAlibabaSourceReview } from './linking.ts';
 import { getDoc } from './repo.ts';
 
 export interface PromoteInput {
@@ -72,6 +73,7 @@ export async function promoteLinkedProduct(input: PromoteInput): Promise<Promote
   }
 
   const source = await getDoc('alibabaSourceProducts', input.sourceKey);
+  const sourceReview = source ? await loadAlibabaSourceReview(source) : null;
   const offers = await activeOffers(input.sourceKey);
   // Read the OPERATOR pin, never the sync's own previous selection
   // (blessing-gate P1): feeding alibabaPrimaryOfferKey back in made the first
@@ -90,6 +92,7 @@ export async function promoteLinkedProduct(input: PromoteInput): Promise<Promote
   });
   const patch = {
     ...candidate.patch,
+    ...(sourceReview === null ? {} : { alibabaSourceReview: sourceReview }),
     alibabaSourceProductId: String(source?.sourceProductId ?? ''),
     alibabaSourceCategoryId: String(source?.sourceCategoryId ?? ''),
     alibabaSourceImageUrls: Array.isArray(source?.sourceImageUrls)
@@ -116,6 +119,7 @@ export async function promoteLinkedProduct(input: PromoteInput): Promise<Promote
       i: product.alibabaSourceProductId ?? null,
       c: product.alibabaSourceCategoryId ?? null,
       m: product.alibabaSourceImageUrls ?? null,
+      r: product.alibabaSourceReview ?? null,
     }) !==
     computeCandidateHash({
       p: candidate.patch.alibabaCatalogPricing,
@@ -124,6 +128,7 @@ export async function promoteLinkedProduct(input: PromoteInput): Promise<Promote
       i: patch.alibabaSourceProductId,
       c: patch.alibabaSourceCategoryId,
       m: patch.alibabaSourceImageUrls,
+      r: sourceReview,
     });
 
   const applied = await updateDocWithAlibabaLease('products', link.productId, patch, input.guard);
