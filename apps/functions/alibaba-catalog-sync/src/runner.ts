@@ -236,7 +236,7 @@ export async function runSyncTick(input: {
         // null would leave the mode due forever and hot-loop it.
         const healedMode = runDoc?.mode === 'full' ? 'full' : 'incremental';
         const completedCursor =
-          runDoc.status === 'completed' && typeof checkpointDoc.windowEnd === 'string'
+          runDoc?.status === 'completed' && typeof checkpointDoc.windowEnd === 'string'
             ? checkpointDoc.windowEnd
             : undefined;
         if (!(await clearActiveRun(guard, deps, healedMode, completedCursor))) {
