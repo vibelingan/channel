@@ -35,6 +35,12 @@ Observed directly from CloudBase environment
 - a representative 23,050-byte `product.get` object was read from private
   storage; its computed SHA-256, metadata `_id`, `responseSha256`, path and byte
   length all agreed.
+- after the Admin inspection control was deployed, the existing authenticated
+  browser session made a fresh `product.get` call for
+  `AAGmBBhgAOVTpOOZBg7MoZq_`; the call succeeded without a site console error,
+  returned only its allowlisted structural summary, and stored a new exact
+  23,050-byte payload as
+  `332b8e4367e16586689f96edb0a5e509c5de5a9af0509023c1fafc6ad784f71d`.
 
 CloudBase's legacy `GetFunctionLogs` operation is retired and this environment
 has no CLS log set/topic, so there is no deploy-time stack-trace stream to query.
@@ -71,9 +77,9 @@ body can be referenced by content hash without duplicating that body.
 
 | Layer | Observed state | Integrity result |
 | --- | ---: | --- |
-| Source payload metadata | 2,156 after the fresh smoke | all stored, hash-addressed, storage pointer present |
-| `product.get` payloads before smoke | 1,469 | historical versions/retries retained |
-| `product.list` payloads before smoke | 686 | enumeration evidence retained |
+| Source payload metadata | 2,157 after the Admin detail probe (2,156 before) | all stored, hash-addressed, storage pointer present |
+| `product.get` payloads | 1,470 after the probe (1,469 before) | historical versions/retries retained |
+| `product.list` payloads | 687 | enumeration evidence retained |
 | Source products | 1,074 active | 1,074 unique provider ids and deterministic keys |
 | Active supplier offers | 3,672 | no orphan source key or provider-id mismatch |
 | Inactive supplier offers | 129 | retained SKU history, not active catalog conflicts |
@@ -244,18 +250,38 @@ The new UI consumes the common reviewed projection, never provider raw rows.
 6. Only after those gates decide when Alibaba data may affect canonical/public
    products and enable a recurring timer.
 
-## Remaining live-probe boundary
+## Live Admin detail probe acceptance
 
-The new `inspectProductDetail` action is deployed. Its route recognition and
-admin guard were verified live: an unauthenticated request reaches the new action
-and returns 401 rather than an unknown-action response. A fresh authenticated
-one-product call was not forced by extracting the browser's session token: the
-current Admin UI has no control for this diagnostic, and the browser automation
-keeps local storage opaque. The normal authenticated incremental smoke above
-already proves the deployed OAuth/TOP/list path; the 1,469 stored detail payloads
-and full replay provide the data-shape evidence used in this audit.
+The earlier 401 was this application's own admin guard rejecting an anonymous
+request; that request never reached Alibaba. It proved route recognition and
+fail-closed authentication, not the provider call. The deployed Admin control
+now reuses the existing browser JWT without exporting it. The function verifies
+the live admin role, acquires the same per-connection lease used by sync,
+resolves the encrypted Alibaba OAuth token on the server, then calls TOP
+`alibaba.icbu.product.get`.
 
-Expose the inspection through the future consolidated Admin UI, or run it in a
-user-visible DevTools session, before calling the one-product diagnostic itself
-fully accepted. Do not weaken its admin guard or export the JWT merely to close
-that checkbox.
+The fresh authenticated observation returned:
+
+- exact raw response size: 23,050 bytes;
+- description: HTML, 17,084 characters;
+- images: 6;
+- SKUs: 2, both with attributes (`color`, `Connectors`);
+- normalized offers: 2, currently `unavailable` because no validated
+  currency-bearing amount was present;
+- product and SKU tier rows: 0 product-level, 2 SKU records with tier arrays;
+- title, category and MOQ present; source status `approved`.
+
+The raw metadata count moved from 2,156 to 2,157 and the new private COS object
+exists. Source-product count remained 1,074 and supplier-offer count remained
+3,801; the sampled product row, its prior payload reference, timestamps and
+three stored offer rows were unchanged. This proves the diagnostic is an
+observation path rather than an unsafe single-item mirror mutation.
+
+The production sync should therefore keep its two-step contract: paginate
+`product.list` to enumerate full or incrementally changed provider ids, then
+call `product.get` per id before normalization and deterministic upsert. The
+list response is suitable for discovery/checkpointing (id, modified time and
+possibly subject) but is not a substitute for detail: the fresh detail carries
+description HTML, images, variant selections, inventory/tiers, MOQ and status.
+The Admin single-id action is a contract/incident probe only; it must not replace
+the resumable runner's list -> detail -> raw-first -> mirror pipeline.

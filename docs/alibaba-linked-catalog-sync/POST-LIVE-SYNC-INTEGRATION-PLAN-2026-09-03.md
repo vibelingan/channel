@@ -373,6 +373,17 @@ secret-name/build-fixture scan. Live deployment and the authenticated provider
 observation remain the release gate; local mocks alone do not prove Alibaba's
 current contract.
 
+### Live acceptance (2026-09-04)
+
+Static release `a0bfac1f999dace95c751cfcd48b4cf9d3ca18d5` was uploaded to the
+existing test hosting without changing its website, domain, gateway or
+function configuration. The control appeared on `supplychainsai.com/admin` and
+the existing Admin session completed a fresh TOP `product.get` call. The
+allowlisted summary, newly stored metadata row, private COS object and unchanged
+source-product/supplier-offer rows were cross-checked directly. Exact evidence
+and the resulting list-versus-detail production contract are recorded in
+`LIVE-DATA-STRUCTURE-AUDIT-2026-09-04.md`.
+
 ## Pricing and content decisions carried into integration
 
 Alibaba tiered prices represent supplier quantity breaks, for example one unit
