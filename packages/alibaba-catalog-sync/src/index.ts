@@ -72,6 +72,13 @@ export {
   gmtLexemeToUtcIso,
   normalizeProductDetail,
 } from './alibaba-normalizer.ts';
+
+export {
+  type AlibabaObservationCaptureMode,
+  type AlibabaObservationInput,
+  alibabaObservationAdapter,
+  alibabaVariantKey,
+} from './alibaba-observation-adapter.ts';
 export {
   type OfferForSelection,
   type PromotionCandidate,

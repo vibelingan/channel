@@ -35,6 +35,7 @@ import {
   parseAlibabaApiResponse,
   runOverdue,
 } from '@vibelingan-channel/alibaba-catalog-sync';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import {
   ALIBABA_SYNC_LEASE_TTL_MS,
   type AlibabaLeaseGuard,
@@ -541,6 +542,7 @@ async function executeSlice(
           connectionId: PRIMARY_CONNECTION_ID,
           runId: state.activeRunId,
           now: deps.now(),
+          captureMode: state.mode,
         });
         counters.itemsProcessed += 1;
         if (!ingest.ok) {
@@ -755,6 +757,7 @@ async function executeSlice(
         connectionId: PRIMARY_CONNECTION_ID,
         runId: state.activeRunId,
         now: deps.now(),
+        captureMode: state.mode,
       });
       continue;
     }
@@ -801,6 +804,28 @@ async function demoteTombstonedSource(
   guard: (at: string) => AlibabaLeaseGuard,
   deps: RunnerDeps,
 ): Promise<boolean> {
+  // Keep the provider-neutral current view in the same repair window as the
+  // source mirror and canonical demotion. Existing installations may not have
+  // replayed an observation for an old source yet, so absence is a safe no-op.
+  const observationId = sourceObservationDocumentId('alibaba', sourceKey);
+  const observation = await getDoc('catalogSourceObservations', observationId);
+  if (observation) {
+    const source = await getDoc('alibabaSourceProducts', sourceKey);
+    const lastSeenOperationId =
+      typeof source?.lastSeenRunId === 'string' && source.lastSeenRunId !== ''
+        ? source.lastSeenRunId
+        : undefined;
+    const observationDemoted = await updateDocWithAlibabaLease(
+      'catalogSourceObservations',
+      observationId,
+      {
+        active: false,
+        ...(lastSeenOperationId === undefined ? {} : { lastSeenOperationId }),
+      },
+      guard(deps.now()),
+    );
+    if (!observationDemoted) return false;
+  }
   const link = await getDoc('alibabaProductLinks', sourceKey);
   if (link && typeof link.productId === 'string' && link.productId !== '') {
     const demoted = await promoteLinkedProduct({

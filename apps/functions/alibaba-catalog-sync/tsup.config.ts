@@ -17,6 +17,7 @@ export default defineConfig({
   },
   noExternal: [
     '@vibelingan-channel/alibaba-catalog-sync',
+    '@vibelingan-channel/catalog-import',
     '@vibelingan-channel/shared',
     '@vibelingan-channel/auth',
     '@vibelingan-channel/db',

@@ -490,6 +490,44 @@ test('inspectProductDetail is admin-only and validates one bounded provider id',
   if (!invalid.ok) assert.equal(invalid.error.code, 'VALIDATION_ERROR');
 });
 
+test('raw observation replay is admin-only and apply requires a dry-run hash', async () => {
+  setup();
+  const contributor = await contributorToken();
+  const forbidden = await handleAlibabaSyncRequest(
+    {
+      action: 'replaySourceObservations',
+      token: contributor,
+      data: { mode: 'dry-run', limit: 10 },
+    },
+    baseConfig,
+  );
+  assert.equal(forbidden.ok, false);
+  if (!forbidden.ok) assert.equal(forbidden.error.code, 'FORBIDDEN');
+
+  const admin = await adminToken();
+  const missingHash = await handleAlibabaSyncRequest(
+    {
+      action: 'replaySourceObservations',
+      token: admin,
+      data: { mode: 'apply', limit: 10 },
+    },
+    baseConfig,
+  );
+  assert.equal(missingHash.ok, false);
+  if (!missingHash.ok) assert.equal(missingHash.error.code, 'VALIDATION_ERROR');
+
+  const unknownField = await handleAlibabaSyncRequest(
+    {
+      action: 'replaySourceObservations',
+      token: admin,
+      data: { mode: 'dry-run', limit: 10, raw: true },
+    },
+    baseConfig,
+  );
+  assert.equal(unknownField.ok, false);
+  if (!unknownField.ok) assert.equal(unknownField.error.code, 'VALIDATION_ERROR');
+});
+
 // --- http adapter ------------------------------------------------------------
 
 test('http adapter: OPTIONS preflight, health, callback redirect, POST envelope, 405', async () => {

@@ -14,6 +14,7 @@ import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import { buildAcceptanceWorkbook } from '@vibelingan-channel/catalog-import/testing/dianxiaomi-acceptance';
 import { get, list, setAdapter, updateDoc, upsertDocWithId } from '@vibelingan-channel/db';
 import { migrateImageLocally } from '@vibelingan-channel/fn-admin/catalog-import-media';
@@ -64,6 +65,7 @@ test('a fresh import stages a job and one item per product family', async (t) =>
   assert.equal(run.job.status, 'previewReady');
   assert.equal(await countOf('catalogImportJobs'), 1);
   assert.equal(await countOf('catalogImportItems'), 77);
+  assert.equal(await countOf('catalogSourceObservations'), 77);
 
   const counts = run.job.counts as Record<string, number>;
   assert.equal(counts.rows, 312);
@@ -77,6 +79,20 @@ test('a fresh import stages a job and one item per product family', async (t) =>
   assert.equal(summary.products, 77);
   assert.equal(summary.variants, 289);
   assert.equal(summary.inventoryConflict, 0);
+
+  const observations = await allOf('catalogSourceObservations');
+  const first = observations[0];
+  assert.ok(first);
+  assert.equal(first.provider, 'dianxiaomi');
+  assert.equal(first.schemaVersion, 'catalog-source-observation-v1');
+  assert.equal(first.firstSeenOperationId, run.job._id);
+  assert.equal(first.lastSeenOperationId, run.job._id);
+  assert.equal(first.evidenceId, run.job.sourceFileSha256);
+  assert.equal(
+    first._id,
+    sourceObservationDocumentId('dianxiaomi', String(first.sourceProductKey)),
+  );
+  assert.equal(await countOf('products'), 0, 'observations never auto-promote canonical products');
 });
 
 test('the workbook itself is never stored, only its digest', async (t) => {
@@ -98,6 +114,7 @@ test('re-importing identical bytes creates no new job, item or record', async (t
   const before = {
     jobs: await countOf('catalogImportJobs'),
     items: await countOf('catalogImportItems'),
+    observations: await countOf('catalogSourceObservations'),
   };
 
   const second = await runCatalogImport({ bytes: WORKBOOK, sourceFileName: 'export.xlsx' });
@@ -105,6 +122,7 @@ test('re-importing identical bytes creates no new job, item or record', async (t
   assert.equal(second.job._id, first.job._id);
   assert.equal(await countOf('catalogImportJobs'), before.jobs);
   assert.equal(await countOf('catalogImportItems'), before.items);
+  assert.equal(await countOf('catalogSourceObservations'), before.observations);
 });
 
 test('an explicit replay is a new job that remembers what it replays', async (t) => {
@@ -121,6 +139,11 @@ test('an explicit replay is a new job that remembers what it replays', async (t)
   assert.notEqual(replay.job._id, first.job._id);
   assert.equal(replay.job.replayOfJobId, first.job._id);
   assert.equal(await countOf('catalogImportJobs'), 2);
+  assert.equal(await countOf('catalogSourceObservations'), 77);
+  for (const observation of await allOf('catalogSourceObservations')) {
+    assert.equal(observation.firstSeenOperationId, first.job._id);
+    assert.equal(observation.lastSeenOperationId, replay.job._id);
+  }
 });
 
 test('RACE: two concurrent replays of the same file never collide on one attempt id', async (t) => {

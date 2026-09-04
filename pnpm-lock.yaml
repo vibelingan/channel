@@ -69,6 +69,9 @@ importers:
       '@vibelingan-channel/auth':
         specifier: workspace:*
         version: link:../../../packages/auth
+      '@vibelingan-channel/catalog-import':
+        specifier: workspace:*
+        version: link:../../../packages/catalog-import
       '@vibelingan-channel/db':
         specifier: workspace:*
         version: link:../../../packages/db
@@ -222,6 +225,10 @@ importers:
         version: 2.9.0
 
   packages/alibaba-catalog-sync:
+    dependencies:
+      '@vibelingan-channel/catalog-import':
+        specifier: workspace:*
+        version: link:../catalog-import
     devDependencies:
       '@types/node':
         specifier: ^22.10.2
@@ -254,6 +261,9 @@ importers:
       xlsx:
         specifier: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
         version: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^22.10.2

@@ -32,6 +32,11 @@ export {
   readDianxiaomiRows,
 } from './workbook.ts';
 
+export {
+  type DianxiaomiObservationInput,
+  dianxiaomiObservationAdapter,
+} from './observations.ts';
+
 /** Marketplace channel these exports describe. */
 export const DIANXIAOMI_TAXONOMY = 'lazada';
 
@@ -135,7 +140,7 @@ export function parseDianxiaomiWorkbook(bytes: Buffer): CatalogImportDetail {
   };
 }
 
-/** The narrow `CatalogSourceAdapter` a future connector also implements. */
+/** Workbook acquisition seam; normalization continues through the observation adapter above. */
 export const dianxiaomiAdapter: CatalogSourceAdapter<Buffer> = {
   provider: 'dianxiaomi',
   detect(input: Buffer): Promise<boolean> {

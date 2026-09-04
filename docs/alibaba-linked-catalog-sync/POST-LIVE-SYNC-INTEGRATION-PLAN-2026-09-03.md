@@ -1,5 +1,11 @@
 # Post-live-sync catalog integration plan — 2026-09-03
 
+> Implementation update (2026-09-04): the provider-neutral observation seam,
+> both adapters and the guarded raw replay are now implemented on the Alibaba
+> integration branch. The final contract and acceptance gates are recorded in
+> `COMMON-SOURCE-OBSERVATION-INTEGRATION-2026-09-04.md`; where the earlier
+> future-tense sketch below differs, that document supersedes it.
+
 ## Decision
 
 Continue on `fix/alibaba-sync-storage-wiring` for the next isolated Alibaba

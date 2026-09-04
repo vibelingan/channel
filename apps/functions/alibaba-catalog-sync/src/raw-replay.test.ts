@@ -1,0 +1,183 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { test } from 'node:test';
+import { alibabaOfferKey, alibabaSourceKey } from '@vibelingan-channel/alibaba-catalog-sync';
+import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { type AlibabaRawReplayPort, replayAlibabaRawPage } from './raw-replay.ts';
+
+const NOW = '2026-09-04T08:00:00.000Z';
+
+function fixture(sourceProductId = 'live-product') {
+  const bodyText = JSON.stringify({
+    alibaba_icbu_product_get_response: {
+      product: {
+        product_id: sourceProductId,
+        subject: 'Headset',
+        description: '<p>Safe</p>',
+        category_id: 44,
+        status: 'approved',
+        main_image: { images: { string: ['https://example.com/a.jpg'] } },
+        sourcing_trade: { fob_currency: 'USD', min_order_quantity: 10 },
+        product_sku: {
+          sku_attributes: {
+            sku_attribute: {
+              attribute_id: 1,
+              attribute_name: 'Color',
+              values: { sku_attribute_value: { value_id: 10, system_value_name: 'Blue' } },
+            },
+          },
+          skus: {
+            sku_definition: {
+              sku_id: 'sku-1',
+              attr2_value: '{"1":10}',
+              bulk_discount_prices: {
+                bulk_discount_price: [{ start_quantity: 10, price: '12.00' }],
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  const payloadId = createHash('sha256').update(bodyText).digest('hex');
+  const sourceKey = alibabaSourceKey('channeltec', sourceProductId);
+  const source: CollectionDoc = {
+    _id: sourceKey,
+    sourceKey,
+    connectionId: 'channeltec',
+    sourceProductId,
+    payloadId,
+    fetchedAt: NOW,
+    active: true,
+    firstSeenRunId: 'full-original',
+    lastSeenRunId: 'full-current',
+  };
+  const payload: CollectionDoc = {
+    _id: payloadId,
+    responseSha256: payloadId,
+    endpointId: 'product.get',
+    status: 'stored',
+    byteLength: Buffer.byteLength(bodyText),
+    storageFileId: 'cloud://bucket/alibaba-raw/body.json',
+  };
+  const offer: CollectionDoc = {
+    _id: alibabaOfferKey('channeltec', sourceProductId, 'sku-1'),
+    sourceKey,
+    sourceProductId,
+    sourceSkuId: 'sku-1',
+    active: true,
+    sourceAttributes: {},
+  };
+  return { bodyText, payloadId, sourceKey, source, payload, offer };
+}
+
+function port(f = fixture()) {
+  const updatedOffers: Array<{ id: string; patch: Record<string, unknown> }> = [];
+  const observations: Array<{ id: string; value: Record<string, unknown> }> = [];
+  const p: AlibabaRawReplayPort = {
+    now: () => NOW,
+    acquireLease: async () => ({ result: 'granted', fence: 3 }),
+    renewLease: async () => true,
+    releaseLease: async () => true,
+    listSourceProducts: async () => [f.source],
+    getDocument: async (collection, id) =>
+      collection === 'alibabaSourcePayloads' && id === f.payloadId ? f.payload : null,
+    listActiveOffers: async () => [f.offer],
+    readObjectAsBase64: async () => ({ body: Buffer.from(f.bodyText).toString('base64') }),
+    updateOffer: async (id, patch) => {
+      updatedOffers.push({ id, patch });
+      return { ...f.offer, ...patch };
+    },
+    upsertObservation: async (id, value) => {
+      observations.push({ id, value });
+    },
+  };
+  return { p, updatedOffers, observations };
+}
+
+test('dry-run reconstructs the exact current page without writing', async () => {
+  const { p, updatedOffers, observations } = port();
+  const result = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, p);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.ready, true);
+  assert.match(result.pageHash, /^[0-9a-f]{64}$/);
+  assert.deepEqual(result.counts, {
+    sourceProducts: 1,
+    observations: 1,
+    variants: 1,
+    offers: 1,
+    attributedVariants: 1,
+    attributePairs: 1,
+    warnings: 0,
+  });
+  assert.deepEqual(result.priceModes, { tiered: 1 });
+  assert.equal(updatedOffers.length, 0);
+  assert.equal(observations.length, 0);
+});
+
+test('apply requires the matching dry-run hash and preserves run provenance', async () => {
+  const harness = port();
+  const dry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, harness.p);
+  assert.equal(dry.ok, true);
+  if (!dry.ok) return;
+
+  const denied = await replayAlibabaRawPage(
+    { mode: 'apply', limit: 10, expectedPageHash: '0'.repeat(64) },
+    harness.p,
+  );
+  assert.deepEqual(denied, { ok: false, reason: 'page-changed' });
+  assert.equal(harness.updatedOffers.length, 0);
+
+  const applied = await replayAlibabaRawPage(
+    { mode: 'apply', limit: 10, expectedPageHash: dry.pageHash },
+    harness.p,
+  );
+  assert.equal(applied.ok, true);
+  if (!applied.ok) return;
+  assert.equal(applied.applied, 1);
+  assert.deepEqual(harness.updatedOffers[0]?.patch, { sourceAttributes: { Color: 'Blue' } });
+  assert.equal(harness.observations.length, 1);
+  assert.equal(harness.observations[0]?.value.lastSeenOperationId, 'full-current');
+  assert.equal(harness.observations[0]?.value.firstSeenOperationId, 'full-original');
+});
+
+test('an id mismatch blocks the whole page before any derived write', async () => {
+  const f = fixture('provider-id');
+  f.source.sourceProductId = 'mirror-id';
+  const harness = port(f);
+  const result = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, harness.p);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.ready, false);
+  assert.equal(result.failures[0]?.reason, 'product-id-mismatch');
+  assert.equal(harness.updatedOffers.length, 0);
+  assert.equal(harness.observations.length, 0);
+});
+
+test('raw byte-size and run provenance mismatches fail closed before writes', async () => {
+  const sizeMismatch = fixture();
+  sizeMismatch.payload.byteLength = Number(sizeMismatch.payload.byteLength) + 1;
+  const sizeHarness = port(sizeMismatch);
+  const sizeResult = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, sizeHarness.p);
+  assert.equal(sizeResult.ok, true);
+  if (!sizeResult.ok) return;
+  assert.equal(sizeResult.ready, false);
+  assert.equal(sizeResult.failures[0]?.reason, 'raw-size-mismatch');
+  assert.equal(sizeHarness.updatedOffers.length, 0);
+  assert.equal(sizeHarness.observations.length, 0);
+
+  const missingProvenance = fixture();
+  missingProvenance.source.firstSeenRunId = undefined;
+  const provenanceHarness = port(missingProvenance);
+  const provenanceResult = await replayAlibabaRawPage(
+    { mode: 'dry-run', limit: 10 },
+    provenanceHarness.p,
+  );
+  assert.equal(provenanceResult.ok, true);
+  if (!provenanceResult.ok) return;
+  assert.equal(provenanceResult.ready, false);
+  assert.equal(provenanceResult.failures[0]?.reason, 'invalid-source-row');
+  assert.equal(provenanceHarness.updatedOffers.length, 0);
+  assert.equal(provenanceHarness.observations.length, 0);
+});

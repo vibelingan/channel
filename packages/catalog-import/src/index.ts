@@ -98,3 +98,18 @@ export {
   displayQuantity,
   reconcileInventory,
 } from './inventory.ts';
+
+export {
+  CATALOG_SOURCE_OBSERVATION_SCHEMA_VERSION,
+  catalogSourceObservationSchema,
+  catalogSourcePricingSchema,
+  type CatalogObservationAdapter,
+  type CatalogObservationBatch,
+  type CatalogObservationFinding,
+  type CatalogObservationWarning,
+  type CatalogSourceObservation,
+  type CatalogSourceObservationValidation,
+  type CatalogSourcePricing,
+  sourceObservationDocumentId,
+  validateCatalogSourceObservation,
+} from './source-observations.ts';

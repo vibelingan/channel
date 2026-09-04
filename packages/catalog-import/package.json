@@ -6,7 +6,9 @@
   "description": "Provider-neutral catalog import contract plus the Dianxiaomi workbook adapter. Parsing, validation, grouping and diffing only \u2014 no database, no network, no provider SDK.",
   "exports": {
     ".": "./src/index.ts",
+    "./content": "./src/descriptions.ts",
     "./dianxiaomi": "./src/providers/dianxiaomi/adapter.ts",
+    "./observations": "./src/source-observations.ts",
     "./testing": "./src/testing/xlsx-fixture.ts",
     "./testing/dianxiaomi-acceptance": "./src/testing/dianxiaomi-acceptance-fixture.ts"
   },
@@ -15,7 +17,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

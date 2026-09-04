@@ -37,9 +37,9 @@ export interface RunImportResult {
 /**
  * Parse and stage one source file.
  *
- * Only the Dianxiaomi adapter exists today, so the provider is fixed here. A
- * second connector adds a branch at this one call site and changes nothing
- * below it.
+ * Only the Dianxiaomi workbook collector exists today, so the provider is
+ * fixed here. Other acquisition transports keep their own orchestration and
+ * converge on the validated source-observation contract after collection.
  */
 export async function runCatalogImport(input: RunImportInput): Promise<RunImportResult> {
   const now = input.now ?? new Date().toISOString();

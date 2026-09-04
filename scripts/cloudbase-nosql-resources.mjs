@@ -112,6 +112,22 @@ export const REQUIRED_NOSQL_RESOURCES = [
     permission: 'ADMINONLY',
     indexes: [index('alibaba_category_mapping_source', [['alibabaCategoryId', '1']], true)],
   },
+  // Provider-neutral current view emitted by API and workbook adapters. Raw
+  // evidence and canonical products live elsewhere; no browser writes.
+  {
+    collectionName: 'catalogSourceObservations',
+    permission: 'ADMINONLY',
+    indexes: [
+      index('catalog_observation_provider_active', [
+        ['provider', '1'],
+        ['active', '1'],
+      ]),
+      index('catalog_observation_external_product', [
+        ['provider', '1'],
+        ['externalProductId', '1'],
+      ]),
+    ],
+  },
 ];
 
 function index(IndexName, keys, MgoIsUnique = false) {

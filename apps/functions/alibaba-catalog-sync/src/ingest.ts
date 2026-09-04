@@ -14,10 +14,12 @@
 import { createHash } from 'node:crypto';
 import {
   type AlibabaProductDetailDraft,
+  alibabaObservationAdapter,
   extractProductDetail,
   normalizeProductDetail,
   parseAlibabaApiResponse,
 } from '@vibelingan-channel/alibaba-catalog-sync';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import { list } from '@vibelingan-channel/db';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
 import { createDocWithId, getDoc, updateDoc, upsertDocWithId } from './repo.ts';
@@ -87,6 +89,8 @@ export interface IngestDetailInput {
   connectionId: string;
   runId: string;
   now: string;
+  /** Acquisition context only; product.get itself is always a full product detail. */
+  captureMode?: 'full' | 'incremental';
   contentType?: string;
 }
 
@@ -100,7 +104,12 @@ export type IngestDetailResult =
     }
   | {
       ok: false;
-      error: 'raw-write-failed' | 'api-error' | 'malformed-response' | 'missing-product-id';
+      error:
+        | 'raw-write-failed'
+        | 'api-error'
+        | 'malformed-response'
+        | 'missing-product-id'
+        | 'invalid-source-observation';
     };
 
 /** Raw bytes first, then parse -> normalize -> deterministic mirror upserts. */
@@ -167,6 +176,24 @@ export async function ingestProductDetail(input: IngestDetailInput): Promise<Ing
   if (!normalized.ok) return { ok: false, error: 'missing-product-id' };
 
   const { sourceProduct, offers } = normalized;
+  const observed = alibabaObservationAdapter.toObservations({
+    connectionId: input.connectionId,
+    detail,
+    payloadId: raw.payloadId,
+    observedAt: input.now,
+    captureMode: input.captureMode ?? 'incremental',
+  });
+  const observation = observed.observations[0];
+  if (
+    observation === undefined ||
+    observed.findings.some((finding) => finding.severity === 'error')
+  ) {
+    console.error(
+      '[alibaba-catalog-sync] common observation validation failed:',
+      observed.findings.map((finding) => finding.code),
+    );
+    return { ok: false, error: 'invalid-source-observation' };
+  }
   const existingProduct = await getDoc('alibabaSourceProducts', sourceProduct.sourceKey);
   const contentHash = contentFingerprint(
     sourceProduct as unknown as Record<string, unknown>,
@@ -209,6 +236,27 @@ export async function ingestProductDetail(input: IngestDetailInput): Promise<Ing
       deactivated.push(sibling._id);
     }
   }
+
+  // This is a private, provider-neutral CURRENT materialized view. The raw
+  // payload remains immutable evidence and canonical products remain behind
+  // their explicit link/category/promotion gates.
+  const observationId = sourceObservationDocumentId('alibaba', sourceProduct.sourceKey);
+  const existingObservation = await getDoc('catalogSourceObservations', observationId);
+  await upsertDocWithId('catalogSourceObservations', observationId, {
+    provider: 'alibaba',
+    sourceProductKey: sourceProduct.sourceKey,
+    externalProductId: sourceProduct.sourceProductId,
+    schemaVersion: observation.schemaVersion,
+    observedAt: observation.source.observedAt,
+    ...(observation.source.sourceUpdatedAt === undefined
+      ? {}
+      : { sourceUpdatedAt: observation.source.sourceUpdatedAt }),
+    evidenceId: raw.payloadId,
+    active: true,
+    observation,
+    lastSeenOperationId: input.runId,
+    ...(existingObservation ? {} : { firstSeenOperationId: input.runId }),
+  });
 
   return {
     ok: true,

@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 import { alibabaOfferKey, alibabaSourceKey } from '@vibelingan-channel/alibaba-catalog-sync';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import type { AdapterListQuery, DbAdapter } from '@vibelingan-channel/db';
 import { setAdapter } from '@vibelingan-channel/db';
 import {
@@ -249,12 +250,23 @@ test('ingest mirrors source product and offers with deterministic ids; rerun con
   assert.equal(product?.active, true);
   assert.equal(store.alibabaSupplierOffers?.length, 1);
   assert.equal(store.alibabaSupplierOffers?.[0]?._id, alibabaOfferKey('primary', '987', 'sku-1'));
+  assert.equal(store.catalogSourceObservations?.length, 1);
+  const observation = store.catalogSourceObservations?.[0];
+  assert.equal(observation?._id, sourceObservationDocumentId('alibaba', sourceKey));
+  assert.equal(observation?.provider, 'alibaba');
+  assert.equal(observation?.sourceProductKey, sourceKey);
+  assert.equal(observation?.lastSeenOperationId, 'run-1');
+  assert.equal(
+    (observation?.observation as { source?: { captureMode?: string } })?.source?.captureMode,
+    'incremental',
+  );
 
   // Rerun on a later run: same documents, provenance preserved, stamps advance.
   const second = await ingest(body, 'run-2');
   assert.equal(second.ok, true);
   assert.equal(store.alibabaSourceProducts?.length, 1, 'no duplicate mirror rows');
   assert.equal(store.alibabaSupplierOffers?.length, 1, 'no duplicate offers');
+  assert.equal(store.catalogSourceObservations?.length, 1, 'no duplicate common observations');
   assert.equal(store.alibabaSourceProducts?.[0]?.firstSeenRunId, 'run-1', 'first-seen preserved');
   assert.equal(store.alibabaSourceProducts?.[0]?.lastSeenRunId, 'run-2');
 });

@@ -20,10 +20,14 @@
 import { randomUUID } from 'node:crypto';
 import {
   type CatalogImportDetail,
+  type CatalogObservationFinding,
   type CatalogProductCandidate,
+  type CatalogSourceObservation,
   type StoreListingRecord,
   displayQuantity,
+  sourceObservationDocumentId,
 } from '@vibelingan-channel/catalog-import';
+import { dianxiaomiObservationAdapter } from '@vibelingan-channel/catalog-import/dianxiaomi';
 import {
   createDocWithId,
   findByField,
@@ -188,7 +192,10 @@ export interface JobSummary {
   inventoryUnknown: number;
 }
 
-function summarize(detail: CatalogImportDetail): JobSummary {
+function summarize(
+  detail: CatalogImportDetail,
+  observationFindings: readonly CatalogObservationFinding[] = [],
+): JobSummary {
   const variants = detail.bundle.products.reduce(
     (total, product) => total + product.variants.length,
     0,
@@ -198,8 +205,12 @@ function summarize(detail: CatalogImportDetail): JobSummary {
     variants,
     storeListings: detail.storeListings.length,
     quarantined: detail.quarantined.length,
-    errors: detail.bundle.findings.filter((finding) => finding.severity === 'error').length,
-    warnings: detail.bundle.findings.filter((finding) => finding.severity === 'warning').length,
+    errors:
+      detail.bundle.findings.filter((finding) => finding.severity === 'error').length +
+      observationFindings.filter((finding) => finding.severity === 'error').length,
+    warnings:
+      detail.bundle.findings.filter((finding) => finding.severity === 'warning').length +
+      observationFindings.filter((finding) => finding.severity === 'warning').length,
     inventoryKnown: detail.inventory.filter((entry) => entry.resolution.state === 'known').length,
     inventoryConflict: detail.inventory.filter((entry) => entry.resolution.state === 'conflict')
       .length,
@@ -224,6 +235,33 @@ export async function recordParsedBundle(
   detail: CatalogImportDetail,
   now: string,
 ): Promise<CollectionDoc> {
+  // The workbook parser and the API collector deliberately have different
+  // acquisition contracts. They converge only here, after provider data has
+  // been normalized and runtime-validated as one product observation.
+  const observationBatch = dianxiaomiObservationAdapter.toObservations({
+    bundle: detail.bundle,
+    storeListings: detail.storeListings,
+    observedAt: now,
+  });
+  const observationsBySourceKey = new Map<string, CatalogSourceObservation>();
+  const duplicateObservationKeys = new Set<string>();
+  const observationFindings: CatalogObservationFinding[] = [...observationBatch.findings];
+  for (const observation of observationBatch.observations) {
+    const sourceKey = observation.source.sourceProductKey;
+    if (observationsBySourceKey.has(sourceKey) || duplicateObservationKeys.has(sourceKey)) {
+      observationFindings.push({
+        severity: 'error',
+        code: 'duplicate-source-observation',
+        message: 'The adapter emitted more than one observation for the same source product.',
+        sourcePath: sourceKey,
+      });
+      observationsBySourceKey.delete(sourceKey);
+      duplicateObservationKeys.add(sourceKey);
+      continue;
+    }
+    observationsBySourceKey.set(sourceKey, observation);
+  }
+
   const listingsByGroup = new Map<string, StoreListingRecord[]>();
   for (const listing of detail.storeListings) {
     listingsByGroup.set(listing.candidateGroupKey, [
@@ -247,10 +285,25 @@ export async function recordParsedBundle(
         (finding.sku !== undefined &&
           candidate.variants.some((variant) => variant.sku === finding.sku)),
     );
+    const candidateObservationFindings = observationFindings.filter(
+      (finding) => finding.sourcePath === groupKey,
+    );
+    const observation = observationsBySourceKey.get(groupKey);
+    if (observation === undefined && candidateObservationFindings.length === 0) {
+      const missingFinding: CatalogObservationFinding = {
+        severity: 'error',
+        code: 'missing-source-observation',
+        message: 'The adapter did not emit a validated observation for this source product.',
+        sourcePath: groupKey,
+      };
+      candidateObservationFindings.push(missingFinding);
+      observationFindings.push(missingFinding);
+    }
+    const itemFindings = [...findings, ...candidateObservationFindings];
 
     await upsertDocWithId(IMPORT_ITEMS, importItemId(jobId, groupKey), {
       jobId,
-      status: itemStatus(findings),
+      status: itemStatus(itemFindings),
       candidateGroupKey: groupKey,
       parentSku: candidate.parentSku,
       title: candidate.title,
@@ -261,23 +314,61 @@ export async function recordParsedBundle(
       inventory: [...skuKeys]
         .map((key) => inventoryByKey.get(key))
         .filter((entry): entry is NonNullable<typeof entry> => entry !== undefined),
-      findings,
+      findings: itemFindings,
     });
+
+    // Invalid observations are isolated to their staged item. They never reach
+    // the current materialized view, and they do not crash unrelated products
+    // in the same workbook.
+    if (
+      observation !== undefined &&
+      !candidateObservationFindings.some((finding) => finding.severity === 'error')
+    ) {
+      const observationId = sourceObservationDocumentId('dianxiaomi', groupKey);
+      const existingObservation = await get('catalogSourceObservations', observationId);
+      await upsertDocWithId('catalogSourceObservations', observationId, {
+        provider: 'dianxiaomi',
+        sourceProductKey: groupKey,
+        ...(observation.source.externalProductId === undefined
+          ? {}
+          : { externalProductId: observation.source.externalProductId }),
+        schemaVersion: observation.schemaVersion,
+        observedAt: observation.source.observedAt,
+        ...(observation.source.sourceUpdatedAt === undefined
+          ? {}
+          : { sourceUpdatedAt: observation.source.sourceUpdatedAt }),
+        evidenceId: observation.evidence[0]?.evidenceId ?? detail.bundle.sourceFileSha256,
+        active: observation.lifecycle.sourceListingStatus !== 'missing',
+        observation,
+        lastSeenOperationId: jobId,
+        ...(existingObservation ? {} : { firstSeenOperationId: jobId }),
+      });
+    }
   }
+
+  const persistedFindings = [
+    ...detail.bundle.findings,
+    ...observationFindings.map((finding) => ({
+      severity: finding.severity,
+      code: finding.code,
+      message: finding.message,
+      ...(finding.sourcePath === undefined ? {} : { sourcePath: finding.sourcePath }),
+    })),
+  ];
 
   const patched = await updateDoc(IMPORT_JOBS, jobId, {
     status: detail.structurallyValid ? 'previewReady' : 'failed',
     templateId: detail.bundle.templateId,
     sheetName: detail.sheetName,
     counts: { ...detail.counts, dataRows: detail.dataRowCount },
-    summary: summarize(detail),
+    summary: summarize(detail, observationFindings),
     ignoredHeaders: detail.bundle.ignoredHeaders,
     templateHeaders: detail.templateHeaders,
-    findings: detail.bundle.findings,
+    findings: persistedFindings,
     completedAt: now,
     ...(detail.structurallyValid
       ? {}
-      : { errorSummary: detail.bundle.findings.map((finding) => finding.message).join('; ') }),
+      : { errorSummary: persistedFindings.map((finding) => finding.message).join('; ') }),
   });
   if (patched === null) throw new Error(`import job ${jobId} disappeared while recording results`);
   return patched;

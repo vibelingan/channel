@@ -33,6 +33,7 @@ import {
 } from './oauth.ts';
 import { approveQuarantinedRun } from './quarantine.ts';
 import { enforceOAuthRateLimit, hashSourceIp } from './rate-limit.ts';
+import { replayAlibabaRawPage } from './raw-replay.ts';
 import { getDoc } from './repo.ts';
 import { runSyncTick } from './runner.ts';
 
@@ -290,6 +291,42 @@ export async function handleAlibabaSyncRequest(
       }
       return ok(result.summary);
     }
+    case 'replaySourceObservations': {
+      // Admin-only migration surface. Dry-run and apply read the same bounded
+      // raw page; apply is impossible without the matching dry-run hash.
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = rawReplaySchema.safeParse(parsed.data.data);
+      if (!payload.success) {
+        return err(
+          'VALIDATION_ERROR',
+          'mode, cursor, page limit and the dry-run page hash are invalid.',
+        );
+      }
+      const result = await replayAlibabaRawPage({
+        mode: payload.data.mode,
+        ...(payload.data.afterSourceKey === undefined
+          ? {}
+          : { afterSourceKey: payload.data.afterSourceKey }),
+        ...(payload.data.limit === undefined ? {} : { limit: payload.data.limit }),
+        ...(payload.data.expectedPageHash === undefined
+          ? {}
+          : { expectedPageHash: payload.data.expectedPageHash }),
+      });
+      if (!result.ok) {
+        switch (result.reason) {
+          case 'invalid-input':
+            return err('VALIDATION_ERROR', 'Raw replay input is invalid.');
+          case 'lease-busy':
+          case 'lease-lost':
+          case 'page-changed':
+            return err('CONFLICT', `Raw replay stopped: ${result.reason}.`);
+          case 'lease-corrupt':
+            return err('INTERNAL_ERROR', 'Raw replay lease state is corrupt.');
+        }
+      }
+      return ok(result);
+    }
     case 'approveQuarantine': {
       const admin = await requireLiveAdmin(config, token);
       if (!admin.ok) return admin;
@@ -360,6 +397,26 @@ const approveSchema = z.object({ runId: z.string().min(1), candidateHash: z.stri
 const inspectProductSchema = z.object({
   sourceProductId: z.string().trim().refine(isAlibabaProductId),
 });
+const rawReplaySchema = z
+  .object({
+    mode: z.enum(['dry-run', 'apply']),
+    afterSourceKey: z.string().max(256).optional(),
+    limit: z.number().int().min(1).max(20).optional(),
+    expectedPageHash: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.mode === 'apply' && value.expectedPageHash === undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['expectedPageHash'],
+        message: 'Apply requires the corresponding dry-run page hash.',
+      });
+    }
+  });
 const importImageSchema = z.object({ url: z.string().min(1) });
 const removeImageSchema = z.object({ imageId: z.string().min(1) });
 

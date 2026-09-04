@@ -7,6 +7,7 @@ import {
   createAlibabaClient,
   initialEnumerationState,
 } from '@vibelingan-channel/alibaba-catalog-sync';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import type {
   AdapterListQuery,
   AlibabaLeaseGrant,
@@ -777,6 +778,16 @@ test('full run: a vanished item is CONFIRMED before tombstoning and demotes its 
     } as CollectionDoc,
   ];
   store.alibabaProductLinks = [{ _id: sourceKey, sourceKey, productId: 'p-1' } as CollectionDoc];
+  const observationId = sourceObservationDocumentId('alibaba', sourceKey);
+  store.catalogSourceObservations = [
+    {
+      _id: observationId,
+      provider: 'alibaba',
+      sourceProductKey: sourceKey,
+      active: true,
+      lastSeenOperationId: 'old-run',
+    } as CollectionDoc,
+  ];
   store.products = [
     {
       _id: 'p-1',
@@ -804,4 +815,10 @@ test('full run: a vanished item is CONFIRMED before tombstoning and demotes its 
   const product = store.products?.[0] as CollectionDoc;
   assert.equal(product.alibabaSourceStatus, 'removed', 'linked product demoted');
   assert.equal(product.unitPrice, 12.5, 'legacy pricing untouched');
+  assert.equal(store.catalogSourceObservations?.[0]?.active, false, 'common view demoted too');
+  assert.notEqual(
+    store.catalogSourceObservations?.[0]?.lastSeenOperationId,
+    'old-run',
+    'common view carries the confirming full run',
+  );
 });

@@ -4,8 +4,10 @@
  * This file is normative (handoff §5.1) and MUST stay free of Dianxiaomi-,
  * Lazada-, Alibaba-, Shopify- and AliExpress-specific field names. Everything
  * downstream of a source adapter — validation, matching, preview, publication,
- * media, inventory, storefront projection — speaks only these types, so a
- * future connector implements `CatalogSourceAdapter` and nothing else.
+ * media, inventory, storefront projection — speaks only these types. A future
+ * file connector implements this acquisition contract, then emits the lower
+ * `CatalogObservationAdapter` contract after parsing; API collectors skip this
+ * file-specific seam and emit observations directly.
  *
  * A candidate is a PROPOSAL. It is not a website product, and it is not an
  * Alibaba object. Promotion to a canonical Channel product happens only
