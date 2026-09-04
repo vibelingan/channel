@@ -159,3 +159,75 @@ explicit later decisions.
 - post-apply database counts and sampled tier/attribute/evidence records match
   the immutable raw payloads;
 - `products`, source links and category mappings remain unchanged by replay.
+
+## Live acceptance — 2026-09-04
+
+The migration ran against CloudBase environment
+`diversity-123-d9grnqfux221323bb` in `ap-shanghai`. The common observation
+collection, its two query indexes and `ADMINONLY` permission were confirmed
+before execution. The first function deployment used source release `dd501f1`
+(`UpdateFunctionCode` request `4d800269-21fa-4f51-b077-e6a1dfa539a2`).
+
+The authenticated Admin control completed a full 54-page dry-run with no row
+failures:
+
+- 1,074 source products and observations;
+- 3,672 variants/offers, of which 3,661 have SKU-scoped attributes;
+- 10,100 attribute pairs;
+- 1,808 tiered USD offers and 1,864 unavailable-price offers;
+- 1,073 observation warnings.
+
+The first apply attempt stopped after 11 pages / 220 observations with
+`page-changed`. This was a fail-closed stop, not a parser or partial-write
+failure. A direct source-mirror query showed all 1,074 rows still belonged to
+the completed full run and the newest `fetchedAt` remained
+`2026-09-03T08:13:10.081Z`; no concurrent source refresh explained the change.
+A second complete dry-run reproduced all aggregate values, passed the former
+failure page, and the immediately following apply completed all 54 pages and
+1,074 observations. Deterministic ids made the first 220 updates harmless to
+repeat. The precise transient read cause was not observable because this
+environment has no CLS binding and the retired legacy function-log API returns
+no invocation detail.
+
+The replay diagnostics were subsequently hardened in `90840ab`: an apply page
+with a concrete preflight failure now reports the bounded failure reason (for
+example `offer-set-mismatch`) before the generic hash conflict, while source
+keys remain private. The safety hash is unchanged. That release was packaged,
+artifact-smoked and deployed only to `alibaba-catalog-sync`
+(`UpdateFunctionCode` request `b453edb2-dae0-4a10-80a2-14a621eb526d`). The live
+health route returned release `90840ab`, Nodejs20.19 remained Active/Available,
+and configuration, gateway, OAuth secrets and triggers were not changed.
+
+The Admin diagnostic update was built from the deployed site baseline plus the
+Alibaba-only UI commits, not from the merged feature worktree. Only
+`_astro/AdminApp.Mnlsj0_I.js` and `admin/index.html` were uploaded; all nine
+referenced shared chunks were independently confirmed reachable. The local
+Dianxiaomi prototype was therefore not published.
+
+Independent NoSQL reads after apply established the persisted result rather
+than trusting the UI status:
+
+- all 1,074 observations have unique document, source and external-product ids,
+  schema `catalog-source-observation-v1`, `provider=alibaba`, `active=true`, and
+  valid first/last operation provenance;
+- all 1,074 evidence ids are SHA-256 values and resolve to an existing raw
+  payload metadata row; the replay itself successfully read and re-hashed every
+  current `product.get` object before writing;
+- observation totals are 3,672 variants, 3,672 offers and 10,100 option pairs;
+  the 3,672 common offer ids exactly equal the 3,672 active supplier-offer ids,
+  with no dangling variant reference;
+- the 1,808 tiered offers contain 4,958 quantity tiers, with zero invalid or
+  non-increasing intervals; the remaining 1,864 offers are explicitly
+  unavailable rather than assigned an invented price;
+- 1,073 descriptions are marked sanitized and 19 are explicit placeholders;
+  a 20-record HTML sample contained no script, inline-event, JavaScript URL,
+  iframe, object or embed pattern (the strict sanitizer tests remain the
+  exhaustive contract check);
+- all 6,193 normalized media URLs use HTTP(S);
+- the raw registry still contains 2,157 stored, hash-linked objects, while the
+  canonical boundary remains `products=7`, `alibabaProductLinks=0`, and
+  `alibabaCategoryMappings=0`.
+
+Relevant verification after the diagnostic change: function tests 92/92, site
+tests 230/230, repository lint clean, both affected typechecks clean, and all
+three packaged function artifacts pass cold-start smoke.
