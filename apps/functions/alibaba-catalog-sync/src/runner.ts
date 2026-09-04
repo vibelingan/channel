@@ -235,7 +235,13 @@ export async function runSyncTick(input: {
         // either. Advance the DEAD run's own mode (blessing-gate P2); passing
         // null would leave the mode due forever and hot-loop it.
         const healedMode = runDoc?.mode === 'full' ? 'full' : 'incremental';
-        await clearActiveRun(guard, deps, healedMode);
+        const completedCursor =
+          runDoc.status === 'completed' && typeof checkpointDoc.windowEnd === 'string'
+            ? checkpointDoc.windowEnd
+            : undefined;
+        if (!(await clearActiveRun(guard, deps, healedMode, completedCursor))) {
+          return { outcome: 'lease-lost', runId: decision.runId };
+        }
         await release();
         return { outcome: 'idle', runId: decision.runId, detail: 'stale-active-run-cleared' };
       }
@@ -1052,6 +1058,7 @@ async function clearActiveRun(
   guard: (at: string) => AlibabaLeaseGuard,
   deps: RunnerDeps,
   mode: 'incremental' | 'full' | null = null,
+  committedCursor?: string,
 ): Promise<boolean> {
   const now = deps.now();
   const checkpoint = await getDoc('alibabaSyncCheckpoints', PRIMARY_CONNECTION_ID);
@@ -1061,6 +1068,7 @@ async function clearActiveRun(
     {
       activeRunId: '',
       stage: 'enumerate',
+      ...(committedCursor === undefined ? {} : { committedCursor }),
       ...dueWatermarkPatch(mode, checkpoint, now),
     },
     guard(now),
@@ -1078,23 +1086,11 @@ async function completeRun(
   deps: RunnerDeps,
 ): Promise<boolean> {
   const now = deps.now();
-  // FENCED checkpoint first (review R2 #8): the cursor advance + slot clear
-  // must not be lost while the run row claims completion. Only after the
-  // fenced write lands is the run marked completed.
-  const checkpoint = await getDoc('alibabaSyncCheckpoints', PRIMARY_CONNECTION_ID);
-  const applied = await updateDocWithAlibabaLease(
-    'alibabaSyncCheckpoints',
-    PRIMARY_CONNECTION_ID,
-    {
-      activeRunId: '',
-      stage: 'enumerate',
-      committedCursor: state.windowEnd,
-      ...dueWatermarkPatch(state.mode, checkpoint, now),
-    },
-    guard(now),
-  );
-  if (!applied) return false;
-  return updateDocWithAlibabaLease(
+  // Mark the run terminal first. If the fenced checkpoint clear then loses its
+  // lease, the active slot still points at a terminal row and the next tick's
+  // self-heal can recover `windowEnd` as the committed cursor. Clearing first
+  // could orphan a non-terminal run that no later tick can discover.
+  const completed = await updateDocWithAlibabaLease(
     'alibabaSyncRuns',
     state.activeRunId,
     {
@@ -1106,6 +1102,8 @@ async function completeRun(
       // not a current run error. Raw payload evidence remains stored separately.
       errorSummary: '',
     },
-    guard(deps.now()),
+    guard(now),
   );
+  if (!completed) return false;
+  return clearActiveRun(guard, deps, state.mode, state.windowEnd);
 }

@@ -623,6 +623,8 @@ test('self-heal: a terminal run stuck in the checkpoint slot is cleared, not res
   setup();
   const checkpoint = store.alibabaSyncCheckpoints?.[0] as CollectionDoc;
   checkpoint.activeRunId = 'run-done';
+  checkpoint.windowEnd = '2026-08-06T12:00:00.000Z';
+  checkpoint.committedCursor = '2026-08-06T08:15:00.000Z';
   store.alibabaSyncRuns = [
     {
       _id: 'run-done',
@@ -641,6 +643,11 @@ test('self-heal: a terminal run stuck in the checkpoint slot is cleared, not res
     (store.alibabaSyncCheckpoints?.[0] as CollectionDoc).activeRunId,
     '',
     'slot vacated',
+  );
+  assert.equal(
+    (store.alibabaSyncCheckpoints?.[0] as CollectionDoc).committedCursor,
+    '2026-08-06T12:00:00.000Z',
+    'a completed run whose clear was interrupted still commits its durable window end',
   );
   assert.equal((store.alibabaSyncRuns?.[0] as CollectionDoc).status, 'completed', 'run untouched');
 });
