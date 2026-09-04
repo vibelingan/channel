@@ -76,6 +76,19 @@ export function isAuthorizationError(envelope: AlibabaResponseEnvelope): boolean
   return envelope.kind === 'api-error' && AUTHORIZATION_ERROR_CODES.has(envelope.errorCode);
 }
 
+/**
+ * Narrow fail-closed absence classifier for product.get confirmation.
+ *
+ * Only codes backed by an accepted provider fixture belong here. Transport,
+ * malformed, auth, throttling, and unknown API errors must never be converted
+ * into a destructive tombstone decision.
+ */
+export const PRODUCT_ABSENT_ERROR_CODES = new Set(['ProductNotFound']);
+
+export function isAlibabaProductAbsentError(envelope: AlibabaResponseEnvelope): boolean {
+  return envelope.kind === 'api-error' && PRODUCT_ABSENT_ERROR_CODES.has(envelope.errorCode);
+}
+
 // --- shared path tables (adjust in ONE place after live-fixture evidence) ---
 
 const LIST_RESULT_PATHS: (string | number)[][] = [

@@ -516,6 +516,17 @@ test('raw observation replay is admin-only and apply requires a dry-run hash', a
   assert.equal(missingHash.ok, false);
   if (!missingHash.ok) assert.equal(missingHash.error.code, 'VALIDATION_ERROR');
 
+  const missingTotal = await handleAlibabaSyncRequest(
+    {
+      action: 'replaySourceObservations',
+      token: admin,
+      data: { mode: 'apply', limit: 10, expectedPageHash: 'a'.repeat(64) },
+    },
+    baseConfig,
+  );
+  assert.equal(missingTotal.ok, false);
+  if (!missingTotal.ok) assert.equal(missingTotal.error.code, 'VALIDATION_ERROR');
+
   const unknownField = await handleAlibabaSyncRequest(
     {
       action: 'replaySourceObservations',

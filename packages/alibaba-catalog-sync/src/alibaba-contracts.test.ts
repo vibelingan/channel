@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   extractProductDetail,
   extractProductListPage,
+  isAlibabaProductAbsentError,
   isAuthorizationError,
   parseAlibabaApiResponse,
 } from './alibaba-contracts.ts';
@@ -55,6 +56,21 @@ test('authorization errors are classified', () => {
     isAuthorizationError(parseAlibabaApiResponse('{"error_code": "AppCallLimit"}')),
     false,
   );
+});
+
+test('product absence is a strict allowlist, not any failed detail response', () => {
+  assert.equal(
+    isAlibabaProductAbsentError(parseAlibabaApiResponse('{"error_code":"ProductNotFound"}')),
+    true,
+  );
+  for (const body of [
+    '{"error_code":"IllegalAccessToken"}',
+    '{"error_code":"AppCallLimit"}',
+    '{"error_code":"UnexpectedProviderFailure"}',
+    '<html>bad gateway</html>',
+  ]) {
+    assert.equal(isAlibabaProductAbsentError(parseAlibabaApiResponse(body)), false, body);
+  }
 });
 
 test('extracts a product list page (documented shape)', () => {

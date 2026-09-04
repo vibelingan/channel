@@ -312,6 +312,9 @@ export async function handleAlibabaSyncRequest(
         ...(payload.data.expectedPageHash === undefined
           ? {}
           : { expectedPageHash: payload.data.expectedPageHash }),
+        ...(payload.data.expectedTotalSourceProducts === undefined
+          ? {}
+          : { expectedTotalSourceProducts: payload.data.expectedTotalSourceProducts }),
       });
       if (!result.ok) {
         switch (result.reason) {
@@ -406,15 +409,25 @@ const rawReplaySchema = z
       .string()
       .regex(/^[0-9a-f]{64}$/)
       .optional(),
+    expectedTotalSourceProducts: z.number().int().nonnegative().optional(),
   })
   .strict()
   .superRefine((value, context) => {
-    if (value.mode === 'apply' && value.expectedPageHash === undefined) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['expectedPageHash'],
-        message: 'Apply requires the corresponding dry-run page hash.',
-      });
+    if (value.mode === 'apply') {
+      if (value.expectedPageHash === undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['expectedPageHash'],
+          message: 'Apply requires the corresponding dry-run page hash.',
+        });
+      }
+      if (value.expectedTotalSourceProducts === undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['expectedTotalSourceProducts'],
+          message: 'Apply requires the authoritative dry-run source total.',
+        });
+      }
     }
   });
 const importImageSchema = z.object({ url: z.string().min(1) });

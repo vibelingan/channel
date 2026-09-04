@@ -30,6 +30,7 @@ import {
   evaluateQuarantine,
   extractProductListPage,
   initialEnumerationState,
+  isAlibabaProductAbsentError,
   newRunBudget,
   nextEnumerationAction,
   parseAlibabaApiResponse,
@@ -543,7 +544,11 @@ async function executeSlice(
           runId: state.activeRunId,
           now: deps.now(),
           captureMode: state.mode,
+          leaseGuard: () => guard(deps.now()),
         });
+        if (!ingest.ok && ingest.error === 'lease-lost') {
+          return { outcome: 'lease-lost', runId: state.activeRunId };
+        }
         counters.itemsProcessed += 1;
         if (!ingest.ok) {
           if (ingest.error === 'raw-write-failed') counters.rawFailures += 1;
@@ -747,10 +752,9 @@ async function executeSlice(
       return { outcome: 'quarantined', runId: state.activeRunId };
     }
     const envelope = parseAlibabaApiResponse(confirm.bodyText);
-    const stillExists = envelope.kind === 'success';
-    if (stillExists) {
+    if (envelope.kind === 'success') {
       // Bisection miss (item moved mid-run): re-ingest so it survives.
-      await ingestProductDetail({
+      const confirmed = await ingestProductDetail({
         bodyText: confirm.bodyText,
         endpointId: 'product.get',
         requestFingerprint: deps.client.fingerprintFor({ apiPath: DETAIL_METHOD, params }),
@@ -758,8 +762,40 @@ async function executeSlice(
         runId: state.activeRunId,
         now: deps.now(),
         captureMode: state.mode,
+        leaseGuard: () => guard(deps.now()),
       });
+      if (!confirmed.ok && confirmed.error === 'lease-lost') {
+        return { outcome: 'lease-lost', runId: state.activeRunId };
+      }
+      if (!confirmed.ok) {
+        await updateDoc('alibabaSyncRuns', state.activeRunId, {
+          status: 'quarantined',
+          alerts: ['tombstone-confirmation-invalid-detail'],
+          counters,
+          completedAt: deps.now(),
+        });
+        await clearActiveRun(guard, deps, state.mode);
+        await deps.alert(
+          `Alibaba sync run ${state.activeRunId} quarantined: confirmation detail could not be ingested.`,
+        );
+        await release();
+        return { outcome: 'quarantined', runId: state.activeRunId };
+      }
       continue;
+    }
+    if (!isAlibabaProductAbsentError(envelope)) {
+      await updateDoc('alibabaSyncRuns', state.activeRunId, {
+        status: 'quarantined',
+        alerts: ['tombstone-confirmation-provider-error'],
+        counters,
+        completedAt: deps.now(),
+      });
+      await clearActiveRun(guard, deps, state.mode);
+      await deps.alert(
+        `Alibaba sync run ${state.activeRunId} quarantined: provider did not confirm product absence.`,
+      );
+      await release();
+      return { outcome: 'quarantined', runId: state.activeRunId };
     }
     // Fenced flip (R1 E7, review R2 #7): the tombstone DECISION input must not
     // be writable by a stale holder — the lease is re-verified inside the

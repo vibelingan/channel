@@ -202,6 +202,21 @@ class RunnerMemoryAdapter implements DbAdapter {
     docs[index] = { ...(docs[index] as CollectionDoc), ...patch };
     return true;
   }
+  async upsertDocWithAlibabaLease(
+    collection: string,
+    id: string,
+    patch: Record<string, unknown>,
+    createOnly: Record<string, unknown>,
+    guard: AlibabaLeaseGuard,
+  ): Promise<boolean> {
+    const lease = this.docs('alibabaSyncLeases').find((d) => d._id === guard.connectionId) ?? null;
+    if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+    const docs = this.docs(collection);
+    const index = docs.findIndex((d) => d._id === id);
+    if (index >= 0) docs[index] = { ...(docs[index] as CollectionDoc), ...patch };
+    else docs.push({ _id: id, ...createOnly, ...patch } as CollectionDoc);
+    return true;
+  }
 }
 
 class MemoryMediaStorage implements MediaStorageAdapter {
@@ -821,4 +836,60 @@ test('full run: a vanished item is CONFIRMED before tombstoning and demotes its 
     'old-run',
     'common view carries the confirming full run',
   );
+});
+
+test('full run: auth, throttling, and unknown confirmation errors quarantine instead of tombstoning', async () => {
+  for (const errorCode of ['IllegalAccessToken', 'AppCallLimit', 'UnexpectedProviderFailure']) {
+    setup();
+    const sourceKey = alibabaSourceKey('primary', 'item-gone');
+    store.alibabaSyncCheckpoints = [
+      {
+        _id: 'primary',
+        connectionId: 'primary',
+        activeRunId: '',
+        stage: 'enumerate',
+        nextFullDueAt: '2026-08-06T12:00:00.000Z',
+        nextIncrementalDueAt: '2026-08-06T16:15:00.000Z',
+        committedCursor: '',
+        continuationCount: 0,
+      } as CollectionDoc,
+    ];
+    store.alibabaSourceProducts = [
+      {
+        _id: sourceKey,
+        sourceKey,
+        connectionId: 'primary',
+        sourceProductId: 'item-gone',
+        active: true,
+        lastSeenRunId: 'old-run',
+      } as CollectionDoc,
+    ];
+    const backend = fakeBackend(() => [
+      { id: 'item-1', modifiedMs: ITEM_TIME, priceLexeme: '2.50' },
+      { id: 'item-gone', modifiedMs: ITEM_TIME, priceLexeme: '9.99', removed: true },
+    ]);
+    const fetchWithConfirmationError = (async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      const params = new URLSearchParams(String(init?.body ?? ''));
+      if (
+        params.get('method') === 'alibaba.icbu.product.get' &&
+        params.get('product_id') === 'item-gone'
+      ) {
+        return new Response(JSON.stringify({ error_code: errorCode }), { status: 200 });
+      }
+      return backend.fetchImpl(input, init);
+    }) as typeof fetch;
+
+    const report = await runSyncTick({
+      deps: makeDeps(fetchWithConfirmationError),
+      trigger: 'timer',
+    });
+    assert.equal(report.outcome, 'quarantined', errorCode);
+    const source = store.alibabaSourceProducts?.find((doc) => doc._id === sourceKey);
+    assert.equal(source?.active, true, `${errorCode} must not tombstone`);
+    assert.equal(source?.tombstonedAt, undefined, `${errorCode} must not stamp absence`);
+    assert.equal(store.alibabaSyncRuns?.[0]?.status, 'quarantined');
+  }
 });

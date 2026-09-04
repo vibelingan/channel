@@ -79,17 +79,18 @@ function port(f = fixture()) {
     acquireLease: async () => ({ result: 'granted', fence: 3 }),
     renewLease: async () => true,
     releaseLease: async () => true,
-    listSourceProducts: async () => [f.source],
+    listSourceProducts: async () => ({ items: [f.source], total: 1 }),
     getDocument: async (collection, id) =>
       collection === 'alibabaSourcePayloads' && id === f.payloadId ? f.payload : null,
     listActiveOffers: async () => [f.offer],
     readObjectAsBase64: async () => ({ body: Buffer.from(f.bodyText).toString('base64') }),
     updateOffer: async (id, patch) => {
       updatedOffers.push({ id, patch });
-      return { ...f.offer, ...patch };
+      return true;
     },
-    upsertObservation: async (id, value) => {
-      observations.push({ id, value });
+    upsertObservation: async (id, value, createOnly) => {
+      observations.push({ id, value: { ...createOnly, ...value } });
+      return true;
     },
   };
   return { p, updatedOffers, observations };
@@ -101,6 +102,7 @@ test('dry-run reconstructs the exact current page without writing', async () => 
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.ready, true);
+  assert.equal(result.totalSourceProducts, 1);
   assert.match(result.pageHash, /^[0-9a-f]{64}$/);
   assert.deepEqual(result.counts, {
     sourceProducts: 1,
@@ -123,14 +125,24 @@ test('apply requires the matching dry-run hash and preserves run provenance', as
   if (!dry.ok) return;
 
   const denied = await replayAlibabaRawPage(
-    { mode: 'apply', limit: 10, expectedPageHash: '0'.repeat(64) },
+    {
+      mode: 'apply',
+      limit: 10,
+      expectedPageHash: '0'.repeat(64),
+      expectedTotalSourceProducts: 1,
+    },
     harness.p,
   );
   assert.deepEqual(denied, { ok: false, reason: 'page-changed' });
   assert.equal(harness.updatedOffers.length, 0);
 
   const applied = await replayAlibabaRawPage(
-    { mode: 'apply', limit: 10, expectedPageHash: dry.pageHash },
+    {
+      mode: 'apply',
+      limit: 10,
+      expectedPageHash: dry.pageHash,
+      expectedTotalSourceProducts: 1,
+    },
     harness.p,
   );
   assert.equal(applied.ok, true);
@@ -163,7 +175,12 @@ test('apply reports a changed preflight reason before the generic page hash conf
 
   harness.p.listActiveOffers = async () => [];
   const result = await replayAlibabaRawPage(
-    { mode: 'apply', limit: 10, expectedPageHash: dry.pageHash },
+    {
+      mode: 'apply',
+      limit: 10,
+      expectedPageHash: dry.pageHash,
+      expectedTotalSourceProducts: 1,
+    },
     harness.p,
   );
   assert.equal(result.ok, true);
@@ -173,6 +190,68 @@ test('apply reports a changed preflight reason before the generic page hash conf
   assert.equal(result.failures[0]?.reason, 'offer-set-mismatch');
   assert.equal(harness.updatedOffers.length, 0);
   assert.equal(harness.observations.length, 0);
+});
+
+test('apply fails closed when ownership changes inside an offer or observation write', async () => {
+  const offerTakeover = port();
+  const offerDry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, offerTakeover.p);
+  assert.equal(offerDry.ok, true);
+  if (!offerDry.ok) return;
+  offerTakeover.p.updateOffer = async () => false;
+  assert.deepEqual(
+    await replayAlibabaRawPage(
+      {
+        mode: 'apply',
+        limit: 10,
+        expectedPageHash: offerDry.pageHash,
+        expectedTotalSourceProducts: 1,
+      },
+      offerTakeover.p,
+    ),
+    { ok: false, reason: 'lease-lost' },
+  );
+  assert.equal(offerTakeover.observations.length, 0);
+
+  const observationTakeover = port();
+  const observationDry = await replayAlibabaRawPage(
+    { mode: 'dry-run', limit: 10 },
+    observationTakeover.p,
+  );
+  assert.equal(observationDry.ok, true);
+  if (!observationDry.ok) return;
+  observationTakeover.p.upsertObservation = async () => false;
+  assert.deepEqual(
+    await replayAlibabaRawPage(
+      {
+        mode: 'apply',
+        limit: 10,
+        expectedPageHash: observationDry.pageHash,
+        expectedTotalSourceProducts: 1,
+      },
+      observationTakeover.p,
+    ),
+    { ok: false, reason: 'lease-lost' },
+  );
+});
+
+test('apply binds every page to the authoritative active source total', async () => {
+  const harness = port();
+  const dry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, harness.p);
+  assert.equal(dry.ok, true);
+  if (!dry.ok) return;
+  harness.p.listSourceProducts = async () => ({ items: [fixture().source], total: 2 });
+  assert.deepEqual(
+    await replayAlibabaRawPage(
+      {
+        mode: 'apply',
+        limit: 10,
+        expectedPageHash: dry.pageHash,
+        expectedTotalSourceProducts: 1,
+      },
+      harness.p,
+    ),
+    { ok: false, reason: 'page-changed' },
+  );
 });
 
 test('raw byte-size and run provenance mismatches fail closed before writes', async () => {

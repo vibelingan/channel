@@ -16,6 +16,7 @@ const validPage: SourceObservationReplayPage = {
   mode: 'dry-run',
   ready: true,
   pageHash: 'a'.repeat(64),
+  totalSourceProducts: 25,
   afterSourceKey: '',
   nextSourceKey: 'source-20',
   done: false,
@@ -38,6 +39,7 @@ const validPlan: SourceObservationReplayPlan = {
   counts: validPage.counts,
   priceModes: validPage.priceModes,
   ready: true,
+  totalSourceProducts: 25,
 };
 
 test('replay page decoder accepts the bounded success summary', () => {
@@ -54,6 +56,11 @@ test('replay page decoder fails closed on malformed, inconsistent, or unknown da
     { ...validPage, mode: 'delete' },
     { ...validPage, counts: { ...validPage.counts, offers: -1 } },
     { ...validPage, counts: { ...validPage.counts, sourceProducts: 21 } },
+    { ...validPage, unknownField: true },
+    { ...validPage, counts: { ...validPage.counts, unknownCount: 1 } },
+    { ...validPage, counts: { ...validPage.counts, observations: 19 } },
+    { ...validPage, nextSourceKey: '' },
+    { ...validPage, done: true },
     { ...validPage, priceModes: { vip: 1 } },
     { ...validPage, failures: [{ sourceKey: 'x', reason: 'invented' }] },
     { ...validPage, ready: false, failures: [] },
@@ -149,13 +156,18 @@ test('validation advances by cursor and apply reuses each exact page hash', asyn
     assert.deepEqual(
       requests.map((request) => {
         const data = request.data as Record<string, unknown>;
-        return [data.mode, data.afterSourceKey, data.expectedPageHash ?? null];
+        return [
+          data.mode,
+          data.afterSourceKey,
+          data.expectedPageHash ?? null,
+          data.expectedTotalSourceProducts ?? null,
+        ];
       }),
       [
-        ['dry-run', '', null],
-        ['dry-run', 'source-20', null],
-        ['apply', '', 'a'.repeat(64)],
-        ['apply', 'source-20', 'b'.repeat(64)],
+        ['dry-run', '', null, null],
+        ['dry-run', 'source-20', null, null],
+        ['apply', '', 'a'.repeat(64), 25],
+        ['apply', 'source-20', 'b'.repeat(64), 25],
       ],
     );
   } finally {

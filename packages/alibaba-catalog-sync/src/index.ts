@@ -49,6 +49,7 @@ export {
   type AlibabaSkuDraft,
   extractProductDetail,
   extractProductListPage,
+  isAlibabaProductAbsentError,
   isAuthorizationError,
   parseAlibabaApiResponse,
 } from './alibaba-contracts.ts';

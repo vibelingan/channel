@@ -24,6 +24,7 @@ import {
   renewAlibabaSyncLease,
   setAdapter,
   updateDocWithAlibabaLease,
+  upsertDocWithAlibabaLease,
   upsertDocWithId,
 } from './index.ts';
 
@@ -293,6 +294,22 @@ class LeaseMemoryAdapter implements DbAdapter {
     docs[index] = { ...(docs[index] as CollectionDoc), ...patch };
     return true;
   }
+  async upsertDocWithAlibabaLease(
+    collection: string,
+    id: string,
+    patch: Record<string, unknown>,
+    createOnly: Record<string, unknown>,
+    guard: AlibabaLeaseGuard,
+  ): Promise<boolean> {
+    const lease =
+      this.docs(ALIBABA_SYNC_LEASE_COLLECTION).find((d) => d._id === guard.connectionId) ?? null;
+    if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+    const docs = this.docs(collection);
+    const index = docs.findIndex((d) => d._id === id);
+    if (index >= 0) docs[index] = { ...(docs[index] as CollectionDoc), ...patch };
+    else docs.push({ _id: id, ...createOnly, ...patch } as CollectionDoc);
+    return true;
+  }
 }
 
 function freshAdapter(): LeaseMemoryAdapter {
@@ -344,6 +361,36 @@ test('fence takeover: stale holder cannot write after a new acquisition', async 
   );
   assert.equal(liveWrite, true);
   assert.equal(adapter.store.products[0]?.alibabaSourceStatus, 'available');
+});
+
+test('fence takeover: stale holder cannot create or patch a deterministic target', async () => {
+  const adapter = freshAdapter();
+  const first = await acquireAlibabaSyncLease('conn-1', 'holder-a', T0, TTL);
+  assert.equal(first.result, 'granted');
+  const fenceA = first.result === 'granted' ? first.fence : 0;
+  const second = await acquireAlibabaSyncLease('conn-1', 'holder-b', AFTER_TTL, TTL);
+  assert.equal(second.result, 'granted');
+  const fenceB = second.result === 'granted' ? second.fence : 0;
+
+  const stale = await upsertDocWithAlibabaLease(
+    'catalogSourceObservations',
+    'obs-1',
+    { active: true },
+    { firstSeenOperationId: 'run-a' },
+    { connectionId: 'conn-1', holder: 'holder-a', fence: fenceA, now: AFTER_TTL },
+  );
+  assert.equal(stale, false);
+  assert.equal(adapter.store.catalogSourceObservations?.length ?? 0, 0);
+
+  const live = await upsertDocWithAlibabaLease(
+    'catalogSourceObservations',
+    'obs-1',
+    { active: true },
+    { firstSeenOperationId: 'run-b' },
+    { connectionId: 'conn-1', holder: 'holder-b', fence: fenceB, now: AFTER_TTL },
+  );
+  assert.equal(live, true);
+  assert.equal(adapter.store.catalogSourceObservations?.[0]?.firstSeenOperationId, 'run-b');
 });
 
 test('renew keeps a lease alive; assert reflects reality; release frees it', async () => {

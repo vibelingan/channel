@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import test from 'node:test';
 import { alibabaOfferKey, alibabaSourceKey } from '@vibelingan-channel/alibaba-catalog-sync';
 import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
-import type { AdapterListQuery, DbAdapter } from '@vibelingan-channel/db';
+import type { AdapterListQuery, AlibabaLeaseGuard, DbAdapter } from '@vibelingan-channel/db';
 import { setAdapter } from '@vibelingan-channel/db';
 import {
   type MediaStorageAdapter,
@@ -23,6 +23,7 @@ import { ingestProductDetail, storeRawPayload } from './ingest.ts';
 type Store = Record<string, CollectionDoc[]>;
 
 class MemoryAdapter implements DbAdapter {
+  allowFencedWrites = true;
   private nextId = 1;
   constructor(readonly store: Store) {}
   private docs(collection: string): CollectionDoc[] {
@@ -109,6 +110,25 @@ class MemoryAdapter implements DbAdapter {
     docs.push(created);
     return created;
   }
+  async updateDocWithAlibabaLease(
+    collection: string,
+    id: string,
+    patch: Record<string, unknown>,
+  ): Promise<boolean> {
+    if (!this.allowFencedWrites) return false;
+    return (await this.update(collection, id, patch)) !== null;
+  }
+  async upsertDocWithAlibabaLease(
+    collection: string,
+    id: string,
+    patch: Record<string, unknown>,
+    createOnly: Record<string, unknown>,
+  ): Promise<boolean> {
+    if (!this.allowFencedWrites) return false;
+    const existing = await this.get(collection, id);
+    await this.upsertDocWithId(collection, id, existing ? patch : { ...createOnly, ...patch });
+    return true;
+  }
 }
 
 class MemoryMediaStorage implements MediaStorageAdapter {
@@ -142,14 +162,22 @@ class MemoryMediaStorage implements MediaStorageAdapter {
 
 let store: Store = {};
 let storage = new MemoryMediaStorage();
+let adapter = new MemoryAdapter(store);
 function setup(): void {
   store = {};
   storage = new MemoryMediaStorage();
-  setAdapter(new MemoryAdapter(store));
+  adapter = new MemoryAdapter(store);
+  setAdapter(adapter);
   setMediaStorage(storage);
 }
 
 const NOW = '2026-08-06T10:00:00.000Z';
+const TEST_GUARD: AlibabaLeaseGuard = {
+  connectionId: 'primary',
+  holder: 'test-holder',
+  fence: 1,
+  now: NOW,
+};
 
 const detailBody = (skus: { id: string; price: number }[]) =>
   JSON.stringify({
@@ -171,6 +199,7 @@ const ingest = (body: string, runId = 'run-1') =>
     connectionId: 'primary',
     runId,
     now: NOW,
+    leaseGuard: () => TEST_GUARD,
   });
 
 // --- raw payload evidence ----------------------------------------------------
@@ -229,6 +258,17 @@ test('a raw-write failure aborts the page with nothing else written', async () =
   assert.equal(store.alibabaSourcePayloads?.length ?? 0, 0);
   assert.equal(store.alibabaSourceProducts?.length ?? 0, 0);
   assert.equal(store.alibabaSupplierOffers?.length ?? 0, 0);
+});
+
+test('a lost lease rejects derived mirror writes after preserving raw evidence', async () => {
+  setup();
+  adapter.allowFencedWrites = false;
+  const result = await ingest(detailBody([{ id: 'sku-1', price: 2.5 }]));
+  assert.deepEqual(result, { ok: false, error: 'lease-lost' });
+  assert.equal(store.alibabaSourcePayloads?.length, 1, 'immutable evidence remains durable');
+  assert.equal(store.alibabaSourceProducts?.length ?? 0, 0, 'stale holder cannot create a mirror');
+  assert.equal(store.alibabaSupplierOffers?.length ?? 0, 0);
+  assert.equal(store.catalogSourceObservations?.length ?? 0, 0);
 });
 
 // --- normalization + idempotency --------------------------------------------
@@ -297,6 +337,26 @@ test('a SKU that disappears from the detail deactivates its mirror offer', async
   assert.equal((sku1?.pricing as { amountMinor?: number })?.amountMinor, 240);
 });
 
+test('a detail refresh deactivates stale offers beyond the database 100-row page cap', async () => {
+  setup();
+  const originalSkus = Array.from({ length: 105 }, (_, index) => ({
+    id: `sku-${String(index + 1).padStart(3, '0')}`,
+    price: 2.5,
+  }));
+  const first = await ingest(detailBody(originalSkus), 'run-1');
+  assert.equal(first.ok, true);
+  assert.equal(store.alibabaSupplierOffers?.length, 105);
+
+  const second = await ingest(
+    detailBody([originalSkus[0] as { id: string; price: number }]),
+    'run-2',
+  );
+  assert.equal(second.ok, true);
+  if (!second.ok) return;
+  assert.equal(second.deactivatedOfferKeys.length, 104);
+  assert.equal(store.alibabaSupplierOffers?.filter((offer) => offer.active === true).length, 1);
+});
+
 test('api-error envelopes keep raw evidence and report the failure', async () => {
   setup();
   const result = await ingest(JSON.stringify({ error_code: 'AppCallLimit' }));
@@ -320,6 +380,7 @@ test('content fingerprint ignores wall-clock stamps: a re-ingest is NOT a change
     connectionId: 'primary',
     runId: 'run-1',
     now: NOW,
+    leaseGuard: () => TEST_GUARD,
   });
   assert.equal(first.ok, true);
   const afterFirst = store.alibabaSourceProducts?.[0] as CollectionDoc;
@@ -335,6 +396,7 @@ test('content fingerprint ignores wall-clock stamps: a re-ingest is NOT a change
     connectionId: 'primary',
     runId: 'run-2',
     now: '2026-08-06T18:30:00.000Z',
+    leaseGuard: () => ({ ...TEST_GUARD, now: '2026-08-06T18:30:00.000Z' }),
   });
   assert.equal(second.ok, true);
   const afterSecond = store.alibabaSourceProducts?.[0] as CollectionDoc;
@@ -373,6 +435,7 @@ test('a per-response id from the gateway is NOT a content change', async () => {
     connectionId: 'primary',
     runId: 'run-1',
     now: NOW,
+    leaseGuard: () => TEST_GUARD,
   });
   const first = store.alibabaSourceProducts?.[0] as CollectionDoc;
 
@@ -383,6 +446,7 @@ test('a per-response id from the gateway is NOT a content change', async () => {
     connectionId: 'primary',
     runId: 'run-2',
     now: '2026-08-06T18:30:00.000Z',
+    leaseGuard: () => ({ ...TEST_GUARD, now: '2026-08-06T18:30:00.000Z' }),
   });
   const second = store.alibabaSourceProducts?.[0] as CollectionDoc;
 
@@ -400,6 +464,7 @@ test('a real content change DOES advance the change stamp', async () => {
     connectionId: 'primary',
     runId: 'run-1',
     now: NOW,
+    leaseGuard: () => TEST_GUARD,
   });
   const changedBody = detailBody([{ id: 'sku-1', price: 9.9 }]);
   const second = await ingestProductDetail({
@@ -409,6 +474,7 @@ test('a real content change DOES advance the change stamp', async () => {
     connectionId: 'primary',
     runId: 'run-2',
     now: '2026-08-06T18:30:00.000Z',
+    leaseGuard: () => ({ ...TEST_GUARD, now: '2026-08-06T18:30:00.000Z' }),
   });
   assert.equal(second.ok, true);
   assert.equal(

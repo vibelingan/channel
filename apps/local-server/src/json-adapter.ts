@@ -606,6 +606,43 @@ export class JsonFileAdapter implements DbAdapter {
     });
   }
 
+  async upsertDocWithAlibabaLease(
+    collection: string,
+    id: string,
+    patch: Record<string, unknown>,
+    createOnly: Record<string, unknown>,
+    guard: AlibabaLeaseGuard,
+  ): Promise<boolean> {
+    return this.withMutationLock(() => {
+      const leases = this.docs(ALIBABA_SYNC_LEASE_COLLECTION);
+      const lease = leases.find((document) => document._id === guard.connectionId) ?? null;
+      if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+      const docs = this.docs(collection);
+      const index = docs.findIndex((document) => document._id === id);
+      const { _id: _patchId, ...safePatch } = patch as Record<string, unknown> & { _id?: unknown };
+      if (index >= 0) {
+        docs[index] = {
+          ...(docs[index] as CollectionDoc),
+          ...safePatch,
+          updatedAt: guard.now,
+        };
+      } else {
+        const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+          _id?: unknown;
+        };
+        docs.push({
+          _id: id,
+          ...safeCreateOnly,
+          ...safePatch,
+          createdAt: guard.now,
+          updatedAt: guard.now,
+        } as CollectionDoc);
+      }
+      this.persist();
+      return true;
+    });
+  }
+
   /** Seed a collection only when it is currently empty. */
   async ensureCatalogProductIdentityReservations(): Promise<void> {
     await this.withMutationLock(() => {

@@ -509,6 +509,37 @@ export const cloudBaseAdapter: DbAdapter = {
       return true;
     });
   },
+
+  async upsertDocWithAlibabaLease(collection, id, patch, createOnly, guard): Promise<boolean> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const leaseRef = transaction
+        .collection(ALIBABA_SYNC_LEASE_COLLECTION)
+        .doc(guard.connectionId);
+      const lease = normalizeSingle((await leaseRef.get()).data);
+      if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+
+      const targetRef = transaction.collection(collection).doc(id);
+      const existing = normalizeSingle((await targetRef.get()).data);
+      const { _id: _patchId, ...safePatch } = patch as Record<string, unknown> & { _id?: unknown };
+      if (existing) {
+        await targetRef.update(
+          replaceNestedObjects({ ...safePatch, updatedAt: guard.now }, db.command),
+        );
+        return true;
+      }
+      const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+        _id?: unknown;
+      };
+      await targetRef.set({
+        ...safeCreateOnly,
+        ...safePatch,
+        createdAt: guard.now,
+        updatedAt: guard.now,
+      });
+      return true;
+    });
+  },
 };
 
 /**

@@ -453,6 +453,27 @@ export function updateDocWithAlibabaLease(
   return adapter.updateDocWithAlibabaLease(collection, id, patch, guard);
 }
 
+/** Fenced deterministic-id create-or-patch — see `DbAdapter.upsertDocWithAlibabaLease`. */
+export function upsertDocWithAlibabaLease(
+  collection: string,
+  id: string,
+  patch: Record<string, unknown>,
+  createOnly: Record<string, unknown>,
+  guard: AlibabaLeaseGuard,
+): Promise<boolean> {
+  assertKnown(collection);
+  requireNonEmpty(id, 'document id');
+  requireNonEmpty(guard.connectionId, 'connectionId');
+  requireNonEmpty(guard.holder, 'lease holder');
+  requireCanonicalIsoInstant(guard.now, 'guard time');
+  requireLeaseNumbers(guard.fence, undefined);
+  const adapter = db();
+  if (!adapter.upsertDocWithAlibabaLease) {
+    throw new Error('@vibelingan-channel/db: fenced upserts are not implemented by this adapter.');
+  }
+  return adapter.upsertDocWithAlibabaLease(collection, id, patch, createOnly, guard);
+}
+
 /**
  * Apply the same partial update to many documents. Validated against the
  * registry write-schema once, then applied per id. Returns the updated docs.

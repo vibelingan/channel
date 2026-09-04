@@ -132,6 +132,7 @@ export interface SourceObservationReplayPage {
   mode: SourceObservationReplayMode;
   ready: boolean;
   pageHash: string;
+  totalSourceProducts: number;
   afterSourceKey: string;
   nextSourceKey: string;
   done: boolean;
@@ -146,6 +147,7 @@ export interface SourceObservationReplayPlan {
   counts: SourceObservationReplayCounts;
   priceModes: Partial<Record<ProductDetailPriceMode, number>>;
   ready: boolean;
+  totalSourceProducts: number;
 }
 
 const REPLAY_MODES = new Set<SourceObservationReplayMode>(['dry-run', 'apply']);
@@ -178,7 +180,7 @@ const MAX_REPLAY_PAGES = 1_000;
 const REPLAY_PAGE_SIZE = 20;
 
 function decodeReplayCounts(value: unknown): SourceObservationReplayCounts | null {
-  if (!isRecord(value)) return null;
+  if (!isRecord(value) || !hasExactKeys(value, REPLAY_COUNT_KEYS)) return null;
   const counts = {} as SourceObservationReplayCounts;
   for (const key of REPLAY_COUNT_KEYS) {
     const count = readNonNegativeSafeInteger(value[key]);
@@ -186,6 +188,14 @@ function decodeReplayCounts(value: unknown): SourceObservationReplayCounts | nul
     counts[key] = count;
   }
   return counts;
+}
+
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const expected = new Set(keys);
+  return (
+    Object.keys(value).length === expected.size &&
+    Object.keys(value).every((key) => expected.has(key))
+  );
 }
 
 function decodeReplayPriceModes(
@@ -206,7 +216,21 @@ function decodeReplayPriceModes(
 export function decodeSourceObservationReplayPage(
   value: unknown,
 ): SourceObservationReplayPage | null {
-  if (!isRecord(value) || value.ok !== true) return null;
+  const pageKeys = [
+    'ok',
+    'mode',
+    'ready',
+    'pageHash',
+    'totalSourceProducts',
+    'afterSourceKey',
+    'nextSourceKey',
+    'done',
+    'counts',
+    'priceModes',
+    'failures',
+    'applied',
+  ] as const;
+  if (!isRecord(value) || value.ok !== true || !hasExactKeys(value, pageKeys)) return null;
   if (
     typeof value.mode !== 'string' ||
     !REPLAY_MODES.has(value.mode as SourceObservationReplayMode) ||
@@ -226,11 +250,13 @@ export function decodeSourceObservationReplayPage(
   const counts = decodeReplayCounts(value.counts);
   const priceModes = decodeReplayPriceModes(value.priceModes);
   const applied = readNonNegativeSafeInteger(value.applied);
-  if (!counts || !priceModes || applied === null) return null;
+  const totalSourceProducts = readNonNegativeSafeInteger(value.totalSourceProducts);
+  if (!counts || !priceModes || applied === null || totalSourceProducts === null) return null;
   const failures: SourceObservationReplayFailure[] = [];
   for (const failure of value.failures) {
     if (
       !isRecord(failure) ||
+      !hasExactKeys(failure, ['sourceKey', 'reason']) ||
       typeof failure.sourceKey !== 'string' ||
       failure.sourceKey.length === 0 ||
       failure.sourceKey.length > 128 ||
@@ -241,10 +267,21 @@ export function decodeSourceObservationReplayPage(
     }
     failures.push({ sourceKey: failure.sourceKey, reason: failure.reason });
   }
+  const pricedOffers = Object.values(priceModes).reduce((total, count) => total + (count ?? 0), 0);
+  const cursorIsValid =
+    counts.sourceProducts === 0
+      ? value.done === true && value.nextSourceKey === value.afterSourceKey
+      : value.nextSourceKey !== '' && value.nextSourceKey !== value.afterSourceKey;
   if (
     counts.sourceProducts > REPLAY_PAGE_SIZE ||
-    counts.observations > counts.sourceProducts ||
-    failures.length > counts.sourceProducts ||
+    counts.observations + failures.length !== counts.sourceProducts ||
+    counts.attributedVariants > counts.variants ||
+    counts.attributePairs < counts.attributedVariants ||
+    pricedOffers !== counts.offers ||
+    totalSourceProducts < counts.sourceProducts ||
+    !cursorIsValid ||
+    (value.done && counts.sourceProducts >= REPLAY_PAGE_SIZE) ||
+    (!value.done && counts.sourceProducts !== REPLAY_PAGE_SIZE) ||
     value.ready !== (failures.length === 0) ||
     (value.mode === 'dry-run' && applied !== 0) ||
     (value.mode === 'apply' && value.ready && applied !== counts.observations)
@@ -256,6 +293,7 @@ export function decodeSourceObservationReplayPage(
     mode: value.mode as SourceObservationReplayMode,
     ready: value.ready,
     pageHash: value.pageHash,
+    totalSourceProducts,
     afterSourceKey: value.afterSourceKey,
     nextSourceKey: value.nextSourceKey,
     done: value.done,
@@ -270,12 +308,14 @@ async function replaySourceObservationPage(
   mode: SourceObservationReplayMode,
   afterSourceKey: string,
   expectedPageHash?: string,
+  expectedTotalSourceProducts?: number,
 ): Promise<SourceObservationReplayPage> {
   const raw = await call<unknown>('replaySourceObservations', {
     mode,
     afterSourceKey,
     limit: REPLAY_PAGE_SIZE,
     ...(expectedPageHash === undefined ? {} : { expectedPageHash }),
+    ...(expectedTotalSourceProducts === undefined ? {} : { expectedTotalSourceProducts }),
   });
   if (isRecord(raw) && raw.ok === false && typeof raw.reason === 'string') {
     throw new AlibabaSyncApiError('CONFLICT', `Replay stopped: ${raw.reason}.`);
@@ -320,14 +360,27 @@ export async function validateSourceObservationReplay(
   const counts = emptyReplayCounts();
   const priceModes: Partial<Record<ProductDetailPriceMode, number>> = {};
   let cursor = '';
+  let totalSourceProducts: number | null = null;
   for (let pageCount = 1; pageCount <= MAX_REPLAY_PAGES; pageCount += 1) {
     const page = await replaySourceObservationPage('dry-run', cursor);
+    totalSourceProducts ??= page.totalSourceProducts;
+    if (page.totalSourceProducts !== totalSourceProducts) {
+      throw new AlibabaSyncApiError('CONFLICT', 'Replay source total changed during validation.');
+    }
     pages.push(page);
     addReplayCounts(counts, page.counts);
     addReplayPriceModes(priceModes, page.priceModes);
     onPage?.(pageCount, counts.sourceProducts);
-    if (!page.ready) return { pages, counts, priceModes, ready: false };
-    if (page.done) return { pages, counts, priceModes, ready: true };
+    if (!page.ready) return { pages, counts, priceModes, ready: false, totalSourceProducts };
+    if (page.done) {
+      if (counts.sourceProducts !== totalSourceProducts) {
+        throw new AlibabaSyncApiError(
+          'CONFLICT',
+          'Replay did not cover the authoritative source total.',
+        );
+      }
+      return { pages, counts, priceModes, ready: true, totalSourceProducts };
+    }
     if (!page.nextSourceKey || page.nextSourceKey === cursor) {
       throw new AlibabaSyncApiError('INTERNAL_ERROR', 'Replay cursor did not advance.');
     }
@@ -349,6 +402,7 @@ export async function applySourceObservationReplay(
       'apply',
       expected.afterSourceKey,
       expected.pageHash,
+      plan.totalSourceProducts,
     );
     if (!page.ready) {
       const reasonCounts = new Map<string, number>();
@@ -365,6 +419,7 @@ export async function applySourceObservationReplay(
     }
     if (
       page.pageHash !== expected.pageHash ||
+      page.totalSourceProducts !== plan.totalSourceProducts ||
       page.nextSourceKey !== expected.nextSourceKey ||
       page.done !== expected.done
     ) {

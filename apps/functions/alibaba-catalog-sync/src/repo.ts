@@ -12,8 +12,11 @@ import {
   list,
   remove,
   updateDoc as updateDocTrusted,
+  updateDocWithAlibabaLease as updateDocWithAlibabaLeaseFacade,
+  upsertDocWithAlibabaLease as upsertDocWithAlibabaLeaseFacade,
   upsertDocWithId as upsertDocWithIdFacade,
 } from '@vibelingan-channel/db';
+import type { AlibabaLeaseGuard } from '@vibelingan-channel/db';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 
 export type { CollectionDoc };
@@ -64,6 +67,25 @@ export function upsertDocWithId(
   data: Record<string, unknown>,
 ): Promise<CollectionDoc> {
   return upsertDocWithIdFacade(collection, id, data);
+}
+
+export function upsertDocWithAlibabaLease(
+  collection: string,
+  id: string,
+  patch: Record<string, unknown>,
+  createOnly: Record<string, unknown>,
+  guard: AlibabaLeaseGuard,
+): Promise<boolean> {
+  return upsertDocWithAlibabaLeaseFacade(collection, id, patch, createOnly, guard);
+}
+
+export function updateDocWithAlibabaLease(
+  collection: string,
+  id: string,
+  patch: Record<string, unknown>,
+  guard: AlibabaLeaseGuard,
+): Promise<boolean> {
+  return updateDocWithAlibabaLeaseFacade(collection, id, patch, guard);
 }
 
 /** First page of a collection ordered by `expiresAt` ascending (sweeps). */

@@ -458,6 +458,18 @@ export interface DbAdapter {
     patch: Record<string, unknown>,
     guard: AlibabaLeaseGuard,
   ): Promise<boolean>;
+  /**
+   * Fenced deterministic-id create-or-patch. The lease check and target write
+   * happen in the same transaction/critical section. `createOnly` is applied
+   * only when the target does not yet exist (first-seen provenance).
+   */
+  upsertDocWithAlibabaLease?(
+    collection: string,
+    id: string,
+    patch: Record<string, unknown>,
+    createOnly: Record<string, unknown>,
+    guard: AlibabaLeaseGuard,
+  ): Promise<boolean>;
 }
 
 // Re-exported so callers building queries can reference the input shape.

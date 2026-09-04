@@ -17,16 +17,18 @@ import {
 import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import {
   ALIBABA_SYNC_LEASE_TTL_MS,
+  type AlibabaLeaseGuard,
   acquireAlibabaSyncLease,
   get,
   list,
   releaseAlibabaSyncLease,
   renewAlibabaSyncLease,
-  updateDoc,
-  upsertDocWithId,
+  updateDocWithAlibabaLease,
+  upsertDocWithAlibabaLease,
 } from '@vibelingan-channel/db';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
 import type { CollectionDoc, FilterModel } from '@vibelingan-channel/shared';
+import { listAllDocs } from './list-all.ts';
 import { PRIMARY_CONNECTION_ID } from './oauth.ts';
 
 const MAX_RAW_BYTES = 8 * 1024 * 1024;
@@ -38,12 +40,24 @@ export interface AlibabaRawReplayPort {
   acquireLease(holder: string): Promise<LeaseGrant>;
   renewLease(holder: string, fence: number): Promise<boolean>;
   releaseLease(holder: string, fence: number): Promise<boolean>;
-  listSourceProducts(afterSourceKey: string, limit: number): Promise<CollectionDoc[]>;
+  listSourceProducts(
+    afterSourceKey: string,
+    limit: number,
+  ): Promise<{ items: CollectionDoc[]; total: number }>;
   getDocument(collection: string, id: string): Promise<CollectionDoc | null>;
   listActiveOffers(sourceKey: string): Promise<CollectionDoc[]>;
   readObjectAsBase64(fileId: string): Promise<{ body: string; byteSize?: number }>;
-  updateOffer(id: string, patch: Record<string, unknown>): Promise<CollectionDoc | null>;
-  upsertObservation(id: string, value: Record<string, unknown>): Promise<void>;
+  updateOffer(
+    id: string,
+    patch: Record<string, unknown>,
+    guard: AlibabaLeaseGuard,
+  ): Promise<boolean>;
+  upsertObservation(
+    id: string,
+    value: Record<string, unknown>,
+    createOnly: Record<string, unknown>,
+    guard: AlibabaLeaseGuard,
+  ): Promise<boolean>;
 }
 
 const defaultPort: AlibabaRawReplayPort = {
@@ -66,44 +80,45 @@ const defaultPort: AlibabaRawReplayPort = {
   releaseLease: (holder, fence) =>
     releaseAlibabaSyncLease(PRIMARY_CONNECTION_ID, holder, fence, new Date().toISOString()),
   async listSourceProducts(afterSourceKey, limit) {
-    const clauses: FilterModel['clauses'] = [
+    const baseClauses: FilterModel['clauses'] = [
       { field: 'connectionId', op: 'eq', value: PRIMARY_CONNECTION_ID },
       { field: 'active', op: 'eq', value: true },
-      ...(afterSourceKey ? [{ field: '_id', op: 'gt' as const, value: afterSourceKey }] : []),
     ];
-    const result = await list({
+    const count = await list({
+      collection: 'alibabaSourceProducts',
+      page: 1,
+      pageSize: 1,
+      search: '',
+      filter: { combinator: 'and', clauses: baseClauses },
+    });
+    const page = await list({
       collection: 'alibabaSourceProducts',
       page: 1,
       pageSize: limit,
       search: '',
       sort: [{ field: '_id', dir: 'asc' }],
-      filter: { combinator: 'and', clauses },
-    });
-    return result.items;
-  },
-  getDocument: get,
-  async listActiveOffers(sourceKey) {
-    const result = await list({
-      collection: 'alibabaSupplierOffers',
-      page: 1,
-      pageSize: 100,
-      search: '',
-      sort: [{ field: '_id', dir: 'asc' }],
       filter: {
         combinator: 'and',
         clauses: [
-          { field: 'sourceKey', op: 'eq', value: sourceKey },
-          { field: 'active', op: 'eq', value: true },
+          ...baseClauses,
+          ...(afterSourceKey ? [{ field: '_id', op: 'gt' as const, value: afterSourceKey }] : []),
         ],
       },
     });
-    return result.items;
+    return { items: page.items, total: count.total };
+  },
+  getDocument: get,
+  async listActiveOffers(sourceKey) {
+    return listAllDocs('alibabaSupplierOffers', [
+      { field: 'sourceKey', op: 'eq', value: sourceKey },
+      { field: 'active', op: 'eq', value: true },
+    ]);
   },
   readObjectAsBase64: (fileId) => mediaStorage().getObjectAsBase64(fileId),
-  updateOffer: (id, patch) => updateDoc('alibabaSupplierOffers', id, patch),
-  async upsertObservation(id, value) {
-    await upsertDocWithId('catalogSourceObservations', id, value);
-  },
+  updateOffer: (id, patch, guard) =>
+    updateDocWithAlibabaLease('alibabaSupplierOffers', id, patch, guard),
+  upsertObservation: (id, value, createOnly, guard) =>
+    upsertDocWithAlibabaLease('catalogSourceObservations', id, value, createOnly, guard),
 };
 
 export interface AlibabaRawReplayInput {
@@ -111,6 +126,7 @@ export interface AlibabaRawReplayInput {
   afterSourceKey?: string;
   limit?: number;
   expectedPageHash?: string;
+  expectedTotalSourceProducts?: number;
 }
 
 export interface AlibabaRawReplayFailure {
@@ -152,6 +168,7 @@ export type AlibabaRawReplayResult =
       mode: 'dry-run' | 'apply';
       ready: boolean;
       pageHash: string;
+      totalSourceProducts: number;
       afterSourceKey: string;
       nextSourceKey: string;
       done: boolean;
@@ -181,7 +198,11 @@ function sameKeys(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((key, index) => key === right[index]);
 }
 
-function pageFingerprint(plans: readonly ReplayPlan[], afterSourceKey: string): string {
+function pageFingerprint(
+  plans: readonly ReplayPlan[],
+  afterSourceKey: string,
+  totalSourceProducts: number,
+): string {
   const material = plans.map((plan) => ({
     sourceKey: plan.source._id,
     payloadId: plan.payloadId,
@@ -194,7 +215,9 @@ function pageFingerprint(plans: readonly ReplayPlan[], afterSourceKey: string): 
     })),
     observation: plan.observation,
   }));
-  return createHash('sha256').update(JSON.stringify({ afterSourceKey, material })).digest('hex');
+  return createHash('sha256')
+    .update(JSON.stringify({ afterSourceKey, totalSourceProducts, material }))
+    .digest('hex');
 }
 
 export async function replayAlibabaRawPage(
@@ -207,7 +230,10 @@ export async function replayAlibabaRawPage(
     !Number.isSafeInteger(limit) ||
     limit < 1 ||
     limit > 20 ||
-    (input.mode === 'apply' && !/^[0-9a-f]{64}$/.test(input.expectedPageHash ?? ''))
+    (input.mode === 'apply' &&
+      (!/^[0-9a-f]{64}$/.test(input.expectedPageHash ?? '') ||
+        !Number.isSafeInteger(input.expectedTotalSourceProducts) ||
+        Number(input.expectedTotalSourceProducts) < 0))
   ) {
     return { ok: false, reason: 'invalid-input' };
   }
@@ -218,7 +244,16 @@ export async function replayAlibabaRawPage(
   if (grant.result === 'corrupt') return { ok: false, reason: 'lease-corrupt' };
 
   try {
-    const rows = await port.listSourceProducts(afterSourceKey, limit);
+    const sourcePage = await port.listSourceProducts(afterSourceKey, limit);
+    const rows = sourcePage.items;
+    const totalSourceProducts = sourcePage.total;
+    if (
+      !Number.isSafeInteger(totalSourceProducts) ||
+      totalSourceProducts < rows.length ||
+      (input.mode === 'apply' && input.expectedTotalSourceProducts !== totalSourceProducts)
+    ) {
+      return { ok: false, reason: 'page-changed' };
+    }
     const plans: ReplayPlan[] = [];
     const failures: AlibabaRawReplayFailure[] = [];
 
@@ -351,7 +386,7 @@ export async function replayAlibabaRawPage(
       });
     }
 
-    const pageHash = pageFingerprint(plans, afterSourceKey);
+    const pageHash = pageFingerprint(plans, afterSourceKey, totalSourceProducts);
     if (!(await port.renewLease(holder, grant.fence))) {
       return { ok: false, reason: 'lease-lost' };
     }
@@ -366,26 +401,43 @@ export async function replayAlibabaRawPage(
           return { ok: false, reason: 'lease-lost' };
         }
         for (const offer of plan.normalized.offers) {
-          const updated = await port.updateOffer(offer.offerKey, {
-            sourceAttributes: offer.sourceAttributes,
-          });
-          if (updated === null) throw new Error('replay target offer disappeared');
+          const updated = await port.updateOffer(
+            offer.offerKey,
+            { sourceAttributes: offer.sourceAttributes },
+            {
+              connectionId: PRIMARY_CONNECTION_ID,
+              holder,
+              fence: grant.fence,
+              now: port.now(),
+            },
+          );
+          if (!updated) return { ok: false, reason: 'lease-lost' };
         }
-        await port.upsertObservation(sourceObservationDocumentId('alibaba', plan.source._id), {
-          provider: 'alibaba',
-          sourceProductKey: plan.source._id,
-          externalProductId: plan.normalized.sourceProduct.sourceProductId,
-          schemaVersion: plan.observation.schemaVersion,
-          observedAt: plan.observation.source.observedAt,
-          ...(plan.observation.source.sourceUpdatedAt === undefined
-            ? {}
-            : { sourceUpdatedAt: plan.observation.source.sourceUpdatedAt }),
-          evidenceId: plan.payloadId,
-          active: true,
-          observation: plan.observation,
-          lastSeenOperationId: plan.lastSeenOperationId,
-          firstSeenOperationId: plan.firstSeenOperationId,
-        });
+        const observationWritten = await port.upsertObservation(
+          sourceObservationDocumentId('alibaba', plan.source._id),
+          {
+            provider: 'alibaba',
+            sourceProductKey: plan.source._id,
+            externalProductId: plan.normalized.sourceProduct.sourceProductId,
+            schemaVersion: plan.observation.schemaVersion,
+            observedAt: plan.observation.source.observedAt,
+            ...(plan.observation.source.sourceUpdatedAt === undefined
+              ? {}
+              : { sourceUpdatedAt: plan.observation.source.sourceUpdatedAt }),
+            evidenceId: plan.payloadId,
+            active: true,
+            observation: plan.observation,
+            lastSeenOperationId: plan.lastSeenOperationId,
+          },
+          { firstSeenOperationId: plan.firstSeenOperationId },
+          {
+            connectionId: PRIMARY_CONNECTION_ID,
+            holder,
+            fence: grant.fence,
+            now: port.now(),
+          },
+        );
+        if (!observationWritten) return { ok: false, reason: 'lease-lost' };
         applied += 1;
       }
     }
@@ -423,6 +475,7 @@ export async function replayAlibabaRawPage(
       mode: input.mode,
       ready: failures.length === 0,
       pageHash,
+      totalSourceProducts,
       afterSourceKey,
       nextSourceKey: last,
       done: rows.length < limit,
