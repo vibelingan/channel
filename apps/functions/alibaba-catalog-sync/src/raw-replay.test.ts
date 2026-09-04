@@ -185,6 +185,45 @@ test('apply requires the matching dry-run hash and preserves run provenance', as
   assert.equal(harness.observations.length, 1);
   assert.equal(harness.observations[0]?.value.lastSeenOperationId, 'full-current');
   assert.equal(harness.observations[0]?.value.firstSeenOperationId, 'full-original');
+
+  const retried = await replayAlibabaRawPage(
+    {
+      mode: 'apply',
+      limit: 10,
+      expectedPageHash: dry.pageHash,
+      expectedTotalSourceProducts: 1,
+      manifestId: dry.manifestId,
+    },
+    harness.p,
+  );
+  assert.equal(retried.ok, true, 'a whole apply retry may replay an already committed page');
+  if (!retried.ok) return;
+  assert.equal(retried.applied, 1);
+  assert.equal(harness.updatedOffers.length, 1, 'already committed page is not written twice');
+  assert.equal(harness.observations.length, 1, 'observation upsert is not repeated either');
+});
+
+test('an invalid manifest expiry fails closed', async () => {
+  const harness = port();
+  const dry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, harness.p);
+  assert.equal(dry.ok, true);
+  if (!dry.ok) return;
+  const manifest = harness.manifests.get(dry.manifestId);
+  assert.ok(manifest);
+  manifest.expiresAt = 'not-a-timestamp';
+  assert.deepEqual(
+    await replayAlibabaRawPage(
+      {
+        mode: 'apply',
+        limit: 10,
+        expectedPageHash: dry.pageHash,
+        expectedTotalSourceProducts: 1,
+        manifestId: dry.manifestId,
+      },
+      harness.p,
+    ),
+    { ok: false, reason: 'manifest-invalid' },
+  );
 });
 
 test('an id mismatch blocks the whole page before any derived write', async () => {

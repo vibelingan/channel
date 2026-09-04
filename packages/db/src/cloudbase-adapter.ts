@@ -18,6 +18,7 @@ import cloud from 'wx-server-sdk';
 import type {
   AlibabaLeaseGrant,
   AlibabaLeaseGuard,
+  AlibabaSyncRunClaimResult,
   CatalogProductSaveResult,
   CatalogSourceObservationUpsertResult,
   DbAdapter,
@@ -202,6 +203,84 @@ export async function upsertDocWithAlibabaLeaseInCloudBase(
       updatedAt: guard.now,
     });
     return true;
+  });
+}
+
+/**
+ * Start a sync run without exposing the run/checkpoint split as two writes.
+ * Every read happens before either write because CloudBase transactions do not
+ * allow a read after the transaction has entered its write phase.
+ */
+export async function claimAlibabaSyncRunInCloudBase(
+  db: NodeSdkDatabase,
+  runId: string,
+  run: Record<string, unknown>,
+  checkpointPatch: Record<string, unknown>,
+  guard: AlibabaLeaseGuard,
+): Promise<AlibabaSyncRunClaimResult> {
+  return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+    const leaseRef = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(guard.connectionId);
+    const checkpointRef = transaction
+      .collection('alibabaSyncCheckpoints')
+      .doc(guard.connectionId);
+    const runRef = transaction.collection('alibabaSyncRuns').doc(runId);
+
+    const lease = normalizeSingle((await leaseRef.get()).data);
+    const checkpoint = normalizeSingle((await checkpointRef.get()).data);
+    const existingRun = normalizeSingle((await runRef.get()).data);
+
+    if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return 'lease-lost';
+    if (!checkpoint) return 'checkpoint-missing';
+    if (checkpoint.activeRunId !== undefined && checkpoint.activeRunId !== '') {
+      return 'checkpoint-busy';
+    }
+    if (existingRun) return 'run-exists';
+
+    const { _id: _runId, ...safeRun } = run as Record<string, unknown> & { _id?: unknown };
+    const { _id: _checkpointId, ...safeCheckpointPatch } = checkpointPatch as Record<
+      string,
+      unknown
+    > & { _id?: unknown };
+    await runRef.set({
+      ...safeRun,
+      createdAt: guard.now,
+      updatedAt: guard.now,
+    });
+    await checkpointRef.update(
+      replaceNestedObjects({ ...safeCheckpointPatch, updatedAt: guard.now }, db.command),
+    );
+    return 'claimed';
+  });
+}
+
+/** Exported so recency behavior is tested against the exact production transaction. */
+export async function upsertCatalogSourceObservationInCloudBase(
+  db: NodeSdkDatabase,
+  id: string,
+  data: Record<string, unknown>,
+  createOnly: Record<string, unknown>,
+  now: string,
+): Promise<CatalogSourceObservationUpsertResult> {
+  return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+    const ref = transaction.collection('catalogSourceObservations').doc(id);
+    const existing = normalizeSingle((await ref.get()).data);
+    const { _id: _patchId, ...patch } = data as Record<string, unknown> & { _id?: unknown };
+    if (existing) {
+      const previousAt = Date.parse(String(existing.observedAt ?? ''));
+      const incomingAt = Date.parse(String(patch.observedAt ?? ''));
+      if (Number.isFinite(previousAt) && previousAt > incomingAt) {
+        return { result: 'stale', doc: existing };
+      }
+      const merged = { ...patch, updatedAt: now };
+      await ref.update(replaceNestedObjects(merged, db.command));
+      return { result: 'applied', doc: normalize({ ...existing, ...merged, _id: id }) };
+    }
+    const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+      _id?: unknown;
+    };
+    const created = { createdAt: now, updatedAt: now, ...safeCreateOnly, ...patch };
+    await ref.set(created);
+    return { result: 'applied', doc: normalize({ _id: id, ...created }) };
   });
 }
 
@@ -491,28 +570,13 @@ export const cloudBaseAdapter: DbAdapter = {
     createOnly,
   ): Promise<CatalogSourceObservationUpsertResult> {
     const db = cloudStorageSdk().database();
-    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
-      const ref = transaction.collection('catalogSourceObservations').doc(id);
-      const existing = normalizeSingle((await ref.get()).data);
-      const now = new Date().toISOString();
-      const { _id: _patchId, ...patch } = data as Record<string, unknown> & { _id?: unknown };
-      if (existing) {
-        const previousAt = Date.parse(String(existing.observedAt ?? ''));
-        const incomingAt = Date.parse(String(patch.observedAt ?? ''));
-        if (Number.isFinite(previousAt) && previousAt > incomingAt) {
-          return { result: 'stale', doc: existing };
-        }
-        const merged = { ...patch, updatedAt: now };
-        await ref.update(replaceNestedObjects(merged, db.command));
-        return { result: 'applied', doc: normalize({ ...existing, ...merged, _id: id }) };
-      }
-      const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
-        _id?: unknown;
-      };
-      const created = { createdAt: now, updatedAt: now, ...safeCreateOnly, ...patch };
-      await ref.set(created);
-      return { result: 'applied', doc: normalize({ _id: id, ...created }) };
-    });
+    return upsertCatalogSourceObservationInCloudBase(
+      db,
+      id,
+      data,
+      createOnly,
+      new Date().toISOString(),
+    );
   },
 
   async acquireAlibabaSyncLease(connectionId, holder, now, ttlMs): Promise<AlibabaLeaseGrant> {
@@ -589,6 +653,11 @@ export const cloudBaseAdapter: DbAdapter = {
   async upsertDocWithAlibabaLease(collection, id, patch, createOnly, guard): Promise<boolean> {
     const db = cloudStorageSdk().database() as unknown as NodeSdkDatabase;
     return upsertDocWithAlibabaLeaseInCloudBase(db, collection, id, patch, createOnly, guard);
+  },
+
+  async claimAlibabaSyncRun(runId, run, checkpointPatch, guard) {
+    const db = cloudStorageSdk().database() as unknown as NodeSdkDatabase;
+    return claimAlibabaSyncRunInCloudBase(db, runId, run, checkpointPatch, guard);
   },
 };
 

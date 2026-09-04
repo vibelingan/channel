@@ -53,7 +53,12 @@ import { createDraftForSource } from './linking.ts';
 import { listAllDocs } from './list-all.ts';
 import { PRIMARY_CONNECTION_ID } from './oauth.ts';
 import { promoteLinkedProduct } from './promotion.ts';
-import { type CollectionDoc, createDocWithId, getDoc, upsertDocWithId } from './repo.ts';
+import {
+  type CollectionDoc,
+  claimAlibabaSyncRun,
+  getDoc,
+  upsertDocWithAlibabaLease,
+} from './repo.ts';
 
 const LIST_METHOD = 'alibaba.icbu.product.list';
 const DETAIL_METHOD = 'alibaba.icbu.product.get';
@@ -167,16 +172,30 @@ export async function runSyncTick(input: {
   };
 
   try {
-    // Checkpoint bootstrap (upsert is safe: we hold the lease).
+    // Checkpoint bootstrap is fenced in the SAME transaction as its write.
+    // Merely holding a lease in this stack frame is not enough: this worker
+    // may have stalled while a later holder took over.
     let checkpointDoc = await getDoc('alibabaSyncCheckpoints', PRIMARY_CONNECTION_ID);
     if (!checkpointDoc) {
-      checkpointDoc = await upsertDocWithId('alibabaSyncCheckpoints', PRIMARY_CONNECTION_ID, {
-        connectionId: PRIMARY_CONNECTION_ID,
-        activeRunId: '',
-        nextFullDueAt: computeNextFullDueAt(now),
-        nextIncrementalDueAt: computeNextIncrementalDueAt(now),
-        committedCursor: '',
-      });
+      const bootstrapped = await upsertDocWithAlibabaLease(
+        'alibabaSyncCheckpoints',
+        PRIMARY_CONNECTION_ID,
+        {},
+        {
+          connectionId: PRIMARY_CONNECTION_ID,
+          activeRunId: '',
+          nextFullDueAt: computeNextFullDueAt(now),
+          nextIncrementalDueAt: computeNextIncrementalDueAt(now),
+          committedCursor: '',
+        },
+        guard(now),
+      );
+      if (!bootstrapped) return { outcome: 'lease-lost' };
+      checkpointDoc = await getDoc('alibabaSyncCheckpoints', PRIMARY_CONNECTION_ID);
+      if (!checkpointDoc) {
+        await release();
+        return { outcome: 'failed', detail: 'checkpoint-bootstrap-missing' };
+      }
     }
 
     // MARK-DUE for a manual run (§10.1, and the original §10 intent): without
@@ -275,12 +294,16 @@ export async function runSyncTick(input: {
         windowEnd: String(checkpointDoc.windowEnd ?? now),
         continuationCount: continuationCount + 1,
       };
-      await updateDocWithAlibabaLease(
-        'alibabaSyncCheckpoints',
-        PRIMARY_CONNECTION_ID,
-        { continuationCount: state.continuationCount },
-        guard(now),
-      );
+      if (
+        !(await updateDocWithAlibabaLease(
+          'alibabaSyncCheckpoints',
+          PRIMARY_CONNECTION_ID,
+          { continuationCount: state.continuationCount },
+          guard(now),
+        ))
+      ) {
+        return { outcome: 'lease-lost', runId: state.activeRunId };
+      }
       if (
         !(await updateDocWithAlibabaLease(
           'alibabaSyncRuns',
@@ -305,26 +328,6 @@ export async function runSyncTick(input: {
             ? checkpointDoc.committedCursor
             : new Date(Date.parse(now) - INCREMENTAL_LOOKBACK_MS).toISOString();
       const runId = `${mode}-${now.replace(/[:.]/g, '-')}`;
-      const created = await createDocWithId('alibabaSyncRuns', runId, {
-        connectionId: PRIMARY_CONNECTION_ID,
-        mode,
-        trigger: input.trigger,
-        status: 'running',
-        holder,
-        fence,
-        startedAt: now,
-        completedAt: '',
-        counters: emptyCounters(),
-        alerts: [],
-        approval: null,
-        errorSummary: '',
-      });
-      if (created === 'exists') {
-        // A same-instant duplicate lost the run-row race; the winner owns it.
-        await release();
-        return { outcome: 'lease-busy', detail: 'run-row-race' };
-      }
-      runDoc = await getDoc('alibabaSyncRuns', runId);
       state = {
         activeRunId: runId,
         mode,
@@ -337,9 +340,22 @@ export async function runSyncTick(input: {
         windowEnd: now,
         continuationCount: 0,
       };
-      await updateDocWithAlibabaLease(
-        'alibabaSyncCheckpoints',
-        PRIMARY_CONNECTION_ID,
+      const claimResult = await claimAlibabaSyncRun(
+        runId,
+        {
+          connectionId: PRIMARY_CONNECTION_ID,
+          mode,
+          trigger: input.trigger,
+          status: 'running',
+          holder,
+          fence,
+          startedAt: now,
+          completedAt: '',
+          counters: emptyCounters(),
+          alerts: [],
+          approval: null,
+          errorSummary: '',
+        },
         {
           activeRunId: runId,
           mode,
@@ -351,6 +367,19 @@ export async function runSyncTick(input: {
         },
         guard(now),
       );
+      if (claimResult !== 'claimed') {
+        await release();
+        if (claimResult === 'lease-lost') return { outcome: 'lease-lost' };
+        if (claimResult === 'checkpoint-missing') {
+          return { outcome: 'failed', detail: 'checkpoint-missing-at-run-claim' };
+        }
+        return {
+          outcome: 'lease-busy',
+          detail: claimResult === 'checkpoint-busy' ? 'checkpoint-claim-race' : 'run-row-race',
+        };
+      }
+      runDoc = await getDoc('alibabaSyncRuns', runId);
+      if (!runDoc) throw new Error('Atomic run claim committed without a readable run row.');
     }
 
     return await executeSlice(
@@ -565,6 +594,7 @@ async function executeSlice(
         }
         const ingest = await ingestProductDetail({
           bodyText: detailResponse.bodyText,
+          expectedSourceProductId: sourceProductId,
           endpointId: 'product.get',
           requestFingerprint: deps.client.fingerprintFor({ apiPath: DETAIL_METHOD, params }),
           connectionId: PRIMARY_CONNECTION_ID,
@@ -575,6 +605,22 @@ async function executeSlice(
         });
         if (!ingest.ok && ingest.error === 'lease-lost') {
           return { outcome: 'lease-lost', runId: state.activeRunId };
+        }
+        if (!ingest.ok && ingest.error === 'product-id-mismatch') {
+          if (
+            !(await quarantineRun(state, counters, ['detail-product-id-mismatch'], guard, deps))
+          ) {
+            return { outcome: 'lease-lost', runId: state.activeRunId };
+          }
+          await deps.alert(
+            `Alibaba sync run ${state.activeRunId} quarantined: product.get returned a different product id.`,
+          );
+          await release();
+          return {
+            outcome: 'quarantined',
+            runId: state.activeRunId,
+            detail: 'detail-product-id-mismatch',
+          };
         }
         counters.itemsProcessed += 1;
         if (!ingest.ok) {
@@ -801,6 +847,7 @@ async function executeSlice(
       // Bisection miss (item moved mid-run): re-ingest so it survives.
       const confirmed = await ingestProductDetail({
         bodyText: confirm.bodyText,
+        expectedSourceProductId: sourceProductId,
         endpointId: 'product.get',
         requestFingerprint: deps.client.fingerprintFor({ apiPath: DETAIL_METHOD, params }),
         connectionId: PRIMARY_CONNECTION_ID,

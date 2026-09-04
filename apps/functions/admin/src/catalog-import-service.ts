@@ -15,6 +15,7 @@ import { parseDianxiaomiWorkbook } from '@vibelingan-channel/catalog-import/dian
 import { mediaStorage } from '@vibelingan-channel/media-storage';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import {
+  ImportSourceEvidenceAttachUncertainError,
   failImportJobEvidence,
   listStoreLinksForProvider,
   recordImportSourceEvidence,
@@ -100,6 +101,37 @@ export async function runCatalogImport(input: RunImportInput): Promise<RunImport
         now,
       );
     } catch (error) {
+      if (error instanceof ImportSourceEvidenceAttachUncertainError) {
+        // The attach may already be durable. Preserve the only exact workbook
+        // object and leave an operator-visible repair pointer when the database
+        // accepts it; a second DB outage is logged but never turns uncertainty
+        // into a destructive delete.
+        console.error('[catalog-import] source evidence attachment uncertain; object retained', {
+          jobId: job._id,
+          storageFileId: stored.storageFileId,
+          storagePath: stored.storagePath,
+        });
+        try {
+          await failImportJobEvidence(
+            job._id,
+            now,
+            'source-evidence-attach-uncertain-object-retained',
+            {
+              retainedSourceStorageFileId: stored.storageFileId,
+              retainedSourceStoragePath: stored.storagePath,
+            },
+          );
+        } catch (recordError) {
+          console.error(
+            '[catalog-import] could not record uncertain source evidence attachment',
+            recordError,
+          );
+        }
+        throw new Error(
+          'catalog import source evidence attachment could not be confirmed; object retained',
+          { cause: error },
+        );
+      }
       let cleanupFailed = false;
       try {
         await mediaStorage().deleteObject(stored.storageFileId);

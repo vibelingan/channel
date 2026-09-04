@@ -176,7 +176,9 @@ function mapCandidate(
         ...(listing.externalVariantId === undefined
           ? {}
           : { externalVariantId: listing.externalVariantId }),
-        sku: candidateVariant.sku,
+        // Preserve this store row's original spelling. The grouped candidate
+        // only supplies the cross-store identity used to find the variant.
+        sku: listing.sku,
         matchHints: {
           parentSku: listing.parentSku,
           sku: listing.sku,

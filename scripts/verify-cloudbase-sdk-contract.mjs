@@ -680,7 +680,6 @@ for (const method of [
   'createDocWithId',
   'saveCatalogProductWithIdentities',
   'upsertDocWithId',
-  'upsertCatalogSourceObservation',
 ]) {
   const calls = objectMethodCalls('cloudBaseAdapter', method);
   requireCheck(
@@ -736,9 +735,62 @@ requireCheck(
 );
 requireCheck(
   objectMethodCalls('cloudBaseAdapter', 'upsertCatalogSourceObservation').includes(
+    'upsertCatalogSourceObservationInCloudBase',
+  ),
+  'db cloudbase source observation upsert delegates to the behavior-tested production helper',
+);
+const observationUpsertStart = cloudbaseAdapter.indexOf(
+  'export async function upsertCatalogSourceObservationInCloudBase',
+);
+const observationUpsertEnd = cloudbaseAdapter.indexOf(
+  'export const cloudBaseAdapter',
+  observationUpsertStart,
+);
+const observationUpsert =
+  observationUpsertStart >= 0 && observationUpsertEnd > observationUpsertStart
+    ? cloudbaseAdapter.slice(observationUpsertStart, observationUpsertEnd)
+    : '';
+requireCheck(
+  containsAll(observationUpsert, [
+    'db.runTransaction',
+    'ref.get',
+    'Date.parse',
+    'previousAt',
+    'incomingAt',
     'replaceNestedObjects',
-  ) && objectMethodCalls('cloudBaseAdapter', 'upsertCatalogSourceObservation').includes('ref.set'),
-  'db cloudbase source observation upsert compares recency and owns create/update transactionally',
+    'ref.set',
+  ]),
+  'behavior-tested production source observation helper compares recency and owns the transaction',
+);
+requireCheck(
+  objectMethodCalls('cloudBaseAdapter', 'claimAlibabaSyncRun').includes(
+    'claimAlibabaSyncRunInCloudBase',
+  ),
+  'db cloudbase run claim delegates to the takeover-tested production helper',
+);
+const runClaimStart = cloudbaseAdapter.indexOf(
+  'export async function claimAlibabaSyncRunInCloudBase',
+);
+const runClaimEnd = cloudbaseAdapter.indexOf(
+  'export async function upsertCatalogSourceObservationInCloudBase',
+  runClaimStart,
+);
+const runClaim =
+  runClaimStart >= 0 && runClaimEnd > runClaimStart
+    ? cloudbaseAdapter.slice(runClaimStart, runClaimEnd)
+    : '';
+requireCheck(
+  containsAll(runClaim, [
+    'db.runTransaction',
+    'leaseRef.get',
+    'checkpointRef.get',
+    'runRef.get',
+    'holdsAlibabaLease',
+    "return 'checkpoint-busy'",
+    'runRef.set',
+    'checkpointRef.update',
+  ]),
+  'production atomic run claim reads lease checkpoint and run before writing both together',
 );
 
 requireCheck(

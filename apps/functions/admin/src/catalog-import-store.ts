@@ -136,6 +136,15 @@ export interface ImportSourceEvidence {
   contentType: string;
 }
 
+/**
+ * The attachment write may have committed, but its response and the read-back
+ * both failed. Callers must retain the object: deleting it could break a
+ * durable job pointer that cannot currently be observed.
+ */
+export class ImportSourceEvidenceAttachUncertainError extends Error {
+  override readonly name = 'ImportSourceEvidenceAttachUncertainError';
+}
+
 /** Attach the immutable private source object to its deterministic base job. */
 export async function recordImportSourceEvidence(
   jobId: string,
@@ -157,7 +166,15 @@ export async function recordImportSourceEvidence(
     // A network failure can arrive after CloudBase committed the update. Read
     // back before compensating, otherwise we could delete the object now named
     // by the durable job row.
-    const current = await get(IMPORT_JOBS, jobId);
+    let current: CollectionDoc | null;
+    try {
+      current = await get(IMPORT_JOBS, jobId);
+    } catch {
+      throw new ImportSourceEvidenceAttachUncertainError(
+        'source evidence attachment could not be confirmed',
+        { cause: error },
+      );
+    }
     if (current?.sourceStorageFileId === evidence.storageFileId) return current;
     throw error;
   }

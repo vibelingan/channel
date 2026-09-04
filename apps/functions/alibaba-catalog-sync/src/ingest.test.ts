@@ -194,6 +194,7 @@ const detailBody = (skus: { id: string; price: number }[]) =>
 const ingest = (body: string, runId = 'run-1') =>
   ingestProductDetail({
     bodyText: body,
+    expectedSourceProductId: '987',
     endpointId: 'product.get',
     requestFingerprint: 'fp-1',
     connectionId: 'primary',
@@ -248,6 +249,25 @@ test('raw bytes are durable BEFORE parsing: malformed bodies still leave evidenc
   assert.deepEqual(result, { ok: false, error: 'malformed-response' });
   assert.equal(store.alibabaSourcePayloads?.length, 1, 'raw evidence exists');
   assert.equal(store.alibabaSourceProducts?.length ?? 0, 0, 'no mirror write');
+});
+
+test('a product.get id mismatch preserves raw evidence but writes no derived state', async () => {
+  setup();
+  const result = await ingestProductDetail({
+    bodyText: detailBody([{ id: 'sku-1', price: 2.5 }]),
+    expectedSourceProductId: 'requested-product',
+    endpointId: 'product.get',
+    requestFingerprint: 'fp-mismatch',
+    connectionId: 'primary',
+    runId: 'run-mismatch',
+    now: NOW,
+    leaseGuard: () => TEST_GUARD,
+  });
+  assert.deepEqual(result, { ok: false, error: 'product-id-mismatch' });
+  assert.equal(store.alibabaSourcePayloads?.length, 1, 'exact provider bytes remain evidence');
+  assert.equal(store.alibabaSourceProducts?.length ?? 0, 0);
+  assert.equal(store.alibabaSupplierOffers?.length ?? 0, 0);
+  assert.equal(store.catalogSourceObservations?.length ?? 0, 0);
 });
 
 test('a raw-write failure aborts the page with nothing else written', async () => {
@@ -375,6 +395,7 @@ test('content fingerprint ignores wall-clock stamps: a re-ingest is NOT a change
   setup();
   const first = await ingestProductDetail({
     bodyText: BODY,
+    expectedSourceProductId: '987',
     endpointId: 'product.get',
     requestFingerprint: 'fp-1',
     connectionId: 'primary',
@@ -391,6 +412,7 @@ test('content fingerprint ignores wall-clock stamps: a re-ingest is NOT a change
   // Same bytes, LATER clock, different run.
   const second = await ingestProductDetail({
     bodyText: BODY,
+    expectedSourceProductId: '987',
     endpointId: 'product.get',
     requestFingerprint: 'fp-2',
     connectionId: 'primary',
@@ -430,6 +452,7 @@ test('a per-response id from the gateway is NOT a content change', async () => {
 
   await ingestProductDetail({
     bodyText: withId('req-aaa'),
+    expectedSourceProductId: '987',
     endpointId: 'product.get',
     requestFingerprint: 'fp-1',
     connectionId: 'primary',
@@ -441,6 +464,7 @@ test('a per-response id from the gateway is NOT a content change', async () => {
 
   await ingestProductDetail({
     bodyText: withId('req-bbb'),
+    expectedSourceProductId: '987',
     endpointId: 'product.get',
     requestFingerprint: 'fp-2',
     connectionId: 'primary',
@@ -459,6 +483,7 @@ test('a real content change DOES advance the change stamp', async () => {
   setup();
   await ingestProductDetail({
     bodyText: BODY,
+    expectedSourceProductId: '987',
     endpointId: 'product.get',
     requestFingerprint: 'fp-1',
     connectionId: 'primary',
@@ -469,6 +494,7 @@ test('a real content change DOES advance the change stamp', async () => {
   const changedBody = detailBody([{ id: 'sku-1', price: 9.9 }]);
   const second = await ingestProductDetail({
     bodyText: changedBody,
+    expectedSourceProductId: '987',
     endpointId: 'product.get',
     requestFingerprint: 'fp-2',
     connectionId: 'primary',

@@ -207,6 +207,41 @@ test('a null attachment update is compensated like a thrown database failure', a
   );
 });
 
+test('an ambiguous committed attachment retains the exact workbook object', async (t) => {
+  const { dir, adapter, cleanup } = harness();
+  t.after(cleanup);
+  const originalGet = adapter.get.bind(adapter);
+  const originalUpdate = adapter.update.bind(adapter);
+  let failVerificationRead = false;
+  adapter.update = async (collection, id, data) => {
+    if (collection === 'catalogImportJobs' && Object.hasOwn(data, 'sourceStorageFileId')) {
+      const committed = await originalUpdate(collection, id, data);
+      failVerificationRead = true;
+      assert.ok(committed, 'test setup commits the attachment before losing the response');
+      throw new Error('database response lost after commit');
+    }
+    return originalUpdate(collection, id, data);
+  };
+  adapter.get = async (collection, id) => {
+    if (collection === 'catalogImportJobs' && failVerificationRead) {
+      failVerificationRead = false;
+      throw new Error('verification read unavailable');
+    }
+    return originalGet(collection, id);
+  };
+
+  await assert.rejects(
+    () => runCatalogImport({ bytes: WORKBOOK, sourceFileName: 'export.xlsx' }),
+    /attachment could not be confirmed; object retained/,
+  );
+  const [failed] = await allOf('catalogImportJobs');
+  assert.equal(failed?.failureCode, 'source-evidence-attach-uncertain-object-retained');
+  assert.equal(failed?.sourceStorageFileId, failed?.retainedSourceStorageFileId);
+  const retainedPath = String(failed?.sourceStoragePath ?? '');
+  assert.ok(retainedPath.endsWith('.xlsx'));
+  assert.ok(readFileSync(join(dir, 'media', retainedPath)).equals(WORKBOOK));
+});
+
 test('a cleanup failure records the retained private object for later repair', async (t) => {
   const { dir, adapter, cleanup } = harness();
   t.after(cleanup);

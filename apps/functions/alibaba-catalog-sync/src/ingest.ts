@@ -88,6 +88,8 @@ export async function storeRawPayload(input: StoreRawPayloadInput): Promise<Stor
 
 export interface IngestDetailInput {
   bodyText: string;
+  /** Product id used for the product.get request; the response must echo it exactly. */
+  expectedSourceProductId: string;
   endpointId: string;
   requestFingerprint: string;
   connectionId: string;
@@ -115,6 +117,7 @@ export type IngestDetailResult =
         | 'api-error'
         | 'malformed-response'
         | 'missing-product-id'
+        | 'product-id-mismatch'
         | 'invalid-source-observation'
         | 'lease-lost';
     };
@@ -174,6 +177,10 @@ export async function ingestProductDetail(input: IngestDetailInput): Promise<Ing
   if (envelope.kind === 'api-error') return { ok: false, error: 'api-error' };
 
   const detail: AlibabaProductDetailDraft = extractProductDetail(envelope.root);
+  if (!detail.sourceProductId) return { ok: false, error: 'missing-product-id' };
+  if (detail.sourceProductId !== input.expectedSourceProductId) {
+    return { ok: false, error: 'product-id-mismatch' };
+  }
   const normalized = normalizeProductDetail({
     connectionId: input.connectionId,
     detail,

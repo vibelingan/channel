@@ -14,6 +14,7 @@ import {
   type AdapterListQuery,
   type AlibabaLeaseGrant,
   type AlibabaLeaseGuard,
+  type AlibabaSyncRunClaimResult,
   type CatalogProductSaveInput,
   type CatalogProductSaveResult,
   type CatalogSourceObservationUpsertResult,
@@ -689,6 +690,53 @@ export class JsonFileAdapter implements DbAdapter {
       }
       this.persist();
       return true;
+    });
+  }
+
+  async claimAlibabaSyncRun(
+    runId: string,
+    run: Record<string, unknown>,
+    checkpointPatch: Record<string, unknown>,
+    guard: AlibabaLeaseGuard,
+  ): Promise<AlibabaSyncRunClaimResult> {
+    return this.withMutationLock(() => {
+      const lease =
+        this.docs(ALIBABA_SYNC_LEASE_COLLECTION).find(
+          (document) => document._id === guard.connectionId,
+        ) ?? null;
+      if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return 'lease-lost';
+
+      const checkpoints = this.docs('alibabaSyncCheckpoints');
+      const checkpointIndex = checkpoints.findIndex(
+        (document) => document._id === guard.connectionId,
+      );
+      if (checkpointIndex < 0) return 'checkpoint-missing';
+      const checkpoint = checkpoints[checkpointIndex] as CollectionDoc;
+      if (checkpoint.activeRunId !== undefined && checkpoint.activeRunId !== '') {
+        return 'checkpoint-busy';
+      }
+
+      const runs = this.docs('alibabaSyncRuns');
+      if (runs.some((document) => document._id === runId)) return 'run-exists';
+
+      const { _id: _runId, ...safeRun } = run as Record<string, unknown> & { _id?: unknown };
+      const { _id: _checkpointId, ...safeCheckpointPatch } = checkpointPatch as Record<
+        string,
+        unknown
+      > & { _id?: unknown };
+      runs.push({
+        _id: runId,
+        ...safeRun,
+        createdAt: guard.now,
+        updatedAt: guard.now,
+      } as CollectionDoc);
+      checkpoints[checkpointIndex] = {
+        ...checkpoint,
+        ...safeCheckpointPatch,
+        updatedAt: guard.now,
+      } as CollectionDoc;
+      this.persist();
+      return 'claimed';
     });
   }
 

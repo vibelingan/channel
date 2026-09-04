@@ -274,6 +274,8 @@ function parseReplayManifest(doc: CollectionDoc | null, now: string): ReplayMani
     !Number.isSafeInteger(doc.nextApplyIndex) ||
     Number(doc.nextApplyIndex) < 0 ||
     typeof doc.expiresAt !== 'string' ||
+    !Number.isFinite(Date.parse(doc.expiresAt)) ||
+    !Number.isFinite(Date.parse(now)) ||
     Date.parse(doc.expiresAt) <= Date.parse(now) ||
     doc.pages.length > MAX_REPLAY_MANIFEST_PAGES
   ) {
@@ -315,7 +317,7 @@ function parseReplayManifest(doc: CollectionDoc | null, now: string): ReplayMani
     pages.some(
       (page, index) =>
         page.afterSourceKey !== (index === 0 ? '' : pages[index - 1]?.nextSourceKey) ||
-        (page.sourceProducts > 0 && page.nextSourceKey === page.afterSourceKey),
+        (page.sourceProducts > 0 && page.nextSourceKey <= page.afterSourceKey),
     ) ||
     Number(doc.nextApplyIndex) > pages.length
   ) {
@@ -405,16 +407,25 @@ export async function replayAlibabaRawPage(
         return { ok: false, reason: 'manifest-invalid' };
       }
     }
-    const applyPage =
+    const requestedApplyIndex =
       input.mode === 'apply' && existingManifest
-        ? existingManifest.pages[existingManifest.nextApplyIndex]
-        : undefined;
+        ? existingManifest.pages.findIndex((page) => page.afterSourceKey === afterSourceKey)
+        : -1;
+    const applyPage =
+      requestedApplyIndex >= 0 ? existingManifest?.pages[requestedApplyIndex] : undefined;
+    const applyAlreadyCommitted =
+      input.mode === 'apply' &&
+      existingManifest !== null &&
+      requestedApplyIndex >= 0 &&
+      requestedApplyIndex < existingManifest.nextApplyIndex;
     if (
       input.mode === 'apply' &&
       (!existingManifest ||
-        (existingManifest.status !== 'ready' && existingManifest.status !== 'applying') ||
+        !['ready', 'applying', 'applied'].includes(existingManifest.status) ||
         !applyPage ||
-        applyPage.afterSourceKey !== afterSourceKey ||
+        requestedApplyIndex > existingManifest.nextApplyIndex ||
+        (requestedApplyIndex === existingManifest.nextApplyIndex &&
+          existingManifest.status === 'applied') ||
         applyPage.limit !== limit ||
         applyPage.pageHash !== input.expectedPageHash ||
         existingManifest.totalSourceProducts !== input.expectedTotalSourceProducts)
@@ -613,12 +624,12 @@ export async function replayAlibabaRawPage(
       if (!persisted) return { ok: false, reason: 'lease-lost' };
     }
 
-    let applied = 0;
+    let applied = applyAlreadyCommitted && failures.length === 0 ? plans.length : 0;
     if (input.mode === 'apply' && failures.length === 0) {
       if (input.expectedPageHash !== pageHash) {
         return { ok: false, reason: 'page-changed' };
       }
-      for (const plan of plans) {
+      for (const plan of applyAlreadyCommitted ? [] : plans) {
         if (!(await port.renewLease(holder, grant.fence))) {
           return { ok: false, reason: 'lease-lost' };
         }
@@ -662,23 +673,25 @@ export async function replayAlibabaRawPage(
         if (!observationWritten) return { ok: false, reason: 'lease-lost' };
         applied += 1;
       }
-      const nextApplyIndex = (existingManifest?.nextApplyIndex ?? 0) + 1;
-      const applyComplete = nextApplyIndex >= (existingManifest?.pages.length ?? 0);
-      const manifestAdvanced = await port.upsertReplayManifest(
-        manifestId,
-        {
-          status: applyComplete ? 'applied' : 'applying',
-          nextApplyIndex,
-        },
-        {},
-        {
-          connectionId: PRIMARY_CONNECTION_ID,
-          holder,
-          fence: grant.fence,
-          now: port.now(),
-        },
-      );
-      if (!manifestAdvanced) return { ok: false, reason: 'lease-lost' };
+      if (!applyAlreadyCommitted) {
+        const nextApplyIndex = (existingManifest?.nextApplyIndex ?? 0) + 1;
+        const applyComplete = nextApplyIndex >= (existingManifest?.pages.length ?? 0);
+        const manifestAdvanced = await port.upsertReplayManifest(
+          manifestId,
+          {
+            status: applyComplete ? 'applied' : 'applying',
+            nextApplyIndex,
+          },
+          {},
+          {
+            connectionId: PRIMARY_CONNECTION_ID,
+            holder,
+            fence: grant.fence,
+            now: port.now(),
+          },
+        );
+        if (!manifestAdvanced) return { ok: false, reason: 'lease-lost' };
+      }
     }
 
     const counts: AlibabaRawReplayCounts = {

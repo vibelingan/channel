@@ -5,6 +5,7 @@
  * registry write-schema applies to generic admin CRUD, not here.
  */
 import {
+  claimAlibabaSyncRun as claimAlibabaSyncRunFacade,
   createDoc as createDocTrusted,
   createDocWithId as createDocWithIdFacade,
   get,
@@ -16,7 +17,7 @@ import {
   upsertDocWithAlibabaLease as upsertDocWithAlibabaLeaseFacade,
   upsertDocWithId as upsertDocWithIdFacade,
 } from '@vibelingan-channel/db';
-import type { AlibabaLeaseGuard } from '@vibelingan-channel/db';
+import type { AlibabaLeaseGuard, AlibabaSyncRunClaimResult } from '@vibelingan-channel/db';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 
 export type { CollectionDoc };
@@ -77,6 +78,15 @@ export function upsertDocWithAlibabaLease(
   guard: AlibabaLeaseGuard,
 ): Promise<boolean> {
   return upsertDocWithAlibabaLeaseFacade(collection, id, patch, createOnly, guard);
+}
+
+export function claimAlibabaSyncRun(
+  runId: string,
+  run: Record<string, unknown>,
+  checkpointPatch: Record<string, unknown>,
+  guard: AlibabaLeaseGuard,
+): Promise<AlibabaSyncRunClaimResult> {
+  return claimAlibabaSyncRunFacade(runId, run, checkpointPatch, guard);
 }
 
 export function updateDocWithAlibabaLease(

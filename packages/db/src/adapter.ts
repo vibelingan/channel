@@ -57,6 +57,13 @@ export type CatalogSourceObservationUpsertResult =
   | { result: 'applied'; doc: CollectionDoc }
   | { result: 'stale'; doc: CollectionDoc };
 
+export type AlibabaSyncRunClaimResult =
+  | 'claimed'
+  | 'lease-lost'
+  | 'checkpoint-missing'
+  | 'checkpoint-busy'
+  | 'run-exists';
+
 export type CatalogProductSavePlan =
   | Extract<
       CatalogProductSaveResult,
@@ -485,6 +492,17 @@ export interface DbAdapter {
     createOnly: Record<string, unknown>,
     guard: AlibabaLeaseGuard,
   ): Promise<boolean>;
+  /**
+   * Atomically create a sync run and claim the empty checkpoint slot while
+   * re-verifying the lease. No orphan run or overwritten active slot can be
+   * produced by a holder that stalls across lease takeover.
+   */
+  claimAlibabaSyncRun?(
+    runId: string,
+    run: Record<string, unknown>,
+    checkpointPatch: Record<string, unknown>,
+    guard: AlibabaLeaseGuard,
+  ): Promise<AlibabaSyncRunClaimResult>;
 }
 
 // Re-exported so callers building queries can reference the input shape.

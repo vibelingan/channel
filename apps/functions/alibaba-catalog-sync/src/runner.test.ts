@@ -12,6 +12,7 @@ import type {
   AdapterListQuery,
   AlibabaLeaseGrant,
   AlibabaLeaseGuard,
+  AlibabaSyncRunClaimResult,
   DbAdapter,
 } from '@vibelingan-channel/db';
 import {
@@ -216,6 +217,32 @@ class RunnerMemoryAdapter implements DbAdapter {
     if (index >= 0) docs[index] = { ...(docs[index] as CollectionDoc), ...patch };
     else docs.push({ _id: id, ...createOnly, ...patch } as CollectionDoc);
     return true;
+  }
+  async claimAlibabaSyncRun(
+    runId: string,
+    run: Record<string, unknown>,
+    checkpointPatch: Record<string, unknown>,
+    guard: AlibabaLeaseGuard,
+  ): Promise<AlibabaSyncRunClaimResult> {
+    const lease = this.docs('alibabaSyncLeases').find((d) => d._id === guard.connectionId) ?? null;
+    if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return 'lease-lost';
+    const checkpoints = this.docs('alibabaSyncCheckpoints');
+    const checkpointIndex = checkpoints.findIndex((d) => d._id === guard.connectionId);
+    if (checkpointIndex < 0) return 'checkpoint-missing';
+    const checkpoint = checkpoints[checkpointIndex] as CollectionDoc;
+    if (checkpoint.activeRunId !== undefined && checkpoint.activeRunId !== '') {
+      return 'checkpoint-busy';
+    }
+    const runs = this.docs('alibabaSyncRuns');
+    if (runs.some((d) => d._id === runId)) return 'run-exists';
+    const { _id: _runId, ...safeRun } = run as Record<string, unknown> & { _id?: unknown };
+    const { _id: _checkpointId, ...safeCheckpointPatch } = checkpointPatch as Record<
+      string,
+      unknown
+    > & { _id?: unknown };
+    runs.push({ _id: runId, ...safeRun } as CollectionDoc);
+    checkpoints[checkpointIndex] = { ...checkpoint, ...safeCheckpointPatch } as CollectionDoc;
+    return 'claimed';
   }
 }
 
@@ -429,6 +456,49 @@ test('duplicate timer delivery: the lease admits exactly one concurrent tick', a
   const outcomes = [a.outcome, b.outcome].sort();
   assert.deepEqual(outcomes, ['completed', 'lease-busy']);
   assert.equal(store.alibabaSyncRuns?.length, 1, 'exactly one run row');
+});
+
+test('lease takeover before the atomic run claim creates no run and claims no checkpoint', async () => {
+  setup();
+  const backend = fakeBackend(() => []);
+  const deps = makeDeps(backend.fetchImpl);
+  deps.getAccessToken = async () => {
+    const lease = store.alibabaSyncLeases?.[0] as CollectionDoc;
+    store.alibabaSyncLeases = [
+      {
+        ...lease,
+        holder: 'new-holder',
+        fence: Number(lease.fence) + 1,
+        expiresAt: '2026-08-06T12:30:00.000Z',
+        releasedAt: '',
+      } as CollectionDoc,
+    ];
+    return { ok: true as const, accessToken: 'live-token' };
+  };
+
+  const report = await runSyncTick({ deps, trigger: 'timer' });
+  assert.equal(report.outcome, 'lease-lost');
+  assert.equal(store.alibabaSyncRuns?.length ?? 0, 0, 'stale holder creates no orphan run');
+  assert.equal(
+    (store.alibabaSyncCheckpoints?.[0] as CollectionDoc).activeRunId,
+    '',
+    'stale holder cannot claim the shared checkpoint',
+  );
+});
+
+test('checkpoint race before the atomic run claim creates no orphan run', async () => {
+  setup();
+  const backend = fakeBackend(() => []);
+  const deps = makeDeps(backend.fetchImpl);
+  deps.getAccessToken = async () => {
+    (store.alibabaSyncCheckpoints?.[0] as CollectionDoc).activeRunId = 'other-run';
+    return { ok: true as const, accessToken: 'live-token' };
+  };
+
+  const report = await runSyncTick({ deps, trigger: 'timer' });
+  assert.deepEqual(report, { outcome: 'lease-busy', detail: 'checkpoint-claim-race' });
+  assert.equal(store.alibabaSyncRuns?.length ?? 0, 0, 'loser creates no orphan run');
+  assert.equal((store.alibabaSyncCheckpoints?.[0] as CollectionDoc).activeRunId, 'other-run');
 });
 
 test('continuation: an exhausted budget checkpoints durably and the next tick completes', async () => {
@@ -939,6 +1009,93 @@ test('full run: an invalid tombstone candidate id quarantines before a detail ca
     backend.calls.filter((call) => call === '/sync:alibaba.icbu.product.get').length,
     1,
     'only the enumerated live item is fetched; the invalid candidate never reaches product.get',
+  );
+});
+
+test('incremental run quarantines when product.get returns a different valid product id', async () => {
+  setup();
+  const backend = fakeBackend(() => [{ id: 'item-1', modifiedMs: ITEM_TIME, priceLexeme: '2.50' }]);
+  const mismatchedDetail = (async (input: string | URL | Request, init?: RequestInit) => {
+    const response = await backend.fetchImpl(input, init);
+    const params = new URLSearchParams(String(init?.body ?? ''));
+    if (params.get('method') !== 'alibaba.icbu.product.get') return response;
+    const text = await response.text();
+    return new Response(text.replace('"product_id":"item-1"', '"product_id":"other-item"'), {
+      status: 200,
+    });
+  }) as typeof fetch;
+
+  const report = await runSyncTick({ deps: makeDeps(mismatchedDetail), trigger: 'timer' });
+  assert.equal(report.outcome, 'quarantined', JSON.stringify(report));
+  assert.equal(report.detail, 'detail-product-id-mismatch');
+  assert.equal(store.alibabaSourceProducts?.length ?? 0, 0, 'wrong product never enters mirror');
+  assert.equal(store.alibabaSupplierOffers?.length ?? 0, 0);
+  assert.equal(store.catalogSourceObservations?.length ?? 0, 0);
+  assert.ok((store.alibabaSourcePayloads?.length ?? 0) >= 2, 'list and mismatched detail stay raw');
+});
+
+test('tombstone confirmation cannot let a different valid product satisfy the missing candidate', async () => {
+  setup();
+  const sourceKey = alibabaSourceKey('primary', 'item-gone');
+  store.alibabaSyncCheckpoints = [
+    {
+      _id: 'primary',
+      connectionId: 'primary',
+      activeRunId: '',
+      stage: 'enumerate',
+      nextFullDueAt: '2026-08-06T12:00:00.000Z',
+      nextIncrementalDueAt: '2026-08-06T16:15:00.000Z',
+      committedCursor: '',
+      continuationCount: 0,
+    } as CollectionDoc,
+  ];
+  store.alibabaSourceProducts = [
+    {
+      _id: sourceKey,
+      sourceKey,
+      connectionId: 'primary',
+      sourceProductId: 'item-gone',
+      active: true,
+      lastSeenRunId: 'old-run',
+    } as CollectionDoc,
+  ];
+  const backend = fakeBackend(() => [
+    { id: 'item-1', modifiedMs: ITEM_TIME, priceLexeme: '2.50' },
+    { id: 'item-gone', modifiedMs: ITEM_TIME, priceLexeme: '9.99', removed: true },
+  ]);
+  const mismatchedConfirmation = (async (input: string | URL | Request, init?: RequestInit) => {
+    const params = new URLSearchParams(String(init?.body ?? ''));
+    if (
+      params.get('method') === 'alibaba.icbu.product.get' &&
+      params.get('product_id') === 'item-gone'
+    ) {
+      return new Response(
+        JSON.stringify({
+          result: {
+            product: {
+              product_id: 'other-item',
+              subject: 'Wrong item',
+              fob_currency: 'USD',
+              sku_infos: [{ sku_id: 'other-sku', price: '1.00' }],
+            },
+          },
+        }),
+        { status: 200 },
+      );
+    }
+    return backend.fetchImpl(input, init);
+  }) as typeof fetch;
+
+  const report = await runSyncTick({
+    deps: makeDeps(mismatchedConfirmation),
+    trigger: 'timer',
+  });
+  assert.equal(report.outcome, 'quarantined', JSON.stringify(report));
+  assert.equal(store.alibabaSourceProducts?.find((doc) => doc._id === sourceKey)?.active, true);
+  assert.equal(
+    store.alibabaSourceProducts?.some((doc) => doc.sourceProductId === 'other-item'),
+    false,
+    'mismatched confirmation cannot create a different mirror row',
   );
 });
 

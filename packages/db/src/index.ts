@@ -16,6 +16,7 @@ import {
 import type {
   AlibabaLeaseGrant,
   AlibabaLeaseGuard,
+  AlibabaSyncRunClaimResult,
   CatalogProductSaveInput,
   CatalogProductSaveResult,
   CatalogSourceObservationUpsertResult,
@@ -43,6 +44,7 @@ export type {
   AlibabaLeaseGrant,
   AlibabaLeaseGuard,
   AlibabaLeaseState,
+  AlibabaSyncRunClaimResult,
   CatalogProductIdentity,
   CatalogProductSaveInput,
   CatalogProductSavePlan,
@@ -494,6 +496,25 @@ export function upsertDocWithAlibabaLease(
     throw new Error('@vibelingan-channel/db: fenced upserts are not implemented by this adapter.');
   }
   return adapter.upsertDocWithAlibabaLease(collection, id, patch, createOnly, guard);
+}
+
+/** Atomically create a run row and claim the shared Alibaba checkpoint slot. */
+export function claimAlibabaSyncRun(
+  runId: string,
+  run: Record<string, unknown>,
+  checkpointPatch: Record<string, unknown>,
+  guard: AlibabaLeaseGuard,
+): Promise<AlibabaSyncRunClaimResult> {
+  requireNonEmpty(runId, 'run id');
+  requireNonEmpty(guard.connectionId, 'connectionId');
+  requireNonEmpty(guard.holder, 'lease holder');
+  requireCanonicalIsoInstant(guard.now, 'guard time');
+  requireLeaseNumbers(guard.fence, undefined);
+  const adapter = db();
+  if (!adapter.claimAlibabaSyncRun) {
+    throw new Error('@vibelingan-channel/db: atomic Alibaba run claim is not implemented.');
+  }
+  return adapter.claimAlibabaSyncRun(runId, run, checkpointPatch, guard);
 }
 
 /**
