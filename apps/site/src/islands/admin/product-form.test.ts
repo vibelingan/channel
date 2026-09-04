@@ -120,10 +120,13 @@ test('product form renders sections, primary image semantics, and read-only Alib
     imageIds: ['image-1'],
     alibabaSourceStatus: 'available',
     alibabaSourceLastSyncedAt: '2026-08-20T00:00:00.000Z',
+    alibabaSourceImageUrls: ['https://sc04.alicdn.com/product.jpg'],
   });
   assert.match(markup, /Identity|Content|Media|Pricing &amp; Order|Lifecycle/);
   assert.match(markup, /Primary/);
   assert.match(markup, /Alibaba Source|available|2026-08-20/);
+  assert.match(markup, /Import primary image/);
+  assert.match(markup, /referrerpolicy="no-referrer"/i);
   assert.doesNotMatch(markup, /VIP Price/);
   assert.doesNotMatch(markup, /Subcategory/);
   assert.match(markup, /Quantity Tier Pricing|Add price tier/);
