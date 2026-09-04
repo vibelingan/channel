@@ -115,14 +115,110 @@ export function disconnectAlibaba(): Promise<{ disconnected: boolean }> {
   return call<{ disconnected: boolean }>('disconnect');
 }
 
+const TICK_OUTCOMES = new Set([
+  'idle',
+  'lease-busy',
+  'not-connected',
+  'continued',
+  'completed',
+  'quarantined',
+  'failed',
+  'lease-lost',
+]);
+
 export interface TickReport {
-  outcome: string;
+  outcome:
+    | 'idle'
+    | 'lease-busy'
+    | 'not-connected'
+    | 'continued'
+    | 'completed'
+    | 'quarantined'
+    | 'failed'
+    | 'lease-lost';
   runId?: string;
   detail?: string;
 }
 
-export function runSyncNow(): Promise<TickReport> {
-  return call<TickReport>('runNow');
+function decodeTickReport(value: unknown): TickReport {
+  if (!isRecord(value) || typeof value.outcome !== 'string' || !TICK_OUTCOMES.has(value.outcome)) {
+    throw new AlibabaSyncApiError('INVALID_RESPONSE', 'Sync returned an invalid status payload.');
+  }
+  if (value.runId !== undefined && typeof value.runId !== 'string') {
+    throw new AlibabaSyncApiError('INVALID_RESPONSE', 'Sync returned an invalid run id.');
+  }
+  if (value.detail !== undefined && typeof value.detail !== 'string') {
+    throw new AlibabaSyncApiError('INVALID_RESPONSE', 'Sync returned an invalid detail message.');
+  }
+  return {
+    outcome: value.outcome as TickReport['outcome'],
+    ...(typeof value.runId === 'string' ? { runId: value.runId } : {}),
+    ...(typeof value.detail === 'string' ? { detail: value.detail } : {}),
+  };
+}
+
+export async function runSyncNow(): Promise<TickReport> {
+  return decodeTickReport(await call<unknown>('runNow'));
+}
+
+export interface SyncRunResult {
+  report: TickReport;
+  ticks: number;
+}
+
+interface RunSyncToTerminalOptions {
+  tick?: () => Promise<TickReport>;
+  onProgress?: (report: TickReport, ticks: number) => void;
+  maxTicks?: number;
+}
+
+/**
+ * One admin click drives every bounded worker slice until the run reaches a
+ * terminal outcome. The server remains the authority for leases, checkpoints,
+ * quarantine and the incremental/full decision; the browser only resumes the
+ * same run id returned by `continued`.
+ */
+export async function runSyncToTerminal({
+  tick = runSyncNow,
+  onProgress,
+  maxTicks = 500,
+}: RunSyncToTerminalOptions = {}): Promise<SyncRunResult> {
+  if (!Number.isSafeInteger(maxTicks) || maxTicks < 1) {
+    throw new TypeError('maxTicks must be a positive safe integer.');
+  }
+
+  let continuedRunId: string | undefined;
+  for (let ticks = 1; ticks <= maxTicks; ticks += 1) {
+    const report = await tick();
+    onProgress?.(report, ticks);
+    if (report.outcome !== 'continued') {
+      if (continuedRunId !== undefined && report.runId && report.runId !== continuedRunId) {
+        throw new AlibabaSyncApiError(
+          'INVALID_RESPONSE',
+          'Sync terminal status changed run id unexpectedly.',
+        );
+      }
+      return { report, ticks };
+    }
+    if (!report.runId) {
+      throw new AlibabaSyncApiError(
+        'INVALID_RESPONSE',
+        'Sync continuation did not identify the run to resume.',
+      );
+    }
+    if (continuedRunId !== undefined && report.runId !== continuedRunId) {
+      throw new AlibabaSyncApiError(
+        'INVALID_RESPONSE',
+        'Sync continuation changed run id unexpectedly.',
+      );
+    }
+    continuedRunId = report.runId;
+  }
+
+  throw new AlibabaSyncApiError(
+    'CONTINUATION_LIMIT',
+    `Sync is still running after ${maxTicks} worker ticks. No additional tick was started.`,
+  );
 }
 
 export interface DraftMaterializationProgress {

@@ -27,7 +27,7 @@ import {
   inspectProductDetail,
   linkSourceProduct,
   materializeAlibabaDrafts,
-  runSyncNow,
+  runSyncToTerminal,
   startOAuthFlow,
   syncProduct,
   unlinkSourceProduct,
@@ -167,9 +167,16 @@ export function AlibabaCatalogSyncPage() {
         }
         onRunNow={() =>
           void guard(async () => {
-            const report = await runSyncNow();
+            const { report, ticks } = await runSyncToTerminal({
+              onProgress: (progress, completedTicks) => {
+                if (progress.outcome !== 'continued') return;
+                setNotice(
+                  `Sync in progress: ${completedTicks} worker tick${completedTicks === 1 ? '' : 's'} completed${progress.runId ? ` (${progress.runId})` : ''}…`,
+                );
+              },
+            });
             refreshProductReviewQueue();
-            return `Sync tick finished: ${report.outcome}${report.runId ? ` (${report.runId})` : ''}.`;
+            return `Sync finished after ${ticks} worker tick${ticks === 1 ? '' : 's'}: ${report.outcome}${report.runId ? ` (${report.runId})` : ''}.`;
           })
         }
       />
