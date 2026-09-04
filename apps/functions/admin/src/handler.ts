@@ -218,6 +218,7 @@ const batchRemoveSchema = z.object({
   collection: z.string(),
   ids: z.array(z.string().min(1)).min(1).max(500),
 });
+const markProductReviewedSchema = z.object({ productId: z.string().min(1).max(200) });
 
 const completeUploadSchema = z.object({
   imageId: z.string().min(1),
@@ -408,6 +409,10 @@ function redact(collection: string, doc: CollectionDoc): CollectionDoc {
     } = doc;
     return rest as CollectionDoc;
   }
+  if (collection === 'products') {
+    const { alibabaReviewedByUserId: _reviewer, ...rest } = doc;
+    return rest as CollectionDoc;
+  }
   return doc;
 }
 
@@ -566,6 +571,10 @@ export async function handleAdminRequest(
         return await batchUpdateAction(req, claims);
       case 'batchRemove':
         return await batchRemoveAction(req, claims);
+      case 'productReviewSummary':
+        return await productReviewSummaryAction(claims);
+      case 'markProductReviewed':
+        return await markProductReviewedAction(req, claims);
       case 'backfillImageRefCounts':
         return await backfillImageRefCountsAction(req, claims);
       case 'cleanupOrphanImages':
@@ -1258,13 +1267,89 @@ async function listAction(req: AdminRequest, claims: SessionClaims): Promise<Api
   const { filter, productFamily, sort, ...rest } = parsed.data;
   const badClause = validateQueryClauses(parsed.data.collection, filter, sort);
   if (badClause) return badClause;
+  // Entering Products is an operational review queue: unless the operator
+  // explicitly chose another column sort, first-seen Alibaba drafts lead the
+  // result set. A compound CloudBase index backs both All and family views.
+  const effectiveSort =
+    parsed.data.collection === 'products' && (!sort || sort.length === 0)
+      ? [
+          { field: 'alibabaReviewPending', dir: 'desc' as const },
+          { field: 'createdAt', dir: 'desc' as const },
+        ]
+      : sort;
   const result = await list({
     ...rest,
     ...(productFamily ? { productFamily } : {}),
     ...(filter ? { filter } : {}),
-    ...(sort ? { sort } : {}),
+    ...(effectiveSort ? { sort: effectiveSort } : {}),
   });
   return ok({ ...result, items: result.items.map((d) => redact(parsed.data.collection, d)) });
+}
+
+async function pendingProductCount(productFamily?: (typeof PRODUCT_FAMILY_OPTIONS)[number]) {
+  const result = await list({
+    collection: 'products',
+    page: 1,
+    pageSize: 1,
+    search: '',
+    filter: {
+      combinator: 'and',
+      clauses: [
+        { field: 'alibabaReviewPending', op: 'eq', value: true },
+        ...(productFamily
+          ? [{ field: 'productFamily', op: 'eq' as const, value: productFamily }]
+          : []),
+      ],
+    },
+    sort: [
+      { field: 'alibabaReviewPending', dir: 'desc' },
+      { field: 'createdAt', dir: 'desc' },
+    ],
+  });
+  return result.total;
+}
+
+async function productReviewSummaryAction(claims: SessionClaims): Promise<ApiResult<unknown>> {
+  if (claims.role !== 'admin') {
+    return err('FORBIDDEN', 'Only admins can view the Alibaba review queue summary.');
+  }
+  const [total, ...familyCounts] = await Promise.all([
+    pendingProductCount(),
+    ...PRODUCT_FAMILY_OPTIONS.map((family) => pendingProductCount(family)),
+  ]);
+  return ok({
+    pendingTotal: total,
+    byFamily: Object.fromEntries(
+      PRODUCT_FAMILY_OPTIONS.map((family, index) => [family, familyCounts[index] ?? 0]),
+    ),
+  });
+}
+
+async function markProductReviewedAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  if (claims.role !== 'admin') {
+    return err('FORBIDDEN', 'Only admins can acknowledge Alibaba product reviews.');
+  }
+  const parsed = markProductReviewedSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'productId is required');
+  const product = await get('products', parsed.data.productId);
+  if (!product) return err('NOT_FOUND', 'Product not found');
+  if (typeof product.alibabaPrimarySourceKey !== 'string' || !product.alibabaPrimarySourceKey) {
+    return err('CONFLICT', 'Only Alibaba-linked products belong to this review queue.');
+  }
+  if (product.alibabaReviewPending === false) {
+    return ok({ ...redact('products', product), alreadyReviewed: true });
+  }
+  const reviewedAt = new Date().toISOString();
+  const updated = await updateDoc('products', parsed.data.productId, {
+    alibabaReviewPending: false,
+    alibabaReviewedAt: reviewedAt,
+    alibabaReviewedByUserId: claims.sub,
+  });
+  if (!updated) return err('NOT_FOUND', 'Product not found');
+  return ok(redact('products', updated));
 }
 
 async function getAction(req: AdminRequest, claims: SessionClaims): Promise<ApiResult<unknown>> {
@@ -1638,7 +1723,19 @@ async function updateAction(req: AdminRequest, claims: SessionClaims): Promise<A
       const productValues = clearsManualPricing ? productValuesWithoutPricing : parsed.data.values;
       const values = buildWriteSchema(definition).partial().parse(productValues);
       if (clearsManualPricing) values.manualCatalogPricing = '';
-      const transition = await updateCatalogProductRecord(parsed.data.id, values);
+      const acknowledgesReview =
+        before?.alibabaReviewPending === true &&
+        (values.published === true || values.archived === true);
+      const transition = await updateCatalogProductRecord(parsed.data.id, {
+        ...values,
+        ...(acknowledgesReview
+          ? {
+              alibabaReviewPending: false,
+              alibabaReviewedAt: new Date().toISOString(),
+              alibabaReviewedByUserId: claims.sub,
+            }
+          : {}),
+      });
       doc = transition.doc;
       authoritativeBefore = transition.previous;
     } else {

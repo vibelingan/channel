@@ -119,6 +119,9 @@ export async function unlinkProduct(
     alibabaCatalogPricing: null,
     alibabaSourceStatus: null,
     alibabaSourceLastSyncedAt: context.now,
+    alibabaReviewPending: null,
+    alibabaReviewedAt: null,
+    alibabaReviewedByUserId: null,
   });
   return { ok: true, productId, clearedLinks: links.items.length };
 }
@@ -135,6 +138,18 @@ export type DraftResult =
 export function draftProductId(sourceKey: string): string {
   const hex = createHash('sha256').update(`channel-product\0${sourceKey}`).digest('hex');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
+async function ensureAlibabaReviewState(
+  productId: string,
+  product: Record<string, unknown>,
+): Promise<void> {
+  if (typeof product.alibabaReviewPending === 'boolean') return;
+  // A legacy row may already carry acknowledgement evidence from a partially
+  // rolled-out release. In that case materialization must not resurrect it.
+  const reviewed =
+    typeof product.alibabaReviewedAt === 'string' && product.alibabaReviewedAt.trim() !== '';
+  await updateDoc('products', productId, { alibabaReviewPending: !reviewed });
 }
 
 async function mappedCategory(sourceCategoryId: string): Promise<{
@@ -217,7 +232,10 @@ export async function createDraftForSource(
     const existing = await getDoc('alibabaProductLinks', sourceKey);
     if (existing && typeof existing.productId === 'string' && existing.productId !== '') {
       const linkedProduct = await getDoc('products', existing.productId);
-      if (linkedProduct) return { ok: true, productId: existing.productId, created: false };
+      if (linkedProduct) {
+        await ensureAlibabaReviewState(existing.productId, linkedProduct);
+        return { ok: true, productId: existing.productId, created: false };
+      }
       // A previous invocation committed the link then crashed. Recreate the
       // missing product at the id already named by the authoritative link.
       return createLinkedDraft(source, existing.productId, category, context.now);
@@ -273,6 +291,7 @@ async function createLinkedDraft(
       : [],
     alibabaSourceStatus: source.active === true ? 'available' : 'removed',
     alibabaSourceLastSyncedAt: now,
+    alibabaReviewPending: true,
     createdAt: now,
     updatedAt: now,
   };
@@ -284,6 +303,7 @@ async function createLinkedDraft(
     if (existingProduct?.alibabaPrimarySourceKey !== source._id) {
       return { ok: false, reason: 'linked-elsewhere' };
     }
+    await ensureAlibabaReviewState(productId, existingProduct);
   }
   return { ok: true, productId, created: created === 'created' };
 }

@@ -72,7 +72,12 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
             <CatalogImportPage />
           </div>
         ) : section && collection ? (
-          <CollectionView key={collection.name} collection={collection} section={section} />
+          <CollectionView
+            key={collection.name}
+            collection={collection}
+            section={section}
+            role={role}
+          />
         ) : (
           <p className="p-8 text-slate-500">No collections available.</p>
         )}

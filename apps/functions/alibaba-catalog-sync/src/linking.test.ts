@@ -259,6 +259,7 @@ test('an unmapped source still creates a visible unpublished draft', async () =>
   assert.equal(draft.alibabaSourceProductId, '987');
   assert.equal(draft.alibabaSourceCategoryId, 'cat-100');
   assert.deepEqual(draft.alibabaSourceImageUrls, ['https://sc04.alicdn.com/product.jpg']);
+  assert.equal(draft.alibabaReviewPending, true);
 });
 
 test('a mapped source creates an UNPUBLISHED draft with source suggestions', async () => {
@@ -328,4 +329,24 @@ test('an existing complete link returns the linked product without creating', as
   const result = await createDraftForSource(SOURCE_KEY, CTX);
   assert.deepEqual(result, { ok: true, productId: 'p-1', created: false });
   assert.equal(store.products?.length, 1, 'no draft for an already-linked source');
+  assert.equal(store.products?.[0]?.alibabaReviewPending, true, 'legacy linked row is backfilled');
+});
+
+test('draft retry never reopens a product an admin already reviewed', async () => {
+  setup({ alibabaCategoryMappings: [MAPPING] });
+  await linkExistingProduct(SOURCE_KEY, 'p-1', CTX);
+  const product = store.products?.[0];
+  assert.ok(product);
+  product.alibabaReviewPending = false;
+  product.alibabaReviewedAt = NOW;
+  product.alibabaReviewedByUserId = 'admin-1';
+
+  const result = await createDraftForSource(SOURCE_KEY, {
+    now: '2026-08-07T00:00:00.000Z',
+  });
+
+  assert.deepEqual(result, { ok: true, productId: 'p-1', created: false });
+  assert.equal(product.alibabaReviewPending, false);
+  assert.equal(product.alibabaReviewedAt, NOW);
+  assert.equal(product.alibabaReviewedByUserId, 'admin-1');
 });

@@ -30,6 +30,24 @@ export const REQUIRED_NOSQL_RESOURCES = [
     permission: 'ADMINONLY',
     indexes: [],
   },
+  // Existing canonical catalog collection. Declared here so the pending-review
+  // queue's default All/family ordering cannot depend on an operator-created
+  // console index. The collection is already function-only (ADMINONLY).
+  {
+    collectionName: 'products',
+    permission: 'ADMINONLY',
+    indexes: [
+      index('product_alibaba_review_queue', [
+        ['alibabaReviewPending', '-1'],
+        ['createdAt', '-1'],
+      ]),
+      index('product_family_alibaba_review_queue', [
+        ['productFamily', '1'],
+        ['alibabaReviewPending', '-1'],
+        ['createdAt', '-1'],
+      ]),
+    ],
+  },
   // Alibaba linked catalog sync (docs/alibaba-linked-catalog-sync/, MIU 3).
   // All ADMINONLY: every read/write goes through the functions, never the
   // client SDK. Deterministic document ids (sourceKey/offerKey/connectionId)

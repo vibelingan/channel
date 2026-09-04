@@ -5,13 +5,14 @@
  * `{ action, data, token }` protocol the cloud function and local-server speak.
  * The session token is shared with the rest of the site via `lib/session`.
  */
-import type {
-  CollectionDoc,
-  FilterModel,
-  ListResult,
-  ProductFamily,
-  SessionUser,
-  SortClause,
+import {
+  type CollectionDoc,
+  type FilterModel,
+  type ListResult,
+  PRODUCT_FAMILY_OPTIONS,
+  type ProductFamily,
+  type SessionUser,
+  type SortClause,
 } from '@vibelingan-channel/shared';
 import { readApiEnvelope } from '../../lib/api-envelope.ts';
 import { apiUrl } from '../../lib/api-url.ts';
@@ -69,6 +70,56 @@ export interface ListArgs {
 
 export function listRecords(args: ListArgs): Promise<ListResult<CollectionDoc>> {
   return call<ListResult<CollectionDoc>>('list', args);
+}
+
+export interface ProductReviewSummary {
+  pendingTotal: number;
+  byFamily: Record<ProductFamily, number>;
+}
+
+function isNonNegativeSafeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+/** Fail closed on a malformed server payload so bad counts never become UI state. */
+export function decodeProductReviewSummary(value: unknown): ProductReviewSummary {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new AdminApiError('INVALID_RESPONSE', 'Product review summary was malformed.');
+  }
+  const record = value as Record<string, unknown>;
+  const byFamily = record.byFamily;
+  if (!byFamily || typeof byFamily !== 'object' || Array.isArray(byFamily)) {
+    throw new AdminApiError('INVALID_RESPONSE', 'Product review summary was malformed.');
+  }
+  const familyRecord = byFamily as Record<string, unknown>;
+  const families: readonly ProductFamily[] = PRODUCT_FAMILY_OPTIONS;
+  if (
+    !isNonNegativeSafeInteger(record.pendingTotal) ||
+    !families.every((family) => isNonNegativeSafeInteger(familyRecord[family]))
+  ) {
+    throw new AdminApiError('INVALID_RESPONSE', 'Product review summary was malformed.');
+  }
+  const mappedTotal = families.reduce((sum, family) => sum + Number(familyRecord[family]), 0);
+  if (mappedTotal > record.pendingTotal) {
+    throw new AdminApiError('INVALID_RESPONSE', 'Product review summary was inconsistent.');
+  }
+  return {
+    pendingTotal: record.pendingTotal,
+    byFamily: {
+      headphones: Number(familyRecord.headphones),
+      'ai-gadgets': Number(familyRecord['ai-gadgets']),
+      toys: Number(familyRecord.toys),
+      misc: Number(familyRecord.misc),
+    },
+  };
+}
+
+export async function fetchProductReviewSummary(): Promise<ProductReviewSummary> {
+  return decodeProductReviewSummary(await call<unknown>('productReviewSummary'));
+}
+
+export function markProductReviewed(productId: string): Promise<CollectionDoc> {
+  return call<CollectionDoc>('markProductReviewed', { productId });
 }
 
 export function createRecord(

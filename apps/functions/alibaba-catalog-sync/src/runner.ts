@@ -234,9 +234,14 @@ export async function runSyncTick(input: {
         ...(typeof checkpointDoc.activeRunId === 'string' && checkpointDoc.activeRunId !== ''
           ? { activeRunId: checkpointDoc.activeRunId }
           : {}),
-        ...(typeof checkpointDoc.nextFullDueAt === 'string'
-          ? { nextFullDueAt: checkpointDoc.nextFullDueAt }
-          : {}),
+        ...(manualStart
+          ? // Run now is the explicit incremental command. Mask an overdue
+            // full watermark for this decision only; the stored full schedule
+            // remains intact for a future timer or dedicated full-resync flow.
+            { nextFullDueAt: computeNextFullDueAt(now) }
+          : typeof checkpointDoc.nextFullDueAt === 'string'
+            ? { nextFullDueAt: checkpointDoc.nextFullDueAt }
+            : {}),
         ...(manualStart
           ? { nextIncrementalDueAt: now }
           : typeof checkpointDoc.nextIncrementalDueAt === 'string'

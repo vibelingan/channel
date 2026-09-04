@@ -392,6 +392,27 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         readOnly: true,
         hideInTable: true,
       },
+      {
+        name: 'alibabaReviewPending',
+        label: 'Alibaba Review Pending',
+        type: 'boolean',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'alibabaReviewedAt',
+        label: 'Alibaba Reviewed At',
+        type: 'date',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'alibabaReviewedByUserId',
+        label: 'Alibaba Reviewed By',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
     ],
   },
   {

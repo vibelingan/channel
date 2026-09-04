@@ -685,6 +685,26 @@ test('a manual run MARKS ITSELF DUE — the timer-less test env can still sync',
   assert.ok(backend.calls.length > 0, 'it actually reached the API');
 });
 
+test('a manual start is incremental even when the stored full watermark is overdue', async () => {
+  setup();
+  const checkpoint = store.alibabaSyncCheckpoints?.[0] as CollectionDoc;
+  checkpoint.nextFullDueAt = '2026-08-02T18:30:00.000Z';
+  checkpoint.nextIncrementalDueAt = '2026-08-09T00:00:00.000Z';
+
+  const report = await runSyncTick({
+    deps: makeDeps(fakeBackend(() => []).fetchImpl),
+    trigger: 'manual',
+  });
+
+  assert.equal(report.outcome, 'completed');
+  assert.equal(store.alibabaSyncRuns?.[0]?.mode, 'incremental');
+  assert.equal(
+    checkpoint.nextFullDueAt,
+    '2026-08-02T18:30:00.000Z',
+    'manual incremental does not silently advance or consume the full schedule',
+  );
+});
+
 test('drafts are created only AFTER the quarantine gate passes', async () => {
   setup();
   // An unlinked source with a category mapping would normally become a draft.

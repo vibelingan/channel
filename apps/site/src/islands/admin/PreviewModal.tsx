@@ -8,13 +8,25 @@ interface Props {
   doc: CollectionDoc;
   onClose: () => void;
   onEdit: () => void;
+  canMarkReviewed?: boolean;
+  reviewBusy?: boolean;
+  reviewError?: Error | null;
+  onMarkReviewed?: () => void;
 }
 
 /**
  * Catalog item preview — shows admins/contributors how a Headphones or Overstock
  * item will look to the public before they publish it.
  */
-export function PreviewModal({ doc, onClose, onEdit }: Props) {
+export function PreviewModal({
+  doc,
+  onClose,
+  onEdit,
+  canMarkReviewed = false,
+  reviewBusy = false,
+  reviewError = null,
+  onMarkReviewed,
+}: Props) {
   const imageIds = Array.isArray(doc.imageIds) ? (doc.imageIds as string[]) : [];
   const sourceImageUrls = alibabaSourcePreviewUrls(doc.alibabaSourceImageUrls);
   const published = doc.published === true;
@@ -95,6 +107,11 @@ export function PreviewModal({ doc, onClose, onEdit }: Props) {
         <div className="flex items-center justify-between border-b border-slate-100 p-5">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold text-slate-900">Preview</h2>
+            {doc.alibabaReviewPending === true && (
+              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                New · review needed
+              </span>
+            )}
             <span
               className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
                 published ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'
@@ -208,7 +225,12 @@ export function PreviewModal({ doc, onClose, onEdit }: Props) {
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-slate-100 p-5">
+        {reviewError && (
+          <p role="alert" className="px-5 pt-4 text-sm text-red-600">
+            {reviewError.message}
+          </p>
+        )}
+        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 p-5">
           <button
             type="button"
             onClick={onClose}
@@ -216,6 +238,16 @@ export function PreviewModal({ doc, onClose, onEdit }: Props) {
           >
             Close
           </button>
+          {canMarkReviewed && doc.alibabaReviewPending === true && onMarkReviewed && (
+            <button
+              type="button"
+              disabled={reviewBusy}
+              onClick={onMarkReviewed}
+              className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {reviewBusy ? 'Marking…' : 'Mark reviewed'}
+            </button>
+          )}
           <button
             type="button"
             onClick={onEdit}

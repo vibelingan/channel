@@ -84,6 +84,9 @@ const ALIBABA_PRODUCT_FIELDS = [
   'alibabaCatalogPricing',
   'alibabaSourceStatus',
   'alibabaSourceLastSyncedAt',
+  'alibabaReviewPending',
+  'alibabaReviewedAt',
+  'alibabaReviewedByUserId',
 ];
 
 test('products exposes every additive Alibaba field as read-only', () => {

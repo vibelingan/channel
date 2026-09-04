@@ -526,6 +526,18 @@ test('draft materialization is admin-only and validates its bounded cursor page'
   }
 });
 
+test('manual sync cannot be started by a contributor', async () => {
+  setup();
+  const contributor = await contributorToken();
+  const forbidden = await handleAlibabaSyncRequest(
+    { action: 'runNow', token: contributor },
+    baseConfig,
+  );
+  assert.equal(forbidden.ok, false);
+  if (!forbidden.ok) assert.equal(forbidden.error.code, 'FORBIDDEN');
+  assert.equal(currentStore.alibabaSyncRuns?.length ?? 0, 0);
+});
+
 test('selected product sync is admin-only and rejects malformed provider ids', async () => {
   setup();
   const contributor = await contributorToken();

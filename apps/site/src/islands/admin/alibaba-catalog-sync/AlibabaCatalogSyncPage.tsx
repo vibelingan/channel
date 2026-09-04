@@ -1,4 +1,3 @@
-import type { CollectionDoc } from '@vibelingan-channel/shared';
 /**
  * Alibaba Catalog Sync operations page (MIU 13) — the dedicated admin
  * surface for the connection lifecycle, manual runs, run history, quarantine
@@ -6,6 +5,8 @@ import type { CollectionDoc } from '@vibelingan-channel/shared';
  * generic-CRUD section; the sync-internal collections are readOnly/none and
  * only ever surface through these dedicated actions.
  */
+import { useQueryClient } from '@tanstack/react-query';
+import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { listRecords } from '../api.ts';
 import { AlibabaConnectionPanel } from './AlibabaConnectionPanel.tsx';
@@ -70,6 +71,7 @@ export function callbackNotice(search: string): string | null {
 }
 
 export function AlibabaCatalogSyncPage() {
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<ConnectionStatus | null>(null);
   const [runs, setRuns] = useState<CollectionDoc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,6 +140,11 @@ export function AlibabaCatalogSyncPage() {
     [refresh],
   );
 
+  const refreshProductReviewQueue = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ['list', 'products'] });
+    void queryClient.invalidateQueries({ queryKey: ['product-review-summary'] });
+  }, [queryClient]);
+
   return (
     <div data-alibaba-sync-page className="space-y-4">
       <AlibabaConnectionPanel
@@ -161,6 +168,7 @@ export function AlibabaCatalogSyncPage() {
         onRunNow={() =>
           void guard(async () => {
             const report = await runSyncNow();
+            refreshProductReviewQueue();
             return `Sync tick finished: ${report.outcome}${report.runId ? ` (${report.runId})` : ''}.`;
           })
         }
@@ -186,6 +194,7 @@ export function AlibabaCatalogSyncPage() {
             setSelectedSyncResult(null);
             const result = await syncProduct(sourceProductId);
             setSelectedSyncResult(result);
+            refreshProductReviewQueue();
             return `${result.draftCreated ? 'Created' : 'Updated'} an unpublished product draft for ${result.sourceProductId}.`;
           }).finally(() => setInspectingDetail(false));
         }}
@@ -199,6 +208,7 @@ export function AlibabaCatalogSyncPage() {
           void guard(async () => {
             const result = await materializeAlibabaDrafts(setDraftProgress, sourceCategoryId);
             setDraftProgress(result);
+            refreshProductReviewQueue();
             return `Product drafts ready: ${result.created} created, ${result.existing} already present, ${result.failures} failed.`;
           });
         }}

@@ -634,6 +634,118 @@ test('manual tier pricing can be explicitly cleared only on product update', asy
   assert.equal(store.products?.[0]?.manualCatalogPricing, '');
 });
 
+test('product review queue is admin-only, counted by family, and pending-first by default', async () => {
+  const store = setup({
+    users: [],
+    products: [
+      {
+        _id: 'reviewed-newer',
+        name: 'Reviewed newer',
+        productFamily: 'headphones',
+        alibabaPrimarySourceKey: 'source-reviewed',
+        alibabaReviewPending: false,
+        createdAt: '2026-09-04T12:00:00.000Z',
+      },
+      {
+        _id: 'pending-headphones',
+        name: 'Pending headphones',
+        productFamily: 'headphones',
+        alibabaPrimarySourceKey: 'source-hp',
+        alibabaReviewPending: true,
+        createdAt: '2026-09-04T10:00:00.000Z',
+      },
+      {
+        _id: 'pending-unmapped',
+        name: 'Pending unmapped',
+        alibabaPrimarySourceKey: 'source-unmapped',
+        alibabaReviewPending: true,
+        createdAt: '2026-09-04T11:00:00.000Z',
+      },
+    ] as CollectionDoc[],
+  });
+  const contributor = await contributorToken();
+  expectErr(await call('productReviewSummary', {}, contributor), 'FORBIDDEN');
+
+  const admin = await adminToken();
+  const summary = okData<{
+    pendingTotal: number;
+    byFamily: Record<string, number>;
+  }>(await call('productReviewSummary', {}, admin));
+  assert.equal(summary.pendingTotal, 2);
+  assert.equal(summary.byFamily.headphones, 1);
+  assert.equal(summary.byFamily['ai-gadgets'], 0);
+  assert.equal(summary.byFamily.toys, 0);
+  assert.equal(summary.byFamily.misc, 0);
+
+  const listed = okData<ListResult<CollectionDoc>>(
+    await call('list', { collection: 'products', page: 1, pageSize: 20 }, admin),
+  );
+  assert.deepEqual(
+    listed.items.map((item) => item._id),
+    ['pending-unmapped', 'pending-headphones', 'reviewed-newer'],
+  );
+  assert.equal(store.products?.length, 3);
+});
+
+test('admin can acknowledge one Alibaba draft and publishing also consumes New once', async () => {
+  const store = setup({
+    users: [],
+    products: [
+      {
+        _id: 'pending-explicit',
+        ...publishableProduct({ published: false }),
+        alibabaPrimarySourceKey: 'source-explicit',
+        alibabaReviewPending: true,
+      },
+      {
+        _id: 'pending-publish',
+        ...publishableProduct({ published: false }),
+        alibabaPrimarySourceKey: 'source-publish',
+        alibabaReviewPending: true,
+      },
+      { _id: 'manual', ...publishableProduct({ published: false }) },
+    ] as CollectionDoc[],
+    catalogProductIdentities: [],
+  });
+  const contributor = await contributorToken();
+  expectErr(
+    await call('markProductReviewed', { productId: 'pending-explicit' }, contributor),
+    'FORBIDDEN',
+  );
+  const admin = await adminToken();
+  const reviewed = okData<CollectionDoc>(
+    await call('markProductReviewed', { productId: 'pending-explicit' }, admin),
+  );
+  assert.equal(reviewed.alibabaReviewPending, false);
+  assert.equal(reviewed.alibabaReviewedByUserId, undefined, 'reviewer id is not returned to UI');
+  assert.equal(typeof reviewed.alibabaReviewedAt, 'string');
+  assert.equal(
+    store.products?.find((item) => item._id === 'pending-explicit')?.alibabaReviewedByUserId,
+    'admin-1',
+  );
+
+  const published = okData<CollectionDoc>(
+    await call(
+      'update',
+      { collection: 'products', id: 'pending-publish', values: { published: true } },
+      admin,
+    ),
+  );
+  assert.equal(published.published, true);
+  assert.equal(published.alibabaReviewPending, false);
+  assert.equal(published.alibabaReviewedByUserId, undefined);
+  assert.equal(
+    store.products?.find((item) => item._id === 'pending-publish')?.alibabaReviewedByUserId,
+    'admin-1',
+  );
+
+  expectErr(await call('markProductReviewed', { productId: 'manual' }, admin), 'CONFLICT');
+  assert.equal(
+    store.products?.find((item) => item._id === 'manual')?.alibabaReviewPending,
+    undefined,
+  );
+});
+
 test('product publish requires the complete lifecycle contract', async () => {
   setup({ users: [], products: [] });
   const token = await adminToken();
