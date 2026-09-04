@@ -272,3 +272,55 @@ store-scoped Dianxiaomi observations, sanitizer provenance, and durable raw XLSX
 evidence. These changes require their own function/static release verification;
 the preceding live-acceptance section remains the evidence for the earlier
 `90840ab` release until that deployment is recorded.
+
+## Hardened release acceptance — 2026-09-04
+
+Independent review found no Critical, Important or Minor blockers at
+`27f6128738cee205fd63cd8af04047199025d715`. Typecheck, lint, the CloudBase SDK
+contract gate, function artifact cold-start smokes and the focused Site,
+Alibaba, DB, catalog-import and local-server suites all passed. The branch was
+pushed before deployment.
+
+The hidden `alibabaRawReplayManifests` collection was created and independently
+read back with `ADMINONLY` permission. Only the `alibaba-catalog-sync` function
+code was updated (`UpdateFunctionCode` request
+`8cbbba8f-d65c-4e6b-8a2a-257c7b48d7c6`). Remote detail then reported
+Nodejs20.19, `Active` / `Available`, Event type, no triggers, 900-second timeout,
+and modification time `2026-09-04 14:44:18`; existing masked environment
+configuration was preserved. The matching static Admin build was uploaded and
+`admin/index.html` was read back with modification time
+`2026-09-04T06:48:36Z`.
+
+An authenticated one-product inspection called `product.get` for
+`AAF-BBhgAOVTpOOZBg46XHoO`. It returned 22,933 bytes, an HTML description of
+15,882 characters, six images and two SKU offers; both SKUs had scoped option
+values and USD tier pricing. Payload
+`02b1508207d238bac3a5ade1c70cc7cb33af427e59ea015e2ce485563868d833`
+was recorded as `stored`, and an independent storage-info read confirmed the
+private 22.40 KiB JSON object exists. The probe wrote no source mirror, supplier
+offer, link or canonical product.
+
+The first replay click after function deployment intentionally failed closed on
+page two: the already-open browser still ran the older Admin bundle, which did
+not echo the new server manifest id after page one. It left one bounded
+`collecting` manifest that expires after two hours and made no derived-data
+write. After the matching Admin bundle was deployed and reloaded, a fresh
+manifest (`raw-replay-3accd8a4-957d-4f19-8cd6-cb2c918bd616`) validated all 54
+pages / 1,074 products with the same aggregate values as the earlier audit, was
+sealed `ready`, and then applied all 54 pages. The database readback showed
+`status=applied`, `nextApplyIndex=54` and `totalSourceProducts=1074`.
+
+Post-apply reads confirmed 1,074 active common observations, 1,074 active
+Alibaba source products and 3,672 active supplier offers. The sampled product
+contained the sanitized description and text, six media URLs, two variants with
+`color` and `Connectors` options, two matching supplier offers, MOQ 2,000 and a
+USD 1.07 tier; its evidence hash resolved to the preserved raw payload. The
+canonical boundary remained unchanged at seven `products`, zero
+`alibabaProductLinks` and zero `alibabaCategoryMappings`.
+
+Finally, the matching release completed normal manual incremental run
+`incremental-2026-09-04T07-18-29-824Z` in about three seconds. Its new
+173-byte `product.list` response was recorded as stored and independently found
+in private storage. The empty update window produced no detail calls or derived
+count change, which is the intended daily strategy: list discovers ids and
+pagination; detail is authoritative only for ids returned by that window.
