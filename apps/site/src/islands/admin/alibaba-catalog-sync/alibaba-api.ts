@@ -350,11 +350,23 @@ export async function applySourceObservationReplay(
       expected.afterSourceKey,
       expected.pageHash,
     );
+    if (!page.ready) {
+      const reasonCounts = new Map<string, number>();
+      for (const failure of page.failures) {
+        reasonCounts.set(failure.reason, (reasonCounts.get(failure.reason) ?? 0) + 1);
+      }
+      const summary = [...reasonCounts.entries()]
+        .map(([reason, count]) => `${reason} (${count})`)
+        .join(', ');
+      throw new AlibabaSyncApiError(
+        'CONFLICT',
+        `Replay page preflight failed: ${summary || 'unknown failure'}.`,
+      );
+    }
     if (
       page.pageHash !== expected.pageHash ||
       page.nextSourceKey !== expected.nextSourceKey ||
-      page.done !== expected.done ||
-      !page.ready
+      page.done !== expected.done
     ) {
       throw new AlibabaSyncApiError('CONFLICT', 'Replay page changed after validation.');
     }

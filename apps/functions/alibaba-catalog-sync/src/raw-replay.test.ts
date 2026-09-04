@@ -155,6 +155,26 @@ test('an id mismatch blocks the whole page before any derived write', async () =
   assert.equal(harness.observations.length, 0);
 });
 
+test('apply reports a changed preflight reason before the generic page hash conflict', async () => {
+  const harness = port();
+  const dry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, harness.p);
+  assert.equal(dry.ok, true);
+  if (!dry.ok) return;
+
+  harness.p.listActiveOffers = async () => [];
+  const result = await replayAlibabaRawPage(
+    { mode: 'apply', limit: 10, expectedPageHash: dry.pageHash },
+    harness.p,
+  );
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.ready, false);
+  assert.equal(result.applied, 0);
+  assert.equal(result.failures[0]?.reason, 'offer-set-mismatch');
+  assert.equal(harness.updatedOffers.length, 0);
+  assert.equal(harness.observations.length, 0);
+});
+
 test('raw byte-size and run provenance mismatches fail closed before writes', async () => {
   const sizeMismatch = fixture();
   sizeMismatch.payload.byteLength = Number(sizeMismatch.payload.byteLength) + 1;

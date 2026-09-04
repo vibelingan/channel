@@ -165,6 +165,43 @@ test('validation advances by cursor and apply reuses each exact page hash', asyn
   }
 });
 
+test('apply reports a bounded preflight reason without exposing source keys', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: { getItem: () => 'browser-session' },
+  });
+  const failedPage: SourceObservationReplayPage = {
+    ...validPage,
+    mode: 'apply',
+    ready: false,
+    pageHash: 'b'.repeat(64),
+    counts: { ...validPage.counts, observations: 19 },
+    failures: [{ sourceKey: 'private-source-key', reason: 'offer-set-mismatch' }],
+    applied: 0,
+  };
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ ok: true, data: failedPage }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })) as typeof fetch;
+  try {
+    await assert.rejects(
+      () => applySourceObservationReplay(validPlan),
+      (error: unknown) => {
+        assert.match(String(error), /offer-set-mismatch \(1\)/);
+        assert.doesNotMatch(String(error), /private-source-key/);
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalStorage) Object.defineProperty(globalThis, 'localStorage', originalStorage);
+    else Reflect.deleteProperty(globalThis, 'localStorage');
+  }
+});
+
 test('malformed replay response fails closed before any apply plan exists', async () => {
   const originalFetch = globalThis.fetch;
   const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');

@@ -352,15 +352,15 @@ export async function replayAlibabaRawPage(
     }
 
     const pageHash = pageFingerprint(plans, afterSourceKey);
-    if (input.mode === 'apply' && input.expectedPageHash !== pageHash) {
-      return { ok: false, reason: 'page-changed' };
-    }
     if (!(await port.renewLease(holder, grant.fence))) {
       return { ok: false, reason: 'lease-lost' };
     }
 
     let applied = 0;
     if (input.mode === 'apply' && failures.length === 0) {
+      if (input.expectedPageHash !== pageHash) {
+        return { ok: false, reason: 'page-changed' };
+      }
       for (const plan of plans) {
         if (!(await port.renewLease(holder, grant.fence))) {
           return { ok: false, reason: 'lease-lost' };
