@@ -22,6 +22,8 @@ export interface DianxiaomiObservationInput {
   bundle: CatalogImportBundle;
   /** Optional richer projection from grouping; preserves each store's price. */
   storeListings?: StoreListingRecord[];
+  /** Import job that owns the exact private workbook object. */
+  evidenceId?: string;
   observedAt: string;
 }
 
@@ -53,11 +55,14 @@ const descriptionProvenance = (
 function mapCandidate(
   candidate: CatalogProductCandidate,
   input: DianxiaomiObservationInput,
+  scope?: { sourceProductKey: string; storeKey: string; listings: StoreListingRecord[] },
 ): { observation?: CatalogSourceObservation; findings: CatalogObservationFinding[] } {
   const findings: CatalogObservationFinding[] = [];
+  const sourceProductKey = scope?.sourceProductKey ?? candidate.identity.sourceProductKey;
   const rawDescription = candidate.descriptionHtml ?? candidate.descriptionText;
   const description = normalizeDescription(rawDescription);
-  if (description.sanitized) {
+  const descriptionWasSanitized = candidate.descriptionSanitized === true || description.sanitized;
+  if (descriptionWasSanitized) {
     findings.push({
       severity: 'warning',
       code: 'description-sanitized',
@@ -65,32 +70,80 @@ function mapCandidate(
     });
   }
 
-  const variants = candidate.variants.map((variant) => ({
-    sourceVariantKey:
-      variant.identity.sourceVariantKey ??
-      hashKey('dianxiaomi', candidate.identity.sourceProductKey, variant.sku),
-    ...(variant.identity.externalVariantId === undefined
-      ? {}
-      : { externalVariantId: variant.identity.externalVariantId }),
-    sku: variant.sku,
-    matchHints: variant.matchHints,
-    options: Object.entries(variant.optionValues)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([sourceName, value]) => ({ sourceName, value })),
-    inventory: variant.inventory,
-    media: variant.media,
-  }));
+  const variants: CatalogSourceObservation['variants'] = [];
+  if (scope) {
+    const seenVariantKeys = new Set<string>();
+    for (const listing of scope.listings) {
+      if (seenVariantKeys.has(listing.sourceVariantKey)) continue;
+      seenVariantKeys.add(listing.sourceVariantKey);
+      const candidateVariant = candidate.variants.find(
+        (variant) => variant.identity.sourceVariantKey === listing.candidateSkuKey,
+      );
+      if (!candidateVariant) {
+        findings.push({
+          severity: 'error',
+          code: 'missing-candidate-variant',
+          message: 'A store listing does not resolve to its grouped candidate variant.',
+          sourcePath: sourceProductKey,
+        });
+        continue;
+      }
+      variants.push({
+        sourceVariantKey: listing.sourceVariantKey,
+        ...(listing.externalVariantId === undefined
+          ? {}
+          : { externalVariantId: listing.externalVariantId }),
+        sku: candidateVariant.sku,
+        matchHints: candidateVariant.matchHints,
+        options: Object.entries(candidateVariant.optionValues)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([sourceName, value]) => ({ sourceName, value })),
+        inventory:
+          listing.quantity === undefined
+            ? []
+            : [
+                {
+                  storeKey: listing.storeKey,
+                  quantity: listing.quantity,
+                  semantics: 'unknown' as const,
+                  ...(listing.capturedAt === undefined ? {} : { capturedAt: listing.capturedAt }),
+                },
+              ],
+        media: candidateVariant.media,
+      });
+    }
+  } else {
+    variants.push(
+      ...candidate.variants.map((variant) => ({
+        sourceVariantKey:
+          variant.identity.sourceVariantKey ??
+          hashKey('dianxiaomi', candidate.identity.sourceProductKey, variant.sku),
+        ...(variant.identity.externalVariantId === undefined
+          ? {}
+          : { externalVariantId: variant.identity.externalVariantId }),
+        sku: variant.sku,
+        matchHints: variant.matchHints,
+        options: Object.entries(variant.optionValues)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([sourceName, value]) => ({ sourceName, value })),
+        inventory: variant.inventory,
+        media: variant.media,
+      })),
+    );
+  }
 
   const offers: CatalogSourceObservation['offers'] = [];
-  const storeListings = (input.storeListings ?? []).filter(
-    (listing) => listing.candidateGroupKey === candidate.identity.sourceProductKey,
-  );
+  const storeListings =
+    scope?.listings ??
+    (input.storeListings ?? []).filter(
+      (listing) => listing.candidateGroupKey === candidate.identity.sourceProductKey,
+    );
   if (storeListings.length > 0) {
     for (const listing of storeListings) {
       if (listing.sourceRegularPrice !== undefined) {
         offers.push({
           sourceOfferKey: hashKey(listing.sourceVariantKey, 'regular'),
-          sourceVariantKey: listing.candidateSkuKey,
+          sourceVariantKey: scope ? listing.sourceVariantKey : listing.candidateSkuKey,
           ...(listing.externalVariantId === undefined
             ? {}
             : { externalVariantId: listing.externalVariantId }),
@@ -102,7 +155,7 @@ function mapCandidate(
       if (listing.sourcePromotionPrice !== undefined) {
         offers.push({
           sourceOfferKey: hashKey(listing.sourceVariantKey, 'promotion'),
-          sourceVariantKey: listing.candidateSkuKey,
+          sourceVariantKey: scope ? listing.sourceVariantKey : listing.candidateSkuKey,
           ...(listing.externalVariantId === undefined
             ? {}
             : { externalVariantId: listing.externalVariantId }),
@@ -142,17 +195,43 @@ function mapCandidate(
     }
   }
 
+  const externalProductIds = [
+    ...new Set(
+      (scope?.listings ?? [])
+        .map((listing) => listing.externalProductId)
+        .filter((value): value is string => value !== undefined),
+    ),
+  ];
+  if (externalProductIds.length > 1) {
+    findings.push({
+      severity: 'error',
+      code: 'conflicting-external-product-id',
+      message: 'One store-scoped source product contains conflicting marketplace product ids.',
+      sourcePath: sourceProductKey,
+    });
+  }
+  const externalProductId = scope ? externalProductIds[0] : candidate.identity.externalProductId;
+  const scopedStatuses = new Set(
+    (scope?.listings ?? []).map((listing) => listing.sourceListingStatus),
+  );
+  const scopedStatus = scopedStatuses.has('published')
+    ? 'published'
+    : scopedStatuses.has('draft')
+      ? 'draft'
+      : scopedStatuses.has('missing')
+        ? 'missing'
+        : 'unknown';
+
   const observationCandidate = {
     schemaVersion: CATALOG_SOURCE_OBSERVATION_SCHEMA_VERSION,
     source: {
       provider: 'dianxiaomi' as const,
-      sourceProductKey: candidate.identity.sourceProductKey,
-      ...(candidate.identity.externalProductId === undefined
-        ? {}
-        : { externalProductId: candidate.identity.externalProductId }),
+      sourceProductKey,
+      ...(externalProductId === undefined ? {} : { externalProductId }),
+      ...(scope === undefined ? {} : { storeKey: scope.storeKey }),
       observedAt: input.observedAt,
       captureMode: 'import' as const,
-      completeness: 'full-product' as const,
+      completeness: scope === undefined ? ('full-product' as const) : ('partial-product' as const),
     },
     identity: {
       title: candidate.title,
@@ -171,21 +250,23 @@ function mapCandidate(
               ...(description.html === undefined ? {} : { sanitizedHtml: description.html }),
               ...(description.text === undefined ? {} : { text: description.text }),
               placeholder: description.placeholder,
-              sanitized: description.sanitized,
+              sanitized: descriptionWasSanitized,
               provenance: descriptionProvenance(candidate.descriptionSource),
             },
           }),
       media: candidate.media,
     },
-    lifecycle: { sourceListingStatus: candidate.sourceListingStatus },
+    lifecycle: {
+      sourceListingStatus: scope === undefined ? candidate.sourceListingStatus : scopedStatus,
+    },
     variants,
     offers,
     evidence: [
       {
         kind: 'source-file' as const,
-        evidenceId: input.bundle.sourceFileSha256,
+        evidenceId: input.evidenceId ?? `dianxiaomi:${input.bundle.sourceFileSha256}`,
         sha256: input.bundle.sourceFileSha256,
-        sourcePath: `products.${candidate.identity.sourceProductKey}`,
+        sourcePath: `products.${sourceProductKey}`,
       },
     ],
     warnings: findings
@@ -206,7 +287,7 @@ function mapCandidate(
           severity: 'error',
           code: 'invalid-source-observation',
           message: validated.errors.join('; '),
-          sourcePath: candidate.identity.sourceProductKey,
+          sourcePath: sourceProductKey,
         },
       ],
     };
@@ -235,9 +316,30 @@ export const dianxiaomiObservationAdapter: CatalogObservationAdapter<DianxiaomiO
     const observations: CatalogSourceObservation[] = [];
     const findings: CatalogObservationFinding[] = [];
     for (const candidate of input.bundle.products) {
-      const mapped = mapCandidate(candidate, input);
-      findings.push(...mapped.findings);
-      if (mapped.observation !== undefined) observations.push(mapped.observation);
+      const candidateListings = (input.storeListings ?? []).filter(
+        (listing) => listing.candidateGroupKey === candidate.identity.sourceProductKey,
+      );
+      const scopes = new Map<
+        string,
+        { sourceProductKey: string; storeKey: string; listings: StoreListingRecord[] }
+      >();
+      for (const listing of candidateListings) {
+        const current = scopes.get(listing.sourceProductKey);
+        if (current) current.listings.push(listing);
+        else {
+          scopes.set(listing.sourceProductKey, {
+            sourceProductKey: listing.sourceProductKey,
+            storeKey: listing.storeKey,
+            listings: [listing],
+          });
+        }
+      }
+      const candidateScopes = scopes.size > 0 ? [...scopes.values()] : [undefined];
+      for (const scope of candidateScopes) {
+        const mapped = mapCandidate(candidate, input, scope);
+        findings.push(...mapped.findings);
+        if (mapped.observation !== undefined) observations.push(mapped.observation);
+      }
     }
     return {
       schemaVersion: CATALOG_SOURCE_OBSERVATION_SCHEMA_VERSION,

@@ -14,7 +14,13 @@
  */
 
 /** Top-level storage namespaces; map to the path prefixes below. */
-export type MediaNamespace = 'catalog' | 'oem' | 'marketing' | 'smoke' | 'alibaba-raw';
+export type MediaNamespace =
+  | 'catalog'
+  | 'oem'
+  | 'marketing'
+  | 'smoke'
+  | 'alibaba-raw'
+  | 'catalog-import-raw';
 
 export interface PutMediaObjectInput {
   namespace: MediaNamespace;
@@ -148,13 +154,14 @@ function yearMonth(now: Date): { yyyy: string; mm: string } {
 /**
  * The storage key for a `PutMediaObjectInput`. Catalog/oem/marketing are
  * date-partitioned under their owning id; smoke is a flat `smoke/<name>`;
- * alibaba-raw is HASH-ADDRESSED (immutable raw API response bytes, deduped
- * by content — docs/alibaba-linked-catalog-sync/ARCHITECTURE.md §3.5/§8):
+ * alibaba-raw and catalog-import-raw are HASH-ADDRESSED (immutable source
+ * evidence, deduped by content):
  *   catalog/<yyyy>/<mm>/<logicalId>/<safeName>
  *   oem/<yyyy>/<mm>/<logicalId>/<safeName>
  *   marketing/<yyyy>/<mm>/<logicalId>/<safeName>
  *   smoke/<safeName>
  *   alibaba-raw/<hh>/<sha256>.json        (hh = first two hash chars)
+ *   catalog-import-raw/<hh>/<sha256>.xlsx
  */
 export function objectStoragePath(
   input: Pick<PutMediaObjectInput, 'namespace' | 'logicalId' | 'fileName'> & { now?: Date },
@@ -162,6 +169,9 @@ export function objectStoragePath(
   const safe = safeFileName(input.fileName);
   if (input.namespace === 'smoke') return `smoke/${safe}`;
   if (input.namespace === 'alibaba-raw') return alibabaRawStoragePath(input.logicalId);
+  if (input.namespace === 'catalog-import-raw') {
+    return catalogImportRawStoragePath(input.logicalId);
+  }
   const { yyyy, mm } = yearMonth(input.now ?? new Date());
   return `${input.namespace}/${yyyy}/${mm}/${safeFileName(input.logicalId)}/${safe}`;
 }
@@ -172,6 +182,13 @@ export function alibabaRawStoragePath(responseSha256: string): string {
     throw new Error('alibabaRawStoragePath requires a lowercase sha256 hex digest.');
   }
   return `alibaba-raw/${responseSha256.slice(0, 2)}/${responseSha256}.json`;
+}
+
+export function catalogImportRawStoragePath(sourceSha256: string): string {
+  if (!/^[0-9a-f]{64}$/.test(sourceSha256)) {
+    throw new Error('catalog import raw storage path requires a lowercase SHA-256');
+  }
+  return `catalog-import-raw/${sourceSha256.slice(0, 2)}/${sourceSha256}.xlsx`;
 }
 
 /**

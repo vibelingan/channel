@@ -9,11 +9,15 @@
  * no-op unless an operator explicitly asks for a replay.
  */
 import type { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 import type { CatalogImportDetail } from '@vibelingan-channel/catalog-import';
 import { parseDianxiaomiWorkbook } from '@vibelingan-channel/catalog-import/dianxiaomi';
+import { mediaStorage } from '@vibelingan-channel/media-storage';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import {
+  failImportJobEvidence,
   listStoreLinksForProvider,
+  recordImportSourceEvidence,
   recordParsedBundle,
   startImportJob,
 } from './catalog-import-store.ts';
@@ -43,23 +47,61 @@ export interface RunImportResult {
  */
 export async function runCatalogImport(input: RunImportInput): Promise<RunImportResult> {
   const now = input.now ?? new Date().toISOString();
-  const detail = parseDianxiaomiWorkbook(input.bytes);
+  const sourceFileSha256 = createHash('sha256').update(input.bytes).digest('hex');
 
   const started = await startImportJob({
-    provider: detail.bundle.provider,
+    provider: 'dianxiaomi',
     sourceFileName: input.sourceFileName,
-    sourceFileSha256: detail.bundle.sourceFileSha256,
+    sourceFileSha256,
     sourceByteSize: input.bytes.length,
     now,
     ...(input.settings === undefined ? {} : { settings: input.settings }),
     ...(input.replay === undefined ? {} : { replay: input.replay }),
   });
 
-  if (started.reused) return { job: started.job, detail, reused: true };
+  let job = started.job;
+  if (
+    started.reused &&
+    job.status === 'failed' &&
+    job.failureCode === 'source-evidence-write-failed'
+  ) {
+    throw new Error('the previous source evidence write failed; retry as an explicit replay');
+  }
+  if (typeof job.sourceStorageFileId !== 'string' || job.sourceStorageFileId === '') {
+    try {
+      const stored = await mediaStorage().putObject({
+        namespace: 'catalog-import-raw',
+        logicalId: sourceFileSha256,
+        fileName: `${sourceFileSha256}.xlsx`,
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        content: input.bytes,
+      });
+      job = await recordImportSourceEvidence(
+        job._id,
+        {
+          storageFileId: stored.storageFileId,
+          storagePath: stored.storagePath,
+          storageProvider: stored.storageProvider,
+          storageMode: stored.storageMode,
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+        now,
+      );
+    } catch (error) {
+      await failImportJobEvidence(job._id, now);
+      throw new Error('catalog import source evidence could not be stored', { cause: error });
+    }
+  }
 
-  const jobId = started.job._id;
-  const job = await recordParsedBundle(jobId, detail, now);
-  return { job, detail, reused: false };
+  const detail = parseDianxiaomiWorkbook(input.bytes);
+  if (detail.bundle.sourceFileSha256 !== sourceFileSha256) {
+    throw new Error('catalog import parser digest disagrees with acquisition digest');
+  }
+
+  if (started.reused && job.status !== 'created') return { job, detail, reused: true };
+
+  const recorded = await recordParsedBundle(job._id, detail, now);
+  return { job: recorded, detail, reused: false };
 }
 
 // ---------------------------------------------------------------------------

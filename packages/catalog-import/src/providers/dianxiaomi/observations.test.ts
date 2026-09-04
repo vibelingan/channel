@@ -88,7 +88,7 @@ test('Dianxiaomi candidates cross the common observation seam without losing sou
   assert.equal(observation.evidence[0]?.sha256, 'b'.repeat(64));
 });
 
-test('Dianxiaomi store-scoped prices remain separate offers', () => {
+test('Dianxiaomi emits one current observation per store-scoped source product', () => {
   const productKey = 'dianxiaomi|lazada||PARENT-1';
   const variantKey = 'dianxiaomi|lazada||SKU-1';
   const bundle: CatalogImportBundle = {
@@ -151,12 +151,76 @@ test('Dianxiaomi store-scoped prices remain separate offers', () => {
     storeListings: [listing('hk', 1000, 2), listing('sg', 1100, 3)],
     observedAt: '2026-09-04T09:00:00.000Z',
   });
-  assert.equal(result.observations.length, 1);
+  assert.equal(result.observations.length, 2);
   assert.deepEqual(
-    result.observations[0]?.offers.map((offer) => [offer.storeKey, offer.kind, offer.pricing]),
+    result.observations.map((observation) => ({
+      sourceProductKey: observation.source.sourceProductKey,
+      storeKey: observation.source.storeKey,
+      completeness: observation.source.completeness,
+      variants: observation.variants.map((variant) => variant.sourceVariantKey),
+      offers: observation.offers.map((offer) => [offer.storeKey, offer.kind, offer.pricing]),
+    })),
     [
-      ['hk', 'regular', { mode: 'fixed', currency: 'CNY', amountMinor: 1000 }],
-      ['sg', 'regular', { mode: 'fixed', currency: 'CNY', amountMinor: 1100 }],
+      {
+        sourceProductKey: 'dianxiaomi|lazada|hk|PARENT-1',
+        storeKey: 'hk',
+        completeness: 'partial-product',
+        variants: ['dianxiaomi|lazada|hk|SKU-1'],
+        offers: [['hk', 'regular', { mode: 'fixed', currency: 'CNY', amountMinor: 1000 }]],
+      },
+      {
+        sourceProductKey: 'dianxiaomi|lazada|sg|PARENT-1',
+        storeKey: 'sg',
+        completeness: 'partial-product',
+        variants: ['dianxiaomi|lazada|sg|SKU-1'],
+        offers: [['sg', 'regular', { mode: 'fixed', currency: 'CNY', amountMinor: 1100 }]],
+      },
     ],
   );
+});
+
+test('Dianxiaomi preserves upstream sanitization provenance after grouped HTML is already clean', () => {
+  const bundle: CatalogImportBundle = {
+    schemaVersion: '1',
+    provider: 'dianxiaomi',
+    templateId: 'template-1',
+    sourceFileSha256: 'f'.repeat(64),
+    findings: [],
+    ignoredHeaders: [],
+    products: [
+      {
+        identity: { provider: 'dianxiaomi', sourceProductKey: 'group-1' },
+        matchHints: { parentSku: 'PARENT-1' },
+        parentSku: 'PARENT-1',
+        title: 'Headset',
+        descriptionHtml: '<p>Safe</p>',
+        descriptionText: 'Safe',
+        descriptionSource: 'description',
+        descriptionSanitized: true,
+        attributes: {},
+        media: [],
+        variants: [
+          {
+            identity: {
+              provider: 'dianxiaomi',
+              sourceProductKey: 'group-1',
+              sourceVariantKey: 'variant-1',
+            },
+            matchHints: { sku: 'SKU-1' },
+            sku: 'SKU-1',
+            optionValues: {},
+            inventory: [],
+            media: [],
+          },
+        ],
+        sourceListingStatus: 'published',
+      },
+    ],
+  };
+  const result = dianxiaomiObservationAdapter.toObservations({
+    bundle,
+    observedAt: '2026-09-04T09:00:00.000Z',
+  });
+  assert.equal(result.observations[0]?.content.description?.sanitized, true);
+  assert.ok(result.findings.some((finding) => finding.code === 'description-sanitized'));
 });

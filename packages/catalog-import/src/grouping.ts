@@ -56,6 +56,8 @@ export interface SourceListing {
   descriptionText?: string;
   /** Which rung of the fallback chain supplied `descriptionText`. */
   descriptionSource?: DescriptionProvenance;
+  /** Carries parser sanitization provenance into the provider observation. */
+  descriptionSanitized?: boolean;
   attributes: Record<string, string | number | boolean>;
   optionValues: Record<string, string>;
   category?: CandidateCategory;
@@ -213,6 +215,7 @@ interface DescriptionCandidate {
   text: string | undefined;
   html: string | undefined;
   source: DescriptionProvenance | undefined;
+  sanitized: boolean;
 }
 
 /**
@@ -223,7 +226,9 @@ interface DescriptionCandidate {
  */
 function pickDescription(candidates: readonly DescriptionCandidate[]): DescriptionCandidate {
   const usable = candidates.filter((entry) => entry.text !== undefined && entry.text !== '');
-  if (usable.length === 0) return { text: undefined, html: undefined, source: undefined };
+  if (usable.length === 0) {
+    return { text: undefined, html: undefined, source: undefined, sanitized: false };
+  }
 
   const bestRank = Math.max(
     ...usable.map((entry) => DESCRIPTION_RANK[entry.source ?? 'description'] ?? 0),
@@ -240,11 +245,15 @@ function pickDescription(candidates: readonly DescriptionCandidate[]): Descripti
   const tied = contenders.filter((entry) => entry.text === text);
   const metaKey = (entry: DescriptionCandidate) => `${entry.html ?? ''} ${entry.source ?? ''}`;
   const winningMeta = pickCanonicalValue(tied.map(metaKey));
-  const winner = tied.find((entry) => metaKey(entry) === winningMeta) ?? tied[0];
+  const winner =
+    tied
+      .filter((entry) => metaKey(entry) === winningMeta)
+      .sort((left, right) => Number(right.sanitized) - Number(left.sanitized))[0] ?? tied[0];
   return {
     text,
     html: winner?.html,
     source: winner?.source,
+    sanitized: winner?.sanitized ?? false,
   };
 }
 
@@ -439,6 +448,7 @@ export function groupListings(listings: readonly SourceListing[]): GroupingResul
       text: listing.descriptionText,
       html: listing.descriptionHtml,
       source: listing.descriptionSource,
+      sanitized: listing.descriptionSanitized === true,
     });
     if (product.category === undefined && listing.category !== undefined) {
       product.category = listing.category;
@@ -577,6 +587,7 @@ export function groupListings(listings: readonly SourceListing[]): GroupingResul
       ...(description.html === undefined ? {} : { descriptionHtml: description.html }),
       ...(description.text === undefined ? {} : { descriptionText: description.text }),
       ...(description.source === undefined ? {} : { descriptionSource: description.source }),
+      ...(description.sanitized ? { descriptionSanitized: true } : {}),
       ...(product.category === undefined ? {} : { category: product.category }),
     });
   }

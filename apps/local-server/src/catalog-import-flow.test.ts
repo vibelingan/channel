@@ -10,7 +10,7 @@
 import { strict as assert } from 'node:assert';
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -23,7 +23,7 @@ import {
   computeImportDelta,
   runCatalogImport,
 } from '@vibelingan-channel/fn-admin/catalog-import-service';
-import { setMediaStorage } from '@vibelingan-channel/media-storage';
+import { type MediaStorageAdapter, setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { JsonFileAdapter } from './json-adapter.ts';
@@ -65,7 +65,7 @@ test('a fresh import stages a job and one item per product family', async (t) =>
   assert.equal(run.job.status, 'previewReady');
   assert.equal(await countOf('catalogImportJobs'), 1);
   assert.equal(await countOf('catalogImportItems'), 77);
-  assert.equal(await countOf('catalogSourceObservations'), 77);
+  assert.equal(await countOf('catalogSourceObservations'), 100);
 
   const counts = run.job.counts as Record<string, number>;
   assert.equal(counts.rows, 312);
@@ -87,7 +87,11 @@ test('a fresh import stages a job and one item per product family', async (t) =>
   assert.equal(first.schemaVersion, 'catalog-source-observation-v1');
   assert.equal(first.firstSeenOperationId, run.job._id);
   assert.equal(first.lastSeenOperationId, run.job._id);
-  assert.equal(first.evidenceId, run.job.sourceFileSha256);
+  assert.equal(first.evidenceId, `dianxiaomi:${run.job.sourceFileSha256}`);
+  assert.equal(
+    (first.observation as { source?: { completeness?: unknown } }).source?.completeness,
+    'partial-product',
+  );
   assert.equal(
     first._id,
     sourceObservationDocumentId('dianxiaomi', String(first.sourceProductKey)),
@@ -95,8 +99,8 @@ test('a fresh import stages a job and one item per product family', async (t) =>
   assert.equal(await countOf('products'), 0, 'observations never auto-promote canonical products');
 });
 
-test('the workbook itself is never stored, only its digest', async (t) => {
-  const { cleanup } = harness();
+test('the workbook is private hash-addressed evidence; database stores only its pointer', async (t) => {
+  const { dir, cleanup } = harness();
   t.after(cleanup);
   const run = await runCatalogImport({ bytes: WORKBOOK, sourceFileName: 'export.xlsx' });
   const serialized = JSON.stringify(run.job);
@@ -104,6 +108,55 @@ test('the workbook itself is never stored, only its digest', async (t) => {
   assert.equal(String(run.job.sourceFileSha256).length, 64);
   assert.equal(serialized.includes('PK'), false, 'no archive bytes in the job record');
   assert.equal(Object.hasOwn(run.job, 'sourceBytes'), false);
+  assert.equal(typeof run.job.sourceStorageFileId, 'string');
+  assert.equal(
+    run.job.sourceContentType,
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  );
+  const storedPath = join(dir, 'media', String(run.job.sourceStoragePath));
+  assert.ok(readFileSync(storedPath).equals(WORKBOOK), 'stored evidence is byte-exact');
+});
+
+test('a raw workbook storage failure is durable and requires an explicit recovery replay', async (t) => {
+  const { dir, cleanup } = harness();
+  t.after(cleanup);
+  const unavailable = async (): Promise<never> => {
+    throw new Error('storage unavailable');
+  };
+  const failingStorage: MediaStorageAdapter = {
+    putObject: unavailable,
+    getObjectAsBase64: unavailable,
+    getTempUrl: unavailable,
+    deleteObject: unavailable,
+    getUploadCredential: unavailable,
+  };
+  setMediaStorage(failingStorage);
+
+  await assert.rejects(
+    () => runCatalogImport({ bytes: WORKBOOK, sourceFileName: 'export.xlsx' }),
+    /source evidence could not be stored/,
+  );
+  const [failed] = await allOf('catalogImportJobs');
+  assert.ok(failed);
+  assert.equal(failed.status, 'failed');
+  assert.equal(failed.failureCode, 'source-evidence-write-failed');
+
+  setMediaStorage(new LocalDiskMediaStorage(join(dir, 'media')));
+  await assert.rejects(
+    () => runCatalogImport({ bytes: WORKBOOK, sourceFileName: 'export.xlsx' }),
+    /explicit replay/,
+  );
+  const recovered = await runCatalogImport({
+    bytes: WORKBOOK,
+    sourceFileName: 'export.xlsx',
+    replay: true,
+  });
+  assert.equal(recovered.reused, false);
+  assert.equal(recovered.job.replayOfJobId, failed._id);
+  assert.equal(typeof recovered.job.sourceStorageFileId, 'string');
+  for (const observation of await allOf('catalogSourceObservations')) {
+    assert.equal(observation.evidenceId, recovered.job._id);
+  }
 });
 
 test('re-importing identical bytes creates no new job, item or record', async (t) => {
@@ -139,10 +192,44 @@ test('an explicit replay is a new job that remembers what it replays', async (t)
   assert.notEqual(replay.job._id, first.job._id);
   assert.equal(replay.job.replayOfJobId, first.job._id);
   assert.equal(await countOf('catalogImportJobs'), 2);
-  assert.equal(await countOf('catalogSourceObservations'), 77);
+  assert.equal(await countOf('catalogSourceObservations'), 100);
   for (const observation of await allOf('catalogSourceObservations')) {
     assert.equal(observation.firstSeenOperationId, first.job._id);
     assert.equal(observation.lastSeenOperationId, replay.job._id);
+    assert.equal(observation.evidenceId, replay.job._id);
+    assert.equal(
+      (observation.observation as { evidence?: Array<{ evidenceId?: unknown }> }).evidence?.[0]
+        ?.evidenceId,
+      replay.job._id,
+    );
+  }
+});
+
+test('a single-store workbook updates only that store observation', async (t) => {
+  const { cleanup } = harness();
+  t.after(cleanup);
+  await runCatalogImport({ bytes: WORKBOOK, sourceFileName: 'all-stores.xlsx' });
+  const before = await allOf('catalogSourceObservations');
+  const untouchedBefore = new Map(
+    before
+      .filter(
+        (doc) =>
+          (doc.observation as { source?: { storeKey?: unknown } }).source?.storeKey !== 'LingAn_MY',
+      )
+      .map((doc) => [doc._id, JSON.stringify(doc)]),
+  );
+
+  const singleStore = buildAcceptanceWorkbook({ stores: ['LingAn_MY'] });
+  const run = await runCatalogImport({ bytes: singleStore, sourceFileName: 'my-store.xlsx' });
+  assert.equal(run.reused, false);
+  assert.equal(await countOf('catalogSourceObservations'), 100);
+  const after = new Map((await allOf('catalogSourceObservations')).map((doc) => [doc._id, doc]));
+  for (const [id, serialized] of untouchedBefore) {
+    assert.equal(
+      JSON.stringify(after.get(id)),
+      serialized,
+      `other store observation ${id} changed`,
+    );
   }
 });
 

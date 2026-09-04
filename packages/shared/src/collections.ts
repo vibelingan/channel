@@ -1186,10 +1186,53 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         readOnly: true,
       },
       { name: 'sourceFileName', label: 'Source File', type: 'string', readOnly: true },
-      // The workbook itself never enters the database; only this digest, which
-      // is what makes a byte-identical re-import recognisable as a no-op.
+      // The workbook bytes stay in private object storage. The database keeps
+      // only this digest and the server-managed storage evidence pointer.
       { name: 'sourceFileSha256', label: 'Source SHA-256', type: 'string', readOnly: true },
       { name: 'sourceByteSize', label: 'Source Bytes', type: 'number', readOnly: true },
+      {
+        name: 'sourceStorageFileId',
+        label: 'Source Storage File',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'sourceStoragePath',
+        label: 'Source Storage Path',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'sourceStorageProvider',
+        label: 'Source Storage Provider',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'sourceStorageMode',
+        label: 'Source Storage Mode',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'sourceContentType',
+        label: 'Source Content Type',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'sourceEvidenceStoredAt',
+        label: 'Evidence Stored',
+        type: 'date',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'failureCode', label: 'Failure Code', type: 'string', readOnly: true },
       { name: 'templateId', label: 'Template', type: 'string', readOnly: true },
       { name: 'sheetName', label: 'Sheet', type: 'string', readOnly: true },
       { name: 'counts', label: 'Counts', type: 'json', readOnly: true, hideInTable: true },

@@ -38,7 +38,15 @@ const safePositiveInteger = z.number().int().positive().safe();
 const canonicalUtcInstant = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/)
-  .refine((value) => !Number.isNaN(Date.parse(value)), { message: 'must be a real UTC instant' });
+  .refine(
+    (value) => {
+      const parsed = Date.parse(value);
+      if (Number.isNaN(parsed)) return false;
+      const canonical = value.includes('.') ? value : value.replace(/Z$/, '.000Z');
+      return new Date(parsed).toISOString() === canonical;
+    },
+    { message: 'must be a real UTC instant' },
+  );
 const currency = z
   .string()
   .min(1)

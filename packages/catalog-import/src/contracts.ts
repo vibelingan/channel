@@ -111,6 +111,8 @@ export interface CatalogProductCandidate {
   descriptionText?: string;
   /** Where `descriptionText` came from; absent means the source's own copy. */
   descriptionSource?: DescriptionProvenance;
+  /** True when source markup was removed before this candidate was created. */
+  descriptionSanitized?: boolean;
   attributes: Record<string, string | number | boolean>;
   category?: CandidateCategory;
   media: CandidateMedia[];

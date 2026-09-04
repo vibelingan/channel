@@ -127,6 +127,41 @@ export interface StartImportJobResult {
   reused: boolean;
 }
 
+export interface ImportSourceEvidence {
+  storageFileId: string;
+  storagePath: string;
+  storageProvider: string;
+  storageMode: string;
+  contentType: string;
+}
+
+/** Attach the immutable private source object to its deterministic base job. */
+export async function recordImportSourceEvidence(
+  jobId: string,
+  evidence: ImportSourceEvidence,
+  now: string,
+): Promise<CollectionDoc> {
+  const updated = await updateDoc(IMPORT_JOBS, jobId, {
+    sourceStorageFileId: evidence.storageFileId,
+    sourceStoragePath: evidence.storagePath,
+    sourceStorageProvider: evidence.storageProvider,
+    sourceStorageMode: evidence.storageMode,
+    sourceContentType: evidence.contentType,
+    sourceEvidenceStoredAt: now,
+  });
+  if (!updated) throw new Error('import job vanished before source evidence was attached');
+  return updated;
+}
+
+export async function failImportJobEvidence(jobId: string, now: string): Promise<void> {
+  const updated = await updateDoc(IMPORT_JOBS, jobId, {
+    status: 'failed',
+    failureCode: 'source-evidence-write-failed',
+    completedAt: now,
+  });
+  if (!updated) throw new Error('import job vanished while recording evidence failure');
+}
+
 /**
  * Create the job BEFORE parsing, so a workbook that crashes the parser still
  * leaves a record of what was attempted.
@@ -241,6 +276,7 @@ export async function recordParsedBundle(
   const observationBatch = dianxiaomiObservationAdapter.toObservations({
     bundle: detail.bundle,
     storeListings: detail.storeListings,
+    evidenceId: jobId,
     observedAt: now,
   });
   const observationsBySourceKey = new Map<string, CatalogSourceObservation>();
@@ -274,6 +310,14 @@ export async function recordParsedBundle(
 
   for (const candidate of detail.bundle.products) {
     const groupKey = candidate.identity.sourceProductKey;
+    const groupListings = listingsByGroup.get(groupKey) ?? [];
+    const expectedObservationKeys = [
+      ...new Set(
+        groupListings.length > 0
+          ? groupListings.map((listing) => listing.sourceProductKey)
+          : [groupKey],
+      ),
+    ];
     const skuKeys = new Set(
       candidate.variants.map((variant) => variant.identity.sourceVariantKey ?? ''),
     );
@@ -286,18 +330,27 @@ export async function recordParsedBundle(
           candidate.variants.some((variant) => variant.sku === finding.sku)),
     );
     const candidateObservationFindings = observationFindings.filter(
-      (finding) => finding.sourcePath === groupKey,
+      (finding) =>
+        finding.sourcePath === groupKey ||
+        (finding.sourcePath !== undefined && expectedObservationKeys.includes(finding.sourcePath)),
     );
-    const observation = observationsBySourceKey.get(groupKey);
-    if (observation === undefined && candidateObservationFindings.length === 0) {
-      const missingFinding: CatalogObservationFinding = {
-        severity: 'error',
-        code: 'missing-source-observation',
-        message: 'The adapter did not emit a validated observation for this source product.',
-        sourcePath: groupKey,
-      };
-      candidateObservationFindings.push(missingFinding);
-      observationFindings.push(missingFinding);
+    const candidateObservations: CatalogSourceObservation[] = [];
+    for (const sourceKey of expectedObservationKeys) {
+      const observation = observationsBySourceKey.get(sourceKey);
+      if (observation) {
+        candidateObservations.push(observation);
+        continue;
+      }
+      if (!candidateObservationFindings.some((finding) => finding.sourcePath === sourceKey)) {
+        const missingFinding: CatalogObservationFinding = {
+          severity: 'error',
+          code: 'missing-source-observation',
+          message: 'The adapter did not emit a validated observation for this source product.',
+          sourcePath: sourceKey,
+        };
+        candidateObservationFindings.push(missingFinding);
+        observationFindings.push(missingFinding);
+      }
     }
     const itemFindings = [...findings, ...candidateObservationFindings];
 
@@ -310,7 +363,7 @@ export async function recordParsedBundle(
       sourceListingStatus: candidate.sourceListingStatus,
       variantCount: candidate.variants.length,
       candidate,
-      storeListings: listingsByGroup.get(groupKey) ?? [],
+      storeListings: groupListings,
       inventory: [...skuKeys]
         .map((key) => inventoryByKey.get(key))
         .filter((entry): entry is NonNullable<typeof entry> => entry !== undefined),
@@ -320,29 +373,31 @@ export async function recordParsedBundle(
     // Invalid observations are isolated to their staged item. They never reach
     // the current materialized view, and they do not crash unrelated products
     // in the same workbook.
-    if (
-      observation !== undefined &&
-      !candidateObservationFindings.some((finding) => finding.severity === 'error')
-    ) {
-      const observationId = sourceObservationDocumentId('dianxiaomi', groupKey);
-      const existingObservation = await get('catalogSourceObservations', observationId);
-      await upsertDocWithId('catalogSourceObservations', observationId, {
-        provider: 'dianxiaomi',
-        sourceProductKey: groupKey,
-        ...(observation.source.externalProductId === undefined
-          ? {}
-          : { externalProductId: observation.source.externalProductId }),
-        schemaVersion: observation.schemaVersion,
-        observedAt: observation.source.observedAt,
-        ...(observation.source.sourceUpdatedAt === undefined
-          ? {}
-          : { sourceUpdatedAt: observation.source.sourceUpdatedAt }),
-        evidenceId: observation.evidence[0]?.evidenceId ?? detail.bundle.sourceFileSha256,
-        active: observation.lifecycle.sourceListingStatus !== 'missing',
-        observation,
-        lastSeenOperationId: jobId,
-        ...(existingObservation ? {} : { firstSeenOperationId: jobId }),
-      });
+    if (!candidateObservationFindings.some((finding) => finding.severity === 'error')) {
+      for (const observation of candidateObservations) {
+        const sourceKey = observation.source.sourceProductKey;
+        const observationId = sourceObservationDocumentId('dianxiaomi', sourceKey);
+        const existingObservation = await get('catalogSourceObservations', observationId);
+        await upsertDocWithId('catalogSourceObservations', observationId, {
+          provider: 'dianxiaomi',
+          sourceProductKey: sourceKey,
+          ...(observation.source.externalProductId === undefined
+            ? {}
+            : { externalProductId: observation.source.externalProductId }),
+          schemaVersion: observation.schemaVersion,
+          observedAt: observation.source.observedAt,
+          ...(observation.source.sourceUpdatedAt === undefined
+            ? {}
+            : { sourceUpdatedAt: observation.source.sourceUpdatedAt }),
+          evidenceId:
+            observation.evidence[0]?.evidenceId ??
+            `${detail.bundle.provider}:${detail.bundle.sourceFileSha256}`,
+          active: observation.lifecycle.sourceListingStatus !== 'missing',
+          observation,
+          lastSeenOperationId: jobId,
+          ...(existingObservation ? {} : { firstSeenOperationId: jobId }),
+        });
+      }
     }
   }
 

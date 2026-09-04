@@ -59,6 +59,7 @@ function listingFor(row: DianxiaomiRow): SourceListing {
     ...(row.description.html === undefined ? {} : { descriptionHtml: row.description.html }),
     ...(row.description.text === '' ? {} : { descriptionText: row.description.text }),
     descriptionSource: row.description.source,
+    descriptionSanitized: row.description.sanitized,
     ...(hasCategory
       ? {
           category: {

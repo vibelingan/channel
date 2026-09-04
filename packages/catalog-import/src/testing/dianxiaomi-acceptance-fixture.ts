@@ -171,6 +171,8 @@ export interface AcceptanceFixtureOptions {
    * is byte-identical to `base`.
    */
   revision?: 'base' | 'changed';
+  /** Optional export scope for partial-store overwrite regressions. */
+  stores?: readonly string[];
 }
 
 /** Build the acceptance workbook. */
@@ -181,6 +183,7 @@ export function buildAcceptanceWorkbook(options: AcceptanceFixtureOptions = {}):
 
   let imageCursor = 0;
   planned.forEach((row, rowIndex) => {
+    if (options.stores && !options.stores.includes(row.store)) return;
     // The `changed` revision removes exactly one SKU so the delta report has a
     // source-missing record to show; it must never be deleted automatically.
     if (revision === 'changed' && row.sku === 'SKU-0002') return;

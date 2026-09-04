@@ -92,6 +92,13 @@ describe('catalog source observation runtime contract', () => {
     assert.equal(result.ok, true);
   });
 
+  test('rejects calendar-normalized instants that do not exist', () => {
+    const invalid = baseObservation();
+    invalid.source.observedAt = '2026-02-30T08:00:00.000Z';
+    const result = validateCatalogSourceObservation(invalid);
+    assert.equal(result.ok, false);
+  });
+
   test('rejects invalid tier windows, unsafe media protocols, and unknown keys', () => {
     const invalid = baseObservation();
     invalid.content.media[0] = {
