@@ -18,6 +18,7 @@ import type {
   AlibabaLeaseGuard,
   CatalogProductSaveInput,
   CatalogProductSaveResult,
+  CatalogSourceObservationUpsertResult,
   DbAdapter,
 } from './adapter.ts';
 import type { ImageMutationAcquireResult, ImageMutationReleaseResult } from './adapter.ts';
@@ -46,6 +47,7 @@ export type {
   CatalogProductSaveInput,
   CatalogProductSavePlan,
   CatalogProductSaveResult,
+  CatalogSourceObservationUpsertResult,
   DbAdapter,
   ImageMutationAcquireResult,
   ImageMutationReleaseResult,
@@ -351,6 +353,7 @@ export function upsertDocWithId(
   collection: string,
   id: string,
   data: Record<string, unknown>,
+  createOnly: Record<string, unknown> = {},
 ): Promise<CollectionDoc> {
   assertKnown(collection);
   requireNonEmpty(id, 'document id');
@@ -358,7 +361,26 @@ export function upsertDocWithId(
   if (!adapter.upsertDocWithId) {
     throw new Error('@vibelingan-channel/db: upsertDocWithId is not implemented by this adapter.');
   }
-  return adapter.upsertDocWithId(collection, id, data);
+  return adapter.upsertDocWithId(collection, id, data, createOnly);
+}
+
+export function upsertCatalogSourceObservation(
+  id: string,
+  data: Record<string, unknown>,
+  createOnly: Record<string, unknown>,
+): Promise<CatalogSourceObservationUpsertResult> {
+  assertKnown('catalogSourceObservations');
+  requireNonEmpty(id, 'document id');
+  if (typeof data.observedAt !== 'string' || Number.isNaN(Date.parse(data.observedAt))) {
+    throw new Error('@vibelingan-channel/db: source observation requires a valid observedAt.');
+  }
+  const adapter = db();
+  if (!adapter.upsertCatalogSourceObservation) {
+    throw new Error(
+      '@vibelingan-channel/db: upsertCatalogSourceObservation is not implemented by this adapter.',
+    );
+  }
+  return adapter.upsertCatalogSourceObservation(id, data, createOnly);
 }
 
 export function acquireAlibabaSyncLease(

@@ -83,7 +83,10 @@ export function isAuthorizationError(envelope: AlibabaResponseEnvelope): boolean
  * malformed, auth, throttling, and unknown API errors must never be converted
  * into a destructive tombstone decision.
  */
-export const PRODUCT_ABSENT_ERROR_CODES = new Set(['ProductNotFound']);
+// Intentionally empty. No destructive absence code is accepted until a
+// sanitized real product.get error envelope (or an authoritative provider
+// contract) is committed beside the classifier tests.
+export const PRODUCT_ABSENT_ERROR_CODES: ReadonlySet<string> = new Set();
 
 export function isAlibabaProductAbsentError(envelope: AlibabaResponseEnvelope): boolean {
   return envelope.kind === 'api-error' && PRODUCT_ABSENT_ERROR_CODES.has(envelope.errorCode);

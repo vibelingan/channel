@@ -47,12 +47,13 @@ import {
   updateDocWithAlibabaLease,
 } from '@vibelingan-channel/db';
 import type { AlertSender } from './alerts.ts';
+import { isAlibabaProductId } from './detail-inspection.ts';
 import { ingestProductDetail } from './ingest.ts';
 import { createDraftForSource } from './linking.ts';
 import { listAllDocs } from './list-all.ts';
 import { PRIMARY_CONNECTION_ID } from './oauth.ts';
 import { promoteLinkedProduct } from './promotion.ts';
-import { type CollectionDoc, createDocWithId, getDoc, updateDoc, upsertDocWithId } from './repo.ts';
+import { type CollectionDoc, createDocWithId, getDoc, upsertDocWithId } from './repo.ts';
 
 const LIST_METHOD = 'alibaba.icbu.product.list';
 const DETAIL_METHOD = 'alibaba.icbu.product.get';
@@ -239,12 +240,16 @@ export async function runSyncTick(input: {
         return { outcome: 'idle', runId: decision.runId, detail: 'stale-active-run-cleared' };
       }
       if (!runDoc || runOverdue(String(runDoc.startedAt ?? now), continuationCount, now)) {
-        await failRun(decision.runId, 'run-overdue', guard(deps.now()), deps);
+        if (!(await failRun(decision.runId, 'run-overdue', guard(deps.now()), deps))) {
+          return { outcome: 'lease-lost', runId: decision.runId };
+        }
         // Vacate the slot (review R2 HIGH): without this every later tick
         // re-resumes the dead run forever and sync wedges permanently. Advance
         // the DEAD run's own watermark so the same mode does not hot-loop.
         const deadMode = runDoc?.mode === 'full' ? 'full' : runDoc ? 'incremental' : null;
-        await clearActiveRun(guard, deps, deadMode);
+        if (!(await clearActiveRun(guard, deps, deadMode))) {
+          return { outcome: 'lease-lost', runId: decision.runId };
+        }
         await release();
         return { outcome: 'failed', runId: decision.runId, detail: 'run-overdue' };
       }
@@ -270,11 +275,16 @@ export async function runSyncTick(input: {
         { continuationCount: state.continuationCount },
         guard(now),
       );
-      await updateDoc('alibabaSyncRuns', state.activeRunId, {
-        status: 'continuing',
-        holder,
-        fence,
-      });
+      if (
+        !(await updateDocWithAlibabaLease(
+          'alibabaSyncRuns',
+          state.activeRunId,
+          { status: 'continuing', holder, fence },
+          guard(deps.now()),
+        ))
+      ) {
+        return { outcome: 'lease-lost', runId: state.activeRunId };
+      }
     } else {
       // Nothing has been written yet — a token failure here leaves NO trace.
       const started = await resolveToken();
@@ -450,7 +460,16 @@ async function executeSlice(
     for (;;) {
       if (budgetExhausted(budget, Date.parse(deps.now()))) {
         if (!(await saveCheckpoint())) return { outcome: 'lease-lost', runId: state.activeRunId };
-        await updateDoc('alibabaSyncRuns', state.activeRunId, { counters });
+        if (
+          !(await updateDocWithAlibabaLease(
+            'alibabaSyncRuns',
+            state.activeRunId,
+            { counters },
+            guard(deps.now()),
+          ))
+        ) {
+          return { outcome: 'lease-lost', runId: state.activeRunId };
+        }
         await release();
         return { outcome: 'continued', runId: state.activeRunId };
       }
@@ -463,13 +482,19 @@ async function executeSlice(
         break;
       }
       if (action.type === 'blocked') {
-        await failRun(
-          state.activeRunId,
-          'enumeration-blocked-unstable-tie',
-          guard(deps.now()),
-          deps,
-        );
-        await clearActiveRun(guard, deps, state.mode);
+        if (
+          !(await failRun(
+            state.activeRunId,
+            'enumeration-blocked-unstable-tie',
+            guard(deps.now()),
+            deps,
+          ))
+        ) {
+          return { outcome: 'lease-lost', runId: state.activeRunId };
+        }
+        if (!(await clearActiveRun(guard, deps, state.mode))) {
+          return { outcome: 'lease-lost', runId: state.activeRunId };
+        }
         await release();
         return { outcome: 'failed', runId: state.activeRunId, detail: 'BLOCKED_UNSTABLE_TIE' };
       }
@@ -482,13 +507,9 @@ async function executeSlice(
           // §12 response-contract failure (review R2 #9): a page-size-1 count
           // without total_item would silently collapse the whole window into
           // one bucket. Quarantine instead of guessing.
-          await updateDoc('alibabaSyncRuns', state.activeRunId, {
-            status: 'quarantined',
-            alerts: ['response-contract-failed'],
-            counters,
-            completedAt: deps.now(),
-          });
-          await clearActiveRun(guard, deps, state.mode);
+          if (!(await quarantineRun(state, counters, ['response-contract-failed'], guard, deps))) {
+            return { outcome: 'lease-lost', runId: state.activeRunId };
+          }
           await deps.alert(
             `Alibaba sync run ${state.activeRunId} quarantined: list response carried no total_item (response contract failed).`,
           );
@@ -561,7 +582,16 @@ async function executeSlice(
         state.enumerationState = applyListResult(state.enumerationState);
       }
       if (!(await saveCheckpoint())) return { outcome: 'lease-lost', runId: state.activeRunId };
-      await updateDoc('alibabaSyncRuns', state.activeRunId, { counters });
+      if (
+        !(await updateDocWithAlibabaLease(
+          'alibabaSyncRuns',
+          state.activeRunId,
+          { counters },
+          guard(deps.now()),
+        ))
+      ) {
+        return { outcome: 'lease-lost', runId: state.activeRunId };
+      }
     }
   }
 
@@ -635,16 +665,12 @@ async function executeSlice(
         candidates: linkedCandidates,
         tombstones: tombstoneCandidates.map((doc) => doc._id),
       });
-      await updateDoc('alibabaSyncRuns', state.activeRunId, {
-        status: 'quarantined',
+      const quarantined = await quarantineRun(state, counters, quarantine.reasons, guard, deps, {
         candidateHash,
-        counters,
-        alerts: quarantine.reasons,
-        completedAt: deps.now(),
       });
       // Quarantine RELEASES the lease and vacates the active slot (R1 E4);
       // the frozen candidate awaits approval, new runs may start.
-      await clearActiveRun(guard, deps, state.mode);
+      if (!quarantined) return { outcome: 'lease-lost', runId: state.activeRunId };
       await deps.alert(
         `Alibaba sync run ${state.activeRunId} quarantined: ${quarantine.reasons.join(', ')}.`,
       );
@@ -721,9 +747,26 @@ async function executeSlice(
       return { outcome: 'continued', runId: state.activeRunId };
     }
     if (!(await keepLease())) return { outcome: 'lease-lost', runId: state.activeRunId };
+    const sourceProductId =
+      typeof candidate.sourceProductId === 'string' ? candidate.sourceProductId.trim() : '';
+    if (!isAlibabaProductId(sourceProductId)) {
+      const quarantined = await quarantineRun(
+        state,
+        counters,
+        ['tombstone-confirmation-invalid-product-id'],
+        guard,
+        deps,
+      );
+      if (!quarantined) return { outcome: 'lease-lost', runId: state.activeRunId };
+      await deps.alert(
+        `Alibaba sync run ${state.activeRunId} quarantined: tombstone candidate had an invalid product id.`,
+      );
+      await release();
+      return { outcome: 'quarantined', runId: state.activeRunId };
+    }
     budget.apiCalls += 1;
     const params = {
-      product_id: String(candidate.sourceProductId ?? ''),
+      product_id: sourceProductId,
       language: PRODUCT_LANGUAGE,
     };
     const confirm = await deps.client.callApi({
@@ -738,13 +781,9 @@ async function executeSlice(
     });
     if (!confirm.ok) {
       // A confirmation TRANSPORT error must not tombstone; quarantine the set.
-      await updateDoc('alibabaSyncRuns', state.activeRunId, {
-        status: 'quarantined',
-        alerts: ['tombstone-confirmation-failed'],
-        counters,
-        completedAt: deps.now(),
-      });
-      await clearActiveRun(guard, deps, state.mode);
+      if (!(await quarantineRun(state, counters, ['tombstone-confirmation-failed'], guard, deps))) {
+        return { outcome: 'lease-lost', runId: state.activeRunId };
+      }
       await deps.alert(
         `Alibaba sync run ${state.activeRunId} quarantined: tombstone confirmation failed.`,
       );
@@ -768,13 +807,17 @@ async function executeSlice(
         return { outcome: 'lease-lost', runId: state.activeRunId };
       }
       if (!confirmed.ok) {
-        await updateDoc('alibabaSyncRuns', state.activeRunId, {
-          status: 'quarantined',
-          alerts: ['tombstone-confirmation-invalid-detail'],
-          counters,
-          completedAt: deps.now(),
-        });
-        await clearActiveRun(guard, deps, state.mode);
+        if (
+          !(await quarantineRun(
+            state,
+            counters,
+            ['tombstone-confirmation-invalid-detail'],
+            guard,
+            deps,
+          ))
+        ) {
+          return { outcome: 'lease-lost', runId: state.activeRunId };
+        }
         await deps.alert(
           `Alibaba sync run ${state.activeRunId} quarantined: confirmation detail could not be ingested.`,
         );
@@ -784,13 +827,17 @@ async function executeSlice(
       continue;
     }
     if (!isAlibabaProductAbsentError(envelope)) {
-      await updateDoc('alibabaSyncRuns', state.activeRunId, {
-        status: 'quarantined',
-        alerts: ['tombstone-confirmation-provider-error'],
-        counters,
-        completedAt: deps.now(),
-      });
-      await clearActiveRun(guard, deps, state.mode);
+      if (
+        !(await quarantineRun(
+          state,
+          counters,
+          ['tombstone-confirmation-provider-error'],
+          guard,
+          deps,
+        ))
+      ) {
+        return { outcome: 'lease-lost', runId: state.activeRunId };
+      }
       await deps.alert(
         `Alibaba sync run ${state.activeRunId} quarantined: provider did not confirm product absence.`,
       );
@@ -918,10 +965,13 @@ async function handlePageFailure(
   // Retryable page failure: keep the run active; the next tick resumes from
   // the durable checkpoint. Raw-write failure aborts the PAGE with nothing
   // else written (MIU 6 contract) — same resume semantics.
-  await updateDoc('alibabaSyncRuns', state.activeRunId, {
-    counters,
-    errorSummary: `page-failure:${kind}`,
-  });
+  const recorded = await updateDocWithAlibabaLease(
+    'alibabaSyncRuns',
+    state.activeRunId,
+    { counters, errorSummary: `page-failure:${kind}` },
+    guard(deps.now()),
+  );
+  if (!recorded) return { outcome: 'lease-lost', runId: state.activeRunId };
   await release();
   return { outcome: 'continued', runId: state.activeRunId, detail: `page-failure:${kind}` };
 }
@@ -929,15 +979,37 @@ async function handlePageFailure(
 async function failRun(
   runId: string,
   reason: string,
-  _guard: AlibabaLeaseGuard,
+  guard: AlibabaLeaseGuard,
   deps: RunnerDeps,
-): Promise<void> {
-  await updateDoc('alibabaSyncRuns', runId, {
-    status: 'failed',
-    errorSummary: reason,
-    completedAt: deps.now(),
-  });
+): Promise<boolean> {
+  const failed = await updateDocWithAlibabaLease(
+    'alibabaSyncRuns',
+    runId,
+    { status: 'failed', errorSummary: reason, completedAt: deps.now() },
+    guard,
+  );
+  if (!failed) return false;
   await deps.alert(`Alibaba sync run ${runId} failed: ${reason}.`);
+  return true;
+}
+
+async function quarantineRun(
+  state: CheckpointState,
+  counters: RunCounters,
+  alerts: readonly string[],
+  guard: (at: string) => AlibabaLeaseGuard,
+  deps: RunnerDeps,
+  extra: Record<string, unknown> = {},
+): Promise<boolean> {
+  const now = deps.now();
+  const transitioned = await updateDocWithAlibabaLease(
+    'alibabaSyncRuns',
+    state.activeRunId,
+    { status: 'quarantined', alerts: [...alerts], counters, completedAt: now, ...extra },
+    guard(now),
+  );
+  if (!transitioned) return false;
+  return clearActiveRun(guard, deps, state.mode);
 }
 
 /**
@@ -1022,14 +1094,18 @@ async function completeRun(
     guard(now),
   );
   if (!applied) return false;
-  await updateDoc('alibabaSyncRuns', state.activeRunId, {
-    status: 'completed',
-    counters,
-    completedAt: now,
-    // A retryable page failure remains visible while the run is continuing,
-    // but once the same durable checkpoint reaches completion it is history,
-    // not a current run error. Raw payload evidence remains stored separately.
-    errorSummary: '',
-  });
-  return true;
+  return updateDocWithAlibabaLease(
+    'alibabaSyncRuns',
+    state.activeRunId,
+    {
+      status: 'completed',
+      counters,
+      completedAt: now,
+      // A retryable page failure remains visible while the run is continuing,
+      // but once the same durable checkpoint reaches completion it is history,
+      // not a current run error. Raw payload evidence remains stored separately.
+      errorSummary: '',
+    },
+    guard(deps.now()),
+  );
 }

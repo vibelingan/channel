@@ -103,7 +103,7 @@ row. The wrapper stores query/provenance fields plus the validated observation:
 The large Alibaba raw response is not copied into NoSQL. Its evidence entry
 references the existing payload hash/COS object. A Dianxiaomi import first
 stores the exact workbook bytes at the private, content-addressed
-`catalog-import-raw/<prefix>/<sha256>.xlsx` path. The import-job row records the
+`catalog-import-raw/<prefix>/<source-sha256>/<job-sha256>.xlsx` path. The import-job row records the
 digest and storage pointer; observations reference the exact job that produced
 them (`dianxiaomi:<sha256>` for the first import, an `:rN` job for an explicit
 replay) and do not duplicate the workbook bytes.
@@ -111,10 +111,12 @@ replay) and do not duplicate the workbook bytes.
 Normal Alibaba detail ingestion now writes the observation beside its existing
 source mirror and supplier offers. Every mutable mirror/offer/observation write
 rechecks the active lease atomically; a stale owner stops with `lease-lost`.
-Only the explicit provider-absence code may tombstone a product. Authentication,
-throttling, malformed and unknown errors quarantine the run instead of turning
-an API failure into a deletion. A confirmed tombstone deactivates the common row
-through the same fenced repair window used for canonical demotion.
+The provider-absence allowlist is intentionally empty until a sanitized live
+`product.get` error fixture or authoritative provider contract confirms the exact
+code and envelope. Today every missing/detail-error discrepancy quarantines the
+run instead of turning an API failure into a deletion. Once that evidence gate
+is satisfied, a confirmed tombstone will deactivate the common row through the
+same fenced repair window used for canonical demotion.
 
 Dianxiaomi staging writes one observation per store-scoped source product, while
 the candidate/group remains the operator-facing cross-store review unit. Thus
@@ -130,11 +132,15 @@ Alibaba's current 1,074 source products are migrated from immutable raw
 
 1. A dry-run page verifies source/payload metadata, byte size, SHA-256, provider
    envelope and ids, deterministic source key, exact current active offer-key
-   set, and the common observation contract. It performs no writes.
-2. The dry-run returns a SHA-256 over that page's source/raw/offer/observation
-   material and the authoritative active-source total.
-3. Apply requires the exact page hash and repeats the complete preflight before
-   its first write. A changed page stops with conflict.
+   set, and the common observation contract. It performs no derived-data writes.
+2. The server records each ordered page, its SHA-256 and the authoritative
+   active-source total in a private, admin-bound `alibabaRawReplayManifests`
+   document. The manifest is sealed `ready` only after every page has passed,
+   the cursor chain is contiguous and its row count equals that total.
+3. Apply requires the sealed manifest id plus the exact page hash and repeats
+   the complete preflight before its first derived-data write. A browser or
+   direct caller cannot start page one after validating only page one. A changed,
+   expired, cross-admin or out-of-order manifest/page stops with conflict.
 4. Apply updates only derived `sourceAttributes` on existing supplier offers
    and upserts the common observation. Each write is atomically lease-fenced;
    offer comparison reads the full active set rather than a 100-row prefix. It
@@ -142,8 +148,9 @@ Alibaba's current 1,074 source products are migrated from immutable raw
    publishes a canonical product.
 5. Deterministic ids make an interrupted page safe to repeat. Every apply page
    must present the same authoritative total found by dry-run; a changed total,
-   page, or owner stops fail-closed. The entire live dataset must pass dry-run
-   before the first apply page.
+   page, owner or manifest stops fail-closed. The server advances a fenced apply
+   cursor after each page, so only the next manifest page is accepted. Manifests
+   expire after two hours and cannot be reused after reaching `applied`.
 
 Expected live invariants from the read-only audit are 1,074 observations,
 3,672 active offers represented, 3,661 attributed variants, 10,100 option
@@ -173,8 +180,9 @@ explicit later decisions.
   pointer and match the recorded SHA-256; a single-store follow-up cannot mutate
   other stores' observation documents;
 - both function artifacts are self-contained and pass cold-start smoke tests;
-- the new NoSQL collection and indexes exist with `ADMINONLY` permission before
-  deploying the Alibaba function;
+- the observation collection and indexes exist with `ADMINONLY` permission, and
+  the hidden server-only replay-manifest collection exists with no direct admin
+  CRUD access, before deploying the Alibaba function;
 - all live Alibaba pages pass dry-run before apply;
 - post-apply database counts and sampled tier/attribute/evidence records match
   the immutable raw payloads;

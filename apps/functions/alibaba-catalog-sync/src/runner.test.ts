@@ -766,7 +766,7 @@ test('unsupported currency quarantines BEFORE promotion; approval promotes the f
   assert.equal(promotedProduct.unitPrice, 12.5, 'legacy untouched throughout');
 });
 
-test('full run: a vanished item is CONFIRMED before tombstoning and demotes its product', async () => {
+test('full run: an unverified ProductNotFound response quarantines without tombstoning', async () => {
   setup();
   const sourceKey = alibabaSourceKey('primary', 'item-gone');
   store.alibabaSyncCheckpoints = [
@@ -818,28 +818,29 @@ test('full run: a vanished item is CONFIRMED before tombstoning and demotes its 
   ]);
 
   const report = await runSyncTick({ deps: makeDeps(backend.fetchImpl), trigger: 'timer' });
-  assert.equal(report.outcome, 'completed', JSON.stringify(report));
+  assert.equal(report.outcome, 'quarantined', JSON.stringify(report));
 
   const gone = store.alibabaSourceProducts?.find((doc) => doc._id === sourceKey);
-  assert.equal(gone?.active, false, 'tombstoned only after detail confirmation');
-  assert.ok(typeof gone?.tombstonedAt === 'string' && gone.tombstonedAt !== '');
+  assert.equal(gone?.active, true, 'unverified provider codes must not tombstone');
+  assert.equal(gone?.tombstonedAt, undefined);
   assert.ok(
     backend.calls.filter((call) => call === '/sync:alibaba.icbu.product.get').length >= 2,
     'confirmation fetch happened',
   );
   const product = store.products?.[0] as CollectionDoc;
-  assert.equal(product.alibabaSourceStatus, 'removed', 'linked product demoted');
+  assert.equal(product.alibabaSourceStatus, undefined, 'linked product is not demoted');
   assert.equal(product.unitPrice, 12.5, 'legacy pricing untouched');
-  assert.equal(store.catalogSourceObservations?.[0]?.active, false, 'common view demoted too');
-  assert.notEqual(
-    store.catalogSourceObservations?.[0]?.lastSeenOperationId,
-    'old-run',
-    'common view carries the confirming full run',
-  );
+  assert.equal(store.catalogSourceObservations?.[0]?.active, true, 'common view remains active');
+  assert.equal(store.catalogSourceObservations?.[0]?.lastSeenOperationId, 'old-run');
 });
 
 test('full run: auth, throttling, and unknown confirmation errors quarantine instead of tombstoning', async () => {
-  for (const errorCode of ['IllegalAccessToken', 'AppCallLimit', 'UnexpectedProviderFailure']) {
+  for (const errorCode of [
+    'ProductNotFound',
+    'IllegalAccessToken',
+    'AppCallLimit',
+    'UnexpectedProviderFailure',
+  ]) {
     setup();
     const sourceKey = alibabaSourceKey('primary', 'item-gone');
     store.alibabaSyncCheckpoints = [
@@ -892,4 +893,97 @@ test('full run: auth, throttling, and unknown confirmation errors quarantine ins
     assert.equal(source?.tombstonedAt, undefined, `${errorCode} must not stamp absence`);
     assert.equal(store.alibabaSyncRuns?.[0]?.status, 'quarantined');
   }
+});
+
+test('full run: an invalid tombstone candidate id quarantines before a detail call', async () => {
+  setup();
+  const sourceKey = alibabaSourceKey('primary', 'legacy-product');
+  store.alibabaSyncCheckpoints = [
+    {
+      _id: 'primary',
+      connectionId: 'primary',
+      activeRunId: '',
+      stage: 'enumerate',
+      nextFullDueAt: '2026-08-06T12:00:00.000Z',
+      nextIncrementalDueAt: '2026-08-06T16:15:00.000Z',
+      committedCursor: '',
+      continuationCount: 0,
+    } as CollectionDoc,
+  ];
+  store.alibabaSourceProducts = [
+    {
+      _id: sourceKey,
+      sourceKey,
+      connectionId: 'primary',
+      sourceProductId: '',
+      active: true,
+      lastSeenRunId: 'old-run',
+    } as CollectionDoc,
+  ];
+  const backend = fakeBackend(() => [{ id: 'item-1', modifiedMs: ITEM_TIME, priceLexeme: '2.50' }]);
+
+  const report = await runSyncTick({ deps: makeDeps(backend.fetchImpl), trigger: 'timer' });
+  assert.equal(report.outcome, 'quarantined', JSON.stringify(report));
+  assert.equal(report.detail, undefined);
+  assert.equal(store.alibabaSourceProducts?.[0]?.active, true);
+  assert.equal(store.alibabaSourceProducts?.[0]?.tombstonedAt, undefined);
+  assert.equal(store.alibabaSyncRuns?.[0]?.status, 'quarantined');
+  assert.equal(
+    backend.calls.filter((call) => call === '/sync:alibaba.icbu.product.get').length,
+    1,
+    'only the enumerated live item is fetched; the invalid candidate never reaches product.get',
+  );
+});
+
+test('a worker that loses its lease during confirmation cannot quarantine the run', async () => {
+  setup();
+  const sourceKey = alibabaSourceKey('primary', 'item-gone');
+  store.alibabaSyncCheckpoints = [
+    {
+      _id: 'primary',
+      connectionId: 'primary',
+      activeRunId: '',
+      stage: 'enumerate',
+      nextFullDueAt: '2026-08-06T12:00:00.000Z',
+      nextIncrementalDueAt: '2026-08-06T16:15:00.000Z',
+      committedCursor: '',
+      continuationCount: 0,
+    } as CollectionDoc,
+  ];
+  store.alibabaSourceProducts = [
+    {
+      _id: sourceKey,
+      sourceKey,
+      connectionId: 'primary',
+      sourceProductId: 'item-gone',
+      active: true,
+      lastSeenRunId: 'old-run',
+    } as CollectionDoc,
+  ];
+  const backend = fakeBackend(() => [
+    { id: 'item-1', modifiedMs: ITEM_TIME, priceLexeme: '2.50' },
+    { id: 'item-gone', modifiedMs: ITEM_TIME, priceLexeme: '9.99', removed: true },
+  ]);
+  const takeoverDuringConfirmation = (async (input: string | URL | Request, init?: RequestInit) => {
+    const params = new URLSearchParams(String(init?.body ?? ''));
+    if (
+      params.get('method') === 'alibaba.icbu.product.get' &&
+      params.get('product_id') === 'item-gone'
+    ) {
+      const lease = store.alibabaSyncLeases?.[0];
+      if (lease) {
+        lease.holder = 'new-holder';
+        lease.fence = Number(lease.fence) + 1;
+      }
+    }
+    return backend.fetchImpl(input, init);
+  }) as typeof fetch;
+
+  const report = await runSyncTick({
+    deps: makeDeps(takeoverDuringConfirmation),
+    trigger: 'timer',
+  });
+  assert.equal(report.outcome, 'lease-lost');
+  assert.notEqual(store.alibabaSyncRuns?.[0]?.status, 'quarantined');
+  assert.equal(store.alibabaSourceProducts?.[0]?.active, true);
 });

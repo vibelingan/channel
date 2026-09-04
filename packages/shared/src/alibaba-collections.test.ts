@@ -26,10 +26,11 @@ const EXPECTED_ACCESS: Record<string, 'crud' | 'readOnly' | 'none'> = {
   alibabaProductLinks: 'readOnly',
   alibabaSupplierOffers: 'readOnly',
   alibabaSyncRuns: 'readOnly',
+  alibabaRawReplayManifests: 'none',
   alibabaCategoryMappings: 'crud',
 };
 
-test('all ten Alibaba collections are registered with the charter access levels', () => {
+test('all Alibaba collections are registered with the charter access levels', () => {
   for (const [name, access] of Object.entries(EXPECTED_ACCESS)) {
     const def = getCollection(name);
     assert.ok(def, `${name} must be registered`);

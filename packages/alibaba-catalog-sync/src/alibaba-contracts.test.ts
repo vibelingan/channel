@@ -58,12 +58,9 @@ test('authorization errors are classified', () => {
   );
 });
 
-test('product absence is a strict allowlist, not any failed detail response', () => {
-  assert.equal(
-    isAlibabaProductAbsentError(parseAlibabaApiResponse('{"error_code":"ProductNotFound"}')),
-    true,
-  );
+test('no unverified provider error is accepted as destructive product absence', () => {
   for (const body of [
+    '{"error_code":"ProductNotFound"}',
     '{"error_code":"IllegalAccessToken"}',
     '{"error_code":"AppCallLimit"}',
     '{"error_code":"UnexpectedProviderFailure"}',

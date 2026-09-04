@@ -161,7 +161,7 @@ function yearMonth(now: Date): { yyyy: string; mm: string } {
  *   marketing/<yyyy>/<mm>/<logicalId>/<safeName>
  *   smoke/<safeName>
  *   alibaba-raw/<hh>/<sha256>.json        (hh = first two hash chars)
- *   catalog-import-raw/<hh>/<sha256>.xlsx
+ *   catalog-import-raw/<hh>/<source-sha256>/<job-sha256>.xlsx
  */
 export function objectStoragePath(
   input: Pick<PutMediaObjectInput, 'namespace' | 'logicalId' | 'fileName'> & { now?: Date },
@@ -170,7 +170,11 @@ export function objectStoragePath(
   if (input.namespace === 'smoke') return `smoke/${safe}`;
   if (input.namespace === 'alibaba-raw') return alibabaRawStoragePath(input.logicalId);
   if (input.namespace === 'catalog-import-raw') {
-    return catalogImportRawStoragePath(input.logicalId);
+    const match = /^([0-9a-f]{64})\.xlsx$/.exec(input.fileName);
+    if (!match?.[1]) {
+      throw new Error('catalog import raw object name requires a lowercase SHA-256');
+    }
+    return catalogImportRawStoragePath(input.logicalId, match[1]);
   }
   const { yyyy, mm } = yearMonth(input.now ?? new Date());
   return `${input.namespace}/${yyyy}/${mm}/${safeFileName(input.logicalId)}/${safe}`;
@@ -184,11 +188,17 @@ export function alibabaRawStoragePath(responseSha256: string): string {
   return `alibaba-raw/${responseSha256.slice(0, 2)}/${responseSha256}.json`;
 }
 
-export function catalogImportRawStoragePath(sourceSha256: string): string {
+export function catalogImportRawStoragePath(
+  sourceSha256: string,
+  importJobSha256: string = sourceSha256,
+): string {
   if (!/^[0-9a-f]{64}$/.test(sourceSha256)) {
     throw new Error('catalog import raw storage path requires a lowercase SHA-256');
   }
-  return `catalog-import-raw/${sourceSha256.slice(0, 2)}/${sourceSha256}.xlsx`;
+  if (!/^[0-9a-f]{64}$/.test(importJobSha256)) {
+    throw new Error('catalog import raw storage path requires a lowercase job SHA-256');
+  }
+  return `catalog-import-raw/${sourceSha256.slice(0, 2)}/${sourceSha256}/${importJobSha256}.xlsx`;
 }
 
 /**

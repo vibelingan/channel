@@ -16,6 +16,7 @@ import {
   type AlibabaLeaseGuard,
   type CatalogProductSaveInput,
   type CatalogProductSaveResult,
+  type CatalogSourceObservationUpsertResult,
   type DbAdapter,
   type ImageMutationAcquireResult,
   type ImageMutationReleaseResult,
@@ -508,6 +509,7 @@ export class JsonFileAdapter implements DbAdapter {
     collection: string,
     id: string,
     data: Record<string, unknown>,
+    createOnly: Record<string, unknown> = {},
   ): Promise<CollectionDoc> {
     return this.withMutationLock(() => {
       const docs = this.docs(collection);
@@ -520,10 +522,57 @@ export class JsonFileAdapter implements DbAdapter {
         this.persist();
         return next;
       }
-      const created = { _id: id, createdAt: now, updatedAt: now, ...patch } as CollectionDoc;
+      const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+        _id?: unknown;
+      };
+      const created = {
+        _id: id,
+        createdAt: now,
+        updatedAt: now,
+        ...safeCreateOnly,
+        ...patch,
+      } as CollectionDoc;
       docs.push(created);
       this.persist();
       return created;
+    });
+  }
+
+  async upsertCatalogSourceObservation(
+    id: string,
+    data: Record<string, unknown>,
+    createOnly: Record<string, unknown>,
+  ): Promise<CatalogSourceObservationUpsertResult> {
+    return this.withMutationLock(() => {
+      const docs = this.docs('catalogSourceObservations');
+      const index = docs.findIndex((document) => document._id === id);
+      const now = new Date().toISOString();
+      const { _id: _patchId, ...patch } = data as Record<string, unknown> & { _id?: unknown };
+      if (index >= 0) {
+        const existing = docs[index] as CollectionDoc;
+        const previousAt = Date.parse(String(existing.observedAt ?? ''));
+        const incomingAt = Date.parse(String(patch.observedAt ?? ''));
+        if (Number.isFinite(previousAt) && previousAt > incomingAt) {
+          return { result: 'stale', doc: existing };
+        }
+        const next = { ...existing, ...patch, updatedAt: now };
+        docs[index] = next;
+        this.persist();
+        return { result: 'applied', doc: next };
+      }
+      const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+        _id?: unknown;
+      };
+      const created = {
+        _id: id,
+        createdAt: now,
+        updatedAt: now,
+        ...safeCreateOnly,
+        ...patch,
+      } as CollectionDoc;
+      docs.push(created);
+      this.persist();
+      return { result: 'applied', doc: created };
     });
   }
 

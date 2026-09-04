@@ -490,7 +490,7 @@ test('inspectProductDetail is admin-only and validates one bounded provider id',
   if (!invalid.ok) assert.equal(invalid.error.code, 'VALIDATION_ERROR');
 });
 
-test('raw observation replay is admin-only and apply requires a dry-run hash', async () => {
+test('raw observation replay is admin-only and apply requires hash, total and manifest', async () => {
   setup();
   const contributor = await contributorToken();
   const forbidden = await handleAlibabaSyncRequest(
@@ -526,6 +526,22 @@ test('raw observation replay is admin-only and apply requires a dry-run hash', a
   );
   assert.equal(missingTotal.ok, false);
   if (!missingTotal.ok) assert.equal(missingTotal.error.code, 'VALIDATION_ERROR');
+
+  const missingManifest = await handleAlibabaSyncRequest(
+    {
+      action: 'replaySourceObservations',
+      token: admin,
+      data: {
+        mode: 'apply',
+        limit: 10,
+        expectedPageHash: 'a'.repeat(64),
+        expectedTotalSourceProducts: 1,
+      },
+    },
+    baseConfig,
+  );
+  assert.equal(missingManifest.ok, false);
+  if (!missingManifest.ok) assert.equal(missingManifest.error.code, 'VALIDATION_ERROR');
 
   const unknownField = await handleAlibabaSyncRequest(
     {

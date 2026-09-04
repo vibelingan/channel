@@ -1137,6 +1137,24 @@ export const COLLECTIONS: readonly CollectionDef[] = [
     ],
   },
   {
+    name: 'alibabaRawReplayManifests',
+    label: 'Alibaba Raw Replay Manifests',
+    description:
+      'Server-owned proof that every ordered raw replay page passed validation before any apply.',
+    searchableFields: [],
+    hideFromNav: true,
+    adminAccess: 'none',
+    fields: [
+      { name: 'connectionId', label: 'Connection', type: 'string', readOnly: true },
+      { name: 'requestedBy', label: 'Requested By', type: 'string', readOnly: true },
+      { name: 'status', label: 'Status', type: 'string', readOnly: true },
+      { name: 'totalSourceProducts', label: 'Source Total', type: 'number', readOnly: true },
+      { name: 'pages', label: 'Pages', type: 'json', readOnly: true },
+      { name: 'nextApplyIndex', label: 'Next Apply Page', type: 'number', readOnly: true },
+      { name: 'expiresAt', label: 'Expires', type: 'date', readOnly: true },
+    ],
+  },
+  {
     name: 'alibabaCategoryMappings',
     label: 'Alibaba Category Mappings',
     description:

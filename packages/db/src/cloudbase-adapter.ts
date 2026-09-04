@@ -17,7 +17,9 @@ import {
 import cloud from 'wx-server-sdk';
 import type {
   AlibabaLeaseGrant,
+  AlibabaLeaseGuard,
   CatalogProductSaveResult,
+  CatalogSourceObservationUpsertResult,
   DbAdapter,
   ImageMutationAcquireResult,
   ImageMutationReleaseResult,
@@ -111,6 +113,11 @@ interface NodeSdkTransaction {
   };
 }
 
+interface NodeSdkDatabase {
+  command: { set(value: unknown): unknown };
+  runTransaction<T>(operation: (transaction: NodeSdkTransaction) => Promise<T>): Promise<T>;
+}
+
 let initialized = false;
 let storageApp: CloudBase | null = null;
 
@@ -160,6 +167,42 @@ function normalizeSingle(raw: unknown): CollectionDoc | null {
   return doc && typeof doc === 'object' && !Array.isArray(doc)
     ? normalize(doc as Record<string, unknown>)
     : null;
+}
+
+/** Exported for a production-path takeover test; the live adapter calls this exact function. */
+export async function upsertDocWithAlibabaLeaseInCloudBase(
+  db: NodeSdkDatabase,
+  collection: string,
+  id: string,
+  patch: Record<string, unknown>,
+  createOnly: Record<string, unknown>,
+  guard: AlibabaLeaseGuard,
+): Promise<boolean> {
+  return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+    const leaseRef = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(guard.connectionId);
+    const lease = normalizeSingle((await leaseRef.get()).data);
+    if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+
+    const targetRef = transaction.collection(collection).doc(id);
+    const existing = normalizeSingle((await targetRef.get()).data);
+    const { _id: _patchId, ...safePatch } = patch as Record<string, unknown> & { _id?: unknown };
+    if (existing) {
+      await targetRef.update(
+        replaceNestedObjects({ ...safePatch, updatedAt: guard.now }, db.command),
+      );
+      return true;
+    }
+    const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+      _id?: unknown;
+    };
+    await targetRef.set({
+      ...safeCreateOnly,
+      ...safePatch,
+      createdAt: guard.now,
+      updatedAt: guard.now,
+    });
+    return true;
+  });
 }
 
 export const cloudBaseAdapter: DbAdapter = {
@@ -420,7 +463,7 @@ export const cloudBaseAdapter: DbAdapter = {
     });
   },
 
-  async upsertDocWithId(collection, id, data): Promise<CollectionDoc> {
+  async upsertDocWithId(collection, id, data, createOnly = {}): Promise<CollectionDoc> {
     const db = cloudStorageSdk().database();
     return db.runTransaction(async (transaction: NodeSdkTransaction) => {
       const ref = transaction.collection(collection).doc(id);
@@ -433,9 +476,42 @@ export const cloudBaseAdapter: DbAdapter = {
         await ref.update(replaceNestedObjects(merged, db.command));
         return normalize({ ...existing, ...merged, _id: id });
       }
-      const created = { createdAt: now, updatedAt: now, ...patch };
+      const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+        _id?: unknown;
+      };
+      const created = { createdAt: now, updatedAt: now, ...safeCreateOnly, ...patch };
       await ref.set(created);
       return normalize({ _id: id, ...created });
+    });
+  },
+
+  async upsertCatalogSourceObservation(
+    id,
+    data,
+    createOnly,
+  ): Promise<CatalogSourceObservationUpsertResult> {
+    const db = cloudStorageSdk().database();
+    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+      const ref = transaction.collection('catalogSourceObservations').doc(id);
+      const existing = normalizeSingle((await ref.get()).data);
+      const now = new Date().toISOString();
+      const { _id: _patchId, ...patch } = data as Record<string, unknown> & { _id?: unknown };
+      if (existing) {
+        const previousAt = Date.parse(String(existing.observedAt ?? ''));
+        const incomingAt = Date.parse(String(patch.observedAt ?? ''));
+        if (Number.isFinite(previousAt) && previousAt > incomingAt) {
+          return { result: 'stale', doc: existing };
+        }
+        const merged = { ...patch, updatedAt: now };
+        await ref.update(replaceNestedObjects(merged, db.command));
+        return { result: 'applied', doc: normalize({ ...existing, ...merged, _id: id }) };
+      }
+      const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+        _id?: unknown;
+      };
+      const created = { createdAt: now, updatedAt: now, ...safeCreateOnly, ...patch };
+      await ref.set(created);
+      return { result: 'applied', doc: normalize({ _id: id, ...created }) };
     });
   },
 
@@ -511,34 +587,8 @@ export const cloudBaseAdapter: DbAdapter = {
   },
 
   async upsertDocWithAlibabaLease(collection, id, patch, createOnly, guard): Promise<boolean> {
-    const db = cloudStorageSdk().database();
-    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
-      const leaseRef = transaction
-        .collection(ALIBABA_SYNC_LEASE_COLLECTION)
-        .doc(guard.connectionId);
-      const lease = normalizeSingle((await leaseRef.get()).data);
-      if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
-
-      const targetRef = transaction.collection(collection).doc(id);
-      const existing = normalizeSingle((await targetRef.get()).data);
-      const { _id: _patchId, ...safePatch } = patch as Record<string, unknown> & { _id?: unknown };
-      if (existing) {
-        await targetRef.update(
-          replaceNestedObjects({ ...safePatch, updatedAt: guard.now }, db.command),
-        );
-        return true;
-      }
-      const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
-        _id?: unknown;
-      };
-      await targetRef.set({
-        ...safeCreateOnly,
-        ...safePatch,
-        createdAt: guard.now,
-        updatedAt: guard.now,
-      });
-      return true;
-    });
+    const db = cloudStorageSdk().database() as unknown as NodeSdkDatabase;
+    return upsertDocWithAlibabaLeaseInCloudBase(db, collection, id, patch, createOnly, guard);
   },
 };
 

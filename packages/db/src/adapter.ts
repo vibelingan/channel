@@ -53,6 +53,10 @@ export type CatalogProductSaveResult =
   | { result: 'invalid-product'; issues: ReturnType<typeof validateProductPublication> }
   | { result: 'missing' | 'exists' };
 
+export type CatalogSourceObservationUpsertResult =
+  | { result: 'applied'; doc: CollectionDoc }
+  | { result: 'stale'; doc: CollectionDoc };
+
 export type CatalogProductSavePlan =
   | Extract<
       CatalogProductSaveResult,
@@ -423,7 +427,18 @@ export interface DbAdapter {
     collection: string,
     id: string,
     data: Record<string, unknown>,
+    /** Fields applied only by the transaction that creates the document. */
+    createOnly?: Record<string, unknown>,
   ): Promise<CollectionDoc>;
+  /**
+   * Atomically materialize the newest provider observation. Creation-only
+   * lineage is preserved and an older observedAt can never replace a newer row.
+   */
+  upsertCatalogSourceObservation?(
+    id: string,
+    data: Record<string, unknown>,
+    createOnly: Record<string, unknown>,
+  ): Promise<CatalogSourceObservationUpsertResult>;
   /** Transactionally acquire the per-connection sync lease (fence increments on takeover). */
   acquireAlibabaSyncLease?(
     connectionId: string,

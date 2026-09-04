@@ -60,22 +60,34 @@ export async function runCatalogImport(input: RunImportInput): Promise<RunImport
   });
 
   let job = started.job;
+  if (started.reused && job.status === 'created') {
+    throw new Error(
+      'this source import is already in progress; retry as an explicit replay if stale',
+    );
+  }
   if (
     started.reused &&
     job.status === 'failed' &&
-    job.failureCode === 'source-evidence-write-failed'
+    String(job.failureCode).startsWith('source-evidence-')
   ) {
     throw new Error('the previous source evidence write failed; retry as an explicit replay');
   }
   if (typeof job.sourceStorageFileId !== 'string' || job.sourceStorageFileId === '') {
+    const jobObjectSha256 = createHash('sha256').update(job._id).digest('hex');
+    let stored: Awaited<ReturnType<ReturnType<typeof mediaStorage>['putObject']>>;
     try {
-      const stored = await mediaStorage().putObject({
+      stored = await mediaStorage().putObject({
         namespace: 'catalog-import-raw',
         logicalId: sourceFileSha256,
-        fileName: `${sourceFileSha256}.xlsx`,
+        fileName: `${jobObjectSha256}.xlsx`,
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         content: input.bytes,
       });
+    } catch (error) {
+      await failImportJobEvidence(job._id, now, 'source-evidence-write-failed');
+      throw new Error('catalog import source evidence could not be stored', { cause: error });
+    }
+    try {
       job = await recordImportSourceEvidence(
         job._id,
         {
@@ -88,8 +100,31 @@ export async function runCatalogImport(input: RunImportInput): Promise<RunImport
         now,
       );
     } catch (error) {
-      await failImportJobEvidence(job._id, now);
-      throw new Error('catalog import source evidence could not be stored', { cause: error });
+      let cleanupFailed = false;
+      try {
+        await mediaStorage().deleteObject(stored.storageFileId);
+      } catch {
+        cleanupFailed = true;
+      }
+      await failImportJobEvidence(
+        job._id,
+        now,
+        cleanupFailed
+          ? 'source-evidence-attach-failed-object-retained'
+          : 'source-evidence-attach-failed',
+        cleanupFailed
+          ? {
+              orphanedSourceStorageFileId: stored.storageFileId,
+              orphanedSourceStoragePath: stored.storagePath,
+            }
+          : {},
+      );
+      throw new Error(
+        cleanupFailed
+          ? 'catalog import source evidence could not be attached and cleanup failed'
+          : 'catalog import source evidence could not be attached',
+        { cause: error },
+      );
     }
   }
 

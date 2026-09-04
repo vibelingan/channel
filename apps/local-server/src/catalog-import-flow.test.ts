@@ -33,15 +33,17 @@ const CHANGED = buildAcceptanceWorkbook({ revision: 'changed' });
 
 interface Harness {
   dir: string;
+  adapter: JsonFileAdapter;
   cleanup: () => void;
 }
 
 /** A private database and media directory per test, torn down afterwards. */
 function harness(): Harness {
   const dir = mkdtempSync(join(tmpdir(), 'catalog-import-'));
-  setAdapter(new JsonFileAdapter(join(dir, 'db.json')));
+  const adapter = new JsonFileAdapter(join(dir, 'db.json'));
+  setAdapter(adapter);
   setMediaStorage(new LocalDiskMediaStorage(join(dir, 'media')));
-  return { dir, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+  return { dir, adapter, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
 async function countOf(collection: string): Promise<number> {
@@ -157,6 +159,85 @@ test('a raw workbook storage failure is durable and requires an explicit recover
   for (const observation of await allOf('catalogSourceObservations')) {
     assert.equal(observation.evidenceId, recovered.job._id);
   }
+});
+
+test('a database attachment failure removes the job-scoped private workbook object', async (t) => {
+  const { dir, adapter, cleanup } = harness();
+  t.after(cleanup);
+  const originalUpdate = adapter.update.bind(adapter);
+  adapter.update = async (collection, id, data) => {
+    if (collection === 'catalogImportJobs' && Object.hasOwn(data, 'sourceStorageFileId')) {
+      throw new Error('database unavailable before evidence attachment');
+    }
+    return originalUpdate(collection, id, data);
+  };
+
+  await assert.rejects(
+    () => runCatalogImport({ bytes: WORKBOOK, sourceFileName: 'export.xlsx' }),
+    /source evidence could not be attached$/,
+  );
+  const [failed] = await allOf('catalogImportJobs');
+  assert.equal(failed?.failureCode, 'source-evidence-attach-failed');
+  const files = readdirSync(join(dir, 'media'), { recursive: true });
+  assert.equal(
+    files.some((entry) => String(entry).endsWith('.xlsx')),
+    false,
+  );
+});
+
+test('a null attachment update is compensated like a thrown database failure', async (t) => {
+  const { dir, adapter, cleanup } = harness();
+  t.after(cleanup);
+  const originalUpdate = adapter.update.bind(adapter);
+  adapter.update = async (collection, id, data) =>
+    collection === 'catalogImportJobs' && Object.hasOwn(data, 'sourceStorageFileId')
+      ? null
+      : originalUpdate(collection, id, data);
+
+  await assert.rejects(
+    () => runCatalogImport({ bytes: WORKBOOK, sourceFileName: 'export.xlsx' }),
+    /source evidence could not be attached$/,
+  );
+  const [failed] = await allOf('catalogImportJobs');
+  assert.equal(failed?.failureCode, 'source-evidence-attach-failed');
+  const files = readdirSync(join(dir, 'media'), { recursive: true });
+  assert.equal(
+    files.some((entry) => String(entry).endsWith('.xlsx')),
+    false,
+  );
+});
+
+test('a cleanup failure records the retained private object for later repair', async (t) => {
+  const { dir, adapter, cleanup } = harness();
+  t.after(cleanup);
+  const disk = new LocalDiskMediaStorage(join(dir, 'media'));
+  setMediaStorage({
+    putObject: (input) => disk.putObject(input),
+    getObjectAsBase64: (fileId) => disk.getObjectAsBase64(fileId),
+    getTempUrl: (fileId) => disk.getTempUrl(fileId),
+    deleteObject: async () => {
+      throw new Error('cleanup unavailable');
+    },
+    getUploadCredential: (path) => disk.getUploadCredential(path),
+  });
+  const originalUpdate = adapter.update.bind(adapter);
+  adapter.update = async (collection, id, data) => {
+    if (collection === 'catalogImportJobs' && Object.hasOwn(data, 'sourceStorageFileId')) {
+      throw new Error('database unavailable before evidence attachment');
+    }
+    return originalUpdate(collection, id, data);
+  };
+
+  await assert.rejects(
+    () => runCatalogImport({ bytes: WORKBOOK, sourceFileName: 'export.xlsx' }),
+    /source evidence could not be attached and cleanup failed/,
+  );
+  const [failed] = await allOf('catalogImportJobs');
+  assert.equal(failed?.failureCode, 'source-evidence-attach-failed-object-retained');
+  assert.equal(typeof failed?.orphanedSourceStorageFileId, 'string');
+  const retainedPath = String(failed?.orphanedSourceStoragePath ?? '');
+  assert.ok(retainedPath.endsWith('.xlsx'));
+  assert.ok(readFileSync(join(dir, 'media', retainedPath)).equals(WORKBOOK));
 });
 
 test('re-importing identical bytes creates no new job, item or record', async (t) => {

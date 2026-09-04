@@ -32,6 +32,10 @@ import { listAllDocs } from './list-all.ts';
 import { PRIMARY_CONNECTION_ID } from './oauth.ts';
 
 const MAX_RAW_BYTES = 8 * 1024 * 1024;
+const REPLAY_MANIFEST_TTL_MS = 2 * 60 * 60 * 1000;
+const MAX_REPLAY_MANIFEST_PAGES = 200;
+const MANIFEST_ID_PATTERN =
+  /^raw-replay-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 type LeaseGrant = { result: 'granted'; fence: number } | { result: 'busy' } | { result: 'corrupt' };
 
@@ -45,6 +49,7 @@ export interface AlibabaRawReplayPort {
     limit: number,
   ): Promise<{ items: CollectionDoc[]; total: number }>;
   getDocument(collection: string, id: string): Promise<CollectionDoc | null>;
+  getReplayManifest(id: string): Promise<CollectionDoc | null>;
   listActiveOffers(sourceKey: string): Promise<CollectionDoc[]>;
   readObjectAsBase64(fileId: string): Promise<{ body: string; byteSize?: number }>;
   updateOffer(
@@ -53,6 +58,12 @@ export interface AlibabaRawReplayPort {
     guard: AlibabaLeaseGuard,
   ): Promise<boolean>;
   upsertObservation(
+    id: string,
+    value: Record<string, unknown>,
+    createOnly: Record<string, unknown>,
+    guard: AlibabaLeaseGuard,
+  ): Promise<boolean>;
+  upsertReplayManifest(
     id: string,
     value: Record<string, unknown>,
     createOnly: Record<string, unknown>,
@@ -108,6 +119,7 @@ const defaultPort: AlibabaRawReplayPort = {
     return { items: page.items, total: count.total };
   },
   getDocument: get,
+  getReplayManifest: (id) => get('alibabaRawReplayManifests', id),
   async listActiveOffers(sourceKey) {
     return listAllDocs('alibabaSupplierOffers', [
       { field: 'sourceKey', op: 'eq', value: sourceKey },
@@ -119,6 +131,8 @@ const defaultPort: AlibabaRawReplayPort = {
     updateDocWithAlibabaLease('alibabaSupplierOffers', id, patch, guard),
   upsertObservation: (id, value, createOnly, guard) =>
     upsertDocWithAlibabaLease('catalogSourceObservations', id, value, createOnly, guard),
+  upsertReplayManifest: (id, value, createOnly, guard) =>
+    upsertDocWithAlibabaLease('alibabaRawReplayManifests', id, value, createOnly, guard),
 };
 
 export interface AlibabaRawReplayInput {
@@ -127,6 +141,9 @@ export interface AlibabaRawReplayInput {
   limit?: number;
   expectedPageHash?: string;
   expectedTotalSourceProducts?: number;
+  manifestId?: string;
+  /** Bound by the authenticated handler; defaults only for direct internal calls/tests. */
+  requestedBy?: string;
 }
 
 export interface AlibabaRawReplayFailure {
@@ -161,12 +178,20 @@ export interface AlibabaRawReplayCounts {
 export type AlibabaRawReplayResult =
   | {
       ok: false;
-      reason: 'invalid-input' | 'lease-busy' | 'lease-corrupt' | 'lease-lost' | 'page-changed';
+      reason:
+        | 'invalid-input'
+        | 'manifest-invalid'
+        | 'lease-busy'
+        | 'lease-corrupt'
+        | 'lease-lost'
+        | 'page-changed';
     }
   | {
       ok: true;
       mode: 'dry-run' | 'apply';
       ready: boolean;
+      manifestId: string;
+      manifestReady: boolean;
       pageHash: string;
       totalSourceProducts: number;
       afterSourceKey: string;
@@ -187,6 +212,23 @@ interface ReplayPlan {
   observation: NonNullable<
     ReturnType<typeof alibabaObservationAdapter.toObservations>['observations'][number]
   >;
+}
+
+interface ReplayManifestPage {
+  afterSourceKey: string;
+  nextSourceKey: string;
+  pageHash: string;
+  limit: number;
+  sourceProducts: number;
+}
+
+interface ReplayManifest {
+  requestedBy: string;
+  status: 'collecting' | 'ready' | 'applying' | 'applied' | 'failed';
+  totalSourceProducts: number;
+  pages: ReplayManifestPage[];
+  nextApplyIndex: number;
+  expiresAt: string;
 }
 
 function textField(doc: CollectionDoc, field: string): string | null {
@@ -220,18 +262,120 @@ function pageFingerprint(
     .digest('hex');
 }
 
+function parseReplayManifest(doc: CollectionDoc | null, now: string): ReplayManifest | null {
+  if (!doc || !Array.isArray(doc.pages)) return null;
+  if (
+    doc.connectionId !== PRIMARY_CONNECTION_ID ||
+    typeof doc.requestedBy !== 'string' ||
+    doc.requestedBy.trim() === '' ||
+    !['collecting', 'ready', 'applying', 'applied', 'failed'].includes(String(doc.status)) ||
+    !Number.isSafeInteger(doc.totalSourceProducts) ||
+    Number(doc.totalSourceProducts) < 0 ||
+    !Number.isSafeInteger(doc.nextApplyIndex) ||
+    Number(doc.nextApplyIndex) < 0 ||
+    typeof doc.expiresAt !== 'string' ||
+    Date.parse(doc.expiresAt) <= Date.parse(now) ||
+    doc.pages.length > MAX_REPLAY_MANIFEST_PAGES
+  ) {
+    return null;
+  }
+  const pages: ReplayManifestPage[] = [];
+  for (const value of doc.pages) {
+    if (
+      typeof value !== 'object' ||
+      value === null ||
+      Array.isArray(value) ||
+      !('afterSourceKey' in value) ||
+      typeof value.afterSourceKey !== 'string' ||
+      !('nextSourceKey' in value) ||
+      typeof value.nextSourceKey !== 'string' ||
+      !('pageHash' in value) ||
+      typeof value.pageHash !== 'string' ||
+      !/^[0-9a-f]{64}$/.test(value.pageHash) ||
+      !('limit' in value) ||
+      !Number.isSafeInteger(value.limit) ||
+      Number(value.limit) < 1 ||
+      Number(value.limit) > 20 ||
+      !('sourceProducts' in value) ||
+      !Number.isSafeInteger(value.sourceProducts) ||
+      Number(value.sourceProducts) < 0 ||
+      Number(value.sourceProducts) > Number(value.limit)
+    ) {
+      return null;
+    }
+    pages.push({
+      afterSourceKey: value.afterSourceKey,
+      nextSourceKey: value.nextSourceKey,
+      pageHash: value.pageHash,
+      limit: Number(value.limit),
+      sourceProducts: Number(value.sourceProducts),
+    });
+  }
+  if (
+    pages.some(
+      (page, index) =>
+        page.afterSourceKey !== (index === 0 ? '' : pages[index - 1]?.nextSourceKey) ||
+        (page.sourceProducts > 0 && page.nextSourceKey === page.afterSourceKey),
+    ) ||
+    Number(doc.nextApplyIndex) > pages.length
+  ) {
+    return null;
+  }
+  const status = String(doc.status) as ReplayManifest['status'];
+  if (status === 'ready' || status === 'applying' || status === 'applied') {
+    const covered = pages.reduce((total, page) => total + page.sourceProducts, 0);
+    const last = pages.at(-1);
+    if (
+      !last ||
+      last.sourceProducts >= last.limit ||
+      pages.slice(0, -1).some((page) => page.sourceProducts !== page.limit) ||
+      covered !== Number(doc.totalSourceProducts)
+    ) {
+      return null;
+    }
+  }
+  if (status === 'applied' && Number(doc.nextApplyIndex) !== pages.length) return null;
+  return {
+    requestedBy: doc.requestedBy,
+    status,
+    totalSourceProducts: Number(doc.totalSourceProducts),
+    pages,
+    nextApplyIndex: Number(doc.nextApplyIndex),
+    expiresAt: doc.expiresAt,
+  };
+}
+
+function manifestCreateFields(
+  requestedBy: string,
+  totalSourceProducts: number,
+  now: string,
+): Record<string, unknown> {
+  return {
+    connectionId: PRIMARY_CONNECTION_ID,
+    requestedBy,
+    totalSourceProducts,
+    createdAt: now,
+    expiresAt: new Date(Date.parse(now) + REPLAY_MANIFEST_TTL_MS).toISOString(),
+  };
+}
+
 export async function replayAlibabaRawPage(
   input: AlibabaRawReplayInput,
   port: AlibabaRawReplayPort = defaultPort,
 ): Promise<AlibabaRawReplayResult> {
   const limit = input.limit ?? 10;
   const afterSourceKey = input.afterSourceKey ?? '';
+  const requestedBy = input.requestedBy?.trim() || 'internal-admin';
   if (
+    requestedBy === '' ||
     !Number.isSafeInteger(limit) ||
     limit < 1 ||
     limit > 20 ||
+    (input.manifestId !== undefined && !MANIFEST_ID_PATTERN.test(input.manifestId)) ||
+    (input.mode === 'dry-run' && input.manifestId === undefined && afterSourceKey !== '') ||
     (input.mode === 'apply' &&
-      (!/^[0-9a-f]{64}$/.test(input.expectedPageHash ?? '') ||
+      (input.manifestId === undefined ||
+        !/^[0-9a-f]{64}$/.test(input.expectedPageHash ?? '') ||
         !Number.isSafeInteger(input.expectedTotalSourceProducts) ||
         Number(input.expectedTotalSourceProducts) < 0))
   ) {
@@ -244,6 +388,39 @@ export async function replayAlibabaRawPage(
   if (grant.result === 'corrupt') return { ok: false, reason: 'lease-corrupt' };
 
   try {
+    const manifestId = input.manifestId ?? `raw-replay-${randomUUID()}`;
+    const existingManifest =
+      input.manifestId === undefined
+        ? null
+        : parseReplayManifest(await port.getReplayManifest(manifestId), port.now());
+    if (input.manifestId !== undefined && existingManifest === null) {
+      return { ok: false, reason: 'manifest-invalid' };
+    }
+    if (existingManifest && existingManifest.requestedBy !== requestedBy) {
+      return { ok: false, reason: 'manifest-invalid' };
+    }
+    if (input.mode === 'dry-run' && existingManifest) {
+      const expectedCursor = existingManifest.pages.at(-1)?.nextSourceKey ?? '';
+      if (existingManifest.status !== 'collecting' || expectedCursor !== afterSourceKey) {
+        return { ok: false, reason: 'manifest-invalid' };
+      }
+    }
+    const applyPage =
+      input.mode === 'apply' && existingManifest
+        ? existingManifest.pages[existingManifest.nextApplyIndex]
+        : undefined;
+    if (
+      input.mode === 'apply' &&
+      (!existingManifest ||
+        (existingManifest.status !== 'ready' && existingManifest.status !== 'applying') ||
+        !applyPage ||
+        applyPage.afterSourceKey !== afterSourceKey ||
+        applyPage.limit !== limit ||
+        applyPage.pageHash !== input.expectedPageHash ||
+        existingManifest.totalSourceProducts !== input.expectedTotalSourceProducts)
+    ) {
+      return { ok: false, reason: 'manifest-invalid' };
+    }
     const sourcePage = await port.listSourceProducts(afterSourceKey, limit);
     const rows = sourcePage.items;
     const totalSourceProducts = sourcePage.total;
@@ -252,6 +429,9 @@ export async function replayAlibabaRawPage(
       totalSourceProducts < rows.length ||
       (input.mode === 'apply' && input.expectedTotalSourceProducts !== totalSourceProducts)
     ) {
+      return { ok: false, reason: 'page-changed' };
+    }
+    if (existingManifest && existingManifest.totalSourceProducts !== totalSourceProducts) {
       return { ok: false, reason: 'page-changed' };
     }
     const plans: ReplayPlan[] = [];
@@ -390,6 +570,48 @@ export async function replayAlibabaRawPage(
     if (!(await port.renewLease(holder, grant.fence))) {
       return { ok: false, reason: 'lease-lost' };
     }
+    const nextSourceKey = rows.at(-1)?._id ?? afterSourceKey;
+    const done = rows.length < limit;
+    let manifestReady = input.mode === 'apply';
+    if (input.mode === 'dry-run') {
+      const previousPages = existingManifest?.pages ?? [];
+      const pages =
+        failures.length === 0
+          ? [
+              ...previousPages,
+              {
+                afterSourceKey,
+                nextSourceKey,
+                pageHash,
+                limit,
+                sourceProducts: rows.length,
+              },
+            ]
+          : previousPages;
+      const covered = pages.reduce((total, page) => total + page.sourceProducts, 0);
+      manifestReady = failures.length === 0 && done && covered === totalSourceProducts;
+      const manifestFailed = failures.length > 0 || (done && covered !== totalSourceProducts);
+      const persisted = await port.upsertReplayManifest(
+        manifestId,
+        {
+          status: manifestFailed ? 'failed' : manifestReady ? 'ready' : 'collecting',
+          totalSourceProducts,
+          pages,
+          nextApplyIndex: 0,
+          expiresAt:
+            existingManifest?.expiresAt ??
+            new Date(Date.parse(port.now()) + REPLAY_MANIFEST_TTL_MS).toISOString(),
+        },
+        manifestCreateFields(requestedBy, totalSourceProducts, port.now()),
+        {
+          connectionId: PRIMARY_CONNECTION_ID,
+          holder,
+          fence: grant.fence,
+          now: port.now(),
+        },
+      );
+      if (!persisted) return { ok: false, reason: 'lease-lost' };
+    }
 
     let applied = 0;
     if (input.mode === 'apply' && failures.length === 0) {
@@ -440,6 +662,23 @@ export async function replayAlibabaRawPage(
         if (!observationWritten) return { ok: false, reason: 'lease-lost' };
         applied += 1;
       }
+      const nextApplyIndex = (existingManifest?.nextApplyIndex ?? 0) + 1;
+      const applyComplete = nextApplyIndex >= (existingManifest?.pages.length ?? 0);
+      const manifestAdvanced = await port.upsertReplayManifest(
+        manifestId,
+        {
+          status: applyComplete ? 'applied' : 'applying',
+          nextApplyIndex,
+        },
+        {},
+        {
+          connectionId: PRIMARY_CONNECTION_ID,
+          holder,
+          fence: grant.fence,
+          now: port.now(),
+        },
+      );
+      if (!manifestAdvanced) return { ok: false, reason: 'lease-lost' };
     }
 
     const counts: AlibabaRawReplayCounts = {
@@ -469,16 +708,17 @@ export async function replayAlibabaRawPage(
         priceModes[offer.pricing.mode] = (priceModes[offer.pricing.mode] ?? 0) + 1;
       }
     }
-    const last = rows.at(-1)?._id ?? afterSourceKey;
     return {
       ok: true,
       mode: input.mode,
       ready: failures.length === 0,
+      manifestId,
+      manifestReady,
       pageHash,
       totalSourceProducts,
       afterSourceKey,
-      nextSourceKey: last,
-      done: rows.length < limit,
+      nextSourceKey,
+      done,
       counts,
       priceModes,
       failures,

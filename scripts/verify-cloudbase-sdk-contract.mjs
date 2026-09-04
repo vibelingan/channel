@@ -680,6 +680,7 @@ for (const method of [
   'createDocWithId',
   'saveCatalogProductWithIdentities',
   'upsertDocWithId',
+  'upsertCatalogSourceObservation',
 ]) {
   const calls = objectMethodCalls('cloudBaseAdapter', method);
   requireCheck(
@@ -704,6 +705,40 @@ requireCheck(
       'replaceNestedObjects',
     ),
   'db cloudbase updateDocWithAlibabaLease re-verifies the fence and replaces nested fields',
+);
+requireCheck(
+  objectMethodCalls('cloudBaseAdapter', 'upsertDocWithAlibabaLease').includes(
+    'upsertDocWithAlibabaLeaseInCloudBase',
+  ),
+  'db cloudbase upsertDocWithAlibabaLease delegates to the takeover-tested production helper',
+);
+const fencedUpsertStart = cloudbaseAdapter.indexOf(
+  'export async function upsertDocWithAlibabaLeaseInCloudBase',
+);
+const fencedUpsertEnd = cloudbaseAdapter.indexOf(
+  'export const cloudBaseAdapter',
+  fencedUpsertStart,
+);
+const fencedUpsert =
+  fencedUpsertStart >= 0 && fencedUpsertEnd > fencedUpsertStart
+    ? cloudbaseAdapter.slice(fencedUpsertStart, fencedUpsertEnd)
+    : '';
+requireCheck(
+  containsAll(fencedUpsert, [
+    'db.runTransaction',
+    'leaseRef.get',
+    'holdsAlibabaLease',
+    'targetRef.get',
+    'replaceNestedObjects',
+    'targetRef.set',
+  ]),
+  'takeover-tested production fenced upsert reads lease and target inside one transaction',
+);
+requireCheck(
+  objectMethodCalls('cloudBaseAdapter', 'upsertCatalogSourceObservation').includes(
+    'replaceNestedObjects',
+  ) && objectMethodCalls('cloudBaseAdapter', 'upsertCatalogSourceObservation').includes('ref.set'),
+  'db cloudbase source observation upsert compares recency and owns create/update transactionally',
 );
 
 requireCheck(

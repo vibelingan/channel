@@ -15,6 +15,8 @@ const validPage: SourceObservationReplayPage = {
   ok: true,
   mode: 'dry-run',
   ready: true,
+  manifestId: 'raw-replay-11111111-1111-1111-1111-111111111111',
+  manifestReady: false,
   pageHash: 'a'.repeat(64),
   totalSourceProducts: 25,
   afterSourceKey: '',
@@ -40,6 +42,7 @@ const validPlan: SourceObservationReplayPlan = {
   priceModes: validPage.priceModes,
   ready: true,
   totalSourceProducts: 25,
+  manifestId: validPage.manifestId,
 };
 
 test('replay page decoder accepts the bounded success summary', () => {
@@ -66,6 +69,15 @@ test('replay page decoder fails closed on malformed, inconsistent, or unknown da
     { ...validPage, ready: false, failures: [] },
     { ...validPage, mode: 'dry-run', applied: 1 },
     { ...validPage, mode: 'apply', applied: 19 },
+    {
+      ...validPage,
+      mode: 'apply',
+      ready: false,
+      failures: [{ sourceKey: 'x', reason: 'offer-set-mismatch' }],
+      counts: { ...validPage.counts, observations: 19 },
+      applied: 1,
+      manifestReady: true,
+    },
   ];
   for (const value of malformed) assert.equal(decodeSourceObservationReplayPage(value), null);
 });
@@ -114,6 +126,7 @@ test('validation advances by cursor and apply reuses each exact page hash', asyn
     afterSourceKey: validPage.nextSourceKey,
     nextSourceKey: 'source-25',
     done: true,
+    manifestReady: true,
     counts: {
       sourceProducts: 5,
       observations: 5,
@@ -128,8 +141,8 @@ test('validation advances by cursor and apply reuses each exact page hash', asyn
   const responses: SourceObservationReplayPage[] = [
     validPage,
     secondDry,
-    { ...validPage, mode: 'apply', applied: 20 },
-    { ...secondDry, mode: 'apply', applied: 5 },
+    { ...validPage, mode: 'apply', applied: 20, manifestReady: true },
+    { ...secondDry, mode: 'apply', applied: 5, manifestReady: true },
   ];
   Object.defineProperty(globalThis, 'localStorage', {
     configurable: true,
@@ -161,13 +174,14 @@ test('validation advances by cursor and apply reuses each exact page hash', asyn
           data.afterSourceKey,
           data.expectedPageHash ?? null,
           data.expectedTotalSourceProducts ?? null,
+          data.manifestId ?? null,
         ];
       }),
       [
-        ['dry-run', '', null, null],
-        ['dry-run', 'source-20', null, null],
-        ['apply', '', 'a'.repeat(64), 25],
-        ['apply', 'source-20', 'b'.repeat(64), 25],
+        ['dry-run', '', null, null, null],
+        ['dry-run', 'source-20', null, null, validPage.manifestId],
+        ['apply', '', 'a'.repeat(64), 25, validPage.manifestId],
+        ['apply', 'source-20', 'b'.repeat(64), 25, validPage.manifestId],
       ],
     );
   } finally {
@@ -192,6 +206,7 @@ test('apply reports a bounded preflight reason without exposing source keys', as
     counts: { ...validPage.counts, observations: 19 },
     failures: [{ sourceKey: 'private-source-key', reason: 'offer-set-mismatch' }],
     applied: 0,
+    manifestReady: true,
   };
   globalThis.fetch = (async () =>
     new Response(JSON.stringify({ ok: true, data: failedPage }), {

@@ -74,6 +74,7 @@ function fixture(sourceProductId = 'live-product') {
 function port(f = fixture()) {
   const updatedOffers: Array<{ id: string; patch: Record<string, unknown> }> = [];
   const observations: Array<{ id: string; value: Record<string, unknown> }> = [];
+  const manifests = new Map<string, CollectionDoc>();
   const p: AlibabaRawReplayPort = {
     now: () => NOW,
     acquireLease: async () => ({ result: 'granted', fence: 3 }),
@@ -82,6 +83,7 @@ function port(f = fixture()) {
     listSourceProducts: async () => ({ items: [f.source], total: 1 }),
     getDocument: async (collection, id) =>
       collection === 'alibabaSourcePayloads' && id === f.payloadId ? f.payload : null,
+    getReplayManifest: async (id) => manifests.get(id) ?? null,
     listActiveOffers: async () => [f.offer],
     readObjectAsBase64: async () => ({ body: Buffer.from(f.bodyText).toString('base64') }),
     updateOffer: async (id, patch) => {
@@ -92,8 +94,12 @@ function port(f = fixture()) {
       observations.push({ id, value: { ...createOnly, ...value } });
       return true;
     },
+    upsertReplayManifest: async (id, value, createOnly) => {
+      manifests.set(id, { _id: id, ...createOnly, ...(manifests.get(id) ?? {}), ...value });
+      return true;
+    },
   };
-  return { p, updatedOffers, observations };
+  return { p, updatedOffers, observations, manifests };
 }
 
 test('dry-run reconstructs the exact current page without writing', async () => {
@@ -103,6 +109,7 @@ test('dry-run reconstructs the exact current page without writing', async () => 
   if (!result.ok) return;
   assert.equal(result.ready, true);
   assert.equal(result.totalSourceProducts, 1);
+  assert.equal(result.manifestReady, true);
   assert.match(result.pageHash, /^[0-9a-f]{64}$/);
   assert.deepEqual(result.counts, {
     sourceProducts: 1,
@@ -118,6 +125,30 @@ test('dry-run reconstructs the exact current page without writing', async () => 
   assert.equal(observations.length, 0);
 });
 
+test('apply is rejected until the server manifest covers every dry-run page', async () => {
+  const harness = port();
+  harness.p.listSourceProducts = async () => ({ items: [fixture().source], total: 2 });
+  const first = await replayAlibabaRawPage({ mode: 'dry-run', limit: 1 }, harness.p);
+  assert.equal(first.ok, true);
+  if (!first.ok) return;
+  assert.equal(first.manifestReady, false);
+  assert.deepEqual(
+    await replayAlibabaRawPage(
+      {
+        mode: 'apply',
+        limit: 1,
+        expectedPageHash: first.pageHash,
+        expectedTotalSourceProducts: 2,
+        manifestId: first.manifestId,
+      },
+      harness.p,
+    ),
+    { ok: false, reason: 'manifest-invalid' },
+  );
+  assert.equal(harness.updatedOffers.length, 0);
+  assert.equal(harness.observations.length, 0);
+});
+
 test('apply requires the matching dry-run hash and preserves run provenance', async () => {
   const harness = port();
   const dry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, harness.p);
@@ -130,10 +161,11 @@ test('apply requires the matching dry-run hash and preserves run provenance', as
       limit: 10,
       expectedPageHash: '0'.repeat(64),
       expectedTotalSourceProducts: 1,
+      manifestId: dry.manifestId,
     },
     harness.p,
   );
-  assert.deepEqual(denied, { ok: false, reason: 'page-changed' });
+  assert.deepEqual(denied, { ok: false, reason: 'manifest-invalid' });
   assert.equal(harness.updatedOffers.length, 0);
 
   const applied = await replayAlibabaRawPage(
@@ -142,6 +174,7 @@ test('apply requires the matching dry-run hash and preserves run provenance', as
       limit: 10,
       expectedPageHash: dry.pageHash,
       expectedTotalSourceProducts: 1,
+      manifestId: dry.manifestId,
     },
     harness.p,
   );
@@ -180,6 +213,7 @@ test('apply reports a changed preflight reason before the generic page hash conf
       limit: 10,
       expectedPageHash: dry.pageHash,
       expectedTotalSourceProducts: 1,
+      manifestId: dry.manifestId,
     },
     harness.p,
   );
@@ -205,6 +239,7 @@ test('apply fails closed when ownership changes inside an offer or observation w
         limit: 10,
         expectedPageHash: offerDry.pageHash,
         expectedTotalSourceProducts: 1,
+        manifestId: offerDry.manifestId,
       },
       offerTakeover.p,
     ),
@@ -227,6 +262,7 @@ test('apply fails closed when ownership changes inside an offer or observation w
         limit: 10,
         expectedPageHash: observationDry.pageHash,
         expectedTotalSourceProducts: 1,
+        manifestId: observationDry.manifestId,
       },
       observationTakeover.p,
     ),
@@ -247,6 +283,7 @@ test('apply binds every page to the authoritative active source total', async ()
         limit: 10,
         expectedPageHash: dry.pageHash,
         expectedTotalSourceProducts: 1,
+        manifestId: dry.manifestId,
       },
       harness.p,
     ),

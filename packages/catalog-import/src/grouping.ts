@@ -91,6 +91,17 @@ export interface StoreListingRecord {
   candidateSkuKey: string;
   parentSku: string;
   sku: string;
+  title: string;
+  brand?: string;
+  descriptionHtml?: string;
+  descriptionText?: string;
+  descriptionSource?: DescriptionProvenance;
+  descriptionSanitized?: boolean;
+  attributes: Record<string, string | number | boolean>;
+  optionValues: Record<string, string>;
+  category?: CandidateCategory;
+  productMedia: string[];
+  variantMedia?: string;
   externalProductId?: string;
   externalVariantId?: string;
   sourceListingStatus: SourceListing['sourceListingStatus'];
@@ -211,7 +222,7 @@ const DESCRIPTION_RANK: Record<DescriptionProvenance, number> = {
   none: 0,
 };
 
-interface DescriptionCandidate {
+export interface DescriptionCandidate {
   text: string | undefined;
   html: string | undefined;
   source: DescriptionProvenance | undefined;
@@ -224,7 +235,7 @@ interface DescriptionCandidate {
  * the text that won, so a product can never show one row's copy under another
  * row's markup.
  */
-function pickDescription(candidates: readonly DescriptionCandidate[]): DescriptionCandidate {
+export function pickDescription(candidates: readonly DescriptionCandidate[]): DescriptionCandidate {
   const usable = candidates.filter((entry) => entry.text !== undefined && entry.text !== '');
   if (usable.length === 0) {
     return { text: undefined, html: undefined, source: undefined, sanitized: false };
@@ -354,6 +365,25 @@ export function groupListings(listings: readonly SourceListing[]): GroupingResul
       candidateSkuKey: skuKey,
       parentSku: listing.parentSku,
       sku: listing.sku,
+      title: listing.title,
+      ...(listing.brand === undefined ? {} : { brand: listing.brand }),
+      ...(listing.descriptionHtml === undefined
+        ? {}
+        : { descriptionHtml: listing.descriptionHtml }),
+      ...(listing.descriptionText === undefined
+        ? {}
+        : { descriptionText: listing.descriptionText }),
+      ...(listing.descriptionSource === undefined
+        ? {}
+        : { descriptionSource: listing.descriptionSource }),
+      ...(listing.descriptionSanitized === undefined
+        ? {}
+        : { descriptionSanitized: listing.descriptionSanitized }),
+      attributes: { ...listing.attributes },
+      optionValues: { ...listing.optionValues },
+      ...(listing.category === undefined ? {} : { category: { ...listing.category } }),
+      productMedia: [...listing.productMedia],
+      ...(listing.variantMedia === undefined ? {} : { variantMedia: listing.variantMedia }),
       sourceListingStatus: listing.sourceListingStatus,
       ...(listing.externalProductId === undefined
         ? {}

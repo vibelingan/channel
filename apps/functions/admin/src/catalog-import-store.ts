@@ -34,6 +34,7 @@ import {
   get,
   list,
   updateDoc,
+  upsertCatalogSourceObservation,
   upsertDocWithId,
 } from '@vibelingan-channel/db';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
@@ -141,23 +142,40 @@ export async function recordImportSourceEvidence(
   evidence: ImportSourceEvidence,
   now: string,
 ): Promise<CollectionDoc> {
-  const updated = await updateDoc(IMPORT_JOBS, jobId, {
+  const patch = {
     sourceStorageFileId: evidence.storageFileId,
     sourceStoragePath: evidence.storagePath,
     sourceStorageProvider: evidence.storageProvider,
     sourceStorageMode: evidence.storageMode,
     sourceContentType: evidence.contentType,
     sourceEvidenceStoredAt: now,
-  });
+  };
+  let updated: CollectionDoc | null;
+  try {
+    updated = await updateDoc(IMPORT_JOBS, jobId, patch);
+  } catch (error) {
+    // A network failure can arrive after CloudBase committed the update. Read
+    // back before compensating, otherwise we could delete the object now named
+    // by the durable job row.
+    const current = await get(IMPORT_JOBS, jobId);
+    if (current?.sourceStorageFileId === evidence.storageFileId) return current;
+    throw error;
+  }
   if (!updated) throw new Error('import job vanished before source evidence was attached');
   return updated;
 }
 
-export async function failImportJobEvidence(jobId: string, now: string): Promise<void> {
+export async function failImportJobEvidence(
+  jobId: string,
+  now: string,
+  failureCode = 'source-evidence-write-failed',
+  details: Record<string, unknown> = {},
+): Promise<void> {
   const updated = await updateDoc(IMPORT_JOBS, jobId, {
     status: 'failed',
-    failureCode: 'source-evidence-write-failed',
+    failureCode,
     completedAt: now,
+    ...details,
   });
   if (!updated) throw new Error('import job vanished while recording evidence failure');
 }
@@ -377,26 +395,28 @@ export async function recordParsedBundle(
       for (const observation of candidateObservations) {
         const sourceKey = observation.source.sourceProductKey;
         const observationId = sourceObservationDocumentId('dianxiaomi', sourceKey);
-        const existingObservation = await get('catalogSourceObservations', observationId);
-        await upsertDocWithId('catalogSourceObservations', observationId, {
-          provider: 'dianxiaomi',
-          sourceProductKey: sourceKey,
-          ...(observation.source.externalProductId === undefined
-            ? {}
-            : { externalProductId: observation.source.externalProductId }),
-          schemaVersion: observation.schemaVersion,
-          observedAt: observation.source.observedAt,
-          ...(observation.source.sourceUpdatedAt === undefined
-            ? {}
-            : { sourceUpdatedAt: observation.source.sourceUpdatedAt }),
-          evidenceId:
-            observation.evidence[0]?.evidenceId ??
-            `${detail.bundle.provider}:${detail.bundle.sourceFileSha256}`,
-          active: observation.lifecycle.sourceListingStatus !== 'missing',
-          observation,
-          lastSeenOperationId: jobId,
-          ...(existingObservation ? {} : { firstSeenOperationId: jobId }),
-        });
+        await upsertCatalogSourceObservation(
+          observationId,
+          {
+            provider: 'dianxiaomi',
+            sourceProductKey: sourceKey,
+            ...(observation.source.externalProductId === undefined
+              ? {}
+              : { externalProductId: observation.source.externalProductId }),
+            schemaVersion: observation.schemaVersion,
+            observedAt: observation.source.observedAt,
+            ...(observation.source.sourceUpdatedAt === undefined
+              ? {}
+              : { sourceUpdatedAt: observation.source.sourceUpdatedAt }),
+            evidenceId:
+              observation.evidence[0]?.evidenceId ??
+              `${detail.bundle.provider}:${detail.bundle.sourceFileSha256}`,
+            active: observation.lifecycle.sourceListingStatus !== 'missing',
+            observation,
+            lastSeenOperationId: jobId,
+          },
+          { firstSeenOperationId: jobId },
+        );
       }
     }
   }

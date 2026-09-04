@@ -1,13 +1,15 @@
 /** Map already-parsed Dianxiaomi candidates onto the transport-neutral seam. */
 import { createHash } from 'node:crypto';
 import type {
+  CandidateCategory,
+  CandidateMedia,
   CatalogImportBundle,
   CatalogProductCandidate,
   DescriptionProvenance,
   Money,
 } from '../../contracts.ts';
 import { normalizeDescription } from '../../descriptions.ts';
-import type { StoreListingRecord } from '../../grouping.ts';
+import { type StoreListingRecord, pickCanonicalValue, pickDescription } from '../../grouping.ts';
 import {
   CATALOG_SOURCE_OBSERVATION_SCHEMA_VERSION,
   type CatalogObservationAdapter,
@@ -32,6 +34,71 @@ const hashKey = (...segments: string[]): string =>
 
 function fixedPrice(money: Money): CatalogSourcePricing {
   return { mode: 'fixed', currency: money.currency, amountMinor: money.amountMinor };
+}
+
+function scopedAttributes(
+  listings: readonly StoreListingRecord[],
+  sourceProductKey: string,
+  findings: CatalogObservationFinding[],
+): Record<string, string | number | boolean> {
+  const values = new Map<string, Map<string, string | number | boolean>>();
+  for (const listing of listings) {
+    for (const [name, value] of Object.entries(listing.attributes)) {
+      const candidates = values.get(name) ?? new Map<string, string | number | boolean>();
+      candidates.set(JSON.stringify(value), value);
+      values.set(name, candidates);
+    }
+  }
+  const attributes: Record<string, string | number | boolean> = {};
+  for (const [name, candidates] of values) {
+    if (candidates.size > 1) {
+      findings.push({
+        severity: 'error',
+        code: 'conflicting-store-attribute',
+        message: `One store-scoped source product contains conflicting values for ${JSON.stringify(name)}.`,
+        sourcePath: sourceProductKey,
+      });
+      continue;
+    }
+    const value = candidates.values().next().value;
+    if (value !== undefined) attributes[name] = value;
+  }
+  return attributes;
+}
+
+function scopedCategory(
+  listings: readonly StoreListingRecord[],
+  sourceProductKey: string,
+  findings: CatalogObservationFinding[],
+): CandidateCategory | undefined {
+  const categories = new Map<string, CandidateCategory>();
+  for (const listing of listings) {
+    if (listing.category !== undefined) {
+      categories.set(JSON.stringify(listing.category), listing.category);
+    }
+  }
+  if (categories.size > 1) {
+    findings.push({
+      severity: 'error',
+      code: 'conflicting-store-category',
+      message: 'One store-scoped source product contains conflicting category facts.',
+      sourcePath: sourceProductKey,
+    });
+    return undefined;
+  }
+  return categories.values().next().value;
+}
+
+function scopedProductMedia(listings: readonly StoreListingRecord[]): CandidateMedia[] {
+  const urls: string[] = [];
+  for (const listing of listings) {
+    for (const url of listing.productMedia) if (!urls.includes(url)) urls.push(url);
+  }
+  return urls.map((sourceUrl, position) => ({
+    sourceUrl,
+    role: position === 0 ? ('primary' as const) : ('gallery' as const),
+    position,
+  }));
 }
 
 const descriptionProvenance = (
@@ -59,14 +126,30 @@ function mapCandidate(
 ): { observation?: CatalogSourceObservation; findings: CatalogObservationFinding[] } {
   const findings: CatalogObservationFinding[] = [];
   const sourceProductKey = scope?.sourceProductKey ?? candidate.identity.sourceProductKey;
-  const rawDescription = candidate.descriptionHtml ?? candidate.descriptionText;
+  const selectedDescription = scope
+    ? pickDescription(
+        scope.listings.map((listing) => ({
+          text: listing.descriptionText,
+          html: listing.descriptionHtml,
+          source: listing.descriptionSource,
+          sanitized: listing.descriptionSanitized === true,
+        })),
+      )
+    : {
+        text: candidate.descriptionText,
+        html: candidate.descriptionHtml,
+        source: candidate.descriptionSource,
+        sanitized: candidate.descriptionSanitized === true,
+      };
+  const rawDescription = selectedDescription.html ?? selectedDescription.text;
   const description = normalizeDescription(rawDescription);
-  const descriptionWasSanitized = candidate.descriptionSanitized === true || description.sanitized;
+  const descriptionWasSanitized = selectedDescription.sanitized || description.sanitized;
   if (descriptionWasSanitized) {
     findings.push({
       severity: 'warning',
       code: 'description-sanitized',
       message: 'Unsafe or unsupported description markup was removed.',
+      sourcePath: sourceProductKey,
     });
   }
 
@@ -94,8 +177,12 @@ function mapCandidate(
           ? {}
           : { externalVariantId: listing.externalVariantId }),
         sku: candidateVariant.sku,
-        matchHints: candidateVariant.matchHints,
-        options: Object.entries(candidateVariant.optionValues)
+        matchHints: {
+          parentSku: listing.parentSku,
+          sku: listing.sku,
+          ...(listing.brand === undefined ? {} : { brand: listing.brand }),
+        },
+        options: Object.entries(listing.optionValues)
           .sort(([left], [right]) => left.localeCompare(right))
           .map(([sourceName, value]) => ({ sourceName, value })),
         inventory:
@@ -109,7 +196,17 @@ function mapCandidate(
                   ...(listing.capturedAt === undefined ? {} : { capturedAt: listing.capturedAt }),
                 },
               ],
-        media: candidateVariant.media,
+        media:
+          listing.variantMedia === undefined
+            ? []
+            : [
+                {
+                  sourceUrl: listing.variantMedia,
+                  role: 'variant' as const,
+                  position: 0,
+                  variantSku: listing.sku,
+                },
+              ],
       });
     }
   } else {
@@ -221,6 +318,19 @@ function mapCandidate(
       : scopedStatuses.has('missing')
         ? 'missing'
         : 'unknown';
+  const title = scope
+    ? (pickCanonicalValue(scope.listings.map((listing) => listing.title)) ?? candidate.parentSku)
+    : candidate.title;
+  const brand = scope
+    ? pickCanonicalValue(scope.listings.map((listing) => listing.brand))
+    : candidate.brand;
+  const attributes = scope
+    ? scopedAttributes(scope.listings, sourceProductKey, findings)
+    : candidate.attributes;
+  const category = scope
+    ? scopedCategory(scope.listings, sourceProductKey, findings)
+    : candidate.category;
+  const productMedia = scope ? scopedProductMedia(scope.listings) : candidate.media;
 
   const observationCandidate = {
     schemaVersion: CATALOG_SOURCE_OBSERVATION_SCHEMA_VERSION,
@@ -234,11 +344,14 @@ function mapCandidate(
       completeness: scope === undefined ? ('full-product' as const) : ('partial-product' as const),
     },
     identity: {
-      title: candidate.title,
-      ...(candidate.brand === undefined ? {} : { brand: candidate.brand }),
-      matchHints: candidate.matchHints,
-      ...(candidate.category === undefined ? {} : { category: candidate.category }),
-      attributes: Object.entries(candidate.attributes)
+      title,
+      ...(brand === undefined ? {} : { brand }),
+      matchHints: {
+        parentSku: candidate.parentSku,
+        ...(brand === undefined ? {} : { brand }),
+      },
+      ...(category === undefined ? {} : { category }),
+      attributes: Object.entries(attributes)
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([sourceName, value]) => ({ sourceName, value })),
     },
@@ -251,10 +364,10 @@ function mapCandidate(
               ...(description.text === undefined ? {} : { text: description.text }),
               placeholder: description.placeholder,
               sanitized: descriptionWasSanitized,
-              provenance: descriptionProvenance(candidate.descriptionSource),
+              provenance: descriptionProvenance(selectedDescription.source),
             },
           }),
-      media: candidate.media,
+      media: productMedia,
     },
     lifecycle: {
       sourceListingStatus: scope === undefined ? candidate.sourceListingStatus : scopedStatus,

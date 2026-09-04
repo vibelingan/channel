@@ -300,7 +300,7 @@ export async function handleAlibabaSyncRequest(
       if (!payload.success) {
         return err(
           'VALIDATION_ERROR',
-          'mode, cursor, page limit and the dry-run page hash are invalid.',
+          'mode, cursor, page limit, dry-run hash, source total or replay manifest is invalid.',
         );
       }
       const result = await replayAlibabaRawPage({
@@ -315,6 +315,8 @@ export async function handleAlibabaSyncRequest(
         ...(payload.data.expectedTotalSourceProducts === undefined
           ? {}
           : { expectedTotalSourceProducts: payload.data.expectedTotalSourceProducts }),
+        ...(payload.data.manifestId === undefined ? {} : { manifestId: payload.data.manifestId }),
+        requestedBy: admin.data.userId,
       });
       if (!result.ok) {
         switch (result.reason) {
@@ -323,6 +325,7 @@ export async function handleAlibabaSyncRequest(
           case 'lease-busy':
           case 'lease-lost':
           case 'page-changed':
+          case 'manifest-invalid':
             return err('CONFLICT', `Raw replay stopped: ${result.reason}.`);
           case 'lease-corrupt':
             return err('INTERNAL_ERROR', 'Raw replay lease state is corrupt.');
@@ -410,6 +413,10 @@ const rawReplaySchema = z
       .regex(/^[0-9a-f]{64}$/)
       .optional(),
     expectedTotalSourceProducts: z.number().int().nonnegative().optional(),
+    manifestId: z
+      .string()
+      .regex(/^raw-replay-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+      .optional(),
   })
   .strict()
   .superRefine((value, context) => {
@@ -426,6 +433,13 @@ const rawReplaySchema = z
           code: z.ZodIssueCode.custom,
           path: ['expectedTotalSourceProducts'],
           message: 'Apply requires the authoritative dry-run source total.',
+        });
+      }
+      if (value.manifestId === undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['manifestId'],
+          message: 'Apply requires a completed server replay manifest.',
         });
       }
     }

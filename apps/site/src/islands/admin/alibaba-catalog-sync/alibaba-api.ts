@@ -131,6 +131,8 @@ export interface SourceObservationReplayPage {
   ok: true;
   mode: SourceObservationReplayMode;
   ready: boolean;
+  manifestId: string;
+  manifestReady: boolean;
   pageHash: string;
   totalSourceProducts: number;
   afterSourceKey: string;
@@ -148,6 +150,7 @@ export interface SourceObservationReplayPlan {
   priceModes: Partial<Record<ProductDetailPriceMode, number>>;
   ready: boolean;
   totalSourceProducts: number;
+  manifestId: string;
 }
 
 const REPLAY_MODES = new Set<SourceObservationReplayMode>(['dry-run', 'apply']);
@@ -220,6 +223,8 @@ export function decodeSourceObservationReplayPage(
     'ok',
     'mode',
     'ready',
+    'manifestId',
+    'manifestReady',
     'pageHash',
     'totalSourceProducts',
     'afterSourceKey',
@@ -235,6 +240,11 @@ export function decodeSourceObservationReplayPage(
     typeof value.mode !== 'string' ||
     !REPLAY_MODES.has(value.mode as SourceObservationReplayMode) ||
     typeof value.ready !== 'boolean' ||
+    typeof value.manifestId !== 'string' ||
+    !/^raw-replay-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+      value.manifestId,
+    ) ||
+    typeof value.manifestReady !== 'boolean' ||
     typeof value.pageHash !== 'string' ||
     !/^[a-f0-9]{64}$/.test(value.pageHash) ||
     typeof value.afterSourceKey !== 'string' ||
@@ -284,7 +294,10 @@ export function decodeSourceObservationReplayPage(
     (!value.done && counts.sourceProducts !== REPLAY_PAGE_SIZE) ||
     value.ready !== (failures.length === 0) ||
     (value.mode === 'dry-run' && applied !== 0) ||
-    (value.mode === 'apply' && value.ready && applied !== counts.observations)
+    (!value.ready && applied !== 0) ||
+    (value.mode === 'apply' && value.ready && applied !== counts.observations) ||
+    (value.mode === 'apply' && !value.manifestReady) ||
+    (value.mode === 'dry-run' && !value.done && value.manifestReady)
   ) {
     return null;
   }
@@ -292,6 +305,8 @@ export function decodeSourceObservationReplayPage(
     ok: true,
     mode: value.mode as SourceObservationReplayMode,
     ready: value.ready,
+    manifestId: value.manifestId,
+    manifestReady: value.manifestReady,
     pageHash: value.pageHash,
     totalSourceProducts,
     afterSourceKey: value.afterSourceKey,
@@ -309,6 +324,7 @@ async function replaySourceObservationPage(
   afterSourceKey: string,
   expectedPageHash?: string,
   expectedTotalSourceProducts?: number,
+  manifestId?: string,
 ): Promise<SourceObservationReplayPage> {
   const raw = await call<unknown>('replaySourceObservations', {
     mode,
@@ -316,6 +332,7 @@ async function replaySourceObservationPage(
     limit: REPLAY_PAGE_SIZE,
     ...(expectedPageHash === undefined ? {} : { expectedPageHash }),
     ...(expectedTotalSourceProducts === undefined ? {} : { expectedTotalSourceProducts }),
+    ...(manifestId === undefined ? {} : { manifestId }),
   });
   if (isRecord(raw) && raw.ok === false && typeof raw.reason === 'string') {
     throw new AlibabaSyncApiError('CONFLICT', `Replay stopped: ${raw.reason}.`);
@@ -360,9 +377,20 @@ export async function validateSourceObservationReplay(
   const counts = emptyReplayCounts();
   const priceModes: Partial<Record<ProductDetailPriceMode, number>> = {};
   let cursor = '';
+  let manifestId: string | undefined;
   let totalSourceProducts: number | null = null;
   for (let pageCount = 1; pageCount <= MAX_REPLAY_PAGES; pageCount += 1) {
-    const page = await replaySourceObservationPage('dry-run', cursor);
+    const page = await replaySourceObservationPage(
+      'dry-run',
+      cursor,
+      undefined,
+      undefined,
+      manifestId,
+    );
+    manifestId ??= page.manifestId;
+    if (page.manifestId !== manifestId) {
+      throw new AlibabaSyncApiError('CONFLICT', 'Replay manifest changed during validation.');
+    }
     totalSourceProducts ??= page.totalSourceProducts;
     if (page.totalSourceProducts !== totalSourceProducts) {
       throw new AlibabaSyncApiError('CONFLICT', 'Replay source total changed during validation.');
@@ -371,7 +399,9 @@ export async function validateSourceObservationReplay(
     addReplayCounts(counts, page.counts);
     addReplayPriceModes(priceModes, page.priceModes);
     onPage?.(pageCount, counts.sourceProducts);
-    if (!page.ready) return { pages, counts, priceModes, ready: false, totalSourceProducts };
+    if (!page.ready) {
+      return { pages, counts, priceModes, ready: false, totalSourceProducts, manifestId };
+    }
     if (page.done) {
       if (counts.sourceProducts !== totalSourceProducts) {
         throw new AlibabaSyncApiError(
@@ -379,7 +409,10 @@ export async function validateSourceObservationReplay(
           'Replay did not cover the authoritative source total.',
         );
       }
-      return { pages, counts, priceModes, ready: true, totalSourceProducts };
+      if (!page.manifestReady) {
+        throw new AlibabaSyncApiError('CONFLICT', 'Server did not seal the replay manifest.');
+      }
+      return { pages, counts, priceModes, ready: true, totalSourceProducts, manifestId };
     }
     if (!page.nextSourceKey || page.nextSourceKey === cursor) {
       throw new AlibabaSyncApiError('INTERNAL_ERROR', 'Replay cursor did not advance.');
@@ -403,6 +436,7 @@ export async function applySourceObservationReplay(
       expected.afterSourceKey,
       expected.pageHash,
       plan.totalSourceProducts,
+      plan.manifestId,
     );
     if (!page.ready) {
       const reasonCounts = new Map<string, number>();
