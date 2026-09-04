@@ -313,6 +313,66 @@ zero-item TOP list response and advanced the committed cursor without changing
 product or offer rows. The full post-deploy evidence is recorded in
 `LIVE-DATA-STRUCTURE-AUDIT-2026-09-04.md`.
 
+## MIU 19 — Authenticated Admin detail inspection control
+
+### Runtime problem
+
+The function action exists, but the current Admin UI cannot invoke it through
+the browser's existing authenticated session. An anonymous HTTP probe returning
+401 proves only that the route and auth guard are deployed; it does not exercise
+Alibaba TOP or produce a fresh `product.get` observation.
+
+### Data and trust boundary
+
+The browser sends `{ action: 'inspectProductDetail', token,
+data: { sourceProductId } }` through the existing Alibaba Admin client. The JWT
+is browser-session state and must not be exported. The server resolves the
+encrypted Alibaba OAuth token only after it has authenticated the current user
+as an admin and acquired the shared sync lease. The UI receives only the
+allowlisted structural summary; it must never receive or render source title,
+description HTML, image URLs or either token.
+
+### Design and technology constraints
+
+Add one feature-level form between the connection panel and the run-management
+surfaces. Reuse the existing slate visual language and shared busy state. Use a
+labelled, bounded provider-id input, native form validation, explicit disabled
+state when disconnected, and an `aria-live` result region. Treat the API body
+as `unknown` and validate every field before rendering; a generic TypeScript
+cast is not a runtime contract.
+
+```ts
+const raw: unknown = await call('inspectProductDetail', { sourceProductId });
+const summary = decodeProductDetailInspectionSummary(raw);
+if (!summary) throw new AlibabaSyncApiError('INTERNAL_ERROR', 'Invalid inspection summary.');
+```
+
+### Alternatives rejected
+
+- Exporting the browser JWT to curl: breaks the session boundary merely to
+  close a test checkbox.
+- Calling Alibaba directly from the browser: exposes provider credentials and
+  bypasses the server lease/raw-evidence path.
+- Making the probe update source mirror rows: creates an incomplete catalog run
+  without checkpoint, `lastSeenRunId` and tombstone ownership.
+
+### Risk and verification
+
+Component/API tests must reject malformed summaries and prove the rendered
+surface contains no raw content. Browser verification must exercise the real
+Admin session, submit one known source product id, observe a structural result,
+confirm no console error, and then compare the newly stored detail evidence to
+the list payload and existing mirror counts.
+
+### Local acceptance (2026-09-04)
+
+The implementation passed 211 site unit/render tests, the nine-test Catalog
+Admin browser lane (including authenticated request and 375 px overflow
+coverage), site and E2E type checks, Biome, the production static build, and a
+secret-name/build-fixture scan. Live deployment and the authenticated provider
+observation remain the release gate; local mocks alone do not prove Alibaba's
+current contract.
+
 ## Pricing and content decisions carried into integration
 
 Alibaba tiered prices represent supplier quantity breaks, for example one unit

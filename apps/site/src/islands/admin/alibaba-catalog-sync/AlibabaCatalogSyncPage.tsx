@@ -9,14 +9,17 @@ import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { listRecords } from '../api.ts';
 import { AlibabaConnectionPanel } from './AlibabaConnectionPanel.tsx';
+import { AlibabaProductDetailInspection } from './AlibabaProductDetailInspection.tsx';
 import { AlibabaProductLinkAction } from './AlibabaProductLinkAction.tsx';
 import { AlibabaQuarantineReview } from './AlibabaQuarantineReview.tsx';
 import { AlibabaSyncRunTable } from './AlibabaSyncRunTable.tsx';
 import {
   type ConnectionStatus,
+  type ProductDetailInspectionSummary,
   approveQuarantine,
   disconnectAlibaba,
   fetchConnectionStatus,
+  inspectProductDetail,
   linkSourceProduct,
   runSyncNow,
   startOAuthFlow,
@@ -68,6 +71,10 @@ export function AlibabaCatalogSyncPage() {
     typeof window === 'undefined' ? null : callbackNotice(window.location.search),
   );
   const [linkResult, setLinkResult] = useState<string | null>(null);
+  const [detailInspection, setDetailInspection] = useState<ProductDetailInspectionSummary | null>(
+    null,
+  );
+  const [inspectingDetail, setInspectingDetail] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -135,6 +142,21 @@ export function AlibabaCatalogSyncPage() {
             return `Sync tick finished: ${report.outcome}${report.runId ? ` (${report.runId})` : ''}.`;
           })
         }
+      />
+      <AlibabaProductDetailInspection
+        connected={status?.status === 'active'}
+        busy={busy}
+        inspecting={inspectingDetail}
+        result={detailInspection}
+        onInspect={(sourceProductId) => {
+          setInspectingDetail(true);
+          void guard(async () => {
+            setDetailInspection(null);
+            const summary = await inspectProductDetail(sourceProductId);
+            setDetailInspection(summary);
+            return `Detail inspection completed for ${summary.sourceProductId}.`;
+          }).finally(() => setInspectingDetail(false));
+        }}
       />
       <AlibabaQuarantineReview
         runs={runs.filter((run) => run.status === 'quarantined')}
