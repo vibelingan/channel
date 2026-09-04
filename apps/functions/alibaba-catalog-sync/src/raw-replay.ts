@@ -287,6 +287,7 @@ function parseReplayManifest(doc: CollectionDoc | null, now: string): ReplayMani
     createdAtMs === null ||
     expiresAtMs === null ||
     nowMs === null ||
+    createdAtMs > nowMs ||
     expiresAtMs - createdAtMs !== REPLAY_MANIFEST_TTL_MS ||
     expiresAtMs <= nowMs ||
     doc.pages.length > MAX_REPLAY_MANIFEST_PAGES

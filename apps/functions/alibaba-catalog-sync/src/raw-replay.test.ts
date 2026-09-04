@@ -266,6 +266,31 @@ test('manifest status and apply cursor must describe the same committed prefix',
   assert.equal(harness.observations.length, 0);
 });
 
+test('a manifest cannot claim it was created in the future', async () => {
+  const harness = port();
+  const dry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, harness.p);
+  assert.equal(dry.ok, true);
+  if (!dry.ok) return;
+  const manifest = harness.manifests.get(dry.manifestId);
+  assert.ok(manifest);
+  manifest.createdAt = '2026-09-04T09:00:00.000Z';
+  manifest.expiresAt = '2026-09-04T11:00:00.000Z';
+
+  assert.deepEqual(
+    await replayAlibabaRawPage(
+      {
+        mode: 'apply',
+        limit: 10,
+        expectedPageHash: dry.pageHash,
+        expectedTotalSourceProducts: 1,
+        manifestId: dry.manifestId,
+      },
+      harness.p,
+    ),
+    { ok: false, reason: 'manifest-invalid' },
+  );
+});
+
 test('an id mismatch blocks the whole page before any derived write', async () => {
   const f = fixture('provider-id');
   f.source.sourceProductId = 'mirror-id';
