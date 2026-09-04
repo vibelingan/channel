@@ -110,6 +110,260 @@ export function runSyncNow(): Promise<TickReport> {
   return call<TickReport>('runNow');
 }
 
+export type SourceObservationReplayMode = 'dry-run' | 'apply';
+
+export interface SourceObservationReplayCounts {
+  sourceProducts: number;
+  observations: number;
+  variants: number;
+  offers: number;
+  attributedVariants: number;
+  attributePairs: number;
+  warnings: number;
+}
+
+export interface SourceObservationReplayFailure {
+  sourceKey: string;
+  reason: string;
+}
+
+export interface SourceObservationReplayPage {
+  ok: true;
+  mode: SourceObservationReplayMode;
+  ready: boolean;
+  pageHash: string;
+  afterSourceKey: string;
+  nextSourceKey: string;
+  done: boolean;
+  counts: SourceObservationReplayCounts;
+  priceModes: Partial<Record<ProductDetailPriceMode, number>>;
+  failures: SourceObservationReplayFailure[];
+  applied: number;
+}
+
+export interface SourceObservationReplayPlan {
+  pages: SourceObservationReplayPage[];
+  counts: SourceObservationReplayCounts;
+  priceModes: Partial<Record<ProductDetailPriceMode, number>>;
+  ready: boolean;
+}
+
+const REPLAY_MODES = new Set<SourceObservationReplayMode>(['dry-run', 'apply']);
+const REPLAY_FAILURE_REASONS = new Set([
+  'invalid-source-row',
+  'payload-missing',
+  'invalid-payload-metadata',
+  'raw-read-failed',
+  'raw-too-large',
+  'raw-size-mismatch',
+  'raw-hash-mismatch',
+  'malformed-response',
+  'provider-api-error',
+  'missing-product-id',
+  'product-id-mismatch',
+  'source-key-mismatch',
+  'offer-set-mismatch',
+  'invalid-source-observation',
+]);
+const REPLAY_COUNT_KEYS = [
+  'sourceProducts',
+  'observations',
+  'variants',
+  'offers',
+  'attributedVariants',
+  'attributePairs',
+  'warnings',
+] as const satisfies readonly (keyof SourceObservationReplayCounts)[];
+const MAX_REPLAY_PAGES = 1_000;
+const REPLAY_PAGE_SIZE = 20;
+
+function decodeReplayCounts(value: unknown): SourceObservationReplayCounts | null {
+  if (!isRecord(value)) return null;
+  const counts = {} as SourceObservationReplayCounts;
+  for (const key of REPLAY_COUNT_KEYS) {
+    const count = readNonNegativeSafeInteger(value[key]);
+    if (count === null) return null;
+    counts[key] = count;
+  }
+  return counts;
+}
+
+function decodeReplayPriceModes(
+  value: unknown,
+): Partial<Record<ProductDetailPriceMode, number>> | null {
+  if (!isRecord(value)) return null;
+  const result: Partial<Record<ProductDetailPriceMode, number>> = {};
+  for (const [key, rawCount] of Object.entries(value)) {
+    if (!PRICE_MODES.has(key as ProductDetailPriceMode)) return null;
+    const count = readNonNegativeSafeInteger(rawCount);
+    if (count === null) return null;
+    result[key as ProductDetailPriceMode] = count;
+  }
+  return result;
+}
+
+/** Closed decoder: provider or proxy drift becomes an error, never renderable state. */
+export function decodeSourceObservationReplayPage(
+  value: unknown,
+): SourceObservationReplayPage | null {
+  if (!isRecord(value) || value.ok !== true) return null;
+  if (
+    typeof value.mode !== 'string' ||
+    !REPLAY_MODES.has(value.mode as SourceObservationReplayMode) ||
+    typeof value.ready !== 'boolean' ||
+    typeof value.pageHash !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(value.pageHash) ||
+    typeof value.afterSourceKey !== 'string' ||
+    value.afterSourceKey.length > 128 ||
+    typeof value.nextSourceKey !== 'string' ||
+    value.nextSourceKey.length > 128 ||
+    typeof value.done !== 'boolean' ||
+    !Array.isArray(value.failures) ||
+    value.failures.length > REPLAY_PAGE_SIZE
+  ) {
+    return null;
+  }
+  const counts = decodeReplayCounts(value.counts);
+  const priceModes = decodeReplayPriceModes(value.priceModes);
+  const applied = readNonNegativeSafeInteger(value.applied);
+  if (!counts || !priceModes || applied === null) return null;
+  const failures: SourceObservationReplayFailure[] = [];
+  for (const failure of value.failures) {
+    if (
+      !isRecord(failure) ||
+      typeof failure.sourceKey !== 'string' ||
+      failure.sourceKey.length === 0 ||
+      failure.sourceKey.length > 128 ||
+      typeof failure.reason !== 'string' ||
+      !REPLAY_FAILURE_REASONS.has(failure.reason)
+    ) {
+      return null;
+    }
+    failures.push({ sourceKey: failure.sourceKey, reason: failure.reason });
+  }
+  if (
+    counts.sourceProducts > REPLAY_PAGE_SIZE ||
+    counts.observations > counts.sourceProducts ||
+    failures.length > counts.sourceProducts ||
+    value.ready !== (failures.length === 0) ||
+    (value.mode === 'dry-run' && applied !== 0) ||
+    (value.mode === 'apply' && value.ready && applied !== counts.observations)
+  ) {
+    return null;
+  }
+  return {
+    ok: true,
+    mode: value.mode as SourceObservationReplayMode,
+    ready: value.ready,
+    pageHash: value.pageHash,
+    afterSourceKey: value.afterSourceKey,
+    nextSourceKey: value.nextSourceKey,
+    done: value.done,
+    counts,
+    priceModes,
+    failures,
+    applied,
+  };
+}
+
+async function replaySourceObservationPage(
+  mode: SourceObservationReplayMode,
+  afterSourceKey: string,
+  expectedPageHash?: string,
+): Promise<SourceObservationReplayPage> {
+  const raw = await call<unknown>('replaySourceObservations', {
+    mode,
+    afterSourceKey,
+    limit: REPLAY_PAGE_SIZE,
+    ...(expectedPageHash === undefined ? {} : { expectedPageHash }),
+  });
+  if (isRecord(raw) && raw.ok === false && typeof raw.reason === 'string') {
+    throw new AlibabaSyncApiError('CONFLICT', `Replay stopped: ${raw.reason}.`);
+  }
+  const page = decodeSourceObservationReplayPage(raw);
+  if (!page || page.mode !== mode || page.afterSourceKey !== afterSourceKey) {
+    throw new AlibabaSyncApiError('INTERNAL_ERROR', 'Replay returned an invalid page summary.');
+  }
+  return page;
+}
+
+function emptyReplayCounts(): SourceObservationReplayCounts {
+  return {
+    sourceProducts: 0,
+    observations: 0,
+    variants: 0,
+    offers: 0,
+    attributedVariants: 0,
+    attributePairs: 0,
+    warnings: 0,
+  };
+}
+
+function addReplayCounts(
+  total: SourceObservationReplayCounts,
+  next: SourceObservationReplayCounts,
+): void {
+  for (const key of REPLAY_COUNT_KEYS) total[key] += next[key];
+}
+
+function addReplayPriceModes(
+  total: Partial<Record<ProductDetailPriceMode, number>>,
+  next: Partial<Record<ProductDetailPriceMode, number>>,
+): void {
+  for (const mode of PRICE_MODES) total[mode] = (total[mode] ?? 0) + (next[mode] ?? 0);
+}
+
+export async function validateSourceObservationReplay(
+  onPage?: (pageCount: number, sourceProductCount: number) => void,
+): Promise<SourceObservationReplayPlan> {
+  const pages: SourceObservationReplayPage[] = [];
+  const counts = emptyReplayCounts();
+  const priceModes: Partial<Record<ProductDetailPriceMode, number>> = {};
+  let cursor = '';
+  for (let pageCount = 1; pageCount <= MAX_REPLAY_PAGES; pageCount += 1) {
+    const page = await replaySourceObservationPage('dry-run', cursor);
+    pages.push(page);
+    addReplayCounts(counts, page.counts);
+    addReplayPriceModes(priceModes, page.priceModes);
+    onPage?.(pageCount, counts.sourceProducts);
+    if (!page.ready) return { pages, counts, priceModes, ready: false };
+    if (page.done) return { pages, counts, priceModes, ready: true };
+    if (!page.nextSourceKey || page.nextSourceKey === cursor) {
+      throw new AlibabaSyncApiError('INTERNAL_ERROR', 'Replay cursor did not advance.');
+    }
+    cursor = page.nextSourceKey;
+  }
+  throw new AlibabaSyncApiError('INTERNAL_ERROR', 'Replay exceeded the page safety limit.');
+}
+
+export async function applySourceObservationReplay(
+  plan: SourceObservationReplayPlan,
+  onPage?: (pageCount: number, appliedCount: number) => void,
+): Promise<number> {
+  if (!plan.ready || plan.pages.length === 0 || plan.pages.length > MAX_REPLAY_PAGES) {
+    throw new AlibabaSyncApiError('CONFLICT', 'A complete successful validation is required.');
+  }
+  let applied = 0;
+  for (const [index, expected] of plan.pages.entries()) {
+    const page = await replaySourceObservationPage(
+      'apply',
+      expected.afterSourceKey,
+      expected.pageHash,
+    );
+    if (
+      page.pageHash !== expected.pageHash ||
+      page.nextSourceKey !== expected.nextSourceKey ||
+      page.done !== expected.done ||
+      !page.ready
+    ) {
+      throw new AlibabaSyncApiError('CONFLICT', 'Replay page changed after validation.');
+    }
+    applied += page.applied;
+    onPage?.(index + 1, applied);
+  }
+  return applied;
+}
+
 export type ProductDetailPriceMode = 'fixed' | 'tiered' | 'range' | 'negotiable' | 'unavailable';
 
 export interface ProductDetailInspectionSummary {

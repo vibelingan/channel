@@ -9,6 +9,7 @@ import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { listRecords } from '../api.ts';
 import { AlibabaConnectionPanel } from './AlibabaConnectionPanel.tsx';
+import { AlibabaObservationReplay } from './AlibabaObservationReplay.tsx';
 import { AlibabaProductDetailInspection } from './AlibabaProductDetailInspection.tsx';
 import { AlibabaProductLinkAction } from './AlibabaProductLinkAction.tsx';
 import { AlibabaQuarantineReview } from './AlibabaQuarantineReview.tsx';
@@ -16,6 +17,8 @@ import { AlibabaSyncRunTable } from './AlibabaSyncRunTable.tsx';
 import {
   type ConnectionStatus,
   type ProductDetailInspectionSummary,
+  type SourceObservationReplayPlan,
+  applySourceObservationReplay,
   approveQuarantine,
   disconnectAlibaba,
   fetchConnectionStatus,
@@ -24,6 +27,7 @@ import {
   runSyncNow,
   startOAuthFlow,
   unlinkSourceProduct,
+  validateSourceObservationReplay,
 } from './alibaba-api.ts';
 
 /** Reads the ?alibaba= status the OAuth callback redirect carries. */
@@ -75,6 +79,12 @@ export function AlibabaCatalogSyncPage() {
     null,
   );
   const [inspectingDetail, setInspectingDetail] = useState(false);
+  const [replayPlan, setReplayPlan] = useState<SourceObservationReplayPlan | null>(null);
+  const [replayPhase, setReplayPhase] = useState<
+    'idle' | 'validating' | 'validated' | 'applying' | 'applied' | 'failed'
+  >('idle');
+  const [replayProgress, setReplayProgress] = useState<string | null>(null);
+  const [replayApplied, setReplayApplied] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -156,6 +166,65 @@ export function AlibabaCatalogSyncPage() {
             setDetailInspection(summary);
             return `Detail inspection completed for ${summary.sourceProductId}.`;
           }).finally(() => setInspectingDetail(false));
+        }}
+      />
+      <AlibabaObservationReplay
+        connected={status?.status === 'active'}
+        busy={busy}
+        phase={replayPhase}
+        progress={replayProgress}
+        plan={replayPlan}
+        applied={replayApplied}
+        onValidate={() => {
+          setReplayPlan(null);
+          setReplayApplied(null);
+          setReplayPhase('validating');
+          setReplayProgress('Starting full validation…');
+          void guard(async () => {
+            try {
+              const plan = await validateSourceObservationReplay((pages, products) => {
+                setReplayProgress(
+                  `Validated ${products.toLocaleString('en-US')} source products across ${pages} page(s)…`,
+                );
+              });
+              setReplayPlan(plan);
+              setReplayPhase(plan.ready ? 'validated' : 'failed');
+              setReplayProgress(
+                plan.ready
+                  ? 'Validation complete. Review the summary, then apply the exact validated pages.'
+                  : 'Validation stopped. Nothing was written.',
+              );
+              return plan.ready
+                ? `Raw evidence validation passed for ${plan.counts.sourceProducts} source products.`
+                : 'Raw evidence validation failed; nothing was written.';
+            } catch (error) {
+              setReplayPhase('failed');
+              setReplayProgress(error instanceof Error ? error.message : 'Validation failed.');
+              throw error;
+            }
+          });
+        }}
+        onApply={() => {
+          if (!replayPlan?.ready) return;
+          setReplayPhase('applying');
+          setReplayProgress('Applying hash-locked pages…');
+          void guard(async () => {
+            try {
+              const applied = await applySourceObservationReplay(replayPlan, (pages, count) => {
+                setReplayProgress(
+                  `Applied ${count.toLocaleString('en-US')} observations across ${pages} page(s)…`,
+                );
+              });
+              setReplayApplied(applied);
+              setReplayPhase('applied');
+              setReplayProgress('Apply complete. The database can now be independently verified.');
+              return `Applied ${applied} common source observations.`;
+            } catch (error) {
+              setReplayPhase('failed');
+              setReplayProgress(error instanceof Error ? error.message : 'Apply failed.');
+              throw error;
+            }
+          });
         }}
       />
       <AlibabaQuarantineReview
