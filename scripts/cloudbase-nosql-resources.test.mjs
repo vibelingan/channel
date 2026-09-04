@@ -104,6 +104,15 @@ test('catalog identity coordination collections are function-only resources', ()
   assert.deepEqual(resource.indexes, []);
 });
 
+test('raw replay manifests are provisioned as function-only coordination state', () => {
+  const resource = REQUIRED_NOSQL_RESOURCES.find(
+    (candidate) => candidate.collectionName === 'alibabaRawReplayManifests',
+  );
+  assert.ok(resource, 'the manifest collection must exist before the Alibaba function deploys');
+  assert.equal(resource.permission, 'ADMINONLY');
+  assert.deepEqual(resource.indexes, []);
+});
+
 test('ensureNoSqlResources creates missing resources and verifies the resulting structure', () => {
   const collections = new Set();
   const indexesByCollection = new Map();
@@ -159,9 +168,9 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
 
   // Anchor: a silent registry change must fail here, not slip through the
   // derived expectations below (2 auth/abuse + 2 catalog + 10 alibaba collections).
-  // 15 after adding the provider-neutral current-observation collection.
+  // 16 after adding the provider-neutral observation and replay-manifest collections.
   // This count is deliberate: a new collection must be a conscious change.
-  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 15);
+  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 16);
   assert.equal(collections.size, REQUIRED_NOSQL_RESOURCES.length);
   assert.equal(
     [...indexesByCollection.values()].reduce((total, indexes) => total + indexes.size, 0),
@@ -191,6 +200,7 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
   assert.ok(messages.some((message) => message.includes('rateLimitHits: ready')));
   assert.ok(messages.some((message) => message.includes('passwordResets: ready')));
   assert.ok(messages.some((message) => message.includes('alibabaSupplierOffers: ready')));
+  assert.ok(messages.some((message) => message.includes('alibabaRawReplayManifests: ready')));
 });
 
 test('ensureNoSqlResources is idempotent when the collection and indexes exist', () => {

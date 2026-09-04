@@ -128,6 +128,13 @@ export const REQUIRED_NOSQL_RESOURCES = [
       ]),
     ],
   },
+  // Short-lived, server-owned proof that the complete ordered raw dataset
+  // passed dry-run before any derived observation write is admitted.
+  {
+    collectionName: 'alibabaRawReplayManifests',
+    permission: 'ADMINONLY',
+    indexes: [],
+  },
 ];
 
 function index(IndexName, keys, MgoIsUnique = false) {
