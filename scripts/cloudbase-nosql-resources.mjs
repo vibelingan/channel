@@ -112,6 +112,25 @@ export const REQUIRED_NOSQL_RESOURCES = [
     permission: 'ADMINONLY',
     indexes: [index('alibaba_category_mapping_source', [['alibabaCategoryId', '1']], true)],
   },
+  // Shared category contract used by Alibaba API and workbook adapters. This
+  // must be provisioned before draft materialization: an empty collection is
+  // a valid "unmapped" state, while a missing collection is an infrastructure
+  // error in CloudBase.
+  {
+    collectionName: 'sourceCategoryMappings',
+    permission: 'ADMINONLY',
+    indexes: [
+      index(
+        'source_category_mapping_identity',
+        [
+          ['provider', '1'],
+          ['sourceTaxonomy', '1'],
+          ['sourceCategoryId', '1'],
+        ],
+        true,
+      ),
+    ],
+  },
   // Provider-neutral current view emitted by API and workbook adapters. Raw
   // evidence and canonical products live elsewhere; no browser writes.
   {

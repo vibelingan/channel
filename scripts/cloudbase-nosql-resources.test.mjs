@@ -113,6 +113,22 @@ test('raw replay manifests are provisioned as function-only coordination state',
   assert.deepEqual(resource.indexes, []);
 });
 
+test('provider-neutral category mappings are provisioned before catalog adapters run', () => {
+  const resource = REQUIRED_NOSQL_RESOURCES.find(
+    (candidate) => candidate.collectionName === 'sourceCategoryMappings',
+  );
+  assert.ok(resource, 'sourceCategoryMappings must exist before Alibaba draft materialization');
+  assert.equal(resource.permission, 'ADMINONLY');
+  assert.deepEqual(resource.indexes[0]?.MgoKeySchema, {
+    MgoIsUnique: true,
+    MgoIndexKeys: [
+      { Name: 'provider', Direction: '1' },
+      { Name: 'sourceTaxonomy', Direction: '1' },
+      { Name: 'sourceCategoryId', Direction: '1' },
+    ],
+  });
+});
+
 test('ensureNoSqlResources creates missing resources and verifies the resulting structure', () => {
   const collections = new Set();
   const indexesByCollection = new Map();
@@ -167,10 +183,10 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
   ensureNoSqlResources(callTool, (message) => messages.push(message));
 
   // Anchor: a silent registry change must fail here, not slip through the
-  // derived expectations below (2 auth/abuse + 2 catalog + 10 alibaba collections).
-  // 16 after adding the provider-neutral observation and replay-manifest collections.
+  // derived expectations below (2 auth/abuse + 3 catalog + 10 alibaba collections).
+  // 17 after adding the provider-neutral mapping, observation and replay-manifest collections.
   // This count is deliberate: a new collection must be a conscious change.
-  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 16);
+  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 17);
   assert.equal(collections.size, REQUIRED_NOSQL_RESOURCES.length);
   assert.equal(
     [...indexesByCollection.values()].reduce((total, indexes) => total + indexes.size, 0),

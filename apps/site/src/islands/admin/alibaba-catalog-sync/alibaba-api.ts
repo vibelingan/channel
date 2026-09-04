@@ -38,6 +38,18 @@ interface Envelope<T> {
   error?: { code: string; message: string };
 }
 
+function gatewayErrorDetail(value: unknown): string | null {
+  if (!isRecord(value)) return null;
+  for (const key of ['errorMessage', 'message', 'Message', 'error']) {
+    const candidate = value[key];
+    if (typeof candidate === 'string') {
+      const normalized = candidate.replace(/\s+/g, ' ').trim();
+      if (normalized) return normalized.slice(0, 240);
+    }
+  }
+  return null;
+}
+
 async function call<T>(action: string, data?: unknown): Promise<T> {
   const res = await fetch(ENDPOINT, {
     method: 'POST',
@@ -49,6 +61,7 @@ async function call<T>(action: string, data?: unknown): Promise<T> {
   // undefined — which then reads as a failure with no error code, and the
   // caller reports a blank message. Check the shape we actually rely on.
   let envelope: Envelope<T> | null = null;
+  let nonEnvelopeDetail: string | null = null;
   try {
     const parsed: unknown = await res.json();
     if (
@@ -57,6 +70,8 @@ async function call<T>(action: string, data?: unknown): Promise<T> {
       typeof (parsed as { ok?: unknown }).ok === 'boolean'
     ) {
       envelope = parsed as Envelope<T>;
+    } else {
+      nonEnvelopeDetail = gatewayErrorDetail(parsed);
     }
   } catch {
     envelope = null;
@@ -64,7 +79,7 @@ async function call<T>(action: string, data?: unknown): Promise<T> {
   if (!envelope) {
     throw new AlibabaSyncApiError(
       res.status === 401 ? 'UNAUTHORIZED' : 'INTERNAL_ERROR',
-      `Request failed (${res.status})`,
+      `Request failed (${res.status})${nonEnvelopeDetail ? `: ${nonEnvelopeDetail}` : ''}`,
     );
   }
   if (!envelope.ok || envelope.data === undefined) {
