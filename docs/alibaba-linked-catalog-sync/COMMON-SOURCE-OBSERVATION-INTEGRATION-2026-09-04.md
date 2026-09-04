@@ -8,7 +8,7 @@ an acquisition workflow and not a public product schema.
 ```text
 Alibaba product.list -> product.get -> immutable raw payload --\
                                                          provider adapter
-Dianxiaomi workbook -> bounded parser -> grouped candidates --/       |
+Dianxiaomi workbook -> immutable raw xlsx -> bounded parser ----------/       |
                                                                     v
                                                   CatalogSourceObservation
                                                                     |
@@ -101,15 +101,27 @@ row. The wrapper stores query/provenance fields plus the validated observation:
 - the strict provider-neutral observation.
 
 The large Alibaba raw response is not copied into NoSQL. Its evidence entry
-references the existing payload hash/COS object. Dianxiaomi references the
-source workbook digest; the workbook bytes are not stored in the observation.
+references the existing payload hash/COS object. A Dianxiaomi import first
+stores the exact workbook bytes at the private, content-addressed
+`catalog-import-raw/<prefix>/<sha256>.xlsx` path. The import-job row records the
+digest and storage pointer; observations reference the exact job that produced
+them (`dianxiaomi:<sha256>` for the first import, an `:rN` job for an explicit
+replay) and do not duplicate the workbook bytes.
 
 Normal Alibaba detail ingestion now writes the observation beside its existing
-source mirror and supplier offers. A confirmed tombstone deactivates the common
-row through the same fenced repair window used for canonical demotion.
-Dianxiaomi staging writes one observation per valid grouped product, preserving
-separate per-store regular/promotion offers. An invalid observation rejects only
-that staged item and never overwrites the last valid common row.
+source mirror and supplier offers. Every mutable mirror/offer/observation write
+rechecks the active lease atomically; a stale owner stops with `lease-lost`.
+Only the explicit provider-absence code may tombstone a product. Authentication,
+throttling, malformed and unknown errors quarantine the run instead of turning
+an API failure into a deletion. A confirmed tombstone deactivates the common row
+through the same fenced repair window used for canonical demotion.
+
+Dianxiaomi staging writes one observation per store-scoped source product, while
+the candidate/group remains the operator-facing cross-store review unit. Thus
+the accepted four-store fixture has 77 grouped candidates but 100 observations.
+A later one-store workbook updates only that store's deterministic row and
+cannot erase observations belonging to the other stores. An invalid observation
+rejects only that staged item and never overwrites the last valid common row.
 
 ## Existing-data migration
 
@@ -120,14 +132,18 @@ Alibaba's current 1,074 source products are migrated from immutable raw
    envelope and ids, deterministic source key, exact current active offer-key
    set, and the common observation contract. It performs no writes.
 2. The dry-run returns a SHA-256 over that page's source/raw/offer/observation
-   material.
+   material and the authoritative active-source total.
 3. Apply requires the exact page hash and repeats the complete preflight before
    its first write. A changed page stops with conflict.
 4. Apply updates only derived `sourceAttributes` on existing supplier offers
-   and upserts the common observation. It preserves first/last run provenance
-   and never writes, links, prices or publishes a canonical product.
-5. Deterministic ids make an interrupted page safe to repeat. The entire live
-   dataset must pass dry-run before the first apply page.
+   and upserts the common observation. Each write is atomically lease-fenced;
+   offer comparison reads the full active set rather than a 100-row prefix. It
+   preserves first/last run provenance and never writes, links, prices or
+   publishes a canonical product.
+5. Deterministic ids make an interrupted page safe to repeat. Every apply page
+   must present the same authoritative total found by dry-run; a changed total,
+   page, or owner stops fail-closed. The entire live dataset must pass dry-run
+   before the first apply page.
 
 Expected live invariants from the read-only audit are 1,074 observations,
 3,672 active offers represented, 3,661 attributed variants, 10,100 option
@@ -150,8 +166,12 @@ explicit later decisions.
 ## Acceptance gates
 
 - common-contract, provider-adapter and malformed-input tests pass;
-- real Dianxiaomi acceptance workbook writes 77 deterministic observations,
-  preserves store-scoped prices and writes zero canonical products;
+- real Dianxiaomi acceptance workbook writes 77 grouped candidates and 100
+  deterministic store-scoped observations, preserves store prices and writes
+  zero canonical products;
+- exact Dianxiaomi workbook bytes are recoverable from the private storage
+  pointer and match the recorded SHA-256; a single-store follow-up cannot mutate
+  other stores' observation documents;
 - both function artifacts are self-contained and pass cold-start smoke tests;
 - the new NoSQL collection and indexes exist with `ADMINONLY` permission before
   deploying the Alibaba function;
@@ -229,5 +249,18 @@ than trusting the UI status:
   `alibabaCategoryMappings=0`.
 
 Relevant verification after the diagnostic change: function tests 92/92, site
-tests 230/230, repository lint clean, both affected typechecks clean, and all
-three packaged function artifacts pass cold-start smoke.
+tests 230/230 with Node 25 experimental Web Storage disabled, repository lint
+clean, both affected typechecks clean, and all three packaged function
+artifacts pass cold-start smoke.
+
+## Post-acceptance correctness hardening
+
+The integration branch subsequently closed the independent review findings that
+were not exercised by the first 1,074-row migration: strict absence-only
+tombstones, transaction-fenced source/offer/observation writes, authoritative
+replay totals, complete offer scans beyond 100 rows, exact frontend response
+keys and cross-field cardinality checks, calendar-valid UTC instants,
+store-scoped Dianxiaomi observations, sanitizer provenance, and durable raw XLSX
+evidence. These changes require their own function/static release verification;
+the preceding live-acceptance section remains the evidence for the earlier
+`90840ab` release until that deployment is recorded.
