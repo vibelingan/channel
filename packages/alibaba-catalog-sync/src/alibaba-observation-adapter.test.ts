@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { buildCatalogDetailCandidate } from '@vibelingan-channel/catalog-import/detail-candidate';
 import type { AlibabaProductDetailDraft } from './alibaba-contracts.ts';
 import { alibabaObservationAdapter } from './alibaba-observation-adapter.ts';
 
@@ -64,6 +65,21 @@ test('Alibaba detail becomes the same validated observation contract', () => {
     ],
   });
   assert.equal(observation.evidence[0]?.evidenceId, 'c'.repeat(64));
+
+  const candidate = buildCatalogDetailCandidate(observation, {
+    productId: 'local-headset',
+    variants: new Map(observation.variants.map((v, i) => [v.sourceVariantKey, `local-sku-${i}`])),
+    images: new Map(),
+  });
+  assert.ok(candidate.ok, candidate.ok ? undefined : candidate.errors.join('; '));
+  assert.equal(candidate.value.descriptionText, 'Safe copy');
+  assert.equal(candidate.value.variants.items[0]?.id, 'local-sku-0');
+  assert.deepEqual(
+    candidate.value.variants.items[0]?.offers[0]?.pricing,
+    observation.offers[0]?.pricing,
+  );
+  assert.deepEqual(candidate.value.images, []);
+  assert.deepEqual(candidate.warnings, ['unbound-media']);
 });
 
 test('missing identity and hostile optional fields degrade to findings, never throw', () => {

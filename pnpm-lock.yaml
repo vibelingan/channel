@@ -258,6 +258,9 @@ importers:
 
   packages/catalog-import:
     dependencies:
+      '@vibelingan-channel/shared':
+        specifier: workspace:*
+        version: link:../shared
       xlsx:
         specifier: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
         version: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
