@@ -43,7 +43,7 @@ export const CatalogDetailVariantSchema = z
   })
   .strict();
 
-export const CatalogProductDetailSchema = PublicProductSchema.pick({ _id: true, name: true })
+export const CatalogDetailHeaderSchema = PublicProductSchema.pick({ _id: true, name: true })
   .extend({
     _id: text(200),
     name: text(1000),
@@ -53,16 +53,31 @@ export const CatalogProductDetailSchema = PublicProductSchema.pick({ _id: true, 
     images: z.array(image).max(9),
     facts: z.array(fact).max(100),
     offers: z.array(offer).max(32),
-    variants: z
-      .object({
-        items: z.array(CatalogDetailVariantSchema).max(50),
-        total: count,
-        page: z.number().int().positive().safe(),
-        pageSize: z.number().int().positive().max(50),
-        hasMore: z.boolean(),
-      })
-      .strict(),
   })
+  .strict();
+
+/** Trusted approval snapshot, not a source observation or a generic admin write. */
+export const CatalogDetailPublicationSchema = z
+  .object({
+    state: z.literal('approved'),
+    revision: text(200),
+    header: CatalogDetailHeaderSchema,
+    variantCount: count,
+  })
+  .strict();
+
+export const CatalogProductDetailSchema = CatalogDetailHeaderSchema.extend({
+  revision: text(200).optional(),
+  variants: z
+    .object({
+      items: z.array(CatalogDetailVariantSchema).max(50),
+      total: count,
+      page: z.number().int().positive().safe(),
+      pageSize: z.number().int().positive().max(50),
+      hasMore: z.boolean(),
+    })
+    .strict(),
+})
   .strict()
   .superRefine((detail, ctx) => {
     const { items, page, pageSize, total, hasMore } = detail.variants;

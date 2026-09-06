@@ -31,6 +31,7 @@ export function registerCatalogRoutes(
   };
   app.all(basePath, bridge);
   app.all(`${basePath}/:id`, bridge);
+  if (collection === 'products') app.all(`${basePath}/:id/detail`, bridge);
   if (collection === 'products') app.all(/^\/api\/products\/slug(?:\/.*)?$/, bridge);
 }
 

@@ -532,7 +532,7 @@ async function bindCanonical(
 
 export function bindProduct(
   candidateGroupKey: string,
-  candidate: CatalogProductCandidate,
+  candidate: Pick<CatalogProductCandidate, 'identity' | 'parentSku' | 'sourceListingStatus'>,
   now: string,
 ): Promise<CanonicalBinding> {
   return bindCanonical(
