@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening Requirements
 
-Status: approved architecture baseline; MIUs 01-14 released; MIU 15 planned and inactive.
+Status: approved architecture baseline; MIUs 01-14 released; MIU 15 active for local implementation and validation.
 Branch: `refactor/catalog-architecture-hardening`
 Base: `origin/main` at `9ddda85593517bc9d1d2bea81c4862ce492b144f`.
 

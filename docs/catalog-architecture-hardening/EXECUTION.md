@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-14 released; MIU 15 planned and inactive.
+Status: MIUs 01-14 released; MIU 15 active for local implementation and validation.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implementation`.
 
-**Current/next MIU:** No MIU is active. MIU 15 requires separate activation.
+**Current/next MIU:** MIU 15 is the sole active MIU; MIU 16 remains planned.
 
 ## Git Truth
 
@@ -59,6 +59,8 @@ Branch: `refactor/catalog-architecture-hardening`
   is `67218de`. This MIU preserves the intentionally client-populated, noindex SKU shell and the existing
   public image-string contract; changing either is outside pricing parity. Currency/MOQ, zero-price, and
   malformed-link boundary assertions were completed in the implementation commit rather than a separate red commit.
+- MIU 15 behavior-first interface/guard contract and exact two-file reservation are tracked at `5ffcc58`;
+  hardened shallow runtime guard implementation is `a73be8f`. Local validation is in progress.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -66,7 +68,7 @@ Branch: `refactor/catalog-architecture-hardening`
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. No MIU or exact file is active; future plans remain
+rather than trusted from JSON strings. MIU 15 is the only active exact-file claim; future plans remain
 `planned|blocked` claims. Activation is one MIU at a time.
 
 ## MIU 14 Local Validation
