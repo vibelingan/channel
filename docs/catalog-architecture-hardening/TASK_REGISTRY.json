@@ -46,13 +46,10 @@
       "claimedLocalHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "claimedRemoteHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "status": "implementation-in-progress",
-      "currentMiu": "15",
+      "currentMiu": null,
       "dependencies": [],
-      "activeExactReservations": [
-        "apps/site/src/catalog/families/catalog-family-adapter.ts",
-        "apps/site/src/catalog/families/catalog-family-adapter.test.ts"
-      ],
-      "activeReservationPurpose": "MIU 15 canonical family-adapter contract and runtime guard; local validation only, no deployment.",
+      "activeExactReservations": [],
+      "activeReservationPurpose": "",
       "externalGates": {
         "D1": {
           "scope": ["26", "27", "28"],
@@ -384,7 +381,7 @@
         "12": { "reservationState": "released", "previousReservationState": "active" },
         "13": { "reservationState": "released", "previousReservationState": "active" },
         "14": { "reservationState": "released", "previousReservationState": "active" },
-        "15": { "reservationState": "active", "previousReservationState": "planned" },
+        "15": { "reservationState": "released", "previousReservationState": "active" },
         "16": { "reservationState": "planned" },
         "17": { "reservationState": "planned" },
         "18": { "reservationState": "planned" },
@@ -714,7 +711,7 @@
           ]
         }
       ],
-      "handoff": "MIUs 01-14 are released. MIU 15 is active with two exact owner files for local implementation and validation only; no CloudBase test deployment is authorized."
+      "handoff": "MIUs 01-15 are released with no active exact-file reservation. MIU 16 remains planned; no CloudBase test deployment was run for MIU 15."
     }
   ]
 }
