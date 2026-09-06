@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-14 released; MIU 15 active for local implementation and validation.
+Status: MIUs 01-15 released; MIU 16 planned and inactive.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implementation`.
 
-**Current/next MIU:** MIU 15 is the sole active MIU; MIU 16 remains planned.
+**Current/next MIU:** No MIU is active. MIU 16 requires separate activation.
 
 ## Git Truth
 
@@ -60,7 +60,8 @@ Branch: `refactor/catalog-architecture-hardening`
   public image-string contract; changing either is outside pricing parity. Currency/MOQ, zero-price, and
   malformed-link boundary assertions were completed in the implementation commit rather than a separate red commit.
 - MIU 15 behavior-first interface/guard contract and exact two-file reservation are tracked at `5ffcc58`;
-  hardened shallow runtime guard implementation is `a73be8f`. Local validation is in progress.
+  hardened shallow runtime guard implementation is `a73be8f`, reviewed active head is `7e334c1`, and
+  release transition is `8b28932`. No CloudBase deployment was run.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -68,8 +69,20 @@ Branch: `refactor/catalog-architecture-hardening`
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. MIU 15 is the only active exact-file claim; future plans remain
+rather than trusted from JSON strings. No MIU or exact file is active; future plans remain
 `planned|blocked` claims. Activation is one MIU at a time.
+
+## MIU 15 Local Validation
+
+- Adapter contract/guard suite: 4/4 pass; full site suite: 244/244 pass; all workspace tests pass.
+- Workspace and E2E typechecks: 0 errors; Astro check: 0 errors with 7 existing hints.
+- Production Astro build: 15 pages; repository-wide Biome: 354 files; architecture verifier: 0 issues;
+  post-push script suite: 93/93 pass.
+- Guard uses only the narrow shared Catalog contract, validates canonical family and six required surfaces,
+  rejects sparse/inherited/accessor-backed malformed data, and never invokes adapter callbacks.
+- Dynamic labels/capabilities and additive metadata remain intentionally extensible for MIUs 16-19; callback
+  result shapes remain a TypeScript responsibility because runtime validation must not execute them.
+- No test-branch merge, workflow dispatch, or CloudBase test deployment was performed.
 
 ## MIU 14 Local Validation
 

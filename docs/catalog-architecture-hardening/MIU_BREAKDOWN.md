@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening MIU Breakdown
 
-Status: published; MIUs 01-14 released; MIU 15 active for local implementation and validation.
+Status: published; MIUs 01-15 released; MIU 16 planned and inactive.
 
 ```mermaid
 flowchart TD
@@ -57,7 +57,8 @@ flowchart TD
 
 ## Reservation Lifecycle
 
-- MIU 15 is the sole active MIU. MIUs 01-14 are released, and MIUs 26-28 remain blocked by D1.
+- No MIU or exact file is active. MIUs 01-15 are released, MIU 16 remains planned, and MIUs 26-28
+  remain blocked by D1.
 - Activation follows `TASK_REGISTRY.json`: verify dependencies, gates, live refs/worktrees, and zero
   conflicting active owner claims, then atomically mark one MIU `active`. Completion marks it `released`
   before any explicit successor transfer activates.
@@ -366,7 +367,7 @@ flowchart TD
 - **Files:** `apps/site/src/catalog/families/catalog-family-adapter.ts`, `apps/site/src/catalog/families/catalog-family-adapter.test.ts`
 - **Type:** new-file
 - **Depends on:** MIUs 02, 05
-- **Reservation state:** `active`; local contract/runtime guard validation only.
+- **Reservation state:** `released`; previous state `active`. Contract/runtime guard validation was local only.
 - **What it does:**
   - Exports `interface CatalogFamilyAdapter { family; labels; filterCapabilities; group(product);
     facts(product); emptyCopy }` using `PublicProduct` and canonical family from MIU 02's
