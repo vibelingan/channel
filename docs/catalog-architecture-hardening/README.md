@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening Handoff
 
-Status: 49-MIU packet published; MIUs 01-15 released; MIU 16 ACTIVE, not released; full local validation PASS; final review and feature publication pending.
+Status: 49-MIU packet; MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive; MIU 16 source published and verified; release-transition closure commit/push pending.
 Branch: `refactor/catalog-architecture-hardening`
 Planning packet SHA: `bc1e69e25e9e8d453584be0fde9279f7bdf0c006`.
 
@@ -20,20 +20,26 @@ git status --short
 git rev-parse HEAD origin/refactor/catalog-architecture-hardening
 ```
 
-Expected branch: `refactor/catalog-architecture-hardening`. MIU 11's reviewed active head `03933c5` was
-pushed before its release transition. MIU 16 has full local validation PASS on the parent-observed final
-production code: all workspace tests (site 251/251), workspace and E2E typechecks, Astro check (0 errors,
-0 warnings, 7 existing hints), production Astro build (15 pages), and repository-wide Biome (356 files).
-Subsequent test-only strengthening passed focused 7/7 and `typecheck:test`; the full production-code
-validation and later test-only checks are separate evidence. Three P3 review gaps are resolved locally;
-final review and feature-branch publication remain pending, and MIU 16 source is not yet pushed.
+Expected branch: `refactor/catalog-architecture-hardening`. MIU 16 activation `8ff32fb`, implementation
+`d7fd55f8dc13ffdd0966176f4985468624fb1ae7`, and reviewed ACTIVE packet
+`2eef3220a79cb53da764ccba11ee2b0e23854d1e` are pushed to that origin branch. Current worktree HEAD and
+the origin tracking ref remain at `2eef322`; the release-transition closure still needs its own commit
+and push. No closure SHA is recorded or implied.
+
+Full local validation passed: all workspace tests (site 251/251), workspace and E2E typechecks, Astro
+check (0 errors, 0 warnings, 7 existing hints), production Astro build (15 pages), and repository-wide
+Biome (356 files). After test-only review strengthening, focused 7/7, `typecheck:test`, site 251/251,
+and Biome 356 passed again. Final review audited committed `5fb1a55..2eef322` and found 0 P1/P2/P3;
+the previous three P3 findings are resolved. Push-hook craft, review, and doc guards passed.
+The pre-push script suite was 92/93 solely because of `local-only-completion`; after source push,
+architecture verification reported 0 issues and the script suite passed 93/93.
 Craft gates against exact diff base `5fb1a55` retain 14 existing baseline findings, with ZERO NEW findings
 and ZERO execution errors, not a clean total. See the finalized review disposition in
 [EXECUTION.md](EXECUTION.md#miu-16-finalized-review-disposition) for the breakdown and evidence limits.
 No browser E2E was run for this isolated config adapter; actual local Astro module integration was
-tested, but route/browser integration remains unproven. No test-branch merge or deployment is authorized
-now; no CloudBase operation or workflow dispatch occurred, and `main` was not touched. Do not reset,
-rebase, cherry-pick, or create another branch to manufacture equality.
+tested, but adapters are not yet composed into routes. Source publication is not runtime deployment:
+no merge into `test` or `main`, CloudBase operation, workflow dispatch, or browser E2E occurred for
+MIU 16. Do not reset, rebase, cherry-pick, or create another branch to manufacture equality.
 
 ## Reading Order
 
@@ -79,12 +85,13 @@ rebase, cherry-pick, or create another branch to manufacture equality.
 - Active `/headphones` remains built and must return 200. Targeted pruning preserves the real deploy
 	contract: `/overstock`, `/overstock-item`, temporarily hidden `/teardown-lab` and `/blue-ocean`, and
 	the existing retired media allowlist. Route smoke enumerates each status; no blanket delete is allowed.
-- MIU 16 is ACTIVE, not released, with full local validation PASS, activated at `8ff32fb`, with three exact owners:
+- MIU 16 is RELEASED after source publication and verification, activated at `8ff32fb`, with three released owners:
 	`apps/site/src/catalog/families/headphones.ts`, `apps/site/src/catalog/families/headphones.test.ts`,
-	and `apps/site/src/i18n/headphones.ts`. Later MIUs retain their lifecycle states and exact owner files,
-	with references/transfers for sequential reuse. No deployment or test-branch merge is authorized;
-	final review and feature-branch publication remain pending. MIU 20 registration and MIU 22
-	route/controller composition remain future work.
+	and `apps/site/src/i18n/headphones.ts`. MIUs 01-16 are released; no active exact reservations remain;
+	MIU 17 is planned/inactive. Later MIUs retain their lifecycle states and exact owner files, with
+	references/transfers for sequential reuse. The release-transition closure commit/push is pending;
+	no deployment or test-branch merge is authorized. MIU 20 registration and MIU 22 route/controller
+	composition remain future work. The denominator is 49; D1 and D2 are unchanged.
 - MIUs 39-43 separately own the real deploy script modification, its new test, the existing smoke script
 	modification, its new test, and the new browser smoke. MIU 44 produces and validates the immutable
 	`RELEASE_MANIFEST.json`; MIU 45 consumes it before credentials, disables push deployment, and owns the
@@ -107,5 +114,5 @@ MIUs create a separate docs-only closure commit that is not deployed and does no
 external registry/tool output proves closure local/remote equality after push, while a separate branch/PR
 status may point to `HEAD`.
 
-The tracked packet now retains the local validation and review information from the root planning
-scratch files. The parent will remove those scratch files; they are not handoff authority.
+MIU 16 source publication is complete; publication of its release-transition closure is still pending.
+The closure docs are uncommitted, so no closure SHA or pushed-closure claim is available.

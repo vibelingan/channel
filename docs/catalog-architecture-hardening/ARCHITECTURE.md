@@ -1,5 +1,7 @@
 # Catalog Architecture Hardening
 
+Status: MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive; MIU 16 source published and verified; release-transition closure commit/push pending.
+
 ## Decision
 
 Adopt a Catalog kernel with ports/adapters and a route-level composition root. Extract behavior behind
@@ -93,7 +95,7 @@ The interface contains family key, labels, filter capabilities, grouping, facts,
 does not contain fetching, reducer state, React, or pricing. Completeness derives from canonical
 `PRODUCT_FAMILY_OPTIONS`, not a fake fifth family.
 
-MIU 16's local Headphones implementation imports only its i18n content owner and the MIU 15 contract.
+MIU 16's released Headphones implementation imports only its i18n content owner and the MIU 15 contract.
 `HeadphonesFamilyContent = Pick<HeadphonesContent, 'list' | 'detail'>` keeps adapter input independent
 of route/hero content. Optional `detail.productCodeLabel` retains the legacy `'Product Code'` fallback.
 Markdown categories supply ordered filter `key`/`label` pairs. Group identity is always
@@ -105,7 +107,7 @@ user-visible route/controller behavior change.
 
 Intentional follow-up for MIU 20 registry and MIU 22 composition: display labels must be found in
 `filterCapabilities` by the stable grouping key, falling back to the raw key when no label matches.
-The current local adapter tests do not establish browser or production-build behavior for that future
+The released adapter tests do not establish browser or production-build behavior for that future
 default-loader route path; see `EXECUTION.md` and `SDK-PROBE.md` for the narrower evidence.
 
 ## Old Owner Migration And Retirement
@@ -141,10 +143,17 @@ for full retirement: `CatalogFamilyGrid`, `HeadphonesProductCard`, `HeadphonesPr
 
 ## Reservation And Deployment Control
 
-MIUs 01-15 are released; MIU 16 is active in LOCAL implementation validation from activation `8ff32fb`.
-Its three exact owners are `apps/site/src/catalog/families/headphones.ts`,
+MIUs 01-16 are released; no active exact reservations remain; MIU 17 is planned/inactive. MIU 16
+activated at `8ff32fb`, implemented at `d7fd55f8dc13ffdd0966176f4985468624fb1ae7`, and published its
+reviewed ACTIVE packet at `2eef3220a79cb53da764ccba11ee2b0e23854d1e` on the origin feature branch.
+Its three released owners are `apps/site/src/catalog/families/headphones.ts`,
 `apps/site/src/catalog/families/headphones.test.ts`, and `apps/site/src/i18n/headphones.ts`.
-The denominator remains 49 MIUs. Activation and release follow the lifecycle in `TASK_REGISTRY.json`. Shared
+The release-transition closure commit/push is pending; current HEAD remains `2eef322`, and no closure
+SHA is available. Post-push architecture verification reports 0 issues and the script suite passes
+93/93. Source publication does not compose adapters into routes: MIU 20 registry and MIU 22 controller
+remain future work. No merge into `test` or `main`, CloudBase operation, workflow dispatch, or browser
+E2E occurred for MIU 16. The denominator remains 49 MIUs; D1 and D2 are unchanged.
+Activation and release follow the lifecycle in `TASK_REGISTRY.json`. Shared
 files have one owner and later consumer/reference entries, or an explicit release/activation transfer.
 Select-owned Admin files remain blocked in MIUs 26-28 until final-code WebKit and the full D1 suite pass.
 MIUs 39-43 finish and test the deploy script, API/route smoke, and browser smoke before authorization.

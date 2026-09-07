@@ -1,6 +1,6 @@
 # MIU 16 SDK Probe
 
-Status: full local validation PASS; MIU 16 ACTIVE, not released; final review and feature publication pending.
+Status: full local validation PASS; MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive; MIU 16 source published and verified; release-transition closure commit/push pending.
 Recorded: 2026-09-07.
 Scope: Astro/Vite test loading for the Headphones adapter; no route, environment, or business SDK change.
 
@@ -8,14 +8,14 @@ Scope: Astro/Vite test loading for the Headphones adapter; no route, environment
 
 - Installed Astro `apps/site/node_modules/astro/dist/config/entrypoint.d.ts` exports `getViteConfig`
   from `./index.js`; `apps/site/node_modules/astro/dist/config/index.js` implements and exports it.
-  Both were inspected during the prior documentation synchronization, not re-inspected in this pass.
-- The parent reports fetching the official
+  Both were inspected in the recorded probe.
+- The recorded probe fetched the official
   [astro:config module reference](https://docs.astro.build/en/reference/modules/astro-config/)
-  through Context7 library `/withastro/docs`. This records that supplied probe evidence; Context7
-  was not available to the doc-writer and the fetch was not independently repeated here.
-- The harness in `apps/site/src/catalog/families/headphones.test.ts` was read directly during the prior
-  synchronization. The subsequent test-only strengthening and all application validation results below
-  are parent-reported, not independently rerun during this doc-only pass.
+  through Context7 library `/withastro/docs` and inspected the harness in
+  `apps/site/src/catalog/families/headphones.test.ts`.
+
+These are historical probe and validation results supplied in the MIU 16 handoff. This docs-only update
+does not repeat the SDK inspection or application tests; Context7 is unavailable in this session.
 
 ## Verified Contract
 
@@ -25,8 +25,8 @@ the user Vite configuration into it. The harness supplies the site root in both 
 inline Astro config, then evaluates the function with `{ mode: 'test', command: 'serve' }`.
 
 `configFile: false` belongs on Vite `createServer({ ...config, configFile: false })`, not in the first
-parameter to `getViteConfig`. The parent reports that TypeScript rejected the latter placement and
-confirmed the corrected placement; the final `typecheck:test` passes.
+parameter to `getViteConfig`. TypeScript rejected the latter placement in the recorded probe and
+accepted the corrected placement; the final `typecheck:test` passes.
 
 Vite `ssrLoadModule` exposes a dynamic export record, not a statically proven adapter module. The harness
 receives it as `Record<string, unknown>`, checks that `createHeadphonesAdapter` is a function, then
@@ -48,27 +48,33 @@ callbacks to validate their results.
   for `family: 'headphones'`, grouping, and facts across known-category, unknown-category,
   missing-category, and oldest-product inputs, beyond the guard's object-shape checks.
 - The `after` hook awaits `server?.close()` so the test owns teardown of the Vite server it creates.
-- Parent-reported results after the two P3 test-only coverage corrections: focused 7/7 and
+- Results after the two P3 test-only coverage corrections: focused 7/7 and
   `typecheck:test` pass. The exact focused commands are in
-  [EXECUTION.md](EXECUTION.md#miu-16-local-implementation-validation).
+  [EXECUTION.md](EXECUTION.md#miu-16-release-validation).
 
 ## Full Local Validation And Review
 
-Parent-observed final production code passed `corepack pnpm -r test` (including site 251/251),
+Final production code passed `corepack pnpm -r test` (including site 251/251),
 workspace typechecks, E2E TypeScript check, Astro check (0 errors, 0 warnings, 7 existing hints),
 production Astro build (15 pages), and repository-wide Biome (356 files). These full checks precede
 the later test-only strengthening; production code did not change in those corrections. The subsequent
 focused 7/7 and `typecheck:test` PASS are separate evidence. Before implementation commit `d7fd55f`,
 the complete site suite was also rerun (251/251), followed by repository-wide Biome (356 files clean).
 
-Read-only assumption and deep/TypeScript reviews found no code defects; no P1/P2 findings were reported.
-The two P3 coverage gaps are patched and checked locally, and this packet update resolves the P3
-documentation-freshness gap. Craft gates against exact diff base `5fb1a55` report 14 existing baseline
+Final review audited committed `5fb1a55..2eef322` and found 0 P1/P2/P3; the previous two P3 coverage gaps
+and one P3 documentation-freshness gap are resolved. Craft gates against exact diff base `5fb1a55`
+report 14 existing baseline
 findings (pipeline-causality 1, form-degradation 6, skip-policy 5, trust-boundary-decoding 2), ZERO NEW
 findings, and ZERO execution errors; async-child passed, probe-sensitivity and family-registry were N/A.
-This is not a clean total and does not clear release. The concise finalized disposition and the checked
+This is not a clean total. The finalized disposition and the checked
 owner/test-scope cross-file YAML PASS are retained in
 [EXECUTION.md](EXECUTION.md#miu-16-finalized-review-disposition).
+
+Activation `8ff32fb`, implementation `d7fd55f8dc13ffdd0966176f4985468624fb1ae7`, and reviewed ACTIVE
+packet `2eef3220a79cb53da764ccba11ee2b0e23854d1e` are pushed to
+`origin/refactor/catalog-architecture-hardening`. Push-hook craft, review, and doc guards passed.
+Pre-push scripts were 92/93 solely because of `local-only-completion`, not fully green; post-push
+architecture verification reports 0 issues and scripts pass 93/93. MIU 16 is RELEASED after these checks.
 
 ## Evidence Limits
 
@@ -77,7 +83,8 @@ run for this isolated config adapter; the E2E TypeScript check is not browser ex
 harness and successful 15-page production build do not establish default-adapter route/browser or
 production-build integration: adapters are not wired into routes yet. MIU 20 registration and MIU 22
 composition remain future work; no user-visible route/controller behavior change is delivered here.
-The checked-scope cross-file PASS is not release clearance. MIU 16 remains ACTIVE, not released; its
-source is not yet pushed, and final review and feature publication remain pending. No CloudBase operation,
-test-branch merge, workflow dispatch, or deployment occurred; `main` was not touched. The denominator
-remains 49, and owners, lifecycle states, D1, and D2 are unchanged.
+Source publication is complete, but the release-transition closure docs are uncommitted: current HEAD
+remains `2eef322`, closure commit/push is pending, and no closure SHA is available. MIUs 01-16 are
+released; no active exact reservations remain; MIU 17 is planned/inactive. No merge into `test` or
+`main`, CloudBase operation, workflow dispatch, or browser E2E occurred for MIU 16. The denominator
+remains 49; D1 and D2 are unchanged.

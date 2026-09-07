@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-15 released; MIU 16 ACTIVE, not released; full local validation PASS; final review and feature publication pending.
+Status: MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive; MIU 16 source published and verified; release-transition closure commit/push pending.
 Branch: `refactor/catalog-architecture-hardening`
 
-**Current phase:** `validate`.
+**Current phase:** `deliver`.
 
-**Current/next MIU:** MIU 16 ACTIVE; full local validation PASS; review corrections checked locally; final review and feature publication pending.
+**Current/next MIU:** none active; MIU 16 RELEASED with closure publication pending; MIU 17 planned/inactive.
 
 ## Git Truth
 
@@ -28,7 +28,7 @@ Branch: `refactor/catalog-architecture-hardening`
 - MIU 08 TDD activation `4e9b5ca`, implementation `d9decd4`, and reviewed active head `aa18b0a` were pushed.
   No CloudBase deployment was run.
 - MIU 09 implementation is `449469d`; corrective tracked activation is `0d2929a` because its TDD
-  activation files were not committed before implementation. Both remain local until review and push.
+  activation files were not committed before implementation. Corrective activation preceded publication.
   Reviewed active head `0f9f07f` was pushed; no CloudBase deployment was run.
 - MIU 10 activated from released closure `635569d`; behavior-first contract and exact three-file
   reservation are tracked at `b7f35c0`. Implementation `f98c8d3` and reviewed active head `d33505f`
@@ -64,25 +64,29 @@ Branch: `refactor/catalog-architecture-hardening`
   release transition is `8b28932`. No CloudBase deployment was run.
 - MIU 16 activation and red skeleton are tracked at `8ff32fb`; all 3/3 initial tests failed.
   Implementation is `d7fd55f8dc13ffdd0966176f4985468624fb1ae7`.
-  Registry and breakdown already carry its active three-file reservation. Full local validation is
-  PASS and review corrections are checked locally, but MIU 16 remains ACTIVE, not released; its source
-  is not yet pushed. Final review and feature-branch publication remain pending. No CloudBase operation,
-  test-branch merge, workflow dispatch, or deployment was performed; `main` was not touched.
-- A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
-  complete.
+  Reviewed ACTIVE packet `2eef3220a79cb53da764ccba11ee2b0e23854d1e` was pushed to
+  `origin/refactor/catalog-architecture-hardening`; push-hook craft, review, and doc guards passed.
+  Final review audited committed `5fb1a55..2eef322`: 0 P1/P2/P3, with the previous three P3 findings
+  resolved. Post-push architecture verification reports 0 issues; the script suite passes 93/93.
+- MIU 16 is RELEASED in the current registry and breakdown. Current worktree HEAD and the origin
+  tracking ref still equal `2eef3220a79cb53da764ccba11ee2b0e23854d1e`; the release-transition closure
+  docs are uncommitted. Their commit and push remain pending; no closure SHA is available or invented.
+- Source publication is not runtime deployment. No merge into `test` or `main`, CloudBase operation,
+  workflow dispatch, or browser E2E occurred for MIU 16; adapters are not yet composed into routes.
+- Source release and closure publication are separate checks. The release-transition closure remains
+  incomplete until reviewed, committed, pushed, and verified against the remote.
 
 ## Source Of Truth
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. MIU 16 is active from `8ff32fb`, with exact owners
+rather than trusted from JSON strings. MIUs 01-16 are released, with no active exact reservations.
+MIU 16's released owners are
 `apps/site/src/catalog/families/headphones.ts`, `apps/site/src/catalog/families/headphones.test.ts`,
-and `apps/site/src/i18n/headphones.ts`; later plans remain `planned|blocked` claims.
-The denominator remains 49 MIUs. Activation is one MIU at a time.
-This tracked packet retains the local validation and review information; temporary root planning
-files have been removed so they cannot compete with these authorities.
+and `apps/site/src/i18n/headphones.ts`. MIU 17 is planned/inactive; later plans remain `planned|blocked`
+claims. The denominator remains 49 MIUs; D1 and D2 are unchanged. Activation is one MIU at a time.
 
-## MIU 16 Local Implementation Validation
+## MIU 16 Release Validation
 
 **What:** Implement the Headphones family content adapter in `apps/site/src/catalog/families/headphones.ts`,
 with focused tests in `apps/site/src/catalog/families/headphones.test.ts` and the narrow content type in
@@ -109,8 +113,8 @@ labels map and the real default adapter's `family: 'headphones'`, grouping, and 
 unknown-category, missing-category, and oldest-product inputs. This records MIU 16 only; the MIU 15 TDD
 history is unchanged.
 
-**Validation result:** Full local validation PASS, based on parent-observed evidence supplied for this
-documentation synchronization. The validation boundaries are:
+**Validation result:** Full local validation PASS. Historical application, review, and push evidence
+from the MIU 16 handoff is recorded below; it is not a new application-test rerun by this docs-only update.
 
 - Final production code: `corepack pnpm -r test` all green, including site 251/251; workspace typechecks
   and E2E TypeScript check pass; Astro check reports 0 errors, 0 warnings, and 7 existing hints;
@@ -121,21 +125,23 @@ documentation synchronization. The validation boundaries are:
   typechecking is `corepack pnpm --dir apps/site run typecheck:test`. Production code was unchanged
   by these corrections. Before the implementation commit, the complete site suite was rerun:
   251/251 pass, with repository-wide Biome again clean across 356 files.
+- Publication checks: the pre-push script suite was 92/93, failing solely on `local-only-completion`;
+  this was not a green suite. After pushing reviewed packet `2eef322`, architecture verification
+  reports 0 issues and the script suite passes 93/93. Push-hook craft, review, and doc guards passed.
 - Actual local Astro module integration is tested: the harness uses Astro `getViteConfig` with Vite
   `createServer`/`ssrLoadModule` to load the real default adapter and its actual Markdown, then closes
   the server in `after`. YAML `parseDocument` separately parses source frontmatter for comparison;
   its `as HeadphonesContent` assertion is not runtime schema validation. No browser E2E was run for
   this isolated config adapter; E2E TypeScript success is not browser execution.
 
-SDK details and evidence limits are in [SDK-PROBE.md](SDK-PROBE.md). The doc-writer records the supplied
-parent evidence, not an independent rerun of these application commands.
+SDK details and evidence limits are in [SDK-PROBE.md](SDK-PROBE.md).
 
-**Result:** Full local validation PASS; review corrections checked locally. MIU 16 remains ACTIVE, not
-released, and its source is not yet pushed; final review and feature-branch publication remain pending.
-No CloudBase operation, test-branch merge, workflow dispatch, or deployment was performed; `main` was not
-touched. The denominator remains 49; owners, lifecycle states, D1, and D2 are unchanged. The successful
-15-page production build does not prove default-adapter route integration: adapters are not wired into
-routes yet, and route/browser integration remains unproven.
+**Result:** MIU 16 RELEASED after final review, source push, and post-push verification. MIUs 01-16 are
+released; no active exact reservations remain; MIU 17 is planned/inactive. The release-transition closure
+commit/push is still pending, with HEAD at `2eef322` and no closure SHA. The denominator remains 49;
+D1 and D2 are unchanged. No merge into `test` or `main`, CloudBase operation, workflow dispatch, or
+browser E2E occurred for MIU 16. The successful 15-page production build does not prove default-adapter
+route integration: adapters are not wired into routes yet, and route/browser integration remains unproven.
 
 **Engineering rationale:** Display labels are presentation, not category identity: equal translations
 would silently combine distinct groups. The collision test exposed the initial characterization error
@@ -144,35 +150,36 @@ mock loader, while a separate YAML parse provides a source comparison without pr
 the entire content schema. The two-section content type avoids requiring unrelated hero/route data.
 Intentional follow-up: future composition must resolve a display label from `filterCapabilities` using
 the stable grouping key and fall back to that raw key when no match exists. MIU 20 registration and MIU
-22 route/controller composition remain future work, not behavior delivered by this local adapter.
+22 route/controller composition remain future work, not behavior delivered by this released adapter.
 
 ### MIU 16 Finalized Review Disposition
 
-Parent-reported read-only assumption and deep/TypeScript reviews found no code defects. Test/cross-file
-review identified two P3 coverage gaps plus a P3 documentation-freshness gap, with no P1/P2 findings.
-The three local resolutions are retained here; final review and feature publication remain pending.
+Final review audited committed `5fb1a55..2eef322` and found **0 P1/P2/P3**. Earlier assumption and
+deep/TypeScript reviews found no code defects; test/cross-file review identified two P3 coverage gaps
+and a P3 documentation-freshness gap. All three are resolved in the published reviewed packet.
 
-| Finding | Why the earlier evidence missed it | Local resolution and verification |
+| Finding | Why the earlier evidence missed it | Resolution and verification |
 | --- | --- | --- |
 | P3: incomplete labels assertions | Partial label checks did not pin the whole flattened map. | Test-only correction asserts the entire flattened labels map; focused 7/7 and `typecheck:test` pass afterward. |
 | P3: incomplete default-adapter behavior assertions | Real Markdown loading and shape checks did not pin every default-adapter result. | Test-only correction checks `family: 'headphones'`, grouping, and facts across known-category, unknown-category, missing-category, and oldest-product inputs; focused 7/7 and `typecheck:test` pass afterward. |
-| P3: stale validation documentation | The packet still described completed full checks as in progress and carried a `WARN` for the checked cross-file scope. | README, this execution record, and SDK-PROBE now record full local validation PASS, the checked-scope YAML PASS, later test-only validation, and unchanged publication/integration limits. |
+| P3: stale validation documentation | The packet still described completed full checks as in progress and carried a `WARN` for the checked cross-file scope. | The reviewed packet recorded full local validation PASS, checked-scope YAML PASS, and later test-only validation without overstating publication or integration evidence. |
 
 The full workspace checks, 15-page production build, and 356-file Biome result cover the final
 production code. After test-only strengthening, focused 7/7, test typecheck, the complete site suite
 251/251, and repository-wide Biome passed again before implementation commit `d7fd55f`.
-The documentation correction changes neither production code nor release clearance.
+The documentation correction changed no production code. Final review and source publication followed;
+the release-transition closure still awaits commit and push.
 
 Craft gates ran against the exact diff base `5fb1a55`: **14 existing baseline findings**, consisting of
 pipeline-causality 1, form-degradation 6, skip-policy 5, and trust-boundary-decoding 2. There were
 **ZERO NEW findings** and **ZERO execution errors**. The async-child gate passed; probe-sensitivity and
 family-registry were N/A. This is not a clean total: the 14 baseline findings remain known debt, and
-these results do not authorize publication or release.
+source publication passed its separate push guards and does not authorize runtime deployment.
 
 ### MIU 16 Cross-File Evidence
 
-PASS applies only to the checked owner/test scope. It is not a completed repository-wide final review
-or release clearance; MIU 20/22 and route/browser integration limits are unchanged.
+PASS applies only to the checked owner/test scope and does not substitute for the final review recorded
+above. MIU 20/22 and route/browser integration limits are unchanged.
 
 ```yaml
 cross-file-reasoning:
@@ -205,7 +212,9 @@ cross-file-reasoning:
   verdict-boundary: checked owner/test scope only; not release clearance
   local-validation: full local validation PASS; subsequent test-only corrections checked locally
   integration-limit: actual local Astro module loading tested; route/browser integration unproven
-  remaining: final review and feature publication pending; MIU 16 ACTIVE, not released; source not yet pushed
+  lifecycle: MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive
+  publication: reviewed source packet 2eef322 pushed; post-push architecture 0 issues; scripts 93/93
+  remaining: release-transition closure commit/push pending; no closure SHA
 ```
 
 ## MIU 15 Local Validation
