@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening Handoff
 
-Status: 49-MIU packet; MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive; MIU 16 source published and verified; release-transition closure commit/push pending.
+Status: 49-MIU packet; MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive; implementation continues; MIU 16 source published and verified; closure publication requires live Git equality verification.
 Branch: `refactor/catalog-architecture-hardening`
 Planning packet SHA: `bc1e69e25e9e8d453584be0fde9279f7bdf0c006`.
 
@@ -21,10 +21,14 @@ git rev-parse HEAD origin/refactor/catalog-architecture-hardening
 ```
 
 Expected branch: `refactor/catalog-architecture-hardening`. MIU 16 activation `8ff32fb`, implementation
-`d7fd55f8dc13ffdd0966176f4985468624fb1ae7`, and reviewed ACTIVE packet
-`2eef3220a79cb53da764ccba11ee2b0e23854d1e` are pushed to that origin branch. Current worktree HEAD and
-the origin tracking ref remain at `2eef322`; the release-transition closure still needs its own commit
-and push. No closure SHA is recorded or implied.
+`d7fd55f8dc13ffdd0966176f4985468624fb1ae7`, and the historical reviewed ACTIVE source checkpoint
+`2eef3220a79cb53da764ccba11ee2b0e23854d1e` were pushed to that origin branch and verified.
+The registry release transition was recorded by `801d8712e3abb9a0fe05adcd31328eb37523b054`;
+handoff document snapshot `48405b23bcb43d9207e8b2a856768da45704719f` followed, then this correction.
+At the observation preceding this correction, the remote branch was at the reviewed source checkpoint
+`2eef3220a79cb53da764ccba11ee2b0e23854d1e`; that historical observation does not establish closure publication.
+Use `git rev-parse HEAD` and live `origin/refactor/catalog-architecture-hardening` to confirm closure publication before continuing.
+Verify local/remote equality; neither the handoff snapshot nor this correction establishes a pushed closure.
 
 Full local validation passed: all workspace tests (site 251/251), workspace and E2E typechecks, Astro
 check (0 errors, 0 warnings, 7 existing hints), production Astro build (15 pages), and repository-wide
@@ -89,8 +93,9 @@ MIU 16. Do not reset, rebase, cherry-pick, or create another branch to manufactu
 	`apps/site/src/catalog/families/headphones.ts`, `apps/site/src/catalog/families/headphones.test.ts`,
 	and `apps/site/src/i18n/headphones.ts`. MIUs 01-16 are released; no active exact reservations remain;
 	MIU 17 is planned/inactive. Later MIUs retain their lifecycle states and exact owner files, with
-	references/transfers for sequential reuse. The release-transition closure commit/push is pending;
-	no deployment or test-branch merge is authorized. MIU 20 registration and MIU 22 route/controller
+	references/transfers for sequential reuse. Release transition `801d871` and handoff snapshot `48405b2`
+	precede this correction; closure publication requires live Git equality verification before continuing.
+	No deployment or test-branch merge is authorized. MIU 20 registration and MIU 22 route/controller
 	composition remain future work. The denominator is 49; D1 and D2 are unchanged.
 - MIUs 39-43 separately own the real deploy script modification, its new test, the existing smoke script
 	modification, its new test, and the new browser smoke. MIU 44 produces and validates the immutable
@@ -114,5 +119,8 @@ MIUs create a separate docs-only closure commit that is not deployed and does no
 external registry/tool output proves closure local/remote equality after push, while a separate branch/PR
 status may point to `HEAD`.
 
-MIU 16 source publication is complete; publication of its release-transition closure is still pending.
-The closure docs are uncommitted, so no closure SHA or pushed-closure claim is available.
+MIU 16 source publication was completed and verified at historical checkpoint `2eef322`.
+Release transition `801d871` and handoff snapshot `48405b2` were recorded afterward, followed by this correction.
+The task remains in implementation; this MIU's release is not delivery of the entire 49-MIU task.
+Use `git rev-parse HEAD` and live `origin/refactor/catalog-architecture-hardening` to confirm closure publication before continuing.
+Require local/remote equality evidence external to the closure commit; no publication of this correction is claimed.

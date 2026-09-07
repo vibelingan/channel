@@ -1,6 +1,6 @@
 # MIU 16 SDK Probe
 
-Status: full local validation PASS; MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive; MIU 16 source published and verified; release-transition closure commit/push pending.
+Status: full local validation PASS; MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive; implementation continues; MIU 16 source published and verified; closure publication requires live Git equality verification.
 Recorded: 2026-09-07.
 Scope: Astro/Vite test loading for the Headphones adapter; no route, environment, or business SDK change.
 
@@ -70,11 +70,13 @@ This is not a clean total. The finalized disposition and the checked
 owner/test-scope cross-file YAML PASS are retained in
 [EXECUTION.md](EXECUTION.md#miu-16-finalized-review-disposition).
 
-Activation `8ff32fb`, implementation `d7fd55f8dc13ffdd0966176f4985468624fb1ae7`, and reviewed ACTIVE
-packet `2eef3220a79cb53da764ccba11ee2b0e23854d1e` are pushed to
-`origin/refactor/catalog-architecture-hardening`. Push-hook craft, review, and doc guards passed.
+Activation `8ff32fb`, implementation `d7fd55f8dc13ffdd0966176f4985468624fb1ae7`, and the historical reviewed ACTIVE
+source checkpoint `2eef3220a79cb53da764ccba11ee2b0e23854d1e` were pushed to
+`origin/refactor/catalog-architecture-hardening` and verified. Push-hook craft, review, and doc guards passed.
 Pre-push scripts were 92/93 solely because of `local-only-completion`, not fully green; post-push
-architecture verification reports 0 issues and scripts pass 93/93. MIU 16 is RELEASED after these checks.
+architecture verification reported 0 issues and scripts passed 93/93. MIU 16 is RELEASED after these checks.
+The registry release transition was recorded by `801d8712e3abb9a0fe05adcd31328eb37523b054`; handoff
+document snapshot `48405b23bcb43d9207e8b2a856768da45704719f` followed, then this correction.
 
 ## Evidence Limits
 
@@ -83,8 +85,10 @@ run for this isolated config adapter; the E2E TypeScript check is not browser ex
 harness and successful 15-page production build do not establish default-adapter route/browser or
 production-build integration: adapters are not wired into routes yet. MIU 20 registration and MIU 22
 composition remain future work; no user-visible route/controller behavior change is delivered here.
-Source publication is complete, but the release-transition closure docs are uncommitted: current HEAD
-remains `2eef322`, closure commit/push is pending, and no closure SHA is available. MIUs 01-16 are
-released; no active exact reservations remain; MIU 17 is planned/inactive. No merge into `test` or
-`main`, CloudBase operation, workflow dispatch, or browser E2E occurred for MIU 16. The denominator
+Source publication was completed and verified at historical checkpoint `2eef322`; release transition
+`801d871` and handoff snapshot `48405b2` were recorded before this correction; they do not prove its publication.
+Use `git rev-parse HEAD` and live `origin/refactor/catalog-architecture-hardening` to confirm closure publication before continuing.
+Require local/remote equality evidence; no publication of this correction is claimed. MIUs 01-16 are
+released; no active exact reservations remain; MIU 17 is planned/inactive; the task remains in implementation.
+No merge into `test` or `main`, CloudBase operation, workflow dispatch, or browser E2E occurred for MIU 16. The denominator
 remains 49; D1 and D2 are unchanged.

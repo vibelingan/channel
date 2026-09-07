@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive; MIU 16 source published and verified; release-transition closure commit/push pending.
+Status: MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive; implementation continues; MIU 16 source published and verified; closure publication requires live Git equality verification.
 Branch: `refactor/catalog-architecture-hardening`
 
-**Current phase:** `deliver`.
+**Current phase:** `implement`.
 
-**Current/next MIU:** none active; MIU 16 RELEASED with closure publication pending; MIU 17 planned/inactive.
+**Current/next MIU:** none active; MIUs 01-16 RELEASED; MIU 17 planned/inactive; confirm closure publication through live Git equality before continuing.
 
 ## Git Truth
 
@@ -64,17 +64,23 @@ Branch: `refactor/catalog-architecture-hardening`
   release transition is `8b28932`. No CloudBase deployment was run.
 - MIU 16 activation and red skeleton are tracked at `8ff32fb`; all 3/3 initial tests failed.
   Implementation is `d7fd55f8dc13ffdd0966176f4985468624fb1ae7`.
-  Reviewed ACTIVE packet `2eef3220a79cb53da764ccba11ee2b0e23854d1e` was pushed to
-  `origin/refactor/catalog-architecture-hardening`; push-hook craft, review, and doc guards passed.
+  Historical reviewed ACTIVE source checkpoint `2eef3220a79cb53da764ccba11ee2b0e23854d1e` was pushed to
+  `origin/refactor/catalog-architecture-hardening` and verified; push-hook craft, review, and doc guards passed.
   Final review audited committed `5fb1a55..2eef322`: 0 P1/P2/P3, with the previous three P3 findings
-  resolved. Post-push architecture verification reports 0 issues; the script suite passes 93/93.
-- MIU 16 is RELEASED in the current registry and breakdown. Current worktree HEAD and the origin
-  tracking ref still equal `2eef3220a79cb53da764ccba11ee2b0e23854d1e`; the release-transition closure
-  docs are uncommitted. Their commit and push remain pending; no closure SHA is available or invented.
+  resolved. Post-source-push architecture verification reported 0 issues; the script suite passed 93/93.
+- MIU 16 is RELEASED in the registry and breakdown. The registry release transition was recorded by
+  `801d8712e3abb9a0fe05adcd31328eb37523b054`; handoff document snapshot
+  `48405b23bcb43d9207e8b2a856768da45704719f` followed, then this correction.
+  At the observation preceding this correction, the remote branch was at the historical reviewed source
+  checkpoint `2eef3220a79cb53da764ccba11ee2b0e23854d1e`; this is not closure-publication evidence.
+- Use `git rev-parse HEAD` and live `origin/refactor/catalog-architecture-hardening` to confirm closure publication before continuing.
+  Require local/remote equality evidence external to the closure commit; neither the handoff snapshot
+  nor this correction establishes a pushed closure.
 - Source publication is not runtime deployment. No merge into `test` or `main`, CloudBase operation,
   workflow dispatch, or browser E2E occurred for MIU 16; adapters are not yet composed into routes.
-- Source release and closure publication are separate checks. The release-transition closure remains
-  incomplete until reviewed, committed, pushed, and verified against the remote.
+- Source release and closure publication are separate checks. Closure publication requires review,
+  commit, push, and live local/remote equality verification. The task remains in implementation;
+  MIU 16 release is not delivery of the entire 49-MIU task.
 
 ## Source Of Truth
 
@@ -137,8 +143,10 @@ from the MIU 16 handoff is recorded below; it is not a new application-test reru
 SDK details and evidence limits are in [SDK-PROBE.md](SDK-PROBE.md).
 
 **Result:** MIU 16 RELEASED after final review, source push, and post-push verification. MIUs 01-16 are
-released; no active exact reservations remain; MIU 17 is planned/inactive. The release-transition closure
-commit/push is still pending, with HEAD at `2eef322` and no closure SHA. The denominator remains 49;
+released; no active exact reservations remain; MIU 17 is planned/inactive. Reviewed source checkpoint
+`2eef322` was pushed and verified; release transition `801d871` and handoff snapshot `48405b2` followed,
+then this correction. Closure publication requires live Git equality verification before continuing;
+no publication of this correction is claimed. The task remains in implementation. The denominator remains 49;
 D1 and D2 are unchanged. No merge into `test` or `main`, CloudBase operation, workflow dispatch, or
 browser E2E occurred for MIU 16. The successful 15-page production build does not prove default-adapter
 route integration: adapters are not wired into routes yet, and route/browser integration remains unproven.
@@ -167,8 +175,11 @@ and a P3 documentation-freshness gap. All three are resolved in the published re
 The full workspace checks, 15-page production build, and 356-file Biome result cover the final
 production code. After test-only strengthening, focused 7/7, test typecheck, the complete site suite
 251/251, and repository-wide Biome passed again before implementation commit `d7fd55f`.
-The documentation correction changed no production code. Final review and source publication followed;
-the release-transition closure still awaits commit and push.
+That source packet's documentation correction changed no production code. Final source review and
+verified source publication followed at historical checkpoint `2eef322`. Release transition `801d871`
+and handoff snapshot `48405b2` were recorded afterward, followed by this correction. The source review
+above does not establish review or publication of the later closure records.
+Use `git rev-parse HEAD` and live `origin/refactor/catalog-architecture-hardening` to confirm closure publication before continuing.
 
 Craft gates ran against the exact diff base `5fb1a55`: **14 existing baseline findings**, consisting of
 pipeline-causality 1, form-degradation 6, skip-policy 5, and trust-boundary-decoding 2. There were
@@ -213,8 +224,10 @@ cross-file-reasoning:
   local-validation: full local validation PASS; subsequent test-only corrections checked locally
   integration-limit: actual local Astro module loading tested; route/browser integration unproven
   lifecycle: MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive
-  publication: reviewed source packet 2eef322 pushed; post-push architecture 0 issues; scripts 93/93
-  remaining: release-transition closure commit/push pending; no closure SHA
+  publication: historical reviewed source checkpoint 2eef322 pushed and verified; post-source-push architecture 0 issues; scripts 93/93
+  release-transition: 801d8712e3abb9a0fe05adcd31328eb37523b054
+  handoff-snapshot: 48405b23bcb43d9207e8b2a856768da45704719f; followed by this correction; correction publication not claimed
+  remaining: Use git rev-parse HEAD and live origin/refactor/catalog-architecture-hardening to confirm closure publication before continuing
 ```
 
 ## MIU 15 Local Validation

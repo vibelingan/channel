@@ -1,12 +1,16 @@
 # Catalog Architecture Hardening Requirements
 
-Status: approved architecture baseline; MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive; MIU 16 source published and verified; release-transition closure commit/push pending.
+Status: approved architecture baseline; MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive; implementation continues; MIU 16 source published and verified; closure publication requires live Git equality verification.
 Branch: `refactor/catalog-architecture-hardening`
 Base: `origin/main` at `9ddda85593517bc9d1d2bea81c4862ce492b144f`.
 
-The denominator remains 49 MIUs; D1 and D2 are unchanged. MIU 16's reviewed source packet
-`2eef3220a79cb53da764ccba11ee2b0e23854d1e` is pushed, but its closure docs are uncommitted and have no
-closure SHA. This is source publication only: no merge into `test` or `main`, CloudBase operation,
+The denominator remains 49 MIUs; D1 and D2 are unchanged. MIU 16's historical reviewed source checkpoint
+`2eef3220a79cb53da764ccba11ee2b0e23854d1e` was pushed and verified. The registry release transition was
+recorded by `801d8712e3abb9a0fe05adcd31328eb37523b054`; handoff document snapshot
+`48405b23bcb43d9207e8b2a856768da45704719f` followed, then this correction.
+Use `git rev-parse HEAD` and live `origin/refactor/catalog-architecture-hardening` to confirm closure publication before continuing.
+Require local/remote equality evidence; this correction does not establish closure publication.
+This is source publication only: no merge into `test` or `main`, CloudBase operation,
 workflow dispatch, or browser E2E occurred for MIU 16. Registry and route/controller composition
 remain future MIU 20 and MIU 22 work.
 
