@@ -46,14 +46,10 @@
       "claimedLocalHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "claimedRemoteHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "status": "implementation-in-progress",
-      "currentMiu": "16",
+      "currentMiu": null,
       "dependencies": [],
-      "activeExactReservations": [
-        "apps/site/src/catalog/families/headphones.ts",
-        "apps/site/src/catalog/families/headphones.test.ts",
-        "apps/site/src/i18n/headphones.ts"
-      ],
-      "activeReservationPurpose": "MIU 16 Headphones content adapter; local validation only, no test merge or deployment.",
+      "activeExactReservations": [],
+      "activeReservationPurpose": "",
       "externalGates": {
         "D1": {
           "scope": ["26", "27", "28"],
@@ -386,7 +382,7 @@
         "13": { "reservationState": "released", "previousReservationState": "active" },
         "14": { "reservationState": "released", "previousReservationState": "active" },
         "15": { "reservationState": "released", "previousReservationState": "active" },
-        "16": { "reservationState": "active", "previousReservationState": "planned" },
+        "16": { "reservationState": "released", "previousReservationState": "active" },
         "17": { "reservationState": "planned" },
         "18": { "reservationState": "planned" },
         "19": { "reservationState": "planned" },
@@ -715,7 +711,7 @@
           ]
         }
       ],
-      "handoff": "MIUs 01-15 are released. MIU 16 is active for local implementation and validation; no test merge or deployment is authorized."
+      "handoff": "MIUs 01-16 are released with no active exact-file reservation. MIU 17 remains planned; reviewed MIU 16 source packet 2eef322 was pushed and post-push architecture/script checks passed. No test merge or deployment was performed."
     }
   ]
 }
