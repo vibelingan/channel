@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening Handoff
 
-Status: 49-MIU packet published; MIUs 01-15 released; MIU 16 planned and inactive.
+Status: 49-MIU packet published; MIUs 01-15 released; MIU 16 ACTIVE, not released; full local validation PASS; final review and feature publication pending.
 Branch: `refactor/catalog-architecture-hardening`
 Planning packet SHA: `bc1e69e25e9e8d453584be0fde9279f7bdf0c006`.
 
@@ -21,8 +21,19 @@ git rev-parse HEAD origin/refactor/catalog-architecture-hardening
 ```
 
 Expected branch: `refactor/catalog-architecture-hardening`. MIU 11's reviewed active head `03933c5` was
-pushed before its release transition. A later local-ahead closure is in progress until independently
-reviewed and pushed. Do not reset, rebase, cherry-pick, or create another branch to manufacture equality.
+pushed before its release transition. MIU 16 has full local validation PASS on the parent-observed final
+production code: all workspace tests (site 251/251), workspace and E2E typechecks, Astro check (0 errors,
+0 warnings, 7 existing hints), production Astro build (15 pages), and repository-wide Biome (356 files).
+Subsequent test-only strengthening passed focused 7/7 and `typecheck:test`; the full production-code
+validation and later test-only checks are separate evidence. Three P3 review gaps are resolved locally;
+final review and feature-branch publication remain pending, and MIU 16 source is not yet pushed.
+Craft gates against exact diff base `5fb1a55` retain 14 existing baseline findings, with ZERO NEW findings
+and ZERO execution errors, not a clean total. See the finalized review disposition in
+[EXECUTION.md](EXECUTION.md#miu-16-finalized-review-disposition) for the breakdown and evidence limits.
+No browser E2E was run for this isolated config adapter; actual local Astro module integration was
+tested, but route/browser integration remains unproven. No test-branch merge or deployment is authorized
+now; no CloudBase operation or workflow dispatch occurred, and `main` was not touched. Do not reset,
+rebase, cherry-pick, or create another branch to manufacture equality.
 
 ## Reading Order
 
@@ -68,8 +79,12 @@ reviewed and pushed. Do not reset, rebase, cherry-pick, or create another branch
 - Active `/headphones` remains built and must return 200. Targeted pruning preserves the real deploy
 	contract: `/overstock`, `/overstock-item`, temporarily hidden `/teardown-lab` and `/blue-ocean`, and
 	the existing retired media allowlist. Route smoke enumerates each status; no blanket delete is allowed.
-- No MIU or exact file is active. Future MIU plans have lifecycle state and exact owner files, with
-	references/transfers for sequential reuse.
+- MIU 16 is ACTIVE, not released, with full local validation PASS, activated at `8ff32fb`, with three exact owners:
+	`apps/site/src/catalog/families/headphones.ts`, `apps/site/src/catalog/families/headphones.test.ts`,
+	and `apps/site/src/i18n/headphones.ts`. Later MIUs retain their lifecycle states and exact owner files,
+	with references/transfers for sequential reuse. No deployment or test-branch merge is authorized;
+	final review and feature-branch publication remain pending. MIU 20 registration and MIU 22
+	route/controller composition remain future work.
 - MIUs 39-43 separately own the real deploy script modification, its new test, the existing smoke script
 	modification, its new test, and the new browser smoke. MIU 44 produces and validates the immutable
 	`RELEASE_MANIFEST.json`; MIU 45 consumes it before credentials, disables push deployment, and owns the
@@ -91,3 +106,6 @@ deploy and rollback release IDs and compares each only with its corresponding ch
 MIUs create a separate docs-only closure commit that is not deployed and does not embed its own SHA;
 external registry/tool output proves closure local/remote equality after push, while a separate branch/PR
 status may point to `HEAD`.
+
+The tracked packet now retains the local validation and review information from the root planning
+scratch files. The parent will remove those scratch files; they are not handoff authority.

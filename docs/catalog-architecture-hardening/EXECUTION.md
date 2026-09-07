@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-15 released; MIU 16 planned and inactive.
+Status: MIUs 01-15 released; MIU 16 ACTIVE, not released; full local validation PASS; final review and feature publication pending.
 Branch: `refactor/catalog-architecture-hardening`
 
-**Current phase:** `implementation`.
+**Current phase:** `validate`.
 
-**Current/next MIU:** No MIU is active. MIU 16 requires separate activation.
+**Current/next MIU:** MIU 16 ACTIVE; full local validation PASS; review corrections checked locally; final review and feature publication pending.
 
 ## Git Truth
 
@@ -62,6 +62,12 @@ Branch: `refactor/catalog-architecture-hardening`
 - MIU 15 behavior-first interface/guard contract and exact two-file reservation are tracked at `5ffcc58`;
   hardened shallow runtime guard implementation is `a73be8f`, reviewed active head is `7e334c1`, and
   release transition is `8b28932`. No CloudBase deployment was run.
+- MIU 16 activation and red skeleton are tracked at `8ff32fb`; all 3/3 initial tests failed.
+  Implementation is `d7fd55f8dc13ffdd0966176f4985468624fb1ae7`.
+  Registry and breakdown already carry its active three-file reservation. Full local validation is
+  PASS and review corrections are checked locally, but MIU 16 remains ACTIVE, not released; its source
+  is not yet pushed. Final review and feature-branch publication remain pending. No CloudBase operation,
+  test-branch merge, workflow dispatch, or deployment was performed; `main` was not touched.
 - A dirty packet, local-ahead commit, unreviewed commit, or local/remote mismatch is in progress, not
   complete.
 
@@ -69,8 +75,138 @@ Branch: `refactor/catalog-architecture-hardening`
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. No MIU or exact file is active; future plans remain
-`planned|blocked` claims. Activation is one MIU at a time.
+rather than trusted from JSON strings. MIU 16 is active from `8ff32fb`, with exact owners
+`apps/site/src/catalog/families/headphones.ts`, `apps/site/src/catalog/families/headphones.test.ts`,
+and `apps/site/src/i18n/headphones.ts`; later plans remain `planned|blocked` claims.
+The denominator remains 49 MIUs. Activation is one MIU at a time.
+This tracked packet retains the local validation and review information; temporary root planning
+files have been removed so they cannot compete with these authorities.
+
+## MIU 16 Local Implementation Validation
+
+**What:** Implement the Headphones family content adapter in `apps/site/src/catalog/families/headphones.ts`,
+with focused tests in `apps/site/src/catalog/families/headphones.test.ts` and the narrow content type in
+`apps/site/src/i18n/headphones.ts`. These are the only three source owners. The adapter imports only i18n
+and the MIU 15 adapter contract; no route/controller is wired to it and no user-visible route/controller
+behavior changes now. MOQ, pricing, and media remain outside its identity facts.
+
+**Why:** Extract reviewed Headphones copy and identity facts for later family-neutral composition while
+keeping grouping identity independent of translations. `HeadphonesFamilyContent` is
+`Pick<HeadphonesContent, 'list' | 'detail'>`; optional `detail.productCodeLabel` falls back to legacy
+`'Product Code'`. Filters retain Markdown category order and both key and label. Grouping returns
+`product.category || 'uncategorized'`. List labels are flattened without the `list.` prefix (for example,
+`labels.heading`); detail labels retain `detail.*` keys. Facts contain only present series, model, type,
+and product-code values, in that order.
+
+**Tests written:** Activation `8ff32fb` began with a red skeleton: 3/3 tests failed initially. The first
+characterization wrongly expected display labels as group keys. Before implementation publication, a
+translation-collision red test showed distinct categories collapsing when labels matched; the
+characterization was corrected and stable category keys restored. The seven current cases cover real
+copy/filter order, actual default Markdown loading, translation collisions, oldest/unknown/uncategorized
+grouping without mutation, ordered identity-only facts, localized copy/fallback/isolation, and the
+static/dynamic dependency boundary. Subsequent test-only review corrections assert the entire flattened
+labels map and the real default adapter's `family: 'headphones'`, grouping, and facts across known-category,
+unknown-category, missing-category, and oldest-product inputs. This records MIU 16 only; the MIU 15 TDD
+history is unchanged.
+
+**Validation result:** Full local validation PASS, based on parent-observed evidence supplied for this
+documentation synchronization. The validation boundaries are:
+
+- Final production code: `corepack pnpm -r test` all green, including site 251/251; workspace typechecks
+  and E2E TypeScript check pass; Astro check reports 0 errors, 0 warnings, and 7 existing hints;
+  production Astro build emits 15 pages; repository-wide Biome checks 356 files successfully.
+- Subsequent test-only strengthening: focused suite 7/7 and `typecheck:test` pass after the two P3
+  coverage corrections. The focused command is
+  `corepack pnpm --dir apps/site exec tsx --test src/catalog/families/headphones.test.ts`; test
+  typechecking is `corepack pnpm --dir apps/site run typecheck:test`. Production code was unchanged
+  by these corrections. Before the implementation commit, the complete site suite was rerun:
+  251/251 pass, with repository-wide Biome again clean across 356 files.
+- Actual local Astro module integration is tested: the harness uses Astro `getViteConfig` with Vite
+  `createServer`/`ssrLoadModule` to load the real default adapter and its actual Markdown, then closes
+  the server in `after`. YAML `parseDocument` separately parses source frontmatter for comparison;
+  its `as HeadphonesContent` assertion is not runtime schema validation. No browser E2E was run for
+  this isolated config adapter; E2E TypeScript success is not browser execution.
+
+SDK details and evidence limits are in [SDK-PROBE.md](SDK-PROBE.md). The doc-writer records the supplied
+parent evidence, not an independent rerun of these application commands.
+
+**Result:** Full local validation PASS; review corrections checked locally. MIU 16 remains ACTIVE, not
+released, and its source is not yet pushed; final review and feature-branch publication remain pending.
+No CloudBase operation, test-branch merge, workflow dispatch, or deployment was performed; `main` was not
+touched. The denominator remains 49; owners, lifecycle states, D1, and D2 are unchanged. The successful
+15-page production build does not prove default-adapter route integration: adapters are not wired into
+routes yet, and route/browser integration remains unproven.
+
+**Engineering rationale:** Display labels are presentation, not category identity: equal translations
+would silently combine distinct groups. The collision test exposed the initial characterization error
+before publication. Reusing Astro's real Markdown pipeline exercises the default export rather than a
+mock loader, while a separate YAML parse provides a source comparison without pretending to validate
+the entire content schema. The two-section content type avoids requiring unrelated hero/route data.
+Intentional follow-up: future composition must resolve a display label from `filterCapabilities` using
+the stable grouping key and fall back to that raw key when no match exists. MIU 20 registration and MIU
+22 route/controller composition remain future work, not behavior delivered by this local adapter.
+
+### MIU 16 Finalized Review Disposition
+
+Parent-reported read-only assumption and deep/TypeScript reviews found no code defects. Test/cross-file
+review identified two P3 coverage gaps plus a P3 documentation-freshness gap, with no P1/P2 findings.
+The three local resolutions are retained here; final review and feature publication remain pending.
+
+| Finding | Why the earlier evidence missed it | Local resolution and verification |
+| --- | --- | --- |
+| P3: incomplete labels assertions | Partial label checks did not pin the whole flattened map. | Test-only correction asserts the entire flattened labels map; focused 7/7 and `typecheck:test` pass afterward. |
+| P3: incomplete default-adapter behavior assertions | Real Markdown loading and shape checks did not pin every default-adapter result. | Test-only correction checks `family: 'headphones'`, grouping, and facts across known-category, unknown-category, missing-category, and oldest-product inputs; focused 7/7 and `typecheck:test` pass afterward. |
+| P3: stale validation documentation | The packet still described completed full checks as in progress and carried a `WARN` for the checked cross-file scope. | README, this execution record, and SDK-PROBE now record full local validation PASS, the checked-scope YAML PASS, later test-only validation, and unchanged publication/integration limits. |
+
+The full workspace checks, 15-page production build, and 356-file Biome result cover the final
+production code. After test-only strengthening, focused 7/7, test typecheck, the complete site suite
+251/251, and repository-wide Biome passed again before implementation commit `d7fd55f`.
+The documentation correction changes neither production code nor release clearance.
+
+Craft gates ran against the exact diff base `5fb1a55`: **14 existing baseline findings**, consisting of
+pipeline-causality 1, form-degradation 6, skip-policy 5, and trust-boundary-decoding 2. There were
+**ZERO NEW findings** and **ZERO execution errors**. The async-child gate passed; probe-sensitivity and
+family-registry were N/A. This is not a clean total: the 14 baseline findings remain known debt, and
+these results do not authorize publication or release.
+
+### MIU 16 Cross-File Evidence
+
+PASS applies only to the checked owner/test scope. It is not a completed repository-wide final review
+or release clearance; MIU 20/22 and route/browser integration limits are unchanged.
+
+```yaml
+cross-file-reasoning:
+  scope:
+    - apps/site/src/catalog/families/headphones.ts
+    - apps/site/src/catalog/families/headphones.test.ts
+    - apps/site/src/i18n/headphones.ts
+  symbols-traced:
+    - name: createHeadphonesAdapter
+      type: exported-function
+      trace: families/headphones.ts -> headphones.test.ts dynamic load and typeof import signature
+      verdict: PASS
+    - name: headphonesAdapter
+      type: exported-adapter
+      trace: families/headphones.ts -> headphones.test.ts default load and adapter guard
+      verdict: PASS
+    - name: HeadphonesFamilyContent
+      type: exported-type
+      trace: i18n/headphones.ts -> factory parameter -> tests through factory signature
+      verdict: PASS
+  future-consumers:
+    MIU20: register completed adapters; not wired now
+    MIU22: compose routes; resolve filterCapabilities label by stable group key or use raw key
+  route-env-sdk-business-change: none
+  sdk-test-harness: Astro/Vite real Markdown loading; see SDK-PROBE.md
+  failure-mode-matches:
+    - mode: translated labels collapse category groups
+      resolution: collision red test followed by stable category keys before publication
+  verdict: PASS
+  verdict-boundary: checked owner/test scope only; not release clearance
+  local-validation: full local validation PASS; subsequent test-only corrections checked locally
+  integration-limit: actual local Astro module loading tested; route/browser integration unproven
+  remaining: final review and feature publication pending; MIU 16 ACTIVE, not released; source not yet pushed
+```
 
 ## MIU 15 Local Validation
 
@@ -314,3 +450,9 @@ at `57e2e77`. MIU 03 also gained Alibaba-pricing sub-projection after a validati
 fail-closed rejection of alibaba-linked rows.
 MIU 04 added an explicit `packages/shared/package.json` ownership transfer because MIU 03's normalizer had
 no legal package export; the dedicated subpath avoids cross-workspace deep imports and an index cycle.
+
+MIU 16 deviations: none in approved scope or architecture. The incorrect display-label grouping
+characterization was corrected before implementation publication after the translation-collision red
+test. Stable category keys preserve the contract; changing group identity to translated labels was
+rejected because distinct categories could collapse. The intended display-label lookup stays with
+future composition, not current route wiring.

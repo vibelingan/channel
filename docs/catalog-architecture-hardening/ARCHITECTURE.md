@@ -93,6 +93,21 @@ The interface contains family key, labels, filter capabilities, grouping, facts,
 does not contain fetching, reducer state, React, or pricing. Completeness derives from canonical
 `PRODUCT_FAMILY_OPTIONS`, not a fake fifth family.
 
+MIU 16's local Headphones implementation imports only its i18n content owner and the MIU 15 contract.
+`HeadphonesFamilyContent = Pick<HeadphonesContent, 'list' | 'detail'>` keeps adapter input independent
+of route/hero content. Optional `detail.productCodeLabel` retains the legacy `'Product Code'` fallback.
+Markdown categories supply ordered filter `key`/`label` pairs. Group identity is always
+`product.category || 'uncategorized'`, never a translated display label. List strings are flattened
+without a `list.` prefix (`labels.heading`, for example); detail strings use `detail.*` keys.
+Facts include only present series/model/type/product-code values in that order; MOQ, pricing, and media
+are excluded from facts. No route/controller is wired to this adapter yet, so this MIU introduces no
+user-visible route/controller behavior change.
+
+Intentional follow-up for MIU 20 registry and MIU 22 composition: display labels must be found in
+`filterCapabilities` by the stable grouping key, falling back to the raw key when no label matches.
+The current local adapter tests do not establish browser or production-build behavior for that future
+default-loader route path; see `EXECUTION.md` and `SDK-PROBE.md` for the narrower evidence.
+
 ## Old Owner Migration And Retirement
 
 | Old owner | New owner | Call-site switch | Retirement evidence | Rollback |
@@ -126,8 +141,10 @@ for full retirement: `CatalogFamilyGrid`, `HeadphonesProductCard`, `HeadphonesPr
 
 ## Reservation And Deployment Control
 
-No Catalog MIU or exact-file claim is active. MIUs 01-15 are released and MIU 16 remains planned.
-Activation and release follow the lifecycle in `TASK_REGISTRY.json`. Shared
+MIUs 01-15 are released; MIU 16 is active in LOCAL implementation validation from activation `8ff32fb`.
+Its three exact owners are `apps/site/src/catalog/families/headphones.ts`,
+`apps/site/src/catalog/families/headphones.test.ts`, and `apps/site/src/i18n/headphones.ts`.
+The denominator remains 49 MIUs. Activation and release follow the lifecycle in `TASK_REGISTRY.json`. Shared
 files have one owner and later consumer/reference entries, or an explicit release/activation transfer.
 Select-owned Admin files remain blocked in MIUs 26-28 until final-code WebKit and the full D1 suite pass.
 MIUs 39-43 finish and test the deploy script, API/route smoke, and browser smoke before authorization.
