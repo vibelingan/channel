@@ -68,6 +68,7 @@ export interface HeadphonesContent {
     seriesLabel: string;
     modelLabel: string;
     typeLabel: string;
+    productCodeLabel?: string;
     moqLabel: string;
     unitPriceLabel: string;
     wholesaleLabel: string;
@@ -100,6 +101,8 @@ export interface HeadphonesContent {
     disclaimer: string;
   };
 }
+
+export type HeadphonesFamilyContent = Pick<HeadphonesContent, 'list' | 'detail'>;
 
 interface MarkdownModule {
   frontmatter: HeadphonesContent;
