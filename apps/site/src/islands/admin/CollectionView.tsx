@@ -17,6 +17,7 @@ import type {
 import { PRODUCT_FAMILY_OPTIONS } from '@vibelingan-channel/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
+import { BatchUpdateFeedback } from './BatchUpdateFeedback.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { FilterBuilder } from './FilterBuilder.tsx';
 import { PreviewModal } from './PreviewModal.tsx';
@@ -145,10 +146,16 @@ export function CollectionView({ collection, section, role }: Props) {
   });
 
   const batchUpdateMutation = useMutation({
-    mutationFn: (vars: { ids: string[]; values: Record<string, unknown> }) =>
-      batchUpdateRecords(collection.name, vars.ids, vars.values),
-    onSuccess: () => {
-      clearSelection();
+    mutationFn: (vars: {
+      ids: string[];
+      values: Record<string, unknown>;
+      names: Record<string, string>;
+    }) => batchUpdateRecords(collection.name, vars.ids, vars.values),
+    onSuccess: (result) => {
+      const completed = new Set(result.items.map((item) => item._id));
+      setRowSelection((current) =>
+        Object.fromEntries(Object.entries(current).filter(([id]) => !completed.has(id))),
+      );
       invalidate();
     },
   });
@@ -168,6 +175,12 @@ export function CollectionView({ collection, section, role }: Props) {
       invalidate();
     },
   });
+
+  const visibleMutationError =
+    batchUpdateMutation.error ||
+    (!editing && updateMutation.error) ||
+    removeMutation.error ||
+    batchRemoveMutation.error;
 
   function patch(id: string, values: Record<string, unknown>) {
     updateMutation.mutate({ id, values });
@@ -305,6 +318,7 @@ export function CollectionView({ collection, section, role }: Props) {
         cell: ({ row }) => (
           <PublishToggle
             published={row.original.published === true}
+            busy={updateMutation.isPending || batchUpdateMutation.isPending}
             onToggle={() =>
               patch(row.original._id, { published: !(row.original.published === true) })
             }
@@ -332,17 +346,19 @@ export function CollectionView({ collection, section, role }: Props) {
             )}
             <button
               type="button"
+              disabled={batchUpdateMutation.isPending}
               onClick={() => setEditing(doc)}
-              className="ml-3 text-sm font-medium text-slate-700 hover:text-slate-900"
+              className="ml-3 text-sm font-medium text-slate-700 hover:text-slate-900 disabled:opacity-50"
             >
               Edit
             </button>
             <button
               type="button"
+              disabled={batchUpdateMutation.isPending}
               onClick={() => {
                 if (confirm('Delete this record?')) removeMutation.mutate(doc._id);
               }}
-              className="ml-3 text-sm font-medium text-red-600 hover:text-red-700"
+              className="ml-3 text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
             >
               Delete
             </button>
@@ -352,7 +368,14 @@ export function CollectionView({ collection, section, role }: Props) {
     });
 
     return cols;
-  }, [tableFields, isCatalog, isProducts, inlineEdit]);
+  }, [
+    tableFields,
+    isCatalog,
+    isProducts,
+    inlineEdit,
+    updateMutation.isPending,
+    batchUpdateMutation.isPending,
+  ]);
 
   const table = useReactTable({
     data: rows,
@@ -465,9 +488,19 @@ export function CollectionView({ collection, section, role }: Props) {
           isCatalog={isCatalog}
           isUsers={isUsers}
           collection={collection}
-          busy={batchUpdateMutation.isPending || batchRemoveMutation.isPending}
+          busy={
+            batchUpdateMutation.isPending ||
+            batchRemoveMutation.isPending ||
+            updateMutation.isPending
+          }
           onClear={clearSelection}
-          onSetValues={(values) => batchUpdateMutation.mutate({ ids: selectedIds, values })}
+          onSetValues={(values) =>
+            batchUpdateMutation.mutate({
+              ids: selectedIds,
+              values,
+              names: Object.fromEntries(rows.map((row) => [row._id, String(row.name ?? row._id)])),
+            })
+          }
           onDelete={() => {
             if (confirm(`Delete ${selectedIds.length} record(s)?`)) {
               batchRemoveMutation.mutate(selectedIds);
@@ -476,6 +509,47 @@ export function CollectionView({ collection, section, role }: Props) {
         />
       )}
 
+      {batchUpdateMutation.isPending && (
+        <output className="mt-4 block text-sm text-slate-600">
+          Updating selected records. Please keep this page open.
+        </output>
+      )}
+      {!batchUpdateMutation.isPending && batchUpdateMutation.data && (
+        <BatchUpdateFeedback
+          result={batchUpdateMutation.data}
+          names={batchUpdateMutation.variables?.names ?? {}}
+          published={
+            typeof batchUpdateMutation.variables?.values.published === 'boolean'
+              ? batchUpdateMutation.variables.values.published
+              : undefined
+          }
+          onDismiss={() => batchUpdateMutation.reset()}
+        />
+      )}
+      {visibleMutationError && (
+        <div
+          role="alert"
+          className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900"
+        >
+          <p>{visibleMutationError.message}</p>
+          <p className="mt-2">
+            Open Edit to resolve validation issues. If the request was interrupted, refresh the
+            status before retrying.
+          </p>
+          <button
+            type="button"
+            className="mt-2 underline"
+            onClick={() => {
+              batchUpdateMutation.reset();
+              updateMutation.reset();
+              removeMutation.reset();
+              batchRemoveMutation.reset();
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       <div className="mt-4 max-w-full overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full min-w-max text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -892,10 +966,15 @@ function InlineSelect({
   );
 }
 
-function PublishToggle({ published, onToggle }: { published: boolean; onToggle: () => void }) {
+function PublishToggle({
+  published,
+  busy,
+  onToggle,
+}: { published: boolean; busy: boolean; onToggle: () => void }) {
   return (
     <button
       type="button"
+      disabled={busy}
       onClick={onToggle}
       title={
         published ? 'Click to disable (hide from public)' : 'Click to publish (show to public)'

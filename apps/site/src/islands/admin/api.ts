@@ -34,11 +34,12 @@ export class AdminApiError extends Error {
   }
 }
 
-async function call<T>(action: string, data?: unknown): Promise<T> {
+async function call<T>(action: string, data?: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, data, token: getToken() }),
+    ...(signal ? { signal } : {}),
   });
 
   const result = await readApiEnvelope<T>(res);
@@ -141,17 +142,97 @@ export function removeRecord(collection: string, id: string): Promise<{ deleted:
   return call<{ deleted: boolean }>('remove', { collection, id });
 }
 
-/** Apply the same values to many documents at once. */
-export function batchUpdateRecords(
+export interface BatchUpdateFailure {
+  id: string;
+  code: string;
+  message: string;
+  outcome: 'rejected' | 'unconfirmed' | 'not-attempted';
+}
+
+export interface BatchUpdateResult {
+  updated: number;
+  items: CollectionDoc[];
+  failures: BatchUpdateFailure[];
+}
+
+/** Products must use the server's per-product validation, identity and media locks. */
+export async function batchUpdateRecords(
   collection: string,
   ids: string[],
   values: Record<string, unknown>,
-): Promise<{ updated: number; items: CollectionDoc[] }> {
-  return call<{ updated: number; items: CollectionDoc[] }>('batchUpdate', {
-    collection,
-    ids,
-    values,
-  });
+): Promise<BatchUpdateResult> {
+  if (collection !== 'products') {
+    const result = await call<{ updated: number; items: CollectionDoc[] }>('batchUpdate', {
+      collection,
+      ids,
+      values,
+    });
+    return { ...result, failures: [] };
+  }
+  const uniqueIds = [...new Set(ids)];
+  if (
+    uniqueIds.length === 0 ||
+    uniqueIds.length > 20 ||
+    uniqueIds.some((id) => typeof id !== 'string' || !id.trim()) ||
+    Object.keys(values).length !== 1 ||
+    typeof values.published !== 'boolean'
+  ) {
+    throw new AdminApiError('BAD_REQUEST', 'Select up to 20 products to publish or disable.');
+  }
+  const items: CollectionDoc[] = [];
+  const failures: BatchUpdateFailure[] = [];
+  let stopped = false;
+  for (const id of uniqueIds) {
+    if (stopped) {
+      failures.push({
+        id,
+        code: 'NOT_ATTEMPTED',
+        message: 'Not attempted because the batch stopped. Refresh before retrying.',
+        outcome: 'not-attempted',
+      });
+      continue;
+    }
+    try {
+      const item = await call<CollectionDoc>(
+        'update',
+        { collection, id, values },
+        AbortSignal.timeout(30_000),
+      );
+      if (!item || item._id !== id || item.published !== values.published) {
+        throw new AdminApiError(
+          'INVALID_RESPONSE',
+          'The returned product did not confirm the requested status.',
+        );
+      }
+      items.push(item);
+    } catch (error) {
+      // A transport/5xx/malformed response may follow a committed write. Never
+      // auto-retry or claim rollback; stop and ask the operator to refresh.
+      const rejected =
+        error instanceof AdminApiError &&
+        [
+          'BAD_REQUEST',
+          'VALIDATION_ERROR',
+          'NOT_FOUND',
+          'CONFLICT',
+          'UNAUTHORIZED',
+          'FORBIDDEN',
+        ].includes(error.code);
+      stopped =
+        !rejected ||
+        (error instanceof AdminApiError && ['UNAUTHORIZED', 'FORBIDDEN'].includes(error.code));
+      failures.push({
+        id,
+        code: error instanceof AdminApiError ? error.code : 'NETWORK_ERROR',
+        message:
+          rejected && error instanceof Error
+            ? error.message
+            : 'Result not confirmed. Refresh the product status before retrying.',
+        outcome: rejected ? 'rejected' : 'unconfirmed',
+      });
+    }
+  }
+  return { updated: items.length, items, failures };
 }
 
 /** Delete many documents at once; returns how many were removed. */
