@@ -52,6 +52,16 @@ function listedIndex(index) {
   };
 }
 
+test('source image binding is provisioned privately before gallery import or approval', () => {
+  const resource = REQUIRED_NOSQL_RESOURCES.find((r) => r.collectionName === 'catalogSourceLinks');
+  assert.ok(
+    resource,
+    'media import and approval cannot depend on the Excel worker creating this collection',
+  );
+  assert.equal(resource.permission, 'ADMINONLY');
+  assert.deepEqual(resource.indexes, []); // deterministic media-link IDs provide the lookup
+});
+
 test('staged approvals are private and immutable snapshot paging has a declared deployment index', () => {
   const job = REQUIRED_NOSQL_RESOURCES.find((r) => r.collectionName === 'catalogDetailApprovals');
   const variants = REQUIRED_NOSQL_RESOURCES.find(
@@ -260,9 +270,9 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
 
   // Anchor: a silent registry change must fail here, not slip through the
   // derived expectations below (2 auth/abuse + 3 catalog + 10 alibaba collections).
-  // 23: previous 21 plus private staged approval jobs and immutable SKU copies.
+  // 24: previous 23 plus source media bindings, independent of the Excel worker.
   // This count is deliberate: a new collection must be a conscious change.
-  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 23);
+  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 24);
   assert.equal(collections.size, REQUIRED_NOSQL_RESOURCES.length);
   assert.equal(
     [...indexesByCollection.values()].reduce((total, indexes) => total + indexes.size, 0),

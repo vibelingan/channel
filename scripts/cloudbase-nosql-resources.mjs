@@ -1,4 +1,11 @@
 export const REQUIRED_NOSQL_RESOURCES = [
+  // API gallery import and detail approval both resolve source URL -> owned
+  // image IDs here. Provision independently of the optional Excel worker.
+  {
+    collectionName: 'catalogSourceLinks',
+    permission: 'ADMINONLY',
+    indexes: [],
+  },
   {
     collectionName: 'catalogDetailApprovals',
     permission: 'ADMINONLY',

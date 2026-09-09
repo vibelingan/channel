@@ -18,6 +18,13 @@ stopped on a source-gallery error BEFORE saving the first public sample. Neither
 sample migration nor live RFQ acceptance is complete. Safe diagnostic tokens are
 now included in failed gallery assertions without uploading private admin artifacts.
 
+The deployment manifest also omitted `catalogSourceLinks`, now required by API
+media binding regardless of whether the optional Excel worker has ever run.
+A failing resource-contract test confirmed the omission; CI/CD now provisions
+it as ADMINONLY before functions. This is a verified deployment gap, not yet a
+confirmed explanation of the failed live image request. No direct cloud change
+was made to investigate it.
+
 A final category concurrency check reproduced another boundary: the browser
 converted a category-only edit into an explicit publication request. If another
 admin withdrew that product during the operation, the classification could
