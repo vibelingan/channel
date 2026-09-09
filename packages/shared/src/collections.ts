@@ -299,6 +299,13 @@ export const COLLECTIONS: readonly CollectionDef[] = [
       { name: 'unitPrice', label: 'Unit Price', type: 'number' },
       { name: 'wholesalePrice', label: 'Wholesale Price', type: 'number' },
       {
+        name: 'catalogPricingMode',
+        label: 'Website pricing',
+        type: 'select',
+        options: ['source', 'manual'],
+        hideInTable: true,
+      },
+      {
         name: 'manualCatalogPricing',
         label: 'Quantity Tier Pricing',
         type: 'json',
@@ -341,6 +348,20 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         name: 'alibabaSourceCategoryId',
         label: 'Alibaba Category ID',
         type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'alibabaClassifiedCategoryId',
+        label: 'Confirmed Alibaba Category ID',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'catalogClassificationReceipt',
+        label: 'Category Assignment Receipt',
+        type: 'json',
         readOnly: true,
         hideInTable: true,
       },
@@ -1422,6 +1443,26 @@ export const COLLECTIONS: readonly CollectionDef[] = [
     ],
   },
   {
+    name: 'catalogDetailApprovals',
+    label: 'Private Catalog Approval Jobs',
+    description:
+      'Actor-bound staged approval cursors. Access only through the dedicated server workflow.',
+    hideFromNav: true,
+    adminAccess: 'none',
+    searchableFields: [],
+    fields: [],
+  },
+  {
+    name: 'catalogDetailVariants',
+    label: 'Private Approved Variant Snapshots',
+    description:
+      'Immutable per-revision copies. Public access requires the approved product pointer.',
+    hideFromNav: true,
+    adminAccess: 'none',
+    searchableFields: [],
+    fields: [],
+  },
+  {
     name: 'catalogSourceObservations',
     label: 'Catalog Source Observations',
     description:
@@ -1588,7 +1629,18 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         label: 'Channel Product Family',
         type: 'select',
         options: PRODUCT_FAMILY_OPTIONS,
-        required: true,
+      },
+      {
+        name: 'reviewRequired',
+        label: 'Mixed source category: manual assignment required',
+        type: 'boolean',
+      },
+      {
+        name: 'policyVersion',
+        label: 'Installed policy version',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
       },
       {
         // Applies only when productFamily is 'headphones' — the legacy

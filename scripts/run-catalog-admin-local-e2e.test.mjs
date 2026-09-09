@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { access } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import test from 'node:test';
+
+test('catalog acceptance uses isolated production artifacts and cannot inherit CloudBase media configuration', async () => {
+  const source = await readFile('scripts/run-catalog-admin-local-e2e.mjs', 'utf8');
+  assert.match(source, /\['build', '--outDir', siteDirectory\]/);
+  assert.match(source, /\['preview', '--outDir', siteDirectory/);
+  assert.doesNotMatch(source, /\['dev',/);
+  assert.match(source, /PUBLIC_API_BASE_URL: apiUrl/);
+  assert.match(source, /TCB_ENV: ''/);
+});
 
 async function runFailure(stage) {
   return new Promise((resolve, reject) => {

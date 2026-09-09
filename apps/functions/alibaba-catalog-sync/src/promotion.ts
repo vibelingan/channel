@@ -15,8 +15,9 @@ import {
   computeCandidateHash,
   priceMoveExceedsThreshold,
 } from '@vibelingan-channel/alibaba-catalog-sync';
-import { type AlibabaLeaseGuard, list, updateDocWithAlibabaLease } from '@vibelingan-channel/db';
+import { type AlibabaLeaseGuard, updateDocWithAlibabaLease } from '@vibelingan-channel/db';
 import { loadAlibabaSourceReview } from './linking.ts';
+import { listAllDocs } from './list-all.ts';
 import { getDoc } from './repo.ts';
 
 export interface PromoteInput {
@@ -40,13 +41,10 @@ export type PromoteResult =
 
 /** Read the ACTIVE offers for one source product (bounded by SKU count). */
 async function activeOffers(sourceKey: string): Promise<OfferForSelection[]> {
-  const result = await list({
-    collection: 'alibabaSupplierOffers',
-    page: 1,
-    pageSize: 100,
-    filter: { combinator: 'and', clauses: [{ field: 'sourceKey', op: 'eq', value: sourceKey }] },
-  });
-  return result.items.map((doc) => ({
+  const offers = await listAllDocs('alibabaSupplierOffers', [
+    { field: 'sourceKey', op: 'eq', value: sourceKey },
+  ]);
+  return offers.map((doc) => ({
     offerKey: doc._id,
     sourceKey: String(doc.sourceKey ?? ''),
     sourceSkuId: String(doc.sourceSkuId ?? ''),

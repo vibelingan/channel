@@ -6,6 +6,8 @@
  * The session token is shared with the rest of the site via `lib/session`.
  */
 import {
+  type CategoryApiRequest,
+  CategoryApiResponseSchema,
   type CollectionDoc,
   type FilterModel,
   type ListResult,
@@ -13,6 +15,7 @@ import {
   type ProductFamily,
   type SessionUser,
   type SortClause,
+  isProductFamily,
 } from '@vibelingan-channel/shared';
 import { readApiEnvelope } from '../../lib/api-envelope.ts';
 import { apiUrl } from '../../lib/api-url.ts';
@@ -59,9 +62,22 @@ export function fetchCurrentUser(): Promise<{ user: SessionUser }> {
   return call<{ user: SessionUser }>('me');
 }
 
+export async function manageCategoryAssignments(input: CategoryApiRequest) {
+  const response = CategoryApiResponseSchema.safeParse(
+    await call<unknown>('catalogCategories', input),
+  );
+  if (!response.success)
+    throw new AdminApiError(
+      'INVALID_RESPONSE',
+      'Category response was malformed. Refresh the preview before retrying.',
+    );
+  return response.data;
+}
+
 export interface ListArgs {
   collection: string;
   productFamily?: ProductFamily;
+  needsClassification?: boolean;
   page?: number;
   pageSize?: number;
   search?: string;
@@ -175,9 +191,12 @@ export async function batchUpdateRecords(
     uniqueIds.length > 20 ||
     uniqueIds.some((id) => typeof id !== 'string' || !id.trim()) ||
     Object.keys(values).length !== 1 ||
-    typeof values.published !== 'boolean'
+    (typeof values.published !== 'boolean' && !isProductFamily(values.productFamily))
   ) {
-    throw new AdminApiError('BAD_REQUEST', 'Select up to 20 products to publish or disable.');
+    throw new AdminApiError(
+      'BAD_REQUEST',
+      'Select up to 20 products to publish, disable or classify.',
+    );
   }
   const items: CollectionDoc[] = [];
   const failures: BatchUpdateFailure[] = [];
@@ -198,7 +217,11 @@ export async function batchUpdateRecords(
         { collection, id, values },
         AbortSignal.timeout(30_000),
       );
-      if (!item || item._id !== id || item.published !== values.published) {
+      if (
+        !item ||
+        item._id !== id ||
+        Object.entries(values).some(([key, value]) => item[key] !== value)
+      ) {
         throw new AdminApiError(
           'INVALID_RESPONSE',
           'The returned product did not confirm the requested status.',

@@ -1,5 +1,9 @@
-import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react';
-import type { CatalogContent, CatalogFamilyContent } from '../../i18n/catalog.ts';
+import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useRef, useState } from 'react';
+import type {
+  CatalogContent,
+  CatalogFamilyContent,
+  SharedDetailContent,
+} from '../../i18n/catalog.ts';
 import { CatalogFamilyGrid } from './CatalogFamilyGrid.tsx';
 import { HeadphonesProductDetail } from './HeadphonesProductDetail.tsx';
 import { fetchCatalog } from './api.ts';
@@ -18,11 +22,35 @@ import {
 interface Props {
   content: CatalogContent;
   family: CatalogFamilyContent;
+  previewContent?: SharedDetailContent;
 }
 
 const PAGE_SIZE = 12;
 
-export function CatalogFamilyPage({ content, family }: Props) {
+const SharedCatalogPreview = import.meta.env?.DEV
+  ? lazy(() => import('./SharedCatalogPreview.tsx'))
+  : undefined;
+
+export function CatalogFamilyPage({ content, family, previewContent }: Props) {
+  if (SharedCatalogPreview && previewContent)
+    return (
+      <Suspense fallback={<output>{content.list.loadingLabel}</output>}>
+        <SharedCatalogPreview
+          copy={previewContent}
+          renderList={(open) => (
+            <CatalogFamilyList content={content} family={family} onOpenProduct={open} />
+          )}
+        />
+      </Suspense>
+    );
+  return <CatalogFamilyList content={content} family={family} />;
+}
+
+function CatalogFamilyList({
+  content,
+  family,
+  onOpenProduct,
+}: Props & { onOpenProduct?: (id: string) => void }) {
   const categoryKeys = family.categories.map((category) => category.key);
   const [selectedCategories, setSelectedCategories] = useState<string[]>(categoryKeys);
   const [searchInput, setSearchInput] = useState('');
@@ -176,7 +204,7 @@ export function CatalogFamilyPage({ content, family }: Props) {
         onSearchInputChange={setSearchInput}
         onRetryInitial={handleRetryInitial}
         onLoadMore={handleLoadMore}
-        onOpenProduct={handleOpenProduct}
+        onOpenProduct={onOpenProduct ?? handleOpenProduct}
       />
       {activeProduct && (
         <HeadphonesProductDetail

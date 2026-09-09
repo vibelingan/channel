@@ -20,7 +20,8 @@
     "@vibelingan-channel/fn-public-api": "workspace:*",
     "@vibelingan-channel/media-storage": "workspace:*",
     "@vibelingan-channel/shared": "workspace:*",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

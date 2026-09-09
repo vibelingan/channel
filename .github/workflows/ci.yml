@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_call:
   pull_request:
   push:
     branches:
@@ -27,6 +28,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -59,8 +62,20 @@ jobs:
       - name: Package CloudBase functions
         run: pnpm package:functions
 
-      - name: Smoke function artifacts
-        run: pnpm smoke:functions
+      - name: Set up deployed function runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+
+      - name: Smoke function artifacts on deployed runtime
+        env:
+          CHANNEL_EXPECTED_RELEASE: ${{ github.sha }}
+        run: node scripts/smoke-function-artifacts.mjs
+
+      - name: Restore site build runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
 
       - name: Build site
         run: pnpm build
@@ -74,3 +89,21 @@ jobs:
 
       - name: Discover Playwright specs
         run: pnpm test:e2e --list
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Exercise built catalog and Admin with an isolated local database
+        env:
+          # Only synthetic local credentials/data exist in this owned fixture lane.
+          E2E_RECORD_ARTIFACTS: '1'
+        run: pnpm test:e2e:catalog-admin-local
+
+      - name: Preserve failed local browser evidence
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog-local-browser-${{ github.sha }}
+          path: output/playwright/
+          retention-days: 7
+          if-no-files-found: ignore

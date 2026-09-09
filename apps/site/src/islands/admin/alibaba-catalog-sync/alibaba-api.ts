@@ -50,11 +50,12 @@ function gatewayErrorDetail(value: unknown): string | null {
   return null;
 }
 
-async function call<T>(action: string, data?: unknown): Promise<T> {
+async function call<T>(action: string, data?: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, data, token: getToken() }),
+    ...(signal ? { signal } : {}),
   });
   // VALIDATED, not cast: `res.json()` returns unknown, and a gateway error
   // page or a proxy's own JSON would satisfy a cast while leaving `ok`
@@ -897,6 +898,70 @@ export function importAlibabaSourceImage(
   url: string,
 ): Promise<{ imageId: string; deduplicated: boolean }> {
   return call('importSourceImage', { url });
+}
+
+export async function repairAlibabaSourcePricing(
+  onProgress: (message: string) => void,
+): Promise<string> {
+  let afterId: string | undefined;
+  let visited = 0;
+  let repaired = 0;
+  let deferredCount = 0;
+  const deferredSample: string[] = [];
+  for (let page = 0; page < 1000; page++) {
+    let raw: unknown;
+    try {
+      raw = await call<unknown>(
+        'repairSourcePricing',
+        afterId ? { afterId } : {},
+        AbortSignal.timeout(60_000),
+      );
+    } catch (error) {
+      throw new AlibabaSyncApiError(
+        error instanceof AlibabaSyncApiError ? error.code : 'UNCONFIRMED',
+        `${visited} checked and ${repaired} repairs confirmed before stopping. The last page may have saved; safely restart the repair after checking the connection/session. ${error instanceof Error ? error.message : 'Request failed.'}`,
+      );
+    }
+    if (
+      !isRecord(raw) ||
+      !Number.isSafeInteger(raw.visited) ||
+      typeof raw.visited !== 'number' ||
+      raw.visited < 0 ||
+      raw.visited > 20 ||
+      !Number.isSafeInteger(raw.repaired) ||
+      typeof raw.repaired !== 'number' ||
+      raw.repaired < 0 ||
+      raw.repaired > raw.visited ||
+      !Array.isArray(raw.deferred) ||
+      raw.deferred.length > raw.visited - raw.repaired ||
+      new Set(raw.deferred).size !== raw.deferred.length ||
+      !raw.deferred.every((id) => typeof id === 'string' && id.length > 0 && id.length <= 200) ||
+      (raw.nextId !== null &&
+        (raw.visited !== 20 ||
+          typeof raw.nextId !== 'string' ||
+          !raw.nextId ||
+          raw.nextId.length > 200 ||
+          (afterId !== undefined && raw.nextId <= afterId)))
+    ) {
+      throw new AlibabaSyncApiError(
+        'INVALID_RESPONSE',
+        'Pricing repair result was not confirmed. You can safely restart the missing-price repair.',
+      );
+    }
+    visited += raw.visited;
+    repaired += raw.repaired;
+    deferredCount += raw.deferred.length;
+    deferredSample.push(...raw.deferred.slice(0, Math.max(0, 20 - deferredSample.length)));
+    const message = `${visited} checked · ${repaired} source quotes repaired · ${deferredCount} require a successful source sync before repair.`;
+    onProgress(message);
+    if (raw.nextId === null)
+      return `${message}${deferredCount ? ` Deferred product IDs (first ${deferredSample.length}): ${deferredSample.join(', ')}` : ''}`;
+    afterId = raw.nextId;
+  }
+  throw new AlibabaSyncApiError(
+    'CONFLICT',
+    'Pricing repair reached its page limit. Restart to recheck safely.',
+  );
 }
 
 export function removeAlibabaImportedImage(imageId: string): Promise<{ imageId: string }> {

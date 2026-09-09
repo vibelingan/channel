@@ -224,3 +224,52 @@ test('gallery renders four previews initially and expands all previews inline', 
   assert.match(expanded, />Show Less</);
   assert.doesNotMatch(expanded, /role="dialog"/);
 });
+
+test('controlled Gallery renders the explicit source, not index zero or an invented fallback', () => {
+  const html = renderToStaticMarkup(
+    createElement(Gallery, {
+      images: [...SOURCES],
+      alt: 'Selected product',
+      selection: { source: SOURCES[2], onChange: () => undefined },
+    }),
+  );
+  const frame = html.split('data-gallery-frame')[1]?.split('</div>')[0] ?? '';
+  assert.match(frame, /src="https:\/\/media.example.test\/three.jpg"/);
+  assert.match(html, /data-gallery-thumbnail="2"[^>]*aria-pressed="true"/);
+  const unknown = renderToStaticMarkup(
+    createElement(Gallery, {
+      images: [...SOURCES],
+      alt: 'Selected product',
+      selection: { source: 'unrelated', onChange: () => undefined },
+    }),
+  );
+  const emptyFrame = unknown.split('data-gallery-frame')[1]?.split('</div>')[0] ?? '';
+  assert.match(emptyFrame, /data-product-media="fallback"/);
+  assert.doesNotMatch(unknown, /aria-pressed="true"/);
+});
+
+test('detail layout shows every bounded thumbnail in a scroll lane without changing legacy layout', () => {
+  const images = Array.from({ length: 12 }, (_, i) => `/api/images/${i}`);
+  const detail = renderToStaticMarkup(
+    createElement(Gallery, { images, alt: 'Detail', layout: 'detail' }),
+  );
+  assert.equal((detail.match(/data-gallery-thumbnail=/g) ?? []).length, 9);
+  assert.match(detail, /overflow-x-auto/);
+  assert.match(detail, /sm:h-\[360px\]/);
+  assert.match(detail, /lg:h-\[420px\]/);
+  assert.match(detail, /max-w-\[560px\]/);
+  assert.match(detail, /data-gallery-count/);
+  assert.doesNotMatch(detail, /data-gallery-view-all/);
+  const legacy = renderToStaticMarkup(createElement(Gallery, { images, alt: 'Legacy' }));
+  assert.equal((legacy.match(/data-gallery-thumbnail=/g) ?? []).length, 4);
+  assert.match(legacy, /aspect-square[^>]*max-w-\[520px\]/);
+  assert.match(legacy, /data-gallery-view-all/);
+});
+
+test('ProductMedia skips blanks before resolver mapping and uses the first normalized unique source', () => {
+  const html = renderToStaticMarkup(
+    createElement(ProductMedia, { sources: ['  ', ' api/image ', '/api/image'], alt: 'Media' }),
+  );
+  assert.match(html, /src="\/api\/image"/);
+  assert.equal((html.match(/<img/g) ?? []).length, 1);
+});

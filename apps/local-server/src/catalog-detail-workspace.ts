@@ -10,6 +10,7 @@ import {
   type CatalogSourceObservation,
   validateCatalogSourceObservation,
 } from '@vibelingan-channel/catalog-import/observations';
+import { buildStructuredContent } from '@vibelingan-channel/catalog-import/structured-content';
 import {
   backfillPublishedRefCounts,
   get,
@@ -26,11 +27,7 @@ import {
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
 import type { CollectionDoc, ProductFamily } from '@vibelingan-channel/shared';
-import {
-  CatalogDetailHeaderSchema,
-  CatalogDetailPublicationSchema,
-  CatalogDetailVariantSchema,
-} from '@vibelingan-channel/shared/catalog-detail';
+import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
 import { JsonFileAdapter } from './json-adapter.ts';
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -155,6 +152,7 @@ export async function materializeLocalDetail(input: {
     bindings.set(variant.sourceVariantKey, bound.channelId);
   }
   const active = new Set(bindings.values());
+  const sourceRevision = randomUUID();
   await updateDoc('products', productId, { detailSourceReady: false });
   const previousProductFields = product.detailSourceProductFields;
   const productPatch: Record<string, unknown> = {};
@@ -213,6 +211,7 @@ export async function materializeLocalDetail(input: {
       await updateDoc('productVariants', variant.id, {
         ...patch,
         detailSourceOwner: owner,
+        detailSourceRevision: sourceRevision,
         detailSourceFields: fields,
         detailSourceCandidate: variant,
         detailSourceMissing: false,
@@ -220,7 +219,15 @@ export async function materializeLocalDetail(input: {
     }
     if (page === 1) {
       const { variants: _variants, revision: _revision, ...header } = candidate.value;
-      await updateDoc('products', productId, { detailSourceCandidate: header });
+      const structured = buildStructuredContent(observation.content.description);
+      for (const warning of structured.warnings) warnings.add(warning);
+      await updateDoc('products', productId, {
+        detailSourceCandidate: header,
+        detailSourceRevision: sourceRevision,
+        detailSourceContentCandidate: structured.content ?? null,
+        detailSourceContentWarnings: structured.warnings,
+        detailSourceNoteBlocksCandidate: structured.noteBlocks ?? null,
+      });
     }
   }
   for (const variant of await variantsFor(productId)) {
@@ -230,6 +237,7 @@ export async function materializeLocalDetail(input: {
   }
   await updateDoc('products', productId, {
     detailSourceObservedAt: observation.source.observedAt,
+    detailSourceManifest: { revision: sourceRevision, variantIds: [...active] },
     detailSourceReady: true,
   });
   return { productId, variants: active.size, stale: false, warnings: [...warnings] };
@@ -242,52 +250,27 @@ export async function approveLocalDetail(productId: string) {
   requireClone(product);
   if (product.detailSourceReady !== true) throw new Error('Source materialization is incomplete');
   if (product.archived !== false) throw new Error('Archived clone cannot be approved');
-  const source = CatalogDetailHeaderSchema.parse(product.detailSourceCandidate);
-  const imageIds = Array.isArray(product.imageIds)
-    ? product.imageIds.filter((v): v is string => typeof v === 'string')
-    : [];
-  const { descriptionText: _description, ...withoutDescription } = source;
-  const header = CatalogDetailHeaderSchema.parse({
-    ...withoutDescription,
-    name: product.name,
-    images: imageIds.map((id) => `/api/images/${id}`),
-    ...(typeof product.description === 'string' && product.description.trim()
-      ? { descriptionText: product.description.trim() }
-      : {}),
-  });
   const rows = (await variantsFor(productId)).filter(
     (row) =>
       row.detailSourceOwner === product.detailSourceOwner &&
       row.detailSourceMissing === false &&
       row.archived !== true,
   );
-  rows.sort((a, b) => Number(a.position) - Number(b.position) || a._id.localeCompare(b._id));
-  const approved = rows.map((row) => {
-    const original = CatalogDetailVariantSchema.parse(row.detailSourceCandidate);
-    const values = row.optionValues;
-    const options =
-      typeof values === 'object' && values !== null && !Array.isArray(values)
-        ? Object.entries(values).map(([name, value]) => ({ name, value }))
-        : [];
-    return CatalogDetailVariantSchema.parse({
-      ...original,
-      sku: row.sku || undefined,
-      options,
-      images: Array.isArray(row.imageIds) ? row.imageIds.map((id) => `/api/images/${id}`) : [],
-    });
+  const revision = randomUUID();
+  const {
+    publication,
+    variants: approved,
+    imageIds,
+  } = planCatalogDetailApproval({
+    product,
+    variants: rows,
+    revision,
   });
-  // Refcounts are maintained by the existing product image references. Do not
-  // publish a variant-only image whose ownership the old lifecycle cannot see.
-  for (const variant of approved) {
-    if (variant.images.some((url) => !header.images.includes(url)))
-      throw new Error('Variant image must be in the approved product gallery');
-  }
   for (const id of imageIds) {
     const image = await get('images', id);
     if (!image || image.status !== 'active' || image.storageProvider !== 'local-disk')
       throw new Error('Local image is not ready');
   }
-  const revision = randomUUID();
   // No partially replaced snapshot can be served during this bounded rehearsal.
   await updateDoc('products', productId, { catalogDetailPublication: null });
   for (const [position, variant] of approved.entries()) {
@@ -297,12 +280,6 @@ export async function approveLocalDetail(productId: string) {
       catalogDetailPosition: position,
     });
   }
-  const publication = CatalogDetailPublicationSchema.parse({
-    state: 'approved',
-    revision,
-    header,
-    variantCount: approved.length,
-  });
   const saved = await saveCatalogProductWithIdentities({
     mode: 'update',
     productId,

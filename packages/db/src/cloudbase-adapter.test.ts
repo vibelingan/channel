@@ -3,9 +3,30 @@ import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import {
   claimAlibabaSyncRunInCloudBase,
+  unclassifiedProductWhere,
   upsertCatalogSourceObservationInCloudBase,
   upsertDocWithAlibabaLeaseInCloudBase,
 } from './cloudbase-adapter.ts';
+
+test('unclassified native query includes absent families without capturing legacy headphone categories', () => {
+  const query = unclassifiedProductWhere({
+    and: (items) => ({ $and: items }),
+    or: (items) => ({ $or: items }),
+    exists: (value) => ({ $exists: value }),
+    nin: (values) => ({ $nin: values }),
+  });
+  assert.deepEqual(query, {
+    $and: [
+      { productFamily: { $nin: ['headphones', 'ai-gadgets', 'toys', 'misc'] } },
+      {
+        $or: [
+          { productFamily: { $exists: true } },
+          { category: { $nin: ['wired', 'office', 'bluetooth'] } },
+        ],
+      },
+    ],
+  });
+});
 
 function fakeDatabase(initial: Record<string, CollectionDoc[]>) {
   const store = new Map(

@@ -15,6 +15,9 @@ import {
   materializeLocalDetail,
   wireLocalDetailWorkspace,
 } from './catalog-detail-workspace.ts';
+import { bootstrapLocalInquiryAdmin } from './catalog-inquiry-bootstrap.ts';
+import { registerLocalInquiryRoutes } from './catalog-inquiry-routes.ts';
+import { registerLocalQuoteRoutes } from './catalog-quote-routes.ts';
 import { registerCatalogRoutes } from './catalog-routes.ts';
 
 const { values } = parseArgs({
@@ -23,10 +26,15 @@ const { values } = parseArgs({
     'fetch-images': { type: 'boolean', default: false },
     'approve-local': { type: 'boolean', default: false },
     serve: { type: 'boolean', default: false },
+    'enable-local-quotes': { type: 'boolean', default: false },
+    'enable-local-quote-admin': { type: 'boolean', default: false },
     port: { type: 'string', default: '3012' },
+    directory: { type: 'string', default: './data/shared-ui/ui02' },
   },
 });
-const directory = resolve('./data/shared-ui/ui02');
+const directory = resolve(values.directory);
+if (values['enable-local-quote-admin'] && (!values.serve || !values['enable-local-quotes']))
+  throw new Error('Local inquiry admin requires --serve --enable-local-quotes');
 const port = Number(values.port);
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Invalid local port');
 // JsonFileAdapter already owns the cross-process lock and stale-owner recovery.
@@ -130,6 +138,14 @@ if (!values.serve || values['fetch-images'] || values['approve-local']) {
 
 if (values.serve) {
   const app = express();
+  if (values['enable-local-quotes']) registerLocalQuoteRoutes(app, adapter);
+  if (values['enable-local-quote-admin']) {
+    const config = await bootstrapLocalInquiryAdmin(adapter, directory);
+    registerLocalInquiryRoutes(app, adapter, config);
+    console.log(
+      `Local inquiry admin enabled; credentials: ${resolve(directory, 'local-admin.json')}`,
+    );
+  }
   registerCatalogRoutes(app, 'products', '/api/products', { enableCatalogDetail: true });
   app.get('/api/images/:id', async (req, res) => {
     const result = await getCatalogImage(req.params.id);

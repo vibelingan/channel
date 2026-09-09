@@ -12,6 +12,25 @@ const text = (max: number) =>
 const count = z.number().int().nonnegative().safe();
 const image = z.string().regex(/^\/api\/images\/[A-Za-z0-9_-]+$/);
 const fact = z.object({ name: text(200), value: text(2000) }).strict();
+/** Text-only, reviewed content. Never contains source HTML or private evidence. */
+export const CatalogContentSchema = z
+  .object({
+    schemaVersion: z.literal('catalog-content-v1'),
+    specifications: z.array(fact).max(100),
+    packaging: z.array(fact).max(100),
+    notes: z.array(text(2000)).max(80),
+  })
+  .strict();
+export type CatalogContent = z.infer<typeof CatalogContentSchema>;
+export const CatalogNoteBlocksSchema = z
+  .array(
+    z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('heading'), text: text(200) }).strict(),
+      z.object({ kind: z.literal('paragraph'), text: text(2000) }).strict(),
+    ]),
+  )
+  .max(80);
+export type CatalogNoteBlocks = z.infer<typeof CatalogNoteBlocksSchema>;
 const offer = z
   .object({
     kind: z.enum(['supplier', 'regular', 'promotion']),
@@ -62,11 +81,27 @@ export const CatalogDetailPublicationSchema = z
     state: z.literal('approved'),
     revision: text(200),
     header: CatalogDetailHeaderSchema,
+    content: CatalogContentSchema.optional(),
+    noteBlocks: CatalogNoteBlocksSchema.optional(),
     variantCount: count,
+    variantStorage: z.literal('immutable-v1').optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((publication, ctx) => {
+    if (
+      publication.noteBlocks &&
+      (!publication.content ||
+        JSON.stringify(publication.noteBlocks.map((b) => b.text)) !==
+          JSON.stringify(publication.content.notes))
+    )
+      ctx.addIssue({
+        code: 'custom',
+        path: ['noteBlocks'],
+        message: 'Note blocks must preserve approved note text and order',
+      });
+  });
 
-export const CatalogProductDetailSchema = CatalogDetailHeaderSchema.extend({
+const detailBase = CatalogDetailHeaderSchema.extend({
   revision: text(200).optional(),
   variants: z
     .object({
@@ -77,27 +112,68 @@ export const CatalogProductDetailSchema = CatalogDetailHeaderSchema.extend({
       hasMore: z.boolean(),
     })
     .strict(),
-})
+}).strict();
+const validatePage = (
+  detail: { variants: z.infer<typeof detailBase>['variants'] },
+  ctx: z.RefinementCtx,
+) => {
+  const { items, page, pageSize, total, hasMore } = detail.variants;
+  const offset = (page - 1) * pageSize;
+  const expected = Math.max(0, Math.min(pageSize, total - offset));
+  if (
+    !Number.isSafeInteger(offset) ||
+    items.length !== expected ||
+    hasMore !== offset + items.length < total
+  ) {
+    ctx.addIssue({ code: 'custom', path: ['variants'], message: 'Inconsistent variant page' });
+  }
+  if (new Set(items.map((v) => v.id)).size !== items.length) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['variants', 'items'],
+      message: 'Duplicate canonical variant ID',
+    });
+  }
+};
+
+export const CatalogProductDetailSchema = detailBase.superRefine(validatePage);
+/** Explicit opt-in version; the original strict v1 wire format remains unchanged. */
+export const CatalogProductDetailV2Schema = detailBase
+  .extend({
+    schemaVersion: z.literal('catalog-product-detail-v2'),
+    content: CatalogContentSchema,
+  })
   .strict()
+  .superRefine(validatePage);
+export const CatalogProductDetailV3Schema = detailBase
+  .extend({
+    schemaVersion: z.literal('catalog-product-detail-v3'),
+    content: CatalogContentSchema,
+    noteBlocks: CatalogNoteBlocksSchema,
+  })
+  .strict()
+  .superRefine(validatePage)
   .superRefine((detail, ctx) => {
-    const { items, page, pageSize, total, hasMore } = detail.variants;
-    const offset = (page - 1) * pageSize;
-    const expected = Math.max(0, Math.min(pageSize, total - offset));
     if (
-      !Number.isSafeInteger(offset) ||
-      items.length !== expected ||
-      hasMore !== offset + items.length < total
-    ) {
-      ctx.addIssue({ code: 'custom', path: ['variants'], message: 'Inconsistent variant page' });
-    }
-    if (new Set(items.map((v) => v.id)).size !== items.length) {
+      JSON.stringify(detail.noteBlocks.map((block) => block.text)) !==
+      JSON.stringify(detail.content.notes)
+    )
       ctx.addIssue({
         code: 'custom',
-        path: ['variants', 'items'],
-        message: 'Duplicate canonical variant ID',
+        path: ['noteBlocks'],
+        message: 'Note blocks must preserve approved note text and order',
       });
-    }
   });
+const CatalogDetailViewSchema = z.union([
+  CatalogProductDetailSchema,
+  CatalogProductDetailV2Schema,
+  CatalogProductDetailV3Schema,
+]);
+export type CatalogDetailView = z.infer<typeof CatalogDetailViewSchema>;
+export function decodeCatalogDetailView(input: unknown) {
+  const parsed = CatalogDetailViewSchema.safeParse(input);
+  return parsed.success ? { ok: true as const, value: parsed.data } : { ok: false as const };
+}
 
 export type CatalogProductDetail = z.infer<typeof CatalogProductDetailSchema>;
 export type CatalogDetailVariant = z.infer<typeof CatalogDetailVariantSchema>;

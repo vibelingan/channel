@@ -1,21 +1,80 @@
+import { useQuery } from '@tanstack/react-query';
 import { getCollection } from '@vibelingan-channel/shared';
-import { useMemo, useState } from 'react';
+import { Suspense, lazy, useMemo, useState } from 'react';
 import { canManageUsers, getUser } from '../../lib/session.ts';
 import { CollectionView } from './CollectionView.tsx';
 import { AlibabaCatalogSyncPage } from './alibaba-catalog-sync/AlibabaCatalogSyncPage.tsx';
 import { CatalogImportPage } from './catalog-import/CatalogImportPage.tsx';
+import {
+  fetchInquiryCapabilities,
+  isLocalInquiryWorkspace,
+  listInquiries,
+} from './inquiries/inquiry-api.ts';
 import { DASHBOARD_SECTIONS, type DashboardSection } from './sections.ts';
+
+const ProductInquiriesPage = lazy(() =>
+  import('./inquiries/ProductInquiriesPage.tsx').then((module) => ({
+    default: module.ProductInquiriesPage,
+  })),
+);
+function InquiryCount() {
+  const count = useQuery({
+    queryKey: ['product-inquiries', 'count'],
+    queryFn: ({ signal }) => listInquiries(1, 'new', signal),
+    gcTime: 0,
+  });
+  return count.data?.newCount ? (
+    <span
+      className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900"
+      aria-label={`${count.data.newCount} unprocessed inquiries`}
+    >
+      {count.data.newCount}
+    </span>
+  ) : null;
+}
 
 export function DashboardShell({ onLogout }: { onLogout: () => void }) {
   const role = getUser()?.role ?? '';
+  const localInquiries = isLocalInquiryWorkspace();
+  const capabilities = useQuery({
+    queryKey: ['inquiry-capabilities', getUser()?.id],
+    queryFn: ({ signal }) => fetchInquiryCapabilities(signal),
+    enabled: role === 'admin' && !localInquiries,
+    retry: false,
+    gcTime: 0,
+  });
+  const cloudInquiries = capabilities.data?.enabled === true && role === 'admin';
 
   // Show only sections the role may use, and that map to a real collection.
   const sections = useMemo<DashboardSection[]>(
     () =>
-      DASHBOARD_SECTIONS.filter(
-        (s) => getCollection(s.collection) && (!s.adminOnly || canManageUsers(role)),
-      ),
-    [role],
+      localInquiries
+        ? role === 'admin'
+          ? [
+              {
+                label: 'Product Inquiries',
+                collection: 'catalogQuoteRequests',
+                adminOnly: true,
+                custom: 'product-inquiries',
+              },
+            ]
+          : []
+        : [
+            ...DASHBOARD_SECTIONS.filter(
+              (s) => getCollection(s.collection) && (!s.adminOnly || canManageUsers(role)),
+            ),
+            ...(cloudInquiries
+              ? [
+                  {
+                    label: 'Product Inquiries',
+                    collection: 'catalogQuoteRequests',
+                    adminOnly: true,
+                    custom: 'product-inquiries' as const,
+                  },
+                ]
+              : []),
+          ],
+    [role, localInquiries, cloudInquiries],
   );
 
   const [active, setActive] = useState(sections[0]?.collection ?? '');
@@ -28,6 +87,9 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
         <div className="border-b border-slate-200 px-5 py-4">
           <p className="text-sm font-semibold text-slate-900">Channel Admin</p>
           <p className="mt-0.5 text-xs capitalize text-slate-500">{role || 'member'}</p>
+          {localInquiries && (
+            <p className="mt-2 text-xs text-amber-800">Local sample workspace · inquiries only</p>
+          )}
         </div>
         <nav className="flex gap-1 overflow-x-auto p-3 lg:block lg:flex-1 lg:space-y-1">
           {sections.map((s) => (
@@ -42,6 +104,7 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
               }`}
             >
               {s.label}
+              {s.custom === 'product-inquiries' && <InquiryCount />}
             </button>
           ))}
         </nav>
@@ -63,7 +126,13 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
       </aside>
 
       <main className="min-w-0 flex-1 overflow-auto">
-        {section?.custom === 'alibaba-sync' ? (
+        {section?.custom === 'product-inquiries' ? (
+          <div className="p-4 sm:p-6">
+            <Suspense fallback={<p>Loading inquiries…</p>}>
+              <ProductInquiriesPage />
+            </Suspense>
+          </div>
+        ) : section?.custom === 'alibaba-sync' ? (
           <div className="p-6">
             <AlibabaCatalogSyncPage />
           </div>

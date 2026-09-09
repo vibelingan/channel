@@ -1,13 +1,14 @@
 ---
 import SiteFooter from '../../components/SiteFooter.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
-import { getCatalogContent } from '../../i18n/catalog.ts';
+import { getCatalogContent, getSharedDetailContent } from '../../i18n/catalog.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../../i18n/site.ts';
 import { SkuDetailPage } from '../../islands/shop/SkuDetailPage.tsx';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 
 const site = getSiteContent(DEFAULT_LOCALE);
 const catalog = getCatalogContent(DEFAULT_LOCALE);
+const previewContent = import.meta.env.DEV ? getSharedDetailContent(DEFAULT_LOCALE) : undefined;
 const brand = site.brand;
 const seoTitle = `Product Details | ${brand.name}`;
 const seoDescription =
@@ -22,7 +23,7 @@ const seoDescription =
 >
   <SiteHeader brand={site.brand} nav={site.nav} />
   <main>
-    <SkuDetailPage content={catalog} client:load />
+    <SkuDetailPage content={catalog} previewContent={previewContent} client:load />
   </main>
   <SiteFooter brand={site.brand} footer={site.footer} />
 </BaseLayout>

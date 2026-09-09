@@ -59,6 +59,7 @@ export interface Product {
   wholesalePrice?: number;
   vipPrice?: number;
   manualCatalogPricing?: ManualCatalogPricing;
+  catalogPricingMode?: 'source' | 'manual';
   /** Overstock-only fields. */
   inventory?: number;
   clearancePrice?: number;

@@ -24,6 +24,13 @@ import type {
 } from './adapter.ts';
 import type { ImageMutationAcquireResult, ImageMutationReleaseResult } from './adapter.ts';
 import { ALIBABA_SYNC_LEASE_COLLECTION, holdsAlibabaLease } from './adapter.ts';
+import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
+export function manageCatalogCategory(actorId: string, input: unknown) {
+  const adapter = db();
+  if (!adapter.manageCatalogCategory)
+    throw new Error('Catalog classification adapter is not configured');
+  return adapter.manageCatalogCategory(actorId, input);
+}
 export {
   readImageMutationState,
   transitionImageMutationAcquire,
@@ -80,6 +87,33 @@ function db(): DbAdapter {
 }
 
 const DEFAULT_PAGE_SIZE = 20;
+export function manageCatalogDetailApproval(actorId: string, input: unknown) {
+  return runCatalogApprovalWorkflow({ get, persist: persistCatalogDetailApproval }, actorId, input);
+}
+export async function persistCatalogDetailApproval(
+  actorId: string,
+  input: import('./catalog-detail-staging.ts').ApprovalPersistenceCommand,
+) {
+  const adapter = db();
+  if (!adapter.persistCatalogDetailApproval)
+    throw new Error('Staged approval persistence unavailable');
+  return adapter.persistCatalogDetailApproval(actorId, input);
+}
+export async function approveCatalogDetail(actorId: string, input: unknown) {
+  const adapter = db();
+  if (!adapter.approveCatalogDetail) throw new Error('Catalog approval persistence unavailable');
+  return adapter.approveCatalogDetail(actorId, input);
+}
+export async function submitCatalogQuote(input: unknown) {
+  const adapter = db();
+  if (!adapter.submitCatalogQuote) throw new Error('Catalog inquiry persistence unavailable');
+  return adapter.submitCatalogQuote(input);
+}
+export async function manageCatalogInquiry(actorId: string, input: unknown) {
+  const adapter = db();
+  if (!adapter.manageCatalogInquiry) throw new Error('Catalog inquiry persistence unavailable');
+  return adapter.manageCatalogInquiry(actorId, input);
+}
 const MAX_PAGE_SIZE = 100;
 
 function assertKnown(collection: string) {
@@ -104,6 +138,7 @@ export async function list(query: ListQuery): Promise<ListResult<CollectionDoc>>
   return db().list({
     collection: query.collection,
     ...(query.productFamily ? { productFamily: query.productFamily } : {}),
+    ...(query.needsClassification ? { needsClassification: true } : {}),
     page,
     pageSize,
     search: (query.search ?? '').trim(),

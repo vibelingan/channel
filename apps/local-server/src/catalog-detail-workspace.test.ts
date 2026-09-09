@@ -1,20 +1,30 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import {
   dianxiaomiObservationAdapter,
   parseDianxiaomiWorkbook,
 } from '@vibelingan-channel/catalog-import/dianxiaomi';
 import type { CatalogSourceObservation } from '@vibelingan-channel/catalog-import/observations';
 import { buildAcceptanceWorkbook } from '@vibelingan-channel/catalog-import/testing/dianxiaomi-acceptance';
-import { createDocWithId, get, updateDoc } from '@vibelingan-channel/db';
+import { approveCatalogDetail, createDocWithId, get, updateDoc } from '@vibelingan-channel/db';
+import {
+  CatalogApprovalManifestSchema,
+  catalogApprovalDigest,
+} from '@vibelingan-channel/db/catalog-detail-commit';
 import { migrateImageLocally } from '@vibelingan-channel/fn-admin/catalog-import-media';
 import { getCatalogImage } from '@vibelingan-channel/fn-public-api/handler';
 import { handlePublicApiEvent } from '@vibelingan-channel/fn-public-api/http-adapter';
-import { decodeCatalogProductDetail } from '@vibelingan-channel/shared/catalog-detail';
+import {
+  decodeCatalogDetailView,
+  decodeCatalogProductDetail,
+} from '@vibelingan-channel/shared/catalog-detail';
 import express from 'express';
 import {
   approveLocalDetail,
@@ -108,6 +118,47 @@ function detail(body: string) {
   return decoded.value;
 }
 
+test('structured content is shared across providers, explicitly opted into, and never follows stale operator text', async (t) => {
+  await workspace(t);
+  for (const provider of ['alibaba', 'dianxiaomi'] as const) {
+    const source = observation(provider);
+    source.content.description = {
+      text: 'Material ABS',
+      sanitizedHtml: '<table><tr><td>Material</td><td>ABS</td></tr></table>',
+      sanitized: true,
+      placeholder: false,
+      provenance: 'description',
+    };
+    const { productId } = await materialize(source);
+    assert.equal((await read(productId, '?view=structured')).statusCode, 404);
+    await approveLocalDetail(productId);
+    const legacy = detail((await read(productId)).body);
+    assert.equal(legacy.schemaVersion, 'catalog-product-detail-v1');
+    assert.equal(Object.hasOwn(legacy, 'content'), false);
+    const response = await read(productId, '?view=structured');
+    const decoded = decodeCatalogDetailView(JSON.parse(response.body).data);
+    assert.ok(decoded.ok);
+    assert.equal(decoded.value.schemaVersion, 'catalog-product-detail-v2');
+    assert.ok('content' in decoded.value);
+    assert.deepEqual(decoded.value.content.specifications, [{ name: 'Material', value: 'ABS' }]);
+    assert.equal(decodeCatalogProductDetail(decoded.value).ok, false);
+    assert.equal(response.body.includes('sanitizedHtml'), false);
+    const sectionResponse = await read(productId, '?view=sections');
+    const sections = decodeCatalogDetailView(JSON.parse(sectionResponse.body).data);
+    assert.ok(sections.ok && sections.value.schemaVersion === 'catalog-product-detail-v3');
+    assert.deepEqual(sections.value.noteBlocks, []);
+    assert.equal(Object.hasOwn(decoded.value, 'noteBlocks'), false);
+    for (const query of ['?view=unknown', '?view=structured&view=structured'])
+      assert.equal((await read(productId, query)).statusCode, 400);
+    await updateDoc('products', productId, { description: 'Operator changed the description' });
+    await approveLocalDetail(productId);
+    assert.equal(
+      detail((await read(productId, '?view=structured')).body).descriptionText,
+      'Operator changed the description',
+    );
+  }
+});
+
 test('canonical identities survive replay and disk reopen; a draft is private until explicitly approved', async (t) => {
   const local = await workspace(t);
   const source = observation();
@@ -146,6 +197,84 @@ test('canonical identities survive replay and disk reopen; a draft is private un
       .statusCode,
     404,
   );
+});
+
+test('invalid note blocks fail approval before replacing an already readable snapshot', async (t) => {
+  await workspace(t);
+  const { productId } = await materialize(observation());
+  await approveLocalDetail(productId);
+  const before = detail((await read(productId)).body);
+  await updateDoc('products', productId, {
+    detailSourceContentCandidate: {
+      schemaVersion: 'catalog-content-v1',
+      specifications: [],
+      packaging: [],
+      notes: ['Approved note'],
+    },
+    detailSourceNoteBlocksCandidate: [{ kind: 'heading', text: 'Different note' }],
+  });
+  await assert.rejects(() => approveLocalDetail(productId));
+  const after = await read(productId);
+  assert.equal(after.statusCode, 200);
+  assert.deepEqual(detail(after.body), before);
+});
+
+test('formal approval adapter persists both providers atomically, remains private, and survives file reopen', async (t) => {
+  const { reopen } = await workspace(t);
+  await createDocWithId('users', 'approval-admin', { role: 'admin', username: 'Test approver' });
+  for (const provider of ['alibaba', 'dianxiaomi'] as const) {
+    const { productId } = await materialize(observation(provider));
+    const product = await get('products', productId);
+    assert.ok(product);
+    const manifest = CatalogApprovalManifestSchema.parse(product.detailSourceManifest);
+    const variants = await Promise.all(
+      manifest.variantIds.map(async (id) => {
+        const row = await get('productVariants', id);
+        assert.ok(row);
+        return row;
+      }),
+    );
+    const command = {
+      productId,
+      operationId: randomUUID(),
+      expectedRevision: null,
+      expectedDigest: catalogApprovalDigest(product, variants),
+    };
+    const [first, other] = await Promise.all([
+      approveCatalogDetail('approval-admin', command),
+      approveCatalogDetail('approval-admin', { ...command, operationId: randomUUID() }),
+    ]);
+    assert.ok(first.ok && !first.replayed);
+    assert.deepEqual(other, { ok: false, code: 'CONFLICT' });
+    reopen();
+    assert.equal((await get('products', productId))?.published, false);
+    assert.equal((await read(productId)).statusCode, 404, 'approval is not permission to publish');
+    for (const id of manifest.variantIds)
+      assert.equal((await get('productVariants', id))?.catalogDetailRevision, first.revision);
+    const retry = await approveCatalogDetail('approval-admin', command);
+    assert.ok(retry.ok && retry.replayed);
+  }
+});
+
+test('a forged candidate identity cannot overwrite another product variant during approval', async (t) => {
+  await workspace(t);
+  const a = await materialize(observation('alibaba', 1));
+  const b = await materialize(observation('dianxiaomi', 1));
+  await approveLocalDetail(a.productId);
+  await approveLocalDetail(b.productId);
+  const first = detail((await read(a.productId)).body);
+  const second = detail((await read(b.productId)).body);
+  const sourceVariant = first.variants.items[0];
+  const targetVariant = second.variants.items[0];
+  assert.ok(sourceVariant && targetVariant);
+  const untouched = await get('productVariants', targetVariant.id);
+  await updateDoc('productVariants', sourceVariant.id, {
+    detailSourceCandidate: { ...sourceVariant, id: targetVariant.id },
+  });
+  await assert.rejects(() => approveLocalDetail(a.productId));
+  assert.deepEqual(await get('productVariants', targetVariant.id), untouched);
+  assert.deepEqual(detail((await read(a.productId)).body), first);
+  assert.deepEqual(detail((await read(b.productId)).body), second);
 });
 
 test('both providers use the same real HTTP route and different canonical identities despite identical source keys/SKUs', async (t) => {
@@ -348,6 +477,47 @@ test('the real Excel adapter feeds canonical storage and the same public detail 
   const response = await read(product.productId);
   assert.equal(response.statusCode, 200);
   assert.equal(detail(response.body).variants.total, source.variants.length);
+});
+
+test('CUI-01 browser gateway consumes both providers through real HTTP and preserves revision paging', async (t) => {
+  await workspace(t);
+  const excel = dianxiaomiObservationAdapter.toObservations({
+    bundle: parseDianxiaomiWorkbook(buildAcceptanceWorkbook()).bundle,
+    observedAt: '2026-09-06T00:00:00.000Z',
+  }).observations[0];
+  assert.ok(excel);
+  excel.content.media = [
+    { sourceUrl: 'https://example.com/pixel.png', role: 'primary', position: 0 },
+  ];
+  for (const variant of excel.variants) variant.media = [];
+  const app = express();
+  registerCatalogRoutes(app, 'products', '/api/products', { enableCatalogDetail: true });
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise<void>((resolve) => server.once('listening', resolve));
+  t.after(() => closeServer(server));
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  // Keep browser/Astro types out of the Node-only server compilation. The consumer
+  // runs in a separate test process and crosses the real HTTP boundary.
+  const probe = async (productId: string, expected: string) => {
+    await promisify(execFile)(process.execPath, [
+      '--import',
+      import.meta.resolve('tsx'),
+      fileURLToPath(
+        new URL('../../site/src/catalog/testing/detail-http-probe.ts', import.meta.url),
+      ),
+      `http://127.0.0.1:${address.port}`,
+      productId,
+      expected,
+    ]);
+  };
+
+  for (const source of [observation('alibaba', 51), excel]) {
+    const product = await materialize(source);
+    await probe(product.productId, 'not-found');
+    await approveLocalDetail(product.productId);
+    await probe(product.productId, String(source.variants.length));
+  }
 });
 
 test('missing media may be repaired on replay without bypassing publication requirements', async (t) => {

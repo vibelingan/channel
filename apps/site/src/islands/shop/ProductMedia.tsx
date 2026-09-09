@@ -1,4 +1,9 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
+import {
+  advanceFailedMedia,
+  catalogMediaSourceId,
+  createCatalogMediaState,
+} from '../../catalog/application/catalog-media.ts';
 import { apiMediaUrl } from '../../lib/api-url.ts';
 
 export interface ProductMediaState {
@@ -34,34 +39,31 @@ export function productMediaKey(sources: readonly string[]): string {
 }
 
 export function productMediaImageKey(sourceIndex: number, source: string): string {
-  return `${sourceIndex}:${source}`;
+  return catalogMediaSourceId(sourceIndex, source);
 }
 
 export function productMediaReducer(
   state: ProductMediaState,
   action: ProductMediaAction,
 ): ProductMediaState {
-  const activeSource = action.sources[state.activeIndex];
-  if (
-    activeSource === undefined ||
-    state.activeIndex !== action.sourceIndex ||
-    activeSource !== action.source ||
-    state.failedSourceIndexes.includes(action.sourceIndex)
-  ) {
-    return state;
-  }
-
+  // Preserve the existing index-shaped component seam; the domain owns the failure rule.
+  const media = {
+    sources: action.sources,
+    activeIndex: state.activeIndex,
+    failedSourceIds: state.failedSourceIndexes.map((index) =>
+      catalogMediaSourceId(index, action.sources[index] ?? ''),
+    ),
+  };
+  const next = advanceFailedMedia(media, catalogMediaSourceId(action.sourceIndex, action.source));
+  if (next === media) return state;
   return {
-    activeIndex: state.activeIndex + 1,
+    activeIndex: next.activeIndex,
     failedSourceIndexes: [...state.failedSourceIndexes, action.sourceIndex],
   };
 }
 
 function normalizeSources(sources: readonly string[]): string[] {
-  return sources
-    .map((source) => source.trim())
-    .filter(Boolean)
-    .map(apiMediaUrl);
+  return [...createCatalogMediaState(sources, apiMediaUrl).sources];
 }
 
 function ProductMediaSession({

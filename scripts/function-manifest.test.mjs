@@ -9,7 +9,7 @@
  */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
@@ -24,20 +24,6 @@ import {
 } from './cloudbase-function-manifest.mjs';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
-
-function run(command, args, options = {}) {
-  const result = spawnSync(command, args, {
-    cwd: root,
-    encoding: 'utf8',
-    ...options,
-  });
-  assert.equal(
-    result.status,
-    0,
-    `${command} ${args.join(' ')} failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
-  );
-  return result;
-}
 
 const requireEnvFixture = (name) => {
   const values = {
@@ -67,6 +53,17 @@ const ctx = {
   requireEnv: requireEnvFixture,
   optionalEnv: optionalEnvFixture,
 };
+
+test('inquiry feature flag is opt-in on admin/public-api, never sync', () => {
+  const defs = buildFunctionDefs({
+    ...ctx,
+    optionalEnv: (name) => (name === 'CATALOG_RFQ_ENABLED' ? '1' : optionalEnvFixture(name)),
+  });
+  assert.deepEqual(
+    defs.map((def) => def.envVariables.CATALOG_RFQ_ENABLED),
+    ['1', '1', undefined],
+  );
+});
 
 test('manifest names, routes, and runtime limits are frozen', () => {
   assert.deepEqual(FUNCTION_NAMES, ['admin', 'public-api', 'alibaba-catalog-sync']);
@@ -168,15 +165,14 @@ test('envEntries drops undefined and keeps empty strings', () => {
 });
 
 test('artifact smoke rejects a residual xlsx import before cold start', () => {
-  run('pnpm', ['build:functions']);
-  run(process.execPath, ['scripts/package-functions.mjs']);
-
-  const sourceArtifactRoot = join(root, '.cloudbase-artifacts', 'functions');
+  // Never rebuild or package here: tests may run after a release was prepared.
+  // This negative static check needs only an isolated deliberately bad fixture.
   const tempRoot = mkdtempSync(join(tmpdir(), 'channel-function-artifacts-'));
   const copiedArtifactRoot = join(tempRoot, 'functions');
-  cpSync(sourceArtifactRoot, copiedArtifactRoot, { recursive: true });
+  mkdirSync(join(copiedArtifactRoot, 'admin'), { recursive: true });
   const indexFile = join(copiedArtifactRoot, 'admin', 'index.js');
   try {
+    writeFileSync(join(copiedArtifactRoot, 'admin', 'package.json'), '{}\n', 'utf8');
     writeFileSync(indexFile, "require('xlsx');\nexports.main = () => {};\n", 'utf8');
     const smoke = spawnSync(process.execPath, ['scripts/smoke-function-artifacts.mjs'], {
       cwd: root,

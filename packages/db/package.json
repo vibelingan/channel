@@ -4,8 +4,15 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./catalog-classification": "./src/catalog-classification.ts",
+    "./category-transaction": "./src/category-transaction.ts",
     ".": "./src/index.ts",
     "./adapter": "./src/adapter.ts",
+    "./catalog-inquiry": "./src/catalog-inquiry.ts",
+    "./catalog-detail-commit": "./src/catalog-detail-commit.ts",
+    "./catalog-detail-staging": "./src/catalog-detail-staging.ts",
+    "./catalog-detail-storage": "./src/catalog-detail-storage.ts",
+    "./catalog-quote": "./src/catalog-quote.ts",
     "./cloudbase": "./src/cloudbase-adapter.ts"
   },
   "scripts": {
@@ -15,7 +22,8 @@
   "dependencies": {
     "@cloudbase/node-sdk": "3.17.2",
     "@vibelingan-channel/shared": "workspace:*",
-    "wx-server-sdk": "4.0.2"
+    "wx-server-sdk": "4.0.2",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

@@ -16,7 +16,8 @@
  * only mounts once a card is expanded, so a catalog page never turns its
  * gallery references into initial image requests.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
+import type { SharedDetailContent } from '../../i18n/catalog.ts';
 import type { HeadphonesContent } from '../../i18n/headphones.ts';
 import { OEM_INQUIRY_HREF } from '../../lib/site-navigation.ts';
 import { HeadphonesCatalog } from './HeadphonesCatalog.tsx';
@@ -37,6 +38,7 @@ import { useSession } from './session.ts';
 
 interface Props {
   content: HeadphonesContent;
+  previewContent?: SharedDetailContent;
 }
 
 const CATALOG_PATH = '/api/products';
@@ -46,7 +48,27 @@ export function detailScrollBehavior(reducedMotion: boolean): ScrollBehavior {
   return reducedMotion ? 'auto' : 'smooth';
 }
 
-export function HeadphonesPage({ content }: Props) {
+const SharedCatalogPreview = import.meta.env?.DEV
+  ? lazy(() => import('./SharedCatalogPreview.tsx'))
+  : undefined;
+
+export function HeadphonesPage({ content, previewContent }: Props) {
+  if (SharedCatalogPreview && previewContent)
+    return (
+      <Suspense fallback={<output>{content.list.loadingLabel}</output>}>
+        <SharedCatalogPreview
+          copy={previewContent}
+          renderList={(open) => <HeadphonesList content={content} onOpenProduct={open} />}
+        />
+      </Suspense>
+    );
+  return <HeadphonesList content={content} />;
+}
+
+function HeadphonesList({
+  content,
+  onOpenProduct,
+}: Props & { onOpenProduct?: (id: string) => void }) {
   const { list, detail, oemCta } = content;
   const [state, setState] = useState<HeadphonesCatalogState>(initialHeadphonesCatalogState);
   const { user, loggedIn, ready } = useSession();
@@ -221,7 +243,7 @@ export function HeadphonesPage({ content }: Props) {
             state={state}
             onRetryInitial={handleRetryInitial}
             onLoadMore={handleLoadMore}
-            onOpenProduct={handleOpenProduct}
+            onOpenProduct={onOpenProduct ?? handleOpenProduct}
           />
         </div>
       </section>

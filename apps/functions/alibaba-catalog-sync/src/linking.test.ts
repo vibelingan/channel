@@ -11,6 +11,7 @@ import {
   matchesFilter,
 } from '@vibelingan-channel/shared';
 import {
+  createAlibabaCategoryResolver,
   createDraftForSource,
   draftProductId,
   linkExistingProduct,
@@ -449,7 +450,7 @@ test('an existing complete link returns the linked product without creating', as
   );
 });
 
-test('a later category mapping backfills an existing generated draft without overwriting review edits', async () => {
+test('a later mapping never rewrites an existing draft; historical assignment uses the guarded batch', async () => {
   setup();
   const first = await createDraftForSource(SOURCE_KEY, CTX);
   assert.equal(first.ok, true);
@@ -474,11 +475,37 @@ test('a later category mapping backfills an existing generated draft without ove
 
   assert.deepEqual(second, { ok: true, productId: draftProductId(SOURCE_KEY), created: false });
   const refreshed = store.products?.find((product) => product._id === draftProductId(SOURCE_KEY));
-  assert.equal(refreshed?.productFamily, 'headphones');
-  assert.equal(refreshed?.category, 'bluetooth');
+  assert.equal(refreshed?.productFamily, undefined);
+  assert.equal(refreshed?.category, undefined);
   assert.equal(refreshed?.name, 'Operator edited name');
   assert.equal(refreshed?.description, 'Operator edited description');
   assert.equal(refreshed?.published, false);
+});
+
+test('category lookup caches per batch, refreshes next batch and fails closed on mixed or duplicate mappings', async () => {
+  setup();
+  store.sourceCategoryMappings = [
+    {
+      _id: 'rule',
+      provider: 'alibaba',
+      sourceTaxonomy: 'alibaba:icbu',
+      sourceCategoryId: 'cat-100',
+      productFamily: 'misc',
+    },
+  ];
+  const resolve = createAlibabaCategoryResolver();
+  const rule = store.sourceCategoryMappings[0];
+  assert.ok(rule);
+  assert.deepEqual(await resolve('cat-100'), { productFamily: 'misc' });
+  rule.productFamily = 'toys';
+  assert.deepEqual(await resolve('cat-100'), { productFamily: 'misc' });
+  assert.deepEqual(await createAlibabaCategoryResolver()('cat-100'), { productFamily: 'toys' });
+  rule.reviewRequired = true;
+  store.alibabaCategoryMappings = [MAPPING];
+  assert.deepEqual(await createAlibabaCategoryResolver()('cat-100'), {});
+  rule.reviewRequired = false;
+  store.sourceCategoryMappings.push({ ...rule, _id: 'duplicate' });
+  assert.deepEqual(await createAlibabaCategoryResolver()('cat-100'), {});
 });
 
 test('draft retry never reopens a product an admin already reviewed', async () => {

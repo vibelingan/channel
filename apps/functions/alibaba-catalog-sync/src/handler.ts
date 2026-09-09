@@ -18,6 +18,7 @@ import { type AlertSender, createAlertSender } from './alerts.ts';
 import { type AlibabaSyncFunctionConfig, resolveOAuthConfig } from './config.ts';
 import { inspectAlibabaProductDetail, isAlibabaProductId } from './detail-inspection.ts';
 import { materializeAlibabaDraftPage } from './draft-materialization.ts';
+import { PricingRepairInputSchema, repairMissingSourcePricing } from './pricing-repair.ts';
 
 export type { AlibabaSyncFunctionConfig } from './config.ts';
 import { linkExistingProduct, setPinnedOffer, unlinkProduct } from './linking.ts';
@@ -255,6 +256,13 @@ export async function handleAlibabaSyncRequest(
         return err('CONFLICT', `Alibaba connection unavailable: ${report.detail ?? 'unknown'}.`);
       }
       return ok(report);
+    }
+    case 'repairSourcePricing': {
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = PricingRepairInputSchema.safeParse(parsed.data.data);
+      if (!payload.success) return err('VALIDATION_ERROR', 'Invalid pricing repair cursor.');
+      return ok(await repairMissingSourcePricing(payload.data));
     }
     case 'materializeDrafts': {
       // Catch-up path for source mirrors created before every observed product

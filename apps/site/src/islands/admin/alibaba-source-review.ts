@@ -1,4 +1,7 @@
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { effectiveCatalogPriceSummary } from '../shop/EffectiveCatalogPricingBlock.tsx';
+import { effectiveCatalogMoq } from '../shop/catalog-pricing.ts';
+import { adminCatalogPricingInput } from './product-pricing-editor.ts';
 
 export type AlibabaSourcePricing =
   | { mode: 'fixed'; currency: string; amountMinor: number; minimumOrderQuantity?: number }
@@ -258,16 +261,11 @@ export function productReviewCellValue(
         : review?.modelNumbers.join(', ') || '—';
     case 'variants':
       return review ? `${review.variantCount} variants · ${review.offerCount} offers` : '—';
-    case 'moq':
-      return typeof doc.moq === 'number' && Number.isFinite(doc.moq)
-        ? String(doc.moq)
-        : review?.minimumOrderQuantity === undefined
-          ? '—'
-          : String(review.minimumOrderQuantity);
+    case 'moq': {
+      const moq = effectiveCatalogMoq({ ...adminCatalogPricingInput(doc), moq: doc.moq });
+      return moq === undefined ? '—' : String(moq);
+    }
     case 'pricing':
-      if (typeof doc.unitPrice === 'number' && Number.isFinite(doc.unitPrice)) {
-        return `Website USD ${doc.unitPrice.toFixed(2)} / unit`;
-      }
-      return formatAlibabaSourcePricing(review?.primaryPricing);
+      return effectiveCatalogPriceSummary(adminCatalogPricingInput(doc), 'Request a quote');
   }
 }

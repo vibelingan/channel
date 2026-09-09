@@ -31,6 +31,89 @@ async function seedAdminSession(page: Page) {
   }, adminUser);
 }
 
+test('source gallery imports every distinct image, retains partial success, and survives save/reopen', async ({
+  page,
+}) => {
+  await seedAdminSession(page);
+  const sourceUrls = [
+    'https://sc04.alicdn.com/first.jpg',
+    'https://sc04.alicdn.com/second.jpg',
+    'https://sc04.alicdn.com/first.jpg',
+    'https://sc04.alicdn.com/third.jpg',
+  ];
+  let saved = { ...product, imageIds: ['existing-image'], alibabaSourceImageUrls: sourceUrls };
+  const calls: string[] = [];
+  let failSecond = true;
+  await page.route('**/api/alibaba-catalog-sync', async (route) => {
+    const body = route.request().postDataJSON() as { action: string; data: { url: string } };
+    expect(body.action).toBe('importSourceImage');
+    calls.push(body.data.url);
+    const position = sourceUrls.indexOf(body.data.url);
+    const failed = position === 1 && failSecond;
+    await route.fulfill({
+      status: failed ? 400 : 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        failed
+          ? {
+              ok: false,
+              error: { code: 'VALIDATION_ERROR', message: 'Source image is temporarily invalid.' },
+            }
+          : {
+              ok: true,
+              data: {
+                imageId: `source-${position}`,
+                deduplicated: calls.filter((url) => url === body.data.url).length > 1,
+              },
+            },
+      ),
+    });
+  });
+  await page.route('**/api/admin', async (route) => {
+    const body = route.request().postDataJSON() as {
+      action: string;
+      data: { values?: Partial<typeof saved> };
+    };
+    let response: unknown;
+    if (body.action === 'me') response = { ok: true, data: { user: adminUser } };
+    else if (body.action === 'list')
+      response = { ok: true, data: { items: [saved], total: 1, page: 1, pageSize: 20 } };
+    else if (body.action === 'getImagePreview')
+      response = {
+        ok: true,
+        data: { id: 'image', mimeType: 'image/png', dataBase64: 'iVBORw0KGgo=' },
+      };
+    else if (body.action === 'update') {
+      saved = { ...saved, ...body.data.values };
+      response = { ok: true, data: saved };
+    } else response = { ok: false, error: { code: 'BAD_REQUEST', message: 'Unexpected action' } };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(response),
+    });
+  });
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit' }).click();
+  await page.getByRole('button', { name: 'Import source gallery' }).click();
+  await expect(page.getByText(/Source image 2: Source image is temporarily invalid/)).toBeVisible();
+  await expect(page.locator('#imageIds-capacity')).toContainText('3 of 9 images');
+  expect(calls).toEqual([sourceUrls[0], sourceUrls[1], sourceUrls[3]]);
+  failSecond = false;
+  await page.getByRole('button', { name: 'Import source gallery' }).click();
+  await expect(page.locator('#imageIds-capacity')).toContainText('4 of 9 images');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Edit Product' })).toHaveCount(0);
+  expect(saved.imageIds).toEqual(['existing-image', 'source-0', 'source-3', 'source-1']);
+  expect(saved.published).toBe(false);
+  await page.reload();
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit' }).click();
+  await expect(page.locator('#imageIds-capacity')).toContainText('4 of 9 images');
+  await expect(page.getByText('Primary', { exact: true })).toBeVisible();
+});
+
 test('product edit form groups fields, clears incompatible category, and enforces nine images', async ({
   page,
 }) => {
@@ -74,11 +157,11 @@ test('product edit form groups fields, clears incompatible category, and enforce
   const productFamily = page.locator('button#productFamily-trigger[role="combobox"]');
   await productFamily.click();
   await page
-    .getByRole('listbox', { name: 'Product Family', exact: true })
-    .getByRole('option', { name: 'toys', exact: true })
+    .getByRole('listbox', { name: 'Website main category', exact: true })
+    .getByRole('option', { name: 'Toys', exact: true })
     .click();
   await expect(page.locator('select#productFamily')).toHaveValue('toys');
-  await expect(page.getByLabel('Subcategory')).toHaveCount(0);
+  await expect(page.getByLabel('Headphone type (optional)')).toHaveCount(0);
   await expect(page.locator('[data-product-form-announcement]')).toContainText(
     'Subcategory cleared because it applies only to Headphones.',
   );
@@ -194,17 +277,20 @@ test('manual tier pricing is keyboard-editable, blocks invalid drafts, and submi
   await page.getByRole('button', { name: 'Products', exact: true }).click();
   await page.getByRole('button', { name: 'Edit' }).click();
   const dialog = page.getByRole('dialog', { name: 'Edit Product' });
-  await expect(dialog.getByLabel('Subcategory')).toHaveCount(0);
+  await expect(dialog.getByLabel('Headphone type (optional)')).toHaveCount(0);
   await expect(dialog.getByLabel('SKU Code')).toHaveValue('');
   await expect(dialog.getByLabel('URL Slug')).toHaveValue('');
-  await expect(dialog.getByLabel('MOQ')).toHaveValue('1');
-  await expect(dialog.getByLabel('Unit Price')).toHaveValue('134.18');
-  await expect(dialog.getByLabel('Wholesale Price')).toHaveValue('118.31');
+  await expect(dialog.getByLabel('Minimum order quantity', { exact: true })).toHaveValue('1');
+  await expect(dialog.getByLabel('Website unit price (USD)', { exact: true })).toHaveValue(
+    '118.31',
+  );
+  await expect(dialog.getByLabel('Wholesale Price', { exact: true })).toHaveCount(0);
+  await expect(dialog.getByLabel('Unit Price', { exact: true })).toHaveCount(0);
 
   await dialog.getByRole('button', { name: 'Add price tier' }).click();
   await dialog.getByLabel('Minimum quantity').fill('');
   await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled();
-  await expect(dialog.getByRole('alert')).toContainText('minimum quantity');
+  await expect(dialog.getByRole('alert').filter({ hasText: 'minimum quantity' })).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Add price tier' })).toBeDisabled();
 
   await dialog.getByLabel('Minimum quantity').fill('1');

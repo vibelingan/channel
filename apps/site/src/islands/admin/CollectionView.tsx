@@ -14,9 +14,10 @@ import type {
   ProductFamily,
   SortClause,
 } from '@vibelingan-channel/shared';
-import { PRODUCT_FAMILY_OPTIONS } from '@vibelingan-channel/shared';
+import { PRODUCT_FAMILY_OPTIONS, isProductFamily } from '@vibelingan-channel/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
+import { BatchCategoryAssignment } from './BatchCategoryAssignment.tsx';
 import { BatchUpdateFeedback } from './BatchUpdateFeedback.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { FilterBuilder } from './FilterBuilder.tsx';
@@ -36,6 +37,7 @@ import {
   updateRecord,
 } from './api.ts';
 import {
+  ADMIN_PRODUCT_FAMILY_LABELS,
   type AdminProductFamily,
   adminProductFamilyFromSearch,
   adminProductFamilySearch,
@@ -111,6 +113,13 @@ export function CollectionView({ collection, section, role }: Props) {
     queryFn: fetchProductReviewSummary,
     enabled: canReviewAlibabaProducts,
     refetchOnWindowFocus: true,
+    staleTime: 15_000,
+  });
+  const { data: unclassifiedSummary } = useQuery({
+    queryKey: ['list', 'products', 'unclassified-count'],
+    queryFn: () =>
+      listRecords({ collection: 'products', needsClassification: true, page: 1, pageSize: 1 }),
+    enabled: isProducts,
     staleTime: 15_000,
   });
 
@@ -267,9 +276,27 @@ export function CollectionView({ collection, section, role }: Props) {
       cols.push({
         id: field.name,
         accessorKey: field.name,
-        header: field.label,
+        header:
+          isProducts && field.name === 'productFamily'
+            ? 'Website main category'
+            : isProducts && field.name === 'category'
+              ? 'Headphone type'
+              : field.label,
         cell: ({ row }) => {
           const doc = row.original;
+          if (isProducts && field.name === 'productFamily') {
+            const family = doc.productFamily;
+            return (
+              <TextCell
+                field={field.name}
+                value={
+                  isProductFamily(family)
+                    ? ADMIN_PRODUCT_FAMILY_LABELS[family]
+                    : 'Needs classification'
+                }
+              />
+            );
+          }
           if (inlineEdit.has(field.name) && field.type === 'select') {
             return (
               <InlineSelect
@@ -423,6 +450,13 @@ export function CollectionView({ collection, section, role }: Props) {
               pendingCount={reviewSummary?.pendingTotal ?? 0}
               onSelect={changeProductFamily}
             />
+            <ProductFamilyTab
+              label={`Needs classification${unclassifiedSummary ? ` (${unclassifiedSummary.total})` : ''}`}
+              value="unclassified"
+              selected={productFamily === 'unclassified'}
+              pendingCount={0}
+              onSelect={changeProductFamily}
+            />
             {PRODUCT_FAMILY_OPTIONS.map((value) => (
               <ProductFamilyTab
                 key={value}
@@ -438,14 +472,30 @@ export function CollectionView({ collection, section, role }: Props) {
             ariaLabel="Product family"
             value={productFamily ?? ''}
             placeholder={`All products${(reviewSummary?.pendingTotal ?? 0) > 0 ? ' • New' : ''}`}
-            options={PRODUCT_FAMILY_OPTIONS.map((value) => ({
-              value,
-              label: `${productFamilyLabel(value)}${(reviewSummary?.byFamily[value] ?? 0) > 0 ? ' • New' : ''}`,
-            }))}
+            options={[
+              {
+                value: 'unclassified',
+                label: `Needs classification${unclassifiedSummary ? ` (${unclassifiedSummary.total})` : ''}`,
+              },
+              ...PRODUCT_FAMILY_OPTIONS.map((value) => ({
+                value,
+                label: `${productFamilyLabel(value)}${(reviewSummary?.byFamily[value] ?? 0) > 0 ? ' • New' : ''}`,
+              })),
+            ]}
             className="block sm:hidden"
             triggerClassName="font-medium text-slate-800"
-            onChange={(value) => changeProductFamily((value || null) as AdminProductFamily)}
+            onChange={(value) =>
+              changeProductFamily(isProductFamily(value) || value === 'unclassified' ? value : null)
+            }
           />
+          {productFamily === 'unclassified' && (
+            <p className="mt-3 text-sm text-slate-600">
+              These products have no website category. Their source categories are preserved. Open a
+              product to assign its Product Family; saving a category does not publish it.
+              Source-wide rules are managed in Import Categories and do not backfill existing
+              products automatically.
+            </p>
+          )}
         </div>
       )}
 
@@ -649,7 +699,7 @@ export function CollectionView({ collection, section, role }: Props) {
         <RecordForm
           collection={collection}
           title={`New ${singular}`}
-          {...(productFamily ? { defaults: { productFamily } } : {})}
+          {...(isProductFamily(productFamily) ? { defaults: { productFamily } } : {})}
           submitting={createMutation.isPending}
           error={createMutation.error as Error | null}
           onCancel={() => setCreating(false)}
@@ -688,16 +738,7 @@ export function CollectionView({ collection, section, role }: Props) {
 }
 
 function productFamilyLabel(productFamily: ProductFamily): string {
-  switch (productFamily) {
-    case 'headphones':
-      return 'Headphones';
-    case 'ai-gadgets':
-      return 'AI Gadgets';
-    case 'toys':
-      return 'Toys';
-    case 'misc':
-      return 'Other Electronics & Toys';
-  }
+  return ADMIN_PRODUCT_FAMILY_LABELS[productFamily];
 }
 
 export function ProductFamilyTab({
@@ -792,6 +833,9 @@ function BatchBar({
           disabled={busy}
           onPick={(value) => onSetValues({ role: value })}
         />
+      )}
+      {collection.name === 'products' && (
+        <BatchCategoryAssignment count={count} busy={busy} onApply={onSetValues} />
       )}
       {isUsers && statusField && (
         <BatchSelect

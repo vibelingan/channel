@@ -1,0 +1,58 @@
+{
+  "snapshotDate": "2026-09-06",
+  "status": "historical-reference-not-execution-authority",
+  "targetBranch": "fix/alibaba-sync-storage-wiring",
+  "targetCommit": "60b051b",
+  "sources": [
+    {
+      "source": "$PROJECTS_DIR/channel-alibaba-sync-analysis/docs/dianxiaomi-excel-import/IMPORT-STOREFRONT-UI-INTEGRATION-HLD-2026-09-02.md",
+      "snapshot": "docs/shared-product-ui/reference/2026-09-06/IMPORT-STOREFRONT-UI-INTEGRATION-HLD-2026-09-02.md",
+      "sha256": "48516bc374cd4608dcbf9687a6b37c793dcb8a3215d584588442eb7df47ad580"
+    },
+    {
+      "source": "$PROJECTS_DIR/channel-alibaba-sync-analysis/docs/dianxiaomi-excel-import/IMPORT-STOREFRONT-UI-LOW-LEVEL-DESIGN-2026-09-02.md",
+      "snapshot": "docs/shared-product-ui/reference/2026-09-06/IMPORT-STOREFRONT-UI-LOW-LEVEL-DESIGN-2026-09-02.md",
+      "sha256": "e5f5d21831b385575c695463378d014147bd3e8fb3af65d481db2ea9218c9d8d"
+    },
+    {
+      "source": "$PROJECTS_DIR/channel-alibaba-sync-analysis/docs/dianxiaomi-excel-import/IMPORT-STOREFRONT-UI-MIU-BREAKDOWN-2026-09-02.md",
+      "snapshot": "docs/shared-product-ui/reference/2026-09-06/IMPORT-STOREFRONT-UI-MIU-BREAKDOWN-2026-09-02.md",
+      "sha256": "72799d2f5299c80104bfa693838c4eac2c9da09c6876a9466d63ce45629f4d97"
+    },
+    {
+      "source": "$PROJECTS_DIR/channel-alibaba-sync-analysis/docs/dianxiaomi-excel-import/IMPORT-STOREFRONT-UI-TECHNOLOGY-CHOICES-2026-09-02.md",
+      "snapshot": "docs/shared-product-ui/reference/2026-09-06/IMPORT-STOREFRONT-UI-TECHNOLOGY-CHOICES-2026-09-02.md",
+      "sha256": "44f0f8cc26368a2120c1fc95717e06b27ece04b0a01bab0b86bf6d5abe4c1d0e"
+    },
+    {
+      "source": "$PROJECTS_DIR/channel-alibaba-sync-analysis/docs/dianxiaomi-excel-import/IMPORT-STOREFRONT-UI-TASK-REGISTRY.json",
+      "snapshot": "docs/shared-product-ui/reference/2026-09-06/IMPORT-STOREFRONT-UI-TASK-REGISTRY.json",
+      "sha256": "77cf6c051134ca4e56a71c945dc13c01cb445e0d69c4cf556977bcf745c11275"
+    },
+    {
+      "source": "$PROJECTS_DIR/channel-dianxiaomi-excel-import/docs/dianxiaomi-excel-import/PRODUCT-DETAIL-UX-RESEARCH.md",
+      "snapshot": "docs/shared-product-ui/reference/2026-09-06/PRODUCT-DETAIL-UX-RESEARCH.md",
+      "sha256": "8d45ad2a7776e42c049f0fd5d7c94f4ed4b9ecbdfc8b199fe6b497aa391ca72b"
+    },
+    {
+      "source": "$PROJECTS_DIR/channel-dianxiaomi-excel-import/docs/dianxiaomi-excel-import/product-detail-rfq-prototype/src/App.jsx",
+      "snapshot": "docs/shared-product-ui/reference/2026-09-06/prototype/App.jsx.txt",
+      "sha256": "e1ed57aa7c61d266a164f7baaff27a3b2797e1ff9c3c8878811b13f9e9c75820"
+    },
+    {
+      "source": "$PROJECTS_DIR/channel-dianxiaomi-excel-import/docs/dianxiaomi-excel-import/product-detail-rfq-prototype/src/styles.css",
+      "snapshot": "docs/shared-product-ui/reference/2026-09-06/prototype/styles.css.txt",
+      "sha256": "78857ab343c8e3140f13654fb0b78b57a34582d1aac85cf2c94908d2e9346ceb"
+    },
+    {
+      "source": "$PROJECTS_DIR/channel-dianxiaomi-excel-import/docs/dianxiaomi-excel-import/product-detail-rfq-prototype/AGENTS.md",
+      "snapshot": "docs/shared-product-ui/reference/2026-09-06/prototype/ORIGINAL-INSTRUCTIONS.md",
+      "sha256": "8b567bfdd80caacb07c88bb7e796e32fd3cfb2b8f3554e20f47a8b612a58d0db"
+    },
+    {
+      "source": "$PROJECTS_DIR/channel-dianxiaomi-excel-import/docs/dianxiaomi-excel-import/product-detail-rfq-prototype/design-qa.md",
+      "snapshot": "docs/shared-product-ui/reference/2026-09-06/prototype/design-qa.md",
+      "sha256": "f4d6e3ffc86396777f54e912f919f66a7110b095a090d8a8e9160f8e7bac978d"
+    }
+  ]
+}

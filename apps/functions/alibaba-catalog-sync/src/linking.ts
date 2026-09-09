@@ -16,11 +16,13 @@ import {
   validateCatalogSourceObservation,
 } from '@vibelingan-channel/catalog-import';
 import { list, remove } from '@vibelingan-channel/db';
+import { LEGACY_HEADPHONES_CATEGORY_OPTIONS, isProductFamily } from '@vibelingan-channel/shared';
 import { createDocWithId, getDoc, updateDoc } from './repo.ts';
 
 export interface LinkContext {
   now: string;
   userId?: string;
+  resolveCategory?: ReturnType<typeof createAlibabaCategoryResolver>;
 }
 
 export type LinkResult =
@@ -292,35 +294,20 @@ async function reconcileLinkedDraft(
   productId: string,
   product: Record<string, unknown>,
   source: Record<string, unknown> & { _id: string },
-  category: { productFamily?: string; channelCategory?: string },
+  _category: { productFamily?: string; channelCategory?: string },
   observation: CatalogSourceObservation | null,
 ): Promise<void> {
   // A legacy row may already carry acknowledgement evidence from a partially
   // rolled-out release. In that case materialization must not resurrect it.
   const reviewed =
     typeof product.alibabaReviewedAt === 'string' && product.alibabaReviewedAt.trim() !== '';
-  const generatedDraft =
-    productId === draftProductId(source._id) &&
-    product.alibabaPrimarySourceKey === source._id &&
-    product.published !== true;
-  const pendingReview = product.alibabaReviewPending !== false && !reviewed;
   const patch: Record<string, unknown> = {
     ...(typeof product.alibabaReviewPending === 'boolean'
       ? {}
       : { alibabaReviewPending: !reviewed }),
     ...(observation === null ? {} : { alibabaSourceReview: buildAlibabaSourceReview(observation) }),
-    ...(generatedDraft &&
-    pendingReview &&
-    product.productFamily === undefined &&
-    category.productFamily
-      ? { productFamily: category.productFamily }
-      : {}),
-    ...(generatedDraft &&
-    pendingReview &&
-    product.category === undefined &&
-    category.channelCategory
-      ? { category: category.channelCategory }
-      : {}),
+    // Existing classifications are operator-owned. Backfills use the dedicated
+    // compare-and-set batch, not a stale read followed by a worker patch.
   };
   if (Object.keys(patch).length > 0) await updateDoc('products', productId, patch);
 }
@@ -335,7 +322,7 @@ async function mappedCategory(sourceCategoryId: string): Promise<{
   const common = await list({
     collection: 'sourceCategoryMappings',
     page: 1,
-    pageSize: 1,
+    pageSize: 2,
     filter: {
       combinator: 'and',
       clauses: [
@@ -346,10 +333,19 @@ async function mappedCategory(sourceCategoryId: string): Promise<{
     },
   });
   const commonMapping = common.items[0];
-  if (typeof commonMapping?.productFamily === 'string' && commonMapping.productFamily !== '') {
+  if (common.items.length > 0 || common.total > 0) {
+    if (
+      common.total !== 1 ||
+      !commonMapping ||
+      commonMapping.reviewRequired === true ||
+      !isProductFamily(commonMapping.productFamily)
+    )
+      return {};
     return {
       productFamily: commonMapping.productFamily,
-      ...(typeof commonMapping.channelCategory === 'string' && commonMapping.channelCategory !== ''
+      ...(commonMapping.productFamily === 'headphones' &&
+      typeof commonMapping.channelCategory === 'string' &&
+      LEGACY_HEADPHONES_CATEGORY_OPTIONS.some((value) => value === commonMapping.channelCategory)
         ? { channelCategory: commonMapping.channelCategory }
         : {}),
     };
@@ -359,16 +355,31 @@ async function mappedCategory(sourceCategoryId: string): Promise<{
   const legacy = await list({
     collection: 'alibabaCategoryMappings',
     page: 1,
-    pageSize: 1,
+    pageSize: 2,
     filter: {
       combinator: 'and',
       clauses: [{ field: 'alibabaCategoryId', op: 'eq', value: sourceCategoryId }],
     },
   });
   const legacyMapping = legacy.items[0];
-  return typeof legacyMapping?.channelCategory === 'string' && legacyMapping.channelCategory !== ''
+  return legacy.total === 1 &&
+    typeof legacyMapping?.channelCategory === 'string' &&
+    LEGACY_HEADPHONES_CATEGORY_OPTIONS.some((value) => value === legacyMapping.channelCategory)
     ? { productFamily: 'headphones', channelCategory: legacyMapping.channelCategory }
     : {};
+}
+
+/** One lookup per distinct category per batch; no cross-run stale cache. */
+export function createAlibabaCategoryResolver() {
+  const cache = new Map<string, ReturnType<typeof mappedCategory>>();
+  return (categoryId: string) => {
+    let result = cache.get(categoryId);
+    if (!result) {
+      result = mappedCategory(categoryId);
+      cache.set(categoryId, result);
+    }
+    return result;
+  };
 }
 
 /**
@@ -388,7 +399,9 @@ export async function createDraftForSource(
   const source = await getDoc('alibabaSourceProducts', sourceKey);
   if (!source) return { ok: false, reason: 'source-not-found' };
 
-  const category = await mappedCategory(String(source.sourceCategoryId ?? ''));
+  const category = await (context.resolveCategory ?? createAlibabaCategoryResolver())(
+    String(source.sourceCategoryId ?? ''),
+  );
   const observation = await loadAlibabaObservation(source);
   const proposedProductId = draftProductId(sourceKey);
 
@@ -449,7 +462,12 @@ async function createLinkedDraft(
     ...(typeof observedDescription === 'string' && observedDescription.trim() !== ''
       ? { description: observedDescription }
       : {}),
-    ...(category.productFamily === undefined ? {} : { productFamily: category.productFamily }),
+    ...(category.productFamily === undefined
+      ? {}
+      : {
+          productFamily: category.productFamily,
+          alibabaClassifiedCategoryId: String(source.sourceCategoryId ?? ''),
+        }),
     ...(category.channelCategory === undefined ? {} : { category: category.channelCategory }),
     published: false,
     archived: false,

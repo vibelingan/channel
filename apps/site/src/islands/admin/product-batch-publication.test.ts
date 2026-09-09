@@ -93,6 +93,17 @@ test('browser bulk publication crosses the real HTTP handler, persists valid row
   const disabled = await batchUpdateRecords('products', ['ready'], { published: false });
   assert.equal(disabled.updated, 1);
   assert.equal((await db.get('images', 'image'))?.publishedRefCount, 0);
+  await db.update('products', 'ready', { category: 'wired', unitPrice: 5.7 });
+  const classified = await batchUpdateRecords('products', ['ready', 'no-family'], {
+    productFamily: 'misc',
+  });
+  assert.equal(classified.updated, 2);
+  const classifiedRow = await new JsonFileAdapter(file).get('products', 'ready');
+  assert.equal(classifiedRow?.productFamily, 'misc');
+  assert.equal(classifiedRow?.category, '');
+  assert.equal(classifiedRow?.published, false);
+  assert.equal(classifiedRow?.unitPrice, 5.7);
+  assert.deepEqual(classifiedRow?.imageIds, ['image']);
   await db.update('users', 'operator', { status: 'suspended' });
   const revoked = await batchUpdateRecords('products', ['ready', 'no-family'], { published: true });
   assert.equal(revoked.updated, 0);

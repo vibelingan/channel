@@ -1,5 +1,55 @@
 export const REQUIRED_NOSQL_RESOURCES = [
   {
+    collectionName: 'catalogDetailApprovals',
+    permission: 'ADMINONLY',
+    indexes: [],
+  },
+  {
+    collectionName: 'catalogDetailVariants',
+    permission: 'ADMINONLY',
+    indexes: [
+      index('approved_variant_page', [
+        ['productId', '1'],
+        ['catalogDetailRevision', '1'],
+        ['catalogDetailPosition', '1'],
+        ['_id', '1'],
+      ]),
+    ],
+  },
+  // Public catalog reads attach variants even when no importer has run. An
+  // absent collection is a database error, not an empty variant list.
+  {
+    collectionName: 'productVariants',
+    permission: 'ADMINONLY',
+    indexes: [
+      index('variant_product_position', [
+        ['productId', '1'],
+        ['position', '1'],
+      ]),
+    ],
+  },
+  {
+    collectionName: 'catalogQuoteRequests',
+    permission: 'ADMINONLY',
+    indexes: [
+      index('inquiry_attention', [
+        ['attentionRank', '1'],
+        ['createdAt', '-1'],
+        ['_id', '1'],
+      ]),
+      index('inquiry_status', [
+        ['status', '1'],
+        ['createdAt', '-1'],
+        ['_id', '1'],
+      ]),
+    ],
+  },
+  {
+    collectionName: 'catalogInquiryLimits',
+    permission: 'ADMINONLY',
+    indexes: [],
+  },
+  {
     collectionName: 'passwordResets',
     permission: 'ADMINONLY',
     indexes: [

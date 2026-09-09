@@ -38,7 +38,7 @@ export function BatchUpdateFeedback({ result, names, published, onDismiss }: Pro
           </ul>
           <p className="mt-3">
             Use Edit on the affected products to resolve the listed issues. For Alibaba source
-            previews, import the primary image in Edit and save before publishing. Unconfirmed
+            previews, import the source gallery in Edit and save before publishing. Unconfirmed
             results must be refreshed before retrying; confirmed updates are not rolled back.
           </p>
         </>

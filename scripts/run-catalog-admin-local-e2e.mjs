@@ -6,6 +6,7 @@ import { join } from 'node:path';
 
 const temporaryDirectory = await mkdtemp(join(tmpdir(), 'channel-catalog-e2e-'));
 const databaseFile = join(temporaryDirectory, 'db.json');
+const siteDirectory = join(temporaryDirectory, 'site');
 const readyFile = join(temporaryDirectory, 'api-ready.json');
 const readyToken = randomUUID();
 const bin = (packageDirectory, name) =>
@@ -85,9 +86,9 @@ async function waitForSite(child) {
   throw new Error('Timed out waiting for the owned Astro site.');
 }
 
-async function run(command, args, env) {
+async function run(command, args, env, cwd = process.cwd()) {
   return new Promise((resolve, reject) => {
-    const child = start(command, args, env);
+    const child = start(command, args, env, cwd);
     child.once('error', reject);
     child.once('exit', (code, signal) => {
       if (code === 0) resolve();
@@ -149,6 +150,15 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 }
 
 try {
+  await run(
+    bin('apps/local-server', 'tsx'),
+    ['tests/fixtures/prepare-catalog-pricing.ts', databaseFile],
+    {
+      ADMIN_EMAIL: 'admin@channel.local',
+      ADMIN_PASSWORD: 'admin',
+      TCB_ENV: '',
+    },
+  );
   const api = start(
     failStage === 'api' ? join(temporaryDirectory, 'missing-api') : bin('apps/local-server', 'tsx'),
     ['src/main.ts'],
@@ -160,15 +170,28 @@ try {
       LOCAL_READY_TOKEN: readyToken,
       ADMIN_EMAIL: 'admin@channel.local',
       ADMIN_PASSWORD: 'admin',
+      TCB_ENV: '',
+      ALI_APP_KEY: '',
+      ALI_APP_SECRET: '',
+      WECOM_WEBHOOK_URL: '',
     },
     join(process.cwd(), 'apps/local-server'),
   );
   const apiUrl = await waitForOwnedApi(api);
 
+  // Do not let a DEV-only island pass a deployment acceptance lane. Use a
+  // disposable build directory so a developer's running preview is untouched.
+  const siteEnvironment = { PUBLIC_API_BASE_URL: apiUrl, PUBLIC_CB_HOST: new URL(apiUrl).host };
+  await run(
+    bin('apps/site', 'astro'),
+    ['build', '--outDir', siteDirectory],
+    siteEnvironment,
+    join(process.cwd(), 'apps/site'),
+  );
   const site = start(
     failStage === 'site' ? join(temporaryDirectory, 'missing-site') : bin('apps/site', 'astro'),
-    ['dev', '--host', '127.0.0.1', '--port', '0'],
-    { PUBLIC_CB_HOST: new URL(apiUrl).host },
+    ['preview', '--outDir', siteDirectory, '--host', '127.0.0.1', '--port', '0'],
+    siteEnvironment,
     join(process.cwd(), 'apps/site'),
     true,
   );
@@ -183,12 +206,18 @@ try {
     E2E_CATALOG_LOCAL_SEED: '1',
     E2E_CATALOG_LOCAL_DB: databaseFile,
   };
+  await run(bin('.', 'playwright'), ['test', 'tests/e2e/font-loading.spec.ts'], e2eEnvironment);
   await run(
     bin('.', 'playwright'),
     ['test', 'tests/e2e/catalog-local-seed.spec.ts'],
     e2eEnvironment,
   );
   await run(bin('.', 'playwright'), ['test', 'tests/e2e/catalog-admin.spec.ts'], e2eEnvironment);
+  await run(
+    bin('.', 'playwright'),
+    ['test', 'tests/e2e/admin-product-form.spec.ts', 'tests/e2e/admin-product-family-tabs.spec.ts'],
+    e2eEnvironment,
+  );
 } finally {
   await cleanup();
 }

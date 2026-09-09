@@ -13,6 +13,7 @@
     "test": "tsc -p tsconfig.test.json --noEmit && tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "@hookform/resolvers": "5.9.1",
     "@astrojs/react": "^5.0.6",
     "@astrojs/sitemap": "^3.7.3",
     "@tailwindcss/vite": "^4.3.0",
@@ -22,7 +23,10 @@
     "astro": "^6.4.2",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "tailwindcss": "^4.3.0"
+    "react-hook-form": "7.87.0",
+    "react-aria-components": "1.21.1",
+    "tailwindcss": "^4.3.0",
+    "zod": "3.25.76"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.4",

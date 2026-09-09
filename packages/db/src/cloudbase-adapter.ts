@@ -1,7 +1,9 @@
 import * as cloudbase from '@cloudbase/node-sdk';
 import type { CloudBase } from '@cloudbase/node-sdk';
 import {
+  categorySyncBaseline,
   LEGACY_HEADPHONES_CATEGORY_OPTIONS,
+  PRODUCT_FAMILY_OPTIONS,
   type CollectionDoc,
   type FilterClause,
   type ListResult,
@@ -15,6 +17,12 @@ import {
  * load before the adapter is used.
  */
 import cloud from 'wx-server-sdk';
+import { InquiryCommandSchema } from '@vibelingan-channel/shared/catalog-inquiry';
+import { INQUIRY_COLLECTION, manageInquiryInCloud, saveQuoteInCloud } from './catalog-inquiry-cloud.ts';
+import { processCatalogInquiry } from './catalog-inquiry.ts';
+import { approveCatalogDetailInCloud } from './catalog-detail-commit.ts';
+import { persistStagedApprovalInCloud } from './catalog-detail-staging.ts';
+import { runCategoryCommand } from './category-transaction.ts';
 import type {
   AlibabaLeaseGrant,
   AlibabaLeaseGuard,
@@ -108,13 +116,13 @@ interface NodeSdkTransaction {
        * the installed @cloudbase/database 1.4.3 source and probed by
        * scripts/verify-cloudbase-sdk-contract.mjs.
        */
-      set(data: Record<string, unknown>): Promise<{ updated?: number }>;
+      set(data: Record<string, unknown>): Promise<{ updated?: number; upserted?: Array<{_id?:string}> }>;
       remove(): Promise<{ deleted?: number }>;
     };
   };
 }
 
-interface NodeSdkDatabase {
+export interface NodeSdkDatabase {
   command: { set(value: unknown): unknown };
   runTransaction<T>(operation: (transaction: NodeSdkTransaction) => Promise<T>): Promise<T>;
 }
@@ -284,7 +292,77 @@ export async function upsertCatalogSourceObservationInCloudBase(
   });
 }
 
+export async function manageCatalogCategoryInCloud(db: Pick<NodeSdkDatabase,'runTransaction'>, actorId:string, input:unknown, now=new Date().toISOString()) {
+  return db.runTransaction(async transaction => runCategoryCommand({
+    get: async (collection,id) => normalizeSingle((await transaction.collection(collection).doc(id).get()).data),
+    set: async (collection,row) => {
+      const {_id,...data}=row;
+      const result=await transaction.collection(collection).doc(_id).set(data);
+      // A new document is acknowledged by upserted, not necessarily updated=1.
+      if(result.updated!==1&&!result.upserted?.some(row=>row._id===_id))throw new Error('Classification write was not acknowledged');
+    },
+  },actorId,input,now));
+}
+
 export const cloudBaseAdapter: DbAdapter = {
+  async persistCatalogDetailApproval(actorId, input) {
+    return persistStagedApprovalInCloud(cloudStorageSdk().database(), actorId, input);
+  },
+  async approveCatalogDetail(actorId, input) {
+    return approveCatalogDetailInCloud(cloudStorageSdk().database(), actorId, input);
+  },
+  async manageCatalogCategory(actorId, input) {
+    return manageCatalogCategoryInCloud(cloudStorageSdk().database(),actorId,input);
+  },
+  async submitCatalogQuote(input) {
+    return saveQuoteInCloud(cloudStorageSdk().database(), input);
+  },
+  async manageCatalogInquiry(actorId, input) {
+    const parsed = InquiryCommandSchema.safeParse(input);
+    if (!parsed.success) return { ok: false, code: 'VALIDATION_ERROR' };
+    if (parsed.data.action !== 'list') {
+      return manageInquiryInCloud(cloudStorageSdk().database(), actorId, parsed.data);
+    }
+    const actor = await this.get('users', actorId);
+    if (!actor || actor.role !== 'admin' || actor.status === 'suspended') {
+      return { ok: false, code: 'FORBIDDEN' };
+    }
+    const command = parsed.data;
+    const filter = command.status
+      ? { combinator: 'and' as const, clauses: [{ field: 'status', op: 'eq' as const, value: command.status }] }
+      : undefined;
+    const rows = await this.list({
+      collection: INQUIRY_COLLECTION,
+      page: command.page,
+      pageSize: command.pageSize,
+      search: '',
+      ...(filter ? { filter } : {}),
+      sort: [
+        ...(!command.status ? [{ field: 'attentionRank', dir: 'asc' as const }] : []),
+        { field: 'createdAt', dir: 'desc' },
+        { field: '_id', dir: 'asc' },
+      ],
+    });
+    const pending = await database().collection(INQUIRY_COLLECTION).where({ status: 'new' }).count();
+    const latestActor = await this.get('users', actorId);
+    const result = processCatalogInquiry(
+      { users: latestActor ? [latestActor] : [], catalogQuoteRequests: rows.items },
+      actorId,
+      { ...command, page: 1 },
+    );
+    if (!result.result.ok || result.result.data.kind !== 'list') return result.result;
+    const newCount = pending.total;
+    if (
+      !Number.isSafeInteger(newCount) || typeof newCount !== 'number' || newCount < 0 ||
+      !Number.isSafeInteger(rows.total) || rows.total < 0
+    ) {
+      return { ok: false, code: 'INVALID_RECORD' };
+    }
+    return {
+      ok: true,
+      data: { ...result.result.data, total: rows.total, newCount, page: command.page },
+    };
+  },
   async list(query): Promise<ListResult<CollectionDoc>> {
     const db = database();
     const def = getCollection(query.collection);
@@ -292,6 +370,8 @@ export const cloudBaseAdapter: DbAdapter = {
     const _ = db.command;
 
     const ands: Record<string, unknown>[] = [];
+
+    if (query.needsClassification) ands.push(unclassifiedProductWhere(_));
 
     if (query.productFamily) {
       ands.push(
@@ -644,8 +724,10 @@ export const cloudBaseAdapter: DbAdapter = {
       const lease = normalizeSingle((await leaseRef.get()).data);
       if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
       const targetRef = transaction.collection(collection).doc(id);
-      if (!normalizeSingle((await targetRef.get()).data)) return false;
-      await targetRef.update(replaceNestedObjects({ ...patch, updatedAt: guard.now }, db.command));
+      const existing = normalizeSingle((await targetRef.get()).data);
+      if (!existing) return false;
+      const baseline = collection === 'products' ? categorySyncBaseline(existing, patch) : {};
+      await targetRef.update(replaceNestedObjects({ ...patch, ...baseline, updatedAt: guard.now }, db.command));
       return true;
     });
   },
@@ -748,7 +830,20 @@ function clauseToWhere(
         ]);
       }
       return { [field]: _.eq(value) };
+    case 'hasNoProductFamily':
+      return unclassifiedProductWhere(_);
     default:
       return null;
   }
+}
+
+/** Same legacy fallback boundary as productFamilyForDoc; applied before count/page. */
+export function unclassifiedProductWhere(_: Pick<WxCommand, 'and' | 'or' | 'exists' | 'nin'>): Record<string, unknown> {
+  return _.and([
+    { productFamily: _.nin([...PRODUCT_FAMILY_OPTIONS]) },
+    _.or([
+      { productFamily: _.exists(true) },
+      { category: _.nin([...LEGACY_HEADPHONES_CATEGORY_OPTIONS]) },
+    ]),
+  ]);
 }

@@ -1,9 +1,12 @@
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { EffectiveCatalogPricingBlock } from '../shop/EffectiveCatalogPricingBlock.tsx';
 import { formatPrice } from '../shop/api.ts';
+import { effectiveCatalogMoq } from '../shop/catalog-pricing.ts';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { decodeAlibabaSourceReview, formatAlibabaSourcePricing } from './alibaba-source-review.ts';
 import { getImagePreview } from './api.ts';
+import { adminCatalogPricingInput } from './product-pricing-editor.ts';
 
 interface Props {
   doc: CollectionDoc;
@@ -32,6 +35,8 @@ export function PreviewModal({
   const sourceImageUrls = alibabaSourcePreviewUrls(doc.alibabaSourceImageUrls);
   const sourceReview = decodeAlibabaSourceReview(doc.alibabaSourceReview);
   const published = doc.published === true;
+  const productPricing = adminCatalogPricingInput(doc);
+  const effectiveMoq = effectiveCatalogMoq({ ...productPricing, moq: doc.moq });
 
   // Only the ids actually rendered (cover + up to four thumbnails). Memoized on
   // the joined membership so the array reference is stable across renders — the
@@ -96,12 +101,9 @@ export function PreviewModal({
   );
   const num = (k: string) => (typeof doc[k] === 'number' ? (doc[k] as number) : undefined);
 
-  const priceRows = [
-    ['Unit price', num('unitPrice')],
-    ['Clearance price', num('clearancePrice')],
-    ['Wholesale price', num('wholesalePrice')],
-    ['VIP price', num('vipPrice')],
-  ].filter(([, v]) => v !== undefined) as [string, number][];
+  const priceRows = [['Clearance price', num('clearancePrice')]].filter(
+    ([, v]) => v !== undefined,
+  ) as [string, number][];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
@@ -211,43 +213,57 @@ export function PreviewModal({
               </p>
             )}
 
-            <dl className="mt-4 divide-y divide-slate-100 rounded-xl border border-slate-200 text-sm">
-              {sourceReview && (
-                <>
-                  <Row label="Alibaba product ID" value={sourceReview.externalProductId || '—'} />
-                  <Row
-                    label="Source category"
-                    value={sourceReview.sourceCategoryName ?? sourceReview.sourceCategoryId ?? '—'}
-                  />
-                  {sourceReview.modelNumbers.length > 0 && (
-                    <Row label="Source model" value={sourceReview.modelNumbers.join(', ')} />
-                  )}
-                  <Row
-                    label="Variants"
-                    value={`${sourceReview.variantCount} variants · ${sourceReview.offerCount} offers`}
-                  />
-                  {sourceReview.minimumOrderQuantity !== undefined && (
-                    <Row label="Source MOQ" value={String(sourceReview.minimumOrderQuantity)} />
-                  )}
-                  <Row
-                    label="Source pricing"
-                    value={formatAlibabaSourcePricing(sourceReview.primaryPricing)}
-                  />
-                  <Row label="Source status" value={sourceReview.sourceListingStatus} />
-                </>
+            <section
+              aria-label="Effective website pricing"
+              className="mt-4 rounded-xl border border-slate-200 p-4"
+            >
+              <h4 className="mb-2 text-sm font-semibold text-slate-900">Website pricing</h4>
+              <EffectiveCatalogPricingBlock product={productPricing} />
+              {effectiveMoq !== undefined && (
+                <p className="mt-2 text-sm">Minimum order quantity: {effectiveMoq}</p>
               )}
-              {Boolean(doc.modName) && <Row label="Model" value={String(doc.modName)} />}
-              {Boolean(doc.productCode) && (
-                <Row label="Product code" value={String(doc.productCode)} />
-              )}
-              {num('moq') !== undefined && <Row label="MOQ" value={String(num('moq'))} />}
-              {num('inventory') !== undefined && (
-                <Row label="Inventory" value={String(num('inventory'))} />
-              )}
-              {priceRows.map(([label, value]) => (
-                <Row key={label} label={label} value={formatPrice(value)} />
-              ))}
-            </dl>
+            </section>
+            <details className="mt-4 text-sm text-slate-600">
+              <summary>Source information and product facts</summary>
+              <dl className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200 text-sm">
+                {sourceReview && (
+                  <>
+                    <Row label="Alibaba product ID" value={sourceReview.externalProductId || '—'} />
+                    <Row
+                      label="Source category"
+                      value={
+                        sourceReview.sourceCategoryName ?? sourceReview.sourceCategoryId ?? '—'
+                      }
+                    />
+                    {sourceReview.modelNumbers.length > 0 && (
+                      <Row label="Source model" value={sourceReview.modelNumbers.join(', ')} />
+                    )}
+                    <Row
+                      label="Variants"
+                      value={`${sourceReview.variantCount} variants · ${sourceReview.offerCount} offers`}
+                    />
+                    {sourceReview.minimumOrderQuantity !== undefined && (
+                      <Row label="Source MOQ" value={String(sourceReview.minimumOrderQuantity)} />
+                    )}
+                    <Row
+                      label="Source pricing"
+                      value={formatAlibabaSourcePricing(sourceReview.primaryPricing)}
+                    />
+                    <Row label="Source status" value={sourceReview.sourceListingStatus} />
+                  </>
+                )}
+                {Boolean(doc.modName) && <Row label="Model" value={String(doc.modName)} />}
+                {Boolean(doc.productCode) && (
+                  <Row label="Product code" value={String(doc.productCode)} />
+                )}
+                {num('inventory') !== undefined && (
+                  <Row label="Inventory" value={String(num('inventory'))} />
+                )}
+                {priceRows.map(([label, value]) => (
+                  <Row key={label} label={label} value={formatPrice(value)} />
+                ))}
+              </dl>
+            </details>
           </div>
         </div>
 

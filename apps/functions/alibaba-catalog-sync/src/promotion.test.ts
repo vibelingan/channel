@@ -165,6 +165,12 @@ function setup(overrides: Partial<Store> = {}): Store {
         moq: 10,
         unitPrice: 12.5,
         wholesalePrice: 10,
+        catalogPricingMode: 'manual',
+        manualCatalogPricing: {
+          schemaVersion: 'manual-catalog-pricing-v1',
+          currency: 'USD',
+          tiers: [{ minQuantity: 10, unitAmountMinor: 310 }],
+        },
         vipPrice: 8,
         published: true,
         archived: false,
@@ -234,6 +240,24 @@ test('promotion materializes the primary offer through the fenced write, touchin
       published: true,
       archived: false,
     },
+  );
+});
+
+test('promotion reads offers beyond the first 100 rows and does not lose an operator pin', async () => {
+  setup({
+    alibabaSupplierOffers: Array.from({ length: 105 }, (_, index) =>
+      offerDoc(`offer-${String(index).padStart(3, '0')}`, SOURCE_KEY, `sku-${index}`, 500 + index),
+    ),
+  });
+  const product = store.products?.[0];
+  assert.ok(product);
+  product.alibabaPinnedOfferKey = 'offer-104';
+  const result = await promoteLinkedProduct({ sourceKey: SOURCE_KEY, guard: GUARD, now: NOW });
+  assert.equal(result.ok, true);
+  assert.equal(store.products?.[0]?.alibabaPrimaryOfferKey, 'offer-104');
+  assert.equal(
+    (store.products?.[0]?.alibabaCatalogPricing as { amountMinor: number }).amountMinor,
+    604,
   );
 });
 

@@ -159,16 +159,24 @@ const serializedSchemaGraph = JSON.stringify(schemaGraph).replaceAll('<', '\\u00
     <meta name="theme-color" content="#153687" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap"
-      rel="stylesheet"
-    />
     <title>{title}</title>
   </head>
   <body class="h-full antialiased">
     <slot />
 
     <script>
+      // Fonts enhance the existing system-font fallback, never gate page parsing,
+      // hydration or navigation when the external stylesheet host is unreachable.
+      const enhanceFonts = () => {
+        const stylesheet = document.createElement('link');
+        stylesheet.rel = 'stylesheet';
+        stylesheet.href =
+          'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap';
+        document.head.append(stylesheet);
+      };
+      if (document.readyState === 'complete') enhanceFonts();
+      else window.addEventListener('load', enhanceFonts, { once: true });
+
       // Only below-fold nodes are hidden after observer registration. Initial,
       // no-JS, reduced-motion, and observer-unavailable content stays visible.
       const els = document.querySelectorAll<HTMLElement>('.reveal');

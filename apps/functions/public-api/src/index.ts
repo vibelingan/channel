@@ -20,6 +20,7 @@ setAdapter(cloudBaseAdapter);
 setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 
 const config: PublicHttpConfig = {
+  enableInquiries: optionalEnv('CATALOG_RFQ_ENABLED') === '1',
   ...(optionalEnv('PUBLIC_API_BASE_URL') ? { apiBaseUrl: optionalEnv('PUBLIC_API_BASE_URL') } : {}),
   ...(optionalEnv('CORS_ALLOWED_ORIGINS')
     ? { corsAllowedOrigins: parseAllowedOrigins(optionalEnv('CORS_ALLOWED_ORIGINS')) }

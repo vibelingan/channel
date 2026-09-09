@@ -32,7 +32,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Relative reusable workflow uses this invocation's SHA. Neither push nor
+  # workflow_dispatch can reach deployment without the complete CI suite.
+  ci:
+    if: ${{ github.ref == 'refs/heads/test' }}
+    uses: ./.github/workflows/ci.yml
+
   deploy:
+    needs: ci
+    if: ${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' }}
     name: Build, deploy, and smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -58,6 +66,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -87,8 +97,20 @@ jobs:
       - name: Package CloudBase functions
         run: pnpm package:functions
 
-      - name: Smoke function artifacts
-        run: pnpm smoke:functions
+      - name: Set up deployed function runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+
+      - name: Smoke function artifacts on deployed runtime
+        env:
+          CHANNEL_EXPECTED_RELEASE: ${{ github.sha }}
+        run: node scripts/smoke-function-artifacts.mjs
+
+      - name: Restore site build runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
 
       - name: Build site
         run: pnpm build

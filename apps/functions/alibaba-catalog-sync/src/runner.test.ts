@@ -386,6 +386,27 @@ const ITEM_TIME = Date.parse('2026-08-06T10:00:00.000Z'); // inside the window
 
 // --- tests -------------------------------------------------------------------
 
+test('the first successful sync materializes source pricing on a new draft without waiting for another source update', async () => {
+  setup();
+  const backend = fakeBackend(() => [
+    { id: 'new-item', modifiedMs: ITEM_TIME, priceLexeme: '5.70' },
+  ]);
+  const report = await runSyncTick({ deps: makeDeps(backend.fetchImpl), trigger: 'manual' });
+  assert.equal(report.outcome, 'completed');
+  const product = store.products?.[0];
+  assert.ok(product);
+  assert.equal(product.published, false);
+  assert.equal(
+    product.unitPrice,
+    undefined,
+    'source price is not copied into website scalar price',
+  );
+  assert.equal(
+    (product.alibabaCatalogPricing as { amountMinor?: number } | undefined)?.amountMinor,
+    570,
+  );
+});
+
 test('incremental tick: enumerates the window, ingests, promotes linked, advances the cursor', async () => {
   setup();
   const sourceKey = alibabaSourceKey('primary', 'item-1');

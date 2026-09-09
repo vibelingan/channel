@@ -1,5 +1,38 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
+import { categorySyncBaseline } from './catalog-product.ts';
+
+test('supplier recategorization preserves website family and blocks republishing until review', () => {
+  assert.deepEqual(
+    categorySyncBaseline(
+      { productFamily: 'misc', alibabaSourceCategoryId: '152801' },
+      { alibabaSourceCategoryId: '518' },
+    ),
+    { alibabaClassifiedCategoryId: '152801' },
+  );
+  assert.deepEqual(
+    categorySyncBaseline(
+      {
+        productFamily: 'misc',
+        alibabaClassifiedCategoryId: '152801',
+        alibabaSourceCategoryId: '518',
+      },
+      { alibabaSourceCategoryId: '518' },
+    ),
+    {},
+  );
+  assert.ok(
+    validateProductPublication({
+      name: 'Clock',
+      description: 'Description',
+      imageIds: ['img'],
+      published: true,
+      productFamily: 'misc',
+      alibabaClassifiedCategoryId: '152801',
+      alibabaSourceCategoryId: '518',
+    }).some((issue) => issue.field === 'productFamily'),
+  );
+});
 import { buildWriteSchema, getCollection } from './collections.ts';
 import {
   PRODUCT_FAMILY_OPTIONS,
@@ -203,4 +236,29 @@ test('internal family filter applies legacy fallback and rejects malformed value
   assert.equal(matchesFilter({ _id: 'legacy', category: 'wired' }, filter('headphones')), true);
   assert.equal(matchesFilter({ _id: 'wrong', category: 'unknown' }, filter('headphones')), false);
   assert.equal(matchesFilter({ _id: 'malformed', productFamily: 'toys' }, filter('garden')), false);
+});
+
+test('unclassified queue includes empty/invalid families but preserves absent-only legacy fallback', () => {
+  const filter = {
+    combinator: 'and' as const,
+    clauses: [{ field: 'productFamily', op: 'hasNoProductFamily' as const }],
+  };
+  for (const doc of [
+    {},
+    { category: 'unknown' },
+    { productFamily: '' },
+    { productFamily: null, category: 'wired' },
+    { productFamily: 'garden' },
+  ]) {
+    assert.equal(matchesFilter(doc, filter), true);
+  }
+  for (const doc of [
+    { category: 'office' },
+    { category: 'wired' },
+    { category: 'bluetooth' },
+    ...['headphones', 'ai-gadgets', 'toys', 'misc'].map((productFamily) => ({ productFamily })),
+  ]) {
+    assert.equal(matchesFilter(doc, filter), false);
+  }
+  assert.equal((FILTER_OPERATORS as readonly string[]).includes('hasNoProductFamily'), false);
 });

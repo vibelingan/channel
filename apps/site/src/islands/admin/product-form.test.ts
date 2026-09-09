@@ -125,7 +125,7 @@ test('product form renders sections, primary image semantics, and read-only Alib
   assert.match(markup, /Identity|Content|Media|Pricing &amp; Order|Lifecycle/);
   assert.match(markup, /Primary/);
   assert.match(markup, /Alibaba Source|available|2026-08-20/);
-  assert.match(markup, /Import primary image/);
+  assert.match(markup, /Import source gallery/);
   assert.match(markup, /referrerpolicy="no-referrer"/i);
   assert.doesNotMatch(markup, /VIP Price/);
   assert.doesNotMatch(markup, /Subcategory/);
@@ -139,10 +139,48 @@ test('product form renders sections, primary image semantics, and read-only Alib
 });
 
 test('subcategory renders only for Headphones products', () => {
-  assert.match(renderForm(products, { productFamily: 'headphones' }), /Subcategory/);
+  assert.match(
+    renderForm(products, { productFamily: 'headphones' }),
+    /Headphone type \(optional\)/,
+  );
   for (const productFamily of ['ai-gadgets', 'toys', 'misc']) {
     assert.doesNotMatch(renderForm(products, { productFamily }), /Subcategory/);
   }
+});
+
+test('edit shows the full synchronized source quote without populating manual price inputs', () => {
+  const markup = renderForm(products, {
+    productFamily: 'headphones',
+    alibabaPrimarySourceKey: 'linked',
+    alibabaSourceReview: {
+      schemaVersion: 'alibaba-source-review-v1',
+      provider: 'alibaba',
+      externalProductId: 'source',
+      sourceListingStatus: 'published',
+      variantCount: 3,
+      offerCount: 3,
+      modelNumbers: [],
+      optionNames: [],
+      minimumOrderQuantity: 2,
+      primaryPricing: {
+        mode: 'tiered',
+        currency: 'USD',
+        minimumOrderQuantity: 2,
+        tiers: [
+          { minimumQuantity: 2, maximumQuantity: 499, unitAmountMinor: 570 },
+          { minimumQuantity: 500, maximumQuantity: 999, unitAmountMinor: 500 },
+          { minimumQuantity: 1000, unitAmountMinor: 380 },
+        ],
+      },
+    },
+  });
+  assert.match(markup, /Synced source quote/);
+  assert.match(markup, /2–499/);
+  assert.match(markup, /500–999/);
+  assert.match(markup, /USD 5\.70/);
+  assert.match(markup, /USD 3\.80/);
+  assert.doesNotMatch(markup, /id="unitPrice"[^>]*value="5\.7"/);
+  assert.match(markup, /Website main category/);
 });
 
 test('coercion preserves image order and cannot submit hidden VIP values', () => {

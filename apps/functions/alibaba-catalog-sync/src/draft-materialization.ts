@@ -9,7 +9,7 @@
  * without repeating 1,074 provider detail calls.
  */
 import { list } from '@vibelingan-channel/db';
-import { createDraftForSource } from './linking.ts';
+import { createAlibabaCategoryResolver, createDraftForSource } from './linking.ts';
 
 export const DRAFT_MATERIALIZATION_PAGE_MAX = 20;
 
@@ -64,8 +64,9 @@ export async function materializeAlibabaDraftPage(
   let existing = 0;
   const failures: DraftMaterializationFailure[] = [];
   const now = input.now ?? (() => new Date().toISOString());
+  const resolveCategory = createAlibabaCategoryResolver();
   for (const source of page.items) {
-    const result = await createDraftForSource(source._id, { now: now() });
+    const result = await createDraftForSource(source._id, { now: now(), resolveCategory });
     if (!result.ok) {
       failures.push({ sourceKey: source._id, reason: result.reason });
     } else if (result.created) {

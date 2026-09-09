@@ -15,6 +15,7 @@ import type {
   SortClause,
 } from '@vibelingan-channel/shared';
 import {
+  isProductFamily,
   normalizeProductSlug,
   normalizeSkuCode,
   validateProductPublication,
@@ -24,6 +25,7 @@ import {
 export interface AdapterListQuery {
   collection: string;
   productFamily?: ProductFamily;
+  needsClassification?: boolean;
   page: number;
   pageSize: number;
   search: string;
@@ -114,7 +116,7 @@ export function planCatalogProductSave(
   if (input.mode === 'create' && existing) return { result: 'exists' };
   if (input.mode === 'update' && !existing) return { result: 'missing' };
   const { _id, ...inputData } = input.data as Record<string, unknown> & { _id?: unknown };
-  const data =
+  const data: Record<string, unknown> =
     input.mode === 'create'
       ? { published: false, archived: false, ...inputData }
       : { ...inputData };
@@ -130,6 +132,13 @@ export function planCatalogProductSave(
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   } as CollectionDoc;
+  if (
+    Object.hasOwn(data, 'productFamily') &&
+    isProductFamily(data.productFamily) &&
+    typeof doc.alibabaSourceCategoryId === 'string'
+  ) {
+    doc.alibabaClassifiedCategoryId = doc.alibabaSourceCategoryId;
+  }
   // `category` is the legacy Headphones subcategory. Historical rows may carry a
   // stale value after moving to another family. Clear it in the transaction on the
   // next write so unrelated edits stay possible and no caller must know old storage
@@ -373,6 +382,23 @@ export function holdsAlibabaLease(
 }
 
 export interface DbAdapter {
+  persistCatalogDetailApproval?(
+    actorId: string,
+    input: import('./catalog-detail-staging.ts').ApprovalPersistenceCommand,
+  ): Promise<import('./catalog-detail-staging.ts').ApprovalStageResult>;
+  manageCatalogCategory?(
+    actorId: string,
+    input: unknown,
+  ): Promise<import('./category-transaction.ts').CategoryResult>;
+  approveCatalogDetail?(
+    actorId: string,
+    input: unknown,
+  ): Promise<import('./catalog-detail-commit.ts').CatalogApprovalResult>;
+  submitCatalogQuote?(input: unknown): Promise<import('./catalog-quote.ts').QuoteSaveResult>;
+  manageCatalogInquiry?(
+    actorId: string,
+    input: unknown,
+  ): Promise<import('@vibelingan-channel/shared/catalog-inquiry').InquiryResult>;
   list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>>;
   get(collection: string, id: string): Promise<CollectionDoc | null>;
   /** Find the first document where `field` exactly equals `value`. */

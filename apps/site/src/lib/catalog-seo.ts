@@ -1,5 +1,5 @@
 import { type ProductFamily, isProductFamily } from '@vibelingan-channel/shared';
-import { publicManualPrice, validMinorAmount } from '../islands/shop/catalog-pricing.ts';
+import { effectiveCatalogPricing, validMinorAmount } from '../islands/shop/catalog-pricing.ts';
 import type { Product } from '../islands/shop/catalog-types.ts';
 
 export interface CatalogBreadcrumb {
@@ -13,7 +13,7 @@ const FAMILY_LABELS: Record<ProductFamily, string> = {
   headphones: 'Headphones',
   'ai-gadgets': 'AI Gadgets',
   toys: 'Toys',
-  misc: 'Other Electronics & Toys',
+  misc: 'Misc',
 };
 
 const FAMILY_PATHS: Record<ProductFamily, string> = {
@@ -84,8 +84,10 @@ function realOffer(product: Product, origin: string | URL): CatalogSchemaNode | 
     `/products/item/?slug=${encodeURIComponent(product.slug?.trim() ?? '')}`,
     origin,
   );
-  if (product.alibabaPrimarySourceKey) {
-    const pricing = product.alibabaCatalogPricing;
+  const decision = effectiveCatalogPricing(product);
+  if (decision.source === 'alibaba') {
+    const pricing = decision.pricing;
+    if (pricing.state !== 'available') return null;
     if (!pricing?.currency) return null;
     if (pricing.mode === 'range') {
       if (
@@ -111,17 +113,17 @@ function realOffer(product: Product, origin: string | URL): CatalogSchemaNode | 
       url,
     };
   }
-  if (product.manualCatalogPricing) {
-    const amounts = product.manualCatalogPricing.tiers.map((tier) => tier.unitAmountMinor);
+  if (decision.source === 'manual-tiered') {
+    const amounts = decision.pricing.tiers.map((tier) => tier.unitAmountMinor);
     return {
       '@type': 'AggregateOffer',
-      priceCurrency: product.manualCatalogPricing.currency,
+      priceCurrency: decision.pricing.currency,
       lowPrice: (Math.min(...amounts) / 100).toFixed(2),
       highPrice: (Math.max(...amounts) / 100).toFixed(2),
       url,
     };
   }
-  const amount = publicManualPrice(product);
+  const amount = decision.source === 'scalar' ? decision.amount : undefined;
   if (amount === undefined) return null;
   return { '@type': 'Offer', priceCurrency: 'USD', price: amount.toFixed(2), url };
 }

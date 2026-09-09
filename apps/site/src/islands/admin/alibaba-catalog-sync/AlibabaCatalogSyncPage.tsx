@@ -9,6 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { listRecords } from '../api.ts';
+import { AlibabaCategoryAssignment } from './AlibabaCategoryAssignment.tsx';
 import { AlibabaConnectionPanel } from './AlibabaConnectionPanel.tsx';
 import { AlibabaDraftMaterialization } from './AlibabaDraftMaterialization.tsx';
 import { AlibabaObservationReplay } from './AlibabaObservationReplay.tsx';
@@ -27,6 +28,7 @@ import {
   inspectProductDetail,
   linkSourceProduct,
   materializeAlibabaDrafts,
+  repairAlibabaSourcePricing,
   runSyncToTerminal,
   startOAuthFlow,
   syncProduct,
@@ -80,6 +82,7 @@ export function AlibabaCatalogSyncPage() {
     typeof window === 'undefined' ? null : callbackNotice(window.location.search),
   );
   const [linkResult, setLinkResult] = useState<string | null>(null);
+  const [pricingRepairProgress, setPricingRepairProgress] = useState<string | null>(null);
   const [detailInspection, setDetailInspection] = useState<ProductDetailInspectionSummary | null>(
     null,
   );
@@ -147,6 +150,12 @@ export function AlibabaCatalogSyncPage() {
 
   return (
     <div data-alibaba-sync-page className="space-y-4">
+      <AlibabaCategoryAssignment
+        onApplied={() => {
+          refreshProductReviewQueue();
+          void queryClient.invalidateQueries({ queryKey: ['list', 'products'] });
+        }}
+      />
       <AlibabaConnectionPanel
         status={status}
         loading={loading}
@@ -220,6 +229,49 @@ export function AlibabaCatalogSyncPage() {
           });
         }}
       />
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="font-semibold text-slate-900">Repair missing source quotes</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Rebuild missing website source-quote fields from successfully synchronized data. No
+          Alibaba API calls, no automatic publication, and no changes to manual prices, images or
+          website categories. Existing source quotes are not overwritten.
+        </p>
+        <button
+          type="button"
+          disabled={busy}
+          className="mt-3 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
+          onClick={() => {
+            if (
+              confirm(
+                'Repair missing source-quote fields from completed syncs? This also restores source quotes on already published products. Manual website prices are unchanged.',
+              )
+            ) {
+              void guard(async () => {
+                setPricingRepairProgress('Checking synchronized products…');
+                try {
+                  const result = await repairAlibabaSourcePricing(setPricingRepairProgress);
+                  setPricingRepairProgress(result);
+                  refreshProductReviewQueue();
+                  return result;
+                } catch (error) {
+                  setPricingRepairProgress(
+                    error instanceof Error ? error.message : 'Repair stopped.',
+                  );
+                  refreshProductReviewQueue();
+                  throw error;
+                }
+              });
+            }
+          }}
+        >
+          Repair missing quotes
+        </button>
+        {pricingRepairProgress && (
+          <output className="mt-3 block break-words text-sm text-slate-700">
+            {pricingRepairProgress}
+          </output>
+        )}
+      </section>
       <AlibabaObservationReplay
         connected={status?.status === 'active'}
         busy={busy}

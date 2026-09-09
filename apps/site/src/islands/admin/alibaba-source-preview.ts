@@ -23,6 +23,7 @@ export function alibabaSourcePreviewUrls(value: unknown, limit = 5): string[] {
       ) {
         continue;
       }
+      if (out.includes(url.toString())) continue;
       out.push(url.toString());
       if (out.length >= targetLimit) break;
     } catch {

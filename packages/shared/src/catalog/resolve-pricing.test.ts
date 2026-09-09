@@ -77,7 +77,7 @@ test('malformed manual and scalar values fail over only within the unlinked chai
   });
 });
 
-test('linked inputs delegate first and return Alibaba unavailable without inspecting fallbacks', () => {
+test('explicit source mode ignores retained manual prices without inspecting them', () => {
   const calls: Array<{ link: unknown; provider: unknown }> = [];
   const adapter: AlibabaPricingAdapter = {
     resolve(link, provider) {
@@ -94,6 +94,7 @@ test('linked inputs delegate first and return Alibaba unavailable without inspec
     },
   );
   const product = {
+    catalogPricingMode: 'source',
     alibabaPrimarySourceKey: 'linked',
     alibabaCatalogPricing: undefined,
     manualCatalogPricing,
@@ -108,7 +109,7 @@ test('linked inputs delegate first and return Alibaba unavailable without inspec
   assert.deepEqual(calls, [{ link: 'linked', provider: undefined }]);
 });
 
-test('present but malformed link identity remains Alibaba-owned and never falls back', () => {
+test('manual intervention wins even when the source link is malformed', () => {
   let calls = 0;
   const adapter: AlibabaPricingAdapter = {
     resolve() {
@@ -121,12 +122,46 @@ test('present but malformed link identity remains Alibaba-owned and never falls 
       { alibabaPrimarySourceKey: '', manualCatalogPricing: manualPricing, wholesalePrice: 1 },
       adapter,
     ),
-    {
-      source: 'alibaba',
-      pricing: { source: 'alibaba', state: 'unavailable', mode: 'unavailable' },
-    },
+    { source: 'manual-tiered', pricing: manualPricing },
   );
-  assert.equal(calls, 1);
+  assert.equal(calls, 0);
+});
+
+test('linked products prefer valid manual pricing and only inherit source when absent', () => {
+  const adapter: AlibabaPricingAdapter = {
+    resolve: () => ({ source: 'alibaba', state: 'quote', mode: 'negotiable' }),
+  };
+  const linked = { alibabaPrimarySourceKey: 'linked' };
+  assert.equal(
+    resolveCatalogPricing({ ...linked, manualCatalogPricing: manualPricing }, adapter).source,
+    'manual-tiered',
+  );
+  assert.deepEqual(resolveCatalogPricing({ ...linked, wholesalePrice: 0 }, adapter), {
+    source: 'scalar',
+    field: 'wholesalePrice',
+    amount: 0,
+    currency: 'USD',
+  });
+  for (const empty of [undefined, null, '', 'invalid', {}, []]) {
+    assert.equal(
+      resolveCatalogPricing({ ...linked, manualCatalogPricing: empty }, adapter).source,
+      'alibaba',
+    );
+    assert.deepEqual(
+      resolveCatalogPricing(
+        { ...linked, catalogPricingMode: 'manual', manualCatalogPricing: empty },
+        adapter,
+      ),
+      { source: 'quote-required' },
+    );
+  }
+  assert.deepEqual(
+    resolveCatalogPricing({ ...linked, catalogPricingMode: 'typo', unitPrice: 3 }, adapter),
+    { source: 'quote-required' },
+  );
+  assert.deepEqual(resolveCatalogPricing({ catalogPricingMode: 'source', unitPrice: 3 }, adapter), {
+    source: 'quote-required',
+  });
 });
 
 test('manual-tier decisions do not alias input arrays or tier objects', () => {

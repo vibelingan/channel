@@ -25,7 +25,6 @@ import {
   setMediaStorage,
 } from '@vibelingan-channel/media-storage';
 import {
-  type ApiResult,
   CATALOG_IMAGE_MAX_BYTES,
   type CollectionDoc,
   LOGIN_RATE_MAX_PER_SOURCE,
@@ -41,7 +40,12 @@ import {
   matchesFilter,
   ok,
 } from '@vibelingan-channel/shared';
-import { type AdminConfig, type RequestContext, handleAdminRequest } from './handler.ts';
+import {
+  type AdminConfig,
+  type AdminResult,
+  type RequestContext,
+  handleAdminRequest,
+} from './handler.ts';
 
 type Store = Record<string, CollectionDoc[]>;
 
@@ -55,6 +59,14 @@ class MemoryAdapter implements DbAdapter {
   async list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>> {
     this.listQueries.push(query);
     let docs = [...(this.store[query.collection] ?? [])];
+    if (query.needsClassification) {
+      docs = docs.filter((doc) =>
+        matchesFilter(doc, {
+          combinator: 'and',
+          clauses: [{ field: 'productFamily', op: 'hasNoProductFamily' }],
+        }),
+      );
+    }
     if (query.productFamily) {
       docs = docs.filter((doc) =>
         matchesFilter(doc, {
@@ -263,10 +275,53 @@ function sessionToken(claims: SessionClaims): Promise<string> {
   return signSession('test-secret', claims);
 }
 
-function expectErr(result: ApiResult<unknown>, code: string): void {
+function expectErr(result: AdminResult, code: string): void {
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.error.code, code);
 }
+
+test('inquiry cloud actions are opt-in, admin-only and unavailable to generic CRUD', async () => {
+  const store = setup();
+  const token = await adminToken();
+  assert.deepEqual(
+    await handleAdminRequest({ action: 'inquiryCapabilities', token }, config),
+    ok({ enabled: false, notification: 'disabled' }),
+  );
+  expectErr(
+    await handleAdminRequest({ action: 'inquiry', token, data: { action: 'list' } }, config),
+    'FORBIDDEN',
+  );
+  const enabled = { ...config, enableInquiries: true };
+  expectErr(
+    await handleAdminRequest({ action: 'inquiry', data: { action: 'list' } }, enabled),
+    'UNAUTHORIZED',
+  );
+  expectErr(
+    await handleAdminRequest(
+      { action: 'inquiry', token, data: { note: 'x'.repeat(16385) } },
+      enabled,
+    ),
+    'VALIDATION_ERROR',
+  );
+  expectErr(
+    await handleAdminRequest(
+      { action: 'list', token, data: { collection: 'catalogQuoteRequests' } },
+      enabled,
+    ),
+    'UNKNOWN_COLLECTION',
+  );
+  const actor = store.users?.[0];
+  assert.ok(actor);
+  actor.role = 'member';
+  expectErr(
+    await handleAdminRequest({ action: 'inquiryCapabilities', token }, enabled),
+    'FORBIDDEN',
+  );
+  expectErr(
+    await handleAdminRequest({ action: 'inquiry', token, data: { action: 'list' } }, enabled),
+    'FORBIDDEN',
+  );
+});
 
 test('incrementField atomically adjusts a numeric field; null for a missing doc', async () => {
   const store = setup({
@@ -527,7 +582,7 @@ const validOemIntent = {
 };
 
 /** Extract the `data` payload of a successful ApiResult (asserts ok first). */
-function okData<T = Record<string, unknown>>(res: ApiResult<unknown>): T {
+function okData<T = Record<string, unknown>>(res: AdminResult): T {
   assert.equal(res.ok, true);
   if (!res.ok) throw new Error('unreachable');
   return res.data as T;
@@ -632,6 +687,42 @@ test('manual tier pricing can be explicitly cleared only on product update', asy
   );
   assert.equal(cleared.manualCatalogPricing, '');
   assert.equal(store.products?.[0]?.manualCatalogPricing, '');
+});
+
+test('pricing policy persists, rejects unknown modes, and source restoration retains manual values', async () => {
+  const store = setup({
+    users: [],
+    products: [
+      {
+        _id: 'price-policy',
+        name: 'Linked item',
+        productFamily: 'headphones',
+        alibabaPrimarySourceKey: 'linked',
+        published: false,
+        archived: false,
+      },
+    ],
+  });
+  const token = await adminToken();
+  const updatePrice = (values: Record<string, unknown>) =>
+    call('update', { collection: 'products', id: 'price-policy', values }, token);
+  expectErr(await updatePrice({ catalogPricingMode: 'typo' }), 'VALIDATION_ERROR');
+  expectErr(await updatePrice({ catalogPricingMode: 'manual' }), 'VALIDATION_ERROR');
+  assert.equal(store.products?.[0]?.catalogPricingMode, undefined);
+  const pricing = {
+    schemaVersion: 'manual-catalog-pricing-v1',
+    currency: 'USD',
+    tiers: [{ minQuantity: 1000, unitAmountMinor: 310 }],
+  };
+  const manual = okData<CollectionDoc>(
+    await updatePrice({ catalogPricingMode: 'manual', manualCatalogPricing: pricing }),
+  );
+  assert.equal(manual.catalogPricingMode, 'manual');
+  assert.deepEqual(manual.manualCatalogPricing, pricing);
+  const restored = okData<CollectionDoc>(await updatePrice({ catalogPricingMode: 'source' }));
+  assert.equal(restored.catalogPricingMode, 'source');
+  assert.deepEqual(restored.manualCatalogPricing, pricing);
+  assert.deepEqual(store.products?.[0]?.manualCatalogPricing, pricing);
 });
 
 test('product review queue is admin-only, counted by family, and pending-first by default', async () => {
@@ -2373,6 +2464,63 @@ test('list rejects unknown families and family filters on non-product collection
   expectErr(
     await call('list', { collection: 'users', productFamily: 'toys' }, token),
     'BAD_REQUEST',
+  );
+});
+
+test('unclassified queue is paginated server-side, excludes legacy headphones, and rejects contradictory scopes', async () => {
+  setup({
+    products: [
+      { _id: 'unmapped-a', name: 'Desk Clock', published: false },
+      { _id: 'unmapped-b', name: 'Wall Clock', published: false },
+      { _id: 'legacy', name: 'Headset', category: 'office' },
+      { _id: 'mapped', name: 'Toy Clock', productFamily: 'toys' },
+      { _id: 'invalid', name: 'Invalid Clock', productFamily: null, category: 'office' },
+    ],
+  });
+  const token = await adminToken();
+  const query = {
+    collection: 'products',
+    needsClassification: true,
+    pageSize: 1,
+    sort: [{ field: '_id', dir: 'asc' }],
+  };
+  const result = okData<{ items: CollectionDoc[]; total: number }>(
+    await call('list', { ...query, page: 2 }, token),
+  );
+  assert.equal(result.total, 3);
+  assert.deepEqual(
+    result.items.map((row) => row._id),
+    ['unmapped-a'],
+  );
+  const filtered = okData<{ items: CollectionDoc[]; total: number }>(
+    await call(
+      'list',
+      {
+        ...query,
+        filter: {
+          combinator: 'or',
+          clauses: [
+            { field: 'name', op: 'contains', value: 'Desk' },
+            { field: 'name', op: 'contains', value: 'Toy' },
+          ],
+        },
+      },
+      token,
+    ),
+  );
+  assert.equal(filtered.total, 1);
+  assert.equal(filtered.items[0]?._id, 'unmapped-a');
+  expectErr(await call('list', { ...query, productFamily: 'headphones' }, token), 'BAD_REQUEST');
+  expectErr(await call('list', { ...query, collection: 'users' }, token), 'BAD_REQUEST');
+  expectErr(await call('list', { ...query, needsClassification: 'true' }, token), 'BAD_REQUEST');
+  expectErr(await call('list', query, ''), 'UNAUTHORIZED');
+  expectErr(
+    await call(
+      'create',
+      { collection: 'products', values: { name: 'Invalid', productFamily: 'unclassified' } },
+      token,
+    ),
+    'VALIDATION_ERROR',
   );
 });
 

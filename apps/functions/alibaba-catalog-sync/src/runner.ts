@@ -49,7 +49,7 @@ import {
 import type { AlertSender } from './alerts.ts';
 import { isAlibabaProductId } from './detail-inspection.ts';
 import { ingestProductDetail } from './ingest.ts';
-import { createDraftForSource } from './linking.ts';
+import { createAlibabaCategoryResolver, createDraftForSource } from './linking.ts';
 import { listAllDocs } from './list-all.ts';
 import { PRIMARY_CONNECTION_ID } from './oauth.ts';
 import { promoteLinkedProduct } from './promotion.ts';
@@ -680,8 +680,8 @@ async function executeSlice(
     // Sources with no link yet. Drafts for these are created AFTER the
     // quarantine gate — createDraftForSource writes `products` rows, and this
     // stage's whole contract is that no product write happens before the gate
-    // (module docstring, ARCHITECTURE §12). They become candidates on the NEXT
-    // run, once their links exist, so this run's candidate hash stays stable.
+    // (module docstring, ARCHITECTURE §12). Freeze this set before the gate;
+    // after a clean gate new drafts receive pricing in this same run.
     const unlinkedSources: string[] = [];
     // How many linked candidates actually CHANGED. Counting every linked
     // source seen would trip the §12 candidate-surge guard on every real full
@@ -774,17 +774,33 @@ async function executeSlice(
     // Drafts are created only AFTER the quarantine gate has passed: they write
     // `products` rows, and this stage's contract is that no product write
     // precedes the gate. A run whose mirror is untrustworthy must not leave
-    // drafts behind that no approval path would ever roll back. The new links
-    // become ordinary candidates on the next run, so this run's frozen
-    // candidate hash stays exactly what the approval path recomputes.
+    // drafts behind that no approval path would ever roll back. Pricing must
+    // be promoted immediately after creation: a future incremental window may
+    // never see an unchanged source again. Quarantined runs exit above without
+    // creating a link or changing their frozen approval candidate hash.
     let draftFailures = 0;
+    const resolveCategory = createAlibabaCategoryResolver();
     for (const sourceKey of unlinkedSources) {
       // Runs to completion for the same reason as the walk above: breaking
       // here and then falling through to completeRun would advance
       // committedCursor past sources that never got a draft.
       if (!(await keepLease())) return { outcome: 'lease-lost', runId: state.activeRunId };
-      const draft = await createDraftForSource(sourceKey, { now: deps.now() });
-      if (!draft.ok) draftFailures += 1;
+      const draft = await createDraftForSource(sourceKey, { now: deps.now(), resolveCategory });
+      if (!draft.ok) {
+        draftFailures += 1;
+        continue;
+      }
+      if (!(await keepLease())) return { outcome: 'lease-lost', runId: state.activeRunId };
+      const promoted = await promoteLinkedProduct({
+        sourceKey,
+        guard: guard(deps.now()),
+        now: deps.now(),
+      });
+      if (!promoted.ok) {
+        if (promoted.reason === 'fence-rejected')
+          return { outcome: 'lease-lost', runId: state.activeRunId };
+        draftFailures += 1;
+      }
     }
     if (draftFailures > 0) {
       await deps.alert(

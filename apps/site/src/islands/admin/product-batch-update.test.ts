@@ -2,6 +2,34 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { batchUpdateRecords } from './api.ts';
 
+test('selected products can be assigned a main category without a publication patch', async (t) => {
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    assert.equal(body.action, 'update');
+    assert.deepEqual(body.data.values, { productFamily: 'misc' });
+    return Response.json({
+      ok: true,
+      data: { _id: body.data.id, productFamily: 'misc', published: false },
+    });
+  });
+  const result = await batchUpdateRecords('products', ['one', 'two'], { productFamily: 'misc' });
+  assert.equal(result.updated, 2);
+  assert.deepEqual(result.failures, []);
+});
+
+test('category batches reject unknown categories and mixed changes before network', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => {
+    throw new Error('Must not send');
+  });
+  for (const values of [
+    { productFamily: 'wired' },
+    { productFamily: '' },
+    { productFamily: 'toys', published: true },
+  ]) {
+    await assert.rejects(batchUpdateRecords('products', ['one'], values), /up to 20/);
+  }
+});
+
 test('product batch publishes through individual updates and retains each business rejection', async (t) => {
   const requests: unknown[] = [];
   t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {

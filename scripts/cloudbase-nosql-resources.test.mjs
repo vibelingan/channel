@@ -52,6 +52,65 @@ function listedIndex(index) {
   };
 }
 
+test('staged approvals are private and immutable snapshot paging has a declared deployment index', () => {
+  const job = REQUIRED_NOSQL_RESOURCES.find((r) => r.collectionName === 'catalogDetailApprovals');
+  const variants = REQUIRED_NOSQL_RESOURCES.find(
+    (r) => r.collectionName === 'catalogDetailVariants',
+  );
+  assert.equal(job?.permission, 'ADMINONLY');
+  assert.equal(variants?.permission, 'ADMINONLY');
+  assert.deepEqual(
+    variants?.indexes.map((index) => index.MgoKeySchema.MgoIndexKeys),
+    [
+      [
+        { Name: 'productId', Direction: '1' },
+        { Name: 'catalogDetailRevision', Direction: '1' },
+        { Name: 'catalogDetailPosition', Direction: '1' },
+        { Name: '_id', Direction: '1' },
+      ],
+    ],
+  );
+});
+
+test('legacy product reads require the private variants collection even before an import runs', () => {
+  const resource = REQUIRED_NOSQL_RESOURCES.find((r) => r.collectionName === 'productVariants');
+  assert.ok(resource, 'attachVariants queries this collection for every non-empty product page');
+  assert.equal(resource.permission, 'ADMINONLY');
+  assert.deepEqual(
+    resource.indexes.map((i) => i.MgoKeySchema.MgoIndexKeys),
+    [
+      [
+        { Name: 'productId', Direction: '1' },
+        { Name: 'position', Direction: '1' },
+      ],
+    ],
+  );
+});
+
+test('inquiry records and durable caps are private; queue indexes match adapter sort', () => {
+  const requests = REQUIRED_NOSQL_RESOURCES.find(
+    (r) => r.collectionName === 'catalogQuoteRequests',
+  );
+  const limits = REQUIRED_NOSQL_RESOURCES.find((r) => r.collectionName === 'catalogInquiryLimits');
+  assert.equal(requests?.permission, 'ADMINONLY');
+  assert.equal(limits?.permission, 'ADMINONLY');
+  assert.deepEqual(
+    requests?.indexes.map((i) => i.MgoKeySchema.MgoIndexKeys),
+    [
+      [
+        { Name: 'attentionRank', Direction: '1' },
+        { Name: 'createdAt', Direction: '-1' },
+        { Name: '_id', Direction: '1' },
+      ],
+      [
+        { Name: 'status', Direction: '1' },
+        { Name: 'createdAt', Direction: '-1' },
+        { Name: '_id', Direction: '1' },
+      ],
+    ],
+  );
+});
+
 test('rateLimitHits declares every index used by the public endpoint limiter', () => {
   const resource = REQUIRED_NOSQL_RESOURCES.find(
     (candidate) => candidate.collectionName === 'rateLimitHits',
@@ -201,9 +260,9 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
 
   // Anchor: a silent registry change must fail here, not slip through the
   // derived expectations below (2 auth/abuse + 3 catalog + 10 alibaba collections).
-  // 18 after adding the canonical product review-queue indexes.
+  // 23: previous 21 plus private staged approval jobs and immutable SKU copies.
   // This count is deliberate: a new collection must be a conscious change.
-  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 18);
+  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 23);
   assert.equal(collections.size, REQUIRED_NOSQL_RESOURCES.length);
   assert.equal(
     [...indexesByCollection.values()].reduce((total, indexes) => total + indexes.size, 0),

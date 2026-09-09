@@ -4,18 +4,22 @@ import {
   type FieldDef,
   LEGACY_HEADPHONES_CATEGORY_OPTIONS,
   type ProductFamily,
+  needsCategoryReview,
 } from '@vibelingan-channel/shared';
 import { useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { ImageManager } from './ImageManager.tsx';
+import { ProductPricingEditor } from './ProductPricingEditor.tsx';
 import { QuantityTierPricingEditor } from './QuantityTierPricingEditor.tsx';
 import {
   importAlibabaSourceImage,
   removeAlibabaImportedImage,
 } from './alibaba-catalog-sync/alibaba-api.ts';
+import { importAlibabaGallery } from './alibaba-gallery-import.ts';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { AdminApiError } from './api.ts';
+import { ADMIN_PRODUCT_FAMILY_LABELS } from './product-family-tabs.ts';
 
 interface RecordFormProps {
   collection: CollectionDef;
@@ -41,7 +45,7 @@ const PRODUCT_SECTION_FIELDS = [
   { heading: 'Media', fields: ['imageIds'] },
   {
     heading: 'Pricing & Order',
-    fields: ['moq', 'unitPrice', 'wholesalePrice', 'manualCatalogPricing'],
+    fields: ['catalogPricingMode', 'moq', 'unitPrice', 'wholesalePrice', 'manualCatalogPricing'],
   },
   { heading: 'Lifecycle', fields: ['published', 'archived'] },
 ] as const;
@@ -65,7 +69,10 @@ export function productReadOnlyFields(
 ): Array<{ label: string; value: string }> {
   if (collection.name !== 'products' || !initial) return [];
   return collection.fields
-    .filter((field) => field.readOnly && field.name.startsWith('alibaba'))
+    .filter(
+      (field) =>
+        field.readOnly && field.name.startsWith('alibaba') && field.name !== 'alibabaSourceReview',
+    )
     .flatMap((field) => {
       const value = initial[field.name];
       return value === undefined || value === null || value === ''
@@ -186,14 +193,14 @@ export function RecordForm({
     }
   }
 
-  const sourcePreviewUrl = alibabaSourcePreviewUrls(initial?.alibabaSourceImageUrls, 1)[0];
+  const sourcePreviewUrls = alibabaSourcePreviewUrls(initial?.alibabaSourceImageUrls, 9);
+  const sourcePreviewUrl = sourcePreviewUrls[0];
 
-  async function importPrimarySourceImage() {
+  async function importSourceGallery() {
     if (!sourcePreviewUrl || sourceImageBusy) return;
     setSourceImageBusy(true);
     setSourceImageNotice('');
     try {
-      const imported = await importAlibabaSourceImage(sourcePreviewUrl);
       let currentIds: string[] = [];
       try {
         const parsed: unknown = JSON.parse(String(state.imageIds || '[]'));
@@ -203,15 +210,26 @@ export function RecordForm({
       } catch {
         currentIds = [];
       }
-      if (!currentIds.includes(imported.imageId)) {
-        setField('imageIds', JSON.stringify([...currentIds, imported.imageId]));
-      }
-      if (!imported.deduplicated) {
-        setNewSourceImageIds((ids) =>
-          ids.includes(imported.imageId) ? ids : [...ids, imported.imageId],
-        );
-      }
-      setSourceImageNotice('Alibaba primary image imported. Save to attach it to this draft.');
+      const result = await importAlibabaGallery({
+        sourceUrls: sourcePreviewUrls,
+        imageIds: currentIds,
+        importImage: importAlibabaSourceImage,
+        onProgress: (ids) => setField('imageIds', JSON.stringify(ids)),
+      });
+      setNewSourceImageIds((ids) => [...new Set([...ids, ...result.createdIds])]);
+      setSourceImageNotice(
+        [
+          `${result.imageIds.length - currentIds.length} images added. Save to attach them to this product.`,
+          ...result.failures.map(
+            (failure) => `Source image ${failure.position}: ${failure.message}`,
+          ),
+          ...(result.remaining
+            ? [
+                `${result.remaining} source images not imported${result.imageIds.length >= 9 ? ': the 9-image limit is reached' : ': the import stopped; check the error before retrying'}.`,
+              ]
+            : []),
+        ].join(' '),
+      );
     } catch (importError) {
       setSourceImageNotice(
         importError instanceof Error ? importError.message : 'Alibaba image import failed.',
@@ -238,12 +256,12 @@ export function RecordForm({
     <dialog
       open
       aria-labelledby="record-form-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+      className="fixed inset-0 z-50 m-0 flex h-dvh w-screen max-w-none items-center justify-center bg-slate-900/40 p-4"
     >
       <form
         method="post"
         onSubmit={handleSubmit}
-        className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl bg-white p-6 shadow-xl"
+        className="max-h-[90dvh] min-w-0 w-full max-w-lg overflow-auto rounded-2xl bg-white p-6 shadow-xl"
       >
         <h2 id="record-form-title" className="text-lg font-semibold text-slate-900">
           {title}
@@ -254,24 +272,39 @@ export function RecordForm({
             {sections.map((section) => (
               <fieldset
                 key={section.heading}
-                className="space-y-4 border-t border-slate-200 pt-4 first:border-t-0 first:pt-0"
+                disabled={sourceImageBusy}
+                className="min-w-0 space-y-4 border-t border-slate-200 pt-4 first:border-t-0 first:pt-0"
               >
                 <legend className="font-semibold text-slate-900">{section.heading}</legend>
-                {section.fields.map((field) =>
-                  field.name === 'category' && state.productFamily !== 'headphones' ? null : (
-                    <Field
-                      key={field.name}
-                      field={field}
-                      value={state[field.name]}
-                      error={fieldErrors[field.name]}
-                      onBusyChange={field.name === 'imageIds' ? setImageBusy : undefined}
-                      onValidityChange={
-                        field.name === 'manualCatalogPricing' ? setPricingInvalid : undefined
-                      }
-                      onChange={(value) => setField(field.name, value)}
-                    />
-                  ),
+                {section.heading === 'Pricing & Order' && (
+                  <ProductPricingEditor
+                    initial={initial}
+                    state={state}
+                    error={fieldErrors.manualCatalogPricing}
+                    onChange={(patch) => setState((current) => ({ ...current, ...patch }))}
+                    onValidityChange={setPricingInvalid}
+                  />
                 )}
+                {section.heading !== 'Pricing & Order' &&
+                  section.fields.map((field) =>
+                    field.name === 'category' && state.productFamily !== 'headphones' ? null : (
+                      <Field
+                        key={field.name}
+                        field={
+                          field.name === 'category'
+                            ? { ...field, label: 'Headphone type (optional)' }
+                            : field
+                        }
+                        value={state[field.name]}
+                        error={fieldErrors[field.name]}
+                        onBusyChange={field.name === 'imageIds' ? setImageBusy : undefined}
+                        onValidityChange={
+                          field.name === 'manualCatalogPricing' ? setPricingInvalid : undefined
+                        }
+                        onChange={(value) => setField(field.name, value)}
+                      />
+                    ),
+                  )}
                 {section.heading === 'Media' && sourcePreviewUrl && (
                   <div className="rounded-lg border border-dashed border-slate-300 p-3">
                     <div className="flex items-center gap-3">
@@ -282,14 +315,16 @@ export function RecordForm({
                         className="h-12 w-12 rounded-md object-cover"
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs text-slate-500">Alibaba source preview</p>
+                        <p className="text-xs text-slate-500">
+                          Alibaba source gallery · {sourcePreviewUrls.length} images
+                        </p>
                         <button
                           type="button"
                           disabled={sourceImageBusy || imageBusy}
-                          onClick={() => void importPrimarySourceImage()}
+                          onClick={() => void importSourceGallery()}
                           className="mt-1 text-sm font-medium text-brand-700 hover:text-brand-900 disabled:opacity-50"
                         >
-                          {sourceImageBusy ? 'Importing…' : 'Import primary image'}
+                          {sourceImageBusy ? 'Importing…' : 'Import source gallery'}
                         </button>
                       </div>
                     </div>
@@ -302,6 +337,15 @@ export function RecordForm({
                 )}
               </fieldset>
             ))}
+            {initial && needsCategoryReview(initial) && (
+              <p
+                role="alert"
+                className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+              >
+                Alibaba changed this product’s source category. Confirm the website Product Family
+                above and save before publishing. Synchronization has kept your existing assignment.
+              </p>
+            )}
             {readOnlyFields.length > 0 && (
               <section
                 aria-labelledby="alibaba-source-heading"
@@ -462,8 +506,15 @@ function Field({
     return (
       <Select
         id={field.name}
-        label={field.label}
-        options={field.options ?? []}
+        label={field.name === 'productFamily' ? 'Website main category' : field.label}
+        options={
+          field.name === 'productFamily'
+            ? Object.entries(ADMIN_PRODUCT_FAMILY_LABELS).map(([value, label]) => ({
+                value,
+                label,
+              }))
+            : (field.options ?? [])
+        }
         value={String(value)}
         placeholder="Select…"
         required={field.required}
@@ -545,6 +596,14 @@ export function coerceValues(
     if (field.readOnly || field.hideInForm) continue;
     const raw = state[field.name];
 
+    // Restoring inheritance changes policy only, not the retained manual record.
+    if (
+      collection.name === 'products' &&
+      state.catalogPricingMode === 'source' &&
+      ['manualCatalogPricing', 'unitPrice', 'wholesalePrice', 'moq'].includes(field.name)
+    )
+      continue;
+
     if (
       collection.name === 'products' &&
       field.name === 'category' &&
@@ -582,7 +641,7 @@ export function coerceValues(
 
     if (field.type === 'number') {
       const num = Number(str);
-      if (Number.isNaN(num)) throw new Error(`${field.label} must be a number`);
+      if (!Number.isFinite(num)) throw new Error(`${field.label} must be a finite number`);
       values[field.name] = num;
     } else if (field.type === 'json') {
       try {

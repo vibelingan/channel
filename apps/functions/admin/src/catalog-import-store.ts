@@ -37,7 +37,7 @@ import {
   upsertCatalogSourceObservation,
   upsertDocWithId,
 } from '@vibelingan-channel/db';
-import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { type CollectionDoc, isProductFamily } from '@vibelingan-channel/shared';
 
 export const IMPORT_JOBS = 'catalogImportJobs';
 export const IMPORT_ITEMS = 'catalogImportItems';
@@ -718,7 +718,7 @@ export async function resolveCategoryMapping(
   const page = await list({
     collection: CATEGORY_MAPPINGS,
     page: 1,
-    pageSize: 1,
+    pageSize: 2,
     filter: {
       combinator: 'and',
       clauses: [
@@ -729,9 +729,9 @@ export async function resolveCategoryMapping(
     },
   });
   const mapping = page.items[0];
-  if (mapping === undefined) return null;
+  if (mapping === undefined || page.total !== 1 || mapping.reviewRequired === true) return null;
   const productFamily = mapping.productFamily;
-  if (typeof productFamily !== 'string' || productFamily === '') return null;
+  if (!isProductFamily(productFamily)) return null;
   const channelCategory = mapping.channelCategory;
   return {
     productFamily,

@@ -157,6 +157,7 @@ const PUBLIC_CATALOG_FIELDS = [
   'clearancePrice',
   'published',
   'manualCatalogPricing',
+  'catalogPricingMode',
   // Alibaba-linked catalog fields (docs/alibaba-linked-catalog-sync, MIU 9).
   // Ungated by design: anonymous and authenticated callers receive IDENTICAL
   // Alibaba pricing (never in GATED_CATALOG_FIELDS). alibabaPrimaryOfferKey

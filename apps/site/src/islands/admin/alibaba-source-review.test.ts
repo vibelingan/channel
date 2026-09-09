@@ -64,12 +64,16 @@ test('product review cells use canonical values first and source evidence only a
   assert.equal(productReviewCellValue(doc, 'identity'), 'AAEHBBhgAOVTpOKZBnRePx0I');
   assert.equal(productReviewCellValue(doc, 'model'), 'SY-T11');
   assert.equal(productReviewCellValue(doc, 'variants'), '3 variants · 3 offers');
-  assert.equal(productReviewCellValue(doc, 'moq'), '2');
+  assert.equal(productReviewCellValue(doc, 'moq'), '—');
   assert.equal(productReviewCellValue(doc, 'category'), 'Consumer Electronics > Headphones');
-  assert.equal(productReviewCellValue(doc, 'pricing'), 'USD 3.80–5.70 / unit · tiered from 2');
+  assert.equal(productReviewCellValue(doc, 'pricing'), 'Request a quote');
   assert.equal(
     productReviewCellValue({ ...doc, skuCode: 'HP-100', moq: 50 }, 'identity'),
     'HP-100',
   );
-  assert.equal(productReviewCellValue({ ...doc, moq: 50 }, 'moq'), '50');
+  assert.equal(productReviewCellValue({ ...doc, moq: 50, unitPrice: 3.1 }, 'moq'), '50');
+  assert.equal(
+    productReviewCellValue({ ...doc, unitPrice: 3.1, wholesalePrice: 2.9 }, 'pricing'),
+    '$2.90',
+  );
 });

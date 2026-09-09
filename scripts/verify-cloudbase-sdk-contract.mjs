@@ -241,6 +241,8 @@ requireCheck(
       if (api === 'database.startTransaction') return { transactionId: 'lease-probe-tx' };
       if (api === 'database.getDocument') return { requestId: 'r', data: { list: [] } };
       if (api === 'database.modifyDocument') {
+        if (params?.query?.includes('approval-new'))
+          return { requestId: 'r', data: { updated: 0, upsert_id: 'approval-new' } };
         return { requestId: 'r', data: { updated: 1, upsert_id: 'conn-1' } };
       }
       if (api === 'database.removeDocument') {
@@ -344,6 +346,19 @@ requireCheck(
             'database.commitTransaction',
           ]),
       '@cloudbase/database retries the complete catalog callback and commits only the winning attempt',
+    );
+    const inserted = await probeDb.runTransaction((transaction) =>
+      transaction
+        .collection('catalogDetailApprovals')
+        .doc('approval-new')
+        .set({ state: 'staging' }),
+    );
+    requireCheck(
+      inserted.updated === 0 &&
+        Array.isArray(inserted.upserted) &&
+        inserted.upserted.length === 1 &&
+        inserted.upserted[0]?._id === 'approval-new',
+      '@cloudbase/database acknowledges a new staged approval with upserted identity, not updated=1',
     );
   } finally {
     databaseModule.Db.reqClass = originalReqClass;

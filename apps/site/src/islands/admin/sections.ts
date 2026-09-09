@@ -21,7 +21,7 @@ export interface DashboardSection {
    */
   catalog?: boolean;
   /** Custom page id: renders a dedicated component instead of CollectionView. */
-  custom?: 'alibaba-sync' | 'catalog-import';
+  custom?: 'alibaba-sync' | 'catalog-import' | 'product-inquiries';
 }
 
 export const DASHBOARD_SECTIONS: readonly DashboardSection[] = [

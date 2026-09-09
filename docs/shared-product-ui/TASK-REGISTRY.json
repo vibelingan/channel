@@ -1,0 +1,627 @@
+{
+  "schemaVersion": "shared-product-ui-plan-v1",
+  "date": "2026-09-09",
+  "status": "client-acceptance-fixes-local-formal-ui-integration-and-ci-release-pending",
+  "clientAcceptanceRepair": {
+    "document": "CLIENT-CLOSEOUT-2026-09-09.md",
+    "baseline": "fix/alibaba-sync-storage-wiring@0094048",
+    "localImplemented": [
+      "CA-01 safe selected publication",
+      "CA-02 selected website main category",
+      "CA-03 source gallery",
+      "CA-04 source quote display and missing projection repair",
+      "complete SKU offer pagination",
+      "CA-07 persistent manual/source price policy and one effective editor/preview/public/SEO price",
+      "non-blocking external font enhancement",
+      "mandatory built-site disposable-DB browser tests in same-SHA CI prerequisite"
+    ],
+    "remaining": [
+      "CA-05 canonical producer/approval and formal detail/RFQ route",
+      "CA-06 dependency-closed exact-SHA CI/CD release and live acceptance"
+    ],
+    "pricePolicy": "confirmed: manual intervention wins; opening/saving unrelated fields creates no override; restoring source preserves manual settings",
+    "browserAcceptance": "2026-09-09: 15 production-build Chromium cases passed (7 real local page/API cases, 8 controlled HTTP edge cases); not cloud acceptance",
+    "newLiveWrites": false,
+    "deployment": "not-performed; do not present local preview or function-only release as new frontend delivery"
+  },
+  "stagedApprovalProgress": {
+    "document": "CUI-09B2-STAGED-SNAPSHOTS-2026-09-09.md",
+    "status": "persistence-workflow-and-read-compatibility-tested-local-producer-and-ui-pending",
+    "verification": "1454 tests passed, 0 failed/skipped; types/lint/SDK/packaged offline smoke passed; 15 production-build Chromium regression cases passed; no ordinary-route new-UI/live acceptance claim",
+    "implemented": [
+      "20-SKU immutable snapshot pages and atomic pointer switch",
+      "actor-bound server-read review/begin/page/finish handler with rollout gate disabled",
+      "local durable resume and failure rollback",
+      "public and RFQ old/new storage compatibility with canonical IDs",
+      "private resource/index preflight and real SDK upsert acknowledgement probe"
+    ],
+    "releaseBlockers": [
+      "cloud source candidate producer and canonical bindings",
+      "owned media mapping and approved-reference lifecycle",
+      "manual price semantics in common approved detail",
+      "ordinary-route new UI and full buyer-to-admin browser journey"
+    ],
+    "deployment": "not-performed; user authorized release only after dependency closure and CI/CD"
+  },
+  "categoryRemediation": {
+    "document": "CATEGORY-IMPLEMENTATION-2026-09-08.md",
+    "priority": "P0-launch-blocker",
+    "missingAlibabaSourceCategoryIds": 0,
+    "proposedRules": 62,
+    "proposedMixedCategoryProductDecisions": 19,
+    "businessPolicyApproved": true,
+    "approvedDefaultRules": 28,
+    "mixedManualRules": 2,
+    "approvedProductExceptions": 18,
+    "deferredUntouchedProductsAtAudit": 56,
+    "exclusionAuthorized": false,
+    "localCompleted": [
+      "CAT-01 queue",
+      "CAT-02 approved rules and bounded product exceptions",
+      "CAT-03 admin preview and transactional idempotent batch",
+      "CAT-04 sync ownership, mixed category gate and recategorization publication check"
+    ],
+    "next": "Review the scoped dependency closure and CI/CD release; then fresh online preview, guarded apply and recount. No direct deploy. No exclusion operations on the 56 deferred items. 09B/RFQ remain separate pending work.",
+    "cloudReadAudit": {
+      "products": 1081,
+      "headphones": 720,
+      "toys": 3,
+      "unclassifiedDrafts": 358,
+      "unclassifiedSourceCategories": 62
+    },
+    "cloudWrites": false,
+    "latestCloudRead": "2026-09-08 blocked by AUTH_REQUIRED; cloudReadAudit is the dated 2026-09-07 audit, not a current count"
+  },
+  "releaseHold": {
+    "date": "2026-09-07",
+    "reason": "User authorized local verification and CI gate repair; release separability must be determined from actual dependencies. Buyer RFQ is coupled to approved snapshots and formal detail/submit wiring.",
+    "policy": "Finish and verify the scoped local release, commit current workstream, pass PR CI, integrate test, deploy code/resources/config/frontend through CI/CD only.",
+    "nextAction": "Classification approved scope is implemented locally. Review dependency closure, commit, CI and CI/CD-only release, then guarded online apply and recount. 09B.2/09C/09D remain required later. No direct deployment or cloud test writes.",
+    "cloudFlags": { "admin": "0", "public-api": "0" }
+  },
+  "dependencySemantics": "Task dependencies below gate local implementation only. Live cloud acceptance is a release gate, never a prerequisite to finishing local development.",
+  "releaseUnit": {
+    "decision": "keep-buyer-rfq-together",
+    "evidence": "CUI-06E-LOCAL-VALIDATION-AND-RELEASE-GATE-2026-09-07.md",
+    "localPrerequisites": ["CUI-06E", "CUI-07", "CUI-08"],
+    "remainingProductionWiring": [
+      "approved canonical product and variant snapshots with explicit approval",
+      "formal detail route and API gate",
+      "formal quote transport",
+      "resource/config/migration preflight and legacy compatibility"
+    ],
+    "postCiCdAcceptance": "CUI-06D live persistence and admin processing, gateway/permission/transaction validation, before RFQ activation",
+    "independentDeferred": ["email", "orders/payments/invoices", "Excel worker activation"]
+  },
+  "latestUserReview": {
+    "document": "CUI-06D-ACCEPTANCE-AND-ROLLOUT-2026-09-07.md",
+    "browserScroll": "native-window-session-repaired-and-verified",
+    "workflowExtension": "approved-implemented-local-verified",
+    "cloudRfq": "deployed-gated-off-live-persistence-acceptance-pending",
+    "cloudRelease": "cui06d-60b051b-20260907-r2",
+    "cloudTarget": "diversity-123-d9grnqfux221323bb-serves-supplychainsai.com",
+    "deploymentScope": "existing-admin-and-public-api-only-no-static-frontend",
+    "resumeAfterWorkflow": ["CUI-07", "CUI-08"]
+  },
+  "designRevision": {
+    "status": "user-accepted-with-heading-followup-implemented",
+    "document": "CUI-04-DESIGN-REVIEW-2026-09-06.md",
+    "pauseBefore": "CUI-07",
+    "reason": "User accepted revised visuals and requested explicit heading data plus next phase. Heading followup and CUI-05 are implemented locally.",
+    "completedOrder": [
+      "R1 responsive gallery and CTA",
+      "R2 shared structured content contract",
+      "R3 content presentation and two-provider browser acceptance"
+    ],
+    "acceptance": "CUI-05-LOCAL-ACCEPTANCE-2026-09-06.md",
+    "userAuthorization": "按照修改的方案改一版我看看",
+    "implementationAuthorizedByThisDocument": false
+  },
+  "executionAuthorization": "User approved CUI-06D implementation and conditionally permitted updating existing admin/public-api after testing without disturbing existing features; mail off, no product publication. This document itself grants no deployment authority.",
+  "implementationAuthorizedByThisDocument": false,
+  "baseline": {
+    "branch": "fix/alibaba-sync-storage-wiring",
+    "commit": "60b051b",
+    "UI01": "4cd6344",
+    "UI02": "60b051b",
+    "refactorReference": "03b5f1742ccc7176b5cfedb8d122457a779ff671"
+  },
+  "activeReservations": [],
+  "productionCopyCleanup": {
+    "scope": "presentation-only-no-route-or-backend-activation",
+    "design": "DESIGN-2026-09-06.md#8-真正云端运行的位置",
+    "default": "customer-facing-copy",
+    "localPreview": "explicit-context-at-dev-entry-only",
+    "preserved": [
+      "receipt-reference",
+      "business-warnings",
+      "version-conflict-protection",
+      "duplicate-configuration-identity"
+    ]
+  },
+  "executionPolicy": "Solo sequential MIUs. Latest user scope overrides archived instructions. Recheck files and dependencies before activation. No automatic dispatch or deployment.",
+  "tasks": [
+    {
+      "id": "CUI-09B.1",
+      "title": "Atomic approval persistence boundary with reviewed-state CAS",
+      "status": "completed-local",
+      "dependsOn": ["CUI-09A"],
+      "files": [
+        "packages/db/src/catalog-detail-commit.ts",
+        "packages/db/src/catalog-detail-commit.test.ts",
+        "packages/db/src/adapter.ts",
+        "packages/db/src/index.ts",
+        "packages/db/src/cloudbase-adapter.ts",
+        "packages/db/package.json",
+        "apps/local-server/src/json-adapter.ts",
+        "apps/local-server/src/catalog-detail-workspace.ts",
+        "apps/local-server/src/catalog-detail-workspace.test.ts"
+      ],
+      "detail": "CUI-09B-ATOMIC-APPROVAL-2026-09-07.md",
+      "scope": "atomic-backend-primitive-no-http-route-or-cloud-activation",
+      "testStatus": "12-transaction-tests-and-17-workspace-tests-passed-types-lint-sdk-gate-passed",
+      "acceptance": "CUI-09B-ATOMIC-APPROVAL-2026-09-07.md"
+    },
+    {
+      "id": "CUI-09A",
+      "title": "Shared approval preflight before any snapshot writes",
+      "status": "completed-local",
+      "dependsOn": ["CUI-08"],
+      "files": [
+        "packages/shared/src/catalog/detail-approval.ts",
+        "packages/shared/src/catalog/detail-approval.test.ts",
+        "packages/shared/package.json",
+        "apps/local-server/src/catalog-detail-workspace.ts",
+        "apps/local-server/src/catalog-detail-workspace.test.ts"
+      ],
+      "detail": "CUI-09A-APPROVAL-PREFLIGHT-2026-09-07.md",
+      "scope": "pure-shared-policy-and-local-only-writer",
+      "testStatus": "117-tests-node22-passed-full-workspace-types-and-lint-passed",
+      "acceptance": "CUI-09A-APPROVAL-PREFLIGHT-2026-09-07.md"
+    },
+    {
+      "id": "CUI-01",
+      "title": "Strict detail gateway and revision pages",
+      "status": "completed-local",
+      "dependsOn": [],
+      "files": [
+        "apps/site/src/catalog/infrastructure/catalog-detail-api.ts",
+        "apps/site/src/catalog/infrastructure/catalog-detail-api.test.ts",
+        "apps/site/src/catalog/application/catalog-detail-pages.ts",
+        "apps/site/src/catalog/application/catalog-detail-pages.test.ts",
+        "apps/site/src/catalog/detail-limits.ts",
+        "apps/site/src/catalog/testing/detail-fixture.ts",
+        "apps/site/src/catalog/testing/detail-http-probe.ts",
+        "apps/local-server/src/catalog-detail-workspace.test.ts"
+      ],
+      "detail": "MIU-PLAN-2026-09-06.md",
+      "scope": "local-only",
+      "testStatus": "passed-local",
+      "acceptance": "CUI-01-02-LOCAL-ACCEPTANCE-2026-09-06.md"
+    },
+    {
+      "id": "CUI-02",
+      "title": "Canonical variant and request state",
+      "status": "completed-local",
+      "dependsOn": ["CUI-01"],
+      "files": [
+        "apps/site/src/catalog/application/catalog-product-detail-state.ts",
+        "apps/site/src/catalog/application/catalog-product-detail-state.test.ts",
+        "apps/site/src/catalog/application/catalog-variant-state.ts",
+        "apps/site/src/catalog/application/catalog-variant-state.test.ts"
+      ],
+      "detail": "MIU-PLAN-2026-09-06.md",
+      "scope": "local-only",
+      "testStatus": "passed-local",
+      "acceptance": "CUI-01-02-LOCAL-ACCEPTANCE-2026-09-06.md"
+    },
+    {
+      "id": "CUI-03",
+      "title": "One media owner and Gallery seam",
+      "status": "completed-local",
+      "dependsOn": ["CUI-02"],
+      "files": [
+        "apps/site/src/catalog/application/catalog-media.ts",
+        "apps/site/src/catalog/application/catalog-media.test.ts",
+        "apps/site/src/catalog/application/catalog-variant-media.ts",
+        "apps/site/src/catalog/application/catalog-variant-media.test.ts",
+        "apps/site/src/islands/shop/Gallery.tsx",
+        "apps/site/src/islands/shop/ProductMedia.tsx",
+        "apps/site/src/islands/shop/product-media.test.ts",
+        "apps/site/src/catalog/testing/gallery-browser-harness.tsx"
+      ],
+      "detail": "MIU-PLAN-2026-09-06.md",
+      "scope": "local-only",
+      "testStatus": "passed-local-unit-and-chromium",
+      "acceptance": "CUI-03-LOCAL-ACCEPTANCE-2026-09-06.md"
+    },
+    {
+      "id": "CUI-04",
+      "title": "First visible real-data detail",
+      "status": "completed-local",
+      "dependsOn": ["CUI-03"],
+      "files": [
+        "apps/site/src/catalog/presentation/CatalogDetail.tsx",
+        "apps/site/src/catalog/presentation/CatalogVariantSelector.tsx",
+        "apps/site/src/catalog/presentation/CatalogSkuDisclosure.tsx",
+        "apps/site/src/catalog/presentation/CatalogSpecifications.tsx",
+        "apps/site/src/catalog/presentation/catalog-detail-render.test.ts",
+        "apps/site/src/catalog/application/CatalogDetailController.tsx",
+        "apps/site/src/islands/shop/SharedDetailPreview.tsx",
+        "apps/site/src/islands/shop/shared-detail-preview-target.ts",
+        "apps/site/src/pages/products/item.astro",
+        "apps/local-server/src/catalog-detail-preview-seed.ts",
+        "apps/local-server/src/catalog-detail-cli.ts",
+        "tests/e2e/shared-detail-preview.spec.ts",
+        "apps/site/src/islands/shop/SkuDetailPage.tsx",
+        "apps/site/src/islands/shop/shared-detail-preview.test.ts",
+        "apps/site/src/i18n/catalog.ts",
+        "apps/site/src/i18n/content/catalog/en-US.md"
+      ],
+      "detail": "MIU-PLAN-2026-09-06.md",
+      "scope": "local-only",
+      "testStatus": "passed-local-unit-integration-chromium-and-production-exclusion",
+      "acceptance": "CUI-04-LOCAL-ACCEPTANCE-2026-09-06.md",
+      "revisionAcceptance": "CUI-04-REVISION-ACCEPTANCE-2026-09-06.md"
+    },
+    {
+      "id": "CUI-05",
+      "title": "Quantity and source quote conditions",
+      "status": "completed-local",
+      "dependsOn": ["CUI-04"],
+      "files": [
+        "apps/site/src/catalog/application/catalog-offer-view.ts",
+        "apps/site/src/catalog/application/catalog-offer-view.test.ts",
+        "apps/site/src/catalog/application/catalog-quantity-state.ts",
+        "apps/site/src/catalog/application/catalog-quantity-state.test.ts",
+        "apps/site/src/catalog/presentation/CatalogQuoteConditions.tsx",
+        "apps/site/src/catalog/presentation/CatalogDetail.tsx",
+        "apps/site/src/catalog/application/CatalogDetailController.tsx",
+        "apps/site/src/i18n/catalog.ts",
+        "apps/site/src/i18n/content/catalog/en-US.md"
+      ],
+      "detail": "MIU-PLAN-2026-09-06.md",
+      "scope": "local-only",
+      "testStatus": "see-local-acceptance",
+      "acceptance": "CUI-05-LOCAL-ACCEPTANCE-2026-09-06.md"
+    },
+    {
+      "id": "CUI-06",
+      "title": "Local contextual RFQ review",
+      "status": "completed-local",
+      "dependsOn": ["CUI-05"],
+      "files": [
+        "apps/site/src/catalog/application/catalog-quote-draft.ts",
+        "apps/site/src/catalog/application/catalog-quote-draft.test.ts",
+        "apps/site/src/catalog/presentation/CatalogQuoteSheet.tsx",
+        "apps/site/src/catalog/presentation/CatalogQuotePanel.tsx",
+        "apps/site/src/catalog/presentation/CatalogQuoteConditions.tsx",
+        "apps/site/src/catalog/presentation/CatalogDetail.tsx",
+        "packages/shared/src/catalog/quote-draft.ts",
+        "packages/shared/src/catalog/quote-draft.test.ts",
+        "packages/shared/package.json",
+        "tests/e2e/shared-detail-preview.spec.ts",
+        "apps/site/src/catalog/presentation/catalog-quote-sheet.test.ts",
+        "apps/site/src/catalog/application/CatalogDetailController.tsx",
+        "apps/site/src/i18n/catalog.ts",
+        "apps/site/src/i18n/content/catalog/en-US.md",
+        "apps/site/package.json",
+        "pnpm-lock.yaml"
+      ],
+      "detail": "MIU-PLAN-2026-09-06.md",
+      "scope": "local-only",
+      "testStatus": "see-local-acceptance",
+      "acceptance": "CUI-06-LOCAL-ACCEPTANCE-2026-09-06.md"
+    },
+    {
+      "id": "CUI-06B",
+      "title": "Country picker and isolated local inquiry persistence",
+      "status": "completed-local",
+      "dependsOn": ["CUI-06"],
+      "files": [
+        "packages/shared/src/countries.ts",
+        "packages/shared/src/catalog/quote-draft.ts",
+        "apps/site/src/components/form/CountryPicker.tsx",
+        "apps/site/src/catalog/application/catalog-quote-transport.ts",
+        "apps/site/src/catalog/application/local-quote-transport.ts",
+        "apps/site/src/catalog/presentation/CatalogQuoteSheet.tsx",
+        "apps/local-server/src/json-adapter.ts",
+        "apps/local-server/src/catalog-quote-routes.ts",
+        "apps/local-server/src/catalog-quote.test.ts"
+      ],
+      "detail": "MIU-PLAN-2026-09-06.md",
+      "scope": "local-only",
+      "testStatus": "passed-local",
+      "acceptance": "CUI-06B-LOCAL-ACCEPTANCE-2026-09-07.md"
+    },
+    {
+      "id": "CUI-06C",
+      "title": "Authenticated local product inquiry processing and print",
+      "status": "completed-local",
+      "dependsOn": ["CUI-06B"],
+      "files": [
+        "packages/shared/src/catalog/inquiry.ts",
+        "apps/local-server/src/catalog-inquiry-store.ts",
+        "apps/local-server/src/catalog-inquiry-routes.ts",
+        "apps/local-server/src/catalog-inquiry-bootstrap.ts",
+        "apps/local-server/src/catalog-inquiry.test.ts",
+        "apps/local-server/src/catalog-inquiry-routes.test.ts",
+        "apps/site/src/islands/admin/inquiries/ProductInquiriesPage.tsx",
+        "apps/site/src/islands/admin/inquiries/InquiryDetailPanel.tsx",
+        "apps/site/src/islands/admin/inquiries/InquirySummary.tsx",
+        "apps/site/src/islands/admin/inquiries/inquiry-api.ts",
+        "apps/site/src/islands/admin/inquiries/inquiry-envelope.ts",
+        "apps/site/src/islands/admin/inquiries/inquiry-envelope.test.ts",
+        "apps/site/src/islands/admin/inquiries/inquiry-render.test.ts",
+        "apps/site/src/islands/admin/DashboardShell.tsx",
+        "apps/site/src/islands/admin/sections.ts",
+        "apps/local-server/src/json-adapter.ts",
+        "apps/local-server/src/catalog-detail-cli.ts",
+        "apps/local-server/package.json",
+        "packages/shared/package.json",
+        "pnpm-lock.yaml",
+        "apps/site/src/i18n/content/catalog/en-US.md"
+      ],
+      "detail": "CUI-06C-INQUIRY-ADMIN-2026-09-07.md",
+      "scope": "local-only",
+      "testStatus": "passed-local",
+      "acceptance": "CUI-06C-INQUIRY-ADMIN-2026-09-07.md"
+    },
+    {
+      "id": "CUI-06D",
+      "title": "Explicit completion and cloud inquiry transactions",
+      "status": "completed-local",
+      "cloudAcceptance": "pending-release-gate-not-local-dependency",
+      "dependsOn": ["CUI-06C"],
+      "files": [
+        "packages/shared/src/catalog/inquiry.ts",
+        "packages/db/src/catalog-inquiry.ts",
+        "packages/db/src/catalog-inquiry-cloud.ts",
+        "packages/db/src/catalog-quote.ts",
+        "packages/db/src/cloudbase-adapter.ts",
+        "apps/functions/admin/src/handler.ts",
+        "apps/functions/public-api/src/catalog-quote-http.ts",
+        "apps/site/src/islands/admin/inquiries/InquiryStatusBadge.tsx",
+        "scripts/cloudbase-nosql-resources.mjs",
+        "scripts/function-artifact-probe.cjs"
+      ],
+      "detail": "CUI-06D-IMPLEMENTATION-2026-09-07.md",
+      "scope": "local-and-gated-existing-cloud-functions",
+      "testStatus": "local-and-old-cloud-read-regression-passed-new-cloud-inquiry-persistence-pending",
+      "acceptance": "CUI-06D-ACCEPTANCE-AND-ROLLOUT-2026-09-07.md"
+    },
+    {
+      "id": "CUI-06E",
+      "title": "Local inquiry loop and same-SHA full CI deployment gate",
+      "status": "completed-local",
+      "dependsOn": ["CUI-06D"],
+      "files": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/deploy-test.yml",
+        "scripts/deploy-ci-gate.test.mjs",
+        "scripts/runtime-contract.test.mjs",
+        "apps/local-server/src/catalog-inquiry-loop.test.ts"
+      ],
+      "detail": "CUI-06E-LOCAL-VALIDATION-AND-RELEASE-GATE-2026-09-07.md",
+      "scope": "local-tests-workflow-config-no-remote-execution",
+      "testStatus": "1365-tests-passed-node22-types-lint-build-sdk-node20-artifacts-and-readonly-browser-smoke-passed",
+      "acceptance": "CUI-06E-LOCAL-VALIDATION-AND-RELEASE-GATE-2026-09-07.md",
+      "remoteWorkflowStatus": "not-run-uncommitted-local-config"
+    },
+    {
+      "id": "CUI-07",
+      "title": "List entry direct link and return",
+      "status": "completed-local",
+      "dependsOn": ["CUI-06E"],
+      "files": [
+        "apps/site/src/islands/shop/HeadphonesPage.tsx",
+        "apps/site/src/islands/shop/CatalogFamilyPage.tsx",
+        "apps/site/src/islands/shop/SharedCatalogPreview.tsx",
+        "apps/site/src/islands/shop/SharedDetailPreview.tsx",
+        "apps/site/src/islands/shop/shared-detail-navigation.ts",
+        "apps/site/src/islands/shop/shared-detail-preview-target.ts",
+        "apps/site/src/pages/headphones.astro",
+        "apps/site/src/pages/ai-gadgets.astro",
+        "apps/site/src/pages/toys.astro",
+        "apps/site/src/pages/misc.astro",
+        "apps/site/src/catalog/application/CatalogDetailController.tsx",
+        "apps/site/src/catalog/presentation/CatalogDetail.tsx",
+        "apps/site/src/headphones-source-contract.test.ts",
+        "apps/site/src/islands/shop/shared-detail-navigation.test.ts",
+        "tests/e2e/shared-catalog-navigation.spec.ts"
+      ],
+      "detail": "MIU-PLAN-2026-09-06.md",
+      "scope": "local-only",
+      "testStatus": "local-url-tests-and-six-navigation-browser-tests-passed-seventeen-detail-regressions-passed",
+      "acceptance": "CUI-07-LOCAL-NAVIGATION-ACCEPTANCE-2026-09-07.md"
+    },
+    {
+      "id": "CUI-08",
+      "title": "Real local browser acceptance",
+      "status": "completed-local",
+      "dependsOn": ["CUI-07"],
+      "files": [
+        "playwright.shared-product-ui.config.ts",
+        "tests/e2e/shared-detail-preview.spec.ts",
+        "tests/e2e/shared-product-journey.spec.ts",
+        "tests/e2e/helpers/shared-ui-acceptance.ts",
+        "apps/local-server/src/shared-ui-acceptance.ts",
+        "apps/local-server/src/shared-ui-acceptance-cli.ts",
+        "apps/local-server/src/shared-ui-acceptance-contract.ts",
+        "apps/local-server/src/shared-ui-acceptance.test.ts",
+        "apps/site/src/catalog/presentation/CatalogQuoteSheet.tsx",
+        "apps/site/src/styles/global.css",
+        "tsconfig.e2e.json",
+        "docs/shared-product-ui/LOCAL-ACCEPTANCE.md"
+      ],
+      "detail": "MIU-PLAN-2026-09-06.md",
+      "scope": "local-only",
+      "testStatus": "54-chromium-webkit-passed-no-skips-1372-node22-tests-passed-final-site-types-lint-build-passed",
+      "acceptance": "LOCAL-ACCEPTANCE.md"
+    }
+  ],
+  "legacyDisposition": [
+    {
+      "id": "DXUI-00",
+      "disposition": "recheck-later",
+      "replacement": [],
+      "reason": "HTML normalization already has separate source work; do not reinstall historical versions or reopen it for UI. Full DXUI acceptance not re-audited."
+    },
+    {
+      "id": "DXUI-01",
+      "disposition": "replaced-local-contract",
+      "replacement": ["CUI-01"],
+      "reason": "UI-01 owns catalog-product-detail-v1; grouped content and old summary retirement are not complete."
+    },
+    {
+      "id": "DXUI-02",
+      "disposition": "deferred",
+      "replacement": [],
+      "reason": "Conservative evidence enrichment is not a dependency of rendering existing approved facts."
+    },
+    {
+      "id": "DXUI-03",
+      "disposition": "existing-observation-seam",
+      "replacement": [],
+      "reason": "Both provider observations exist; this is not a claim all old contentEvidence acceptance is complete."
+    },
+    {
+      "id": "DXUI-04",
+      "disposition": "local-only",
+      "replacement": [],
+      "reason": "UI-02 approved local snapshot exists; production content approval lifecycle remains separate."
+    },
+    {
+      "id": "DXUI-05",
+      "disposition": "local-only",
+      "replacement": ["CUI-01"],
+      "reason": "UI-02 explicit /detail handler exists; production activation and legacy list variants retirement deferred."
+    },
+    {
+      "id": "DXUI-06",
+      "disposition": "reworked",
+      "replacement": ["CUI-01"],
+      "reason": "Use real /detail endpoint and revision pagination, not the old id/slug DTO."
+    },
+    {
+      "id": "DXUI-07",
+      "disposition": "reworked",
+      "replacement": ["CUI-02"],
+      "reason": "Canonical IDs, incomplete pages, duplicate options, source inventory semantics."
+    },
+    {
+      "id": "DXUI-08",
+      "disposition": "reworked",
+      "replacement": ["CUI-03"],
+      "reason": "One media owner; no image-to-SKU reverse mapping without independent role contract."
+    },
+    {
+      "id": "DXUI-09",
+      "disposition": "reworked",
+      "replacement": ["CUI-04"],
+      "reason": "Visible mobile selector plus bounded/paged SKU disclosure."
+    },
+    {
+      "id": "DXUI-10",
+      "disposition": "narrowed",
+      "replacement": ["CUI-04"],
+      "reason": "Render approved flat facts and text; grouped content/highlights deferred."
+    },
+    {
+      "id": "DXUI-11",
+      "disposition": "reworked",
+      "replacement": ["CUI-04"],
+      "reason": "Current site shell plus provider-neutral detail; selective dependency port only."
+    },
+    {
+      "id": "DXUI-12",
+      "disposition": "split",
+      "replacement": ["CUI-02", "CUI-04", "CUI-07"],
+      "reason": "Request/selection state, first visible route, then list/back integration."
+    },
+    {
+      "id": "DXUI-13",
+      "disposition": "deferred",
+      "replacement": [],
+      "reason": "CUI-06B..08 implement local durable inquiry snapshots, admin processing and shared transaction policy; formal approved snapshots and coordinated production release remain pending."
+    },
+    {
+      "id": "DXUI-14",
+      "disposition": "deferred",
+      "replacement": [],
+      "reason": "Local submission and idempotent receipts are verified in CUI-08; production quote activation and email remain release-gated."
+    },
+    {
+      "id": "DXUI-15",
+      "disposition": "narrowed",
+      "replacement": ["CUI-06", "CUI-06B", "CUI-08"],
+      "reason": "Local draft, review, real local submission and idempotent receipt are verified; production transport remains pending."
+    },
+    {
+      "id": "DXUI-16",
+      "disposition": "narrowed",
+      "replacement": ["CUI-06"],
+      "reason": "Reuse approved form-library direction, verify current versions when implementing."
+    },
+    {
+      "id": "DXUI-17",
+      "disposition": "narrowed",
+      "replacement": ["CUI-06", "CUI-07"],
+      "reason": "Contextual sheet now has local persistence via CUI-06B; not a production RFQ release."
+    },
+    {
+      "id": "DXUI-18",
+      "disposition": "deferred",
+      "replacement": [],
+      "reason": "Admin import production actions outside current storefront scope."
+    },
+    {
+      "id": "DXUI-19",
+      "disposition": "deferred",
+      "replacement": [],
+      "reason": "Admin Query/workspace ownership preserved; no second remote cache."
+    },
+    {
+      "id": "DXUI-20",
+      "disposition": "deferred",
+      "replacement": [],
+      "reason": "Workbook upload and durable job flow outside current phase."
+    },
+    {
+      "id": "DXUI-21",
+      "disposition": "deferred",
+      "replacement": [],
+      "reason": "Private evidence drawer and Admin paging outside current phase."
+    },
+    {
+      "id": "DXUI-22",
+      "disposition": "in-progress-local",
+      "replacement": ["CAT-01", "CAT-02", "CAT-03", "CAT-04"],
+      "reason": "User resumed taxonomy work: queue complete locally; rules and safe bulk application remain. See CATEGORY-REMEDIATION-2026-09-07.md."
+    },
+    {
+      "id": "DXUI-23",
+      "disposition": "deferred",
+      "replacement": [],
+      "reason": "Revision-bound production import plan/apply outside current phase."
+    },
+    {
+      "id": "DXUI-24",
+      "disposition": "deferred",
+      "replacement": [],
+      "reason": "Do not modify existing import Admin composition in this workstream."
+    },
+    {
+      "id": "DXUI-25",
+      "disposition": "narrowed",
+      "replacement": ["CUI-08"],
+      "reason": "CUI-08 verifies both provider samples and durable local quote/admin flows in Chromium and WebKit; not all-family rollout or CloudBase acceptance."
+    },
+    {
+      "id": "DXUI-26",
+      "disposition": "deferred",
+      "replacement": [],
+      "reason": "Real customer workbook full acceptance and cloud release require separate phase."
+    }
+  ]
+}

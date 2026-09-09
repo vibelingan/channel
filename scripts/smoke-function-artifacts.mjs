@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FUNCTION_NAMES } from './cloudbase-function-manifest.mjs';
+import { REQUIRED_NOSQL_RESOURCES } from './cloudbase-nosql-resources.mjs';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const artifactRoot = resolve(
@@ -67,6 +68,57 @@ function smokeRequire(name, artifactDir) {
   }
 }
 
+function smokePublicCatalog(artifactDir) {
+  const tempRoot = mkdtempSync(join(tmpdir(), 'channel-public-behavior-'));
+  try {
+    cpSync(artifactDir, tempRoot, { recursive: true });
+    const result = spawnSync(
+      process.execPath,
+      [join(root, 'scripts/function-artifact-probe.cjs'), join(tempRoot, 'index.js')],
+      {
+        env: {
+          ...process.env,
+          TCB_ENV: 'artifact-smoke-env',
+          JWT_SECRET: 'artifact-smoke-jwt',
+          CHANNEL_SMOKE_COLLECTIONS: JSON.stringify(
+            REQUIRED_NOSQL_RESOURCES.map((r) => r.collectionName),
+          ),
+        },
+        encoding: 'utf8',
+        timeout: 15000,
+      },
+    );
+    if (result.status !== 0)
+      throw new Error(`public-api behavioral smoke failed\n${result.stdout}\n${result.stderr}`);
+    console.log(result.stdout.trim());
+    const absentVariants = spawnSync(
+      process.execPath,
+      [join(root, 'scripts/function-artifact-probe.cjs'), join(tempRoot, 'index.js')],
+      {
+        env: {
+          ...process.env,
+          TCB_ENV: 'artifact-smoke-env',
+          JWT_SECRET: 'artifact-smoke-jwt',
+          CHANNEL_SMOKE_COLLECTIONS: JSON.stringify(['products']),
+        },
+        encoding: 'utf8',
+        timeout: 15000,
+      },
+    );
+    if (
+      absentVariants.status === 0 ||
+      !/Missing collection: productVariants/.test(absentVariants.stderr)
+    ) {
+      throw new Error(
+        'Missing-collection negative control did not reach the packaged variant query',
+      );
+    }
+    console.log('public-api: missing collection negative control passed');
+  } finally {
+    rmSync(tempRoot, { force: true, recursive: true });
+  }
+}
+
 for (const name of functions) {
   const artifactDir = join(artifactRoot, name);
   const indexFile = join(artifactDir, 'index.js');
@@ -76,5 +128,6 @@ for (const name of functions) {
 
   assertNoUnresolvedImports(name, indexFile);
   smokeRequire(name, artifactDir);
+  if (name === 'public-api') smokePublicCatalog(artifactDir);
   console.log(`${name}: artifact smoke passed`);
 }
