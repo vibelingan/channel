@@ -43,14 +43,9 @@ export function CatalogImportPage() {
       <div className="max-w-2xl space-y-2">
         <h1 className="font-display text-xl font-semibold text-ink">Catalog Import</h1>
         <p className="text-sm text-slate-600">
-          No imports yet. Run one locally against a source workbook:
+          No import records yet. This read-only page shows completed and staged import runs; it does
+          not upload workbooks or start an import.
         </p>
-        <pre className="overflow-x-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-100">
-          {`LOCAL_DB_FILE=./data/db.dianxiaomi-spike.json \\
-LOCAL_MEDIA_DIR=./data/media-dianxiaomi-spike \\
-pnpm --filter @vibelingan-channel/local-server import:dianxiaomi -- \\
-  --file "/absolute/path/to/export.xlsx"`}
-        </pre>
       </div>
     );
   }

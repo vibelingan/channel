@@ -322,4 +322,17 @@ if (protectedList?.ok !== true || !Array.isArray(protectedList.data?.items)) {
   throw new Error('Admin token did not authorize a protected catalog read.');
 }
 
+// These menus are live even with the Excel worker disabled. An empty collection
+// is valid; an absent collection or failed protected query must block acceptance.
+for (const collection of ['catalogImportJobs', 'catalogImportItems']) {
+  const read = await expectJson('POST', `${apiUrl}/api/admin`, 200, {
+    action: 'list',
+    token: login.data.token,
+    data: { collection, page: 1, pageSize: 1 },
+  });
+  if (read?.ok !== true || !Array.isArray(read.data?.items)) {
+    throw new Error(`Read-only import collection ${collection} failed its readiness check.`);
+  }
+}
+
 console.log(`CloudBase smoke passed for ${siteUrl}`);

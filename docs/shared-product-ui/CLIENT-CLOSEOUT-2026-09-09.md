@@ -5,6 +5,49 @@ This is an implementation and acceptance ledger. Historical entries below retain
 their original verification boundaries; the newest release evidence takes precedence.
 All releases in this closeout use CI/CD, not direct local cloud deployment.
 
+### Authenticated browser follow-up
+
+**Latest evidence:** `c56f86d` completed CI/CD run `34354186747`, including 40 public
+and 19 catalog browser checks. With the same six source URLs and unchanged import
+code, gallery import changed from six `write-failed` results to six admitted
+owned images after provisioning `catalogSourceLinks`. Both allowed already-public
+samples were saved through the normal browser editor. Independent public API and
+Chromium readback verify six images each, one/three canonical SKUs, and preserved
+manual fixed/tiered website pricing. Every image loaded; mobile overflow and browser
+page-error checks passed. No new draft was published and no live inquiry was created.
+
+PR #37's local formal-journey CI then failed on a DevTools response-body lookup,
+not submission: the trace has HTTP 200 and the buyer-visible saved reference.
+The test now reads that visible reference, verifies idempotent API replay and Admin
+persistence, and disables retries against its already-mutated disposable database.
+The full local formal lane passes after this correction. Visual readback additionally
+caught fixed prices hidden until quantity entry; fixed/range reference prices now
+remain visible alongside quantity/MOQ feedback, with blank/invalid/zero/below-MOQ/
+valid quantity render regressions. These follow-ups are not yet released.
+
+The user's normal Chrome session reproduced the first sample's exact gallery
+failure: six source URLs were present; all six imports returned `write-failed`.
+The failed form was cancelled without saving or changing publication. PR #36
+merged as `c56f86da345e06e2b83141e3ee7eec842662c286`; its full prerequisite CI
+passed and the same-SHA deployment is in progress. The missing media-link
+collection remains the leading hypothesis until a post-deployment retry passes.
+
+The same browser showed the applied category remediation in the real Admin menu:
+291 Misc, 5 AI Gadgets and 6 Toys entries marked new, and 56 needing classification.
+These are review-badge counts, not the complete category totals. Historical
+classification changes did not publish any new products.
+
+The visible read-only Catalog Import page also returned `Unexpected server error`.
+Its `catalogImportJobs` and `catalogImportItems` collections were absent from the
+resource manifest, independently reproduced by a failing resource-contract test.
+The follow-up declares private collections and indexes matching the page queries,
+and makes authenticated post-deployment smoke read both collections. Provisioning
+these resources does not enable the Excel worker or authorize an import. Live
+confirmation remains pending CI/CD; no manual console resource mutation is used.
+The import empty state no longer instructs customers to run local development
+commands. A rendered-page regression proves it explains the read-only boundary
+and omits CLI/environment paths. All 360 site tests and 43 deployment tests pass.
+
 ### Subsequent auth release and publication-intent regression
 
 PR #35 merged as `84f0315af5d39231d54ea5e0dd45f61a8aa319bd` and deployed

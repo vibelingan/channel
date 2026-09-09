@@ -65,6 +65,16 @@ function OfferCard({
           {copy.quoteMoqLabel}: {pricing.minimumOrderQuantity}
         </p>
       )}
+      {(pricing.mode === 'fixed' || pricing.mode === 'range') &&
+        view.status !== 'amount' &&
+        view.status !== 'range' && (
+          <p data-quote-reference-price className="mt-2 text-sm font-semibold leading-6 text-ink">
+            {pricing.mode === 'fixed'
+              ? formatCatalogQuoteAmount(pricing.amountMinor, pricing.currency)
+              : `${formatCatalogQuoteAmount(pricing.minimumAmountMinor, pricing.currency)} – ${formatCatalogQuoteAmount(pricing.maximumAmountMinor, pricing.currency)}`}{' '}
+            {copy.quoteUnitLabel}
+          </p>
+        )}
       <output
         data-quote-result
         className="mt-2 block text-sm font-semibold leading-6 text-ink"
@@ -167,7 +177,11 @@ export function CatalogQuoteConditions({
         id={`${id}-help`}
         className={`mt-2 text-xs leading-5 ${parsed.status === 'invalid' ? 'text-red-700' : 'text-ink-muted'}`}
       >
-        {parsed.status === 'invalid' ? copy.quantityError : copy.quantityHelp}
+        {parsed.status === 'invalid'
+          ? copy.quantityError
+          : websitePricing
+            ? 'Enter a whole number to check the applicable website price. This does not place an order.'
+            : copy.quantityHelp}
       </p>
       {websitePricing && <OfferCard offer={websitePricing} quantity={quantity} copy={copy} />}
       {!websitePricing && productOffers.length > 0 && (

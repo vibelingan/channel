@@ -52,6 +52,36 @@ function listedIndex(index) {
   };
 }
 
+test('visible read-only import pages have private resources even with the worker disabled', () => {
+  const expected = [
+    ['catalogImportJobs', [[{ Name: 'startedAt', Direction: '-1' }]]],
+    [
+      'catalogImportItems',
+      [
+        [
+          { Name: 'jobId', Direction: '1' },
+          { Name: 'parentSku', Direction: '1' },
+        ],
+      ],
+    ],
+  ];
+  for (const [name, keys] of expected) {
+    const resource = REQUIRED_NOSQL_RESOURCES.find((r) => r.collectionName === name);
+    assert.ok(resource, `${name} must exist before the read-only Admin page is served`);
+    assert.equal(resource.permission, 'ADMINONLY');
+    assert.deepEqual(
+      resource.indexes.map((i) => i.MgoKeySchema.MgoIndexKeys),
+      keys,
+    );
+    assert.ok(resource.indexes.every((i) => !i.MgoKeySchema.MgoIsUnique));
+  }
+});
+
+test('deployed authenticated smoke checks the read-only import collections', () => {
+  assert.match(smokeSource, /\['catalogImportJobs', 'catalogImportItems'\]/);
+  assert.match(smokeSource, /Read-only import collection.*failed its readiness check/);
+});
+
 test('source image binding is provisioned privately before gallery import or approval', () => {
   const resource = REQUIRED_NOSQL_RESOURCES.find((r) => r.collectionName === 'catalogSourceLinks');
   assert.ok(
@@ -270,9 +300,9 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
 
   // Anchor: a silent registry change must fail here, not slip through the
   // derived expectations below (2 auth/abuse + 3 catalog + 10 alibaba collections).
-  // 24: previous 23 plus source media bindings, independent of the Excel worker.
+  // 26: includes source media bindings and read-only import pages, independent of the worker.
   // This count is deliberate: a new collection must be a conscious change.
-  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 24);
+  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 26);
   assert.equal(collections.size, REQUIRED_NOSQL_RESOURCES.length);
   assert.equal(
     [...indexesByCollection.values()].reduce((total, indexes) => total + indexes.size, 0),

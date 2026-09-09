@@ -8,10 +8,12 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { CatalogImportFindings } from './CatalogImportFindings.tsx';
+import { CatalogImportPage } from './CatalogImportPage.tsx';
 import { CatalogImportProductTable } from './CatalogImportProductTable.tsx';
 import { CatalogImportSummary } from './CatalogImportSummary.tsx';
 import {
@@ -88,6 +90,18 @@ const renderTable = (docs: CollectionDoc[]) =>
   renderToStaticMarkup(
     createElement(CatalogImportProductTable, { products: docs.map(toProductView) }),
   );
+
+test('empty import page explains its read-only scope without local development commands', () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(['catalogImportJobs'], []);
+  const html = renderToStaticMarkup(
+    createElement(QueryClientProvider, { client }, createElement(CatalogImportPage)),
+  );
+  assert.match(html, /No import records yet/);
+  assert.match(html, /read-only/);
+  assert.doesNotMatch(html, /LOCAL_DB_FILE|pnpm|\/absolute\/path|<pre/);
+  client.clear();
+});
 
 // --- money ------------------------------------------------------------------
 
