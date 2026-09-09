@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { localSiteUrl } from './local-site-readiness.mjs';
 
 const temporaryDirectory = await mkdtemp(join(tmpdir(), 'channel-catalog-e2e-'));
 const databaseFile = join(temporaryDirectory, 'db.json');
@@ -75,9 +76,8 @@ async function waitForSite(child) {
   while (Date.now() < deadline) {
     if (child.spawnError) throw child.spawnError;
     if (child.exitCode !== null) throw new Error('Astro site exited before readiness.');
-    const match = output.match(/Local\s+http:\/\/127\.0\.0\.1:(\d+)\//);
-    if (match) {
-      const url = `http://127.0.0.1:${match[1]}`;
+    const url = localSiteUrl(output);
+    if (url) {
       const response = await fetch(url);
       if (response.ok) return url;
     }
