@@ -27,6 +27,12 @@ product to legacy fallback, and rejects conflicting slug/id inputs. Browser case
 also prove 403 never triggers a legacy fallback. Public error copy does not expose
 internal approval terminology.
 
+Repeated hero geometry checks then isolated an initial-load scroll regression:
+the route shell treated hydration as browser Back and scrolled past the hero.
+Scroll/focus restoration now requires an actual popstate event; initial catalog
+hydration is asserted to leave scrollY at zero. Hero retry tests isolate catalog
+cards, since sharing an image URL is not evidence of a hero retry loop.
+
 Another regression test exposed that bulk website-family changes on an already
 public source product could leave the approved detail's category label stale.
 Those updates now run the existing prepare/approve/finalize workflow; draft-only

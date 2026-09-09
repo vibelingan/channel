@@ -1378,6 +1378,13 @@ test.describe('public browser smoke', () => {
     await expect(heroMedia).toBeVisible();
     const heroImage = heroMedia.locator('[data-product-media="image"]');
     await expect(heroImage).toBeVisible();
+    await expect(
+      page.locator('p:not(.sr-only)', { hasText: 'No products match these filters.' }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(() => window.scrollY),
+      'initial hydration must not auto-scroll to the list',
+    ).toBe(0);
     // Unrouted load: the FIRST reviewed source is the one actually served.
     await expect(heroImage).toHaveAttribute('src', new RegExp(heroSourceIds[0]));
     const mediaBox = await heroMedia.boundingBox();
