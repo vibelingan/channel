@@ -765,7 +765,7 @@ test.describe('public browser smoke', () => {
 
     // Legacy fixtures have no approved shared detail. Model BOTH endpoints:
     // the new contract returns 404, then the public legacy item is fetched.
-    await page.route('**/api/products/miu8-*', (route) => {
+    await page.route('**/api/products/miu8-**', (route) => {
       const path = new URL(route.request().url()).pathname;
       if (path.endsWith('/detail')) return route.fulfill({ status: 404, body: '' });
       const id = path.split('/').at(-1);
@@ -1518,7 +1518,7 @@ test.describe('public browser smoke', () => {
     }));
     const imageRequests: string[] = [];
 
-    await page.route('**/api/products/miu13-focus-*', (route) => {
+    await page.route('**/api/products/miu13-focus-**', (route) => {
       const path = new URL(route.request().url()).pathname;
       if (path.endsWith('/detail')) return route.fulfill({ status: 404, body: '' });
       const product = items.find((item) => item._id === path.split('/').at(-1));

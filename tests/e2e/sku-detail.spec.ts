@@ -53,7 +53,7 @@ test.beforeEach(async ({ page }) => {
 
 test('forbidden approved detail never falls back to legacy product data', async ({ page }) => {
   let legacyReads = 0;
-  await page.route('**/api/products/forbidden*', (route) => {
+  await page.route('**/api/products/forbidden**', (route) => {
     if (new URL(route.request().url()).pathname.endsWith('/detail'))
       return route.fulfill({ status: 403, body: '' });
     legacyReads++;
