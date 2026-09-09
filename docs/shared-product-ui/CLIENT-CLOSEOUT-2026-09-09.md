@@ -26,6 +26,9 @@ The follow-up declares private collections and indexes matching the page queries
 and makes authenticated post-deployment smoke read both collections. Provisioning
 these resources does not enable the Excel worker or authorize an import. Live
 confirmation remains pending CI/CD; no manual console resource mutation is used.
+The import empty state no longer instructs customers to run local development
+commands. A rendered-page regression proves it explains the read-only boundary
+and omits CLI/environment paths. All 360 site tests and 43 deployment tests pass.
 
 ### Subsequent auth release and publication-intent regression
 
