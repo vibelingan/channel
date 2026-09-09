@@ -45,6 +45,25 @@ preflight, packaged functions, feature configuration and static frontend at one 
 Email and the Excel worker remain off. The first CI failure was ANSI-colored Astro
 readiness detection, not a cloud mutation; it was corrected in `5bb3712`.
 
+### Explicit live acceptance entry
+
+PR #32 merged as `1fd3e97` after CI success. Chrome's unrelated extension UI
+blocked interactive acceptance, so `Deploy Test` gains an explicit
+`catalog_acceptance_only=true` dispatch. That path still requires same-SHA CI,
+does **not** run the deployment job, and receives only the existing application
+test login, not CloudBase IAM/JWT signing/SMTP credentials. Both live health
+responses must match the triggering SHA before any write. Browser credentials
+are neither exported nor recorded in traces/videos/screenshots.
+
+The bounded scope is the already approved category remediation (at most 302
+eligible drafts; never overwriting assigned/published products), the two already
+public sample IDs named in the acceptance spec, and one clearly marked private
+test inquiry completed through Admin. Existing public product IDs must remain
+identical, manual title/category/prices/MOQ must remain unchanged, and inquiry
+capabilities must confirm email is disabled. Unexpected live state fails the test;
+it never silently skips or publishes another sample. This is opt-in one-time
+release remediation, not an automatic test that repeatedly rewrites customer data.
+
 ## Verified field provenance / agreed business rules
 
 - `products.unitPrice`, `wholesalePrice`, deprecated `vipPrice`: website legacy

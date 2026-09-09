@@ -17,7 +17,10 @@ function assertReleaseGate(ci, release) {
   assert.equal(prerequisite['continue-on-error'], undefined);
   const deploy = release.jobs.deploy;
   assert.deepEqual([deploy.needs].flat(), ['ci']);
-  assert.equal(deploy.if, "${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' }}");
+  assert.equal(
+    deploy.if,
+    "${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && github.event.inputs.catalog_acceptance_only != 'true' }}",
+  );
   assert.equal(deploy['continue-on-error'], undefined);
   assert.equal(deploy.environment, 'test');
   assert.equal(release.concurrency.group, 'cloudbase-deploy-test');
@@ -65,8 +68,31 @@ test('push and manual deployments require same-SHA full CI before entering the e
   assertReleaseGate(ci, release);
   assert.deepEqual(release.on.push.branches, ['test']);
   assert.ok(Object.hasOwn(release.on, 'workflow_dispatch'));
-  // No separate dispatch-only job or alternate writer can bypass the gate.
-  assert.deepEqual(Object.keys(release.jobs).sort(), ['ci', 'deploy']);
+  assert.deepEqual(Object.keys(release.jobs).sort(), ['catalog-acceptance', 'ci', 'deploy']);
+});
+
+test('acceptance-only dispatch cannot deploy and cannot bypass CI or use infrastructure credentials', () => {
+  const release = workflow('deploy-test');
+  const job = release.jobs['catalog-acceptance'];
+  assert.equal(release.on.workflow_dispatch.inputs.catalog_acceptance_only.default, false);
+  assert.equal(job.needs, 'ci');
+  assert.equal(
+    job.if,
+    "${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && github.event.inputs.catalog_acceptance_only == 'true' }}",
+  );
+  assert.equal(job.environment, 'test');
+  assert.equal(job.steps[0].with.ref, '${{ github.sha }}');
+  const step = job.steps.find(
+    (s) => s.run === 'pnpm exec playwright test tests/e2e/catalog-live-acceptance.spec.ts',
+  );
+  assert.ok(step);
+  assert.equal(step.env.CHANNEL_EXPECTED_RELEASE, '${{ github.sha }}');
+  assert.equal(step.env.E2E_RECORD_ARTIFACTS, '0');
+  assert.equal(step['continue-on-error'], undefined);
+  assert.doesNotMatch(
+    JSON.stringify(job),
+    /TENCENTCLOUD_|JWT_SECRET|SMTP|EMAIL_PASSWORD|deploy:cloudbase|deploy-cloudbase/,
+  );
 });
 
 test('release guard detects missing dependencies, success bypass, moving refs and softened tests', () => {

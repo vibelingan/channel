@@ -3,6 +3,11 @@ name: Deploy Test
 on:
   workflow_dispatch:
     inputs:
+      catalog_acceptance_only:
+        description: Verify the already deployed SHA and run the approved catalog remediation/browser acceptance without deploying
+        required: true
+        type: boolean
+        default: false
       run_public_e2e:
         description: Run public browser E2E after deploy
         required: true
@@ -40,7 +45,7 @@ jobs:
 
   deploy:
     needs: ci
-    if: ${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' }}
+    if: ${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && github.event.inputs.catalog_acceptance_only != 'true' }}
     name: Build, deploy, and smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -196,3 +201,38 @@ jobs:
             exit 1
           fi
           pnpm test:e2e:oem-upload
+
+  catalog-acceptance:
+    needs: ci
+    if: ${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && github.event.inputs.catalog_acceptance_only == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: test
+    # This is an authenticated application test, not an alternate deployment path.
+    # No CloudBase IAM, JWT signing key, SMTP or storage credentials enter this job.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Verify deployed release and exercise approved catalog scope
+        env:
+          CI: 'true'
+          CHANNEL_EXPECTED_RELEASE: ${{ github.sha }}
+          E2E_SITE_URL: ${{ vars.SITE_URL }}
+          E2E_API_URL: ${{ vars.PUBLIC_API_BASE_URL }}
+          E2E_ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          E2E_CATALOG_LIVE_ACCEPTANCE: '1'
+          E2E_ALLOW_MUTATION: '1'
+          E2E_RECORD_ARTIFACTS: '0'
+        run: pnpm exec playwright test tests/e2e/catalog-live-acceptance.spec.ts
