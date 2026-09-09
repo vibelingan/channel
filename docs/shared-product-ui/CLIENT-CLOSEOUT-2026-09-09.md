@@ -7,6 +7,24 @@ All releases in this closeout use CI/CD, not direct local cloud deployment.
 
 ### Authenticated browser follow-up
 
+**Latest evidence:** `c56f86d` completed CI/CD run `34354186747`, including 40 public
+and 19 catalog browser checks. With the same six source URLs and unchanged import
+code, gallery import changed from six `write-failed` results to six admitted
+owned images after provisioning `catalogSourceLinks`. Both allowed already-public
+samples were saved through the normal browser editor. Independent public API and
+Chromium readback verify six images each, one/three canonical SKUs, and preserved
+manual fixed/tiered website pricing. Every image loaded; mobile overflow and browser
+page-error checks passed. No new draft was published and no live inquiry was created.
+
+PR #37's local formal-journey CI then failed on a DevTools response-body lookup,
+not submission: the trace has HTTP 200 and the buyer-visible saved reference.
+The test now reads that visible reference, verifies idempotent API replay and Admin
+persistence, and disables retries against its already-mutated disposable database.
+The full local formal lane passes after this correction. Visual readback additionally
+caught fixed prices hidden until quantity entry; fixed/range reference prices now
+remain visible alongside quantity/MOQ feedback, with blank/invalid/zero/below-MOQ/
+valid quantity render regressions. These follow-ups are not yet released.
+
 The user's normal Chrome session reproduced the first sample's exact gallery
 failure: six source URLs were present; all six imports returned `write-failed`.
 The failed form was cancelled without saving or changing publication. PR #36

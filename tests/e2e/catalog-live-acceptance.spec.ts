@@ -142,6 +142,14 @@ test('live release: approved categories, existing published galleries, real inqu
     await page.goto(`/headphones/?id=${id}`);
     await expect(page.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
     await expect(page.locator('[data-catalog-quote-conditions]')).toContainText('Website pricing');
+    const publicDetail = await request.get(`${e2e.apiUrl}/api/products/${id}/detail?view=sections`);
+    expect(publicDetail.ok()).toBe(true);
+    const pricing = (await publicDetail.json()).data.websitePricing.pricing;
+    if (pricing.mode === 'fixed' || pricing.mode === 'range') {
+      const reference = page.locator('[data-quote-reference-price]');
+      await expect(reference).toBeVisible();
+      await expect(reference).toContainText(pricing.currency);
+    }
     const thumbnails = page.locator('[data-gallery-thumbnail]');
     await expect(thumbnails).toHaveCount(Array.isArray(after.imageIds) ? after.imageIds.length : 0);
     for (let index = 0; index < (await thumbnails.count()); index++) {
@@ -190,9 +198,12 @@ test('live release: approved categories, existing published galleries, real inqu
   );
   await dialog.getByRole('button', { name: 'Send inquiry', exact: true }).click();
   const response = await pending;
-  const receipt = await response.json();
-  expect(receipt.ok).toBe(true);
-  await expect(dialog).toContainText(receipt.requestId);
+  expect(response.status()).toBe(200);
+  const savedNotice = dialog.getByRole('status');
+  await expect(savedNotice).toContainText('Inquiry saved. Reference:');
+  const requestId = (await savedNotice.locator('span').innerText()).trim();
+  expect(requestId).toMatch(/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i);
+  const receipt = { requestId };
   console.log(`Private test inquiry receipt: ${receipt.requestId}; email disabled.`);
   await page.goto('/admin');
   await page.getByRole('button', { name: /Product Inquiries/ }).click();

@@ -6,6 +6,9 @@ const enabled = process.env.E2E_CATALOG_FORMAL === '1';
 // @skip-when this explicitly owned, disposable formal-journey lane is not requested.
 test.skip(!enabled, 'Run with E2E_CATALOG_FORMAL=1 through the disposable catalog runner.');
 requireCatalogLocalSeedWhenEnabled(enabled);
+// This journey intentionally changes one disposable database across its steps.
+// A retry would start against the already-approved product, hiding the first failure.
+test.describe.configure({ retries: 0 });
 
 test('ordinary routes: approved multi-image SKU detail → real RFQ → persistent Admin follow-up', async ({
   page,
@@ -189,8 +192,15 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
   );
   await dialog.getByRole('button', { name: 'Send inquiry', exact: true }).click();
   const response = await receipt;
-  const saved = await response.json();
-  expect(saved.ok).toBe(true);
+  expect(response.status()).toBe(200);
+  // The browser already decoded the response. Read the buyer-visible receipt,
+  // then prove it through the real idempotent API and persisted Admin record.
+  // A DevTools body lookup can fail even after the page decoded the receipt.
+  const savedNotice = dialog.getByRole('status');
+  await expect(savedNotice).toContainText('Inquiry saved. Reference:');
+  const requestId = (await savedNotice.locator('span').innerText()).trim();
+  expect(requestId).toMatch(/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i);
+  const saved = { ok: true, requestId };
   const replay = await request.post(`${e2e.apiUrl}/api/catalog-quote-requests`, {
     headers: { Origin: e2e.siteUrl },
     data: response.request().postDataJSON(),

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import type { CatalogProductDetail } from '@vibelingan-channel/shared/catalog-detail';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { parseDocument } from 'yaml';
@@ -57,6 +58,38 @@ test('source amount rendering preserves exact hundredths and separate currency l
     Number.MAX_SAFE_INTEGER + 1,
   ])
     assert.equal(formatCatalogQuoteAmount(invalid, 'USD'), '—');
+});
+
+test('fixed and range reference prices remain visible before a valid quantity without implying MOQ eligibility', () => {
+  const prices: CatalogProductDetail['offers'][number]['pricing'][] = [
+    { mode: 'fixed', currency: 'USD', amountMinor: 310, minimumOrderQuantity: 1000 },
+    {
+      mode: 'range',
+      currency: 'USD',
+      minimumAmountMinor: 310,
+      maximumAmountMinor: 570,
+      minimumOrderQuantity: 1000,
+    },
+  ];
+  for (const pricing of prices) {
+    for (const quantityDraft of ['', 'invalid', '0', '999', '1000']) {
+      const html = renderToStaticMarkup(
+        createElement(CatalogQuoteConditions, {
+          copy,
+          productOffers: [],
+          quantityDraft,
+          websitePricing: { basis: 'website-manual', pricing },
+        }),
+      );
+      assert.match(html, /USD 3\.10/);
+      if (pricing.mode === 'range') assert.match(html, /USD 5\.70/);
+      if (quantityDraft === '999')
+        assert.ok(html.replaceAll('&#x27;', "'").includes(copy.quoteBelowMoq));
+      if (quantityDraft === '' || quantityDraft === 'invalid' || quantityDraft === '0')
+        assert.ok(html.includes(copy.quoteEnterQuantity));
+      assert.equal((html.match(/USD 3\.10/g) ?? []).length, 1);
+    }
+  }
 });
 
 test('quote UI keeps product and selected configuration scopes separate without price fallback', () => {
