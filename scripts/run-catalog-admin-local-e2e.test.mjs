@@ -10,6 +10,16 @@ test('catalog acceptance uses isolated production artifacts and cannot inherit C
   assert.doesNotMatch(source, /\['dev',/);
   assert.match(source, /PUBLIC_API_BASE_URL: apiUrl/);
   assert.match(source, /TCB_ENV: ''/);
+  for (const spec of [
+    'public.spec.ts',
+    'sku-detail.spec.ts',
+    'catalog-category.spec.ts',
+    'catalog-family-routes.spec.ts',
+    'catalog-hub.spec.ts',
+    'header-navigation.spec.ts',
+  ]) {
+    assert.ok(source.includes(`tests/e2e/${spec}`), `${spec} must run before deployment`);
+  }
 });
 
 async function runFailure(stage) {

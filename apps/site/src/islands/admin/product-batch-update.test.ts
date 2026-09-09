@@ -5,6 +5,14 @@ import { batchUpdateRecords } from './api.ts';
 test('selected products can be assigned a main category without a publication patch', async (t) => {
   t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(String(init.body));
+    if (body.action === 'get')
+      return Response.json({
+        ok: true,
+        data: {
+          _id: body.data.id,
+          published: false,
+        },
+      });
     assert.equal(body.action, 'update');
     assert.deepEqual(body.data.values, { productFamily: 'misc' });
     return Response.json({
@@ -15,6 +23,46 @@ test('selected products can be assigned a main category without a publication pa
   const result = await batchUpdateRecords('products', ['one', 'two'], { productFamily: 'misc' });
   assert.equal(result.updated, 2);
   assert.deepEqual(result.failures, []);
+});
+
+test('classifying an already-public source product goes through approval, never a silent stale snapshot', async (t) => {
+  const actions: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    actions.push(body.action);
+    if (body.action === 'get')
+      return Response.json({
+        ok: true,
+        data: {
+          _id: 'public-source',
+          published: true,
+          alibabaPrimarySourceKey: 'a'.repeat(64),
+        },
+      });
+    if (body.action === 'catalogDetailCapabilities')
+      return Response.json({ ok: true, data: { enabled: true } });
+    if (body.action === 'update')
+      return Response.json({
+        ok: true,
+        data: {
+          _id: 'public-source',
+          published: true,
+          productFamily: 'misc',
+          imageIds: ['owned-image'],
+          alibabaPrimarySourceKey: 'a'.repeat(64),
+        },
+      });
+    // Refusing preparation must surface a failure rather than claim the category
+    // was published. The previous immutable public detail remains available.
+    return Response.json(
+      { ok: false, error: { code: 'CONFLICT', message: 'Refresh source before approval.' } },
+      { status: 409 },
+    );
+  });
+  const result = await batchUpdateRecords('products', ['public-source'], { productFamily: 'misc' });
+  assert.equal(result.updated, 0);
+  assert.equal(result.failures[0]?.code, 'CONFLICT');
+  assert.ok(actions.includes('catalogDetailApproval'));
 });
 
 test('category batches reject unknown categories and mixed changes before network', async (t) => {

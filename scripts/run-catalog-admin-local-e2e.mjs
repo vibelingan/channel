@@ -194,7 +194,11 @@ try {
 
   // Do not let a DEV-only island pass a deployment acceptance lane. Use a
   // disposable build directory so a developer's running preview is untouched.
-  const siteEnvironment = { PUBLIC_API_BASE_URL: apiUrl, PUBLIC_CB_HOST: new URL(apiUrl).host };
+  const siteEnvironment = {
+    PUBLIC_API_BASE_URL: apiUrl,
+    PUBLIC_CB_HOST: new URL(apiUrl).host,
+    SITE_URL: `http://127.0.0.1:${sitePort}`,
+  };
   await run(
     bin('apps/site', 'astro'),
     ['build', '--outDir', siteDirectory],
@@ -221,6 +225,21 @@ try {
     E2E_CATALOG_LOCAL_SEED: '1',
     E2E_CATALOG_LOCAL_DB: databaseFile,
   };
+  // Legacy and shared routes ship together. The same public browser gate must
+  // run against disposable local production artifacts BEFORE deployment.
+  await run(bin('.', 'playwright'), ['test', 'tests/e2e/public.spec.ts'], e2eEnvironment);
+  await run(
+    bin('.', 'playwright'),
+    [
+      'test',
+      'tests/e2e/header-navigation.spec.ts',
+      'tests/e2e/catalog-hub.spec.ts',
+      'tests/e2e/catalog-family-routes.spec.ts',
+      'tests/e2e/catalog-category.spec.ts',
+      'tests/e2e/sku-detail.spec.ts',
+    ],
+    e2eEnvironment,
+  );
   if (formal) {
     await run(
       bin('.', 'playwright'),

@@ -58,6 +58,42 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
     variantStorage: 'immutable-v1',
   });
   expect(product.imageIds).toEqual(['formal-image-0', 'formal-image-1']);
+  // Classification must update the already-public immutable detail as well as
+  // the admin row. Exercise the same bulk control the client asked for.
+  for (const label of ['Misc', 'Headphones']) {
+    await page.getByRole('checkbox', { name: 'Select all rows' }).check();
+    await page
+      .getByRole('combobox', { name: 'Website main category' })
+      .and(page.locator('button'))
+      .click();
+    await page
+      .getByRole('listbox', { name: 'Website main category' })
+      .getByRole('option', { name: label, exact: true })
+      .click();
+    await page.getByRole('button', { name: 'Assign category', exact: true }).click();
+    const committed = page.waitForResponse((response) => {
+      if (!response.url().endsWith('/api/admin') || response.request().method() !== 'POST')
+        return false;
+      const body = response.request().postDataJSON();
+      return (
+        body.action === 'update' && body.data?.id === id && body.data?.values?.published === true
+      );
+    });
+    await page.getByRole('button', { name: 'Confirm assignment' }).click();
+    expect((await (await committed).json()).ok).toBe(true);
+    await expect(page.getByRole('status')).toContainText('1 updated', { timeout: 30000 });
+    const saved = await adminAction<CollectionDoc>(
+      request,
+      'get',
+      { collection: 'products', id },
+      session.token,
+    );
+    expect(saved.published).toBe(true);
+    expect(saved.catalogDetailPublication).toMatchObject({
+      state: 'approved',
+      header: { categoryLabel: label },
+    });
+  }
   await page.goto(`/headphones/?id=${id}`);
   await expect(page.locator('[data-catalog-variant-selector]')).toBeVisible();
   expect(page.url()).not.toContain('preview=');

@@ -161,7 +161,7 @@ sharedDetail:
   loadingLabel: Loading product details…
   errorLabel: Product details could not be loaded safely.
   refreshLabel: This product has changed. Reload its approved details before continuing.
-  notFound: Approved product details are not available.
+  notFound: Product not found.
   retryLabel: Reload details
   previousLabel: Previous page
   nextLabel: Next page

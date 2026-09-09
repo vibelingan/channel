@@ -43,6 +43,42 @@ const tieredToy = {
 
 const envelope = (data: unknown) => JSON.stringify({ ok: true, data });
 
+test.beforeEach(async ({ page }) => {
+  // These fixtures deliberately predate shared approval. Never let a mocked
+  // legacy product depend on a real remote /detail response.
+  await page.route('**/api/products/*/detail*', (route) =>
+    route.fulfill({ status: 404, body: '' }),
+  );
+});
+
+test('forbidden approved detail never falls back to legacy product data', async ({ page }) => {
+  let legacyReads = 0;
+  await page.route('**/api/products/forbidden**', (route) => {
+    if (new URL(route.request().url()).pathname.endsWith('/detail'))
+      return route.fulfill({ status: 403, body: '' });
+    legacyReads++;
+    return route.fulfill({ status: 200, contentType: 'application/json', body: envelope(product) });
+  });
+  await page.goto('/products/item/?id=forbidden');
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.locator('[data-product-detail]')).toHaveCount(0);
+  expect(legacyReads).toBe(0);
+});
+
+test('ambiguous slug and id never load a different product or remain stuck loading', async ({
+  page,
+}) => {
+  const requests: string[] = [];
+  await page.route('**/api/products/**', (route) => {
+    requests.push(route.request().url());
+    return route.fulfill({ status: 500 });
+  });
+  await page.goto('/products/item/?slug=visionclip-ai-camera&id=different');
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.locator('[data-product-detail]')).toHaveCount(0);
+  expect(requests).toEqual([]);
+});
+
 test('direct SKU journey renders nine images, facts, related links, and preserves browser Back', async ({
   page,
 }) => {
@@ -160,6 +196,14 @@ test('manual tiers drive card, in-page detail, slug detail, and AggregateOffer w
   const pageErrors: string[] = [];
   const consoleErrors: string[] = [];
   const productRequests: string[] = [];
+  await page.route('**/api/products/tiered-toy*', (route) => {
+    const detail = new URL(route.request().url()).pathname.endsWith('/detail');
+    return route.fulfill({
+      status: detail ? 404 : 200,
+      contentType: 'application/json',
+      body: detail ? '' : envelope(tieredToy),
+    });
+  });
   page.on('pageerror', (error) => pageErrors.push(error.message));
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text());
@@ -247,12 +291,12 @@ test('retry recovers from a detail transport error', async ({ page }) => {
   );
 
   await page.goto('/products/item/?slug=visionclip-ai-camera');
-  await expect(page.getByRole('alert')).toContainText('We could not load this product family.');
+  await expect(page.getByRole('alert')).toBeVisible();
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     'href',
     /\/products\/item\/$/,
   );
-  await page.getByRole('button', { name: 'Try Again' }).click();
+  await page.getByRole('button', { name: 'Reload details', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: product.name })).toBeVisible();
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     'href',

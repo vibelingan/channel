@@ -148,7 +148,10 @@ test('live release: approved categories, existing published galleries, real inqu
   expect(await publicIds()).toEqual(beforeIds);
   await page.goto(`/headphones/?id=${sampleIds[0]}`);
   await expect(page.locator('[data-catalog-variant-selector]')).toBeVisible();
-  await page.locator('[data-catalog-variant-selector] select').selectOption({ index: 1 });
+  // This approved live sample has one SKU: the actual UI uses radio chips for
+  // <=12 variants, unlike the 21-SKU local pagination fixture's select control.
+  await expect(page.locator('[data-catalog-variant-selector]').getByRole('radio')).toHaveCount(1);
+  await page.locator('[data-catalog-variant-selector]').getByRole('radio').check();
   await page.locator('[data-quote-open]').click();
   const dialog = page.locator('[data-catalog-quote-sheet]');
   await dialog.getByLabel('Requested quantity', { exact: true }).fill('1000');

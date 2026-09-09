@@ -62,8 +62,11 @@ export default function SharedCatalogPreview({
   const frame = useRef<number | undefined>(undefined);
   const restorePending = useRef(false);
   useEffect(() => {
-    const read = () => {
-      restorePending.current = sharedListTarget(true, window.location.search).status === 'list';
+    const read = (event?: PopStateEvent) => {
+      // Initial hydration is not Back navigation. Restoring here used to yank
+      // the visitor past the hero while the first catalog request was loading.
+      restorePending.current =
+        Boolean(event) && sharedListTarget(true, window.location.search).status === 'list';
       setSearch(window.location.search);
     };
     read();

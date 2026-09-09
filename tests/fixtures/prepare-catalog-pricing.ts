@@ -21,6 +21,25 @@ if (
 const db = new JsonFileAdapter(file);
 setAdapter(db);
 await seed(db);
+// The deployed hero points at three reviewed image identities. Supply owned
+// synthetic bytes under those identities in this disposable DB, not live COS.
+const heroIds = [
+  '0e0afdc26a68209e00523aa031e56460',
+  '7b76ee416a68209d0110670520562928',
+  '0e0afdc26a68209c00523a7b50cb8647',
+];
+for (const id of heroIds)
+  await db.createDocWithId('images', id, {
+    name: 'Local hero fixture',
+    mimeType: 'image/png',
+    status: 'active',
+    publishedRefCount: 1,
+    refCount: 1,
+    data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ1cAAAAASUVORK5CYII=',
+  });
+const heroOwner = await db.findByField('products', 'name', 'AuraBeat Classic');
+if (!heroOwner) throw new Error('Owned hero product fixture missing');
+await db.update('products', heroOwner._id, { imageIds: heroIds });
 const product = await db.findByField('products', 'name', 'SonicAir Move');
 if (!product) throw new Error('Owned seed fixture missing');
 await db.update('products', product._id, {
