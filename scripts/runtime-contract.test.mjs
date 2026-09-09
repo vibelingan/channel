@@ -167,7 +167,7 @@ test('Deploy Test runs deployment contracts before packaging', () => {
   assert.ok(deployJob, 'Deploy Test must define jobs.deploy');
   assert.equal(
     deployJob.if,
-    "${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' }}",
+    "${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' && github.event.inputs.catalog_acceptance_only != 'true' }}",
     'only the test-branch/full-CI gate may condition deployment',
   );
   const contractStep = findUniqueStep(
