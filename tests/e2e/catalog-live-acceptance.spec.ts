@@ -47,6 +47,10 @@ test('live release: approved categories, existing published galleries, real inqu
   const beforeIds = await publicIds();
   for (const id of sampleIds) expect(beforeIds).toContain(id);
   await page.goto('/login?returnTo=%2Fadmin');
+  // Check the safe SSR contract BEFORE entering a real credential. A stale
+  // cached login page must fail here, not fall back to native GET submission.
+  await expect(page.locator('form')).toHaveAttribute('method', 'post');
+  await expect(page.locator('form')).toHaveAttribute('aria-busy', 'false');
   await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
   await page.getByLabel('Password', { exact: true }).fill(e2e.adminPassword);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SessionApiError, login, postLoginPath, recover, register } from '../../lib/session.ts';
 
 type Mode = 'login' | 'register';
@@ -13,13 +13,19 @@ const inputClass =
 
 /** Strava-style auth form: sign in, register, and inline password recovery. */
 export function AuthForm({ mode, returnTo }: Props) {
+  const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [forgot, setForgot] = useState(false);
   const [notice, setNotice] = useState('');
 
+  useEffect(() => {
+    setReady(true);
+  }, []);
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!ready || busy) return;
     const form = e.currentTarget;
     if (!form.checkValidity()) {
       form.reportValidity();
@@ -60,118 +66,129 @@ export function AuthForm({ mode, returnTo }: Props) {
   const cta = forgot ? 'Send reset link' : mode === 'register' ? 'Create account' : 'Sign in';
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="w-full">
-      <h1 className="font-display text-2xl font-bold text-ink">{title}</h1>
+    <form
+      method="post"
+      onSubmit={handleSubmit}
+      noValidate
+      className="w-full"
+      aria-busy={!ready || busy}
+    >
+      {/* SSR must not accept secrets before React owns submit; POST is a second
+          barrier against credentials entering browser history/access-log URLs. */}
+      <fieldset disabled={!ready || busy} className="contents">
+        <noscript>Enable JavaScript to use this secure form.</noscript>
+        <h1 className="font-display text-2xl font-bold text-ink">{title}</h1>
 
-      {notice && (
-        <p className="mt-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-          {notice}
-        </p>
-      )}
-      {error && (
-        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </p>
-      )}
+        {notice && (
+          <p className="mt-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+            {notice}
+          </p>
+        )}
+        {error && (
+          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </p>
+        )}
 
-      <div className="mt-6 space-y-4">
-        {mode === 'register' && !forgot && (
+        <div className="mt-6 space-y-4">
+          {mode === 'register' && !forgot && (
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium text-ink">
+                Username
+              </label>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                autoComplete="username"
+                required
+                minLength={2}
+                className={inputClass}
+              />
+            </div>
+          )}
+
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-ink">
-              Username
+            <label htmlFor="email" className="block text-sm font-medium text-ink">
+              Email
             </label>
             <input
-              id="username"
-              name="username"
-              type="text"
-              autoComplete="username"
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
               required
-              minLength={2}
               className={inputClass}
             />
           </div>
-        )}
 
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-ink">
-            Email
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-            className={inputClass}
-          />
+          {!forgot && (
+            <div>
+              <div className="flex items-center justify-between">
+                <label htmlFor="password" className="block text-sm font-medium text-ink">
+                  Password
+                </label>
+                {mode === 'login' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgot(true);
+                      setError('');
+                      setNotice('');
+                    }}
+                    className="text-xs font-medium text-brand-600 hover:text-brand-700"
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                required
+                minLength={mode === 'register' ? 6 : 1}
+                className={inputClass}
+              />
+            </div>
+          )}
         </div>
 
-        {!forgot && (
-          <div>
-            <div className="flex items-center justify-between">
-              <label htmlFor="password" className="block text-sm font-medium text-ink">
-                Password
-              </label>
-              {mode === 'login' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setForgot(true);
-                    setError('');
-                    setNotice('');
-                  }}
-                  className="text-xs font-medium text-brand-600 hover:text-brand-700"
-                >
-                  Forgot password?
-                </button>
-              )}
-            </div>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
-              required
-              minLength={mode === 'register' ? 6 : 1}
-              className={inputClass}
-            />
-          </div>
-        )}
-      </div>
+        <button
+          type="submit"
+          disabled={!ready || busy}
+          className="mt-6 w-full rounded-lg bg-brand-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-800 disabled:opacity-60"
+        >
+          {busy ? 'Please wait…' : cta}
+        </button>
 
-      <button
-        type="submit"
-        disabled={busy}
-        className="mt-6 w-full rounded-lg bg-brand-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-800 disabled:opacity-60"
-      >
-        {busy ? 'Please wait…' : cta}
-      </button>
-
-      <div className="mt-5 text-center text-sm text-ink-soft">
-        {forgot ? (
-          <button
-            type="button"
-            onClick={() => setForgot(false)}
-            className="font-medium text-brand-600 hover:text-brand-700"
-          >
-            ← Back to sign in
-          </button>
-        ) : mode === 'login' ? (
-          <>
-            New here?{' '}
-            <a href="/register" className="font-semibold text-brand-600 hover:text-brand-700">
-              Create an account
-            </a>
-          </>
-        ) : (
-          <>
-            Already have an account?{' '}
-            <a href="/login" className="font-semibold text-brand-600 hover:text-brand-700">
-              Sign in
-            </a>
-          </>
-        )}
-      </div>
+        <div className="mt-5 text-center text-sm text-ink-soft">
+          {forgot ? (
+            <button
+              type="button"
+              onClick={() => setForgot(false)}
+              className="font-medium text-brand-600 hover:text-brand-700"
+            >
+              ← Back to sign in
+            </button>
+          ) : mode === 'login' ? (
+            <>
+              New here?{' '}
+              <a href="/register" className="font-semibold text-brand-600 hover:text-brand-700">
+                Create an account
+              </a>
+            </>
+          ) : (
+            <>
+              Already have an account?{' '}
+              <a href="/login" className="font-semibold text-brand-600 hover:text-brand-700">
+                Sign in
+              </a>
+            </>
+          )}
+        </div>
+      </fieldset>
     </form>
   );
 }
