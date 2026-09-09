@@ -79,11 +79,20 @@ invoice, payment or email-delivery test.
 
 PR #37 head `80cd77b` passed full CI `34358334845` and merged into `test` as
 `ac859ebb1a30cef512dbcb9adb452bb75e33b829`. The resulting Deploy Test run
-`34368427049` is the same-SHA release gate; deployment acceptance is pending.
+`34368427049` deployed matching artifacts and passed authenticated resource/health
+smoke, but its final public browser step failed one check (39 passed).
 Independent readback already returns that SHA from both public-api/admin health
 endpoints. The ordinary WH3 page displays USD 3.10 before quantity entry, and the
 authenticated Catalog Import page shows its customer-facing read-only empty state.
-The remaining Actions public-browser gate has not yet completed at this entry.
+The first live card now opens an approved shared detail, while that smoke test
+still required the legacy-only `data-product-detail` marker. The failure screenshot
+shows the correctly rendered SY-T11 detail and six-image gallery. A read-only local
+rerun against the deployed site reproduced this deterministically; replacing the
+legacy-only assertion with a new/legacy detail identity assertion passes on the
+same deployed bytes (mobile and desktop, 1 test, 10.2 seconds). No product data or
+rendering was changed. Logs: `/tmp/channel-ac859-repro.log` and
+`/tmp/channel-ac859-verified.log`. The workflow remains historically red; the fix
+must pass the next full same-SHA deployment gate, not be described as a rerun success.
 This merge targets `test`, not `main`: feature CI precedes the merge, then the
 test-branch workflow runs complete CI again before updating cloud resources,
 functions, configuration and static pages. An Actions start is not release success.

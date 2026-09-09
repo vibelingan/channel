@@ -809,10 +809,24 @@ test.describe('public browser smoke', () => {
         expect(rendered.height).toBeGreaterThan(0);
       }
 
+      const selectedId = await productCards.first().getAttribute('data-product-card');
+      expect(selectedId).toBeTruthy();
       await productCards.first().click();
-      await expect(page.locator('[data-product-detail]')).toBeVisible();
+      // Approved source products use the shared detail; legacy/manual records
+      // remain on the compatible legacy detail. Assert identity, not just a shell.
+      const openedDetail = page.locator('[data-product-detail], [data-shared-catalog-detail]');
+      await expect(openedDetail).toHaveCount(1);
+      await expect(openedDetail).toBeVisible();
+      expect(
+        await openedDetail.evaluate(
+          (element) =>
+            element.getAttribute('data-shared-catalog-detail') ??
+            element.getAttribute('data-product-detail'),
+        ),
+      ).toBe(selectedId);
+      await expect(openedDetail.getByRole('heading', { level: 1 })).toBeVisible();
       await page.getByRole('button', { name: 'Back to catalog', exact: true }).click();
-      await expect(page.locator('[data-product-detail]')).toHaveCount(0);
+      await expect(openedDetail).toHaveCount(0);
       await expect(productCards.first()).toBeVisible();
     }
   });
