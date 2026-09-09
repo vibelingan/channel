@@ -71,7 +71,16 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
       .getByRole('option', { name: label, exact: true })
       .click();
     await page.getByRole('button', { name: 'Assign category', exact: true }).click();
+    const committed = page.waitForResponse((response) => {
+      if (!response.url().endsWith('/api/admin') || response.request().method() !== 'POST')
+        return false;
+      const body = response.request().postDataJSON();
+      return (
+        body.action === 'update' && body.data?.id === id && body.data?.values?.published === true
+      );
+    });
     await page.getByRole('button', { name: 'Confirm assignment' }).click();
+    expect((await (await committed).json()).ok).toBe(true);
     await expect(page.getByRole('status')).toContainText('1 updated', { timeout: 30000 });
     const saved = await adminAction<CollectionDoc>(
       request,
