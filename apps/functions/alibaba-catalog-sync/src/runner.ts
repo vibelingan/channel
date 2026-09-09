@@ -30,11 +30,13 @@ import {
   evaluateQuarantine,
   extractProductListPage,
   initialEnumerationState,
+  isAlibabaProductAbsentError,
   newRunBudget,
   nextEnumerationAction,
   parseAlibabaApiResponse,
   runOverdue,
 } from '@vibelingan-channel/alibaba-catalog-sync';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import {
   ALIBABA_SYNC_LEASE_TTL_MS,
   type AlibabaLeaseGuard,
@@ -45,18 +47,35 @@ import {
   updateDocWithAlibabaLease,
 } from '@vibelingan-channel/db';
 import type { AlertSender } from './alerts.ts';
+import { isAlibabaProductId } from './detail-inspection.ts';
 import { ingestProductDetail } from './ingest.ts';
-import { createDraftForSource } from './linking.ts';
+import { createAlibabaCategoryResolver, createDraftForSource } from './linking.ts';
 import { listAllDocs } from './list-all.ts';
 import { PRIMARY_CONNECTION_ID } from './oauth.ts';
 import { promoteLinkedProduct } from './promotion.ts';
-import { type CollectionDoc, createDocWithId, getDoc, updateDoc, upsertDocWithId } from './repo.ts';
+import {
+  type CollectionDoc,
+  claimAlibabaSyncRun,
+  getDoc,
+  upsertDocWithAlibabaLease,
+} from './repo.ts';
 
-const LIST_PATH = '/alibaba/icbu/product/list';
-const DETAIL_PATH = '/alibaba/icbu/product/get';
+const LIST_METHOD = 'alibaba.icbu.product.list';
+const DETAIL_METHOD = 'alibaba.icbu.product.get';
+const PRODUCT_LANGUAGE = 'ENGLISH';
 /** Full enumeration window start: safely before any live listing. */
 const FULL_WINDOW_START = '2010-01-01T00:00:00.000Z';
 const INCREMENTAL_LOOKBACK_MS = 4 * 3_600_000;
+
+/** Alibaba product filters are documented as China-time yyyy-MM-dd HH:mm:ss. */
+function formatChinaDateTime(atMs: number): string {
+  const shifted = new Date(atMs + 8 * 60 * 60 * 1000);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return (
+    `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}` +
+    ` ${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}:${pad(shifted.getUTCSeconds())}`
+  );
+}
 
 export interface RunnerDeps {
   client: AlibabaClient;
@@ -147,22 +166,53 @@ export async function runSyncTick(input: {
     { ok: true; accessToken: string } | { ok: false; report: TickReport }
   > => {
     const access = await deps.getAccessToken();
-    if (access.ok) return { ok: true, accessToken: access.accessToken };
+    if (access.ok) {
+      // Token refresh is an external call and may outlive the lease. Renew at
+      // the CURRENT time before any run/checkpoint write; a successful token
+      // must not let an expired holder commit with its acquisition timestamp.
+      const renewedAt = deps.now();
+      const renewed = await renewAlibabaSyncLease(
+        PRIMARY_CONNECTION_ID,
+        holder,
+        fence,
+        renewedAt,
+        ALIBABA_SYNC_LEASE_TTL_MS,
+      );
+      if (!renewed) {
+        await release();
+        return { ok: false, report: { outcome: 'lease-lost' } };
+      }
+      return { ok: true, accessToken: access.accessToken };
+    }
     await release();
     return { ok: false, report: { outcome: 'not-connected', detail: access.reason } };
   };
 
   try {
-    // Checkpoint bootstrap (upsert is safe: we hold the lease).
+    // Checkpoint bootstrap is fenced in the SAME transaction as its write.
+    // Merely holding a lease in this stack frame is not enough: this worker
+    // may have stalled while a later holder took over.
     let checkpointDoc = await getDoc('alibabaSyncCheckpoints', PRIMARY_CONNECTION_ID);
     if (!checkpointDoc) {
-      checkpointDoc = await upsertDocWithId('alibabaSyncCheckpoints', PRIMARY_CONNECTION_ID, {
-        connectionId: PRIMARY_CONNECTION_ID,
-        activeRunId: '',
-        nextFullDueAt: computeNextFullDueAt(now),
-        nextIncrementalDueAt: computeNextIncrementalDueAt(now),
-        committedCursor: '',
-      });
+      const bootstrapped = await upsertDocWithAlibabaLease(
+        'alibabaSyncCheckpoints',
+        PRIMARY_CONNECTION_ID,
+        {},
+        {
+          connectionId: PRIMARY_CONNECTION_ID,
+          activeRunId: '',
+          nextFullDueAt: computeNextFullDueAt(now),
+          nextIncrementalDueAt: computeNextIncrementalDueAt(now),
+          committedCursor: '',
+        },
+        guard(deps.now()),
+      );
+      if (!bootstrapped) return { outcome: 'lease-lost' };
+      checkpointDoc = await getDoc('alibabaSyncCheckpoints', PRIMARY_CONNECTION_ID);
+      if (!checkpointDoc) {
+        await release();
+        return { outcome: 'failed', detail: 'checkpoint-bootstrap-missing' };
+      }
     }
 
     // MARK-DUE for a manual run (§10.1, and the original §10 intent): without
@@ -184,9 +234,14 @@ export async function runSyncTick(input: {
         ...(typeof checkpointDoc.activeRunId === 'string' && checkpointDoc.activeRunId !== ''
           ? { activeRunId: checkpointDoc.activeRunId }
           : {}),
-        ...(typeof checkpointDoc.nextFullDueAt === 'string'
-          ? { nextFullDueAt: checkpointDoc.nextFullDueAt }
-          : {}),
+        ...(manualStart
+          ? // Run now is the explicit incremental command. Mask an overdue
+            // full watermark for this decision only; the stored full schedule
+            // remains intact for a future timer or dedicated full-resync flow.
+            { nextFullDueAt: computeNextFullDueAt(now) }
+          : typeof checkpointDoc.nextFullDueAt === 'string'
+            ? { nextFullDueAt: checkpointDoc.nextFullDueAt }
+            : {}),
         ...(manualStart
           ? { nextIncrementalDueAt: now }
           : typeof checkpointDoc.nextIncrementalDueAt === 'string'
@@ -221,17 +276,27 @@ export async function runSyncTick(input: {
         // either. Advance the DEAD run's own mode (blessing-gate P2); passing
         // null would leave the mode due forever and hot-loop it.
         const healedMode = runDoc?.mode === 'full' ? 'full' : 'incremental';
-        await clearActiveRun(guard, deps, healedMode);
+        const completedCursor =
+          runDoc?.status === 'completed' && typeof checkpointDoc.windowEnd === 'string'
+            ? checkpointDoc.windowEnd
+            : undefined;
+        if (!(await clearActiveRun(guard, deps, healedMode, completedCursor))) {
+          return { outcome: 'lease-lost', runId: decision.runId };
+        }
         await release();
         return { outcome: 'idle', runId: decision.runId, detail: 'stale-active-run-cleared' };
       }
       if (!runDoc || runOverdue(String(runDoc.startedAt ?? now), continuationCount, now)) {
-        await failRun(decision.runId, 'run-overdue', guard(deps.now()), deps);
+        if (!(await failRun(decision.runId, 'run-overdue', guard(deps.now()), deps))) {
+          return { outcome: 'lease-lost', runId: decision.runId };
+        }
         // Vacate the slot (review R2 HIGH): without this every later tick
         // re-resumes the dead run forever and sync wedges permanently. Advance
         // the DEAD run's own watermark so the same mode does not hot-loop.
         const deadMode = runDoc?.mode === 'full' ? 'full' : runDoc ? 'incremental' : null;
-        await clearActiveRun(guard, deps, deadMode);
+        if (!(await clearActiveRun(guard, deps, deadMode))) {
+          return { outcome: 'lease-lost', runId: decision.runId };
+        }
         await release();
         return { outcome: 'failed', runId: decision.runId, detail: 'run-overdue' };
       }
@@ -251,17 +316,26 @@ export async function runSyncTick(input: {
         windowEnd: String(checkpointDoc.windowEnd ?? now),
         continuationCount: continuationCount + 1,
       };
-      await updateDocWithAlibabaLease(
-        'alibabaSyncCheckpoints',
-        PRIMARY_CONNECTION_ID,
-        { continuationCount: state.continuationCount },
-        guard(now),
-      );
-      await updateDoc('alibabaSyncRuns', state.activeRunId, {
-        status: 'continuing',
-        holder,
-        fence,
-      });
+      if (
+        !(await updateDocWithAlibabaLease(
+          'alibabaSyncCheckpoints',
+          PRIMARY_CONNECTION_ID,
+          { continuationCount: state.continuationCount },
+          guard(deps.now()),
+        ))
+      ) {
+        return { outcome: 'lease-lost', runId: state.activeRunId };
+      }
+      if (
+        !(await updateDocWithAlibabaLease(
+          'alibabaSyncRuns',
+          state.activeRunId,
+          { status: 'continuing', holder, fence },
+          guard(deps.now()),
+        ))
+      ) {
+        return { outcome: 'lease-lost', runId: state.activeRunId };
+      }
     } else {
       // Nothing has been written yet — a token failure here leaves NO trace.
       const started = await resolveToken();
@@ -276,26 +350,6 @@ export async function runSyncTick(input: {
             ? checkpointDoc.committedCursor
             : new Date(Date.parse(now) - INCREMENTAL_LOOKBACK_MS).toISOString();
       const runId = `${mode}-${now.replace(/[:.]/g, '-')}`;
-      const created = await createDocWithId('alibabaSyncRuns', runId, {
-        connectionId: PRIMARY_CONNECTION_ID,
-        mode,
-        trigger: input.trigger,
-        status: 'running',
-        holder,
-        fence,
-        startedAt: now,
-        completedAt: '',
-        counters: emptyCounters(),
-        alerts: [],
-        approval: null,
-        errorSummary: '',
-      });
-      if (created === 'exists') {
-        // A same-instant duplicate lost the run-row race; the winner owns it.
-        await release();
-        return { outcome: 'lease-busy', detail: 'run-row-race' };
-      }
-      runDoc = await getDoc('alibabaSyncRuns', runId);
       state = {
         activeRunId: runId,
         mode,
@@ -308,9 +362,22 @@ export async function runSyncTick(input: {
         windowEnd: now,
         continuationCount: 0,
       };
-      await updateDocWithAlibabaLease(
-        'alibabaSyncCheckpoints',
-        PRIMARY_CONNECTION_ID,
+      const claimResult = await claimAlibabaSyncRun(
+        runId,
+        {
+          connectionId: PRIMARY_CONNECTION_ID,
+          mode,
+          trigger: input.trigger,
+          status: 'running',
+          holder,
+          fence,
+          startedAt: now,
+          completedAt: '',
+          counters: emptyCounters(),
+          alerts: [],
+          approval: null,
+          errorSummary: '',
+        },
         {
           activeRunId: runId,
           mode,
@@ -320,8 +387,21 @@ export async function runSyncTick(input: {
           windowEnd: now,
           continuationCount: 0,
         },
-        guard(now),
+        guard(deps.now()),
       );
+      if (claimResult !== 'claimed') {
+        await release();
+        if (claimResult === 'lease-lost') return { outcome: 'lease-lost' };
+        if (claimResult === 'checkpoint-missing') {
+          return { outcome: 'failed', detail: 'checkpoint-missing-at-run-claim' };
+        }
+        return {
+          outcome: 'lease-busy',
+          detail: claimResult === 'checkpoint-busy' ? 'checkpoint-claim-race' : 'run-row-race',
+        };
+      }
+      runDoc = await getDoc('alibabaSyncRuns', runId);
+      if (!runDoc) throw new Error('Atomic run claim committed without a readable run row.');
     }
 
     return await executeSlice(
@@ -397,13 +477,15 @@ async function executeSlice(
   > => {
     budget.apiCalls += 1;
     const params: Record<string, string> = {
-      page: '1',
+      current_page: '1',
       page_size: String(pageSize),
-      gmt_modified_from: new Date(fromMs).toISOString(),
-      gmt_modified_to: new Date(toMs).toISOString(),
+      language: PRODUCT_LANGUAGE,
+      gmt_modified_from: formatChinaDateTime(fromMs),
+      gmt_modified_to: formatChinaDateTime(toMs),
     };
     const response = await deps.client.callApi({
-      apiPath: LIST_PATH,
+      apiPath: LIST_METHOD,
+      protocol: 'top',
       params,
       accessToken,
       ...callTuning,
@@ -413,7 +495,7 @@ async function executeSlice(
     const raw = await storeRawPayload({
       bodyText: response.bodyText,
       endpointId: 'product.list',
-      requestFingerprint: deps.client.fingerprintFor({ apiPath: LIST_PATH, params }),
+      requestFingerprint: deps.client.fingerprintFor({ apiPath: LIST_METHOD, params }),
       connectionId: PRIMARY_CONNECTION_ID,
       runId: state.activeRunId,
       now: deps.now(),
@@ -435,7 +517,16 @@ async function executeSlice(
     for (;;) {
       if (budgetExhausted(budget, Date.parse(deps.now()))) {
         if (!(await saveCheckpoint())) return { outcome: 'lease-lost', runId: state.activeRunId };
-        await updateDoc('alibabaSyncRuns', state.activeRunId, { counters });
+        if (
+          !(await updateDocWithAlibabaLease(
+            'alibabaSyncRuns',
+            state.activeRunId,
+            { counters },
+            guard(deps.now()),
+          ))
+        ) {
+          return { outcome: 'lease-lost', runId: state.activeRunId };
+        }
         await release();
         return { outcome: 'continued', runId: state.activeRunId };
       }
@@ -448,13 +539,19 @@ async function executeSlice(
         break;
       }
       if (action.type === 'blocked') {
-        await failRun(
-          state.activeRunId,
-          'enumeration-blocked-unstable-tie',
-          guard(deps.now()),
-          deps,
-        );
-        await clearActiveRun(guard, deps, state.mode);
+        if (
+          !(await failRun(
+            state.activeRunId,
+            'enumeration-blocked-unstable-tie',
+            guard(deps.now()),
+            deps,
+          ))
+        ) {
+          return { outcome: 'lease-lost', runId: state.activeRunId };
+        }
+        if (!(await clearActiveRun(guard, deps, state.mode))) {
+          return { outcome: 'lease-lost', runId: state.activeRunId };
+        }
         await release();
         return { outcome: 'failed', runId: state.activeRunId, detail: 'BLOCKED_UNSTABLE_TIE' };
       }
@@ -467,13 +564,9 @@ async function executeSlice(
           // §12 response-contract failure (review R2 #9): a page-size-1 count
           // without total_item would silently collapse the whole window into
           // one bucket. Quarantine instead of guessing.
-          await updateDoc('alibabaSyncRuns', state.activeRunId, {
-            status: 'quarantined',
-            alerts: ['response-contract-failed'],
-            counters,
-            completedAt: deps.now(),
-          });
-          await clearActiveRun(guard, deps, state.mode);
+          if (!(await quarantineRun(state, counters, ['response-contract-failed'], guard, deps))) {
+            return { outcome: 'lease-lost', runId: state.activeRunId };
+          }
           await deps.alert(
             `Alibaba sync run ${state.activeRunId} quarantined: list response carried no total_item (response contract failed).`,
           );
@@ -509,9 +602,10 @@ async function executeSlice(
         if (!(await keepLease())) return { outcome: 'lease-lost', runId: state.activeRunId };
         budget.apiCalls += 1;
         budget.productsProcessed += 1;
-        const params = { product_id: sourceProductId };
+        const params = { product_id: sourceProductId, language: PRODUCT_LANGUAGE };
         const detailResponse = await deps.client.callApi({
-          apiPath: DETAIL_PATH,
+          apiPath: DETAIL_METHOD,
+          protocol: 'top',
           params,
           accessToken,
           ...callTuning,
@@ -522,12 +616,34 @@ async function executeSlice(
         }
         const ingest = await ingestProductDetail({
           bodyText: detailResponse.bodyText,
+          expectedSourceProductId: sourceProductId,
           endpointId: 'product.get',
-          requestFingerprint: deps.client.fingerprintFor({ apiPath: DETAIL_PATH, params }),
+          requestFingerprint: deps.client.fingerprintFor({ apiPath: DETAIL_METHOD, params }),
           connectionId: PRIMARY_CONNECTION_ID,
           runId: state.activeRunId,
           now: deps.now(),
+          captureMode: state.mode,
+          leaseGuard: () => guard(deps.now()),
         });
+        if (!ingest.ok && ingest.error === 'lease-lost') {
+          return { outcome: 'lease-lost', runId: state.activeRunId };
+        }
+        if (!ingest.ok && ingest.error === 'product-id-mismatch') {
+          if (
+            !(await quarantineRun(state, counters, ['detail-product-id-mismatch'], guard, deps))
+          ) {
+            return { outcome: 'lease-lost', runId: state.activeRunId };
+          }
+          await deps.alert(
+            `Alibaba sync run ${state.activeRunId} quarantined: product.get returned a different product id.`,
+          );
+          await release();
+          return {
+            outcome: 'quarantined',
+            runId: state.activeRunId,
+            detail: 'detail-product-id-mismatch',
+          };
+        }
         counters.itemsProcessed += 1;
         if (!ingest.ok) {
           if (ingest.error === 'raw-write-failed') counters.rawFailures += 1;
@@ -540,7 +656,16 @@ async function executeSlice(
         state.enumerationState = applyListResult(state.enumerationState);
       }
       if (!(await saveCheckpoint())) return { outcome: 'lease-lost', runId: state.activeRunId };
-      await updateDoc('alibabaSyncRuns', state.activeRunId, { counters });
+      if (
+        !(await updateDocWithAlibabaLease(
+          'alibabaSyncRuns',
+          state.activeRunId,
+          { counters },
+          guard(deps.now()),
+        ))
+      ) {
+        return { outcome: 'lease-lost', runId: state.activeRunId };
+      }
     }
   }
 
@@ -555,8 +680,8 @@ async function executeSlice(
     // Sources with no link yet. Drafts for these are created AFTER the
     // quarantine gate — createDraftForSource writes `products` rows, and this
     // stage's whole contract is that no product write happens before the gate
-    // (module docstring, ARCHITECTURE §12). They become candidates on the NEXT
-    // run, once their links exist, so this run's candidate hash stays stable.
+    // (module docstring, ARCHITECTURE §12). Freeze this set before the gate;
+    // after a clean gate new drafts receive pricing in this same run.
     const unlinkedSources: string[] = [];
     // How many linked candidates actually CHANGED. Counting every linked
     // source seen would trip the §12 candidate-surge guard on every real full
@@ -614,16 +739,12 @@ async function executeSlice(
         candidates: linkedCandidates,
         tombstones: tombstoneCandidates.map((doc) => doc._id),
       });
-      await updateDoc('alibabaSyncRuns', state.activeRunId, {
-        status: 'quarantined',
+      const quarantined = await quarantineRun(state, counters, quarantine.reasons, guard, deps, {
         candidateHash,
-        counters,
-        alerts: quarantine.reasons,
-        completedAt: deps.now(),
       });
       // Quarantine RELEASES the lease and vacates the active slot (R1 E4);
       // the frozen candidate awaits approval, new runs may start.
-      await clearActiveRun(guard, deps, state.mode);
+      if (!quarantined) return { outcome: 'lease-lost', runId: state.activeRunId };
       await deps.alert(
         `Alibaba sync run ${state.activeRunId} quarantined: ${quarantine.reasons.join(', ')}.`,
       );
@@ -653,25 +774,37 @@ async function executeSlice(
     // Drafts are created only AFTER the quarantine gate has passed: they write
     // `products` rows, and this stage's contract is that no product write
     // precedes the gate. A run whose mirror is untrustworthy must not leave
-    // drafts behind that no approval path would ever roll back. The new links
-    // become ordinary candidates on the next run, so this run's frozen
-    // candidate hash stays exactly what the approval path recomputes.
-    let draftsCreated = 0;
-    let draftsUnmapped = 0;
+    // drafts behind that no approval path would ever roll back. Pricing must
+    // be promoted immediately after creation: a future incremental window may
+    // never see an unchanged source again. Quarantined runs exit above without
+    // creating a link or changing their frozen approval candidate hash.
+    let draftFailures = 0;
+    const resolveCategory = createAlibabaCategoryResolver();
     for (const sourceKey of unlinkedSources) {
       // Runs to completion for the same reason as the walk above: breaking
       // here and then falling through to completeRun would advance
       // committedCursor past sources that never got a draft.
       if (!(await keepLease())) return { outcome: 'lease-lost', runId: state.activeRunId };
-      const draft = await createDraftForSource(sourceKey, { now: deps.now() });
-      if (draft.ok) draftsCreated += 1;
-      else if (draft.reason === 'no-category-mapping') draftsUnmapped += 1;
+      const draft = await createDraftForSource(sourceKey, { now: deps.now(), resolveCategory });
+      if (!draft.ok) {
+        draftFailures += 1;
+        continue;
+      }
+      if (!(await keepLease())) return { outcome: 'lease-lost', runId: state.activeRunId };
+      const promoted = await promoteLinkedProduct({
+        sourceKey,
+        guard: guard(deps.now()),
+        now: deps.now(),
+      });
+      if (!promoted.ok) {
+        if (promoted.reason === 'fence-rejected')
+          return { outcome: 'lease-lost', runId: state.activeRunId };
+        draftFailures += 1;
+      }
     }
-    if (draftsUnmapped > 0) {
-      // Operators cannot act on what they cannot see: an unmapped category
-      // silently withholds every product behind it.
+    if (draftFailures > 0) {
       await deps.alert(
-        `Alibaba sync: ${draftsUnmapped} source product(s) have no category mapping and were skipped; ${draftsCreated} draft(s) created.`,
+        `Alibaba sync: ${draftFailures} source product draft(s) could not be created or repaired.`,
       );
     }
 
@@ -700,10 +833,31 @@ async function executeSlice(
       return { outcome: 'continued', runId: state.activeRunId };
     }
     if (!(await keepLease())) return { outcome: 'lease-lost', runId: state.activeRunId };
+    const sourceProductId =
+      typeof candidate.sourceProductId === 'string' ? candidate.sourceProductId.trim() : '';
+    if (!isAlibabaProductId(sourceProductId)) {
+      const quarantined = await quarantineRun(
+        state,
+        counters,
+        ['tombstone-confirmation-invalid-product-id'],
+        guard,
+        deps,
+      );
+      if (!quarantined) return { outcome: 'lease-lost', runId: state.activeRunId };
+      await deps.alert(
+        `Alibaba sync run ${state.activeRunId} quarantined: tombstone candidate had an invalid product id.`,
+      );
+      await release();
+      return { outcome: 'quarantined', runId: state.activeRunId };
+    }
     budget.apiCalls += 1;
-    const params = { product_id: String(candidate.sourceProductId ?? '') };
+    const params = {
+      product_id: sourceProductId,
+      language: PRODUCT_LANGUAGE,
+    };
     const confirm = await deps.client.callApi({
-      apiPath: DETAIL_PATH,
+      apiPath: DETAIL_METHOD,
+      protocol: 'top',
       params,
       accessToken,
       // NOT callTuning: a single transient timeout here quarantines the
@@ -713,13 +867,9 @@ async function executeSlice(
     });
     if (!confirm.ok) {
       // A confirmation TRANSPORT error must not tombstone; quarantine the set.
-      await updateDoc('alibabaSyncRuns', state.activeRunId, {
-        status: 'quarantined',
-        alerts: ['tombstone-confirmation-failed'],
-        counters,
-        completedAt: deps.now(),
-      });
-      await clearActiveRun(guard, deps, state.mode);
+      if (!(await quarantineRun(state, counters, ['tombstone-confirmation-failed'], guard, deps))) {
+        return { outcome: 'lease-lost', runId: state.activeRunId };
+      }
       await deps.alert(
         `Alibaba sync run ${state.activeRunId} quarantined: tombstone confirmation failed.`,
       );
@@ -727,18 +877,59 @@ async function executeSlice(
       return { outcome: 'quarantined', runId: state.activeRunId };
     }
     const envelope = parseAlibabaApiResponse(confirm.bodyText);
-    const stillExists = envelope.kind === 'success';
-    if (stillExists) {
+    if (envelope.kind === 'success') {
       // Bisection miss (item moved mid-run): re-ingest so it survives.
-      await ingestProductDetail({
+      const confirmed = await ingestProductDetail({
         bodyText: confirm.bodyText,
+        expectedSourceProductId: sourceProductId,
         endpointId: 'product.get',
-        requestFingerprint: deps.client.fingerprintFor({ apiPath: DETAIL_PATH, params }),
+        requestFingerprint: deps.client.fingerprintFor({ apiPath: DETAIL_METHOD, params }),
         connectionId: PRIMARY_CONNECTION_ID,
         runId: state.activeRunId,
         now: deps.now(),
+        captureMode: state.mode,
+        leaseGuard: () => guard(deps.now()),
       });
+      if (!confirmed.ok && confirmed.error === 'lease-lost') {
+        return { outcome: 'lease-lost', runId: state.activeRunId };
+      }
+      if (!confirmed.ok) {
+        if (
+          !(await quarantineRun(
+            state,
+            counters,
+            ['tombstone-confirmation-invalid-detail'],
+            guard,
+            deps,
+          ))
+        ) {
+          return { outcome: 'lease-lost', runId: state.activeRunId };
+        }
+        await deps.alert(
+          `Alibaba sync run ${state.activeRunId} quarantined: confirmation detail could not be ingested.`,
+        );
+        await release();
+        return { outcome: 'quarantined', runId: state.activeRunId };
+      }
       continue;
+    }
+    if (!isAlibabaProductAbsentError(envelope)) {
+      if (
+        !(await quarantineRun(
+          state,
+          counters,
+          ['tombstone-confirmation-provider-error'],
+          guard,
+          deps,
+        ))
+      ) {
+        return { outcome: 'lease-lost', runId: state.activeRunId };
+      }
+      await deps.alert(
+        `Alibaba sync run ${state.activeRunId} quarantined: provider did not confirm product absence.`,
+      );
+      await release();
+      return { outcome: 'quarantined', runId: state.activeRunId };
     }
     // Fenced flip (R1 E7, review R2 #7): the tombstone DECISION input must not
     // be writable by a stale holder — the lease is re-verified inside the
@@ -783,6 +974,28 @@ async function demoteTombstonedSource(
   guard: (at: string) => AlibabaLeaseGuard,
   deps: RunnerDeps,
 ): Promise<boolean> {
+  // Keep the provider-neutral current view in the same repair window as the
+  // source mirror and canonical demotion. Existing installations may not have
+  // replayed an observation for an old source yet, so absence is a safe no-op.
+  const observationId = sourceObservationDocumentId('alibaba', sourceKey);
+  const observation = await getDoc('catalogSourceObservations', observationId);
+  if (observation) {
+    const source = await getDoc('alibabaSourceProducts', sourceKey);
+    const lastSeenOperationId =
+      typeof source?.lastSeenRunId === 'string' && source.lastSeenRunId !== ''
+        ? source.lastSeenRunId
+        : undefined;
+    const observationDemoted = await updateDocWithAlibabaLease(
+      'catalogSourceObservations',
+      observationId,
+      {
+        active: false,
+        ...(lastSeenOperationId === undefined ? {} : { lastSeenOperationId }),
+      },
+      guard(deps.now()),
+    );
+    if (!observationDemoted) return false;
+  }
   const link = await getDoc('alibabaProductLinks', sourceKey);
   if (link && typeof link.productId === 'string' && link.productId !== '') {
     const demoted = await promoteLinkedProduct({
@@ -839,10 +1052,13 @@ async function handlePageFailure(
   // Retryable page failure: keep the run active; the next tick resumes from
   // the durable checkpoint. Raw-write failure aborts the PAGE with nothing
   // else written (MIU 6 contract) — same resume semantics.
-  await updateDoc('alibabaSyncRuns', state.activeRunId, {
-    counters,
-    errorSummary: `page-failure:${kind}`,
-  });
+  const recorded = await updateDocWithAlibabaLease(
+    'alibabaSyncRuns',
+    state.activeRunId,
+    { counters, errorSummary: `page-failure:${kind}` },
+    guard(deps.now()),
+  );
+  if (!recorded) return { outcome: 'lease-lost', runId: state.activeRunId };
   await release();
   return { outcome: 'continued', runId: state.activeRunId, detail: `page-failure:${kind}` };
 }
@@ -850,15 +1066,37 @@ async function handlePageFailure(
 async function failRun(
   runId: string,
   reason: string,
-  _guard: AlibabaLeaseGuard,
+  guard: AlibabaLeaseGuard,
   deps: RunnerDeps,
-): Promise<void> {
-  await updateDoc('alibabaSyncRuns', runId, {
-    status: 'failed',
-    errorSummary: reason,
-    completedAt: deps.now(),
-  });
+): Promise<boolean> {
+  const failed = await updateDocWithAlibabaLease(
+    'alibabaSyncRuns',
+    runId,
+    { status: 'failed', errorSummary: reason, completedAt: deps.now() },
+    guard,
+  );
+  if (!failed) return false;
   await deps.alert(`Alibaba sync run ${runId} failed: ${reason}.`);
+  return true;
+}
+
+async function quarantineRun(
+  state: CheckpointState,
+  counters: RunCounters,
+  alerts: readonly string[],
+  guard: (at: string) => AlibabaLeaseGuard,
+  deps: RunnerDeps,
+  extra: Record<string, unknown> = {},
+): Promise<boolean> {
+  const now = deps.now();
+  const transitioned = await updateDocWithAlibabaLease(
+    'alibabaSyncRuns',
+    state.activeRunId,
+    { status: 'quarantined', alerts: [...alerts], counters, completedAt: now, ...extra },
+    guard(now),
+  );
+  if (!transitioned) return false;
+  return clearActiveRun(guard, deps, state.mode);
 }
 
 /**
@@ -901,6 +1139,7 @@ async function clearActiveRun(
   guard: (at: string) => AlibabaLeaseGuard,
   deps: RunnerDeps,
   mode: 'incremental' | 'full' | null = null,
+  committedCursor?: string,
 ): Promise<boolean> {
   const now = deps.now();
   const checkpoint = await getDoc('alibabaSyncCheckpoints', PRIMARY_CONNECTION_ID);
@@ -910,6 +1149,7 @@ async function clearActiveRun(
     {
       activeRunId: '',
       stage: 'enumerate',
+      ...(committedCursor === undefined ? {} : { committedCursor }),
       ...dueWatermarkPatch(mode, checkpoint, now),
     },
     guard(now),
@@ -927,26 +1167,24 @@ async function completeRun(
   deps: RunnerDeps,
 ): Promise<boolean> {
   const now = deps.now();
-  // FENCED checkpoint first (review R2 #8): the cursor advance + slot clear
-  // must not be lost while the run row claims completion. Only after the
-  // fenced write lands is the run marked completed.
-  const checkpoint = await getDoc('alibabaSyncCheckpoints', PRIMARY_CONNECTION_ID);
-  const applied = await updateDocWithAlibabaLease(
-    'alibabaSyncCheckpoints',
-    PRIMARY_CONNECTION_ID,
+  // Mark the run terminal first. If the fenced checkpoint clear then loses its
+  // lease, the active slot still points at a terminal row and the next tick's
+  // self-heal can recover `windowEnd` as the committed cursor. Clearing first
+  // could orphan a non-terminal run that no later tick can discover.
+  const completed = await updateDocWithAlibabaLease(
+    'alibabaSyncRuns',
+    state.activeRunId,
     {
-      activeRunId: '',
-      stage: 'enumerate',
-      committedCursor: state.windowEnd,
-      ...dueWatermarkPatch(state.mode, checkpoint, now),
+      status: 'completed',
+      counters,
+      completedAt: now,
+      // A retryable page failure remains visible while the run is continuing,
+      // but once the same durable checkpoint reaches completion it is history,
+      // not a current run error. Raw payload evidence remains stored separately.
+      errorSummary: '',
     },
     guard(now),
   );
-  if (!applied) return false;
-  await updateDoc('alibabaSyncRuns', state.activeRunId, {
-    status: 'completed',
-    counters,
-    completedAt: now,
-  });
-  return true;
+  if (!completed) return false;
+  return clearActiveRun(guard, deps, state.mode, state.windowEnd);
 }

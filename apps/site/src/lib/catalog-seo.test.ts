@@ -91,11 +91,12 @@ test('Product schema emits approved real fields and wholesale Offer only', () =>
   }
 });
 
-test('Product schema uses Alibaba real pricing, omits Offer for quote, and never falls back', () => {
+test('Product schema uses explicit source policy, omits Offer for quote, and keeps currencies together', () => {
   const linked = catalogProductSchema(
     {
       ...product,
       wholesalePrice: 99,
+      catalogPricingMode: 'source',
       alibabaPrimarySourceKey: 'source-1',
       alibabaCatalogPricing: {
         schemaVersion: 'alibaba-catalog-pricing-v1',
@@ -116,7 +117,12 @@ test('Product schema uses Alibaba real pricing, omits Offer for quote, and never
     url: 'https://example.test/products/item/?slug=visionclip-camera',
   });
   const quote = catalogProductSchema(
-    { ...product, alibabaPrimarySourceKey: 'source-1', alibabaCatalogPricing: undefined },
+    {
+      ...product,
+      catalogPricingMode: 'source',
+      alibabaPrimarySourceKey: 'source-1',
+      alibabaCatalogPricing: undefined,
+    },
     origin,
     { published: true },
   );
@@ -125,6 +131,7 @@ test('Product schema uses Alibaba real pricing, omits Offer for quote, and never
   const range = catalogProductSchema(
     {
       ...product,
+      catalogPricingMode: 'source',
       alibabaPrimarySourceKey: 'source-1',
       alibabaCatalogPricing: {
         schemaVersion: 'alibaba-catalog-pricing-v1',
@@ -181,6 +188,7 @@ test('Product schema uses manual tier AggregateOffer before scalar pricing', () 
     {
       ...product,
       manualCatalogPricing: schema.offers as never,
+      catalogPricingMode: 'source',
       alibabaPrimarySourceKey: 'source-1',
       alibabaCatalogPricing: {
         schemaVersion: 'alibaba-catalog-pricing-v1',
@@ -235,6 +243,7 @@ test('Offer schema falls through invalid manual values and rejects malformed sou
   const fractional = catalogProductSchema(
     {
       ...product,
+      catalogPricingMode: 'source',
       alibabaPrimarySourceKey: 'source-1',
       alibabaCatalogPricing: {
         schemaVersion: 'alibaba-catalog-pricing-v1',
@@ -252,6 +261,7 @@ test('Offer schema falls through invalid manual values and rejects malformed sou
   const incompleteRange = catalogProductSchema(
     {
       ...product,
+      catalogPricingMode: 'source',
       alibabaPrimarySourceKey: 'source-1',
       alibabaCatalogPricing: {
         schemaVersion: 'alibaba-catalog-pricing-v1',

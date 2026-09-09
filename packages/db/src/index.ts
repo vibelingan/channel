@@ -10,18 +10,27 @@ import {
   PUBLIC_CATALOG_COLLECTIONS,
   type SortClause,
   buildWriteSchema,
+  catalogReferencedImageIds,
   getCollection,
-  normalizeCatalogImageIds,
 } from '@vibelingan-channel/shared';
 import type {
   AlibabaLeaseGrant,
   AlibabaLeaseGuard,
+  AlibabaSyncRunClaimResult,
   CatalogProductSaveInput,
   CatalogProductSaveResult,
+  CatalogSourceObservationUpsertResult,
   DbAdapter,
 } from './adapter.ts';
 import type { ImageMutationAcquireResult, ImageMutationReleaseResult } from './adapter.ts';
 import { ALIBABA_SYNC_LEASE_COLLECTION, holdsAlibabaLease } from './adapter.ts';
+import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
+export function manageCatalogCategory(actorId: string, input: unknown) {
+  const adapter = db();
+  if (!adapter.manageCatalogCategory)
+    throw new Error('Catalog classification adapter is not configured');
+  return adapter.manageCatalogCategory(actorId, input);
+}
 export {
   readImageMutationState,
   transitionImageMutationAcquire,
@@ -42,10 +51,12 @@ export type {
   AlibabaLeaseGrant,
   AlibabaLeaseGuard,
   AlibabaLeaseState,
+  AlibabaSyncRunClaimResult,
   CatalogProductIdentity,
   CatalogProductSaveInput,
   CatalogProductSavePlan,
   CatalogProductSaveResult,
+  CatalogSourceObservationUpsertResult,
   DbAdapter,
   ImageMutationAcquireResult,
   ImageMutationReleaseResult,
@@ -76,6 +87,33 @@ function db(): DbAdapter {
 }
 
 const DEFAULT_PAGE_SIZE = 20;
+export function manageCatalogDetailApproval(actorId: string, input: unknown) {
+  return runCatalogApprovalWorkflow({ get, persist: persistCatalogDetailApproval }, actorId, input);
+}
+export async function persistCatalogDetailApproval(
+  actorId: string,
+  input: import('./catalog-detail-staging.ts').ApprovalPersistenceCommand,
+) {
+  const adapter = db();
+  if (!adapter.persistCatalogDetailApproval)
+    throw new Error('Staged approval persistence unavailable');
+  return adapter.persistCatalogDetailApproval(actorId, input);
+}
+export async function approveCatalogDetail(actorId: string, input: unknown) {
+  const adapter = db();
+  if (!adapter.approveCatalogDetail) throw new Error('Catalog approval persistence unavailable');
+  return adapter.approveCatalogDetail(actorId, input);
+}
+export async function submitCatalogQuote(input: unknown) {
+  const adapter = db();
+  if (!adapter.submitCatalogQuote) throw new Error('Catalog inquiry persistence unavailable');
+  return adapter.submitCatalogQuote(input);
+}
+export async function manageCatalogInquiry(actorId: string, input: unknown) {
+  const adapter = db();
+  if (!adapter.manageCatalogInquiry) throw new Error('Catalog inquiry persistence unavailable');
+  return adapter.manageCatalogInquiry(actorId, input);
+}
 const MAX_PAGE_SIZE = 100;
 
 function assertKnown(collection: string) {
@@ -100,6 +138,7 @@ export async function list(query: ListQuery): Promise<ListResult<CollectionDoc>>
   return db().list({
     collection: query.collection,
     ...(query.productFamily ? { productFamily: query.productFamily } : {}),
+    ...(query.needsClassification ? { needsClassification: true } : {}),
     page,
     pageSize,
     search: (query.search ?? '').trim(),
@@ -351,6 +390,7 @@ export function upsertDocWithId(
   collection: string,
   id: string,
   data: Record<string, unknown>,
+  createOnly: Record<string, unknown> = {},
 ): Promise<CollectionDoc> {
   assertKnown(collection);
   requireNonEmpty(id, 'document id');
@@ -358,7 +398,26 @@ export function upsertDocWithId(
   if (!adapter.upsertDocWithId) {
     throw new Error('@vibelingan-channel/db: upsertDocWithId is not implemented by this adapter.');
   }
-  return adapter.upsertDocWithId(collection, id, data);
+  return adapter.upsertDocWithId(collection, id, data, createOnly);
+}
+
+export function upsertCatalogSourceObservation(
+  id: string,
+  data: Record<string, unknown>,
+  createOnly: Record<string, unknown>,
+): Promise<CatalogSourceObservationUpsertResult> {
+  assertKnown('catalogSourceObservations');
+  requireNonEmpty(id, 'document id');
+  if (typeof data.observedAt !== 'string' || Number.isNaN(Date.parse(data.observedAt))) {
+    throw new Error('@vibelingan-channel/db: source observation requires a valid observedAt.');
+  }
+  const adapter = db();
+  if (!adapter.upsertCatalogSourceObservation) {
+    throw new Error(
+      '@vibelingan-channel/db: upsertCatalogSourceObservation is not implemented by this adapter.',
+    );
+  }
+  return adapter.upsertCatalogSourceObservation(id, data, createOnly);
 }
 
 export function acquireAlibabaSyncLease(
@@ -453,6 +512,46 @@ export function updateDocWithAlibabaLease(
   return adapter.updateDocWithAlibabaLease(collection, id, patch, guard);
 }
 
+/** Fenced deterministic-id create-or-patch — see `DbAdapter.upsertDocWithAlibabaLease`. */
+export function upsertDocWithAlibabaLease(
+  collection: string,
+  id: string,
+  patch: Record<string, unknown>,
+  createOnly: Record<string, unknown>,
+  guard: AlibabaLeaseGuard,
+): Promise<boolean> {
+  assertKnown(collection);
+  requireNonEmpty(id, 'document id');
+  requireNonEmpty(guard.connectionId, 'connectionId');
+  requireNonEmpty(guard.holder, 'lease holder');
+  requireCanonicalIsoInstant(guard.now, 'guard time');
+  requireLeaseNumbers(guard.fence, undefined);
+  const adapter = db();
+  if (!adapter.upsertDocWithAlibabaLease) {
+    throw new Error('@vibelingan-channel/db: fenced upserts are not implemented by this adapter.');
+  }
+  return adapter.upsertDocWithAlibabaLease(collection, id, patch, createOnly, guard);
+}
+
+/** Atomically create a run row and claim the shared Alibaba checkpoint slot. */
+export function claimAlibabaSyncRun(
+  runId: string,
+  run: Record<string, unknown>,
+  checkpointPatch: Record<string, unknown>,
+  guard: AlibabaLeaseGuard,
+): Promise<AlibabaSyncRunClaimResult> {
+  requireNonEmpty(runId, 'run id');
+  requireNonEmpty(guard.connectionId, 'connectionId');
+  requireNonEmpty(guard.holder, 'lease holder');
+  requireCanonicalIsoInstant(guard.now, 'guard time');
+  requireLeaseNumbers(guard.fence, undefined);
+  const adapter = db();
+  if (!adapter.claimAlibabaSyncRun) {
+    throw new Error('@vibelingan-channel/db: atomic Alibaba run claim is not implemented.');
+  }
+  return adapter.claimAlibabaSyncRun(runId, run, checkpointPatch, guard);
+}
+
 /**
  * Apply the same partial update to many documents. Validated against the
  * registry write-schema once, then applied per id. Returns the updated docs.
@@ -545,7 +644,7 @@ export async function backfillPublishedRefCounts(
         sort: STABLE_PAGE_SORT,
       });
       for (const doc of res.items) {
-        const ids = new Set(normalizeCatalogImageIds(doc.imageIds));
+        const ids = new Set(catalogReferencedImageIds(doc));
         for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
       }
       if (res.items.length === 0 || page * res.pageSize >= res.total) break;

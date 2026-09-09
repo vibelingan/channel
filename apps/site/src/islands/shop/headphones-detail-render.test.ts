@@ -67,7 +67,7 @@ test('a complete product renders gallery, specs, pricing, focus heading, and Bac
   }
   assert.ok(html.includes('SY-T8-BLK'));
   // Public pricing panel.
-  assert.ok(html.includes(DETAIL.wholesaleLabel));
+  assert.ok(html.includes('data-effective-pricing="scalar"'));
   assert.ok(html.includes('$15.50'));
   // Focus-target heading: focusable programmatically, marked for the controller.
   assert.ok(/<h2[^>]*tabindex="-1"[^>]*data-detail-heading/.test(html));
@@ -91,7 +91,7 @@ test('manual pricing falls back from wholesale to unit to quote', () => {
   const unitOnly = render({
     product: { ...FULL_PRODUCT, wholesalePrice: undefined, unitPrice: 18.9 },
   });
-  assert.ok(unitOnly.includes(DETAIL.unitPriceLabel));
+  assert.ok(unitOnly.includes('data-effective-pricing="scalar"'));
   assert.ok(unitOnly.includes('$18.90'));
 
   const quoteOnly = render({

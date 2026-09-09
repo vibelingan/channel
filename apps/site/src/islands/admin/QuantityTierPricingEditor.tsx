@@ -216,11 +216,11 @@ export function QuantityTierPricingEditor({ value, error, onValidityChange, onCh
   const describedBy = shownError ? 'manualCatalogPricing-error' : undefined;
 
   return (
-    <fieldset className="space-y-3" aria-describedby={describedBy}>
+    <fieldset className="min-w-0 space-y-3" aria-describedby={describedBy}>
       <legend className="text-sm font-medium text-slate-700">Quantity Tier Pricing</legend>
       <p className="text-xs text-slate-500">
-        Optional. Configure up to four quantity ranges; legacy MOQ and scalar prices remain
-        available.
+        Configure up to four quantity ranges. The first minimum quantity is the website MOQ. Prices
+        and currency are saved together; overlapping ranges cannot be saved.
       </p>
       <Select
         id="manualCatalogPricing-currency"
@@ -238,7 +238,7 @@ export function QuantityTierPricingEditor({ value, error, onValidityChange, onCh
         <fieldset
           key={tier.id}
           data-tier-index={index}
-          className="grid grid-cols-1 gap-3 border border-slate-200 p-3 sm:grid-cols-3"
+          className="grid min-w-0 grid-cols-1 gap-3 border border-slate-200 p-3 sm:grid-cols-3"
         >
           <legend className="px-1 text-xs font-semibold text-slate-600">Tier {index + 1}</legend>
           <label className="text-xs text-slate-600">

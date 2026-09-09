@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 import { alibabaOfferKey, alibabaSourceKey } from '@vibelingan-channel/alibaba-catalog-sync';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import';
 import type { AdapterListQuery, AlibabaLeaseGuard, DbAdapter } from '@vibelingan-channel/db';
 import { holdsAlibabaLease, setAdapter } from '@vibelingan-channel/db';
 import {
@@ -131,7 +132,14 @@ function setup(overrides: Partial<Store> = {}): Store {
       { _id: SOURCE_KEY, sourceKey: SOURCE_KEY, productId: 'p-1' } as CollectionDoc,
     ],
     alibabaSourceProducts: [
-      { _id: SOURCE_KEY, sourceKey: SOURCE_KEY, active: true } as CollectionDoc,
+      {
+        _id: SOURCE_KEY,
+        sourceKey: SOURCE_KEY,
+        sourceProductId: '987',
+        sourceCategoryId: '44',
+        sourceImageUrls: ['https://sc04.alicdn.com/product.jpg'],
+        active: true,
+      } as CollectionDoc,
     ],
     alibabaSupplierOffers: [
       {
@@ -157,6 +165,12 @@ function setup(overrides: Partial<Store> = {}): Store {
         moq: 10,
         unitPrice: 12.5,
         wholesalePrice: 10,
+        catalogPricingMode: 'manual',
+        manualCatalogPricing: {
+          schemaVersion: 'manual-catalog-pricing-v1',
+          currency: 'USD',
+          tiers: [{ minQuantity: 10, unitAmountMinor: 310 }],
+        },
         vipPrice: 8,
         published: true,
         archived: false,
@@ -183,11 +197,17 @@ test('promotion materializes the primary offer through the fenced write, touchin
   assert.equal(after.alibabaPrimaryOfferKey, OFFER_KEY);
   assert.equal((after.alibabaCatalogPricing as { amountMinor?: number }).amountMinor, 250);
   assert.equal(after.alibabaSourceStatus, 'available');
+  assert.equal(after.alibabaSourceProductId, '987');
+  assert.equal(after.alibabaSourceCategoryId, '44');
+  assert.deepEqual(after.alibabaSourceImageUrls, ['https://sc04.alicdn.com/product.jpg']);
   assert.equal(after.alibabaSourceLastSyncedAt, NOW);
   assert.deepEqual(Object.keys(adapter.lastPromotionPatch ?? {}).sort(), [
     'alibabaCatalogPricing',
     'alibabaPrimaryOfferKey',
+    'alibabaSourceCategoryId',
+    'alibabaSourceImageUrls',
     'alibabaSourceLastSyncedAt',
+    'alibabaSourceProductId',
     'alibabaSourceStatus',
   ]);
   // Every non-Alibaba field is byte-identical (protected-surface proof).
@@ -221,6 +241,72 @@ test('promotion materializes the primary offer through the fenced write, touchin
       archived: false,
     },
   );
+});
+
+test('promotion reads offers beyond the first 100 rows and does not lose an operator pin', async () => {
+  setup({
+    alibabaSupplierOffers: Array.from({ length: 105 }, (_, index) =>
+      offerDoc(`offer-${String(index).padStart(3, '0')}`, SOURCE_KEY, `sku-${index}`, 500 + index),
+    ),
+  });
+  const product = store.products?.[0];
+  assert.ok(product);
+  product.alibabaPinnedOfferKey = 'offer-104';
+  const result = await promoteLinkedProduct({ sourceKey: SOURCE_KEY, guard: GUARD, now: NOW });
+  assert.equal(result.ok, true);
+  assert.equal(store.products?.[0]?.alibabaPrimaryOfferKey, 'offer-104');
+  assert.equal(
+    (store.products?.[0]?.alibabaCatalogPricing as { amountMinor: number }).amountMinor,
+    604,
+  );
+});
+
+test('ordinary linked-product promotion refreshes the compact source review projection', async () => {
+  setup({
+    catalogSourceObservations: [
+      {
+        _id: sourceObservationDocumentId('alibaba', SOURCE_KEY),
+        observation: {
+          schemaVersion: 'catalog-source-observation-v1',
+          source: {
+            provider: 'alibaba',
+            sourceProductKey: SOURCE_KEY,
+            externalProductId: '987',
+            observedAt: NOW,
+            captureMode: 'incremental',
+            completeness: 'full-product',
+          },
+          identity: {
+            title: 'Source title',
+            matchHints: {},
+            category: { sourceTaxonomy: 'alibaba:icbu', sourceCategoryId: '44' },
+            attributes: [],
+          },
+          content: { media: [] },
+          lifecycle: { sourceListingStatus: 'published' },
+          variants: [],
+          offers: [],
+          evidence: [{ kind: 'raw-payload', evidenceId: 'a'.repeat(64) }],
+          warnings: [],
+        },
+      } as CollectionDoc,
+    ],
+  });
+
+  const result = await promoteLinkedProduct({ sourceKey: SOURCE_KEY, guard: GUARD, now: NOW });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(store.products?.[0]?.alibabaSourceReview, {
+    schemaVersion: 'alibaba-source-review-v1',
+    provider: 'alibaba',
+    externalProductId: '987',
+    sourceCategoryId: '44',
+    sourceListingStatus: 'published',
+    variantCount: 0,
+    offerCount: 0,
+    modelNumbers: [],
+    optionNames: [],
+  });
 });
 
 test('a stale holder cannot promote after fence takeover (write rejected, doc untouched)', async () => {

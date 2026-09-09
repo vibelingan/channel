@@ -81,6 +81,32 @@ test('SKU prices normalize to fixed offers with provenance', () => {
   assert.equal(second?.pricing.mode, 'unavailable');
 });
 
+test('live SKU ladder prices normalize to tiered offers', () => {
+  const result = normalize(
+    detail({
+      moqLexeme: '500',
+      skus: [
+        {
+          sourceSkuId: 'sku-live',
+          availableQuantity: 10000,
+          attributes: {},
+          ladderPrices: [
+            { minQuantityLexeme: '500', priceLexeme: '3.50' },
+            { minQuantityLexeme: '1000', priceLexeme: '3.17' },
+          ],
+        },
+      ],
+    }),
+  );
+  const offer = result.offers[0];
+  assert.equal(offer?.pricing.mode, 'tiered');
+  assert.deepEqual(offer?.pricing.tiers, [
+    { minQuantity: 500, maxQuantity: 999, unitAmountMinor: 350 },
+    { minQuantity: 1000, unitAmountMinor: 317 },
+  ]);
+  assert.equal(offer?.sourceAvailability, 10000);
+});
+
 test('ladder prices become sorted closed tiers with an open final tier', () => {
   const result = normalize(
     detail({

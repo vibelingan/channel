@@ -46,7 +46,8 @@ test('the route declares no page-local copy and the island takes only content', 
   assert.doesNotMatch(islandSource, /interface PageStrings/);
   assert.match(
     routeSource,
-    /<CatalogFamilyPage content=\{catalog\} family=\{family\} client:load \/>/,
+    // Additional typed content (e.g. dev preview copy) does not change the content-owned boundary.
+    /<CatalogFamilyPage\b[^>]*\bcontent=\{catalog\}[^>]*\bfamily=\{family\}[^>]*\bclient:load\b[^>]*\/>/,
   );
 });
 

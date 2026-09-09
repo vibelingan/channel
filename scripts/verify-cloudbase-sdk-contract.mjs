@@ -241,6 +241,8 @@ requireCheck(
       if (api === 'database.startTransaction') return { transactionId: 'lease-probe-tx' };
       if (api === 'database.getDocument') return { requestId: 'r', data: { list: [] } };
       if (api === 'database.modifyDocument') {
+        if (params?.query?.includes('approval-new'))
+          return { requestId: 'r', data: { updated: 0, upsert_id: 'approval-new' } };
         return { requestId: 'r', data: { updated: 1, upsert_id: 'conn-1' } };
       }
       if (api === 'database.removeDocument') {
@@ -344,6 +346,19 @@ requireCheck(
             'database.commitTransaction',
           ]),
       '@cloudbase/database retries the complete catalog callback and commits only the winning attempt',
+    );
+    const inserted = await probeDb.runTransaction((transaction) =>
+      transaction
+        .collection('catalogDetailApprovals')
+        .doc('approval-new')
+        .set({ state: 'staging' }),
+    );
+    requireCheck(
+      inserted.updated === 0 &&
+        Array.isArray(inserted.upserted) &&
+        inserted.upserted.length === 1 &&
+        inserted.upserted[0]?._id === 'approval-new',
+      '@cloudbase/database acknowledges a new staged approval with upserted identity, not updated=1',
     );
   } finally {
     databaseModule.Db.reqClass = originalReqClass;
@@ -704,6 +719,93 @@ requireCheck(
       'replaceNestedObjects',
     ),
   'db cloudbase updateDocWithAlibabaLease re-verifies the fence and replaces nested fields',
+);
+requireCheck(
+  objectMethodCalls('cloudBaseAdapter', 'upsertDocWithAlibabaLease').includes(
+    'upsertDocWithAlibabaLeaseInCloudBase',
+  ),
+  'db cloudbase upsertDocWithAlibabaLease delegates to the takeover-tested production helper',
+);
+const fencedUpsertStart = cloudbaseAdapter.indexOf(
+  'export async function upsertDocWithAlibabaLeaseInCloudBase',
+);
+const fencedUpsertEnd = cloudbaseAdapter.indexOf(
+  'export const cloudBaseAdapter',
+  fencedUpsertStart,
+);
+const fencedUpsert =
+  fencedUpsertStart >= 0 && fencedUpsertEnd > fencedUpsertStart
+    ? cloudbaseAdapter.slice(fencedUpsertStart, fencedUpsertEnd)
+    : '';
+requireCheck(
+  containsAll(fencedUpsert, [
+    'db.runTransaction',
+    'leaseRef.get',
+    'holdsAlibabaLease',
+    'targetRef.get',
+    'replaceNestedObjects',
+    'targetRef.set',
+  ]),
+  'takeover-tested production fenced upsert reads lease and target inside one transaction',
+);
+requireCheck(
+  objectMethodCalls('cloudBaseAdapter', 'upsertCatalogSourceObservation').includes(
+    'upsertCatalogSourceObservationInCloudBase',
+  ),
+  'db cloudbase source observation upsert delegates to the behavior-tested production helper',
+);
+const observationUpsertStart = cloudbaseAdapter.indexOf(
+  'export async function upsertCatalogSourceObservationInCloudBase',
+);
+const observationUpsertEnd = cloudbaseAdapter.indexOf(
+  'export const cloudBaseAdapter',
+  observationUpsertStart,
+);
+const observationUpsert =
+  observationUpsertStart >= 0 && observationUpsertEnd > observationUpsertStart
+    ? cloudbaseAdapter.slice(observationUpsertStart, observationUpsertEnd)
+    : '';
+requireCheck(
+  containsAll(observationUpsert, [
+    'db.runTransaction',
+    'ref.get',
+    'Date.parse',
+    'previousAt',
+    'incomingAt',
+    'replaceNestedObjects',
+    'ref.set',
+  ]),
+  'behavior-tested production source observation helper compares recency and owns the transaction',
+);
+requireCheck(
+  objectMethodCalls('cloudBaseAdapter', 'claimAlibabaSyncRun').includes(
+    'claimAlibabaSyncRunInCloudBase',
+  ),
+  'db cloudbase run claim delegates to the takeover-tested production helper',
+);
+const runClaimStart = cloudbaseAdapter.indexOf(
+  'export async function claimAlibabaSyncRunInCloudBase',
+);
+const runClaimEnd = cloudbaseAdapter.indexOf(
+  'export async function upsertCatalogSourceObservationInCloudBase',
+  runClaimStart,
+);
+const runClaim =
+  runClaimStart >= 0 && runClaimEnd > runClaimStart
+    ? cloudbaseAdapter.slice(runClaimStart, runClaimEnd)
+    : '';
+requireCheck(
+  containsAll(runClaim, [
+    'db.runTransaction',
+    'leaseRef.get',
+    'checkpointRef.get',
+    'runRef.get',
+    'holdsAlibabaLease',
+    "return 'checkpoint-busy'",
+    'runRef.set',
+    'checkpointRef.update',
+  ]),
+  'production atomic run claim reads lease checkpoint and run before writing both together',
 );
 
 requireCheck(

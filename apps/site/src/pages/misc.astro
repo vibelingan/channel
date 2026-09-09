@@ -1,7 +1,7 @@
 ---
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
-import { getCatalogContent, getCatalogFamily } from '../i18n/catalog.ts';
+import { getCatalogContent, getCatalogFamily, getSharedDetailContent } from '../i18n/catalog.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
 import { CatalogFamilyPage } from '../islands/shop/CatalogFamilyPage.tsx';
 import BaseLayout from '../layouts/BaseLayout.astro';
@@ -10,6 +10,7 @@ import { OEM_INQUIRY_HREF } from '../lib/site-navigation.ts';
 
 const site = getSiteContent(DEFAULT_LOCALE);
 const catalog = getCatalogContent(DEFAULT_LOCALE);
+const previewContent = getSharedDetailContent(DEFAULT_LOCALE);
 const family = getCatalogFamily('misc', DEFAULT_LOCALE);
 const brand = site.brand;
 const seoTitle = `${family.seoTitle} | ${brand.name}`;
@@ -52,7 +53,7 @@ const schemaNodes = [catalogBreadcrumbSchema(breadcrumbs, Astro.site ?? Astro.ur
     </section>
     <section class="bg-white py-10 sm:py-14" aria-label={family.heading}>
       <div class="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
-        <CatalogFamilyPage content={catalog} family={family} client:load />
+        <CatalogFamilyPage content={catalog} family={family} previewContent={previewContent} client:load />
       </div>
     </section>
   </main>

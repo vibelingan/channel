@@ -1,15 +1,17 @@
-import { PRODUCT_IMAGE_MAX_COUNT } from '@vibelingan-channel/shared';
 import { useState } from 'react';
+import { createCatalogMediaState } from '../../catalog/application/catalog-media.ts';
 import { apiMediaUrl } from '../../lib/api-url.ts';
 import { ProductMedia, productMediaKey } from './ProductMedia.tsx';
 
 interface Props {
-  images: string[];
+  images: readonly string[];
   alt: string;
   productId?: string;
   viewAllLabel?: string;
   showLessLabel?: string;
   unavailableLabel?: string;
+  layout?: 'legacy' | 'detail';
+  selection?: { source: string | null; onChange: (source: string) => void };
 }
 
 interface GalleryThumbnailListProps {
@@ -21,6 +23,7 @@ interface GalleryThumbnailListProps {
   unavailableLabel?: string;
   onSelect: (index: number) => void;
   onToggle: () => void;
+  layout?: 'legacy' | 'detail';
 }
 
 const INITIAL_PREVIEW_COUNT = 4;
@@ -54,11 +57,7 @@ export function visibleGalleryThumbnails(
 }
 
 export function boundedGalleryImages(images: readonly string[]): string[] {
-  return images
-    .map((image) => image.trim())
-    .filter(Boolean)
-    .map(apiMediaUrl)
-    .slice(0, PRODUCT_IMAGE_MAX_COUNT);
+  return [...createCatalogMediaState(images, apiMediaUrl).sources];
 }
 
 export function gallerySessionKey(
@@ -77,14 +76,26 @@ export function GalleryThumbnailList({
   unavailableLabel,
   onSelect,
   onToggle,
+  layout = 'legacy',
 }: GalleryThumbnailListProps) {
-  const visibleThumbnails = visibleGalleryThumbnails(images, activeIndex, expanded);
+  const visibleThumbnails = visibleGalleryThumbnails(
+    images,
+    activeIndex,
+    layout === 'detail' || expanded,
+  );
 
   if (images.length <= 1) return null;
 
   return (
     <div className="mt-4 min-w-0">
-      <div id="gallery-thumbnails" className="flex min-w-0 flex-wrap justify-center gap-3">
+      <div
+        id="gallery-thumbnails"
+        className={
+          layout === 'detail'
+            ? 'flex min-w-0 gap-3 overflow-x-auto px-1 py-2'
+            : 'flex min-w-0 flex-wrap justify-center gap-3'
+        }
+      >
         {visibleThumbnails.map(({ image, index, key }) => (
           <button
             key={key}
@@ -110,7 +121,7 @@ export function GalleryThumbnailList({
         ))}
       </div>
 
-      {images.length > INITIAL_PREVIEW_COUNT ? (
+      {layout === 'legacy' && images.length > INITIAL_PREVIEW_COUNT ? (
         <div className="mt-4 text-center">
           <button
             type="button"
@@ -135,16 +146,31 @@ function GallerySession({
   viewAllLabel = 'View All',
   showLessLabel = 'Show Less',
   unavailableLabel = 'Product image unavailable',
+  layout = 'legacy',
+  selection,
 }: Props) {
   const [active, setActive] = useState(0);
   const [expanded, setExpanded] = useState(false);
-  const activeSource = images[active];
+  const controlledSource = selection?.source
+    ? createCatalogMediaState([selection.source], apiMediaUrl).sources[0]
+    : undefined;
+  const activeIndex = selection
+    ? images.findIndex((source) => source === controlledSource)
+    : active;
+  const activeSource = images[activeIndex];
 
   return (
-    <div className="min-w-0" data-gallery>
+    <div
+      className={layout === 'detail' ? 'mx-auto min-w-0 max-w-[560px] lg:max-w-none' : 'min-w-0'}
+      data-gallery
+    >
       <div
         data-gallery-frame
-        className="mx-auto aspect-square w-full max-w-[520px] overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-surface-alt"
+        className={
+          layout === 'detail'
+            ? 'h-[min(85vw,340px)] w-full overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-surface-alt p-5 sm:h-[360px] lg:h-[420px] lg:p-8'
+            : 'mx-auto aspect-square w-full max-w-[520px] overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-surface-alt'
+        }
       >
         <ProductMedia
           sources={activeSource ? [activeSource] : []}
@@ -155,14 +181,25 @@ function GallerySession({
         />
       </div>
 
+      {layout === 'detail' && images.length > 0 && (
+        <p data-gallery-count className="mt-3 text-center text-xs tabular-nums text-ink-muted">
+          {activeIndex >= 0 ? activeIndex + 1 : '–'} / {images.length}
+        </p>
+      )}
       <GalleryThumbnailList
         images={images}
-        activeIndex={active}
+        activeIndex={activeIndex}
         expanded={expanded}
         viewAllLabel={viewAllLabel}
         showLessLabel={showLessLabel}
         unavailableLabel={unavailableLabel}
-        onSelect={setActive}
+        layout={layout}
+        onSelect={(index) => {
+          const source = images[index];
+          if (!source) return;
+          if (selection) selection.onChange(source);
+          else setActive(index);
+        }}
         onToggle={() => setExpanded((current) => !current)}
       />
     </div>
@@ -176,6 +213,8 @@ export function Gallery({
   viewAllLabel,
   showLessLabel,
   unavailableLabel,
+  layout,
+  selection,
 }: Props) {
   const list = boundedGalleryImages(images);
   return (
@@ -187,6 +226,8 @@ export function Gallery({
       viewAllLabel={viewAllLabel}
       showLessLabel={showLessLabel}
       unavailableLabel={unavailableLabel}
+      layout={layout}
+      selection={selection}
     />
   );
 }

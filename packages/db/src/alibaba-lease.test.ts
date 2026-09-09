@@ -5,6 +5,7 @@ import type {
   AdapterListQuery,
   AlibabaLeaseGrant,
   AlibabaLeaseGuard,
+  CatalogSourceObservationUpsertResult,
   DbAdapter,
 } from './adapter.ts';
 import {
@@ -24,6 +25,8 @@ import {
   renewAlibabaSyncLease,
   setAdapter,
   updateDocWithAlibabaLease,
+  upsertCatalogSourceObservation,
+  upsertDocWithAlibabaLease,
   upsertDocWithId,
 } from './index.ts';
 
@@ -215,6 +218,7 @@ class LeaseMemoryAdapter implements DbAdapter {
     collection: string,
     id: string,
     data: Record<string, unknown>,
+    createOnly: Record<string, unknown> = {},
   ): Promise<CollectionDoc> {
     const docs = this.docs(collection);
     const index = docs.findIndex((d) => d._id === id);
@@ -223,9 +227,30 @@ class LeaseMemoryAdapter implements DbAdapter {
       docs[index] = { ...(docs[index] as CollectionDoc), ...patch };
       return docs[index] as CollectionDoc;
     }
-    const created = { _id: id, ...patch } as CollectionDoc;
+    const created = { _id: id, ...createOnly, ...patch } as CollectionDoc;
     docs.push(created);
     return created;
+  }
+  async upsertCatalogSourceObservation(
+    id: string,
+    data: Record<string, unknown>,
+    createOnly: Record<string, unknown>,
+  ): Promise<CatalogSourceObservationUpsertResult> {
+    const docs = this.docs('catalogSourceObservations');
+    const index = docs.findIndex((document) => document._id === id);
+    const { _id, ...patch } = data as Record<string, unknown> & { _id?: unknown };
+    if (index >= 0) {
+      const existing = docs[index] as CollectionDoc;
+      if (Date.parse(String(existing.observedAt ?? '')) > Date.parse(String(patch.observedAt))) {
+        return { result: 'stale', doc: existing };
+      }
+      const updated = { ...existing, ...patch } as CollectionDoc;
+      docs[index] = updated;
+      return { result: 'applied', doc: updated };
+    }
+    const created = { _id: id, ...createOnly, ...patch } as CollectionDoc;
+    docs.push(created);
+    return { result: 'applied', doc: created };
   }
   async acquireAlibabaSyncLease(
     connectionId: string,
@@ -293,6 +318,22 @@ class LeaseMemoryAdapter implements DbAdapter {
     docs[index] = { ...(docs[index] as CollectionDoc), ...patch };
     return true;
   }
+  async upsertDocWithAlibabaLease(
+    collection: string,
+    id: string,
+    patch: Record<string, unknown>,
+    createOnly: Record<string, unknown>,
+    guard: AlibabaLeaseGuard,
+  ): Promise<boolean> {
+    const lease =
+      this.docs(ALIBABA_SYNC_LEASE_COLLECTION).find((d) => d._id === guard.connectionId) ?? null;
+    if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+    const docs = this.docs(collection);
+    const index = docs.findIndex((d) => d._id === id);
+    if (index >= 0) docs[index] = { ...(docs[index] as CollectionDoc), ...patch };
+    else docs.push({ _id: id, ...createOnly, ...patch } as CollectionDoc);
+    return true;
+  }
 }
 
 function freshAdapter(): LeaseMemoryAdapter {
@@ -344,6 +385,36 @@ test('fence takeover: stale holder cannot write after a new acquisition', async 
   );
   assert.equal(liveWrite, true);
   assert.equal(adapter.store.products[0]?.alibabaSourceStatus, 'available');
+});
+
+test('fence takeover: stale holder cannot create or patch a deterministic target', async () => {
+  const adapter = freshAdapter();
+  const first = await acquireAlibabaSyncLease('conn-1', 'holder-a', T0, TTL);
+  assert.equal(first.result, 'granted');
+  const fenceA = first.result === 'granted' ? first.fence : 0;
+  const second = await acquireAlibabaSyncLease('conn-1', 'holder-b', AFTER_TTL, TTL);
+  assert.equal(second.result, 'granted');
+  const fenceB = second.result === 'granted' ? second.fence : 0;
+
+  const stale = await upsertDocWithAlibabaLease(
+    'catalogSourceObservations',
+    'obs-1',
+    { active: true },
+    { firstSeenOperationId: 'run-a' },
+    { connectionId: 'conn-1', holder: 'holder-a', fence: fenceA, now: AFTER_TTL },
+  );
+  assert.equal(stale, false);
+  assert.equal(adapter.store.catalogSourceObservations?.length ?? 0, 0);
+
+  const live = await upsertDocWithAlibabaLease(
+    'catalogSourceObservations',
+    'obs-1',
+    { active: true },
+    { firstSeenOperationId: 'run-b' },
+    { connectionId: 'conn-1', holder: 'holder-b', fence: fenceB, now: AFTER_TTL },
+  );
+  assert.equal(live, true);
+  assert.equal(adapter.store.catalogSourceObservations?.[0]?.firstSeenOperationId, 'run-b');
 });
 
 test('renew keeps a lease alive; assert reflects reality; release frees it', async () => {
@@ -443,6 +514,51 @@ test('upsertDocWithId creates then patches by deterministic id', async () => {
   assert.equal(patched.active, false);
   assert.equal(patched.sourceSkuId, 's-1', 'patch merges, not replaces');
   assert.equal(adapter.store.alibabaSupplierOffers?.length, 1);
+});
+
+test('upsertDocWithId applies first-seen provenance only inside the winning create', async () => {
+  freshAdapter();
+  const created = await upsertDocWithId(
+    'catalogSourceObservations',
+    'observation-1',
+    { lastSeenOperationId: 'run-1' },
+    { firstSeenOperationId: 'run-1' },
+  );
+  assert.equal(created.firstSeenOperationId, 'run-1');
+  const updated = await upsertDocWithId(
+    'catalogSourceObservations',
+    'observation-1',
+    { lastSeenOperationId: 'run-2' },
+    { firstSeenOperationId: 'run-2' },
+  );
+  assert.equal(updated.firstSeenOperationId, 'run-1');
+  assert.equal(updated.lastSeenOperationId, 'run-2');
+});
+
+test('source observation upsert preserves first-seen and rejects an older late writer', async () => {
+  freshAdapter();
+  const first = await upsertCatalogSourceObservation(
+    'obs-1',
+    { observedAt: '2026-09-04T10:00:00.000Z', evidenceId: 'newer' },
+    { firstSeenOperationId: 'first-job' },
+  );
+  assert.equal(first.result, 'applied');
+  const stale = await upsertCatalogSourceObservation(
+    'obs-1',
+    { observedAt: '2026-09-04T09:00:00.000Z', evidenceId: 'older' },
+    { firstSeenOperationId: 'late-job' },
+  );
+  assert.equal(stale.result, 'stale');
+  assert.equal(stale.doc.evidenceId, 'newer');
+  assert.equal(stale.doc.firstSeenOperationId, 'first-job');
+  const sameTimeReplay = await upsertCatalogSourceObservation(
+    'obs-1',
+    { observedAt: '2026-09-04T10:00:00.000Z', evidenceId: 'replay' },
+    { firstSeenOperationId: 'replay-job' },
+  );
+  assert.equal(sameTimeReplay.result, 'applied');
+  assert.equal(sameTimeReplay.doc.evidenceId, 'replay');
+  assert.equal(sameTimeReplay.doc.firstSeenOperationId, 'first-job');
 });
 
 test('facades reject malformed inputs before touching the adapter', async () => {

@@ -6,7 +6,7 @@
  *   1. take every request parameter EXCEPT `sign` itself;
  *   2. sort keys by ASCII code ascending;
  *   3. concatenate `key + value` pairs with no separators;
- *   4. prepend the API path (e.g. `/alibaba/icbu/product/list`);
+ *   4. prepend the API path (e.g. `/alibaba.icbu.product.list`);
  *   5. HMAC-SHA256 the result with the app secret, uppercase hex output.
  *
  * The module is endpoint-agnostic and pure; it never logs or throws values.
@@ -39,4 +39,30 @@ export function signGopRequest({ apiPath, params, appSecret }: SignRequestInput)
   }
   const base = canonicalSignBase(apiPath, params);
   return createHmac('sha256', appSecret).update(base, 'utf8').digest('hex').toUpperCase();
+}
+
+export interface SignTopRequestInput {
+  /** Every system and business parameter being sent; `sign` is ignored. */
+  params: Record<string, string>;
+  appSecret: string;
+}
+
+/**
+ * TOP canonicalization used by Alibaba's current IOP SDK:
+ * sorted non-empty key/value pairs, without a REST path prefix.
+ */
+export function canonicalTopSignBase(params: Record<string, string>): string {
+  return Object.keys(params)
+    .filter((key) => key !== 'sign' && key !== '' && params[key] !== '')
+    .sort()
+    .map((key) => key + params[key])
+    .join('');
+}
+
+/** TOP in IOP SDK 1.3.18 uses HMAC-SHA256 and uppercase hexadecimal output. */
+export function signTopRequest({ params, appSecret }: SignTopRequestInput): string {
+  return createHmac('sha256', appSecret)
+    .update(canonicalTopSignBase(params), 'utf8')
+    .digest('hex')
+    .toUpperCase();
 }

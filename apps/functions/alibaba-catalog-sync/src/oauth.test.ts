@@ -463,6 +463,169 @@ test('connectionStatus is redacted and disconnect destroys the envelope', async 
   assert.equal(connection?.tokenEnvelope, null, 'secret material destroyed');
 });
 
+test('inspectProductDetail is admin-only and validates one bounded provider id', async () => {
+  setup();
+  const contributor = await contributorToken();
+  const forbidden = await handleAlibabaSyncRequest(
+    {
+      action: 'inspectProductDetail',
+      token: contributor,
+      data: { sourceProductId: 'AAGmBBhgAOVTpOOZBg7MoZq_' },
+    },
+    baseConfig,
+  );
+  assert.equal(forbidden.ok, false);
+  if (!forbidden.ok) assert.equal(forbidden.error.code, 'FORBIDDEN');
+
+  const admin = await adminToken();
+  const invalid = await handleAlibabaSyncRequest(
+    {
+      action: 'inspectProductDetail',
+      token: admin,
+      data: { sourceProductId: '../not-a-product-id' },
+    },
+    baseConfig,
+  );
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.equal(invalid.error.code, 'VALIDATION_ERROR');
+});
+
+test('draft materialization is admin-only and validates its bounded cursor page', async () => {
+  setup();
+  const contributor = await contributorToken();
+  const forbidden = await handleAlibabaSyncRequest(
+    { action: 'materializeDrafts', token: contributor, data: { afterSourceKey: '', limit: 20 } },
+    baseConfig,
+  );
+  assert.equal(forbidden.ok, false);
+  if (!forbidden.ok) assert.equal(forbidden.error.code, 'FORBIDDEN');
+
+  const admin = await adminToken();
+  const invalid = await handleAlibabaSyncRequest(
+    { action: 'materializeDrafts', token: admin, data: { limit: 21 } },
+    baseConfig,
+  );
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.equal(invalid.error.code, 'VALIDATION_ERROR');
+
+  const empty = await handleAlibabaSyncRequest(
+    { action: 'materializeDrafts', token: admin, data: { afterSourceKey: '', limit: 20 } },
+    baseConfig,
+  );
+  assert.equal(empty.ok, true);
+  if (empty.ok) {
+    assert.deepEqual(empty.data, {
+      afterSourceKey: '',
+      nextSourceKey: '',
+      done: true,
+      visited: 0,
+      created: 0,
+      existing: 0,
+      failures: [],
+    });
+  }
+});
+
+test('manual sync cannot be started by a contributor', async () => {
+  setup();
+  const contributor = await contributorToken();
+  const forbidden = await handleAlibabaSyncRequest(
+    { action: 'runNow', token: contributor },
+    baseConfig,
+  );
+  assert.equal(forbidden.ok, false);
+  if (!forbidden.ok) assert.equal(forbidden.error.code, 'FORBIDDEN');
+  assert.equal(currentStore.alibabaSyncRuns?.length ?? 0, 0);
+});
+
+test('selected product sync is admin-only and rejects malformed provider ids', async () => {
+  setup();
+  const contributor = await contributorToken();
+  const forbidden = await handleAlibabaSyncRequest(
+    {
+      action: 'syncProduct',
+      token: contributor,
+      data: { sourceProductId: 'AAGmBBhgAOVTpOOZBg7MoZq_' },
+    },
+    baseConfig,
+  );
+  assert.equal(forbidden.ok, false);
+  if (!forbidden.ok) assert.equal(forbidden.error.code, 'FORBIDDEN');
+
+  const admin = await adminToken();
+  const invalid = await handleAlibabaSyncRequest(
+    { action: 'syncProduct', token: admin, data: { sourceProductId: '../../secret' } },
+    baseConfig,
+  );
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.equal(invalid.error.code, 'VALIDATION_ERROR');
+});
+
+test('raw observation replay is admin-only and apply requires hash, total and manifest', async () => {
+  setup();
+  const contributor = await contributorToken();
+  const forbidden = await handleAlibabaSyncRequest(
+    {
+      action: 'replaySourceObservations',
+      token: contributor,
+      data: { mode: 'dry-run', limit: 10 },
+    },
+    baseConfig,
+  );
+  assert.equal(forbidden.ok, false);
+  if (!forbidden.ok) assert.equal(forbidden.error.code, 'FORBIDDEN');
+
+  const admin = await adminToken();
+  const missingHash = await handleAlibabaSyncRequest(
+    {
+      action: 'replaySourceObservations',
+      token: admin,
+      data: { mode: 'apply', limit: 10 },
+    },
+    baseConfig,
+  );
+  assert.equal(missingHash.ok, false);
+  if (!missingHash.ok) assert.equal(missingHash.error.code, 'VALIDATION_ERROR');
+
+  const missingTotal = await handleAlibabaSyncRequest(
+    {
+      action: 'replaySourceObservations',
+      token: admin,
+      data: { mode: 'apply', limit: 10, expectedPageHash: 'a'.repeat(64) },
+    },
+    baseConfig,
+  );
+  assert.equal(missingTotal.ok, false);
+  if (!missingTotal.ok) assert.equal(missingTotal.error.code, 'VALIDATION_ERROR');
+
+  const missingManifest = await handleAlibabaSyncRequest(
+    {
+      action: 'replaySourceObservations',
+      token: admin,
+      data: {
+        mode: 'apply',
+        limit: 10,
+        expectedPageHash: 'a'.repeat(64),
+        expectedTotalSourceProducts: 1,
+      },
+    },
+    baseConfig,
+  );
+  assert.equal(missingManifest.ok, false);
+  if (!missingManifest.ok) assert.equal(missingManifest.error.code, 'VALIDATION_ERROR');
+
+  const unknownField = await handleAlibabaSyncRequest(
+    {
+      action: 'replaySourceObservations',
+      token: admin,
+      data: { mode: 'dry-run', limit: 10, raw: true },
+    },
+    baseConfig,
+  );
+  assert.equal(unknownField.ok, false);
+  if (!unknownField.ok) assert.equal(unknownField.error.code, 'VALIDATION_ERROR');
+});
+
 // --- http adapter ------------------------------------------------------------
 
 test('http adapter: OPTIONS preflight, health, callback redirect, POST envelope, 405', async () => {

@@ -1,9 +1,8 @@
 /**
  * Live Alibaba source pricing renderer (docs/alibaba-linked-catalog-sync,
- * MIU 10). Rendered INSTEAD of the legacy pricing surfaces whenever
- * `product.alibabaPrimarySourceKey` is set — a linked product never falls
- * back to `unitPrice`/`wholesalePrice`/`vipPrice`, including when source
- * pricing is missing (the quote-required state renders instead).
+ * MIU 10). Renders only the source branch chosen by the common effective-price
+ * resolver. Manual intervention takes precedence unless the operator explicitly
+ * restores source inheritance. Missing source pricing stays quote-required.
  *
  * Amounts are integer MINOR units with an explicit CNY/USD currency; the
  * legacy `formatPrice` (major-unit floats, hardcoded USD) is never used here.
@@ -13,6 +12,10 @@
 import type { ReactNode } from 'react';
 import { validAlibabaTiers, validMinorAmount } from './catalog-pricing.ts';
 import type { AlibabaCatalogPricing } from './catalog-types.ts';
+
+type DisplayPricing = Omit<AlibabaCatalogPricing, 'syncedAt' | 'schemaVersion'> & {
+  syncedAt?: string;
+};
 
 export interface AlibabaPricingLabels {
   heading: string;
@@ -48,7 +51,7 @@ export function formatMinorAmount(amountMinor: number, currency: 'CNY' | 'USD'):
  * "From $1.15" (tiered), or null when nothing displayable exists
  * (negotiable/unavailable/malformed) — callers render their unavailable copy.
  */
-export function alibabaPriceSummary(pricing: AlibabaCatalogPricing | undefined): string | null {
+export function alibabaPriceSummary(pricing: DisplayPricing | undefined): string | null {
   if (!pricing || !pricing.currency) return null;
   switch (pricing.mode) {
     case 'fixed':
@@ -72,7 +75,7 @@ export function alibabaPriceSummary(pricing: AlibabaCatalogPricing | undefined):
 }
 
 interface Props {
-  pricing?: AlibabaCatalogPricing | undefined;
+  pricing?: DisplayPricing | undefined;
   labels?: Partial<AlibabaPricingLabels>;
   size?: 'sm' | 'lg';
 }

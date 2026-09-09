@@ -52,6 +52,65 @@ function listedIndex(index) {
   };
 }
 
+test('staged approvals are private and immutable snapshot paging has a declared deployment index', () => {
+  const job = REQUIRED_NOSQL_RESOURCES.find((r) => r.collectionName === 'catalogDetailApprovals');
+  const variants = REQUIRED_NOSQL_RESOURCES.find(
+    (r) => r.collectionName === 'catalogDetailVariants',
+  );
+  assert.equal(job?.permission, 'ADMINONLY');
+  assert.equal(variants?.permission, 'ADMINONLY');
+  assert.deepEqual(
+    variants?.indexes.map((index) => index.MgoKeySchema.MgoIndexKeys),
+    [
+      [
+        { Name: 'productId', Direction: '1' },
+        { Name: 'catalogDetailRevision', Direction: '1' },
+        { Name: 'catalogDetailPosition', Direction: '1' },
+        { Name: '_id', Direction: '1' },
+      ],
+    ],
+  );
+});
+
+test('legacy product reads require the private variants collection even before an import runs', () => {
+  const resource = REQUIRED_NOSQL_RESOURCES.find((r) => r.collectionName === 'productVariants');
+  assert.ok(resource, 'attachVariants queries this collection for every non-empty product page');
+  assert.equal(resource.permission, 'ADMINONLY');
+  assert.deepEqual(
+    resource.indexes.map((i) => i.MgoKeySchema.MgoIndexKeys),
+    [
+      [
+        { Name: 'productId', Direction: '1' },
+        { Name: 'position', Direction: '1' },
+      ],
+    ],
+  );
+});
+
+test('inquiry records and durable caps are private; queue indexes match adapter sort', () => {
+  const requests = REQUIRED_NOSQL_RESOURCES.find(
+    (r) => r.collectionName === 'catalogQuoteRequests',
+  );
+  const limits = REQUIRED_NOSQL_RESOURCES.find((r) => r.collectionName === 'catalogInquiryLimits');
+  assert.equal(requests?.permission, 'ADMINONLY');
+  assert.equal(limits?.permission, 'ADMINONLY');
+  assert.deepEqual(
+    requests?.indexes.map((i) => i.MgoKeySchema.MgoIndexKeys),
+    [
+      [
+        { Name: 'attentionRank', Direction: '1' },
+        { Name: 'createdAt', Direction: '-1' },
+        { Name: '_id', Direction: '1' },
+      ],
+      [
+        { Name: 'status', Direction: '1' },
+        { Name: 'createdAt', Direction: '-1' },
+        { Name: '_id', Direction: '1' },
+      ],
+    ],
+  );
+});
+
 test('rateLimitHits declares every index used by the public endpoint limiter', () => {
   const resource = REQUIRED_NOSQL_RESOURCES.find(
     (candidate) => candidate.collectionName === 'rateLimitHits',
@@ -102,6 +161,48 @@ test('catalog identity coordination collections are function-only resources', ()
   assert.ok(resource, 'catalogProductIdentities must be provisioned before admin deploy');
   assert.equal(resource.permission, 'ADMINONLY');
   assert.deepEqual(resource.indexes, []);
+});
+
+test('products declares the All and family Alibaba review queue indexes', () => {
+  const resource = REQUIRED_NOSQL_RESOURCES.find(
+    (candidate) => candidate.collectionName === 'products',
+  );
+  assert.ok(resource);
+  assert.equal(resource.permission, 'ADMINONLY');
+  assert.deepEqual(
+    resource.indexes.map((candidate) =>
+      candidate.MgoKeySchema.MgoIndexKeys.map(({ Name, Direction }) => `${Name}:${Direction}`),
+    ),
+    [
+      ['alibabaReviewPending:-1', 'createdAt:-1'],
+      ['productFamily:1', 'alibabaReviewPending:-1', 'createdAt:-1'],
+    ],
+  );
+});
+
+test('raw replay manifests are provisioned as function-only coordination state', () => {
+  const resource = REQUIRED_NOSQL_RESOURCES.find(
+    (candidate) => candidate.collectionName === 'alibabaRawReplayManifests',
+  );
+  assert.ok(resource, 'the manifest collection must exist before the Alibaba function deploys');
+  assert.equal(resource.permission, 'ADMINONLY');
+  assert.deepEqual(resource.indexes, []);
+});
+
+test('provider-neutral category mappings are provisioned before catalog adapters run', () => {
+  const resource = REQUIRED_NOSQL_RESOURCES.find(
+    (candidate) => candidate.collectionName === 'sourceCategoryMappings',
+  );
+  assert.ok(resource, 'sourceCategoryMappings must exist before Alibaba draft materialization');
+  assert.equal(resource.permission, 'ADMINONLY');
+  assert.deepEqual(resource.indexes[0]?.MgoKeySchema, {
+    MgoIsUnique: true,
+    MgoIndexKeys: [
+      { Name: 'provider', Direction: '1' },
+      { Name: 'sourceTaxonomy', Direction: '1' },
+      { Name: 'sourceCategoryId', Direction: '1' },
+    ],
+  });
 });
 
 test('ensureNoSqlResources creates missing resources and verifies the resulting structure', () => {
@@ -158,10 +259,10 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
   ensureNoSqlResources(callTool, (message) => messages.push(message));
 
   // Anchor: a silent registry change must fail here, not slip through the
-  // derived expectations below (2 auth/abuse + 1 catalog + 10 alibaba collections).
-  // 14 after adding alibabaOAuthAttempts (the durable OAuth diagnostic trail).
+  // derived expectations below (2 auth/abuse + 3 catalog + 10 alibaba collections).
+  // 23: previous 21 plus private staged approval jobs and immutable SKU copies.
   // This count is deliberate: a new collection must be a conscious change.
-  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 14);
+  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 23);
   assert.equal(collections.size, REQUIRED_NOSQL_RESOURCES.length);
   assert.equal(
     [...indexesByCollection.values()].reduce((total, indexes) => total + indexes.size, 0),
@@ -191,6 +292,7 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
   assert.ok(messages.some((message) => message.includes('rateLimitHits: ready')));
   assert.ok(messages.some((message) => message.includes('passwordResets: ready')));
   assert.ok(messages.some((message) => message.includes('alibabaSupplierOffers: ready')));
+  assert.ok(messages.some((message) => message.includes('alibabaRawReplayManifests: ready')));
 });
 
 test('ensureNoSqlResources is idempotent when the collection and indexes exist', () => {

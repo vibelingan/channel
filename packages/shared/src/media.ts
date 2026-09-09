@@ -73,6 +73,28 @@ export function normalizeCatalogImageIds(value: unknown): string[] {
   }
   return normalized;
 }
+
+/** Draft gallery edits must not dereference images still used by the approved revision. */
+export function catalogReferencedImageIds(doc: Record<string, unknown>): string[] {
+  const ids = new Set(normalizeCatalogImageIds(doc.imageIds));
+  const publication = doc.catalogDetailPublication;
+  if (
+    publication &&
+    typeof publication === 'object' &&
+    Reflect.get(publication, 'state') === 'approved'
+  ) {
+    const header = Reflect.get(publication, 'header');
+    if (header && typeof header === 'object' && Reflect.get(header, '_id') === doc._id) {
+      const images = Reflect.get(header, 'images');
+      if (Array.isArray(images))
+        for (const url of images.slice(0, 9)) {
+          if (typeof url === 'string' && /^\/api\/images\/[A-Za-z0-9_-]+$/.test(url))
+            ids.add(url.slice('/api/images/'.length));
+        }
+    }
+  }
+  return [...ids];
+}
 /**
  * SVG is active/vector content. Advisory/UX list only — enforcement is the
  * `CATALOG_IMAGE_MIME_TYPES` allowlist: any value not on it (SVG included) is

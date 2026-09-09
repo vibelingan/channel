@@ -112,12 +112,13 @@ export function AlibabaConnectionPanel({
         </p>
       )}
       {notice && (
-        <p
+        <output
           data-connection-notice
-          className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-700"
+          aria-live="polite"
+          className="mt-3 block rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-700"
         >
           {notice}
-        </p>
+        </output>
       )}
     </div>
   );

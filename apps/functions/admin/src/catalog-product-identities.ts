@@ -71,11 +71,13 @@ async function saveCatalogProduct(input: {
   mode: 'create' | 'update';
   productId: string;
   values: unknown;
+  requireDetailApproval?: boolean;
 }): Promise<CatalogProductWriteTransition> {
   const result = await saveCatalogProductWithIdentities({
     mode: input.mode,
     productId: input.productId,
     data: canonicalizeIdentityFields(input.values),
+    ...(input.requireDetailApproval ? { requireDetailApproval: true } : {}),
   });
   if (result.result === 'saved') return { doc: result.doc, previous: result.previous };
   if (result.result === 'conflict') {
@@ -109,6 +111,7 @@ export function createCatalogProductRecord(
 export function updateCatalogProductRecord(
   productId: string,
   values: unknown,
+  requireDetailApproval = false,
 ): Promise<CatalogProductWriteTransition> {
-  return saveCatalogProduct({ mode: 'update', productId, values });
+  return saveCatalogProduct({ mode: 'update', productId, values, requireDetailApproval });
 }

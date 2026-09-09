@@ -1,5 +1,7 @@
 import { type ApiResult, err, isProductFamily, ok } from '@vibelingan-channel/shared';
 import { releaseInfo } from '@vibelingan-channel/shared/release';
+import { getProductDetail } from './catalog-detail.ts';
+import { handleQuoteEvent } from './catalog-quote-http.ts';
 import {
   type BinaryResult,
   type CatalogQuery,
@@ -14,6 +16,10 @@ import {
 
 export interface PublicHttpConfig extends PublicApiConfig {
   corsAllowedOrigins?: readonly string[];
+  /** UI-02 opt-in. Not wired from cloud env; local review server enables this. */
+  enableCatalogDetail?: boolean;
+  /** Explicit cloud rollout gate; no email, checkout or OEM side effects. */
+  enableInquiries?: boolean;
 }
 
 export interface HttpResponse {
@@ -269,6 +275,38 @@ async function routeGet(
   }
 
   const collection = segments[0] ? parseCatalogName(segments[0]) : null;
+  if (
+    segments[0] === 'products' &&
+    segments[1] !== 'slug' &&
+    segments[2] === 'detail' &&
+    segments.length === 3 &&
+    config.enableCatalogDetail === true
+  ) {
+    if (
+      params.getAll('view').length > 1 ||
+      (params.has('view') && !['structured', 'sections'].includes(params.get('view') ?? ''))
+    ) {
+      return jsonResponse(event, config, err('VALIDATION_ERROR', 'Invalid detail view.'));
+    }
+    const integer = (name: string, fallback: number) => {
+      const value = params.get(name);
+      return value === null ? fallback : /^\d+$/.test(value) ? Number(value) : Number.NaN;
+    };
+    return jsonResponse(
+      event,
+      config,
+      await getProductDetail(
+        decodeSegment(segments[1] ?? ''),
+        integer('page', 1),
+        integer('pageSize', 50),
+        params.get('revision') ?? undefined,
+        params.has('view'),
+        params.get('view') === 'sections',
+      ),
+      undefined,
+      { ...CATALOG_CACHE_HEADERS, 'Cache-Control': 'no-store' },
+    );
+  }
   if (collection && segments.length === 1) {
     const query = parseCatalogQuery(params);
     if ('ok' in query) return jsonResponse(event, config, query);
@@ -327,6 +365,9 @@ export async function handlePublicApiEvent(
 ): Promise<HttpResponse> {
   const envelope = isHttpEnvelope(event) ? event : { path: '/api/health', httpMethod: 'GET' };
   const method = requestMethod(envelope);
+  const path = new URL(requestPath(envelope), 'https://public-api.invalid').pathname;
+  if (/^\/(?:api\/)?catalog-quote-requests\/?$/.test(path))
+    return handleQuoteEvent({ ...envelope, httpMethod: method }, config);
   if (method === 'OPTIONS') return optionsResponse(envelope, config);
   if (method !== 'GET') {
     return jsonResponse(envelope, config, err('BAD_REQUEST', 'Method not allowed.'), 405);

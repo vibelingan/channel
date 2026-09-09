@@ -14,6 +14,7 @@ export {
   validateAlibabaCatalogPricing,
 } from './alibaba-pricing.ts';
 export {
+  type LosslessParseOptions,
   type LosslessJsonValue,
   JsonNumberLexeme,
   asInteger,
@@ -21,7 +22,12 @@ export {
   getPath,
   parseJsonPreservingNumbers,
 } from './alibaba-json.ts';
-export { canonicalSignBase, signGopRequest } from './alibaba-signature.ts';
+export {
+  canonicalSignBase,
+  canonicalTopSignBase,
+  signGopRequest,
+  signTopRequest,
+} from './alibaba-signature.ts';
 export {
   type AlibabaEndpoints,
   DEFAULT_ALIBABA_ENDPOINTS,
@@ -43,6 +49,7 @@ export {
   type AlibabaSkuDraft,
   extractProductDetail,
   extractProductListPage,
+  isAlibabaProductAbsentError,
   isAuthorizationError,
   parseAlibabaApiResponse,
 } from './alibaba-contracts.ts';
@@ -66,6 +73,13 @@ export {
   gmtLexemeToUtcIso,
   normalizeProductDetail,
 } from './alibaba-normalizer.ts';
+
+export {
+  type AlibabaObservationCaptureMode,
+  type AlibabaObservationInput,
+  alibabaObservationAdapter,
+  alibabaVariantKey,
+} from './alibaba-observation-adapter.ts';
 export {
   type OfferForSelection,
   type PromotionCandidate,

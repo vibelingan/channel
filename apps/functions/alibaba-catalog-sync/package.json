@@ -16,6 +16,7 @@
   "dependencies": {
     "@vibelingan-channel/alibaba-catalog-sync": "workspace:*",
     "@vibelingan-channel/auth": "workspace:*",
+    "@vibelingan-channel/catalog-import": "workspace:*",
     "@vibelingan-channel/db": "workspace:*",
     "@vibelingan-channel/media-storage": "workspace:*",
     "@vibelingan-channel/shared": "workspace:*",

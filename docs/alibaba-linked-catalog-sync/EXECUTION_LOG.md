@@ -864,3 +864,129 @@ example that sent this investigation sideways once already.
 
 Gates: 10/10 suites, 0 type errors, biome clean, 25 script tests, SDK contract
 verify, 3 artifact smokes, site build.
+
+## MIU 16 — Live TOP SKU attribute contract correction (2026-09-03)
+
+The first completed full run produced 3,672 active SKU offers whose
+`sourceAttributes` were all empty. Read-only inspection of three persisted raw
+detail payloads proved the source data was present in a two-part live TOP
+contract: product-level `sku_attributes.sku_attribute[]` defines attribute and
+value ids, while each `sku_definition.attr2_value` JSON string selects those
+ids for one SKU.
+
+Added a product-scoped definition lookup and a lossless `attr2_value` join. The
+direct `sku.attributes[]` form remains as a compatibility fallback. Unknown ids
+and malformed embedded JSON are ignored without throwing; the raw payload
+remains available for future replay. A live-observed negative value id (`-2`)
+is covered as valid source identity rather than rejected by sign.
+
+The behavioral tests were first observed failing with empty attributes, then
+passed after the extractor change. Local gates:
+
+- Alibaba package: 122/122 tests passed;
+- Alibaba package TypeScript: 0 errors;
+- no CloudBase deployment or source-mirror mutation performed in this MIU.
+
+Then downloaded the private `alibaba-raw/` directory to an isolated `/tmp`
+directory and replayed the exact 1,074 payload ids currently referenced by
+`alibabaSourceProducts` through the changed extractor. All 1,074 matched and
+parsed; the result contained 3,672 SKUs, 3,661 with attributes (99.70%), and
+10,100 recovered attribute pairs. The other 11 were all Alibaba default SKU
+`-1` records whose source payload had neither an attribute dictionary nor an
+`attr2_value`. There were zero malformed embedded maps, API envelopes, or raw
+JSON documents in the selected current set. No database write was made.
+
+The workstream and later cross-source integration decision are recorded in
+`POST-LIVE-SYNC-INTEGRATION-PLAN-2026-09-03.md`.
+
+## MIU 17 — Provider-boundary JSON hardening (2026-09-03)
+
+The live SKU fix exposed a second JSON boundary: `attr2_value` is provider JSON
+encoded inside the outer provider JSON. Hardened the existing lossless parser
+instead of using lodash (not a JSON parser) or combining dependencies that each
+cover only half the requirement. The boundary now:
+
+- preserves exact number lexemes;
+- rejects non-string, malformed, over-depth, dangerous-key and duplicate-key
+  input as a result value rather than throwing to the runner;
+- reads own object properties only, so inherited names such as `toString` are
+  never mistaken for provider fields;
+- supports a caller-specific size cap; `attr2_value` is capped at 64 KiB;
+- measures the transport's 8 MiB response cap in UTF-8 bytes rather than
+  JavaScript character count, and cancels the response stream as soon as that
+  byte budget is crossed instead of buffering the whole response first.
+
+Tests include `null`, `undefined`, empty/whitespace, booleans, numbers, arrays,
+malformed strings, excessive depth, oversized embedded maps, duplicate keys,
+and `__proto__`/`prototype`/`constructor`. Five boundary failures were observed
+against the old implementation, including the inherited-property assertion.
+The oversized embedded-map assertion was also mutation-proved by removing the
+cap call and observing the test accept and join the oversized selection
+incorrectly.
+
+Local gates:
+
+- Alibaba package: 128/128 tests passed;
+- Alibaba function: 82/82 tests passed;
+- package and function TypeScript: 0 errors;
+- Biome: 7 changed TypeScript files clean;
+- Node 20 function bundle: built successfully with tsup;
+- `git diff --check`: clean.
+
+Then performed a new read-only CloudBase replay, selecting the exact 1,074
+payload ids currently referenced by `alibabaSourceProducts`, reading every
+private hash-addressed storage object, and streaming it through the hardened
+parser. Result: 1,074/1,074 reads and parses succeeded; zero malformed/API-error
+envelopes or missing product ids; 3,672 SKUs, 3,661 attributed SKUs and 10,100
+attribute pairs recovered. This exactly matches MIU 16, so the stricter policy
+closed abnormal-input paths without changing the real merchant projection.
+
+No provider call, database write, deployment, or source-mirror mutation was
+performed. The deployed function currently has no single-product diagnostic
+action; fresh live detail probing remains behind an explicit deploy gate rather
+than exposing the encrypted merchant token to a local process.
+
+## MIU 18 — Guarded one-product inspection and post-deploy audit (2026-09-04)
+
+Added an admin-only `inspectProductDetail` action. It acquires the same fenced
+connection lease as the sync runner, resolves the token only under that lease,
+calls TOP `alibaba.icbu.product.get` once, stores the exact private response
+before parsing, verifies the returned provider id and returns an allowlisted
+structural summary. It deliberately makes no source-product, offer, link or
+canonical-product write.
+
+Focused tests cover admin authorization, bounded ids, exact TOP
+method/parameters, raw-before-parse persistence, mismatched provider ids, lease
+release, zero mirror/offer writes and response redaction. Local gates passed:
+
+- Alibaba function: 86/86 tests;
+- Alibaba package: 128/128 tests;
+- both TypeScript checks and Biome: clean;
+- CloudBase SDK contract verification: passed;
+- deployment-contract tests: 25/25;
+- all three packaged function artifact cold-start smokes: passed.
+
+Committed and pushed `fa45c3c04a5f5839f5375ae05e34ad8cbe2871e1` on
+`fix/alibaba-sync-storage-wiring`, then updated only the
+`alibaba-catalog-sync` CloudBase function. Remote health returned that exact
+release under `Nodejs20.19`; the function was `Active/Available`.
+
+An existing authenticated Admin session then ran
+`incremental-2026-09-03T15-47-19-818Z`. It completed in about two seconds,
+stored a 173-byte `product.list` body with `total_item: 0`, advanced the cursor
+and left 1,074 active source products and 3,672 active/129 inactive offers
+unchanged. The Admin page displayed the completed run and had no console
+warning/error.
+
+The post-deploy database/storage audit is recorded in
+`LIVE-DATA-STRUCTURE-AUDIT-2026-09-04.md`. It found no duplicate source ids,
+orphan offers, provider-id mismatches, missing payload references or storage
+hash/byte mismatches. It also confirmed the expected stale-derived-data gap:
+all current active offer attributes are empty because the full run predates MIU
+16, while read-only raw replay recovers 3,661 attributed SKUs and 10,100 pairs.
+
+The new action's live route/admin boundary was verified with a 401 anonymous
+request. Its fresh authenticated detail call remains open because the current
+Admin UI has no inspection control and the browser session token was not
+exported or weakened for automation. The ordinary authenticated sync smoke and
+existing raw-detail replay remain independently verified.

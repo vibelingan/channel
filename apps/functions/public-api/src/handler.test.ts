@@ -56,3 +56,35 @@ test('public products omit malformed manual pricing and stale non-Headphones cat
   assert.equal(Object.hasOwn(projected, 'category'), false);
   assert.equal(Object.hasOwn(projected, 'manualCatalogPricing'), false);
 });
+
+test('public products never expose the private Alibaba source-review projection', () => {
+  const projected = publicDoc(
+    'products',
+    {
+      _id: 'alibaba-draft-1',
+      name: 'Supplier draft',
+      productFamily: 'headphones',
+      published: false,
+      alibabaSourceReview: {
+        schemaVersion: 'alibaba-source-review-v1',
+        provider: 'alibaba',
+        externalProductId: 'supplier-product-id',
+        sourceCategoryId: '201745901',
+        modelNumbers: ['SY-T11'],
+        optionNames: ['color'],
+        variantCount: 3,
+        offerCount: 3,
+        minimumOrderQuantity: 2,
+        primaryPricing: {
+          mode: 'tiered',
+          currency: 'USD',
+          minimumOrderQuantity: 2,
+          tiers: [{ minimumQuantity: 2, unitAmountMinor: 570 }],
+        },
+      },
+    },
+    config,
+  );
+
+  assert.equal(Object.hasOwn(projected, 'alibabaSourceReview'), false);
+});

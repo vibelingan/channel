@@ -138,7 +138,7 @@ test('family cards choose source, public, or quote pricing and require usable sl
       },
       'Request a Quote',
     ),
-    '$2.50',
+    '$99.00',
   );
   assert.equal(
     catalogProductPrice(
@@ -230,8 +230,7 @@ test('family grid source keeps public card fields and excludes VIP and video', (
   assert.match(source, /data-product-card=\{product\._id\}/);
   assert.match(source, /onOpenProduct\(product\._id\)/);
   assert.match(source, /ProductMedia/);
-  assert.match(source, /alibabaPriceSummary/);
-  assert.match(source, /publicManualPrice/);
+  assert.match(source, /effectiveCatalogPriceSummary/);
   assert.match(source, /quote/iu);
   assert.match(source, /initial-error/);
   assert.match(source, /loading-initial/);

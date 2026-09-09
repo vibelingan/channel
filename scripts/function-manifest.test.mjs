@@ -8,7 +8,12 @@
  * it can un-set live env vars.
  */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   ALIBABA_SYNC_TIMER,
   DESIRED_TIMER_TRIGGERS,
@@ -17,6 +22,8 @@ import {
   desiredTriggersFor,
   envEntries,
 } from './cloudbase-function-manifest.mjs';
+
+const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 
 const requireEnvFixture = (name) => {
   const values = {
@@ -46,6 +53,17 @@ const ctx = {
   requireEnv: requireEnvFixture,
   optionalEnv: optionalEnvFixture,
 };
+
+test('inquiry feature flag is opt-in on admin/public-api, never sync', () => {
+  const defs = buildFunctionDefs({
+    ...ctx,
+    optionalEnv: (name) => (name === 'CATALOG_RFQ_ENABLED' ? '1' : optionalEnvFixture(name)),
+  });
+  assert.deepEqual(
+    defs.map((def) => def.envVariables.CATALOG_RFQ_ENABLED),
+    ['1', '1', undefined],
+  );
+});
 
 test('manifest names, routes, and runtime limits are frozen', () => {
   assert.deepEqual(FUNCTION_NAMES, ['admin', 'public-api', 'alibaba-catalog-sync']);
@@ -144,4 +162,30 @@ test('the 15-minute tick stays DECLARED so enabling it is one edit', () => {
 
 test('envEntries drops undefined and keeps empty strings', () => {
   assert.deepEqual(envEntries({ a: '1', b: undefined, c: '' }), { a: '1', c: '' });
+});
+
+test('artifact smoke rejects a residual xlsx import before cold start', () => {
+  // Never rebuild or package here: tests may run after a release was prepared.
+  // This negative static check needs only an isolated deliberately bad fixture.
+  const tempRoot = mkdtempSync(join(tmpdir(), 'channel-function-artifacts-'));
+  const copiedArtifactRoot = join(tempRoot, 'functions');
+  mkdirSync(join(copiedArtifactRoot, 'admin'), { recursive: true });
+  const indexFile = join(copiedArtifactRoot, 'admin', 'index.js');
+  try {
+    writeFileSync(join(copiedArtifactRoot, 'admin', 'package.json'), '{}\n', 'utf8');
+    writeFileSync(indexFile, "require('xlsx');\nexports.main = () => {};\n", 'utf8');
+    const smoke = spawnSync(process.execPath, ['scripts/smoke-function-artifacts.mjs'], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, CHANNEL_FUNCTION_ARTIFACT_ROOT: copiedArtifactRoot },
+    });
+    assert.notEqual(smoke.status, 0, 'the deliberately broken artifact must fail smoke');
+    assert.match(
+      `${smoke.stdout}\n${smoke.stderr}`,
+      /admin artifact still contains xlsx require/,
+      'the static unresolved-import check must report xlsx before cold start',
+    );
+  } finally {
+    rmSync(tempRoot, { force: true, recursive: true });
+  }
 });

@@ -70,6 +70,14 @@ class MemoryAdapter implements DbAdapter {
   async update(): Promise<CollectionDoc | null> {
     throw new Error('not used');
   }
+  async upsertDocWithId(collection: string, id: string, data: Record<string, unknown>) {
+    const row = { ...data, _id: id };
+    const rows = this.docs(collection);
+    const index = rows.findIndex((item) => item._id === id);
+    if (index < 0) rows.push(row);
+    else rows[index] = row;
+    return row;
+  }
   async remove(collection: string, id: string): Promise<boolean> {
     const docs = this.docs(collection);
     const index = docs.findIndex((d) => d._id === id);
@@ -148,6 +156,21 @@ function setup(): void {
 }
 
 const PUBLIC_DNS = async () => ['104.16.1.1'];
+
+test('each source URL retains its owned image binding, including byte-deduplicated URLs', async () => {
+  setup();
+  for (const sourceUrl of ['https://img.alicdn.com/one.png', 'https://img.alicdn.com/two.png']) {
+    const result = await importCandidateImage(sourceUrl, {
+      ...fakeImageFetch(),
+      resolveDns: PUBLIC_DNS,
+    });
+    assert.equal(result.ok, true);
+    const link = store.catalogSourceLinks?.find((row) => row.sourceUrl === sourceUrl);
+    assert.equal(link?.imageId, 'img-1');
+    assert.equal(link?.provider, 'alibaba');
+  }
+  assert.equal(storage.puts.length, 1);
+});
 
 function fakeImageFetch(
   bytes: Buffer = PNG_BYTES,

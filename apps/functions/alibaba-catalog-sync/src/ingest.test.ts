@@ -1,7 +1,8 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 import { alibabaOfferKey, alibabaSourceKey } from '@vibelingan-channel/alibaba-catalog-sync';
-import type { AdapterListQuery, DbAdapter } from '@vibelingan-channel/db';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
+import type { AdapterListQuery, AlibabaLeaseGuard, DbAdapter } from '@vibelingan-channel/db';
 import { setAdapter } from '@vibelingan-channel/db';
 import {
   type MediaStorageAdapter,
@@ -22,6 +23,7 @@ import { ingestProductDetail, storeRawPayload } from './ingest.ts';
 type Store = Record<string, CollectionDoc[]>;
 
 class MemoryAdapter implements DbAdapter {
+  allowFencedWrites = true;
   private nextId = 1;
   constructor(readonly store: Store) {}
   private docs(collection: string): CollectionDoc[] {
@@ -108,6 +110,25 @@ class MemoryAdapter implements DbAdapter {
     docs.push(created);
     return created;
   }
+  async updateDocWithAlibabaLease(
+    collection: string,
+    id: string,
+    patch: Record<string, unknown>,
+  ): Promise<boolean> {
+    if (!this.allowFencedWrites) return false;
+    return (await this.update(collection, id, patch)) !== null;
+  }
+  async upsertDocWithAlibabaLease(
+    collection: string,
+    id: string,
+    patch: Record<string, unknown>,
+    createOnly: Record<string, unknown>,
+  ): Promise<boolean> {
+    if (!this.allowFencedWrites) return false;
+    const existing = await this.get(collection, id);
+    await this.upsertDocWithId(collection, id, existing ? patch : { ...createOnly, ...patch });
+    return true;
+  }
 }
 
 class MemoryMediaStorage implements MediaStorageAdapter {
@@ -141,14 +162,22 @@ class MemoryMediaStorage implements MediaStorageAdapter {
 
 let store: Store = {};
 let storage = new MemoryMediaStorage();
+let adapter = new MemoryAdapter(store);
 function setup(): void {
   store = {};
   storage = new MemoryMediaStorage();
-  setAdapter(new MemoryAdapter(store));
+  adapter = new MemoryAdapter(store);
+  setAdapter(adapter);
   setMediaStorage(storage);
 }
 
 const NOW = '2026-08-06T10:00:00.000Z';
+const TEST_GUARD: AlibabaLeaseGuard = {
+  connectionId: 'primary',
+  holder: 'test-holder',
+  fence: 1,
+  now: NOW,
+};
 
 const detailBody = (skus: { id: string; price: number }[]) =>
   JSON.stringify({
@@ -165,11 +194,13 @@ const detailBody = (skus: { id: string; price: number }[]) =>
 const ingest = (body: string, runId = 'run-1') =>
   ingestProductDetail({
     bodyText: body,
+    expectedSourceProductId: '987',
     endpointId: 'product.get',
     requestFingerprint: 'fp-1',
     connectionId: 'primary',
     runId,
     now: NOW,
+    leaseGuard: () => TEST_GUARD,
   });
 
 // --- raw payload evidence ----------------------------------------------------
@@ -220,6 +251,25 @@ test('raw bytes are durable BEFORE parsing: malformed bodies still leave evidenc
   assert.equal(store.alibabaSourceProducts?.length ?? 0, 0, 'no mirror write');
 });
 
+test('a product.get id mismatch preserves raw evidence but writes no derived state', async () => {
+  setup();
+  const result = await ingestProductDetail({
+    bodyText: detailBody([{ id: 'sku-1', price: 2.5 }]),
+    expectedSourceProductId: 'requested-product',
+    endpointId: 'product.get',
+    requestFingerprint: 'fp-mismatch',
+    connectionId: 'primary',
+    runId: 'run-mismatch',
+    now: NOW,
+    leaseGuard: () => TEST_GUARD,
+  });
+  assert.deepEqual(result, { ok: false, error: 'product-id-mismatch' });
+  assert.equal(store.alibabaSourcePayloads?.length, 1, 'exact provider bytes remain evidence');
+  assert.equal(store.alibabaSourceProducts?.length ?? 0, 0);
+  assert.equal(store.alibabaSupplierOffers?.length ?? 0, 0);
+  assert.equal(store.catalogSourceObservations?.length ?? 0, 0);
+});
+
 test('a raw-write failure aborts the page with nothing else written', async () => {
   setup();
   storage.failNextPut = true;
@@ -228,6 +278,17 @@ test('a raw-write failure aborts the page with nothing else written', async () =
   assert.equal(store.alibabaSourcePayloads?.length ?? 0, 0);
   assert.equal(store.alibabaSourceProducts?.length ?? 0, 0);
   assert.equal(store.alibabaSupplierOffers?.length ?? 0, 0);
+});
+
+test('a lost lease rejects derived mirror writes after preserving raw evidence', async () => {
+  setup();
+  adapter.allowFencedWrites = false;
+  const result = await ingest(detailBody([{ id: 'sku-1', price: 2.5 }]));
+  assert.deepEqual(result, { ok: false, error: 'lease-lost' });
+  assert.equal(store.alibabaSourcePayloads?.length, 1, 'immutable evidence remains durable');
+  assert.equal(store.alibabaSourceProducts?.length ?? 0, 0, 'stale holder cannot create a mirror');
+  assert.equal(store.alibabaSupplierOffers?.length ?? 0, 0);
+  assert.equal(store.catalogSourceObservations?.length ?? 0, 0);
 });
 
 // --- normalization + idempotency --------------------------------------------
@@ -249,12 +310,23 @@ test('ingest mirrors source product and offers with deterministic ids; rerun con
   assert.equal(product?.active, true);
   assert.equal(store.alibabaSupplierOffers?.length, 1);
   assert.equal(store.alibabaSupplierOffers?.[0]?._id, alibabaOfferKey('primary', '987', 'sku-1'));
+  assert.equal(store.catalogSourceObservations?.length, 1);
+  const observation = store.catalogSourceObservations?.[0];
+  assert.equal(observation?._id, sourceObservationDocumentId('alibaba', sourceKey));
+  assert.equal(observation?.provider, 'alibaba');
+  assert.equal(observation?.sourceProductKey, sourceKey);
+  assert.equal(observation?.lastSeenOperationId, 'run-1');
+  assert.equal(
+    (observation?.observation as { source?: { captureMode?: string } })?.source?.captureMode,
+    'incremental',
+  );
 
   // Rerun on a later run: same documents, provenance preserved, stamps advance.
   const second = await ingest(body, 'run-2');
   assert.equal(second.ok, true);
   assert.equal(store.alibabaSourceProducts?.length, 1, 'no duplicate mirror rows');
   assert.equal(store.alibabaSupplierOffers?.length, 1, 'no duplicate offers');
+  assert.equal(store.catalogSourceObservations?.length, 1, 'no duplicate common observations');
   assert.equal(store.alibabaSourceProducts?.[0]?.firstSeenRunId, 'run-1', 'first-seen preserved');
   assert.equal(store.alibabaSourceProducts?.[0]?.lastSeenRunId, 'run-2');
 });
@@ -285,6 +357,26 @@ test('a SKU that disappears from the detail deactivates its mirror offer', async
   assert.equal((sku1?.pricing as { amountMinor?: number })?.amountMinor, 240);
 });
 
+test('a detail refresh deactivates stale offers beyond the database 100-row page cap', async () => {
+  setup();
+  const originalSkus = Array.from({ length: 105 }, (_, index) => ({
+    id: `sku-${String(index + 1).padStart(3, '0')}`,
+    price: 2.5,
+  }));
+  const first = await ingest(detailBody(originalSkus), 'run-1');
+  assert.equal(first.ok, true);
+  assert.equal(store.alibabaSupplierOffers?.length, 105);
+
+  const second = await ingest(
+    detailBody([originalSkus[0] as { id: string; price: number }]),
+    'run-2',
+  );
+  assert.equal(second.ok, true);
+  if (!second.ok) return;
+  assert.equal(second.deactivatedOfferKeys.length, 104);
+  assert.equal(store.alibabaSupplierOffers?.filter((offer) => offer.active === true).length, 1);
+});
+
 test('api-error envelopes keep raw evidence and report the failure', async () => {
   setup();
   const result = await ingest(JSON.stringify({ error_code: 'AppCallLimit' }));
@@ -303,11 +395,13 @@ test('content fingerprint ignores wall-clock stamps: a re-ingest is NOT a change
   setup();
   const first = await ingestProductDetail({
     bodyText: BODY,
+    expectedSourceProductId: '987',
     endpointId: 'product.get',
     requestFingerprint: 'fp-1',
     connectionId: 'primary',
     runId: 'run-1',
     now: NOW,
+    leaseGuard: () => TEST_GUARD,
   });
   assert.equal(first.ok, true);
   const afterFirst = store.alibabaSourceProducts?.[0] as CollectionDoc;
@@ -318,11 +412,13 @@ test('content fingerprint ignores wall-clock stamps: a re-ingest is NOT a change
   // Same bytes, LATER clock, different run.
   const second = await ingestProductDetail({
     bodyText: BODY,
+    expectedSourceProductId: '987',
     endpointId: 'product.get',
     requestFingerprint: 'fp-2',
     connectionId: 'primary',
     runId: 'run-2',
     now: '2026-08-06T18:30:00.000Z',
+    leaseGuard: () => ({ ...TEST_GUARD, now: '2026-08-06T18:30:00.000Z' }),
   });
   assert.equal(second.ok, true);
   const afterSecond = store.alibabaSourceProducts?.[0] as CollectionDoc;
@@ -356,21 +452,25 @@ test('a per-response id from the gateway is NOT a content change', async () => {
 
   await ingestProductDetail({
     bodyText: withId('req-aaa'),
+    expectedSourceProductId: '987',
     endpointId: 'product.get',
     requestFingerprint: 'fp-1',
     connectionId: 'primary',
     runId: 'run-1',
     now: NOW,
+    leaseGuard: () => TEST_GUARD,
   });
   const first = store.alibabaSourceProducts?.[0] as CollectionDoc;
 
   await ingestProductDetail({
     bodyText: withId('req-bbb'),
+    expectedSourceProductId: '987',
     endpointId: 'product.get',
     requestFingerprint: 'fp-2',
     connectionId: 'primary',
     runId: 'run-2',
     now: '2026-08-06T18:30:00.000Z',
+    leaseGuard: () => ({ ...TEST_GUARD, now: '2026-08-06T18:30:00.000Z' }),
   });
   const second = store.alibabaSourceProducts?.[0] as CollectionDoc;
 
@@ -383,20 +483,24 @@ test('a real content change DOES advance the change stamp', async () => {
   setup();
   await ingestProductDetail({
     bodyText: BODY,
+    expectedSourceProductId: '987',
     endpointId: 'product.get',
     requestFingerprint: 'fp-1',
     connectionId: 'primary',
     runId: 'run-1',
     now: NOW,
+    leaseGuard: () => TEST_GUARD,
   });
   const changedBody = detailBody([{ id: 'sku-1', price: 9.9 }]);
   const second = await ingestProductDetail({
     bodyText: changedBody,
+    expectedSourceProductId: '987',
     endpointId: 'product.get',
     requestFingerprint: 'fp-2',
     connectionId: 'primary',
     runId: 'run-2',
     now: '2026-08-06T18:30:00.000Z',
+    leaseGuard: () => ({ ...TEST_GUARD, now: '2026-08-06T18:30:00.000Z' }),
   });
   assert.equal(second.ok, true);
   assert.equal(

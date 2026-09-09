@@ -73,8 +73,9 @@ test('manual tiers take precedence over scalar prices on card and detail', () =>
   assert.doesNotMatch(detail, /\$88\.00|\$99\.00/);
 });
 
-test('Alibaba-linked products suppress manual tiers and scalar fallback', () => {
+test('explicit source mode suppresses retained manual tiers and scalar fallback', () => {
   const product = tieredProduct({
+    catalogPricingMode: 'source',
     alibabaPrimarySourceKey: 'linked',
     alibabaCatalogPricing: createAlibabaCatalogPricing({ amountMinor: 250 }),
     unitPrice: 99,

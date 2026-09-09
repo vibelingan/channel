@@ -5,7 +5,7 @@
  * The write path is `updateDocWithAlibabaLease` — the lease's holder/fence/
  * expiry are re-verified INSIDE the same transaction as the patch (R1 E2),
  * so a stale holder can never promote after a fence takeover. The patch
- * carries ONLY the five Alibaba-owned additive fields; curated fields,
+ * carries ONLY Alibaba-owned additive fields; curated fields,
  * publication state, and legacy pricing are structurally out of reach.
  */
 import {
@@ -15,7 +15,9 @@ import {
   computeCandidateHash,
   priceMoveExceedsThreshold,
 } from '@vibelingan-channel/alibaba-catalog-sync';
-import { type AlibabaLeaseGuard, list, updateDocWithAlibabaLease } from '@vibelingan-channel/db';
+import { type AlibabaLeaseGuard, updateDocWithAlibabaLease } from '@vibelingan-channel/db';
+import { loadAlibabaSourceReview } from './linking.ts';
+import { listAllDocs } from './list-all.ts';
 import { getDoc } from './repo.ts';
 
 export interface PromoteInput {
@@ -39,13 +41,10 @@ export type PromoteResult =
 
 /** Read the ACTIVE offers for one source product (bounded by SKU count). */
 async function activeOffers(sourceKey: string): Promise<OfferForSelection[]> {
-  const result = await list({
-    collection: 'alibabaSupplierOffers',
-    page: 1,
-    pageSize: 100,
-    filter: { combinator: 'and', clauses: [{ field: 'sourceKey', op: 'eq', value: sourceKey }] },
-  });
-  return result.items.map((doc) => ({
+  const offers = await listAllDocs('alibabaSupplierOffers', [
+    { field: 'sourceKey', op: 'eq', value: sourceKey },
+  ]);
+  return offers.map((doc) => ({
     offerKey: doc._id,
     sourceKey: String(doc.sourceKey ?? ''),
     sourceSkuId: String(doc.sourceSkuId ?? ''),
@@ -72,6 +71,7 @@ export async function promoteLinkedProduct(input: PromoteInput): Promise<Promote
   }
 
   const source = await getDoc('alibabaSourceProducts', input.sourceKey);
+  const sourceReview = source ? await loadAlibabaSourceReview(source) : null;
   const offers = await activeOffers(input.sourceKey);
   // Read the OPERATOR pin, never the sync's own previous selection
   // (blessing-gate P1): feeding alibabaPrimaryOfferKey back in made the first
@@ -88,6 +88,15 @@ export async function promoteLinkedProduct(input: PromoteInput): Promise<Promote
     ...(pinned !== undefined ? { pinnedOfferKey: pinned } : {}),
     now: input.now,
   });
+  const patch = {
+    ...candidate.patch,
+    ...(sourceReview === null ? {} : { alibabaSourceReview: sourceReview }),
+    alibabaSourceProductId: String(source?.sourceProductId ?? ''),
+    alibabaSourceCategoryId: String(source?.sourceCategoryId ?? ''),
+    alibabaSourceImageUrls: Array.isArray(source?.sourceImageUrls)
+      ? source.sourceImageUrls.filter((value): value is string => typeof value === 'string')
+      : [],
+  };
 
   const previousPricing = (product.alibabaCatalogPricing ?? null) as AlibabaCatalogPricing | null;
   const priceMoveAlert = priceMoveExceedsThreshold(
@@ -97,7 +106,7 @@ export async function promoteLinkedProduct(input: PromoteInput): Promise<Promote
   const candidateHash = computeCandidateHash({
     sourceKey: input.sourceKey,
     productId: link.productId,
-    patch: candidate.patch,
+    patch,
   });
 
   const changed =
@@ -105,19 +114,22 @@ export async function promoteLinkedProduct(input: PromoteInput): Promise<Promote
       p: previousPricing,
       k: product.alibabaPrimaryOfferKey ?? null,
       s: product.alibabaSourceStatus ?? null,
+      i: product.alibabaSourceProductId ?? null,
+      c: product.alibabaSourceCategoryId ?? null,
+      m: product.alibabaSourceImageUrls ?? null,
+      r: product.alibabaSourceReview ?? null,
     }) !==
     computeCandidateHash({
       p: candidate.patch.alibabaCatalogPricing,
       k: candidate.patch.alibabaPrimaryOfferKey,
       s: candidate.patch.alibabaSourceStatus,
+      i: patch.alibabaSourceProductId,
+      c: patch.alibabaSourceCategoryId,
+      m: patch.alibabaSourceImageUrls,
+      r: sourceReview,
     });
 
-  const applied = await updateDocWithAlibabaLease(
-    'products',
-    link.productId,
-    candidate.patch,
-    input.guard,
-  );
+  const applied = await updateDocWithAlibabaLease('products', link.productId, patch, input.guard);
   if (!applied) return { ok: false, reason: 'fence-rejected' };
   return { ok: true, productId: link.productId, candidateHash, priceMoveAlert, changed };
 }

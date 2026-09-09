@@ -122,32 +122,54 @@ function assertRuntimeComparison(tree, objectName, label) {
   assert.equal(matches.length, 1, label);
 }
 
-test('site build engine and workflow Node versions satisfy the Astro build floor', () => {
+function assertSiteBuildRuntime(job, name) {
+  findUniqueStep(job, (step) => step.run === 'pnpm build', `${name} site build`);
+  let nodeVersion;
+  for (const step of job.steps) {
+    if (step.uses === 'actions/setup-node@v4') {
+      assert.equal(step.if, undefined, `${name} runtime switches must be unconditional`);
+      assert.notEqual(step['continue-on-error'], true);
+      nodeVersion = step.with?.['node-version'];
+    }
+    if (step.run === 'pnpm build') {
+      assert.ok(nodeVersion, `${name} must pin its site-build Node version`);
+      assert.ok(
+        compareVersions(String(nodeVersion), buildFloor) >= 0,
+        `${name} Node ${nodeVersion} is below the >=${buildFloor} build floor`,
+      );
+    }
+  }
+}
+
+test('site build engine and active workflow Node versions satisfy the Astro build floor', () => {
   assert.equal(rootPackage.engines?.node, `>=${buildFloor}`);
 
   for (const [name, workflow, jobName] of buildWorkflows) {
     const job = workflow.jobs?.[jobName];
     assert.ok(job, `${name} must define jobs.${jobName}`);
-    assert.equal(job.if, undefined, `${name} ${jobName} job must not be conditional`);
-    findUniqueStep(job, (step) => step.run === 'pnpm build', `${name} site build`);
-    const setupNode = findUniqueStep(
-      job,
-      (step) => step.uses === 'actions/setup-node@v4',
-      `${name} Node setup`,
-    );
-    const nodeVersion = setupNode.with?.['node-version'];
-    assert.ok(nodeVersion, `${name} must pin its site-build Node version`);
-    assert.ok(
-      compareVersions(String(nodeVersion), buildFloor) >= 0,
-      `${name} Node ${nodeVersion} is below the >=${buildFloor} build floor`,
-    );
+    assertSiteBuildRuntime(job, name);
+  }
+});
+
+test('leaving the function smoke runtime active cannot pass the site build gate', () => {
+  for (const [name, workflow, jobName] of buildWorkflows) {
+    const job = structuredClone(workflow.jobs[jobName]);
+    // Keep the setup step in place but corrupt the restore target. An initial
+    // Node 22 setup must not hide the Node 20 still active at the site build.
+    const switches = job.steps.filter((step) => step.uses === 'actions/setup-node@v4');
+    switches.at(-1).with['node-version'] = '20.19.0';
+    assert.throws(() => assertSiteBuildRuntime(job, name), /below the.*build floor/);
   }
 });
 
 test('Deploy Test runs deployment contracts before packaging', () => {
   findUniqueStep(ciJob, (step) => step.run === 'pnpm test', 'CI root test gate');
   assert.ok(deployJob, 'Deploy Test must define jobs.deploy');
-  assert.equal(deployJob.if, undefined, 'Deploy Test deploy job must not be conditional');
+  assert.equal(
+    deployJob.if,
+    "${{ github.ref == 'refs/heads/test' && needs.ci.result == 'success' }}",
+    'only the test-branch/full-CI gate may condition deployment',
+  );
   const contractStep = findUniqueStep(
     deployJob,
     (step) => step.run === 'pnpm test:deploy-smoke',

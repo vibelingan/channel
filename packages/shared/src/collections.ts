@@ -110,6 +110,73 @@ export const ALIBABA_SYNC_RUN_STATUS_OPTIONS = [
 ] as const;
 
 /**
+ * Providers the provider-neutral catalog import understands. Kept in the
+ * registry (rather than imported from the import package) so `packages/shared`
+ * stays dependency-free and the admin browser bundle does not pull in a
+ * spreadsheet parser to render a dropdown.
+ */
+export const CATALOG_IMPORT_PROVIDER_OPTIONS = [
+  'dianxiaomi',
+  'alibaba',
+  'aliexpress',
+  'lazada',
+  'shopify',
+] as const;
+
+/** Import-job lifecycle (docs/dianxiaomi-excel-import/DESIGN.md §10). */
+export const CATALOG_IMPORT_JOB_STATUS_OPTIONS = [
+  'created',
+  'parsing',
+  'validated',
+  'previewReady',
+  'applying',
+  'applied',
+  'failed',
+] as const;
+
+/** Staged-item lifecycle. Independent of Channel publication state. */
+export const CATALOG_IMPORT_ITEM_STATUS_OPTIONS = [
+  'pending',
+  'valid',
+  'warning',
+  'rejected',
+  'applying',
+  'applied',
+  'failed',
+] as const;
+
+/**
+ * SOURCE listing status. Deliberately distinct from Channel `published`: a
+ * product that is a draft at the marketplace may still be published on the
+ * Channel website, and vice versa.
+ */
+export const CATALOG_SOURCE_LISTING_STATUS_OPTIONS = [
+  'published',
+  'draft',
+  'missing',
+  'unknown',
+] as const;
+
+/** Outcome of reconciling several stores' stock for one canonical SKU. */
+export const CATALOG_INVENTORY_STATE_OPTIONS = ['known', 'conflict', 'unknown'] as const;
+
+/**
+ * Three things live in `catalogSourceLinks`, and separating them is what lets
+ * four shops' lines collapse to one website product without losing a shop:
+ *
+ *   'group'   canonical binding: one source product family -> one Channel
+ *             product id. Store-independent.
+ *   'variant' canonical binding: one source SKU -> one Channel variant id.
+ *             Store-independent.
+ *   'store'   one shop's own line for that SKU: its price, its stock, its
+ *             marketplace listing id, its source status.
+ *
+ * The canonical rows are what make a repeat import idempotent; the store rows
+ * are what keep provenance attributable.
+ */
+export const CATALOG_SOURCE_LINK_KINDS = ['group', 'variant', 'store'] as const;
+
+/**
  * Fields every document gets automatically. They are server-managed and never
  * writable from the client.
  */
@@ -207,7 +274,7 @@ export const COLLECTIONS: readonly CollectionDef[] = [
     name: 'products',
     label: 'Products',
     description: 'Catalog products (headphones and other categories).',
-    searchableFields: ['name', 'series', 'modName'],
+    searchableFields: ['name', 'series', 'modName', 'alibabaSourceProductId'],
     fields: [
       { name: 'name', label: 'Name', type: 'string', required: true },
       {
@@ -231,6 +298,13 @@ export const COLLECTIONS: readonly CollectionDef[] = [
       { name: 'moq', label: 'MOQ', type: 'number' },
       { name: 'unitPrice', label: 'Unit Price', type: 'number' },
       { name: 'wholesalePrice', label: 'Wholesale Price', type: 'number' },
+      {
+        name: 'catalogPricingMode',
+        label: 'Website pricing',
+        type: 'select',
+        options: ['source', 'manual'],
+        hideInTable: true,
+      },
       {
         name: 'manualCatalogPricing',
         label: 'Quantity Tier Pricing',
@@ -261,6 +335,40 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         name: 'alibabaPrimarySourceKey',
         label: 'Alibaba Source Key',
         type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'alibabaSourceProductId',
+        label: 'Alibaba Product ID',
+        type: 'string',
+        readOnly: true,
+      },
+      {
+        name: 'alibabaSourceCategoryId',
+        label: 'Alibaba Category ID',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'alibabaClassifiedCategoryId',
+        label: 'Confirmed Alibaba Category ID',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'catalogClassificationReceipt',
+        label: 'Category Assignment Receipt',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'alibabaSourceImageUrls',
+        label: 'Alibaba Source Images',
+        type: 'json',
         readOnly: true,
         hideInTable: true,
       },
@@ -297,12 +405,39 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         type: 'select',
         options: ALIBABA_SOURCE_STATUS_OPTIONS,
         readOnly: true,
-        hideInTable: true,
       },
       {
         name: 'alibabaSourceLastSyncedAt',
         label: 'Alibaba Last Synced',
         type: 'date',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'alibabaSourceReview',
+        label: 'Alibaba Source Review',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'alibabaReviewPending',
+        label: 'Alibaba Review Pending',
+        type: 'boolean',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'alibabaReviewedAt',
+        label: 'Alibaba Reviewed At',
+        type: 'date',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'alibabaReviewedByUserId',
+        label: 'Alibaba Reviewed By',
+        type: 'string',
         readOnly: true,
         hideInTable: true,
       },
@@ -1070,10 +1205,28 @@ export const COLLECTIONS: readonly CollectionDef[] = [
     ],
   },
   {
+    name: 'alibabaRawReplayManifests',
+    label: 'Alibaba Raw Replay Manifests',
+    description:
+      'Server-owned proof that every ordered raw replay page passed validation before any apply.',
+    searchableFields: [],
+    hideFromNav: true,
+    adminAccess: 'none',
+    fields: [
+      { name: 'connectionId', label: 'Connection', type: 'string', readOnly: true },
+      { name: 'requestedBy', label: 'Requested By', type: 'string', readOnly: true },
+      { name: 'status', label: 'Status', type: 'string', readOnly: true },
+      { name: 'totalSourceProducts', label: 'Source Total', type: 'number', readOnly: true },
+      { name: 'pages', label: 'Pages', type: 'json', readOnly: true },
+      { name: 'nextApplyIndex', label: 'Next Apply Page', type: 'number', readOnly: true },
+      { name: 'expiresAt', label: 'Expires', type: 'date', readOnly: true },
+    ],
+  },
+  {
     name: 'alibabaCategoryMappings',
     label: 'Alibaba Category Mappings',
     description:
-      'Operator-owned mapping from Alibaba source categories to Channel categories; drafts are created only for mapped categories.',
+      'Compatibility mapping from Alibaba source categories to Channel categories. Unmapped products remain visible as uncategorized drafts and cannot be published until classified.',
     searchableFields: ['alibabaCategoryId', 'alibabaCategoryLabel'],
     adminAccess: 'crud',
     fields: [
@@ -1085,6 +1238,417 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         type: 'select',
         options: PRODUCT_CATEGORY_OPTIONS,
         required: true,
+      },
+      { name: 'notes', label: 'Notes', type: 'text', hideInTable: true },
+    ],
+  },
+  // -------------------------------------------------------------------------
+  // Provider-neutral catalog import (docs/dianxiaomi-excel-import/DESIGN.md).
+  // Every field is server-managed: staged candidates, source links and
+  // reconciled inventory are written by the import pipeline through the
+  // trusted repository path, never through generic admin CRUD. None of these
+  // collections may hold or write an alibaba* field.
+  // -------------------------------------------------------------------------
+  {
+    name: 'catalogImportJobs',
+    label: 'Catalog Imports',
+    description: 'One import run: source file hash, lifecycle, counts and summaries.',
+    searchableFields: ['sourceFileName', 'templateId'],
+    hideFromNav: true,
+    adminAccess: 'readOnly',
+    fields: [
+      {
+        name: 'provider',
+        label: 'Provider',
+        type: 'select',
+        options: CATALOG_IMPORT_PROVIDER_OPTIONS,
+        readOnly: true,
+      },
+      {
+        name: 'status',
+        label: 'Status',
+        type: 'select',
+        options: CATALOG_IMPORT_JOB_STATUS_OPTIONS,
+        readOnly: true,
+      },
+      { name: 'sourceFileName', label: 'Source File', type: 'string', readOnly: true },
+      // The workbook bytes stay in private object storage. The database keeps
+      // only this digest and the server-managed storage evidence pointer.
+      { name: 'sourceFileSha256', label: 'Source SHA-256', type: 'string', readOnly: true },
+      { name: 'sourceByteSize', label: 'Source Bytes', type: 'number', readOnly: true },
+      {
+        name: 'sourceStorageFileId',
+        label: 'Source Storage File',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'sourceStoragePath',
+        label: 'Source Storage Path',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'sourceStorageProvider',
+        label: 'Source Storage Provider',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'sourceStorageMode',
+        label: 'Source Storage Mode',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'sourceContentType',
+        label: 'Source Content Type',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'sourceEvidenceStoredAt',
+        label: 'Evidence Stored',
+        type: 'date',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'failureCode', label: 'Failure Code', type: 'string', readOnly: true },
+      { name: 'templateId', label: 'Template', type: 'string', readOnly: true },
+      { name: 'sheetName', label: 'Sheet', type: 'string', readOnly: true },
+      { name: 'counts', label: 'Counts', type: 'json', readOnly: true, hideInTable: true },
+      { name: 'summary', label: 'Summary', type: 'json', readOnly: true, hideInTable: true },
+      { name: 'settings', label: 'Settings', type: 'json', readOnly: true, hideInTable: true },
+      {
+        name: 'ignoredHeaders',
+        label: 'Ignored Columns',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'templateHeaders',
+        label: 'Source Columns',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'findings', label: 'Findings', type: 'json', readOnly: true, hideInTable: true },
+      {
+        name: 'replayOfJobId',
+        label: 'Replay Of',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'startedAt', label: 'Started', type: 'date', readOnly: true },
+      { name: 'completedAt', label: 'Completed', type: 'date', readOnly: true },
+      { name: 'errorSummary', label: 'Error', type: 'text', readOnly: true, hideInTable: true },
+    ],
+  },
+  {
+    name: 'catalogImportItems',
+    label: 'Catalog Import Items',
+    description: 'Staged candidate products with their variants, findings and apply state.',
+    searchableFields: ['parentSku', 'title'],
+    hideFromNav: true,
+    adminAccess: 'readOnly',
+    fields: [
+      { name: 'jobId', label: 'Job', type: 'string', readOnly: true },
+      {
+        name: 'status',
+        label: 'Status',
+        type: 'select',
+        options: CATALOG_IMPORT_ITEM_STATUS_OPTIONS,
+        readOnly: true,
+      },
+      { name: 'candidateGroupKey', label: 'Group Key', type: 'string', readOnly: true },
+      { name: 'parentSku', label: 'Parent SKU', type: 'string', readOnly: true },
+      { name: 'title', label: 'Title', type: 'string', readOnly: true },
+      {
+        name: 'sourceListingStatus',
+        label: 'Source Status',
+        type: 'select',
+        options: CATALOG_SOURCE_LISTING_STATUS_OPTIONS,
+        readOnly: true,
+      },
+      { name: 'variantCount', label: 'Variants', type: 'number', readOnly: true },
+      { name: 'candidate', label: 'Candidate', type: 'json', readOnly: true, hideInTable: true },
+      {
+        name: 'storeListings',
+        label: 'Store Listings',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'inventory', label: 'Inventory', type: 'json', readOnly: true, hideInTable: true },
+      { name: 'findings', label: 'Findings', type: 'json', readOnly: true, hideInTable: true },
+      { name: 'productId', label: 'Channel Product', type: 'string', readOnly: true },
+      { name: 'appliedAt', label: 'Applied', type: 'date', readOnly: true, hideInTable: true },
+      { name: 'errorSummary', label: 'Error', type: 'text', readOnly: true, hideInTable: true },
+    ],
+  },
+  {
+    name: 'productVariants',
+    label: 'Product Variants',
+    description: 'Canonical Channel variants and the exact inventory presented for them.',
+    searchableFields: ['sku'],
+    hideFromNav: true,
+    adminAccess: 'none',
+    fields: [
+      { name: 'productId', label: 'Product', type: 'string', readOnly: true },
+      { name: 'sku', label: 'SKU', type: 'string', readOnly: true },
+      { name: 'position', label: 'Position', type: 'number', readOnly: true },
+      { name: 'optionValues', label: 'Options', type: 'json', readOnly: true },
+      // Reconciliation OUTCOME, not a number: `conflict` and `unknown` carry no
+      // quantity at all, so nothing downstream can render a fabricated count.
+      {
+        name: 'inventoryState',
+        label: 'Inventory State',
+        type: 'select',
+        options: CATALOG_INVENTORY_STATE_OPTIONS,
+        readOnly: true,
+      },
+      { name: 'inventoryQuantity', label: 'Inventory', type: 'number', readOnly: true },
+      {
+        name: 'inventorySnapshots',
+        label: 'Store Stock',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+      },
+      // Source money, in minor units with an explicit currency. NEVER written
+      // into the legacy major-unit USD fields on `products`.
+      {
+        name: 'sourceRegularPrice',
+        label: 'Source Price',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'sourcePromotionPrice',
+        label: 'Source Promo Price',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'imageIds', label: 'Image IDs', type: 'json', readOnly: true, hideInTable: true },
+      { name: 'archived', label: 'Archived', type: 'boolean', readOnly: true },
+    ],
+  },
+  {
+    name: 'catalogDetailApprovals',
+    label: 'Private Catalog Approval Jobs',
+    description:
+      'Actor-bound staged approval cursors. Access only through the dedicated server workflow.',
+    hideFromNav: true,
+    adminAccess: 'none',
+    searchableFields: [],
+    fields: [],
+  },
+  {
+    name: 'catalogDetailVariants',
+    label: 'Private Approved Variant Snapshots',
+    description:
+      'Immutable per-revision copies. Public access requires the approved product pointer.',
+    hideFromNav: true,
+    adminAccess: 'none',
+    searchableFields: [],
+    fields: [],
+  },
+  {
+    name: 'catalogSourceObservations',
+    label: 'Catalog Source Observations',
+    description:
+      'Current validated provider-neutral source view; raw evidence and canonical products remain separate.',
+    searchableFields: ['externalProductId'],
+    hideFromNav: true,
+    adminAccess: 'readOnly',
+    fields: [
+      {
+        name: 'provider',
+        label: 'Provider',
+        type: 'select',
+        options: CATALOG_IMPORT_PROVIDER_OPTIONS,
+        readOnly: true,
+      },
+      {
+        name: 'sourceProductKey',
+        label: 'Source Product Key',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'externalProductId',
+        label: 'External Product ID',
+        type: 'string',
+        readOnly: true,
+      },
+      { name: 'schemaVersion', label: 'Schema Version', type: 'string', readOnly: true },
+      { name: 'observedAt', label: 'Observed', type: 'date', readOnly: true },
+      { name: 'sourceUpdatedAt', label: 'Source Updated', type: 'date', readOnly: true },
+      {
+        name: 'evidenceId',
+        label: 'Evidence',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'active', label: 'Active', type: 'boolean', readOnly: true },
+      {
+        name: 'observation',
+        label: 'Observation',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'firstSeenOperationId',
+        label: 'First Seen Operation',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'lastSeenOperationId',
+        label: 'Last Seen Operation',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+    ],
+  },
+  {
+    name: 'catalogSourceLinks',
+    label: 'Catalog Source Links',
+    description: 'Stable provider/store source records attached to Channel products and variants.',
+    searchableFields: ['sourceVariantKey', 'sku'],
+    hideFromNav: true,
+    adminAccess: 'none',
+    fields: [
+      {
+        name: 'linkKind',
+        label: 'Link Kind',
+        type: 'select',
+        options: CATALOG_SOURCE_LINK_KINDS,
+        readOnly: true,
+      },
+      {
+        name: 'provider',
+        label: 'Provider',
+        type: 'select',
+        options: CATALOG_IMPORT_PROVIDER_OPTIONS,
+        readOnly: true,
+      },
+      { name: 'taxonomy', label: 'Channel', type: 'string', readOnly: true },
+      { name: 'storeKey', label: 'Store', type: 'string', readOnly: true },
+      { name: 'sourceProductKey', label: 'Source Product Key', type: 'string', readOnly: true },
+      { name: 'sourceVariantKey', label: 'Source Variant Key', type: 'string', readOnly: true },
+      { name: 'candidateGroupKey', label: 'Group Key', type: 'string', readOnly: true },
+      { name: 'candidateSkuKey', label: 'SKU Key', type: 'string', readOnly: true },
+      { name: 'parentSku', label: 'Parent SKU', type: 'string', readOnly: true },
+      { name: 'sku', label: 'SKU', type: 'string', readOnly: true },
+      { name: 'productId', label: 'Channel Product', type: 'string', readOnly: true },
+      { name: 'variantId', label: 'Channel Variant', type: 'string', readOnly: true },
+      {
+        name: 'externalProductId',
+        label: 'Marketplace Product ID',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'externalVariantId',
+        label: 'Marketplace Variant ID',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'sourceListingStatus',
+        label: 'Source Status',
+        type: 'select',
+        options: CATALOG_SOURCE_LISTING_STATUS_OPTIONS,
+        readOnly: true,
+      },
+      {
+        name: 'sourceRegularPrice',
+        label: 'Source Price',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        name: 'sourcePromotionPrice',
+        label: 'Source Promo Price',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+      },
+      { name: 'quantity', label: 'Store Stock', type: 'number', readOnly: true },
+      { name: 'lastSeenJobId', label: 'Last Seen In', type: 'string', readOnly: true },
+      { name: 'lastSeenAt', label: 'Last Seen', type: 'date', readOnly: true },
+      // Set when a COMPLETE, structurally valid import no longer contains the
+      // record. Never triggers a delete or an unpublish on its own.
+      {
+        name: 'sourceMissingSince',
+        label: 'Missing Since',
+        type: 'date',
+        readOnly: true,
+        hideInTable: true,
+      },
+    ],
+  },
+  {
+    name: 'sourceCategoryMappings',
+    label: 'Source Category Mappings',
+    description:
+      'Operator-owned mapping from a provider category to a Channel product family. Unmapped source categories stay unmapped: publication never invents one.',
+    searchableFields: ['sourceCategoryId', 'sourceCategoryName'],
+    adminAccess: 'crud',
+    fields: [
+      {
+        name: 'provider',
+        label: 'Provider',
+        type: 'select',
+        options: CATALOG_IMPORT_PROVIDER_OPTIONS,
+        required: true,
+      },
+      { name: 'sourceTaxonomy', label: 'Source Taxonomy', type: 'string', required: true },
+      { name: 'sourceCategoryId', label: 'Source Category ID', type: 'string' },
+      { name: 'sourceCategoryName', label: 'Source Category Name', type: 'string' },
+      {
+        name: 'productFamily',
+        label: 'Channel Product Family',
+        type: 'select',
+        options: PRODUCT_FAMILY_OPTIONS,
+      },
+      {
+        name: 'reviewRequired',
+        label: 'Mixed source category: manual assignment required',
+        type: 'boolean',
+      },
+      {
+        name: 'policyVersion',
+        label: 'Installed policy version',
+        type: 'string',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        // Applies only when productFamily is 'headphones' — the legacy
+        // subcategory registry has never covered anything else.
+        name: 'channelCategory',
+        label: 'Headphones Subcategory',
+        type: 'select',
+        options: PRODUCT_CATEGORY_OPTIONS,
       },
       { name: 'notes', label: 'Notes', type: 'text', hideInTable: true },
     ],

@@ -14,23 +14,30 @@ import type {
   ProductFamily,
   SortClause,
 } from '@vibelingan-channel/shared';
-import { PRODUCT_FAMILY_OPTIONS } from '@vibelingan-channel/shared';
+import { PRODUCT_FAMILY_OPTIONS, isProductFamily } from '@vibelingan-channel/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
+import { BatchCategoryAssignment } from './BatchCategoryAssignment.tsx';
+import { BatchUpdateFeedback } from './BatchUpdateFeedback.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { FilterBuilder } from './FilterBuilder.tsx';
 import { PreviewModal } from './PreviewModal.tsx';
 import { RecordForm } from './RecordForm.tsx';
+import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
+import { productReviewCellValue } from './alibaba-source-review.ts';
 import {
   batchRemoveRecords,
   batchUpdateRecords,
   createRecord,
+  fetchProductReviewSummary,
   imageUrl,
   listRecords,
+  markProductReviewed,
   removeRecord,
   updateRecord,
 } from './api.ts';
 import {
+  ADMIN_PRODUCT_FAMILY_LABELS,
   type AdminProductFamily,
   adminProductFamilyFromSearch,
   adminProductFamilySearch,
@@ -43,9 +50,10 @@ const PAGE_SIZE = 20;
 interface Props {
   collection: CollectionDef;
   section: DashboardSection;
+  role: string;
 }
 
-export function CollectionView({ collection, section }: Props) {
+export function CollectionView({ collection, section, role }: Props) {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -59,6 +67,7 @@ export function CollectionView({ collection, section }: Props) {
 
   const isCatalog = section.catalog === true;
   const isProducts = collection.name === 'products';
+  const canReviewAlibabaProducts = isProducts && role === 'admin';
   const [productFamily, setProductFamily] = useState<AdminProductFamily>(() =>
     isProducts && typeof window !== 'undefined'
       ? adminProductFamilyFromSearch(window.location.search)
@@ -99,9 +108,24 @@ export function CollectionView({ collection, section }: Props) {
         ),
       ),
   });
+  const { data: reviewSummary } = useQuery({
+    queryKey: ['product-review-summary'],
+    queryFn: fetchProductReviewSummary,
+    enabled: canReviewAlibabaProducts,
+    refetchOnWindowFocus: true,
+    staleTime: 15_000,
+  });
+  const { data: unclassifiedSummary } = useQuery({
+    queryKey: ['list', 'products', 'unclassified-count'],
+    queryFn: () =>
+      listRecords({ collection: 'products', needsClassification: true, page: 1, pageSize: 1 }),
+    enabled: isProducts,
+    staleTime: 15_000,
+  });
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['list', collection.name] });
+    if (isProducts) queryClient.invalidateQueries({ queryKey: ['product-review-summary'] });
   }
 
   function clearSelection() {
@@ -131,10 +155,16 @@ export function CollectionView({ collection, section }: Props) {
   });
 
   const batchUpdateMutation = useMutation({
-    mutationFn: (vars: { ids: string[]; values: Record<string, unknown> }) =>
-      batchUpdateRecords(collection.name, vars.ids, vars.values),
-    onSuccess: () => {
-      clearSelection();
+    mutationFn: (vars: {
+      ids: string[];
+      values: Record<string, unknown>;
+      names: Record<string, string>;
+    }) => batchUpdateRecords(collection.name, vars.ids, vars.values),
+    onSuccess: (result) => {
+      const completed = new Set(result.items.map((item) => item._id));
+      setRowSelection((current) =>
+        Object.fromEntries(Object.entries(current).filter(([id]) => !completed.has(id))),
+      );
       invalidate();
     },
   });
@@ -146,6 +176,20 @@ export function CollectionView({ collection, section }: Props) {
       invalidate();
     },
   });
+
+  const reviewMutation = useMutation({
+    mutationFn: (productId: string) => markProductReviewed(productId),
+    onSuccess: (updated) => {
+      setPreviewing(updated);
+      invalidate();
+    },
+  });
+
+  const visibleMutationError =
+    batchUpdateMutation.error ||
+    (!editing && updateMutation.error) ||
+    removeMutation.error ||
+    batchRemoveMutation.error;
 
   function patch(id: string, values: Record<string, unknown>) {
     updateMutation.mutate({ id, values });
@@ -178,10 +222,18 @@ export function CollectionView({ collection, section }: Props) {
     return () => window.removeEventListener('popstate', recoverFamily);
   }, [isProducts]);
 
-  const tableFields = useMemo(
-    () => collection.fields.filter((f) => !f.hideInTable && !(isCatalog && f.name === 'published')),
-    [collection.fields, isCatalog],
-  );
+  const tableFields = useMemo(() => {
+    const visible = collection.fields.filter(
+      (field) => !field.hideInTable && !(isCatalog && field.name === 'published'),
+    );
+    // Product rows are an operator review queue, not a raw dump of the legacy
+    // product document. Fields that Alibaba does not supply (slug, series,
+    // website prices) stay editable in the form but do not become columns full
+    // of misleading blanks. The source evidence columns below replace them.
+    return isProducts
+      ? visible.filter((field) => ['name', 'productFamily', 'category'].includes(field.name))
+      : visible;
+  }, [collection.fields, isCatalog, isProducts]);
 
   const total = data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -216,7 +268,7 @@ export function CollectionView({ collection, section }: Props) {
         id: 'image',
         header: 'Image',
         enableSorting: false,
-        cell: ({ row }) => <Thumb doc={row.original} />,
+        cell: ({ row }) => <ProductThumbnail doc={row.original} />,
       });
     }
 
@@ -224,9 +276,27 @@ export function CollectionView({ collection, section }: Props) {
       cols.push({
         id: field.name,
         accessorKey: field.name,
-        header: field.label,
+        header:
+          isProducts && field.name === 'productFamily'
+            ? 'Website main category'
+            : isProducts && field.name === 'category'
+              ? 'Headphone type'
+              : field.label,
         cell: ({ row }) => {
           const doc = row.original;
+          if (isProducts && field.name === 'productFamily') {
+            const family = doc.productFamily;
+            return (
+              <TextCell
+                field={field.name}
+                value={
+                  isProductFamily(family)
+                    ? ADMIN_PRODUCT_FAMILY_LABELS[family]
+                    : 'Needs classification'
+                }
+              />
+            );
+          }
           if (inlineEdit.has(field.name) && field.type === 'select') {
             return (
               <InlineSelect
@@ -244,6 +314,29 @@ export function CollectionView({ collection, section }: Props) {
       });
     }
 
+    if (isProducts) {
+      for (const sourceColumn of [
+        { id: 'reviewIdentity', label: 'SKU / Source ID', cell: 'identity' },
+        { id: 'reviewSourceCategory', label: 'Source Category', cell: 'category' },
+        { id: 'reviewModel', label: 'Model', cell: 'model' },
+        { id: 'reviewVariants', label: 'Variants', cell: 'variants' },
+        { id: 'reviewMoq', label: 'MOQ', cell: 'moq' },
+        { id: 'reviewPricing', label: 'Pricing', cell: 'pricing' },
+      ] as const) {
+        cols.push({
+          id: sourceColumn.id,
+          header: sourceColumn.label,
+          enableSorting: false,
+          cell: ({ row }) => (
+            <TextCell
+              field={sourceColumn.id}
+              value={productReviewCellValue(row.original, sourceColumn.cell)}
+            />
+          ),
+        });
+      }
+    }
+
     if (isCatalog) {
       cols.push({
         id: 'status',
@@ -252,6 +345,7 @@ export function CollectionView({ collection, section }: Props) {
         cell: ({ row }) => (
           <PublishToggle
             published={row.original.published === true}
+            busy={updateMutation.isPending || batchUpdateMutation.isPending}
             onToggle={() =>
               patch(row.original._id, { published: !(row.original.published === true) })
             }
@@ -279,17 +373,19 @@ export function CollectionView({ collection, section }: Props) {
             )}
             <button
               type="button"
+              disabled={batchUpdateMutation.isPending}
               onClick={() => setEditing(doc)}
-              className="ml-3 text-sm font-medium text-slate-700 hover:text-slate-900"
+              className="ml-3 text-sm font-medium text-slate-700 hover:text-slate-900 disabled:opacity-50"
             >
               Edit
             </button>
             <button
               type="button"
+              disabled={batchUpdateMutation.isPending}
               onClick={() => {
                 if (confirm('Delete this record?')) removeMutation.mutate(doc._id);
               }}
-              className="ml-3 text-sm font-medium text-red-600 hover:text-red-700"
+              className="ml-3 text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
             >
               Delete
             </button>
@@ -299,7 +395,14 @@ export function CollectionView({ collection, section }: Props) {
     });
 
     return cols;
-  }, [tableFields, isCatalog, inlineEdit]);
+  }, [
+    tableFields,
+    isCatalog,
+    isProducts,
+    inlineEdit,
+    updateMutation.isPending,
+    batchUpdateMutation.isPending,
+  ]);
 
   const table = useReactTable({
     data: rows,
@@ -344,6 +447,14 @@ export function CollectionView({ collection, section }: Props) {
               label="All products"
               value={null}
               selected={productFamily === null}
+              pendingCount={reviewSummary?.pendingTotal ?? 0}
+              onSelect={changeProductFamily}
+            />
+            <ProductFamilyTab
+              label={`Needs classification${unclassifiedSummary ? ` (${unclassifiedSummary.total})` : ''}`}
+              value="unclassified"
+              selected={productFamily === 'unclassified'}
+              pendingCount={0}
               onSelect={changeProductFamily}
             />
             {PRODUCT_FAMILY_OPTIONS.map((value) => (
@@ -352,6 +463,7 @@ export function CollectionView({ collection, section }: Props) {
                 label={productFamilyLabel(value)}
                 value={value}
                 selected={productFamily === value}
+                pendingCount={reviewSummary?.byFamily[value] ?? 0}
                 onSelect={changeProductFamily}
               />
             ))}
@@ -359,15 +471,31 @@ export function CollectionView({ collection, section }: Props) {
           <Select
             ariaLabel="Product family"
             value={productFamily ?? ''}
-            placeholder="All products"
-            options={PRODUCT_FAMILY_OPTIONS.map((value) => ({
-              value,
-              label: productFamilyLabel(value),
-            }))}
+            placeholder={`All products${(reviewSummary?.pendingTotal ?? 0) > 0 ? ' • New' : ''}`}
+            options={[
+              {
+                value: 'unclassified',
+                label: `Needs classification${unclassifiedSummary ? ` (${unclassifiedSummary.total})` : ''}`,
+              },
+              ...PRODUCT_FAMILY_OPTIONS.map((value) => ({
+                value,
+                label: `${productFamilyLabel(value)}${(reviewSummary?.byFamily[value] ?? 0) > 0 ? ' • New' : ''}`,
+              })),
+            ]}
             className="block sm:hidden"
             triggerClassName="font-medium text-slate-800"
-            onChange={(value) => changeProductFamily((value || null) as AdminProductFamily)}
+            onChange={(value) =>
+              changeProductFamily(isProductFamily(value) || value === 'unclassified' ? value : null)
+            }
           />
+          {productFamily === 'unclassified' && (
+            <p className="mt-3 text-sm text-slate-600">
+              These products have no website category. Their source categories are preserved. Open a
+              product to assign its Product Family; saving a category does not publish it.
+              Source-wide rules are managed in Import Categories and do not backfill existing
+              products automatically.
+            </p>
+          )}
         </div>
       )}
 
@@ -410,9 +538,19 @@ export function CollectionView({ collection, section }: Props) {
           isCatalog={isCatalog}
           isUsers={isUsers}
           collection={collection}
-          busy={batchUpdateMutation.isPending || batchRemoveMutation.isPending}
+          busy={
+            batchUpdateMutation.isPending ||
+            batchRemoveMutation.isPending ||
+            updateMutation.isPending
+          }
           onClear={clearSelection}
-          onSetValues={(values) => batchUpdateMutation.mutate({ ids: selectedIds, values })}
+          onSetValues={(values) =>
+            batchUpdateMutation.mutate({
+              ids: selectedIds,
+              values,
+              names: Object.fromEntries(rows.map((row) => [row._id, String(row.name ?? row._id)])),
+            })
+          }
           onDelete={() => {
             if (confirm(`Delete ${selectedIds.length} record(s)?`)) {
               batchRemoveMutation.mutate(selectedIds);
@@ -421,6 +559,47 @@ export function CollectionView({ collection, section }: Props) {
         />
       )}
 
+      {batchUpdateMutation.isPending && (
+        <output className="mt-4 block text-sm text-slate-600">
+          Updating selected records. Please keep this page open.
+        </output>
+      )}
+      {!batchUpdateMutation.isPending && batchUpdateMutation.data && (
+        <BatchUpdateFeedback
+          result={batchUpdateMutation.data}
+          names={batchUpdateMutation.variables?.names ?? {}}
+          published={
+            typeof batchUpdateMutation.variables?.values.published === 'boolean'
+              ? batchUpdateMutation.variables.values.published
+              : undefined
+          }
+          onDismiss={() => batchUpdateMutation.reset()}
+        />
+      )}
+      {visibleMutationError && (
+        <div
+          role="alert"
+          className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900"
+        >
+          <p>{visibleMutationError.message}</p>
+          <p className="mt-2">
+            Open Edit to resolve validation issues. If the request was interrupted, refresh the
+            status before retrying.
+          </p>
+          <button
+            type="button"
+            className="mt-2 underline"
+            onClick={() => {
+              batchUpdateMutation.reset();
+              updateMutation.reset();
+              removeMutation.reset();
+              batchRemoveMutation.reset();
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       <div className="mt-4 max-w-full overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full min-w-max text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -520,7 +699,7 @@ export function CollectionView({ collection, section }: Props) {
         <RecordForm
           collection={collection}
           title={`New ${singular}`}
-          {...(productFamily ? { defaults: { productFamily } } : {})}
+          {...(isProductFamily(productFamily) ? { defaults: { productFamily } } : {})}
           submitting={createMutation.isPending}
           error={createMutation.error as Error | null}
           onCancel={() => setCreating(false)}
@@ -543,6 +722,10 @@ export function CollectionView({ collection, section }: Props) {
       {previewing && (
         <PreviewModal
           doc={previewing}
+          canMarkReviewed={canReviewAlibabaProducts}
+          reviewBusy={reviewMutation.isPending}
+          reviewError={reviewMutation.error as Error | null}
+          onMarkReviewed={() => reviewMutation.mutate(previewing._id)}
           onClose={() => setPreviewing(null)}
           onEdit={() => {
             setEditing(previewing);
@@ -555,27 +738,20 @@ export function CollectionView({ collection, section }: Props) {
 }
 
 function productFamilyLabel(productFamily: ProductFamily): string {
-  switch (productFamily) {
-    case 'headphones':
-      return 'Headphones';
-    case 'ai-gadgets':
-      return 'AI Gadgets';
-    case 'toys':
-      return 'Toys';
-    case 'misc':
-      return 'Other Electronics & Toys';
-  }
+  return ADMIN_PRODUCT_FAMILY_LABELS[productFamily];
 }
 
-function ProductFamilyTab({
+export function ProductFamilyTab({
   label,
   value,
   selected,
+  pendingCount,
   onSelect,
 }: {
   label: string;
   value: AdminProductFamily;
   selected: boolean;
+  pendingCount: number;
   onSelect: (value: AdminProductFamily) => void;
 }) {
   return (
@@ -589,7 +765,16 @@ function ProductFamilyTab({
           : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
       }`}
     >
-      {label}
+      <span className="inline-flex items-center gap-2">
+        {label}
+        {pendingCount > 0 && (
+          <span
+            aria-label={`${pendingCount} new product${pendingCount === 1 ? '' : 's'} to review`}
+            title={`${pendingCount} new product${pendingCount === 1 ? '' : 's'} to review`}
+            className={`h-2 w-2 rounded-full ${selected ? 'bg-amber-300' : 'bg-amber-500'}`}
+          />
+        )}
+      </span>
     </button>
   );
 }
@@ -648,6 +833,9 @@ function BatchBar({
           disabled={busy}
           onPick={(value) => onSetValues({ role: value })}
         />
+      )}
+      {collection.name === 'products' && (
+        <BatchCategoryAssignment count={count} busy={busy} onApply={onSetValues} />
       )}
       {isUsers && statusField && (
         <BatchSelect
@@ -756,21 +944,48 @@ function SortIcon({ dir }: { dir: 'asc' | 'desc' | null }) {
   );
 }
 
-function Thumb({ doc }: { doc: CollectionDoc }) {
+export function ProductThumbnail({ doc }: { doc: CollectionDoc }) {
   const ids = Array.isArray(doc.imageIds) ? (doc.imageIds as string[]) : [];
+  const badge =
+    doc.alibabaReviewPending === true ? (
+      <span className="absolute -left-1 -top-1 rounded bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-white shadow-sm">
+        New
+      </span>
+    ) : null;
   if (ids[0]) {
     return (
-      <img
-        src={imageUrl(ids[0])}
-        alt=""
-        className="h-10 w-10 rounded-md border border-slate-200 object-cover"
-      />
+      <span className="relative inline-block">
+        <img
+          src={imageUrl(ids[0])}
+          alt=""
+          className="h-10 w-10 rounded-md border border-slate-200 object-cover"
+        />
+        {badge}
+      </span>
+    );
+  }
+  const sourceUrl = alibabaSourcePreviewUrls(doc.alibabaSourceImageUrls, 1)[0];
+  if (sourceUrl) {
+    return (
+      <span className="relative inline-block">
+        <img
+          src={sourceUrl}
+          alt=""
+          referrerPolicy="no-referrer"
+          className="h-10 w-10 rounded-md border border-dashed border-slate-300 object-cover"
+          title="Alibaba source preview; not yet imported for publication"
+        />
+        {badge}
+      </span>
     );
   }
   return (
-    <div className="grid h-10 w-10 place-items-center rounded-md bg-slate-100 text-slate-300">
-      —
-    </div>
+    <span className="relative inline-block">
+      <span className="grid h-10 w-10 place-items-center rounded-md bg-slate-100 text-slate-300">
+        —
+      </span>
+      {badge}
+    </span>
   );
 }
 
@@ -795,10 +1010,15 @@ function InlineSelect({
   );
 }
 
-function PublishToggle({ published, onToggle }: { published: boolean; onToggle: () => void }) {
+function PublishToggle({
+  published,
+  busy,
+  onToggle,
+}: { published: boolean; busy: boolean; onToggle: () => void }) {
   return (
     <button
       type="button"
+      disabled={busy}
       onClick={onToggle}
       title={
         published ? 'Click to disable (hide from public)' : 'Click to publish (show to public)'
@@ -834,6 +1054,11 @@ const TEXT_CELL_WIDTHS: Record<string, string> = {
   slug: 'max-w-48',
   skuCode: 'max-w-40',
   modName: 'max-w-40',
+  reviewIdentity: 'max-w-44',
+  reviewSourceCategory: 'max-w-48',
+  reviewModel: 'max-w-40',
+  reviewVariants: 'max-w-36',
+  reviewPricing: 'max-w-56',
 };
 const DEFAULT_TEXT_CELL_WIDTH = 'max-w-48';
 

@@ -3,9 +3,9 @@ import { createAlibabaClient } from '@vibelingan-channel/alibaba-catalog-sync';
  * Action handler for the alibaba-catalog-sync function (MIU 5 surface).
  *
  * POST actions (admin-authenticated, Bearer/JSON — never cookies): oauthStart,
- * connectionStatus, disconnect. The OAuth callback arrives as a GET routed by
- * the HTTP adapter (unauthenticated, state-bound, rate-limited). Later MIUs
- * add run controls, linking, and quarantine actions here.
+ * connectionStatus, disconnect, and inspectProductDetail. The OAuth callback
+ * arrives as a GET routed by the HTTP adapter (unauthenticated, state-bound,
+ * rate-limited). Run controls, linking, and quarantine actions also live here.
  *
  * Authorization: every connection-lifecycle action requires the LIVE users
  * row to carry role 'admin' (NOT canAccessAdmin — contributors must not
@@ -16,6 +16,9 @@ import { type ApiResult, err, ok, toRole } from '@vibelingan-channel/shared';
 import { z } from 'zod';
 import { type AlertSender, createAlertSender } from './alerts.ts';
 import { type AlibabaSyncFunctionConfig, resolveOAuthConfig } from './config.ts';
+import { inspectAlibabaProductDetail, isAlibabaProductId } from './detail-inspection.ts';
+import { materializeAlibabaDraftPage } from './draft-materialization.ts';
+import { PricingRepairInputSchema, repairMissingSourcePricing } from './pricing-repair.ts';
 
 export type { AlibabaSyncFunctionConfig } from './config.ts';
 import { linkExistingProduct, setPinnedOffer, unlinkProduct } from './linking.ts';
@@ -32,8 +35,10 @@ import {
 } from './oauth.ts';
 import { approveQuarantinedRun } from './quarantine.ts';
 import { enforceOAuthRateLimit, hashSourceIp } from './rate-limit.ts';
+import { replayAlibabaRawPage } from './raw-replay.ts';
 import { getDoc } from './repo.ts';
 import { runSyncTick } from './runner.ts';
+import { syncSelectedAlibabaProduct } from './selected-sync.ts';
 
 export interface AlibabaSyncRequest {
   action?: unknown;
@@ -252,6 +257,149 @@ export async function handleAlibabaSyncRequest(
       }
       return ok(report);
     }
+    case 'repairSourcePricing': {
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = PricingRepairInputSchema.safeParse(parsed.data.data);
+      if (!payload.success) return err('VALIDATION_ERROR', 'Invalid pricing repair cursor.');
+      return ok(await repairMissingSourcePricing(payload.data));
+    }
+    case 'materializeDrafts': {
+      // Catch-up path for source mirrors created before every observed product
+      // became an admin-visible draft. It uses the same idempotent primitive as
+      // ordinary sync and can never set published=true.
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = materializeDraftsSchema.safeParse(parsed.data.data);
+      if (!payload.success) {
+        return err(
+          'VALIDATION_ERROR',
+          'The draft cursor, page limit or source category is invalid.',
+        );
+      }
+      return ok(
+        await materializeAlibabaDraftPage({
+          ...(payload.data.afterSourceKey === undefined
+            ? {}
+            : { afterSourceKey: payload.data.afterSourceKey }),
+          ...(payload.data.limit === undefined ? {} : { limit: payload.data.limit }),
+          ...(payload.data.sourceCategoryId === undefined
+            ? {}
+            : { sourceCategoryId: payload.data.sourceCategoryId }),
+        }),
+      );
+    }
+    case 'inspectProductDetail': {
+      // Admin-only, read-only live contract probe: the exact TOP response is
+      // stored privately, while the response exposes structure only. This is
+      // intentionally not a shortcut around the runner-owned mirror writes.
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = inspectProductSchema.safeParse(parsed.data.data);
+      if (!payload.success) {
+        return err('VALIDATION_ERROR', 'A valid Alibaba sourceProductId is required.');
+      }
+      const runtime = resolveRuntime(config, runtimeOverrides);
+      if (!runtime.ok) {
+        return err('CONFLICT', NOT_CONFIGURED_MESSAGE + runtime.missing.join(', '));
+      }
+      const result = await inspectAlibabaProductDetail({
+        sourceProductId: payload.data.sourceProductId,
+        deps: {
+          client: runtime.runtime.deps.client,
+          // Resolved only after the inspection owns the shared sync lease.
+          getAccessToken: () => getConnectionAccessToken(runtime.runtime.deps),
+          now: runtime.runtime.deps.now,
+        },
+      });
+      if (!result.ok) {
+        if (result.reason === 'invalid-product-id') {
+          return err('VALIDATION_ERROR', 'A valid Alibaba sourceProductId is required.');
+        }
+        if (result.reason === 'lease-busy') {
+          return err('CONFLICT', 'An Alibaba sync operation is already active.');
+        }
+        if (result.reason === 'not-connected') {
+          return err('CONFLICT', 'The Alibaba connection is unavailable.');
+        }
+        return err('INTERNAL_ERROR', `Alibaba detail inspection failed: ${result.reason}.`);
+      }
+      return ok(result.summary);
+    }
+    case 'syncProduct': {
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = inspectProductSchema.safeParse(parsed.data.data);
+      if (!payload.success) {
+        return err('VALIDATION_ERROR', 'A valid Alibaba sourceProductId is required.');
+      }
+      const runtime = resolveRuntime(config, runtimeOverrides);
+      if (!runtime.ok) {
+        return err('CONFLICT', NOT_CONFIGURED_MESSAGE + runtime.missing.join(', '));
+      }
+      const result = await syncSelectedAlibabaProduct({
+        sourceProductId: payload.data.sourceProductId,
+        deps: {
+          client: runtime.runtime.deps.client,
+          getAccessToken: () => getConnectionAccessToken(runtime.runtime.deps),
+          now: runtime.runtime.deps.now,
+        },
+      });
+      if (!result.ok) {
+        const code =
+          result.reason === 'lease-busy'
+            ? 'CONFLICT'
+            : result.reason === 'not-connected'
+              ? 'CONFLICT'
+              : result.reason === 'product-id-mismatch'
+                ? 'CONFLICT'
+                : 'INTERNAL_ERROR';
+        return err(code, `Alibaba product sync failed: ${result.reason}.`);
+      }
+      return ok(result);
+    }
+    case 'replaySourceObservations': {
+      // Admin-only migration surface. Dry-run and apply read the same bounded
+      // raw page; apply is impossible without the matching dry-run hash.
+      const admin = await requireLiveAdmin(config, token);
+      if (!admin.ok) return admin;
+      const payload = rawReplaySchema.safeParse(parsed.data.data);
+      if (!payload.success) {
+        return err(
+          'VALIDATION_ERROR',
+          'mode, cursor, page limit, dry-run hash, source total or replay manifest is invalid.',
+        );
+      }
+      const result = await replayAlibabaRawPage({
+        mode: payload.data.mode,
+        ...(payload.data.afterSourceKey === undefined
+          ? {}
+          : { afterSourceKey: payload.data.afterSourceKey }),
+        ...(payload.data.limit === undefined ? {} : { limit: payload.data.limit }),
+        ...(payload.data.expectedPageHash === undefined
+          ? {}
+          : { expectedPageHash: payload.data.expectedPageHash }),
+        ...(payload.data.expectedTotalSourceProducts === undefined
+          ? {}
+          : { expectedTotalSourceProducts: payload.data.expectedTotalSourceProducts }),
+        ...(payload.data.manifestId === undefined ? {} : { manifestId: payload.data.manifestId }),
+        requestedBy: admin.data.userId,
+      });
+      if (!result.ok) {
+        switch (result.reason) {
+          case 'invalid-input':
+            return err('VALIDATION_ERROR', 'Raw replay input is invalid.');
+          case 'lease-busy':
+          case 'lease-lost':
+          case 'page-changed':
+          case 'manifest-invalid':
+            return err('CONFLICT', `Raw replay stopped: ${result.reason}.`);
+          case 'lease-corrupt':
+            return err('INTERNAL_ERROR', 'Raw replay lease state is corrupt.');
+        }
+      }
+      return ok(result);
+    }
     case 'approveQuarantine': {
       const admin = await requireLiveAdmin(config, token);
       if (!admin.ok) return admin;
@@ -319,6 +467,57 @@ const pinOfferSchema = z.object({
   offerKey: z.string(),
 });
 const approveSchema = z.object({ runId: z.string().min(1), candidateHash: z.string().min(1) });
+const inspectProductSchema = z.object({
+  sourceProductId: z.string().trim().refine(isAlibabaProductId),
+});
+const materializeDraftsSchema = z
+  .object({
+    afterSourceKey: z.string().max(256).optional(),
+    limit: z.number().int().min(1).max(20).optional(),
+    sourceCategoryId: z.string().trim().min(1).max(128).optional(),
+  })
+  .strict();
+const rawReplaySchema = z
+  .object({
+    mode: z.enum(['dry-run', 'apply']),
+    afterSourceKey: z.string().max(256).optional(),
+    limit: z.number().int().min(1).max(20).optional(),
+    expectedPageHash: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .optional(),
+    expectedTotalSourceProducts: z.number().int().nonnegative().optional(),
+    manifestId: z
+      .string()
+      .regex(/^raw-replay-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+      .optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.mode === 'apply') {
+      if (value.expectedPageHash === undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['expectedPageHash'],
+          message: 'Apply requires the corresponding dry-run page hash.',
+        });
+      }
+      if (value.expectedTotalSourceProducts === undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['expectedTotalSourceProducts'],
+          message: 'Apply requires the authoritative dry-run source total.',
+        });
+      }
+      if (value.manifestId === undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['manifestId'],
+          message: 'Apply requires a completed server replay manifest.',
+        });
+      }
+    }
+  });
 const importImageSchema = z.object({ url: z.string().min(1) });
 const removeImageSchema = z.object({ imageId: z.string().min(1) });
 

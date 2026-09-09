@@ -1,13 +1,25 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { localSiteUrl } from './local-site-readiness.mjs';
 
 const temporaryDirectory = await mkdtemp(join(tmpdir(), 'channel-catalog-e2e-'));
 const databaseFile = join(temporaryDirectory, 'db.json');
+const siteDirectory = join(temporaryDirectory, 'site');
 const readyFile = join(temporaryDirectory, 'api-ready.json');
 const readyToken = randomUUID();
+const formal = process.env.E2E_CATALOG_FORMAL === '1';
+const reservation = createServer();
+await new Promise((resolve) => reservation.listen(0, '127.0.0.1', resolve));
+const address = reservation.address();
+if (!address || typeof address === 'string') throw new Error('No local site port');
+const sitePort = address.port;
+await new Promise((resolve, reject) =>
+  reservation.close((error) => (error ? reject(error) : resolve())),
+);
 const bin = (packageDirectory, name) =>
   join(process.cwd(), packageDirectory, 'node_modules', '.bin', name);
 const processes = [];
@@ -74,9 +86,8 @@ async function waitForSite(child) {
   while (Date.now() < deadline) {
     if (child.spawnError) throw child.spawnError;
     if (child.exitCode !== null) throw new Error('Astro site exited before readiness.');
-    const match = output.match(/Local\s+http:\/\/127\.0\.0\.1:(\d+)\//);
-    if (match) {
-      const url = `http://127.0.0.1:${match[1]}`;
+    const url = localSiteUrl(output);
+    if (url) {
       const response = await fetch(url);
       if (response.ok) return url;
     }
@@ -85,9 +96,9 @@ async function waitForSite(child) {
   throw new Error('Timed out waiting for the owned Astro site.');
 }
 
-async function run(command, args, env) {
+async function run(command, args, env, cwd = process.cwd()) {
   return new Promise((resolve, reject) => {
-    const child = start(command, args, env);
+    const child = start(command, args, env, cwd);
     child.once('error', reject);
     child.once('exit', (code, signal) => {
       if (code === 0) resolve();
@@ -149,6 +160,15 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 }
 
 try {
+  await run(
+    bin('apps/local-server', 'tsx'),
+    ['tests/fixtures/prepare-catalog-pricing.ts', databaseFile],
+    {
+      ADMIN_EMAIL: 'admin@channel.local',
+      ADMIN_PASSWORD: 'admin',
+      TCB_ENV: '',
+    },
+  );
   const api = start(
     failStage === 'api' ? join(temporaryDirectory, 'missing-api') : bin('apps/local-server', 'tsx'),
     ['src/main.ts'],
@@ -160,19 +180,37 @@ try {
       LOCAL_READY_TOKEN: readyToken,
       ADMIN_EMAIL: 'admin@channel.local',
       ADMIN_PASSWORD: 'admin',
+      TCB_ENV: '',
+      ALI_APP_KEY: '',
+      ALI_APP_SECRET: '',
+      CATALOG_DETAIL_APPROVAL_ENABLED: formal ? '1' : '0',
+      CATALOG_RFQ_ENABLED: formal ? '1' : '0',
+      LOCAL_SITE_ORIGINS: `http://127.0.0.1:${sitePort}`,
+      WECOM_WEBHOOK_URL: '',
     },
     join(process.cwd(), 'apps/local-server'),
   );
   const apiUrl = await waitForOwnedApi(api);
 
+  // Do not let a DEV-only island pass a deployment acceptance lane. Use a
+  // disposable build directory so a developer's running preview is untouched.
+  const siteEnvironment = { PUBLIC_API_BASE_URL: apiUrl, PUBLIC_CB_HOST: new URL(apiUrl).host };
+  await run(
+    bin('apps/site', 'astro'),
+    ['build', '--outDir', siteDirectory],
+    siteEnvironment,
+    join(process.cwd(), 'apps/site'),
+  );
   const site = start(
     failStage === 'site' ? join(temporaryDirectory, 'missing-site') : bin('apps/site', 'astro'),
-    ['dev', '--host', '127.0.0.1', '--port', '0'],
-    { PUBLIC_CB_HOST: new URL(apiUrl).host },
+    ['preview', '--outDir', siteDirectory, '--host', '127.0.0.1', '--port', String(sitePort)],
+    siteEnvironment,
     join(process.cwd(), 'apps/site'),
     true,
   );
   const siteUrl = await waitForSite(site);
+  if (siteUrl !== `http://127.0.0.1:${sitePort}`)
+    throw new Error('Site port changed; inquiry origin gate remains closed.');
 
   const e2eEnvironment = {
     E2E_SITE_URL: siteUrl,
@@ -183,12 +221,30 @@ try {
     E2E_CATALOG_LOCAL_SEED: '1',
     E2E_CATALOG_LOCAL_DB: databaseFile,
   };
-  await run(
-    bin('.', 'playwright'),
-    ['test', 'tests/e2e/catalog-local-seed.spec.ts'],
-    e2eEnvironment,
-  );
-  await run(bin('.', 'playwright'), ['test', 'tests/e2e/catalog-admin.spec.ts'], e2eEnvironment);
+  if (formal) {
+    await run(
+      bin('.', 'playwright'),
+      ['test', 'tests/e2e/catalog-formal-journey.spec.ts'],
+      e2eEnvironment,
+    );
+  } else {
+    await run(bin('.', 'playwright'), ['test', 'tests/e2e/font-loading.spec.ts'], e2eEnvironment);
+    await run(
+      bin('.', 'playwright'),
+      ['test', 'tests/e2e/catalog-local-seed.spec.ts'],
+      e2eEnvironment,
+    );
+    await run(bin('.', 'playwright'), ['test', 'tests/e2e/catalog-admin.spec.ts'], e2eEnvironment);
+    await run(
+      bin('.', 'playwright'),
+      [
+        'test',
+        'tests/e2e/admin-product-form.spec.ts',
+        'tests/e2e/admin-product-family-tabs.spec.ts',
+      ],
+      e2eEnvironment,
+    );
+  }
 } finally {
   await cleanup();
 }

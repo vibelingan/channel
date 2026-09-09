@@ -108,7 +108,10 @@ test('disposable local seed exposes four exact families and legacy Headphones sa
     }
   }
 
-  await page.goto('/products/item/?slug=local-demo-visionclip-ai-camera');
+  // Gate on the actual rendered product below, not completion of unrelated external assets.
+  await page.goto('/products/item/?slug=local-demo-visionclip-ai-camera', {
+    waitUntil: 'domcontentloaded',
+  });
   await expect(
     page.getByRole('heading', { level: 1, name: 'Local Demo VisionClip AI Camera' }),
   ).toBeVisible();

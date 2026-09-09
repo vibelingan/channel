@@ -16,17 +16,20 @@
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
+import { sourceMediaLinkId } from '@vibelingan-channel/catalog-import/observations';
 import {
   acquireImageMutation,
   findByField,
   list,
   releaseImageMutation,
+  upsertDocWithId,
 } from '@vibelingan-channel/db';
 import { mediaStorage, objectStoragePath } from '@vibelingan-channel/media-storage';
 import {
   CATALOG_IMAGE_MAX_BYTES,
   COLLECTIONS,
   SIGNATURE_MIME,
+  catalogReferencedImageIds,
   sniffMagicBytes,
 } from '@vibelingan-channel/shared';
 import { createDoc, getDoc, removeDoc } from './repo.ts';
@@ -142,6 +145,15 @@ export async function importCandidateImage(
 ): Promise<MediaImportResult> {
   const fetchImpl = deps.fetchImpl ?? fetch;
   const resolveDns = deps.resolveDns ?? defaultResolveDns;
+  const bind = async (imageId: string) => {
+    await upsertDocWithId('catalogSourceLinks', sourceMediaLinkId('alibaba', sourceUrl), {
+      kind: 'media',
+      provider: 'alibaba',
+      sourceUrl,
+      imageId,
+      updatedAt: deps.now?.() ?? new Date().toISOString(),
+    });
+  };
 
   let current = allowedUrl(sourceUrl);
   if (!current) {
@@ -208,7 +220,14 @@ export async function importCandidateImage(
 
   const checksumSha256 = createHash('sha256').update(bytes).digest('hex');
   const existing = await findByField('images', 'checksumSha256', checksumSha256);
-  if (existing) return { ok: true, imageId: existing._id, deduplicated: true };
+  if (existing?.status === 'active') {
+    try {
+      await bind(existing._id);
+      return { ok: true, imageId: existing._id, deduplicated: true };
+    } catch {
+      return { ok: false, reason: 'write-failed' };
+    }
+  }
 
   const now = deps.now?.() ?? new Date().toISOString();
   const logicalId = randomUUID();
@@ -238,6 +257,13 @@ export async function importCandidateImage(
         createdAt: now,
         updatedAt: now,
       });
+      // Binding failure leaves a valid unreferenced image, retryable by checksum.
+      // Do not delete its bytes after a successful image-row commit.
+      try {
+        await bind(doc._id);
+      } catch {
+        return { ok: false, reason: 'write-failed' };
+      }
       return { ok: true, imageId: doc._id, deduplicated: false };
     } catch (docError) {
       // Compensation order: object first, then (missing) doc — never leak.
@@ -301,12 +327,7 @@ async function findCandidateReference(
           : {}),
       });
       for (const document of result.items) {
-        if (
-          Array.isArray(document.imageIds) &&
-          document.imageIds.some(
-            (candidate) => typeof candidate === 'string' && candidate.trim() === imageId,
-          )
-        ) {
+        if (catalogReferencedImageIds(document).includes(imageId)) {
           return { collection: definition.name, documentId: String(document._id) };
         }
       }

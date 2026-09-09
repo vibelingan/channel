@@ -5,13 +5,17 @@
  * `{ action, data, token }` protocol the cloud function and local-server speak.
  * The session token is shared with the rest of the site via `lib/session`.
  */
-import type {
-  CollectionDoc,
-  FilterModel,
-  ListResult,
-  ProductFamily,
-  SessionUser,
-  SortClause,
+import {
+  type CategoryApiRequest,
+  CategoryApiResponseSchema,
+  type CollectionDoc,
+  type FilterModel,
+  type ListResult,
+  PRODUCT_FAMILY_OPTIONS,
+  type ProductFamily,
+  type SessionUser,
+  type SortClause,
+  isProductFamily,
 } from '@vibelingan-channel/shared';
 import { readApiEnvelope } from '../../lib/api-envelope.ts';
 import { apiUrl } from '../../lib/api-url.ts';
@@ -33,11 +37,16 @@ export class AdminApiError extends Error {
   }
 }
 
-async function call<T>(action: string, data?: unknown): Promise<T> {
+async function call<T>(action: string, data?: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, data, token: getToken() }),
+    credentials: 'omit',
+    redirect: 'error',
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(30000)])
+      : AbortSignal.timeout(30000),
   });
 
   const result = await readApiEnvelope<T>(res);
@@ -53,13 +62,30 @@ async function call<T>(action: string, data?: unknown): Promise<T> {
   return result.data;
 }
 
+export function catalogApprovalCall(data: unknown, signal?: AbortSignal) {
+  return call<unknown>('catalogDetailApproval', data, signal);
+}
+
 export function fetchCurrentUser(): Promise<{ user: SessionUser }> {
   return call<{ user: SessionUser }>('me');
+}
+
+export async function manageCategoryAssignments(input: CategoryApiRequest) {
+  const response = CategoryApiResponseSchema.safeParse(
+    await call<unknown>('catalogCategories', input),
+  );
+  if (!response.success)
+    throw new AdminApiError(
+      'INVALID_RESPONSE',
+      'Category response was malformed. Refresh the preview before retrying.',
+    );
+  return response.data;
 }
 
 export interface ListArgs {
   collection: string;
   productFamily?: ProductFamily;
+  needsClassification?: boolean;
   page?: number;
   pageSize?: number;
   search?: string;
@@ -71,6 +97,56 @@ export function listRecords(args: ListArgs): Promise<ListResult<CollectionDoc>> 
   return call<ListResult<CollectionDoc>>('list', args);
 }
 
+export interface ProductReviewSummary {
+  pendingTotal: number;
+  byFamily: Record<ProductFamily, number>;
+}
+
+function isNonNegativeSafeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+/** Fail closed on a malformed server payload so bad counts never become UI state. */
+export function decodeProductReviewSummary(value: unknown): ProductReviewSummary {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new AdminApiError('INVALID_RESPONSE', 'Product review summary was malformed.');
+  }
+  const record = value as Record<string, unknown>;
+  const byFamily = record.byFamily;
+  if (!byFamily || typeof byFamily !== 'object' || Array.isArray(byFamily)) {
+    throw new AdminApiError('INVALID_RESPONSE', 'Product review summary was malformed.');
+  }
+  const familyRecord = byFamily as Record<string, unknown>;
+  const families: readonly ProductFamily[] = PRODUCT_FAMILY_OPTIONS;
+  if (
+    !isNonNegativeSafeInteger(record.pendingTotal) ||
+    !families.every((family) => isNonNegativeSafeInteger(familyRecord[family]))
+  ) {
+    throw new AdminApiError('INVALID_RESPONSE', 'Product review summary was malformed.');
+  }
+  const mappedTotal = families.reduce((sum, family) => sum + Number(familyRecord[family]), 0);
+  if (mappedTotal > record.pendingTotal) {
+    throw new AdminApiError('INVALID_RESPONSE', 'Product review summary was inconsistent.');
+  }
+  return {
+    pendingTotal: record.pendingTotal,
+    byFamily: {
+      headphones: Number(familyRecord.headphones),
+      'ai-gadgets': Number(familyRecord['ai-gadgets']),
+      toys: Number(familyRecord.toys),
+      misc: Number(familyRecord.misc),
+    },
+  };
+}
+
+export async function fetchProductReviewSummary(): Promise<ProductReviewSummary> {
+  return decodeProductReviewSummary(await call<unknown>('productReviewSummary'));
+}
+
+export function markProductReviewed(productId: string): Promise<CollectionDoc> {
+  return call<CollectionDoc>('markProductReviewed', { productId });
+}
+
 export function createRecord(
   collection: string,
   values: Record<string, unknown>,
@@ -78,11 +154,56 @@ export function createRecord(
   return call<CollectionDoc>('create', { collection, values });
 }
 
-export function updateRecord(
+export async function updateRecord(
   collection: string,
   id: string,
   values: Record<string, unknown>,
 ): Promise<CollectionDoc> {
+  if (collection === 'products' && values.published === true) {
+    const capabilities = await call<{ enabled: boolean }>('catalogDetailCapabilities');
+    if (typeof capabilities?.enabled !== 'boolean')
+      throw new AdminApiError('INVALID_RESPONSE', 'Approval capability could not be confirmed.');
+    if (capabilities.enabled) {
+      let current = await call<CollectionDoc>('get', { collection, id });
+      if (typeof current.alibabaPrimarySourceKey === 'string') {
+        // Save reviewed form edits first without changing publication. Preparation
+        // and approval have resumable, server-checked requests, not one long call.
+        const { published: _published, ...draftValues } = values;
+        if (Object.keys(draftValues).length)
+          current = await call<CollectionDoc>('update', { collection, id, values: draftValues });
+        if (!isProductFamily(current.productFamily))
+          throw new AdminApiError(
+            'INVALID_PRODUCT',
+            'Choose a website category before publishing.',
+          );
+        if (!Array.isArray(current.imageIds) || current.imageIds.length === 0) {
+          const [{ importAlibabaGallery }, { importAlibabaSourceImage }] = await Promise.all([
+            import('./alibaba-gallery-import.ts'),
+            import('./alibaba-catalog-sync/alibaba-api.ts'),
+          ]);
+          const imported = await importAlibabaGallery({
+            sourceUrls: current.alibabaSourceImageUrls,
+            imageIds: [],
+            importImage: importAlibabaSourceImage,
+            onProgress: () => {},
+          });
+          if (imported.failures.length || imported.remaining)
+            throw new AdminApiError(
+              'MEDIA_NOT_READY',
+              'Some images could not be imported. Open Edit and retry the source gallery.',
+            );
+          if (imported.imageIds.length)
+            await call('update', { collection, id, values: { imageIds: imported.imageIds } });
+        }
+        const { prepareDetailReview, approveDetailReview } = await import(
+          './catalog-detail-approval-api.ts'
+        );
+        const review = await prepareDetailReview(id);
+        await approveDetailReview(review, crypto.randomUUID());
+        return call<CollectionDoc>('update', { collection, id, values: { published: true } });
+      }
+    }
+  }
   return call<CollectionDoc>('update', { collection, id, values });
 }
 
@@ -90,17 +211,100 @@ export function removeRecord(collection: string, id: string): Promise<{ deleted:
   return call<{ deleted: boolean }>('remove', { collection, id });
 }
 
-/** Apply the same values to many documents at once. */
-export function batchUpdateRecords(
+export interface BatchUpdateFailure {
+  id: string;
+  code: string;
+  message: string;
+  outcome: 'rejected' | 'unconfirmed' | 'not-attempted';
+}
+
+export interface BatchUpdateResult {
+  updated: number;
+  items: CollectionDoc[];
+  failures: BatchUpdateFailure[];
+}
+
+/** Products must use the server's per-product validation, identity and media locks. */
+export async function batchUpdateRecords(
   collection: string,
   ids: string[],
   values: Record<string, unknown>,
-): Promise<{ updated: number; items: CollectionDoc[] }> {
-  return call<{ updated: number; items: CollectionDoc[] }>('batchUpdate', {
-    collection,
-    ids,
-    values,
-  });
+): Promise<BatchUpdateResult> {
+  if (collection !== 'products') {
+    const result = await call<{ updated: number; items: CollectionDoc[] }>('batchUpdate', {
+      collection,
+      ids,
+      values,
+    });
+    return { ...result, failures: [] };
+  }
+  const uniqueIds = [...new Set(ids)];
+  if (
+    uniqueIds.length === 0 ||
+    uniqueIds.length > 20 ||
+    uniqueIds.some((id) => typeof id !== 'string' || !id.trim()) ||
+    Object.keys(values).length !== 1 ||
+    (typeof values.published !== 'boolean' && !isProductFamily(values.productFamily))
+  ) {
+    throw new AdminApiError(
+      'BAD_REQUEST',
+      'Select up to 20 products to publish, disable or classify.',
+    );
+  }
+  const items: CollectionDoc[] = [];
+  const failures: BatchUpdateFailure[] = [];
+  let stopped = false;
+  for (const id of uniqueIds) {
+    if (stopped) {
+      failures.push({
+        id,
+        code: 'NOT_ATTEMPTED',
+        message: 'Not attempted because the batch stopped. Refresh before retrying.',
+        outcome: 'not-attempted',
+      });
+      continue;
+    }
+    try {
+      const item = await updateRecord(collection, id, values);
+      if (
+        !item ||
+        item._id !== id ||
+        Object.entries(values).some(([key, value]) => item[key] !== value)
+      ) {
+        throw new AdminApiError(
+          'INVALID_RESPONSE',
+          'The returned product did not confirm the requested status.',
+        );
+      }
+      items.push(item);
+    } catch (error) {
+      // A transport/5xx/malformed response may follow a committed write. Never
+      // auto-retry or claim rollback; stop and ask the operator to refresh.
+      const rejected =
+        error instanceof AdminApiError &&
+        [
+          'BAD_REQUEST',
+          'VALIDATION_ERROR',
+          'NOT_FOUND',
+          'CONFLICT',
+          'UNAUTHORIZED',
+          'FORBIDDEN',
+        ].includes(error.code);
+      stopped =
+        !rejected ||
+        (error instanceof AdminApiError && ['UNAUTHORIZED', 'FORBIDDEN'].includes(error.code));
+      failures.push({
+        id,
+        code: error instanceof AdminApiError ? error.code : 'NETWORK_ERROR',
+        message:
+          rejected && error instanceof Error
+            ? error.message
+            : 'Result not confirmed. Refresh the product status before retrying.',
+        outcome: rejected ? 'rejected' : 'unconfirmed',
+      });
+    }
+  }
+  return { updated: items.length, items, failures };
 }
 
 /** Delete many documents at once; returns how many were removed. */

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import type { CatalogContent } from '../../i18n/catalog.ts';
+import { Suspense, lazy, useEffect, useState } from 'react';
+import type { CatalogContent, SharedDetailContent } from '../../i18n/catalog.ts';
 import {
   catalogBreadcrumbSchema,
   catalogProductSchema,
@@ -8,12 +8,12 @@ import {
   skuBreadcrumbs,
 } from '../../lib/catalog-seo.ts';
 import { OEM_INQUIRY_HREF } from '../../lib/site-navigation.ts';
-import { AlibabaCatalogPricingBlock } from './AlibabaCatalogPricingBlock.tsx';
-import { catalogProductPrice, hasUsableCatalogSlug } from './CatalogFamilyGrid.tsx';
+import { hasUsableCatalogSlug } from './CatalogFamilyGrid.tsx';
+import { EffectiveCatalogPricingBlock } from './EffectiveCatalogPricingBlock.tsx';
 import { Gallery } from './Gallery.tsx';
 import { ProductMedia } from './ProductMedia.tsx';
-import { QuantityTierPricingBlock } from './QuantityTierPricingBlock.tsx';
-import { fetchProductBySlug, fetchRelatedProducts } from './api.ts';
+import { fetchCatalogItem, fetchProductBySlug, fetchRelatedProducts } from './api.ts';
+import { effectiveCatalogMoq } from './catalog-pricing.ts';
 import type { Product } from './catalog-types.ts';
 
 export type SkuDetailViewState =
@@ -30,6 +30,22 @@ interface ViewProps {
 
 interface Props {
   content: CatalogContent;
+  previewContent?: SharedDetailContent;
+  productId?: string;
+}
+
+const SharedPreview = lazy(() => import('./SharedDetailPreview.tsx'));
+
+export function SkuDetailPage({ content, previewContent }: Props) {
+  if (SharedPreview && previewContent)
+    return (
+      <Suspense
+        fallback={<output className="block p-12 text-center">{content.list.loadingLabel}</output>}
+      >
+        <SharedPreview copy={previewContent} legacy={<LegacySkuDetailPage content={content} />} />
+      </Suspense>
+    );
+  return <LegacySkuDetailPage content={content} />;
 }
 
 function productFacts(product: Product): Array<{ label: string; value: string }> {
@@ -102,8 +118,7 @@ export function SkuDetailView({ content, state, onRetry }: ViewProps) {
   const { product } = state;
   const facts = productFacts(product);
   const related = relatedProducts(product, state.related);
-  const alibabaLinked = Boolean(product.alibabaPrimarySourceKey);
-  const moq = alibabaLinked ? product.alibabaCatalogPricing?.sourceMoq : product.moq;
+  const moq = effectiveCatalogMoq(product);
   const breadcrumbs = skuBreadcrumbs(product);
   const origin = typeof window === 'undefined' ? 'http://localhost' : window.location.origin;
   // The public slug endpoint admits only published, non-archived products.
@@ -115,7 +130,11 @@ export function SkuDetailView({ content, state, onRetry }: ViewProps) {
 
   return (
     <>
-      <section data-sku-detail={product._id} className="bg-white py-12 sm:py-16">
+      <section
+        data-sku-detail={product._id}
+        data-product-detail={product._id}
+        className="bg-white py-12 sm:py-16"
+      >
         <div className="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
           <nav aria-label="Breadcrumb" className="mb-8 text-sm text-ink-muted">
             {breadcrumbs.map((breadcrumb, index) =>
@@ -177,15 +196,7 @@ export function SkuDetailView({ content, state, onRetry }: ViewProps) {
               )}
 
               <div className="mt-8 border-y border-slate-200 py-5">
-                {alibabaLinked ? (
-                  <AlibabaCatalogPricingBlock pricing={product.alibabaCatalogPricing} size="lg" />
-                ) : product.manualCatalogPricing ? (
-                  <QuantityTierPricingBlock pricing={product.manualCatalogPricing} />
-                ) : (
-                  <p className="font-display text-2xl font-bold text-brand-700">
-                    {catalogProductPrice(product, detail.inquiryCta)}
-                  </p>
-                )}
+                <EffectiveCatalogPricingBlock product={product} quoteLabel={detail.inquiryCta} />
               </div>
               <div className="mt-8 border-l-4 border-brand-600 bg-surface-alt px-5 py-5">
                 <p className="text-xs font-semibold uppercase text-brand-600">
@@ -251,7 +262,7 @@ export function SkuDetailView({ content, state, onRetry }: ViewProps) {
   );
 }
 
-export function SkuDetailPage({ content }: Props) {
+export function LegacySkuDetailPage({ content, productId }: Props) {
   const [state, setState] = useState<SkuDetailViewState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
 
@@ -259,14 +270,18 @@ export function SkuDetailPage({ content }: Props) {
   useEffect(() => {
     const controller = new AbortController();
     const slug = new URLSearchParams(window.location.search).get('slug')?.trim() ?? '';
+    const id = productId ?? new URLSearchParams(window.location.search).get('id');
     const canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
     if (canonical) canonical.href = new URL('/products/item/', window.location.origin).href;
-    if (!slug) {
+    if (!slug && !id) {
       setState({ status: 'not-found' });
       return () => controller.abort();
     }
     setState({ status: 'loading' });
-    fetchProductBySlug(slug, controller.signal)
+    (id
+      ? fetchCatalogItem('/api/products', id, controller.signal)
+      : fetchProductBySlug(slug, controller.signal)
+    )
       .then((product) => {
         if (controller.signal.aborted) return;
         if (canonical && hasAddressableProductDetail(product)) {
@@ -297,7 +312,7 @@ export function SkuDetailPage({ content }: Props) {
         });
       });
     return () => controller.abort();
-  }, [attempt]);
+  }, [attempt, productId]);
 
   return (
     <SkuDetailView

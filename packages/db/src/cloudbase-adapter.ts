@@ -1,7 +1,9 @@
 import * as cloudbase from '@cloudbase/node-sdk';
 import type { CloudBase } from '@cloudbase/node-sdk';
 import {
+  categorySyncBaseline,
   LEGACY_HEADPHONES_CATEGORY_OPTIONS,
+  PRODUCT_FAMILY_OPTIONS,
   type CollectionDoc,
   type FilterClause,
   type ListResult,
@@ -15,9 +17,18 @@ import {
  * load before the adapter is used.
  */
 import cloud from 'wx-server-sdk';
+import { InquiryCommandSchema } from '@vibelingan-channel/shared/catalog-inquiry';
+import { INQUIRY_COLLECTION, manageInquiryInCloud, saveQuoteInCloud } from './catalog-inquiry-cloud.ts';
+import { processCatalogInquiry } from './catalog-inquiry.ts';
+import { approveCatalogDetailInCloud } from './catalog-detail-commit.ts';
+import { persistStagedApprovalInCloud } from './catalog-detail-staging.ts';
+import { runCategoryCommand } from './category-transaction.ts';
 import type {
   AlibabaLeaseGrant,
+  AlibabaLeaseGuard,
+  AlibabaSyncRunClaimResult,
   CatalogProductSaveResult,
+  CatalogSourceObservationUpsertResult,
   DbAdapter,
   ImageMutationAcquireResult,
   ImageMutationReleaseResult,
@@ -105,10 +116,15 @@ interface NodeSdkTransaction {
        * the installed @cloudbase/database 1.4.3 source and probed by
        * scripts/verify-cloudbase-sdk-contract.mjs.
        */
-      set(data: Record<string, unknown>): Promise<{ updated?: number }>;
+      set(data: Record<string, unknown>): Promise<{ updated?: number; upserted?: Array<{_id?:string}> }>;
       remove(): Promise<{ deleted?: number }>;
     };
   };
+}
+
+export interface NodeSdkDatabase {
+  command: { set(value: unknown): unknown };
+  runTransaction<T>(operation: (transaction: NodeSdkTransaction) => Promise<T>): Promise<T>;
 }
 
 let initialized = false;
@@ -162,7 +178,191 @@ function normalizeSingle(raw: unknown): CollectionDoc | null {
     : null;
 }
 
+/** Exported for a production-path takeover test; the live adapter calls this exact function. */
+export async function upsertDocWithAlibabaLeaseInCloudBase(
+  db: NodeSdkDatabase,
+  collection: string,
+  id: string,
+  patch: Record<string, unknown>,
+  createOnly: Record<string, unknown>,
+  guard: AlibabaLeaseGuard,
+): Promise<boolean> {
+  return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+    const leaseRef = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(guard.connectionId);
+    const lease = normalizeSingle((await leaseRef.get()).data);
+    if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
+
+    const targetRef = transaction.collection(collection).doc(id);
+    const existing = normalizeSingle((await targetRef.get()).data);
+    const { _id: _patchId, ...safePatch } = patch as Record<string, unknown> & { _id?: unknown };
+    if (existing) {
+      await targetRef.update(
+        replaceNestedObjects({ ...safePatch, updatedAt: guard.now }, db.command),
+      );
+      return true;
+    }
+    const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+      _id?: unknown;
+    };
+    await targetRef.set({
+      ...safeCreateOnly,
+      ...safePatch,
+      createdAt: guard.now,
+      updatedAt: guard.now,
+    });
+    return true;
+  });
+}
+
+/**
+ * Start a sync run without exposing the run/checkpoint split as two writes.
+ * Every read happens before either write because CloudBase transactions do not
+ * allow a read after the transaction has entered its write phase.
+ */
+export async function claimAlibabaSyncRunInCloudBase(
+  db: NodeSdkDatabase,
+  runId: string,
+  run: Record<string, unknown>,
+  checkpointPatch: Record<string, unknown>,
+  guard: AlibabaLeaseGuard,
+): Promise<AlibabaSyncRunClaimResult> {
+  return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+    const leaseRef = transaction.collection(ALIBABA_SYNC_LEASE_COLLECTION).doc(guard.connectionId);
+    const checkpointRef = transaction
+      .collection('alibabaSyncCheckpoints')
+      .doc(guard.connectionId);
+    const runRef = transaction.collection('alibabaSyncRuns').doc(runId);
+
+    const lease = normalizeSingle((await leaseRef.get()).data);
+    const checkpoint = normalizeSingle((await checkpointRef.get()).data);
+    const existingRun = normalizeSingle((await runRef.get()).data);
+
+    if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return 'lease-lost';
+    if (!checkpoint) return 'checkpoint-missing';
+    if (checkpoint.activeRunId !== undefined && checkpoint.activeRunId !== '') {
+      return 'checkpoint-busy';
+    }
+    if (existingRun) return 'run-exists';
+
+    const { _id: _runId, ...safeRun } = run as Record<string, unknown> & { _id?: unknown };
+    const { _id: _checkpointId, ...safeCheckpointPatch } = checkpointPatch as Record<
+      string,
+      unknown
+    > & { _id?: unknown };
+    await runRef.set({
+      ...safeRun,
+      createdAt: guard.now,
+      updatedAt: guard.now,
+    });
+    await checkpointRef.update(
+      replaceNestedObjects({ ...safeCheckpointPatch, updatedAt: guard.now }, db.command),
+    );
+    return 'claimed';
+  });
+}
+
+/** Exported so recency behavior is tested against the exact production transaction. */
+export async function upsertCatalogSourceObservationInCloudBase(
+  db: NodeSdkDatabase,
+  id: string,
+  data: Record<string, unknown>,
+  createOnly: Record<string, unknown>,
+  now: string,
+): Promise<CatalogSourceObservationUpsertResult> {
+  return db.runTransaction(async (transaction: NodeSdkTransaction) => {
+    const ref = transaction.collection('catalogSourceObservations').doc(id);
+    const existing = normalizeSingle((await ref.get()).data);
+    const { _id: _patchId, ...patch } = data as Record<string, unknown> & { _id?: unknown };
+    if (existing) {
+      const previousAt = Date.parse(String(existing.observedAt ?? ''));
+      const incomingAt = Date.parse(String(patch.observedAt ?? ''));
+      if (Number.isFinite(previousAt) && previousAt > incomingAt) {
+        return { result: 'stale', doc: existing };
+      }
+      const merged = { ...patch, updatedAt: now };
+      await ref.update(replaceNestedObjects(merged, db.command));
+      return { result: 'applied', doc: normalize({ ...existing, ...merged, _id: id }) };
+    }
+    const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+      _id?: unknown;
+    };
+    const created = { createdAt: now, updatedAt: now, ...safeCreateOnly, ...patch };
+    await ref.set(created);
+    return { result: 'applied', doc: normalize({ _id: id, ...created }) };
+  });
+}
+
+export async function manageCatalogCategoryInCloud(db: Pick<NodeSdkDatabase,'runTransaction'>, actorId:string, input:unknown, now=new Date().toISOString()) {
+  return db.runTransaction(async transaction => runCategoryCommand({
+    get: async (collection,id) => normalizeSingle((await transaction.collection(collection).doc(id).get()).data),
+    set: async (collection,row) => {
+      const {_id,...data}=row;
+      const result=await transaction.collection(collection).doc(_id).set(data);
+      // A new document is acknowledged by upserted, not necessarily updated=1.
+      if(result.updated!==1&&!result.upserted?.some(row=>row._id===_id))throw new Error('Classification write was not acknowledged');
+    },
+  },actorId,input,now));
+}
+
 export const cloudBaseAdapter: DbAdapter = {
+  async persistCatalogDetailApproval(actorId, input) {
+    return persistStagedApprovalInCloud(cloudStorageSdk().database(), actorId, input);
+  },
+  async approveCatalogDetail(actorId, input) {
+    return approveCatalogDetailInCloud(cloudStorageSdk().database(), actorId, input);
+  },
+  async manageCatalogCategory(actorId, input) {
+    return manageCatalogCategoryInCloud(cloudStorageSdk().database(),actorId,input);
+  },
+  async submitCatalogQuote(input) {
+    return saveQuoteInCloud(cloudStorageSdk().database(), input);
+  },
+  async manageCatalogInquiry(actorId, input) {
+    const parsed = InquiryCommandSchema.safeParse(input);
+    if (!parsed.success) return { ok: false, code: 'VALIDATION_ERROR' };
+    if (parsed.data.action !== 'list') {
+      return manageInquiryInCloud(cloudStorageSdk().database(), actorId, parsed.data);
+    }
+    const actor = await this.get('users', actorId);
+    if (!actor || actor.role !== 'admin' || actor.status === 'suspended') {
+      return { ok: false, code: 'FORBIDDEN' };
+    }
+    const command = parsed.data;
+    const filter = command.status
+      ? { combinator: 'and' as const, clauses: [{ field: 'status', op: 'eq' as const, value: command.status }] }
+      : undefined;
+    const rows = await this.list({
+      collection: INQUIRY_COLLECTION,
+      page: command.page,
+      pageSize: command.pageSize,
+      search: '',
+      ...(filter ? { filter } : {}),
+      sort: [
+        ...(!command.status ? [{ field: 'attentionRank', dir: 'asc' as const }] : []),
+        { field: 'createdAt', dir: 'desc' },
+        { field: '_id', dir: 'asc' },
+      ],
+    });
+    const pending = await database().collection(INQUIRY_COLLECTION).where({ status: 'new' }).count();
+    const latestActor = await this.get('users', actorId);
+    const result = processCatalogInquiry(
+      { users: latestActor ? [latestActor] : [], catalogQuoteRequests: rows.items },
+      actorId,
+      { ...command, page: 1 },
+    );
+    if (!result.result.ok || result.result.data.kind !== 'list') return result.result;
+    const newCount = pending.total;
+    if (
+      !Number.isSafeInteger(newCount) || typeof newCount !== 'number' || newCount < 0 ||
+      !Number.isSafeInteger(rows.total) || rows.total < 0
+    ) {
+      return { ok: false, code: 'INVALID_RECORD' };
+    }
+    return {
+      ok: true,
+      data: { ...result.result.data, total: rows.total, newCount, page: command.page },
+    };
+  },
   async list(query): Promise<ListResult<CollectionDoc>> {
     const db = database();
     const def = getCollection(query.collection);
@@ -170,6 +370,8 @@ export const cloudBaseAdapter: DbAdapter = {
     const _ = db.command;
 
     const ands: Record<string, unknown>[] = [];
+
+    if (query.needsClassification) ands.push(unclassifiedProductWhere(_));
 
     if (query.productFamily) {
       ands.push(
@@ -420,7 +622,7 @@ export const cloudBaseAdapter: DbAdapter = {
     });
   },
 
-  async upsertDocWithId(collection, id, data): Promise<CollectionDoc> {
+  async upsertDocWithId(collection, id, data, createOnly = {}): Promise<CollectionDoc> {
     const db = cloudStorageSdk().database();
     return db.runTransaction(async (transaction: NodeSdkTransaction) => {
       const ref = transaction.collection(collection).doc(id);
@@ -433,10 +635,28 @@ export const cloudBaseAdapter: DbAdapter = {
         await ref.update(replaceNestedObjects(merged, db.command));
         return normalize({ ...existing, ...merged, _id: id });
       }
-      const created = { createdAt: now, updatedAt: now, ...patch };
+      const { _id: _createId, ...safeCreateOnly } = createOnly as Record<string, unknown> & {
+        _id?: unknown;
+      };
+      const created = { createdAt: now, updatedAt: now, ...safeCreateOnly, ...patch };
       await ref.set(created);
       return normalize({ _id: id, ...created });
     });
+  },
+
+  async upsertCatalogSourceObservation(
+    id,
+    data,
+    createOnly,
+  ): Promise<CatalogSourceObservationUpsertResult> {
+    const db = cloudStorageSdk().database();
+    return upsertCatalogSourceObservationInCloudBase(
+      db,
+      id,
+      data,
+      createOnly,
+      new Date().toISOString(),
+    );
   },
 
   async acquireAlibabaSyncLease(connectionId, holder, now, ttlMs): Promise<AlibabaLeaseGrant> {
@@ -504,10 +724,22 @@ export const cloudBaseAdapter: DbAdapter = {
       const lease = normalizeSingle((await leaseRef.get()).data);
       if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
       const targetRef = transaction.collection(collection).doc(id);
-      if (!normalizeSingle((await targetRef.get()).data)) return false;
-      await targetRef.update(replaceNestedObjects({ ...patch, updatedAt: guard.now }, db.command));
+      const existing = normalizeSingle((await targetRef.get()).data);
+      if (!existing) return false;
+      const baseline = collection === 'products' ? categorySyncBaseline(existing, patch) : {};
+      await targetRef.update(replaceNestedObjects({ ...patch, ...baseline, updatedAt: guard.now }, db.command));
       return true;
     });
+  },
+
+  async upsertDocWithAlibabaLease(collection, id, patch, createOnly, guard): Promise<boolean> {
+    const db = cloudStorageSdk().database() as unknown as NodeSdkDatabase;
+    return upsertDocWithAlibabaLeaseInCloudBase(db, collection, id, patch, createOnly, guard);
+  },
+
+  async claimAlibabaSyncRun(runId, run, checkpointPatch, guard) {
+    const db = cloudStorageSdk().database() as unknown as NodeSdkDatabase;
+    return claimAlibabaSyncRunInCloudBase(db, runId, run, checkpointPatch, guard);
   },
 };
 
@@ -598,7 +830,20 @@ function clauseToWhere(
         ]);
       }
       return { [field]: _.eq(value) };
+    case 'hasNoProductFamily':
+      return unclassifiedProductWhere(_);
     default:
       return null;
   }
+}
+
+/** Same legacy fallback boundary as productFamilyForDoc; applied before count/page. */
+export function unclassifiedProductWhere(_: Pick<WxCommand, 'and' | 'or' | 'exists' | 'nin'>): Record<string, unknown> {
+  return _.and([
+    { productFamily: _.nin([...PRODUCT_FAMILY_OPTIONS]) },
+    _.or([
+      { productFamily: _.exists(true) },
+      { category: _.nin([...LEGACY_HEADPHONES_CATEGORY_OPTIONS]) },
+    ]),
+  ]);
 }

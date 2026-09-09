@@ -8,6 +8,19 @@ import { apiUrl } from '../../../lib/api-url.ts';
 import { getToken } from '../../../lib/session.ts';
 
 const ENDPOINT = apiUrl('/api/alibaba-catalog-sync');
+const SOURCE_PRODUCT_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isNonNegativeSafeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+function readNonNegativeSafeInteger(value: unknown): number | null {
+  return isNonNegativeSafeInteger(value) ? value : null;
+}
 
 export class AlibabaSyncApiError extends Error {
   constructor(
@@ -25,17 +38,31 @@ interface Envelope<T> {
   error?: { code: string; message: string };
 }
 
-async function call<T>(action: string, data?: unknown): Promise<T> {
+function gatewayErrorDetail(value: unknown): string | null {
+  if (!isRecord(value)) return null;
+  for (const key of ['errorMessage', 'message', 'Message', 'error']) {
+    const candidate = value[key];
+    if (typeof candidate === 'string') {
+      const normalized = candidate.replace(/\s+/g, ' ').trim();
+      if (normalized) return normalized.slice(0, 240);
+    }
+  }
+  return null;
+}
+
+async function call<T>(action: string, data?: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, data, token: getToken() }),
+    ...(signal ? { signal } : {}),
   });
   // VALIDATED, not cast: `res.json()` returns unknown, and a gateway error
   // page or a proxy's own JSON would satisfy a cast while leaving `ok`
   // undefined — which then reads as a failure with no error code, and the
   // caller reports a blank message. Check the shape we actually rely on.
   let envelope: Envelope<T> | null = null;
+  let nonEnvelopeDetail: string | null = null;
   try {
     const parsed: unknown = await res.json();
     if (
@@ -44,6 +71,8 @@ async function call<T>(action: string, data?: unknown): Promise<T> {
       typeof (parsed as { ok?: unknown }).ok === 'boolean'
     ) {
       envelope = parsed as Envelope<T>;
+    } else {
+      nonEnvelopeDetail = gatewayErrorDetail(parsed);
     }
   } catch {
     envelope = null;
@@ -51,7 +80,7 @@ async function call<T>(action: string, data?: unknown): Promise<T> {
   if (!envelope) {
     throw new AlibabaSyncApiError(
       res.status === 401 ? 'UNAUTHORIZED' : 'INTERNAL_ERROR',
-      `Request failed (${res.status})`,
+      `Request failed (${res.status})${nonEnvelopeDetail ? `: ${nonEnvelopeDetail}` : ''}`,
     );
   }
   if (!envelope.ok || envelope.data === undefined) {
@@ -87,14 +116,762 @@ export function disconnectAlibaba(): Promise<{ disconnected: boolean }> {
   return call<{ disconnected: boolean }>('disconnect');
 }
 
+const TICK_OUTCOMES = new Set([
+  'idle',
+  'lease-busy',
+  'not-connected',
+  'continued',
+  'completed',
+  'quarantined',
+  'failed',
+  'lease-lost',
+]);
+
 export interface TickReport {
-  outcome: string;
+  outcome:
+    | 'idle'
+    | 'lease-busy'
+    | 'not-connected'
+    | 'continued'
+    | 'completed'
+    | 'quarantined'
+    | 'failed'
+    | 'lease-lost';
   runId?: string;
   detail?: string;
 }
 
-export function runSyncNow(): Promise<TickReport> {
-  return call<TickReport>('runNow');
+function decodeTickReport(value: unknown): TickReport {
+  if (!isRecord(value) || typeof value.outcome !== 'string' || !TICK_OUTCOMES.has(value.outcome)) {
+    throw new AlibabaSyncApiError('INVALID_RESPONSE', 'Sync returned an invalid status payload.');
+  }
+  if (value.runId !== undefined && typeof value.runId !== 'string') {
+    throw new AlibabaSyncApiError('INVALID_RESPONSE', 'Sync returned an invalid run id.');
+  }
+  if (value.detail !== undefined && typeof value.detail !== 'string') {
+    throw new AlibabaSyncApiError('INVALID_RESPONSE', 'Sync returned an invalid detail message.');
+  }
+  return {
+    outcome: value.outcome as TickReport['outcome'],
+    ...(typeof value.runId === 'string' ? { runId: value.runId } : {}),
+    ...(typeof value.detail === 'string' ? { detail: value.detail } : {}),
+  };
+}
+
+export async function runSyncNow(): Promise<TickReport> {
+  return decodeTickReport(await call<unknown>('runNow'));
+}
+
+export interface SyncRunResult {
+  report: TickReport;
+  ticks: number;
+}
+
+interface RunSyncToTerminalOptions {
+  tick?: () => Promise<TickReport>;
+  onProgress?: (report: TickReport, ticks: number) => void;
+  maxTicks?: number;
+}
+
+/**
+ * One admin click drives every bounded worker slice until the run reaches a
+ * terminal outcome. The server remains the authority for leases, checkpoints,
+ * quarantine and the incremental/full decision; the browser only resumes the
+ * same run id returned by `continued`.
+ */
+export async function runSyncToTerminal({
+  tick = runSyncNow,
+  onProgress,
+  maxTicks = 500,
+}: RunSyncToTerminalOptions = {}): Promise<SyncRunResult> {
+  if (!Number.isSafeInteger(maxTicks) || maxTicks < 1) {
+    throw new TypeError('maxTicks must be a positive safe integer.');
+  }
+
+  let continuedRunId: string | undefined;
+  for (let ticks = 1; ticks <= maxTicks; ticks += 1) {
+    const report = await tick();
+    onProgress?.(report, ticks);
+    if (report.outcome !== 'continued') {
+      if (continuedRunId !== undefined && report.runId && report.runId !== continuedRunId) {
+        throw new AlibabaSyncApiError(
+          'INVALID_RESPONSE',
+          'Sync terminal status changed run id unexpectedly.',
+        );
+      }
+      return { report, ticks };
+    }
+    if (!report.runId) {
+      throw new AlibabaSyncApiError(
+        'INVALID_RESPONSE',
+        'Sync continuation did not identify the run to resume.',
+      );
+    }
+    if (continuedRunId !== undefined && report.runId !== continuedRunId) {
+      throw new AlibabaSyncApiError(
+        'INVALID_RESPONSE',
+        'Sync continuation changed run id unexpectedly.',
+      );
+    }
+    continuedRunId = report.runId;
+  }
+
+  throw new AlibabaSyncApiError(
+    'CONTINUATION_LIMIT',
+    `Sync is still running after ${maxTicks} worker ticks. No additional tick was started.`,
+  );
+}
+
+export interface DraftMaterializationProgress {
+  visited: number;
+  created: number;
+  existing: number;
+  failures: number;
+}
+
+interface DraftMaterializationPage extends DraftMaterializationProgress {
+  afterSourceKey: string;
+  nextSourceKey: string;
+  done: boolean;
+}
+
+function decodeDraftMaterializationPage(value: unknown): DraftMaterializationPage | null {
+  const keys = [
+    'afterSourceKey',
+    'nextSourceKey',
+    'done',
+    'visited',
+    'created',
+    'existing',
+    'failures',
+  ] as const;
+  if (!isRecord(value) || !hasExactKeys(value, keys)) return null;
+  const visited = readNonNegativeSafeInteger(value.visited);
+  const created = readNonNegativeSafeInteger(value.created);
+  const existing = readNonNegativeSafeInteger(value.existing);
+  if (
+    typeof value.afterSourceKey !== 'string' ||
+    typeof value.nextSourceKey !== 'string' ||
+    typeof value.done !== 'boolean' ||
+    visited === null ||
+    created === null ||
+    existing === null ||
+    !Array.isArray(value.failures) ||
+    value.failures.length > 20 ||
+    !value.failures.every(
+      (failure) =>
+        isRecord(failure) &&
+        hasExactKeys(failure, ['sourceKey', 'reason']) &&
+        typeof failure.sourceKey === 'string' &&
+        (failure.reason === 'source-not-found' || failure.reason === 'linked-elsewhere'),
+    ) ||
+    created + existing + value.failures.length !== visited ||
+    (!value.done && (visited !== 20 || value.nextSourceKey === value.afterSourceKey))
+  ) {
+    return null;
+  }
+  return {
+    afterSourceKey: value.afterSourceKey,
+    nextSourceKey: value.nextSourceKey,
+    done: value.done,
+    visited,
+    created,
+    existing,
+    failures: value.failures.length,
+  };
+}
+
+/** Materialize every current active source row using bounded idempotent pages. */
+export async function materializeAlibabaDrafts(
+  onProgress?: (progress: DraftMaterializationProgress) => void,
+  sourceCategoryId?: string,
+): Promise<DraftMaterializationProgress> {
+  const total: DraftMaterializationProgress = {
+    visited: 0,
+    created: 0,
+    existing: 0,
+    failures: 0,
+  };
+  let afterSourceKey = '';
+  for (let pageNumber = 0; pageNumber < 1_000; pageNumber += 1) {
+    const raw = await call<unknown>('materializeDrafts', {
+      afterSourceKey,
+      limit: 20,
+      ...(sourceCategoryId?.trim() ? { sourceCategoryId: sourceCategoryId.trim() } : {}),
+    });
+    const page = decodeDraftMaterializationPage(raw);
+    if (!page || page.afterSourceKey !== afterSourceKey) {
+      throw new AlibabaSyncApiError(
+        'INTERNAL_ERROR',
+        'Draft materialization returned an invalid page summary.',
+      );
+    }
+    total.visited += page.visited;
+    total.created += page.created;
+    total.existing += page.existing;
+    total.failures += page.failures;
+    onProgress?.({ ...total });
+    if (page.done) return total;
+    afterSourceKey = page.nextSourceKey;
+  }
+  throw new AlibabaSyncApiError('CONFLICT', 'Draft materialization exceeded the page limit.');
+}
+
+export type SourceObservationReplayMode = 'dry-run' | 'apply';
+
+export interface SourceObservationReplayCounts {
+  sourceProducts: number;
+  observations: number;
+  variants: number;
+  offers: number;
+  attributedVariants: number;
+  attributePairs: number;
+  warnings: number;
+}
+
+export interface SourceObservationReplayFailure {
+  sourceKey: string;
+  reason: string;
+}
+
+export interface SourceObservationReplayPage {
+  ok: true;
+  mode: SourceObservationReplayMode;
+  ready: boolean;
+  manifestId: string;
+  manifestReady: boolean;
+  pageHash: string;
+  totalSourceProducts: number;
+  afterSourceKey: string;
+  nextSourceKey: string;
+  done: boolean;
+  counts: SourceObservationReplayCounts;
+  priceModes: Partial<Record<ProductDetailPriceMode, number>>;
+  failures: SourceObservationReplayFailure[];
+  applied: number;
+}
+
+export interface SourceObservationReplayPlan {
+  pages: SourceObservationReplayPage[];
+  counts: SourceObservationReplayCounts;
+  priceModes: Partial<Record<ProductDetailPriceMode, number>>;
+  ready: boolean;
+  totalSourceProducts: number;
+  manifestId: string;
+}
+
+const REPLAY_MODES = new Set<SourceObservationReplayMode>(['dry-run', 'apply']);
+const REPLAY_FAILURE_REASONS = new Set([
+  'invalid-source-row',
+  'payload-missing',
+  'invalid-payload-metadata',
+  'raw-read-failed',
+  'raw-too-large',
+  'raw-size-mismatch',
+  'raw-hash-mismatch',
+  'malformed-response',
+  'provider-api-error',
+  'missing-product-id',
+  'product-id-mismatch',
+  'source-key-mismatch',
+  'offer-set-mismatch',
+  'invalid-source-observation',
+]);
+const REPLAY_COUNT_KEYS = [
+  'sourceProducts',
+  'observations',
+  'variants',
+  'offers',
+  'attributedVariants',
+  'attributePairs',
+  'warnings',
+] as const satisfies readonly (keyof SourceObservationReplayCounts)[];
+const MAX_REPLAY_PAGES = 1_000;
+const REPLAY_PAGE_SIZE = 20;
+
+function decodeReplayCounts(value: unknown): SourceObservationReplayCounts | null {
+  if (!isRecord(value) || !hasExactKeys(value, REPLAY_COUNT_KEYS)) return null;
+  const counts = {} as SourceObservationReplayCounts;
+  for (const key of REPLAY_COUNT_KEYS) {
+    const count = readNonNegativeSafeInteger(value[key]);
+    if (count === null) return null;
+    counts[key] = count;
+  }
+  return counts;
+}
+
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const expected = new Set(keys);
+  return (
+    Object.keys(value).length === expected.size &&
+    Object.keys(value).every((key) => expected.has(key))
+  );
+}
+
+function decodeReplayPriceModes(
+  value: unknown,
+): Partial<Record<ProductDetailPriceMode, number>> | null {
+  if (!isRecord(value)) return null;
+  const result: Partial<Record<ProductDetailPriceMode, number>> = {};
+  for (const [key, rawCount] of Object.entries(value)) {
+    if (!PRICE_MODES.has(key as ProductDetailPriceMode)) return null;
+    const count = readNonNegativeSafeInteger(rawCount);
+    if (count === null) return null;
+    result[key as ProductDetailPriceMode] = count;
+  }
+  return result;
+}
+
+/** Closed decoder: provider or proxy drift becomes an error, never renderable state. */
+export function decodeSourceObservationReplayPage(
+  value: unknown,
+): SourceObservationReplayPage | null {
+  const pageKeys = [
+    'ok',
+    'mode',
+    'ready',
+    'manifestId',
+    'manifestReady',
+    'pageHash',
+    'totalSourceProducts',
+    'afterSourceKey',
+    'nextSourceKey',
+    'done',
+    'counts',
+    'priceModes',
+    'failures',
+    'applied',
+  ] as const;
+  if (!isRecord(value) || value.ok !== true || !hasExactKeys(value, pageKeys)) return null;
+  if (
+    typeof value.mode !== 'string' ||
+    !REPLAY_MODES.has(value.mode as SourceObservationReplayMode) ||
+    typeof value.ready !== 'boolean' ||
+    typeof value.manifestId !== 'string' ||
+    !/^raw-replay-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+      value.manifestId,
+    ) ||
+    typeof value.manifestReady !== 'boolean' ||
+    typeof value.pageHash !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(value.pageHash) ||
+    typeof value.afterSourceKey !== 'string' ||
+    value.afterSourceKey.length > 128 ||
+    typeof value.nextSourceKey !== 'string' ||
+    value.nextSourceKey.length > 128 ||
+    typeof value.done !== 'boolean' ||
+    !Array.isArray(value.failures) ||
+    value.failures.length > REPLAY_PAGE_SIZE
+  ) {
+    return null;
+  }
+  const counts = decodeReplayCounts(value.counts);
+  const priceModes = decodeReplayPriceModes(value.priceModes);
+  const applied = readNonNegativeSafeInteger(value.applied);
+  const totalSourceProducts = readNonNegativeSafeInteger(value.totalSourceProducts);
+  if (!counts || !priceModes || applied === null || totalSourceProducts === null) return null;
+  const failures: SourceObservationReplayFailure[] = [];
+  for (const failure of value.failures) {
+    if (
+      !isRecord(failure) ||
+      !hasExactKeys(failure, ['sourceKey', 'reason']) ||
+      typeof failure.sourceKey !== 'string' ||
+      failure.sourceKey.length === 0 ||
+      failure.sourceKey.length > 128 ||
+      typeof failure.reason !== 'string' ||
+      !REPLAY_FAILURE_REASONS.has(failure.reason)
+    ) {
+      return null;
+    }
+    failures.push({ sourceKey: failure.sourceKey, reason: failure.reason });
+  }
+  const pricedOffers = Object.values(priceModes).reduce((total, count) => total + (count ?? 0), 0);
+  const cursorIsValid =
+    counts.sourceProducts === 0
+      ? value.done === true && value.nextSourceKey === value.afterSourceKey
+      : value.nextSourceKey !== '' && value.nextSourceKey !== value.afterSourceKey;
+  if (
+    counts.sourceProducts > REPLAY_PAGE_SIZE ||
+    counts.observations + failures.length !== counts.sourceProducts ||
+    counts.attributedVariants > counts.variants ||
+    counts.attributePairs < counts.attributedVariants ||
+    pricedOffers !== counts.offers ||
+    totalSourceProducts < counts.sourceProducts ||
+    !cursorIsValid ||
+    (value.done && counts.sourceProducts >= REPLAY_PAGE_SIZE) ||
+    (!value.done && counts.sourceProducts !== REPLAY_PAGE_SIZE) ||
+    value.ready !== (failures.length === 0) ||
+    (value.mode === 'dry-run' && applied !== 0) ||
+    (!value.ready && applied !== 0) ||
+    (value.mode === 'apply' && value.ready && applied !== counts.observations) ||
+    (value.mode === 'apply' && !value.manifestReady) ||
+    (value.mode === 'dry-run' && !value.done && value.manifestReady)
+  ) {
+    return null;
+  }
+  return {
+    ok: true,
+    mode: value.mode as SourceObservationReplayMode,
+    ready: value.ready,
+    manifestId: value.manifestId,
+    manifestReady: value.manifestReady,
+    pageHash: value.pageHash,
+    totalSourceProducts,
+    afterSourceKey: value.afterSourceKey,
+    nextSourceKey: value.nextSourceKey,
+    done: value.done,
+    counts,
+    priceModes,
+    failures,
+    applied,
+  };
+}
+
+async function replaySourceObservationPage(
+  mode: SourceObservationReplayMode,
+  afterSourceKey: string,
+  expectedPageHash?: string,
+  expectedTotalSourceProducts?: number,
+  manifestId?: string,
+): Promise<SourceObservationReplayPage> {
+  const raw = await call<unknown>('replaySourceObservations', {
+    mode,
+    afterSourceKey,
+    limit: REPLAY_PAGE_SIZE,
+    ...(expectedPageHash === undefined ? {} : { expectedPageHash }),
+    ...(expectedTotalSourceProducts === undefined ? {} : { expectedTotalSourceProducts }),
+    ...(manifestId === undefined ? {} : { manifestId }),
+  });
+  if (isRecord(raw) && raw.ok === false && typeof raw.reason === 'string') {
+    throw new AlibabaSyncApiError('CONFLICT', `Replay stopped: ${raw.reason}.`);
+  }
+  const page = decodeSourceObservationReplayPage(raw);
+  if (!page || page.mode !== mode || page.afterSourceKey !== afterSourceKey) {
+    throw new AlibabaSyncApiError('INTERNAL_ERROR', 'Replay returned an invalid page summary.');
+  }
+  return page;
+}
+
+function emptyReplayCounts(): SourceObservationReplayCounts {
+  return {
+    sourceProducts: 0,
+    observations: 0,
+    variants: 0,
+    offers: 0,
+    attributedVariants: 0,
+    attributePairs: 0,
+    warnings: 0,
+  };
+}
+
+function addReplayCounts(
+  total: SourceObservationReplayCounts,
+  next: SourceObservationReplayCounts,
+): void {
+  for (const key of REPLAY_COUNT_KEYS) total[key] += next[key];
+}
+
+function addReplayPriceModes(
+  total: Partial<Record<ProductDetailPriceMode, number>>,
+  next: Partial<Record<ProductDetailPriceMode, number>>,
+): void {
+  for (const mode of PRICE_MODES) total[mode] = (total[mode] ?? 0) + (next[mode] ?? 0);
+}
+
+export async function validateSourceObservationReplay(
+  onPage?: (pageCount: number, sourceProductCount: number) => void,
+): Promise<SourceObservationReplayPlan> {
+  const pages: SourceObservationReplayPage[] = [];
+  const counts = emptyReplayCounts();
+  const priceModes: Partial<Record<ProductDetailPriceMode, number>> = {};
+  let cursor = '';
+  let manifestId: string | undefined;
+  let totalSourceProducts: number | null = null;
+  for (let pageCount = 1; pageCount <= MAX_REPLAY_PAGES; pageCount += 1) {
+    const page = await replaySourceObservationPage(
+      'dry-run',
+      cursor,
+      undefined,
+      undefined,
+      manifestId,
+    );
+    manifestId ??= page.manifestId;
+    if (page.manifestId !== manifestId) {
+      throw new AlibabaSyncApiError('CONFLICT', 'Replay manifest changed during validation.');
+    }
+    totalSourceProducts ??= page.totalSourceProducts;
+    if (page.totalSourceProducts !== totalSourceProducts) {
+      throw new AlibabaSyncApiError('CONFLICT', 'Replay source total changed during validation.');
+    }
+    pages.push(page);
+    addReplayCounts(counts, page.counts);
+    addReplayPriceModes(priceModes, page.priceModes);
+    onPage?.(pageCount, counts.sourceProducts);
+    if (!page.ready) {
+      return { pages, counts, priceModes, ready: false, totalSourceProducts, manifestId };
+    }
+    if (page.done) {
+      if (counts.sourceProducts !== totalSourceProducts) {
+        throw new AlibabaSyncApiError(
+          'CONFLICT',
+          'Replay did not cover the authoritative source total.',
+        );
+      }
+      if (!page.manifestReady) {
+        throw new AlibabaSyncApiError('CONFLICT', 'Server did not seal the replay manifest.');
+      }
+      return { pages, counts, priceModes, ready: true, totalSourceProducts, manifestId };
+    }
+    if (!page.nextSourceKey || page.nextSourceKey === cursor) {
+      throw new AlibabaSyncApiError('INTERNAL_ERROR', 'Replay cursor did not advance.');
+    }
+    cursor = page.nextSourceKey;
+  }
+  throw new AlibabaSyncApiError('INTERNAL_ERROR', 'Replay exceeded the page safety limit.');
+}
+
+export async function applySourceObservationReplay(
+  plan: SourceObservationReplayPlan,
+  onPage?: (pageCount: number, appliedCount: number) => void,
+): Promise<number> {
+  if (!plan.ready || plan.pages.length === 0 || plan.pages.length > MAX_REPLAY_PAGES) {
+    throw new AlibabaSyncApiError('CONFLICT', 'A complete successful validation is required.');
+  }
+  let applied = 0;
+  for (const [index, expected] of plan.pages.entries()) {
+    const page = await replaySourceObservationPage(
+      'apply',
+      expected.afterSourceKey,
+      expected.pageHash,
+      plan.totalSourceProducts,
+      plan.manifestId,
+    );
+    if (!page.ready) {
+      const reasonCounts = new Map<string, number>();
+      for (const failure of page.failures) {
+        reasonCounts.set(failure.reason, (reasonCounts.get(failure.reason) ?? 0) + 1);
+      }
+      const summary = [...reasonCounts.entries()]
+        .map(([reason, count]) => `${reason} (${count})`)
+        .join(', ');
+      throw new AlibabaSyncApiError(
+        'CONFLICT',
+        `Replay page preflight failed: ${summary || 'unknown failure'}.`,
+      );
+    }
+    if (
+      page.pageHash !== expected.pageHash ||
+      page.totalSourceProducts !== plan.totalSourceProducts ||
+      page.nextSourceKey !== expected.nextSourceKey ||
+      page.done !== expected.done
+    ) {
+      throw new AlibabaSyncApiError('CONFLICT', 'Replay page changed after validation.');
+    }
+    applied += page.applied;
+    onPage?.(index + 1, applied);
+  }
+  return applied;
+}
+
+export type ProductDetailPriceMode = 'fixed' | 'tiered' | 'range' | 'negotiable' | 'unavailable';
+
+export interface ProductDetailInspectionSummary {
+  sourceProductId: string;
+  payloadId: string;
+  deduplicated: boolean;
+  rawByteLength: number;
+  hasSubject: boolean;
+  hasCategory: boolean;
+  hasMoq: boolean;
+  description: { kind: 'empty' | 'html' | 'text'; characterCount: number };
+  imageCount: number;
+  skuCount: number;
+  skusWithAttributes: number;
+  attributeNameCount: number;
+  attributeNames: string[];
+  productTierCount: number;
+  skuTieredPriceCount: number;
+  normalizedOfferCount: number;
+  normalizedPriceModes: ProductDetailPriceMode[];
+  currency?: string;
+  sourceStatus?: string;
+}
+
+type ProductDetailDescriptionKind = ProductDetailInspectionSummary['description']['kind'];
+
+const DESCRIPTION_KINDS = new Set<ProductDetailDescriptionKind>(['empty', 'html', 'text']);
+const PRICE_MODES = new Set<ProductDetailPriceMode>([
+  'fixed',
+  'tiered',
+  'range',
+  'negotiable',
+  'unavailable',
+]);
+
+function isDescriptionKind(value: unknown): value is ProductDetailDescriptionKind {
+  return typeof value === 'string' && DESCRIPTION_KINDS.has(value as ProductDetailDescriptionKind);
+}
+
+export function isAlibabaSourceProductId(value: string): boolean {
+  return SOURCE_PRODUCT_ID_PATTERN.test(value.trim());
+}
+
+/** Runtime gate for the provider-derived summary before any field reaches React. */
+export function decodeProductDetailInspectionSummary(
+  value: unknown,
+): ProductDetailInspectionSummary | null {
+  if (!isRecord(value) || !isRecord(value.description)) return null;
+  if (
+    typeof value.sourceProductId !== 'string' ||
+    !isAlibabaSourceProductId(value.sourceProductId) ||
+    typeof value.payloadId !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(value.payloadId) ||
+    typeof value.deduplicated !== 'boolean' ||
+    typeof value.hasSubject !== 'boolean' ||
+    typeof value.hasCategory !== 'boolean' ||
+    typeof value.hasMoq !== 'boolean'
+  ) {
+    return null;
+  }
+  const rawByteLength = readNonNegativeSafeInteger(value.rawByteLength);
+  const imageCount = readNonNegativeSafeInteger(value.imageCount);
+  const skuCount = readNonNegativeSafeInteger(value.skuCount);
+  const skusWithAttributes = readNonNegativeSafeInteger(value.skusWithAttributes);
+  const attributeNameCount = readNonNegativeSafeInteger(value.attributeNameCount);
+  const productTierCount = readNonNegativeSafeInteger(value.productTierCount);
+  const skuTieredPriceCount = readNonNegativeSafeInteger(value.skuTieredPriceCount);
+  const normalizedOfferCount = readNonNegativeSafeInteger(value.normalizedOfferCount);
+  const descriptionCharacterCount = readNonNegativeSafeInteger(value.description.characterCount);
+  if (
+    rawByteLength === null ||
+    imageCount === null ||
+    skuCount === null ||
+    skusWithAttributes === null ||
+    attributeNameCount === null ||
+    productTierCount === null ||
+    skuTieredPriceCount === null ||
+    normalizedOfferCount === null ||
+    descriptionCharacterCount === null
+  ) {
+    return null;
+  }
+  if (!isDescriptionKind(value.description.kind)) {
+    return null;
+  }
+  if (
+    !Array.isArray(value.attributeNames) ||
+    value.attributeNames.length > 24 ||
+    !value.attributeNames.every(
+      (name) => typeof name === 'string' && name.length > 0 && name.length <= 128,
+    ) ||
+    !Array.isArray(value.normalizedPriceModes) ||
+    value.normalizedPriceModes.length > PRICE_MODES.size ||
+    !value.normalizedPriceModes.every(
+      (mode): mode is ProductDetailPriceMode =>
+        typeof mode === 'string' && PRICE_MODES.has(mode as ProductDetailPriceMode),
+    )
+  ) {
+    return null;
+  }
+  if (
+    skusWithAttributes > skuCount ||
+    skuTieredPriceCount > skuCount ||
+    value.attributeNames.length > attributeNameCount ||
+    new Set(value.attributeNames).size !== value.attributeNames.length ||
+    new Set(value.normalizedPriceModes).size !== value.normalizedPriceModes.length
+  ) {
+    return null;
+  }
+  if (
+    (value.currency !== undefined &&
+      (typeof value.currency !== 'string' || !/^[A-Z]{3}$/.test(value.currency))) ||
+    (value.sourceStatus !== undefined &&
+      (typeof value.sourceStatus !== 'string' ||
+        value.sourceStatus.length === 0 ||
+        value.sourceStatus.length > 128))
+  ) {
+    return null;
+  }
+
+  return {
+    sourceProductId: value.sourceProductId,
+    payloadId: value.payloadId,
+    deduplicated: value.deduplicated,
+    rawByteLength,
+    hasSubject: value.hasSubject,
+    hasCategory: value.hasCategory,
+    hasMoq: value.hasMoq,
+    description: {
+      kind: value.description.kind as ProductDetailInspectionSummary['description']['kind'],
+      characterCount: descriptionCharacterCount,
+    },
+    imageCount,
+    skuCount,
+    skusWithAttributes,
+    attributeNameCount,
+    attributeNames: [...value.attributeNames],
+    productTierCount,
+    skuTieredPriceCount,
+    normalizedOfferCount,
+    normalizedPriceModes: [...value.normalizedPriceModes],
+    ...(value.currency ? { currency: value.currency } : {}),
+    ...(value.sourceStatus ? { sourceStatus: value.sourceStatus } : {}),
+  };
+}
+
+export async function inspectProductDetail(
+  sourceProductId: string,
+): Promise<ProductDetailInspectionSummary> {
+  const raw = await call<unknown>('inspectProductDetail', { sourceProductId });
+  const summary = decodeProductDetailInspectionSummary(raw);
+  if (!summary) {
+    throw new AlibabaSyncApiError(
+      'INTERNAL_ERROR',
+      'Alibaba returned an invalid inspection summary.',
+    );
+  }
+  return summary;
+}
+
+export interface SelectedProductSyncSummary {
+  sourceProductId: string;
+  productId: string;
+  draftCreated: boolean;
+  offerCount: number;
+}
+
+export async function syncProduct(sourceProductId: string): Promise<SelectedProductSyncSummary> {
+  const raw = await call<unknown>('syncProduct', { sourceProductId });
+  if (
+    !isRecord(raw) ||
+    !hasExactKeys(raw, [
+      'ok',
+      'sourceProductId',
+      'sourceKey',
+      'productId',
+      'draftCreated',
+      'offerCount',
+    ]) ||
+    raw.ok !== true ||
+    typeof raw.sourceProductId !== 'string' ||
+    !isAlibabaSourceProductId(raw.sourceProductId) ||
+    typeof raw.sourceKey !== 'string' ||
+    raw.sourceKey.length === 0 ||
+    typeof raw.productId !== 'string' ||
+    raw.productId.length === 0 ||
+    typeof raw.draftCreated !== 'boolean'
+  ) {
+    throw new AlibabaSyncApiError('INTERNAL_ERROR', 'Alibaba returned an invalid sync summary.');
+  }
+  const offerCount = readNonNegativeSafeInteger(raw.offerCount);
+  if (offerCount === null) {
+    throw new AlibabaSyncApiError('INTERNAL_ERROR', 'Alibaba returned an invalid sync summary.');
+  }
+  return {
+    sourceProductId: raw.sourceProductId,
+    productId: raw.productId,
+    draftCreated: raw.draftCreated,
+    offerCount,
+  };
 }
 
 export function approveQuarantine(
@@ -115,4 +892,78 @@ export function unlinkSourceProduct(
   productId: string,
 ): Promise<{ productId: string; clearedLinks: number }> {
   return call('unlinkProduct', { productId });
+}
+
+export function importAlibabaSourceImage(
+  url: string,
+): Promise<{ imageId: string; deduplicated: boolean }> {
+  return call('importSourceImage', { url });
+}
+
+export async function repairAlibabaSourcePricing(
+  onProgress: (message: string) => void,
+): Promise<string> {
+  let afterId: string | undefined;
+  let visited = 0;
+  let repaired = 0;
+  let deferredCount = 0;
+  const deferredSample: string[] = [];
+  for (let page = 0; page < 1000; page++) {
+    let raw: unknown;
+    try {
+      raw = await call<unknown>(
+        'repairSourcePricing',
+        afterId ? { afterId } : {},
+        AbortSignal.timeout(60_000),
+      );
+    } catch (error) {
+      throw new AlibabaSyncApiError(
+        error instanceof AlibabaSyncApiError ? error.code : 'UNCONFIRMED',
+        `${visited} checked and ${repaired} repairs confirmed before stopping. The last page may have saved; safely restart the repair after checking the connection/session. ${error instanceof Error ? error.message : 'Request failed.'}`,
+      );
+    }
+    if (
+      !isRecord(raw) ||
+      !Number.isSafeInteger(raw.visited) ||
+      typeof raw.visited !== 'number' ||
+      raw.visited < 0 ||
+      raw.visited > 20 ||
+      !Number.isSafeInteger(raw.repaired) ||
+      typeof raw.repaired !== 'number' ||
+      raw.repaired < 0 ||
+      raw.repaired > raw.visited ||
+      !Array.isArray(raw.deferred) ||
+      raw.deferred.length > raw.visited - raw.repaired ||
+      new Set(raw.deferred).size !== raw.deferred.length ||
+      !raw.deferred.every((id) => typeof id === 'string' && id.length > 0 && id.length <= 200) ||
+      (raw.nextId !== null &&
+        (raw.visited !== 20 ||
+          typeof raw.nextId !== 'string' ||
+          !raw.nextId ||
+          raw.nextId.length > 200 ||
+          (afterId !== undefined && raw.nextId <= afterId)))
+    ) {
+      throw new AlibabaSyncApiError(
+        'INVALID_RESPONSE',
+        'Pricing repair result was not confirmed. You can safely restart the missing-price repair.',
+      );
+    }
+    visited += raw.visited;
+    repaired += raw.repaired;
+    deferredCount += raw.deferred.length;
+    deferredSample.push(...raw.deferred.slice(0, Math.max(0, 20 - deferredSample.length)));
+    const message = `${visited} checked · ${repaired} source quotes repaired · ${deferredCount} require a successful source sync before repair.`;
+    onProgress(message);
+    if (raw.nextId === null)
+      return `${message}${deferredCount ? ` Deferred product IDs (first ${deferredSample.length}): ${deferredSample.join(', ')}` : ''}`;
+    afterId = raw.nextId;
+  }
+  throw new AlibabaSyncApiError(
+    'CONFLICT',
+    'Pricing repair reached its page limit. Restart to recheck safely.',
+  );
+}
+
+export function removeAlibabaImportedImage(imageId: string): Promise<{ imageId: string }> {
+  return call('removeImportedImage', { imageId });
 }

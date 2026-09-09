@@ -56,6 +56,10 @@ test('connection panel states: loading, not-connected, active, expired, not-conf
   assert.ok(active.includes('Access token valid until 2026-08-06 22:00'));
   assert.ok(!active.includes('Bearer '), 'no credential-shaped content renders');
 
+  const announcedNotice = renderPanel({ notice: 'Detail inspection completed.' });
+  assert.ok(announcedNotice.includes('<output'));
+  assert.ok(announcedNotice.includes('aria-live="polite"'));
+
   const expired = renderPanel({
     status: { status: 'authorization_expired', notConfigured: false },
   });
