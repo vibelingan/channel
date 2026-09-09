@@ -1,4 +1,21 @@
 export const REQUIRED_NOSQL_RESOURCES = [
+  // The read-only Admin import menu is deployed even when the optional Excel
+  // worker is disabled. Missing collections must not turn an empty list into 500.
+  {
+    collectionName: 'catalogImportJobs',
+    permission: 'ADMINONLY',
+    indexes: [index('catalog_import_started', [['startedAt', '-1']])],
+  },
+  {
+    collectionName: 'catalogImportItems',
+    permission: 'ADMINONLY',
+    indexes: [
+      index('catalog_import_job_sku', [
+        ['jobId', '1'],
+        ['parentSku', '1'],
+      ]),
+    ],
+  },
   // API gallery import and detail approval both resolve source URL -> owned
   // image IDs here. Provision independently of the optional Excel worker.
   {

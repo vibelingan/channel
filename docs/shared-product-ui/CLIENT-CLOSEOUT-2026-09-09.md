@@ -5,6 +5,28 @@ This is an implementation and acceptance ledger. Historical entries below retain
 their original verification boundaries; the newest release evidence takes precedence.
 All releases in this closeout use CI/CD, not direct local cloud deployment.
 
+### Authenticated browser follow-up
+
+The user's normal Chrome session reproduced the first sample's exact gallery
+failure: six source URLs were present; all six imports returned `write-failed`.
+The failed form was cancelled without saving or changing publication. PR #36
+merged as `c56f86da345e06e2b83141e3ee7eec842662c286`; its full prerequisite CI
+passed and the same-SHA deployment is in progress. The missing media-link
+collection remains the leading hypothesis until a post-deployment retry passes.
+
+The same browser showed the applied category remediation in the real Admin menu:
+291 Misc, 5 AI Gadgets and 6 Toys entries marked new, and 56 needing classification.
+These are review-badge counts, not the complete category totals. Historical
+classification changes did not publish any new products.
+
+The visible read-only Catalog Import page also returned `Unexpected server error`.
+Its `catalogImportJobs` and `catalogImportItems` collections were absent from the
+resource manifest, independently reproduced by a failing resource-contract test.
+The follow-up declares private collections and indexes matching the page queries,
+and makes authenticated post-deployment smoke read both collections. Provisioning
+these resources does not enable the Excel worker or authorize an import. Live
+confirmation remains pending CI/CD; no manual console resource mutation is used.
+
 ### Subsequent auth release and publication-intent regression
 
 PR #35 merged as `84f0315af5d39231d54ea5e0dd45f61a8aa319bd` and deployed
