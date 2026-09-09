@@ -142,17 +142,24 @@ test('live release: approved categories, existing published galleries, real inqu
     await page.goto(`/headphones/?id=${id}`);
     await expect(page.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
     await expect(page.locator('[data-catalog-quote-conditions]')).toContainText('Website pricing');
-    await expect
-      .poll(
-        () =>
-          page
-            .locator('[data-gallery-frame] img')
-            .evaluate(
-              (img) => img instanceof HTMLImageElement && img.complete && img.naturalWidth > 0,
-            ),
-        { timeout: 30000 },
-      )
-      .toBe(true);
+    const thumbnails = page.locator('[data-gallery-thumbnail]');
+    await expect(thumbnails).toHaveCount(Array.isArray(after.imageIds) ? after.imageIds.length : 0);
+    for (let index = 0; index < (await thumbnails.count()); index++) {
+      await thumbnails.nth(index).click();
+      await expect(thumbnails.nth(index)).toHaveAttribute('aria-pressed', 'true');
+      await expect
+        .poll(
+          () =>
+            page
+              .locator('[data-gallery-frame] img')
+              .evaluate(
+                (img) => img instanceof HTMLImageElement && img.complete && img.naturalWidth > 0,
+              ),
+          { timeout: 30000 },
+        )
+        .toBe(true);
+    }
+    await thumbnails.first().click();
     // Explicit public-page screenshot only; never record login/session traces.
     await page.screenshot({ path: `output/catalog-live/public-${id}.png`, fullPage: true });
     await page.goto('/admin');
