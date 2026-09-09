@@ -1331,6 +1331,10 @@ test.describe('public browser smoke', () => {
     await expect(existingManager.locator('output')).toContainText('Image removed');
     await expect(existingInput).toBeEnabled();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'Edit Product' })).toContainText(
+      'Discard your unsaved changes?',
+    );
+    await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
 
     await page.getByRole('button', { name: /^New / }).click();
 
@@ -2031,6 +2035,23 @@ test.describe('public browser smoke', () => {
       await expect(filing).toHaveAttribute('href', 'https://beian.miit.gov.cn/');
       await expect(filing).toHaveAttribute('target', '_blank');
       await expect(filing).toHaveAttribute('rel', 'noopener noreferrer');
+    }
+  });
+
+  test('public contact email is consistent in visible links and structured data', async ({
+    page,
+  }) => {
+    for (const path of ['/', '/headphones', '/oem']) {
+      await page.goto(path, { waitUntil: 'domcontentloaded' });
+      const contact = page.getByRole('link', {
+        name: 'Email: sales@supplychainsai.com',
+        exact: true,
+      });
+      await expect(contact).toHaveAttribute('href', 'mailto:sales@supplychainsai.com');
+      await expect(page.locator('a[href="mailto:info@supplychainsai.com"]')).toHaveCount(0);
+      const structured = await page.locator('script[type="application/ld+json"]').allTextContents();
+      expect(structured.join('\n')).toContain('sales@supplychainsai.com');
+      expect(structured.join('\n')).not.toContain('info@supplychainsai.com');
     }
   });
 

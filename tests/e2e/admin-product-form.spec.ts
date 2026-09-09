@@ -31,6 +31,159 @@ async function seedAdminSession(page: Page) {
   }, adminUser);
 }
 
+test('editor uses desktop space, contains scrolling, previews images and protects unsaved work', async ({
+  page,
+}) => {
+  await seedAdminSession(page);
+  const png =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aP9sAAAAASUVORK5CYII=';
+  const sourceUrls = [
+    'https://sc04.alicdn.com/editor-first.png',
+    'https://sc04.alicdn.com/editor-broken.png',
+  ] as const;
+  const draft = {
+    ...product,
+    description: 'Supplier description. '.repeat(100),
+    imageIds: ['one', 'two'],
+    alibabaSourceImageUrls: [...sourceUrls, sourceUrls[0], 'javascript:alert(1)', null],
+    alibabaPrimarySourceKey: 'private-integration-key',
+    alibabaSourceCategoryId: '1234567890',
+  };
+  let writes = 0;
+  await page.route('https://sc04.alicdn.com/editor-*', (route) =>
+    route.fulfill({
+      status: route.request().url().includes('broken') ? 404 : 200,
+      contentType: 'image/png',
+      body: route.request().url().includes('broken') ? 'not an image' : Buffer.from(png, 'base64'),
+    }),
+  );
+  await page.route('**/api/admin', async (route) => {
+    const body = route.request().postDataJSON();
+    if (body.action === 'update') writes++;
+    const data =
+      body.action === 'me'
+        ? { user: adminUser }
+        : body.action === 'getImagePreview'
+          ? { id: body.data.id, mimeType: 'image/png', dataBase64: png }
+          : body.action === 'list'
+            ? { items: [draft], total: 1, page: 1, pageSize: 20 }
+            : {};
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, data }),
+    });
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  const edit = page.getByRole('button', { name: 'Edit', exact: true });
+  await edit.click();
+  const dialog = page.getByRole('dialog', { name: 'Edit Product', exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).not.toContainText('private-integration-key');
+  await expect(dialog).not.toContainText('Alibaba Source Images');
+  await expect(dialog.getByRole('button', { name: /Preview source image/ })).toHaveCount(2);
+  const close = dialog.getByRole('button', { name: 'Close editor' });
+  await expect(close).toBeFocused();
+  // Browser-native modality: Shift-Tab must stay in the editor, never the table.
+  await page.keyboard.press('Shift+Tab');
+  expect(await dialog.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+  for (const width of [1440, 1024, 768, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const geometry = await dialog.evaluate((el) => {
+      const box = (selector: string) => {
+        const node = el.querySelector(selector);
+        if (!node) throw new Error(`Missing editor section ${selector}`);
+        const b = node.getBoundingClientRect();
+        return { x: b.x, y: b.y, width: b.width, bottom: b.bottom };
+      };
+      return {
+        width: el.getBoundingClientRect().width,
+        overflow: el.scrollWidth > el.clientWidth,
+        identity: box('fieldset:nth-of-type(1)'),
+        media: box('fieldset:nth-of-type(3)'),
+        actions: box('[data-record-form-actions]'),
+      };
+    });
+    expect(geometry.overflow).toBe(false);
+    expect(geometry.width).toBeLessThanOrEqual(width);
+    if (width >= 1024) {
+      expect(geometry.width).toBeGreaterThan(width * 0.7);
+      expect(geometry.media.x).toBeGreaterThan(geometry.identity.x + geometry.identity.width);
+      expect(Math.abs(geometry.media.y - geometry.identity.y)).toBeLessThan(3);
+    } else expect(Math.abs(geometry.media.x - geometry.identity.x)).toBeLessThan(3);
+    expect(geometry.actions.bottom).toBeLessThanOrEqual(900);
+    await expect(close).toBeInViewport();
+    await dialog.locator('[data-record-form-body]').evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    await expect(close).toBeInViewport();
+    await expect(dialog.getByRole('button', { name: 'Save', exact: true })).toBeInViewport();
+    await expect(dialog.getByLabel('Archived', { exact: true })).toBeInViewport();
+    await dialog.locator('[data-record-form-body]').evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    if (width === 1440 || width === 390)
+      await dialog.screenshot({ path: `output/playwright/editor-${width}.png` });
+  }
+  await dialog.getByRole('button', { name: 'Preview source image 1', exact: true }).click();
+  const viewer = page.getByRole('dialog', { name: 'Image preview', exact: true });
+  await expect(viewer.getByRole('img')).toHaveAttribute('src', sourceUrls[0]);
+  await expect(viewer.getByRole('img')).toHaveJSProperty('naturalWidth', 1);
+  await expect(viewer.getByRole('button', { name: 'Previous image' })).toBeDisabled();
+  await viewer.getByRole('button', { name: 'Next image' }).click();
+  await expect(viewer).toContainText('Image unavailable');
+  await expect(viewer.getByRole('button', { name: 'Next image' })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(viewer).toHaveCount(0);
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole('button', { name: 'Preview source image 1', exact: true }),
+  ).toBeFocused();
+  await dialog.getByRole('button', { name: 'Preview product image 1', exact: true }).click();
+  await expect(viewer.getByRole('img')).toHaveAttribute('src', /^blob:/);
+  await expect(viewer.getByRole('img')).toHaveJSProperty('naturalWidth', 1);
+  const ownedPreviewUrl = await viewer.getByRole('img').getAttribute('src');
+  await viewer.getByRole('button', { name: 'Next image' }).click();
+  await expect(viewer.getByRole('status')).toHaveText('2 / 2');
+  await viewer.getByRole('button', { name: 'Close image preview' }).click();
+  await expect(
+    dialog.getByRole('button', { name: 'Preview product image 1', exact: true }),
+  ).toBeFocused();
+  await dialog.getByRole('textbox', { name: /^Name\b/ }).fill('Unsaved edit');
+  await close.click();
+  await expect(dialog).toContainText('Discard your unsaved changes?');
+  await dialog.getByRole('button', { name: 'Keep editing' }).click();
+  await expect(dialog.getByRole('textbox', { name: /^Name\b/ })).toHaveValue('Unsaved edit');
+  // Escape in an open select closes only its options, not the editor.
+  await dialog.locator('#productFamily-trigger').click();
+  await page.keyboard.press('Escape');
+  await expect(dialog.getByRole('listbox')).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: 'Discard changes' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toContainText('Discard your unsaved changes?');
+  await dialog.getByRole('button', { name: 'Discard changes' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(edit).toBeFocused();
+  expect(
+    await page.evaluate(async (url) => {
+      if (!url) throw new Error('Owned preview URL was not created');
+      try {
+        await fetch(url);
+        return false;
+      } catch {
+        return true;
+      }
+    }, ownedPreviewUrl),
+  ).toBe(true);
+  expect(writes).toBe(0);
+  await edit.click();
+  await expect(dialog.getByRole('textbox', { name: /^Name\b/ })).toHaveValue(product.name);
+  await close.click();
+  await expect(dialog).toHaveCount(0);
+});
+
 test('source gallery imports every distinct image, retains partial success, and survives save/reopen', async ({
   page,
 }) => {
@@ -147,7 +300,8 @@ test('product edit form groups fields, clears incompatible category, and enforce
   await expect(page.getByRole('group', { name: 'Pricing & Order' })).toBeVisible();
   await expect(page.getByLabel('VIP Price')).toHaveCount(0);
   await expect(page.getByLabel('Alibaba Source Status')).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Alibaba Source' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Alibaba Source', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Close editor' })).toBeVisible();
   await expect(page.getByText('Primary', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Add product images')).toBeDisabled();
   await expect(page.locator('#imageIds-capacity')).toContainText(
@@ -407,7 +561,13 @@ test('Save waits for an in-flight image upload and re-enables after completion',
     buffer: Buffer.from('image'),
   });
   await expect(page.getByRole('button', { name: 'Waiting for uploads…' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Close editor' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Edit Product' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Discard changes' })).toHaveCount(0);
   releaseIntent?.();
   await expect(page.getByRole('button', { name: 'Save' })).toBeEnabled();
   await expect(page.locator('#imageIds-capacity')).toContainText('9 of 9 images');
+  await expect(page.getByRole('button', { name: 'Close editor' })).toBeEnabled();
 });

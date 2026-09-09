@@ -6,10 +6,11 @@ import {
   type ProductFamily,
   needsCategoryReview,
 } from '@vibelingan-channel/shared';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { ImageManager } from './ImageManager.tsx';
+import { ImageViewer, PreviewImageContent } from './ImageViewer.tsx';
 import { ProductPricingEditor } from './ProductPricingEditor.tsx';
 import { QuantityTierPricingEditor } from './QuantityTierPricingEditor.tsx';
 import {
@@ -20,6 +21,7 @@ import { importAlibabaGallery } from './alibaba-gallery-import.ts';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { AdminApiError } from './api.ts';
 import { ADMIN_PRODUCT_FAMILY_LABELS } from './product-family-tabs.ts';
+import { useModalDialog } from './use-modal-dialog.ts';
 
 interface RecordFormProps {
   collection: CollectionDef;
@@ -61,29 +63,6 @@ export function productFormSections(collection: CollectionDef): ProductFormSecti
     heading: section.heading,
     fields: section.fields.flatMap((name) => editable.get(name) ?? []),
   })).filter((section) => section.fields.length > 0);
-}
-
-export function productReadOnlyFields(
-  collection: CollectionDef,
-  initial: CollectionDoc | undefined,
-): Array<{ label: string; value: string }> {
-  if (collection.name !== 'products' || !initial) return [];
-  return collection.fields
-    .filter(
-      (field) =>
-        field.readOnly && field.name.startsWith('alibaba') && field.name !== 'alibabaSourceReview',
-    )
-    .flatMap((field) => {
-      const value = initial[field.name];
-      return value === undefined || value === null || value === ''
-        ? []
-        : [
-            {
-              label: field.label,
-              value: typeof value === 'object' ? JSON.stringify(value) : String(value),
-            },
-          ];
-    });
 }
 
 export function productFamilyTransition(
@@ -171,6 +150,13 @@ export function RecordForm({
   const [sourceImageNotice, setSourceImageNotice] = useState('');
   const [newSourceImageIds, setNewSourceImageIds] = useState<string[]>([]);
   const [pricingInvalid, setPricingInvalid] = useState(false);
+  const [discardRequested, setDiscardRequested] = useState(false);
+  const [sourcePreviewId, setSourcePreviewId] = useState<string>();
+  const dialogRef = useModalDialog();
+  const initialStateRef = useRef(state);
+  const cancelInFlight = useRef(false);
+  const busy = submitting || imageBusy || sourceImageBusy;
+  const dirty = JSON.stringify(state) !== JSON.stringify(initialStateRef.current);
 
   function setField(name: string, value: string | boolean) {
     if (collection.name === 'products' && name === 'productFamily') {
@@ -184,6 +170,7 @@ export function RecordForm({
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (busy || pricingInvalid || discardRequested) return;
     setLocalError('');
     try {
       const values = coerceValues(collection, state, initial);
@@ -240,174 +227,257 @@ export function RecordForm({
   }
 
   async function cancelWithCandidateCleanup() {
+    if (busy || cancelInFlight.current) return;
+    cancelInFlight.current = true;
     setSourceImageBusy(true);
     await Promise.allSettled(newSourceImageIds.map(removeAlibabaImportedImage));
     onCancel();
   }
 
+  function requestClose() {
+    if (busy) return;
+    if (dirty) setDiscardRequested(true);
+    else void cancelWithCandidateCleanup();
+  }
+
   const editableFields = productEditableFields(collection);
   const sections = productFormSections(collection);
   const fieldErrors = collection.name === 'products' ? productFormErrorTargets(error) : {};
-  const readOnlyFields = productReadOnlyFields(collection, initial);
   const aggregateError =
     localError || (Object.keys(fieldErrors).length === 0 ? error?.message : '');
 
   return (
     <dialog
-      open
+      ref={dialogRef}
       aria-labelledby="record-form-title"
-      className="fixed inset-0 z-50 m-0 flex h-dvh w-screen max-w-none items-center justify-center bg-slate-900/40 p-4"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (discardRequested) setDiscardRequested(false);
+        else requestClose();
+      }}
+      className={`m-auto max-h-[92dvh] w-[calc(100%-2rem)] overflow-hidden rounded-2xl border-0 bg-white p-0 shadow-xl backdrop:bg-slate-900/40 ${collection.name === 'products' ? 'max-w-6xl' : 'max-w-lg'}`}
     >
-      <form
-        method="post"
-        onSubmit={handleSubmit}
-        className="max-h-[90dvh] min-w-0 w-full max-w-lg overflow-auto rounded-2xl bg-white p-6 shadow-xl"
-      >
-        <h2 id="record-form-title" className="text-lg font-semibold text-slate-900">
-          {title}
-        </h2>
+      <form method="post" onSubmit={handleSubmit} className="flex max-h-[92dvh] min-w-0 flex-col">
+        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 px-5 py-3">
+          <h2 id="record-form-title" className="text-lg font-semibold text-slate-900">
+            {title}
+          </h2>
+          <button
+            type="button"
+            aria-label="Close editor"
+            onClick={requestClose}
+            disabled={busy}
+            className="min-h-11 min-w-11 rounded-lg text-xl text-slate-600 hover:bg-slate-100 disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-brand-600"
+          >
+            ×
+          </button>
+        </header>
 
-        {sections.length > 0 ? (
-          <div className="mt-4 space-y-6">
-            {sections.map((section) => (
-              <fieldset
-                key={section.heading}
-                disabled={sourceImageBusy}
-                className="min-w-0 space-y-4 border-t border-slate-200 pt-4 first:border-t-0 first:pt-0"
-              >
-                <legend className="font-semibold text-slate-900">{section.heading}</legend>
-                {section.heading === 'Pricing & Order' && (
-                  <ProductPricingEditor
-                    initial={initial}
-                    state={state}
-                    error={fieldErrors.manualCatalogPricing}
-                    onChange={(patch) => setState((current) => ({ ...current, ...patch }))}
-                    onValidityChange={setPricingInvalid}
-                  />
-                )}
-                {section.heading !== 'Pricing & Order' &&
-                  section.fields.map((field) =>
-                    field.name === 'category' && state.productFamily !== 'headphones' ? null : (
-                      <Field
-                        key={field.name}
-                        field={
-                          field.name === 'category'
-                            ? { ...field, label: 'Headphone type (optional)' }
-                            : field
-                        }
-                        value={state[field.name]}
-                        error={fieldErrors[field.name]}
-                        onBusyChange={field.name === 'imageIds' ? setImageBusy : undefined}
-                        onValidityChange={
-                          field.name === 'manualCatalogPricing' ? setPricingInvalid : undefined
-                        }
-                        onChange={(value) => setField(field.name, value)}
-                      />
-                    ),
+        <div
+          data-record-form-body
+          className="min-h-0 overflow-y-auto overscroll-contain p-5 sm:p-6"
+        >
+          {sections.length > 0 ? (
+            <div className="grid min-w-0 gap-6 lg:grid-cols-2">
+              {sections.map((section) => (
+                <fieldset
+                  key={section.heading}
+                  disabled={submitting || sourceImageBusy || discardRequested}
+                  className={`min-w-0 space-y-4 rounded-xl border border-slate-200 p-4 ${
+                    section.heading === 'Identity'
+                      ? 'lg:col-start-1 lg:row-start-1'
+                      : section.heading === 'Content'
+                        ? 'lg:col-start-1 lg:row-start-2'
+                        : section.heading === 'Media'
+                          ? 'lg:col-start-2 lg:row-start-1'
+                          : section.heading === 'Pricing & Order'
+                            ? 'lg:col-start-2 lg:row-start-2'
+                            : 'lg:col-span-2'
+                  }`}
+                >
+                  <legend className="font-semibold text-slate-900">{section.heading}</legend>
+                  {section.heading === 'Pricing & Order' && (
+                    <ProductPricingEditor
+                      initial={initial}
+                      state={state}
+                      error={fieldErrors.manualCatalogPricing}
+                      onChange={(patch) => setState((current) => ({ ...current, ...patch }))}
+                      onValidityChange={setPricingInvalid}
+                    />
                   )}
-                {section.heading === 'Media' && sourcePreviewUrl && (
-                  <div className="rounded-lg border border-dashed border-slate-300 p-3">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={sourcePreviewUrl}
-                        alt="Alibaba source preview"
-                        referrerPolicy="no-referrer"
-                        className="h-12 w-12 rounded-md object-cover"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs text-slate-500">
-                          Alibaba source gallery · {sourcePreviewUrls.length} images
-                        </p>
-                        <button
-                          type="button"
-                          disabled={sourceImageBusy || imageBusy}
-                          onClick={() => void importSourceGallery()}
-                          className="mt-1 text-sm font-medium text-brand-700 hover:text-brand-900 disabled:opacity-50"
-                        >
-                          {sourceImageBusy ? 'Importing…' : 'Import source gallery'}
-                        </button>
-                      </div>
-                    </div>
-                    {sourceImageNotice && (
-                      <p className="mt-2 text-xs text-slate-600" aria-live="polite">
-                        {sourceImageNotice}
-                      </p>
-                    )}
+                  <div
+                    className={
+                      section.heading === 'Media' ? 'min-w-0' : 'grid min-w-0 gap-4 sm:grid-cols-2'
+                    }
+                  >
+                    {section.heading !== 'Pricing & Order' &&
+                      section.fields.map((field) =>
+                        field.name === 'category' && state.productFamily !== 'headphones' ? null : (
+                          <div
+                            key={field.name}
+                            className={`min-w-0 ${['name', 'description', 'imageIds'].includes(field.name) ? 'sm:col-span-2' : ''}`}
+                          >
+                            <Field
+                              key={field.name}
+                              field={
+                                field.name === 'imageIds'
+                                  ? { ...field, label: 'Product images' }
+                                  : field.name === 'category'
+                                    ? { ...field, label: 'Headphone type (optional)' }
+                                    : field
+                              }
+                              value={state[field.name]}
+                              error={fieldErrors[field.name]}
+                              onBusyChange={field.name === 'imageIds' ? setImageBusy : undefined}
+                              onValidityChange={
+                                field.name === 'manualCatalogPricing'
+                                  ? setPricingInvalid
+                                  : undefined
+                              }
+                              onChange={(value) => setField(field.name, value)}
+                            />
+                          </div>
+                        ),
+                      )}
                   </div>
-                )}
-              </fieldset>
-            ))}
-            {initial && needsCategoryReview(initial) && (
-              <p
-                role="alert"
-                className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
-              >
-                Alibaba changed this product’s source category. Confirm the website Product Family
-                above and save before publishing. Synchronization has kept your existing assignment.
-              </p>
-            )}
-            {readOnlyFields.length > 0 && (
-              <section
-                aria-labelledby="alibaba-source-heading"
-                className="border-t border-slate-200 pt-4"
-              >
-                <h3 id="alibaba-source-heading" className="font-semibold text-slate-900">
-                  Alibaba Source
-                </h3>
-                <dl className="mt-3 space-y-2 text-sm">
-                  {readOnlyFields.map((field) => (
-                    <div key={field.label} className="flex justify-between gap-4">
-                      <dt className="text-slate-500">{field.label}</dt>
-                      <dd className="min-w-0 break-words text-right text-slate-800">
-                        {field.value}
-                      </dd>
+                  {section.heading === 'Media' && sourcePreviewUrl && (
+                    <div className="rounded-lg border border-dashed border-slate-300 p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-slate-500">
+                            Alibaba source gallery · {sourcePreviewUrls.length} images
+                          </p>
+                          <button
+                            type="button"
+                            disabled={sourceImageBusy || imageBusy}
+                            onClick={() => void importSourceGallery()}
+                            className="mt-1 text-sm font-medium text-brand-700 hover:text-brand-900 disabled:opacity-50"
+                          >
+                            {sourceImageBusy ? 'Importing…' : 'Import source gallery'}
+                          </button>
+                        </div>
+                      </div>
+                      <div
+                        className="mt-3 flex flex-wrap gap-2"
+                        aria-label="Alibaba source gallery"
+                      >
+                        {sourcePreviewUrls.map((url, index) => (
+                          <button
+                            key={url}
+                            type="button"
+                            aria-label={`Preview source image ${index + 1}`}
+                            onClick={() => setSourcePreviewId(url)}
+                            className="h-16 w-16 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 hover:border-brand-600 focus-visible:ring-2 focus-visible:ring-brand-600"
+                          >
+                            <PreviewImageContent
+                              src={url}
+                              alt=""
+                              className="h-full w-full object-contain"
+                            />
+                          </button>
+                        ))}
+                      </div>
+                      {sourceImageNotice && (
+                        <p className="mt-2 text-xs text-slate-600" aria-live="polite">
+                          {sourceImageNotice}
+                        </p>
+                      )}
                     </div>
-                  ))}
-                </dl>
-              </section>
-            )}
-          </div>
-        ) : (
-          <div className="mt-4 space-y-4">
-            {editableFields.map((field) => (
-              <Field
-                key={field.name}
-                field={field}
-                value={state[field.name]}
-                onChange={(value) => setField(field.name, value)}
-              />
-            ))}
-          </div>
-        )}
+                  )}
+                </fieldset>
+              ))}
+              {initial && needsCategoryReview(initial) && (
+                <p
+                  role="alert"
+                  className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 lg:col-span-2"
+                >
+                  Alibaba changed this product’s source category. Confirm the website Product Family
+                  above and save before publishing. Synchronization has kept your existing
+                  assignment.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="mt-4 space-y-4">
+              {editableFields.map((field) => (
+                <Field
+                  key={field.name}
+                  field={field}
+                  value={state[field.name]}
+                  onChange={(value) => setField(field.name, value)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
 
         <output data-product-form-announcement className="sr-only" aria-live="polite">
           {fieldAnnouncement}
         </output>
 
-        {aggregateError && (
-          <p className="mt-4 text-sm text-red-600" role="alert">
-            {aggregateError}
-          </p>
-        )}
+        <footer
+          data-record-form-actions
+          className="shrink-0 border-t border-slate-200 bg-white px-5 py-3"
+        >
+          {aggregateError && (
+            <p className="mb-3 text-sm text-red-600" role="alert">
+              {aggregateError}
+            </p>
+          )}
 
-        <div className="mt-6 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => void cancelWithCandidateCleanup()}
-            disabled={sourceImageBusy}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={submitting || imageBusy || sourceImageBusy || pricingInvalid}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
-          >
-            {imageBusy ? 'Waiting for uploads…' : submitting ? 'Saving…' : 'Save'}
-          </button>
-        </div>
+          {discardRequested ? (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-slate-700">Discard your unsaved changes?</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDiscardRequested(false)}
+                  className="min-h-11 rounded-lg border border-slate-300 px-3 text-sm focus-visible:ring-2 focus-visible:ring-brand-600"
+                >
+                  Keep editing
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void cancelWithCandidateCleanup()}
+                  className="min-h-11 rounded-lg bg-red-700 px-3 text-sm text-white disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-brand-600"
+                >
+                  Discard changes
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={requestClose}
+                disabled={busy}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting || imageBusy || sourceImageBusy || pricingInvalid}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+              >
+                {imageBusy ? 'Waiting for uploads…' : submitting ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          )}
+        </footer>
       </form>
+      {sourcePreviewId && (
+        <ImageViewer
+          images={sourcePreviewUrls.map((url, index) => ({
+            id: url,
+            src: url,
+            label: `Source image ${index + 1}`,
+          }))}
+          initialId={sourcePreviewId}
+          onClose={() => setSourcePreviewId(undefined)}
+        />
+      )}
     </dialog>
   );
 }
