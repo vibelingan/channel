@@ -34,6 +34,8 @@ test('product batch publishes through individual updates and retains each busine
   const requests: unknown[] = [];
   t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(String(init.body));
+    if (body.action === 'catalogDetailCapabilities')
+      return Response.json({ ok: true, data: { enabled: false } });
     requests.push(body.data);
     if (body.action === 'batchUpdate') {
       return Response.json(

@@ -60,6 +60,8 @@ jobs:
       LOGIN_URL: ${{ vars.LOGIN_URL || format('https://channel-test-{0}.webapps.tcloudbase.com/login', vars.TCB_ENV_ID) }}
       ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL || 'admin@channel.local' }}
       BOOTSTRAP_ENABLED: '0'
+      CATALOG_RFQ_ENABLED: '1'
+      CATALOG_DETAIL_APPROVAL_ENABLED: '1'
       E2E_SITE_URL: ${{ vars.SITE_URL || format('https://channel-test-{0}.webapps.tcloudbase.com', vars.TCB_ENV_ID) }}
       E2E_API_URL: ${{ vars.PUBLIC_API_BASE_URL || format('https://{0}.service.tcloudbase.com', vars.TCB_ENV_ID) }}
 

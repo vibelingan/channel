@@ -124,6 +124,8 @@ export function CountryPicker({
         )}
         <Popover
           UNSTABLE_portalContainer={portal ?? undefined}
+          boundaryElement={portal?.closest('dialog') ?? undefined}
+          placement="top start"
           className="pointer-events-auto z-50 w-[var(--trigger-width)] max-w-[calc(100vw-2rem)] overflow-auto rounded-lg border border-slate-200 bg-white p-1 text-ink shadow-xl"
           maxHeight={240}
         >

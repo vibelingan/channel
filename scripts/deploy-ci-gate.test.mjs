@@ -41,12 +41,21 @@ function assertReleaseGate(ci, release) {
     'pnpm build',
     'pnpm test:e2e --list',
     'pnpm exec playwright install --with-deps chromium',
-    'pnpm test:e2e:catalog-admin-local',
   ]) {
     const step = ci.jobs.checks.steps.find((candidate) => candidate.run === command);
     assert.ok(step, `full CI is missing ${command}`);
     assert.equal(step.if, undefined, `${command} must not be optional`);
     assert.equal(step['continue-on-error'], undefined, `${command} must fail closed`);
+  }
+  for (const formal of [false, true]) {
+    const step = ci.jobs.checks.steps.find(
+      (candidate) =>
+        candidate.run === 'pnpm test:e2e:catalog-admin-local' &&
+        (candidate.env?.E2E_CATALOG_FORMAL === '1') === formal,
+    );
+    assert.ok(step, `Missing ${formal ? 'formal inquiry' : 'legacy catalog'} browser lane`);
+    assert.equal(step.if, undefined);
+    assert.equal(step['continue-on-error'], undefined);
   }
 }
 
@@ -96,6 +105,11 @@ test('release guard detects missing dependencies, success bypass, moving refs an
       candidate.jobs.checks.steps.find(
         (step) => step.run === 'pnpm test:e2e:catalog-admin-local',
       ).run = 'pnpm test:e2e --list';
+    },
+    (candidate) => {
+      candidate.jobs.checks.steps.find(
+        (step) => step.env?.E2E_CATALOG_FORMAL === '1',
+      ).env.E2E_CATALOG_FORMAL = '0';
     },
   ]) {
     const mutatedCi = structuredClone(ci);

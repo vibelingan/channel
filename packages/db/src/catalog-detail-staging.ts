@@ -1,11 +1,13 @@
 /** Server-only, bounded approval staging. No stage publishes a product. */
 import { createHash, randomUUID } from 'node:crypto';
-import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { type CollectionDoc, catalogReferencedImageIds } from '@vibelingan-channel/shared';
 import { CatalogDetailPublicationSchema } from '@vibelingan-channel/shared/catalog-detail';
 import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
 import { z } from 'zod';
 import { readImageMutationState } from './adapter.ts';
 import { approvedVariantDocumentId } from './catalog-detail-storage.ts';
+import { publicationContentFingerprint } from './catalog-publication-fingerprint.ts';
+import { SourcePageSchema, stageSourcePage } from './catalog-source-staging.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
 export { approvedVariantDocumentId } from './catalog-detail-storage.ts';
 import {
@@ -59,6 +61,7 @@ type Progress = {
 };
 export type ApprovalStageResult = Progress | Failure;
 const PersistenceCommandSchema = z.discriminatedUnion('action', [
+  SourcePageSchema,
   z.object({ action: z.literal('begin'), prepared: JobSchema }).strict(),
   z
     .object({
@@ -282,13 +285,17 @@ export async function finishStagedApproval(
   if (job.nextPage !== job.pageHashes.length) return fail('SOURCE_NOT_READY');
   if (!sameProduct(product, job)) return fail('CONFLICT');
   const images: CollectionDoc[] = [];
-  for (const url of new Set(job.publication.header.images)) {
-    const image = await tx.get('images', url.slice('/api/images/'.length));
+  const beforeImages = new Set(catalogReferencedImageIds(product));
+  const afterImages = new Set(
+    catalogReferencedImageIds({ ...product, catalogDetailPublication: job.publication }),
+  );
+  for (const imageId of new Set([...beforeImages, ...afterImages])) {
+    const image = await tx.get('images', imageId);
     if (
       !image ||
       image.status !== 'active' ||
       readImageMutationState(image).state !== 'free' ||
-      !['cloudbase', 'local-disk'].includes(String(image.storageProvider)) ||
+      !['cloudbase-storage', 'local-disk'].includes(String(image.storageProvider)) ||
       (Object.hasOwn(image, 'publishedRefCount') &&
         (typeof image.publishedRefCount !== 'number' ||
           !Number.isSafeInteger(image.publishedRefCount) ||
@@ -301,12 +308,30 @@ export async function finishStagedApproval(
     ...job.publication,
     variantStorage: 'immutable-v1',
   });
-  for (const image of images)
-    await tx.set('images', { ...image, catalogDetailApprovalFence: job.revision });
+  for (const image of images) {
+    const delta =
+      product.published === true
+        ? Number(afterImages.has(image._id)) - Number(beforeImages.has(image._id))
+        : 0;
+    const count = typeof image.publishedRefCount === 'number' ? image.publishedRefCount : 0;
+    if (count + delta < 0) return fail('MEDIA_NOT_READY');
+  }
+  for (const image of images) {
+    const delta =
+      product.published === true
+        ? Number(afterImages.has(image._id)) - Number(beforeImages.has(image._id))
+        : 0;
+    await tx.set('images', {
+      ...image,
+      ...(delta ? { publishedRefCount: Number(image.publishedRefCount ?? 0) + delta } : {}),
+      catalogDetailApprovalFence: job.revision,
+    });
+  }
   await tx.set('products', {
     ...product,
     catalogDetailPublication: publication,
     catalogDetailApprovalReceipt: {
+      contentFingerprint: publicationContentFingerprint(product),
       operationId: job.operationId,
       revision: job.revision,
       requestDigest: job.requestDigest,
@@ -328,6 +353,7 @@ export async function runStagedApproval(
   const parsed = PersistenceCommandSchema.safeParse(input);
   if (!parsed.success || !id.safeParse(actorId).success) return fail('VALIDATION_ERROR');
   const command = parsed.data;
+  if (command.action === 'source-page') return stageSourcePage(tx, actorId, command);
   if (command.action === 'begin') return beginStagedApproval(tx, actorId, command.prepared);
   if (command.action === 'page') return stageApprovalPage(tx, actorId, command.jobId, command.page);
   return finishStagedApproval(tx, actorId, command.jobId);

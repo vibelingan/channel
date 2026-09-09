@@ -31,6 +31,12 @@ export const CatalogNoteBlocksSchema = z
   )
   .max(80);
 export type CatalogNoteBlocks = z.infer<typeof CatalogNoteBlocksSchema>;
+export const WebsiteDetailPricingSchema = z
+  .object({
+    basis: z.literal('website-manual'),
+    pricing: catalogOfferPricingSchema,
+  })
+  .strict();
 const offer = z
   .object({
     kind: z.enum(['supplier', 'regular', 'promotion']),
@@ -68,6 +74,7 @@ export const CatalogDetailHeaderSchema = PublicProductSchema.pick({ _id: true, n
     name: text(1000),
     schemaVersion: z.literal('catalog-product-detail-v1'),
     categoryLabel: text(1000).optional(),
+    websitePricing: WebsiteDetailPricingSchema.optional(),
     descriptionText: text(30000).optional(),
     images: z.array(image).max(9),
     facts: z.array(fact).max(100),

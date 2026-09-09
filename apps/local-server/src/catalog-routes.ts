@@ -19,6 +19,7 @@ export function registerCatalogRoutes(
         path: req.path,
         headers: req.headers,
         queryStringParameters: req.query,
+        body: JSON.stringify(req.body),
       },
       config,
     );
@@ -33,6 +34,7 @@ export function registerCatalogRoutes(
   app.all(`${basePath}/:id`, bridge);
   if (collection === 'products') app.all(`${basePath}/:id/detail`, bridge);
   if (collection === 'products') app.all(/^\/api\/products\/slug(?:\/.*)?$/, bridge);
+  if (collection === 'products') app.all('/api/catalog-quote-requests', bridge);
 }
 
 export async function closeServer(server: Server): Promise<void> {

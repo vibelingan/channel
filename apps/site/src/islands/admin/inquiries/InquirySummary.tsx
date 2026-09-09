@@ -73,6 +73,12 @@ export function InquirySummary({ item }: { item: InquiryDetail }) {
           (Hong Kong)
         </p>
       </header>
+      {snapshot.websitePricing && (
+        <section>
+          <h3 className="font-semibold">Website price at submission (manual override)</h3>
+          <Pricing pricing={snapshot.websitePricing.pricing} />
+        </section>
+      )}
       <section>
         <h3 className="font-semibold text-base">{snapshot.productName}</h3>
         <p>

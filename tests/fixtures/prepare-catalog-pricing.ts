@@ -1,8 +1,14 @@
+import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 // Owned, disposable database only. No live credentials, API calls or product writes.
 import { basename, dirname, resolve } from 'node:path';
 import { JsonFileAdapter } from '../../apps/local-server/src/json-adapter.ts';
 import { seed } from '../../apps/local-server/src/seed.ts';
+import {
+  sourceMediaLinkId,
+  sourceObservationDocumentId,
+  validateCatalogSourceObservation,
+} from '../../packages/catalog-import/src/source-observations.ts';
 import { setAdapter } from '../../packages/db/src/index.ts';
 
 const file = resolve(process.argv[2] ?? '');
@@ -36,3 +42,97 @@ await db.update('products', product._id, {
     ],
   },
 });
+
+if (process.env.E2E_CATALOG_FORMAL === '1') {
+  const sourceKey = 'a'.repeat(64);
+  const urls = ['https://s.alicdn.com/formal-front.png', 'https://s.alicdn.com/formal-back.png'];
+  const mediaDir = resolve(dirname(file), 'media');
+  await mkdir(mediaDir, { recursive: true });
+  for (const [i, url] of urls.entries()) {
+    const id = `formal-image-${i}`;
+    const storagePath = `${id}.png`;
+    await writeFile(
+      resolve(mediaDir, storagePath),
+      Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ1cAAAAASUVORK5CYII=',
+        'base64',
+      ),
+    );
+    await db.createDocWithId('images', id, {
+      status: 'active',
+      storageProvider: 'local-disk',
+      storagePath,
+      storageFileId: `local-disk:${storagePath}`,
+      mimeType: 'image/png',
+      publishedRefCount: 1,
+    });
+    await db.createDocWithId('catalogSourceLinks', sourceMediaLinkId('alibaba', url), {
+      kind: 'media',
+      provider: 'alibaba',
+      sourceUrl: url,
+      imageId: id,
+    });
+  }
+  const observation = {
+    schemaVersion: 'catalog-source-observation-v1',
+    source: {
+      provider: 'alibaba',
+      sourceProductKey: sourceKey,
+      accountKey: 'local-only',
+      observedAt: '2026-09-09T00:00:00.000Z',
+      captureMode: 'selected',
+      completeness: 'full-product',
+    },
+    identity: { title: product.name, matchHints: {}, attributes: [] },
+    lifecycle: { sourceListingStatus: 'published' },
+    content: {
+      media: urls.map((sourceUrl, position) => ({
+        sourceUrl,
+        position,
+        role: position === 0 ? 'primary' : 'gallery',
+      })),
+      description: {
+        text: product.description,
+        sanitized: true,
+        placeholder: false,
+        provenance: 'description',
+      },
+    },
+    variants: Array.from({ length: 21 }, (_, i) => ({
+      sourceVariantKey: `sku-${i}`,
+      sku: `FORMAL-${i}`,
+      options: [{ sourceName: 'Color', value: `Color ${i}` }],
+      inventory: [],
+      media: [{ sourceUrl: urls[i % 2], position: 0, role: 'primary' }],
+    })),
+    offers: [
+      {
+        sourceOfferKey: 'formal-quote',
+        kind: 'supplier',
+        pricing: {
+          mode: 'tiered',
+          currency: 'USD',
+          minimumOrderQuantity: 2,
+          tiers: [
+            { minimumQuantity: 2, maximumQuantity: 499, unitAmountMinor: 570 },
+            { minimumQuantity: 500, unitAmountMinor: 380 },
+          ],
+        },
+      },
+    ],
+    evidence: [{ kind: 'raw-payload', evidenceId: 'local-only' }],
+    warnings: [],
+  };
+  const valid = validateCatalogSourceObservation(observation);
+  if (!valid.ok) throw new Error(valid.errors.join('; '));
+  await db.createDocWithId(
+    'catalogSourceObservations',
+    sourceObservationDocumentId('alibaba', sourceKey),
+    { observation: valid.value },
+  );
+  await db.update('products', product._id, {
+    imageIds: ['formal-image-0', 'formal-image-1'],
+    alibabaSourceImageUrls: urls,
+    alibabaReviewPending: true,
+  });
+}

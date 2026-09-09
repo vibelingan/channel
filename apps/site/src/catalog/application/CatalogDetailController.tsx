@@ -18,6 +18,7 @@ export function CatalogDetailController({
   backNavigation,
   focusOnOpen = false,
   onVariantChange,
+  legacyFallback,
 }: {
   productId: string;
   requestedId?: string;
@@ -25,6 +26,7 @@ export function CatalogDetailController({
   backNavigation?: ReactNode;
   focusOnOpen?: boolean;
   onVariantChange?: (id?: string) => void;
+  legacyFallback?: ReactNode;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const focusedProduct = useRef<string | undefined>(undefined);
@@ -91,6 +93,8 @@ export function CatalogDetailController({
 
   if (state.status === 'idle' || state.status === 'loading' || state.productId !== productId)
     return <output className="block p-12 text-center">{copy.loadingLabel}</output>;
+  if (state.status === 'error' && state.error.status === 'not-found' && legacyFallback)
+    return legacyFallback;
   if (state.status === 'error')
     return (
       <section role="alert" className="mx-auto max-w-2xl px-4 py-16 text-center">

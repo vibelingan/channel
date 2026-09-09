@@ -76,6 +76,7 @@ export const InquirySnapshotSchema = z
     revision: CatalogQuoteTargetSchema.shape.revision,
     images: CatalogDetailHeaderSchema.shape.images,
     productOffers: CatalogDetailHeaderSchema.shape.offers,
+    websitePricing: CatalogDetailHeaderSchema.shape.websitePricing,
     variant: CatalogDetailVariantSchema.optional(),
   })
   .strict();

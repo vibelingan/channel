@@ -6,6 +6,7 @@ import type {
 } from '../../i18n/catalog.ts';
 import { CatalogFamilyGrid } from './CatalogFamilyGrid.tsx';
 import { HeadphonesProductDetail } from './HeadphonesProductDetail.tsx';
+import { LegacySkuDetailPage } from './SkuDetailPage.tsx';
 import { fetchCatalog } from './api.ts';
 import {
   type HeadphonesCatalogState,
@@ -27,9 +28,7 @@ interface Props {
 
 const PAGE_SIZE = 12;
 
-const SharedCatalogPreview = import.meta.env?.DEV
-  ? lazy(() => import('./SharedCatalogPreview.tsx'))
-  : undefined;
+const SharedCatalogPreview = lazy(() => import('./SharedCatalogPreview.tsx'));
 
 export function CatalogFamilyPage({ content, family, previewContent }: Props) {
   if (SharedCatalogPreview && previewContent)
@@ -37,6 +36,9 @@ export function CatalogFamilyPage({ content, family, previewContent }: Props) {
       <Suspense fallback={<output>{content.list.loadingLabel}</output>}>
         <SharedCatalogPreview
           copy={previewContent}
+          renderLegacyDetail={(productId) => (
+            <LegacySkuDetailPage content={content} productId={productId} />
+          )}
           renderList={(open) => (
             <CatalogFamilyList content={content} family={family} onOpenProduct={open} />
           )}

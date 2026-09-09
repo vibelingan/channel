@@ -237,7 +237,10 @@ export class JsonFileAdapter implements DbAdapter {
   private readonly file: string;
   private store: Store;
 
-  constructor(file: string) {
+  constructor(
+    file: string,
+    private readonly enablePublicInquiries = false,
+  ) {
     this.file = resolve(file);
     this.claimProcessOwnership();
     this.store = this.load();
@@ -447,7 +450,8 @@ export class JsonFileAdapter implements DbAdapter {
           ? { ok: true, requestId: previous._id }
           : { ok: false, code: 'idempotency-conflict' };
       const product = this.docs('products').find((row) => row._id === parsed.data.target.productId);
-      if (product?.localDetailClone !== true) return { ok: false, code: 'unavailable' };
+      if (!this.enablePublicInquiries && product?.localDetailClone !== true)
+        return { ok: false, code: 'unavailable' };
       const target = parsed.data.target.variantId
         ? approvedVariantTarget(product, parsed.data.target.variantId)
         : null;

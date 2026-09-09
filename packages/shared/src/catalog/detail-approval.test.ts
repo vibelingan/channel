@@ -53,6 +53,35 @@ function fixture() {
   };
 }
 
+test('approved website override is distinct from unchanged supplier offers; source mode removes only override', () => {
+  const input = fixture();
+  const manual = { ...input.product, catalogPricingMode: 'manual', unitPrice: 3.1, moq: 1000 };
+  const result = planCatalogDetailApproval({ ...input, product: manual });
+  assert.deepEqual(Reflect.get(result.publication.header, 'websitePricing'), {
+    basis: 'website-manual',
+    pricing: { mode: 'fixed', currency: 'USD', amountMinor: 310, minimumOrderQuantity: 1000 },
+  });
+  assert.deepEqual(result.publication.header.offers, []);
+  const followed = planCatalogDetailApproval({
+    ...input,
+    product: { ...manual, catalogPricingMode: 'source' },
+  });
+  assert.equal(Reflect.get(followed.publication.header, 'websitePricing'), undefined);
+});
+
+test('approval uses the current website family, not a stale prepared or supplier category label', () => {
+  const input = fixture();
+  const product = {
+    ...input.product,
+    productFamily: 'toys',
+    detailSourceCandidate: { ...input.product.detailSourceCandidate, categoryLabel: 'wired' },
+  };
+  assert.equal(
+    planCatalogDetailApproval({ ...input, product }).publication.header.categoryLabel,
+    'Toys',
+  );
+});
+
 test('approval preserves reviewed fields, orders canonical rows and never mutates input or projects private data', () => {
   const input = fixture();
   const before = structuredClone(input);

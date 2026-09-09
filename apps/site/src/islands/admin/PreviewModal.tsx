@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { EffectiveCatalogPricingBlock } from '../shop/EffectiveCatalogPricingBlock.tsx';
 import { formatPrice } from '../shop/api.ts';
 import { effectiveCatalogMoq } from '../shop/catalog-pricing.ts';
+import { CatalogApprovalPanel } from './CatalogApprovalPanel.tsx';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { decodeAlibabaSourceReview, formatAlibabaSourcePricing } from './alibaba-source-review.ts';
 import { getImagePreview } from './api.ts';
@@ -42,7 +43,7 @@ export function PreviewModal({
   // the joined membership so the array reference is stable across renders — the
   // fetch/revoke effect below depends on it directly and must re-run only when
   // the shown set actually changes (e.g. re-opening on a different doc).
-  const shownKey = imageIds.slice(0, 5).join(',');
+  const shownKey = imageIds.slice(0, 9).join(',');
   const shownIds = useMemo(() => (shownKey ? shownKey.split(',') : []), [shownKey]);
 
   // Resolve each id through the admin-authenticated preview action into a blob
@@ -267,6 +268,11 @@ export function PreviewModal({
           </div>
         </div>
 
+        {canMarkReviewed && typeof doc.alibabaPrimarySourceKey === 'string' && (
+          <div className="px-5 pb-5">
+            <CatalogApprovalPanel key={doc._id} productId={doc._id} />
+          </div>
+        )}
         {reviewError && (
           <p role="alert" className="px-5 pt-4 text-sm text-red-600">
             {reviewError.message}

@@ -1,28 +1,58 @@
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CatalogDetailController } from '../../catalog/application/CatalogDetailController.tsx';
 import {
   CatalogLocalPreviewContext,
   CatalogQuoteTransportContext,
 } from '../../catalog/application/catalog-quote-transport.ts';
 import { submitLocalQuote } from '../../catalog/application/local-quote-transport.ts';
+import { submitPublicQuote } from '../../catalog/application/public-quote-transport.ts';
 import type { SharedDetailContent } from '../../i18n/catalog.ts';
 import {
-  sharedDetailSearch,
-  sharedListSearch,
-  sharedListTarget,
-  sharedVariantSearch,
+  sharedDetailSearch as previewDetailSearch,
+  sharedListSearch as previewListSearch,
+  sharedListTarget as previewListTarget,
+  sharedVariantSearch as previewVariantSearch,
 } from './shared-detail-navigation.ts';
 
-/** Dev-only navigation composition. The existing list owns filters and loaded pages.
+/** Ordinary and local-preview navigation. The existing list owns filters and loaded pages.
  * Keep it mounted (but hidden) while detail is open; never cache product data in history/storage.
  */
 export default function SharedCatalogPreview({
   copy,
   renderList,
+  renderLegacyDetail,
 }: {
   copy: SharedDetailContent;
   renderList: (open?: (productId: string) => void) => ReactNode;
+  renderLegacyDetail?: (productId: string) => ReactNode;
 }) {
+  const localPreview =
+    import.meta.env.DEV &&
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('preview') === 'shared';
+  const { sharedListTarget, sharedDetailSearch, sharedListSearch, sharedVariantSearch } =
+    useMemo(() => {
+      const normalize = (search: string) => {
+        const params = new URLSearchParams(search);
+        if (!localPreview) params.set('preview', 'shared');
+        return `?${params}`;
+      };
+      const external = (search: string | undefined) => {
+        if (search === undefined || localPreview) return search;
+        const params = new URLSearchParams(search);
+        params.delete('preview');
+        return params.size ? `?${params}` : '';
+      };
+      const sharedListTarget = (_development: boolean, search: string) =>
+        previewListTarget(true, normalize(search));
+      const sharedDetailSearch = (search: string, id: string) =>
+        external(previewDetailSearch(normalize(search), id));
+      const sharedListSearch = (search: string) =>
+        external(previewListSearch(normalize(search))) ?? '';
+      const sharedVariantSearch = (search: string, id?: string) =>
+        external(previewVariantSearch(normalize(search), id));
+      return { sharedListTarget, sharedDetailSearch, sharedListSearch, sharedVariantSearch };
+    }, [localPreview]);
   const [search, setSearch] = useState<string>();
   const list = useRef<HTMLDivElement>(null);
   const navigation = useRef<HTMLElement>(null);
@@ -47,7 +77,7 @@ export default function SharedCatalogPreview({
       window.history.scrollRestoration = previous;
       if (frame.current !== undefined) cancelAnimationFrame(frame.current);
     };
-  }, []);
+  }, [sharedListTarget]);
 
   useEffect(() => {
     if (
@@ -77,7 +107,7 @@ export default function SharedCatalogPreview({
     return () => {
       if (frame.current !== undefined) cancelAnimationFrame(frame.current);
     };
-  }, [search]);
+  }, [search, sharedListTarget]);
 
   useEffect(() => {
     if (
@@ -90,26 +120,29 @@ export default function SharedCatalogPreview({
     );
     target?.focus({ preventScroll: true });
     navigation.current?.scrollIntoView({ block: 'start', behavior: 'instant' });
-  }, [search]);
+  }, [search, sharedListTarget]);
 
-  const open = useCallback((productId: string) => {
-    const next = sharedDetailSearch(window.location.search, productId);
-    if (next === undefined) return;
-    const token = crypto.randomUUID();
-    returnPoint.current = {
-      href: window.location.href,
-      productId,
-      x: window.scrollX,
-      y: window.scrollY,
-      token,
-    };
-    window.history.pushState(
-      { channelSharedNavigation: token },
-      '',
-      `${window.location.pathname}${next}`,
-    );
-    setSearch(next);
-  }, []);
+  const open = useCallback(
+    (productId: string) => {
+      const next = sharedDetailSearch(window.location.search, productId);
+      if (next === undefined) return;
+      const token = crypto.randomUUID();
+      returnPoint.current = {
+        href: window.location.href,
+        productId,
+        x: window.scrollX,
+        y: window.scrollY,
+        token,
+      };
+      window.history.pushState(
+        { channelSharedNavigation: token },
+        '',
+        `${window.location.pathname}${next}`,
+      );
+      setSearch(next);
+    },
+    [sharedDetailSearch],
+  );
   const back = () => {
     if (
       returnPoint.current &&
@@ -120,7 +153,11 @@ export default function SharedCatalogPreview({
       // A fresh deep link has no owned preceding entry; never send the user to an external referrer.
       const candidate = sharedListSearch(window.location.search);
       const next =
-        sharedListTarget(true, candidate).status === 'list' ? candidate : '?preview=shared';
+        sharedListTarget(true, candidate).status === 'list'
+          ? candidate
+          : localPreview
+            ? '?preview=shared'
+            : '';
       window.history.replaceState(null, '', `${window.location.pathname}${next}`);
       restorePending.current = true;
       setSearch(next);
@@ -155,13 +192,16 @@ export default function SharedCatalogPreview({
           {target.status !== 'preview' ? (
             <p role="alert">{copy.errorLabel}</p>
           ) : (
-            <CatalogLocalPreviewContext.Provider value={true}>
-              <CatalogQuoteTransportContext.Provider value={submitLocalQuote}>
+            <CatalogLocalPreviewContext.Provider value={localPreview}>
+              <CatalogQuoteTransportContext.Provider
+                value={localPreview ? submitLocalQuote : submitPublicQuote}
+              >
                 <CatalogDetailController
                   key={JSON.stringify([target.productId, target.requestedId])}
                   productId={target.productId}
                   requestedId={target.requestedId}
                   copy={copy}
+                  legacyFallback={localPreview ? undefined : renderLegacyDetail?.(target.productId)}
                   backNavigation={null}
                   focusOnOpen
                   onVariantChange={variantChanged}

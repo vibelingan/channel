@@ -3,6 +3,48 @@
 Baseline: `fix/alibaba-sync-storage-wiring@0094048` plus preserved local work.
 This is an implementation ledger, not a release claim. No direct cloud deployment.
 
+## 2026-09-09 integration closure update (supersedes remaining-work notes below)
+
+Baseline repairs are committed and pushed as `25275b4`; readiness parsing is
+`5bb3712`. PR #32 targets `test`. The following coupled implementation is now
+present and locally exercised; deployment is still gated on the final pushed CI.
+
+- Normal ID/slug detail routes consume the approved shared DTO, not a DEV preview.
+  Unmigrated legacy products retain their old page until their saved source is
+  prepared and approved. Merely deploying a route does not approve customer data.
+- The admin producer reads the persisted full-product Alibaba observation. It
+  stages 20 canonical SKUs per transaction, seals a complete generation, then
+  stages immutable approval pages before one atomic publication-pointer switch.
+  Sync may independently fetch Alibaba; review/approval never invokes its API.
+- Imported gallery URLs persist deterministic owned-image bindings, including
+  byte-deduplicated aliases. A SKU may use only an image attached to that product.
+  Old approved gallery references remain protected during draft edits; replacement
+  adjusts reference counts atomically and retries do not double-decrement.
+- Published-product Save and batch Publish use source preparation + approval before
+  the final publication update. A server-side content fingerprint rejects races
+  involving title, gallery, family, manual price or source generation changes.
+- Manual website price is a distinct approved field; supplier offers remain source
+  evidence. Public rendering and the immutable RFQ snapshot use the manual override
+  when set. Current website main category overrides stale source candidate labels.
+- Public RFQ uses the real HTTP handler, strict response decoding and a stable
+  idempotency key. Admin viewing/note-only actions leave the inquiry unprocessed;
+  version checks protect follow-up updates, and completion persists in the DB.
+
+Fresh local browser acceptance: 15 baseline cases passed, plus an ordinary-route
+journey using a disposable real handler/file DB and 21 SKUs (two preparation pages).
+That journey checks both actual image loads, source quantity tiers, invalid quantity,
+country selection inside the modal, submission/retry without duplication, note-only
+unprocessed state, stale-version rejection, processing/completion/reload, and mobile
+slug navigation. Logs: `/tmp/channel-baseline-browser.log` and
+`/tmp/channel-formal-browser.log`. Synthetic image bytes test transport, not product
+photography. Cloud storage transport and existing live product migration require the
+post-CI deployed acceptance; no claim of live completion is made here.
+
+The CI prerequisite now includes both browser lanes. Deployment owns resource
+preflight, packaged functions, feature configuration and static frontend at one SHA.
+Email and the Excel worker remain off. The first CI failure was ANSI-colored Astro
+readiness detection, not a cloud mutation; it was corrected in `5bb3712`.
+
 ## Verified field provenance / agreed business rules
 
 - `products.unitPrice`, `wholesalePrice`, deprecated `vipPrice`: website legacy

@@ -12,7 +12,7 @@ import { hasUsableCatalogSlug } from './CatalogFamilyGrid.tsx';
 import { EffectiveCatalogPricingBlock } from './EffectiveCatalogPricingBlock.tsx';
 import { Gallery } from './Gallery.tsx';
 import { ProductMedia } from './ProductMedia.tsx';
-import { fetchProductBySlug, fetchRelatedProducts } from './api.ts';
+import { fetchCatalogItem, fetchProductBySlug, fetchRelatedProducts } from './api.ts';
 import { effectiveCatalogMoq } from './catalog-pricing.ts';
 import type { Product } from './catalog-types.ts';
 
@@ -31,11 +31,10 @@ interface ViewProps {
 interface Props {
   content: CatalogContent;
   previewContent?: SharedDetailContent;
+  productId?: string;
 }
 
-const SharedPreview = import.meta.env?.DEV
-  ? lazy(() => import('./SharedDetailPreview.tsx'))
-  : undefined;
+const SharedPreview = lazy(() => import('./SharedDetailPreview.tsx'));
 
 export function SkuDetailPage({ content, previewContent }: Props) {
   if (SharedPreview && previewContent)
@@ -131,7 +130,11 @@ export function SkuDetailView({ content, state, onRetry }: ViewProps) {
 
   return (
     <>
-      <section data-sku-detail={product._id} className="bg-white py-12 sm:py-16">
+      <section
+        data-sku-detail={product._id}
+        data-product-detail={product._id}
+        className="bg-white py-12 sm:py-16"
+      >
         <div className="mx-auto max-w-[var(--width-container)] px-4 sm:px-6 lg:px-8">
           <nav aria-label="Breadcrumb" className="mb-8 text-sm text-ink-muted">
             {breadcrumbs.map((breadcrumb, index) =>
@@ -259,7 +262,7 @@ export function SkuDetailView({ content, state, onRetry }: ViewProps) {
   );
 }
 
-function LegacySkuDetailPage({ content }: Props) {
+export function LegacySkuDetailPage({ content, productId }: Props) {
   const [state, setState] = useState<SkuDetailViewState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
 
@@ -267,14 +270,18 @@ function LegacySkuDetailPage({ content }: Props) {
   useEffect(() => {
     const controller = new AbortController();
     const slug = new URLSearchParams(window.location.search).get('slug')?.trim() ?? '';
+    const id = productId ?? new URLSearchParams(window.location.search).get('id');
     const canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
     if (canonical) canonical.href = new URL('/products/item/', window.location.origin).href;
-    if (!slug) {
+    if (!slug && !id) {
       setState({ status: 'not-found' });
       return () => controller.abort();
     }
     setState({ status: 'loading' });
-    fetchProductBySlug(slug, controller.signal)
+    (id
+      ? fetchCatalogItem('/api/products', id, controller.signal)
+      : fetchProductBySlug(slug, controller.signal)
+    )
       .then((product) => {
         if (controller.signal.aborted) return;
         if (canonical && hasAddressableProductDetail(product)) {
@@ -305,7 +312,7 @@ function LegacySkuDetailPage({ content }: Props) {
         });
       });
     return () => controller.abort();
-  }, [attempt]);
+  }, [attempt, productId]);
 
   return (
     <SkuDetailView

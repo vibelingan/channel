@@ -99,6 +99,12 @@ jobs:
           E2E_RECORD_ARTIFACTS: '1'
         run: pnpm test:e2e:catalog-admin-local
 
+      - name: Exercise approved details and inquiry follow-up on ordinary routes
+        env:
+          E2E_RECORD_ARTIFACTS: '1'
+          E2E_CATALOG_FORMAL: '1'
+        run: pnpm test:e2e:catalog-admin-local
+
       - name: Preserve failed local browser evidence
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4

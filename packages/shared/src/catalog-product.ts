@@ -51,6 +51,7 @@ const RESERVED_PRODUCT_SLUGS = new Set([
 
 export interface ProductPublicationIssue {
   field:
+    | 'published'
     | 'name'
     | 'productFamily'
     | 'category'

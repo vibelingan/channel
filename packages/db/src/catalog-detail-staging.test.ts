@@ -67,7 +67,12 @@ function fixture(count = 105) {
     productVariants: Object.fromEntries(variants.map((v) => [v._id, v])),
     users: { admin: { _id: 'admin', role: 'admin' }, other: { _id: 'other', role: 'admin' } },
     images: {
-      image: { _id: 'image', status: 'active', storageProvider: 'cloudbase', publishedRefCount: 0 },
+      image: {
+        _id: 'image',
+        status: 'active',
+        storageProvider: 'cloudbase-storage',
+        publishedRefCount: 0,
+      },
     },
   };
   let failAt = Number.POSITIVE_INFINITY;
@@ -405,4 +410,48 @@ test('missing and busy media cannot switch a fully staged approval; a newer appr
   };
   assert.equal((await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared))).ok, false);
   assert.equal((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok, false);
+});
+
+test('reapproval atomically releases old snapshot-only media; failure and retry cannot leak or double-decrement', async () => {
+  const h = fixture(0);
+  const p = h.row('products', 'p');
+  p.published = true;
+  p.catalogDetailPublication = {
+    ...h.product.catalogDetailPublication,
+    header: { ...h.product.catalogDetailPublication.header, images: ['/api/images/old-image'] },
+  };
+  h.row('images', 'image').publishedRefCount = 1;
+  const images = h.store().images;
+  assert.ok(images);
+  images['old-image'] = {
+    _id: 'old-image',
+    status: 'active',
+    storageProvider: 'cloudbase-storage',
+    publishedRefCount: 1,
+  };
+  const prepared = prepareStagedApproval(
+    'admin',
+    {
+      ...h.command,
+      expectedDigest: catalogApprovalDigest(p, []),
+    },
+    p,
+    [],
+  );
+  assert.ok(prepared.ok);
+  const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', prepared.value));
+  assert.ok(begin.ok);
+  h.fail(8); // two image writes precede the product pointer write
+  await assert.rejects(
+    h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId)),
+    /injected/,
+  );
+  assert.equal(h.row('images', 'old-image').publishedRefCount, 1);
+  assert.equal(h.publication().revision, 'old');
+  h.fail(Number.POSITIVE_INFINITY);
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+  assert.equal(h.row('images', 'old-image').publishedRefCount, 0);
+  assert.equal(h.row('images', 'image').publishedRefCount, 1);
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+  assert.equal(h.row('images', 'old-image').publishedRefCount, 0);
 });

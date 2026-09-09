@@ -23,6 +23,7 @@ setMediaStorage(createCloudBaseMediaStorage(cloudStorageSdk()));
 const config: AdminHttpConfig = {
   jwtSecret: requireEnv('JWT_SECRET'),
   enableInquiries: optionalEnv('CATALOG_RFQ_ENABLED') === '1',
+  enableDetailApproval: optionalEnv('CATALOG_DETAIL_APPROVAL_ENABLED') === '1',
   ...(optionalEnv('LOGIN_URL') ? { loginUrl: optionalEnv('LOGIN_URL') } : {}),
   ...(optionalEnv('RESET_PASSWORD_URL')
     ? { resetPasswordUrl: optionalEnv('RESET_PASSWORD_URL') }

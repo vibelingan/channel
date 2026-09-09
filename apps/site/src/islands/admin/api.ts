@@ -42,7 +42,11 @@ async function call<T>(action: string, data?: unknown, signal?: AbortSignal): Pr
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, data, token: getToken() }),
-    ...(signal ? { signal } : {}),
+    credentials: 'omit',
+    redirect: 'error',
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(30000)])
+      : AbortSignal.timeout(30000),
   });
 
   const result = await readApiEnvelope<T>(res);
@@ -56,6 +60,10 @@ async function call<T>(action: string, data?: unknown, signal?: AbortSignal): Pr
     throw new AdminApiError(result.error.code, result.error.message);
   }
   return result.data;
+}
+
+export function catalogApprovalCall(data: unknown, signal?: AbortSignal) {
+  return call<unknown>('catalogDetailApproval', data, signal);
 }
 
 export function fetchCurrentUser(): Promise<{ user: SessionUser }> {
@@ -146,11 +154,56 @@ export function createRecord(
   return call<CollectionDoc>('create', { collection, values });
 }
 
-export function updateRecord(
+export async function updateRecord(
   collection: string,
   id: string,
   values: Record<string, unknown>,
 ): Promise<CollectionDoc> {
+  if (collection === 'products' && values.published === true) {
+    const capabilities = await call<{ enabled: boolean }>('catalogDetailCapabilities');
+    if (typeof capabilities?.enabled !== 'boolean')
+      throw new AdminApiError('INVALID_RESPONSE', 'Approval capability could not be confirmed.');
+    if (capabilities.enabled) {
+      let current = await call<CollectionDoc>('get', { collection, id });
+      if (typeof current.alibabaPrimarySourceKey === 'string') {
+        // Save reviewed form edits first without changing publication. Preparation
+        // and approval have resumable, server-checked requests, not one long call.
+        const { published: _published, ...draftValues } = values;
+        if (Object.keys(draftValues).length)
+          current = await call<CollectionDoc>('update', { collection, id, values: draftValues });
+        if (!isProductFamily(current.productFamily))
+          throw new AdminApiError(
+            'INVALID_PRODUCT',
+            'Choose a website category before publishing.',
+          );
+        if (!Array.isArray(current.imageIds) || current.imageIds.length === 0) {
+          const [{ importAlibabaGallery }, { importAlibabaSourceImage }] = await Promise.all([
+            import('./alibaba-gallery-import.ts'),
+            import('./alibaba-catalog-sync/alibaba-api.ts'),
+          ]);
+          const imported = await importAlibabaGallery({
+            sourceUrls: current.alibabaSourceImageUrls,
+            imageIds: [],
+            importImage: importAlibabaSourceImage,
+            onProgress: () => {},
+          });
+          if (imported.failures.length || imported.remaining)
+            throw new AdminApiError(
+              'MEDIA_NOT_READY',
+              'Some images could not be imported. Open Edit and retry the source gallery.',
+            );
+          if (imported.imageIds.length)
+            await call('update', { collection, id, values: { imageIds: imported.imageIds } });
+        }
+        const { prepareDetailReview, approveDetailReview } = await import(
+          './catalog-detail-approval-api.ts'
+        );
+        const review = await prepareDetailReview(id);
+        await approveDetailReview(review, crypto.randomUUID());
+        return call<CollectionDoc>('update', { collection, id, values: { published: true } });
+      }
+    }
+  }
   return call<CollectionDoc>('update', { collection, id, values });
 }
 
@@ -212,11 +265,7 @@ export async function batchUpdateRecords(
       continue;
     }
     try {
-      const item = await call<CollectionDoc>(
-        'update',
-        { collection, id, values },
-        AbortSignal.timeout(30_000),
-      );
+      const item = await updateRecord(collection, id, values);
       if (
         !item ||
         item._id !== id ||

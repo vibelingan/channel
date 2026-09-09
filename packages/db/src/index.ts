@@ -10,8 +10,8 @@ import {
   PUBLIC_CATALOG_COLLECTIONS,
   type SortClause,
   buildWriteSchema,
+  catalogReferencedImageIds,
   getCollection,
-  normalizeCatalogImageIds,
 } from '@vibelingan-channel/shared';
 import type {
   AlibabaLeaseGrant,
@@ -644,7 +644,7 @@ export async function backfillPublishedRefCounts(
         sort: STABLE_PAGE_SORT,
       });
       for (const doc of res.items) {
-        const ids = new Set(normalizeCatalogImageIds(doc.imageIds));
+        const ids = new Set(catalogReferencedImageIds(doc));
         for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
       }
       if (res.items.length === 0 || page * res.pageSize >= res.total) break;

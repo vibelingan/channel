@@ -48,6 +48,34 @@ const variant = {
     offers: [],
   },
 };
+test('inquiry keeps the approved manual website price, never buyer input or later source changes', () => {
+  const websitePricing = {
+    basis: 'website-manual',
+    pricing: { mode: 'fixed', currency: 'USD', amountMinor: 310 },
+  };
+  const p = structuredClone(product);
+  const priced = {
+    ...p,
+    unitPrice: 99,
+    catalogDetailPublication: {
+      ...p.catalogDetailPublication,
+      header: { ...p.catalogDetailPublication.header, websitePricing },
+    },
+  };
+  const result = planCatalogQuote(input, priced, variant, {
+    notification: 'disabled',
+    now: '2026-09-07T00:00:00.000Z',
+  });
+  assert.ok(result.ok);
+  assert.deepEqual(result.record.snapshot.websitePricing, websitePricing);
+  websitePricing.pricing.amountMinor = 999;
+  assert.equal(result.record.snapshot.websitePricing?.pricing.mode, 'fixed');
+  assert.deepEqual(result.record.snapshot.websitePricing?.pricing, {
+    mode: 'fixed',
+    currency: 'USD',
+    amountMinor: 310,
+  });
+});
 test('server quote snapshot needs published matching revision and selected SKU; cannot accept buyer snapshot', () => {
   const accepted = planCatalogQuote(input, product, variant, {
     notification: 'disabled',

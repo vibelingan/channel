@@ -16,15 +16,21 @@ function OfferCard({
   offer,
   quantity,
   copy,
-}: { offer: Offer; quantity?: number; copy: SharedDetailContent }) {
+}: {
+  offer: Offer | NonNullable<CatalogProductDetail['websitePricing']>;
+  quantity?: number;
+  copy: SharedDetailContent;
+}) {
   const view = catalogOfferView(offer.pricing, quantity);
   const pricing = offer.pricing;
   const label =
-    offer.kind === 'supplier'
-      ? copy.quoteSupplierLabel
-      : offer.kind === 'regular'
-        ? copy.quoteRegularLabel
-        : copy.quotePromotionLabel;
+    offer.basis === 'website-manual'
+      ? 'Website price'
+      : offer.kind === 'supplier'
+        ? copy.quoteSupplierLabel
+        : offer.kind === 'regular'
+          ? copy.quoteRegularLabel
+          : copy.quotePromotionLabel;
   const result = () => {
     switch (view.status) {
       case 'amount':
@@ -115,6 +121,7 @@ function OfferCard({
  * editable quantity without copying a parent offer into the selected SKU. */
 export function CatalogQuoteConditions({
   productOffers,
+  websitePricing,
   variantOffers,
   hasVariants = true,
   quantityDraft,
@@ -122,6 +129,7 @@ export function CatalogQuoteConditions({
   copy,
 }: {
   productOffers: CatalogProductDetail['offers'];
+  websitePricing?: CatalogProductDetail['websitePricing'];
   variantOffers?: CatalogProductDetail['offers'];
   hasVariants?: boolean;
   quantityDraft?: string;
@@ -135,7 +143,9 @@ export function CatalogQuoteConditions({
   const quantity = parsed.status === 'valid' ? parsed.value : undefined;
   return (
     <section data-catalog-quote-conditions className="border-t border-slate-200 pt-6">
-      <h2 className="font-display text-lg font-semibold text-ink">{copy.sourceQuotesLabel}</h2>
+      <h2 className="font-display text-lg font-semibold text-ink">
+        {websitePricing ? 'Website pricing' : copy.sourceQuotesLabel}
+      </h2>
       <label htmlFor={id} className="mb-2 mt-4 block text-sm font-medium text-ink">
         {copy.quantityLabel}
       </label>
@@ -159,7 +169,8 @@ export function CatalogQuoteConditions({
       >
         {parsed.status === 'invalid' ? copy.quantityError : copy.quantityHelp}
       </p>
-      {productOffers.length > 0 && (
+      {websitePricing && <OfferCard offer={websitePricing} quantity={quantity} copy={copy} />}
+      {!websitePricing && productOffers.length > 0 && (
         <section data-quote-scope="product" className="mt-5">
           <h3 className="text-sm font-semibold">{copy.productQuoteLabel}</h3>
           {productOffers.map((offer, index) => (
@@ -172,7 +183,7 @@ export function CatalogQuoteConditions({
           ))}
         </section>
       )}
-      {hasVariants && (
+      {!websitePricing && hasVariants && (
         <section data-quote-scope="variant" className="mt-5">
           <h3 className="text-sm font-semibold">{copy.variantQuoteLabel}</h3>
           {variantOffers?.length ? (
@@ -191,10 +202,14 @@ export function CatalogQuoteConditions({
           )}
         </section>
       )}
-      {!hasVariants && productOffers.length === 0 && (
+      {!websitePricing && !hasVariants && productOffers.length === 0 && (
         <p className="mt-4 text-sm text-ink-muted">{copy.noSourceQuote}</p>
       )}
-      <p className="mt-4 text-xs leading-5 text-ink-muted">{copy.pricingNote}</p>
+      <p className="mt-4 text-xs leading-5 text-ink-muted">
+        {websitePricing
+          ? 'Website reference price. Availability, shipping and final terms require confirmation; this does not place an order.'
+          : copy.pricingNote}
+      </p>
     </section>
   );
 }

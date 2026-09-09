@@ -170,7 +170,7 @@ export async function commitCatalogApproval(
       !image ||
       image.status !== 'active' ||
       readImageMutationState(image).state !== 'free' ||
-      (image.storageProvider !== 'cloudbase' && image.storageProvider !== 'local-disk') ||
+      (image.storageProvider !== 'cloudbase-storage' && image.storageProvider !== 'local-disk') ||
       (Object.hasOwn(image, 'publishedRefCount') &&
         (typeof image.publishedRefCount !== 'number' ||
           !Number.isSafeInteger(image.publishedRefCount) ||

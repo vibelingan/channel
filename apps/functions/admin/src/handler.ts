@@ -86,6 +86,7 @@ import {
   canReadCollection,
   canReadRegisteredCollection,
   catalogImageUploadSchema,
+  catalogReferencedImageIds,
   err,
   evaluateFixedWindowRateLimit,
   fileExtension,
@@ -109,6 +110,7 @@ import {
 import { releaseInfo } from '@vibelingan-channel/shared/release';
 import { z } from 'zod';
 import { manageCatalogCategories, saveCategoryMapping } from './catalog-categories.ts';
+import { prepareCatalogSource } from './catalog-detail-source.ts';
 import {
   CatalogProductWriteError,
   createCatalogProductRecord,
@@ -564,6 +566,9 @@ export async function handleAdminRequest(
       case 'inquiryCapabilities':
         if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
         return ok({ enabled: config.enableInquiries === true, notification: 'disabled' });
+      case 'catalogDetailCapabilities':
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        return ok({ enabled: config.enableDetailApproval === true });
       case 'catalogCategories':
         if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
         if (Buffer.byteLength(JSON.stringify(req.data ?? null), 'utf8') > 16384)
@@ -575,7 +580,10 @@ export async function handleAdminRequest(
           return err('FORBIDDEN', 'Catalog detail approval is not enabled.');
         if (Buffer.byteLength(JSON.stringify(req.data ?? null), 'utf8') > 4096)
           return err('VALIDATION_ERROR', 'Approval request is too large.');
-        const result = await manageCatalogDetailApproval(claims.sub, req.data);
+        const result =
+          req.data && typeof req.data === 'object' && Reflect.get(req.data, 'action') === 'prepare'
+            ? await prepareCatalogSource(claims.sub, req.data)
+            : await manageCatalogDetailApproval(claims.sub, req.data);
         if (result.ok) return ok(result);
         if (result.code === 'SOURCE_NOT_READY')
           return err(
@@ -626,7 +634,7 @@ export async function handleAdminRequest(
       case 'create':
         return await createAction(req, claims);
       case 'update':
-        return await updateAction(req, claims);
+        return await updateAction(req, claims, config);
       case 'remove':
         return await removeAction(req, claims);
       case 'batchUpdate':
@@ -1450,7 +1458,7 @@ function tracksImageVisibility(collection: string): boolean {
  */
 function publishedImageIdSet(doc: CollectionDoc | null): Set<string> {
   if (!doc || doc.published !== true) return new Set();
-  return new Set(normalizeCatalogImageIds(doc.imageIds));
+  return new Set(catalogReferencedImageIds(doc));
 }
 
 /**
@@ -1631,12 +1639,7 @@ async function findImageReference(
           : {}),
       });
       for (const document of result.items) {
-        if (
-          Array.isArray(document.imageIds) &&
-          document.imageIds.some(
-            (candidate) => typeof candidate === 'string' && candidate.trim() === imageId,
-          )
-        ) {
+        if (catalogReferencedImageIds(document).includes(imageId)) {
           return { collection: definition.name, documentId: String(document._id) };
         }
       }
@@ -1765,7 +1768,11 @@ async function createAction(req: AdminRequest, claims: SessionClaims): Promise<A
   }
 }
 
-async function updateAction(req: AdminRequest, claims: SessionClaims): Promise<ApiResult<unknown>> {
+async function updateAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+  config: AdminConfig,
+): Promise<ApiResult<unknown>> {
   const parsed = updateSchema.safeParse(req.data);
   if (!parsed.success) return err('BAD_REQUEST', 'collection, id and values are required');
   if (!canEditRegisteredCollection(claims.role, parsed.data.collection)) {
@@ -1800,16 +1807,20 @@ async function updateAction(req: AdminRequest, claims: SessionClaims): Promise<A
       const acknowledgesReview =
         before?.alibabaReviewPending === true &&
         (values.published === true || values.archived === true);
-      const transition = await updateCatalogProductRecord(parsed.data.id, {
-        ...values,
-        ...(acknowledgesReview
-          ? {
-              alibabaReviewPending: false,
-              alibabaReviewedAt: new Date().toISOString(),
-              alibabaReviewedByUserId: claims.sub,
-            }
-          : {}),
-      });
+      const transition = await updateCatalogProductRecord(
+        parsed.data.id,
+        {
+          ...values,
+          ...(acknowledgesReview
+            ? {
+                alibabaReviewPending: false,
+                alibabaReviewedAt: new Date().toISOString(),
+                alibabaReviewedByUserId: claims.sub,
+              }
+            : {}),
+        },
+        config.enableDetailApproval === true && values.published === true,
+      );
       doc = transition.doc;
       authoritativeBefore = transition.previous;
     } else if (parsed.data.collection === 'sourceCategoryMappings') {

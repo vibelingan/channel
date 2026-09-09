@@ -72,6 +72,9 @@ export function planCatalogQuote(
     revision: approved.data.revision,
     images: approved.data.header.images,
     productOffers: approved.data.header.offers,
+    ...(approved.data.header.websitePricing
+      ? { websitePricing: approved.data.header.websitePricing }
+      : {}),
     ...(target.variantId && selected.success ? { variant: selected.data } : {}),
   };
   // Bound the immutable snapshot; do not truncate commercial evidence silently.

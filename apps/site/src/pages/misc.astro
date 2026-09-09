@@ -10,7 +10,7 @@ import { OEM_INQUIRY_HREF } from '../lib/site-navigation.ts';
 
 const site = getSiteContent(DEFAULT_LOCALE);
 const catalog = getCatalogContent(DEFAULT_LOCALE);
-const previewContent = import.meta.env.DEV ? getSharedDetailContent(DEFAULT_LOCALE) : undefined;
+const previewContent = getSharedDetailContent(DEFAULT_LOCALE);
 const family = getCatalogFamily('misc', DEFAULT_LOCALE);
 const brand = site.brand;
 const seoTitle = `${family.seoTitle} | ${brand.name}`;

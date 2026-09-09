@@ -52,7 +52,9 @@
     {
       "source": "$PROJECTS_DIR/channel-dianxiaomi-excel-import/docs/dianxiaomi-excel-import/product-detail-rfq-prototype/design-qa.md",
       "snapshot": "docs/shared-product-ui/reference/2026-09-06/prototype/design-qa.md",
-      "sha256": "f4d6e3ffc86396777f54e912f919f66a7110b095a090d8a8e9160f8e7bac978d"
+      "originalSha256": "f4d6e3ffc86396777f54e912f919f66a7110b095a090d8a8e9160f8e7bac978d",
+      "sha256": "f3daf683a7b537735301d0b6a3ffe4c4f8b49860362e0c46fc846a864991214c",
+      "snapshotNote": "Personal filesystem prefixes replaced with portable variables before committing; design content unchanged."
     }
   ]
 }

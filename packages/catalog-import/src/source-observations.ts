@@ -21,6 +21,11 @@ import type { CatalogProvider } from './contracts.ts';
 
 export const CATALOG_SOURCE_OBSERVATION_SCHEMA_VERSION = 'catalog-source-observation-v1' as const;
 
+/** Explicit transport-to-owned-media binding. URL order is never an identity. */
+export function sourceMediaLinkId(provider: CatalogProvider, sourceUrl: string): string {
+  return `media:${createHash('sha256').update(`${provider}\0${sourceUrl}`).digest('hex')}`;
+}
+
 /** Provider-scoped materialized-view id; source keys never leak into DB ids. */
 export function sourceObservationDocumentId(
   provider: CatalogProvider,

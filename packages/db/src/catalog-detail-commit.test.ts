@@ -76,7 +76,12 @@ function harness(count = 2) {
     productVariants: Object.fromEntries(f.variants.map((v) => [v._id, v])),
     users: { admin: { _id: 'admin', role: 'admin' } } as Record<string, CollectionDoc>,
     images: {
-      image: { _id: 'image', status: 'active', storageProvider: 'cloudbase', publishedRefCount: 0 },
+      image: {
+        _id: 'image',
+        status: 'active',
+        storageProvider: 'cloudbase-storage',
+        publishedRefCount: 0,
+      },
     } as Record<string, CollectionDoc>,
   };
   let queue = Promise.resolve();

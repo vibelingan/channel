@@ -1,11 +1,13 @@
 /** Pure write preflight. Reading, authorization, media readiness and atomic commit belong to callers. */
 import { z } from 'zod';
+import { validateManualCatalogPricing } from '../manual-catalog-pricing.ts';
 import {
   CatalogContentSchema,
   CatalogDetailHeaderSchema,
   CatalogDetailPublicationSchema,
   CatalogDetailVariantSchema,
   CatalogNoteBlocksSchema,
+  WebsiteDetailPricingSchema,
 } from './product-detail.ts';
 
 const identity = z
@@ -25,7 +27,58 @@ const productInput = z.object({
   detailSourceCandidate: CatalogDetailHeaderSchema,
   detailSourceContentCandidate: z.unknown(),
   detailSourceNoteBlocksCandidate: z.unknown(),
+  catalogPricingMode: z.unknown(),
+  manualCatalogPricing: z.unknown(),
+  unitPrice: z.unknown(),
+  wholesalePrice: z.unknown(),
+  moq: z.unknown(),
+  productFamily: z.enum(['headphones', 'ai-gadgets', 'toys', 'misc']).optional(),
 });
+
+function websitePricing(product: z.infer<typeof productInput>) {
+  if (product.catalogPricingMode === 'source') return undefined;
+  if (product.catalogPricingMode !== undefined && product.catalogPricingMode !== 'manual')
+    throw new Error('Unknown website pricing mode');
+  const manual = validateManualCatalogPricing(product.manualCatalogPricing);
+  if (manual.ok)
+    return WebsiteDetailPricingSchema.parse({
+      basis: 'website-manual',
+      pricing: {
+        mode: 'tiered',
+        currency: manual.value.currency,
+        minimumOrderQuantity: manual.value.tiers[0]?.minQuantity,
+        tiers: manual.value.tiers.map((tier) => ({
+          minimumQuantity: tier.minQuantity,
+          maximumQuantity: tier.maxQuantity,
+          unitAmountMinor: tier.unitAmountMinor,
+        })),
+      },
+    });
+  for (const amount of [product.wholesalePrice, product.unitPrice]) {
+    if (typeof amount === 'number' && Number.isFinite(amount) && amount >= 0) {
+      const amountMinor = Math.round(amount * 100);
+      if (!Number.isSafeInteger(amountMinor) || Math.abs(amount * 100 - amountMinor) > 0.000001)
+        throw new Error('Website price has unsupported precision');
+      return WebsiteDetailPricingSchema.parse({
+        basis: 'website-manual',
+        pricing: {
+          mode: 'fixed',
+          currency: 'USD',
+          amountMinor,
+          ...(typeof product.moq === 'number' && product.moq > 0
+            ? { minimumOrderQuantity: product.moq }
+            : {}),
+        },
+      });
+    }
+  }
+  if (product.catalogPricingMode === 'manual')
+    return WebsiteDetailPricingSchema.parse({
+      basis: 'website-manual',
+      pricing: { mode: 'unavailable' },
+    });
+  return undefined;
+}
 const variantInput = z.object({
   _id: identity,
   productId: identity,
@@ -66,7 +119,18 @@ export function planCatalogDetailApproval(input: {
   const header = CatalogDetailHeaderSchema.parse({
     ...withoutDescription,
     name: product.name,
+    ...(product.productFamily
+      ? {
+          categoryLabel: {
+            headphones: 'Headphones',
+            'ai-gadgets': 'AI Gadgets',
+            toys: 'Toys',
+            misc: 'Misc',
+          }[product.productFamily],
+        }
+      : {}),
     images: product.imageIds.map((id) => `/api/images/${id}`),
+    websitePricing: websitePricing(product),
     ...(description ? { descriptionText: description } : {}),
   });
   const variants = rows.map((row) =>

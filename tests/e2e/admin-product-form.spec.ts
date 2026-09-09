@@ -177,6 +177,8 @@ test('product server errors attach to slug and publication fields', async ({ pag
     };
     let response: unknown;
     if (body.action === 'me') response = { ok: true, data: { user: adminUser } };
+    else if (body.action === 'catalogDetailCapabilities')
+      response = { ok: true, data: { enabled: false } };
     else if (body.action === 'list') {
       response = {
         ok: true,

@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./catalog-source-staging": "./src/catalog-source-staging.ts",
     "./catalog-classification": "./src/catalog-classification.ts",
     "./category-transaction": "./src/category-transaction.ts",
     ".": "./src/index.ts",

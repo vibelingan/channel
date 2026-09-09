@@ -9,6 +9,7 @@ import {
   PUBLIC_CATALOG_COLLECTIONS,
   type ProductFamily,
   canSeeVipPricing,
+  catalogReferencedImageIds,
   err,
   normalizeCatalogImageIds,
   normalizeProductSlug,
@@ -449,7 +450,7 @@ async function publishedCatalogReferencesImage(
       },
       sort: [{ field: '_id', dir: 'asc' }],
     });
-    if (result.items.some((doc) => normalizeCatalogImageIds(doc.imageIds).includes(imageId))) {
+    if (result.items.some((doc) => catalogReferencedImageIds(doc).includes(imageId))) {
       return true;
     }
     if (page * result.pageSize >= result.total || result.items.length === 0) return false;

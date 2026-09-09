@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { localSiteUrl } from './local-site-readiness.mjs';
@@ -10,6 +11,15 @@ const databaseFile = join(temporaryDirectory, 'db.json');
 const siteDirectory = join(temporaryDirectory, 'site');
 const readyFile = join(temporaryDirectory, 'api-ready.json');
 const readyToken = randomUUID();
+const formal = process.env.E2E_CATALOG_FORMAL === '1';
+const reservation = createServer();
+await new Promise((resolve) => reservation.listen(0, '127.0.0.1', resolve));
+const address = reservation.address();
+if (!address || typeof address === 'string') throw new Error('No local site port');
+const sitePort = address.port;
+await new Promise((resolve, reject) =>
+  reservation.close((error) => (error ? reject(error) : resolve())),
+);
 const bin = (packageDirectory, name) =>
   join(process.cwd(), packageDirectory, 'node_modules', '.bin', name);
 const processes = [];
@@ -173,6 +183,9 @@ try {
       TCB_ENV: '',
       ALI_APP_KEY: '',
       ALI_APP_SECRET: '',
+      CATALOG_DETAIL_APPROVAL_ENABLED: formal ? '1' : '0',
+      CATALOG_RFQ_ENABLED: formal ? '1' : '0',
+      LOCAL_SITE_ORIGINS: `http://127.0.0.1:${sitePort}`,
       WECOM_WEBHOOK_URL: '',
     },
     join(process.cwd(), 'apps/local-server'),
@@ -190,12 +203,14 @@ try {
   );
   const site = start(
     failStage === 'site' ? join(temporaryDirectory, 'missing-site') : bin('apps/site', 'astro'),
-    ['preview', '--outDir', siteDirectory, '--host', '127.0.0.1', '--port', '0'],
+    ['preview', '--outDir', siteDirectory, '--host', '127.0.0.1', '--port', String(sitePort)],
     siteEnvironment,
     join(process.cwd(), 'apps/site'),
     true,
   );
   const siteUrl = await waitForSite(site);
+  if (siteUrl !== `http://127.0.0.1:${sitePort}`)
+    throw new Error('Site port changed; inquiry origin gate remains closed.');
 
   const e2eEnvironment = {
     E2E_SITE_URL: siteUrl,
@@ -206,18 +221,30 @@ try {
     E2E_CATALOG_LOCAL_SEED: '1',
     E2E_CATALOG_LOCAL_DB: databaseFile,
   };
-  await run(bin('.', 'playwright'), ['test', 'tests/e2e/font-loading.spec.ts'], e2eEnvironment);
-  await run(
-    bin('.', 'playwright'),
-    ['test', 'tests/e2e/catalog-local-seed.spec.ts'],
-    e2eEnvironment,
-  );
-  await run(bin('.', 'playwright'), ['test', 'tests/e2e/catalog-admin.spec.ts'], e2eEnvironment);
-  await run(
-    bin('.', 'playwright'),
-    ['test', 'tests/e2e/admin-product-form.spec.ts', 'tests/e2e/admin-product-family-tabs.spec.ts'],
-    e2eEnvironment,
-  );
+  if (formal) {
+    await run(
+      bin('.', 'playwright'),
+      ['test', 'tests/e2e/catalog-formal-journey.spec.ts'],
+      e2eEnvironment,
+    );
+  } else {
+    await run(bin('.', 'playwright'), ['test', 'tests/e2e/font-loading.spec.ts'], e2eEnvironment);
+    await run(
+      bin('.', 'playwright'),
+      ['test', 'tests/e2e/catalog-local-seed.spec.ts'],
+      e2eEnvironment,
+    );
+    await run(bin('.', 'playwright'), ['test', 'tests/e2e/catalog-admin.spec.ts'], e2eEnvironment);
+    await run(
+      bin('.', 'playwright'),
+      [
+        'test',
+        'tests/e2e/admin-product-form.spec.ts',
+        'tests/e2e/admin-product-family-tabs.spec.ts',
+      ],
+      e2eEnvironment,
+    );
+  }
 } finally {
   await cleanup();
 }

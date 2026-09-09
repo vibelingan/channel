@@ -20,6 +20,7 @@ import {
   normalizeSkuCode,
   validateProductPublication,
 } from '@vibelingan-channel/shared';
+import { publicationContentFingerprint } from './catalog-publication-fingerprint.ts';
 
 /** Normalized query passed to adapters: defaults already applied. */
 export interface AdapterListQuery {
@@ -40,6 +41,7 @@ export interface CatalogProductSaveInput {
   mode: 'create' | 'update';
   productId: string;
   data: Record<string, unknown>;
+  requireDetailApproval?: boolean;
 }
 
 export interface CatalogProductIdentity {
@@ -147,6 +149,22 @@ export function planCatalogProductSave(
     doc.category = '';
   }
   const issues = validateProductPublication(doc);
+  if (
+    input.requireDetailApproval &&
+    doc.published === true &&
+    typeof doc.alibabaPrimarySourceKey === 'string'
+  ) {
+    const receipt = existing?.catalogDetailApprovalReceipt;
+    if (
+      !receipt ||
+      typeof receipt !== 'object' ||
+      Reflect.get(receipt, 'contentFingerprint') !== publicationContentFingerprint(doc)
+    )
+      issues.push({
+        field: 'published',
+        message: 'Review and approve the current product details before publishing.',
+      });
+  }
   if (issues.length > 0) return { result: 'invalid-product', issues };
   const identities = productIdentities(doc);
   if (!Array.isArray(identities)) return { result: 'invalid', kind: identities.invalid };
