@@ -141,6 +141,8 @@ test('live release: approved categories, existing published galleries, real inqu
         { timeout: 30000 },
       )
       .toBe(true);
+    // Explicit public-page screenshot only; never record login/session traces.
+    await page.screenshot({ path: `output/catalog-live/public-${id}.png`, fullPage: true });
     await page.goto('/admin');
   }
   expect(await publicIds()).toEqual(beforeIds);

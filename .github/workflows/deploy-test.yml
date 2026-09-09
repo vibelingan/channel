@@ -236,3 +236,11 @@ jobs:
           E2E_ALLOW_MUTATION: '1'
           E2E_RECORD_ARTIFACTS: '0'
         run: pnpm exec playwright test tests/e2e/catalog-live-acceptance.spec.ts
+      - name: Preserve public sample screenshots only
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog-public-acceptance-${{ github.sha }}
+          path: output/catalog-live/public-*.png
+          retention-days: 7
+          if-no-files-found: ignore
