@@ -16,7 +16,6 @@ import {
   productFamilyTransition,
   productFormErrorTargets,
   productFormSections,
-  productReadOnlyFields,
 } from './RecordForm.tsx';
 import { AdminApiError } from './api.ts';
 
@@ -113,7 +112,7 @@ test('server identity and publication errors target relevant product fields', ()
   );
 });
 
-test('product form renders sections, primary image semantics, and read-only Alibaba status', () => {
+test('product form renders customer media controls without raw Alibaba fields', () => {
   const markup = renderForm(products, {
     name: 'Camera',
     productFamily: 'ai-gadgets',
@@ -121,15 +120,22 @@ test('product form renders sections, primary image semantics, and read-only Alib
     alibabaSourceStatus: 'available',
     alibabaSourceLastSyncedAt: '2026-08-20T00:00:00.000Z',
     alibabaSourceImageUrls: ['https://sc04.alicdn.com/product.jpg'],
+    alibabaPrimarySourceKey: 'private-source-key',
+    alibabaSourceRawRef: { privateObject: 'raw/secret.json' },
   });
   assert.match(markup, /Identity|Content|Media|Pricing &amp; Order|Lifecycle/);
   assert.match(markup, /Primary/);
-  assert.match(markup, /Alibaba Source|available|2026-08-20/);
+  assert.doesNotMatch(markup, /Alibaba Source Images|private-source-key|raw\/secret.json/);
+  assert.doesNotMatch(markup, /\[&quot;https:/);
+  assert.match(markup, /aria-label="Preview source image 1"/);
+  assert.match(markup, /aria-label="Close editor"/);
+  assert.match(markup, /data-record-form-body/);
+  assert.match(markup, /data-record-form-actions/);
   assert.match(markup, /Import source gallery/);
   assert.match(markup, /referrerpolicy="no-referrer"/i);
   assert.doesNotMatch(markup, /VIP Price/);
   assert.doesNotMatch(markup, /Subcategory/);
-  assert.match(markup, /Quantity Tier Pricing|Add price tier/);
+  assert.match(markup, /Website pricing/);
   assert.equal(availableImageSlots(9, 8, 1), 0);
   assert.equal(availableImageSlots(9, 8, 0), 1);
   const files = [new File(['a'], 'a.png'), new File(['b'], 'b.png')];
@@ -280,7 +286,6 @@ test('non-product forms keep their ordinary editable fields and no product secti
   const markup = renderForm(users, { email: 'user@example.test', role: 'member' });
   assert.match(markup, /Email|Role/);
   assert.doesNotMatch(markup, /Identity|Pricing &amp; Order|Alibaba Source/);
-  assert.deepEqual(productReadOnlyFields(users, { _id: 'user-1' }), []);
 });
 
 test('archived publication errors target the lifecycle control', () => {

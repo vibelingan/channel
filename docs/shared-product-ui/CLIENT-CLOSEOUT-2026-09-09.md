@@ -5,6 +5,98 @@ This is an implementation and acceptance ledger. Historical entries below retain
 their original verification boundaries; the newest release evidence takes precedence.
 All releases in this closeout use CI/CD, not direct local cloud deployment.
 
+### Combined customer follow-up — editor, contact email and release sequence
+
+Scope: product Edit only for the layout/media changes, existing website footer and
+structured data for the email change. No new customer publication, RFQ creation,
+SMTP change or direct cloud deployment is included. The form had rendered every
+read-only Alibaba field through JSON.stringify; this was an inappropriate customer
+surface, not a request for customers to edit raw provider data. Its max-w-lg shell
+and bottom-only Cancel also explain the wasted desktop space and excessive scrolling.
+
+Implementation: wide desktop/two-column product form, one bounded scroll body,
+fixed header/footer, top close, unsaved-discard confirmation and pending-operation
+guards. Shared image viewer covers owned previews and safe supplier thumbnails;
+private owned bytes render as revocable Blob URLs. Raw evidence remains untouched.
+Existing failed-upload Retry/Remove stay interactive while Save/Close remain blocked.
+The public email is sales@supplychainsai.com in both visible content and structured
+data. This does not configure or verify delivery to that mailbox.
+
+Local acceptance for this follow-up: full workspace tests **1,474 passed**;
+post-fix site rerun **362 passed**, lint and workspace/E2E typechecks passed.
+Production-build browser lanes ran sequentially: **76 baseline checks passed**
+and **61 formal-route checks passed**, including a disposable real local database
+for RFQ submission and Admin follow-up. The new editor test also verifies owned
+Blob previews decode and are revoked on close. Desktop and mobile screenshots
+were inspected at `output/playwright/editor-1440.png` and `editor-390.png`.
+Logs: `/tmp/channel-editor-workspace.log`, `/tmp/channel-editor-unit.log`,
+`/tmp/channel-editor-browser.log`, `/tmp/channel-editor-formal.log`.
+These are local results; this editor/email follow-up still requires its own
+feature CI and same-SHA test deployment before it can be called live.
+
+Verification gap: the earlier tests proved persistence, capacity and page-wide
+overflow but did not assert the actual Edit shell width, sticky actions or raw-field
+absence. New coverage measures 320/390/768/1024/1440px, modal focus, nested Escape,
+dirty cancellation/reopen, bad/duplicate source images and upload-pending dismissal.
+The two production-build lanes must run sequentially locally: separate output/DB
+directories do not isolate Astro's shared intermediate .astro/.prerender cache.
+
+The four historical failing browser cases in run `34336632804` were:
+
+1. **Headphones products remain visibly rendered after client catalog load**:
+   the old test looked for the retired in-list Back button after route navigation.
+2. **Headphones Gallery bounds media, falls back, and resets across products**:
+   the fixture mocked only the list, missing the new approved-detail/legacy fallback
+   requests; the expected gallery was never reached.
+3. **admin ImageManager enforces catalog capacity before upload**:
+   the test transport threw on `inquiryCapabilities`, a new dashboard readiness read.
+4. **Headphones keyboard flow moves focus card -> detail -> back to origin card**:
+   the fixture/selector still assumed inline detail. Repairing the real route test
+   additionally exposed missing focus on the async legacy heading, fixed in the UI.
+
+These were four failed test cases, not four proven database/API failures. None was
+waived: route-compatible fixtures retained the original behavior checks, the focus
+bug was repaired, and subsequent deployed public/catalog suites passed. The older
+live media-binding collection omission was a separate actual persistence defect,
+not an explanation of these four automation failures.
+
+### Resumed live acceptance — 2026-09-10 (Japan time)
+
+The one authorized private test inquiry is
+`5a0bd614-5c3a-41f3-8435-736cd502360f`. It was submitted through the deployed buyer
+form on 9 September at 21:41 Hong Kong time, for the already-public WH3 sample,
+quantity 1000, with explicitly synthetic TEST ONLY contact details. Quantity zero
+was rejected before submission. No second test inquiry is authorized by this entry.
+
+The normal authenticated Admin UI verified the saved product/SKU/revision,
+manual website price USD 3.10 and separate supplier tier USD 3.28. Viewing and a
+note-only save left it unprocessed; explicit In progress and Completed actions
+persisted, with a required completion reason. After the interrupted session,
+reopening the page on 10 September still returned Completed, all three history
+entries and zero unprocessed inquiries. The page confirmed email notifications
+disabled. This closes the real browser-to-cloud persistence loop, not an order,
+invoice, payment or email-delivery test.
+
+PR #37 head `80cd77b` passed full CI `34358334845` and merged into `test` as
+`ac859ebb1a30cef512dbcb9adb452bb75e33b829`. The resulting Deploy Test run
+`34368427049` deployed matching artifacts and passed authenticated resource/health
+smoke, but its final public browser step failed one check (39 passed).
+Independent readback already returns that SHA from both public-api/admin health
+endpoints. The ordinary WH3 page displays USD 3.10 before quantity entry, and the
+authenticated Catalog Import page shows its customer-facing read-only empty state.
+The first live card now opens an approved shared detail, while that smoke test
+still required the legacy-only `data-product-detail` marker. The failure screenshot
+shows the correctly rendered SY-T11 detail and six-image gallery. A read-only local
+rerun against the deployed site reproduced this deterministically; replacing the
+legacy-only assertion with a new/legacy detail identity assertion passes on the
+same deployed bytes (mobile and desktop, 1 test, 10.2 seconds). No product data or
+rendering was changed. Logs: `/tmp/channel-ac859-repro.log` and
+`/tmp/channel-ac859-verified.log`. The workflow remains historically red; the fix
+must pass the next full same-SHA deployment gate, not be described as a rerun success.
+This merge targets `test`, not `main`: feature CI precedes the merge, then the
+test-branch workflow runs complete CI again before updating cloud resources,
+functions, configuration and static pages. An Actions start is not release success.
+
 ### Authenticated browser follow-up
 
 **Latest evidence:** `c56f86d` completed CI/CD run `34354186747`, including 40 public
