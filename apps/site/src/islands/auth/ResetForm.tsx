@@ -6,6 +6,7 @@ const inputClass =
 
 /** Consume a single-use reset token (from `?token=`) and set a new password. */
 export function ResetForm() {
+  const [ready, setReady] = useState(false);
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -14,10 +15,12 @@ export function ResetForm() {
   useEffect(() => {
     // The reset token arrives in the query string of the emailed link.
     setToken(new URLSearchParams(window.location.search).get('token') ?? '');
+    setReady(true);
   }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!ready || busy || !token) return;
     const form = e.currentTarget;
     if (!form.checkValidity()) {
       form.reportValidity();
@@ -54,48 +57,57 @@ export function ResetForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="w-full">
-      <h1 className="font-display text-2xl font-bold text-ink">Choose a new password</h1>
+    <form
+      method="post"
+      onSubmit={handleSubmit}
+      noValidate
+      className="w-full"
+      aria-busy={!ready || busy}
+    >
+      <fieldset disabled={!ready || busy} className="contents">
+        <noscript>Enable JavaScript to use this secure form.</noscript>
+        <h1 className="font-display text-2xl font-bold text-ink">Choose a new password</h1>
 
-      {!token && (
-        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-          This reset link is missing its token. Request a new link from the sign-in page.
-        </p>
-      )}
-      {error && (
-        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </p>
-      )}
+        {!token && (
+          <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            This reset link is missing its token. Request a new link from the sign-in page.
+          </p>
+        )}
+        {error && (
+          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </p>
+        )}
 
-      <div className="mt-6">
-        <label htmlFor="newPassword" className="block text-sm font-medium text-ink">
-          New password
-        </label>
-        <input
-          id="newPassword"
-          name="newPassword"
-          type="password"
-          autoComplete="new-password"
-          required
-          minLength={6}
-          className={inputClass}
-        />
-      </div>
+        <div className="mt-6">
+          <label htmlFor="newPassword" className="block text-sm font-medium text-ink">
+            New password
+          </label>
+          <input
+            id="newPassword"
+            name="newPassword"
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={6}
+            className={inputClass}
+          />
+        </div>
 
-      <button
-        type="submit"
-        disabled={busy || !token}
-        className="mt-6 w-full rounded-lg bg-brand-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-800 disabled:opacity-60"
-      >
-        {busy ? 'Please wait…' : 'Reset password'}
-      </button>
+        <button
+          type="submit"
+          disabled={!ready || busy || !token}
+          className="mt-6 w-full rounded-lg bg-brand-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-800 disabled:opacity-60"
+        >
+          {busy ? 'Please wait…' : 'Reset password'}
+        </button>
 
-      <div className="mt-5 text-center text-sm text-ink-soft">
-        <a href="/login" className="font-medium text-brand-600 hover:text-brand-700">
-          ← Back to sign in
-        </a>
-      </div>
+        <div className="mt-5 text-center text-sm text-ink-soft">
+          <a href="/login" className="font-medium text-brand-600 hover:text-brand-700">
+            ← Back to sign in
+          </a>
+        </div>
+      </fieldset>
     </form>
   );
 }

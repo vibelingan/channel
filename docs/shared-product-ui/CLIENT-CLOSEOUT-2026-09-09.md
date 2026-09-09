@@ -1,9 +1,50 @@
 # Client acceptance closeout — 2026-09-09
 
 Baseline: `fix/alibaba-sync-storage-wiring@0094048` plus preserved local work.
-This is an implementation ledger, not a release claim. No direct cloud deployment.
+This is an implementation and acceptance ledger. Historical entries below retain
+their original verification boundaries; the newest release evidence takes precedence.
+All releases in this closeout use CI/CD, not direct local cloud deployment.
 
-## Post-deployment regression closure (latest status)
+## Released version and acceptance — 2026-09-09
+
+- PR #34 merged the final application changes into `test` as
+  `b24e91e1e6cf0a947c7cda660b589a86732c2a85`. The feature branch at `38c65f5`
+  has the same application tree. Commits and fixes are pushed, not local-only.
+- Deploy Test run `34342154312` succeeded: same-SHA prerequisite CI, resource
+  preflight, function packaging/runtime checks, functions/configuration/static site,
+  authenticated API smoke, then **38 public + 19 catalog browser cases** against
+  the deployed domain. Both admin and public-api health independently returned
+  the exact merge SHA. No direct MCP function deployment was used.
+- Independent browser checks against the live domain passed the four focused
+  regressions: catalog visibility after hydration, bounded/failing galleries,
+  image-manager capacity, and card/detail/Back keyboard focus. The admin capacity
+  case uses mocked transport; it is not evidence of a live customer-record write.
+- Both production-build local browser lanes also passed: 72 baseline cases and
+  58 formal-route cases. The lanes share cases; these are not 130 unique tests.
+  The formal journey uses real handlers and a disposable file database and checks
+  persisted category approvals, RFQ idempotency and follow-up concurrency.
+- Public API readback still returned the original nine public product IDs.
+  Email and the Excel import worker remain disabled.
+- Authenticated live acceptance `34344809997` passed its complete prerequisite CI
+  but stopped at browser login, BEFORE category/product writes. SSR rendered an
+  enabled login form without a method before React hydrated, so native submission
+  used GET. The test password was GitHub-masked in output, but may exist in origin
+  access logs; credential rotation has been requested. This is a real existing
+  auth-form boundary failure, not an Alibaba/API failure. Live remediation,
+  gallery migration and inquiry acceptance remain unverified.
+- The follow-up fix makes login/register/reset forms inert until hydration, uses
+  explicit POST as defense in depth, and guards duplicate submits. Two new browser
+  cases reproduced the missing protection against the live build (no real
+  credentials): JavaScript disabled, and delayed hydration. The live acceptance
+  spec now checks the safe SSR method and ready state BEFORE entering credentials.
+  Fresh local verification of this follow-up: lint/typecheck and all 1,467 tests
+  passed; production-build browser lanes passed 74 baseline and 60 formal cases
+  (shared cases are intentionally counted in both lanes). No-JS and delayed-script
+  tests use synthetic values; normal UI login is also exercised by the real local
+  catalog/Admin and RFQ journeys. Logs are `/tmp/channel-auth-unit.log`,
+  `/tmp/channel-auth-baseline.log` and `/tmp/channel-auth-formal-green3.log`.
+
+## Post-deployment regression closure (history before the successful release)
 
 PR #32 merged as `1fd3e97e724ca6e37ad1daecacfe2c7c136ea575`. CI/CD
 run `34336632804` deployed matching admin/public-api release IDs, resources,

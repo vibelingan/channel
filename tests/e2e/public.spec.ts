@@ -28,6 +28,69 @@ const longNameMember = {
   role: 'member',
 } satisfies SessionUser;
 
+test('auth forms cannot submit credentials before JavaScript is ready', async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  try {
+    const page = await context.newPage();
+    for (const path of ['/login', '/register', '/reset?token=synthetic-reset-token']) {
+      await page.goto(`${e2e.siteUrl}${path}`, { waitUntil: 'domcontentloaded' });
+      const password = page.locator('input[type="password"]');
+      await expect(password).toBeDisabled();
+      await expect(page.locator('form button[type="submit"]')).toBeDisabled();
+      await expect(page.locator('form')).toHaveAttribute('method', 'post');
+      // Playwright text selectors exclude NOSCRIPT even in a no-JS context.
+      expect(await page.locator('form noscript').textContent()).toBe(
+        'Enable JavaScript to use this secure form.',
+      );
+      await expect(page.locator('form noscript')).toBeVisible();
+    }
+  } finally {
+    await context.close();
+  }
+});
+
+test('delayed auth hydration enables one JSON POST, never a password URL', async ({ page }) => {
+  let releaseScripts!: () => void;
+  const scriptsReady = new Promise<void>((resolve) => {
+    releaseScripts = resolve;
+  });
+  await page.route('**/_astro/*.js', async (route) => {
+    await scriptsReady;
+    await route.continue();
+  });
+  const requests: { method: string; action: string }[] = [];
+  await page.route('**/api/admin', async (route) => {
+    requests.push({
+      method: route.request().method(),
+      action: route.request().postDataJSON().action,
+    });
+    await route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: false,
+        error: { code: 'UNAUTHORIZED', message: 'Invalid email or password.' },
+      }),
+    });
+  });
+  try {
+    await page.goto('/login', { waitUntil: 'commit' });
+    await expect(page.getByLabel('Password', { exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeDisabled();
+    releaseScripts();
+    await expect(page.getByLabel('Password', { exact: true })).toBeEnabled();
+    await page.getByLabel('Email', { exact: true }).fill('synthetic-auth@example.invalid');
+    await page.getByLabel('Password', { exact: true }).fill('synthetic-not-a-real-password');
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await expect(page.getByText('Invalid email or password.', { exact: true })).toBeVisible();
+    expect(requests).toEqual([{ method: 'POST', action: 'login' }]);
+    expect(new URL(page.url()).search).toBe('');
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
+  } finally {
+    releaseScripts();
+  }
+});
+
 function captureConsoleProblems(page: Page): string[] {
   const problems: string[] = [];
   page.on('console', (message) => {
