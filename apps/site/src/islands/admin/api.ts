@@ -159,6 +159,7 @@ export async function updateRecord(
   id: string,
   values: Record<string, unknown>,
 ): Promise<CollectionDoc> {
+  let refreshPublishedDetail = false;
   if (
     collection === 'products' &&
     values.published === undefined &&
@@ -166,12 +167,12 @@ export async function updateRecord(
   ) {
     const current = await call<CollectionDoc>('get', { collection, id });
     if (current.published === true && typeof current.alibabaPrimarySourceKey === 'string') {
-      // A website-category edit is also a public-detail edit. Reapprove the
-      // immutable snapshot; never publish drafts as a side effect of a batch.
-      return updateRecord(collection, id, { ...values, published: true });
+      // Refresh the approved detail without inventing publication intent. Another
+      // admin may withdraw the product while this operation is in flight.
+      refreshPublishedDetail = true;
     }
   }
-  if (collection === 'products' && values.published === true) {
+  if (collection === 'products' && (values.published === true || refreshPublishedDetail)) {
     const capabilities = await call<{ enabled: boolean }>('catalogDetailCapabilities');
     if (typeof capabilities?.enabled !== 'boolean')
       throw new AdminApiError('INVALID_RESPONSE', 'Approval capability could not be confirmed.');
@@ -212,6 +213,7 @@ export async function updateRecord(
         );
         const review = await prepareDetailReview(id);
         await approveDetailReview(review, crypto.randomUUID());
+        if (refreshPublishedDetail) return call<CollectionDoc>('get', { collection, id });
         return call<CollectionDoc>('update', { collection, id, values: { published: true } });
       }
     }

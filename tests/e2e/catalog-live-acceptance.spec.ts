@@ -105,7 +105,15 @@ test('live release: approved categories, existing published galleries, real inqu
     await expect(page.getByLabel('Published', { exact: true })).toBeChecked();
     await page.getByRole('button', { name: 'Import source gallery', exact: true }).click();
     await expect(page.getByText(/images added\. Save to attach/)).toBeVisible({ timeout: 180000 });
-    await expect(page.getByText(/Source image \d+:|import stopped/)).toHaveCount(0);
+    const imageErrors = page.getByText(/Source image \d+:|import stopped/);
+    // Log only known diagnostic tokens, never full gateway responses, URLs or
+    // credential-bearing admin artifacts. Partial success must still fail.
+    const diagnostics = (await imageErrors.allTextContents()).map((message) =>
+      message.match(
+        /Source image \d+|Import rejected: [a-z-]+|Request failed \(\d+\)|import stopped/g,
+      ),
+    );
+    expect(diagnostics, `Gallery admission failed for ${id}`).toEqual([]);
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 180000 });
     const after = await adminAction<CollectionDoc>(
@@ -134,17 +142,24 @@ test('live release: approved categories, existing published galleries, real inqu
     await page.goto(`/headphones/?id=${id}`);
     await expect(page.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
     await expect(page.locator('[data-catalog-quote-conditions]')).toContainText('Website pricing');
-    await expect
-      .poll(
-        () =>
-          page
-            .locator('[data-gallery-frame] img')
-            .evaluate(
-              (img) => img instanceof HTMLImageElement && img.complete && img.naturalWidth > 0,
-            ),
-        { timeout: 30000 },
-      )
-      .toBe(true);
+    const thumbnails = page.locator('[data-gallery-thumbnail]');
+    await expect(thumbnails).toHaveCount(Array.isArray(after.imageIds) ? after.imageIds.length : 0);
+    for (let index = 0; index < (await thumbnails.count()); index++) {
+      await thumbnails.nth(index).click();
+      await expect(thumbnails.nth(index)).toHaveAttribute('aria-pressed', 'true');
+      await expect
+        .poll(
+          () =>
+            page
+              .locator('[data-gallery-frame] img')
+              .evaluate(
+                (img) => img instanceof HTMLImageElement && img.complete && img.naturalWidth > 0,
+              ),
+          { timeout: 30000 },
+        )
+        .toBe(true);
+    }
+    await thumbnails.first().click();
     // Explicit public-page screenshot only; never record login/session traces.
     await page.screenshot({ path: `output/catalog-live/public-${id}.png`, fullPage: true });
     await page.goto('/admin');

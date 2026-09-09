@@ -65,6 +65,27 @@ test('classifying an already-public source product goes through approval, never 
   assert.ok(actions.includes('catalogDetailApproval'));
 });
 
+test('category-only edits never republish a product withdrawn by another admin during the operation', async (t) => {
+  let published = true;
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    if (body.action === 'get') {
+      const snapshot = { _id: 'source', published, alibabaPrimarySourceKey: 'a'.repeat(64) };
+      // Another administrator withdraws it after this reader sees public state.
+      published = false;
+      return Response.json({ ok: true, data: snapshot });
+    }
+    if (body.action === 'catalogDetailCapabilities')
+      return Response.json({ ok: true, data: { enabled: false } });
+    assert.equal(body.action, 'update');
+    if (typeof body.data.values.published === 'boolean') published = body.data.values.published;
+    return Response.json({ ok: true, data: { _id: 'source', productFamily: 'misc', published } });
+  });
+  const result = await batchUpdateRecords('products', ['source'], { productFamily: 'misc' });
+  assert.equal(result.updated, 1);
+  assert.equal(result.items[0]?.published, false);
+});
+
 test('category batches reject unknown categories and mixed changes before network', async (t) => {
   t.mock.method(globalThis, 'fetch', async () => {
     throw new Error('Must not send');

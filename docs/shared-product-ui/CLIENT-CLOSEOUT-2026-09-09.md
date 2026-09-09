@@ -5,6 +5,36 @@ This is an implementation and acceptance ledger. Historical entries below retain
 their original verification boundaries; the newest release evidence takes precedence.
 All releases in this closeout use CI/CD, not direct local cloud deployment.
 
+### Subsequent auth release and publication-intent regression
+
+PR #35 merged as `84f0315af5d39231d54ea5e0dd45f61a8aa319bd` and deployed
+successfully through run `34347737035`. Both API health responses and the login
+SSR markup independently confirm the new version/protection. The deployed
+browser gate passed 40 public and 19 catalog cases without retries; two independent
+live auth checks also passed using no real credentials. Bounded data acceptance
+`34350178772` installed 30 approved rules, applied 302 eligible drafts and verified
+zero remaining eligible drafts with the public product IDs unchanged. It then
+stopped on a source-gallery error BEFORE saving the first public sample. Neither
+sample migration nor live RFQ acceptance is complete. Safe diagnostic tokens are
+now included in failed gallery assertions without uploading private admin artifacts.
+
+The deployment manifest also omitted `catalogSourceLinks`, now required by API
+media binding regardless of whether the optional Excel worker has ever run.
+A failing resource-contract test confirmed the omission; CI/CD now provisions
+it as ADMINONLY before functions. This is a verified deployment gap, not yet a
+confirmed explanation of the failed live image request. No direct cloud change
+was made to investigate it.
+
+A final category concurrency check reproduced another boundary: the browser
+converted a category-only edit into an explicit publication request. If another
+admin withdrew that product during the operation, the classification could
+republish it. Category refresh now preserves publication intent: it may refresh
+an approved detail, but never writes `published: true`. Only an explicit Publish
+or checked Published form action does that. The failing unit test and a real
+local browser/API interleaving both cover this; the latter withdraws the product
+during source preparation and verifies it remains private after classification.
+This follow-up is pending its own same-SHA CI/CD release, not a direct hotpatch.
+
 ## Released version and acceptance — 2026-09-09
 
 - PR #34 merged the final application changes into `test` as
