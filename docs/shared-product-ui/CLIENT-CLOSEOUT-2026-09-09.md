@@ -3,6 +3,45 @@
 Baseline: `fix/alibaba-sync-storage-wiring@0094048` plus preserved local work.
 This is an implementation ledger, not a release claim. No direct cloud deployment.
 
+## Post-deployment regression closure (latest status)
+
+PR #32 merged as `1fd3e97e724ca6e37ad1daecacfe2c7c136ea575`. CI/CD
+run `34336632804` deployed matching admin/public-api release IDs, resources,
+configuration and static pages. Basic authenticated API smoke passed; the nine
+previously public product IDs were unchanged. The subsequent public browser
+gate failed four cases, so release acceptance is NOT complete. The next queued
+deployment (`34338358490`) was cancelled before deployment while investigating.
+
+The legacy fallback lacked keyboard focus on its asynchronously loaded heading;
+this is a real accessibility regression now patched. Gallery/back tests still
+assumed the retired in-list expansion interaction and mocked only list data, not
+the new approved-detail 404 plus legacy-item fetch. Their replacement continues
+to assert bounded multi-image loading, broken-image fallback, mobile overflow,
+return-to-origin focus and repeat activation through the real route shell. The
+Admin image-manager mock now handles the added capabilities/review-summary reads.
+
+Expanding the pre-deployment route suite also exposed duplicate slug reads:
+the shared resolver and legacy page could fetch concurrently, masking an initial
+failure. Slug resolution now owns one request and explicit retry, passes a decoded
+product to legacy fallback, and rejects conflicting slug/id inputs. Browser cases
+also prove 403 never triggers a legacy fallback. Public error copy does not expose
+internal approval terminology.
+
+Another regression test exposed that bulk website-family changes on an already
+public source product could leave the approved detail's category label stale.
+Those updates now run the existing prepare/approve/finalize workflow; draft-only
+classification still does not publish. Failed approval is not reported as a
+successful batch. A formal browser case checks Misc then Headphones against the
+persisted approved snapshot.
+
+Both disposable production-build browser lanes now run the full public and
+catalog route suites BEFORE deployment, in addition to their admin/RFQ cases.
+Local fixtures include the hero's three image identities with synthetic owned
+bytes and real published ownership; the built canonical origin matches the
+disposable server. No live image URLs or production database are copied.
+Live category remediation, two existing-public gallery/approval migrations and
+the explicitly marked RFQ acceptance remain pending successful release gates.
+
 ## 2026-09-09 integration closure update (supersedes remaining-work notes below)
 
 Baseline repairs are committed and pushed as `25275b4`; readiness parsing is

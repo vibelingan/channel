@@ -8,6 +8,7 @@ import { submitLocalQuote } from '../../catalog/application/local-quote-transpor
 import { submitPublicQuote } from '../../catalog/application/public-quote-transport.ts';
 import type { SharedDetailContent } from '../../i18n/catalog.ts';
 import { fetchProductBySlug } from './api.ts';
+import type { Product } from './catalog-types.ts';
 import { sharedVariantSearch } from './shared-detail-navigation.ts';
 import { sharedPreviewTarget } from './shared-detail-preview-target.ts';
 
@@ -15,9 +16,10 @@ import { sharedPreviewTarget } from './shared-detail-preview-target.ts';
 export default function SharedDetailPreview({
   copy,
   legacy,
-}: { copy: SharedDetailContent; legacy: ReactNode }) {
+}: { copy: SharedDetailContent; legacy: (product?: Product) => ReactNode }) {
   const [search, setSearch] = useState<string>();
-  const [resolved, setResolved] = useState<string>();
+  const [resolved, setResolved] = useState<{ search: string; product?: Product; error?: string }>();
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const read = () => setSearch(window.location.search);
     read();
@@ -25,32 +27,56 @@ export default function SharedDetailPreview({
     return () => window.removeEventListener('popstate', read);
   }, []);
   useEffect(() => {
+    void attempt;
     const controller = new AbortController();
     setResolved(undefined);
     const params = new URLSearchParams(search);
-    if (params.has('slug') && !params.has('id')) {
+    if (search !== undefined && params.has('slug') && !params.has('id')) {
       void fetchProductBySlug(params.get('slug') ?? '', controller.signal)
         .then((product) => {
-          if (!controller.signal.aborted) setResolved(product._id);
+          if (!controller.signal.aborted) setResolved({ search, product });
         })
-        .catch(() => {});
+        .catch((error: unknown) => {
+          if (!controller.signal.aborted)
+            setResolved({ search, error: error instanceof Error ? error.message : 'error' });
+        });
     }
     return () => controller.abort();
-  }, [search]);
+  }, [search, attempt]);
   if (search === undefined)
     return <output className="block p-12 text-center">{copy.loadingLabel}</output>;
   const params = new URLSearchParams(search);
   const localPreview = import.meta.env.DEV && params.get('preview') === 'shared';
+  if (params.has('slug') && params.has('id'))
+    return (
+      <p role="alert" className="p-12 text-center">
+        {copy.errorLabel}
+      </p>
+    );
   if (!localPreview) {
     if (params.has('slug')) {
-      if (!resolved) return legacy;
+      if (resolved?.search !== search)
+        return <output className="block p-12 text-center">{copy.loadingLabel}</output>;
+      if (!resolved.product)
+        return (
+          <section role="alert" className="mx-auto max-w-2xl p-12 text-center">
+            <h1>{resolved.error === 'not-found' ? copy.notFound : copy.errorLabel}</h1>
+            <button
+              type="button"
+              className="mt-4 min-h-11 rounded border px-5"
+              onClick={() => setAttempt((n) => n + 1)}
+            >
+              {copy.retryLabel}
+            </button>
+          </section>
+        );
       params.delete('slug');
-      params.set('id', resolved);
+      params.set('id', resolved.product._id);
     }
     if (params.has('id')) params.set('preview', 'shared');
   }
   const target = sharedPreviewTarget(true, `?${params}`);
-  if (target.status === 'legacy') return legacy;
+  if (target.status === 'legacy') return legacy();
   if (target.status !== 'preview')
     return (
       <p role="alert" className="p-12 text-center">
@@ -67,7 +93,11 @@ export default function SharedDetailPreview({
           productId={target.productId}
           requestedId={target.requestedId}
           copy={copy}
-          legacyFallback={localPreview ? undefined : legacy}
+          legacyFallback={
+            localPreview
+              ? undefined
+              : legacy(resolved?.search === search ? resolved.product : undefined)
+          }
           onVariantChange={(variantId) => {
             const query = new URLSearchParams(window.location.search);
             if (!localPreview) {

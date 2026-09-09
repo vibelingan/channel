@@ -159,6 +159,18 @@ export async function updateRecord(
   id: string,
   values: Record<string, unknown>,
 ): Promise<CollectionDoc> {
+  if (
+    collection === 'products' &&
+    values.published === undefined &&
+    isProductFamily(values.productFamily)
+  ) {
+    const current = await call<CollectionDoc>('get', { collection, id });
+    if (current.published === true && typeof current.alibabaPrimarySourceKey === 'string') {
+      // A website-category edit is also a public-detail edit. Reapprove the
+      // immutable snapshot; never publish drafts as a side effect of a batch.
+      return updateRecord(collection, id, { ...values, published: true });
+    }
+  }
   if (collection === 'products' && values.published === true) {
     const capabilities = await call<{ enabled: boolean }>('catalogDetailCapabilities');
     if (typeof capabilities?.enabled !== 'boolean')

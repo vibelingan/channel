@@ -748,7 +748,7 @@ test.describe('public browser smoke', () => {
 
       await productCards.first().click();
       await expect(page.locator('[data-product-detail]')).toBeVisible();
-      await page.getByRole('button', { name: 'Back to all products', exact: true }).click();
+      await page.getByRole('button', { name: 'Back to catalog', exact: true }).click();
       await expect(page.locator('[data-product-detail]')).toHaveCount(0);
       await expect(productCards.first()).toBeVisible();
     }
@@ -762,6 +762,30 @@ test.describe('public browser smoke', () => {
     const requestedImageIds: string[] = [];
     let catalogMode: 'gallery' | 'fallback' = 'gallery';
     let releaseDetailFallback: (() => void) | undefined;
+
+    // Legacy fixtures have no approved shared detail. Model BOTH endpoints:
+    // the new contract returns 404, then the public legacy item is fetched.
+    await page.route('**/api/products/miu8-*', (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path.endsWith('/detail')) return route.fulfill({ status: 404, body: '' });
+      const id = path.split('/').at(-1);
+      const missing = id === 'miu8-product-missing';
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          data: {
+            _id: id,
+            name: missing
+              ? 'MIU 8 Missing Product'
+              : `MIU 8 Product ${id?.endsWith('-a') ? 'A' : 'B'}`,
+            category: 'bluetooth',
+            images: missing ? [imagePath('miu8-missing')] : imageIdsA.map(imagePath),
+          },
+        }),
+      });
+    });
 
     await page.route('**/api/products?**', (route) => {
       const items =
@@ -873,11 +897,13 @@ test.describe('public browser smoke', () => {
         .poll(() => [...new Set(requestedImageIds)].sort())
         .toEqual(imageIdsA.slice(0, 4).sort());
       expect(requestedImageIds.length).toBeGreaterThanOrEqual(4);
-      expect(requestedImageIds.length).toBeLessThanOrEqual(5);
+      // Two visible list cards share the primary URL, and dedicated detail
+      // mounts a third primary consumer. no-store intentionally counts all.
+      expect(requestedImageIds.length).toBeLessThanOrEqual(6);
       for (const id of imageIdsA.slice(0, 4)) {
         const count = requestedImageIds.filter((requestedId) => requestedId === id).length;
         expect(count, `${id} request multiplicity`).toBeGreaterThanOrEqual(1);
-        expect(count, `${id} request multiplicity`).toBeLessThanOrEqual(id === 'miu8-a1' ? 2 : 1);
+        expect(count, `${id} request multiplicity`).toBeLessThanOrEqual(id === 'miu8-a1' ? 3 : 1);
       }
 
       await frame.scrollIntoViewIfNeeded();
@@ -1002,6 +1028,8 @@ test.describe('public browser smoke', () => {
       await expect(viewAll).toHaveText('Show Less');
       await expect(viewAll).toBeFocused();
 
+      await page.getByRole('button', { name: 'Back to catalog', exact: true }).click();
+      await expect(productA).toBeFocused();
       await productB.click();
       await expect(thumbnails).toHaveCount(4);
       await expect(viewAll).toHaveAttribute('aria-expanded', 'false');
@@ -1020,7 +1048,9 @@ test.describe('public browser smoke', () => {
         const options = host.__miu8ScrollOptions;
         return typeof options === 'object' ? options.behavior : undefined;
       });
-      expect(scrollBehavior).toBe(viewport.width === 390 ? 'auto' : 'smooth');
+      // The dedicated detail route positions its Back action immediately;
+      // scrolling is never animated, including reduced-motion mode.
+      expect(scrollBehavior).toBe('instant');
 
       catalogMode = 'fallback';
       requestedImageIds.length = 0;
@@ -1090,6 +1120,18 @@ test.describe('public browser smoke', () => {
       switch (payload.action) {
         case 'me':
           data = { user: adminUser };
+          break;
+        case 'inquiryCapabilities':
+          data = { enabled: false, notification: 'disabled' };
+          break;
+        case 'catalogDetailCapabilities':
+          data = { enabled: false };
+          break;
+        case 'productReviewSummary':
+          data = {
+            pendingTotal: 0,
+            byFamily: { headphones: 0, 'ai-gadgets': 0, toys: 0, misc: 0 },
+          };
           break;
         case 'list':
           data =
@@ -1304,6 +1346,15 @@ test.describe('public browser smoke', () => {
       '7b76ee416a68209d0110670520562928',
       '0e0afdc26a68209c00523a7b50cb8647',
     ] as const;
+    // Isolate hero retry counts from product cards that may legitimately share
+    // these same image identities. Real hero bytes remain unmocked initially.
+    await page.route('**/api/products?*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, data: { items: [], total: 0, page: 1, pageSize: 12 } }),
+      }),
+    );
 
     // client:load SSR. Assert ONLY on markup that client:load emits: the
     // wrapper div and the island's serialized props exist under client:only
@@ -1467,6 +1518,17 @@ test.describe('public browser smoke', () => {
     }));
     const imageRequests: string[] = [];
 
+    await page.route('**/api/products/miu13-focus-*', (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path.endsWith('/detail')) return route.fulfill({ status: 404, body: '' });
+      const product = items.find((item) => item._id === path.split('/').at(-1));
+      return route.fulfill({
+        status: product ? 200 : 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: Boolean(product), data: product }),
+      });
+    });
+
     await page.route('**/api/products?**', (route) =>
       route.fulfill({
         status: 200,
@@ -1575,7 +1637,7 @@ test.describe('public browser smoke', () => {
       await expect(page.getByText('Factory Strength & Quality Assurance')).toHaveCount(0);
 
       // Back returns focus to the originating card.
-      await page.locator('[data-detail-back]').click();
+      await page.getByRole('button', { name: 'Back to catalog', exact: true }).click();
       await expect(page.locator('[data-product-detail]')).toHaveCount(0);
       await expect(originCard).toBeFocused();
 
@@ -1583,14 +1645,11 @@ test.describe('public browser smoke', () => {
       // open handler cannot rely on the active product changing identity.
       await page.keyboard.press('Enter');
       await expect(heading).toBeFocused();
-      await originCard.focus();
-      await page.keyboard.press('Enter');
-      await expect(
-        heading,
-        `re-activating the open card refocuses its heading at ${viewport.width}px`,
-      ).toBeFocused();
-      await page.locator('[data-detail-back]').click();
+      // A dedicated detail hides (but preserves) the list; return before
+      // another activation instead of trying to focus an invisible card.
+      await page.getByRole('button', { name: 'Back to catalog', exact: true }).click();
       await expect(page.locator('[data-product-detail]')).toHaveCount(0);
+      await expect(originCard).toBeFocused();
     }
 
     await page.unroute('**/api/images/**');

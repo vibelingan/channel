@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import type { CatalogContent, SharedDetailContent } from '../../i18n/catalog.ts';
 import {
   catalogBreadcrumbSchema,
@@ -32,6 +32,7 @@ interface Props {
   content: CatalogContent;
   previewContent?: SharedDetailContent;
   productId?: string;
+  initialProduct?: Product;
 }
 
 const SharedPreview = lazy(() => import('./SharedDetailPreview.tsx'));
@@ -42,7 +43,10 @@ export function SkuDetailPage({ content, previewContent }: Props) {
       <Suspense
         fallback={<output className="block p-12 text-center">{content.list.loadingLabel}</output>}
       >
-        <SharedPreview copy={previewContent} legacy={<LegacySkuDetailPage content={content} />} />
+        <SharedPreview
+          copy={previewContent}
+          legacy={(product) => <LegacySkuDetailPage content={content} initialProduct={product} />}
+        />
       </Suspense>
     );
   return <LegacySkuDetailPage content={content} />;
@@ -69,6 +73,11 @@ function relatedProducts(product: Product, related: Product[]): Array<Product & 
 
 export function SkuDetailView({ content, state, onRetry }: ViewProps) {
   const { detail, list } = content;
+  const heading = useRef<HTMLHeadingElement>(null);
+  const readyId = state.status === 'ready' ? state.product._id : undefined;
+  useEffect(() => {
+    if (readyId) heading.current?.focus({ preventScroll: true });
+  }, [readyId]);
   if (state.status === 'loading') {
     return (
       <div className="mx-auto max-w-[var(--width-container)] px-4 py-20 sm:px-6 lg:px-8">
@@ -164,7 +173,12 @@ export function SkuDetailView({ content, state, onRetry }: ViewProps) {
               />
             </div>
             <div className="min-w-0">
-              <h1 className="break-words font-display text-4xl font-bold text-ink">
+              <h1
+                ref={heading}
+                tabIndex={-1}
+                data-detail-heading
+                className="break-words font-display text-4xl font-bold text-ink outline-none"
+              >
                 {product.name}
               </h1>
               {product.description && (
@@ -262,7 +276,7 @@ export function SkuDetailView({ content, state, onRetry }: ViewProps) {
   );
 }
 
-export function LegacySkuDetailPage({ content, productId }: Props) {
+export function LegacySkuDetailPage({ content, productId, initialProduct }: Props) {
   const [state, setState] = useState<SkuDetailViewState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
 
@@ -278,9 +292,11 @@ export function LegacySkuDetailPage({ content, productId }: Props) {
       return () => controller.abort();
     }
     setState({ status: 'loading' });
-    (id
-      ? fetchCatalogItem('/api/products', id, controller.signal)
-      : fetchProductBySlug(slug, controller.signal)
+    (initialProduct
+      ? Promise.resolve(initialProduct)
+      : id
+        ? fetchCatalogItem('/api/products', id, controller.signal)
+        : fetchProductBySlug(slug, controller.signal)
     )
       .then((product) => {
         if (controller.signal.aborted) return;
@@ -312,7 +328,7 @@ export function LegacySkuDetailPage({ content, productId }: Props) {
         });
       });
     return () => controller.abort();
-  }, [attempt, productId]);
+  }, [attempt, productId, initialProduct]);
 
   return (
     <SkuDetailView
