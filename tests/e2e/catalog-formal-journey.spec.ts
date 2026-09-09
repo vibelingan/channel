@@ -61,6 +61,28 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
   // Classification must update the already-public immutable detail as well as
   // the admin row. Exercise the same bulk control the client asked for.
   for (const label of ['Misc', 'Headphones']) {
+    let withdrawnDuringPreparation = false;
+    if (label === 'Misc') {
+      await page.route('**/api/admin', async (route) => {
+        const body = route.request().postDataJSON();
+        if (
+          !withdrawnDuringPreparation &&
+          body.action === 'catalogDetailApproval' &&
+          body.data?.action === 'prepare'
+        ) {
+          // A separate real API request withdraws the product while the browser
+          // is classifying it. Approval must not manufacture a republish command.
+          withdrawnDuringPreparation = true;
+          await adminAction(
+            request,
+            'update',
+            { collection: 'products', id, values: { published: false } },
+            session.token,
+          );
+        }
+        await route.continue();
+      });
+    }
     await page.getByRole('checkbox', { name: 'Select all rows' }).check();
     await page
       .getByRole('combobox', { name: 'Website main category' })
@@ -71,16 +93,34 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
       .getByRole('option', { name: label, exact: true })
       .click();
     await page.getByRole('button', { name: 'Assign category', exact: true }).click();
-    const committed = page.waitForResponse((response) => {
+    const committed = page.waitForResponse(async (response) => {
       if (!response.url().endsWith('/api/admin') || response.request().method() !== 'POST')
         return false;
-      const body = response.request().postDataJSON();
-      return (
-        body.action === 'update' && body.data?.id === id && body.data?.values?.published === true
-      );
+      const command = response.request().postDataJSON();
+      if (!['get', 'update'].includes(command.action) || command.data?.id !== id) return false;
+      const body = await response.json();
+      return body.ok && body.data?.catalogDetailPublication?.header?.categoryLabel === label;
     });
     await page.getByRole('button', { name: 'Confirm assignment' }).click();
-    expect((await (await committed).json()).ok).toBe(true);
+    // This is the terminal read (or the old buggy republish response), not an
+    // intermediate approved snapshot followed by an unnoticed publication write.
+    expect((await (await committed).json()).data.published).toBe(label !== 'Misc');
+    // Category refresh no longer sends a publication patch. Await the persisted
+    // approval, not a stale status message from the previous batch.
+    await expect
+      .poll(
+        async () => {
+          const saved = await adminAction<CollectionDoc>(
+            request,
+            'get',
+            { collection: 'products', id },
+            session.token,
+          );
+          return saved.catalogDetailPublication;
+        },
+        { timeout: 30000 },
+      )
+      .toMatchObject({ state: 'approved', header: { categoryLabel: label } });
     await expect(page.getByRole('status')).toContainText('1 updated', { timeout: 30000 });
     const saved = await adminAction<CollectionDoc>(
       request,
@@ -88,11 +128,23 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
       { collection: 'products', id },
       session.token,
     );
-    expect(saved.published).toBe(true);
+    expect(saved.published).toBe(label !== 'Misc');
     expect(saved.catalogDetailPublication).toMatchObject({
       state: 'approved',
       header: { categoryLabel: label },
     });
+    if (label === 'Misc') {
+      expect(withdrawnDuringPreparation).toBe(true);
+      await page.unroute('**/api/admin');
+      // Explicit operator intent, after proving category-only refresh kept it
+      // private. Restore this disposable fixture for the remaining buyer journey.
+      await adminAction(
+        request,
+        'update',
+        { collection: 'products', id, values: { published: true } },
+        session.token,
+      );
+    }
   }
   await page.goto(`/headphones/?id=${id}`);
   await expect(page.locator('[data-catalog-variant-selector]')).toBeVisible();
