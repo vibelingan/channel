@@ -1,3 +1,4 @@
+import { PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT } from '@vibelingan-channel/shared';
 /**
  * UI-01: turn one explicitly bound source observation into a review candidate.
  * NOT a publication action, store-merging policy or database write. Only the
@@ -39,7 +40,7 @@ export function buildCatalogDetailCandidate(
   }
   const observation = validated.value;
   const warnings: string[] = [];
-  const images = (media: typeof observation.content.media) => {
+  const images = (media: typeof observation.content.media, limit = 9) => {
     const resolved: string[] = [];
     for (const item of [...media].sort((a, b) => a.position - b.position)) {
       const id = bindings.images.get(item.sourceUrl);
@@ -54,8 +55,9 @@ export function buildCatalogDetailCandidate(
       const url = `/api/images/${id}`;
       if (!resolved.includes(url)) resolved.push(url);
     }
-    if (resolved.length > 9) warnings.push('gallery-limited-to-nine');
-    return resolved.slice(0, 9);
+    if (resolved.length > limit)
+      warnings.push(limit === 9 ? 'gallery-limited-to-nine' : 'description-media-limit');
+    return resolved.slice(0, limit);
   };
   const facts = (values: typeof observation.identity.attributes) =>
     values.flatMap((item) => {
@@ -116,6 +118,18 @@ export function buildCatalogDetailCandidate(
     name: observation.identity.title ?? '',
     ...(bindings.categoryLabel ? { categoryLabel: bindings.categoryLabel } : {}),
     ...(descriptionText ? { descriptionText } : {}),
+    ...(observation.content.description?.imageUrls?.length
+      ? {
+          descriptionImages: images(
+            observation.content.description.imageUrls.map((sourceUrl, position) => ({
+              sourceUrl,
+              position,
+              role: 'gallery',
+            })),
+            PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
+          ),
+        }
+      : {}),
     images: images(observation.content.media),
     facts: facts(observation.identity.attributes),
     offers: observation.offers.filter((o) => o.sourceVariantKey === undefined).map(offer),

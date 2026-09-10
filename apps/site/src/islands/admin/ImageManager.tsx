@@ -10,6 +10,7 @@ interface Props {
   inputId?: string;
   errorId?: string;
   onBusyChange?: (busy: boolean) => void;
+  purpose?: 'gallery' | 'description';
 }
 
 /** A file still uploading, or one that failed and can be retried. Successful
@@ -111,7 +112,10 @@ export function ImageManager({
   inputId = 'imageIds',
   errorId,
   onBusyChange,
+  purpose = 'gallery',
 }: Props) {
+  const imageLabel = purpose === 'description' ? 'Description image' : 'Product image';
+  const addLabel = purpose === 'description' ? 'Add description images' : 'Add product images';
   const [pending, setPending] = useState<PendingUpload[]>([]);
   const [selectionNotice, setSelectionNotice] = useState('');
   const [previewId, setPreviewId] = useState<string>();
@@ -310,7 +314,7 @@ export function ImageManager({
   const liveNotice = [selectionNotice, failureNotice].filter(Boolean).join(' ');
 
   return (
-    <div data-image-manager>
+    <div data-image-manager={purpose}>
       <div className="flex flex-wrap gap-3">
         {value.map((id, i) => (
           <div
@@ -320,7 +324,7 @@ export function ImageManager({
           >
             <button
               type="button"
-              aria-label={`Preview product image ${i + 1}`}
+              aria-label={`Preview ${imageLabel.toLowerCase()} ${i + 1}`}
               onClick={() => setPreviewId(id)}
               className="h-full w-full pb-5 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-600"
             >
@@ -330,7 +334,7 @@ export function ImageManager({
                 className="h-full w-full object-contain"
               />
             </button>
-            {i === 0 && (
+            {i === 0 && purpose === 'gallery' && (
               <span className="pointer-events-none absolute left-1 top-1 rounded bg-slate-900/80 px-1 py-0.5 text-[9px] font-semibold text-white">
                 Primary
               </span>
@@ -410,7 +414,7 @@ export function ImageManager({
           <span className="text-2xl leading-none" aria-hidden="true">
             +
           </span>
-          <span className="sr-only">Add product images</span>
+          <span className="sr-only">{addLabel}</span>
           <input
             id={inputId}
             type="file"
@@ -418,7 +422,7 @@ export function ImageManager({
             multiple
             disabled={availableSlots <= 0}
             className="sr-only"
-            aria-label="Add product images"
+            aria-label={addLabel}
             aria-invalid={Boolean(errorId) || undefined}
             aria-describedby={[`${inputId}-capacity`, errorId].filter(Boolean).join(' ')}
             onChange={(e) => {
@@ -429,7 +433,8 @@ export function ImageManager({
         </label>
       </div>
       <p id={`${inputId}-capacity`} className="mt-2 text-xs text-slate-400">
-        JPG, PNG, or WebP. The first image is primary. Use ‹ › to reorder.
+        JPG, PNG, or WebP. {purpose === 'gallery' ? 'The first image is primary. ' : ''}Use ‹ › to
+        reorder.
         {capacityText ? ` ${capacityText}` : ''}
       </p>
       <output className="mt-1 block text-xs text-amber-700" aria-live="polite">
@@ -440,7 +445,7 @@ export function ImageManager({
           images={value.map((id, index) => ({
             id,
             src: previewSrc(id),
-            label: `Product image ${index + 1}`,
+            label: `${imageLabel} ${index + 1}`,
           }))}
           initialId={previewId}
           onClose={() => setPreviewId(undefined)}

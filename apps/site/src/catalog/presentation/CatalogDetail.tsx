@@ -3,6 +3,7 @@ import type { SharedDetailContent } from '../../i18n/catalog.ts';
 import type { DetailPages } from '../application/catalog-detail-pages.ts';
 import { CatalogLocalPreviewContext } from '../application/catalog-quote-transport.ts';
 import type { VariantSelection } from '../application/catalog-variant-state.ts';
+import { CatalogDescriptionImages } from './CatalogDescriptionImages.tsx';
 import { CatalogQuotePanel } from './CatalogQuotePanel.tsx';
 import { CatalogSkuDisclosure } from './CatalogSkuDisclosure.tsx';
 import { CatalogSpecifications } from './CatalogSpecifications.tsx';
@@ -19,6 +20,7 @@ export interface CatalogDetailProps {
   backNavigation?: ReactNode;
   /** Admin previews share the buyer layout, but never create buyer inquiries. */
   inquiryEnabled?: boolean;
+  descriptionMedia?: ReactNode;
 }
 export function CatalogDetail({
   pages,
@@ -30,6 +32,7 @@ export function CatalogDetail({
   pagination,
   backNavigation,
   inquiryEnabled = true,
+  descriptionMedia,
 }: CatalogDetailProps) {
   const detail = pages.currentPage;
   const localPreview = useContext(CatalogLocalPreviewContext);
@@ -134,7 +137,13 @@ export function CatalogDetail({
           content={content}
           noteBlocks={'noteBlocks' in detail ? detail.noteBlocks : undefined}
           copy={copy}
+          hasDescriptionImages={Boolean(detail.descriptionImages?.length || descriptionMedia)}
         />
+        {descriptionMedia !== undefined ? (
+          descriptionMedia
+        ) : (
+          <CatalogDescriptionImages images={detail.descriptionImages ?? []} />
+        )}
       </div>
     </article>
   );

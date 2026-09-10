@@ -11,6 +11,7 @@ export interface CatalogPricingInput {
   manualCatalogPricing?: unknown;
   wholesalePrice?: unknown;
   unitPrice?: unknown;
+  moq?: unknown;
 }
 
 export type CatalogPricingDecision =
@@ -24,13 +25,23 @@ export type CatalogPricingDecision =
     }
   | { source: 'quote-required' };
 
-export function resolveCatalogPricing(
-  product: CatalogPricingInput,
-  alibabaAdapter: AlibabaPricingAdapter,
-): CatalogPricingDecision {
+type ManualDecision =
+  | Extract<CatalogPricingDecision, { source: 'manual-tiered' | 'scalar' }>
+  | { source: 'inherit' | 'empty-manual' }
+  | { source: 'invalid'; reason: string };
+
+export function scalarPriceMinorUnits(amount: number): number | undefined {
+  const minor = Math.round(amount * 100);
+  return Number.isSafeInteger(minor) && minor >= 0 && Math.abs(amount * 100 - minor) <= 0.000001
+    ? minor
+    : undefined;
+}
+
+/** One policy for editor/list previews and the persisted approval snapshot. */
+export function resolveManualCatalogPricing(product: CatalogPricingInput): ManualDecision {
   const mode = product.catalogPricingMode;
   if (mode !== undefined && mode !== 'source' && mode !== 'manual') {
-    return { source: 'quote-required' };
+    return { source: 'invalid', reason: 'Unknown website pricing mode' };
   }
   if (mode !== 'source') {
     const manual = validateManualCatalogPricing(product.manualCatalogPricing);
@@ -39,12 +50,31 @@ export function resolveCatalogPricing(
     for (const field of ['wholesalePrice', 'unitPrice'] as const) {
       const amount = product[field];
       if (typeof amount === 'number' && Number.isFinite(amount) && amount >= 0) {
+        if (scalarPriceMinorUnits(amount) === undefined)
+          return { source: 'invalid', reason: 'Website price has unsupported precision' };
+        if (
+          product.moq !== undefined &&
+          (typeof product.moq !== 'number' ||
+            !Number.isSafeInteger(product.moq) ||
+            product.moq <= 0)
+        )
+          return { source: 'invalid', reason: 'Website MOQ must be a positive whole number' };
         return { source: 'scalar', field, amount, currency: 'USD' };
       }
     }
     // An explicit override must not silently turn into a different source price.
-    if (mode === 'manual') return { source: 'quote-required' };
+    if (mode === 'manual') return { source: 'empty-manual' };
   }
+  return { source: 'inherit' };
+}
+
+export function resolveCatalogPricing(
+  product: CatalogPricingInput,
+  alibabaAdapter: AlibabaPricingAdapter,
+): CatalogPricingDecision {
+  const manual = resolveManualCatalogPricing(product);
+  if (manual.source === 'manual-tiered' || manual.source === 'scalar') return manual;
+  if (manual.source !== 'inherit') return { source: 'quote-required' };
   if (Object.hasOwn(product, 'alibabaPrimarySourceKey')) {
     return {
       source: 'alibaba',

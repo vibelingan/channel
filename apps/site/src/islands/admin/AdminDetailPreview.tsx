@@ -1,24 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DetailPages } from '../../catalog/application/catalog-detail-pages.ts';
 import { resolveVariantSelection } from '../../catalog/application/catalog-variant-state.ts';
+import { CatalogDescriptionImages } from '../../catalog/presentation/CatalogDescriptionImages.tsx';
 import { CatalogDetail } from '../../catalog/presentation/CatalogDetail.tsx';
 import { getSharedDetailContent } from '../../i18n/catalog.ts';
 import { Gallery } from '../shop/Gallery.tsx';
+import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import {
   type DetailReview,
   prepareDetailReview,
   readDetailReview,
 } from './catalog-detail-approval-api.ts';
+import { useAdminImagePreviews } from './use-admin-image-previews.ts';
 
 /** Uses the same validated detail DTO and components as the buyer, without publication or RFQ. */
 export default function AdminDetailPreview({
   productId,
   images,
   sourceImages,
+  descriptionImages = [],
 }: {
   productId: string;
   images: readonly string[];
   sourceImages: boolean;
+  descriptionImages?: readonly string[];
 }) {
   const [review, setReview] = useState<DetailReview>();
   const [error, setError] = useState('');
@@ -27,6 +32,12 @@ export default function AdminDetailPreview({
   const digest = useRef<string | undefined>(undefined);
   const [busy, setBusy] = useState(true);
   const [selected, setSelected] = useState<string>();
+  const media = review?.previewMedia;
+  const imagePreview = useAdminImagePreviews([
+    ...(media?.galleryIds ?? []),
+    ...(media?.descriptionIds ?? []),
+  ]);
+  const owned = imagePreview.urls;
   useEffect(() => {
     const controller = new AbortController();
     setBusy(true);
@@ -83,6 +94,16 @@ export default function AdminDetailPreview({
     retainedBytes: JSON.stringify(review.detail).length,
   };
   const selection = resolveVariantSelection(pages, selected ?? pages.items[0]?.id);
+  const galleryImages = media
+    ? media.galleryIds.length
+      ? media.galleryIds.flatMap((id) => (owned[id] ? [owned[id]] : []))
+      : alibabaSourcePreviewUrls(media.gallerySources)
+    : images;
+  const detailImages = media
+    ? media.descriptionIds.length
+      ? media.descriptionIds.flatMap((id) => (owned[id] ? [owned[id]] : []))
+      : alibabaSourcePreviewUrls(media.descriptionSources, 18)
+    : descriptionImages;
   return (
     <>
       <p className="mx-6 mt-4 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600">
@@ -91,16 +112,41 @@ export default function AdminDetailPreview({
         {sourceImages &&
           ' Images shown are from Alibaba. In Edit, import the source gallery before publishing.'}
       </p>
+      {imagePreview.failed > 0 && (
+        <div
+          role="alert"
+          className="mx-6 mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
+        >
+          {imagePreview.failed} images could not be loaded. Saved images have not been removed.
+          <button type="button" onClick={imagePreview.retry} className="ml-3 min-h-11 underline">
+            Retry images
+          </button>
+        </div>
+      )}
       <CatalogDetail
         pages={pages}
         selection={selection}
         copy={getSharedDetailContent()}
         inquiryEnabled={false}
+        descriptionMedia={
+          media ? (
+            detailImages.length ? (
+              <CatalogDescriptionImages images={detailImages} />
+            ) : null
+          ) : descriptionImages.length ? (
+            <CatalogDescriptionImages images={descriptionImages} />
+          ) : undefined
+        }
         backNavigation={null}
         onSelect={setSelected}
         onClear={() => setSelected(undefined)}
         media={
-          <Gallery images={images} alt={review.detail.name} productId={productId} layout="detail" />
+          <Gallery
+            images={galleryImages}
+            alt={review.detail.name}
+            productId={productId}
+            layout="detail"
+          />
         }
         pagination={
           pages.mode === 'paged' ? (

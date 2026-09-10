@@ -1,5 +1,6 @@
 import { createAlibabaPricingAdapter } from './catalog/alibaba-pricing-adapter.ts';
 import { resolveCatalogPricing } from './catalog/resolve-pricing.ts';
+import { PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT } from './media.ts';
 
 export const PRODUCT_FAMILY_OPTIONS = ['headphones', 'ai-gadgets', 'toys', 'misc'] as const;
 export type ProductFamily = (typeof PRODUCT_FAMILY_OPTIONS)[number];
@@ -137,8 +138,19 @@ export function validateProductPublication(
       message: 'Alibaba category changed. Confirm the website category before publishing.',
     });
   }
-  if (typeof values.description !== 'string' || values.description.trim() === '') {
-    issues.push({ field: 'description', message: 'Description is required to publish' });
+  const hasDescriptionImages =
+    Array.isArray(values.descriptionImageIds) &&
+    values.descriptionImageIds.length > 0 &&
+    values.descriptionImageIds.length <= PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT &&
+    values.descriptionImageIds.every((id) => typeof id === 'string' && /^[A-Za-z0-9_-]+$/.test(id));
+  if (
+    (typeof values.description !== 'string' || values.description.trim() === '') &&
+    !hasDescriptionImages
+  ) {
+    issues.push({
+      field: 'description',
+      message: 'Description text or imported description images are required to publish',
+    });
   }
   if (
     !Array.isArray(values.imageIds) ||

@@ -7,7 +7,7 @@ import {
 } from '@vibelingan-channel/catalog-import/observations';
 import { buildStructuredContent } from '@vibelingan-channel/catalog-import/structured-content';
 import { get, persistCatalogDetailApproval } from '@vibelingan-channel/db';
-import { sourceDigest } from '@vibelingan-channel/db/catalog-source-staging';
+import { sourceDigest, sourceGalleryDigest } from '@vibelingan-channel/db/catalog-source-staging';
 import { isProductFamily } from '@vibelingan-channel/shared';
 import { z } from 'zod';
 
@@ -39,22 +39,32 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
     return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
   const observation = valid.value;
   const gallery = new Set(Array.isArray(product.imageIds) ? product.imageIds : []);
+  for (const id of Array.isArray(product.descriptionImageIds) ? product.descriptionImageIds : [])
+    gallery.add(id);
   const images = new Map<string, string>();
   // Only owned images that the operator attached to THIS gallery may reach the candidate.
   const urls = [
     ...new Set(
-      [...observation.content.media, ...observation.variants.flatMap((v) => v.media)].map(
-        (m) => m.sourceUrl,
-      ),
+      [
+        ...observation.content.media,
+        ...observation.variants.flatMap((v) => v.media),
+        ...(observation.content.description?.imageUrls ?? []).map((sourceUrl) => ({ sourceUrl })),
+      ].map((m) => m.sourceUrl),
     ),
   ];
   for (let offset = 0; offset < urls.length; offset += 8) {
     await Promise.all(
       urls.slice(offset, offset + 8).map(async (url) => {
-        const link = await get('catalogSourceLinks', sourceMediaLinkId('alibaba', url));
+        const transport = new URL(url);
+        if (
+          transport.protocol === 'http:' &&
+          (transport.hostname === 'alicdn.com' || transport.hostname.endsWith('.alicdn.com'))
+        )
+          transport.protocol = 'https:';
+        const link = await get('catalogSourceLinks', sourceMediaLinkId('alibaba', transport.href));
         if (
           link?.provider === 'alibaba' &&
-          link.sourceUrl === url &&
+          link.sourceUrl === transport.href &&
           typeof link.imageId === 'string' &&
           gallery.has(link.imageId)
         )
@@ -97,7 +107,7 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
   const { variants: pageVariants, revision: _revision, ...header } = candidate.value;
   const structured = buildStructuredContent(observation.content.description);
   const observationDigest = sourceDigest(row?.observation);
-  const galleryDigest = sourceDigest(product.imageIds ?? []);
+  const galleryDigest = sourceGalleryDigest(product);
   const revision = sourceDigest([
     observationDigest,
     galleryDigest,

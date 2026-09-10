@@ -5,6 +5,32 @@ This is an implementation and acceptance ledger. Historical entries below retain
 their original verification boundaries; the newest release evidence takes precedence.
 All releases in this closeout use CI/CD, not direct local cloud deployment.
 
+### Latest live manual acceptance — 2026-09-10
+
+PRs #39–#42 integrate the untouched-draft Preview, source-price editor projection,
+six-image gallery fix and mandatory hosted-file integrity check into **test**.
+The latest merge is `0f9d3865d971c462face0e28a9d195805621a2c3` (PR #42).
+Deploy Test `34436974985` completed successfully: same-SHA CI, deployment,
+**50 hosted file hash checks**, and **41 public + 19 catalog browser checks**.
+All three function health endpoints independently returned the same release SHA.
+
+Actual authenticated Admin acceptance on this version passed: the gaming-headset
+Preview shows all six decoded images, image 6/6 works, all four source-price tiers
+remain present, the 1440px modal keeps Close available, and closing leaves the
+product NEW/Disabled. EB1 independently retains four decoded images and four
+source-price tiers. No product was saved, published or marked reviewed.
+
+The prior PR #41 deployment was green but missed a lazy JS object, causing the
+real Preview to blank Admin. That manual failure is retained in the detailed
+ledger; it is not rewritten as an accepted release. PR #42 verifies every built
+HTML/Astro asset's hosted bytes and adds in-modal load-error recovery. Local
+verification passed 1,488 assertions and 63 formal production-build browser checks.
+
+The camping light's raw JSON price question remains unverified pending permitted
+read access. The no-upgrade DNS option is an assessment only, not a migration.
+See [current evidence](DRAFT-PREVIEW-ACCEPTANCE-2026-09-10.md) and
+[DNS/mail assessment](DNS-MAIL-NO-UPGRADE-ASSESSMENT-2026-09-10.md).
+
 ### Untouched draft follow-up — 2026-09-10
 
 The customer rejected the remaining old Preview and failed preparation on a

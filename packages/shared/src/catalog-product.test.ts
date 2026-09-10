@@ -1,5 +1,36 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
+
+test('image-only descriptions satisfy publication only with bounded owned image references', () => {
+  const product = {
+    name: 'Image description',
+    productFamily: 'misc',
+    published: true,
+    imageIds: ['gallery'],
+  };
+  assert.deepEqual(validateProductPublication({ ...product, descriptionImageIds: ['detail'] }), []);
+  for (const descriptionImageIds of [
+    undefined,
+    null,
+    [],
+    [''],
+    ['https://example.com/detail'],
+    [null],
+    Array(19).fill('detail'),
+  ]) {
+    assert.ok(
+      validateProductPublication({ ...product, descriptionImageIds }).some(
+        (issue) => issue.field === 'description',
+      ),
+    );
+  }
+  assert.ok(
+    validateProductPublication({
+      ...product,
+      alibabaDescriptionImageUrls: ['https://sc04.alicdn.com/detail'],
+    }).some((issue) => issue.field === 'description'),
+  );
+});
 import { categorySyncBaseline } from './catalog-product.ts';
 
 test('supplier recategorization preserves website family and blocks republishing until review', () => {

@@ -10,6 +10,7 @@ import {
   validateCatalogSourceObservation,
 } from '../../packages/catalog-import/src/source-observations.ts';
 import { setAdapter } from '../../packages/db/src/index.ts';
+import { seedRawCatalog } from './seed-raw-catalog.ts';
 
 const file = resolve(process.argv[2] ?? '');
 if (
@@ -67,6 +68,7 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
   const urls = ['https://s.alicdn.com/formal-front.png', 'https://s.alicdn.com/formal-back.png'];
   const mediaDir = resolve(dirname(file), 'media');
   await mkdir(mediaDir, { recursive: true });
+  await seedRawCatalog(db, mediaDir);
   for (const [i, url] of urls.entries()) {
     const id = `formal-image-${i}`;
     const storagePath = `${id}.png`;

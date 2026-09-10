@@ -284,7 +284,8 @@ async function routeGet(
   ) {
     if (
       params.getAll('view').length > 1 ||
-      (params.has('view') && !['structured', 'sections'].includes(params.get('view') ?? ''))
+      (params.has('view') &&
+        !['structured', 'sections', 'sections-media'].includes(params.get('view') ?? ''))
     ) {
       return jsonResponse(event, config, err('VALIDATION_ERROR', 'Invalid detail view.'));
     }
@@ -301,7 +302,8 @@ async function routeGet(
         integer('pageSize', 50),
         params.get('revision') ?? undefined,
         params.has('view'),
-        params.get('view') === 'sections',
+        ['sections', 'sections-media'].includes(params.get('view') ?? ''),
+        params.get('view') === 'sections-media',
       ),
       undefined,
       { ...CATALOG_CACHE_HEADERS, 'Cache-Control': 'no-store' },

@@ -136,13 +136,54 @@ workspace/E2E typechecks, lint and the CloudBase SDK contract gate. The HTTP gat
 reuses the existing fully-drained response helper and adds no new SDK API or
 dependency. Official hosting docs describe newer verification flags, but the
 installed CLI 3.5.9 help does not expose them; they were not invented or enabled.
+Integrity repair commit `c8e4107f02dee16794edd37bca4b28228830e5b7` passed
+[feature CI 34436272815](https://github.com/vibelingan/channel/actions/runs/34436272815).
+[PR #42](https://github.com/vibelingan/channel/pull/42) merged into **test only**
+as `0f9d3865d971c462face0e28a9d195805621a2c3`; its
+[Deploy Test 34436974985](https://github.com/vibelingan/channel/actions/runs/34436974985)
+completed successfully, including the same-SHA prerequisite CI, full deployment,
+resource/function smoke and final live-browser lanes. Its deployment log verified
+**50 hosted pages/assets against build hashes**; **41 public browser checks** and
+**19 catalog browser checks** passed. No identical-upload retry was required in
+this successful run. The earlier PR #41 failure remains recorded above.
+
+Independent live checks after that upload:
+
+- Public API, Admin and Alibaba sync health endpoints all returned HTTP 200 and
+  release `0f9d3865d971c462face0e28a9d195805621a2c3`.
+- Reloaded the authenticated Admin and opened the untouched gaming-headset
+  Preview through its real row action: all six thumbnails decoded. Clicking
+  **View image 6** displayed **6 / 6** and a decoded 1500px-wide source image.
+- The Preview measured 1440px wide in a 2177px viewport. Its top Close stayed
+  visible after gallery scrolling, and the fixed footer remained usable.
+  The live screenshot was visually inspected, not merely checked for overflow.
+- Gaming prices retained all four tiers (10/100/500/1000, USD
+  7.89/6.89/6.57/6.00). Closing returned to the list; the product remained
+  **NEW / Disabled**. No Save, publication or Mark reviewed action was used.
+- Independently reopened EB1: four decoded images, **4 / 4** on the last image,
+  all four tiers (7/100/500/1000, USD 4.89/3.72/3.31/2.52), then closed it.
+  The previously missing lazy module no longer blanked Admin.
+
+The published `@cloudbase/cloudbase-mcp@2.24.1` package was inspected read-only.
+Its hosting handler delegates to `hosting.uploadFiles`, then returns a success
+message without fetching hosted bytes. The bundled manager's per-file failure
+path does throw when retries are exhausted, so the evidence does **not** justify
+claiming that the SDK deliberately ignores file errors. The original upload log
+does not identify the missing object's failure mechanism. Independent content
+verification is the enforced boundary rather than an invented SDK method or an
+unproven explanation of that single transfer.
 
 The real public `0aa9d459-159c-4ffa-a5c0-db9a8e7c642f` page was also checked in
 Chrome: six gallery images, new structured detail UI, `Website unit price` table
 heading, unchanged USD 3.80 at 1000+. Quantity 999 shows below-MOQ; 1000 shows
 USD 3.80/unit. The footer links to `sales@supplychainsai.com`. No RFQ was submitted.
 
-## Remaining raw-evidence boundary
+## Camping-light raw evidence resolved; historical failing baseline
+
+Update: the local remediation now preserves these fields and has raw-derived end-to-end coverage.
+See [the implementation and rollout record](DATA-CONSISTENCY-RCA-2026-09-10.md).
+The following table and failing assertions describe the pre-fix / observed cloud baseline,
+not the corrected local implementation. No cloud backfill was performed in this remediation turn.
 
 The camping-light sample `AAHsBBhgAOVTpOKZBnRh1CDS` has no usable normalized
 quote in the new preview. Its stored source product points to product.get payload
@@ -150,13 +191,66 @@ quote in the new preview. Its stored source product points to product.get payloa
 2026-09-03T07:51:00.841Z. TCB database and Storage/COS read-only UI confirmed the
 stored JSON exists, 10,777 bytes. No resync or product edits were performed.
 
-Raw contents have **not** been independently read in this acceptance: the normal
-TCB download was blocked by the browser; COS reports no inline preview, and its
-online editor asks for a separate login authorization. We did not bypass the
-browser block, export signed URLs/tokens, authorize another app, or change object
-permissions. Therefore do not claim that Alibaba itself omitted price for this
-sample. Distinguish unavailable normalized evidence from a verified absent raw
-price. A permitted read of this one JSON is still required to close that question.
+The earlier browser download/online-editor access gap was resolved on 2026-09-10
+after user-completed CloudBase management authorization. `queryStorage(read)`
+returned the complete text without changing the object's ACL or exporting browser
+credentials. Local SHA-256 matches the payload identifier above exactly. A narrow
+read of `catalogSourceObservations` ties the live empty observation to this same
+payload. This is stored September 3 evidence, not a fresh Alibaba API request.
+
+| Item | Actual product.get evidence | Current transformation / outcome |
+| --- | --- | --- |
+| Price | `wholesale_trade.price` is `7.6699999999999999289457264239899814128875732421875`; one SKU bulk record has price `7.67`, start quantity `-1` | Wholesale price is not extracted. The SKU record is treated as a tier and rejected for its negative threshold. No explicit currency field exists in this response. |
+| MOQ | `wholesale_trade.min_order_quantity = 1`, `sale_type = normal`, `unit_type = Piece` | Extractor reads `1`, but unavailable-pricing construction drops MOQ. Inventory `1000` is separate and must not become MOQ. |
+| Specifications | `attributes.product_attribute` has 47 entries, including repeated names / multiple values | Product-level attributes are not extracted; the observation sets `identity.attributes = []`. Three SKU options survive separately. |
+| Description | HTML contains 17 image elements; no substantive text | Sanitization removes image markup; the resulting observation says `placeholder: true`. No description-image projection reaches the detail UI. |
+| Gallery | `main_image.images.string` has 6 images | Current preview shows six; these are separate from the 17 description images. |
+
+The official [product.get field reference](https://developer.alibaba.com/docs/api.htm?apiId=25439)
+explicitly defines `wholesale_trade.price` in USD, accurate to two decimal places.
+It defines a bulk discount start quantity as 1–99999; it does not explain the live
+`-1` sentinel. Thus the response contains a USD wholesale amount approximately
+7.67 and MOQ 1. It is incorrect to report "Alibaba supplied no price". Do not
+invent a three-tier schedule, rewrite `-1` as 1, or extend the wholesale USD
+contract to every unrelated currency-less price. Product-level wholesale price
+and SKU pricing must retain distinct provenance.
+
+### Reproduction and next repair boundaries
+
+The subsequent [data-consistency RCA](DATA-CONSISTENCY-RCA-2026-09-10.md)
+distinguishes the source-loss bug from intentional draft/publication revisions,
+documents the duplicated pricing policy and the raw-parser gap in the formal
+browser fixture, and defines the consolidation acceptance boundary.
+
+Replayed this exact payload through `parseAlibabaApiResponse` (lossless numbers),
+`extractProductDetail`, `normalizeProductDetail`, and `alibabaObservationAdapter`.
+The emitted offer is unavailable, the product attribute array is empty, and the
+description is a placeholder, matching the live observation. Three independent
+assertions against the real adapter currently fail: MOQ 1 survives; product
+attributes are nonempty; image-only description is not a placeholder. No product
+code was changed and these failures are not a successful repair.
+
+Required follow-up:
+
+1. Model/extract wholesale pricing explicitly, use its documented USD contract,
+   and handle decimal noise without routing arbitrary malformed amounts through
+   a permissive float parser. Preserve valid MOQ independently of price validity.
+   Keep unresolved SKU sentinel semantics visible to admins rather than claiming
+   there was no source amount.
+2. Preserve all valid named product attributes and multivalues with source
+   provenance; do not overwrite SKU-scoped choices. The source itself contains
+   potentially conflicting claims (LED vs Incandescent, rechargeable vs alkaline)
+   which must not silently become one invented, authoritative specification.
+3. Extract description images into a validated content/media contract, separate
+   from the primary gallery. Use the existing private admin / approved public
+   media lifecycle; never render raw supplier HTML or turn OCR into authoritative
+   specifications without review.
+4. Add real-shape regression fixtures and test draft preview, approved detail,
+   manual price precedence, missing/invalid price, image-only/mixed/empty content,
+   repeated attributes, and failures at media access boundaries. Replay stored
+   raw data with pagination/idempotency after repair; preserve manual changes and
+   publication state. Release frontend, functions and compatible schema through
+   the same CI/CD version, not a direct cloud-function update.
 
 ## Domain / mailbox investigation (read-only)
 

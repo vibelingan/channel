@@ -38,3 +38,22 @@ export function parseDecimalToMinorUnits(lexeme: string): MoneyParseResult {
 export function isValidMinorUnits(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
+
+/** Only wholesale_trade.price has the documented USD/two-decimal contract.
+ * Accept a value within 1e-9 USD of an exact cent (binary serialization tail),
+ * not arbitrary extra decimal precision. Arithmetic and the bound are exact.
+ */
+export function parseWholesalePrice(lexeme: string): MoneyParseResult {
+  if (typeof lexeme !== 'string') return { ok: false, reason: 'not-a-string' };
+  const match = /^(0|[1-9][0-9]{0,7})(?:\.([0-9]{1,64}))?$/.exec(lexeme);
+  if (!match || match[1] === undefined) return { ok: false, reason: 'malformed' };
+  const fraction = match[2] ?? '';
+  const scale = 10n ** BigInt(fraction.length);
+  const exact = BigInt(match[1]) * scale + BigInt(fraction || '0');
+  const cents = (exact * 100n + scale / 2n) / scale;
+  const delta = exact * 100n - cents * scale;
+  const absolute = delta < 0n ? -delta : delta;
+  if (absolute * 1000000000n > scale * 100n || cents < 1n || cents > 999999900n)
+    return { ok: false, reason: 'malformed' };
+  return { ok: true, minorUnits: Number(cents) };
+}

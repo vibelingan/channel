@@ -108,6 +108,8 @@ export interface CatalogProductCandidate {
   title: string;
   brand?: string;
   descriptionHtml?: string;
+  descriptionImageUrls?: string[];
+  descriptionExtractionWarnings?: string[];
   descriptionText?: string;
   /** Where `descriptionText` came from; absent means the source's own copy. */
   descriptionSource?: DescriptionProvenance;

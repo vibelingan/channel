@@ -1,6 +1,6 @@
 /** Pure write preflight. Reading, authorization, media readiness and atomic commit belong to callers. */
 import { z } from 'zod';
-import { validateManualCatalogPricing } from '../manual-catalog-pricing.ts';
+import { PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT } from '../media.ts';
 import {
   CatalogContentSchema,
   CatalogDetailHeaderSchema,
@@ -9,6 +9,7 @@ import {
   CatalogNoteBlocksSchema,
   WebsiteDetailPricingSchema,
 } from './product-detail.ts';
+import { resolveManualCatalogPricing, scalarPriceMinorUnits } from './resolve-pricing.ts';
 
 const identity = z
   .string()
@@ -23,6 +24,10 @@ const productInput = z.object({
   // Untouched sync drafts omit this field. Preview may have no owned gallery;
   // publication still enforces media readiness at the persistence boundary.
   imageIds: imageIds.default([]),
+  descriptionImageIds: z
+    .array(z.string().regex(/^[A-Za-z0-9_-]+$/))
+    .max(PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT)
+    .optional(),
   archived: z.literal(false).optional(),
   detailSourceReady: z.literal(true),
   detailSourceOwner: identity,
@@ -38,43 +43,38 @@ const productInput = z.object({
 });
 
 function websitePricing(product: z.infer<typeof productInput>) {
-  if (product.catalogPricingMode === 'source') return undefined;
-  if (product.catalogPricingMode !== undefined && product.catalogPricingMode !== 'manual')
-    throw new Error('Unknown website pricing mode');
-  const manual = validateManualCatalogPricing(product.manualCatalogPricing);
-  if (manual.ok)
+  const decision = resolveManualCatalogPricing(product);
+  if (decision.source === 'inherit') return undefined;
+  if (decision.source === 'invalid') throw new Error(decision.reason);
+  if (decision.source === 'manual-tiered')
     return WebsiteDetailPricingSchema.parse({
       basis: 'website-manual',
       pricing: {
         mode: 'tiered',
-        currency: manual.value.currency,
-        minimumOrderQuantity: manual.value.tiers[0]?.minQuantity,
-        tiers: manual.value.tiers.map((tier) => ({
+        currency: decision.pricing.currency,
+        minimumOrderQuantity: decision.pricing.tiers[0]?.minQuantity,
+        tiers: decision.pricing.tiers.map((tier) => ({
           minimumQuantity: tier.minQuantity,
           maximumQuantity: tier.maxQuantity,
           unitAmountMinor: tier.unitAmountMinor,
         })),
       },
     });
-  for (const amount of [product.wholesalePrice, product.unitPrice]) {
-    if (typeof amount === 'number' && Number.isFinite(amount) && amount >= 0) {
-      const amountMinor = Math.round(amount * 100);
-      if (!Number.isSafeInteger(amountMinor) || Math.abs(amount * 100 - amountMinor) > 0.000001)
-        throw new Error('Website price has unsupported precision');
-      return WebsiteDetailPricingSchema.parse({
-        basis: 'website-manual',
-        pricing: {
-          mode: 'fixed',
-          currency: 'USD',
-          amountMinor,
-          ...(typeof product.moq === 'number' && product.moq > 0
-            ? { minimumOrderQuantity: product.moq }
-            : {}),
-        },
-      });
-    }
+  if (decision.source === 'scalar') {
+    const amountMinor = scalarPriceMinorUnits(decision.amount);
+    return WebsiteDetailPricingSchema.parse({
+      basis: 'website-manual',
+      pricing: {
+        mode: 'fixed',
+        currency: 'USD',
+        amountMinor,
+        ...(typeof product.moq === 'number' && product.moq > 0
+          ? { minimumOrderQuantity: product.moq }
+          : {}),
+      },
+    });
   }
-  if (product.catalogPricingMode === 'manual')
+  if (decision.source === 'empty-manual')
     return WebsiteDetailPricingSchema.parse({
       basis: 'website-manual',
       pricing: { mode: 'unavailable' },
@@ -132,6 +132,7 @@ export function planCatalogDetailApproval(input: {
         }
       : {}),
     images: product.imageIds.map((id) => `/api/images/${id}`),
+    descriptionImages: product.descriptionImageIds?.map((id) => `/api/images/${id}`),
     websitePricing: websitePricing(product),
     ...(description ? { descriptionText: description } : {}),
   });
@@ -164,5 +165,9 @@ export function planCatalogDetailApproval(input: {
     ...(noteBlocks ? { noteBlocks } : {}),
     variantCount: variants.length,
   });
-  return { publication, variants, imageIds: product.imageIds };
+  return {
+    publication,
+    variants,
+    imageIds: [...new Set([...product.imageIds, ...(product.descriptionImageIds ?? [])])],
+  };
 }

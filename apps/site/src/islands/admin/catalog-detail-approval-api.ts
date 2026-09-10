@@ -19,6 +19,15 @@ const review = z
     expectedDigest: z.string().regex(/^[a-f0-9]{64}$/),
     expectedRevision: z.string().nullable(),
     detail: z.unknown(),
+    previewMedia: z
+      .object({
+        galleryIds: z.array(z.string()).max(9),
+        descriptionIds: z.array(z.string()).max(18),
+        gallerySources: z.array(z.string()).max(9),
+        descriptionSources: z.array(z.string()).max(18),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export async function prepareDetailReview(productId: string, signal?: AbortSignal) {
@@ -42,7 +51,13 @@ export async function readDetailReview(
 ) {
   const result = review.parse(
     await catalogApprovalCall(
-      { action: 'review', productId, page, ...(expectedDigest ? { expectedDigest } : {}) },
+      {
+        action: 'review',
+        productId,
+        page,
+        includePreviewMedia: true,
+        ...(expectedDigest ? { expectedDigest } : {}),
+      },
       signal,
     ),
   );

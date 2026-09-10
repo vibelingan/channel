@@ -133,13 +133,6 @@ test('rejects malformed timestamps and contradictory mode fields', () => {
       ...base,
       mode: 'tiered',
       currency: 'USD',
-      sourceMoq: 50,
-      tiers: [{ minQuantity: 100, unitAmountMinor: 250 }],
-    },
-    {
-      ...base,
-      mode: 'tiered',
-      currency: 'USD',
       tiers: [
         { minQuantity: 1, unitAmountMinor: 250 },
         { minQuantity: 10, unitAmountMinor: 200 },

@@ -203,6 +203,7 @@ test('promotion materializes the primary offer through the fenced write, touchin
   assert.equal(after.alibabaSourceLastSyncedAt, NOW);
   assert.deepEqual(Object.keys(adapter.lastPromotionPatch ?? {}).sort(), [
     'alibabaCatalogPricing',
+    'alibabaDescriptionImageUrls',
     'alibabaPrimaryOfferKey',
     'alibabaSourceCategoryId',
     'alibabaSourceImageUrls',

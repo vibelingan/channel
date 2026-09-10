@@ -44,7 +44,7 @@ interface ProductFormSection {
 const PRODUCT_SECTION_FIELDS = [
   { heading: 'Identity', fields: ['productFamily', 'category', 'skuCode', 'slug'] },
   { heading: 'Content', fields: ['name', 'series', 'modName', 'modType', 'description'] },
-  { heading: 'Media', fields: ['imageIds'] },
+  { heading: 'Media', fields: ['imageIds', 'descriptionImageIds'] },
   {
     heading: 'Pricing & Order',
     fields: ['catalogPricingMode', 'moq', 'unitPrice', 'wholesalePrice', 'manualCatalogPricing'],
@@ -146,6 +146,7 @@ export function RecordForm({
   const [localError, setLocalError] = useState('');
   const [fieldAnnouncement, setFieldAnnouncement] = useState('');
   const [imageBusy, setImageBusy] = useState(false);
+  const [descriptionImageBusy, setDescriptionImageBusy] = useState(false);
   const [sourceImageBusy, setSourceImageBusy] = useState(false);
   const [sourceImageNotice, setSourceImageNotice] = useState('');
   const [newSourceImageIds, setNewSourceImageIds] = useState<string[]>([]);
@@ -155,7 +156,8 @@ export function RecordForm({
   const dialogRef = useModalDialog();
   const initialStateRef = useRef(state);
   const cancelInFlight = useRef(false);
-  const busy = submitting || imageBusy || sourceImageBusy;
+  const mediaBusy = imageBusy || descriptionImageBusy || sourceImageBusy;
+  const busy = submitting || mediaBusy;
   const dirty = JSON.stringify(state) !== JSON.stringify(initialStateRef.current);
 
   function setField(name: string, value: string | boolean) {
@@ -182,15 +184,19 @@ export function RecordForm({
 
   const sourcePreviewUrls = alibabaSourcePreviewUrls(initial?.alibabaSourceImageUrls, 9);
   const sourcePreviewUrl = sourcePreviewUrls[0];
+  const descriptionPreviewUrls = alibabaSourcePreviewUrls(initial?.alibabaDescriptionImageUrls, 18);
 
-  async function importSourceGallery() {
-    if (!sourcePreviewUrl || sourceImageBusy) return;
+  async function importSourceGallery(description = false) {
+    const sourceUrls = description ? descriptionPreviewUrls : sourcePreviewUrls;
+    const field = description ? 'descriptionImageIds' : 'imageIds';
+    const maxItems = description ? 18 : 9;
+    if (!sourceUrls.length || sourceImageBusy) return;
     setSourceImageBusy(true);
     setSourceImageNotice('');
     try {
       let currentIds: string[] = [];
       try {
-        const parsed: unknown = JSON.parse(String(state.imageIds || '[]'));
+        const parsed: unknown = JSON.parse(String(state[field] || '[]'));
         if (Array.isArray(parsed)) {
           currentIds = parsed.filter((value): value is string => typeof value === 'string');
         }
@@ -198,10 +204,11 @@ export function RecordForm({
         currentIds = [];
       }
       const result = await importAlibabaGallery({
-        sourceUrls: sourcePreviewUrls,
+        sourceUrls,
+        maxItems,
         imageIds: currentIds,
         importImage: importAlibabaSourceImage,
-        onProgress: (ids) => setField('imageIds', JSON.stringify(ids)),
+        onProgress: (ids) => setField(field, JSON.stringify(ids)),
       });
       setNewSourceImageIds((ids) => [...new Set([...ids, ...result.createdIds])]);
       setSourceImageNotice(
@@ -212,7 +219,7 @@ export function RecordForm({
           ),
           ...(result.remaining
             ? [
-                `${result.remaining} source images not imported${result.imageIds.length >= 9 ? ': the 9-image limit is reached' : ': the import stopped; check the error before retrying'}.`,
+                `${result.remaining} source images not imported${result.imageIds.length >= maxItems ? ': the image limit is reached' : ': the import stopped; check the error before retrying'}.`,
               ]
             : []),
         ].join(' '),
@@ -328,7 +335,13 @@ export function RecordForm({
                               }
                               value={state[field.name]}
                               error={fieldErrors[field.name]}
-                              onBusyChange={field.name === 'imageIds' ? setImageBusy : undefined}
+                              onBusyChange={
+                                field.name === 'imageIds'
+                                  ? setImageBusy
+                                  : field.name === 'descriptionImageIds'
+                                    ? setDescriptionImageBusy
+                                    : undefined
+                              }
                               onValidityChange={
                                 field.name === 'manualCatalogPricing'
                                   ? setPricingInvalid
@@ -349,7 +362,7 @@ export function RecordForm({
                           </p>
                           <button
                             type="button"
-                            disabled={sourceImageBusy || imageBusy}
+                            disabled={busy}
                             onClick={() => void importSourceGallery()}
                             className="mt-1 text-sm font-medium text-brand-700 hover:text-brand-900 disabled:opacity-50"
                           >
@@ -377,12 +390,28 @@ export function RecordForm({
                           </button>
                         ))}
                       </div>
-                      {sourceImageNotice && (
-                        <p className="mt-2 text-xs text-slate-600" aria-live="polite">
-                          {sourceImageNotice}
-                        </p>
-                      )}
                     </div>
+                  )}
+                  {section.heading === 'Media' && descriptionPreviewUrls.length > 0 && (
+                    <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-3">
+                      <p className="text-xs text-slate-500">
+                        Source description · {descriptionPreviewUrls.length} images (separate from
+                        the product gallery)
+                      </p>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void importSourceGallery(true)}
+                        className="mt-2 min-h-11 text-sm font-medium text-brand-700 disabled:opacity-50"
+                      >
+                        {sourceImageBusy ? 'Importing…' : 'Import description images'}
+                      </button>
+                    </div>
+                  )}
+                  {section.heading === 'Media' && sourceImageNotice && (
+                    <output className="mt-2 block text-xs text-slate-600">
+                      {sourceImageNotice}
+                    </output>
                   )}
                 </fieldset>
               ))}
@@ -458,10 +487,10 @@ export function RecordForm({
               </button>
               <button
                 type="submit"
-                disabled={submitting || imageBusy || sourceImageBusy || pricingInvalid}
+                disabled={busy || pricingInvalid}
                 className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
               >
-                {imageBusy ? 'Waiting for uploads…' : submitting ? 'Saving…' : 'Save'}
+                {mediaBusy ? 'Waiting for uploads…' : submitting ? 'Saving…' : 'Save'}
               </button>
             </div>
           )}
@@ -513,7 +542,7 @@ function Field({
   ) : null;
 
   // Images are managed inline with a visual uploader rather than raw JSON.
-  if (field.name === 'imageIds') {
+  if (field.name === 'imageIds' || field.name === 'descriptionImageIds') {
     let ids: string[] = [];
     try {
       const parsed = JSON.parse(String(value || '[]'));
@@ -527,6 +556,7 @@ function Field({
         <div className="mt-1.5">
           <ImageManager
             value={ids}
+            purpose={field.name === 'descriptionImageIds' ? 'description' : 'gallery'}
             inputId={field.name}
             maxItems={field.maxItems}
             errorId={describedBy}

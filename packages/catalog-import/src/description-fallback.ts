@@ -49,6 +49,8 @@ export interface DescriptionFallbackInput {
 }
 
 export interface ResolvedDescription {
+  imageUrls?: string[];
+  extractionWarnings?: string[];
   text: string;
   html?: string;
   source: DescriptionSource;
@@ -84,10 +86,12 @@ function fromMerchantValue(
   source: 'description' | 'shortDescription',
 ): ResolvedDescription | null {
   const normalized: DescriptionResult = normalizeDescription(raw);
-  if (normalized.placeholder || normalized.text === undefined) return null;
+  if (normalized.placeholder) return null;
   const report = sanitizeSourceHtmlWithReport(raw ?? '');
   return {
-    text: normalized.text,
+    text: normalized.text ?? '',
+    ...(normalized.imageUrls ? { imageUrls: normalized.imageUrls } : {}),
+    ...(normalized.extractionWarnings ? { extractionWarnings: normalized.extractionWarnings } : {}),
     ...(normalized.html === undefined ? {} : { html: normalized.html }),
     source,
     sanitized: report.removed,

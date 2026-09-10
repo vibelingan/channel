@@ -130,6 +130,10 @@ function mapCandidate(
     ? pickDescription(
         scope.listings.map((listing) => ({
           text: listing.descriptionText,
+          ...(listing.descriptionImageUrls ? { imageUrls: listing.descriptionImageUrls } : {}),
+          ...(listing.descriptionExtractionWarnings
+            ? { extractionWarnings: listing.descriptionExtractionWarnings }
+            : {}),
           html: listing.descriptionHtml,
           source: listing.descriptionSource,
           sanitized: listing.descriptionSanitized === true,
@@ -137,12 +141,33 @@ function mapCandidate(
       )
     : {
         text: candidate.descriptionText,
+        ...(candidate.descriptionImageUrls ? { imageUrls: candidate.descriptionImageUrls } : {}),
+        ...(candidate.descriptionExtractionWarnings
+          ? { extractionWarnings: candidate.descriptionExtractionWarnings }
+          : {}),
         html: candidate.descriptionHtml,
         source: candidate.descriptionSource,
         sanitized: candidate.descriptionSanitized === true,
       };
   const rawDescription = selectedDescription.html ?? selectedDescription.text;
   const description = normalizeDescription(rawDescription);
+  if (selectedDescription.imageUrls?.length) {
+    description.imageUrls = selectedDescription.imageUrls;
+    description.placeholder = false;
+  }
+  description.extractionWarnings = [
+    ...(selectedDescription.extractionWarnings ?? []),
+    ...(description.extractionWarnings ?? []),
+  ];
+  if (description.extractionWarnings.length) description.placeholder = false;
+  for (const code of description.extractionWarnings ?? [])
+    findings.push({
+      severity: 'warning',
+      code,
+      sourcePath: sourceProductKey,
+      message:
+        'Some description media could not be extracted safely; retain the source evidence for review.',
+    });
   const descriptionWasSanitized = selectedDescription.sanitized || description.sanitized;
   if (descriptionWasSanitized) {
     findings.push({
@@ -358,10 +383,13 @@ function mapCandidate(
         .map(([sourceName, value]) => ({ sourceName, value })),
     },
     content: {
-      ...(rawDescription === undefined
+      ...(rawDescription === undefined &&
+      !description.imageUrls?.length &&
+      !description.extractionWarnings?.length
         ? {}
         : {
             description: {
+              ...(description.imageUrls ? { imageUrls: description.imageUrls } : {}),
               ...(description.html === undefined ? {} : { sanitizedHtml: description.html }),
               ...(description.text === undefined ? {} : { text: description.text }),
               placeholder: description.placeholder,

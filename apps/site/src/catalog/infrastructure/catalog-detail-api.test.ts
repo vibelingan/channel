@@ -40,7 +40,10 @@ test('reads a validated detail through the explicit route without entitlement to
   const result = await fetchCatalogDetailPage(request, {
     signal: abort.signal,
     fetch: async (url, init) => {
-      assert.equal(url, '/api/products/canonical-product/detail?page=1&pageSize=50&view=sections');
+      assert.equal(
+        url,
+        '/api/products/canonical-product/detail?page=1&pageSize=50&view=sections-media',
+      );
       assert.equal(init?.signal, abort.signal);
       assert.equal(init?.credentials, 'omit');
       assert.equal(init?.cache, 'no-store');
@@ -62,7 +65,7 @@ test('encodes the product identity and carries revision on later pages', async (
       fetch: async (url) => {
         assert.equal(
           url,
-          '/api/products/id%2Fwith%20%3F%23/detail?page=2&pageSize=50&view=sections&revision=r%262',
+          '/api/products/id%2Fwith%20%3F%23/detail?page=2&pageSize=50&view=sections-media&revision=r%262',
         );
         return responseFor(data);
       },

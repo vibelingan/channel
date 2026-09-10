@@ -109,6 +109,7 @@ const matchHintsSchema = z
 
 const descriptionSchema = z
   .object({
+    imageUrls: z.array(httpUrl).optional(),
     sanitizedHtml: z.string().optional(),
     text: z.string().optional(),
     placeholder: z.boolean(),

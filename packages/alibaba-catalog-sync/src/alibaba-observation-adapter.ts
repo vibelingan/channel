@@ -169,8 +169,18 @@ export const alibabaObservationAdapter: CatalogObservationAdapter<AlibabaObserva
       };
     }
 
-    const findings: CatalogObservationFinding[] = [];
+    const findings: CatalogObservationFinding[] = (input.detail.extractionWarnings ?? []).map(
+      (warning) => ({ ...warning, severity: 'warning' }),
+    );
     const description = normalizeDescription(input.detail.description);
+    for (const code of description.extractionWarnings ?? [])
+      findings.push({
+        severity: 'warning',
+        code,
+        sourcePath: 'product.description',
+        message:
+          'Some source description media could not be extracted safely. Original HTML remains in raw evidence.',
+      });
     if (description.sanitized) {
       findings.push({
         severity: 'warning',
@@ -215,6 +225,26 @@ export const alibabaObservationAdapter: CatalogObservationAdapter<AlibabaObserva
 
     const offers: CatalogSourceObservation['offers'] = [];
     for (const offer of normalized.offers) {
+      const sourceSku = input.detail.skus.find((sku) => sku.sourceSkuId === offer.sourceSkuId);
+      const suppliedPrice = sourceSku
+        ? sourceSku.priceLexeme !== undefined || (sourceSku.ladderPrices?.length ?? 0) > 0
+        : input.detail.fobMinLexeme !== undefined ||
+          input.detail.fobMaxLexeme !== undefined ||
+          input.detail.ladderPrices.length > 0 ||
+          input.detail.wholesaleTrade?.priceLexeme !== undefined;
+      if (offer.pricing.mode === 'unavailable' && suppliedPrice) {
+        findings.push({
+          severity: 'warning',
+          code: 'invalid-source-pricing',
+          message:
+            'A source price was supplied but its currency, amount, quantity boundaries or sale unit are unsupported. Known MOQ is retained.',
+          sourcePath: sourceSku
+            ? `product.product_sku.skus.${sourceSku.sourceSkuId}`
+            : input.detail.productType === 'wholesale'
+              ? 'product.wholesale_trade'
+              : 'product.sourcing_trade',
+        });
+      }
       const sourceVariantKey = variantKeyBySku.get(offer.sourceSkuId);
       const pricing = commonPricing(offer.pricing);
       if (pricing === null) {
@@ -271,13 +301,14 @@ export const alibabaObservationAdapter: CatalogObservationAdapter<AlibabaObserva
               },
             }
           : {}),
-        attributes: [],
+        attributes: input.detail.attributes ?? [],
       },
       content: {
         ...(input.detail.description === undefined
           ? {}
           : {
               description: {
+                ...(description.imageUrls ? { imageUrls: description.imageUrls } : {}),
                 ...(description.html === undefined ? {} : { sanitizedHtml: description.html }),
                 ...(description.text === undefined ? {} : { text: description.text }),
                 placeholder: description.placeholder,

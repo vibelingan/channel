@@ -12,6 +12,12 @@ import type { CatalogApprovalTransaction } from './catalog-detail-commit.ts';
 const id = z.string().trim().min(1).max(200);
 export const sourceDigest = (value: unknown) =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex');
+export const sourceGalleryDigest = (product: Record<string, unknown>) =>
+  sourceDigest(
+    product.descriptionImageIds === undefined
+      ? (product.imageIds ?? [])
+      : [product.imageIds ?? [], product.descriptionImageIds],
+  );
 export const SourcePageSchema = z
   .object({
     action: z.literal('source-page'),
@@ -52,7 +58,7 @@ export async function stageSourcePage(
     product.archived === true ||
     !observed ||
     sourceDigest(observed.observation) !== input.observationDigest ||
-    sourceDigest(product.imageIds ?? []) !== input.galleryDigest
+    sourceGalleryDigest(product) !== input.galleryDigest
   )
     return fail('CONFLICT');
   if (input.header._id !== product._id) return fail('VALIDATION_ERROR');

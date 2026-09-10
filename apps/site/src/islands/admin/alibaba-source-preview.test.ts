@@ -22,7 +22,24 @@ test('admin source previews allow only bounded HTTPS Alibaba CDN URLs', () => {
       ],
       1,
     ),
-    ['https://sc04.alicdn.com/one.jpg'],
+    ['https://sc04.alicdn.com/insecure.jpg'],
+  );
+});
+
+test('description sources upgrade allowed HTTP hosts only, deduplicate and use their separate capacity', () => {
+  const urls = Array.from({ length: 19 }, (_, i) => `http://sc04.alicdn.com/detail-${i}.jpg`);
+  const first = 'https://sc04.alicdn.com/detail-0.jpg';
+  assert.equal(alibabaSourcePreviewUrls(urls, 18).length, 18);
+  assert.deepEqual(
+    alibabaSourcePreviewUrls([
+      'http://localhost/a',
+      'http://alicdn.com.evil.example/a',
+      'http://user:pass@sc04.alicdn.com/a',
+      'http://sc04.alicdn.com:8080/a',
+      urls[0],
+      first,
+    ]),
+    [first],
   );
 });
 
