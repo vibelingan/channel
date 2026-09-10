@@ -79,12 +79,13 @@ test('pending product preview offers an explicit admin review acknowledgement', 
   );
   assert.ok(html.includes('New · review needed'));
   assert.ok(html.includes('Mark reviewed'));
-  assert.ok(html.includes('Disabled (not public)'));
-  assert.ok(html.includes('AAEHBBhgAOVTpOKZBnRePx0I'));
-  assert.ok(html.includes('Consumer Electronics &gt; Headphones'));
-  assert.ok(html.includes('SY-T11'));
-  assert.ok(html.includes('3 variants · 3 offers'));
-  assert.ok(html.includes('USD 3.80–5.70 / unit · tiered from 2'));
+  assert.ok(html.includes('Draft (not public)'));
+  assert.ok(html.includes('Loading product preview'));
+  assert.ok(html.includes('data-preview-scroll'));
+  assert.ok(!html.includes('AAEHBBhgAOVTpOKZBnRePx0I'));
+  assert.ok(!html.includes('Prepare detail review'));
+  // The shared detail is loaded through the real authenticated API. Its loaded
+  // prices/configurations and non-publication are covered by the formal E2E.
 });
 
 test('malformed source review data degrades without throwing or rendering attacker keys', () => {

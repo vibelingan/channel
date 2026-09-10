@@ -129,6 +129,7 @@ function ProductMediaSession({
           loading={loading}
           fetchPriority={fetchPriority}
           decoding="async"
+          referrerPolicy="no-referrer"
           className={`h-full w-full object-contain ${imageClassName} ${className}`}
           onError={() =>
             dispatch({ type: 'sourceFailed', sourceIndex: state.activeIndex, source, sources })

@@ -10,6 +10,127 @@ requireCatalogLocalSeedWhenEnabled(enabled);
 // A retry would start against the already-approved product, hiding the first failure.
 test.describe.configure({ retries: 0 });
 
+test('untouched sync draft: source prices, shared preview, pagination and accessible modal without publication', async ({
+  page,
+  request,
+}, info) => {
+  test.setTimeout(120000);
+  const session = await loginAdmin(request);
+  const getDraft = () =>
+    adminAction<CollectionDoc>(
+      request,
+      'get',
+      { collection: 'products', id: 'local-untouched-draft' },
+      session.token,
+    );
+  const before = await getDraft();
+  expect(before.imageIds).toBeUndefined();
+  expect(before.catalogDetailPublication).toBeUndefined();
+  const commands: string[] = [];
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('request', (req) => {
+    if (req.url().endsWith('/api/admin') && req.method() === 'POST') {
+      const body = req.postDataJSON();
+      if (body.action === 'catalogDetailApproval') commands.push(body.data.action);
+    }
+  });
+  // Only image bytes are synthetic. All catalog/auth/approval requests use the
+  // production handlers against this runner's disposable local database.
+  await page.route('https://s.alicdn.com/formal-*.png', (route) =>
+    route.fulfill({
+      contentType: 'image/png',
+      body: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ1cAAAAASUVORK5CYII=',
+        'base64',
+      ),
+    }),
+  );
+  await page.goto('/login?returnTo=%2Fadmin');
+  await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
+  await page.getByLabel('Password', { exact: true }).fill(e2e.adminPassword);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/?$/);
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByPlaceholder(/^Search name/).fill('Untouched Sync Headset');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  const row = page.getByRole('row').filter({ hasText: 'Untouched Sync Headset' });
+  await expect(row).toContainText('Source: USD 6.00–7.89');
+  await expect(row).toContainText('10 (source)');
+  const preview = row.getByRole('button', { name: 'Preview', exact: true });
+  await preview.click();
+  const dialog = page.getByRole('dialog', { name: 'Product preview', exact: true });
+  await expect(dialog.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
+  await expect(dialog).toContainText('import the source gallery before publishing');
+  await expect(dialog.getByRole('button', { name: 'Prepare detail review' })).toHaveCount(0);
+  await expect(dialog.locator('[data-gallery-thumbnail]')).toHaveCount(2);
+  await expect(dialog.locator('[data-quote-open]')).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'Ask about customization' })).toBeDisabled();
+  await expect(dialog).toContainText('USD 7.89');
+  await expect(dialog).toContainText('USD 7.00');
+  await expect(dialog).toContainText('USD 6.00');
+  await expect(dialog).toContainText('Page 1 of 2');
+  await dialog.getByRole('button', { name: 'Next configurations' }).click();
+  await expect(dialog).toContainText('Page 2 of 2');
+  await expect(dialog.locator('[data-catalog-variant-selector] input')).toHaveCount(5);
+  await expect(dialog.getByRole('button', { name: 'Next configurations' })).toBeDisabled();
+  await dialog.getByRole('button', { name: 'Previous configurations' }).click();
+  await expect(dialog).toContainText('Page 1 of 2');
+  const close = dialog.getByRole('button', { name: 'Close', exact: true }).first();
+  for (const width of [1440, 1024, 768, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const geometry = await dialog.evaluate((el) => ({
+      width: el.getBoundingClientRect().width,
+      overflow: el.scrollWidth > el.clientWidth,
+    }));
+    expect(geometry.overflow).toBe(false);
+    expect(geometry.width).toBeLessThanOrEqual(width);
+    if (width >= 1024) expect(geometry.width).toBeGreaterThan(width * 0.85);
+    await dialog.locator('[data-preview-scroll]').evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    await expect(close).toBeInViewport();
+    await expect(dialog.getByRole('button', { name: 'Edit item' })).toBeInViewport();
+    await dialog.locator('[data-preview-scroll]').evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    if (width === 1440 || width === 390)
+      await dialog.screenshot({ path: info.outputPath(`shared-draft-preview-${width}.png`) });
+  }
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(preview).toBeFocused();
+  // A transient service error must allow retry without approving or losing the draft.
+  let injected = false;
+  await page.route('**/api/admin', async (route) => {
+    const body = route.request().postDataJSON();
+    if (!injected && body.action === 'catalogDetailApproval') {
+      injected = true;
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: false,
+          error: { code: 'UNAVAILABLE', message: 'Preview temporarily unavailable' },
+        }),
+      });
+    } else await route.continue();
+  });
+  await preview.click();
+  await expect(dialog.getByRole('alert')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Retry product preview' }).click();
+  await expect(dialog.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
+  await close.click();
+  const after = await getDraft();
+  expect(after.published).toBe(false);
+  expect(after.imageIds).toBeUndefined();
+  expect(after.catalogDetailPublication).toBeUndefined();
+  expect(after.alibabaReviewPending).toBe(true);
+  expect(commands.length).toBeGreaterThan(0);
+  expect(commands.every((action) => ['prepare', 'review'].includes(action))).toBe(true);
+  expect(errors).toEqual([]);
+});
+
 test('ordinary routes: approved multi-image SKU detail → real RFQ → persistent Admin follow-up', async ({
   page,
   request,

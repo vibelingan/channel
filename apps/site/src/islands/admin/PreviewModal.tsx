@@ -1,13 +1,15 @@
 import type { CollectionDoc } from '@vibelingan-channel/shared';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { EffectiveCatalogPricingBlock } from '../shop/EffectiveCatalogPricingBlock.tsx';
 import { formatPrice } from '../shop/api.ts';
 import { effectiveCatalogMoq } from '../shop/catalog-pricing.ts';
-import { CatalogApprovalPanel } from './CatalogApprovalPanel.tsx';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { decodeAlibabaSourceReview, formatAlibabaSourcePricing } from './alibaba-source-review.ts';
 import { getImagePreview } from './api.ts';
 import { adminCatalogPricingInput } from './product-pricing-editor.ts';
+import { useModalDialog } from './use-modal-dialog.ts';
+
+const AdminDetailPreview = lazy(() => import('./AdminDetailPreview.tsx'));
 
 interface Props {
   doc: CollectionDoc;
@@ -32,6 +34,8 @@ export function PreviewModal({
   reviewError = null,
   onMarkReviewed,
 }: Props) {
+  const dialogRef = useModalDialog();
+  const sharedPreview = canMarkReviewed && typeof doc.alibabaPrimarySourceKey === 'string';
   const imageIds = Array.isArray(doc.imageIds) ? (doc.imageIds as string[]) : [];
   const sourceImageUrls = alibabaSourcePreviewUrls(doc.alibabaSourceImageUrls);
   const sourceReview = decodeAlibabaSourceReview(doc.alibabaSourceReview);
@@ -107,11 +111,21 @@ export function PreviewModal({
   ) as [string, number][];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-100 p-5">
-          <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold text-slate-900">Preview</h2>
+    <dialog
+      ref={dialogRef}
+      aria-labelledby="product-preview-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      className="m-auto h-[92dvh] max-h-[92dvh] w-[calc(100%-2rem)] max-w-[1440px] overflow-hidden rounded-2xl border-0 bg-white p-0 shadow-xl backdrop:bg-slate-900/40"
+    >
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-3 sm:items-center">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
+            <h2 id="product-preview-title" className="text-lg font-semibold text-slate-900">
+              Product preview
+            </h2>
             {doc.alibabaReviewPending === true && (
               <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
                 New · review needed
@@ -125,14 +139,14 @@ export function PreviewModal({
               <span
                 className={`inline-block h-1.5 w-1.5 rounded-full ${published ? 'bg-green-500' : 'bg-slate-400'}`}
               />
-              {published ? 'Published' : 'Disabled (not public)'}
+              {published ? 'Published' : 'Draft (not public)'}
             </span>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100"
           >
             <svg
               className="h-5 w-5"
@@ -147,138 +161,156 @@ export function PreviewModal({
           </button>
         </div>
 
-        <div className="grid gap-6 p-5 sm:grid-cols-2">
-          {/* Images */}
-          <div>
-            <div className="aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-              {imageIds[0] && urls[imageIds[0]] ? (
-                <img
-                  src={urls[imageIds[0]]}
-                  alt={String(doc.name ?? '')}
-                  className="h-full w-full object-cover"
-                />
-              ) : !imageIds[0] && sourceImageUrls[0] ? (
-                <img
-                  src={sourceImageUrls[0]}
-                  alt={String(doc.name ?? '')}
-                  referrerPolicy="no-referrer"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="grid h-full place-items-center text-sm text-slate-400">
-                  {imageIds[0] ? '…' : 'No image'}
-                </div>
-              )}
-            </div>
-            {imageIds.length === 0 && sourceImageUrls.length > 0 && (
-              <p className="mt-2 text-xs text-amber-700">
-                Alibaba source preview only. Import or upload an image before publishing.
-              </p>
-            )}
-            {imageIds.length > 1 && (
-              <div className="mt-3 flex gap-2">
-                {shownIds.slice(1).map((id) =>
-                  urls[id] ? (
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-preview-scroll>
+          {sharedPreview ? (
+            <Suspense fallback={<output className="block p-8">Loading product preview…</output>}>
+              <AdminDetailPreview
+                key={doc._id}
+                productId={doc._id}
+                images={
+                  imageIds.length
+                    ? shownIds.flatMap((id) => (urls[id] ? [urls[id]] : []))
+                    : sourceImageUrls
+                }
+                sourceImages={imageIds.length === 0 && sourceImageUrls.length > 0}
+              />
+            </Suspense>
+          ) : (
+            <div className="grid gap-6 p-5 lg:grid-cols-2">
+              {/* Images */}
+              <div>
+                <div className="aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                  {imageIds[0] && urls[imageIds[0]] ? (
                     <img
-                      key={id}
-                      src={urls[id]}
-                      alt=""
-                      className="h-14 w-14 rounded-lg border border-slate-200 object-cover"
+                      src={urls[imageIds[0]]}
+                      alt={String(doc.name ?? '')}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : !imageIds[0] && sourceImageUrls[0] ? (
+                    <img
+                      src={sourceImageUrls[0]}
+                      alt={String(doc.name ?? '')}
+                      referrerPolicy="no-referrer"
+                      className="h-full w-full object-cover"
                     />
                   ) : (
-                    <span
-                      key={id}
-                      className="grid h-14 w-14 place-items-center rounded-lg border border-slate-200 bg-slate-50 text-[10px] text-slate-400"
-                    >
-                      …
-                    </span>
-                  ),
+                    <div className="grid h-full place-items-center text-sm text-slate-400">
+                      {imageIds[0] ? '…' : 'No image'}
+                    </div>
+                  )}
+                </div>
+                {imageIds.length === 0 && sourceImageUrls.length > 0 && (
+                  <p className="mt-2 text-xs text-amber-700">
+                    Alibaba source preview only. Import or upload an image before publishing.
+                  </p>
+                )}
+                {imageIds.length > 1 && (
+                  <div className="mt-3 flex gap-2">
+                    {shownIds.slice(1).map((id) =>
+                      urls[id] ? (
+                        <img
+                          key={id}
+                          src={urls[id]}
+                          alt=""
+                          className="h-14 w-14 rounded-lg border border-slate-200 object-cover"
+                        />
+                      ) : (
+                        <span
+                          key={id}
+                          className="grid h-14 w-14 place-items-center rounded-lg border border-slate-200 bg-slate-50 text-[10px] text-slate-400"
+                        >
+                          …
+                        </span>
+                      ),
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* Details */}
-          <div>
-            {Boolean(doc.category) && (
-              <span className="inline-flex rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">
-                {String(doc.category)}
-              </span>
-            )}
-            <h3 className="mt-2 font-display text-xl font-bold text-slate-900">
-              {String(doc.name ?? 'Untitled')}
-            </h3>
-            {Boolean(doc.description) && (
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                {String(doc.description)}
-              </p>
-            )}
+              {/* Details */}
+              <div>
+                {Boolean(doc.category) && (
+                  <span className="inline-flex rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">
+                    {String(doc.category)}
+                  </span>
+                )}
+                <h3 className="mt-2 font-display text-xl font-bold text-slate-900">
+                  {String(doc.name ?? 'Untitled')}
+                </h3>
+                {Boolean(doc.description) && (
+                  <details className="mt-4 text-sm leading-relaxed text-slate-600">
+                    <summary>Product description</summary>
+                    <p className="mt-3 whitespace-pre-line">{String(doc.description)}</p>
+                  </details>
+                )}
 
-            <section
-              aria-label="Effective website pricing"
-              className="mt-4 rounded-xl border border-slate-200 p-4"
-            >
-              <h4 className="mb-2 text-sm font-semibold text-slate-900">Website pricing</h4>
-              <EffectiveCatalogPricingBlock product={productPricing} />
-              {effectiveMoq !== undefined && (
-                <p className="mt-2 text-sm">Minimum order quantity: {effectiveMoq}</p>
-              )}
-            </section>
-            <details className="mt-4 text-sm text-slate-600">
-              <summary>Source information and product facts</summary>
-              <dl className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200 text-sm">
-                {sourceReview && (
-                  <>
-                    <Row label="Alibaba product ID" value={sourceReview.externalProductId || '—'} />
-                    <Row
-                      label="Source category"
-                      value={
-                        sourceReview.sourceCategoryName ?? sourceReview.sourceCategoryId ?? '—'
-                      }
-                    />
-                    {sourceReview.modelNumbers.length > 0 && (
-                      <Row label="Source model" value={sourceReview.modelNumbers.join(', ')} />
+                <section
+                  aria-label="Effective website pricing"
+                  className="mt-4 rounded-xl border border-slate-200 p-4"
+                >
+                  <h4 className="mb-2 text-sm font-semibold text-slate-900">Website pricing</h4>
+                  <EffectiveCatalogPricingBlock product={productPricing} />
+                  {effectiveMoq !== undefined && (
+                    <p className="mt-2 text-sm">Minimum order quantity: {effectiveMoq}</p>
+                  )}
+                </section>
+                <details className="mt-4 text-sm text-slate-600">
+                  <summary>Source information and product facts</summary>
+                  <dl className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200 text-sm">
+                    {sourceReview && (
+                      <>
+                        <Row
+                          label="Alibaba product ID"
+                          value={sourceReview.externalProductId || '—'}
+                        />
+                        <Row
+                          label="Source category"
+                          value={
+                            sourceReview.sourceCategoryName ?? sourceReview.sourceCategoryId ?? '—'
+                          }
+                        />
+                        {sourceReview.modelNumbers.length > 0 && (
+                          <Row label="Source model" value={sourceReview.modelNumbers.join(', ')} />
+                        )}
+                        <Row
+                          label="Variants"
+                          value={`${sourceReview.variantCount} variants · ${sourceReview.offerCount} offers`}
+                        />
+                        {sourceReview.minimumOrderQuantity !== undefined && (
+                          <Row
+                            label="Source MOQ"
+                            value={String(sourceReview.minimumOrderQuantity)}
+                          />
+                        )}
+                        <Row
+                          label="Source pricing"
+                          value={formatAlibabaSourcePricing(sourceReview.primaryPricing)}
+                        />
+                        <Row label="Source status" value={sourceReview.sourceListingStatus} />
+                      </>
                     )}
-                    <Row
-                      label="Variants"
-                      value={`${sourceReview.variantCount} variants · ${sourceReview.offerCount} offers`}
-                    />
-                    {sourceReview.minimumOrderQuantity !== undefined && (
-                      <Row label="Source MOQ" value={String(sourceReview.minimumOrderQuantity)} />
+                    {Boolean(doc.modName) && <Row label="Model" value={String(doc.modName)} />}
+                    {Boolean(doc.productCode) && (
+                      <Row label="Product code" value={String(doc.productCode)} />
                     )}
-                    <Row
-                      label="Source pricing"
-                      value={formatAlibabaSourcePricing(sourceReview.primaryPricing)}
-                    />
-                    <Row label="Source status" value={sourceReview.sourceListingStatus} />
-                  </>
-                )}
-                {Boolean(doc.modName) && <Row label="Model" value={String(doc.modName)} />}
-                {Boolean(doc.productCode) && (
-                  <Row label="Product code" value={String(doc.productCode)} />
-                )}
-                {num('inventory') !== undefined && (
-                  <Row label="Inventory" value={String(num('inventory'))} />
-                )}
-                {priceRows.map(([label, value]) => (
-                  <Row key={label} label={label} value={formatPrice(value)} />
-                ))}
-              </dl>
-            </details>
-          </div>
+                    {num('inventory') !== undefined && (
+                      <Row label="Inventory" value={String(num('inventory'))} />
+                    )}
+                    {priceRows.map(([label, value]) => (
+                      <Row key={label} label={label} value={formatPrice(value)} />
+                    ))}
+                  </dl>
+                </details>
+              </div>
+            </div>
+          )}
+          {reviewError && (
+            <p role="alert" className="px-5 pt-4 text-sm text-red-600">
+              {reviewError.message}
+            </p>
+          )}
         </div>
-
-        {canMarkReviewed && typeof doc.alibabaPrimarySourceKey === 'string' && (
-          <div className="px-5 pb-5">
-            <CatalogApprovalPanel key={doc._id} productId={doc._id} />
-          </div>
-        )}
-        {reviewError && (
-          <p role="alert" className="px-5 pt-4 text-sm text-red-600">
-            {reviewError.message}
-          </p>
-        )}
-        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 p-5">
+        <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-100 bg-white px-5 py-3">
           <button
             type="button"
             onClick={onClose}
@@ -305,7 +337,7 @@ export function PreviewModal({
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }
 

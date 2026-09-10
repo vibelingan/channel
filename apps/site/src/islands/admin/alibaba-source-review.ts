@@ -1,6 +1,6 @@
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { effectiveCatalogPriceSummary } from '../shop/EffectiveCatalogPricingBlock.tsx';
-import { effectiveCatalogMoq } from '../shop/catalog-pricing.ts';
+import { effectiveCatalogMoq, effectiveCatalogPricing } from '../shop/catalog-pricing.ts';
 import { adminCatalogPricingInput } from './product-pricing-editor.ts';
 
 export type AlibabaSourcePricing =
@@ -248,6 +248,22 @@ export function productReviewCellValue(
   cell: ProductReviewCell,
 ): string {
   const review = decodeAlibabaSourceReview(doc.alibabaSourceReview);
+  const input = adminCatalogPricingInput(doc);
+  const decision = effectiveCatalogPricing(input);
+  // A private review summary is evidence, not a replacement public price contract.
+  // Historical drafts may lack the promoted legacy summary while canonical offers exist.
+  const sourceFallback =
+    decision.source === 'alibaba' &&
+    decision.pricing.state !== 'available' &&
+    doc.catalogPricingMode !== 'manual' &&
+    doc.alibabaSourceStatus !== 'missing' &&
+    doc.alibabaSourceStatus !== 'MISSING' &&
+    review?.sourceListingStatus !== 'missing' &&
+    review?.sourceListingStatus !== 'draft' &&
+    review?.primaryPricing &&
+    ['fixed', 'tiered', 'range', 'negotiable'].includes(review.primaryPricing.mode)
+      ? review
+      : undefined;
   switch (cell) {
     case 'identity':
       return typeof doc.skuCode === 'string' && doc.skuCode.trim() !== ''
@@ -263,9 +279,18 @@ export function productReviewCellValue(
       return review ? `${review.variantCount} variants · ${review.offerCount} offers` : '—';
     case 'moq': {
       const moq = effectiveCatalogMoq({ ...adminCatalogPricingInput(doc), moq: doc.moq });
-      return moq === undefined ? '—' : String(moq);
+      const sourceMoq =
+        sourceFallback?.minimumOrderQuantity ??
+        sourceFallback?.primaryPricing?.minimumOrderQuantity;
+      return moq === undefined
+        ? sourceMoq === undefined
+          ? '—'
+          : `${sourceMoq} (source)`
+        : String(moq);
     }
     case 'pricing':
-      return effectiveCatalogPriceSummary(adminCatalogPricingInput(doc), 'Request a quote');
+      return sourceFallback
+        ? `Source: ${formatAlibabaSourcePricing(sourceFallback.primaryPricing)}`
+        : effectiveCatalogPriceSummary(input, 'Request a quote');
   }
 }

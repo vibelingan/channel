@@ -5,6 +5,23 @@ This is an implementation and acceptance ledger. Historical entries below retain
 their original verification boundaries; the newest release evidence takes precedence.
 All releases in this closeout use CI/CD, not direct local cloud deployment.
 
+### Untouched draft follow-up — 2026-09-10
+
+The customer rejected the remaining old Preview and failed preparation on a
+never-edited draft. This is a separate acceptance gap from the already-released
+Edit improvements. The linked Preview now uses the shared buyer detail components
+and a 1440px-bounded native modal; the obsolete manual preparation panel is removed.
+Review accepts omitted imageIds without weakening publish validation. Admin list
+can label validated source quotes when the historical price projection is absent,
+without changing manual price priority or copying source data into manual fields.
+
+Local gates passed: 1,477 full-workspace tests, final site 365, baseline browser 76,
+formal browser 62, lint and workspace/E2E types. The formal journey now starts with
+an untouched draft and asserts viewing cannot publish/approve/acknowledge it.
+See [draft acceptance and DNS investigation](DRAFT-PREVIEW-ACCEPTANCE-2026-09-10.md)
+for evidence, the root-CNAME/mail compatibility issue and release follow-through.
+This follow-up is not claimed live until its own same-SHA CI/CD completes.
+
 ### Editor/contact release — 2026-09-10 (Japan time)
 
 PR #38 head `ab8ca302ad1a6906b1f22739eabb2775cc0d2516` passed full feature CI

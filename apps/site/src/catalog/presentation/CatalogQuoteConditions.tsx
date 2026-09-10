@@ -92,7 +92,9 @@ function OfferCard({
                   {copy.quoteTierQuantityLabel}
                 </th>
                 <th scope="col" className="px-3 py-2">
-                  {copy.quoteTierPriceLabel}
+                  {offer.basis === 'website-manual'
+                    ? 'Website unit price'
+                    : copy.quoteTierPriceLabel}
                 </th>
               </tr>
             </thead>
