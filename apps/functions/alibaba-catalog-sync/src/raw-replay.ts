@@ -32,7 +32,7 @@ import { listAllDocs } from './list-all.ts';
 import { PRIMARY_CONNECTION_ID } from './oauth.ts';
 
 const MAX_RAW_BYTES = 8 * 1024 * 1024;
-const REPLAY_PARSER_VERSION = 'alibaba-content-pricing-v2';
+const REPLAY_PARSER_VERSION = 'alibaba-content-pricing-v3';
 const REPLAY_MANIFEST_TTL_MS = 2 * 60 * 60 * 1000;
 const MAX_REPLAY_MANIFEST_PAGES = 200;
 const MANIFEST_ID_PATTERN =
@@ -577,13 +577,15 @@ export async function replayAlibabaRawPage(
       const existingOffers = await port.listActiveOffers(sourceKey);
       const existingKeys = existingOffers.map((offer) => offer._id).sort();
       const replayKeys = normalized.offers.map((offer) => offer.offerKey).sort();
-      // The audited historical omission is one product-wide wholesale offer.
+      // Audited omissions: one product-wide wholesale or sourcing FOB offer.
       // SKU additions/removals and unrelated offers still require a fresh sync.
       const productOfferKey = alibabaOfferKey(connectionId, sourceProductId);
       const onlyMissingProductQuote =
         !existingKeys.includes(productOfferKey) &&
         replayKeys.includes(productOfferKey) &&
-        detail.productType === 'wholesale' &&
+        (detail.productType === 'wholesale' ||
+          (detail.productType === 'sourcing' &&
+            (detail.fobMinLexeme !== undefined || detail.fobMaxLexeme !== undefined))) &&
         sameKeys(
           existingKeys,
           replayKeys.filter((key) => key !== productOfferKey),

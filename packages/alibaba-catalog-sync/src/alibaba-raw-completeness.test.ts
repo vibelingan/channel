@@ -51,6 +51,89 @@ test('raw invalid SKU tier keeps independently known MOQ without inventing a qua
   assert.ok(observation.warnings.some((w) => w.code === 'invalid-source-pricing'));
 });
 
+test('raw FOB product quote survives invalid SKU tiers and remains product-scoped', () => {
+  const observation = observeRaw({
+    ...invalidSkuProduct,
+    product_type: 'sourcing',
+    wholesale_trade: undefined,
+    sourcing_trade: {
+      fob_min_price: '7.75',
+      fob_max_price: '9.0',
+      fob_currency: 'USD',
+      fob_unit_type: 'Piece',
+      min_order_unit_type: 'Piece',
+      min_order_quantity: '2',
+    },
+  });
+  assert.deepEqual(observation.offers.find((o) => !o.sourceVariantKey)?.pricing, {
+    mode: 'range',
+    currency: 'USD',
+    minimumAmountMinor: 775,
+    maximumAmountMinor: 900,
+    minimumOrderQuantity: 2,
+  });
+  assert.deepEqual(observation.offers.find((o) => o.sourceVariantKey)?.pricing, {
+    mode: 'unavailable',
+    minimumOrderQuantity: 2,
+  });
+});
+
+test('FOB and SKU prices retain independent scopes even when the SKU price is usable', () => {
+  const observation = observeRaw({
+    product_id: 'independent-FOB',
+    product_type: 'sourcing',
+    sourcing_trade: {
+      fob_min_price: '14.9',
+      fob_max_price: '14.9',
+      fob_currency: 'USD',
+      fob_unit_type: 'Piece',
+      min_order_unit_type: 'Piece',
+      min_order_quantity: '2',
+    },
+    product_sku: { skus: { sku_definition: [{ sku_id: 'red', price: '15.00' }] } },
+  });
+  assert.equal(observation.offers.length, 2);
+  assert.deepEqual(observation.offers.find((o) => !o.sourceVariantKey)?.pricing, {
+    mode: 'fixed',
+    currency: 'USD',
+    amountMinor: 1490,
+    minimumOrderQuantity: 2,
+  });
+  assert.deepEqual(observation.offers.find((o) => o.sourceVariantKey)?.pricing, {
+    mode: 'fixed',
+    currency: 'USD',
+    amountMinor: 1500,
+    minimumOrderQuantity: 2,
+  });
+});
+
+test('explicit non-piece FOB units never become per-piece prices, with or without SKUs', () => {
+  for (const unit of ['Acre', 'Set', 'Pole']) {
+    for (const sku of [
+      undefined,
+      { skus: { sku_definition: [{ sku_id: 'one', price: '5.18' }] } },
+    ]) {
+      const observation = observeRaw({
+        product_id: 'non-piece-FOB',
+        product_type: 'sourcing',
+        sourcing_trade: {
+          fob_min_price: '5.18',
+          fob_max_price: '5.18',
+          fob_currency: 'USD',
+          fob_unit_type: unit,
+          min_order_unit_type: unit,
+          min_order_quantity: '1',
+        },
+        product_sku: sku,
+      });
+      assert.ok(
+        observation.offers.every((o) => o.pricing.mode === 'unavailable'),
+        unit,
+      );
+    }
+  }
+});
+
 test('raw product attributes preserve repeated names and stay separate from SKU options', () => {
   const observation = observeRaw({
     product_id: 'attributes',

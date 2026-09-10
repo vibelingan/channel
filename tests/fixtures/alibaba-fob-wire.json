@@ -1,0 +1,37 @@
+{
+  "alibaba_icbu_product_get_response": {
+    "product": {
+      "product_id": "local-raw-FOB",
+      "subject": "Raw Wire FOB Quote",
+      "product_type": "sourcing",
+      "status": "published",
+      "description": "Product-level FOB quotation; SKU quantity boundaries are unconfirmed.",
+      "sourcing_trade": {
+        "fob_min_price": "7.75",
+        "fob_max_price": "9.0",
+        "fob_currency": "USD",
+        "fob_unit_type": "Piece",
+        "min_order_unit_type": "Piece",
+        "min_order_quantity": "2"
+      },
+      "product_sku": {
+        "skus": {
+          "sku_definition": [
+            {
+              "sku_id": "usb",
+              "bulk_discount_prices": {
+                "bulk_discount_price": [{ "start_quantity": -1, "price": "9.0" }]
+              }
+            },
+            {
+              "sku_id": "micro-usb",
+              "bulk_discount_prices": {
+                "bulk_discount_price": [{ "start_quantity": -1, "price": "7.75" }]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

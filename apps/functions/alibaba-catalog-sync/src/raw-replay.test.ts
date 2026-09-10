@@ -52,6 +52,56 @@ test('versioned raw repair adds only the previously omitted product quote and pr
   );
 });
 
+test('raw replay admits a missing sourcing FOB offer without admitting changed SKU identities', async () => {
+  const f = fixture('sourcing-FOB');
+  const wire = JSON.parse(f.bodyText);
+  Object.assign(wire.alibaba_icbu_product_get_response.product, {
+    product_type: 'sourcing',
+    sourcing_trade: {
+      fob_min_price: '7.75',
+      fob_max_price: '9.0',
+      fob_currency: 'USD',
+      fob_unit_type: 'Piece',
+      min_order_unit_type: 'Piece',
+      min_order_quantity: '2',
+    },
+  });
+  f.bodyText = JSON.stringify(wire);
+  f.payloadId = createHash('sha256').update(f.bodyText).digest('hex');
+  f.source.payloadId = f.payloadId;
+  f.payload._id = f.payloadId;
+  f.payload.responseSha256 = f.payloadId;
+  f.payload.byteLength = Buffer.byteLength(f.bodyText);
+  const harness = port(f);
+  const dry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, harness.p);
+  assert.ok(dry.ok && dry.ready);
+  assert.equal(dry.counts.offers, 2);
+  const applied = await replayAlibabaRawPage(
+    {
+      mode: 'apply',
+      limit: 10,
+      expectedPageHash: dry.pageHash,
+      expectedTotalSourceProducts: 1,
+      manifestId: dry.manifestId,
+    },
+    harness.p,
+  );
+  assert.ok(applied.ok && applied.applied === 1);
+  const productOffer = harness.updatedOffers.find(
+    (o) => o.id === alibabaOfferKey('channeltec', 'sourcing-FOB'),
+  );
+  assert.ok(productOffer);
+  assert.equal(Reflect.get(productOffer.patch.pricing as object, 'minAmountMinor'), 775);
+  assert.equal(Reflect.get(productOffer.patch.pricing as object, 'maxAmountMinor'), 900);
+  const changed = port(f);
+  changed.p.listActiveOffers = async () => [{ ...f.offer, _id: 'unrelated-sku' }];
+  const denied = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, changed.p);
+  assert.ok(denied.ok);
+  assert.equal(denied.ready, false);
+  assert.equal(denied.failures[0]?.reason, 'offer-set-mismatch');
+  assert.equal(changed.updatedOffers.length, 0);
+});
+
 function fixture(sourceProductId = 'live-product') {
   const bodyText = JSON.stringify({
     alibaba_icbu_product_get_response: {
@@ -227,7 +277,7 @@ test('apply requires the matching dry-run hash and preserves run provenance', as
   if (!applied.ok) return;
   assert.equal(applied.applied, 1);
   assert.deepEqual(harness.updatedOffers[0]?.patch.sourceAttributes, { Color: 'Blue' });
-  assert.equal(harness.updatedOffers[0]?.patch.parserVersion, 'alibaba-content-pricing-v2');
+  assert.equal(harness.updatedOffers[0]?.patch.parserVersion, 'alibaba-content-pricing-v3');
   assert.equal(Reflect.get(harness.updatedOffers[0]?.patch.pricing as object, 'sourceMoq'), 10);
   assert.equal(harness.observations.length, 1);
   assert.equal(harness.observations[0]?.value.lastSeenOperationId, 'full-current');

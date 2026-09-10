@@ -11,6 +11,36 @@ requireCatalogLocalSeedWhenEnabled(enabled);
 // A retry would start against the already-approved product, hiding the first failure.
 test.describe.configure({ retries: 0 });
 
+test('raw sourcing FOB quote remains visible in list, Edit and Preview despite invalid SKU tiers', async ({
+  page,
+}) => {
+  await page.goto('/login?returnTo=%2Fadmin');
+  await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
+  await page.getByLabel('Password', { exact: true }).fill(e2e.adminPassword);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/?$/);
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByPlaceholder(/^Search name/).fill('Raw Wire FOB Quote');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  const row = page.getByRole('row').filter({ hasText: 'Raw Wire FOB Quote' });
+  await expect(row).toContainText('USD 7.75–9.00');
+  await expect(row).toContainText('2 (source)');
+  await row.getByRole('button', { name: 'Edit', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit Product', exact: true });
+  await expect(editor.getByRole('region', { name: 'Effective website pricing' })).toContainText(
+    '7.75–9.00',
+  );
+  await editor.getByRole('button', { name: 'Close editor', exact: true }).click();
+  await row.getByRole('button', { name: 'Preview', exact: true }).click();
+  const preview = page.getByRole('dialog', { name: 'Product preview', exact: true });
+  await expect(preview.locator('[data-shared-catalog-detail]')).toBeVisible();
+  await expect(preview).toContainText('Product-level quotes');
+  await expect(preview).toContainText('USD 7.75 – USD 9.00 per unit');
+  await expect(preview).toContainText('Minimum order quantity: 2');
+  await expect(preview).toContainText('No usable source price is supplied');
+  await expect(preview.locator('[data-quote-open]')).toBeDisabled();
+});
+
 test('raw Alibaba response → draft/edit/preview → approved detail preserves facts, MOQ, quote scope and description media', async ({
   page,
   request,

@@ -224,9 +224,9 @@ handler 后的草稿、编辑、Preview、批准、公开详情，以及 RFQ→A
 1. 当前分支提交 → PR 完整 CI（包含正式 E2E）→ 合 test 后相同 SHA 的 Deploy Test；
    公共 schema、Admin、public-api、sync、前台同批。禁止直接 MCP 部署。
 2. 对照发布 SHA / 资源预检 / 旧列表 / 新详情 / Admin 回归，再运行现有后台
-   `replaySourceObservations` 的 validate。版本为 `alibaba-content-pricing-v2`，旧 dry-run hash 不可复用。
+   `replaySourceObservations` 的 validate。最终补充版本为 `alibaba-content-pricing-v3`，旧 dry-run hash 不可复用。
 3. 仅在全页 manifest、raw hash、总数和 lease 均有效时 apply。重放补 observation 和来源 offers，
-   唯一允许增加的是此前漏掉的商品级 wholesale offer；未知 SKU 集合变化仍拒绝。
+   唯一允许增加的是此前漏掉的商品级 wholesale / sourcing FOB offer；未知 SKU 集合变化仍拒绝。
 4. 通过现有 `materializeDrafts` 流程刷新 Alibaba 拥有的草稿摘要与详情图来源，保护人工字段和发布状态。
    不要把“重放源记录成功”误报为“所有官网页面已更新”。
 5. 抽查同一商品的 raw / observation / 草稿 Preview；需要公开更新的商品再显式审核并发布。
@@ -244,8 +244,8 @@ Admin 摘要兼容读取把 MOQ 错绑在“价格可用”条件上的遗漏。
 
 09:36 UTC 全集合只读核对：1,074 条 Alibaba observations 与 1,074 条关联商品摘要均存在，
 两侧都有 1,065 件至少有一种有效数字报价、1,054 件有 MOQ、1,073 件有详情图片来源；
-全部 1,074 件 observation 有商品属性。9 件没有可用数字报价不代表同步丢失，需按保存的
-quality warning 区分真实缺失、非法阶梯和不支持的计价单位，不能编造金额。
+全部 1,074 件 observation 有商品属性。9 件没有可用数字报价当时尚不能认定为来源缺失；
+必须继续读取原始响应区分解析遗漏、非法阶梯和不支持的计价单位，不能编造金额。
 私有 Admin 独立 MOQ 修复后的站点测试 372/372、追加本地完整浏览器 78/78 通过。
 
 公开集合随后变为 11 件，不能再把较早的 9 件基线当作最新数量。新增 ID
@@ -265,7 +265,28 @@ quality warning 区分真实缺失、非法阶梯和不支持的计价单位，�
 - [认证闭环验收 34456817806](https://github.com/vibelingan/channel/actions/runs/34456817806) **失败，不计为通过**：分类预览 0 待应用、两个既有公开样本各六张图且人工值不变、真实询价提交成功；最后读取仍为 in_progress，测试没有正确等待完成保存。此通道使用现有 CI/CD 的 acceptance-only 模式，不单独部署。
 - 实际普通详情路由 `0aa9d459-159c-4ffa-a5c0-db9a8e7c642f` 的人工覆盖确实是一档 `1000+ / USD 3.80`。公共响应同时保留旧 `moq=2` / `unitPrice=5.70`，不能把旧字段当作当前有效价格。页面手测 999 低于 MOQ、1000 返回 USD 3.80、1.5 非法；没有擅改客户人工阶梯。
 
-### 认证验收等待修复（PR #44）
+### 剩余 9 件的原始响应逐一复核（后续追加，PR #44）
+
+逐一读取保存的原始文件并校验 SHA-256 后，发现不能把这 9 件全部归因为来源异常：
+
+- `AAGFBBhgAOVTpOKZBnRh-9WP`：有效商品级 sourcing FOB USD 7.75–9.00 / MOQ 2。
+- `AAHpBBhgAOVTpOKZBnRh97sR`：有效商品级 sourcing FOB USD 14.90 / MOQ 2。
+- 上述两件同时有 `start_quantity=-1` 的 SKU 阶梯。此前正常拒绝该阶梯，但又因存在 SKU
+  而漏建独立的商品级 FOB 报价；这是真实解析遗漏，不是来源没有价格。
+- 其余 7 件的报价单位分别为 5 件 Set、1 件 Pole、1 件 Acre。来源金额存在，但当前
+  每件价格合同不能无依据转换；保留原始数据、MOQ 与质量提示，不伪造成每件价格。
+
+补充修复将 sourcing FOB 与 SKU 报价分别保留；显式非 Piece 的商品不再误读为每件价格。
+原始响应 → 实际 materialize → 列表 / Edit / Preview 增加独立 FOB 浏览器用例。
+重放 parser 升至 v3，需要重新 validate，不能复用已应用的 v2 manifest。
+本地 1,512 项测试与全仓类型检查通过；此前同时运行全仓测试（其脚本测试自行构建）和
+浏览器 runner 引发样式构建产物冲突，该失败不计通过，浏览器流程改为串行重新验收。
+最终串行浏览器流程 41 public + 19 catalog + 5 formal = 65/65 通过，包括原始 FOB
+经过真实 materializer 后在列表、Edit、Preview 的金额、MOQ 和报价范围一致。
+当前上面 1,065 / 9 是 v2 线上观测，不是 v3 发布后的结果；最终数量须在部署、重放和
+摘要刷新后再次只读核对，不能把预计新增两件有效报价当成已上线。
+
+### 询价保存的等待条件
 
 失败测试在整个 Process inquiry 区域寻找 `In progress` / `Completed`。下拉选项会提前出现，
 说明文字本来就有 `Completed means ...`；因此它不能证明保存完成。仅靠末尾一次读库，
