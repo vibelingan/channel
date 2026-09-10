@@ -90,6 +90,25 @@ mean this existing product's retained observation has already been repaired.
 
 ## Boundaries
 
+The final read-only audit found **11 public products**, of which four already
+use approved new details and all four lost explicit source SKU image mappings.
+Expand the narrow acceptance to these exact existing products, one independently
+hashed manifest each (not a full-catalog replay):
+
+| Product ID | Model | SKUs | Explicit source colors | General photos |
+| --- | --- | --- | --- | --- |
+| 0aa9d459-159c-4ffa-a5c0-db9a8e7c642f | SY-T11 | 3 | Black, White, Pink | 6 |
+| 7e8c6ece-41ad-4573-a2ed-d3e7fea94c8f | M1 | 4 | White, Black, across two connector options | 5 |
+| af743d00-ca07-45b3-a2c5-f7a6b256035b | CYZ-32 | 2 | Gold, White | 5 |
+| f15a8e4f-3f48-4021-ac3d-67bd1060836a | WH3 | 1 | Black | 6 |
+
+All source image URLs were read directly from each retained raw payload. The
+other three evidence hashes are `fe30d9b1b1275e22dc26a748ade4e8d1e09fd7c5db9052098fd117446a505ca4`,
+`04f496b383065ea2a9ef13a460b489389d799279eca491938901f00c378368b8`,
+and `0a0a2c6177210acf915bdc712ab68ca559cb42c821a12e8d4d27962b8a4ee099`.
+The previous pending deployment was cancelled during its CI unit-test step,
+before any deployment job began, so this complete audited scope can ship together.
+
 - Future syncs use the fixed parser automatically. Other historical observations
   are not silently reparsed or republished by this targeted acceptance. They
   require explicit retained-data replay/resync and normal review; no mapping is
