@@ -114,6 +114,15 @@ interface PricingContext {
   offerKey: string;
 }
 
+/** Alibaba also emits integer quantities as decimal strings, e.g. "1000.0".
+ * Check the lexical fractional part before Number() so tiny fractions never round to integers.
+ */
+function positiveIntegerQuantity(lexeme: string | undefined): number | undefined {
+  if (lexeme === undefined || !/^[0-9]+(?:\.0+)?$/.test(lexeme)) return undefined;
+  const value = Number(lexeme);
+  return Number.isSafeInteger(value) && value > 0 ? value : undefined;
+}
+
 function unavailablePricing(context: PricingContext): AlibabaCatalogPricing {
   const pricing: AlibabaCatalogPricing = {
     schemaVersion: ALIBABA_CATALOG_PRICING_SCHEMA_VERSION,
@@ -197,10 +206,9 @@ function tieredPricing(
     if (ladder.minQuantityLexeme === undefined || ladder.priceLexeme === undefined) {
       return unavailablePricing(context);
     }
-    if (!/^[0-9]+$/.test(ladder.minQuantityLexeme)) return unavailablePricing(context);
-    const minQuantity = Number(ladder.minQuantityLexeme);
+    const minQuantity = positiveIntegerQuantity(ladder.minQuantityLexeme);
     const price = parseDecimalToMinorUnits(ladder.priceLexeme);
-    if (!price.ok || !Number.isSafeInteger(minQuantity) || minQuantity <= 0) {
+    if (!price.ok || minQuantity === undefined) {
       return unavailablePricing(context);
     }
     parsedTiers.push({ minQuantity, unitAmountMinor: price.minorUnits });
@@ -234,11 +242,7 @@ export function normalizeProductDetail(input: {
       (unit) => unit !== undefined && unit !== 'Piece',
     );
 
-  const moq =
-    detail.moqLexeme !== undefined && /^[0-9]+$/.test(detail.moqLexeme)
-      ? Number(detail.moqLexeme)
-      : undefined;
-  const sourceMoq = moq !== undefined && Number.isSafeInteger(moq) && moq > 0 ? moq : undefined;
+  const sourceMoq = positiveIntegerQuantity(detail.moqLexeme);
 
   const sourceProduct: NormalizedSourceProduct = {
     sourceKey,

@@ -224,7 +224,7 @@ handler 后的草稿、编辑、Preview、批准、公开详情，以及 RFQ→A
 1. 当前分支提交 → PR 完整 CI（包含正式 E2E）→ 合 test 后相同 SHA 的 Deploy Test；
    公共 schema、Admin、public-api、sync、前台同批。禁止直接 MCP 部署。
 2. 对照发布 SHA / 资源预检 / 旧列表 / 新详情 / Admin 回归，再运行现有后台
-   `replaySourceObservations` 的 validate。最终补充版本为 `alibaba-content-pricing-v3`，旧 dry-run hash 不可复用。
+   `replaySourceObservations` 的 validate。最终补充版本为 `alibaba-content-pricing-v4`，旧 dry-run hash 不可复用。
 3. 仅在全页 manifest、raw hash、总数和 lease 均有效时 apply。重放补 observation 和来源 offers，
    唯一允许增加的是此前漏掉的商品级 wholesale / sourcing FOB offer；未知 SKU 集合变化仍拒绝。
 4. 通过现有 `materializeDrafts` 流程刷新 Alibaba 拥有的草稿摘要与详情图来源，保护人工字段和发布状态。
@@ -285,6 +285,32 @@ Admin 摘要兼容读取把 MOQ 错绑在“价格可用”条件上的遗漏。
 经过真实 materializer 后在列表、Edit、Preview 的金额、MOQ 和报价范围一致。
 当前上面 1,065 / 9 是 v2 线上观测，不是 v3 发布后的结果；最终数量须在部署、重放和
 摘要刷新后再次只读核对，不能把预计新增两件有效报价当成已上线。
+
+### 无 MOQ 的 20 件原始响应复核（PR #44 发布期间追加）
+
+不是把这 20 件直接归为来源缺失：逐条读取保存的原始响应，16 件明确提供了
+`"1000.0"` / `"500.0"` / `"100.0"` / `"1.0"` 这类十进制整数字符串。
+此前只接受纯数字的正则漏读了这些值；另外 4 件 wholesale 原始响应才未提供 MOQ，
+且 SKU 数量边界是 -1。不能从无效阶梯猜出 MOQ。
+20 份本地私有原始文件的 SHA-256 均与已保存 evidence 匹配；递归检查上述 4 份原文
+也未找到其他 MOQ / 最小订量字段。唯一没有详情图片的记录
+`AAG-BBhgAOVTpOKZBnRAfLgF` 原文 `description="1"`、`struct_detail_product=false`，
+不是 HTML 图片提取遗漏；不编造描述或图片。私有原文不提交进仓库。
+
+MOQ 与 SKU 阶梯现在共用严格整数解析：先检查小数部分全为零，再转换并检查正数及
+安全整数范围。`1.0000000000000001` 不得经浮点舍入变成 1；负数、零、非有限值、
+越界整数继续拒绝。补充两项原始响应边缘测试，FOB 浏览器 fixture 改用 `"2.0"`，
+保证原始数据经过实际 materializer 到列表 / Edit / Preview 仍显示 MOQ 2。
+原始文件重放版本升至 v4，部署后再进行一次统一 validate/apply 和来源摘要刷新。
+本地最终验证：1,514 项单元/集成测试、全仓类型检查、65 项正式浏览器流程通过。
+本机 Node 25 测试使用 `NODE_OPTIONS=--no-experimental-webstorage` 隔离其试验性
+服务端 localStorage；云端 CI 的应用测试运行时仍为配置的 Node 22，不修改浏览器逻辑来迁就本机。
+
+PR #44 已通过完整 CI 并合入 test 为 `ff31d8a194e42ef5efd5d192863b43ad81bf729b`；
+[Deploy Test 34470325699](https://github.com/vibelingan/channel/actions/runs/34470325699) 成功，
+真实公共页 41 + catalog 19 项全部通过。三个线上函数独立健康检查均返回该 SHA，
+新加载的 Admin 列表与 Edit 已正确显示无有效价格商品的 MOQ 1。
+这不代表上述新发现的 16 件已修复上线；最终整数字符串修复还需自己的完整 CI/CD。
 
 ### 询价保存的等待条件
 

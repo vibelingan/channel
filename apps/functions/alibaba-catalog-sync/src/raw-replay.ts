@@ -32,7 +32,7 @@ import { listAllDocs } from './list-all.ts';
 import { PRIMARY_CONNECTION_ID } from './oauth.ts';
 
 const MAX_RAW_BYTES = 8 * 1024 * 1024;
-const REPLAY_PARSER_VERSION = 'alibaba-content-pricing-v3';
+const REPLAY_PARSER_VERSION = 'alibaba-content-pricing-v4';
 const REPLAY_MANIFEST_TTL_MS = 2 * 60 * 60 * 1000;
 const MAX_REPLAY_MANIFEST_PAGES = 200;
 const MANIFEST_ID_PATTERN =
