@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
+import { alibabaSourcePreviewInfo, alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
+
+test('source image count includes valid unique images beyond the import capacity', () => {
+  const urls = Array.from({ length: 23 }, (_, i) => `https://sc04.alicdn.com/detail-${i}.jpg`);
+  assert.deepEqual(alibabaSourcePreviewInfo([...urls, urls[0], 'javascript:alert(1)', null], 18), {
+    urls: urls.slice(0, 18),
+    total: 23,
+  });
+  assert.deepEqual(alibabaSourcePreviewInfo(undefined), { urls: [], total: 0 });
+  assert.deepEqual(alibabaSourcePreviewInfo(urls, Number.NaN), { urls: [], total: 0 });
+});
 
 test('full source preview keeps images six through nine and caps at catalog capacity', () => {
   const urls = Array.from({ length: 10 }, (_, i) => `https://sc04.alicdn.com/image-${i}.jpg`);

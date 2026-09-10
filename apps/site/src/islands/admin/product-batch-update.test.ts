@@ -1,6 +1,85 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { batchUpdateRecords } from './api.ts';
+import { batchUpdateRecords, updateRecord } from './api.ts';
+
+for (const sourceImageCount of [1, 19]) {
+  test(`saving an existing publication does not auto-import ${sourceImageCount} newly synchronized description images`, async (t) => {
+    const current = {
+      _id: 'already-public',
+      published: true,
+      productFamily: 'headphones',
+      imageIds: ['approved-gallery'],
+      alibabaPrimarySourceKey: 'a'.repeat(64),
+      alibabaDescriptionImageUrls: Array.from(
+        { length: sourceImageCount },
+        (_, index) => `https://s.alicdn.com/unreviewed-description-${index}.png`,
+      ),
+    };
+    let prepared = false;
+    t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      if (body.action === 'get') return Response.json({ ok: true, data: current });
+      if (body.action === 'catalogDetailCapabilities')
+        return Response.json({ ok: true, data: { enabled: true } });
+      if (body.action === 'update') {
+        assert.deepEqual(body.data.values, { productFamily: 'headphones' });
+        return Response.json({ ok: true, data: current });
+      }
+      assert.equal(body.action, 'catalogDetailApproval', 'must not import unreviewed source media');
+      prepared = true;
+      // Stop at the real approval boundary; the formal browser test below
+      // exercises successful persistence through the real handler and database.
+      return Response.json(
+        { ok: false, error: { code: 'CONFLICT', message: 'approval-boundary-probe' } },
+        { status: 409 },
+      );
+    });
+    await assert.rejects(
+      updateRecord('products', current._id, { productFamily: 'headphones', published: true }),
+      /approval-boundary-probe/,
+    );
+    assert.equal(prepared, true);
+  });
+}
+
+for (const selectedImages of [undefined, [], ['reviewed-description']]) {
+  test(`first publication with over-capacity source media respects the explicit selection ${JSON.stringify(selectedImages)}`, async (t) => {
+    const current = {
+      _id: 'new-draft',
+      published: false,
+      productFamily: 'headphones',
+      imageIds: ['approved-gallery'],
+      descriptionImageIds: selectedImages,
+      alibabaPrimarySourceKey: 'a'.repeat(64),
+      alibabaDescriptionImageUrls: Array.from(
+        { length: 19 },
+        (_, i) => `https://s.alicdn.com/detail-${i}.png`,
+      ),
+    };
+    let prepared = false;
+    t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      if (body.action === 'get') return Response.json({ ok: true, data: current });
+      if (body.action === 'catalogDetailCapabilities')
+        return Response.json({ ok: true, data: { enabled: true } });
+      assert.equal(
+        body.action,
+        'catalogDetailApproval',
+        'explicit media selection must not be replaced',
+      );
+      prepared = true;
+      return Response.json(
+        { ok: false, error: { code: 'CONFLICT', message: 'approval-boundary-probe' } },
+        { status: 409 },
+      );
+    });
+    await assert.rejects(
+      updateRecord('products', current._id, { published: true }),
+      selectedImages === undefined ? /18 description images/ : /approval-boundary-probe/,
+    );
+    assert.equal(prepared, selectedImages !== undefined);
+  });
+}
 
 test('selected products can be assigned a main category without a publication patch', async (t) => {
   t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
@@ -50,6 +129,10 @@ test('classifying an already-public source product goes through approval, never 
           productFamily: 'misc',
           imageIds: ['owned-image'],
           alibabaPrimarySourceKey: 'a'.repeat(64),
+          alibabaDescriptionImageUrls: Array.from(
+            { length: 19 },
+            (_, i) => `https://s.alicdn.com/category-refresh-${i}.png`,
+          ),
         },
       });
     // Refusing preparation must surface a failure rather than claim the category
