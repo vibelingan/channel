@@ -154,4 +154,60 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
     alibabaSourceImageUrls: urls,
     alibabaReviewPending: true,
   });
+  // Match a freshly materialized Alibaba draft: source gallery/prices exist,
+  // but no website imageIds or legacy price projection has ever been saved.
+  const untouchedKey = 'b'.repeat(64);
+  const untouchedPricing = {
+    mode: 'tiered',
+    currency: 'USD',
+    minimumOrderQuantity: 10,
+    tiers: [
+      { minimumQuantity: 10, maximumQuantity: 49, unitAmountMinor: 789 },
+      { minimumQuantity: 50, maximumQuantity: 99, unitAmountMinor: 700 },
+      { minimumQuantity: 100, unitAmountMinor: 600 },
+    ],
+  };
+  const untouchedObservation = validateCatalogSourceObservation({
+    ...observation,
+    source: { ...observation.source, sourceProductKey: untouchedKey },
+    identity: { ...observation.identity, title: 'Untouched Sync Headset' },
+    variants: Array.from({ length: 55 }, (_, i) => ({
+      ...observation.variants[0],
+      sourceVariantKey: `untouched-${i}`,
+      sku: `DRAFT-${i}`,
+      options: [{ sourceName: 'Color', value: `Color ${i}` }],
+    })),
+    offers: [{ sourceOfferKey: 'untouched-quote', kind: 'supplier', pricing: untouchedPricing }],
+  });
+  if (!untouchedObservation.ok) throw new Error(untouchedObservation.errors.join('; '));
+  await db.createDocWithId(
+    'catalogSourceObservations',
+    sourceObservationDocumentId('alibaba', untouchedKey),
+    {
+      observation: untouchedObservation.value,
+    },
+  );
+  await db.createDocWithId('products', 'local-untouched-draft', {
+    name: 'Untouched Sync Headset',
+    description: product.description,
+    productFamily: 'headphones',
+    published: false,
+    archived: false,
+    alibabaPrimarySourceKey: untouchedKey,
+    alibabaSourceStatus: 'available',
+    alibabaSourceImageUrls: urls,
+    alibabaReviewPending: true,
+    alibabaSourceReview: {
+      schemaVersion: 'alibaba-source-review-v1',
+      provider: 'alibaba',
+      externalProductId: 'local-only-draft',
+      sourceListingStatus: 'published',
+      variantCount: 55,
+      offerCount: 1,
+      modelNumbers: [],
+      optionNames: ['Color'],
+      minimumOrderQuantity: 10,
+      primaryPricing: untouchedPricing,
+    },
+  });
 }

@@ -13,7 +13,13 @@ export function CatalogQuotePanel({
   detail,
   selection,
   copy,
-}: { detail: CatalogDetailView; selection: VariantSelection; copy: SharedDetailContent }) {
+  inquiryEnabled = true,
+}: {
+  detail: CatalogDetailView;
+  selection: VariantSelection;
+  copy: SharedDetailContent;
+  inquiryEnabled?: boolean;
+}) {
   const [quantity, setQuantity] = useState('');
   const localPreview = useContext(CatalogLocalPreviewContext);
   const [intent, setIntent] = useState<CatalogQuoteFields['intent']>('variant_quote');
@@ -48,7 +54,7 @@ export function CatalogQuotePanel({
       />
       <div className="rounded-lg border border-slate-200 bg-white p-4">
         <button
-          disabled={pending || !variant || !detail.revision}
+          disabled={!inquiryEnabled || pending || !variant || !detail.revision}
           data-quote-open
           type="button"
           onClick={(event) => launch('variant_quote', event.currentTarget)}
@@ -57,7 +63,7 @@ export function CatalogQuotePanel({
           {copy.inquiryLabel}
         </button>
         <button
-          disabled={pending || !detail.revision}
+          disabled={!inquiryEnabled || pending || !detail.revision}
           type="button"
           onClick={(event) => launch('customization', event.currentTarget)}
           className="mt-3 min-h-11 w-full rounded-lg border border-brand-200 px-4 py-2 text-sm font-semibold text-brand-700 disabled:opacity-50"

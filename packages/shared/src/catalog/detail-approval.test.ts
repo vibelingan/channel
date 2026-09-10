@@ -53,6 +53,24 @@ function fixture() {
   };
 }
 
+test('an untouched synchronized draft can be reviewed before importing its gallery', () => {
+  const input = fixture();
+  const { imageIds: _images, ...product } = input.product;
+  const variants = input.variants.map((v) => ({
+    ...v,
+    imageIds: [],
+    detailSourceCandidate: { ...v.detailSourceCandidate, images: [] },
+  }));
+  const result = planCatalogDetailApproval({ ...input, product, variants });
+  assert.deepEqual(result.publication.header.images, []);
+  assert.equal(result.variants.length, 3);
+  for (const imageIds of [null, '', {}, [null]]) {
+    assert.throws(() =>
+      planCatalogDetailApproval({ ...input, product: { ...product, imageIds }, variants }),
+    );
+  }
+});
+
 test('approved website override is distinct from unchanged supplier offers; source mode removes only override', () => {
   const input = fixture();
   const manual = { ...input.product, catalogPricingMode: 'manual', unitPrice: 3.1, moq: 1000 };

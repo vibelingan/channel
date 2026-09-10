@@ -5,6 +5,60 @@ This is an implementation and acceptance ledger. Historical entries below retain
 their original verification boundaries; the newest release evidence takes precedence.
 All releases in this closeout use CI/CD, not direct local cloud deployment.
 
+### Untouched draft follow-up — 2026-09-10
+
+The customer rejected the remaining old Preview and failed preparation on a
+never-edited draft. This is a separate acceptance gap from the already-released
+Edit improvements. The linked Preview now uses the shared buyer detail components
+and a 1440px-bounded native modal; the obsolete manual preparation panel is removed.
+Review accepts omitted imageIds without weakening publish validation. Admin list
+can label validated source quotes when the historical price projection is absent,
+without changing manual price priority or copying source data into manual fields.
+
+Local gates passed: 1,477 full-workspace tests, final site 365, baseline browser 76,
+formal browser 62, lint and workspace/E2E types. The formal journey now starts with
+an untouched draft and asserts viewing cannot publish/approve/acknowledge it.
+See [draft acceptance and DNS investigation](DRAFT-PREVIEW-ACCEPTANCE-2026-09-10.md)
+for evidence, the root-CNAME/mail compatibility issue and release follow-through.
+This follow-up is not claimed live until its own same-SHA CI/CD completes.
+
+### Editor/contact release — 2026-09-10 (Japan time)
+
+PR #38 head `ab8ca302ad1a6906b1f22739eabb2775cc0d2516` passed full feature CI
+`34371921815`. It merged into **test**, not main, as
+`caf7e8d261f153002ade0a258e607ac3467bda36`. Deploy Test `34373228478` passed its
+same-SHA prerequisite CI and deployed resources, functions and static pages.
+**The deployment completed successfully**, including authenticated resource/health
+smoke, **41 public browser checks** and **19 catalog browser checks**. The workflow
+verified admin/public-api/alibaba-catalog-sync all report that same release SHA.
+Evidence: https://github.com/vibelingan/channel/actions/runs/34373228478 and
+`/tmp/channel-editor-release-success.log`.
+
+Independent live browser/API checks against that release:
+
+- Both public-api/admin health responses return `caf7e8d`.
+- WH3 Edit opens at 1152px in a 1742px viewport, with no horizontal overflow,
+  no raw URL-array text and no generic Alibaba Source Images field dump.
+- All six owned previews decode from authenticated Blob URLs; all six supplier
+  thumbnails decode. The real viewer was opened and advanced to image 6/6, where
+  Next is disabled; the large image decodes correctly.
+- At the bottom of the inner scroll area (scrollTop 800, scrollHeight 1423),
+  both Close and footer actions remain in the viewport. Closing an unchanged
+  editor returns focus to the same product's Edit button and makes no update.
+- Manual USD 3.10 and MOQ 1000 prefill correctly. New User remains a separate
+  512px form with Username/Email/Role/Status, not product fields; it was cancelled
+  without creating a user.
+- Ordinary public page footer, mailto and both structured-data emails use
+  sales@supplychainsai.com. SMTP and recipient configuration are unchanged.
+- The public API still returns the exact same nine product IDs as the pre-release
+  baseline. No customer product was newly published or edited during this check.
+- Product Inquiries on the final release still returns the original single TEST
+  ONLY record as Completed, with zero unprocessed inquiries. No second request
+  was created and no email was sent.
+
+The earlier attempted browser print interaction did not produce a verified PDF
+file; this release does not claim PDF-download or email-delivery acceptance.
+
 ### Combined customer follow-up — editor, contact email and release sequence
 
 Scope: product Edit only for the layout/media changes, existing website footer and

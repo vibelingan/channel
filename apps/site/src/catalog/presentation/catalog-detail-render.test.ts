@@ -114,6 +114,27 @@ test('quote UI keeps product and selected configuration scopes separate without 
   assert.doesNotMatch(variant, /EUR|12\.00/);
   assert.match(html, /inputmode="numeric"/i);
 });
+test('manual tier prices use a website label instead of claiming to be supplier quotes', () => {
+  const html = renderToStaticMarkup(
+    createElement(CatalogQuoteConditions, {
+      copy,
+      productOffers: [],
+      websitePricing: {
+        basis: 'website-manual',
+        pricing: {
+          mode: 'tiered',
+          currency: 'USD',
+          minimumOrderQuantity: 1000,
+          tiers: [{ minimumQuantity: 1000, unitAmountMinor: 380 }],
+        },
+      },
+    }),
+  );
+  assert.match(html, /Website unit price/);
+  assert.doesNotMatch(html, /Source unit quote/);
+  assert.match(html, /1000\+/);
+  assert.match(html, /USD 3\.80/);
+});
 test('structured content separates specifications packaging and collapsed supplier notes', () => {
   const result = startDetailPages(
     {

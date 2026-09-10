@@ -77,3 +77,37 @@ test('product review cells use canonical values first and source evidence only a
     '$2.90',
   );
 });
+
+test('untouched linked drafts show available source quotes instead of claiming pricing is missing', () => {
+  const doc = { alibabaPrimarySourceKey: 'linked', alibabaSourceReview: review };
+  assert.equal(
+    productReviewCellValue(doc, 'pricing'),
+    'Source: USD 3.80–5.70 / unit · tiered from 2',
+  );
+  assert.equal(productReviewCellValue(doc, 'moq'), '2 (source)');
+  assert.equal(productReviewCellValue({ ...doc, unitPrice: 9 }, 'pricing'), '$9.00');
+  for (const status of ['missing', 'MISSING'])
+    assert.doesNotMatch(
+      productReviewCellValue({ ...doc, alibabaSourceStatus: status }, 'pricing'),
+      /Source:/,
+    );
+  for (const status of ['missing', 'draft'])
+    assert.doesNotMatch(
+      productReviewCellValue(
+        { ...doc, alibabaSourceReview: { ...review, sourceListingStatus: status } },
+        'pricing',
+      ),
+      /Source:/,
+    );
+  assert.doesNotMatch(
+    productReviewCellValue({ ...doc, catalogPricingMode: 'manual' }, 'pricing'),
+    /Source:/,
+  );
+  assert.doesNotMatch(
+    productReviewCellValue(
+      { ...doc, alibabaSourceReview: { ...review, primaryPricing: { mode: 'unavailable' } } },
+      'pricing',
+    ),
+    /Source:/,
+  );
+});

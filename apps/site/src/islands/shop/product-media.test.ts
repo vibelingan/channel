@@ -25,6 +25,13 @@ const SOURCES = [
   'https://media.example.test/three.jpg',
 ] as const;
 
+test('supplier gallery requests never send the admin preview URL as a referrer', () => {
+  const html = renderToStaticMarkup(
+    createElement(ProductMedia, { sources: SOURCES, alt: 'Headset' }),
+  );
+  assert.match(html, /referrerPolicy="no-referrer"/i);
+});
+
 test('product media advances each failed source once and terminates after exhaustion', () => {
   let state = createProductMediaState();
 

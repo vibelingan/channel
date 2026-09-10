@@ -20,7 +20,9 @@ const productInput = z.object({
   _id: identity,
   name: z.string(),
   description: z.string().optional(),
-  imageIds,
+  // Untouched sync drafts omit this field. Preview may have no owned gallery;
+  // publication still enforces media readiness at the persistence boundary.
+  imageIds: imageIds.default([]),
   archived: z.literal(false).optional(),
   detailSourceReady: z.literal(true),
   detailSourceOwner: identity,

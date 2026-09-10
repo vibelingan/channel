@@ -17,6 +17,8 @@ export interface CatalogDetailProps {
   onClear: () => void;
   pagination?: ReactNode;
   backNavigation?: ReactNode;
+  /** Admin previews share the buyer layout, but never create buyer inquiries. */
+  inquiryEnabled?: boolean;
 }
 export function CatalogDetail({
   pages,
@@ -27,6 +29,7 @@ export function CatalogDetail({
   onClear,
   pagination,
   backNavigation,
+  inquiryEnabled = true,
 }: CatalogDetailProps) {
   const detail = pages.currentPage;
   const localPreview = useContext(CatalogLocalPreviewContext);
@@ -121,6 +124,7 @@ export function CatalogDetail({
               detail={detail}
               selection={selection}
               copy={copy}
+              inquiryEnabled={inquiryEnabled}
             />
           </div>
         </div>
