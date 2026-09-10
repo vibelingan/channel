@@ -144,10 +144,9 @@ export function planCatalogDetailApproval(input: {
       images: row.imageIds.map((id) => `/api/images/${id}`),
     }),
   );
-  for (const variant of variants) {
-    if (variant.images.some((url) => !header.images.includes(url)))
-      throw new Error('Variant image must be in the approved product gallery');
-  }
+  // SKU photos are independently bound and checked by the persistence gate.
+  // Requiring them in the nine-image product gallery loses real provider mappings.
+  const variantImageIds = [...new Set(rows.flatMap((row) => row.imageIds))];
   const unchanged = header.descriptionText === source.descriptionText;
   const content =
     unchanged && product.detailSourceContentCandidate != null
@@ -164,10 +163,13 @@ export function planCatalogDetailApproval(input: {
     ...(content ? { content } : {}),
     ...(noteBlocks ? { noteBlocks } : {}),
     variantCount: variants.length,
+    ...(variantImageIds.length ? { variantImageIds } : {}),
   });
   return {
     publication,
     variants,
-    imageIds: [...new Set([...product.imageIds, ...(product.descriptionImageIds ?? [])])],
+    imageIds: [
+      ...new Set([...product.imageIds, ...(product.descriptionImageIds ?? []), ...variantImageIds]),
+    ],
   };
 }

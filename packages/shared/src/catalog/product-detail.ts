@@ -94,6 +94,11 @@ export const CatalogDetailPublicationSchema = z
     noteBlocks: CatalogNoteBlocksSchema.optional(),
     variantCount: count,
     variantStorage: z.literal('immutable-v1').optional(),
+    /** Private publication manifest for SKU-only media; not a product gallery. */
+    variantImageIds: z
+      .array(z.string().regex(/^[A-Za-z0-9_-]+$/))
+      .max(10000)
+      .optional(),
   })
   .strict()
   .superRefine((publication, ctx) => {

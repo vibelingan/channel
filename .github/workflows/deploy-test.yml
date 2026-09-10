@@ -8,6 +8,14 @@ on:
         required: true
         type: boolean
         default: false
+      catalog_acceptance_scope:
+        description: Approved live acceptance scope (variant-media repairs only the reported published product)
+        required: true
+        type: choice
+        options:
+          - full
+          - variant-media
+        default: full
       run_public_e2e:
         description: Run public browser E2E after deploy
         required: true
@@ -233,6 +241,7 @@ jobs:
           E2E_ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL }}
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
           E2E_CATALOG_LIVE_ACCEPTANCE: '1'
+          E2E_CATALOG_ACCEPTANCE_SCOPE: ${{ github.event.inputs.catalog_acceptance_scope || 'full' }}
           E2E_ALLOW_MUTATION: '1'
           E2E_RECORD_ARTIFACTS: '0'
         run: pnpm exec playwright test tests/e2e/catalog-live-acceptance.spec.ts

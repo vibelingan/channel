@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import type { SharedDetailContent } from '../../i18n/catalog.ts';
 import type { DetailPages } from '../application/catalog-detail-pages.ts';
+import { catalogVariantLabels } from '../application/catalog-variant-labels.ts';
 import type { VariantSelection } from '../application/catalog-variant-state.ts';
 
 export function CatalogVariantSelector({
@@ -17,24 +18,13 @@ export function CatalogVariantSelector({
   const group = useId();
   if (!pages.items.length) return <p className="text-sm text-ink-muted">{copy.noVariants}</p>;
   // These are canonical row choices, never synthetic option combinations.
-  const axes = new Map<string, Set<string>>();
-  for (const variant of pages.items)
-    for (const option of variant.options) {
-      const values = axes.get(option.name) ?? new Set<string>();
-      values.add(option.value);
-      axes.set(option.name, values);
-    }
-  const label = (index: number) => {
-    const variant = pages.items[index];
-    const varying = variant.options.filter((option) => (axes.get(option.name)?.size ?? 0) > 1);
-    return (
-      varying.map((option) => option.value).join(' / ') ||
-      variant.sku ||
-      `${copy.variantLabel} ${index + 1 + (pages.mode === 'paged' ? (pages.currentPage.variants.page - 1) * pages.currentPage.variants.pageSize : 0)}`
-    );
-  };
+  const labels = catalogVariantLabels(
+    pages.items,
+    (index) =>
+      `${copy.variantLabel} ${index + 1 + (pages.mode === 'paged' ? (pages.currentPage.variants.page - 1) * pages.currentPage.variants.pageSize : 0)}`,
+  );
+  const label = (index: number) => labels[index];
   const selectedId = selection.status === 'selected' ? selection.variant.id : '';
-  const labels = pages.items.map((_, index) => label(index));
   const counts = new Map<string, number>();
   for (const value of labels) counts.set(value, (counts.get(value) ?? 0) + 1);
   return (

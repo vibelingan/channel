@@ -93,10 +93,7 @@ export function CatalogDetail({
               </section>
             )}
           </header>
-          <div className="min-w-0 lg:col-start-1 lg:row-span-2 lg:row-start-1">
-            {media}
-            <p className="mt-4 text-xs leading-relaxed text-ink-muted">{copy.imagesNote}</p>
-          </div>
+          <div className="min-w-0 lg:col-start-1 lg:row-span-2 lg:row-start-1">{media}</div>
           <div className="min-w-0 space-y-6 lg:col-start-2 lg:row-start-2">
             <CatalogVariantSelector
               pages={pages}

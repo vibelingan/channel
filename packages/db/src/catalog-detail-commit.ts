@@ -1,6 +1,6 @@
 /** Server-only approval persistence. Does not publish, change source data, or send notifications. */
 import { createHash, randomUUID } from 'node:crypto';
-import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { type CollectionDoc, catalogReferencedImageIds } from '@vibelingan-channel/shared';
 import { CatalogDetailPublicationSchema } from '@vibelingan-channel/shared/catalog-detail';
 import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
 import { z } from 'zod';
@@ -175,7 +175,22 @@ export async function commitCatalogApproval(
     return { ok: false, code: 'VALIDATION_ERROR' };
   }
   const images: CollectionDoc[] = [];
-  for (const id of new Set(plan.imageIds)) {
+  if (
+    rows.some(
+      (row) =>
+        Array.isArray(row.detailSourceUnboundMediaSources) &&
+        row.detailSourceUnboundMediaSources.length > 0,
+    )
+  )
+    return { ok: false, code: 'MEDIA_NOT_READY' };
+  const beforeImages = new Set(catalogReferencedImageIds(product));
+  const afterImages = new Set(
+    catalogReferencedImageIds({ ...product, catalogDetailPublication: plan.publication }),
+  );
+  const imageIds = new Set([...beforeImages, ...afterImages]);
+  if (3 + 2 * rows.length + 2 * imageIds.size > 98)
+    return { ok: false, code: 'APPROVAL_TOO_LARGE' };
+  for (const id of imageIds) {
     const image = await tx.get('images', id);
     if (
       !image ||
@@ -190,10 +205,20 @@ export async function commitCatalogApproval(
       return { ok: false, code: 'MEDIA_NOT_READY' };
     images.push(image);
   }
+  const referenceDelta = (id: string) =>
+    product.published === true ? Number(afterImages.has(id)) - Number(beforeImages.has(id)) : 0;
+  if (images.some((image) => Number(image.publishedRefCount ?? 0) + referenceDelta(image._id) < 0))
+    return { ok: false, code: 'MEDIA_NOT_READY' };
   // Every deterministic rejection is above this boundary. Exceptions below MUST abort the transaction.
   // Unchanged media writes include lifecycle rows in conflict detection; reading alone is snapshot isolation.
   for (const image of images)
-    await tx.set('images', { ...image, catalogDetailApprovalFence: revision });
+    await tx.set('images', {
+      ...image,
+      ...(referenceDelta(image._id)
+        ? { publishedRefCount: Number(image.publishedRefCount ?? 0) + referenceDelta(image._id) }
+        : {}),
+      catalogDetailApprovalFence: revision,
+    });
   const byId = new Map(rows.map((row) => [row._id, row]));
   for (const [position, variant] of plan.variants.entries()) {
     const row = byId.get(variant.id);

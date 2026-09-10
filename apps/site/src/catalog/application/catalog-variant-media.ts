@@ -5,8 +5,7 @@ export function variantMediaSources(
   selection: VariantSelection,
 ): readonly string[] {
   if (selection.status !== 'selected') return parentImages;
-  const approved = new Set(parentImages);
-  const explicit = selection.variant.images.filter((source) => approved.has(source));
-  // Reorder only; normalization, deduplication and bounds belong to catalog-media.
-  return explicit.length ? [...explicit, ...parentImages] : parentImages;
+  // The server validates and publishes SKU media independently of product photos.
+  // A product photo is not a fallback for a selected color, even when no mapping exists.
+  return selection.variant.images;
 }

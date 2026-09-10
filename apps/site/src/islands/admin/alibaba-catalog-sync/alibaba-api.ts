@@ -896,8 +896,13 @@ export function unlinkSourceProduct(
 
 export function importAlibabaSourceImage(
   url: string,
+  signal?: AbortSignal,
 ): Promise<{ imageId: string; deduplicated: boolean }> {
-  return call('importSourceImage', { url });
+  return call(
+    'importSourceImage',
+    { url },
+    signal ? AbortSignal.any([signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000),
+  );
 }
 
 export async function repairAlibabaSourcePricing(

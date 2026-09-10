@@ -32,7 +32,7 @@ import { listAllDocs } from './list-all.ts';
 import { PRIMARY_CONNECTION_ID } from './oauth.ts';
 
 const MAX_RAW_BYTES = 8 * 1024 * 1024;
-const REPLAY_PARSER_VERSION = 'alibaba-content-pricing-v4';
+const REPLAY_PARSER_VERSION = 'alibaba-content-media-v5';
 const REPLAY_MANIFEST_TTL_MS = 2 * 60 * 60 * 1000;
 const MAX_REPLAY_MANIFEST_PAGES = 200;
 const MANIFEST_ID_PATTERN =
@@ -138,6 +138,8 @@ const defaultPort: AlibabaRawReplayPort = {
 
 export interface AlibabaRawReplayInput {
   mode: 'dry-run' | 'apply';
+  /** Optional exact source repair; the manifest cannot later expand to the full catalog. */
+  sourceKey?: string;
   afterSourceKey?: string;
   limit?: number;
   expectedPageHash?: string;
@@ -225,6 +227,7 @@ interface ReplayManifestPage {
 
 interface ReplayManifest {
   requestedBy: string;
+  sourceKey: string | null;
   status: 'collecting' | 'ready' | 'applying' | 'applied' | 'failed';
   totalSourceProducts: number;
   pages: ReplayManifestPage[];
@@ -285,6 +288,8 @@ function parseReplayManifest(doc: CollectionDoc | null, now: string): ReplayMani
   const nowMs = canonicalInstantMs(now);
   if (
     doc.connectionId !== PRIMARY_CONNECTION_ID ||
+    (doc.sourceKey != null &&
+      (typeof doc.sourceKey !== 'string' || !/^[a-f0-9]{64}$/.test(doc.sourceKey))) ||
     typeof doc.requestedBy !== 'string' ||
     doc.requestedBy.trim() === '' ||
     !['collecting', 'ready', 'applying', 'applied', 'failed'].includes(String(doc.status)) ||
@@ -350,7 +355,9 @@ function parseReplayManifest(doc: CollectionDoc | null, now: string): ReplayMani
     const last = pages.at(-1);
     if (
       !last ||
-      last.sourceProducts >= last.limit ||
+      (doc.sourceKey == null && last.sourceProducts >= last.limit) ||
+      (doc.sourceKey != null &&
+        (pages.length !== 1 || covered !== 1 || last.nextSourceKey !== doc.sourceKey)) ||
       pages.slice(0, -1).some((page) => page.sourceProducts !== page.limit) ||
       covered !== Number(doc.totalSourceProducts)
     ) {
@@ -368,6 +375,7 @@ function parseReplayManifest(doc: CollectionDoc | null, now: string): ReplayMani
   }
   return {
     requestedBy: doc.requestedBy,
+    sourceKey: typeof doc.sourceKey === 'string' ? doc.sourceKey : null,
     status,
     totalSourceProducts: Number(doc.totalSourceProducts),
     pages,
@@ -381,10 +389,12 @@ function manifestCreateFields(
   requestedBy: string,
   totalSourceProducts: number,
   now: string,
+  sourceKey?: string,
 ): Record<string, unknown> {
   return {
     connectionId: PRIMARY_CONNECTION_ID,
     requestedBy,
+    sourceKey: sourceKey ?? null,
     totalSourceProducts,
     createdAt: now,
     expiresAt: new Date(Date.parse(now) + REPLAY_MANIFEST_TTL_MS).toISOString(),
@@ -400,6 +410,7 @@ export async function replayAlibabaRawPage(
   const requestedBy = input.requestedBy?.trim() || 'internal-admin';
   if (
     requestedBy === '' ||
+    (input.sourceKey !== undefined && !/^[a-f0-9]{64}$/.test(input.sourceKey)) ||
     !Number.isSafeInteger(limit) ||
     limit < 1 ||
     limit > 20 ||
@@ -428,7 +439,11 @@ export async function replayAlibabaRawPage(
     if (input.manifestId !== undefined && existingManifest === null) {
       return { ok: false, reason: 'manifest-invalid' };
     }
-    if (existingManifest && existingManifest.requestedBy !== requestedBy) {
+    if (
+      existingManifest &&
+      (existingManifest.requestedBy !== requestedBy ||
+        existingManifest.sourceKey !== (input.sourceKey ?? null))
+    ) {
       return { ok: false, reason: 'manifest-invalid' };
     }
     if (input.mode === 'dry-run' && existingManifest) {
@@ -462,7 +477,18 @@ export async function replayAlibabaRawPage(
     ) {
       return { ok: false, reason: 'manifest-invalid' };
     }
-    const sourcePage = await port.listSourceProducts(afterSourceKey, limit);
+    let sourcePage: { items: CollectionDoc[]; total: number };
+    if (input.sourceKey) {
+      const source = await port.getDocument('alibabaSourceProducts', input.sourceKey);
+      if (
+        !source ||
+        source._id !== input.sourceKey ||
+        source.connectionId !== PRIMARY_CONNECTION_ID ||
+        source.active !== true
+      )
+        return { ok: false, reason: 'page-changed' };
+      sourcePage = { items: input.sourceKey > afterSourceKey ? [source] : [], total: 1 };
+    } else sourcePage = await port.listSourceProducts(afterSourceKey, limit);
     const rows = sourcePage.items;
     const totalSourceProducts = sourcePage.total;
     if (
@@ -625,7 +651,7 @@ export async function replayAlibabaRawPage(
       return { ok: false, reason: 'lease-lost' };
     }
     const nextSourceKey = rows.at(-1)?._id ?? afterSourceKey;
-    const done = rows.length < limit;
+    const done = Boolean(input.sourceKey) || rows.length < limit;
     let manifestReady = input.mode === 'apply';
     if (input.mode === 'dry-run') {
       const previousPages = existingManifest?.pages ?? [];
@@ -657,7 +683,7 @@ export async function replayAlibabaRawPage(
             existingManifest?.expiresAt ??
             new Date(Date.parse(manifestWriteNow) + REPLAY_MANIFEST_TTL_MS).toISOString(),
         },
-        manifestCreateFields(requestedBy, totalSourceProducts, manifestWriteNow),
+        manifestCreateFields(requestedBy, totalSourceProducts, manifestWriteNow, input.sourceKey),
         {
           connectionId: PRIMARY_CONNECTION_ID,
           holder,

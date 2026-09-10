@@ -209,12 +209,15 @@ test('cross-product, wrong owner, forged, duplicate and invalid active variants 
   assert.throws(() => planCatalogDetailApproval({ ...fixture(), variants: [base, base] }));
 });
 
-test('variant-only images are rejected before any persistence can begin', () => {
+test('variant-only images have an independent approval manifest, without changing the product gallery', () => {
   const input = fixture();
   const row = input.variants[0];
   assert.ok(row);
   row.imageIds = ['private-image'];
-  assert.throws(() => planCatalogDetailApproval(input), /gallery/);
+  const result = planCatalogDetailApproval(input);
+  assert.deepEqual(result.publication.header.images, ['/api/images/image']);
+  assert.ok(result.publication.variantImageIds?.includes('private-image'));
+  assert.ok(result.imageIds.includes('private-image'));
 });
 
 test('unchanged descriptions require matching approved notes and reject orphan note blocks', () => {

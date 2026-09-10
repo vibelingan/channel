@@ -1,15 +1,14 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import type { SharedDetailContent } from '../../i18n/catalog.ts';
-import { Gallery, boundedGalleryImages } from '../../islands/shop/Gallery.tsx';
 import { fetchCatalogDetailPage } from '../infrastructure/catalog-detail-api.ts';
 import { CatalogDetail } from '../presentation/CatalogDetail.tsx';
+import { CatalogVariantGallery } from '../presentation/CatalogVariantGallery.tsx';
 import {
   type ProductDetailEvent,
   type ProductDetailState,
   initialProductDetailState,
   reduceProductDetail,
 } from './catalog-product-detail-state.ts';
-import { variantMediaSources } from './catalog-variant-media.ts';
 
 export function CatalogDetailController({
   productId,
@@ -34,8 +33,9 @@ export function CatalogDetailController({
   const current = useRef(state);
   const generation = useRef(0);
   const abort = useRef<AbortController | undefined>(undefined);
+  const requested = useRef(requestedId);
+  requested.current = requestedId;
   const [retry, setRetry] = useState(0);
-  const [chosenImage, setChosenImage] = useState<{ identity: string; source: string }>();
   const apply = useCallback((event: ProductDetailEvent) => {
     const next = reduceProductDetail(current.current, event);
     current.current = next;
@@ -69,11 +69,23 @@ export function CatalogDetailController({
   );
   useEffect(() => {
     void retry;
-    void perform(apply({ type: 'open', generation: ++generation.current, productId, requestedId }));
+    void perform(
+      apply({
+        type: 'open',
+        generation: ++generation.current,
+        productId,
+        requestedId: requested.current,
+      }),
+    );
     return () => {
       abort.current?.abort();
     };
-  }, [productId, requestedId, retry, apply, perform]);
+  }, [productId, retry, apply, perform]);
+  useEffect(() => {
+    // URL selection is interaction state, not a new product/revision fetch.
+    // Browser Back/Forward also uses this path, including an invalid deep link.
+    apply({ type: 'restore-selection', productId, variantId: requestedId });
+  }, [productId, requestedId, apply]);
 
   useEffect(() => {
     if (
@@ -125,16 +137,6 @@ export function CatalogDetailController({
     )
       onVariantChange?.(variantId);
   };
-  const images = boundedGalleryImages([...variantMediaSources(detail.images, selection)]);
-  const identity = JSON.stringify([
-    productId,
-    detail.revision,
-    selection.status === 'selected' ? selection.variant.id : requestedId,
-  ]);
-  const source =
-    chosenImage?.identity === identity && images.includes(chosenImage.source)
-      ? chosenImage.source
-      : (images[0] ?? null);
   const page = (number: number) =>
     void perform(apply({ type: 'page', generation: ++generation.current, page: number }));
   const { page: number, pageSize, total } = detail.variants;
@@ -148,13 +150,14 @@ export function CatalogDetailController({
         onSelect={select}
         onClear={() => select()}
         media={
-          <Gallery
-            images={images}
-            alt={detail.name}
+          <CatalogVariantGallery
+            images={detail.images}
+            name={detail.name}
             productId={productId}
-            layout="detail"
+            revision={detail.revision}
             unavailableLabel={copy.imageUnavailableLabel}
-            selection={{ source, onChange: (next) => setChosenImage({ identity, source: next }) }}
+            selection={selection}
+            variants={pages.items}
           />
         }
         pagination={

@@ -12,6 +12,110 @@ requireCatalogLocalSeedWhenEnabled(enabled);
 // A retry would start against the already-approved product, hiding the first failure.
 test.describe.configure({ retries: 0 });
 
+// API assertions share one normally authenticated session in this worker. Each
+// browser journey still signs in through the real UI. Repeated API logins here
+// otherwise consume the same rate limit without testing any additional behavior.
+let apiSession: Awaited<ReturnType<typeof loginAdmin>>;
+test.beforeAll(async ({ request }) => {
+  apiSession = await loginAdmin(request);
+});
+
+test('real raw color mappings → owned media → Admin Preview → approval → mobile detail preserve SKU identity', async ({
+  page,
+  request,
+}, info) => {
+  test.setTimeout(120000);
+  const session = apiSession;
+  const list = await adminAction<ListResult<CollectionDoc>>(
+    request,
+    'list',
+    { collection: 'products', search: 'Raw Color Headphones', pageSize: 20 },
+    session.token,
+  );
+  const draft = list.items[0];
+  if (!draft) throw new Error('Raw color fixture missing');
+  expect(draft.published).toBe(false);
+  expect(draft.imageIds).toHaveLength(6);
+  for (const i of [6, 7, 8])
+    expect((await request.get(`${e2e.apiUrl}/api/images/raw-color-image-${i}`)).status()).toBe(404);
+  await page.goto('/login?returnTo=%2Fadmin');
+  await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
+  await page.getByLabel('Password', { exact: true }).fill(e2e.adminPassword);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/?$/);
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByPlaceholder(/^Search name/).fill('Raw Color Headphones');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  const row = page.getByRole('row').filter({ hasText: 'Raw Color Headphones' });
+  await row.getByRole('button', { name: 'Preview', exact: true }).click();
+  const preview = page.getByRole('dialog', { name: 'Product preview', exact: true });
+  await expect(preview.locator('[data-shared-catalog-detail]')).toBeVisible();
+  const previewSources = new Set<string>();
+  for (const color of ['Black', 'White', 'Pink']) {
+    await preview.getByRole('radio', { name: new RegExp(color) }).check();
+    const hero = preview.locator('[data-gallery-frame] img');
+    await expect(hero).toHaveAttribute('src', /^blob:/);
+    await expect
+      .poll(() => hero.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0))
+      .toBe(true);
+    previewSources.add((await hero.getAttribute('src')) ?? '');
+    await expect(preview.locator('[data-gallery-count]')).toHaveText('1 / 1');
+  }
+  expect(previewSources.size).toBe(3);
+  // Viewing and changing selection never publish private media.
+  expect((await request.get(`${e2e.apiUrl}/api/images/raw-color-image-6`)).status()).toBe(404);
+  await preview.getByRole('button', { name: 'Close', exact: true }).first().click();
+  await page.getByRole('checkbox', { name: 'Select all rows' }).check();
+  await page.getByRole('button', { name: 'Publish', exact: true }).click();
+  await expect
+    .poll(
+      async () =>
+        (
+          await adminAction<CollectionDoc>(
+            request,
+            'get',
+            { collection: 'products', id: draft._id },
+            session.token,
+          )
+        ).published,
+      { timeout: 30000 },
+    )
+    .toBe(true);
+  const response = await request.get(
+    `${e2e.apiUrl}/api/products/${draft._id}/detail?view=sections`,
+  );
+  expect(response.ok()).toBe(true);
+  const detail = (await response.json()).data;
+  expect(detail.images).toHaveLength(6);
+  expect(
+    detail.variants.items.map(
+      (v: { options: { name: string; value: string }[]; images: string[] }) => ({
+        color: v.options.find((o) => o.name === 'color')?.value,
+        images: v.images,
+      }),
+    ),
+  ).toEqual([
+    { color: 'Black', images: ['/api/images/raw-color-image-6'] },
+    { color: 'White', images: ['/api/images/raw-color-image-7'] },
+    { color: 'Pink', images: ['/api/images/raw-color-image-8'] },
+  ]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/headphones/?id=${draft._id}`);
+  for (const [color, i] of [
+    ['Black', 6],
+    ['White', 7],
+    ['Pink', 8],
+  ] as const) {
+    await page.getByRole('radio', { name: new RegExp(color) }).check();
+    const hero = page.locator('[data-gallery-frame] img');
+    await expect(hero).toHaveAttribute('src', new RegExp(`/raw-color-image-${i}$`));
+    await expect
+      .poll(() => hero.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0))
+      .toBe(true);
+  }
+  await page.screenshot({ path: info.outputPath('raw-color-mobile.png'), fullPage: true });
+});
+
 test('raw sourcing FOB quote remains visible in list, Edit and Preview despite invalid SKU tiers', async ({
   page,
 }) => {
@@ -47,7 +151,7 @@ test('raw Alibaba response → draft/edit/preview → approved detail preserves 
   request,
 }, info) => {
   test.setTimeout(120000);
-  const session = await loginAdmin(request);
+  const session = apiSession;
   const list = await adminAction<ListResult<CollectionDoc>>(
     request,
     'list',
@@ -110,6 +214,7 @@ test('raw Alibaba response → draft/edit/preview → approved detail preserves 
   await expect(preview.locator('[data-catalog-notes] p')).toHaveCount(17);
   await expect(preview.locator('[data-catalog-notes]')).toContainText('Application — Hiking');
   await expect(preview.locator('[data-catalog-notes]')).toContainText('Application — Camping');
+  await preview.getByRole('button', { name: 'View product gallery (6)' }).click();
   await expect(preview.locator('[data-gallery-thumbnail]')).toHaveCount(6);
   await expect(preview.locator('[data-description-images] img')).toHaveCount(17);
   await expect(preview.getByRole('alert')).toHaveCount(0);
@@ -189,7 +294,7 @@ test('missing preview script keeps Admin usable and recovers after an explicit r
   page,
   request,
 }) => {
-  const session = await loginAdmin(request);
+  const session = apiSession;
   const getDraft = () =>
     adminAction<CollectionDoc>(
       request,
@@ -248,6 +353,7 @@ test('missing preview script keeps Admin usable and recovers after an explicit r
   await expect(page.getByRole('heading', { name: 'Users', exact: true })).toBeVisible();
   await openPreview();
   await expect(dialog.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
+  await dialog.getByRole('button', { name: 'View product gallery (9)' }).click();
   await expect(dialog.locator('[data-gallery-thumbnail]')).toHaveCount(9);
   await dialog.getByRole('button', { name: 'Close', exact: true }).first().click();
   const after = await getDraft();
@@ -263,7 +369,7 @@ test('untouched sync draft: source prices, shared preview, pagination and access
   request,
 }, info) => {
   test.setTimeout(120000);
-  const session = await loginAdmin(request);
+  const session = apiSession;
   const getDraft = () =>
     adminAction<CollectionDoc>(
       request,
@@ -311,6 +417,7 @@ test('untouched sync draft: source prices, shared preview, pagination and access
   await expect(dialog.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
   await expect(dialog).toContainText('import the source gallery before publishing');
   await expect(dialog.getByRole('button', { name: 'Prepare detail review' })).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'View product gallery (9)' }).click();
   await expect(dialog.locator('[data-gallery-thumbnail]')).toHaveCount(9);
   await dialog.getByRole('button', { name: 'View image 9', exact: true }).click();
   await expect(dialog).toContainText('9 / 9');
@@ -398,7 +505,7 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
   test.setTimeout(120000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  const session = await loginAdmin(request);
+  const session = apiSession;
   const list = await adminAction<ListResult<CollectionDoc>>(
     request,
     'list',
@@ -546,6 +653,8 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
   await page.goto(`/headphones/?id=${id}`);
   await expect(page.locator('[data-catalog-variant-selector]')).toBeVisible();
   expect(page.url()).not.toContain('preview=');
+  const generalGallery = page.getByRole('button', { name: 'View product gallery (2)' });
+  if (await generalGallery.isVisible()) await generalGallery.click();
   await expect(page.locator('[data-gallery-thumbnail]')).toHaveCount(2);
   for (let index = 0; index < 2; index++) {
     await page.getByRole('button', { name: `View image ${index + 1}`, exact: true }).click();

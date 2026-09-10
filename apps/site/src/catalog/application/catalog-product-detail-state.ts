@@ -32,6 +32,7 @@ export type ProductDetailEvent =
   | { type: 'page'; generation: number; page: number }
   | { type: 'result'; generation: number; productId: string; result: DetailPageResult }
   | { type: 'close'; generation: number }
+  | { type: 'restore-selection'; productId: string; variantId?: string }
   | { type: 'select'; productId: string; revision: string; variantId?: string };
 
 export function initialProductDetailState(): ProductDetailState {
@@ -97,6 +98,21 @@ export function reduceProductDetail(
           revision: currentPage.revision,
         },
       };
+    }
+    case 'restore-selection': {
+      if (
+        (state.status !== 'ready' && state.status !== 'loading') ||
+        state.productId !== event.productId
+      )
+        return state;
+      if (state.requestedId === event.variantId) return state;
+      return state.status === 'loading'
+        ? { ...state, requestedId: event.variantId }
+        : {
+            ...state,
+            requestedId: event.variantId,
+            selection: resolveVariantSelection(state.pages, event.variantId),
+          };
     }
     case 'select': {
       if (

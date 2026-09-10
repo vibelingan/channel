@@ -100,4 +100,48 @@ export async function seedRawCatalog(db: JsonFileAdapter, mediaDirectory: string
   const fobRaw = await readFile(new URL('./alibaba-fob-wire.json', import.meta.url), 'utf8');
   const fob = await seedRawObservation(db, fobRaw);
   await db.update('products', fob.draft.productId, { productFamily: 'misc' });
+  const colorRaw = await readFile(
+    new URL('./alibaba-variant-images-wire.json', import.meta.url),
+    'utf8',
+  );
+  const color = await seedRawObservation(db, colorRaw);
+  const colorGallery = color.observation.content.media.map((m) => m.sourceUrl);
+  const colorSources = [
+    ...colorGallery,
+    ...color.observation.variants.flatMap((v) => v.media.map((m) => m.sourceUrl)),
+  ];
+  assert.equal(colorSources.length, 9);
+  for (const [i, sourceUrl] of colorSources.entries()) {
+    const id = `raw-color-image-${i}`;
+    const storagePath = `${id}.png`;
+    await writeFile(
+      resolve(mediaDirectory, storagePath),
+      Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ1cAAAAASUVORK5CYII=',
+        'base64',
+      ),
+    );
+    await db.createDocWithId('images', id, {
+      status: 'active',
+      storageProvider: 'local-disk',
+      storagePath,
+      storageFileId: `local-disk:${storagePath}`,
+      mimeType: 'image/png',
+      publishedRefCount: 0,
+      refCount: 1,
+    });
+    await db.createDocWithId('catalogSourceLinks', sourceMediaLinkId('alibaba', sourceUrl), {
+      kind: 'media',
+      provider: 'alibaba',
+      sourceUrl,
+      imageId: id,
+    });
+  }
+  await db.update('products', color.draft.productId, {
+    productFamily: 'headphones',
+    // This redacted fixture retains only the captured SKU/gallery wire shape.
+    // Supply an explicit manual description to satisfy the normal publish gate.
+    description: 'Disposable source color mapping acceptance fixture.',
+    imageIds: colorGallery.map((_, i) => `raw-color-image-${i}`),
+  });
 }

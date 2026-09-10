@@ -44,6 +44,9 @@ export function useAdminImagePreviews(ids: readonly string[]) {
   return {
     urls: resolved.key === key ? resolved.urls : {},
     failed: resolved.key === key ? resolved.failed : 0,
+    loading:
+      new Set(ids).size >
+      (resolved.key === key ? Object.keys(resolved.urls).length + resolved.failed : 0),
     retry: () => {
       setResolved({ key: '', urls: {}, failed: 0 });
       setAttempt((n) => n + 1);

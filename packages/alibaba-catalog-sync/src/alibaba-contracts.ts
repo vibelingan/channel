@@ -169,6 +169,7 @@ function asObject(
 interface AlibabaSkuAttributeDefinition {
   name: string;
   valuesById: Map<string, string>;
+  imagesById: Map<string, string>;
 }
 
 const MAX_SKU_SELECTION_JSON_CHARS = 64 * 1024;
@@ -201,6 +202,8 @@ function extractSkuAttributeDefinitions(
 
     const rawValues = unwrapArray(getPath(rawDefinition, ['values']), ['sku_attribute_value']);
     const valuesById = new Map<string, string>();
+    const imagesById = new Map<string, string>();
+    const ambiguousImages = new Set<string>();
     if (rawValues) {
       for (const rawValue of rawValues) {
         const valueId = asLexeme(getPath(rawValue, ['value_id']));
@@ -210,11 +213,21 @@ function extractSkuAttributeDefinitions(
           asLexeme(getPath(rawValue, ['custom_value_name'])),
         ]);
         if (valueId !== undefined && valueName !== undefined) {
+          const image = asLexeme(getPath(rawValue, ['image_url']));
+          if (
+            valuesById.has(valueId) &&
+            (valuesById.get(valueId) !== valueName ||
+              imagesById.get(valueId) !== (image?.trim() || undefined))
+          ) {
+            ambiguousImages.add(valueId);
+            imagesById.delete(valueId);
+          }
           valuesById.set(valueId, valueName);
+          if (image?.trim() && !ambiguousImages.has(valueId)) imagesById.set(valueId, image.trim());
         }
       }
     }
-    definitions.set(attributeId, { name, valuesById });
+    definitions.set(attributeId, { name, valuesById, imagesById });
   }
   return definitions;
 }
@@ -275,6 +288,8 @@ export function extractProductListPage(root: LosslessJsonValue): AlibabaProductL
 
 export interface AlibabaSkuDraft {
   sourceSkuId: string;
+  /** Explicit option-value images. Never inferred from product gallery position. */
+  imageUrls?: string[];
   priceLexeme?: string;
   availableQuantity?: number;
   attributes: Record<string, string>;
@@ -533,6 +548,8 @@ export function extractProductDetail(root: LosslessJsonValue): AlibabaProductDet
           // `attr2_value` is the live TOP per-SKU selection and therefore wins
           // over a same-named compatibility attribute when both are present.
           skuDraft.attributes[definition.name] = valueName;
+          const image = definition.imagesById.get(valueId);
+          if (image) skuDraft.imageUrls = [...new Set([...(skuDraft.imageUrls ?? []), image])];
         }
       }
       const skuLadders = unwrapArray(getPath(sku, ['bulk_discount_prices']), [

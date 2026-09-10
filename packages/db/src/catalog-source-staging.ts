@@ -36,6 +36,18 @@ export const SourcePageSchema = z
       .refine((ids) => new Set(ids).size === ids.length),
     page: z.number().int().min(0).max(499),
     variants: z.array(CatalogDetailVariantSchema).max(20),
+    variantMedia: z
+      .array(
+        z
+          .object({
+            id,
+            sources: z.array(z.string().url()).max(9),
+            unboundSources: z.array(z.string().url()).max(9),
+          })
+          .strict(),
+      )
+      .max(20)
+      .optional(),
   })
   .strict();
 
@@ -66,7 +78,10 @@ export async function stageSourcePage(
   const expected = input.variantIds.slice(input.page * 20, (input.page + 1) * 20);
   if (
     input.page >= pages ||
-    JSON.stringify(expected) !== JSON.stringify(input.variants.map((v) => v.id))
+    JSON.stringify(expected) !== JSON.stringify(input.variants.map((v) => v.id)) ||
+    (input.variantMedia &&
+      (JSON.stringify(expected) !== JSON.stringify(input.variantMedia.map((m) => m.id)) ||
+        input.variantMedia.some((m) => m.unboundSources.some((url) => !m.sources.includes(url)))))
   )
     return fail('VALIDATION_ERROR');
   const same = product.detailSourceRevision === input.revision;
@@ -100,6 +115,9 @@ export async function stageSourcePage(
       sku: variant.sku ?? '',
       optionValues: Object.fromEntries(variant.options.map((o) => [o.name, o.value])),
       imageIds: variant.images.map((url) => url.slice('/api/images/'.length)),
+      detailSourceMediaSources: input.variantMedia?.find((m) => m.id === variant.id)?.sources ?? [],
+      detailSourceUnboundMediaSources:
+        input.variantMedia?.find((m) => m.id === variant.id)?.unboundSources ?? [],
       detailSourceCandidate: variant,
     });
   }

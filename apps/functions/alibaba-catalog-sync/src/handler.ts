@@ -372,6 +372,7 @@ export async function handleAlibabaSyncRequest(
       }
       const result = await replayAlibabaRawPage({
         mode: payload.data.mode,
+        ...(payload.data.sourceKey === undefined ? {} : { sourceKey: payload.data.sourceKey }),
         ...(payload.data.afterSourceKey === undefined
           ? {}
           : { afterSourceKey: payload.data.afterSourceKey }),
@@ -480,6 +481,10 @@ const materializeDraftsSchema = z
 const rawReplaySchema = z
   .object({
     mode: z.enum(['dry-run', 'apply']),
+    sourceKey: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
     afterSourceKey: z.string().max(256).optional(),
     limit: z.number().int().min(1).max(20).optional(),
     expectedPageHash: z

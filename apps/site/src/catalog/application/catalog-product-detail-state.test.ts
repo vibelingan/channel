@@ -42,6 +42,60 @@ function ready(state: ProductDetailState) {
   return state;
 }
 
+test('URL selection and history changes reuse the loaded revision without a metadata request', () => {
+  const first = open();
+  const pink = ready(
+    reduceProductDetail(first, {
+      type: 'restore-selection',
+      productId: 'A',
+      variantId: 'variant-3',
+    }),
+  );
+  assert.equal(pink.selection.status, 'selected');
+  if (pink.selection.status === 'selected') assert.equal(pink.selection.variant.id, 'variant-3');
+  assert.strictEqual(pink.pages, first.pages);
+  assert.equal(pink.request, undefined);
+  assert.equal(pink.generation, first.generation);
+  const invalid = ready(
+    reduceProductDetail(pink, { type: 'restore-selection', productId: 'A', variantId: 'foreign' }),
+  );
+  assert.deepEqual(invalid.selection, { status: 'invalid', requestedId: 'foreign' });
+  const back = ready(reduceProductDetail(invalid, { type: 'restore-selection', productId: 'A' }));
+  assert.deepEqual(back.selection, first.selection);
+  assert.strictEqual(
+    reduceProductDetail(back, {
+      type: 'restore-selection',
+      productId: 'B',
+      variantId: 'variant-2',
+    }),
+    back,
+  );
+});
+
+test('selection changed during initial fetch is applied to its response without refetch', () => {
+  const loading = reduceProductDetail(initialProductDetailState(), {
+    type: 'open',
+    generation: 1,
+    productId: 'A',
+  });
+  const changed = reduceProductDetail(loading, {
+    type: 'restore-selection',
+    productId: 'A',
+    variantId: 'variant-2',
+  });
+  const result = ready(
+    reduceProductDetail(changed, {
+      type: 'result',
+      generation: 1,
+      productId: 'A',
+      result: response(),
+    }),
+  );
+  assert.equal(result.selection.status, 'selected');
+  if (result.selection.status === 'selected')
+    assert.equal(result.selection.variant.id, 'variant-2');
+});
+
 test('ignores late product A after B and late success after close', () => {
   const a = reduceProductDetail(initialProductDetailState(), {
     type: 'open',

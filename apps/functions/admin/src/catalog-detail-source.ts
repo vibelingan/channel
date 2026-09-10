@@ -42,7 +42,9 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
   for (const id of Array.isArray(product.descriptionImageIds) ? product.descriptionImageIds : [])
     gallery.add(id);
   const images = new Map<string, string>();
-  // Only owned images that the operator attached to THIS gallery may reach the candidate.
+  const variantUrls = new Set(observation.variants.flatMap((v) => v.media.map((m) => m.sourceUrl)));
+  // General images must be attached to this product. SKU-only images instead
+  // require an exact mapping in this product's source observation and an owned link.
   const urls = [
     ...new Set(
       [
@@ -66,7 +68,7 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
           link?.provider === 'alibaba' &&
           link.sourceUrl === transport.href &&
           typeof link.imageId === 'string' &&
-          gallery.has(link.imageId)
+          (gallery.has(link.imageId) || variantUrls.has(url))
         )
           images.set(url, link.imageId);
       }),
@@ -128,5 +130,17 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
     variantIds: [...variants.values()],
     page,
     variants: pageVariants.items,
+    variantMedia: observation.variants.slice(page * 20, (page + 1) * 20).map((variant) => {
+      const id = variants.get(variant.sourceVariantKey);
+      if (!id) throw new Error('Canonical variant binding changed during source preparation');
+      return {
+        id,
+        sources: variant.media.slice(0, 9).map((m) => m.sourceUrl),
+        unboundSources: variant.media
+          .slice(0, 9)
+          .filter((m) => !images.has(m.sourceUrl))
+          .map((m) => m.sourceUrl),
+      };
+    }),
   });
 }
