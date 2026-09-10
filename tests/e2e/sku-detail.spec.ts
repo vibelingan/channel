@@ -92,6 +92,12 @@ test.describe('responsive quote sheet', { tag: '@mobile-regression' }, () => {
         return route.abort();
       });
       await page.goto('/products/item/?id=canonical-product');
+      // Intl region labels depend on the browser's ICU data (macOS/Linux may
+      // use Hong Kong / Hong Kong SAR China). HK is the stable stored identity.
+      const hongKongLabel = await page.evaluate(() =>
+        new Intl.DisplayNames(['en'], { type: 'region' }).of('HK'),
+      );
+      if (!hongKongLabel) throw new Error('Missing HK display name');
       for (const action of ['Request a quote', 'Ask about customization']) {
         const opener = page.getByRole('button', { name: action, exact: true });
         await opener.click();
@@ -159,7 +165,8 @@ test.describe('responsive quote sheet', { tag: '@mobile-regression' }, () => {
         });
         expect(hit.reachable).toBe(true);
         await page.touchscreen.tap(hit.x, hit.y);
-        await expect(country).toHaveValue('Hong Kong');
+        await expect(country).toHaveValue(hongKongLabel);
+        await expect(dialog.locator('input[type=hidden][name=country]')).toHaveValue('HK');
         await expect(country).toBeFocused();
         await country.press('ArrowDown');
         await expect(country).toHaveAttribute('aria-expanded', 'true');
@@ -191,29 +198,46 @@ test.describe('responsive quote sheet', { tag: '@mobile-regression' }, () => {
           const session = await page.context().newCDPSession(page);
           const rect = await dialog.boundingBox();
           if (!rect) throw new Error('Quote sheet is missing');
-          const gesture = {
-            x: viewport.width / 2,
-            y: rect.y + rect.height / 2,
-            gestureSourceType: 'touch' as const,
+          const start = { x: viewport.width / 2, y: rect.y + rect.height / 2 };
+          expect(
+            await dialog.evaluate(
+              (element, point) => element.contains(document.elementFromPoint(point.x, point.y)),
+              start,
+            ),
+          ).toBe(true);
+          // Emit a real touch sequence rather than the platform-dependent
+          // synthetic scroll shortcut. Wait for presented frames and assert the
+          // resulting scroll offset; never mutate it to simulate a gesture.
+          const swipe = async (dx: number, dy: number) => {
+            const point = (x: number, y: number) => ({ x, y, id: 1, radiusX: 5, radiusY: 5 });
+            await session.send('Input.dispatchTouchEvent', {
+              type: 'touchStart',
+              touchPoints: [point(start.x, start.y)],
+            });
+            for (let step = 1; step <= 12; step++) {
+              await session.send('Input.dispatchTouchEvent', {
+                type: 'touchMove',
+                touchPoints: [point(start.x + (dx * step) / 12, start.y + (dy * step) / 12)],
+              });
+              await page.evaluate(
+                () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+              );
+            }
+            await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
           };
-          await session.send('Input.synthesizeScrollGesture', {
-            ...gesture,
-            xDistance: -120,
-            yDistance: 0,
-          });
+          await swipe(-120, 0);
           expect(await dialog.evaluate((element) => element.scrollLeft)).toBe(0);
           await expectContainedQuote(dialog);
-          await session.send('Input.synthesizeScrollGesture', {
-            ...gesture,
-            xDistance: 0,
-            yDistance: -200,
-          });
-          expect(await dialog.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+          await swipe(0, -200);
+          await expect
+            .poll(() => dialog.evaluate((element) => element.scrollTop))
+            .toBeGreaterThan(0);
           expect(await page.evaluate(() => scrollY)).toBe(backgroundY);
           await session.detach();
         }
         await dialog.getByRole('button', { name: 'Back', exact: true }).click();
-        await expect(country).toHaveValue('Hong Kong');
+        await expect(country).toHaveValue(hongKongLabel);
+        await expect(dialog.locator('input[type=hidden][name=country]')).toHaveValue('HK');
         await page.keyboard.press('Escape');
         await expect(dialog).not.toBeVisible();
         await expect(opener).toBeFocused();

@@ -77,6 +77,19 @@ CI/deployed run identifiers belong in the delivery response. WebKit device
 emulation and synthetic Chromium gestures do not prove physical iPhone
 rubber-band/keyboard/browser-toolbar behavior.
 
+### Cross-platform CI correction
+
+The first PR CI run (34516202478) correctly blocked release: six Linux WebKit
+cases selected HK but the test expected the macOS label `Hong Kong`, while that
+browser's ICU data returns `Hong Kong SAR China`. Tests now assert both the
+browser's locale label and the hidden ISO code `HK`, including after Back.
+The Chromium case also failed its vertical gesture assertion. Its screenshot
+confirmed the sheet stayed at the top, so the assertion remains mandatory:
+the harness now sends explicit touch-start/move/end input, checks the hit target
+and polls the resulting scroll offset instead of assuming a synthetic-scroll
+command completion means the scroll was presented. No production CSS was
+changed to accommodate either test, and no assertion was skipped.
+
 ## Reference contracts
 
 - [CSS overflow-x computation](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/overflow-x)
