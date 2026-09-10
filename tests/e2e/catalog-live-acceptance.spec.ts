@@ -533,11 +533,9 @@ for (const sample of mediaRepairs)
           },
         )
         .toBe(true);
-      await page
-        .locator('[data-variant-gallery]')
-        .screenshot({
-          path: `output/catalog-live/public-sku-${id}-${index}-${color.toLowerCase()}.png`,
-        });
+      await page.locator('[data-variant-gallery]').screenshot({
+        path: `output/catalog-live/public-sku-${id}-${index}-${color.toLowerCase()}.png`,
+      });
     }
     await page
       .getByRole('button', { name: `View product gallery (${sample.gallery})`, exact: true })
