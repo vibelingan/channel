@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { type CollectionDoc, type ListResult, adminAction, loginAdmin } from './helpers/admin-api';
 import { e2e, requireCatalogLocalSeedWhenEnabled } from './helpers/env';
+import { expectInquirySaved } from './helpers/inquiry-followup';
 
 const enabled = process.env.E2E_CATALOG_FORMAL === '1';
 // @skip-when this explicitly owned, disposable formal-journey lane is not requested.
@@ -560,12 +561,20 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
   await page.getByRole('button', { name: /Product Inquiries/ }).click();
   await expect(page.getByRole('main')).toContainText('1 unprocessed');
   await page.locator(`#inquiry-${saved.requestId}`).click();
+  // Real handler + DB, deliberately slow transport. A status option or the
+  // explanatory word "Completed" must not satisfy the save acknowledgement.
+  await page.route('**/api/admin', async (route) => {
+    const body = route.request().postDataJSON();
+    if (body.action === 'inquiry' && body.data?.action === 'update')
+      await new Promise((resolve) => setTimeout(resolve, 700));
+    await route.continue();
+  });
   await expect(page.getByRole('region', { name: 'Process inquiry' })).toContainText('Unprocessed');
   await page
     .getByLabel('Internal note', { exact: true })
     .fill('Read only; buyer not yet contacted.');
   await page.getByRole('button', { name: 'Save follow-up', exact: true }).click();
-  await expect(page.locator('[data-inquiry-version]')).toHaveAttribute('data-inquiry-version', '1');
+  await expectInquirySaved(page, 1, 'Unprocessed');
   await expect(page.getByRole('region', { name: 'Process inquiry' })).toContainText('Unprocessed');
   const stale = await request.post(`${e2e.apiUrl}/api/admin`, {
     data: {
@@ -588,19 +597,35 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
   await page.getByRole('combobox', { name: 'Next status', exact: true }).click();
   await page.getByRole('option', { name: 'In progress', exact: true }).click();
   await page.getByRole('button', { name: 'Save follow-up', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Process inquiry' })).toContainText('In progress');
+  await expectInquirySaved(page, 2, 'In progress');
   await page
     .getByLabel('Internal note', { exact: true })
     .fill('Inquiry follow-up finished; this is not an order.');
   await page.getByRole('combobox', { name: 'Next status', exact: true }).click();
   await page.getByRole('option', { name: 'Completed', exact: true }).click();
   await page.getByRole('button', { name: 'Save follow-up', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Process inquiry' })).toContainText('Completed');
+  await expectInquirySaved(page, 3, 'Completed');
   await page.reload();
   await page.getByRole('button', { name: /Product Inquiries/ }).click();
   await expect(page.getByRole('main')).toContainText('0 unprocessed');
   await page.locator(`#inquiry-${saved.requestId}`).click();
-  await expect(page.getByRole('region', { name: 'Process inquiry' })).toContainText('Completed');
+  await expect(page.getByRole('region', { name: 'Process inquiry' })).toHaveAttribute(
+    'data-inquiry-version',
+    '3',
+  );
+  await expect(
+    page
+      .getByRole('region', { name: 'Process inquiry' })
+      .locator('p')
+      .filter({ hasText: 'Current status:' }),
+  ).toHaveText('Current status: Completed');
+  const completed = await adminAction<{ item: { status: string; version: number } }>(
+    request,
+    'inquiry',
+    { action: 'get', id: saved.requestId },
+    session.token,
+  );
+  expect(completed.item).toMatchObject({ status: 'completed', version: 3 });
   await expect(
     page.getByText('Buyer contacted during local acceptance.', { exact: true }),
   ).toBeVisible();
