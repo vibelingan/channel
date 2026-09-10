@@ -195,7 +195,10 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
     archived: false,
     alibabaPrimarySourceKey: untouchedKey,
     alibabaSourceStatus: 'available',
-    alibabaSourceImageUrls: urls,
+    alibabaSourceImageUrls: Array.from(
+      { length: 9 },
+      (_, i) => `https://s.alicdn.com/formal-draft-${i}.png`,
+    ),
     alibabaReviewPending: true,
     alibabaSourceReview: {
       schemaVersion: 'alibaba-source-review-v1',

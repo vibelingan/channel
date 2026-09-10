@@ -52,7 +52,7 @@ the values and corrects the manual table's misleading source-price column label.
   `/tmp/channel-draft-baseline-browser.log`, `/tmp/channel-draft-formal-final.log`.
   One earlier local baseline attempt collided with the full workspace test's Astro
   build cache; the lanes were rerun sequentially. That build failure was not waived.
-- Release evidence is still pending below. No direct cloud deployment is allowed.
+- Release evidence is recorded below. No direct cloud deployment is allowed.
 
 ## Release trace
 
@@ -62,8 +62,10 @@ the values and corrects the manual table's misleading source-price column label.
 - [PR #39](https://github.com/vibelingan/channel/pull/39) merged into **test only**
   as `9eabedab567fa41aac4a77e75f2fba0208b8a275` after that CI succeeded.
 - [Deploy Test 34429504839](https://github.com/vibelingan/channel/actions/runs/34429504839)
-  reruns full CI at the merge SHA before any deployment. Completion and live
-  acceptance are pending; a merge alone does not establish delivery.
+  passed full CI at the merge SHA before deployment, deployed the site and
+  functions together, and passed 41 live public plus 19 live catalog checks.
+  Independent health reads confirmed admin/public-api at `9eabeda`; deployed
+  smoke also confirmed alibaba-catalog-sync at that release.
 
 ## Follow-up found by live browser acceptance
 
@@ -83,7 +85,46 @@ in Edit and presents the existing source-tier component in place of the unavaila
 legacy block. Explicit manual prices and missing-source guards remain unchanged;
 the fallback does not write source evidence into manual overrides or public DTOs.
 The extended production-build formal lane passed all 62 checks, including Edit
-price visibility and close-without-write. Follow-up release is pending.
+price visibility and close-without-write. Site tests (367), lint and workspace/E2E
+typechecks also passed. Follow-up commit `aa104cb2b348be3e1a9030118b4db89143af360a`
+passed [feature CI 34431289815](https://github.com/vibelingan/channel/actions/runs/34431289815).
+[PR #40](https://github.com/vibelingan/channel/pull/40) merged into test as
+`e6f9a0375fd3df58431d8d4a3d867f264f83a15f`; its
+[Deploy Test 34431999936](https://github.com/vibelingan/channel/actions/runs/34431999936)
+has deployed; final browser-job completion is pending. Independent health reads
+confirmed all three functions at `e6f9a03`. Live EB1 and gaming-headset Edit now
+show their four source tiers inline, without Pricing unavailable or the technical
+preparation panel. EB1 Edit measures 1152px in a 2323px viewport, has four source
+thumbnail buttons, and keeps Close/Save visible after scrolling to its final tier.
+Both editors were closed without saving or publishing.
+
+The same live inspection caught another inconsistency: gaming-headset Edit has
+six source images while Preview stopped at five. The old source-URL helper's
+default limit was five, independent of the shared nine-image catalog capacity.
+A new test reproduced dropping image six; the helper now uses the shared limit,
+and the formal journey's untouched draft now has nine images and selects image
+nine. Invalid limits fail closed. This last capacity correction is not yet live.
+
+The real public `0aa9d459-159c-4ffa-a5c0-db9a8e7c642f` page was also checked in
+Chrome: six gallery images, new structured detail UI, `Website unit price` table
+heading, unchanged USD 3.80 at 1000+. Quantity 999 shows below-MOQ; 1000 shows
+USD 3.80/unit. The footer links to `sales@supplychainsai.com`. No RFQ was submitted.
+
+## Remaining raw-evidence boundary
+
+The camping-light sample `AAHsBBhgAOVTpOKZBnRh1CDS` has no usable normalized
+quote in the new preview. Its stored source product points to product.get payload
+`f603d9873401045b526e0a4da579702987c2a6fcec1f85e9e9a98d0270de5e33`, fetched
+2026-09-03T07:51:00.841Z. TCB database and Storage/COS read-only UI confirmed the
+stored JSON exists, 10,777 bytes. No resync or product edits were performed.
+
+Raw contents have **not** been independently read in this acceptance: the normal
+TCB download was blocked by the browser; COS reports no inline preview, and its
+online editor asks for a separate login authorization. We did not bypass the
+browser block, export signed URLs/tokens, authorize another app, or change object
+permissions. Therefore do not claim that Alibaba itself omitted price for this
+sample. Distinguish unavailable normalized evidence from a verified absent raw
+price. A permitted read of this one JSON is still required to close that question.
 
 ## Domain / mailbox investigation (read-only)
 
@@ -111,7 +152,10 @@ https://docs.dnspod.cn/dns/cname-flattening/
 If that paid option is unacceptable, plan a separate move of authoritative DNS
 to an apex-flattening provider, preserving all 11 records and testing before the
 NS switch. Do not hardcode a currently observed CDN IP or replace the website
-CNAME with a mail hostname. Either path needs the owner's cost/migration choice.
+CNAME with a mail hostname. The user chose **evaluate the no-upgrade path**;
+[the resulting assessment](DNS-MAIL-NO-UPGRADE-ASSESSMENT-2026-09-10.md) keeps
+Cloudflare DNS-only, preserves website/mail services and lists compatibility,
+DNSSEC, whole-zone verification and rollback gates. No migration was performed.
 
 DMARC still contains `rua=mailto:your@supplychainsai.com`; this is a placeholder,
 not the verified sales mailbox. No DKIM selector appears among these 11 records.
