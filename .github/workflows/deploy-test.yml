@@ -9,7 +9,7 @@ on:
         type: boolean
         default: false
       catalog_acceptance_scope:
-        description: Approved live acceptance scope (variant-media repairs only the reported published product)
+        description: Approved live acceptance scope (variant-media repairs only four audited already-public products)
         required: true
         type: choice
         options:
