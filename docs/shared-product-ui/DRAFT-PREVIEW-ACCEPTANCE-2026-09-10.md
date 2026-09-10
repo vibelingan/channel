@@ -136,6 +136,42 @@ workspace/E2E typechecks, lint and the CloudBase SDK contract gate. The HTTP gat
 reuses the existing fully-drained response helper and adds no new SDK API or
 dependency. Official hosting docs describe newer verification flags, but the
 installed CLI 3.5.9 help does not expose them; they were not invented or enabled.
+Integrity repair commit `c8e4107f02dee16794edd37bca4b28228830e5b7` passed
+[feature CI 34436272815](https://github.com/vibelingan/channel/actions/runs/34436272815).
+[PR #42](https://github.com/vibelingan/channel/pull/42) merged into **test only**
+as `0f9d3865d971c462face0e28a9d195805621a2c3`; its
+[Deploy Test 34436974985](https://github.com/vibelingan/channel/actions/runs/34436974985)
+completed successfully, including the same-SHA prerequisite CI, full deployment,
+resource/function smoke and final live-browser lanes. Its deployment log verified
+**50 hosted pages/assets against build hashes**; **41 public browser checks** and
+**19 catalog browser checks** passed. No identical-upload retry was required in
+this successful run. The earlier PR #41 failure remains recorded above.
+
+Independent live checks after that upload:
+
+- Public API, Admin and Alibaba sync health endpoints all returned HTTP 200 and
+  release `0f9d3865d971c462face0e28a9d195805621a2c3`.
+- Reloaded the authenticated Admin and opened the untouched gaming-headset
+  Preview through its real row action: all six thumbnails decoded. Clicking
+  **View image 6** displayed **6 / 6** and a decoded 1500px-wide source image.
+- The Preview measured 1440px wide in a 2177px viewport. Its top Close stayed
+  visible after gallery scrolling, and the fixed footer remained usable.
+  The live screenshot was visually inspected, not merely checked for overflow.
+- Gaming prices retained all four tiers (10/100/500/1000, USD
+  7.89/6.89/6.57/6.00). Closing returned to the list; the product remained
+  **NEW / Disabled**. No Save, publication or Mark reviewed action was used.
+- Independently reopened EB1: four decoded images, **4 / 4** on the last image,
+  all four tiers (7/100/500/1000, USD 4.89/3.72/3.31/2.52), then closed it.
+  The previously missing lazy module no longer blanked Admin.
+
+The published `@cloudbase/cloudbase-mcp@2.24.1` package was inspected read-only.
+Its hosting handler delegates to `hosting.uploadFiles`, then returns a success
+message without fetching hosted bytes. The bundled manager's per-file failure
+path does throw when retries are exhausted, so the evidence does **not** justify
+claiming that the SDK deliberately ignores file errors. The original upload log
+does not identify the missing object's failure mechanism. Independent content
+verification is the enforced boundary rather than an invented SDK method or an
+unproven explanation of that single transfer.
 
 The real public `0aa9d459-159c-4ffa-a5c0-db9a8e7c642f` page was also checked in
 Chrome: six gallery images, new structured detail UI, `Website unit price` table
