@@ -20,6 +20,7 @@ export function publicationContentFingerprint(product: CollectionDoc): string {
     'detailSourceOwner',
     'detailSourceRevision',
   ];
+  if (product.descriptionImageIds !== undefined) fields.push('descriptionImageIds');
   return createHash('sha256')
     .update(JSON.stringify(fields.map((key) => [key, product[key] ?? null])))
     .digest('hex');

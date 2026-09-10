@@ -38,6 +38,7 @@ export function adminCatalogPricingInput(doc: Record<string, unknown>): CatalogP
     manualCatalogPricing: doc.manualCatalogPricing,
     wholesalePrice: doc.wholesalePrice,
     unitPrice: doc.unitPrice,
+    moq: doc.moq,
   };
 }
 

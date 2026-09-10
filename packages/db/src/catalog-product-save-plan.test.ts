@@ -29,6 +29,7 @@ test('publication requires the exact reviewed website content inside the atomic 
   for (const patch of [
     { name: 'Changed' },
     { imageIds: ['other'] },
+    { descriptionImageIds: ['new-detail'] },
     { productFamily: 'toys' },
     { unitPrice: 20 },
     { detailSourceRevision: 'new' },
@@ -41,6 +42,18 @@ test('publication requires the exact reviewed website content inside the atomic 
   assert.equal(
     planCatalogProductSave({ ...approved, published: true }, input, 'now').result,
     'ready',
+  );
+});
+
+test('adding optional description media leaves historical publication receipts unchanged until edited', () => {
+  const product = { _id: 'historical', name: 'Historical', description: 'Text', imageIds: ['old'] };
+  assert.equal(
+    publicationContentFingerprint(product),
+    publicationContentFingerprint({ ...product, descriptionImageIds: undefined }),
+  );
+  assert.notEqual(
+    publicationContentFingerprint(product),
+    publicationContentFingerprint({ ...product, descriptionImageIds: ['detail'] }),
   );
 });
 

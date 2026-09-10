@@ -144,7 +144,18 @@ export async function commitCatalogApproval(
     .max(9)
     .safeParse(product.imageIds);
   if (!gallery.success) return { ok: false, code: 'VALIDATION_ERROR' };
-  if (3 + 2 * manifest.data.variantIds.length + 2 * new Set(gallery.data).size > 98)
+  const descriptionGallery = z
+    .array(z.string().regex(/^[A-Za-z0-9_-]+$/))
+    .max(18)
+    .optional()
+    .safeParse(product.descriptionImageIds);
+  if (!descriptionGallery.success) return { ok: false, code: 'VALIDATION_ERROR' };
+  if (
+    3 +
+      2 * manifest.data.variantIds.length +
+      2 * new Set([...gallery.data, ...(descriptionGallery.data ?? [])]).size >
+    98
+  )
     return { ok: false, code: 'APPROVAL_TOO_LARGE' };
   const rows: CollectionDoc[] = [];
   for (const id of manifest.data.variantIds) {

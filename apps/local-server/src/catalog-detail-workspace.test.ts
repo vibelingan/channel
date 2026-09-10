@@ -88,6 +88,24 @@ const read = (id: string, query = '') =>
     { enableCatalogDetail: true },
   );
 
+test('description media is opt-in so already open strict clients retain their wire contract', async (t) => {
+  await workspace(t);
+  const { productId } = await materialize(observation());
+  const imageId = sampleImages.get('https://example.com/pixel.png');
+  assert.ok(imageId);
+  await updateDoc('products', productId, { descriptionImageIds: [imageId] });
+  await approveLocalDetail(productId);
+  for (const query of ['', '?view=structured', '?view=sections']) {
+    const response = await read(productId, query);
+    assert.equal(response.statusCode, 200);
+    assert.equal(Object.hasOwn(JSON.parse(response.body).data, 'descriptionImages'), false);
+  }
+  const response = await read(productId, '?view=sections-media');
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(JSON.parse(response.body).data.descriptionImages, [`/api/images/${imageId}`]);
+  assert.equal((await read(productId, '?view=sections-media&view=sections')).statusCode, 400);
+});
+
 async function workspace(t: TestContext) {
   const directory = await mkdtemp(join(tmpdir(), 'channel-ui02-'));
   t.after(() => rm(directory, { recursive: true, force: true }));

@@ -91,6 +91,7 @@ export function approvalProductFingerprint(product: CollectionDoc) {
     'name',
     'description',
     'imageIds',
+    'descriptionImageIds',
     'published',
     'archived',
     'productFamily',
@@ -289,6 +290,9 @@ export async function finishStagedApproval(
   const afterImages = new Set(
     catalogReferencedImageIds({ ...product, catalogDetailPublication: job.publication }),
   );
+  // Keep finish within the existing 100-operation transaction budget, including
+  // retired snapshot images. Refuse before writing rather than partially approve.
+  if (4 + 2 * new Set([...beforeImages, ...afterImages]).size > 98) return fail('MEDIA_NOT_READY');
   for (const imageId of new Set([...beforeImages, ...afterImages])) {
     const image = await tx.get('images', imageId);
     if (

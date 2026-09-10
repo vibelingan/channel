@@ -10,6 +10,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
   alibabaObservationAdapter,
+  alibabaOfferKey,
   extractProductDetail,
   normalizeProductDetail,
   parseAlibabaApiResponse,
@@ -23,7 +24,6 @@ import {
   list,
   releaseAlibabaSyncLease,
   renewAlibabaSyncLease,
-  updateDocWithAlibabaLease,
   upsertDocWithAlibabaLease,
 } from '@vibelingan-channel/db';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
@@ -32,6 +32,7 @@ import { listAllDocs } from './list-all.ts';
 import { PRIMARY_CONNECTION_ID } from './oauth.ts';
 
 const MAX_RAW_BYTES = 8 * 1024 * 1024;
+const REPLAY_PARSER_VERSION = 'alibaba-content-pricing-v2';
 const REPLAY_MANIFEST_TTL_MS = 2 * 60 * 60 * 1000;
 const MAX_REPLAY_MANIFEST_PAGES = 200;
 const MANIFEST_ID_PATTERN =
@@ -52,7 +53,7 @@ export interface AlibabaRawReplayPort {
   getReplayManifest(id: string): Promise<CollectionDoc | null>;
   listActiveOffers(sourceKey: string): Promise<CollectionDoc[]>;
   readObjectAsBase64(fileId: string): Promise<{ body: string; byteSize?: number }>;
-  updateOffer(
+  upsertOffer(
     id: string,
     patch: Record<string, unknown>,
     guard: AlibabaLeaseGuard,
@@ -127,8 +128,8 @@ const defaultPort: AlibabaRawReplayPort = {
     ]);
   },
   readObjectAsBase64: (fileId) => mediaStorage().getObjectAsBase64(fileId),
-  updateOffer: (id, patch, guard) =>
-    updateDocWithAlibabaLease('alibabaSupplierOffers', id, patch, guard),
+  upsertOffer: (id, patch, guard) =>
+    upsertDocWithAlibabaLease('alibabaSupplierOffers', id, patch, {}, guard),
   upsertObservation: (id, value, createOnly, guard) =>
     upsertDocWithAlibabaLease('catalogSourceObservations', id, value, createOnly, guard),
   upsertReplayManifest: (id, value, createOnly, guard) =>
@@ -266,7 +267,14 @@ function pageFingerprint(
     observation: plan.observation,
   }));
   return createHash('sha256')
-    .update(JSON.stringify({ afterSourceKey, totalSourceProducts, material }))
+    .update(
+      JSON.stringify({
+        parserVersion: REPLAY_PARSER_VERSION,
+        afterSourceKey,
+        totalSourceProducts,
+        material,
+      }),
+    )
     .digest('hex');
 }
 
@@ -569,7 +577,18 @@ export async function replayAlibabaRawPage(
       const existingOffers = await port.listActiveOffers(sourceKey);
       const existingKeys = existingOffers.map((offer) => offer._id).sort();
       const replayKeys = normalized.offers.map((offer) => offer.offerKey).sort();
-      if (!sameKeys(existingKeys, replayKeys)) {
+      // The audited historical omission is one product-wide wholesale offer.
+      // SKU additions/removals and unrelated offers still require a fresh sync.
+      const productOfferKey = alibabaOfferKey(connectionId, sourceProductId);
+      const onlyMissingProductQuote =
+        !existingKeys.includes(productOfferKey) &&
+        replayKeys.includes(productOfferKey) &&
+        detail.productType === 'wholesale' &&
+        sameKeys(
+          existingKeys,
+          replayKeys.filter((key) => key !== productOfferKey),
+        );
+      if (!sameKeys(existingKeys, replayKeys) && !onlyMissingProductQuote) {
         failures.push({ sourceKey, reason: 'offer-set-mismatch' });
         continue;
       }
@@ -657,9 +676,13 @@ export async function replayAlibabaRawPage(
           return { ok: false, reason: 'lease-lost' };
         }
         for (const offer of plan.normalized.offers) {
-          const updated = await port.updateOffer(
+          const updated = await port.upsertOffer(
             offer.offerKey,
-            { sourceAttributes: offer.sourceAttributes },
+            {
+              ...offer,
+              lastSeenRunId: plan.lastSeenOperationId,
+              parserVersion: REPLAY_PARSER_VERSION,
+            },
             {
               connectionId: PRIMARY_CONNECTION_ID,
               holder,
@@ -673,6 +696,7 @@ export async function replayAlibabaRawPage(
           sourceObservationDocumentId('alibaba', plan.source._id),
           {
             provider: 'alibaba',
+            parserVersion: REPLAY_PARSER_VERSION,
             sourceProductKey: plan.source._id,
             externalProductId: plan.normalized.sourceProduct.sourceProductId,
             schemaVersion: plan.observation.schemaVersion,

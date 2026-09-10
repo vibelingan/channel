@@ -1,4 +1,7 @@
-import { PRODUCT_IMAGE_MAX_COUNT } from '@vibelingan-channel/shared';
+import {
+  PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
+  PRODUCT_IMAGE_MAX_COUNT,
+} from '@vibelingan-channel/shared';
 
 const ALLOWED_SOURCE_HOST_SUFFIXES = ['alicdn.com', 'alibaba.com'];
 
@@ -8,7 +11,7 @@ export function alibabaSourcePreviewUrls(
   limit = PRODUCT_IMAGE_MAX_COUNT,
 ): string[] {
   if (!Array.isArray(value) || !Number.isFinite(limit)) return [];
-  const targetLimit = Math.min(PRODUCT_IMAGE_MAX_COUNT, Math.max(0, Math.trunc(limit)));
+  const targetLimit = Math.min(PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT, Math.max(0, Math.trunc(limit)));
   if (targetLimit === 0) return [];
   const out: string[] = [];
   for (const candidate of value) {
@@ -17,6 +20,9 @@ export function alibabaSourcePreviewUrls(
     try {
       const url = new URL(candidate);
       const host = url.hostname.toLowerCase();
+      // Historical Alibaba description images use HTTP on the same public CDN.
+      // Upgrade only after the host allowlist below; never permit HTTP fetching.
+      if (url.protocol === 'http:' && url.port === '') url.protocol = 'https:';
       if (
         url.protocol !== 'https:' ||
         url.username !== '' ||

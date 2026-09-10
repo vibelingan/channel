@@ -318,6 +318,38 @@ test('server review includes all 105 SKUs, exposes bounded pages and never excee
   assert.deepEqual(changed, { ok: false, code: 'CONFLICT' });
 });
 
+test('review media opt-in preserves old strict clients and returns fresh media with the same digest', async () => {
+  const h = fixture(1);
+  h.row('products', 'p').descriptionImageIds = ['image'];
+  h.row('products', 'p').alibabaDescriptionImageUrls = ['https://example.com/description.png'];
+  const store = {
+    get: async (collection: string, id: string) =>
+      structuredClone(h.store()[collection]?.[id] ?? null),
+    persist: async () => {
+      throw new Error('Review must not write');
+    },
+  };
+  const legacy = await runCatalogApprovalWorkflow(store, 'admin', {
+    action: 'review',
+    productId: 'p',
+  });
+  assert.ok(legacy.ok && 'kind' in legacy);
+  assert.equal(Object.hasOwn(legacy, 'previewMedia'), false);
+  assert.equal(Object.hasOwn(legacy.detail, 'descriptionImages'), false);
+  const current = await runCatalogApprovalWorkflow(store, 'admin', {
+    action: 'review',
+    productId: 'p',
+    includePreviewMedia: true,
+  });
+  assert.ok(current.ok && 'kind' in current);
+  assert.equal(current.expectedDigest, legacy.expectedDigest);
+  assert.deepEqual(current.detail.descriptionImages, ['/api/images/image']);
+  assert.deepEqual(current.previewMedia?.descriptionIds, ['image']);
+  assert.deepEqual(current.previewMedia?.descriptionSources, [
+    'https://example.com/description.png',
+  ]);
+});
+
 test('review rejects partial/mixed source generations and revoked actors without creating a job', async () => {
   for (const fault of [
     'missing-row',

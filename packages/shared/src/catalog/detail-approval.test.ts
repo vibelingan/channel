@@ -53,6 +53,41 @@ function fixture() {
   };
 }
 
+test('description bindings are operator-owned, separately bounded and included in approval media checks', () => {
+  const input = fixture();
+  const product = {
+    ...input.product,
+    descriptionImageIds: ['detail-a', 'detail-b'],
+    detailSourceCandidate: {
+      ...input.product.detailSourceCandidate,
+      descriptionImages: ['/api/images/forged'],
+    },
+  };
+  const result = planCatalogDetailApproval({ ...input, product });
+  assert.deepEqual(result.publication.header.descriptionImages, [
+    '/api/images/detail-a',
+    '/api/images/detail-b',
+  ]);
+  assert.deepEqual(result.imageIds, ['image', 'detail-a', 'detail-b']);
+  for (const bad of [
+    null,
+    'detail',
+    [null],
+    ['../forged'],
+    Array.from({ length: 19 }, (_, i) => `id-${i}`),
+  ]) {
+    assert.throws(() =>
+      planCatalogDetailApproval({ ...input, product: { ...product, descriptionImageIds: bad } }),
+    );
+  }
+  const old = planCatalogDetailApproval(input);
+  assert.equal(
+    old.publication.header.descriptionImages,
+    undefined,
+    'old records remain approvable',
+  );
+});
+
 test('an untouched synchronized draft can be reviewed before importing its gallery', () => {
   const input = fixture();
   const { imageIds: _images, ...product } = input.product;

@@ -301,6 +301,10 @@ export interface AlibabaProductDetailDraft {
   skus: AlibabaSkuDraft[];
   gmtModified?: string;
   status?: string;
+  productType?: string;
+  wholesaleTrade?: { priceLexeme?: string; saleType?: string; unitType?: string };
+  attributes?: { sourceName: string; value: string }[];
+  extractionWarnings?: { code: string; message: string; sourcePath: string }[];
 }
 
 export function extractProductDetail(root: LosslessJsonValue): AlibabaProductDetailDraft {
@@ -324,6 +328,23 @@ export function extractProductDetail(root: LosslessJsonValue): AlibabaProductDet
     firstDefined([asLexeme(getPath(product, ['subject'])), asLexeme(getPath(product, ['title']))]),
   );
   setIf('description', asLexeme(getPath(product, ['description'])));
+  const attributes = unwrapArray(getPath(product, ['attributes']), ['product_attribute']);
+  if (attributes) {
+    draft.attributes = [];
+    for (const [index, attribute] of attributes.entries()) {
+      const sourceName = asLexeme(getPath(attribute, ['attribute_name']))?.trim();
+      const value = asLexeme(getPath(attribute, ['value_name']))?.trim();
+      if (sourceName && value) draft.attributes.push({ sourceName, value });
+      else {
+        draft.extractionWarnings ??= [];
+        draft.extractionWarnings.push({
+          code: 'invalid-product-attribute',
+          message: 'A source attribute has no usable name or value; its raw record is retained.',
+          sourcePath: `product.attributes.product_attribute.${index}`,
+        });
+      }
+    }
+  }
   setIf(
     'categoryId',
     firstDefined([
@@ -339,9 +360,27 @@ export function extractProductDetail(root: LosslessJsonValue): AlibabaProductDet
     ]),
   );
   setIf('status', asLexeme(getPath(product, ['status'])));
+  setIf('productType', asLexeme(getPath(product, ['product_type'])));
+  const wholesale = asObject(getPath(product, ['wholesale_trade']));
+  if (wholesale) {
+    draft.wholesaleTrade = {};
+    const priceLexeme = asLexeme(wholesale.price);
+    const saleType = asLexeme(wholesale.sale_type);
+    const unitType = asLexeme(wholesale.unit_type);
+    if (priceLexeme !== undefined) draft.wholesaleTrade.priceLexeme = priceLexeme;
+    if (saleType !== undefined) draft.wholesaleTrade.saleType = saleType;
+    if (unitType !== undefined) draft.wholesaleTrade.unitType = unitType;
+  }
   setIf(
     'moqLexeme',
     firstDefined([
+      // Select the active trade contract before legacy flat compatibility fields.
+      asLexeme(
+        getPath(product, [
+          draft.productType === 'wholesale' ? 'wholesale_trade' : 'sourcing_trade',
+          'min_order_quantity',
+        ]),
+      ),
       asLexeme(getPath(product, ['min_order_quantity'])),
       asLexeme(getPath(product, ['moq'])),
       asLexeme(getPath(product, ['sourcing_trade', 'min_order_quantity'])),

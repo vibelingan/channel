@@ -28,18 +28,20 @@ export function CatalogSpecifications({
   content,
   noteBlocks,
   copy,
+  hasDescriptionImages = false,
 }: {
   facts: CatalogProductDetail['facts'];
   description?: string;
   content?: CatalogContent;
   noteBlocks?: CatalogNoteBlocks;
   copy: SharedDetailContent;
+  hasDescriptionImages?: boolean;
 }) {
   const view = catalogContentView(facts, content);
   const notes = content
     ? view.notes
     : [
-        ...(description || copy.noDescription)
+        ...(description || (hasDescriptionImages ? '' : copy.noDescription))
           .split(/\r?\n/)
           .map((p) => p.trim())
           .filter(Boolean),

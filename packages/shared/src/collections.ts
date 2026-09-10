@@ -19,6 +19,7 @@ import {
   CATALOG_IMAGE_MAX_COUNT,
   MEDIA_PURPOSES,
   MEDIA_STATUSES,
+  PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
   PRODUCT_IMAGE_MAX_COUNT,
 } from './media.ts';
 
@@ -324,6 +325,21 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         type: 'json',
         hideInTable: true,
         maxItems: PRODUCT_IMAGE_MAX_COUNT,
+      },
+      {
+        name: 'descriptionImageIds',
+        label: 'Description images',
+        type: 'json',
+        hideInTable: true,
+        maxItems: PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
+      },
+      {
+        name: 'alibabaDescriptionImageUrls',
+        label: 'Source description images',
+        type: 'json',
+        readOnly: true,
+        hideInTable: true,
+        hideInForm: true,
       },
       { name: 'published', label: 'Published', type: 'boolean' },
       { name: 'archived', label: 'Archived', type: 'boolean' },

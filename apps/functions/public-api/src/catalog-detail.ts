@@ -15,6 +15,7 @@ export async function getProductDetail(
   expectedRevision?: string,
   structured = false,
   sections = false,
+  descriptionMedia = false,
 ): Promise<ApiResult<CatalogDetailView>> {
   if (
     !Number.isSafeInteger(page) ||
@@ -89,8 +90,10 @@ export async function getProductDetail(
   ) {
     return err('CONFLICT', 'Detail changed. Reload from the first page.');
   }
+  // Old, already open clients use strict v1/v2/v3 decoders. New fields require opt-in.
+  const { descriptionImages: _descriptionImages, ...legacyHeader } = header;
   const decoded = decodeCatalogDetailView({
-    ...header,
+    ...(descriptionMedia ? header : legacyHeader),
     ...(structured && approved.data.content
       ? {
           schemaVersion: 'catalog-product-detail-v2',

@@ -100,7 +100,6 @@ function validTiers(
     maxQuantity?: number | undefined;
     unitAmountMinor: number;
   }>,
-  sourceMoq: number | undefined,
 ): boolean {
   if (tiers.length === 0) return false;
   for (const [index, tier] of tiers.entries()) {
@@ -122,9 +121,7 @@ function validTiers(
       return false;
     }
   }
-  return (
-    sourceMoq === undefined || (tiers[0]?.minQuantity ?? Number.POSITIVE_INFINITY) <= sourceMoq
-  );
+  return true;
 }
 
 export function createAlibabaPricingAdapter(): AlibabaPricingAdapter {
@@ -170,7 +167,7 @@ export function createAlibabaPricingAdapter(): AlibabaPricingAdapter {
           return pricing.currency &&
             pricing.tiers &&
             hasNone(record, ['amountMinor', 'minAmountMinor', 'maxAmountMinor']) &&
-            validTiers(pricing.tiers, pricing.sourceMoq)
+            validTiers(pricing.tiers)
             ? {
                 source: 'alibaba',
                 state: 'available',

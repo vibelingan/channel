@@ -10,6 +10,149 @@ requireCatalogLocalSeedWhenEnabled(enabled);
 // A retry would start against the already-approved product, hiding the first failure.
 test.describe.configure({ retries: 0 });
 
+test('raw Alibaba response → draft/edit/preview → approved detail preserves facts, MOQ, quote scope and description media', async ({
+  page,
+  request,
+}, info) => {
+  test.setTimeout(120000);
+  const session = await loginAdmin(request);
+  const list = await adminAction<ListResult<CollectionDoc>>(
+    request,
+    'list',
+    { collection: 'products', search: 'Raw Wire Camping Light', pageSize: 20 },
+    session.token,
+  );
+  const draft = list.items[0];
+  if (!draft) throw new Error('Raw-derived materialized fixture missing');
+  expect(draft.published).toBe(false);
+  expect(draft.unitPrice).toBeUndefined();
+  expect(draft.wholesalePrice).toBeUndefined();
+  expect(draft.alibabaSourceReview).toMatchObject({
+    minimumOrderQuantity: 1,
+    primaryPricing: { mode: 'fixed', amountMinor: 767 },
+  });
+  const publicBefore = await request.get(`${e2e.apiUrl}/api/images/raw-wire-image-6`);
+  expect(publicBefore.status()).toBe(404);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/login?returnTo=%2Fadmin');
+  await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
+  await page.getByLabel('Password', { exact: true }).fill(e2e.adminPassword);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/?$/);
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByPlaceholder(/^Search name/).fill('Raw Wire Camping Light');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  const row = page.getByRole('row').filter({ hasText: 'Raw Wire Camping Light' });
+  await expect(row).toContainText('7.67');
+  let mediaFailureInjected = false;
+  await page.route('**/api/admin', async (route) => {
+    const body = route.request().postDataJSON();
+    if (
+      !mediaFailureInjected &&
+      body.action === 'getImagePreview' &&
+      body.data?.id === 'raw-wire-image-6'
+    ) {
+      mediaFailureInjected = true;
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: false,
+          error: { code: 'UNAVAILABLE', message: 'Transient image failure' },
+        }),
+      });
+    } else await route.continue();
+  });
+  await row.getByRole('button', { name: 'Preview', exact: true }).click();
+  const preview = page.getByRole('dialog', { name: 'Product preview', exact: true });
+  await expect(preview.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
+  await expect(preview.getByRole('alert')).toContainText('Saved images have not been removed');
+  expect(mediaFailureInjected).toBe(true);
+  await preview.getByRole('button', { name: 'Retry images' }).click();
+  await expect(preview).toContainText('USD 7.67');
+  await expect(preview).toContainText('Minimum order quantity: 1');
+  // 30 unambiguous facts + 17 values under repeated labels. The latter stay
+  // in notes, not misleading single-valued headline specs.
+  await expect(preview.locator('[data-catalog-specifications] dd')).toHaveCount(30);
+  await expect(preview.locator('[data-catalog-notes] p')).toHaveCount(17);
+  await expect(preview.locator('[data-catalog-notes]')).toContainText('Application — Hiking');
+  await expect(preview.locator('[data-catalog-notes]')).toContainText('Application — Camping');
+  await expect(preview.locator('[data-gallery-thumbnail]')).toHaveCount(6);
+  await expect(preview.locator('[data-description-images] img')).toHaveCount(17);
+  await expect(preview.getByRole('alert')).toHaveCount(0);
+  await expect(preview).not.toContainText('No product description has been supplied');
+  await expect(preview.locator('[data-quote-open]')).toBeDisabled();
+  await preview.locator('[data-description-images] summary').click();
+  const last = preview.locator('[data-description-images] img').last();
+  await last.scrollIntoViewIfNeeded();
+  await expect
+    .poll(() =>
+      last.evaluate(
+        (img) => img instanceof HTMLImageElement && img.complete && img.naturalWidth > 0,
+      ),
+    )
+    .toBe(true);
+  expect(await last.getAttribute('src')).toMatch(/^blob:/);
+  await preview.screenshot({ path: info.outputPath('raw-description-private-preview.png') });
+  await preview.getByRole('button', { name: 'Close', exact: true }).first().click();
+  await row.getByRole('button', { name: 'Edit', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit Product', exact: true });
+  await expect(editor.getByRole('region', { name: 'Effective website pricing' })).toContainText(
+    '7.67',
+  );
+  await editor.getByRole('button', { name: 'Close editor', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Select all rows' }).check();
+  await page.getByRole('button', { name: 'Publish', exact: true }).click();
+  await expect
+    .poll(
+      async () => {
+        const product = await adminAction<CollectionDoc>(
+          request,
+          'get',
+          { collection: 'products', id: draft._id },
+          session.token,
+        );
+        return product.published;
+      },
+      { timeout: 30000 },
+    )
+    .toBe(true);
+  const saved = await adminAction<CollectionDoc>(
+    request,
+    'get',
+    { collection: 'products', id: draft._id },
+    session.token,
+  );
+  expect(saved.catalogDetailPublication).toMatchObject({
+    state: 'approved',
+    header: {
+      facts: expect.arrayContaining([
+        { name: 'Application', value: 'Hiking' },
+        { name: 'Application', value: 'Camping' },
+      ]),
+      descriptionImages: expect.arrayContaining([
+        '/api/images/raw-wire-image-6',
+        '/api/images/raw-wire-image-22',
+      ]),
+    },
+  });
+  await page.goto(`/products/item/?id=${draft._id}`);
+  await expect(page.locator('[data-shared-catalog-detail]')).toBeVisible();
+  await expect(page.locator('[data-catalog-specifications] dd')).toHaveCount(30);
+  await expect(page.locator('[data-catalog-notes] p')).toHaveCount(17);
+  await expect(page.locator('main')).toContainText('USD 7.67');
+  await expect(page.locator('main')).toContainText('Minimum order quantity: 1');
+  await expect(page.locator('[data-description-images] img')).toHaveCount(17);
+  expect((await request.get(`${e2e.apiUrl}/api/images/raw-wire-image-6`)).status()).toBe(200);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await page.screenshot({ path: info.outputPath('raw-product-mobile.png'), fullPage: true });
+  expect(errors).toEqual([]);
+});
+
 test('missing preview script keeps Admin usable and recovers after an explicit reload', async ({
   page,
   request,

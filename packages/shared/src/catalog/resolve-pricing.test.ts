@@ -208,3 +208,15 @@ test('consumer switch is exhaustive across every pricing source', () => {
   ];
   assert.deepEqual(decisions.map(sourceLabel), ['quote', 'USD', 'unitPrice', 'quote-required']);
 });
+
+test('a manual scalar with unsupported precision never becomes a source fallback', () => {
+  const adapter: AlibabaPricingAdapter = {
+    resolve() {
+      assert.fail('invalid manual override must not inherit source');
+    },
+  };
+  assert.deepEqual(
+    resolveCatalogPricing({ unitPrice: 1.234, alibabaPrimarySourceKey: 'linked' }, adapter),
+    { source: 'quote-required' },
+  );
+});

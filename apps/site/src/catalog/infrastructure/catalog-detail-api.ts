@@ -135,7 +135,7 @@ export async function fetchCatalogDetailPage(
   const query = new URLSearchParams({
     page: String(page),
     pageSize: String(pageSize),
-    view: 'sections',
+    view: 'sections-media',
   });
   if (revision !== undefined) query.set('revision', revision);
   let response: Response;

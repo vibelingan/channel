@@ -1,5 +1,6 @@
 /** Provider-neutral detail DTO. Authorization/publication happens before projection. */
 import { z } from 'zod';
+import { PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT } from '../media.ts';
 import { PublicProductSchema } from './index.ts';
 import { catalogOfferPricingSchema } from './offer-pricing.ts';
 
@@ -76,6 +77,7 @@ export const CatalogDetailHeaderSchema = PublicProductSchema.pick({ _id: true, n
     categoryLabel: text(1000).optional(),
     websitePricing: WebsiteDetailPricingSchema.optional(),
     descriptionText: text(30000).optional(),
+    descriptionImages: z.array(image).max(PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT).optional(),
     images: z.array(image).max(9),
     facts: z.array(fact).max(100),
     offers: z.array(offer).max(32),

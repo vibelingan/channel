@@ -16,7 +16,7 @@ import {
   priceMoveExceedsThreshold,
 } from '@vibelingan-channel/alibaba-catalog-sync';
 import { type AlibabaLeaseGuard, updateDocWithAlibabaLease } from '@vibelingan-channel/db';
-import { loadAlibabaSourceReview } from './linking.ts';
+import { buildAlibabaSourceReview, loadAlibabaObservation } from './linking.ts';
 import { listAllDocs } from './list-all.ts';
 import { getDoc } from './repo.ts';
 
@@ -71,7 +71,8 @@ export async function promoteLinkedProduct(input: PromoteInput): Promise<Promote
   }
 
   const source = await getDoc('alibabaSourceProducts', input.sourceKey);
-  const sourceReview = source ? await loadAlibabaSourceReview(source) : null;
+  const observation = source ? await loadAlibabaObservation(source) : null;
+  const sourceReview = observation ? buildAlibabaSourceReview(observation) : null;
   const offers = await activeOffers(input.sourceKey);
   // Read the OPERATOR pin, never the sync's own previous selection
   // (blessing-gate P1): feeding alibabaPrimaryOfferKey back in made the first
@@ -89,6 +90,7 @@ export async function promoteLinkedProduct(input: PromoteInput): Promise<Promote
     now: input.now,
   });
   const patch = {
+    alibabaDescriptionImageUrls: observation?.content.description?.imageUrls ?? [],
     ...candidate.patch,
     ...(sourceReview === null ? {} : { alibabaSourceReview: sourceReview }),
     alibabaSourceProductId: String(source?.sourceProductId ?? ''),
@@ -117,6 +119,7 @@ export async function promoteLinkedProduct(input: PromoteInput): Promise<Promote
       i: product.alibabaSourceProductId ?? null,
       c: product.alibabaSourceCategoryId ?? null,
       m: product.alibabaSourceImageUrls ?? null,
+      d: product.alibabaDescriptionImageUrls ?? null,
       r: product.alibabaSourceReview ?? null,
     }) !==
     computeCandidateHash({
@@ -126,6 +129,7 @@ export async function promoteLinkedProduct(input: PromoteInput): Promise<Promote
       i: patch.alibabaSourceProductId,
       c: patch.alibabaSourceCategoryId,
       m: patch.alibabaSourceImageUrls,
+      d: patch.alibabaDescriptionImageUrls,
       r: sourceReview,
     });
 

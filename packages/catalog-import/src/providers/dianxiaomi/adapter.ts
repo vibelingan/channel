@@ -57,6 +57,10 @@ function listingFor(row: DianxiaomiRow): SourceListing {
     sourceListingStatus: row.sourceListingStatus,
     ...(row.brand === undefined ? {} : { brand: row.brand }),
     ...(row.description.html === undefined ? {} : { descriptionHtml: row.description.html }),
+    ...(row.description.imageUrls ? { descriptionImageUrls: row.description.imageUrls } : {}),
+    ...(row.description.extractionWarnings
+      ? { descriptionExtractionWarnings: row.description.extractionWarnings }
+      : {}),
     ...(row.description.text === '' ? {} : { descriptionText: row.description.text }),
     descriptionSource: row.description.source,
     descriptionSanitized: row.description.sanitized,

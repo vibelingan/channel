@@ -2,6 +2,7 @@ import { AlibabaSyncApiError } from './alibaba-catalog-sync/alibaba-api.ts';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 
 interface GalleryImportInput {
+  maxItems?: 9 | 18;
   sourceUrls: unknown;
   imageIds: string[];
   importImage: (url: string) => Promise<{ imageId: string; deduplicated: boolean }>;
@@ -10,13 +11,14 @@ interface GalleryImportInput {
 
 /** Bounded sequential admission through the existing authenticated image importer. */
 export async function importAlibabaGallery(input: GalleryImportInput) {
-  const urls = [...new Set(alibabaSourcePreviewUrls(input.sourceUrls, 9))];
+  const limit = input.maxItems ?? 9;
+  const urls = [...new Set(alibabaSourcePreviewUrls(input.sourceUrls, limit))];
   const imageIds = [...new Set(input.imageIds)];
   const createdIds: string[] = [];
   const failures: Array<{ position: number; message: string }> = [];
   let attempted = 0;
   for (const [index, url] of urls.entries()) {
-    if (imageIds.length >= 9) break;
+    if (imageIds.length >= limit) break;
     attempted += 1;
     try {
       const imported = await input.importImage(url);

@@ -39,6 +39,10 @@ export function PreviewModal({
   const sharedPreview = canMarkReviewed && typeof doc.alibabaPrimarySourceKey === 'string';
   const imageIds = Array.isArray(doc.imageIds) ? (doc.imageIds as string[]) : [];
   const sourceImageUrls = alibabaSourcePreviewUrls(doc.alibabaSourceImageUrls);
+  const descriptionIds = Array.isArray(doc.descriptionImageIds)
+    ? doc.descriptionImageIds.filter((id): id is string => typeof id === 'string').slice(0, 18)
+    : [];
+  const sourceDescriptionUrls = alibabaSourcePreviewUrls(doc.alibabaDescriptionImageUrls, 18);
   const sourceReview = decodeAlibabaSourceReview(doc.alibabaSourceReview);
   const published = doc.published === true;
   const productPricing = adminCatalogPricingInput(doc);
@@ -48,7 +52,8 @@ export function PreviewModal({
   // the joined membership so the array reference is stable across renders — the
   // fetch/revoke effect below depends on it directly and must re-run only when
   // the shown set actually changes (e.g. re-opening on a different doc).
-  const shownKey = imageIds.slice(0, PRODUCT_IMAGE_MAX_COUNT).join(',');
+  const galleryIds = imageIds.slice(0, PRODUCT_IMAGE_MAX_COUNT);
+  const shownKey = sharedPreview ? '' : [...new Set([...galleryIds, ...descriptionIds])].join(',');
   const shownIds = useMemo(() => (shownKey ? shownKey.split(',') : []), [shownKey]);
 
   // Resolve each id through the admin-authenticated preview action into a blob
@@ -171,10 +176,15 @@ export function PreviewModal({
                   productId={doc._id}
                   images={
                     imageIds.length
-                      ? shownIds.flatMap((id) => (urls[id] ? [urls[id]] : []))
+                      ? galleryIds.flatMap((id) => (urls[id] ? [urls[id]] : []))
                       : sourceImageUrls
                   }
                   sourceImages={imageIds.length === 0 && sourceImageUrls.length > 0}
+                  descriptionImages={
+                    descriptionIds.length
+                      ? descriptionIds.flatMap((id) => (urls[id] ? [urls[id]] : []))
+                      : sourceDescriptionUrls
+                  }
                 />
               </Suspense>
             </PreviewErrorBoundary>

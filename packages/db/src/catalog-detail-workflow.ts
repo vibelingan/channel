@@ -24,6 +24,7 @@ const WorkflowCommandSchema = z.discriminatedUnion('action', [
       action: z.literal('review'),
       productId: z.string().trim().min(1).max(200),
       page: z.number().int().min(1).max(200).default(1),
+      includePreviewMedia: z.boolean().optional(),
       expectedDigest: z
         .string()
         .regex(/^[a-f0-9]{64}$/)
@@ -113,8 +114,9 @@ export async function runCatalogApprovalWorkflow(
       revision: 'review-candidate',
     });
     const offset = (command.page - 1) * 50;
+    const { descriptionImages: _descriptionImages, ...legacyHeader } = plan.publication.header;
     const detail = decodeCatalogDetailView({
-      ...plan.publication.header,
+      ...(command.includePreviewMedia ? plan.publication.header : legacyHeader),
       ...(plan.publication.content
         ? { schemaVersion: 'catalog-product-detail-v2', content: plan.publication.content }
         : {}),
@@ -137,6 +139,34 @@ export async function runCatalogApprovalWorkflow(
       expectedDigest,
       expectedRevision: current?.revision ?? null,
       detail: detail.value,
+      // Authenticated preview metadata comes from the same fresh product read,
+      // never from the potentially stale list row. Public APIs omit this field.
+      ...(command.includePreviewMedia
+        ? {
+            previewMedia: {
+              galleryIds: Array.isArray(read.product.imageIds)
+                ? read.product.imageIds
+                    .filter((v): v is string => typeof v === 'string')
+                    .slice(0, 9)
+                : [],
+              descriptionIds: Array.isArray(read.product.descriptionImageIds)
+                ? read.product.descriptionImageIds
+                    .filter((v): v is string => typeof v === 'string')
+                    .slice(0, 18)
+                : [],
+              gallerySources: Array.isArray(read.product.alibabaSourceImageUrls)
+                ? read.product.alibabaSourceImageUrls
+                    .filter((v): v is string => typeof v === 'string')
+                    .slice(0, 9)
+                : [],
+              descriptionSources: Array.isArray(read.product.alibabaDescriptionImageUrls)
+                ? read.product.alibabaDescriptionImageUrls
+                    .filter((v): v is string => typeof v === 'string')
+                    .slice(0, 18)
+                : [],
+            },
+          }
+        : {}),
     };
   } catch {
     return { ok: false as const, code: 'VALIDATION_ERROR' as const };

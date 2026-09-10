@@ -72,10 +72,12 @@ export async function linkExistingProduct(
 
   // The product becomes Alibaba-linked; pricing materialization is MIU 8's
   // fenced promotion — here only the link identity + a conservative status.
+  const observation = await loadAlibabaObservation(source);
   await updateDoc('products', productId, {
     alibabaPrimarySourceKey: sourceKey,
     alibabaSourceProductId: String(source.sourceProductId ?? ''),
     alibabaSourceCategoryId: String(source.sourceCategoryId ?? ''),
+    alibabaDescriptionImageUrls: observation?.content.description?.imageUrls ?? [],
     alibabaSourceImageUrls: Array.isArray(source.sourceImageUrls)
       ? source.sourceImageUrls.filter((value): value is string => typeof value === 'string')
       : [],
@@ -115,6 +117,7 @@ export async function unlinkProduct(
     alibabaSourceProductId: null,
     alibabaSourceCategoryId: null,
     alibabaSourceImageUrls: null,
+    alibabaDescriptionImageUrls: null,
     alibabaPrimaryOfferKey: null,
     // The operator pin must clear too (blessing-gate P2): unlink is the
     // documented rollback command, and a surviving pin would silently rebind
@@ -268,7 +271,7 @@ export function buildAlibabaSourceReview(
   };
 }
 
-async function loadAlibabaObservation(
+export async function loadAlibabaObservation(
   source: Record<string, unknown> & { _id: string },
 ): Promise<CatalogSourceObservation | null> {
   const observationDoc = await getDoc(
@@ -302,6 +305,7 @@ async function reconcileLinkedDraft(
   const reviewed =
     typeof product.alibabaReviewedAt === 'string' && product.alibabaReviewedAt.trim() !== '';
   const patch: Record<string, unknown> = {
+    alibabaDescriptionImageUrls: observation?.content.description?.imageUrls ?? [],
     ...(typeof product.alibabaReviewPending === 'boolean'
       ? {}
       : { alibabaReviewPending: !reviewed }),
@@ -453,6 +457,7 @@ async function createLinkedDraft(
   const observedDescription = observation?.content.description?.text;
 
   const draft: Record<string, unknown> = {
+    alibabaDescriptionImageUrls: observation?.content.description?.imageUrls ?? [],
     name:
       typeof observedTitle === 'string' && observedTitle.trim() !== ''
         ? observedTitle

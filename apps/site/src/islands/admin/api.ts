@@ -208,6 +208,43 @@ export async function updateRecord(
           if (imported.imageIds.length)
             await call('update', { collection, id, values: { imageIds: imported.imageIds } });
         }
+        if (
+          current.descriptionImageIds === undefined &&
+          Array.isArray(current.alibabaDescriptionImageUrls) &&
+          current.alibabaDescriptionImageUrls.length
+        ) {
+          if (current.alibabaDescriptionImageUrls.length > 18)
+            throw new AdminApiError(
+              'MEDIA_NOT_READY',
+              'Select up to 18 description images in Edit before publishing.',
+            );
+          const [{ importAlibabaGallery }, { importAlibabaSourceImage }] = await Promise.all([
+            import('./alibaba-gallery-import.ts'),
+            import('./alibaba-catalog-sync/alibaba-api.ts'),
+          ]);
+          const imported = await importAlibabaGallery({
+            sourceUrls: current.alibabaDescriptionImageUrls,
+            imageIds: [],
+            maxItems: 18,
+            importImage: importAlibabaSourceImage,
+            onProgress: () => {},
+          });
+          if (
+            imported.failures.length ||
+            imported.remaining ||
+            current.alibabaDescriptionImageUrls.length > 18
+          )
+            throw new AdminApiError(
+              'MEDIA_NOT_READY',
+              'Review and import description images in Edit before publishing.',
+            );
+          if (imported.imageIds.length)
+            await call('update', {
+              collection,
+              id,
+              values: { descriptionImageIds: imported.imageIds },
+            });
+        }
         const { prepareDetailReview, approveDetailReview } = await import(
           './catalog-detail-approval-api.ts'
         );

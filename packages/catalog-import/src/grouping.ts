@@ -53,6 +53,8 @@ export interface SourceListing {
   title: string;
   brand?: string;
   descriptionHtml?: string;
+  descriptionImageUrls?: string[];
+  descriptionExtractionWarnings?: string[];
   descriptionText?: string;
   /** Which rung of the fallback chain supplied `descriptionText`. */
   descriptionSource?: DescriptionProvenance;
@@ -94,6 +96,8 @@ export interface StoreListingRecord {
   title: string;
   brand?: string;
   descriptionHtml?: string;
+  descriptionImageUrls?: string[];
+  descriptionExtractionWarnings?: string[];
   descriptionText?: string;
   descriptionSource?: DescriptionProvenance;
   descriptionSanitized?: boolean;
@@ -223,6 +227,8 @@ const DESCRIPTION_RANK: Record<DescriptionProvenance, number> = {
 };
 
 export interface DescriptionCandidate {
+  imageUrls?: string[];
+  extractionWarnings?: string[];
   text: string | undefined;
   html: string | undefined;
   source: DescriptionProvenance | undefined;
@@ -236,7 +242,9 @@ export interface DescriptionCandidate {
  * row's markup.
  */
 export function pickDescription(candidates: readonly DescriptionCandidate[]): DescriptionCandidate {
-  const usable = candidates.filter((entry) => entry.text !== undefined && entry.text !== '');
+  const usable = candidates.filter((entry) =>
+    Boolean(entry.text || entry.imageUrls?.length || entry.extractionWarnings?.length),
+  );
   if (usable.length === 0) {
     return { text: undefined, html: undefined, source: undefined, sanitized: false };
   }
@@ -259,9 +267,17 @@ export function pickDescription(candidates: readonly DescriptionCandidate[]): De
   const winner =
     tied
       .filter((entry) => metaKey(entry) === winningMeta)
-      .sort((left, right) => Number(right.sanitized) - Number(left.sanitized))[0] ?? tied[0];
+      .sort(
+        (left, right) =>
+          Number(right.sanitized) - Number(left.sanitized) ||
+          JSON.stringify([left.imageUrls, left.extractionWarnings]).localeCompare(
+            JSON.stringify([right.imageUrls, right.extractionWarnings]),
+          ),
+      )[0] ?? tied[0];
   return {
     text,
+    ...(winner?.imageUrls ? { imageUrls: winner.imageUrls } : {}),
+    ...(winner?.extractionWarnings ? { extractionWarnings: winner.extractionWarnings } : {}),
     html: winner?.html,
     source: winner?.source,
     sanitized: winner?.sanitized ?? false,
@@ -367,6 +383,12 @@ export function groupListings(listings: readonly SourceListing[]): GroupingResul
       sku: listing.sku,
       title: listing.title,
       ...(listing.brand === undefined ? {} : { brand: listing.brand }),
+      ...(listing.descriptionImageUrls
+        ? { descriptionImageUrls: listing.descriptionImageUrls }
+        : {}),
+      ...(listing.descriptionExtractionWarnings
+        ? { descriptionExtractionWarnings: listing.descriptionExtractionWarnings }
+        : {}),
       ...(listing.descriptionHtml === undefined
         ? {}
         : { descriptionHtml: listing.descriptionHtml }),
@@ -475,6 +497,10 @@ export function groupListings(listings: readonly SourceListing[]): GroupingResul
     product.brands.push(listing.brand);
     product.externalProductIds.push(listing.externalProductId);
     product.descriptions.push({
+      ...(listing.descriptionImageUrls ? { imageUrls: listing.descriptionImageUrls } : {}),
+      ...(listing.descriptionExtractionWarnings
+        ? { extractionWarnings: listing.descriptionExtractionWarnings }
+        : {}),
       text: listing.descriptionText,
       html: listing.descriptionHtml,
       source: listing.descriptionSource,
@@ -615,6 +641,10 @@ export function groupListings(listings: readonly SourceListing[]): GroupingResul
       sourceListingStatus: resolveStatus(product.statuses),
       ...(brand === undefined ? {} : { brand }),
       ...(description.html === undefined ? {} : { descriptionHtml: description.html }),
+      ...(description.imageUrls ? { descriptionImageUrls: description.imageUrls } : {}),
+      ...(description.extractionWarnings
+        ? { descriptionExtractionWarnings: description.extractionWarnings }
+        : {}),
       ...(description.text === undefined ? {} : { descriptionText: description.text }),
       ...(description.source === undefined ? {} : { descriptionSource: description.source }),
       ...(description.sanitized ? { descriptionSanitized: true } : {}),

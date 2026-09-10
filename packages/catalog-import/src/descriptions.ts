@@ -20,6 +20,8 @@
  * `dangerouslySetInnerHTML` on supplier input.
  */
 
+import { type DefaultTreeAdapterMap, parseFragment } from 'parse5';
+
 /** Tags re-emitted verbatim (without any attributes). */
 const ALLOWED_TAGS: ReadonlySet<string> = new Set([
   'p',
@@ -403,6 +405,9 @@ export function sourceHtmlToText(raw: string): string {
 }
 
 export interface DescriptionResult {
+  extractionWarnings?: string[];
+  /** Source evidence only. Rendering requires separately authorized media bindings. */
+  imageUrls?: string[];
   /** Sanitized HTML — stored, not rendered. Absent when the source is filler. */
   html?: string;
   /** Plain-text projection. Absent when the source is filler. */
@@ -420,11 +425,66 @@ export interface DescriptionResult {
  */
 export function normalizeDescription(raw: string | null | undefined): DescriptionResult {
   if (typeof raw !== 'string') return { placeholder: true, sanitized: false };
+  const extraction = extractDescriptionImages(raw);
+  const imageUrls = extraction.urls;
+  const media = {
+    ...(imageUrls.length ? { imageUrls } : {}),
+    ...(extraction.warnings.length ? { extractionWarnings: extraction.warnings } : {}),
+  };
   const text = sourceHtmlToText(raw);
   if (text === '' || PLACEHOLDER_TEXTS.has(text.toLowerCase())) {
     const { removed } = sanitizeSourceHtmlWithReport(raw);
-    return { placeholder: true, sanitized: removed };
+    return {
+      placeholder: imageUrls.length === 0 && extraction.warnings.length === 0,
+      sanitized: removed,
+      ...media,
+    };
   }
   const { html, removed } = sanitizeSourceHtmlWithReport(raw);
-  return { html, text, placeholder: false, sanitized: removed };
+  return { html, text, placeholder: false, sanitized: removed, ...media };
+}
+
+/** Parse HTML with the installed HTML5 parser, never regex-extract executable markup.
+ * This gathers evidence only; the existing downloader still enforces host/SSRF/MIME policy.
+ */
+export function descriptionImageUrls(raw: string): string[] {
+  return extractDescriptionImages(raw).urls;
+}
+
+function extractDescriptionImages(raw: string): { urls: string[]; warnings: string[] } {
+  if (typeof raw !== 'string') return { urls: [], warnings: [] };
+  if (raw.length > 1024 * 1024) return { urls: [], warnings: ['description-media-size-limit'] };
+  const result = new Set<string>();
+  const warnings = new Set<string>();
+  const stack: DefaultTreeAdapterMap['node'][] = [parseFragment(raw)];
+  let count = 0;
+  while (stack.length) {
+    const node = stack.pop();
+    if (!node) break;
+    if (++count > 20000) {
+      warnings.add('description-media-node-limit');
+      break;
+    }
+    if ('tagName' in node && DROP_WITH_CONTENT.has(node.tagName)) continue;
+    if ('tagName' in node && node.tagName === 'img') {
+      const src = node.attrs.find((a) => a.name === 'src')?.value;
+      if (src) {
+        try {
+          const url = new URL(src.startsWith('//') ? `https:${src}` : src);
+          if (
+            ['http:', 'https:'].includes(url.protocol) &&
+            !url.username &&
+            !url.password &&
+            url.href.length <= 2048
+          )
+            result.add(url.href);
+          else warnings.add('invalid-description-media');
+        } catch {
+          warnings.add('invalid-description-media');
+        }
+      }
+    }
+    if ('childNodes' in node) stack.push(...[...node.childNodes].reverse());
+  }
+  return { urls: [...result], warnings: [...warnings] };
 }

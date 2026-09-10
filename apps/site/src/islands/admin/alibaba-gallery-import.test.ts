@@ -3,6 +3,36 @@ import test from 'node:test';
 import { AlibabaSyncApiError } from './alibaba-catalog-sync/alibaba-api.ts';
 import { importAlibabaGallery } from './alibaba-gallery-import.ts';
 
+test('description import retains 17 images, retries confirmed source mappings without duplicates', async () => {
+  const urls = Array.from({ length: 17 }, (_, i) => `http://sc04.alicdn.com/detail-${i}.png`);
+  const mapped = new Map<string, string>();
+  const importer = async (url: string) => {
+    assert.ok(url.startsWith('https:'));
+    const existing = mapped.get(url);
+    const imageId = existing ?? `description-${mapped.size}`;
+    mapped.set(url, imageId);
+    return { imageId, deduplicated: existing !== undefined };
+  };
+  const first = await importAlibabaGallery({
+    sourceUrls: urls,
+    imageIds: [],
+    maxItems: 18,
+    importImage: importer,
+    onProgress: () => {},
+  });
+  assert.equal(first.imageIds.length, 17);
+  const retry = await importAlibabaGallery({
+    sourceUrls: urls,
+    imageIds: [],
+    maxItems: 18,
+    importImage: importer,
+    onProgress: () => {},
+  });
+  assert.deepEqual(retry.imageIds, first.imageIds);
+  assert.equal(retry.createdIds.length, 0);
+  assert.equal(mapped.size, 17);
+});
+
 test('gallery imports every unique allowed image in order, retaining successes on partial failure', async () => {
   const commits: string[][] = [];
   const requests: string[] = [];

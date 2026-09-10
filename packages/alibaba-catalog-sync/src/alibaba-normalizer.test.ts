@@ -171,9 +171,7 @@ test('a price-less product yields one unavailable product-level offer', () => {
   assert.equal(result.offers[0]?.pricing.sourceProductId, '987');
 });
 
-test('an MOQ below the first tier start is dropped instead of degrading the tiers', () => {
-  // Source data inconsistency: MOQ 50 but the cheapest tier starts at 100 —
-  // the validator would reject the pair, so the MOQ drops and the tiers stay.
+test('an MOQ below the first tier start is retained independently of quoted coverage', () => {
   const result = normalize(
     detail({
       moqLexeme: '50',
@@ -182,7 +180,7 @@ test('an MOQ below the first tier start is dropped instead of degrading the tier
   );
   const pricing = result.offers[0]?.pricing;
   assert.equal(pricing?.mode, 'tiered');
-  assert.equal(pricing?.sourceMoq, undefined);
+  assert.equal(pricing?.sourceMoq, 50);
   // The compatible pair keeps the MOQ.
   const compatible = normalize(
     detail({

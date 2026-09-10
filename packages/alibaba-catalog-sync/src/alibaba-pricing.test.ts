@@ -258,17 +258,15 @@ test('rejects a non-final open-ended tier', () => {
   );
 });
 
-test('rejects a tiered price whose first tier exceeds sourceMoq', () => {
-  invalid(
-    {
-      ...base,
-      mode: 'tiered',
-      currency: 'USD',
-      sourceMoq: 5,
-      tiers: [{ minQuantity: 10, unitAmountMinor: 5 }],
-    },
-    'sourceMoq',
-  );
+test('retains an MOQ below the first quoted tier without inventing a tier', () => {
+  const result = validateAlibabaCatalogPricing({
+    ...base,
+    mode: 'tiered',
+    currency: 'USD',
+    sourceMoq: 5,
+    tiers: [{ minQuantity: 10, unitAmountMinor: 5 }],
+  });
+  assert.ok(result.ok);
 });
 
 test('rejects unknown keys inside a tier', () => {
