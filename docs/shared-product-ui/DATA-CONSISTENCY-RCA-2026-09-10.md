@@ -242,6 +242,18 @@ Admin 摘要兼容读取把 MOQ 错绑在“价格可用”条件上的遗漏。
 来源仍不得使用该 fallback。新增两项测试先红后绿，并增加对应浏览器边缘用例。
 这项 UI 修复与询价持久化等待断言一起纳入 PR #44，必须以其最新提交的 CI/CD 与线上验收为准。
 
+09:36 UTC 全集合只读核对：1,074 条 Alibaba observations 与 1,074 条关联商品摘要均存在，
+两侧都有 1,065 件至少有一种有效数字报价、1,054 件有 MOQ、1,073 件有详情图片来源；
+全部 1,074 件 observation 有商品属性。9 件没有可用数字报价不代表同步丢失，需按保存的
+quality warning 区分真实缺失、非法阶梯和不支持的计价单位，不能编造金额。
+私有 Admin 独立 MOQ 修复后的站点测试 372/372、追加本地完整浏览器 78/78 通过。
+
+公开集合随后变为 11 件，不能再把较早的 9 件基线当作最新数量。新增 ID
+`7e8c6ece-41ad-4573-a2ed-d3e7fea94c8f`、`af743d00-ca07-45b3-a2c5-f7a6b256035b`
+各有 09:07 UTC 的 Admin 批准回执，早于本轮来源摘要刷新，且不在本轮发布测试样本中。
+本轮没有对这两件执行发布或批准；后续验收应以实际开始时的公开集合比较前后，不撤销其他
+管理员已完成的上架。原先 9 件的检查结论仅适用于下面注明的部署时点。
+
 - PR [#43](https://github.com/vibelingan/channel/pull/43)：head `5f87abba` 的完整 CI 通过后，合入 test，merge SHA 为 `5678d0477b743654be508cd0d8543d27dbe3bf49`。
 - [Deploy Test 34455803773](https://github.com/vibelingan/channel/actions/runs/34455803773) 成功：同 SHA 完整 CI、资源预检、函数包 cold-start、前端构建、部署冒烟、真实站点 41 项 public + 19 项 catalog 全通过。
 - 独立 HTTP 读取确认 admin / public-api / alibaba-catalog-sync 均返回该 releaseId；网页由同一次工作流构建部署。本轮没有通过 MCP/本机 CLI 直接部署任何云函数。
