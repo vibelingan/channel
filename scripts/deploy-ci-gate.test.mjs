@@ -6,6 +6,15 @@ import { parse } from 'yaml';
 const workflow = (name) =>
   parse(readFileSync(new URL(`../.github/workflows/${name}.yml`, import.meta.url), 'utf8'));
 
+test('live acceptance probes sync HTTP health rather than an unsupported POST action', () => {
+  const source = readFileSync(
+    new URL('../tests/e2e/catalog-live-acceptance.spec.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(source, /request\.get\(`\$\{e2e\.apiUrl\}\/api\/alibaba-catalog-sync\/health`\)/);
+  assert.doesNotMatch(source, /sync\(['"]health['"]\)/);
+});
+
 test('normal deployment awaits hosted asset integrity before pruning or declaring success', () => {
   const source = readFileSync(new URL('./deploy-cloudbase-test.mjs', import.meta.url), 'utf8');
   assert.match(source, /const assets = hostedAssetManifest\(distPath\)/);

@@ -383,7 +383,9 @@ for (const sample of mediaRepairs)
       expect(body.ok, `Sync ${action} result`).toBe(true);
       return body.data;
     };
-    expect((await sync('health')).releaseId).toBe(expectedRelease);
+    const syncHealth = await request.get(`${e2e.apiUrl}/api/alibaba-catalog-sync/health`);
+    expect(syncHealth.ok()).toBe(true);
+    expect((await syncHealth.json()).data.releaseId).toBe(expectedRelease);
     const { id, sourceKey } = sample;
     const expectedImages: Record<string, string | undefined> = sample.images;
     const getProduct = () =>
