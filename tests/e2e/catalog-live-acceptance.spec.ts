@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { type CollectionDoc, adminAction, loginAdmin } from './helpers/admin-api';
 import { e2e, requireAdminCredentialsWhenEnabled } from './helpers/env';
 import { expectInquirySaved } from './helpers/inquiry-followup';
+import { expectProductSaved } from './helpers/product-save';
 
 const enabled = process.env.E2E_CATALOG_LIVE_ACCEPTANCE === '1';
 // @skip-when explicit, audited live acceptance is not requested. Never skip on runtime failures.
@@ -116,7 +117,7 @@ test('live release: approved categories, existing published galleries, real inqu
     );
     expect(diagnostics, `Gallery admission failed for ${id}`).toEqual([]);
     await page.getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 180000 });
+    await expectProductSaved(page, 180000);
     const after = await adminAction<CollectionDoc>(
       request,
       'get',

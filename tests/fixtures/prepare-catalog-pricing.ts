@@ -66,6 +66,13 @@ await db.update('products', product._id, {
 if (process.env.E2E_CATALOG_FORMAL === '1') {
   const sourceKey = 'a'.repeat(64);
   const urls = ['https://s.alicdn.com/formal-front.png', 'https://s.alicdn.com/formal-back.png'];
+  // Existing website publication, followed by a sync discovering more than
+  // the website's description-image capacity. Saving it must not auto-import
+  // these unreviewed sources or require changes to existing manual media.
+  const newDescriptionUrls = Array.from(
+    { length: 19 },
+    (_, i) => `https://s.alicdn.com/new-unreviewed-detail-${i}.png`,
+  );
   const mediaDir = resolve(dirname(file), 'media');
   await mkdir(mediaDir, { recursive: true });
   await seedRawCatalog(db, mediaDir);
@@ -114,6 +121,7 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
       })),
       description: {
         text: product.description,
+        imageUrls: newDescriptionUrls,
         sanitized: true,
         placeholder: false,
         provenance: 'description',
@@ -154,6 +162,7 @@ if (process.env.E2E_CATALOG_FORMAL === '1') {
   await db.update('products', product._id, {
     imageIds: ['formal-image-0', 'formal-image-1'],
     alibabaSourceImageUrls: urls,
+    alibabaDescriptionImageUrls: newDescriptionUrls,
     alibabaReviewPending: true,
   });
   // Match a freshly materialized Alibaba draft: source gallery/prices exist,

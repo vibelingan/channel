@@ -3,6 +3,7 @@ import {
   type CollectionDoc,
   type FieldDef,
   LEGACY_HEADPHONES_CATEGORY_OPTIONS,
+  PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
   type ProductFamily,
   needsCategoryReview,
 } from '@vibelingan-channel/shared';
@@ -18,7 +19,7 @@ import {
   removeAlibabaImportedImage,
 } from './alibaba-catalog-sync/alibaba-api.ts';
 import { importAlibabaGallery } from './alibaba-gallery-import.ts';
-import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
+import { alibabaSourcePreviewInfo, alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { AdminApiError } from './api.ts';
 import { ADMIN_PRODUCT_FAMILY_LABELS } from './product-family-tabs.ts';
 import { useModalDialog } from './use-modal-dialog.ts';
@@ -184,7 +185,12 @@ export function RecordForm({
 
   const sourcePreviewUrls = alibabaSourcePreviewUrls(initial?.alibabaSourceImageUrls, 9);
   const sourcePreviewUrl = sourcePreviewUrls[0];
-  const descriptionPreviewUrls = alibabaSourcePreviewUrls(initial?.alibabaDescriptionImageUrls, 18);
+  const descriptionPreview = alibabaSourcePreviewInfo(
+    initial?.alibabaDescriptionImageUrls,
+    PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
+  );
+  const descriptionPreviewUrls = descriptionPreview.urls;
+  const descriptionSourceOverflow = descriptionPreview.total > descriptionPreviewUrls.length;
 
   async function importSourceGallery(description = false) {
     const sourceUrls = description ? descriptionPreviewUrls : sourcePreviewUrls;
@@ -395,16 +401,27 @@ export function RecordForm({
                   {section.heading === 'Media' && descriptionPreviewUrls.length > 0 && (
                     <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-3">
                       <p className="text-xs text-slate-500">
-                        Source description · {descriptionPreviewUrls.length} images (separate from
-                        the product gallery)
+                        Source description · {descriptionPreview.total} images (separate from the
+                        product gallery)
                       </p>
+                      {descriptionSourceOverflow && (
+                        <p className="mt-1 text-xs text-slate-600">
+                          Up to {descriptionPreviewUrls.length} description images can be saved.
+                          Import the first {descriptionPreviewUrls.length}, then review or remove
+                          them in Description images. The remaining source images are not imported.
+                        </p>
+                      )}
                       <button
                         type="button"
                         disabled={busy}
                         onClick={() => void importSourceGallery(true)}
                         className="mt-2 min-h-11 text-sm font-medium text-brand-700 disabled:opacity-50"
                       >
-                        {sourceImageBusy ? 'Importing…' : 'Import description images'}
+                        {sourceImageBusy
+                          ? 'Importing…'
+                          : descriptionSourceOverflow
+                            ? `Import first ${descriptionPreviewUrls.length} description images`
+                            : 'Import description images'}
                       </button>
                     </div>
                   )}
@@ -449,7 +466,7 @@ export function RecordForm({
           className="shrink-0 border-t border-slate-200 bg-white px-5 py-3"
         >
           {aggregateError && (
-            <p className="mb-3 text-sm text-red-600" role="alert">
+            <p data-record-form-error className="mb-3 text-sm text-red-600" role="alert">
               {aggregateError}
             </p>
           )}

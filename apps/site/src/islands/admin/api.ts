@@ -11,6 +11,7 @@ import {
   type CollectionDoc,
   type FilterModel,
   type ListResult,
+  PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
   PRODUCT_FAMILY_OPTIONS,
   type ProductFamily,
   type SessionUser,
@@ -209,14 +210,19 @@ export async function updateRecord(
             await call('update', { collection, id, values: { imageIds: imported.imageIds } });
         }
         if (
+          // Existing publications keep their reviewed website media. A later
+          // sync is not permission to import/publish additional supplier images
+          // as a side effect of Save or a category-only refresh.
+          !refreshPublishedDetail &&
+          current.published !== true &&
           current.descriptionImageIds === undefined &&
           Array.isArray(current.alibabaDescriptionImageUrls) &&
           current.alibabaDescriptionImageUrls.length
         ) {
-          if (current.alibabaDescriptionImageUrls.length > 18)
+          if (current.alibabaDescriptionImageUrls.length > PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT)
             throw new AdminApiError(
               'MEDIA_NOT_READY',
-              'Select up to 18 description images in Edit before publishing.',
+              `Import up to ${PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT} description images in Edit and review them before publishing.`,
             );
           const [{ importAlibabaGallery }, { importAlibabaSourceImage }] = await Promise.all([
             import('./alibaba-gallery-import.ts'),
@@ -225,15 +231,11 @@ export async function updateRecord(
           const imported = await importAlibabaGallery({
             sourceUrls: current.alibabaDescriptionImageUrls,
             imageIds: [],
-            maxItems: 18,
+            maxItems: PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
             importImage: importAlibabaSourceImage,
             onProgress: () => {},
           });
-          if (
-            imported.failures.length ||
-            imported.remaining ||
-            current.alibabaDescriptionImageUrls.length > 18
-          )
+          if (imported.failures.length || imported.remaining)
             throw new AdminApiError(
               'MEDIA_NOT_READY',
               'Review and import description images in Edit before publishing.',

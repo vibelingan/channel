@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { type CollectionDoc, type ListResult, adminAction, loginAdmin } from './helpers/admin-api';
 import { e2e, requireCatalogLocalSeedWhenEnabled } from './helpers/env';
 import { expectInquirySaved } from './helpers/inquiry-followup';
+import { expectProductSaved } from './helpers/product-save';
 
 const enabled = process.env.E2E_CATALOG_FORMAL === '1';
 // @skip-when this explicitly owned, disposable formal-journey lane is not requested.
@@ -406,6 +407,13 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
   );
   const id = list.items[0]?._id;
   if (!id) throw new Error('Formal product fixture missing');
+  expect(list.items[0]?.published).toBe(true);
+  const sourceMediaImports: string[] = [];
+  page.on('request', (r) => {
+    if (r.method() !== 'POST' || !r.url().includes('/api/alibaba-catalog-sync')) return;
+    const body = r.postDataJSON();
+    if (body.action === 'importSourceImage') sourceMediaImports.push(body.action);
+  });
   const forbidden = await request.post(`${e2e.apiUrl}/api/admin`, {
     data: {
       action: 'update',
@@ -427,8 +435,12 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
     .filter({ hasText: 'SonicAir Move' })
     .getByRole('button', { name: 'Edit', exact: true })
     .click();
+  await expect(page.getByText('Source description · 19 images', { exact: false })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Import first 18 description images' }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 30000 });
+  await expectProductSaved(page);
   const product = await adminAction<CollectionDoc>(
     request,
     'get',
@@ -441,6 +453,8 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
     variantStorage: 'immutable-v1',
   });
   expect(product.imageIds).toEqual(['formal-image-0', 'formal-image-1']);
+  expect(product.descriptionImageIds).toBeUndefined();
+  expect(sourceMediaImports).toEqual([]);
   // Classification must update the already-public immutable detail as well as
   // the admin row. Exercise the same bulk control the client asked for.
   for (const label of ['Misc', 'Headphones']) {
