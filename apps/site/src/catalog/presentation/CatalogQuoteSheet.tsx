@@ -193,7 +193,7 @@ export function CatalogQuoteSheet({
     label: string,
     options?: { type?: string; maxLength?: number; autoComplete?: string },
   ) => (
-    <div>
+    <div className="min-w-0">
       <label className="mb-2 block text-sm font-medium" htmlFor={`${id}-${name}`}>
         {label}
       </label>
@@ -205,7 +205,7 @@ export function CatalogQuoteSheet({
           {...register(name)}
           aria-invalid={!!errors[name]}
           aria-describedby={errors[name] ? `${id}-${name}-error` : undefined}
-          className="w-full rounded-lg border border-slate-300 p-3 text-base"
+          className="w-full min-w-0 max-w-full resize-y rounded-lg border border-slate-300 p-3 text-base"
         />
       ) : (
         <input
@@ -223,7 +223,7 @@ export function CatalogQuoteSheet({
           )}
           aria-invalid={!!errors[name]}
           aria-describedby={errors[name] ? `${id}-${name}-error` : undefined}
-          className="min-h-11 w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-base"
+          className="min-h-11 w-full min-w-0 max-w-full rounded-lg border border-slate-300 px-3 py-2 text-base"
         />
       )}
       {error(name)}
@@ -272,15 +272,15 @@ export function CatalogQuoteSheet({
         if (!sending.current) onClose();
       }}
       onClose={onClose}
-      className="fixed inset-x-0 bottom-0 top-auto m-0 max-h-[92dvh] w-full max-w-none overflow-y-auto rounded-t-2xl border border-slate-200 bg-white p-0 text-ink shadow-xl backdrop:bg-brand-950/50 sm:inset-0 sm:m-auto sm:w-[min(44rem,calc(100%-2rem))] sm:rounded-2xl"
+      className="fixed inset-x-0 bottom-0 top-auto m-0 max-h-[92dvh] w-full min-w-0 max-w-none overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain rounded-t-2xl border border-slate-200 bg-white p-0 text-ink shadow-xl [touch-action:pan-y_pinch-zoom] backdrop:bg-brand-950/50 sm:inset-0 sm:m-auto sm:w-[min(44rem,calc(100%_-_2rem))] sm:rounded-2xl"
     >
-      <div className="p-5 sm:p-8">
+      <div className="min-w-0 p-5 [overflow-wrap:anywhere] sm:p-8">
         <div className="flex items-start justify-between gap-3">
           <h2
             ref={heading}
             tabIndex={-1}
             id={`${id}-title`}
-            className="font-display text-xl font-semibold outline-none"
+            className="min-w-0 font-display text-xl font-semibold outline-none"
           >
             {target.intent === 'variant_quote' ? copy.inquiryLabel : text.customizationAction}
           </h2>
@@ -288,7 +288,7 @@ export function CatalogQuoteSheet({
             type="button"
             disabled={submission.status === 'sending'}
             onClick={onClose}
-            className="min-h-11 rounded-lg border px-3 text-sm"
+            className="min-h-11 shrink-0 rounded-lg border px-3 text-sm"
           >
             {text.close}
           </button>
@@ -317,7 +317,7 @@ export function CatalogQuoteSheet({
         </div>
         <ol
           aria-label={text.stepsLabel}
-          className="my-6 flex gap-4 text-xs font-semibold text-ink-muted"
+          className="my-6 flex flex-wrap gap-x-4 gap-y-2 text-xs font-semibold text-ink-muted"
         >
           {(['requirements', 'contact', 'review'] as const).map((name, index) => (
             <li
@@ -348,7 +348,7 @@ export function CatalogQuoteSheet({
             <p className="text-xs leading-5 text-ink-muted">{text.quantityPolicy}</p>
             {field('deliveryDate', text.deliveryDate, { type: 'date' })}
             {target.intent === 'customization' && (
-              <fieldset>
+              <fieldset className="min-w-0">
                 <legend className="mb-2 text-sm font-medium">{text.customizationTypes}</legend>
                 <div className="grid grid-cols-2 gap-2">
                   {customizationTypes.map((value) => (

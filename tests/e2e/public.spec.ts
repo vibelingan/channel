@@ -1904,7 +1904,8 @@ test.describe('public browser smoke', () => {
       await expect(signedInPage.locator('[data-menu-toggle]')).toBeVisible();
       const mobileAccountTrigger = signedInPage
         .locator('[data-mobile-menu]')
-        .getByRole('button', { name: new RegExp(longNameMember.username) });
+        .getByRole('link', { name: 'Account settings', exact: true });
+      await expect(mobileAccountTrigger).toHaveAttribute('href', '/account');
       await expect(mobileAccountTrigger).toBeFocused();
       expect(
         await signedInPage.evaluate(
@@ -1936,7 +1937,7 @@ test.describe('public browser smoke', () => {
       await expect(
         signedInPage
           .locator('[data-mobile-menu]')
-          .getByRole('button', { name: new RegExp(longNameMember.username) }),
+          .getByRole('link', { name: 'Account settings', exact: true }),
       ).toBeFocused();
     } finally {
       await signedInContext.close();

@@ -124,13 +124,16 @@ export function CountryPicker({
         )}
         <Popover
           UNSTABLE_portalContainer={portal ?? undefined}
-          boundaryElement={portal?.closest('dialog') ?? undefined}
+          // The portal is fixed to the viewport. Use React Aria's viewport
+          // boundary, not the scrolled dialog's document-space coordinates.
           placement="top start"
-          className="pointer-events-auto z-50 w-[var(--trigger-width)] max-w-[calc(100vw-2rem)] overflow-auto rounded-lg border border-slate-200 bg-white p-1 text-ink shadow-xl"
+          className="pointer-events-auto z-50 flex w-[var(--trigger-width)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white p-1 text-ink shadow-xl"
           maxHeight={240}
         >
           <ListBox<{ value: string; label: string }>
-            className="outline-none"
+            // ComboBox's scrollRef points to ListBox: it must own scrolling so
+            // focusing a selected option never scrolls/dismisses the outer dialog.
+            className="min-h-0 overflow-auto overscroll-contain outline-none"
             renderEmptyState={() => <p className="p-3 text-sm text-ink-muted">{emptyLabel}</p>}
           >
             {(item) => (

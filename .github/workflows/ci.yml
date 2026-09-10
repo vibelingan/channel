@@ -90,8 +90,8 @@ jobs:
       - name: Discover Playwright specs
         run: pnpm test:e2e --list
 
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
+      - name: Install Playwright Chromium and WebKit
+        run: pnpm exec playwright install --with-deps chromium webkit
 
       - name: Exercise built catalog and Admin with an isolated local database
         env:

@@ -1,5 +1,268 @@
-import { expect, test } from '@playwright/test';
+import { type Locator, expect, test } from '@playwright/test';
 import { detailFixture } from '../../apps/site/src/catalog/testing/detail-fixture.ts';
+
+async function focusCountry(country: Locator) {
+  await country.click();
+  // Playwright can type before the scroll event from bringing the input into
+  // view is delivered. Let that scroll finish before opening the popup; React
+  // Aria correctly dismisses an open popup when its parent is scrolled.
+  await country.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
+}
+
+async function expectContainedQuote(dialog: Locator) {
+  const measured = await dialog.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    const form = element.querySelector('form');
+    const formBounds = form?.getBoundingClientRect();
+    const controls = Array.from(
+      element.querySelectorAll(
+        'input:not([type=hidden]), textarea, button, h2, [data-rfq-context], [data-rfq-review]',
+      ),
+    )
+      .filter((item) => item.getClientRects().length > 0)
+      .map((item) => ({
+        tag: item.tagName,
+        type: item.getAttribute('type'),
+        left: item.getBoundingClientRect().left,
+        right: item.getBoundingClientRect().right,
+      }));
+    return {
+      width: innerWidth,
+      left: bounds.left,
+      right: bounds.right,
+      scrollWidth: element.scrollWidth,
+      clientWidth: element.clientWidth,
+      formWidth: form?.scrollWidth,
+      formClient: form?.clientWidth,
+      formLeft: formBounds?.left ?? -1,
+      formRight: formBounds?.right ?? -1,
+      controls,
+      overflowX: getComputedStyle(element).overflowX,
+      touchAction: getComputedStyle(element).touchAction,
+    };
+  });
+  expect(measured.left).toBeGreaterThanOrEqual(-1);
+  expect(measured.right).toBeLessThanOrEqual(measured.width + 1);
+  expect(measured.scrollWidth).toBeLessThanOrEqual(measured.clientWidth + 1);
+  expect(measured.formWidth).toBeLessThanOrEqual((measured.formClient ?? 0) + 1);
+  for (const control of measured.controls) {
+    expect(control.left, JSON.stringify(control)).toBeGreaterThanOrEqual(measured.left - 1);
+    expect(control.right, JSON.stringify(control)).toBeLessThanOrEqual(measured.right + 1);
+  }
+  expect(measured.overflowX).toBe('hidden');
+  expect(measured.touchAction).toContain('pan-y');
+  expect(measured.touchAction).toContain('pinch-zoom');
+}
+
+test.describe('responsive quote sheet', { tag: '@mobile-regression' }, () => {
+  test.use({ hasTouch: true });
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 390, height: 844 },
+    { width: 568, height: 320 },
+    { width: 768, height: 1024 },
+    { width: 1024, height: 768 },
+    { width: 1440, height: 900 },
+  ])
+    test(`quote/customization stays contained through all steps at ${viewport.width}x${viewport.height}`, async ({
+      page,
+      browserName,
+    }, testInfo) => {
+      test.setTimeout(90000);
+      await page.setViewportSize(viewport);
+      const detail = detailFixture();
+      detail.name = `Product-${'X'.repeat(180)}`;
+      const first = detail.variants.items[0];
+      if (!first) throw new Error('Missing fixture variant');
+      first.options = [{ name: 'Configuration', value: `Option-${'Y'.repeat(150)}` }];
+      await page.route('**/api/products/canonical-product/detail*', (route) =>
+        route.fulfill({ contentType: 'application/json', body: envelope(detail) }),
+      );
+      await page.route('**/api/images/**', (route) =>
+        route.fulfill({ contentType: 'image/png', body: imageBytes }),
+      );
+      let sends = 0;
+      await page.route('**/api/catalog-quote-requests', (route) => {
+        sends++;
+        return route.abort();
+      });
+      await page.goto('/products/item/?id=canonical-product');
+      // Intl region labels depend on the browser's ICU data (macOS/Linux may
+      // use Hong Kong / Hong Kong SAR China). HK is the stable stored identity.
+      const hongKongLabel = await page.evaluate(() =>
+        new Intl.DisplayNames(['en'], { type: 'region' }).of('HK'),
+      );
+      if (!hongKongLabel) throw new Error('Missing HK display name');
+      for (const action of ['Request a quote', 'Ask about customization']) {
+        const opener = page.getByRole('button', { name: action, exact: true });
+        await opener.click();
+        const dialog = page.getByRole('dialog');
+        await expect(dialog).toBeVisible();
+        await expectContainedQuote(dialog);
+        if (process.env.E2E_RECORD_ARTIFACTS === '1' && [390, 1440].includes(viewport.width))
+          await page.screenshot({ path: testInfo.outputPath(`${action}-requirements.png`) });
+        await dialog.getByRole('button', { name: 'Continue to contact' }).click();
+        await expect(dialog.getByRole('alert').first()).toBeVisible();
+        await expectContainedQuote(dialog);
+        await dialog.getByRole('textbox', { name: 'Requested quantity', exact: true }).fill('20');
+        const date = new Date();
+        date.setDate(date.getDate() + 14);
+        await dialog.locator('input[type=date]').fill(date.toISOString().slice(0, 10));
+        if (action === 'Ask about customization') {
+          await dialog.getByRole('checkbox', { name: 'Packaging', exact: true }).check();
+          await dialog
+            .locator('textarea')
+            .fill('Use recyclable packaging and print our company logo.');
+        }
+        await expectContainedQuote(dialog);
+        await dialog.getByRole('button', { name: 'Continue to contact' }).click();
+        await dialog
+          .getByRole('textbox', { name: 'Contact name', exact: true })
+          .fill('Mobile Test Buyer');
+        await dialog
+          .getByRole('textbox', { name: 'Email', exact: true })
+          .fill(`${'a'.repeat(60)}@example.test`);
+        await dialog.getByRole('textbox', { name: 'Company', exact: true }).fill('C'.repeat(180));
+        const country = dialog.getByRole('combobox', { name: 'Company country / region' });
+        await focusCountry(country);
+        await country.fill('HK');
+        const option = dialog.getByRole('option', { name: /Hong Kong/ });
+        await expect(option).toBeVisible();
+        await option.evaluate(
+          () =>
+            new Promise<void>((resolve) => {
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+            }),
+        );
+        // Filtering changes popup height; assert its settled bounds, not the
+        // intermediate placement from the previous result list.
+        await expect
+          .poll(async () => {
+            const rect = await option.boundingBox();
+            return rect
+              ? Math.min(
+                  rect.x,
+                  rect.y,
+                  viewport.width - rect.x - rect.width,
+                  viewport.height - rect.y - rect.height,
+                )
+              : -1;
+          })
+          .toBeGreaterThanOrEqual(0);
+        // Tap the visible option like a touch user. Locator.click's automatic
+        // scrollIntoView can scroll the dialog around an already-visible fixed
+        // portal and dismiss it. Verify hit-testing rather than force-clicking.
+        const hit = await option.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          const x = rect.left + rect.width / 2;
+          const y = rect.top + rect.height / 2;
+          return { x, y, reachable: element.contains(document.elementFromPoint(x, y)) };
+        });
+        expect(hit.reachable).toBe(true);
+        await page.touchscreen.tap(hit.x, hit.y);
+        await expect(country).toHaveValue(hongKongLabel);
+        await expect(dialog.locator('input[type=hidden][name=country]')).toHaveValue('HK');
+        await expect(country).toBeFocused();
+        await country.press('ArrowDown');
+        await expect(country).toHaveAttribute('aria-expanded', 'true');
+        await country.press('Escape');
+        await expect(country).toHaveAttribute('aria-expanded', 'false');
+        await expect(dialog).toBeVisible();
+        await expectContainedQuote(dialog);
+        await dialog.getByRole('button', { name: 'Review request' }).click();
+        await expect(dialog.locator('[data-rfq-review]')).toContainText('Hong Kong');
+        await expectContainedQuote(dialog);
+        await page.evaluate(async () => {
+          await document.fonts.ready;
+          await new Promise<void>((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+          });
+        });
+        const backgroundY = await page.evaluate(() => scrollY);
+        await dialog.evaluate((element) => {
+          element.scrollLeft = 120;
+          element.scrollTop = element.scrollHeight;
+        });
+        expect(await dialog.evaluate((element) => element.scrollLeft)).toBe(0);
+        expect(await dialog.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+        expect(await page.evaluate(() => scrollY)).toBe(backgroundY);
+        if (browserName === 'chromium' && viewport.width === 390) {
+          await dialog.evaluate((element) => {
+            element.scrollTop = 0;
+          });
+          const session = await page.context().newCDPSession(page);
+          const rect = await dialog.boundingBox();
+          if (!rect) throw new Error('Quote sheet is missing');
+          const start = { x: viewport.width / 2, y: rect.y + rect.height / 2 };
+          expect(
+            await dialog.evaluate(
+              (element, point) => element.contains(document.elementFromPoint(point.x, point.y)),
+              start,
+            ),
+          ).toBe(true);
+          // Emit a real touch sequence rather than the platform-dependent
+          // synthetic scroll shortcut. Wait for presented frames and assert the
+          // resulting scroll offset; never mutate it to simulate a gesture.
+          const swipe = async (dx: number, dy: number) => {
+            const point = (x: number, y: number) => ({ x, y, id: 1, radiusX: 5, radiusY: 5 });
+            await session.send('Input.dispatchTouchEvent', {
+              type: 'touchStart',
+              touchPoints: [point(start.x, start.y)],
+            });
+            for (let step = 1; step <= 12; step++) {
+              await session.send('Input.dispatchTouchEvent', {
+                type: 'touchMove',
+                touchPoints: [point(start.x + (dx * step) / 12, start.y + (dy * step) / 12)],
+              });
+              await page.evaluate(
+                () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+              );
+            }
+            await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+          };
+          await swipe(-120, 0);
+          expect(await dialog.evaluate((element) => element.scrollLeft)).toBe(0);
+          await expectContainedQuote(dialog);
+          await swipe(0, -200);
+          await expect
+            .poll(() => dialog.evaluate((element) => element.scrollTop))
+            .toBeGreaterThan(0);
+          expect(await page.evaluate(() => scrollY)).toBe(backgroundY);
+          await session.detach();
+        }
+        await dialog.getByRole('button', { name: 'Back', exact: true }).click();
+        await expect(country).toHaveValue(hongKongLabel);
+        await expect(dialog.locator('input[type=hidden][name=country]')).toHaveValue('HK');
+        await page.keyboard.press('Escape');
+        await expect(dialog).not.toBeVisible();
+        await expect(opener).toBeFocused();
+        await opener.click();
+        await expect(
+          dialog.getByRole('textbox', { name: 'Requested quantity', exact: true }),
+        ).toHaveValue('20');
+        await expectContainedQuote(dialog);
+        await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+        await expect(dialog).not.toBeVisible();
+      }
+      if (viewport.width === 390) {
+        await page.getByRole('button', { name: 'Request a quote', exact: true }).click();
+        await page.evaluate(() => {
+          document.documentElement.style.fontSize = '24px';
+        });
+        await expectContainedQuote(page.getByRole('dialog'));
+        await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+        await page.evaluate(() => {
+          document.documentElement.style.fontSize = '';
+        });
+      }
+      expect(sends).toBe(0);
+    });
+});
 
 function colorDetail() {
   const detail = detailFixture();

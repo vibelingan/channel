@@ -176,9 +176,9 @@ jobs:
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
         run: pnpm smoke:cloudbase
 
-      - name: Install Playwright Chromium
+      - name: Install Playwright Chromium and WebKit
         if: ${{ github.event_name == 'push' || github.event.inputs.run_public_e2e == 'true' || github.event.inputs.run_media_upload_smoke == 'true' || github.event.inputs.run_oem_upload_smoke == 'true' }}
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium webkit
 
       - name: Run public browser E2E
         if: ${{ github.event_name == 'push' || github.event.inputs.run_public_e2e == 'true' }}
