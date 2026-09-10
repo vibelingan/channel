@@ -140,8 +140,12 @@ test('editor uses desktop space, contains scrolling, previews images and protect
   for (const width of [1440, 1024, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     const geometry = await dialog.evaluate((el) => {
-      const box = (selector: string) => {
-        const node = el.querySelector(selector);
+      const box = (selector: string, section = false) => {
+        const node = section
+          ? Array.from(el.querySelectorAll('fieldset')).find(
+              (field) => field.querySelector('legend')?.textContent === selector,
+            )
+          : el.querySelector(selector);
         if (!node) throw new Error(`Missing editor section ${selector}`);
         const b = node.getBoundingClientRect();
         return { x: b.x, y: b.y, width: b.width, bottom: b.bottom };
@@ -149,8 +153,11 @@ test('editor uses desktop space, contains scrolling, previews images and protect
       return {
         width: el.getBoundingClientRect().width,
         overflow: el.scrollWidth > el.clientWidth,
-        identity: box('fieldset:nth-of-type(1)'),
-        media: box('fieldset:nth-of-type(3)'),
+        identity: box('Identity', true),
+        identityLastField: box('#slug'),
+        content: box('Content', true),
+        media: box('Media', true),
+        pricing: box('Pricing & Order', true),
         actions: box('[data-record-form-actions]'),
       };
     });
@@ -160,6 +167,13 @@ test('editor uses desktop space, contains scrolling, previews images and protect
       expect(geometry.width).toBeGreaterThan(width * 0.7);
       expect(geometry.media.x).toBeGreaterThan(geometry.identity.x + geometry.identity.width);
       expect(Math.abs(geometry.media.y - geometry.identity.y)).toBeLessThan(3);
+      // Width alone missed a stretched, mostly empty Identity card. Each
+      // column must stack compactly, independently of its taller neighbour.
+      expect(geometry.identity.bottom - geometry.identityLastField.bottom).toBeLessThanOrEqual(32);
+      expect(geometry.content.y - geometry.identity.bottom).toBeGreaterThanOrEqual(12);
+      expect(geometry.content.y - geometry.identity.bottom).toBeLessThanOrEqual(32);
+      expect(geometry.pricing.y - geometry.media.bottom).toBeGreaterThanOrEqual(12);
+      expect(geometry.pricing.y - geometry.media.bottom).toBeLessThanOrEqual(32);
     } else expect(Math.abs(geometry.media.x - geometry.identity.x)).toBeLessThan(3);
     expect(geometry.actions.bottom).toBeLessThanOrEqual(900);
     await expect(close).toBeInViewport();

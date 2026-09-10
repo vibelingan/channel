@@ -255,6 +255,25 @@ export function RecordForm({
 
   const editableFields = productEditableFields(collection);
   const sections = productFormSections(collection);
+  // Independent stacks avoid a tall Media card stretching Identity and
+  // pushing Content below a large empty row. DOM order also stays the mobile
+  // reading/tab order; no duplicated responsive fields or form state.
+  const sectionColumns = [
+    {
+      key: 'details',
+      sections: sections.filter((s) => ['Identity', 'Content'].includes(s.heading)),
+    },
+    {
+      key: 'media-pricing',
+      sections: sections.filter((s) => ['Media', 'Pricing & Order'].includes(s.heading)),
+    },
+    {
+      key: 'remaining',
+      sections: sections.filter(
+        (s) => !['Identity', 'Content', 'Media', 'Pricing & Order'].includes(s.heading),
+      ),
+    },
+  ];
   const fieldErrors = collection.name === 'products' ? productFormErrorTargets(error) : {};
   const aggregateError =
     localError || (Object.keys(fieldErrors).length === 0 ? error?.message : '');
@@ -292,146 +311,149 @@ export function RecordForm({
         >
           {sections.length > 0 ? (
             <div className="grid min-w-0 gap-6 lg:grid-cols-2">
-              {sections.map((section) => (
-                <fieldset
-                  key={section.heading}
-                  disabled={submitting || sourceImageBusy || discardRequested}
-                  className={`min-w-0 space-y-4 rounded-xl border border-slate-200 p-4 ${
-                    section.heading === 'Identity'
-                      ? 'lg:col-start-1 lg:row-start-1'
-                      : section.heading === 'Content'
-                        ? 'lg:col-start-1 lg:row-start-2'
-                        : section.heading === 'Media'
-                          ? 'lg:col-start-2 lg:row-start-1'
-                          : section.heading === 'Pricing & Order'
-                            ? 'lg:col-start-2 lg:row-start-2'
-                            : 'lg:col-span-2'
-                  }`}
-                >
-                  <legend className="font-semibold text-slate-900">{section.heading}</legend>
-                  {section.heading === 'Pricing & Order' && (
-                    <ProductPricingEditor
-                      initial={initial}
-                      state={state}
-                      error={fieldErrors.manualCatalogPricing}
-                      onChange={(patch) => setState((current) => ({ ...current, ...patch }))}
-                      onValidityChange={setPricingInvalid}
-                    />
-                  )}
+              {sectionColumns
+                .filter((column) => column.sections.length > 0)
+                .map((column) => (
                   <div
-                    className={
-                      section.heading === 'Media' ? 'min-w-0' : 'grid min-w-0 gap-4 sm:grid-cols-2'
-                    }
+                    key={column.key}
+                    className={`min-w-0 space-y-6 ${column.key === 'remaining' ? 'lg:col-span-2' : ''}`}
                   >
-                    {section.heading !== 'Pricing & Order' &&
-                      section.fields.map((field) =>
-                        field.name === 'category' && state.productFamily !== 'headphones' ? null : (
-                          <div
-                            key={field.name}
-                            className={`min-w-0 ${['name', 'description', 'imageIds'].includes(field.name) ? 'sm:col-span-2' : ''}`}
-                          >
-                            <Field
-                              key={field.name}
-                              field={
-                                field.name === 'imageIds'
-                                  ? { ...field, label: 'Product images' }
-                                  : field.name === 'category'
-                                    ? { ...field, label: 'Headphone type (optional)' }
-                                    : field
-                              }
-                              value={state[field.name]}
-                              error={fieldErrors[field.name]}
-                              onBusyChange={
-                                field.name === 'imageIds'
-                                  ? setImageBusy
-                                  : field.name === 'descriptionImageIds'
-                                    ? setDescriptionImageBusy
-                                    : undefined
-                              }
-                              onValidityChange={
-                                field.name === 'manualCatalogPricing'
-                                  ? setPricingInvalid
-                                  : undefined
-                              }
-                              onChange={(value) => setField(field.name, value)}
-                            />
-                          </div>
-                        ),
-                      )}
-                  </div>
-                  {section.heading === 'Media' && sourcePreviewUrl && (
-                    <div className="rounded-lg border border-dashed border-slate-300 p-3">
-                      <div className="flex items-center gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs text-slate-500">
-                            Alibaba source gallery · {sourcePreviewUrls.length} images
-                          </p>
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => void importSourceGallery()}
-                            className="mt-1 text-sm font-medium text-brand-700 hover:text-brand-900 disabled:opacity-50"
-                          >
-                            {sourceImageBusy ? 'Importing…' : 'Import source gallery'}
-                          </button>
+                    {column.sections.map((section) => (
+                      <fieldset
+                        key={section.heading}
+                        disabled={submitting || sourceImageBusy || discardRequested}
+                        className="min-w-0 space-y-4 rounded-xl border border-slate-200 p-4"
+                      >
+                        <legend className="font-semibold text-slate-900">{section.heading}</legend>
+                        {section.heading === 'Pricing & Order' && (
+                          <ProductPricingEditor
+                            initial={initial}
+                            state={state}
+                            error={fieldErrors.manualCatalogPricing}
+                            onChange={(patch) => setState((current) => ({ ...current, ...patch }))}
+                            onValidityChange={setPricingInvalid}
+                          />
+                        )}
+                        <div
+                          className={
+                            section.heading === 'Media'
+                              ? 'min-w-0'
+                              : 'grid min-w-0 gap-4 sm:grid-cols-2'
+                          }
+                        >
+                          {section.heading !== 'Pricing & Order' &&
+                            section.fields.map((field) =>
+                              field.name === 'category' &&
+                              state.productFamily !== 'headphones' ? null : (
+                                <div
+                                  key={field.name}
+                                  className={`min-w-0 ${['name', 'description', 'imageIds'].includes(field.name) ? 'sm:col-span-2' : ''}`}
+                                >
+                                  <Field
+                                    key={field.name}
+                                    field={
+                                      field.name === 'imageIds'
+                                        ? { ...field, label: 'Product images' }
+                                        : field.name === 'category'
+                                          ? { ...field, label: 'Headphone type (optional)' }
+                                          : field
+                                    }
+                                    value={state[field.name]}
+                                    error={fieldErrors[field.name]}
+                                    onBusyChange={
+                                      field.name === 'imageIds'
+                                        ? setImageBusy
+                                        : field.name === 'descriptionImageIds'
+                                          ? setDescriptionImageBusy
+                                          : undefined
+                                    }
+                                    onValidityChange={
+                                      field.name === 'manualCatalogPricing'
+                                        ? setPricingInvalid
+                                        : undefined
+                                    }
+                                    onChange={(value) => setField(field.name, value)}
+                                  />
+                                </div>
+                              ),
+                            )}
                         </div>
-                      </div>
-                      <div
-                        className="mt-3 flex flex-wrap gap-2"
-                        aria-label="Alibaba source gallery"
-                      >
-                        {sourcePreviewUrls.map((url, index) => (
-                          <button
-                            key={url}
-                            type="button"
-                            aria-label={`Preview source image ${index + 1}`}
-                            onClick={() => setSourcePreviewId(url)}
-                            className="h-16 w-16 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 hover:border-brand-600 focus-visible:ring-2 focus-visible:ring-brand-600"
-                          >
-                            <PreviewImageContent
-                              src={url}
-                              alt=""
-                              className="h-full w-full object-contain"
-                            />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {section.heading === 'Media' && descriptionPreviewUrls.length > 0 && (
-                    <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-3">
-                      <p className="text-xs text-slate-500">
-                        Source description · {descriptionPreview.total} images (separate from the
-                        product gallery)
-                      </p>
-                      {descriptionSourceOverflow && (
-                        <p className="mt-1 text-xs text-slate-600">
-                          Up to {descriptionPreviewUrls.length} description images can be saved.
-                          Import the first {descriptionPreviewUrls.length}, then review or remove
-                          them in Description images. The remaining source images are not imported.
-                        </p>
-                      )}
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void importSourceGallery(true)}
-                        className="mt-2 min-h-11 text-sm font-medium text-brand-700 disabled:opacity-50"
-                      >
-                        {sourceImageBusy
-                          ? 'Importing…'
-                          : descriptionSourceOverflow
-                            ? `Import first ${descriptionPreviewUrls.length} description images`
-                            : 'Import description images'}
-                      </button>
-                    </div>
-                  )}
-                  {section.heading === 'Media' && sourceImageNotice && (
-                    <output className="mt-2 block text-xs text-slate-600">
-                      {sourceImageNotice}
-                    </output>
-                  )}
-                </fieldset>
-              ))}
+                        {section.heading === 'Media' && sourcePreviewUrl && (
+                          <div className="rounded-lg border border-dashed border-slate-300 p-3">
+                            <div className="flex items-center gap-3">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs text-slate-500">
+                                  Alibaba source gallery · {sourcePreviewUrls.length} images
+                                </p>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => void importSourceGallery()}
+                                  className="mt-1 text-sm font-medium text-brand-700 hover:text-brand-900 disabled:opacity-50"
+                                >
+                                  {sourceImageBusy ? 'Importing…' : 'Import source gallery'}
+                                </button>
+                              </div>
+                            </div>
+                            <div
+                              className="mt-3 flex flex-wrap gap-2"
+                              aria-label="Alibaba source gallery"
+                            >
+                              {sourcePreviewUrls.map((url, index) => (
+                                <button
+                                  key={url}
+                                  type="button"
+                                  aria-label={`Preview source image ${index + 1}`}
+                                  onClick={() => setSourcePreviewId(url)}
+                                  className="h-16 w-16 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 hover:border-brand-600 focus-visible:ring-2 focus-visible:ring-brand-600"
+                                >
+                                  <PreviewImageContent
+                                    src={url}
+                                    alt=""
+                                    className="h-full w-full object-contain"
+                                  />
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {section.heading === 'Media' && descriptionPreviewUrls.length > 0 && (
+                          <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-3">
+                            <p className="text-xs text-slate-500">
+                              Source description · {descriptionPreview.total} images (separate from
+                              the product gallery)
+                            </p>
+                            {descriptionSourceOverflow && (
+                              <p className="mt-1 text-xs text-slate-600">
+                                Up to {descriptionPreviewUrls.length} description images can be
+                                saved. Import the first {descriptionPreviewUrls.length}, then review
+                                or remove them in Description images. The remaining source images
+                                are not imported.
+                              </p>
+                            )}
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void importSourceGallery(true)}
+                              className="mt-2 min-h-11 text-sm font-medium text-brand-700 disabled:opacity-50"
+                            >
+                              {sourceImageBusy
+                                ? 'Importing…'
+                                : descriptionSourceOverflow
+                                  ? `Import first ${descriptionPreviewUrls.length} description images`
+                                  : 'Import description images'}
+                            </button>
+                          </div>
+                        )}
+                        {section.heading === 'Media' && sourceImageNotice && (
+                          <output className="mt-2 block text-xs text-slate-600">
+                            {sourceImageNotice}
+                          </output>
+                        )}
+                      </fieldset>
+                    ))}
+                  </div>
+                ))}
               {initial && needsCategoryReview(initial) && (
                 <p
                   role="alert"
