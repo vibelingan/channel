@@ -156,6 +156,11 @@ Zod 只能证明结果符合现有允许空值的 schema，不能证明 47 条�
 | 17 张图片型描述 | content.description.imageUrls → descriptionImageIds | 共用 CatalogDescriptionImages，最多 18 张，独立于主图配额 |
 | 人工价格 | resolveManualCatalogPricing → editor/list decision / approval DTO | 同样的 1.234 在所有边界均为无效，不覆盖真实 raw |
 
+独立复核不只使用脱敏 fixture：本轮还将本机保留的 10,777 字节原始响应重新送入当前真实 parser /
+adapter，实测得到 47 条属性、6 张主图、17 张详情图、3 个 SKU 选项，商品报价 USD 767 分 / MOQ 1，
+SKU 报价 unavailable / MOQ 1；warnings 为 description-sanitized 与 invalid-source-pricing。
+这是对已保存 9 月 3 日响应的本地重新解析，不是新鲜 API 调用，也没有写回云端。
+
 图片 URL 由已安装的 parse5 提取，不执行源 HTML。超长/非法 URL 和解析配额会产生 warning；
 最终发布必须经过原有下载、所有权、MIME、媒体状态与引用计数检查。仅有外部 URL 不足以发布。
 纯图片描述允许发布的条件是已有合法、已保存、可用的 descriptionImageIds，不能仅因正文为空拒绝。
