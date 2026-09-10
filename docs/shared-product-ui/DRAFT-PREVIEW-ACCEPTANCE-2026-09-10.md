@@ -11,6 +11,9 @@ This follows the customer's rejected Admin acceptance, not a new product design.
    USD 6.00–7.89. This is a projection/read-path mismatch, not evidence that
    Alibaba returned no price. Admin now labels available source evidence when
    the legacy projection is absent; manual pricing remains authoritative.
+   A second live check of the screenshot's first row, EB1 / external ID
+   `AAEVBBhgAOVTpOKZBnRTvUv1`, found the same mismatch: source review already
+   showed MOQ 7 and USD 2.52–4.89 while the list still showed unavailable.
 2. That draft's Prepare detail review failed. Local reproduction showed the sync
    materializer omits `imageIds`, but review validation required the array. Treat
    an omitted array as an empty review gallery; null/malformed values still fail.
@@ -23,6 +26,13 @@ This follows the customer's rejected Admin acceptance, not a new product design.
 
 Escape cause: earlier acceptance sampled previously edited/published products,
 not the untouched materialized draft state, and checked Edit rather than Preview.
+
+Public product `0aa9d459-159c-4ffa-a5c0-db9a8e7c642f` was also reread through
+`/api/products/{id}/detail?view=sections`: `websitePricing.basis=website-manual`,
+MOQ 1000, one tier starting at 1000 with `unitAmountMinor=380`, currency USD.
+That visible single tier is the approved manual website price, not evidence of
+the renderer truncating an Alibaba three-tier response. This release preserves
+the values and corrects the manual table's misleading source-price column label.
 
 ## Local evidence
 
@@ -43,6 +53,37 @@ not the untouched materialized draft state, and checked Edit rather than Preview
   One earlier local baseline attempt collided with the full workspace test's Astro
   build cache; the lanes were rerun sequentially. That build failure was not waived.
 - Release evidence is still pending below. No direct cloud deployment is allowed.
+
+## Release trace
+
+- Fix commit: `18a7f3e94bb29c2745d512ba2a327162fd1637a7`.
+- Feature CI [34428818272](https://github.com/vibelingan/channel/actions/runs/34428818272)
+  passed: 1,478 unit assertions, 76 baseline browser checks, 62 formal-route checks.
+- [PR #39](https://github.com/vibelingan/channel/pull/39) merged into **test only**
+  as `9eabedab567fa41aac4a77e75f2fba0208b8a275` after that CI succeeded.
+- [Deploy Test 34429504839](https://github.com/vibelingan/channel/actions/runs/34429504839)
+  reruns full CI at the merge SHA before any deployment. Completion and live
+  acceptance are pending; a merge alone does not establish delivery.
+
+## Follow-up found by live browser acceptance
+
+At `9eabeda`, both screenshot drafts opened the shared preview successfully.
+The gaming headset has five loaded images, two configurations and four tiers:
+10–99 / USD 7.89; 100–499 / 6.89; 500–999 / 6.57; 1000+ / 6.00.
+Selecting Red and quantity 100 returned USD 6.89; quantity 9 returned below-MOQ.
+EB1 has four loaded images, three configurations and four tiers:
+7–99 / USD 4.89; 100–499 / 3.72; 500–999 / 3.31; 1000+ / 2.52.
+The desktop preview measured 1440px wide. Close/actions remained in the viewport
+after scrolling supplier notes. No product was published or marked reviewed.
+
+Live Edit still used the old effective-price block for untouched drafts, despite
+the list and Preview now showing existing source prices. A new failing regression
+captured this contradiction. The follow-up reuses the same private source fallback
+in Edit and presents the existing source-tier component in place of the unavailable
+legacy block. Explicit manual prices and missing-source guards remain unchanged;
+the fallback does not write source evidence into manual overrides or public DTOs.
+The extended production-build formal lane passed all 62 checks, including Edit
+price visibility and close-without-write. Follow-up release is pending.
 
 ## Domain / mailbox investigation (read-only)
 

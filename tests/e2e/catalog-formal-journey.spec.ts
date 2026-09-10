@@ -121,6 +121,15 @@ test('untouched sync draft: source prices, shared preview, pagination and access
   await dialog.getByRole('button', { name: 'Retry product preview' }).click();
   await expect(dialog.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
   await close.click();
+  // Edit must not revert to a contradictory legacy unavailable price after Preview works.
+  await row.getByRole('button', { name: 'Edit', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit Product', exact: true });
+  const pricePreview = editor.getByRole('region', { name: 'Effective website pricing' });
+  await expect(pricePreview).toContainText('USD 7.89');
+  await expect(pricePreview).toContainText('USD 7.00');
+  await expect(pricePreview).toContainText('USD 6.00');
+  await expect(pricePreview).not.toContainText('Pricing unavailable');
+  await editor.getByRole('button', { name: 'Close editor', exact: true }).click();
   const after = await getDraft();
   expect(after.published).toBe(false);
   expect(after.imageIds).toBeUndefined();

@@ -4,6 +4,7 @@ import { EffectiveCatalogPricingBlock } from '../shop/EffectiveCatalogPricingBlo
 import { effectiveCatalogMoq, effectiveCatalogPricing } from '../shop/catalog-pricing.ts';
 import { AlibabaSourceQuote } from './AlibabaSourceQuote.tsx';
 import { QuantityTierPricingEditor } from './QuantityTierPricingEditor.tsx';
+import { adminSourcePricingFallback } from './alibaba-source-review.ts';
 import { adminCatalogPricingInput, manualPricingSeed } from './product-pricing-editor.ts';
 
 interface Props {
@@ -30,13 +31,15 @@ export function ProductPricingEditor({
   }
   const number = (value: unknown) =>
     typeof value === 'string' && value.trim() ? Number(value) : undefined;
-  const input = adminCatalogPricingInput({
+  const pricingDoc = {
     ...initial,
     catalogPricingMode: state.catalogPricingMode,
     manualCatalogPricing: tiers,
     wholesalePrice: number(state.wholesalePrice),
     unitPrice: number(state.unitPrice),
-  });
+  };
+  const input = adminCatalogPricingInput(pricingDoc);
+  const sourceFallback = adminSourcePricingFallback(pricingDoc);
   const decision = effectiveCatalogPricing(input);
   const linked =
     typeof initial.alibabaPrimarySourceKey === 'string' &&
@@ -94,8 +97,14 @@ export function ProductPricingEditor({
         <p className="mb-2 text-xs text-slate-600">
           Based on the current form values. Unsaved changes are not live.
         </p>
-        <EffectiveCatalogPricingBlock product={input} />
-        {moq !== undefined && <p className="mt-2 text-sm">Minimum order quantity: {moq}</p>}
+        {sourceFallback ? (
+          <AlibabaSourceQuote value={sourceFallback} />
+        ) : (
+          <>
+            <EffectiveCatalogPricingBlock product={input} />
+            {moq !== undefined && <p className="mt-2 text-sm">Minimum order quantity: {moq}</p>}
+          </>
+        )}
       </section>
       {manual && (
         <>
@@ -152,7 +161,7 @@ export function ProductPricingEditor({
           )}
         </>
       )}
-      {linked && (
+      {linked && !sourceFallback && (
         <details className="text-sm text-slate-600">
           <summary>Source quotation for comparison</summary>
           <div className="mt-3">
