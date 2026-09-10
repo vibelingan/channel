@@ -1,6 +1,6 @@
 # 商品数据一致性审计：根因与整改边界
 
-状态：本地整改已实现；原始响应回归、共享规则及函数包验证通过。尚未发布或重放线上数据。
+状态：整改已通过 PR #43 合入 test，并由 CI/CD 发布同一版本 `5678d047`；线上公共浏览器 60 项通过，1,074 件来源数据重放已落库。认证闭环发现的测试等待问题及追加验收见下方记录。
 日期：2026-09-10。范围：Alibaba 原始响应、列表/编辑、草稿 Preview、审核发布、正式详情。
 
 ## 结论
@@ -75,6 +75,27 @@ Zod 只能证明结果符合现有允许空值的 schema，不能证明 47 条�
 这里“不各自请求”指不让每个价格/图片子组件重复获取整份商品；不是禁止页面容器刷新 API。
 后台现有 TanStack Query 用于列表/询价等服务端状态；新详情选型/表单使用 React state，
 部分 Preview 使用 effect。复用现有请求层，缓存必须区分草稿与批准版本，不能跨权限共享。
+
+## 状态管理分层说明（2026-09-10 发布前复核）
+
+| 层 | 当前用途 | 不应该承担的职责 |
+| --- | --- | --- |
+| TanStack Query | 后台列表、询价等服务端数据的请求/缓存/失效 | 不把未保存表单当成已落库数据，不跨权限或草稿/发布版本复用结果 |
+| React state | 选中配置、步骤、弹窗、商品编辑器的未保存 patch | 不另存一份可独立编辑的最终报价；可推导内容应由输入计算 |
+| React Hook Form | RFQ 联系字段、错误、dirty/touched 与表单提交 | 不与另一份 React state 双向镜像相同字段；不是服务端商品缓存 |
+| Context | 传输能力和预览上下文依赖注入 | 不再复制全局商品/报价列表；Context 本身不是请求缓存 |
+
+这种组合是职责分层，不是四套竞争的数据源。TanStack 官方明确区分 server state 与
+client state，React 官方建议避免重复与可推导 state。当前 AdminDetailPreview 还使用
+局部 effect + AbortController 管理审核读取，不应声称所有服务端读取都已迁入 Query。
+它调用共用请求层，且取消旧请求防止商品/分页切换后旧结果覆盖；没有为了本次修复引入新状态库。
+[TanStack 的职责边界](https://tanstack.com/query/latest/docs/framework/react/guides/does-this-replace-client-state)、
+[React state 结构原则](https://react.dev/learn/choosing-the-state-structure)
+
+例如来源报价 7.67，管理员正在输入人工价 8.50：此时草稿仅存在编辑器，列表和官网不应
+提前变成 8.50。保存成功后刷新对应后台记录；公开详情仍依据批准版本。批准人工覆盖后，
+网站统一用 8.50；下次来源同步即使变成 7.80，也不能覆盖人工价。这里价格值为说明用例，
+不是本轮给任何线上产品新增价格。原始解析缺失与缓存过期是不同问题，不能混称为 state 冲突。
 
 ## MIU DC-01 — 原始响应到公共商品的完整性
 
@@ -211,7 +232,37 @@ handler 后的草稿、编辑、Preview、批准、公开详情，以及 RFQ→A
 5. 抽查同一商品的 raw / observation / 草稿 Preview；需要公开更新的商品再显式审核并发布。
    已发布快照不随 raw 重放自动改变。未经过此步骤的线上记录仍可能显示此前的不完整投影。
 
-本轮未执行上述线上写入，未重发邮件、改 DNS 或改分类规则，也没有删除旧人工价格兼容字段。
+## 线上发布与验收记录（2026-09-10）
+
+- PR [#43](https://github.com/vibelingan/channel/pull/43)：head `5f87abba` 的完整 CI 通过后，合入 test，merge SHA 为 `5678d0477b743654be508cd0d8543d27dbe3bf49`。
+- [Deploy Test 34455803773](https://github.com/vibelingan/channel/actions/runs/34455803773) 成功：同 SHA 完整 CI、资源预检、函数包 cold-start、前端构建、部署冒烟、真实站点 41 项 public + 19 项 catalog 全通过。
+- 独立 HTTP 读取确认 admin / public-api / alibaba-catalog-sync 均返回该 releaseId；网页由同一次工作流构建部署。本轮没有通过 MCP/本机 CLI 直接部署任何云函数。
+- 部署前后公开商品基线为相同 9 个 ID。人工价格、网站分类及发布状态属于保护项，不随来源修复覆盖。
+- 真实后台全量 validate：1,074 source products、54 页、3,672 variants、3,661 attributed variants、2,943 warnings；价格分布是报价记录计数，非商品计数：fixed 465 / tiered 1,808 / unavailable 1,870。
+- 后台商品总数 1,081 与本轮范围不冲突：数据库只读确认 7 件没有 `alibabaPrimarySourceKey`。不把非 Alibaba 商品塞入本轮来源重放。
+- 回填批次 `raw-replay-ea4291a4-5e23-4c03-a6b2-d5a1d2ec65d0`：2026-09-10 09:21:07 UTC 服务端确认为 `status=applied / nextApplyIndex=54 / totalSourceProducts=1074`。前台切换编辑页后，数据库 manifest 仍继续前进；此处以服务端记录为验收依据，不以页面提示替代持久化证明。
+- 独立读库确认露营灯 observation 的更新时间为 09:21:05 UTC：47 条属性、6 张主图、17 张描述图、1 个有三个选项属性的 SKU，商品报价 USD 767 分 / MOQ 1，SKU 无效报价保留 MOQ 1。仍是已有 raw 的重算，不是当天新调用 Alibaba。
+- [认证闭环验收 34456817806](https://github.com/vibelingan/channel/actions/runs/34456817806) **失败，不计为通过**：分类预览 0 待应用、两个既有公开样本各六张图且人工值不变、真实询价提交成功；最后读取仍为 in_progress，测试没有正确等待完成保存。此通道使用现有 CI/CD 的 acceptance-only 模式，不单独部署。
+- 实际普通详情路由 `0aa9d459-159c-4ffa-a5c0-db9a8e7c642f` 的人工覆盖确实是一档 `1000+ / USD 3.80`。公共响应同时保留旧 `moq=2` / `unitPrice=5.70`，不能把旧字段当作当前有效价格。页面手测 999 低于 MOQ、1000 返回 USD 3.80、1.5 非法；没有擅改客户人工阶梯。
+
+### 认证验收等待修复（PR #44）
+
+失败测试在整个 Process inquiry 区域寻找 `In progress` / `Completed`。下拉选项会提前出现，
+说明文字本来就有 `Completed means ...`；因此它不能证明保存完成。仅靠末尾一次读库，
+也会在上一笔保存/页面刷新尚未完成时提前失败并结束浏览器。此次实际测试记录停在版本 1。
+
+修复复用 `expectInquirySaved`：等待刷新后的 `data-inquiry-version`、当前状态段落和已复位的
+Save 按钮，再进行下一步。不依赖瞬时提示——编辑器按版本重新挂载，旧实例的提示会消失。
+本地正式链路增加 700ms 的真实后端请求传输延迟，仍使用真实 handler/DB；完成后刷新页面，
+再由 API 独立确认版本 3 / completed。修正后的 41 public + 19 catalog + 4 formal 全通过。
+
+线上测试记录 `6f7907c8-0676-429d-8119-4ceabba5d849` 已通过正常后台操作完成，
+09:16:29 UTC 只读数据库确认为 `status=completed / version=2 / notification=disabled`。
+这是独立人工浏览器核验，不能冒充原失败自动化已通过；修正测试须按 [PR #44](https://github.com/vibelingan/channel/pull/44)
+的 CI/CD 再执行。以上是截至 09:22 UTC 的可核验记录，后续 Actions 结果以对应运行页面为准。
+
+本轮未重发邮件、改 DNS，也没有删除旧人工价格兼容字段。原始数据回填完成不等于未经审核的
+描述图已公开；后台摘要刷新、同商品 Preview 和正式批准仍遵循前述交付顺序。
 
 验收完成标准不是所有组件出现文字，而是：源字段有明确去向；无法采用时有明确原因；
 同一商品版本、SKU、数量和价格策略在各入口得到相同业务结果；未审核内容仍不会泄露。
