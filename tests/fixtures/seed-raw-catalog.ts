@@ -16,8 +16,7 @@ import {
 } from '../../packages/catalog-import/src/source-observations.ts';
 
 /** The raw envelope, normalizer and production materializer are the fixture's only data producers. */
-export async function seedRawCatalog(db: JsonFileAdapter, mediaDirectory: string) {
-  const raw = await readFile(new URL('./alibaba-camping-light-wire.json', import.meta.url), 'utf8');
+async function seedRawObservation(db: JsonFileAdapter, raw: string) {
   const response = parseAlibabaApiResponse(raw);
   assert.equal(response.kind, 'success');
   if (response.kind !== 'success') throw new Error('Raw fixture envelope invalid');
@@ -36,14 +35,6 @@ export async function seedRawCatalog(db: JsonFileAdapter, mediaDirectory: string
   const normalized = normalizeProductDetail({ ...input, now });
   assert.ok(normalized.ok);
   const sourceKey = normalized.sourceProduct.sourceKey;
-  assert.equal(observation.identity.attributes.length, 47);
-  assert.equal(observation.content.description?.imageUrls?.length, 17);
-  assert.deepEqual(observation.offers.find((o) => !o.sourceVariantKey)?.pricing, {
-    mode: 'fixed',
-    currency: 'USD',
-    amountMinor: 767,
-    minimumOrderQuantity: 1,
-  });
   await db.createDocWithId('alibabaSourceProducts', sourceKey, normalized.sourceProduct);
   await db.createDocWithId(
     'catalogSourceObservations',
@@ -54,6 +45,20 @@ export async function seedRawCatalog(db: JsonFileAdapter, mediaDirectory: string
     await db.createDocWithId('alibabaSupplierOffers', offer.offerKey, offer);
   const draft = await createDraftForSource(sourceKey, { now });
   assert.ok(draft.ok);
+  return { observation, draft };
+}
+
+export async function seedRawCatalog(db: JsonFileAdapter, mediaDirectory: string) {
+  const raw = await readFile(new URL('./alibaba-camping-light-wire.json', import.meta.url), 'utf8');
+  const { observation, draft } = await seedRawObservation(db, raw);
+  assert.equal(observation.identity.attributes.length, 47);
+  assert.equal(observation.content.description?.imageUrls?.length, 17);
+  assert.deepEqual(observation.offers.find((o) => !o.sourceVariantKey)?.pricing, {
+    mode: 'fixed',
+    currency: 'USD',
+    amountMinor: 767,
+    minimumOrderQuantity: 1,
+  });
   const gallery = observation.content.media.map((m) => m.sourceUrl);
   const description = observation.content.description?.imageUrls ?? [];
   const ids: string[] = [];
@@ -92,4 +97,7 @@ export async function seedRawCatalog(db: JsonFileAdapter, mediaDirectory: string
     imageIds: ids.slice(0, gallery.length),
     descriptionImageIds: ids.slice(gallery.length),
   });
+  const fobRaw = await readFile(new URL('./alibaba-fob-wire.json', import.meta.url), 'utf8');
+  const fob = await seedRawObservation(db, fobRaw);
+  await db.update('products', fob.draft.productId, { productFamily: 'misc' });
 }

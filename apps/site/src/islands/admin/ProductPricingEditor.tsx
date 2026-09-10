@@ -4,7 +4,7 @@ import { EffectiveCatalogPricingBlock } from '../shop/EffectiveCatalogPricingBlo
 import { effectiveCatalogMoq, effectiveCatalogPricing } from '../shop/catalog-pricing.ts';
 import { AlibabaSourceQuote } from './AlibabaSourceQuote.tsx';
 import { QuantityTierPricingEditor } from './QuantityTierPricingEditor.tsx';
-import { adminSourcePricingFallback } from './alibaba-source-review.ts';
+import { adminSourceMoqFallback, adminSourcePricingFallback } from './alibaba-source-review.ts';
 import { adminCatalogPricingInput, manualPricingSeed } from './product-pricing-editor.ts';
 
 interface Props {
@@ -53,7 +53,8 @@ export function ProductPricingEditor({
   useEffect(() => {
     onValidityChange(invalid);
   }, [invalid, onValidityChange]);
-  const moq = effectiveCatalogMoq({ ...input, moq: number(state.moq) });
+  const moq =
+    effectiveCatalogMoq({ ...input, moq: number(state.moq) }) ?? adminSourceMoqFallback(pricingDoc);
 
   function changeMode(mode: string) {
     if (mode === 'source') {

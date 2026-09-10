@@ -1,6 +1,6 @@
 # 商品数据一致性审计：根因与整改边界
 
-状态：本地整改已实现；原始响应回归、共享规则及函数包验证通过。尚未发布或重放线上数据。
+状态：整改已通过 PR #43 合入 test，并由 CI/CD 发布同一版本 `5678d047`；线上公共浏览器 60 项通过，1,074 件来源数据重放已落库。认证闭环发现的测试等待问题及追加验收见下方记录。
 日期：2026-09-10。范围：Alibaba 原始响应、列表/编辑、草稿 Preview、审核发布、正式详情。
 
 ## 结论
@@ -75,6 +75,27 @@ Zod 只能证明结果符合现有允许空值的 schema，不能证明 47 条�
 这里“不各自请求”指不让每个价格/图片子组件重复获取整份商品；不是禁止页面容器刷新 API。
 后台现有 TanStack Query 用于列表/询价等服务端状态；新详情选型/表单使用 React state，
 部分 Preview 使用 effect。复用现有请求层，缓存必须区分草稿与批准版本，不能跨权限共享。
+
+## 状态管理分层说明（2026-09-10 发布前复核）
+
+| 层 | 当前用途 | 不应该承担的职责 |
+| --- | --- | --- |
+| TanStack Query | 后台列表、询价等服务端数据的请求/缓存/失效 | 不把未保存表单当成已落库数据，不跨权限或草稿/发布版本复用结果 |
+| React state | 选中配置、步骤、弹窗、商品编辑器的未保存 patch | 不另存一份可独立编辑的最终报价；可推导内容应由输入计算 |
+| React Hook Form | RFQ 联系字段、错误、dirty/touched 与表单提交 | 不与另一份 React state 双向镜像相同字段；不是服务端商品缓存 |
+| Context | 传输能力和预览上下文依赖注入 | 不再复制全局商品/报价列表；Context 本身不是请求缓存 |
+
+这种组合是职责分层，不是四套竞争的数据源。TanStack 官方明确区分 server state 与
+client state，React 官方建议避免重复与可推导 state。当前 AdminDetailPreview 还使用
+局部 effect + AbortController 管理审核读取，不应声称所有服务端读取都已迁入 Query。
+它调用共用请求层，且取消旧请求防止商品/分页切换后旧结果覆盖；没有为了本次修复引入新状态库。
+[TanStack 的职责边界](https://tanstack.com/query/latest/docs/framework/react/guides/does-this-replace-client-state)、
+[React state 结构原则](https://react.dev/learn/choosing-the-state-structure)
+
+例如来源报价 7.67，管理员正在输入人工价 8.50：此时草稿仅存在编辑器，列表和官网不应
+提前变成 8.50。保存成功后刷新对应后台记录；公开详情仍依据批准版本。批准人工覆盖后，
+网站统一用 8.50；下次来源同步即使变成 7.80，也不能覆盖人工价。这里价格值为说明用例，
+不是本轮给任何线上产品新增价格。原始解析缺失与缓存过期是不同问题，不能混称为 state 冲突。
 
 ## MIU DC-01 — 原始响应到公共商品的完整性
 
@@ -203,15 +224,86 @@ handler 后的草稿、编辑、Preview、批准、公开详情，以及 RFQ→A
 1. 当前分支提交 → PR 完整 CI（包含正式 E2E）→ 合 test 后相同 SHA 的 Deploy Test；
    公共 schema、Admin、public-api、sync、前台同批。禁止直接 MCP 部署。
 2. 对照发布 SHA / 资源预检 / 旧列表 / 新详情 / Admin 回归，再运行现有后台
-   `replaySourceObservations` 的 validate。版本为 `alibaba-content-pricing-v2`，旧 dry-run hash 不可复用。
+   `replaySourceObservations` 的 validate。最终补充版本为 `alibaba-content-pricing-v3`，旧 dry-run hash 不可复用。
 3. 仅在全页 manifest、raw hash、总数和 lease 均有效时 apply。重放补 observation 和来源 offers，
-   唯一允许增加的是此前漏掉的商品级 wholesale offer；未知 SKU 集合变化仍拒绝。
+   唯一允许增加的是此前漏掉的商品级 wholesale / sourcing FOB offer；未知 SKU 集合变化仍拒绝。
 4. 通过现有 `materializeDrafts` 流程刷新 Alibaba 拥有的草稿摘要与详情图来源，保护人工字段和发布状态。
    不要把“重放源记录成功”误报为“所有官网页面已更新”。
 5. 抽查同一商品的 raw / observation / 草稿 Preview；需要公开更新的商品再显式审核并发布。
    已发布快照不随 raw 重放自动改变。未经过此步骤的线上记录仍可能显示此前的不完整投影。
 
-本轮未执行上述线上写入，未重发邮件、改 DNS 或改分类规则，也没有删除旧人工价格兼容字段。
+## 线上发布与验收记录（2026-09-10）
+
+追加真实样本检查：摘要刷新完成后，1,074 件均已存在、0 新建、0 失败。露营灯在真实列表 / Edit
+显示 USD 7.67、MOQ 1；Preview 为 6 张主图、17 张详情图，最后一张在浏览器成功加载。
+另一个纸篓草稿的来源报价确实不可用，但保存的 MOQ 为 1。其列表原本仍显示横线，暴露了
+Admin 摘要兼容读取把 MOQ 错绑在“价格可用”条件上的遗漏。此处不是再次重新解析 raw：
+共用 eligibility gate 下分开读取 MOQ 和价格，列表 / Edit 复用同一 helper；人工覆盖和失效
+来源仍不得使用该 fallback。新增两项测试先红后绿，并增加对应浏览器边缘用例。
+这项 UI 修复与询价持久化等待断言一起纳入 PR #44，必须以其最新提交的 CI/CD 与线上验收为准。
+
+09:36 UTC 全集合只读核对：1,074 条 Alibaba observations 与 1,074 条关联商品摘要均存在，
+两侧都有 1,065 件至少有一种有效数字报价、1,054 件有 MOQ、1,073 件有详情图片来源；
+全部 1,074 件 observation 有商品属性。9 件没有可用数字报价当时尚不能认定为来源缺失；
+必须继续读取原始响应区分解析遗漏、非法阶梯和不支持的计价单位，不能编造金额。
+私有 Admin 独立 MOQ 修复后的站点测试 372/372、追加本地完整浏览器 78/78 通过。
+
+公开集合随后变为 11 件，不能再把较早的 9 件基线当作最新数量。新增 ID
+`7e8c6ece-41ad-4573-a2ed-d3e7fea94c8f`、`af743d00-ca07-45b3-a2c5-f7a6b256035b`
+各有 09:07 UTC 的 Admin 批准回执，早于本轮来源摘要刷新，且不在本轮发布测试样本中。
+本轮没有对这两件执行发布或批准；后续验收应以实际开始时的公开集合比较前后，不撤销其他
+管理员已完成的上架。原先 9 件的检查结论仅适用于下面注明的部署时点。
+
+- PR [#43](https://github.com/vibelingan/channel/pull/43)：head `5f87abba` 的完整 CI 通过后，合入 test，merge SHA 为 `5678d0477b743654be508cd0d8543d27dbe3bf49`。
+- [Deploy Test 34455803773](https://github.com/vibelingan/channel/actions/runs/34455803773) 成功：同 SHA 完整 CI、资源预检、函数包 cold-start、前端构建、部署冒烟、真实站点 41 项 public + 19 项 catalog 全通过。
+- 独立 HTTP 读取确认 admin / public-api / alibaba-catalog-sync 均返回该 releaseId；网页由同一次工作流构建部署。本轮没有通过 MCP/本机 CLI 直接部署任何云函数。
+- 部署前后公开商品基线为相同 9 个 ID。人工价格、网站分类及发布状态属于保护项，不随来源修复覆盖。
+- 真实后台全量 validate：1,074 source products、54 页、3,672 variants、3,661 attributed variants、2,943 warnings；价格分布是报价记录计数，非商品计数：fixed 465 / tiered 1,808 / unavailable 1,870。
+- 后台商品总数 1,081 与本轮范围不冲突：数据库只读确认 7 件没有 `alibabaPrimarySourceKey`。不把非 Alibaba 商品塞入本轮来源重放。
+- 回填批次 `raw-replay-ea4291a4-5e23-4c03-a6b2-d5a1d2ec65d0`：2026-09-10 09:21:07 UTC 服务端确认为 `status=applied / nextApplyIndex=54 / totalSourceProducts=1074`。前台切换编辑页后，数据库 manifest 仍继续前进；此处以服务端记录为验收依据，不以页面提示替代持久化证明。
+- 独立读库确认露营灯 observation 的更新时间为 09:21:05 UTC：47 条属性、6 张主图、17 张描述图、1 个有三个选项属性的 SKU，商品报价 USD 767 分 / MOQ 1，SKU 无效报价保留 MOQ 1。仍是已有 raw 的重算，不是当天新调用 Alibaba。
+- [认证闭环验收 34456817806](https://github.com/vibelingan/channel/actions/runs/34456817806) **失败，不计为通过**：分类预览 0 待应用、两个既有公开样本各六张图且人工值不变、真实询价提交成功；最后读取仍为 in_progress，测试没有正确等待完成保存。此通道使用现有 CI/CD 的 acceptance-only 模式，不单独部署。
+- 实际普通详情路由 `0aa9d459-159c-4ffa-a5c0-db9a8e7c642f` 的人工覆盖确实是一档 `1000+ / USD 3.80`。公共响应同时保留旧 `moq=2` / `unitPrice=5.70`，不能把旧字段当作当前有效价格。页面手测 999 低于 MOQ、1000 返回 USD 3.80、1.5 非法；没有擅改客户人工阶梯。
+
+### 剩余 9 件的原始响应逐一复核（后续追加，PR #44）
+
+逐一读取保存的原始文件并校验 SHA-256 后，发现不能把这 9 件全部归因为来源异常：
+
+- `AAGFBBhgAOVTpOKZBnRh-9WP`：有效商品级 sourcing FOB USD 7.75–9.00 / MOQ 2。
+- `AAHpBBhgAOVTpOKZBnRh97sR`：有效商品级 sourcing FOB USD 14.90 / MOQ 2。
+- 上述两件同时有 `start_quantity=-1` 的 SKU 阶梯。此前正常拒绝该阶梯，但又因存在 SKU
+  而漏建独立的商品级 FOB 报价；这是真实解析遗漏，不是来源没有价格。
+- 其余 7 件的报价单位分别为 5 件 Set、1 件 Pole、1 件 Acre。来源金额存在，但当前
+  每件价格合同不能无依据转换；保留原始数据、MOQ 与质量提示，不伪造成每件价格。
+
+补充修复将 sourcing FOB 与 SKU 报价分别保留；显式非 Piece 的商品不再误读为每件价格。
+原始响应 → 实际 materialize → 列表 / Edit / Preview 增加独立 FOB 浏览器用例。
+重放 parser 升至 v3，需要重新 validate，不能复用已应用的 v2 manifest。
+本地 1,512 项测试与全仓类型检查通过；此前同时运行全仓测试（其脚本测试自行构建）和
+浏览器 runner 引发样式构建产物冲突，该失败不计通过，浏览器流程改为串行重新验收。
+最终串行浏览器流程 41 public + 19 catalog + 5 formal = 65/65 通过，包括原始 FOB
+经过真实 materializer 后在列表、Edit、Preview 的金额、MOQ 和报价范围一致。
+当前上面 1,065 / 9 是 v2 线上观测，不是 v3 发布后的结果；最终数量须在部署、重放和
+摘要刷新后再次只读核对，不能把预计新增两件有效报价当成已上线。
+
+### 询价保存的等待条件
+
+失败测试在整个 Process inquiry 区域寻找 `In progress` / `Completed`。下拉选项会提前出现，
+说明文字本来就有 `Completed means ...`；因此它不能证明保存完成。仅靠末尾一次读库，
+也会在上一笔保存/页面刷新尚未完成时提前失败并结束浏览器。此次实际测试记录停在版本 1。
+
+修复复用 `expectInquirySaved`：等待刷新后的 `data-inquiry-version`、当前状态段落和已复位的
+Save 按钮，再进行下一步。不依赖瞬时提示——编辑器按版本重新挂载，旧实例的提示会消失。
+本地正式链路增加 700ms 的真实后端请求传输延迟，仍使用真实 handler/DB；完成后刷新页面，
+再由 API 独立确认版本 3 / completed。修正后的 41 public + 19 catalog + 4 formal 全通过。
+
+线上测试记录 `6f7907c8-0676-429d-8119-4ceabba5d849` 已通过正常后台操作完成，
+09:16:29 UTC 只读数据库确认为 `status=completed / version=2 / notification=disabled`。
+这是独立人工浏览器核验，不能冒充原失败自动化已通过；修正测试须按 [PR #44](https://github.com/vibelingan/channel/pull/44)
+的 CI/CD 再执行。以上是截至 09:22 UTC 的可核验记录，后续 Actions 结果以对应运行页面为准。
+
+本轮未重发邮件、改 DNS，也没有删除旧人工价格兼容字段。原始数据回填完成不等于未经审核的
+描述图已公开；后台摘要刷新、同商品 Preview 和正式批准仍遵循前述交付顺序。
 
 验收完成标准不是所有组件出现文字，而是：源字段有明确去向；无法采用时有明确原因；
 同一商品版本、SKU、数量和价格策略在各入口得到相同业务结果；未审核内容仍不会泄露。

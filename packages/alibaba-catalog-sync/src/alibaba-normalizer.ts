@@ -228,6 +228,11 @@ export function normalizeProductDetail(input: {
   const sourceKey = alibabaSourceKey(connectionId, sourceProductId);
   const sourceUpdatedAt = gmtLexemeToUtcIso(detail.gmtModified);
   const { currency, unsupported } = normalizeCurrency(detail.currencyLexeme);
+  const unsupportedSaleUnit =
+    detail.productType === 'sourcing' &&
+    [detail.sourcingTrade?.fobUnitType, detail.sourcingTrade?.minimumOrderUnitType].some(
+      (unit) => unit !== undefined && unit !== 'Piece',
+    );
 
   const moq =
     detail.moqLexeme !== undefined && /^[0-9]+$/.test(detail.moqLexeme)
@@ -264,13 +269,14 @@ export function normalizeProductDetail(input: {
     for (const sku of detail.skus) {
       const offerKey = alibabaOfferKey(connectionId, sourceProductId, sku.sourceSkuId);
       const context: PricingContext = { ...contextBase, offerKey, sourceSkuId: sku.sourceSkuId };
-      const pricing = unsupported
-        ? unavailablePricing(context)
-        : sku.ladderPrices && sku.ladderPrices.length > 0
-          ? tieredPricing(sku.ladderPrices, context)
-          : sku.priceLexeme !== undefined
-            ? fixedPricing(sku.priceLexeme, context)
-            : unavailablePricing(context);
+      const pricing =
+        unsupported || unsupportedSaleUnit
+          ? unavailablePricing(context)
+          : sku.ladderPrices && sku.ladderPrices.length > 0
+            ? tieredPricing(sku.ladderPrices, context)
+            : sku.priceLexeme !== undefined
+              ? fixedPricing(sku.priceLexeme, context)
+              : unavailablePricing(context);
       const offer: NormalizedSupplierOffer = {
         offerKey,
         sourceKey,
@@ -291,7 +297,9 @@ export function normalizeProductDetail(input: {
   // including when the same response has separate (possibly invalid) SKU quotes.
   if (
     detail.skus.length === 0 ||
-    (detail.productType === 'wholesale' && detail.wholesaleTrade?.priceLexeme !== undefined)
+    (detail.productType === 'wholesale' && detail.wholesaleTrade?.priceLexeme !== undefined) ||
+    (detail.productType === 'sourcing' &&
+      (detail.fobMinLexeme !== undefined || detail.fobMaxLexeme !== undefined))
   ) {
     const offerKey = alibabaOfferKey(connectionId, sourceProductId);
     const context: PricingContext = { ...contextBase, offerKey };
@@ -312,7 +320,7 @@ export function normalizeProductDetail(input: {
               context,
             )
           : unavailablePricing(context);
-    } else if (unsupported) {
+    } else if (unsupported || unsupportedSaleUnit) {
       pricing = unavailablePricing(context);
     } else if (detail.ladderPrices.length > 0) {
       pricing = tieredPricing(detail.ladderPrices, context);

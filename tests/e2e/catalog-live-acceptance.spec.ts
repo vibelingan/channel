@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { type CollectionDoc, adminAction, loginAdmin } from './helpers/admin-api';
 import { e2e, requireAdminCredentialsWhenEnabled } from './helpers/env';
+import { expectInquirySaved } from './helpers/inquiry-followup';
 
 const enabled = process.env.E2E_CATALOG_LIVE_ACCEPTANCE === '1';
 // @skip-when explicit, audited live acceptance is not requested. Never skip on runtime failures.
@@ -215,14 +216,14 @@ test('live release: approved categories, existing published galleries, real inqu
   await page.getByRole('combobox', { name: 'Next status', exact: true }).click();
   await page.getByRole('option', { name: 'In progress', exact: true }).click();
   await page.getByRole('button', { name: 'Save follow-up', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Process inquiry' })).toContainText('In progress');
+  await expectInquirySaved(page, 1, 'In progress');
   await page
     .getByLabel('Internal note', { exact: true })
     .fill('TEST ONLY: release acceptance completed. No commercial follow-up needed.');
   await page.getByRole('combobox', { name: 'Next status', exact: true }).click();
   await page.getByRole('option', { name: 'Completed', exact: true }).click();
   await page.getByRole('button', { name: 'Save follow-up', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Process inquiry' })).toContainText('Completed');
+  await expectInquirySaved(page, 2, 'Completed');
   const persisted = await adminAction<{
     kind: string;
     item: { status: string; notification: string };

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { type CollectionDoc, type ListResult, adminAction, loginAdmin } from './helpers/admin-api';
 import { e2e, requireCatalogLocalSeedWhenEnabled } from './helpers/env';
+import { expectInquirySaved } from './helpers/inquiry-followup';
 
 const enabled = process.env.E2E_CATALOG_FORMAL === '1';
 // @skip-when this explicitly owned, disposable formal-journey lane is not requested.
@@ -9,6 +10,36 @@ requireCatalogLocalSeedWhenEnabled(enabled);
 // This journey intentionally changes one disposable database across its steps.
 // A retry would start against the already-approved product, hiding the first failure.
 test.describe.configure({ retries: 0 });
+
+test('raw sourcing FOB quote remains visible in list, Edit and Preview despite invalid SKU tiers', async ({
+  page,
+}) => {
+  await page.goto('/login?returnTo=%2Fadmin');
+  await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
+  await page.getByLabel('Password', { exact: true }).fill(e2e.adminPassword);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/?$/);
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByPlaceholder(/^Search name/).fill('Raw Wire FOB Quote');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  const row = page.getByRole('row').filter({ hasText: 'Raw Wire FOB Quote' });
+  await expect(row).toContainText('USD 7.75–9.00');
+  await expect(row).toContainText('2 (source)');
+  await row.getByRole('button', { name: 'Edit', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit Product', exact: true });
+  await expect(editor.getByRole('region', { name: 'Effective website pricing' })).toContainText(
+    '7.75–9.00',
+  );
+  await editor.getByRole('button', { name: 'Close editor', exact: true }).click();
+  await row.getByRole('button', { name: 'Preview', exact: true }).click();
+  const preview = page.getByRole('dialog', { name: 'Product preview', exact: true });
+  await expect(preview.locator('[data-shared-catalog-detail]')).toBeVisible();
+  await expect(preview).toContainText('Product-level quotes');
+  await expect(preview).toContainText('USD 7.75 – USD 9.00 per unit');
+  await expect(preview).toContainText('Minimum order quantity: 2');
+  await expect(preview).toContainText('No usable source price is supplied');
+  await expect(preview.locator('[data-quote-open]')).toBeDisabled();
+});
 
 test('raw Alibaba response → draft/edit/preview → approved detail preserves facts, MOQ, quote scope and description media', async ({
   page,
@@ -560,12 +591,20 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
   await page.getByRole('button', { name: /Product Inquiries/ }).click();
   await expect(page.getByRole('main')).toContainText('1 unprocessed');
   await page.locator(`#inquiry-${saved.requestId}`).click();
+  // Real handler + DB, deliberately slow transport. A status option or the
+  // explanatory word "Completed" must not satisfy the save acknowledgement.
+  await page.route('**/api/admin', async (route) => {
+    const body = route.request().postDataJSON();
+    if (body.action === 'inquiry' && body.data?.action === 'update')
+      await new Promise((resolve) => setTimeout(resolve, 700));
+    await route.continue();
+  });
   await expect(page.getByRole('region', { name: 'Process inquiry' })).toContainText('Unprocessed');
   await page
     .getByLabel('Internal note', { exact: true })
     .fill('Read only; buyer not yet contacted.');
   await page.getByRole('button', { name: 'Save follow-up', exact: true }).click();
-  await expect(page.locator('[data-inquiry-version]')).toHaveAttribute('data-inquiry-version', '1');
+  await expectInquirySaved(page, 1, 'Unprocessed');
   await expect(page.getByRole('region', { name: 'Process inquiry' })).toContainText('Unprocessed');
   const stale = await request.post(`${e2e.apiUrl}/api/admin`, {
     data: {
@@ -588,19 +627,35 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
   await page.getByRole('combobox', { name: 'Next status', exact: true }).click();
   await page.getByRole('option', { name: 'In progress', exact: true }).click();
   await page.getByRole('button', { name: 'Save follow-up', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Process inquiry' })).toContainText('In progress');
+  await expectInquirySaved(page, 2, 'In progress');
   await page
     .getByLabel('Internal note', { exact: true })
     .fill('Inquiry follow-up finished; this is not an order.');
   await page.getByRole('combobox', { name: 'Next status', exact: true }).click();
   await page.getByRole('option', { name: 'Completed', exact: true }).click();
   await page.getByRole('button', { name: 'Save follow-up', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Process inquiry' })).toContainText('Completed');
+  await expectInquirySaved(page, 3, 'Completed');
   await page.reload();
   await page.getByRole('button', { name: /Product Inquiries/ }).click();
   await expect(page.getByRole('main')).toContainText('0 unprocessed');
   await page.locator(`#inquiry-${saved.requestId}`).click();
-  await expect(page.getByRole('region', { name: 'Process inquiry' })).toContainText('Completed');
+  await expect(page.getByRole('region', { name: 'Process inquiry' })).toHaveAttribute(
+    'data-inquiry-version',
+    '3',
+  );
+  await expect(
+    page
+      .getByRole('region', { name: 'Process inquiry' })
+      .locator('p')
+      .filter({ hasText: 'Current status:' }),
+  ).toHaveText('Current status: Completed');
+  const completed = await adminAction<{ item: { status: string; version: number } }>(
+    request,
+    'inquiry',
+    { action: 'get', id: saved.requestId },
+    session.token,
+  );
+  expect(completed.item).toMatchObject({ status: 'completed', version: 3 });
   await expect(
     page.getByText('Buyer contacted during local acceptance.', { exact: true }),
   ).toBeVisible();

@@ -243,8 +243,8 @@ export function formatAlibabaSourcePricing(value: unknown): string {
 
 export type ProductReviewCell = 'identity' | 'category' | 'model' | 'variants' | 'moq' | 'pricing';
 
-/** Private Admin-only source evidence when the legacy promoted summary is absent. */
-export function adminSourcePricingFallback(doc: Pick<CollectionDoc, string>) {
+/** One eligibility gate for private Admin source evidence, not a public price contract. */
+function adminSourceReviewFallback(doc: Pick<CollectionDoc, string>) {
   const review = decodeAlibabaSourceReview(doc.alibabaSourceReview);
   const input = adminCatalogPricingInput(doc);
   const decision = effectiveCatalogPricing(input);
@@ -256,8 +256,21 @@ export function adminSourcePricingFallback(doc: Pick<CollectionDoc, string>) {
     doc.alibabaSourceStatus !== 'missing' &&
     doc.alibabaSourceStatus !== 'MISSING' &&
     review?.sourceListingStatus !== 'missing' &&
-    review?.sourceListingStatus !== 'draft' &&
-    review?.primaryPricing &&
+    review?.sourceListingStatus !== 'draft'
+    ? review
+    : undefined;
+}
+
+/** Known ordering conditions must not disappear just because the price is unavailable. */
+export function adminSourceMoqFallback(doc: Pick<CollectionDoc, string>) {
+  const review = adminSourceReviewFallback(doc);
+  return review?.minimumOrderQuantity ?? review?.primaryPricing?.minimumOrderQuantity;
+}
+
+/** Private Admin-only source price when the legacy promoted summary is absent. */
+export function adminSourcePricingFallback(doc: Pick<CollectionDoc, string>) {
+  const review = adminSourceReviewFallback(doc);
+  return review?.primaryPricing &&
     ['fixed', 'tiered', 'range', 'negotiable'].includes(review.primaryPricing.mode)
     ? review
     : undefined;
@@ -285,9 +298,7 @@ export function productReviewCellValue(
       return review ? `${review.variantCount} variants · ${review.offerCount} offers` : '—';
     case 'moq': {
       const moq = effectiveCatalogMoq({ ...adminCatalogPricingInput(doc), moq: doc.moq });
-      const sourceMoq =
-        sourceFallback?.minimumOrderQuantity ??
-        sourceFallback?.primaryPricing?.minimumOrderQuantity;
+      const sourceMoq = adminSourceMoqFallback(doc);
       return moq === undefined
         ? sourceMoq === undefined
           ? '—'

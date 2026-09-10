@@ -31,6 +31,54 @@ async function seedAdminSession(page: Page) {
   }, adminUser);
 }
 
+test('list and editor retain a known source MOQ without a usable source price', async ({
+  page,
+}) => {
+  await seedAdminSession(page);
+  // Shape observed in the repaired live paper-basket draft: unavailable price
+  // is legitimate, but it must not suppress the independently supplied MOQ.
+  const draft = {
+    ...product,
+    imageIds: [],
+    alibabaPrimarySourceKey: 'source-moq-only',
+    alibabaSourceReview: {
+      schemaVersion: 'alibaba-source-review-v1',
+      provider: 'alibaba',
+      externalProductId: 'source-moq-only',
+      sourceListingStatus: 'published',
+      variantCount: 2,
+      offerCount: 3,
+      modelNumbers: [],
+      optionNames: ['capacity', 'color'],
+      minimumOrderQuantity: 1,
+      primaryPricing: { mode: 'unavailable', minimumOrderQuantity: 1 },
+    },
+  };
+  await page.route('**/api/admin', async (route) => {
+    const body = route.request().postDataJSON();
+    const data =
+      body.action === 'me'
+        ? { user: adminUser }
+        : body.action === 'list'
+          ? { items: [draft], total: 1, page: 1, pageSize: 20 }
+          : {};
+    await route.fulfill({ json: { ok: true, data } });
+  });
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  const row = page.getByRole('row').filter({ hasText: draft.name });
+  await expect(row).toContainText('1 (source)');
+  await expect(row).toContainText('Pricing unavailable');
+  await row.getByRole('button', { name: 'Edit', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit Product', exact: true });
+  const effective = editor.getByRole('region', { name: 'Effective website pricing' });
+  await expect(effective).toContainText('Minimum order quantity: 1');
+  await expect(effective).toContainText('Pricing unavailable');
+  await expect(effective).not.toContainText('0.00');
+  await editor.getByRole('button', { name: 'Close editor', exact: true }).click();
+  await expect(editor).toHaveCount(0);
+});
+
 test('editor uses desktop space, contains scrolling, previews images and protects unsaved work', async ({
   page,
 }) => {

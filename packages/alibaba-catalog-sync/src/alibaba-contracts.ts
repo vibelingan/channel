@@ -303,6 +303,7 @@ export interface AlibabaProductDetailDraft {
   status?: string;
   productType?: string;
   wholesaleTrade?: { priceLexeme?: string; saleType?: string; unitType?: string };
+  sourcingTrade?: { fobUnitType?: string; minimumOrderUnitType?: string };
   attributes?: { sourceName: string; value: string }[];
   extractionWarnings?: { code: string; message: string; sourcePath: string }[];
 }
@@ -370,6 +371,15 @@ export function extractProductDetail(root: LosslessJsonValue): AlibabaProductDet
     if (priceLexeme !== undefined) draft.wholesaleTrade.priceLexeme = priceLexeme;
     if (saleType !== undefined) draft.wholesaleTrade.saleType = saleType;
     if (unitType !== undefined) draft.wholesaleTrade.unitType = unitType;
+  }
+  const sourcing = asObject(getPath(product, ['sourcing_trade']));
+  if (sourcing) {
+    draft.sourcingTrade = {};
+    const fobUnitType = asLexeme(sourcing.fob_unit_type);
+    const minimumOrderUnitType = asLexeme(sourcing.min_order_unit_type);
+    if (fobUnitType !== undefined) draft.sourcingTrade.fobUnitType = fobUnitType;
+    if (minimumOrderUnitType !== undefined)
+      draft.sourcingTrade.minimumOrderUnitType = minimumOrderUnitType;
   }
   setIf(
     'moqLexeme',
