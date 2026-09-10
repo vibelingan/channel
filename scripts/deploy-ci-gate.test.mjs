@@ -6,6 +6,18 @@ import { parse } from 'yaml';
 const workflow = (name) =>
   parse(readFileSync(new URL(`../.github/workflows/${name}.yml`, import.meta.url), 'utf8'));
 
+test('normal deployment awaits hosted asset integrity before pruning or declaring success', () => {
+  const source = readFileSync(new URL('./deploy-cloudbase-test.mjs', import.meta.url), 'utf8');
+  assert.match(source, /const assets = hostedAssetManifest\(distPath\)/);
+  assert.match(source, /await publishVerifiedAssets\(/);
+  assert.match(source, /verify: \(\) => verifyHostedAssets\(assets, siteUrl\)/);
+  assert.ok(
+    source.indexOf('await publishVerifiedAssets(') <
+      source.lastIndexOf('pruneLegacyHostingPaths();'),
+  );
+  assert.match(source, /await deployWebApp\(\)/);
+});
+
 // These inspect the scheduler's input graph, not source text or a homemade
 // Actions runner. GitHub owns needs/success semantics; no cloud jobs run here.
 function assertReleaseGate(ci, release) {

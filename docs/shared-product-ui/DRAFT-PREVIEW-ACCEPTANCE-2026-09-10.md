@@ -91,7 +91,7 @@ passed [feature CI 34431289815](https://github.com/vibelingan/channel/actions/ru
 [PR #40](https://github.com/vibelingan/channel/pull/40) merged into test as
 `e6f9a0375fd3df58431d8d4a3d867f264f83a15f`; its
 [Deploy Test 34431999936](https://github.com/vibelingan/channel/actions/runs/34431999936)
-has deployed; final browser-job completion is pending. Independent health reads
+completed successfully, including the final live browser checks. Independent health reads
 confirmed all three functions at `e6f9a03`. Live EB1 and gaming-headset Edit now
 show their four source tiers inline, without Pricing unavailable or the technical
 preparation panel. EB1 Edit measures 1152px in a 2323px viewport, has four source
@@ -103,7 +103,39 @@ six source images while Preview stopped at five. The old source-URL helper's
 default limit was five, independent of the shared nine-image catalog capacity.
 A new test reproduced dropping image six; the helper now uses the shared limit,
 and the formal journey's untouched draft now has nine images and selects image
-nine. Invalid limits fail closed. This last capacity correction is not yet live.
+nine. Invalid limits fail closed. Site tests (368), formal browser checks (62),
+lint and workspace/E2E typechecks passed. Commit
+`875b218343ba045d4efd6ebea01419d2c49a529a` passed
+[feature CI 34433496688](https://github.com/vibelingan/channel/actions/runs/34433496688).
+[PR #41](https://github.com/vibelingan/channel/pull/41) merged into **test only**
+as `ad0f97a03f1bfd81e803b2b119916df2ee3fd864`.
+[Deploy Test 34434027974](https://github.com/vibelingan/channel/actions/runs/34434027974)
+completed its automated checks, and all three function health endpoints reported
+`ad0f97a`. **Manual live acceptance nevertheless failed**: current AdminApp
+`Bxt7nu0y` references `AdminDetailPreview.C-WGxnlv.js`, which returns HTTP 404 /
+COS `NoSuchKey`. Both the customer domain and default TCB hostname failed, as did
+a fresh query-string request. The other 14 dependencies in that Admin entry's
+dynamic dependency map returned 200 with JavaScript MIME. This is a missing
+hosted chunk, not demonstrated stale browser cache. Why that individual file was
+not present is not proven by the upload log (which only said upload finished,
+request unknown). Do not infer all files arrived from that top-level result.
+
+The browser's uncaught lazy-import error blanked the Admin island. Recovery
+reloaded the list without product mutations. The next repair adds a mandatory
+post-upload comparison of every generated Astro dependency and HTML entry with
+the local build hash/MIME, with one identical additive retry and a hard failure
+on continued mismatch. No broad prune, DNS change, function rollback or direct
+MCP upload is introduced. A Preview error boundary preserves the shell/Close and
+offers an explicit page reload rather than blanking the whole Admin island.
+The local production-build lane now passes 63 checks, including an injected 404
+for that lazy chunk, usable dismissal, successful reload recovery and unchanged
+product publication/media/review state. Release/live acceptance is still pending
+for this integrity repair; the six-image result is not yet claimed passed.
+Full-workspace verification for the integrity repair passed 1,488 tests, plus
+workspace/E2E typechecks, lint and the CloudBase SDK contract gate. The HTTP gate
+reuses the existing fully-drained response helper and adds no new SDK API or
+dependency. Official hosting docs describe newer verification flags, but the
+installed CLI 3.5.9 help does not expose them; they were not invented or enabled.
 
 The real public `0aa9d459-159c-4ffa-a5c0-db9a8e7c642f` page was also checked in
 Chrome: six gallery images, new structured detail UI, `Website unit price` table

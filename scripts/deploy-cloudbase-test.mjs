@@ -7,6 +7,11 @@ import { fileURLToPath } from 'node:url';
 
 import { buildFunctionDefs, desiredTriggersFor } from './cloudbase-function-manifest.mjs';
 import { ensureNoSqlResources } from './cloudbase-nosql-resources.mjs';
+import {
+  hostedAssetManifest,
+  publishVerifiedAssets,
+  verifyHostedAssets,
+} from './hosting-integrity.mjs';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const functionRootPath = resolve(root, '.cloudbase-artifacts/functions');
@@ -541,25 +546,37 @@ function pruneLegacyHostingPaths() {
   }
 }
 
-function deployWebApp() {
+async function deployWebApp() {
   const distPath = resolve(siteRootPath, 'dist');
   if (!existsSync(resolve(distPath, 'index.html'))) {
     throw new Error(`Missing site build output: ${distPath}`);
   }
 
-  const uploaded = callTool(
-    'cloudbase.manageHosting',
-    {
-      action: 'upload',
-      localPath: distPath,
-      cloudPath: '/',
-      isDir: true,
+  const assets = hostedAssetManifest(distPath);
+  await publishVerifiedAssets({
+    upload: () => {
+      const uploaded = callTool(
+        'cloudbase.manageHosting',
+        {
+          action: 'upload',
+          localPath: distPath,
+          cloudPath: '/',
+          isDir: true,
+        },
+        { timeoutMs: 300_000 },
+      );
+      assertToolSucceeded(uploaded, `${webAppServiceName}: static hosting upload`);
+      const uploadRequestId =
+        uploaded.data?.requestId ?? uploaded.data?.raw?.RequestId ?? 'unknown';
+      console.log(
+        `${webAppServiceName}: static hosting upload finished; request ${uploadRequestId}`,
+      );
     },
-    { timeoutMs: 300_000 },
+    verify: () => verifyHostedAssets(assets, siteUrl),
+  });
+  console.log(
+    `${webAppServiceName}: verified ${assets.length} hosted page/assets against build hashes`,
   );
-  assertToolSucceeded(uploaded, `${webAppServiceName}: static hosting upload`);
-  const uploadRequestId = uploaded.data?.requestId ?? uploaded.data?.raw?.RequestId ?? 'unknown';
-  console.log(`${webAppServiceName}: static hosting upload finished; request ${uploadRequestId}`);
 
   pruneLegacyHostingPaths();
 
@@ -654,6 +671,6 @@ for (const def of functionDefs) {
   reconcileTriggers(def);
 }
 
-deployWebApp();
+await deployWebApp();
 
 console.log(`Deployment submitted for ${siteUrl}`);

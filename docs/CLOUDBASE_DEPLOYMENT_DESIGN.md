@@ -2,7 +2,31 @@
 
 Status: canonical deployment design after review
 Scope: make the Channel portal available on Tencent CloudBase with clean secret separation
-Last updated: 2026-07-06
+Last updated: 2026-09-10
+
+## September 10 integrity addendum (takes precedence over the July baseline)
+
+The resource inventory in section 2 is the July setup baseline, not a current
+live inventory. Current test releases build the site and three functions at the
+same merge SHA through the gated Deploy Test workflow.
+
+A green deploy/function-health result does not prove every static dependency was
+uploaded: live release `ad0f97a` had a missing Admin preview lazy chunk despite
+its automated browser lanes passing. The deployment now enumerates build HTML
+entries and every `_astro` file, then verifies hosted status, applicable MIME,
+byte length and SHA-256 through bounded HTTP requests. It reuses `smoke-http.mjs`
+for timeout/body draining and checks with concurrency four. A mismatch retries
+the identical additive upload once; continued mismatch fails deployment before
+legacy pruning and successful completion. No broad delete, automatic resource
+recreation or new SDK method is involved. CLI 3.5.9 was checked with `--help` and
+does not expose the newer documentation's `--verify`/`--safe` flags, so those flags
+are not assumed available. This is integrity verification, not an atomic swap or
+a zero-interruption guarantee while an upload is in progress.
+
+Local checks cover missing chunks, stale/truncated content, wrong MIME, transport
+failure, empty manifests, retries and exhaustion. Preview also catches module
+load failures without blanking Admin. The release acceptance ledger records
+whether this hardening itself has reached and passed live verification.
 
 ## 1. Purpose
 
