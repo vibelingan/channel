@@ -243,17 +243,14 @@ export function formatAlibabaSourcePricing(value: unknown): string {
 
 export type ProductReviewCell = 'identity' | 'category' | 'model' | 'variants' | 'moq' | 'pricing';
 
-export function productReviewCellValue(
-  doc: Pick<CollectionDoc, string>,
-  cell: ProductReviewCell,
-): string {
+/** Private Admin-only source evidence when the legacy promoted summary is absent. */
+export function adminSourcePricingFallback(doc: Pick<CollectionDoc, string>) {
   const review = decodeAlibabaSourceReview(doc.alibabaSourceReview);
   const input = adminCatalogPricingInput(doc);
   const decision = effectiveCatalogPricing(input);
   // A private review summary is evidence, not a replacement public price contract.
   // Historical drafts may lack the promoted legacy summary while canonical offers exist.
-  const sourceFallback =
-    decision.source === 'alibaba' &&
+  return decision.source === 'alibaba' &&
     decision.pricing.state !== 'available' &&
     doc.catalogPricingMode !== 'manual' &&
     doc.alibabaSourceStatus !== 'missing' &&
@@ -262,8 +259,17 @@ export function productReviewCellValue(
     review?.sourceListingStatus !== 'draft' &&
     review?.primaryPricing &&
     ['fixed', 'tiered', 'range', 'negotiable'].includes(review.primaryPricing.mode)
-      ? review
-      : undefined;
+    ? review
+    : undefined;
+}
+
+export function productReviewCellValue(
+  doc: Pick<CollectionDoc, string>,
+  cell: ProductReviewCell,
+): string {
+  const review = decodeAlibabaSourceReview(doc.alibabaSourceReview);
+  const input = adminCatalogPricingInput(doc);
+  const sourceFallback = adminSourcePricingFallback(doc);
   switch (cell) {
     case 'identity':
       return typeof doc.skuCode === 'string' && doc.skuCode.trim() !== ''

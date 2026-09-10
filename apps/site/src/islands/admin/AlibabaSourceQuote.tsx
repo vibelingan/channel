@@ -50,8 +50,8 @@ export function AlibabaSourceQuote({ value }: { value: unknown }) {
         <p className="mt-3 font-semibold">{formatAlibabaSourcePricing(pricing)}</p>
       )}
       <p className="mt-3 text-xs text-slate-600">
-        Source evidence only. The effective website price is shown separately. Manual website edits
-        do not change Alibaba.
+        Representative source quotation only. Use Product preview for configuration-specific quotes.
+        Manual website edits do not change Alibaba.
       </p>
     </section>
   );

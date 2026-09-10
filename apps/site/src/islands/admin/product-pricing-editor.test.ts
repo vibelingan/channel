@@ -20,6 +20,65 @@ const source = {
   sourceOfferKey: 'private-reference',
 };
 
+const sourceReview = {
+  schemaVersion: 'alibaba-source-review-v1',
+  provider: 'alibaba',
+  externalProductId: 'untouched',
+  sourceListingStatus: 'published',
+  variantCount: 2,
+  offerCount: 2,
+  modelNumbers: [],
+  optionNames: ['Color'],
+  minimumOrderQuantity: 10,
+  primaryPricing: {
+    mode: 'tiered',
+    currency: 'USD',
+    minimumOrderQuantity: 10,
+    tiers: [
+      { minimumQuantity: 10, maximumQuantity: 99, unitAmountMinor: 789 },
+      { minimumQuantity: 100, unitAmountMinor: 600 },
+    ],
+  },
+};
+
+function renderUntouchedPricing(
+  state: Record<string, string | boolean>,
+  review: unknown = sourceReview,
+) {
+  return renderToStaticMarkup(
+    createElement(ProductPricingEditor, {
+      initial: { alibabaPrimarySourceKey: 'source-key', alibabaSourceReview: review },
+      state,
+      onChange: () => {},
+      onValidityChange: () => {},
+    }),
+  );
+}
+
+test('untouched draft Edit shows existing source tiers without a contradictory unavailable price', () => {
+  const html = renderUntouchedPricing({ catalogPricingMode: 'source' });
+  assert.match(html, /Synced source quote/);
+  assert.match(html, /10–99/);
+  assert.match(html, /7\.89/);
+  assert.match(html, /100\+/);
+  assert.doesNotMatch(html, /Pricing unavailable/);
+  assert.doesNotMatch(html, /Source quotation for comparison/);
+});
+
+test('source evidence must not replace an explicit invalid manual price or missing source', () => {
+  const manual = renderUntouchedPricing({ catalogPricingMode: 'manual' });
+  assert.match(manual, /Enter a valid manual price/);
+  assert.match(manual, /Source quotation for comparison/);
+  const removed = renderUntouchedPricing(
+    { catalogPricingMode: 'source' },
+    {
+      ...sourceReview,
+      sourceListingStatus: 'missing',
+    },
+  );
+  assert.match(removed, /Pricing unavailable/);
+});
+
 test('unsaved pricing form values are labelled as a preview, not the current live price', () => {
   const html = renderToStaticMarkup(
     createElement(ProductPricingEditor, {
