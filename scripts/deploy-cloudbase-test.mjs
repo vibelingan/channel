@@ -6,6 +6,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { buildFunctionDefs, desiredTriggersFor } from './cloudbase-function-manifest.mjs';
+import { waitForFunctionActive } from './cloudbase-function-state.mjs';
 import { ensureNoSqlResources } from './cloudbase-nosql-resources.mjs';
 import {
   hostedAssetManifest,
@@ -354,22 +355,6 @@ function sleep(ms) {
   }
 }
 
-function summarizeFunctionState(state) {
-  const detail = state?.detail;
-  if (!detail) {
-    return state?.message ? `query failed: ${state.message}` : 'no function detail returned';
-  }
-  return JSON.stringify({
-    status: detail.Status,
-    availableStatus: detail.AvailableStatus,
-    runtime: detail.Runtime,
-    codeSize: detail.CodeSize,
-    statusReason: detail.StatusReason,
-    statusDesc: detail.StatusDesc,
-    updateTime: detail.UpdateTime,
-  });
-}
-
 function artifactSummary(functionName) {
   const indexFile = resolve(functionRootPath, functionName, 'index.js');
   const size = statSync(indexFile).size;
@@ -378,27 +363,13 @@ function artifactSummary(functionName) {
 }
 
 function waitForActive(functionName) {
-  const deadline = Date.now() + functionActiveTimeoutMs;
-  let nextLogAt = Date.now();
-  let lastState = null;
-
-  while (Date.now() < deadline) {
-    lastState = functionDetailResult(functionName, true);
-    const detail = lastState.detail;
-    if (detail?.Status === 'Active' || detail?.AvailableStatus === 'Available') return detail;
-
-    const now = Date.now();
-    if (now >= nextLogAt) {
-      console.log(
-        `${functionName}: waiting for active state; ${summarizeFunctionState(lastState)}`,
-      );
-      nextLogAt = now + 30_000;
-    }
-    sleep(Math.min(functionPollIntervalMs, Math.max(deadline - now, 0)));
-  }
-  throw new Error(
-    `${functionName} did not become active within ${functionActiveTimeoutMs}ms; last state: ${summarizeFunctionState(lastState)}`,
-  );
+  return waitForFunctionActive({
+    functionName,
+    readState: (name) => functionDetailResult(name, true),
+    timeoutMs: functionActiveTimeoutMs,
+    pollIntervalMs: functionPollIntervalMs,
+    sleep,
+  });
 }
 
 function envEntries(record) {
@@ -425,6 +396,7 @@ function updateFunctionConfig(def) {
     console.log(
       `${def.name}: config update hit Updating state; waiting before retry ${attempt + 1}`,
     );
+    sleep(functionPollIntervalMs);
     waitForActive(def.name);
   }
   assertToolSucceeded(configResult, `${def.name}: updateFunctionConfig`);
@@ -462,6 +434,7 @@ function deployFunction(def) {
     );
   }
 
+  if (before) waitForActive(def.name);
   deployFunctionWithCloudBaseCli(
     def,
     before ? 'primary CI code update' : 'primary CI create',

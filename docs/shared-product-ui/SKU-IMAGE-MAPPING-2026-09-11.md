@@ -88,6 +88,27 @@ dispatch acceptance-only with `catalog_acceptance_scope=variant-media`:
 CI/live results must be recorded in the delivery response; local green does not
 mean this existing product's retained observation has already been repaired.
 
+### Release lifecycle regression found by deployment
+
+Deploy Test `34501051480` passed full CI but failed at the admin configuration
+update. Actual readback returned `Status=Updating, AvailableStatus=Available`;
+the old waiter incorrectly OR-ed those fields and returned early three times.
+[Tencent's lifecycle contract](https://cloud.tencent.com/document/product/583/115197)
+defines `AvailableStatus` as billing availability, not deployment readiness.
+Context7 was unavailable; official docs and the actual read-only MCP response
+independently confirmed this contract. No SDK methods or CLI argument contracts
+changed.
+
+The shared, executable waiter now requires `Status=Active`, bounds polling,
+rejects lifecycle/billing failures, and never logs environment values. The
+deployment uses it before code replacement, after code upload and after config
+update. Tests reproduce the exact Updating/Available pair, missing/unknown
+states, timeout, billing/terminal failure and credential-error propagation.
+The failed run uploaded admin code but did not reach public-api, sync or site
+deployment; do not describe that intermediate state as a completed release.
+Recovery must run the same full CI/CD path, not update remaining functions by
+hand. The four product repair operations have not run at this point.
+
 ## Boundaries
 
 The final read-only audit found **11 public products**, of which four already
