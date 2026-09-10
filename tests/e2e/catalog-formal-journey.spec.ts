@@ -63,7 +63,10 @@ test('untouched sync draft: source prices, shared preview, pagination and access
   await expect(dialog.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
   await expect(dialog).toContainText('import the source gallery before publishing');
   await expect(dialog.getByRole('button', { name: 'Prepare detail review' })).toHaveCount(0);
-  await expect(dialog.locator('[data-gallery-thumbnail]')).toHaveCount(2);
+  await expect(dialog.locator('[data-gallery-thumbnail]')).toHaveCount(9);
+  await dialog.getByRole('button', { name: 'View image 9', exact: true }).click();
+  await expect(dialog).toContainText('9 / 9');
+  await dialog.getByRole('button', { name: 'View image 1', exact: true }).click();
   await expect(dialog.locator('[data-quote-open]')).toBeDisabled();
   await expect(dialog.getByRole('button', { name: 'Ask about customization' })).toBeDisabled();
   await expect(dialog).toContainText('USD 7.89');

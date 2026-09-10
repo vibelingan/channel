@@ -1,4 +1,4 @@
-import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { type CollectionDoc, PRODUCT_IMAGE_MAX_COUNT } from '@vibelingan-channel/shared';
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { EffectiveCatalogPricingBlock } from '../shop/EffectiveCatalogPricingBlock.tsx';
 import { formatPrice } from '../shop/api.ts';
@@ -43,11 +43,11 @@ export function PreviewModal({
   const productPricing = adminCatalogPricingInput(doc);
   const effectiveMoq = effectiveCatalogMoq({ ...productPricing, moq: doc.moq });
 
-  // Only the ids actually rendered (cover + up to four thumbnails). Memoized on
+  // Only the ids actually rendered (up to the shared catalog image capacity). Memoized on
   // the joined membership so the array reference is stable across renders — the
   // fetch/revoke effect below depends on it directly and must re-run only when
   // the shown set actually changes (e.g. re-opening on a different doc).
-  const shownKey = imageIds.slice(0, 9).join(',');
+  const shownKey = imageIds.slice(0, PRODUCT_IMAGE_MAX_COUNT).join(',');
   const shownIds = useMemo(() => (shownKey ? shownKey.split(',') : []), [shownKey]);
 
   // Resolve each id through the admin-authenticated preview action into a blob

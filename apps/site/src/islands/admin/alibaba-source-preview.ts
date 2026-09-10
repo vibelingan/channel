@@ -1,9 +1,14 @@
+import { PRODUCT_IMAGE_MAX_COUNT } from '@vibelingan-channel/shared';
+
 const ALLOWED_SOURCE_HOST_SUFFIXES = ['alicdn.com', 'alibaba.com'];
 
 /** Safe HTTPS supplier-image candidates for authenticated admin preview only. */
-export function alibabaSourcePreviewUrls(value: unknown, limit = 5): string[] {
-  if (!Array.isArray(value)) return [];
-  const targetLimit = Math.min(9, Math.max(0, Math.trunc(limit)));
+export function alibabaSourcePreviewUrls(
+  value: unknown,
+  limit = PRODUCT_IMAGE_MAX_COUNT,
+): string[] {
+  if (!Array.isArray(value) || !Number.isFinite(limit)) return [];
+  const targetLimit = Math.min(PRODUCT_IMAGE_MAX_COUNT, Math.max(0, Math.trunc(limit)));
   if (targetLimit === 0) return [];
   const out: string[] = [];
   for (const candidate of value) {
