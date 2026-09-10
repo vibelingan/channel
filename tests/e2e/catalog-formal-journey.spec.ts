@@ -10,6 +10,79 @@ requireCatalogLocalSeedWhenEnabled(enabled);
 // A retry would start against the already-approved product, hiding the first failure.
 test.describe.configure({ retries: 0 });
 
+test('missing preview script keeps Admin usable and recovers after an explicit reload', async ({
+  page,
+  request,
+}) => {
+  const session = await loginAdmin(request);
+  const getDraft = () =>
+    adminAction<CollectionDoc>(
+      request,
+      'get',
+      {
+        collection: 'products',
+        id: 'local-untouched-draft',
+      },
+      session.token,
+    );
+  const before = await getDraft();
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  let blocked = 0;
+  const chunk = /\/_astro\/AdminDetailPreview\.[^/]+\.js$/;
+  await page.route(chunk, (route) => {
+    blocked++;
+    return route.fulfill({ status: 404, contentType: 'text/plain', body: 'Not found' });
+  });
+  await page.route('https://s.alicdn.com/formal-*.png', (route) =>
+    route.fulfill({
+      contentType: 'image/png',
+      body: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ1cAAAAASUVORK5CYII=',
+        'base64',
+      ),
+    }),
+  );
+  await page.goto('/login?returnTo=%2Fadmin');
+  await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
+  await page.getByLabel('Password', { exact: true }).fill(e2e.adminPassword);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/?$/);
+  const openPreview = async () => {
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await page.getByPlaceholder(/^Search name/).fill('Untouched Sync Headset');
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await page
+      .getByRole('row')
+      .filter({ hasText: 'Untouched Sync Headset' })
+      .getByRole('button', { name: 'Preview', exact: true })
+      .click();
+  };
+  await openPreview();
+  const dialog = page.getByRole('dialog', { name: 'Product preview', exact: true });
+  await expect(dialog.getByRole('alert')).toContainText('Preview could not be loaded');
+  expect(blocked).toBeGreaterThan(0);
+  await expect(dialog.getByRole('button', { name: 'Close', exact: true }).first()).toBeInViewport();
+  await dialog.getByRole('button', { name: 'Close', exact: true }).first().click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Products', exact: true })).toBeVisible();
+  await openPreview();
+  await expect(dialog.getByRole('alert')).toBeVisible();
+  await page.unroute(chunk);
+  await dialog.getByRole('button', { name: 'Reload page', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Users', exact: true })).toBeVisible();
+  await openPreview();
+  await expect(dialog.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
+  await expect(dialog.locator('[data-gallery-thumbnail]')).toHaveCount(9);
+  await dialog.getByRole('button', { name: 'Close', exact: true }).first().click();
+  const after = await getDraft();
+  expect(after.published).toBe(before.published);
+  expect(after.catalogDetailPublication).toEqual(before.catalogDetailPublication);
+  expect(after.imageIds).toEqual(before.imageIds);
+  expect(after.alibabaReviewPending).toBe(before.alibabaReviewPending);
+  expect(pageErrors).toEqual([]);
+});
+
 test('untouched sync draft: source prices, shared preview, pagination and accessible modal without publication', async ({
   page,
   request,

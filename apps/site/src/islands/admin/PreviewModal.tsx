@@ -3,6 +3,7 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { EffectiveCatalogPricingBlock } from '../shop/EffectiveCatalogPricingBlock.tsx';
 import { formatPrice } from '../shop/api.ts';
 import { effectiveCatalogMoq } from '../shop/catalog-pricing.ts';
+import { PreviewErrorBoundary } from './PreviewErrorBoundary.tsx';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { decodeAlibabaSourceReview, formatAlibabaSourcePricing } from './alibaba-source-review.ts';
 import { getImagePreview } from './api.ts';
@@ -163,18 +164,20 @@ export function PreviewModal({
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-preview-scroll>
           {sharedPreview ? (
-            <Suspense fallback={<output className="block p-8">Loading product preview…</output>}>
-              <AdminDetailPreview
-                key={doc._id}
-                productId={doc._id}
-                images={
-                  imageIds.length
-                    ? shownIds.flatMap((id) => (urls[id] ? [urls[id]] : []))
-                    : sourceImageUrls
-                }
-                sourceImages={imageIds.length === 0 && sourceImageUrls.length > 0}
-              />
-            </Suspense>
+            <PreviewErrorBoundary key={doc._id}>
+              <Suspense fallback={<output className="block p-8">Loading product preview…</output>}>
+                <AdminDetailPreview
+                  key={doc._id}
+                  productId={doc._id}
+                  images={
+                    imageIds.length
+                      ? shownIds.flatMap((id) => (urls[id] ? [urls[id]] : []))
+                      : sourceImageUrls
+                  }
+                  sourceImages={imageIds.length === 0 && sourceImageUrls.length > 0}
+                />
+              </Suspense>
+            </PreviewErrorBoundary>
           ) : (
             <div className="grid gap-6 p-5 lg:grid-cols-2">
               {/* Images */}

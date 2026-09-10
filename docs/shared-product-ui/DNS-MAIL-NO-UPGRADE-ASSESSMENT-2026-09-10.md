@@ -17,6 +17,10 @@ CNAME 就能使用。[接入方式](https://developers.cloudflare.com/dns/zone-s
 ## 当前实际情况
 
 - TCB 中根域名和 www 都正常绑定 `channel-test`，证书/状态正常。
+- 根域名当前绑定证书 `ZM06VcYG`，SSL 详情显示 TrustAsia C1 DV Free，
+  覆盖根域名及 www，到期时间为控制台显示的 2026-10-18 15:59:59。
+  证书清单显示未托管、自动续费未勾选。无论是否迁移 DNS，都需要安排续期；
+  本次没有申请、续费、下载私钥或替换证书。
 - DNSPod 当前免费版，共 11 条有效记录。根域名同时配置了网站 CNAME、
   腾讯企业邮箱的两个 MX 和 SPF TXT。
 - Google/Cloudflare DoH 能查到 MX；本机最初只得到 CNAME，稍后又能查到 MX。
@@ -89,3 +93,21 @@ CNAME 就能使用。[接入方式](https://developers.cloudflare.com/dns/zone-s
 - 继续 DNSPod Free 原样共存不会消除已观察到的兼容风险。
 
 本评估的下一步是完成上述预检并给出明确切换窗口/回退清单；不是立即改 DNS。
+
+## 需要腾讯确认的具体问题（草稿，尚未发送）
+
+> 我们的官网根域名及 www 已绑定 CloudBase HTTP 网关，网站使用自备证书。
+> 根域名还需要保留腾讯企业邮箱的 MX/SPF。拟将权威 DNS 改为 Cloudflare Free，
+> 所有网站记录保持 DNS-only，不使用 Cloudflare 代理。根域名 CNAME 会自动展平，
+> 对外返回 CloudBase 目标解析出的 A/AAAA，而不直接返回 CNAME；www 仍为普通 CNAME。
+> 请确认：
+>
+> 1. 对于已经绑定的根域名，CloudBase 是否定期强制检查 CNAME 原值？展平后会不会
+>    将现有绑定判定失效，或影响网关请求服务？
+> 2. 后续在第三方 DNS 手动添加证书验证 TXT、申请并替换自备证书，是否能继续使用
+>    现有绑定而无须删除重建？
+> 3. 如根域名不能使用展平，是否有官方支持的固定入口或独立 TXT 验证方案？
+>    我们不会把目前查询到的动态 CDN IP 直接写成固定 A 记录。
+
+收到明确兼容答复，或在获准的隔离验证域名上证明相同流程后，再申请正式切换。
+如果不能通过这一关，则暂缓迁移，而不是以现有网站承担试错风险。
