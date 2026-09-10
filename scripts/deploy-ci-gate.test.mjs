@@ -64,7 +64,7 @@ function assertReleaseGate(ci, release) {
     'pnpm package:functions',
     'pnpm build',
     'pnpm test:e2e --list',
-    'pnpm exec playwright install --with-deps chromium',
+    'pnpm exec playwright install --with-deps chromium webkit',
   ]) {
     const step = ci.jobs.checks.steps.find((candidate) => candidate.run === command);
     assert.ok(step, `full CI is missing ${command}`);
@@ -90,6 +90,29 @@ test('push and manual deployments require same-SHA full CI before entering the e
   assert.deepEqual(release.on.push.branches, ['test']);
   assert.ok(Object.hasOwn(release.on, 'workflow_dispatch'));
   assert.deepEqual(Object.keys(release.jobs).sort(), ['catalog-acceptance', 'ci', 'deploy']);
+});
+
+test('mobile regressions run in WebKit and Chromium before and after deployment', () => {
+  const release = workflow('deploy-test');
+  const install = release.jobs.deploy.steps.find(
+    (step) => step.run === 'pnpm exec playwright install --with-deps chromium webkit',
+  );
+  const browser = release.jobs.deploy.steps.find(
+    (step) => step.run === 'pnpm test:e2e:public && pnpm test:e2e:catalog',
+  );
+  assert.ok(install);
+  assert.ok(browser);
+  assert.match(install.if, /github.event_name == 'push'/);
+  assert.match(browser.if, /github.event_name == 'push'/);
+  assert.equal(browser['continue-on-error'], undefined);
+  const config = readFileSync(new URL('../playwright.config.ts', import.meta.url), 'utf8');
+  assert.match(config, /name: 'webkit-mobile'/);
+  assert.match(config, /grep: \/@mobile-regression\//);
+  for (const file of ['header-navigation', 'sku-detail']) {
+    assert.ok(config.includes(`**/${file}.spec.ts`));
+    const spec = readFileSync(new URL(`../tests/e2e/${file}.spec.ts`, import.meta.url), 'utf8');
+    assert.match(spec, /tag: '@mobile-regression'/);
+  }
 });
 
 test('acceptance-only dispatch cannot deploy and cannot bypass CI or use infrastructure credentials', () => {
