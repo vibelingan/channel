@@ -12,6 +12,8 @@ interface Props {
   unavailableLabel?: string;
   layout?: 'legacy' | 'detail';
   selection?: { source: string | null; onChange: (source: string) => void };
+  onMainImageLoad?: () => void;
+  mainImagePriority?: 'high' | 'low' | 'auto';
 }
 
 interface GalleryThumbnailListProps {
@@ -148,6 +150,8 @@ function GallerySession({
   unavailableLabel = 'Product image unavailable',
   layout = 'legacy',
   selection,
+  onMainImageLoad,
+  mainImagePriority = 'auto',
 }: Props) {
   const [active, setActive] = useState(0);
   const [expanded, setExpanded] = useState(false);
@@ -177,6 +181,8 @@ function GallerySession({
           alt={alt}
           unavailableLabel={unavailableLabel}
           loading="eager"
+          fetchPriority={mainImagePriority}
+          onLoad={onMainImageLoad}
           imageClassName="h-full w-full object-contain"
         />
       </div>
@@ -215,6 +221,7 @@ export function Gallery({
   unavailableLabel,
   layout,
   selection,
+  onMainImageLoad,
 }: Props) {
   const list = boundedGalleryImages(images);
   return (
@@ -228,6 +235,7 @@ export function Gallery({
       unavailableLabel={unavailableLabel}
       layout={layout}
       selection={selection}
+      onMainImageLoad={onMainImageLoad}
     />
   );
 }

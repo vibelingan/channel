@@ -1,4 +1,174 @@
 import { expect, test } from '@playwright/test';
+import { detailFixture } from '../../apps/site/src/catalog/testing/detail-fixture.ts';
+
+function colorDetail() {
+  const detail = detailFixture();
+  detail.name = 'Color-bound source headphones';
+  detail.images = Array.from({ length: 6 }, (_, i) => `/api/images/general-${i}`);
+  detail.variants.items.forEach((variant, i) => {
+    const color = ['Black', 'White', 'Pink'][i];
+    if (!color) throw new Error('Color fixture mismatch');
+    variant.options = [{ name: 'Color', value: color }];
+    variant.images = [`/api/images/sku-${color.toLowerCase()}`];
+  });
+  return detail;
+}
+const imageBytes = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jf1sAAAAASUVORK5CYII=',
+  'base64',
+);
+
+test('mobile selected photos use explicit SKU bindings; general photos never change the selected color', async ({
+  page,
+}) => {
+  const detail = colorDetail();
+  let reads = 0;
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/products/canonical-product/detail*', (route) => {
+    reads++;
+    return route.fulfill({ contentType: 'application/json', body: envelope(detail) });
+  });
+  await page.route('**/api/images/**', (route) =>
+    route.fulfill({ contentType: 'image/png', body: imageBytes }),
+  );
+  await page.goto('/products/item/?id=canonical-product');
+  const hero = page.locator('[data-gallery-frame] img');
+  await expect(hero).toHaveAttribute('src', /\/sku-black$/);
+  await expect(page.getByRole('radio', { name: /Black/ })).toBeChecked();
+  await expect(page.locator('[data-gallery-count]')).toHaveText('1 / 1');
+  await page.getByRole('button', { name: 'View product gallery (6)' }).click();
+  await expect(page.locator('[data-gallery-thumbnail]')).toHaveCount(6);
+  await page.getByRole('button', { name: 'View image 3', exact: true }).click();
+  await expect(hero).toHaveAttribute('src', /\/general-2$/);
+  await expect(page.getByRole('radio', { name: /Black/ })).toBeChecked();
+  for (const color of ['Pink', 'White', 'Black', 'Pink']) {
+    await page.getByRole('radio', { name: new RegExp(color) }).check();
+    await expect(hero).toHaveAttribute('src', new RegExp(`/sku-${color.toLowerCase()}$`));
+    await expect(page.locator('[data-variant-gallery]')).toHaveAttribute(
+      'data-gallery-mode',
+      'configuration',
+    );
+  }
+  expect(reads).toBe(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+});
+
+test('unequal image/spec counts, unmapped and broken SKU images never fall back to a different color', async ({
+  page,
+}) => {
+  const detail = colorDetail();
+  const [black, , pink] = detail.variants.items;
+  if (!black || !pink) throw new Error('Missing color fixtures');
+  black.images.push('/api/images/sku-black-side');
+  pink.images = [];
+  await page.route('**/api/products/canonical-product/detail*', (route) =>
+    route.fulfill({ contentType: 'application/json', body: envelope(detail) }),
+  );
+  await page.route('**/api/images/**', (route) =>
+    route.request().url().endsWith('/sku-white')
+      ? route.fulfill({ status: 404 })
+      : route.fulfill({ contentType: 'image/png', body: imageBytes }),
+  );
+  await page.goto('/products/item/?id=canonical-product');
+  await expect(page.locator('[data-gallery-count]')).toHaveText('1 / 2');
+  await page.getByRole('button', { name: 'View image 2', exact: true }).click();
+  await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute(
+    'src',
+    /\/sku-black-side$/,
+  );
+  await page.getByRole('radio', { name: /Pink/ }).check();
+  await expect(page.locator('[data-gallery-frame] img')).toHaveCount(0);
+  await expect(
+    page.getByText('No photo is assigned to this configuration.', { exact: true }),
+  ).toBeVisible();
+  await page.getByRole('radio', { name: /White/ }).check();
+  await expect(page.locator('[data-gallery-frame] [data-product-media="fallback"]')).toBeVisible();
+  await expect(page.locator('[data-gallery-frame] img')).toHaveCount(0);
+  await page.getByRole('button', { name: 'View product gallery (6)' }).click();
+  await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute('src', /\/general-0$/);
+  await expect(page.getByRole('radio', { name: /White/ })).toBeChecked();
+});
+
+test('visible hero loads first; fast selection joins in-flight prefetch and late completion cannot change selection', async ({
+  page,
+}) => {
+  const requests: string[] = [];
+  let releaseBlack: () => void = () => {};
+  let releaseWhite: () => void = () => {};
+  const blackGate = new Promise<void>((resolve) => {
+    releaseBlack = resolve;
+  });
+  const whiteGate = new Promise<void>((resolve) => {
+    releaseWhite = resolve;
+  });
+  await page.route('**/api/products/canonical-product/detail*', (route) =>
+    route.fulfill({ contentType: 'application/json', body: envelope(colorDetail()) }),
+  );
+  await page.route('**/api/images/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    requests.push(path);
+    if (path.endsWith('/sku-black')) await blackGate;
+    if (path.endsWith('/sku-white')) await whiteGate;
+    await route.fulfill({ contentType: 'image/png', body: imageBytes });
+  });
+  await page.goto('/products/item/?id=canonical-product', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute('src', /\/sku-black$/);
+  expect(requests).toEqual(['/api/images/sku-black']);
+  releaseBlack();
+  await expect.poll(() => requests.includes('/api/images/sku-white')).toBe(true);
+  await page.getByRole('radio', { name: /White/ }).check();
+  await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute('src', /\/sku-white$/);
+  await page.getByRole('radio', { name: /Pink/ }).check();
+  releaseWhite();
+  await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute('src', /\/sku-pink$/);
+  await expect
+    .poll(() =>
+      page
+        .locator('[data-gallery-frame] img')
+        .evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0),
+    )
+    .toBe(true);
+  expect(requests.filter((path) => path.endsWith('/sku-white'))).toHaveLength(1);
+  expect(requests.some((path) => path.includes('/general-'))).toBe(false);
+});
+
+for (const connection of [
+  { saveData: true, effectiveType: '4g' },
+  { saveData: false, effectiveType: '2g' },
+]) {
+  test(`data-saving connection (${connection.saveData ? 'Save-Data' : '2g'}) disables speculation, not selected images`, async ({
+    page,
+  }) => {
+    const requests: string[] = [];
+    await page.addInitScript(
+      (value) => Object.defineProperty(navigator, 'connection', { value, configurable: true }),
+      connection,
+    );
+    await page.clock.install();
+    await page.route('**/api/products/canonical-product/detail*', (route) =>
+      route.fulfill({ contentType: 'application/json', body: envelope(colorDetail()) }),
+    );
+    await page.route('**/api/images/**', (route) => {
+      requests.push(new URL(route.request().url()).pathname);
+      return route.fulfill({ contentType: 'image/png', body: imageBytes });
+    });
+    await page.goto('/products/item/?id=canonical-product');
+    const hero = page.locator('[data-gallery-frame] img');
+    await expect
+      .poll(() => hero.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0))
+      .toBe(true);
+    await page.clock.runFor(2000);
+    expect(requests).toEqual(['/api/images/sku-black']);
+    await page.getByRole('radio', { name: /Pink/ }).check();
+    await expect(hero).toHaveAttribute('src', /\/sku-pink$/);
+    await expect
+      .poll(() => hero.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0))
+      .toBe(true);
+    expect(requests).toEqual(['/api/images/sku-black', '/api/images/sku-pink']);
+  });
+}
 
 const product = {
   _id: 'current',

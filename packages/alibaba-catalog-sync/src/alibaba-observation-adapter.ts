@@ -88,6 +88,7 @@ function commonPricing(pricing: AlibabaCatalogPricing): CatalogSourcePricing | n
 function httpMedia(
   urls: readonly string[],
   findings: CatalogObservationFinding[],
+  sourcePath = 'product.main_image',
 ): CatalogSourceObservation['content']['media'] {
   const result: CatalogSourceObservation['content']['media'] = [];
   const seen = new Set<string>();
@@ -100,7 +101,7 @@ function httpMedia(
             severity: 'warning',
             code: 'invalid-media-url',
             message: 'A provider media URL did not use HTTP(S) and was omitted.',
-            sourcePath: 'product.main_image',
+            sourcePath,
           });
         }
         continue;
@@ -116,7 +117,7 @@ function httpMedia(
         severity: 'warning',
         code: 'invalid-media-url',
         message: 'A malformed provider media URL was omitted.',
-        sourcePath: 'product.main_image',
+        sourcePath,
       });
     }
   }
@@ -200,6 +201,7 @@ export const alibabaObservationAdapter: CatalogObservationAdapter<AlibabaObserva
     }
 
     const variants: CatalogSourceObservation['variants'] = [];
+    const skuById = new Map(input.detail.skus.map((sku) => [sku.sourceSkuId, sku]));
     const variantKeyBySku = new Map<string, string>();
     for (const offer of normalized.offers) {
       if (offer.sourceSkuId === PRODUCT_LEVEL_SKU_SENTINEL) continue;
@@ -219,13 +221,17 @@ export const alibabaObservationAdapter: CatalogObservationAdapter<AlibabaObserva
           offer.sourceAvailability === undefined
             ? []
             : [{ quantity: offer.sourceAvailability, semantics: 'sellable' }],
-        media: [],
+        media: httpMedia(
+          skuById.get(offer.sourceSkuId)?.imageUrls ?? [],
+          findings,
+          'product.product_sku.sku_attributes.values.image_url',
+        ).map((item) => ({ ...item, role: 'variant' as const })),
       });
     }
 
     const offers: CatalogSourceObservation['offers'] = [];
     for (const offer of normalized.offers) {
-      const sourceSku = input.detail.skus.find((sku) => sku.sourceSkuId === offer.sourceSkuId);
+      const sourceSku = skuById.get(offer.sourceSkuId);
       const suppliedPrice = sourceSku
         ? sourceSku.priceLexeme !== undefined || (sourceSku.ladderPrices?.length ?? 0) > 0
         : input.detail.fobMinLexeme !== undefined ||

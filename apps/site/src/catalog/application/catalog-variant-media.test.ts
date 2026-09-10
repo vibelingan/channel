@@ -4,31 +4,42 @@ import { detailFixture } from '../testing/detail-fixture.ts';
 import { createCatalogMediaState } from './catalog-media.ts';
 import { variantMediaSources } from './catalog-variant-media.ts';
 
-test('selection prioritizes only explicitly associated parent images before the shared cap', () => {
+test('an unmapped selected color must not present a different color from the product gallery', () => {
+  const variant = detailFixture().variants.items[0];
+  variant.options = [{ name: 'color', value: 'Black' }];
+  variant.images = [];
+  assert.deepEqual(
+    variantMediaSources(['/api/images/white-hero', '/api/images/pink-hero'], {
+      status: 'selected',
+      variant,
+    }),
+    [],
+  );
+});
+
+test('selection shows only explicitly associated photos, independent of the product gallery', () => {
   const variant = detailFixture().variants.items[0];
   variant.images = ['/api/images/third'];
   const parents = ['/api/images/first', '/api/images/second', '/api/images/third'];
   const result = createCatalogMediaState(
     variantMediaSources(parents, { status: 'selected', variant }),
   );
-  assert.deepEqual(result.sources, [
-    '/api/images/third',
-    '/api/images/first',
-    '/api/images/second',
-  ]);
+  assert.deepEqual(result.sources, ['/api/images/third']);
   assert.deepEqual(parents, ['/api/images/first', '/api/images/second', '/api/images/third']);
 });
 
-test('missing variant image and pending selection preserve the parent gallery', () => {
+test('missing variant image does not borrow product photos; pending selection retains a general gallery', () => {
   const parents = ['/api/images/first', '/api/images/second'];
   const variant = detailFixture().variants.items[0];
-  assert.deepEqual(variantMediaSources(parents, { status: 'selected', variant }), parents);
+  assert.deepEqual(variantMediaSources(parents, { status: 'selected', variant }), []);
   assert.deepEqual(
     variantMediaSources(parents, { status: 'pending', requestedId: 'later' }),
     parents,
   );
   variant.images = ['/api/images/not-in-approved-gallery'];
-  assert.deepEqual(variantMediaSources(parents, { status: 'selected', variant }), parents);
+  assert.deepEqual(variantMediaSources(parents, { status: 'selected', variant }), [
+    '/api/images/not-in-approved-gallery',
+  ]);
 });
 
 test('preparing gallery sources never changes canonical selection or guesses from image order', () => {

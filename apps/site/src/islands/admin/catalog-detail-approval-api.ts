@@ -25,6 +25,22 @@ const review = z
         descriptionIds: z.array(z.string()).max(18),
         gallerySources: z.array(z.string()).max(9),
         descriptionSources: z.array(z.string()).max(18),
+        importDigest: z
+          .string()
+          .regex(/^[a-f0-9]{64}$/)
+          .optional(),
+        variantSources: z
+          .array(
+            z
+              .object({
+                id: z.string(),
+                sources: z.array(z.string().url()).max(9),
+                unboundSources: z.array(z.string().url()).max(9),
+              })
+              .strict(),
+          )
+          .max(50)
+          .optional(),
       })
       .strict()
       .optional(),
@@ -68,10 +84,45 @@ export async function readDetailReview(
 }
 export type DetailReview = Awaited<ReturnType<typeof readDetailReview>>;
 export async function approveDetailReview(
-  review: DetailReview,
+  initialReview: DetailReview,
   operationId: string,
   signal?: AbortSignal,
 ) {
+  let review = initialReview;
+  // Conversion to owned media is an explicit approval step, never a Preview side effect.
+  // Import only the source mappings the operator just reviewed. Re-read and fail
+  // closed if any non-media content, source mapping or published revision changed.
+  const pendingSources = (review.previewMedia?.variantSources ?? []).flatMap(
+    (entry) => entry.unboundSources,
+  );
+  if (review.previewMedia?.importDigest) {
+    for (
+      let page = 2;
+      page <= Math.ceil(review.detail.variants.total / review.detail.variants.pageSize);
+      page++
+    ) {
+      const next = await readDetailReview(review.productId, page, review.expectedDigest, signal);
+      pendingSources.push(
+        ...(next.previewMedia?.variantSources ?? []).flatMap((entry) => entry.unboundSources),
+      );
+    }
+  }
+  if (pendingSources.length) {
+    const { importAlibabaSourceImage } = await import('./alibaba-catalog-sync/alibaba-api.ts');
+    for (const url of new Set(pendingSources)) {
+      signal?.throwIfAborted();
+      await importAlibabaSourceImage(url, signal);
+    }
+    const next = await prepareDetailReview(review.productId, signal);
+    if (
+      !review.previewMedia?.importDigest ||
+      next.previewMedia?.importDigest !== review.previewMedia.importDigest
+    )
+      throw new Error(
+        'The product changed while importing configuration photos. Refresh and review it again.',
+      );
+    review = next;
+  }
   let result = progress.parse(
     await catalogApprovalCall(
       {

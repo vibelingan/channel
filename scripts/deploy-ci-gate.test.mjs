@@ -87,6 +87,10 @@ test('acceptance-only dispatch cannot deploy and cannot bypass CI or use infrast
   const release = workflow('deploy-test');
   const job = release.jobs['catalog-acceptance'];
   assert.equal(release.on.workflow_dispatch.inputs.catalog_acceptance_only.default, false);
+  assert.deepEqual(release.on.workflow_dispatch.inputs.catalog_acceptance_scope.options, [
+    'full',
+    'variant-media',
+  ]);
   assert.equal(job.needs, 'ci');
   assert.equal(
     job.if,
@@ -100,6 +104,10 @@ test('acceptance-only dispatch cannot deploy and cannot bypass CI or use infrast
   assert.ok(step);
   assert.equal(step.env.CHANNEL_EXPECTED_RELEASE, '${{ github.sha }}');
   assert.equal(step.env.E2E_RECORD_ARTIFACTS, '0');
+  assert.equal(
+    step.env.E2E_CATALOG_ACCEPTANCE_SCOPE,
+    "${{ github.event.inputs.catalog_acceptance_scope || 'full' }}",
+  );
   assert.equal(step['continue-on-error'], undefined);
   assert.doesNotMatch(
     JSON.stringify(job),

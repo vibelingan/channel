@@ -131,6 +131,15 @@ export function prepareStagedApproval(
       return fail('CONFLICT');
     const revision = randomUUID();
     const plan = planCatalogDetailApproval({ product, variants: rows, revision });
+    // Known source mappings may not silently disappear from an approved SKU.
+    if (
+      rows.some(
+        (row) =>
+          Array.isArray(row.detailSourceUnboundMediaSources) &&
+          row.detailSourceUnboundMediaSources.length > 0,
+      )
+    )
+      return fail('MEDIA_NOT_READY');
     if (plan.variants.some((variant) => Buffer.byteLength(JSON.stringify(variant)) > 128 * 1024))
       return fail('VALIDATION_ERROR');
     const pageHashes = [];

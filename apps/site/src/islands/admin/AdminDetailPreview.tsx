@@ -3,8 +3,8 @@ import type { DetailPages } from '../../catalog/application/catalog-detail-pages
 import { resolveVariantSelection } from '../../catalog/application/catalog-variant-state.ts';
 import { CatalogDescriptionImages } from '../../catalog/presentation/CatalogDescriptionImages.tsx';
 import { CatalogDetail } from '../../catalog/presentation/CatalogDetail.tsx';
+import { CatalogVariantGallery } from '../../catalog/presentation/CatalogVariantGallery.tsx';
 import { getSharedDetailContent } from '../../i18n/catalog.ts';
-import { Gallery } from '../shop/Gallery.tsx';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import {
   type DetailReview,
@@ -34,6 +34,9 @@ export default function AdminDetailPreview({
   const [selected, setSelected] = useState<string>();
   const media = review?.previewMedia;
   const imagePreview = useAdminImagePreviews([
+    ...(review?.detail.variants.items.flatMap((v) =>
+      v.images.map((src) => src.slice('/api/images/'.length)),
+    ) ?? []),
     ...(media?.galleryIds ?? []),
     ...(media?.descriptionIds ?? []),
   ]);
@@ -141,11 +144,24 @@ export default function AdminDetailPreview({
         onSelect={setSelected}
         onClear={() => setSelected(undefined)}
         media={
-          <Gallery
+          <CatalogVariantGallery
             images={galleryImages}
-            alt={review.detail.name}
+            name={review.detail.name}
             productId={productId}
-            layout="detail"
+            revision={review.expectedDigest}
+            selection={selection}
+            variants={pages.items}
+            loadingImages={imagePreview.loading}
+            resolveImage={(src) => owned[src.slice('/api/images/'.length)]}
+            sourceImages={
+              selection.status === 'selected'
+                ? alibabaSourcePreviewUrls(
+                    media?.variantSources?.find((m) => m.id === selection.variant.id)?.sources ??
+                      [],
+                  )
+                : []
+            }
+            unavailableLabel="Product image unavailable"
           />
         }
         pagination={

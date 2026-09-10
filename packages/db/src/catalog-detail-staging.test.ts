@@ -505,6 +505,117 @@ test('missing and busy media cannot switch a fully staged approval; a newer appr
   assert.equal((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok, false);
 });
 
+test('independent SKU media stays private until atomic approval, with retry-safe reference rollover', async () => {
+  for (const published of [true, false]) {
+    const h = fixture(1);
+    const p = h.row('products', 'p');
+    p.published = published;
+    p.catalogDetailPublication = {
+      ...h.product.catalogDetailPublication,
+      variantImageIds: ['old-sku'],
+    };
+    const v = h.row('productVariants', 'v0');
+    const sourceVariant = h.variants[0];
+    assert.ok(sourceVariant);
+    v.imageIds = ['new-sku'];
+    v.detailSourceCandidate = {
+      ...sourceVariant.detailSourceCandidate,
+      images: ['/api/images/new-sku'],
+    };
+    const images = h.store().images;
+    assert.ok(images);
+    const existing = h.row('images', 'image');
+    images['old-sku'] = { ...existing, _id: 'old-sku', publishedRefCount: published ? 1 : 0 };
+    images['new-sku'] = { ...existing, _id: 'new-sku', publishedRefCount: 0 };
+    h.row('images', 'image').publishedRefCount = published ? 1 : 0;
+    const prepared = prepareStagedApproval(
+      'admin',
+      { ...h.command, expectedDigest: catalogApprovalDigest(p, [v]) },
+      p,
+      [v],
+    );
+    assert.ok(prepared.ok);
+    const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', prepared.value));
+    assert.ok(begin.ok);
+    assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', begin.jobId, 0))).ok);
+    assert.equal(h.row('images', 'new-sku').publishedRefCount, 0);
+    h.row('images', 'new-sku').status = 'deleted';
+    assert.deepEqual(await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId)), {
+      ok: false,
+      code: 'MEDIA_NOT_READY',
+    });
+    assert.equal(h.publication().revision, 'old');
+    h.row('images', 'new-sku').status = 'active';
+    assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+    assert.deepEqual(h.publication().variantImageIds, ['new-sku']);
+    assert.deepEqual(h.publication().header.images, ['/api/images/image']);
+    assert.equal(h.row('images', 'new-sku').publishedRefCount, published ? 1 : 0);
+    assert.equal(h.row('images', 'old-sku').publishedRefCount, 0);
+    assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+    assert.equal(h.row('images', 'new-sku').publishedRefCount, published ? 1 : 0);
+  }
+});
+
+test('known but unimported SKU photos cannot silently approve an empty mapping', () => {
+  const h = fixture(1);
+  const v = {
+    ...h.row('productVariants', 'v0'),
+    detailSourceUnboundMediaSources: ['https://sc04.alicdn.com/black.jpg'],
+  };
+  const result = prepareStagedApproval(
+    'admin',
+    { ...h.command, expectedDigest: catalogApprovalDigest(h.product, [v]) },
+    h.product,
+    [v],
+  );
+  assert.deepEqual(result, { ok: false, code: 'MEDIA_NOT_READY' });
+});
+
+test('import review digest permits URL-to-owned binding only, not a different source or edited content', async () => {
+  const h = fixture(1);
+  const sourceVariant = h.variants[0];
+  assert.ok(sourceVariant);
+  const v = h.row('productVariants', 'v0');
+  v.detailSourceMediaSources = ['https://sc04.alicdn.com/black.jpg'];
+  v.detailSourceUnboundMediaSources = v.detailSourceMediaSources;
+  v.imageIds = [];
+  v.detailSourceCandidate = { ...sourceVariant.detailSourceCandidate, images: [] };
+  const review = () =>
+    runCatalogApprovalWorkflow(
+      {
+        get: async (c, id) => structuredClone(h.store()[c]?.[id] ?? null),
+        persist: async () => {
+          throw new Error('read only');
+        },
+      },
+      'admin',
+      { action: 'review', productId: 'p', includePreviewMedia: true },
+    );
+  const initial = await review();
+  assert.ok(initial.ok && 'previewMedia' in initial);
+  const importDigest = initial.previewMedia?.importDigest;
+  assert.ok(importDigest);
+  v.imageIds = ['image'];
+  v.detailSourceCandidate = {
+    ...sourceVariant.detailSourceCandidate,
+    images: ['/api/images/image'],
+  };
+  v.detailSourceUnboundMediaSources = [];
+  const bound = await review();
+  assert.ok(bound.ok && 'previewMedia' in bound);
+  assert.equal(bound.previewMedia?.importDigest, importDigest);
+  assert.notEqual(bound.expectedDigest, initial.expectedDigest);
+  v.detailSourceMediaSources = ['https://sc04.alicdn.com/white.jpg'];
+  const changed = await review();
+  assert.ok(changed.ok && 'previewMedia' in changed);
+  assert.notEqual(changed.previewMedia?.importDigest, importDigest);
+  v.detailSourceMediaSources = ['https://sc04.alicdn.com/black.jpg'];
+  h.row('products', 'p').name = 'Concurrent manual edit';
+  const edited = await review();
+  assert.ok(edited.ok && 'previewMedia' in edited);
+  assert.notEqual(edited.previewMedia?.importDigest, importDigest);
+});
+
 test('reapproval atomically releases old snapshot-only media; failure and retry cannot leak or double-decrement', async () => {
   const h = fixture(0);
   const p = h.row('products', 'p');

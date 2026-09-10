@@ -17,6 +17,7 @@ import {
   approvalProductFingerprint,
   prepareStagedApproval,
 } from './catalog-detail-staging.ts';
+import { sourceDigest } from './catalog-source-staging.ts';
 
 const WorkflowCommandSchema = z.discriminatedUnion('action', [
   z
@@ -144,6 +145,29 @@ export async function runCatalogApprovalWorkflow(
       ...(command.includePreviewMedia
         ? {
             previewMedia: {
+              // Stable across transport-to-owned conversion, but not across any
+              // reviewed content, identity, price, gallery or source mapping edit.
+              importDigest: sourceDigest({
+                revision: current?.revision ?? null,
+                header: plan.publication.header,
+                content: plan.publication.content,
+                notes: plan.publication.noteBlocks,
+                variants: plan.variants.map(({ images: _images, ...v }) => v),
+                sources: read.rows.map((row) => [row._id, row.detailSourceMediaSources ?? []]),
+              }),
+              variantSources: read.rows.slice(offset, offset + 50).map((row) => ({
+                id: row._id,
+                sources: Array.isArray(row.detailSourceMediaSources)
+                  ? row.detailSourceMediaSources
+                      .filter((v): v is string => typeof v === 'string')
+                      .slice(0, 9)
+                  : [],
+                unboundSources: Array.isArray(row.detailSourceUnboundMediaSources)
+                  ? row.detailSourceUnboundMediaSources
+                      .filter((v): v is string => typeof v === 'string')
+                      .slice(0, 9)
+                  : [],
+              })),
               galleryIds: Array.isArray(read.product.imageIds)
                 ? read.product.imageIds
                     .filter((v): v is string => typeof v === 'string')

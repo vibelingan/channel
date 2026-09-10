@@ -628,6 +628,47 @@ test('raw observation replay is admin-only and apply requires hash, total and ma
 
 // --- http adapter ------------------------------------------------------------
 
+test('authenticated targeted replay forwards the exact source key instead of scanning the catalog', async (t) => {
+  const store = setup();
+  class ReplayAdapter extends MemoryAdapter {
+    async acquireAlibabaSyncLease() {
+      return { result: 'granted' as const, fence: 1 };
+    }
+    async releaseAlibabaSyncLease() {
+      return true;
+    }
+  }
+  const adapter = new ReplayAdapter(store);
+  setAdapter(adapter);
+  const originalGet = adapter.get.bind(adapter);
+  const originalList = adapter.list.bind(adapter);
+  const targets: string[] = [];
+  t.mock.method(adapter, 'get', async (collection: string, id: string) => {
+    if (collection === 'alibabaSourceProducts') targets.push(id);
+    return originalGet(collection, id);
+  });
+  t.mock.method(adapter, 'list', async (query: AdapterListQuery) => {
+    assert.notEqual(
+      query.collection,
+      'alibabaSourceProducts',
+      'Narrow repair must not become a full scan',
+    );
+    return originalList(query);
+  });
+  const token = await adminToken();
+  const result = await handleAlibabaSyncRequest(
+    {
+      action: 'replaySourceObservations',
+      token,
+      data: { mode: 'dry-run', sourceKey: 'a'.repeat(64), limit: 1 },
+    },
+    baseConfig,
+  );
+  assert.ok(!result.ok);
+  assert.equal(result.error.code, 'CONFLICT');
+  assert.deepEqual(targets, ['a'.repeat(64)]);
+});
+
 test('http adapter: OPTIONS preflight, health, callback redirect, POST envelope, 405', async () => {
   setup();
   const token = await adminToken();

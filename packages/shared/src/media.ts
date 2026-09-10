@@ -88,6 +88,10 @@ export function catalogReferencedImageIds(doc: Record<string, unknown>): string[
   ) {
     const header = Reflect.get(publication, 'header');
     if (header && typeof header === 'object' && Reflect.get(header, '_id') === doc._id) {
+      const variantImages = Reflect.get(publication, 'variantImageIds');
+      if (Array.isArray(variantImages))
+        for (const id of variantImages)
+          if (typeof id === 'string' && /^[A-Za-z0-9_-]+$/.test(id)) ids.add(id);
       const images = Reflect.get(header, 'images');
       if (Array.isArray(images))
         for (const url of images.slice(0, 9)) {

@@ -42,6 +42,101 @@ const invalidSkuProduct = {
   },
 };
 
+test('real SKU value image_url survives raw parsing independently of the six product photos', () => {
+  const wire = JSON.parse(
+    readFileSync(
+      new URL('../../../tests/fixtures/alibaba-variant-images-wire.json', import.meta.url),
+      'utf8',
+    ),
+  );
+  const observation = observeRaw(wire.alibaba_icbu_product_get_response.product);
+  assert.equal(observation.content.media.length, 6);
+  assert.deepEqual(
+    observation.variants.map((v) => ({
+      color: v.options.find((o) => o.sourceName === 'color')?.value,
+      images: v.media.map((m) => m.sourceUrl),
+    })),
+    [
+      {
+        color: 'Black',
+        images: ['https://sc04.alicdn.com/kf/Hdd76b413997a44cb91f594cc004237e8N.jpg'],
+      },
+      {
+        color: 'White',
+        images: ['https://sc04.alicdn.com/kf/Hbb64fd6a2fd041c2879fe6bd84472d31U.jpg'],
+      },
+      {
+        color: 'Pink',
+        images: ['https://sc04.alicdn.com/kf/H445a300485e148579071381c766d0aacj.jpg'],
+      },
+    ],
+  );
+});
+
+test('source image bindings use attribute/value identity, not option or gallery order', () => {
+  const image = 'https://sc04.alicdn.com/black.jpg';
+  const product = {
+    product_id: 'mapping-edges',
+    main_image: { image: ['https://sc04.alicdn.com/white.jpg'] },
+    product_sku: {
+      sku_attributes: {
+        sku_attribute: [
+          {
+            attribute_id: 1,
+            attribute_name: 'Color',
+            values: {
+              sku_attribute_value: [
+                { value_id: 10, system_value_name: 'Black', image_url: image },
+                { value_id: 11, system_value_name: 'White' },
+              ],
+            },
+          },
+          // The same value ID under another axis is a different identity.
+          {
+            attribute_id: 2,
+            attribute_name: 'Size',
+            values: {
+              sku_attribute_value: [{ value_id: 10, system_value_name: 'Large', image_url: image }],
+            },
+          },
+        ],
+      },
+      skus: {
+        sku_definition: [
+          { sku_id: 'white', attr2_value: '{"1":11}' },
+          { sku_id: 'black-large', attr2_value: '{"2":10,"1":10}' },
+          { sku_id: 'unknown', attr2_value: '{"1":999}' },
+          { sku_id: 'invalid', attr2_value: '{not JSON' },
+        ],
+      },
+    },
+  };
+  const observation = observeRaw(product);
+  assert.deepEqual(
+    observation.variants.map((v) => v.media.map((m) => m.sourceUrl)),
+    [[], [image], [], []],
+  );
+  for (const image_url of ['javascript:alert(1)', 'data:image/png;base64,abc', 'not a URL']) {
+    const changed = structuredClone(product);
+    const value =
+      changed.product_sku.sku_attributes.sku_attribute[0]?.values.sku_attribute_value[0];
+    assert.ok(value);
+    value.image_url = image_url;
+    changed.product_sku.skus.sku_definition = [{ sku_id: 'bad-url', attr2_value: '{"1":10}' }];
+    assert.deepEqual(observeRaw(changed).variants[0]?.media, [], image_url);
+  }
+  const ambiguous = structuredClone(product);
+  const color = ambiguous.product_sku.sku_attributes.sku_attribute[0];
+  assert.ok(color);
+  color.values.sku_attribute_value.push({
+    value_id: 10,
+    system_value_name: 'Black',
+    image_url: 'https://sc04.alicdn.com/other.jpg',
+  });
+  ambiguous.product_sku.skus.sku_definition = [{ sku_id: 'ambiguous', attr2_value: '{"1":10}' }];
+  assert.deepEqual(observeRaw(ambiguous).variants[0]?.media, []);
+});
+
 test('raw invalid SKU tier keeps independently known MOQ without inventing a quantity', () => {
   const observation = observeRaw(invalidSkuProduct);
   assert.deepEqual(observation.offers[0]?.pricing, {

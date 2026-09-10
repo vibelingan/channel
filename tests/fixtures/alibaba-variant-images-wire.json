@@ -1,0 +1,161 @@
+{
+  "alibaba_icbu_product_get_response": {
+    "product": {
+      "product_id": "fixture-sy-t11",
+      "subject": "Raw Color Headphones",
+      "main_image": {
+        "images": {
+          "string": [
+            "https://sc04.alicdn.com/kf/Hbc96f67ba2804120b60a067dc778a921X.jpg",
+            "https://sc04.alicdn.com/kf/H0377bc09938a4543980832055767a00fZ.jpg",
+            "https://sc04.alicdn.com/kf/Hec58a1fddcf6496381c14685787601edW.jpg",
+            "https://sc04.alicdn.com/kf/H426f83a0f81d4acfb85338c1bdf66dfaX.jpg",
+            "https://sc04.alicdn.com/kf/Hebb05327903249229884595300eefb2bE.jpg",
+            "https://sc04.alicdn.com/kf/H62cb02ceaea544c886c2989d289b4f078.jpg"
+          ]
+        }
+      },
+      "product_sku": {
+        "skus": {
+          "sku_definition": [
+            {
+              "attr2_value": "{\"19089\":3687285,\"3\":-1,\"210214564\":3262824,\"400026429\":1982273474,\"191288010\":3327837}",
+              "bulk_discount_prices": {
+                "bulk_discount_price": [
+                  {
+                    "start_quantity": 2,
+                    "price": "5.7"
+                  },
+                  {
+                    "start_quantity": 500,
+                    "price": "5"
+                  },
+                  {
+                    "start_quantity": 1000,
+                    "price": "3.8"
+                  }
+                ]
+              },
+              "sku_id": "color-0"
+            },
+            {
+              "attr2_value": "{\"19089\":3687285,\"3\":-1,\"210214564\":3262824,\"400026429\":1982273474,\"191288010\":3331185}",
+              "bulk_discount_prices": {
+                "bulk_discount_price": [
+                  {
+                    "start_quantity": 2,
+                    "price": "5.7"
+                  },
+                  {
+                    "start_quantity": 500,
+                    "price": "5"
+                  },
+                  {
+                    "start_quantity": 1000,
+                    "price": "3.8"
+                  }
+                ]
+              },
+              "sku_id": "color-1"
+            },
+            {
+              "attr2_value": "{\"19089\":3687285,\"3\":-1,\"210214564\":3262824,\"400026429\":1982273474,\"191288010\":3328925}",
+              "bulk_discount_prices": {
+                "bulk_discount_price": [
+                  {
+                    "start_quantity": 2,
+                    "price": "5.7"
+                  },
+                  {
+                    "start_quantity": 500,
+                    "price": "5"
+                  },
+                  {
+                    "start_quantity": 1000,
+                    "price": "3.8"
+                  }
+                ]
+              },
+              "sku_id": "color-2"
+            }
+          ]
+        },
+        "sku_attributes": {
+          "sku_attribute": [
+            {
+              "attribute_id": 3,
+              "values": {
+                "sku_attribute_value": [
+                  {
+                    "system_value_name": "SY-T11",
+                    "value_id": -1
+                  }
+                ]
+              },
+              "attribute_name": "model number"
+            },
+            {
+              "attribute_id": 19089,
+              "values": {
+                "sku_attribute_value": [
+                  {
+                    "system_value_name": "Wireless",
+                    "value_id": 3687285
+                  }
+                ]
+              },
+              "attribute_name": "connectors"
+            },
+            {
+              "attribute_id": 191288010,
+              "values": {
+                "sku_attribute_value": [
+                  {
+                    "system_value_name": "Black",
+                    "image_url": "https://sc04.alicdn.com/kf/Hdd76b413997a44cb91f594cc004237e8N.jpg",
+                    "value_id": 3327837
+                  },
+                  {
+                    "system_value_name": "White",
+                    "image_url": "https://sc04.alicdn.com/kf/Hbb64fd6a2fd041c2879fe6bd84472d31U.jpg",
+                    "value_id": 3331185
+                  },
+                  {
+                    "system_value_name": "Pink",
+                    "image_url": "https://sc04.alicdn.com/kf/H445a300485e148579071381c766d0aacj.jpg",
+                    "value_id": 3328925
+                  }
+                ]
+              },
+              "attribute_name": "color"
+            },
+            {
+              "attribute_id": 210214564,
+              "values": {
+                "sku_attribute_value": [
+                  {
+                    "system_value_name": "No",
+                    "value_id": 3262824
+                  }
+                ]
+              },
+              "attribute_name": "support memory card"
+            },
+            {
+              "attribute_id": 400026429,
+              "values": {
+                "sku_attribute_value": [
+                  {
+                    "system_value_name": "no microphone",
+                    "value_id": 1982273474
+                  }
+                ]
+              },
+              "attribute_name": "microphone"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

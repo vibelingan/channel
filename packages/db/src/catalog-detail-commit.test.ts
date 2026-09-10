@@ -143,6 +143,27 @@ function harness(count = 2) {
   };
 }
 
+test('direct internal approval also fences and counts independent SKU media exactly once', async () => {
+  const h = harness(1);
+  h.state.products.p.published = true;
+  h.row('images', 'image').publishedRefCount = 1;
+  h.state.images.sku = { ...h.row('images', 'image'), _id: 'sku', publishedRefCount: 0 };
+  h.row('productVariants', 'v0').imageIds = ['sku'];
+  const command = {
+    ...h.command,
+    expectedDigest: catalogApprovalDigest(
+      h.state.products.p,
+      Object.values(h.state.productVariants),
+    ),
+  };
+  const result = await approveCatalogDetailInCloud(h.db, 'admin', command);
+  assert.ok(result.ok);
+  assert.equal(h.row('images', 'sku').publishedRefCount, 1);
+  assert.equal(h.row('images', 'image').publishedRefCount, 1);
+  assert.ok((await approveCatalogDetailInCloud(h.db, 'admin', command)).ok);
+  assert.equal(h.row('images', 'sku').publishedRefCount, 1);
+});
+
 test('atomic approval replaces the complete snapshot without publishing or altering source/identity data', async () => {
   const h = harness();
   const result = await approveCatalogDetailInCloud(h.db, 'admin', h.command);

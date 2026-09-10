@@ -28,6 +28,7 @@ export interface ProductMediaProps {
   height?: number;
   loading?: 'eager' | 'lazy';
   fetchPriority?: 'high' | 'low' | 'auto';
+  onLoad?: () => void;
 }
 
 export function createProductMediaState(): ProductMediaState {
@@ -76,6 +77,7 @@ function ProductMediaSession({
   height = 800,
   loading = 'lazy',
   fetchPriority = 'auto',
+  onLoad,
 }: ProductMediaProps) {
   const [state, dispatch] = useReducer(productMediaReducer, undefined, createProductMediaState);
   const [unavailableAnnouncement, setUnavailableAnnouncement] = useState('');
@@ -129,6 +131,7 @@ function ProductMediaSession({
           loading={loading}
           fetchPriority={fetchPriority}
           decoding="async"
+          onLoad={onLoad}
           referrerPolicy="no-referrer"
           className={`h-full w-full object-contain ${imageClassName} ${className}`}
           onError={() =>
