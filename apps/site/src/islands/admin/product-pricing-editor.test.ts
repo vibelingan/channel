@@ -79,6 +79,20 @@ test('source evidence must not replace an explicit invalid manual price or missi
   assert.match(removed, /Pricing unavailable/);
 });
 
+test('effective editor quote retains source MOQ when price is unavailable', () => {
+  const html = renderUntouchedPricing(
+    { catalogPricingMode: 'source' },
+    {
+      ...sourceReview,
+      minimumOrderQuantity: 1,
+      primaryPricing: { mode: 'unavailable', minimumOrderQuantity: 1 },
+    },
+  );
+  assert.match(html, /Minimum order quantity: 1/);
+  assert.match(html, /Pricing unavailable/);
+  assert.doesNotMatch(html, /USD 0\.00|\$0\.00/);
+});
+
 test('unsaved pricing form values are labelled as a preview, not the current live price', () => {
   const html = renderToStaticMarkup(
     createElement(ProductPricingEditor, {

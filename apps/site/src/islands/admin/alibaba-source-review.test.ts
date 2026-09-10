@@ -111,3 +111,33 @@ test('untouched linked drafts show available source quotes instead of claiming p
     /Source:/,
   );
 });
+
+test('known source MOQ survives unavailable pricing without inventing a source price', () => {
+  const unavailableReview = {
+    ...review,
+    minimumOrderQuantity: 1,
+    primaryPricing: { mode: 'unavailable', minimumOrderQuantity: 1 },
+  };
+  const doc = { alibabaPrimarySourceKey: 'linked', alibabaSourceReview: unavailableReview };
+  assert.equal(productReviewCellValue(doc, 'moq'), '1 (source)');
+  assert.doesNotMatch(productReviewCellValue(doc, 'pricing'), /USD|\$|Source:/);
+  assert.equal(productReviewCellValue({ ...doc, unitPrice: 9, moq: 20 }, 'moq'), '20');
+  assert.equal(productReviewCellValue({ ...doc, catalogPricingMode: 'manual' }, 'moq'), '—');
+  for (const status of ['missing', 'MISSING'])
+    assert.equal(productReviewCellValue({ ...doc, alibabaSourceStatus: status }, 'moq'), '—');
+  for (const status of ['missing', 'draft'])
+    assert.equal(
+      productReviewCellValue(
+        { ...doc, alibabaSourceReview: { ...unavailableReview, sourceListingStatus: status } },
+        'moq',
+      ),
+      '—',
+    );
+  assert.equal(
+    productReviewCellValue(
+      { ...doc, alibabaSourceReview: { ...unavailableReview, minimumOrderQuantity: undefined } },
+      'moq',
+    ),
+    '1 (source)',
+  );
+});

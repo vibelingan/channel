@@ -234,6 +234,14 @@ handler 后的草稿、编辑、Preview、批准、公开详情，以及 RFQ→A
 
 ## 线上发布与验收记录（2026-09-10）
 
+追加真实样本检查：摘要刷新完成后，1,074 件均已存在、0 新建、0 失败。露营灯在真实列表 / Edit
+显示 USD 7.67、MOQ 1；Preview 为 6 张主图、17 张详情图，最后一张在浏览器成功加载。
+另一个纸篓草稿的来源报价确实不可用，但保存的 MOQ 为 1。其列表原本仍显示横线，暴露了
+Admin 摘要兼容读取把 MOQ 错绑在“价格可用”条件上的遗漏。此处不是再次重新解析 raw：
+共用 eligibility gate 下分开读取 MOQ 和价格，列表 / Edit 复用同一 helper；人工覆盖和失效
+来源仍不得使用该 fallback。新增两项测试先红后绿，并增加对应浏览器边缘用例。
+这项 UI 修复与询价持久化等待断言一起纳入 PR #44，必须以其最新提交的 CI/CD 与线上验收为准。
+
 - PR [#43](https://github.com/vibelingan/channel/pull/43)：head `5f87abba` 的完整 CI 通过后，合入 test，merge SHA 为 `5678d0477b743654be508cd0d8543d27dbe3bf49`。
 - [Deploy Test 34455803773](https://github.com/vibelingan/channel/actions/runs/34455803773) 成功：同 SHA 完整 CI、资源预检、函数包 cold-start、前端构建、部署冒烟、真实站点 41 项 public + 19 项 catalog 全通过。
 - 独立 HTTP 读取确认 admin / public-api / alibaba-catalog-sync 均返回该 releaseId；网页由同一次工作流构建部署。本轮没有通过 MCP/本机 CLI 直接部署任何云函数。
