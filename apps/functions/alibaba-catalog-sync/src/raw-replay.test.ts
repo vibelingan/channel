@@ -63,7 +63,7 @@ test('raw replay admits a missing sourcing FOB offer without admitting changed S
       fob_currency: 'USD',
       fob_unit_type: 'Piece',
       min_order_unit_type: 'Piece',
-      min_order_quantity: '2',
+      min_order_quantity: '2.0',
     },
   });
   f.bodyText = JSON.stringify(wire);
@@ -93,6 +93,7 @@ test('raw replay admits a missing sourcing FOB offer without admitting changed S
   assert.ok(productOffer);
   assert.equal(Reflect.get(productOffer.patch.pricing as object, 'minAmountMinor'), 775);
   assert.equal(Reflect.get(productOffer.patch.pricing as object, 'maxAmountMinor'), 900);
+  assert.equal(Reflect.get(productOffer.patch.pricing as object, 'sourceMoq'), 2);
   const changed = port(f);
   changed.p.listActiveOffers = async () => [{ ...f.offer, _id: 'unrelated-sku' }];
   const denied = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, changed.p);
@@ -277,7 +278,7 @@ test('apply requires the matching dry-run hash and preserves run provenance', as
   if (!applied.ok) return;
   assert.equal(applied.applied, 1);
   assert.deepEqual(harness.updatedOffers[0]?.patch.sourceAttributes, { Color: 'Blue' });
-  assert.equal(harness.updatedOffers[0]?.patch.parserVersion, 'alibaba-content-pricing-v3');
+  assert.equal(harness.updatedOffers[0]?.patch.parserVersion, 'alibaba-content-pricing-v4');
   assert.equal(Reflect.get(harness.updatedOffers[0]?.patch.pricing as object, 'sourceMoq'), 10);
   assert.equal(harness.observations.length, 1);
   assert.equal(harness.observations[0]?.value.lastSeenOperationId, 'full-current');

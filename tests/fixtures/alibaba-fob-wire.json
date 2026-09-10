@@ -12,7 +12,7 @@
         "fob_currency": "USD",
         "fob_unit_type": "Piece",
         "min_order_unit_type": "Piece",
-        "min_order_quantity": "2"
+        "min_order_quantity": "2.0"
       },
       "product_sku": {
         "skus": {

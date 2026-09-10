@@ -51,6 +51,81 @@ test('raw invalid SKU tier keeps independently known MOQ without inventing a qua
   assert.ok(observation.warnings.some((w) => w.code === 'invalid-source-pricing'));
 });
 
+test('raw decimal-form integer MOQ and tier boundaries retain their exact quantities', () => {
+  for (const lexeme of ['1', '1.0', '1.000', '001.00']) {
+    const observation = observeRaw({
+      ...invalidSkuProduct,
+      wholesale_trade: { min_order_quantity: lexeme },
+    });
+    assert.deepEqual(observation.offers[0]?.pricing, {
+      mode: 'unavailable',
+      minimumOrderQuantity: 1,
+    });
+  }
+  const observation = observeRaw({
+    ...invalidSkuProduct,
+    wholesale_trade: { min_order_quantity: '1000.0' },
+    currency: 'USD',
+    product_sku: {
+      skus: {
+        sku_definition: [
+          {
+            sku_id: 'one',
+            bulk_discount_prices: {
+              bulk_discount_price: [{ start_quantity: '1000.00', price: '3.10' }],
+            },
+          },
+        ],
+      },
+    },
+  });
+  assert.deepEqual(observation.offers[0]?.pricing, {
+    mode: 'tiered',
+    currency: 'USD',
+    minimumOrderQuantity: 1000,
+    tiers: [{ minimumQuantity: 1000, unitAmountMinor: 310 }],
+  });
+});
+
+test('quantity parsing never rounds fractional, non-finite or unsafe source values to integers', () => {
+  for (const lexeme of [
+    '0.0',
+    '-1.0',
+    '1.1',
+    '1.0000000000000001',
+    '9007199254740992.0',
+    'NaN',
+    'Infinity',
+  ]) {
+    const observation = observeRaw({
+      ...invalidSkuProduct,
+      wholesale_trade: { min_order_quantity: lexeme },
+    });
+    assert.equal(observation.offers[0]?.pricing.minimumOrderQuantity, undefined, lexeme);
+    const tier = observeRaw({
+      ...invalidSkuProduct,
+      wholesale_trade: { min_order_quantity: '1.0' },
+      product_sku: {
+        skus: {
+          sku_definition: [
+            {
+              sku_id: 'one',
+              bulk_discount_prices: {
+                bulk_discount_price: [{ start_quantity: lexeme, price: '3.10' }],
+              },
+            },
+          ],
+        },
+      },
+    });
+    assert.deepEqual(
+      tier.offers[0]?.pricing,
+      { mode: 'unavailable', minimumOrderQuantity: 1 },
+      lexeme,
+    );
+  }
+});
+
 test('raw FOB product quote survives invalid SKU tiers and remains product-scoped', () => {
   const observation = observeRaw({
     ...invalidSkuProduct,
