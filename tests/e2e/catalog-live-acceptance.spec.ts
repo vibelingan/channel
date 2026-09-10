@@ -86,6 +86,78 @@ test('live release: approved categories, existing published galleries, real inqu
   }
   expect(await publicIds()).toEqual(beforeIds);
 
+  // Actual raw-replay regressions, not synthetic products. These remain drafts:
+  // inspect list/Edit/shared Preview without importing, saving or publishing.
+  for (const sample of [
+    {
+      id: 'a5ab40df-d3ff-4baa-ad3a-1aacc4615448',
+      summary: 'USD 7.75–9.00',
+      detail: 'USD 7.75 – USD 9.00 per unit',
+      mode: 'range',
+    },
+    {
+      id: 'b8677602-2935-417d-a8fa-64fb377b9835',
+      summary: 'USD 14.90',
+      detail: 'USD 14.90 per unit',
+      mode: 'fixed',
+    },
+  ]) {
+    const before = await adminAction<CollectionDoc>(
+      request,
+      'get',
+      { collection: 'products', id: sample.id },
+      session.token,
+    );
+    expect(before.published).toBe(false);
+    expect(before.alibabaSourceReview).toMatchObject({
+      minimumOrderQuantity: 2,
+      primaryPricing: { mode: sample.mode },
+    });
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await page.getByPlaceholder(/^Search name/).fill(String(before.name));
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    const row = page.getByRole('row').filter({ hasText: String(before.name) });
+    await expect(row).toContainText(sample.summary);
+    await expect(row).toContainText('2 (source)');
+    await row.getByRole('button', { name: 'Edit', exact: true }).click();
+    const editor = page.getByRole('dialog', { name: 'Edit Product', exact: true });
+    await expect(editor.getByRole('region', { name: 'Effective website pricing' })).toContainText(
+      sample.summary,
+    );
+    await expect(editor.getByRole('region', { name: 'Effective website pricing' })).toContainText(
+      'Source MOQ: 2',
+    );
+    await editor.getByRole('button', { name: 'Close editor' }).click();
+    await row.getByRole('button', { name: 'Preview', exact: true }).click();
+    const preview = page.getByRole('dialog', { name: 'Product preview', exact: true });
+    await expect(preview.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 120000 });
+    await expect(preview).toContainText('Product-level quotes');
+    await expect(preview).toContainText(sample.detail);
+    await expect(preview).toContainText('Minimum order quantity: 2');
+    await expect(preview.locator('[data-quote-open]')).toBeDisabled();
+    await preview.getByRole('button', { name: 'Close', exact: true }).first().click();
+    const after = await adminAction<CollectionDoc>(
+      request,
+      'get',
+      { collection: 'products', id: sample.id },
+      session.token,
+    );
+    for (const field of [
+      'published',
+      'name',
+      'productFamily',
+      'catalogPricingMode',
+      'manualCatalogPricing',
+      'unitPrice',
+      'wholesalePrice',
+      'moq',
+      'imageIds',
+      'descriptionImageIds',
+    ])
+      expect(after[field], `read-only preview preserved ${field}`).toEqual(before[field]);
+  }
+  expect(await publicIds()).toEqual(beforeIds);
+
   for (const id of sampleIds) {
     const before = await adminAction<CollectionDoc>(
       request,
