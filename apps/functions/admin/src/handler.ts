@@ -595,6 +595,11 @@ export async function handleAdminRequest(
             'CONFLICT',
             'The product images are missing or busy. Confirm the gallery before approval.',
           );
+        if (result.code === 'APPROVAL_TOO_LARGE')
+          return err(
+            'VALIDATION_ERROR',
+            'Too many images changed at once. Save and approve gallery changes separately from description-image changes. The current website version has not changed.',
+          );
         return err(
           result.code,
           result.code === 'CONFLICT'

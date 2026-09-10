@@ -318,6 +318,67 @@ test('server review includes all 105 SKUs, exposes bounded pages and never excee
   assert.deepEqual(changed, { ok: false, code: 'CONFLICT' });
 });
 
+test('media rollover budgets every read/write and rejects overflow before changing the approved revision', async () => {
+  for (const newDescriptionCount of [10, 11]) {
+    const h = fixture(1);
+    const product = h.row('products', 'p');
+    const oldGallery = Array.from({ length: 9 }, (_, i) => `old-gallery-${i}`);
+    const oldDescription = Array.from({ length: 18 }, (_, i) => `old-description-${i}`);
+    const newGallery = Array.from({ length: 9 }, (_, i) => `new-gallery-${i}`);
+    const newDescription = Array.from(
+      { length: newDescriptionCount },
+      (_, i) => `new-description-${i}`,
+    );
+    product.published = true;
+    product.imageIds = newGallery;
+    product.descriptionImageIds = newDescription;
+    for (const variant of h.variants) {
+      variant.imageIds = [newGallery[0] ?? 'new-gallery-0'];
+      variant.detailSourceCandidate.images = ['/api/images/new-gallery-0'];
+    }
+    const previous = h.publication();
+    product.catalogDetailPublication = {
+      ...previous,
+      header: {
+        ...previous.header,
+        images: oldGallery.map((id) => `/api/images/${id}`),
+        descriptionImages: oldDescription.map((id) => `/api/images/${id}`),
+      },
+    };
+    const imageStore = h.store().images;
+    assert.ok(imageStore);
+    for (const id of [...oldGallery, ...oldDescription, ...newGallery, ...newDescription])
+      imageStore[id] = {
+        _id: id,
+        status: 'active',
+        storageProvider: 'cloudbase-storage',
+        publishedRefCount: 1,
+      };
+    const prepared = prepareStagedApproval(
+      'admin',
+      {
+        ...h.command,
+        expectedDigest: catalogApprovalDigest(product, h.variants),
+      },
+      product,
+      h.variants,
+    );
+    assert.ok(prepared.ok);
+    const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', prepared.value));
+    assert.ok(begin.ok);
+    assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', begin.jobId, 0))).ok);
+    const before = structuredClone(h.store());
+    const result = await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId));
+    if (newDescriptionCount === 10) {
+      assert.ok(result.ok);
+      assert.equal(h.maximumOperations(), 97);
+    } else {
+      assert.deepEqual(result, { ok: false, code: 'APPROVAL_TOO_LARGE' });
+      assert.deepEqual(h.store(), before);
+    }
+  }
+});
+
 test('review media opt-in preserves old strict clients and returns fresh media with the same digest', async () => {
   const h = fixture(1);
   h.row('products', 'p').descriptionImageIds = ['image'];

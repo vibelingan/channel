@@ -156,7 +156,8 @@ export function RecordForm({
   const dialogRef = useModalDialog();
   const initialStateRef = useRef(state);
   const cancelInFlight = useRef(false);
-  const busy = submitting || imageBusy || descriptionImageBusy || sourceImageBusy;
+  const mediaBusy = imageBusy || descriptionImageBusy || sourceImageBusy;
+  const busy = submitting || mediaBusy;
   const dirty = JSON.stringify(state) !== JSON.stringify(initialStateRef.current);
 
   function setField(name: string, value: string | boolean) {
@@ -486,10 +487,10 @@ export function RecordForm({
               </button>
               <button
                 type="submit"
-                disabled={submitting || imageBusy || sourceImageBusy || pricingInvalid}
+                disabled={busy || pricingInvalid}
                 className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
               >
-                {imageBusy ? 'Waiting for uploads…' : submitting ? 'Saving…' : 'Save'}
+                {mediaBusy ? 'Waiting for uploads…' : submitting ? 'Saving…' : 'Save'}
               </button>
             </div>
           )}
@@ -555,6 +556,7 @@ function Field({
         <div className="mt-1.5">
           <ImageManager
             value={ids}
+            purpose={field.name === 'descriptionImageIds' ? 'description' : 'gallery'}
             inputId={field.name}
             maxItems={field.maxItems}
             errorId={describedBy}

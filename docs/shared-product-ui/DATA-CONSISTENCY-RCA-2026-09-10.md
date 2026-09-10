@@ -172,7 +172,7 @@ Preview 的 detail 与媒体 ID 来自同一次已校验的 review 读取，不�
 新客户端请求 `view=sections-media` / `includePreviewMedia=true`；旧客户端保持原 strict 响应字段。
 这是兼容部署期间已打开页面的保护，不是允许前后端任意版本混发。
 
-验证：全仓 1,505 项测试、全仓 typecheck、受影响源码 lint、CloudBase SDK contract、
+验证：包括图片全部替换事务配额回归在内，全仓 1,506 项测试通过；全仓 typecheck、受影响源码 lint、CloudBase SDK contract、
 重新打包的三个云函数离线 cold-start / public legacy-read / missing-collection 负对照通过。
 Node 25 本地测试使用 `NODE_OPTIONS=--no-experimental-webstorage`；CI 的 Node 22 / 云端 Node 20
 结果必须由 Actions 单独确认，不以本机版本代替。全目录 lint 的唯一问题是未跟踪的原始证据 JSON
@@ -184,6 +184,19 @@ handler 后的草稿、编辑、Preview、批准、公开详情，以及 RFQ→A
 测试先后发现并修复了两项额外缺口：纯图片描述误触发“必须有正文”发布校验；新增媒体字段
 破坏旧 strict 客户端。两项均先红后绿。一次并行构建碰撞导致 Astro 临时 prerender 文件缺失，
 已转串行复验；不是功能测试通过，也不修改业务代码掩盖构建问题。
+
+发布复核补充：图片换版事务需要 5 个固定读写 + 每个旧/新关联图片 2 个操作。
+46 个不同关联图片可原子完成；47 个及以上在写入前拒绝，保留原批准版本，并明确提示把主图
+与详情图的替换分两次保存/批准。不能笼统提示“图片缺失”，也不能超出 CloudBase 事务配额后部分写入。
+回归覆盖 46 个图片成功（97 次操作）与 47 个图片整批不变。
+
+完整编辑器浏览器回归又捕捉到复用组件的两个缺口：详情图上传入口仍叫“Add product images”，
+与主图入口重名；提交 handler 已阻止上传时保存，但 Save 按钮还漏读 descriptionImageBusy。
+现有 ImageManager 增加 gallery/description 用途参数，详情图不显示 Primary；Save、关闭和提交
+统一使用同一 mediaBusy 状态。新增描述图上传中不可保存/取消/Escape、完成后恢复的独立用例。
+首次 PR CI 因重名入口失败，不能把该次 CI 当作发布许可；修复后必须以新 head 重跑。
+修复后的非正式详情开关验收流程为 77/77（含 10 个编辑器/分类标签用例），正式流程为 64/64；
+公共页与 catalog 的 60 项重复执行，合计 81 个不同浏览器用例。最新提交的 CI 状态以 PR #43 为准。
 
 ## 发布与存量修复顺序
 

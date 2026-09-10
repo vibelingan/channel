@@ -304,6 +304,8 @@ test('product edit form groups fields, clears incompatible category, and enforce
   await expect(page.getByRole('button', { name: 'Close editor' })).toBeVisible();
   await expect(page.getByText('Primary', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Add product images')).toBeDisabled();
+  await expect(page.getByLabel('Add description images')).toBeEnabled();
+  await expect(page.locator('#descriptionImageIds-capacity')).not.toContainText('primary');
   await expect(page.locator('#imageIds-capacity')).toContainText(
     '9 of 9 images. Remove an image to add another.',
   );
@@ -506,68 +508,75 @@ test('manual tier pricing is keyboard-editable, blocks invalid drafts, and submi
   expect(updateValues).not.toHaveProperty('category');
 });
 
-test('Save waits for an in-flight image upload and re-enables after completion', async ({
-  page,
-}) => {
-  await seedAdminSession(page);
-  let releaseIntent: (() => void) | undefined;
-  const intentReleased = new Promise<void>((resolve) => {
-    releaseIntent = resolve;
-  });
-  await page.route('**/fake-image-upload', (route) => route.fulfill({ status: 200 }));
-  await page.route('**/api/admin', async (route) => {
-    const body = route.request().postDataJSON() as {
-      action?: string;
-      data?: Record<string, unknown>;
-    };
-    let response: unknown;
-    if (body.action === 'me') response = { ok: true, data: { user: adminUser } };
-    else if (body.action === 'list') {
-      response = {
-        ok: true,
-        data: {
-          items: [{ ...product, imageIds: product.imageIds.slice(0, 8) }],
-          total: 1,
-          page: 1,
-          pageSize: 20,
-        },
-      };
-    } else if (body.action === 'createUploadIntent') {
-      await intentReleased;
-      response = {
-        ok: true,
-        data: {
-          imageId: 'image-9',
-          uploadIntentId: 'intent-9',
-          storageFileId: 'storage-9',
-          upload: { method: 'PUT', url: 'http://127.0.0.1:4332/fake-image-upload', headers: {} },
-        },
-      };
-    } else if (body.action === 'completeUpload') response = { ok: true, data: { completed: true } };
-    else response = { ok: false, error: { code: 'BAD_REQUEST', message: 'Unexpected action' } };
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(response),
+for (const purpose of ['gallery', 'description'] as const) {
+  test(`Save waits for an in-flight ${purpose} image upload and re-enables after completion`, async ({
+    page,
+  }) => {
+    await seedAdminSession(page);
+    let releaseIntent: (() => void) | undefined;
+    const intentReleased = new Promise<void>((resolve) => {
+      releaseIntent = resolve;
     });
-  });
+    await page.route('**/fake-image-upload', (route) => route.fulfill({ status: 200 }));
+    await page.route('**/api/admin', async (route) => {
+      const body = route.request().postDataJSON() as {
+        action?: string;
+        data?: Record<string, unknown>;
+      };
+      let response: unknown;
+      if (body.action === 'me') response = { ok: true, data: { user: adminUser } };
+      else if (body.action === 'list') {
+        response = {
+          ok: true,
+          data: {
+            items: [{ ...product, imageIds: product.imageIds.slice(0, 8) }],
+            total: 1,
+            page: 1,
+            pageSize: 20,
+          },
+        };
+      } else if (body.action === 'createUploadIntent') {
+        await intentReleased;
+        response = {
+          ok: true,
+          data: {
+            imageId: 'image-9',
+            uploadIntentId: 'intent-9',
+            storageFileId: 'storage-9',
+            upload: { method: 'PUT', url: 'http://127.0.0.1:4332/fake-image-upload', headers: {} },
+          },
+        };
+      } else if (body.action === 'completeUpload')
+        response = { ok: true, data: { completed: true } };
+      else response = { ok: false, error: { code: 'BAD_REQUEST', message: 'Unexpected action' } };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(response),
+      });
+    });
 
-  await page.goto('/admin');
-  await page.getByRole('button', { name: 'Products', exact: true }).click();
-  await page.getByRole('button', { name: 'Edit' }).click();
-  await page.getByLabel('Add product images').setInputFiles({
-    name: 'ninth.png',
-    mimeType: 'image/png',
-    buffer: Buffer.from('image'),
+    await page.goto('/admin');
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await page
+      .getByLabel(purpose === 'gallery' ? 'Add product images' : 'Add description images')
+      .setInputFiles({
+        name: 'ninth.png',
+        mimeType: 'image/png',
+        buffer: Buffer.from('image'),
+      });
+    await expect(page.getByRole('button', { name: 'Waiting for uploads…' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Close editor' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Edit Product' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Discard changes' })).toHaveCount(0);
+    releaseIntent?.();
+    await expect(page.getByRole('button', { name: 'Save' })).toBeEnabled();
+    await expect(
+      page.locator(purpose === 'gallery' ? '#imageIds-capacity' : '#descriptionImageIds-capacity'),
+    ).toContainText(purpose === 'gallery' ? '9 of 9 images' : '1 of 18 images');
+    await expect(page.getByRole('button', { name: 'Close editor' })).toBeEnabled();
   });
-  await expect(page.getByRole('button', { name: 'Waiting for uploads…' })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Close editor' })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog', { name: 'Edit Product' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Discard changes' })).toHaveCount(0);
-  releaseIntent?.();
-  await expect(page.getByRole('button', { name: 'Save' })).toBeEnabled();
-  await expect(page.locator('#imageIds-capacity')).toContainText('9 of 9 images');
-  await expect(page.getByRole('button', { name: 'Close editor' })).toBeEnabled();
-});
+}
