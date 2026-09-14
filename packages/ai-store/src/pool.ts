@@ -41,11 +41,31 @@ export interface AiPoolConfig extends PoolConfig {
  * no such race and no such expiry date.
  */
 export function createAiPool(config: AiPoolConfig): Pool {
-  return new Pool({
-    ...config,
-    application_name: config.application_name ?? 'channel-ai',
-    options: config.options ? `${config.options} ${ISOLATION_OPTION}` : ISOLATION_OPTION,
+  return handleIdleConnectionErrors(
+    new Pool({
+      ...config,
+      application_name: config.application_name ?? 'channel-ai',
+      options: config.options ? `${config.options} ${ISOLATION_OPTION}` : ISOLATION_OPTION,
+    }),
+  );
+}
+
+/**
+ * Keep the service running when the database drops an idle connection.
+ *
+ * A restart, failover or network cut kills connections sitting idle in the
+ * pool. pg removes each dead connection and then reports it as an 'error' event
+ * on the pool, and Node throws any 'error' event nobody listens for: without a
+ * listener, one database blip crashes the BFF or the worker. The next query
+ * opens a fresh connection on its own, so recording the loss is all that is
+ * left to do. Only the error code is logged; messages can carry host details.
+ */
+export function handleIdleConnectionErrors(pool: Pool): Pool {
+  pool.on('error', (error) => {
+    const code = 'code' in error && typeof error.code === 'string' ? error.code : null;
+    console.error(JSON.stringify({ level: 'error', event: 'database_idle_connection_lost', code }));
   });
+  return pool;
 }
 
 /**

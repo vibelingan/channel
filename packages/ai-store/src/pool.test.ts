@@ -98,3 +98,26 @@ test('a caller-supplied connection option is kept, not overwritten by ours', asy
     await pool.end();
   }
 });
+
+test('an idle connection the database cuts off is dropped and replaced, not thrown', async () => {
+  // A database restart, failover or network cut kills idle connections. pg
+  // reports that as an 'error' event on the pool, and an event emitter with no
+  // 'error' listener throws, taking the whole service process down with it.
+  const pool = createAiPool({ connectionString: URL, max: 1 });
+  const admin = createAiPool({ connectionString: URL, max: 1 });
+  try {
+    const cut = (await pool.query('select pg_backend_pid() as pid')).rows[0].pid;
+    await admin.query('select pg_terminate_backend($1)', [cut]);
+
+    const deadline = Date.now() + 5_000;
+    while (pool.totalCount > 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert.equal(pool.totalCount, 0, 'the pool never noticed its connection was cut off');
+
+    const replacement = (await pool.query('select pg_backend_pid() as pid')).rows[0].pid;
+    assert.notEqual(replacement, cut, 'the pool must open a new connection');
+  } finally {
+    await Promise.allSettled([pool.end(), admin.end()]);
+  }
+});

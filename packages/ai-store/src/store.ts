@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { EngineProvenance } from '@vibelingan-channel/ai-engine/capabilities';
 import { Pool, type PoolClient } from 'pg';
+import { handleIdleConnectionErrors } from './pool.ts';
 
 export type EventType =
   | 'token'
@@ -88,7 +89,7 @@ export class AiStore {
   readonly pool: Pool;
 
   constructor(databaseUrl: string, max = 10) {
-    this.pool = new Pool({ connectionString: databaseUrl, max });
+    this.pool = handleIdleConnectionErrors(new Pool({ connectionString: databaseUrl, max }));
   }
 
   close(): Promise<void> {

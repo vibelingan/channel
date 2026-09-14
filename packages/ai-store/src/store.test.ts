@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { after, before, beforeEach, test } from 'node:test';
 import { Pool } from 'pg';
 import { MIGRATIONS, migrateUp } from './migrations.ts';
+import { handleIdleConnectionErrors } from './pool.ts';
 import { AiStore } from './store.ts';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -46,8 +47,15 @@ test('concurrent migration runners serialize and apply each version once', { ski
   targetUrl.pathname = `/${databaseName}`;
 
   await store.pool.query(`CREATE DATABASE "${databaseName}"`);
-  const firstPool = new Pool({ connectionString: targetUrl.toString(), max: 1 });
-  const secondPool = new Pool({ connectionString: targetUrl.toString(), max: 1 });
+  // Both pools get the production error handler. The cleanup below drops this
+  // database WITH (FORCE), which can cut off a connection that is still closing;
+  // without a listener that cut-off is thrown and fails whichever test is running.
+  const firstPool = handleIdleConnectionErrors(
+    new Pool({ connectionString: targetUrl.toString(), max: 1 }),
+  );
+  const secondPool = handleIdleConnectionErrors(
+    new Pool({ connectionString: targetUrl.toString(), max: 1 }),
+  );
   try {
     await Promise.all([migrateUp(firstPool), migrateUp(secondPool)]);
     const applied = await firstPool.query<{ version: string }>(
@@ -62,6 +70,38 @@ test('concurrent migration runners serialize and apply each version once', { ski
     await store.pool.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`);
   }
 });
+
+test(
+  'an idle store connection the database cuts off is replaced, not thrown',
+  { skip },
+  async () => {
+    assert.ok(store);
+    assert.ok(databaseUrl);
+    // The pool the BFF and worker actually use. Without an 'error' listener, a
+    // database restart or failover crashes the service instead of costing one
+    // reconnect.
+    const probe = new AiStore(databaseUrl, 1);
+    try {
+      const cut = (await probe.pool.query<{ pid: number }>('SELECT pg_backend_pid() AS pid'))
+        .rows[0]?.pid;
+      assert.ok(cut);
+      await store.pool.query('SELECT pg_terminate_backend($1)', [cut]);
+
+      const deadline = Date.now() + 5_000;
+      while (probe.pool.totalCount > 0 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      assert.equal(probe.pool.totalCount, 0, 'the store never noticed its connection was cut off');
+
+      const replacement = (
+        await probe.pool.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
+      ).rows[0]?.pid;
+      assert.notEqual(replacement, cut, 'the store must open a new connection');
+    } finally {
+      await probe.close();
+    }
+  },
+);
 
 test(
   'visitor message replay is idempotent and creates one live run/outbox item',
