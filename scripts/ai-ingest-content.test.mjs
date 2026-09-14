@@ -61,6 +61,30 @@ hero:
   assert.doesNotMatch(text, /image id|imageId|sha256|0e0afdc|c214432e|800/i);
 });
 
+test('public corpus projection keeps repeated values paired with their labels', () => {
+  const text = contentToText(
+    `---
+factory:
+  stats:
+    - value: '20+'
+      label: Years Experience
+    - value: '40+'
+      label: Engineers
+    - value: '5000+'
+      label: m2 Facility
+    - value: '40+'
+      label: Countries
+---
+`,
+    { title: 'Home', url: '/' },
+  );
+
+  assert.match(text, /Years Experience: 20\+/);
+  assert.match(text, /Engineers: 40\+/);
+  assert.match(text, /m2 Facility: 5000\+/);
+  assert.match(text, /Countries: 40\+/);
+});
+
 test('a source pointing at an underscored page is refused, naming the page', () => {
   const pages = fakePages(['index.astro', '_overstock.astro']);
   assert.throws(

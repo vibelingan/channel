@@ -78,7 +78,7 @@ function provenanceRecord(value: EngineProvenance): Record<string, string> {
 
 export interface TerminalizeRunInput {
   runId: string;
-  reason: 'cancel_requested' | 'reclaimed' | 'start_run_dead_letter';
+  reason: 'cancel_requested' | 'reclaimed' | 'start_run_dead_letter' | 'cancel_run_dead_letter';
   claimEpoch?: number;
   outboxId?: string;
   failurePayload?: Record<string, unknown>;
@@ -395,10 +395,16 @@ export class AiStore {
   }): Promise<'retry' | 'dead_letter' | 'stale'> {
     return this.transaction(async (client) => {
       const disposition = await this.#retryOutboxInTx(client, input);
-      if (disposition === 'dead_letter' && input.runId && input.type === 'start_run') {
+      const deadLetterReason =
+        input.type === 'start_run'
+          ? 'start_run_dead_letter'
+          : input.type === 'cancel_run'
+            ? 'cancel_run_dead_letter'
+            : null;
+      if (disposition === 'dead_letter' && input.runId && deadLetterReason) {
         await this.#terminalizeRunInTx(client, {
           runId: input.runId,
-          reason: 'start_run_dead_letter',
+          reason: deadLetterReason,
           outboxId: input.id,
           failurePayload: input.failurePayload ?? { category: input.category },
         });
@@ -547,24 +553,34 @@ export class AiStore {
       if (row.status !== 'creating' && row.status !== 'running') return false;
 
       const cancellationRecorded = row.cancel_requested_at !== null;
-      if (input.reason === 'cancel_requested' && !cancellationRecorded) return false;
+      if (
+        (input.reason === 'cancel_requested' || input.reason === 'cancel_run_dead_letter') &&
+        !cancellationRecorded
+      )
+        return false;
       if (
         input.reason === 'reclaimed' &&
         (row.status !== 'running' || Number(row.claim_epoch) !== input.claimEpoch)
       ) {
         return false;
       }
-      if (input.reason === 'start_run_dead_letter') {
+      const deadLetterType =
+        input.reason === 'start_run_dead_letter'
+          ? 'start_run'
+          : input.reason === 'cancel_run_dead_letter'
+            ? 'cancel_run'
+            : null;
+      if (deadLetterType) {
         // The real worker claims the run before the provider operation, so a
         // provider failure reaches this path with status=running. The outbox
         // claim is the durable authority: if this transaction just changed
-        // that exact start_run item to dead_letter, either live run state is
+        // that exact run item to dead_letter, either live run state is
         // safe to terminate here.
         if (!input.outboxId) return false;
         const deadLetter = await client.query(
           `SELECT 1 FROM outbox
-           WHERE id = $1 AND run_id = $2 AND type = 'start_run' AND status = 'dead_letter'`,
-          [input.outboxId, input.runId],
+           WHERE id = $1 AND run_id = $2 AND type = $3 AND status = 'dead_letter'`,
+          [input.outboxId, input.runId, deadLetterType],
         );
         if (deadLetter.rowCount !== 1) return false;
       }

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { after, before, beforeEach, test } from 'node:test';
-import { migrateUp } from './migrations.ts';
+import { Pool } from 'pg';
+import { MIGRATIONS, migrateUp } from './migrations.ts';
 import { AiStore } from './store.ts';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -34,6 +36,31 @@ test('migration is idempotent and leaves the runtime schema available', { skip }
     "SELECT to_regclass('public.conversations') AS table_name",
   );
   assert.equal(applied.rows[0]?.table_name, 'conversations');
+});
+
+test('concurrent migration runners serialize and apply each version once', { skip }, async () => {
+  assert.ok(store);
+  assert.ok(databaseUrl);
+  const databaseName = `ai_migration_${randomUUID().replaceAll('-', '')}`;
+  const targetUrl = new URL(databaseUrl);
+  targetUrl.pathname = `/${databaseName}`;
+
+  await store.pool.query(`CREATE DATABASE "${databaseName}"`);
+  const firstPool = new Pool({ connectionString: targetUrl.toString(), max: 1 });
+  const secondPool = new Pool({ connectionString: targetUrl.toString(), max: 1 });
+  try {
+    await Promise.all([migrateUp(firstPool), migrateUp(secondPool)]);
+    const applied = await firstPool.query<{ version: string }>(
+      'SELECT version FROM ai_schema_migrations ORDER BY version',
+    );
+    assert.deepEqual(
+      applied.rows.map((row) => row.version),
+      [...MIGRATIONS],
+    );
+  } finally {
+    await Promise.allSettled([firstPool.end(), secondPool.end()]);
+    await store.pool.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`);
+  }
 });
 
 test(
@@ -604,4 +631,61 @@ test('a non-final failed attempt neither dead-letters nor touches the run', { sk
     [run.id],
   );
   assert.ok(['creating', 'running'].includes(runRow.rows[0]?.status ?? ''));
+});
+
+test('a dead-lettered cancel_run atomically cancels the active run', { skip }, async () => {
+  assert.ok(store);
+  const conversation = await store.createConversation();
+  const accepted = await store.appendVisitorMessage({
+    conversationId: conversation.id,
+    idempotencyKey: 'cancel-dead-letter',
+    content: 'stop this answer',
+    engineId: 'fake',
+    engineVersion: '0.1.0',
+  });
+  assert.ok(accepted.run);
+
+  const startItem = await store.claimNextOutbox(60);
+  assert.equal(startItem?.type, 'start_run');
+  assert.ok(startItem);
+  assert.ok(await store.claimRun(accepted.run.id));
+  assert.equal(await store.completeOutbox(startItem.id, startItem.claimEpoch), true);
+  assert.equal(await store.requestCancellation(conversation.id, conversation.controlVersion), true);
+
+  const cancelItem = await store.claimNextOutbox(60);
+  assert.equal(cancelItem?.type, 'cancel_run');
+  assert.ok(cancelItem);
+  assert.equal(
+    await store.failOutboxAttempt({
+      id: cancelItem.id,
+      claimEpoch: cancelItem.claimEpoch,
+      category: 'unavailable',
+      delaySeconds: 1,
+      maxAttempts: 0,
+      runId: cancelItem.runId,
+      type: cancelItem.type,
+    }),
+    'dead_letter',
+  );
+
+  const state = await store.pool.query<{ status: string; active_run_id: string | null }>(
+    `SELECT r.status, c.active_run_id
+     FROM ai_runs r JOIN conversations c ON c.id = r.conversation_id
+     WHERE r.id = $1`,
+    [accepted.run.id],
+  );
+  assert.deepEqual(state.rows[0], { status: 'cancelled', active_run_id: null });
+  const stranded = await store.pool.query<{ count: string }>(
+    `SELECT count(*) AS count
+     FROM outbox o
+     JOIN ai_runs r ON r.id = o.run_id
+     JOIN conversations c ON c.id = r.conversation_id
+     WHERE o.type = 'cancel_run' AND o.status = 'dead_letter'
+       AND r.status IN ('creating', 'running') AND c.active_run_id = r.id`,
+  );
+  assert.equal(Number(stranded.rows[0]?.count), 0);
+  assert.deepEqual(
+    (await store.listEvents(conversation.id)).map((event) => event.type),
+    ['assistant.cancelled'],
+  );
 });

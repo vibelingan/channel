@@ -173,6 +173,32 @@ function flatten(node, trail, out) {
 
   const label = node.title ?? node.label ?? node.name ?? node.heading;
   const detail = node.desc ?? node.description ?? node.text ?? node.body;
+  const scalar = node.value ?? node.stat;
+  const scalarText = scalar == null || typeof scalar === 'object' ? '' : String(scalar).trim();
+  if (typeof label === 'string' && scalarText) {
+    const suffix = typeof detail === 'string' && detail.trim() ? ` — ${detail.trim()}` : '';
+    out.push(`${trail.join(' → ')}${trail.length ? ' → ' : ''}${label}: ${scalarText}${suffix}`);
+    for (const [k, v] of Object.entries(node)) {
+      if (
+        [
+          'title',
+          'label',
+          'name',
+          'heading',
+          'value',
+          'stat',
+          'desc',
+          'description',
+          'text',
+          'body',
+        ].includes(k)
+      )
+        continue;
+      if (isNoiseKey(k)) continue;
+      flatten(v, [...trail, label, humanize(k)], out);
+    }
+    return;
+  }
   if (typeof label === 'string' && typeof detail === 'string') {
     out.push(`${trail.join(' → ')}${trail.length ? ': ' : ''}${label} — ${detail}`);
     for (const [k, v] of Object.entries(node)) {
