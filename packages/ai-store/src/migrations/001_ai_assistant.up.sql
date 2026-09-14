@@ -1,5 +1,5 @@
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
+-- gen_random_uuid() is built into PostgreSQL 13 and later, so this schema needs
+-- no extension: the services apply it as a normal (non-superuser) account.
 CREATE TABLE ai_schema_migrations (
   version text PRIMARY KEY,
   applied_at timestamptz NOT NULL DEFAULT clock_timestamp()
