@@ -20,7 +20,7 @@
     "smoke:cloudbase": "node scripts/smoke-cloudbase-deploy.mjs",
     "smoke:functions": "node scripts/smoke-function-artifacts.mjs",
     "test": "pnpm test:deploy-smoke && pnpm -r --filter '!@vibelingan-channel/ai-store' --filter '!@vibelingan-channel/ai-bff' --filter '!@vibelingan-channel/ai-worker' test",
-    "test:deploy-smoke": "node --test scripts/*.test.mjs",
+    "test:deploy-smoke": "node --experimental-strip-types --test scripts/*.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:public": "playwright test tests/e2e/public.spec.ts",
     "test:e2e:catalog": "playwright test tests/e2e/header-navigation.spec.ts tests/e2e/catalog-hub.spec.ts tests/e2e/catalog-family-routes.spec.ts tests/e2e/catalog-category.spec.ts tests/e2e/sku-detail.spec.ts",
@@ -54,7 +54,7 @@
     "ai:ingest": "node --env-file-if-exists=.env.ai scripts/ai-ingest-content.mjs",
     "ai:configure": "node --env-file-if-exists=.env.ai scripts/ai-configure-workspace.mjs",
     "ai:setup": "pnpm ai:configure && pnpm ai:ingest",
-    "ai:eval": "node scripts/ai-eval.mjs"
+    "ai:eval": "node --experimental-strip-types scripts/ai-eval.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

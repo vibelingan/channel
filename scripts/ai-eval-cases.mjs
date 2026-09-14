@@ -13,6 +13,10 @@
  * exercised directly against the sentences that defeated earlier versions.
  */
 
+// Importing TypeScript from plain Node: Node 24 strips the types by default,
+// but Node 22.13, which CI runs, only does so behind --experimental-strip-types.
+// `pnpm ai:eval` and `pnpm test:deploy-smoke` pass that flag; without it this
+// file fails to load with ERR_UNKNOWN_FILE_EXTENSION.
 import { templateFor } from '../packages/ai-policy/src/commitments.ts';
 import { isRefusal } from './ai-eval-classify.mjs';
 

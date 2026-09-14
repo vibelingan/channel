@@ -104,11 +104,15 @@ test('the fake can select an unapproved citation for a process-level gate accept
   assert.equal(final.citations[0]?.sourceId, 'acceptance-unapproved-fixture');
 });
 
-test('the degraded fake still passes the whole shared suite', () => {
-  // Guards the swap promise: a vendor missing one optional capability must not
-  // fail the contract, it must fail only the startup check that cares.
-  runConformanceSuite('fake-engine (no operation-id lookup)', {
-    ...harness,
-    create: () => new FakeEngine({ capabilities: DEGRADED_CAPS }),
-  });
+// The degraded fake must still pass the whole shared suite. This guards the
+// swap promise: a vendor missing one optional capability must not fail the
+// contract, it must fail only the startup check that cares.
+//
+// Registered at the top level, not inside a test. The suite declares its own
+// tests; a test that declares them and returns without awaiting finishes
+// first, and Node 22.13 (CI and the production image) then cancels all of
+// them. Node 24 ran them anyway, which is how this passed locally.
+runConformanceSuite('fake-engine (no operation-id lookup)', {
+  ...harness,
+  create: () => new FakeEngine({ capabilities: DEGRADED_CAPS }),
 });
