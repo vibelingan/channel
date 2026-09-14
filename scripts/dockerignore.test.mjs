@@ -185,3 +185,22 @@ test('the sources the images actually build from are NOT excluded', () => {
     );
   }
 });
+
+test('the PostgreSQL CA bundle the images copy survives the build context, and only as .crt', () => {
+  // Both images copy certs/tencentdb-postgres-ca.crt so DATABASE_URL can point
+  // sslrootcert at it with sslmode=verify-full. This file excludes *.pem to keep
+  // private keys out of images, so the SAME certificate saved as .pem is dropped
+  // silently: the build succeeds, the image has no trust anchors, and every
+  // database connection is refused at startup with nothing wrong in the Dockerfile.
+  const rules = loadRules();
+  assert.equal(
+    isExcluded('certs/tencentdb-postgres-ca.crt', rules),
+    false,
+    'the CA bundle is excluded from the build context, so the images would ship without it',
+  );
+  assert.equal(
+    isExcluded('certs/tencentdb-postgres-ca.pem', rules),
+    true,
+    'a .pem is no longer excluded — check the private-key rule was not weakened before renaming the CA bundle',
+  );
+});
