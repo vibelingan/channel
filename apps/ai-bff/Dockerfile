@@ -1,8 +1,23 @@
+# Dependency manifests only. This stage copies the whole repository, but all it
+# emits is the lockfile, the workspace file and every package.json. The build
+# stage copies FROM it, and Docker caches that copy by content, so editing any
+# source file leaves those bytes identical and the install below stays cached.
+# Copying everything before installing forced a full reinstall after every
+# edit: 425 seconds for a cold ai-bff build, past the bundle check's limit.
+FROM node:22.13.0-bookworm-slim AS manifests
+WORKDIR /repo
+COPY . .
+RUN mkdir -p /manifests \
+ && cp package.json pnpm-lock.yaml pnpm-workspace.yaml /manifests/ \
+ && find apps packages -name package.json -not -path '*/node_modules/*' \
+      -exec cp --parents {} /manifests \;
+
 FROM node:22.13.0-bookworm-slim AS build
 WORKDIR /workspace
 RUN npm install --global pnpm@11.5.0
-COPY . .
+COPY --from=manifests /manifests/ ./
 RUN pnpm install --frozen-lockfile
+COPY . .
 RUN pnpm --filter @vibelingan-channel/ai-bff build
 RUN pnpm --filter @vibelingan-channel/ai-bff deploy --prod --legacy /runtime
 

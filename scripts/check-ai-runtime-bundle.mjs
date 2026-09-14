@@ -25,7 +25,10 @@ for (const emitted of files) {
     execFileSync(
       'docker',
       ['build', '--target', 'runtime', '--file', dockerfile, '--tag', tag, repoRoot],
-      { cwd: repoRoot, stdio: 'pipe', timeout: 300_000 },
+      // A cold image build installs every dependency from scratch: 425s measured
+      // locally, and CI runners always start without a layer cache. The check
+      // exists to prove the bundle imports in its runtime image, not to race.
+      { cwd: repoRoot, stdio: 'pipe', timeout: 1_200_000 },
     );
     const artifactInImage = `./dist/${basename(emitted)}`;
     execFileSync(
