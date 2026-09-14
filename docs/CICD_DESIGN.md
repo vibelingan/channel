@@ -1,9 +1,9 @@
 # CI/CD Design
 
 Status: PR CI, test deploy, and manual E2E workflows implemented; test deploy
-proven by GitHub Actions run 28160182821
+latest proof is GitHub Actions run 31769119017 on `test@905a18f`
 Scope: GitHub Actions path for repeatable CloudBase deployments
-Last updated: 2026-06-26
+Last updated: 2026-08-14
 
 ## 1. Answer To The E2E/CI Question
 
@@ -12,13 +12,29 @@ CI/CD does not need to run the full browser E2E suite on every change.
 The correct split is:
 
 - Pull requests: fast checks only, no CloudBase secrets, no real DB writes.
-- `test` deploy: build, deploy, HTTP smoke, and optionally public browser smoke.
+- `test` push deploy: build, deploy, HTTP smoke, and public browser E2E. Manual
+  dispatches may explicitly disable the public E2E input.
 - Manual or protected release gate: admin and mutation E2E against the real test
   environment.
 - Bootstrap E2E: one-shot manual flow only.
 
 This keeps CI useful without making every code push depend on a writable shared
 CloudBase database.
+
+### Branch authority while only one environment exists
+
+- `main` is the code source of truth. Feature branches start from the latest
+  `origin/main`, and team policy requires a reviewed pull request for changes
+  entering `main`. GitHub branch protection does not currently enforce this policy.
+- `test` remains a test/deployment branch even though its CloudBase environment is
+  currently the only deployed and publicly usable environment.
+- A validated feature may be pushed or merged directly to `test` to run the full
+  deploy, smoke, and public E2E sequence; a pull request to `test` is not required.
+- After test validation, promote the exact reviewed feature commits onto a branch
+  based on the latest `main`, then open the pull request to `main`. Do not treat the
+  full `test` branch as the promotion source or merge unrelated test-only work.
+- When a separate production environment is introduced, the environment mapping
+  below still applies; it does not change branch authority.
 
 ## 2. Current Deployment Method
 
@@ -39,9 +55,10 @@ GitHub Actions now has:
 - `.github/workflows/deploy-test.yml` for protected test deployment.
 - `.github/workflows/e2e.yml` for manual protected E2E gates.
 
-The deploy workflow has one successful GitHub Actions proof run for the
-CloudBase test env. Future changes should preserve the same build, deploy,
-smoke, and verification sequence.
+The deploy workflow has successful GitHub Actions proof runs for the CloudBase
+test env; the latest recorded proof is run `31769119017` on `test@905a18f`.
+Future changes should preserve the same build, deploy, smoke, and verification
+sequence.
 
 ## 3. Proposed Workflows
 
@@ -102,8 +119,9 @@ Steps:
      `{"action":"list","data":{"collection":"users"}}` and no token returns
      controlled `401`
    - Unknown public paths, including `/api/files/__missing__`, return `404`
-10. Optionally install Chromium with `npx playwright install --with-deps chromium`
-    and run `pnpm test:e2e:public` once the site/API URLs are known.
+10. Install Chromium with `npx playwright install --with-deps chromium` and run
+  `pnpm test:e2e:public` on every push to `test`. For `workflow_dispatch`, the
+  `run_public_e2e` input controls this step and defaults to enabled.
 
 ### Manual E2E Gate
 
@@ -194,10 +212,9 @@ GitHub Environment secrets for `test`:
 - Optional: `E2E_ADMIN_PASSWORD`
 - Optional SMTP secrets
 
-Current known gap: the workflow and scripts are present, but the GitHub
-Environment must be verified to contain the deploy credentials and runtime
-secrets before GitHub Actions can reproduce the current manual CloudBase
-deployment.
+The `test` GitHub Environment credentials and runtime inputs are operationally
+verified: Deploy Test run `31769119017` built, deployed, smoked, and ran public
+browser E2E successfully against landing commit `905a18f` on 2026-08-14.
 
 ## 5. Implementation Order
 
@@ -205,9 +222,9 @@ deployment.
 2. Finish first-admin bootstrap and disable bootstrap.
 3. Run/manual-verify the public/admin/mutation E2E gates when credentials are
    intentionally available.
-4. Add PR CI without CloudBase secrets.
-5. Add manual `test` deploy workflow.
-6. Add optional/manual E2E workflow.
+4. ✅ PR CI without CloudBase secrets implemented.
+5. ✅ Manual/push `test` deploy workflow implemented and proven.
+6. ✅ Optional/manual E2E workflow implemented.
 7. Add protected `main` -> `prod` workflow only after prod EnvId exists.
 
 ## 6. Concrete Execution Plan
@@ -237,9 +254,9 @@ Runner steps:
 No GitHub Environment and no CloudBase/Tencent secrets are attached to this
 workflow.
 
-### Step 2: Add Test Deploy Workflow
+### Step 2: Test Deploy Workflow (implemented in `.github/workflows/deploy-test.yml`)
 
-Create `.github/workflows/deploy-test.yml`.
+The workflow is implemented and proven against the current CloudBase test env.
 
 Trigger:
 
@@ -275,9 +292,9 @@ Runner steps:
 11. Write a deployment summary with commit SHA, EnvId, Web App URL, API URL, and
     smoke result. Do not print secret values.
 
-### Step 3: Add Manual E2E Workflow
+### Step 3: Manual E2E Workflow (implemented in `.github/workflows/e2e.yml`)
 
-Create `.github/workflows/e2e.yml`.
+The workflow is implemented for protected, manually selected suites.
 
 Trigger:
 
@@ -323,8 +340,8 @@ Do not implement production deploy until:
 The env-var/secret table (§4) and smoke steps (§3) were reconciled against the
 code that actually consumes them (`apps/functions/*/src/index.ts`,
 `packages/shared/src/env.ts`) and the canonical deployment docs. Names match
-except where noted. Workflows are still design-only, so these are
-pre-implementation corrections.
+except where noted. This subsection preserves the 2026-06-25 pre-implementation
+audit; the workflows described above are now implemented and proven.
 
 ### Findings
 

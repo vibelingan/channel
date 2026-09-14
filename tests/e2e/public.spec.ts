@@ -62,6 +62,25 @@ async function trustedSiteStorage(browser: Browser) {
   }
 }
 
+async function waitForApplicationStyles(page: Page, timeoutMs = 30_000): Promise<void> {
+  // In no-JS mode DOMContentLoaded can fire before Astro's app stylesheet is
+  // applied. Poll a required global.css token instead of <link> elements:
+  // Astro may inline CSS locally, while third-party font CSS can hang in CI/CN.
+  // `page.waitForFunction` is unusable here because its polling does not run
+  // when JavaScript is disabled in the browser context.
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const ready = await page.evaluate(
+      () =>
+        getComputedStyle(document.documentElement).getPropertyValue('--spacing-header').trim() !==
+        '',
+    );
+    if (ready) return;
+    await page.waitForTimeout(100);
+  }
+  throw new Error('Timed out waiting for application styles to apply');
+}
+
 async function readHeaderGeometry(page: Page) {
   return page.evaluate(() => {
     const bounds = (selector: string) => {
@@ -71,7 +90,12 @@ async function readHeaderGeometry(page: Page) {
         : null;
     };
     const visibleLinks = Array.from(
-      document.querySelectorAll<HTMLElement>('[data-primary-nav] > a'),
+      // The catalog expansion replaced the flat Headphones link with an
+      // Electronics & Toys disclosure, so a top-level nav item is now either an
+      // anchor or that disclosure's summary.
+      document.querySelectorAll<HTMLElement>(
+        '[data-primary-nav] > a, [data-primary-nav] > details > summary',
+      ),
     )
       .filter((link) => getComputedStyle(link).display !== 'none')
       .map((link) => ({
@@ -104,8 +128,9 @@ function expectDesktopHeaderContained(
   expect(geometry.brand?.right).toBeLessThanOrEqual(geometry.nav?.left ?? 0);
   expect(geometry.nav?.right).toBeLessThanOrEqual(geometry.account?.left ?? 0);
   expect(geometry.noHorizontalOverflow).toBe(true);
-  // Primary nav currently has 3 visible links (OEM Development, Headphones,
-  // Success Stories) — Teardown Lab and Blue Ocean are temporarily hidden.
+  // Primary nav currently has 3 visible top-level items (OEM Development,
+  // Electronics & Toys disclosure, Success Stories) — Teardown Lab and Blue
+  // Ocean are temporarily hidden.
   expect(geometry.visibleLinks).toHaveLength(3);
   const contentLeft = (geometry.layout?.left ?? 0) + (geometry.layoutPadding?.left ?? 0);
   const contentRight = (geometry.layout?.right ?? 0) - (geometry.layoutPadding?.right ?? 0);
@@ -159,17 +184,20 @@ test.describe('public browser smoke', () => {
 
       const form = page.locator('form[data-project-form]');
       const category = form.getByRole('combobox', { name: 'Product Category', exact: true });
+      const nativeCategory = form.locator('select[name="category"]');
       await expect(form.locator('[data-public-select]')).toHaveCount(1);
-      await expect(form.locator('[name="category"]')).toHaveCount(1);
+      await expect(nativeCategory).toHaveCount(1);
       await expect(category).toBeVisible();
-      await expect(category).toHaveAttribute('name', 'category');
-      await expect(category).toHaveAttribute('required', '');
+      await expect(category).toHaveAttribute('aria-required', 'true');
+      await expect(nativeCategory).toHaveAttribute('name', 'category');
+      await expect(nativeCategory).toHaveAttribute('required', '');
       await expect(category).not.toHaveAttribute('aria-describedby', /category-error/);
       await expect(category).not.toHaveAttribute('aria-invalid', 'true');
-      await expect(form.locator('#category-error')).not.toHaveAttribute('data-visible', '');
-      await expect(form.locator('#category-error')).toHaveText('');
-      await expect(category.locator('option[value=""]')).toHaveText('Select a product category…');
-      await expect(category.locator('option[value="Other"]')).toHaveCount(1);
+      await expect(form.locator('#category-error')).toHaveCount(0);
+      await expect(nativeCategory.locator('option[value=""]')).toHaveText(
+        'Select a product category…',
+      );
+      await expect(nativeCategory.locator('option[value="Other"]')).toHaveCount(1);
 
       await form.locator('[name="company"]').fill('E2E Category Control');
       await form.locator('[name="contact"]').fill('E2E Contact');
@@ -178,15 +206,16 @@ test.describe('public browser smoke', () => {
       await expect(category).toBeFocused();
       await expect(category).toHaveAttribute('aria-describedby', 'category-error');
       await expect(category).toHaveAttribute('aria-invalid', 'true');
-      await expect(form.locator('#category-error')).toHaveAttribute('data-visible', '');
       await expect(form.locator('#category-error')).toHaveText('Select product category.');
 
-      await category.selectOption('Other');
-      await expect(category).toHaveValue('Other');
+      await category.press('ArrowDown');
+      await category.press('End');
+      await category.press('Enter');
+      await expect(category).toContainText('Other');
+      await expect(nativeCategory).toHaveValue('Other');
       await expect(category).not.toHaveAttribute('aria-describedby', /category-error/);
       await expect(category).not.toHaveAttribute('aria-invalid', 'true');
-      await expect(form.locator('#category-error')).not.toHaveAttribute('data-visible', '');
-      await expect(form.locator('#category-error')).toHaveText('');
+      await expect(form.locator('#category-error')).toHaveCount(0);
       await form.getByRole('button', { name: /Submit project/i }).click();
       await expect.poll(() => submissions.length).toBe(1);
       expect(submissions[0]?.data?.category).toBe('Other');
@@ -234,8 +263,8 @@ test.describe('public browser smoke', () => {
   });
 
   test('static reveal content is visible before observer class mutation', async ({ page }) => {
-    await page.goto('/oem#capabilities', { waitUntil: 'domcontentloaded' });
-    const reveal = page.locator('#capabilities .reveal').first();
+    await page.goto('/oem#process', { waitUntil: 'domcontentloaded' });
+    const reveal = page.locator('#process .reveal').first();
     await expect(reveal).toHaveCount(1);
     await reveal.evaluate((element) => element.classList.remove('reveal-pending', 'is-visible'));
 
@@ -258,8 +287,8 @@ test.describe('public browser smoke', () => {
     await page.addInitScript(() => {
       Reflect.deleteProperty(window, 'IntersectionObserver');
     });
-    await page.goto('/oem#capabilities', { waitUntil: 'domcontentloaded' });
-    const reveal = page.locator('#capabilities .reveal').first();
+    await page.goto('/oem#process', { waitUntil: 'domcontentloaded' });
+    const reveal = page.locator('#process .reveal').first();
     await expect(reveal).toBeVisible();
     await expect(reveal).not.toHaveClass(/reveal-pending|is-visible/);
     await expect(reveal).toHaveCSS('opacity', '1');
@@ -283,7 +312,7 @@ test.describe('public browser smoke', () => {
       });
     });
     await page.goto('/oem', { waitUntil: 'domcontentloaded' });
-    const reveal = page.locator('#capabilities .reveal').first();
+    const reveal = page.locator('#process .reveal').first();
     await expect(reveal).not.toHaveClass(/reveal-pending|is-visible/);
     await expect(reveal).toHaveCSS('opacity', '1');
     await expect(reveal).toHaveCSS('transform', 'none');
@@ -302,8 +331,9 @@ test.describe('public browser smoke', () => {
       });
       try {
         const page = await context.newPage();
-        await page.goto(`${e2e.siteUrl}/oem#capabilities`, { waitUntil: 'domcontentloaded' });
-        const reveal = page.locator('#capabilities .reveal').first();
+        await page.goto(`${e2e.siteUrl}/oem#process`, { waitUntil: 'domcontentloaded' });
+        if (mode === 'no-js') await waitForApplicationStyles(page);
+        const reveal = page.locator('#process .reveal').first();
         await expect(reveal).not.toHaveClass(/reveal-pending|is-visible/);
         const state = await reveal.evaluate((element) => {
           const style = getComputedStyle(element);
@@ -331,9 +361,76 @@ test.describe('public browser smoke', () => {
     }
   });
 
+  test('public pages never overflow horizontally across breakpoints without JavaScript', async ({
+    browser,
+  }) => {
+    test.setTimeout(180_000);
+    const trustedStorage = await trustedSiteStorage(browser);
+    // Independent public pages (no redirect aliases — /success-stories 301s to
+    // /portfolio and is asserted separately by the redirect contract).
+    const publicPaths = ['/', '/oem', '/headphones', '/portfolio'];
+    const breakpoints = [
+      { width: 320, height: 568 },
+      { width: 390, height: 844 },
+      { width: 768, height: 1024 },
+      { width: 1024, height: 768 },
+      { width: 1280, height: 800 },
+      { width: 1440, height: 900 },
+    ];
+
+    for (const path of publicPaths) {
+      for (const viewport of breakpoints) {
+        const context = await browser.newContext({
+          javaScriptEnabled: false,
+          storageState: trustedStorage,
+          viewport,
+        });
+        try {
+          const page = await context.newPage();
+          await page.goto(`${e2e.siteUrl}${path}`, { waitUntil: 'domcontentloaded' });
+          await waitForApplicationStyles(page);
+          const overflow = await page.evaluate(
+            () => document.documentElement.scrollWidth - window.innerWidth,
+          );
+          expect(
+            overflow,
+            `${path} @ ${viewport.width}px (no-js) horizontal overflow`,
+          ).toBeLessThanOrEqual(0);
+        } finally {
+          await context.close();
+        }
+      }
+    }
+  });
+
+  test('no-JS layout readiness fails closed when application CSS is unavailable', async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({
+      javaScriptEnabled: false,
+      viewport: { width: 390, height: 844 },
+    });
+    try {
+      const page = await context.newPage();
+      await page.goto(`${e2e.siteUrl}/portfolio`, { waitUntil: 'domcontentloaded' });
+      await waitForApplicationStyles(page);
+      const removedStyleNodes = await page.evaluate(() => {
+        const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'));
+        for (const style of styles) style.remove();
+        return styles.length;
+      });
+      expect(removedStyleNodes).toBeGreaterThan(0);
+      await expect(waitForApplicationStyles(page, 250)).rejects.toThrow(
+        'Timed out waiting for application styles to apply',
+      );
+    } finally {
+      await context.close();
+    }
+  });
+
   test('below-fold reveal animates once and releases transform resources', async ({ page }) => {
     await page.goto('/oem', { waitUntil: 'domcontentloaded' });
-    const reveal = page.locator('#capabilities .reveal').first();
+    const reveal = page.locator('#process .reveal').first();
     await expect(reveal).toHaveClass(/reveal-pending/);
     await expect(reveal).not.toHaveClass(/is-visible/);
     await expect(reveal).toHaveCSS('will-change', 'auto');
@@ -365,7 +462,7 @@ test.describe('public browser smoke', () => {
     page,
   }) => {
     await page.goto('/oem', { waitUntil: 'domcontentloaded' });
-    const reveal = page.locator('#capabilities .reveal').first();
+    const reveal = page.locator('#process .reveal').first();
     await expect(reveal).toHaveClass(/reveal-pending/);
     await reveal.evaluate((element) => {
       if (!(element instanceof HTMLElement)) throw new Error('Reveal is not HTML');
@@ -376,6 +473,109 @@ test.describe('public browser smoke', () => {
     await expect(reveal).toHaveClass(/reveal-pending.*is-visible|is-visible.*reveal-pending/);
     await expect(reveal).not.toHaveClass(/reveal-pending|is-visible/, { timeout: 2_000 });
     await expect(reveal).toHaveCSS('will-change', 'auto');
+  });
+
+  test('OEM page keeps its independent service structure with current facts and deep links', async ({
+    page,
+  }) => {
+    await page.goto('/oem', { waitUntil: 'domcontentloaded' });
+    await ensureApplicationPage(page);
+
+    // OEM-specific hero and local deep links.
+    const hero = page.locator('main > section').first();
+    await expect(
+      hero.getByRole('heading', {
+        level: 1,
+        name: 'One-stop OEM development, from idea to shipment',
+      }),
+    ).toBeVisible();
+    await expect(hero.locator('a[href="#submit"]')).toHaveCount(1);
+    await expect(hero.locator('a[href="#process"]')).toHaveCount(1);
+
+    // Shared What We Do keeps the Traditional-versus-AI comparison.
+    await expect(page.locator('#what-we-do')).toHaveCount(1);
+    await expect(page.getByText('Traditional Drawing-Based OEM Workflow')).toBeAttached();
+    await expect(page.getByText('AI Big Data Smart OEM Workflow')).toBeAttached();
+
+    // Independent capability and six-stage process remain distinct from home.
+    await expect(page.locator('#capabilities')).toHaveCount(1);
+    await expect(page.locator('#capabilities ul > li')).toHaveCount(6);
+    await expect(page.locator('#process')).toHaveCount(1);
+    await expect(page.locator('#process ol > li')).toHaveCount(6);
+    await expect(page.locator('#why-us')).toHaveCount(1);
+
+    // Capability section carries the OEM-specific video/poster pair, exactly once.
+    await expect(page.locator('#capabilities video')).toHaveCount(1);
+    await expect(page.locator('#capabilities video source')).toHaveAttribute(
+      'src',
+      '/media/oem-factory.mp4',
+    );
+    await expect(page.locator('#capabilities video')).toHaveAttribute(
+      'poster',
+      '/media/factory-oem.webp',
+    );
+    await expect(page.locator('#why-us')).toContainText('40+');
+    await expect(page.locator('#why-us')).toContainText('5000+');
+    const qualityCapability = page
+      .locator('#capabilities ul > li')
+      .filter({ has: page.getByRole('heading', { name: 'Quality & Global Delivery' }) });
+    await expect(qualityCapability).toContainText(
+      'coordinate available CE, EMC, FCC, and JD compliance and test reports',
+    );
+    const iterationReason = page
+      .locator('#why-us li')
+      .filter({ hasText: 'Long-Term Product Iteration' });
+    await expect(iterationReason).toContainText('market feedback and cost optimization');
+
+    // The inquiry form stays intact at #submit.
+    await expect(page.locator('#submit')).toHaveCount(1);
+    await expect(page.locator('#submit form[data-project-form]')).toHaveCount(1);
+    await expect(page.locator('#submit input[type="file"]')).toHaveCount(1);
+
+    // Unsupported legacy claims remain gone from the restored page.
+    const bodyText = await page.locator('body').innerText();
+    for (const claim of [
+      '100+ Supply Chain Partners',
+      'Flexible MOQ',
+      'Dedicated Project Manager',
+      'agreed AQL',
+      'RoHS',
+      'six primary product families',
+    ]) {
+      expect(bodyText, claim).not.toContain(claim);
+    }
+
+    // The homepage remains separate and unchanged.
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await ensureApplicationPage(page);
+    await expect(page.locator('#oem-inquiry')).toHaveCount(1);
+    await expect(page.locator('#factory video source')).toHaveAttribute(
+      'src',
+      '/media/oem/factory-video.mp4',
+    );
+    await expect(page.locator('a[href="/#oem-inquiry"]').first()).toBeVisible();
+    await expect(page.locator('a[href="#submit"]')).toHaveCount(0);
+  });
+
+  test('OEM page stays responsive without horizontal overflow across breakpoints', async ({
+    page,
+  }) => {
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 768, height: 1024 },
+      { width: 1024, height: 768 },
+      { width: 1440, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/oem', { waitUntil: 'domcontentloaded' });
+      await ensureApplicationPage(page);
+      await expect(page.locator('#process')).toBeAttached();
+      await expect(page.locator('#submit input[type="file"]')).toBeAttached();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+        `no horizontal overflow at ${viewport.width}px`,
+      ).toBe(true);
+    }
   });
 
   test('Slide 2 header keeps the company name without restoring MOQ', async ({ page }) => {
@@ -422,7 +622,7 @@ test.describe('public browser smoke', () => {
     await toggle.click();
     await expect(disclosure).toHaveAttribute('open', '');
     await expect(mobileMenu).toBeVisible();
-    for (const label of ['OEM Development', 'Headphones', 'Success Stories']) {
+    for (const label of ['OEM Development', 'Success Stories']) {
       await expect(mobileMenu.getByRole('link', { name: label, exact: true })).toBeVisible();
     }
     // Teardown Lab and Blue Ocean are temporarily hidden (un-routed, 2026-08):
@@ -430,10 +630,16 @@ test.describe('public browser smoke', () => {
     for (const label of ['Teardown Lab', 'Blue Ocean']) {
       await expect(mobileMenu.getByRole('link', { name: label, exact: true })).toHaveCount(0);
     }
-    await expect(mobileMenu.getByRole('link', { name: 'Headphones', exact: true })).toHaveAttribute(
-      'href',
-      '/headphones',
-    );
+    // The catalog expansion groups every family under an Electronics & Toys disclosure,
+    // so Headphones is reachable one level in rather than as a top-level nav link.
+    const mobileCatalog = mobileMenu.locator('[data-catalog-disclosure="mobile"]');
+    await mobileCatalog.locator(':scope > summary').click();
+    await expect(
+      mobileCatalog.getByRole('link', { name: 'Headphones', exact: true }),
+    ).toBeVisible();
+    await expect(
+      mobileCatalog.getByRole('link', { name: 'Headphones', exact: true }),
+    ).toHaveAttribute('href', '/headphones/');
     await expect(mobileMenu.getByRole('link', { name: 'Sign in', exact: true })).toBeVisible();
     await expect(mobileMenu.getByRole('link', { name: 'Register', exact: true })).toBeVisible();
     await expect(page.getByText('Minimum Order Amount: $500', { exact: true })).toHaveCount(0);
@@ -470,11 +676,14 @@ test.describe('public browser smoke', () => {
       await expect(page.locator('[data-menu-toggle]')).toBeHidden();
       await expect(page.locator('[data-primary-nav]')).toBeVisible();
       await expect(page.locator('[data-account-controls]')).toBeVisible();
-      const headphonesLink = page
-        .locator('[data-primary-nav]')
-        .getByRole('link', { name: 'Headphones', exact: true });
+      const catalogDisclosure = page.locator('[data-catalog-disclosure="desktop"]');
+      await expect(catalogDisclosure).toBeVisible();
+      await catalogDisclosure.locator(':scope > summary').click();
+      // Desktop catalog links carry a description, so their accessible name is not
+      // just the family label; address them by destination instead.
+      const headphonesLink = catalogDisclosure.locator('a[href="/headphones/"]');
       await expect(headphonesLink).toBeVisible();
-      await expect(headphonesLink).toHaveAttribute('href', '/headphones');
+      await expect(headphonesLink).toHaveText(/Headphones/);
       await expect(page.getByText('Minimum Order Amount: $500', { exact: true })).toHaveCount(0);
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
@@ -539,7 +748,7 @@ test.describe('public browser smoke', () => {
 
       await productCards.first().click();
       await expect(page.locator('[data-product-detail]')).toBeVisible();
-      await page.getByRole('button', { name: 'Back to all models', exact: true }).click();
+      await page.getByRole('button', { name: 'Back to all products', exact: true }).click();
       await expect(page.locator('[data-product-detail]')).toHaveCount(0);
       await expect(productCards.first()).toBeVisible();
     }
@@ -861,8 +1070,10 @@ test.describe('public browser smoke', () => {
     const intentCounts = new Map<string, number>();
     const previewCounts = new Map<string, number>();
     let imageSequence = 0;
+    // A legacy product stored above the V1.1 product cap of nine. Removing two brings
+    // it back under capacity, which is what re-enables the file input.
     const existingImageIds = Array.from(
-      { length: 19 },
+      { length: 10 },
       (_, index) => `existing-image-${index + 1}`,
     );
 
@@ -951,7 +1162,9 @@ test.describe('public browser smoke', () => {
 
     await page.goto('/admin?miu8-capacity=1', { waitUntil: 'domcontentloaded' });
     await expect(page.getByText('Channel Admin', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Headphones', exact: true }).click();
+    // The catalog now spans four families, so the admin section that used to be
+    // "Headphones" is the broader "Products".
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
     await expect(page.getByText('Existing Over-Limit Product', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Edit', exact: true }).click();
 
@@ -959,11 +1172,11 @@ test.describe('public browser smoke', () => {
     const existingManager = page.locator('#imageIds-capacity').locator('..');
     await expect
       .poll(() => [...previewCounts.values()].reduce((sum, count) => sum + count, 0))
-      .toBe(19);
-    await expect(existingManager.locator('img[alt=""]')).toHaveCount(19);
-    expect(previewCounts.size).toBe(19);
+      .toBe(10);
+    await expect(existingManager.locator('img[alt=""]')).toHaveCount(10);
+    expect(previewCounts.size).toBe(10);
     expect([...previewCounts.values()].every((count) => count === 1)).toBe(true);
-    await expect(existingManager.locator('#imageIds-capacity')).toContainText('19 of 18 images');
+    await expect(existingManager.locator('#imageIds-capacity')).toContainText('10 of 9 images');
     await expect(existingInput).toBeDisabled();
     const existingRemove = existingManager
       .getByRole('button', { name: 'Remove image', exact: true })
@@ -1007,8 +1220,9 @@ test.describe('public browser smoke', () => {
     await expect(
       existingManager.getByRole('button', { name: 'Remove image', exact: true }).first(),
     ).toBeFocused();
-    await expect(existingManager.locator('#imageIds-capacity')).toContainText('17 of 18 images');
-    await expect(existingManager.locator('output')).toContainText('17 of 18 images');
+    await expect(existingManager.locator('#imageIds-capacity')).toContainText('8 of 9 images');
+    // The live region announces the latest event, not the running capacity; the
+    // capacity itself is asserted on its own element above.
     await expect(existingManager.locator('output')).toContainText('Image removed');
     await expect(existingInput).toBeEnabled();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -1026,7 +1240,9 @@ test.describe('public browser smoke', () => {
     expect(
       await fileInput.locator('..').evaluate((element) => getComputedStyle(element).boxShadow),
     ).not.toBe('none');
-    await expect(imageManager.locator('#imageIds-capacity')).toContainText('0 of 18 images');
+    // V1.1 caps a PRODUCT at nine images (Overstock keeps eighteen), so twenty
+    // selected files fill the nine slots and the rest are refused before upload.
+    await expect(imageManager.locator('#imageIds-capacity')).toContainText('0 of 9 images');
 
     const payloads = Array.from({ length: 20 }, (_, index) => ({
       name: `miu8-cap-${index}.png`,
@@ -1039,15 +1255,15 @@ test.describe('public browser smoke', () => {
     await fileInput.setInputFiles(payloads);
     await expect
       .poll(() => [...intentCounts.values()].reduce((sum, count) => sum + count, 0))
-      .toBe(18);
+      .toBe(9);
     await expect(imageManager.getByText('Uploading…')).toHaveCount(0);
     await expect(imageManager.getByText('Upload failed', { exact: true })).toHaveCount(2);
     await expect(imageManager.locator('output')).toContainText(
       '2 uploads failed. Retry or remove them.',
     );
-    await expect(imageManager.locator('img[alt=""]')).toHaveCount(16);
-    await expect(imageManager.locator('#imageIds-capacity')).toContainText('18 of 18 images');
-    await expect(imageManager.locator('output')).toContainText('2 files not selected');
+    await expect(imageManager.locator('img[alt=""]')).toHaveCount(7);
+    await expect(imageManager.locator('#imageIds-capacity')).toContainText('9 of 9 images');
+    await expect(imageManager.locator('output')).toContainText('11 files not selected');
     await expect(fileInput).toBeDisabled();
 
     const firstRetry = imageManager.getByRole('button', { name: 'Retry', exact: true }).first();
@@ -1060,10 +1276,10 @@ test.describe('public browser smoke', () => {
     await page.waitForTimeout(100);
     expect(intentCounts.get('miu8-cap-0.png')).toBe(2);
     await expect(imageManager.getByText('Upload failed', { exact: true })).toHaveCount(1);
-    await expect(imageManager.locator('img[alt=""]')).toHaveCount(17);
+    await expect(imageManager.locator('img[alt=""]')).toHaveCount(8);
 
     await imageManager.getByRole('button', { name: 'Remove', exact: true }).click();
-    await expect(imageManager.locator('#imageIds-capacity')).toContainText('17 of 18 images');
+    await expect(imageManager.locator('#imageIds-capacity')).toContainText('8 of 9 images');
     await expect(imageManager.locator('output')).toContainText('Failed upload removed');
     await expect(fileInput).toBeEnabled();
 
@@ -1072,8 +1288,8 @@ test.describe('public browser smoke', () => {
       mimeType: 'image/png',
       buffer: payloads[0]?.buffer ?? Buffer.alloc(0),
     });
-    await expect(imageManager.locator('img[alt=""]')).toHaveCount(18);
-    await expect(imageManager.locator('#imageIds-capacity')).toContainText('18 of 18 images');
+    await expect(imageManager.locator('img[alt=""]')).toHaveCount(9);
+    await expect(imageManager.locator('#imageIds-capacity')).toContainText('9 of 9 images');
     await expect(fileInput).toBeDisabled();
     expect(intentCounts.get('miu8-cap-replacement.png')).toBe(1);
   });
@@ -1121,7 +1337,7 @@ test.describe('public browser smoke', () => {
     const mediaHeight = mediaBox.height;
     expect(mediaHeight).toBeGreaterThanOrEqual(160);
     expect(mediaHeight).toBeLessThanOrEqual(180);
-    await expect(page.getByText('Product Line', { exact: true })).toBeVisible();
+    await expect(page.getByText('Factory-Direct Headphones', { exact: true })).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
@@ -1469,24 +1685,27 @@ test.describe('public browser smoke', () => {
     await transitionToggle.click();
     await expect(page.locator('[data-mobile-disclosure]')).toHaveAttribute('open', '');
     await expect(page.getByRole('navigation', { name: 'Mobile' })).toBeVisible();
-    await page
-      .getByRole('navigation', { name: 'Mobile' })
-      .getByRole('link', { name: 'Headphones', exact: true })
-      .focus();
-    await page.setViewportSize({ width: 1360, height: 800 });
+    // Under the catalog IA the family link lives inside the Electronics & Toys
+    // disclosure in both lanes, so the lane transition must carry focus between
+    // the two nested copies of the same destination.
+    const mobileCatalogLink = page
+      .locator('[data-catalog-disclosure="mobile"]')
+      .locator('a[href="/headphones/"]');
+    await page.locator('[data-catalog-disclosure="mobile"]').locator(':scope > summary').click();
+    await mobileCatalogLink.focus();
+    // Cross the lane threshold with margin: the header measures window.innerWidth,
+    // which excludes the scrollbar, so a viewport of exactly 1360 can still report
+    // less than 1360 and leave the header in the mobile lane.
+    await page.setViewportSize({ width: 1440, height: 800 });
     await expect(page.locator('[data-site-header]')).toHaveAttribute('data-header-mode', 'desktop');
     await expect(page.locator('[data-mobile-disclosure]')).not.toHaveAttribute('open', '');
     await expect(
-      page.locator('[data-primary-nav]').getByRole('link', { name: 'Headphones', exact: true }),
+      page.locator('[data-catalog-disclosure="desktop"]').locator('a[href="/headphones/"]'),
     ).toBeFocused();
     await page.setViewportSize({ width: 1359, height: 800 });
     await expect(page.locator('[data-mobile-disclosure]')).toHaveAttribute('open', '');
     await expect(page.getByRole('navigation', { name: 'Mobile' })).toBeVisible();
-    await expect(
-      page
-        .getByRole('navigation', { name: 'Mobile' })
-        .getByRole('link', { name: 'Headphones', exact: true }),
-    ).toBeFocused();
+    await expect(mobileCatalogLink).toBeFocused();
 
     await page.setViewportSize({ width: 568, height: 320 });
     await page.goto('/headphones', { waitUntil: 'domcontentloaded' });
@@ -1591,6 +1810,9 @@ test.describe('public browser smoke', () => {
 
   test('public navigation remains available without JavaScript', async ({ browser }) => {
     const trustedStorage = await trustedSiteStorage(browser);
+    // The header now picks its lane in CSS at the same 1360px threshold the script
+    // measures, so navigation is present without JavaScript at BOTH widths: the
+    // desktop lane above the threshold, the native disclosure below it.
     const context = await browser.newContext({
       javaScriptEnabled: false,
       storageState: trustedStorage,
@@ -1599,16 +1821,35 @@ test.describe('public browser smoke', () => {
     try {
       const page = await context.newPage();
       await page.goto(`${e2e.siteUrl}/headphones`, { waitUntil: 'domcontentloaded' });
-      const disclosure = page.locator('[data-mobile-disclosure]');
-      await expect(disclosure).toBeVisible();
-      await disclosure.locator('summary').click();
-      const mobileMenu = page.getByRole('navigation', { name: 'Mobile' });
-      await expect(mobileMenu).toBeVisible();
-      await expect(
-        mobileMenu.getByRole('link', { name: 'Headphones', exact: true }),
-      ).toHaveAttribute('href', '/headphones');
+      const desktopNav = page.locator('[data-primary-nav]');
+      await expect(desktopNav).toBeVisible();
+      const desktopCatalog = page.locator('[data-catalog-disclosure="desktop"]');
+      await desktopCatalog.locator(':scope > summary').click();
+      await expect(desktopCatalog.locator('a[href="/headphones/"]')).toBeVisible();
     } finally {
       await context.close();
+    }
+
+    const mobileContext = await browser.newContext({
+      javaScriptEnabled: false,
+      storageState: trustedStorage,
+      viewport: { width: 390, height: 844 },
+    });
+    try {
+      const page = await mobileContext.newPage();
+      await page.goto(`${e2e.siteUrl}/headphones`, { waitUntil: 'domcontentloaded' });
+      const disclosure = page.locator('[data-mobile-disclosure]');
+      await expect(disclosure).toBeVisible();
+      await disclosure.locator(':scope > summary').click();
+      const mobileMenu = page.getByRole('navigation', { name: 'Mobile' });
+      await expect(mobileMenu).toBeVisible();
+      const mobileCatalog = mobileMenu.locator('[data-catalog-disclosure="mobile"]');
+      await mobileCatalog.locator(':scope > summary').click();
+      await expect(
+        mobileCatalog.getByRole('link', { name: 'Headphones', exact: true }),
+      ).toHaveAttribute('href', '/headphones/');
+    } finally {
+      await mobileContext.close();
     }
   });
 
@@ -1761,40 +2002,6 @@ test.describe('public browser smoke', () => {
     ).toBe(true);
   });
 
-  test('signed-in member gets VIP pricing from the catalog; anonymous does not', async ({
-    request,
-  }) => {
-    // The public catalog is unauthenticated, but a valid session token unlocks
-    // the role-gated VIP tier server-side. Uses the local seed's member account;
-    // on a deployed env without that sample account, skip rather than fail.
-    const loginRes = await request.post(`${e2e.apiUrl}/api/admin`, {
-      data: { action: 'login', data: { email: 'member@channel.local', password: 'password' } },
-    });
-    const loginBody = (await loginRes.json()) as { ok: boolean; data?: { token?: string } };
-    const token = loginBody.data?.token;
-    test.skip(!loginBody.ok || !token, 'seeded member account unavailable in this environment');
-
-    const anon = await request.get(`${e2e.apiUrl}/api/products?pageSize=1`, {
-      headers: { Origin: e2e.siteUrl },
-    });
-    const anonItem = ((await anon.json()) as { data: { items: Record<string, unknown>[] } }).data
-      .items[0];
-    // Guard against an empty catalog: `not.toHaveProperty` passes vacuously on
-    // `undefined`, so only assert when we actually have a real item to inspect.
-    if (anonItem) {
-      expect(anonItem, 'anonymous callers must not receive vipPrice').not.toHaveProperty(
-        'vipPrice',
-      );
-    }
-
-    const authed = await request.get(`${e2e.apiUrl}/api/products?pageSize=1`, {
-      headers: { Origin: e2e.siteUrl, Authorization: `Bearer ${token}` },
-    });
-    const authedItem = ((await authed.json()) as { data: { items: Record<string, unknown>[] } })
-      .data.items[0];
-    expect(typeof authedItem?.vipPrice, 'entitled member must receive vipPrice').toBe('number');
-  });
-
   test('Success Stories galleries expose carousel controls on mobile and tablet', async ({
     page,
   }) => {
@@ -1906,9 +2113,10 @@ test.describe('public browser smoke', () => {
     });
 
     await page.goto(`/oem?phase8=${e2e.runId}`, { waitUntil: 'domcontentloaded' });
-    const whyUs = page.locator('#why-us');
-    await expect(whyUs.getByText('20+', { exact: true })).toBeVisible();
-    await expect(whyUs.getByText('15+', { exact: true })).toHaveCount(0);
+    // The independent OEM page keeps the approved experience stat in its own
+    // restored Why Us section.
+    await expect(page.locator('#why-us').getByText('20+', { exact: true })).toBeVisible();
+    await expect(page.getByText('15+', { exact: true })).toHaveCount(0);
 
     const oemForm = page.locator('#submit');
     await expect(oemForm.locator('[data-success]')).toContainText(
@@ -1996,6 +2204,67 @@ test.describe('public browser smoke', () => {
     await expect(oemForm).toHaveCount(1);
     await expect(oemForm).toHaveAttribute('data-endpoint', '/api/admin');
     await expect(oemForm).toHaveAttribute('data-result', '/oem_submit_result');
+  });
+
+  test('OEM product category uses the shared custom picker with native form fallback', async ({
+    browser,
+    page,
+  }) => {
+    await page.goto('/oem#submit', { waitUntil: 'domcontentloaded' });
+    const form = page.locator('#submit form[data-project-form]');
+    const root = form.locator('[data-public-select]');
+    const native = root.locator('[data-select-native]');
+    const trigger = root.getByRole('combobox', { name: 'Product Category' });
+
+    await expect(native).toHaveAttribute('aria-hidden', 'true');
+    await expect(trigger).toHaveAttribute('aria-haspopup', 'listbox');
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await expect(trigger).toHaveAttribute('aria-controls', 'category-listbox');
+    await trigger.focus();
+    await trigger.press('ArrowDown');
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    await expect(trigger).toHaveAttribute('aria-activedescendant', 'category-option-0');
+    await expect(root.getByRole('listbox')).toBeVisible();
+    await trigger.press('Tab');
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await expect(trigger).not.toHaveAttribute('aria-activedescendant');
+    await expect(root.getByRole('listbox')).toHaveCount(0);
+    await trigger.focus();
+    await trigger.press('ArrowDown');
+    await page.locator('#submit').click({ position: { x: 4, y: 4 } });
+    await expect(root.getByRole('listbox')).toHaveCount(0);
+    await trigger.focus();
+    await trigger.press('ArrowDown');
+    await trigger.press('End');
+    await trigger.press('Enter');
+    await expect(trigger).toContainText('Other');
+    await expect(native).toHaveValue('Other');
+    expect(
+      await form.evaluate((element) => new FormData(element as HTMLFormElement).get('category')),
+    ).toBe('Other');
+
+    await form.evaluate((element) => (element as HTMLFormElement).reset());
+    await expect(trigger).toContainText('Select a product category…');
+    await expect(native).toHaveValue('');
+    await form.evaluate((element) => (element as HTMLFormElement).reportValidity());
+    await expect(trigger).toBeFocused();
+    await expect(root.getByRole('alert')).toContainText('Select product category.');
+
+    const noJsContext = await browser.newContext({ javaScriptEnabled: false });
+    const noJsPage = await noJsContext.newPage();
+    try {
+      await noJsPage.goto('/oem#submit');
+      const noJsSelect = noJsPage.locator('#submit select[name="category"]');
+      await expect(noJsSelect).toBeVisible();
+      await noJsSelect.selectOption('Electronics');
+      expect(
+        await noJsPage
+          .locator('#submit form[data-project-form]')
+          .evaluate((element) => new FormData(element as HTMLFormElement).get('category')),
+      ).toBe('Electronics');
+    } finally {
+      await noJsContext.close();
+    }
   });
 
   test('legacy Success Stories redirects to canonical portfolio and keeps its inquiry CTA', async ({

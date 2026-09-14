@@ -23,6 +23,13 @@ export const REQUIRED_NOSQL_RESOURCES = [
       ]),
     ],
   },
+  // Catalog product identity uniqueness is function-only coordination state
+  // and never client-readable.
+  {
+    collectionName: 'catalogProductIdentities',
+    permission: 'ADMINONLY',
+    indexes: [],
+  },
   // Alibaba linked catalog sync (docs/alibaba-linked-catalog-sync/, MIU 3).
   // All ADMINONLY: every read/write goes through the functions, never the
   // client SDK. Deterministic document ids (sourceKey/offerKey/connectionId)

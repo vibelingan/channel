@@ -9,14 +9,19 @@ import ProjectForm from './ProjectForm.astro';
 interface Props {
   cta: SiteContent['ctaSection'];
   submit: OemContent['submit'];
+  /**
+   * Route-local section id. Defaults to the homepage anchor (#oem-inquiry).
+   * The OEM page passes "submit" so its deep link stays /oem#submit.
+   */
+  sectionId?: string;
 }
 
-const { cta, submit } = Astro.props;
+const { cta, submit, sectionId = 'oem-inquiry' } = Astro.props;
 ---
 
 <section
-  id="oem-inquiry"
-  aria-labelledby="oem-inquiry-heading"
+  id={sectionId}
+  aria-labelledby={`${sectionId}-heading`}
   class="relative scroll-mt-[var(--spacing-header)] overflow-hidden bg-surface-dark text-white"
 >
   <div class="pointer-events-none absolute inset-0 opacity-10" aria-hidden="true">
@@ -32,7 +37,7 @@ const { cta, submit } = Astro.props;
       <p class="text-sm font-semibold uppercase tracking-[0.15em] text-accent-300">
         {submit.eyebrow}
       </p>
-      <h2 id="oem-inquiry-heading" class="mt-4 font-display text-3xl font-bold sm:text-4xl">
+      <h2 id={`${sectionId}-heading`} class="mt-4 font-display text-3xl font-bold sm:text-4xl">
         {cta.heading}
       </h2>
       <p class="mt-4 text-lg leading-relaxed text-slate-300">

@@ -35,6 +35,7 @@ async function uiLogin(page: Page): Promise<void> {
 test.describe('MIU-09 admin UI upload (ImageManager) — deployed env', () => {
   // Skip ONLY when the smoke is not enabled. When it IS enabled, missing creds must
   // FAIL (below), never silently skip — same fail-fast rule as media-upload.spec.ts.
+  // @skip-when the opt-in deployed media smoke lane is disabled; unit/API upload suites cover local/PR behavior.
   test.skip(
     !e2e.mediaUploadSmoke,
     'Set E2E_MEDIA_UPLOAD_SMOKE=1 to run the deployed UI upload test.',
@@ -54,9 +55,9 @@ test.describe('MIU-09 admin UI upload (ImageManager) — deployed env', () => {
     try {
       await uiLogin(page);
 
-      // Open the catalog (Headphones = products) collection and a new record form,
+      // Open the Products collection and a new record form,
       // which renders the RecordForm + ImageManager for the `imageIds` field.
-      await page.getByRole('button', { name: 'Headphones' }).click();
+      await page.getByRole('button', { name: 'Products' }).click();
       await page.getByRole('button', { name: /^New / }).click();
 
       // The ImageManager file input is hidden behind a styled label; set files on it

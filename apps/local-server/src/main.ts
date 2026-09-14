@@ -6,6 +6,7 @@
  * entirely offline. Same request protocol as the cloud function:
  *   POST /api/admin  ->  { action, data, token }
  */
+import { renameSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { setAdapter } from '@vibelingan-channel/db';
 import { handleAdminRequest } from '@vibelingan-channel/fn-admin/handler';
@@ -15,24 +16,22 @@ import {
   handleAlibabaSyncRequest,
   handleOAuthCallbackRequest,
 } from '@vibelingan-channel/fn-alibaba-catalog-sync/handler';
-import {
-  getCatalogImage,
-  getCatalogItem,
-  listCatalog,
-  resolveCatalogViewer,
-} from '@vibelingan-channel/fn-public-api/handler';
+import { getCatalogImage } from '@vibelingan-channel/fn-public-api/handler';
 import type { PublicApiConfig, PublicCatalog } from '@vibelingan-channel/fn-public-api/handler';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
 import { optionalEnv } from '@vibelingan-channel/shared';
 import { releaseInfo } from '@vibelingan-channel/shared/release';
 import express from 'express';
+import { registerCatalogRoutes } from './catalog-routes.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
 import { seed } from './seed.ts';
 
 const PORT = Number(optionalEnv('PORT', '3002'));
 const DB_FILE = resolve(process.cwd(), optionalEnv('LOCAL_DB_FILE', './data/db.local.json'));
 const MEDIA_DIR = resolve(process.cwd(), optionalEnv('LOCAL_MEDIA_DIR', './data/media'));
+const READY_FILE = optionalEnv('LOCAL_READY_FILE');
+const READY_TOKEN = optionalEnv('LOCAL_READY_TOKEN');
 const TCB_ENV = optionalEnv('TCB_ENV', '');
 
 // Dev defaults so the server runs with zero configuration.
@@ -219,51 +218,28 @@ app.get('/api/files/:id', async (req, res) => {
 // tier (verified from the Bearer token) must not drift between the two.
 const catalogConfig: PublicApiConfig = { jwtSecret: config.jwtSecret };
 
-// The catalog responses vary by the caller's token (role-gated VIP tier), so a
-// shared cache must key on Authorization — mirrors the production http-adapter.
-function setCatalogCacheHeaders(res: express.Response): void {
-  res.setHeader('Vary', 'Origin, Authorization');
-  res.setHeader('Cache-Control', 'private, no-cache');
-}
-
 function registerCatalog(collection: PublicCatalog, basePath: string): void {
-  app.get(basePath, async (req, res) => {
-    const categoriesParam = String(req.query.category ?? '').trim();
-    const viewer = await resolveCatalogViewer(req.headers.authorization, catalogConfig);
-    const result = await listCatalog(
-      collection,
-      {
-        ...(categoriesParam ? { categories: categoriesParam.split(',').filter(Boolean) } : {}),
-        search: String(req.query.search ?? '').trim(),
-        page: Number.parseInt(String(req.query.page ?? '1'), 10) || 1,
-        pageSize: Number.parseInt(String(req.query.pageSize ?? '24'), 10) || 24,
-      },
-      catalogConfig,
-      viewer,
-    );
-    setCatalogCacheHeaders(res);
-    res.json(result);
-  });
-
-  app.get(`${basePath}/:id`, async (req, res) => {
-    const viewer = await resolveCatalogViewer(req.headers.authorization, catalogConfig);
-    const result = await getCatalogItem(collection, req.params.id, catalogConfig, viewer);
-    setCatalogCacheHeaders(res);
-    if (!result.ok) {
-      res.status(404).json(result);
-      return;
-    }
-    res.json(result);
-  });
+  registerCatalogRoutes(app, collection, basePath, catalogConfig);
 }
 
 registerCatalog('products', '/api/products');
 registerCatalog('overstock', '/api/overstock');
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, '127.0.0.1', () => {
+  const address = server.address();
+  const port = typeof address === 'object' && address ? address.port : PORT;
+  if (READY_FILE) {
+    const temporaryReadyFile = `${READY_FILE}.${process.pid}.tmp`;
+    writeFileSync(
+      temporaryReadyFile,
+      JSON.stringify({ pid: process.pid, port, db: DB_FILE, token: READY_TOKEN }),
+      'utf8',
+    );
+    renameSync(temporaryReadyFile, READY_FILE);
+  }
   console.log('');
   console.log('  channel local API server');
-  console.log(`  ➜  http://localhost:${PORT}/api/admin`);
+  console.log(`  ➜  http://localhost:${port}/api/admin`);
   console.log(`  ➜  db file: ${DB_FILE}`);
   console.log('  ➜  seeded admin login: admin@channel.local / admin');
   console.log('');

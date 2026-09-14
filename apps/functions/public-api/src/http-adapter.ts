@@ -1,4 +1,4 @@
-import { type ApiResult, err, ok } from '@vibelingan-channel/shared';
+import { type ApiResult, err, isProductFamily, ok } from '@vibelingan-channel/shared';
 import { releaseInfo } from '@vibelingan-channel/shared/release';
 import {
   type BinaryResult,
@@ -6,6 +6,7 @@ import {
   type PublicApiConfig,
   getCatalogImage,
   getCatalogItem,
+  getCatalogItemBySlug,
   listCatalog,
   parseCatalogName,
   resolveCatalogViewer,
@@ -205,7 +206,13 @@ function parsePositiveInt(value: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function catalogQuery(params: URLSearchParams): CatalogQuery {
+export function parseCatalogQuery(params: URLSearchParams): CatalogQuery | ApiResult<never> {
+  const productFamily = params.get('productFamily')?.trim();
+  if (productFamily && !isProductFamily(productFamily)) {
+    return err('VALIDATION_ERROR', 'Unknown product family.');
+  }
+  const parsedProductFamily =
+    productFamily && isProductFamily(productFamily) ? productFamily : undefined;
   const category = params.get('category')?.trim();
   const categories = category
     ? category
@@ -214,6 +221,7 @@ function catalogQuery(params: URLSearchParams): CatalogQuery {
         .filter(Boolean)
     : [];
   return {
+    ...(parsedProductFamily ? { productFamily: parsedProductFamily } : {}),
     ...(categories.length > 0 ? { categories } : {}),
     search: params.get('search') ?? '',
     page: parsePositiveInt(params.get('page') ?? '', 1),
@@ -229,6 +237,14 @@ function decodeSegment(value: string): string {
   }
 }
 
+function pathHasUnsafeEncodedSegment(path: string): boolean {
+  const pathname = path.split(/[?#]/, 1)[0] ?? '';
+  return pathname.split('/').some((segment) => {
+    const decoded = decodeSegment(segment);
+    return decoded === '.' || decoded === '..' || decoded.includes('/') || decoded.includes('\\');
+  });
+}
+
 function apiSegments(path: string): string[] {
   const segments = path.split('/').filter(Boolean);
   return segments[0] === 'api' ? segments.slice(1) : segments;
@@ -238,7 +254,12 @@ async function routeGet(
   event: Record<string, unknown>,
   config: PublicHttpConfig,
 ): Promise<HttpResponse> {
-  const url = new URL(requestPath(event), 'https://channel.local');
+  const rawPath = requestPath(event);
+  const originalRawPath = typeof event.rawPath === 'string' ? event.rawPath : rawPath;
+  if (pathHasUnsafeEncodedSegment(originalRawPath)) {
+    return jsonResponse(event, config, err('NOT_FOUND', 'Route not found'));
+  }
+  const url = new URL(rawPath, 'https://channel.local');
   const path = url.pathname.replace(/\/+$/, '') || '/';
   const params = queryParams(event, url);
   const segments = apiSegments(path);
@@ -249,11 +270,24 @@ async function routeGet(
 
   const collection = segments[0] ? parseCatalogName(segments[0]) : null;
   if (collection && segments.length === 1) {
+    const query = parseCatalogQuery(params);
+    if ('ok' in query) return jsonResponse(event, config, query);
     const viewer = await resolveCatalogViewer(headerValue(event.headers, 'authorization'), config);
     return jsonResponse(
       event,
       config,
-      await listCatalog(collection, catalogQuery(params), config, viewer),
+      await listCatalog(collection, query, config, viewer),
+      undefined,
+      CATALOG_CACHE_HEADERS,
+    );
+  }
+
+  if (segments[0] === 'products' && segments[1] === 'slug' && segments.length === 3) {
+    const viewer = await resolveCatalogViewer(headerValue(event.headers, 'authorization'), config);
+    return jsonResponse(
+      event,
+      config,
+      await getCatalogItemBySlug(decodeSegment(segments[2] ?? ''), config, viewer),
       undefined,
       CATALOG_CACHE_HEADERS,
     );

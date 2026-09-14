@@ -16,8 +16,8 @@ interface Props {
   /** Poster / fallback image path (served from public/media). */
   poster?: string;
   /** Intrinsic pixel dimensions of `poster`, to reserve layout space (avoid CLS). */
-  posterWidth?: number;
-  posterHeight?: number;
+  posterWidth: number;
+  posterHeight: number;
   caption?: string;
   /** Accessible label / alt text for the media. */
   label?: string;
@@ -47,7 +47,13 @@ const alt = label ?? caption ?? '';
           >
             <source src={src} type="video/mp4" />
             {poster && (
-              <img src={poster} alt={alt} class="aspect-video h-full w-full object-cover" />
+              <img
+                src={poster}
+                alt={alt}
+                width={posterWidth}
+                height={posterHeight}
+                class="aspect-video h-full w-full object-cover"
+              />
             )}
           </video>
         ) : (

@@ -13,14 +13,29 @@ interface Props {
 const { quality } = Astro.props;
 
 const tests = [
-  { img: '/media/oem/quality/q1.jpg', label: 'QC Inspection Lab' },
-  { img: '/media/oem/quality/q2.jpg', label: 'Burst / Pressure Test' },
-  { img: '/media/oem/quality/q3.jpg', label: 'Press-Force Test' },
-  { img: '/media/oem/quality/q4.jpg', label: 'Salt-Spray Corrosion Test' },
-  { img: '/media/oem/quality/q5.jpg', label: 'Vibration / Transport Test' },
-  { img: '/media/oem/quality/q6.jpg', label: 'Environmental Aging Chamber' },
-  { img: '/media/oem/quality/q7.jpg', label: 'Tensile / Pull Test' },
-  { img: '/media/oem/quality/q8.jpg', label: 'Drop Test' },
+  { img: '/media/oem/quality/q1.jpg', label: 'QC Inspection Lab', width: 545, height: 345 },
+  { img: '/media/oem/quality/q2.jpg', label: 'Burst / Pressure Test', width: 205, height: 345 },
+  { img: '/media/oem/quality/q3.jpg', label: 'Press-Force Test', width: 205, height: 345 },
+  {
+    img: '/media/oem/quality/q4.jpg',
+    label: 'Salt-Spray Corrosion Test',
+    width: 322,
+    height: 345,
+  },
+  {
+    img: '/media/oem/quality/q5.jpg',
+    label: 'Vibration / Transport Test',
+    width: 325,
+    height: 285,
+  },
+  {
+    img: '/media/oem/quality/q6.jpg',
+    label: 'Environmental Aging Chamber',
+    width: 285,
+    height: 285,
+  },
+  { img: '/media/oem/quality/q7.jpg', label: 'Tensile / Pull Test', width: 368, height: 285 },
+  { img: '/media/oem/quality/q8.jpg', label: 'Drop Test', width: 305, height: 285 },
 ];
 ---
 
@@ -47,6 +62,8 @@ const tests = [
           <img
             src={t.img}
             alt={t.label}
+            width={t.width}
+            height={t.height}
             loading="lazy"
             class="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-[1.04]"
           />

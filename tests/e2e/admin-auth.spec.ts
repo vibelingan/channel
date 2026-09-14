@@ -3,6 +3,7 @@ import { type CollectionDoc, type ListResult, adminAction, loginAdmin } from './
 import { hasAdminCredentials } from './helpers/env';
 
 test.describe('admin authenticated smoke', () => {
+  // @skip-when running without deployment Admin credentials; mocked admin-session.spec.ts covers local/PR behavior.
   test.skip(!hasAdminCredentials(), 'Set E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD to run admin e2e.');
 
   test('admin API login can list at least the users collection', async ({ request }) => {
@@ -28,6 +29,6 @@ test.describe('admin authenticated smoke', () => {
 
     await expect(page).toHaveURL(/\/admin(?:$|\?)/);
     await expect(page.getByText('Channel Admin')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Headphones' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Products' })).toBeVisible();
   });
 });

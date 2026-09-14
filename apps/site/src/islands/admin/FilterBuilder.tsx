@@ -8,6 +8,7 @@ import {
   operatorsForType,
 } from '@vibelingan-channel/shared';
 import { useState } from 'react';
+import { Select } from '../../components/form/Select.tsx';
 
 interface Props {
   collection: CollectionDef;
@@ -180,30 +181,22 @@ export function FilterBuilder({ collection, applied, onApply }: Props) {
                 return (
                   // biome-ignore lint/suspicious/noArrayIndexKey: rows have no stable id
                   <div key={index} className="flex items-center gap-2">
-                    <select
+                    <Select
+                      ariaLabel={`Filter ${index + 1} field`}
                       value={clause.field}
-                      onChange={(e) => changeField(index, e.target.value)}
-                      className="w-40 rounded-md border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-slate-900"
-                    >
-                      {fields.map((f) => (
-                        <option key={f.name} value={f.name}>
-                          {f.label}
-                        </option>
-                      ))}
-                    </select>
-                    <select
+                      options={fields.map((field) => ({ value: field.name, label: field.label }))}
+                      className="w-40"
+                      triggerClassName="min-h-9 rounded-md px-2 py-1.5"
+                      onChange={(value) => changeField(index, value)}
+                    />
+                    <Select
+                      ariaLabel={`Filter ${index + 1} operator`}
                       value={clause.op}
-                      onChange={(e) =>
-                        updateClause(index, { op: e.target.value as FilterOperator })
-                      }
-                      className="w-36 rounded-md border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-slate-900"
-                    >
-                      {ops.map((op) => (
-                        <option key={op} value={op}>
-                          {operatorLabel(op)}
-                        </option>
-                      ))}
-                    </select>
+                      options={ops.map((op) => ({ value: op, label: operatorLabel(op) }))}
+                      className="w-36"
+                      triggerClassName="min-h-9 rounded-md px-2 py-1.5"
+                      onChange={(value) => updateClause(index, { op: value as FilterOperator })}
+                    />
                     {showValue ? (
                       <ValueInput
                         field={def}
@@ -301,22 +294,30 @@ function ValueInput({
 
   if (field?.type === 'select') {
     return (
-      <select value={str} onChange={(e) => onChange(e.target.value)} className={cls}>
-        <option value="">Select…</option>
-        {field.options?.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
+      <Select
+        ariaLabel={`${field.label} value`}
+        value={str}
+        placeholder="Select…"
+        options={field.options ?? []}
+        className="flex-1"
+        triggerClassName="min-h-9 rounded-md px-2 py-1.5"
+        onChange={onChange}
+      />
     );
   }
   if (field?.type === 'boolean') {
     return (
-      <select value={str} onChange={(e) => onChange(e.target.value === 'true')} className={cls}>
-        <option value="true">Yes</option>
-        <option value="false">No</option>
-      </select>
+      <Select
+        ariaLabel={`${field.label} value`}
+        value={str}
+        options={[
+          { value: 'true', label: 'Yes' },
+          { value: 'false', label: 'No' },
+        ]}
+        className="flex-1"
+        triggerClassName="min-h-9 rounded-md px-2 py-1.5"
+        onChange={(value) => onChange(value === 'true')}
+      />
     );
   }
   if (field?.type === 'number') {

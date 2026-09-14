@@ -11,88 +11,61 @@ hero:
   eyebrow: OEM / ODM Development
   heading: One-stop OEM development, from idea to shipment
   subheading: >-
-    A single, accountable partner for the entire product journey — design,
-    engineering, tooling, sampling, production, and worldwide delivery.
+    Bring us a rough idea, sketch, or complete specification. Our product,
+    engineering, tooling, production, quality, and logistics teams manage the
+    path to a shipment-ready product.
   primaryCta: { label: Submit your project, href: '#submit' }
   secondaryCta: { label: See our process, href: '#process' }
-
-oneStop:
-  id: one-stop
-  eyebrow: One-stop service
-  heading: One-Stop OEM Development Service
-  intro: >-
-    Everything required to bring a product to market lives under one roof. Each
-    capability below is a stage we own end-to-end, so you coordinate with one
-    team instead of stitching together a dozen vendors.
-  servicesTitle: Eight capabilities, one accountable partner
-  services:
-    - { icon: design, title: Product Design, desc: 'Concepts, CMF, and design-for-manufacture from day one.' }
-    - { icon: id-design, title: ID Design, desc: 'Industrial design that balances aesthetics, ergonomics, and cost.' }
-    - { icon: mold, title: Mold Development, desc: 'In-house tooling design and precision mold fabrication.' }
-    - { icon: engineer, title: Engineer Support, desc: 'Mechanical, electronic, and firmware engineering on tap.' }
-    - { icon: sampling, title: Sampling, desc: 'Rapid prototypes and pre-production samples for sign-off.' }
-    - { icon: production, title: Production, desc: 'Scalable assembly lines for pilot runs through mass volume.' }
-    - { icon: quality, title: Quality Control, desc: 'Inspection and testing at every stage, not just the end.' }
-    - { icon: logistics, title: Global Logistics, desc: 'Export documentation and door-to-door worldwide shipping.' }
-  workflowTitle: A clear path from idea to delivery
-  workflowIntro: >-
-    Every project follows the same proven sequence, so you always know what
-    happens next and who owns it.
-  workflow:
-    - { label: Idea, desc: Requirements & feasibility }
-    - { label: Design, desc: ID & engineering }
-    - { label: Prototype, desc: Samples & validation }
-    - { label: Tooling, desc: Molds & fixtures }
-    - { label: Mass Production, desc: Assembly & QC }
-    - { label: Shipping, desc: Global delivery }
 
 capabilities:
   id: capabilities
   eyebrow: Development capability
-  heading: Our Development Capability
+  heading: Our Cross-Disciplinary Development Capability
   intro: >-
-    Two decades of manufacturing has built a deep, diversified supply chain. We
-    develop across six primary product families — and the cross-pollination
-    between them is exactly what lets us solve unusual briefs.
+    More than 20 years of manufacturing experience connects early product
+    thinking with the engineering and production disciplines needed to launch.
   items:
-    - { icon: plastic, title: Plastic Products, desc: 'Injection molding, tooling, and finishing for durable plastic parts.' }
-    - { icon: electronics, title: Electronics, desc: 'PCBA, embedded firmware, and full electronic device assembly.' }
-    - { icon: headphones, title: Headphones, desc: 'Acoustic tuning, wireless audio, and high-volume audio manufacturing.' }
-    - { icon: consumer, title: Consumer Goods, desc: 'Everyday products engineered for reliability and shelf appeal.' }
-    - { icon: hardware, title: Hardware Products, desc: 'Metal, mechanical, and mixed-material hardware fabrication.' }
-    - { icon: promotional, title: Promotional Products, desc: 'Branded merchandise and custom gifts at promotional price points.' }
+    - { icon: design, title: Product Incubation, desc: 'Turn rough ideas and simple sketches into practical product directions and development briefs.' }
+    - { icon: id-design, title: Industrial & Mechanical Design, desc: 'Develop appearance, ergonomics, structure, materials, and design-for-manufacture together.' }
+    - { icon: electronics, title: Electronics Engineering, desc: 'Support circuit design, PCBA development, embedded firmware, and complete device integration.' }
+    - { icon: sampling, title: Prototyping & Validation, desc: 'Use prototypes, simulations, and pre-production samples to reduce physical rework before tooling.' }
+    - { icon: mold, title: Tooling & Mass Production, desc: 'Move through mold development, test shots, pilot runs, assembly, and controlled volume production.' }
+    - { icon: logistics, title: Quality & Global Delivery, desc: 'Verify products through production, coordinate available CE, EMC, FCC, and JD compliance and test reports, then manage export and worldwide delivery.' }
   note: >-
-    A diversified supply chain means flexible sourcing, resilient lead times,
-    and one partner who can combine materials and disciplines in a single build.
+    One accountable team connects each stage, while a diversified supply chain
+    supports mixed materials, electronics, tooling, and final assembly.
 
 process:
   id: process
   eyebrow: How we work
-  heading: OEM Development Process
+  heading: A clear six-stage path from brief to delivery
   intro: >-
-    A standardized, transparent six-step procedure keeps quality consistent and
-    timelines predictable — no matter how complex the product.
+    The homepage shows the detailed ten-step execution flow. Here it is grouped
+    into six decision stages so project owners can see what is reviewed and
+    approved before the next commitment.
   steps:
-    - { title: Discussing Requirements, desc: 'We align on specifications, target cost, compliance needs, and timeline.' }
-    - { title: Concept Designs, desc: 'ID sketches, 3D models, and engineering concepts for your review and sign-off.' }
-    - { title: Sample Development, desc: 'Functional prototypes and pre-production samples to validate fit and function.' }
-    - { title: Batch Production, desc: 'Tooling release and scaled assembly with documented process controls.' }
-    - { title: Quality Check, desc: 'In-line and final inspection against agreed AQL standards before packing.' }
-    - { title: Shipping, desc: 'Export paperwork, packaging, and door-to-door global logistics.' }
+    - { title: Brief & Feasibility, desc: 'Align the product idea, target market, requirements, compliance needs, target cost, and schedule.' }
+    - { title: Product & Engineering Design, desc: 'Develop appearance, mechanical structure, circuit design, material choices, and initial cost direction.' }
+    - { title: Prototype & Validation, desc: 'Review functional prototypes and simulations, then confirm fit, function, and key risks before tooling.' }
+    - { title: Tooling & First Articles, desc: 'Build molds and fixtures, evaluate test shots, and close design-for-manufacture issues.' }
+    - { title: Pilot & Mass Production, desc: 'Validate the production process in a pilot run before controlled PCBA, assembly, and volume output.' }
+    - { title: Quality Verification & Delivery, desc: 'Inspect throughout production, complete final verification, pack, document, and coordinate global shipment.' }
 
 whyUs:
   id: why-us
   eyebrow: Why choose us
-  heading: A partner you can build on
+  heading: Engineering depth with global delivery reach
   intro: >-
-    Choosing a manufacturer is choosing a long-term partner. Here is what makes
-    brands trust us with their products year after year.
+    The same team that develops the product stays accountable through
+    production, quality verification, and shipment.
   reasons:
-    - { icon: experience, stat: '20+', label: Years of Experience, desc: 'Two decades turning concepts into shipped, market-ready products.' }
-    - { icon: partners, stat: '100+', label: Supply Chain Partners, desc: 'A vetted network that keeps sourcing flexible and lead times resilient.' }
-    - { icon: moq, label: Flexible MOQ, desc: 'Order quantities that scale with your stage, from pilot runs to volume.' }
-    - { icon: compliance, label: Global Compliance Support, desc: 'CE, FCC, RoHS, and market-specific certification guidance built in.' }
-    - { icon: manager, label: Dedicated Project Manager, desc: 'A single point of contact accountable for your project end-to-end.' }
+    - { icon: experience, stat: '20+', label: Years of Experience, desc: 'OEM manufacturing experience since 2004, from concepts to shipment-ready products.' }
+    - { icon: engineer, stat: '40+', label: Engineers, desc: 'Product, mechanical, electronics, tooling, and production expertise within one delivery team.' }
+    - { icon: production, stat: '5000+', label: m² Facility, desc: 'Engineering, tooling, production, assembly, and quality capability in Dongguan.' }
+    - { icon: logistics, stat: '40+', label: Countries, desc: 'International trade and delivery experience across major global markets.' }
+    - { icon: quality, label: Pre-QC Risk Control, desc: 'Identify tooling, production, and assembly risks before final inspection and mass delivery.' }
+    - { icon: design, label: Long-Term Product Iteration, desc: 'Use market feedback and cost optimization to improve later product generations instead of treating OEM as a one-time build.' }
+    - { icon: manager, label: One Accountable Team, desc: 'Coordinate product development, sourcing, engineering, manufacturing, and logistics through one working relationship.' }
 
 submit:
   id: submit

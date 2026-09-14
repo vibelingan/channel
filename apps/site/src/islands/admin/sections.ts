@@ -3,7 +3,7 @@
  *
  * Instead of exposing every registered collection as a flat list, the admin
  * dashboard groups them into meaningful features. The `images` collection is
- * intentionally absent: images are managed inline while editing a Headphones or
+ * intentionally absent: images are managed inline while editing a Product or
  * Overstock item, not as a standalone list.
  */
 export interface DashboardSection {
@@ -31,7 +31,7 @@ export const DASHBOARD_SECTIONS: readonly DashboardSection[] = [
     adminOnly: true,
     inlineEdit: ['role', 'status'],
   },
-  { label: 'Headphones', collection: 'products', catalog: true },
+  { label: 'Products', collection: 'products', catalog: true },
   { label: 'Overstock', collection: 'overstock', catalog: true },
   { label: 'OEM Requests', collection: 'oemProjects', inlineEdit: ['status'] },
   // Alibaba linked catalog sync (docs/alibaba-linked-catalog-sync, MIU 13).

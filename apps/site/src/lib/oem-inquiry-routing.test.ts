@@ -16,6 +16,10 @@ const oemContent = readFileSync(
   fileURLToPath(new URL('../i18n/content/oem/en-US.md', import.meta.url)),
   'utf8',
 );
+const oemPageSource = readFileSync(
+  fileURLToPath(new URL('../pages/oem.astro', import.meta.url)),
+  'utf8',
+);
 const resultPage = readFileSync(
   fileURLToPath(new URL('../pages/oem_submit_result.astro', import.meta.url)),
   'utf8',
@@ -55,6 +59,9 @@ test('canonical OEM inquiry links target the homepage form without changing navi
   assert.ok(siteContent.includes("href: '/oem#what-we-do'"));
   assert.ok(siteContent.includes("- { label: OEM Development, href: '/oem' }"));
   assert.ok(oemContent.includes("primaryCta: { label: Submit your project, href: '#submit' }"));
+  assert.ok(oemContent.includes("secondaryCta: { label: See our process, href: '#process' }"));
+  assert.ok(oemPageSource.includes('primaryCta={hero.primaryCta}'));
+  assert.ok(oemPageSource.includes('secondaryCta={hero.secondaryCta}'));
 });
 
 test('OEM submission result uses the approved response-time claim and keeps its routing', () => {

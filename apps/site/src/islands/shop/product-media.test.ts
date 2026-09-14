@@ -92,13 +92,13 @@ test('Gallery session identity includes the product even when media is identical
   );
 });
 
-test('Gallery defensively clamps normalized media to the shared maximum', () => {
+test('Gallery defensively clamps normalized product media to nine', () => {
   const images = Array.from({ length: 25 }, (_, index) => ` /api/images/image-${index + 1} `);
   const bounded = boundedGalleryImages(images);
 
-  assert.equal(bounded.length, 18);
+  assert.equal(bounded.length, 9);
   assert.equal(bounded[0], '/api/images/image-1');
-  assert.equal(bounded.at(-1), '/api/images/image-18');
+  assert.equal(bounded.at(-1), '/api/images/image-9');
 });
 
 test('collapsed Gallery keeps an out-of-range active thumbnail visible and selected', () => {

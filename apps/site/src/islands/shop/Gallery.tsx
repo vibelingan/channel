@@ -1,4 +1,4 @@
-import { CATALOG_IMAGE_MAX_COUNT } from '@vibelingan-channel/shared';
+import { PRODUCT_IMAGE_MAX_COUNT } from '@vibelingan-channel/shared';
 import { useState } from 'react';
 import { apiMediaUrl } from '../../lib/api-url.ts';
 import { ProductMedia, productMediaKey } from './ProductMedia.tsx';
@@ -58,7 +58,7 @@ export function boundedGalleryImages(images: readonly string[]): string[] {
     .map((image) => image.trim())
     .filter(Boolean)
     .map(apiMediaUrl)
-    .slice(0, CATALOG_IMAGE_MAX_COUNT);
+    .slice(0, PRODUCT_IMAGE_MAX_COUNT);
 }
 
 export function gallerySessionKey(

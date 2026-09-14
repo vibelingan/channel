@@ -13,7 +13,13 @@ import {
   getCollection,
   normalizeCatalogImageIds,
 } from '@vibelingan-channel/shared';
-import type { AlibabaLeaseGrant, AlibabaLeaseGuard, DbAdapter } from './adapter.ts';
+import type {
+  AlibabaLeaseGrant,
+  AlibabaLeaseGuard,
+  CatalogProductSaveInput,
+  CatalogProductSaveResult,
+  DbAdapter,
+} from './adapter.ts';
 import type { ImageMutationAcquireResult, ImageMutationReleaseResult } from './adapter.ts';
 import { ALIBABA_SYNC_LEASE_COLLECTION, holdsAlibabaLease } from './adapter.ts';
 export {
@@ -24,6 +30,7 @@ export {
   ALIBABA_SYNC_LEASE_RENEW_MS,
   ALIBABA_SYNC_LEASE_TTL_MS,
   holdsAlibabaLease,
+  planCatalogProductSave,
   readAlibabaLeaseState,
   transitionAlibabaLeaseAcquire,
   transitionAlibabaLeaseRelease,
@@ -35,6 +42,10 @@ export type {
   AlibabaLeaseGrant,
   AlibabaLeaseGuard,
   AlibabaLeaseState,
+  CatalogProductIdentity,
+  CatalogProductSaveInput,
+  CatalogProductSavePlan,
+  CatalogProductSaveResult,
   DbAdapter,
   ImageMutationAcquireResult,
   ImageMutationReleaseResult,
@@ -88,6 +99,7 @@ export async function list(query: ListQuery): Promise<ListResult<CollectionDoc>>
   const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, query.pageSize ?? DEFAULT_PAGE_SIZE));
   return db().list({
     collection: query.collection,
+    ...(query.productFamily ? { productFamily: query.productFamily } : {}),
     page,
     pageSize,
     search: (query.search ?? '').trim(),
@@ -288,6 +300,50 @@ export function createDocWithId(
     updatedAt: now,
     ...data,
   });
+}
+
+/** Delete a deterministic-id document only while its owner field still matches. */
+export function removeDocIfFieldEquals(
+  collection: string,
+  id: string,
+  field: string,
+  expectedValue: unknown,
+): Promise<boolean> {
+  assertKnown(collection);
+  requireNonEmpty(id, 'document id');
+  requireNonEmpty(field, 'field');
+  const adapter = db();
+  if (!adapter.removeDocIfFieldEquals) {
+    throw new Error(
+      '@vibelingan-channel/db: removeDocIfFieldEquals is not implemented by this adapter.',
+    );
+  }
+  return adapter.removeDocIfFieldEquals(collection, id, field, expectedValue);
+}
+
+/** Atomically save a product together with its normalized slug/SKU ownership. */
+export function saveCatalogProductWithIdentities(
+  input: CatalogProductSaveInput,
+): Promise<CatalogProductSaveResult> {
+  if (
+    !input ||
+    typeof input !== 'object' ||
+    Array.isArray(input) ||
+    (input.mode !== 'create' && input.mode !== 'update') ||
+    !input.data ||
+    typeof input.data !== 'object' ||
+    Array.isArray(input.data)
+  ) {
+    throw new Error('@vibelingan-channel/db: invalid catalog product save input.');
+  }
+  requireNonEmpty(input.productId, 'product id');
+  const adapter = db();
+  if (!adapter.saveCatalogProductWithIdentities) {
+    throw new Error(
+      '@vibelingan-channel/db: saveCatalogProductWithIdentities is not implemented by this adapter.',
+    );
+  }
+  return adapter.saveCatalogProductWithIdentities(input);
 }
 
 /** Create-or-patch with a deterministic id; returns the resulting document. */

@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>Electronics &amp; Toys 商品分类扩展 - 客户需求与页面设计确认稿</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    body { font-family: "PingFang SC", "Helvetica Neue", sans-serif; color: #172033; font-size: 11pt; line-height: 1.55; }
+    h1 { color: #123c85; font-size: 25pt; margin: 0 0 10pt; }
+    h2 { color: #123c85; font-size: 17pt; border-bottom: 2px solid #e7edf7; padding-bottom: 5pt; margin-top: 22pt; }
+    h3 { color: #243b64; font-size: 13pt; margin-top: 16pt; }
+    p { margin: 6pt 0; }
+    ul, ol { margin-top: 6pt; }
+    table { width: 100%; border-collapse: collapse; margin: 10pt 0 16pt; }
+    th { background: #123c85; color: #fff; text-align: left; padding: 7pt; }
+    td { border: 1px solid #d8e0ed; padding: 7pt; vertical-align: top; }
+    .cover { text-align: center; padding-top: 80pt; page-break-after: always; }
+    .cover .brand { color: #123c85; font-weight: 700; font-size: 15pt; letter-spacing: 1pt; }
+    .cover .subtitle { color: #52627a; font-size: 14pt; margin-top: 18pt; }
+    .cover .meta { margin-top: 70pt; color: #6e7b8f; }
+    .notice { background: #fff7df; border-left: 5px solid #f2a900; padding: 10pt 12pt; margin: 12pt 0; }
+    .decision { background: #eef5ff; border: 1px solid #c8d9f4; padding: 10pt 12pt; margin: 12pt 0; }
+    .mock { border: 1px solid #aebbd0; background: #f8faff; padding: 10pt; margin: 10pt 0 16pt; font-family: "Menlo", "Courier New", monospace; font-size: 8.5pt; line-height: 1.35; white-space: pre-wrap; }
+    .screen-title { background: #091333; color: #fff; padding: 7pt 10pt; font-weight: 700; margin-top: 12pt; }
+    .caption { color: #617088; font-size: 9.5pt; margin-top: -8pt; }
+    .page-break { page-break-before: always; }
+    .check { font-size: 12pt; }
+    .small { color: #68768a; font-size: 9.5pt; }
+  </style>
+</head>
+<body>
+  <div class="cover">
+    <div class="brand">CHANNEL · Diversity Technology Limited</div>
+    <h1>Electronics &amp; Toys<br>商品分类扩展</h1>
+    <div class="subtitle">客户需求与页面设计确认稿</div>
+    <div class="meta">版本：V1.0<br>日期：2026-08-19<br><br>本文件用于确认需求与页面方向，不代表功能已经上线。</div>
+  </div>
+
+  <h2>一、这次要解决什么</h2>
+  <p>目前网站主要以 Headphones 作为商品入口。未来除了耳机，还需要展示 AI Gadgets、Toys 和其他电子玩具产品；商品数量也会随着 Alibaba 数据同步持续增加，不能再依赖逐个手工维护页面。</p>
+
+  <div class="decision"><strong>本次建议：</strong>网站建立一个统一的 Electronics &amp; Toys 商品中心，下面分为四个产品大类，每个大类再展示各自的 SKU 商品。后台仍然使用同一个商品管理区，不为每个大类重复建设一套系统。</div>
+
+  <h3>建议实施顺序</h3>
+  <table>
+    <tr><th>Phase 1：先实现</th><th>客户确认后再实现</th></tr>
+    <tr>
+      <td>桌面与手机菜单<br>Electronics &amp; Toys 基础总览<br>三个新分类的准备中页面<br>现有 Headphones 与本地示例商品 UI 验证<br>前台隐藏 VIP 价格入口</td>
+      <td>跨分类真实商品数据与 Alibaba mapping<br>Admin 分类 Tab 与商品表单改造<br>SKU 独立页面和永久 URL<br>Breadcrumb、Product Schema 与完整 SEO 接入<br>发布权限、删除和批量操作</td>
+    </tr>
+  </table>
+  <p class="small">Phase 1 的新分类名称和页面地址只用于本地或受控测试预览；客户确认前不发布到生产。</p>
+
+  <h3>建议的商品层级</h3>
+  <div class="mock">Electronics &amp; Toys
+│
+├── Headphones
+│   ├── Office
+│   ├── Bluetooth
+│   └── Wired
+│
+├── AI Gadgets
+├── Toys
+└── Misc（对外名称待客户确认）
+    └── 各自的 SKU 商品</div>
+
+  <div class="notice"><strong>关于 productFamily：</strong>这不是当前网站或 Alibaba 项目已经存在的字段，而是本次设计提出的内部建议，用来区分 Headphones、AI Gadgets、Toys、Misc 四个大类。最终客户页面不会显示 “productFamily” 这个词；实施前字段名称也可以调整。</div>
+
+  <h2>二、客户在网站上会看到什么</h2>
+
+  <h3>1. 顶部菜单</h3>
+  <p>把现在单独的 Headphones 导航升级为 Electronics &amp; Toys 菜单。桌面端点击后显示四个大类，手机端在汉堡菜单内展开。</p>
+
+  <div class="screen-title">桌面版菜单示意</div>
+  <div class="mock">┌──────────────────────────────────────────────────────────────────┐
+│ CHANNEL    OEM Development    Electronics &amp; Toys ▾    Success Stories │
+│                              ┌─────────────────────────────┐          │
+│                              │ View all products        →  │          │
+│                              ├──────────────┬──────────────┤          │
+│                              │ Headphones   │ AI Gadgets   │          │
+│                              │ Toys         │ Misc         │          │
+│                              └──────────────┴──────────────┘          │
+└──────────────────────────────────────────────────────────────────┘</div>
+
+  <div class="screen-title">手机版菜单示意</div>
+  <div class="mock">┌──────────────────────────────┐
+│ CHANNEL                  [×] │
+├──────────────────────────────┤
+│ OEM Development              │
+│ Electronics &amp; Toys       [−] │
+│   View all products          │
+│   Headphones                 │
+│   AI Gadgets                 │
+│   Toys                       │
+│   Misc                       │
+│ Success Stories              │
+│ Sign in                      │
+└──────────────────────────────┘</div>
+  <p class="caption">菜单保持现有网站的白色 Header 与蓝色品牌风格，不改成大型复杂的商城菜单。</p>
+
+  <h3>2. Electronics &amp; Toys 总览页</h3>
+  <p><strong>Phase 1：</strong>总览页先提供四个无产品图的文字分类入口；Headphones 标记为可浏览，其他三类标记为准备中。</p>
+  <p class="notice"><strong>以下带图片、Breadcrumb 和 Featured Products 的线框是客户确认内容后的后续完整版，不属于 Phase 1。</strong></p>
+
+  <div class="mock">Home / Electronics &amp; Toys
+
+Electronics &amp; Toys                              [Request a Quote]
+Explore product families available for OEM / ODM development.
+
+┌───────────────────────┐   ┌───────────────────────┐
+│ HEADPHONES            │   │ AI GADGETS            │
+│ 产品图片              │   │ 产品图片              │
+│ 简短分类介绍          │   │ 简短分类介绍          │
+│ Browse category →     │   │ Browse category →     │
+└───────────────────────┘   └───────────────────────┘
+
+┌───────────────────────┐   ┌───────────────────────┐
+│ TOYS                  │   │ MISC                  │
+│ 产品图片              │   │ 产品图片              │
+│ 简短分类介绍          │   │ 简短分类介绍          │
+│ Browse category →     │   │ Browse category →     │
+└───────────────────────┘   └───────────────────────┘
+
+Featured Products
+[SKU Card]  [SKU Card]  [SKU Card]  [SKU Card]</div>
+
+  <h3>3. 产品分类页</h3>
+  <p><strong>Phase 1：</strong>Headphones 保持当前商品列表和详情交互；其他三类只显示准备中说明与询价按钮。</p>
+  <p class="notice"><strong>以下商品网格、筛选、详情链接和分页是后续真实数据/API 阶段的设计方向，不属于 Phase 1。</strong></p>
+
+  <div class="mock">Home / Electronics &amp; Toys / Headphones
+
+HEADPHONES
+产品大类介绍与已确认的制造能力说明
+
+[All] [Office] [Bluetooth] [Wired]                 24 models
+
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│ 产品图片     │ │ 产品图片     │ │ 产品图片     │
+│ 商品名称     │ │ 商品名称     │ │ 商品名称     │
+│ SKU / 型号   │ │ SKU / 型号   │ │ SKU / 型号   │
+│ 一句话介绍   │ │ 一句话介绍   │ │ 一句话介绍   │
+│ MOQ / 价格   │ │ MOQ / 询价   │ │ MOQ / 价格   │
+│ View details │ │ View details │ │ View details │
+└──────────────┘ └──────────────┘ └──────────────┘
+
+                       [Previous]  1  2  3  [Next]</div>
+
+  <h3>4. SKU 商品详情页</h3>
+  <p>每个 SKU 都有独立页面，客户可以直接分享链接，也更适合 Google 和 AI 搜索工具理解产品内容。</p>
+
+  <div class="mock">Home / Electronics &amp; Toys / Headphones / WorkComm Mono
+
+┌──────────────────────────┐   WorkComm Mono
+│                          │   WC-15
+│      产品图片轮播        │   商品简短介绍
+│                          │
+└──────────────────────────┘   MOQ: 300 units
+                               Price: $11.00 / Request a quote
+                               [Request OEM Quote]
+
+Product Details
+系列、型号、说明及已经确认的产品参数
+
+OEM / ODM Options
+只展示该商品真实、已确认的定制能力
+
+Related Products
+[SKU Card]   [SKU Card]   [SKU Card]</div>
+
+  <h3>5. 没有商品或资料不完整时</h3>
+  <table>
+    <tr><th>情况</th><th>客户看到的处理</th></tr>
+    <tr><td>该分类暂时没有商品</td><td>保留分类介绍和询价按钮，不显示一大片空白区域。</td></tr>
+    <tr><td>筛选后没有结果</td><td>提示没有匹配商品，并提供清除筛选按钮。</td></tr>
+    <tr><td>商品没有公开价格</td><td>显示 Request a quote，不显示 0 元或假价格。</td></tr>
+    <tr><td>图片缺失</td><td>显示统一品牌占位图，不让页面布局跳动。</td></tr>
+    <tr><td>页面加载失败</td><td>显示重试按钮，不会一直停留在 Loading。</td></tr>
+  </table>
+
+  <div class="page-break"></div>
+  <h2>三、后台商品管理会怎样调整</h2>
+
+  <h3>1. 一个 Products 工作区，五个查看方式</h3>
+  <p>后台侧栏只保留一个 Products 入口。进入后通过 All、Headphones、AI Gadgets、Toys、Misc 切换，不建立五套重复后台。</p>
+
+  <div class="mock">┌───────────────┬──────────────────────────────────────────────────┐
+│ Dashboard     │ Products                         [New product] │
+│ Products  ●   │                                                  │
+│ Overstock     │ [All] [Headphones] [AI Gadgets] [Toys] [Misc]  │
+│ OEM Requests  │                                                  │
+│ Alibaba Sync  │ [Search products________] [Filters] [Status ▾] │
+│               │                                                  │
+│               │ □ Image  Product/SKU  Category  MOQ  Status     │
+│               │ □ ...                                           │
+└───────────────┴──────────────────────────────────────────────────┘</div>
+
+  <p>切换大类时会清空上一类的勾选，避免误操作看不见的商品。手机和平板上列表会改为更适合小屏幕的精简卡片。</p>
+
+  <h3>2. 新增或编辑商品</h3>
+  <div class="mock">NEW PRODUCT
+
+Product category *    [Headphones ▾]
+Subcategory           [Office ▾]
+
+Product name *        [________________________]
+SKU / Model code *    [________________________]
+Page address *        [________________________]
+Description *         [________________________]
+Product images *      [Upload / Manage images]
+
+MOQ                   [________]
+Public price          [________]  or Request a quote
+
+Alibaba source information（有同步来源时只读显示）
+Source status · Last synced time
+
+[Save draft]                                      [Publish]</div>
+
+  <ul>
+    <li>从 Headphones 标签新增时，默认选择 Headphones。</li>
+    <li>新商品先保存为草稿，资料完整并人工确认后再发布。</li>
+    <li>如果商品改到另一个大类，保存后会提示它将移动到对应标签。</li>
+    <li>已经发布的商品先下架或归档，不在普通列表里直接永久删除。</li>
+    <li>Alibaba 来源和同步时间只读显示，避免运营人员误改同步资料。</li>
+    <li>本期后台商品表单不显示 VIP Price，不新增或修改会员价格。</li>
+  </ul>
+
+  <h3>3. VIP 价格处理</h3>
+  <div class="notice"><strong>本期不继续建设 VIP 价格功能：</strong>商品卡、分类页和 SKU 页面不显示 VIP 价格，也不显示“登录后查看 VIP 价格”。后台表单隐藏 VIP Price。系统底层的旧字段暂时保留，只为了兼容历史数据；Alibaba 价格接入稳定后再单独清理。</div>
+
+  <h2>四、与 Alibaba 数据同步的关系</h2>
+  <p>这次不接 Alibaba API，但页面和后台设计会为后续同步预留清楚的位置。</p>
+
+  <div class="mock">Alibaba 商品
+      │
+      ├── 已经人工确认分类 ──→ 建立 Channel 商品草稿 ──→ 人工检查 ──→ 发布
+      │
+      └── 没有分类对应关系 ──→ 暂不建立商品，等待运营人员处理</div>
+
+  <h3>必须遵守的原则</h3>
+  <ul>
+    <li>Alibaba 导入的商品默认是草稿，不能自动上线。</li>
+    <li>没有确认分类的商品不能自动放进 Misc。</li>
+    <li>后续同步不能覆盖人工修改过的商品名称、介绍、分类、图片和发布状态。</li>
+    <li>Alibaba 断开或商品来源变化时，网站商品页面和链接仍然保留。</li>
+    <li>人工新增商品和 Alibaba 导入商品在网站上使用相同的展示方式。</li>
+  </ul>
+
+  <h2>五、搜索与内容原则</h2>
+  <ul>
+    <li>保留现有 Headphones 页面地址，避免客户收藏和搜索排名受到不必要影响。</li>
+    <li>每个产品大类和每个 SKU 都有清楚、独立的页面标题与介绍。</li>
+    <li>还没有正式商品或文案的分类可以先保留入口，但暂时不提交给搜索引擎收录。</li>
+    <li>不填写虚假的库存、评分、评论、认证、价格或保修信息。</li>
+    <li>本期先使用英文页面；中文页面与多语言搜索设置以后单独确认。</li>
+  </ul>
+
+  <h2>六、本期包含与不包含</h2>
+  <table>
+    <tr><th>本期设计包含</th><th>本期不包含</th></tr>
+    <tr>
+      <td>四个产品大类与 SKU 层级<br>桌面与手机菜单<br>商品总览、分类、SKU 页面<br>后台分类标签与手工录入<br>Alibaba 后续兼容原则<br>搜索与内容规则</td>
+      <td>Alibaba API 真实接入<br>购物车、支付、订单、库存<br>颜色/尺寸多规格管理<br>评论、评分、收藏、商品比较<br>自动生成或翻译商品文案<br>新的复杂发布审批流程<br>VIP 申请、审批、升级和会员价格展示</td>
+    </tr>
+  </table>
+
+  <div class="page-break"></div>
+  <h2>七、请客户确认</h2>
+  <p>以下采用推荐默认方案。如有不同意见，只需在“客户意见”栏填写。</p>
+  <table>
+    <tr><th>#</th><th>需要确认</th><th>推荐方案</th><th>客户意见</th></tr>
+    <tr><td>1</td><td>是否需要 Electronics &amp; Toys 总览页</td><td>需要</td><td></td></tr>
+    <tr><td>2</td><td>四个产品大类</td><td>Headphones / AI Gadgets / Toys / Misc</td><td></td></tr>
+    <tr><td>3</td><td>Misc 的对外名称</td><td>Other Electronics &amp; Toys</td><td></td></tr>
+    <tr><td>4</td><td>首期商品模式</td><td>一条商品记录代表一个 SKU，多规格以后再做</td><td></td></tr>
+    <tr><td>5</td><td>Headphones 内部分类</td><td>保留 Office / Bluetooth / Wired</td><td></td></tr>
+    <tr><td>6</td><td>SKU 页面地址</td><td>使用稳定的独立商品地址，改产品分类时地址不变</td><td></td></tr>
+    <tr><td>7</td><td>现有 Headphones 页面地址</td><td>保留，不迁移</td><td></td></tr>
+    <tr><td>8</td><td>后台结构</td><td>一个 Products 工作区，包含 All 和四个产品大类标签</td><td></td></tr>
+    <tr><td>9</td><td>新商品发布</td><td>先保存草稿，人工确认后发布；Alibaba 不能自动发布</td><td></td></tr>
+    <tr><td>10</td><td>发布权限</td><td>暂时沿用现有管理员与内容运营人员权限</td><td></td></tr>
+    <tr><td>11</td><td>已发布商品移除</td><td>先下架/归档；永久删除后的页面处理另行确认</td><td></td></tr>
+    <tr><td>12</td><td>价格展示</td><td>显示允许公开的价格；没有公开价格时显示 Request a quote。本期不显示 VIP 价格</td><td></td></tr>
+    <tr><td>13</td><td>Alibaba 未对应分类的商品</td><td>暂不建立商品，不自动归入 Misc</td><td></td></tr>
+    <tr><td>14</td><td>暂无商品的分类</td><td>可先保留页面入口，但暂不让搜索引擎收录</td><td></td></tr>
+    <tr><td>15</td><td>页面语言</td><td>本期先做英文</td><td></td></tr>
+  </table>
+
+  <p class="check">客户姓名：__________________________________</p>
+  <p class="check">确认日期：__________________________________</p>
+  <p class="check">确认结果：　□ 按推荐方案确认　　□ 按表中意见修改后确认</p>
+
+  <p class="small">内部备注：本确认稿聚焦客户可见页面和运营流程。数据库字段名、接口形式与实施步骤将在客户确认后另行形成技术方案。</p>
+</body>
+</html>

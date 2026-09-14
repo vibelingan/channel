@@ -13,6 +13,18 @@ const headphonesTypes = readFileSync(
   fileURLToPath(new URL('./headphones.ts', import.meta.url)),
   'utf8',
 );
+const authShellSource = readFileSync(
+  fileURLToPath(new URL('../components/AuthShell.astro', import.meta.url)),
+  'utf8',
+);
+const detailSource = readFileSync(
+  fileURLToPath(new URL('../islands/shop/HeadphonesProductDetail.tsx', import.meta.url)),
+  'utf8',
+);
+const legacyDetailSource = readFileSync(
+  fileURLToPath(new URL('../islands/shop/ProductDetail.tsx', import.meta.url)),
+  'utf8',
+);
 
 const frontmatterSource = headphonesContent.match(/^---\n([\s\S]*?)\n---/);
 assert.ok(frontmatterSource, 'Headphones content has YAML frontmatter');
@@ -60,7 +72,7 @@ const expectedFrontmatter = {
   meta: {
     title: 'Headphones',
     description:
-      'Wholesale headphones catalog — wired, office, and Bluetooth models. Request a quote for VIP pricing and full specifications.',
+      'Wholesale headphones catalog — wired, office, and Bluetooth models. Request a quote for OEM pricing and full specifications.',
   },
   shopNav: [
     { label: 'Login / Register', href: '/admin' },
@@ -91,8 +103,6 @@ const expectedFrontmatter = {
       { key: 'bluetooth', label: 'Bluetooth Headphones' },
     ],
     wholesaleLabel: 'Wholesale',
-    vipLabel: 'VIP price',
-    vipLockedLabel: 'Sign in to view VIP price',
     viewDetail: 'View details',
     moqLabel: 'MOQ',
   },
@@ -105,8 +115,6 @@ const expectedFrontmatter = {
     moqLabel: 'Minimum Order Quantity',
     unitPriceLabel: 'Unit price',
     wholesaleLabel: 'Wholesale price',
-    vipLabel: 'VIP price',
-    vipLockedLabel: 'Sign in to view VIP price',
     inquiryCta: 'Price inquiry',
     oemInquiryCta: 'Start Your OEM Enquiry',
     viewAllLabel: 'View All',
@@ -136,6 +144,17 @@ const expectedFrontmatter = {
     disclaimer: 'Your details are used only to respond to this inquiry and are kept confidential.',
   },
 } satisfies HeadphonesContent & { locale: string };
+
+test('active Headphones and auth presentation contains no VIP or unlock pricing copy', () => {
+  for (const [location, source] of [
+    ['headphones content', headphonesContent],
+    ['headphones detail', detailSource],
+    ['legacy product detail', legacyDetailSource],
+    ['auth shell', authShellSource],
+  ] as const) {
+    assert.doesNotMatch(source, /\bvip\b|unlock\s+(?:vip\s+)?pricing/i, location);
+  }
+});
 
 function assertMediaMetadataOnly(value: unknown, location: string): void {
   if (typeof value === 'string') {

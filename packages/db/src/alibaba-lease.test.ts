@@ -20,6 +20,7 @@ import {
   assertAlibabaSyncLease,
   createDocWithId,
   releaseAlibabaSyncLease,
+  removeDocIfFieldEquals,
   renewAlibabaSyncLease,
   setAdapter,
   updateDocWithAlibabaLease,
@@ -198,6 +199,18 @@ class LeaseMemoryAdapter implements DbAdapter {
     docs.push({ _id: id, ...payload } as CollectionDoc);
     return 'created';
   }
+  async removeDocIfFieldEquals(
+    collection: string,
+    id: string,
+    field: string,
+    expectedValue: unknown,
+  ): Promise<boolean> {
+    const docs = this.docs(collection);
+    const index = docs.findIndex((doc) => doc._id === id && doc[field] === expectedValue);
+    if (index < 0) return false;
+    docs.splice(index, 1);
+    return true;
+  }
   async upsertDocWithId(
     collection: string,
     id: string,
@@ -367,6 +380,56 @@ test('createDocWithId stamps timestamps unless supplied; rejects unknown collect
   await createDocWithId('alibabaProductLinks', 'k2', { createdAt: T0, updatedAt: T0 });
   assert.equal(adapter.store.alibabaProductLinks?.[1]?.createdAt, T0, 'explicit instant wins');
   await assert.rejects(async () => createDocWithId('nonsense', 'k', {}));
+});
+
+test('removeDocIfFieldEquals deletes only the current owner reservation', async () => {
+  const adapter = freshAdapter();
+  await createDocWithId('catalogProductIdentities', 'slug:desk-lamp', {
+    kind: 'slug',
+    normalizedValue: 'desk-lamp',
+    productId: 'product-new-owner',
+  });
+  assert.equal(
+    await removeDocIfFieldEquals(
+      'catalogProductIdentities',
+      'slug:desk-lamp',
+      'productId',
+      'product-stale-owner',
+    ),
+    false,
+  );
+  assert.equal(adapter.store.catalogProductIdentities?.[0]?.productId, 'product-new-owner');
+  assert.equal(
+    await removeDocIfFieldEquals(
+      'catalogProductIdentities',
+      'slug:desk-lamp',
+      'productId',
+      'product-new-owner',
+    ),
+    true,
+  );
+  assert.equal(adapter.store.catalogProductIdentities?.length, 0);
+});
+
+test('RACE: concurrent owner-matched deletes admit exactly one winner', async () => {
+  freshAdapter();
+  await createDocWithId('catalogProductIdentities', 'sku:desk-100', {
+    kind: 'sku',
+    normalizedValue: 'desk-100',
+    productId: 'product-owner',
+  });
+  const results = await Promise.all(
+    Array.from({ length: 8 }, () =>
+      removeDocIfFieldEquals(
+        'catalogProductIdentities',
+        'sku:desk-100',
+        'productId',
+        'product-owner',
+      ),
+    ),
+  );
+  assert.equal(results.filter(Boolean).length, 1);
+  assert.equal(results.filter((result) => !result).length, 7);
 });
 
 test('upsertDocWithId creates then patches by deterministic id', async () => {

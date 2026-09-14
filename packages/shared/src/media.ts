@@ -49,7 +49,9 @@ export type VariantRole = (typeof VARIANT_ROLES)[number];
  * once a transport is selected in MIU-00.
  */
 export const CATALOG_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
-/** Maximum ordered source images accepted or exposed for one catalog document. */
+/** Product-specific V1.1 image ceiling; wired into products in the next contract MIU. */
+export const PRODUCT_IMAGE_MAX_COUNT = 9;
+/** Legacy shared ceiling retained for Overstock and pre-V1.1 catalog compatibility. */
 export const CATALOG_IMAGE_MAX_COUNT = 18;
 export const CATALOG_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 

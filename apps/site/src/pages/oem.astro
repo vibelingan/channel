@@ -16,7 +16,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
 const site = getSiteContent(DEFAULT_LOCALE);
 const oem = getOemContent(DEFAULT_LOCALE);
-const { brand, nav, footer } = site;
+const { brand, nav, services, footer } = site;
 const { meta, hero, capabilities, process, whyUs, submit, factoryVideo } = oem;
 ---
 
@@ -32,10 +32,8 @@ const { meta, hero, capabilities, process, whyUs, submit, factoryVideo } = oem;
       secondaryCta={hero.secondaryCta}
     />
 
-    <!-- Section 1: shared Traditional-versus-AI What We Do comparison -->
-    <ServiceGridSection services={site.services} sectionId="what-we-do" />
+    <ServiceGridSection services={services} sectionId="what-we-do" />
 
-    <!-- Section 2: Our Development Capability -->
     <Section
       id={capabilities.id}
       eyebrow={capabilities.eyebrow}
@@ -47,23 +45,18 @@ const { meta, hero, capabilities, process, whyUs, submit, factoryVideo } = oem;
       <p class="reveal mx-auto mt-10 max-w-3xl text-center text-base leading-relaxed text-ink-soft">
         {capabilities.note}
       </p>
-      {
-        factoryVideo && (
-          <div class="reveal mx-auto mt-14 max-w-3xl">
-            <MediaVideo
-              src={factoryVideo.src}
-              poster={factoryVideo.poster}
-              posterWidth={factoryVideo.posterWidth}
-              posterHeight={factoryVideo.posterHeight}
-              caption={factoryVideo.caption}
-              label="Diversity Innovations production facility"
-            />
-          </div>
-        )
-      }
+      <div class="reveal mx-auto mt-14 max-w-3xl">
+        <MediaVideo
+          src={factoryVideo.src}
+          poster={factoryVideo.poster}
+          posterWidth={factoryVideo.posterWidth}
+          posterHeight={factoryVideo.posterHeight}
+          caption={factoryVideo.caption}
+          label={factoryVideo.caption}
+        />
+      </div>
     </Section>
 
-    <!-- Section 3: OEM Development Process -->
     <Section
       id={process.id}
       eyebrow={process.eyebrow}
@@ -74,7 +67,6 @@ const { meta, hero, capabilities, process, whyUs, submit, factoryVideo } = oem;
       <ProcessTimeline steps={process.steps} />
     </Section>
 
-    <!-- Section 4: Why Choose Us -->
     <Section
       id={whyUs.id}
       eyebrow={whyUs.eyebrow}
@@ -85,7 +77,6 @@ const { meta, hero, capabilities, process, whyUs, submit, factoryVideo } = oem;
       <ReasonList reasons={whyUs.reasons} />
     </Section>
 
-    <!-- Section 5: Submit Your Project -->
     <Section
       id={submit.id}
       eyebrow={submit.eyebrow}
@@ -109,9 +100,4 @@ const { meta, hero, capabilities, process, whyUs, submit, factoryVideo } = oem;
 
   <SiteFooter brand={brand} footer={footer} />
   <AssistantWidget client:load />
-
-  <script is:inline>
-    const initialFragmentTarget = document.getElementById(window.location.hash.slice(1));
-    initialFragmentTarget?.scrollIntoView();
-  </script>
 </BaseLayout>

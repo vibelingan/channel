@@ -1,4 +1,6 @@
 ---
+import { Select } from './Select.tsx';
+
 interface Props {
   name: string;
   label: string;
@@ -24,227 +26,25 @@ const {
 } = Astro.props;
 
 const hintId = hint ? `${name}-hint` : undefined;
-const errorId = `${name}-error`;
 ---
 
-<div class:list={['public-select', wrapperClass]} data-public-select>
-  <label for={name} class="block text-sm font-medium text-ink">
-    {label}
-    {required && <span class="text-red-500" aria-hidden="true"> *</span>}
-  </label>
-
-  <div class="public-select-control">
-    <select
-      id={name}
-      name={name}
-      required={required}
-      disabled={disabled}
-      form={form}
-      aria-required={required ? 'true' : undefined}
-      aria-describedby={hintId}
-      data-hint-id={hintId}
-      data-error-id={errorId}
-      data-error-message={`Select ${label.toLowerCase()}.`}
-    >
-      <option value="" disabled selected>{placeholder}</option>
-      {options.map((option) => <option value={option}>{option}</option>)}
-    </select>
-    <span class="public-select-chevron" aria-hidden="true"></span>
-  </div>
-
-  {hint && <p id={hintId} class="mt-1.5 text-xs leading-relaxed text-ink-muted">{hint}</p>}
-  <p id={errorId} class="public-select-error" aria-live="polite" aria-atomic="true"></p>
+<div class:list={[wrapperClass]} data-public-select>
+  <Select
+    client:load
+    name={name}
+    label={label}
+    options={options}
+    required={required}
+    disabled={disabled}
+    form={form}
+    placeholder={placeholder}
+    describedBy={hintId}
+    className="mt-0"
+    triggerClassName="mt-1.5 min-h-12 px-3.5 py-2.5 shadow-sm"
+  />
+  {hint && (
+    <p id={hintId} class="mt-1.5 text-xs leading-relaxed text-ink-muted">
+      {hint}
+    </p>
+  )}
 </div>
-
-<script>
-  for (const select of document.querySelectorAll<HTMLSelectElement>('[data-public-select] select')) {
-    const hintId = select.dataset.hintId;
-    const errorId = select.dataset.errorId;
-    const error = errorId ? document.getElementById(errorId) : null;
-    const describedBy = (includeError: boolean) =>
-      [hintId, includeError ? errorId : undefined].filter(Boolean).join(' ');
-
-    const clearError = () => {
-      select.removeAttribute('aria-invalid');
-      const description = describedBy(false);
-      if (description) select.setAttribute('aria-describedby', description);
-      else select.removeAttribute('aria-describedby');
-      if (error) {
-        error.textContent = '';
-        error.removeAttribute('data-visible');
-      }
-    };
-
-    select.addEventListener('invalid', () => {
-      select.setAttribute('aria-invalid', 'true');
-      select.setAttribute('aria-describedby', describedBy(true));
-      if (error) {
-        error.textContent = select.dataset.errorMessage ?? 'Select an option.';
-        error.setAttribute('data-visible', '');
-      }
-    });
-    select.addEventListener('change', clearError);
-    select.form?.addEventListener('reset', clearError);
-  }
-</script>
-
-<style>
-  .public-select-control {
-    position: relative;
-    margin-top: 0.375rem;
-  }
-
-  select {
-    width: 100%;
-    min-height: 3rem;
-    appearance: none;
-    border: 1px solid var(--color-slate-300);
-    border-radius: 0.5rem;
-    background-color: #fff;
-    color: var(--color-ink);
-    padding: 0.625rem 2.75rem 0.625rem 0.875rem;
-    font-size: 0.875rem;
-    line-height: 1.25rem;
-    box-shadow: var(--shadow-sm);
-    transition-property: border-color, box-shadow, background-color;
-    transition-duration: 180ms;
-    cursor: pointer;
-  }
-
-  select:hover {
-    border-color: var(--color-brand-400);
-  }
-
-  select:focus-visible {
-    border-color: var(--color-brand-600);
-    outline: 2px solid color-mix(in srgb, var(--color-brand-600) 24%, transparent);
-    outline-offset: 2px;
-  }
-
-  select:user-invalid {
-    border-color: var(--color-red-500);
-    outline-color: color-mix(in srgb, var(--color-red-500) 24%, transparent);
-  }
-
-  select:required:invalid {
-    color: var(--color-ink-muted);
-  }
-
-  select:disabled {
-    cursor: not-allowed;
-    border-color: var(--color-slate-200);
-    background-color: var(--color-slate-100);
-    color: var(--color-slate-400);
-    box-shadow: none;
-  }
-
-  .public-select-chevron {
-    position: absolute;
-    top: 50%;
-    right: 1rem;
-    width: 0.5rem;
-    height: 0.5rem;
-    border-right: 2px solid var(--color-slate-500);
-    border-bottom: 2px solid var(--color-slate-500);
-    transform: translateY(-70%) rotate(45deg);
-    pointer-events: none;
-  }
-
-  .public-select-error {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .public-select-error[data-visible] {
-    position: static;
-    width: auto;
-    height: auto;
-    margin-top: 0.375rem;
-    overflow: visible;
-    clip: auto;
-    clip-path: none;
-    color: var(--color-red-600);
-    font-size: 0.75rem;
-    line-height: 1.25rem;
-    white-space: normal;
-  }
-
-  @supports (appearance: base-select) {
-    select,
-    select::picker(select) {
-      appearance: base-select;
-    }
-
-    select {
-      padding-inline: 0.875rem;
-    }
-
-    select::picker-icon {
-      color: var(--color-slate-500);
-      transition: rotate 180ms ease;
-    }
-
-    select:open::picker-icon {
-      rotate: 180deg;
-    }
-
-    select:open {
-      border-color: var(--color-brand-600);
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand-600) 18%, transparent);
-    }
-
-    select::picker(select) {
-      inline-size: anchor-size(self-inline);
-      max-height: min(22rem, calc(100dvh - 2rem));
-      margin-block-start: 0.5rem;
-      border: 1px solid var(--color-slate-200);
-      border-radius: 0.5rem;
-      background: #fff;
-      box-shadow: 0 18px 45px rgb(15 23 42 / 16%);
-    }
-
-    select option {
-      min-height: 2.75rem;
-      padding: 0.75rem 0.875rem;
-      color: var(--color-ink);
-      white-space: normal;
-    }
-
-    select option:hover,
-    select option:focus {
-      background: var(--color-brand-50);
-    }
-
-    select option:checked {
-      color: var(--color-brand-700);
-      font-weight: 600;
-    }
-
-    select option::checkmark {
-      order: 1;
-      margin-inline-start: auto;
-      color: var(--color-brand-700);
-    }
-
-    .public-select-chevron {
-      display: none;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    select {
-      transition: none;
-    }
-
-    @supports selector(select::picker-icon) {
-      select::picker-icon {
-        transition: none;
-      }
-    }
-  }
-</style>

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const islandSource = readFileSync(
-  fileURLToPath(new URL('./islands/shop/HeadphonesPage.tsx', import.meta.url)),
+  fileURLToPath(new URL('./islands/shop/CatalogFamilyPage.tsx', import.meta.url)),
   'utf8',
 );
 const routeSource = readFileSync(
@@ -44,7 +44,10 @@ test('hero strings come from the content contract, not route-local declarations'
 test('the route declares no page-local copy and the island takes only content', () => {
   assert.doesNotMatch(routeSource, /const pageStrings\s*=/);
   assert.doesNotMatch(islandSource, /interface PageStrings/);
-  assert.match(routeSource, /<HeadphonesPage content=\{hp\} client:load \/>/);
+  assert.match(
+    routeSource,
+    /<CatalogFamilyPage content=\{catalog\} family=\{family\} client:load \/>/,
+  );
 });
 
 // MIU 13: the controller is thin — no enquiry form, no advantages band, and no
@@ -54,6 +57,6 @@ test('the Headphones island stays a thin controller', () => {
   assert.doesNotMatch(islandSource, /advItems|advHeading|advEyebrow/);
   assert.doesNotMatch(islandSource, /['"`][^'"`]*\breveal\b/);
   // Presentation is delegated, not inlined.
-  assert.match(islandSource, /HeadphonesCatalog/);
-  assert.match(islandSource, /HeadphonesProductDetail/);
+  assert.match(islandSource, /CatalogFamilyGrid/);
+  assert.match(islandSource, /headphonesCatalogState/);
 });
