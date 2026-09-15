@@ -16,7 +16,6 @@ import {
   productFamilyTransition,
   productFormErrorTargets,
   productFormSections,
-  productReadOnlyFields,
 } from './RecordForm.tsx';
 import { AdminApiError } from './api.ts';
 
@@ -113,20 +112,30 @@ test('server identity and publication errors target relevant product fields', ()
   );
 });
 
-test('product form renders sections, primary image semantics, and read-only Alibaba status', () => {
+test('product form renders customer media controls without raw Alibaba fields', () => {
   const markup = renderForm(products, {
     name: 'Camera',
     productFamily: 'ai-gadgets',
     imageIds: ['image-1'],
     alibabaSourceStatus: 'available',
     alibabaSourceLastSyncedAt: '2026-08-20T00:00:00.000Z',
+    alibabaSourceImageUrls: ['https://sc04.alicdn.com/product.jpg'],
+    alibabaPrimarySourceKey: 'private-source-key',
+    alibabaSourceRawRef: { privateObject: 'raw/secret.json' },
   });
   assert.match(markup, /Identity|Content|Media|Pricing &amp; Order|Lifecycle/);
   assert.match(markup, /Primary/);
-  assert.match(markup, /Alibaba Source|available|2026-08-20/);
+  assert.doesNotMatch(markup, /Alibaba Source Images|private-source-key|raw\/secret.json/);
+  assert.doesNotMatch(markup, /\[&quot;https:/);
+  assert.match(markup, /aria-label="Preview source image 1"/);
+  assert.match(markup, /aria-label="Close editor"/);
+  assert.match(markup, /data-record-form-body/);
+  assert.match(markup, /data-record-form-actions/);
+  assert.match(markup, /Import source gallery/);
+  assert.match(markup, /referrerpolicy="no-referrer"/i);
   assert.doesNotMatch(markup, /VIP Price/);
   assert.doesNotMatch(markup, /Subcategory/);
-  assert.match(markup, /Quantity Tier Pricing|Add price tier/);
+  assert.match(markup, /Website pricing/);
   assert.equal(availableImageSlots(9, 8, 1), 0);
   assert.equal(availableImageSlots(9, 8, 0), 1);
   const files = [new File(['a'], 'a.png'), new File(['b'], 'b.png')];
@@ -136,10 +145,48 @@ test('product form renders sections, primary image semantics, and read-only Alib
 });
 
 test('subcategory renders only for Headphones products', () => {
-  assert.match(renderForm(products, { productFamily: 'headphones' }), /Subcategory/);
+  assert.match(
+    renderForm(products, { productFamily: 'headphones' }),
+    /Headphone type \(optional\)/,
+  );
   for (const productFamily of ['ai-gadgets', 'toys', 'misc']) {
     assert.doesNotMatch(renderForm(products, { productFamily }), /Subcategory/);
   }
+});
+
+test('edit shows the full synchronized source quote without populating manual price inputs', () => {
+  const markup = renderForm(products, {
+    productFamily: 'headphones',
+    alibabaPrimarySourceKey: 'linked',
+    alibabaSourceReview: {
+      schemaVersion: 'alibaba-source-review-v1',
+      provider: 'alibaba',
+      externalProductId: 'source',
+      sourceListingStatus: 'published',
+      variantCount: 3,
+      offerCount: 3,
+      modelNumbers: [],
+      optionNames: [],
+      minimumOrderQuantity: 2,
+      primaryPricing: {
+        mode: 'tiered',
+        currency: 'USD',
+        minimumOrderQuantity: 2,
+        tiers: [
+          { minimumQuantity: 2, maximumQuantity: 499, unitAmountMinor: 570 },
+          { minimumQuantity: 500, maximumQuantity: 999, unitAmountMinor: 500 },
+          { minimumQuantity: 1000, unitAmountMinor: 380 },
+        ],
+      },
+    },
+  });
+  assert.match(markup, /Synced source quote/);
+  assert.match(markup, /2–499/);
+  assert.match(markup, /500–999/);
+  assert.match(markup, /USD 5\.70/);
+  assert.match(markup, /USD 3\.80/);
+  assert.doesNotMatch(markup, /id="unitPrice"[^>]*value="5\.7"/);
+  assert.match(markup, /Website main category/);
 });
 
 test('coercion preserves image order and cannot submit hidden VIP values', () => {
@@ -239,7 +286,6 @@ test('non-product forms keep their ordinary editable fields and no product secti
   const markup = renderForm(users, { email: 'user@example.test', role: 'member' });
   assert.match(markup, /Email|Role/);
   assert.doesNotMatch(markup, /Identity|Pricing &amp; Order|Alibaba Source/);
-  assert.deepEqual(productReadOnlyFields(users, { _id: 'user-1' }), []);
 });
 
 test('archived publication errors target the lifecycle control', () => {

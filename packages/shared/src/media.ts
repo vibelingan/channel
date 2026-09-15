@@ -51,6 +51,8 @@ export type VariantRole = (typeof VARIANT_ROLES)[number];
 export const CATALOG_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 /** Product-specific V1.1 image ceiling; wired into products in the next contract MIU. */
 export const PRODUCT_IMAGE_MAX_COUNT = 9;
+/** Long-form description panels have their own budget, independent of the gallery. */
+export const PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT = 18;
 /** Legacy shared ceiling retained for Overstock and pre-V1.1 catalog compatibility. */
 export const CATALOG_IMAGE_MAX_COUNT = 18;
 export const CATALOG_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
@@ -72,6 +74,38 @@ export function normalizeCatalogImageIds(value: unknown): string[] {
     if (normalized.length === CATALOG_IMAGE_MAX_COUNT) break;
   }
   return normalized;
+}
+
+/** Draft gallery edits must not dereference images still used by the approved revision. */
+export function catalogReferencedImageIds(doc: Record<string, unknown>): string[] {
+  const ids = new Set(normalizeCatalogImageIds(doc.imageIds));
+  for (const id of normalizeCatalogImageIds(doc.descriptionImageIds)) ids.add(id);
+  const publication = doc.catalogDetailPublication;
+  if (
+    publication &&
+    typeof publication === 'object' &&
+    Reflect.get(publication, 'state') === 'approved'
+  ) {
+    const header = Reflect.get(publication, 'header');
+    if (header && typeof header === 'object' && Reflect.get(header, '_id') === doc._id) {
+      const variantImages = Reflect.get(publication, 'variantImageIds');
+      if (Array.isArray(variantImages))
+        for (const id of variantImages)
+          if (typeof id === 'string' && /^[A-Za-z0-9_-]+$/.test(id)) ids.add(id);
+      const images = Reflect.get(header, 'images');
+      if (Array.isArray(images))
+        for (const url of images.slice(0, 9)) {
+          if (typeof url === 'string' && /^\/api\/images\/[A-Za-z0-9_-]+$/.test(url))
+            ids.add(url.slice('/api/images/'.length));
+        }
+      const descriptionImages = Reflect.get(header, 'descriptionImages');
+      if (Array.isArray(descriptionImages))
+        for (const url of descriptionImages.slice(0, PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT))
+          if (typeof url === 'string' && /^\/api\/images\/[A-Za-z0-9_-]+$/.test(url))
+            ids.add(url.slice('/api/images/'.length));
+    }
+  }
+  return [...ids];
 }
 /**
  * SVG is active/vector content. Advisory/UX list only — enforcement is the

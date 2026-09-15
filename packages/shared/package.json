@@ -4,6 +4,13 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./catalog": "./src/catalog/index.ts",
+    "./catalog-pricing": "./src/catalog/offer-pricing.ts",
+    "./catalog-detail": "./src/catalog/product-detail.ts",
+    "./catalog-detail-approval": "./src/catalog/detail-approval.ts",
+    "./catalog-quote": "./src/catalog/quote-draft.ts",
+    "./catalog-inquiry": "./src/catalog/inquiry.ts",
+    "./countries": "./src/countries.ts",
     ".": "./src/index.ts",
     "./api": "./src/api.ts",
     "./errors": "./src/errors.ts",
@@ -17,6 +24,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "i18n-iso-countries": "7.14.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {

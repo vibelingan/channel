@@ -1,0 +1,280 @@
+{
+  "alibaba_icbu_product_get_response": {
+    "product": {
+      "product_id": "local-raw-camping-light",
+      "subject": "Raw Wire Camping Light",
+      "product_type": "wholesale",
+      "price_type": "sku_price",
+      "category_id": 201886409,
+      "wholesale_trade": {
+        "price": "7.6699999999999999289457264239899814128875732421875",
+        "min_order_quantity": 1,
+        "sale_type": "normal",
+        "unit_type": "Piece"
+      },
+      "attributes": {
+        "product_attribute": [
+          {
+            "attribute_name": "place of delivery",
+            "value_name": "Zhejiang Province"
+          },
+          {
+            "attribute_name": "Product Type",
+            "value_name": "Multifunctional camp light"
+          },
+          {
+            "attribute_name": "Light bulb type",
+            "value_name": "LED"
+          },
+          {
+            "attribute_name": "continuous lighting time",
+            "value_name": "10h"
+          },
+          {
+            "attribute_name": "Is it waterproof?",
+            "value_name": "waterproof"
+          },
+          {
+            "attribute_name": "Shell material",
+            "value_name": "ABS"
+          },
+          {
+            "attribute_name": "Maximum power",
+            "value_name": "20W"
+          },
+          {
+            "attribute_name": "Power mode",
+            "value_name": "rechargeable"
+          },
+          {
+            "attribute_name": "Lighting Period (h)",
+            "value_name": "10"
+          },
+          {
+            "attribute_name": "IP Rating",
+            "value_name": "Customized"
+          },
+          {
+            "attribute_name": "Lamp Body Material",
+            "value_name": "Plastic"
+          },
+          {
+            "attribute_name": "Color Rendering Index(Ra)",
+            "value_name": "70"
+          },
+          {
+            "attribute_name": "Flashlight Type",
+            "value_name": "Rechargeable Flashlight"
+          },
+          {
+            "attribute_name": "Power Source",
+            "value_name": "Rechargeable Battery"
+          },
+          {
+            "attribute_name": "Battery Type",
+            "value_name": "alkaline"
+          },
+          {
+            "attribute_name": "Light Source",
+            "value_name": "Incandescent"
+          },
+          {
+            "attribute_name": "Support Dimmer",
+            "value_name": "Yes"
+          },
+          {
+            "attribute_name": "Lighting solutions service",
+            "value_name": "Onsite Metering"
+          },
+          {
+            "attribute_name": "Lighting solutions service",
+            "value_name": "Lighting And Circuitry Design"
+          },
+          {
+            "attribute_name": "Lifespan (Hours)",
+            "value_name": "10000"
+          },
+          {
+            "attribute_name": "Working Time (hours)",
+            "value_name": "50000"
+          },
+          {
+            "attribute_name": "Application",
+            "value_name": "Hiking"
+          },
+          {
+            "attribute_name": "Application",
+            "value_name": "Camping"
+          },
+          {
+            "attribute_name": "Application",
+            "value_name": "portable survival tools"
+          },
+          {
+            "attribute_name": "Application",
+            "value_name": "Emergency"
+          },
+          {
+            "attribute_name": "Application",
+            "value_name": "Travelling"
+          },
+          {
+            "attribute_name": "Feature",
+            "value_name": "Portable"
+          },
+          {
+            "attribute_name": "Feature",
+            "value_name": "Multi-Function"
+          },
+          {
+            "attribute_name": "Feature",
+            "value_name": "Lightweight"
+          },
+          {
+            "attribute_name": "Feature",
+            "value_name": "Water Resistant"
+          },
+          {
+            "attribute_name": "Warranty",
+            "value_name": "1-Year"
+          },
+          {
+            "attribute_name": "Type",
+            "value_name": "Headlamp"
+          },
+          {
+            "attribute_name": "Type",
+            "value_name": "Lantern"
+          },
+          {
+            "attribute_name": "Type",
+            "value_name": "Flashlight"
+          },
+          {
+            "attribute_name": "Type",
+            "value_name": "Penlight"
+          },
+          {
+            "attribute_name": "Material",
+            "value_name": "ABS Plastic"
+          },
+          {
+            "attribute_name": "Input Voltage",
+            "value_name": "DC6V"
+          },
+          {
+            "attribute_name": "Color Temperature Cct",
+            "value_name": "6500k cool white"
+          },
+          {
+            "attribute_name": "Color Temperature Cct",
+            "value_name": "3500k warm white"
+          },
+          {
+            "attribute_name": "Lamp Luminous Flux Lm",
+            "value_name": "100-1000 lumens"
+          },
+          {
+            "attribute_name": "Place of Origin",
+            "value_name": "CN;GUA"
+          },
+          {
+            "attribute_name": "Brand Name",
+            "value_name": "OEM"
+          },
+          {
+            "attribute_name": "Model Number",
+            "value_name": "JP06"
+          },
+          {
+            "attribute_name": "Input Voltage(V)",
+            "value_name": "5V-2V"
+          },
+          {
+            "attribute_name": "Lamp Luminous Efficiency(lm/w)",
+            "value_name": "750LM"
+          },
+          {
+            "attribute_name": "Product Weight（kg）",
+            "value_name": "0.2"
+          },
+          {
+            "attribute_name": "zoomable",
+            "value_name": "yes"
+          }
+        ]
+      },
+      "product_sku": {
+        "skus": {
+          "sku_definition": [
+            {
+              "sku_id": "local-white-sku",
+              "attr2_value": "{\"210192242\":3331185,\"200000531\":3331185,\"100008204\":27438}",
+              "bulk_discount_prices": {
+                "bulk_discount_price": [
+                  {
+                    "start_quantity": -1,
+                    "price": "7.67"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "sku_attributes": {
+          "sku_attribute": [
+            {
+              "attribute_id": 100008204,
+              "values": {
+                "sku_attribute_value": [
+                  {
+                    "system_value_name": "10",
+                    "value_id": 27438
+                  }
+                ]
+              },
+              "attribute_name": "Lamp Power(W)"
+            },
+            {
+              "attribute_id": 200000531,
+              "values": {
+                "sku_attribute_value": [
+                  {
+                    "system_value_name": "White",
+                    "value_id": 3331185
+                  }
+                ]
+              },
+              "attribute_name": "Body Color"
+            },
+            {
+              "attribute_id": 210192242,
+              "values": {
+                "sku_attribute_value": [
+                  {
+                    "system_value_name": "White",
+                    "value_id": 3331185
+                  }
+                ]
+              },
+              "attribute_name": "Emitting Color"
+            }
+          ]
+        }
+      },
+      "main_image": {
+        "images": {
+          "string": [
+            "https://sc04.alicdn.com/raw-fixture-gallery-0.png",
+            "https://sc04.alicdn.com/raw-fixture-gallery-1.png",
+            "https://sc04.alicdn.com/raw-fixture-gallery-2.png",
+            "https://sc04.alicdn.com/raw-fixture-gallery-3.png",
+            "https://sc04.alicdn.com/raw-fixture-gallery-4.png",
+            "https://sc04.alicdn.com/raw-fixture-gallery-5.png"
+          ]
+        }
+      },
+      "description": "<p><img src=\"http://sc04.alicdn.com/raw-fixture-detail-0.png\"></p><p><img src=\"http://sc04.alicdn.com/raw-fixture-detail-1.png\"></p><p><img src=\"http://sc04.alicdn.com/raw-fixture-detail-2.png\"></p><p><img src=\"http://sc04.alicdn.com/raw-fixture-detail-3.png\"></p><p><img src=\"http://sc04.alicdn.com/raw-fixture-detail-4.png\"></p><p><img src=\"http://sc04.alicdn.com/raw-fixture-detail-5.png\"></p><p><img src=\"http://sc04.alicdn.com/raw-fixture-detail-6.png\"></p><p><img src=\"http://sc04.alicdn.com/raw-fixture-detail-7.png\"></p><p><img src=\"http://sc04.alicdn.com/raw-fixture-detail-8.png\"></p><p><img src=\"http://sc04.alicdn.com/raw-fixture-detail-9.png\"></p><p><img src=\"http://sc04.alicdn.com/raw-fixture-detail-10.png\"></p><p><img src=\"http://sc04.alicdn.com/raw-fixture-detail-11.png\"></p><p><img src=\"http://sc04.alicdn.com/raw-fixture-detail-12.png\"></p><p><img src=\"http://sc04.alicdn.com/raw-fixture-detail-13.png\"></p><p><img src=\"http://sc04.alicdn.com/raw-fixture-detail-14.png\"></p><p><img src=\"http://sc04.alicdn.com/raw-fixture-detail-15.png\"></p><p><img src=\"http://sc04.alicdn.com/raw-fixture-detail-16.png\"></p>"
+    }
+  }
+}

@@ -13,7 +13,7 @@
 
 import { createHash } from 'node:crypto';
 import type { AlibabaEndpoints } from './alibaba-endpoints.ts';
-import { signGopRequest } from './alibaba-signature.ts';
+import { signGopRequest, signTopRequest } from './alibaba-signature.ts';
 
 export interface AlibabaClientConfig {
   appKey: string;
@@ -26,8 +26,10 @@ export interface AlibabaClientConfig {
 }
 
 export interface ApiCallInput {
-  /** Gateway API path, e.g. '/alibaba/icbu/product/list'. */
+  /** GOP path or TOP dotted method name. */
   apiPath: string;
+  /** OAuth defaults to GOP; ICBU business APIs explicitly select TOP. */
+  protocol?: 'gop' | 'top';
   params?: Record<string, string>;
   accessToken?: string;
   timeoutMs?: number;
@@ -59,10 +61,58 @@ const DEFAULT_MAX_ATTEMPTS = 3;
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
 const RETRY_BASE_DELAY_MS = 500;
 
+type CappedBodyResult = { ok: true; bodyText: string } | { ok: false };
+
+async function cancelBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Best effort only: the caller is already rejecting this response.
+  }
+}
+
+/** Decode UTF-8 incrementally so the cap prevents buffering an oversized body. */
+async function readBodyCapped(response: Response, maxBytes: number): Promise<CappedBodyResult> {
+  const declaredLength = response.headers.get('content-length');
+  if (/^[0-9]+$/.test(declaredLength ?? '')) {
+    try {
+      if (BigInt(declaredLength as string) > BigInt(maxBytes)) {
+        await cancelBody(response);
+        return { ok: false };
+      }
+    } catch {
+      // An unusable length is ignored; streamed byte counting remains authoritative.
+    }
+  }
+
+  if (!response.body) return { ok: true, bodyText: '' };
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const parts: string[] = [];
+  let bytesRead = 0;
+  for (;;) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    bytesRead += chunk.value.byteLength;
+    if (bytesRead > maxBytes) {
+      try {
+        await reader.cancel();
+      } catch {
+        // Best effort only: the response is rejected regardless.
+      }
+      return { ok: false };
+    }
+    parts.push(decoder.decode(chunk.value, { stream: true }));
+  }
+  parts.push(decoder.decode());
+  return { ok: true, bodyText: parts.join('') };
+}
+
 /** Keys that must never appear in fingerprints or errors. */
 const SECRET_PARAM_KEYS = new Set([
   'access_token',
   'refresh_token',
+  'session',
   'sign',
   'client_secret',
   'code',
@@ -97,7 +147,7 @@ export function createAlibabaClient(config: AlibabaClientConfig): AlibabaClient 
   const sleep = config.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const now = config.now ?? Date.now;
 
-  const buildParams = (input: ApiCallInput): Record<string, string> => {
+  const buildGopParams = (input: ApiCallInput): Record<string, string> => {
     const params: Record<string, string> = {
       ...input.params,
       app_key: config.appKey,
@@ -113,6 +163,21 @@ export function createAlibabaClient(config: AlibabaClientConfig): AlibabaClient 
     return params;
   };
 
+  const buildTopParams = (input: ApiCallInput): Record<string, string> => {
+    const params: Record<string, string> = {
+      ...input.params,
+      method: input.apiPath,
+      app_key: config.appKey,
+      timestamp: String(now()),
+      format: 'json',
+      v: '2.0',
+      sign_method: 'sha256',
+    };
+    if (input.accessToken !== undefined) params.session = input.accessToken;
+    params.sign = signTopRequest({ params, appSecret: config.appSecret });
+    return params;
+  };
+
   const attemptOnce = async (
     input: ApiCallInput,
     params: Record<string, string>,
@@ -121,15 +186,20 @@ export function createAlibabaClient(config: AlibabaClientConfig): AlibabaClient 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetchImpl(`${config.endpoints.apiBaseUrl}${input.apiPath}`, {
+      const protocol = input.protocol ?? 'gop';
+      const requestUrl =
+        protocol === 'top'
+          ? `${new URL(config.endpoints.apiBaseUrl).origin}/sync?method=${encodeURIComponent(input.apiPath)}`
+          : `${config.endpoints.apiBaseUrl}${input.apiPath}`;
+      const response = await fetchImpl(requestUrl, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams(params).toString(),
         signal: controller.signal,
         redirect: 'error',
       });
-      const bodyText = await response.text();
-      if (bodyText.length > MAX_BODY_BYTES) {
+      const body = await readBodyCapped(response, MAX_BODY_BYTES);
+      if (!body.ok) {
         return {
           ok: false,
           kind: 'body-too-large',
@@ -137,6 +207,7 @@ export function createAlibabaClient(config: AlibabaClientConfig): AlibabaClient 
           error: `response for ${input.apiPath} exceeded ${MAX_BODY_BYTES} bytes`,
         };
       }
+      const { bodyText } = body;
       if (!response.ok) {
         return {
           ok: false,
@@ -180,7 +251,8 @@ export function createAlibabaClient(config: AlibabaClientConfig): AlibabaClient 
       };
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         // Re-sign each attempt so the timestamp stays fresh.
-        last = await attemptOnce(input, buildParams(input));
+        const params = input.protocol === 'top' ? buildTopParams(input) : buildGopParams(input);
+        last = await attemptOnce(input, params);
         if (!retryable(last) || attempt === maxAttempts) return last;
         await sleep(RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
       }

@@ -409,8 +409,11 @@ defaults, overridable via optional env (`ALI_AUTHORIZE_BASE_URL`,
 
 Verification status (updated 2026-08-06 once connectivity returned):
 
-- **CONFIRMED from official docs** — the ICBU authorize page:
-  `https://oauth.alibaba.com/authorize?response_type=code&client_id=<appKey>&redirect_uri=<cb>&sp=icbu&view=web&state=…`
+- **SUPERSEDED 2026-08-16 — see §8.3.** This entry claimed
+  `https://oauth.alibaba.com/authorize` was "CONFIRMED from official docs". It
+  was the RETIRED host, and that claim is what the whole
+  `param-appkey.not.exists` incident rested on. The correct authorize URL is
+  `https://open-api.alibaba.com/oauth/authorize?response_type=code&client_id=<appKey>&redirect_uri=<cb>&sp=icbu&state=…`
 - **AMENDED 2026-08-07 — the parameter shape above is the MINIMAL set, with
   lowercase `sp=icbu`.** The originally shipped URL sent `sp=ICBU` (uppercase),
   `force_auth=true`, and both `state`/`State` casings; the live gateway
@@ -562,6 +565,58 @@ in the console broke every future deploy, with no documented way out.
 exactly this purpose) and deploy. `scripts/function-manifest.test.mjs` pins the
 current manual-only state, so that test failing is the intended signal that
 someone changed this deliberately — update it, do not delete it.
+
+### §8.3 Amendment — the platform host was wrong
+
+**Supersedes §8.2 and every earlier endpoint statement.** Recorded 2026-08-16
+after Alibaba support identified the host; confirmed live the same day.
+
+`param-appkey.not.exists` was never a provisioning defect. **We were calling a
+retired hostname.**
+
+| | Retired | Correct |
+|---|---|---|
+| Authorize | `oauth.alibaba.com/authorize` | `open-api.alibaba.com/oauth/authorize` |
+| API gateway | `openapi-api.alibaba.com/rest` | `open-api.alibaba.com/rest` |
+
+The protocol is unchanged — GOP-style REST paths, `access_token`, HMAC-SHA256,
+epoch-millisecond timestamps. Only the host moves.
+
+Verified without credentials, reproducible by anyone:
+
+```text
+open-api.alibaba.com + app_key 511630    -> IncompleteSignature  (key RESOLVED)
+open-api.alibaba.com + app_key 999999999 -> InvalidAppKey        (control)
+```
+
+Reaching signature validation proves the key resolved. The app was correctly
+provisioned the whole time.
+
+**Why this hid for ten days.** The retired host does not reject the request. It
+answers, and it redirects to a normal login page — so every unauthenticated
+probe looked healthy, and the failure surfaced only *after* a real merchant
+logged in. A smoke test asserting "we reached Alibaba" cannot catch this. The
+endpoint test now pins the exact host and fails on either retired name.
+
+Note also that `openapi-api.alibaba.com` and `open-api.alibaba.com` are
+DIFFERENT hosts. An early probe used the former, got `InvalidAppKey`, and
+concluded the key was unprovisioned — a false negative that aimed the
+investigation at Alibaba's backend for days.
+
+**A TOP conversion was attempted and reverted.** Reasoning from the dotted
+method names (`alibaba.icbu.product.list`) to "this must be the Taobao Open
+Platform" was plausible and wrong: the Alibaba.com Open Platform serves those
+same ICBU methods over its own REST gateway. That makes two wrong protocol
+conclusions on this feature — `sp=ICBU`, then TOP — both reached by reading
+documentation rather than probing. The probe that settled it is two curl
+commands and needs no credentials.
+
+Support also confirmed the `B2B国际站企业对接` app supports OAuth 2.0
+server-side and that **no developer-to-seller entity binding is required** —
+the seller simply authorizes with their own account. The ISV publication and
+multi-store reporting paths explored earlier were dead ends.
+
+Docs: https://open.alibaba.com/doc/doc.htm?docId=72
 
 ### §10.1 Amendment — `runNow` executes a bounded slice inline
 

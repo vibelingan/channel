@@ -1,12 +1,7 @@
 import type { CatalogContent, CatalogFamilyContent } from '../../i18n/catalog.ts';
-import {
-  DEFAULT_ALIBABA_PRICING_LABELS,
-  alibabaPriceSummary,
-} from './AlibabaCatalogPricingBlock.tsx';
+import { effectiveCatalogPriceSummary } from './EffectiveCatalogPricingBlock.tsx';
 import { ProductMedia } from './ProductMedia.tsx';
-import { quantityTierPriceSummary } from './QuantityTierPricingBlock.tsx';
-import { formatPrice } from './api.ts';
-import { publicManualPrice } from './catalog-pricing.ts';
+import { effectiveCatalogMoq } from './catalog-pricing.ts';
 import type { Product } from './catalog-types.ts';
 import { type HeadphonesCatalogState, hasMoreProducts } from './headphonesCatalogState.ts';
 
@@ -45,9 +40,7 @@ function CatalogProductCard({
   onOpenProduct,
 }: { product: Product; content: CatalogContent; onOpenProduct: (productId: string) => void }) {
   const { list, detail } = content;
-  const moq = product.alibabaPrimarySourceKey
-    ? product.alibabaCatalogPricing?.sourceMoq
-    : product.moq;
+  const moq = effectiveCatalogMoq(product);
   const identifier = product.skuCode ?? product.modName ?? product.productCode;
   return (
     <button
@@ -94,15 +87,7 @@ function CatalogProductCard({
 }
 
 export function catalogProductPrice(product: Product, quoteLabel: string): string {
-  if (product.alibabaPrimarySourceKey) {
-    return (
-      alibabaPriceSummary(product.alibabaCatalogPricing) ??
-      DEFAULT_ALIBABA_PRICING_LABELS.unavailableLabel
-    );
-  }
-  if (product.manualCatalogPricing) return quantityTierPriceSummary(product.manualCatalogPricing);
-  const publicPrice = publicManualPrice(product);
-  return publicPrice === undefined ? quoteLabel : formatPrice(publicPrice);
+  return effectiveCatalogPriceSummary(product, quoteLabel);
 }
 
 export function CatalogFamilyGrid({

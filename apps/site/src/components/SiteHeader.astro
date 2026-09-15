@@ -204,7 +204,7 @@ const afterCatalog = orderedMenuItems
             ))
           }
           <div class="mt-2 border-t border-slate-100 pt-3">
-            <AccountMenu client:only="react" />
+            <AccountMenu layout="navigation" client:only="react" />
           </div>
         </nav>
       </details>
@@ -318,10 +318,12 @@ const afterCatalog = orderedMenuItems
     fitFrame = window.requestAnimationFrame(syncHeaderMode);
   }
 
-  mobileDisclosure?.querySelectorAll('a').forEach((link) => {
-    link.addEventListener('click', () => {
-      if (mobileDisclosure) mobileDisclosure.open = false;
-    });
+  // Account links hydrate after this script. Delegate without preventing the
+  // anchor's native navigation, rather than binding only the initial HTML links.
+  mobileDisclosure?.addEventListener('click', (event) => {
+    if (event.target instanceof Element && event.target.closest('a[href]')) {
+      mobileDisclosure.open = false;
+    }
   });
 
   for (const disclosure of catalogDisclosures) {

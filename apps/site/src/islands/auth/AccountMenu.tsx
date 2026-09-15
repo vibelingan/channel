@@ -5,25 +5,28 @@ import { useSession } from './useSession.ts';
 interface Props {
   /** When true, render light text suited to a dark background. */
   dark?: boolean;
+  /** A mobile navigation panel already owns disclosure/scrolling; use direct links. */
+  layout?: 'dropdown' | 'navigation';
 }
 
 /**
  * Header account control. Shows Sign in / Register links for guests, and a name
  * banner with a dropdown (Account, Admin, Sign out) for signed-in users.
- * Clicking the name opens the account page where the username can be changed.
+ * Desktop uses a dropdown; mobile navigation uses direct, native destinations.
  */
-export function AccountMenu({ dark = false }: Props) {
+export function AccountMenu({ dark = false, layout = 'dropdown' }: Props) {
   const { user, loggedIn, isAdminUser, ready } = useSession();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (layout !== 'dropdown') return;
     function onDoc(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
-  }, []);
+  }, [layout]);
 
   // Avoid a hydration flash: render nothing until the session is read.
   if (!ready) return <span className="inline-block h-9 w-24" />;
@@ -31,7 +34,7 @@ export function AccountMenu({ dark = false }: Props) {
   if (!loggedIn || !user) {
     const link = dark ? 'text-white/90 hover:text-white' : 'text-ink-soft hover:text-brand-700';
     return (
-      <div className="flex shrink-0 items-center gap-1" data-account-menu>
+      <div className="flex shrink-0 flex-wrap items-center gap-1" data-account-menu>
         <a
           href="/login"
           className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition ${link}`}
@@ -44,11 +47,60 @@ export function AccountMenu({ dark = false }: Props) {
         >
           Register
         </a>
+        {layout === 'navigation' && (
+          <a
+            href="/admin"
+            className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-ink-soft hover:bg-brand-50"
+          >
+            Admin portal
+          </a>
+        )}
       </div>
     );
   }
 
   const initial = (user.username || user.email || '?').charAt(0).toUpperCase();
+  const avatar = (
+    <>
+      <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-700 text-xs font-bold text-white">
+        {initial}
+      </span>
+      <span className="max-w-28 truncate">{user.username || user.email}</span>
+    </>
+  );
+  const signOut = () => {
+    clearSession();
+    window.location.href = '/';
+  };
+
+  if (layout === 'navigation')
+    return (
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1" data-account-menu>
+        <a
+          href={isAdminUser ? '/admin' : '/account'}
+          aria-label={isAdminUser ? 'Admin dashboard' : 'Account settings'}
+          data-account-trigger
+          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-3 text-sm font-medium text-ink shadow-sm hover:border-brand-300"
+        >
+          {avatar}
+        </a>
+        {isAdminUser && (
+          <a
+            href="/account"
+            className="inline-flex min-h-11 items-center rounded-lg px-2 text-sm text-ink-soft hover:bg-brand-50"
+          >
+            Account settings
+          </a>
+        )}
+        <button
+          type="button"
+          onClick={signOut}
+          className="min-h-11 rounded-lg px-2 text-sm text-red-600 hover:bg-red-50"
+        >
+          Sign out
+        </button>
+      </div>
+    );
 
   return (
     <div className="relative" ref={ref} data-account-menu>
@@ -60,10 +112,7 @@ export function AccountMenu({ dark = false }: Props) {
         aria-expanded={open}
         data-account-trigger
       >
-        <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-700 text-xs font-bold text-white">
-          {initial}
-        </span>
-        <span className="max-w-28 truncate">{user.username || user.email}</span>
+        {avatar}
       </button>
 
       {open && (
@@ -87,10 +136,7 @@ export function AccountMenu({ dark = false }: Props) {
           )}
           <button
             type="button"
-            onClick={() => {
-              clearSession();
-              window.location.href = '/';
-            }}
+            onClick={signOut}
             className="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
           >
             Sign out

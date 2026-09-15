@@ -9,7 +9,7 @@
  */
 import { createHash } from 'node:crypto';
 import type { AlibabaLadderPriceDraft, AlibabaProductDetailDraft } from './alibaba-contracts.ts';
-import { parseDecimalToMinorUnits } from './alibaba-money.ts';
+import { parseDecimalToMinorUnits, parseWholesalePrice } from './alibaba-money.ts';
 import {
   ALIBABA_CATALOG_PRICING_SCHEMA_VERSION,
   type AlibabaCatalogPricing,
@@ -114,6 +114,15 @@ interface PricingContext {
   offerKey: string;
 }
 
+/** Alibaba also emits integer quantities as decimal strings, e.g. "1000.0".
+ * Check the lexical fractional part before Number() so tiny fractions never round to integers.
+ */
+function positiveIntegerQuantity(lexeme: string | undefined): number | undefined {
+  if (lexeme === undefined || !/^[0-9]+(?:\.0+)?$/.test(lexeme)) return undefined;
+  const value = Number(lexeme);
+  return Number.isSafeInteger(value) && value > 0 ? value : undefined;
+}
+
 function unavailablePricing(context: PricingContext): AlibabaCatalogPricing {
   const pricing: AlibabaCatalogPricing = {
     schemaVersion: ALIBABA_CATALOG_PRICING_SCHEMA_VERSION,
@@ -124,6 +133,8 @@ function unavailablePricing(context: PricingContext): AlibabaCatalogPricing {
     syncedAt: context.syncedAt,
   };
   if (context.sourceSkuId !== undefined) pricing.sourceSkuId = context.sourceSkuId;
+  // Purchase constraints remain true even when a quote cannot be interpreted.
+  if (context.sourceMoq !== undefined) pricing.sourceMoq = context.sourceMoq;
   if (context.sourceUpdatedAt !== undefined) pricing.sourceUpdatedAt = context.sourceUpdatedAt;
   return pricing;
 }
@@ -195,10 +206,9 @@ function tieredPricing(
     if (ladder.minQuantityLexeme === undefined || ladder.priceLexeme === undefined) {
       return unavailablePricing(context);
     }
-    if (!/^[0-9]+$/.test(ladder.minQuantityLexeme)) return unavailablePricing(context);
-    const minQuantity = Number(ladder.minQuantityLexeme);
+    const minQuantity = positiveIntegerQuantity(ladder.minQuantityLexeme);
     const price = parseDecimalToMinorUnits(ladder.priceLexeme);
-    if (!price.ok || !Number.isSafeInteger(minQuantity) || minQuantity <= 0) {
+    if (!price.ok || minQuantity === undefined) {
       return unavailablePricing(context);
     }
     parsedTiers.push({ minQuantity, unitAmountMinor: price.minorUnits });
@@ -208,14 +218,9 @@ function tieredPricing(
     const next = parsedTiers[index + 1];
     return next ? { ...tier, maxQuantity: next.minQuantity - 1 } : tier;
   });
-  // A source MOQ above the first tier start is inconsistent source data; keep
-  // the tiers (commercially meaningful) and drop the MOQ rather than degrade.
-  const firstTier = tiers[0];
-  const moqIncompatible =
-    context.sourceMoq !== undefined && firstTier && firstTier.minQuantity > context.sourceMoq;
-  const { sourceMoq: _dropped, ...withoutMoq } = context;
-  const candidateContext: PricingContext = moqIncompatible ? withoutMoq : context;
-  return finalize({ ...baseFields(candidateContext), mode: 'tiered', tiers }, candidateContext);
+  // MOQ and quoted quantity coverage are independent. An unquoted gap remains
+  // a no-tier result; it must not erase MOQ or acquire a fabricated price.
+  return finalize({ ...baseFields(context), mode: 'tiered', tiers }, context);
 }
 
 /** Normalize one product detail into its mirror record + offers. */
@@ -231,12 +236,13 @@ export function normalizeProductDetail(input: {
   const sourceKey = alibabaSourceKey(connectionId, sourceProductId);
   const sourceUpdatedAt = gmtLexemeToUtcIso(detail.gmtModified);
   const { currency, unsupported } = normalizeCurrency(detail.currencyLexeme);
+  const unsupportedSaleUnit =
+    detail.productType === 'sourcing' &&
+    [detail.sourcingTrade?.fobUnitType, detail.sourcingTrade?.minimumOrderUnitType].some(
+      (unit) => unit !== undefined && unit !== 'Piece',
+    );
 
-  const moq =
-    detail.moqLexeme !== undefined && /^[0-9]+$/.test(detail.moqLexeme)
-      ? Number(detail.moqLexeme)
-      : undefined;
-  const sourceMoq = moq !== undefined && Number.isSafeInteger(moq) && moq > 0 ? moq : undefined;
+  const sourceMoq = positiveIntegerQuantity(detail.moqLexeme);
 
   const sourceProduct: NormalizedSourceProduct = {
     sourceKey,
@@ -268,9 +274,13 @@ export function normalizeProductDetail(input: {
       const offerKey = alibabaOfferKey(connectionId, sourceProductId, sku.sourceSkuId);
       const context: PricingContext = { ...contextBase, offerKey, sourceSkuId: sku.sourceSkuId };
       const pricing =
-        unsupported || sku.priceLexeme === undefined
+        unsupported || unsupportedSaleUnit
           ? unavailablePricing(context)
-          : fixedPricing(sku.priceLexeme, context);
+          : sku.ladderPrices && sku.ladderPrices.length > 0
+            ? tieredPricing(sku.ladderPrices, context)
+            : sku.priceLexeme !== undefined
+              ? fixedPricing(sku.priceLexeme, context)
+              : unavailablePricing(context);
       const offer: NormalizedSupplierOffer = {
         offerKey,
         sourceKey,
@@ -286,11 +296,35 @@ export function normalizeProductDetail(input: {
       if (sourceUpdatedAt !== undefined) offer.sourceUpdatedAt = sourceUpdatedAt;
       offers.push(offer);
     }
-  } else {
+  }
+  // A product quote is not a fallback assigned to each SKU. Keep its scope,
+  // including when the same response has separate (possibly invalid) SKU quotes.
+  if (
+    detail.skus.length === 0 ||
+    (detail.productType === 'wholesale' && detail.wholesaleTrade?.priceLexeme !== undefined) ||
+    (detail.productType === 'sourcing' &&
+      (detail.fobMinLexeme !== undefined || detail.fobMaxLexeme !== undefined))
+  ) {
     const offerKey = alibabaOfferKey(connectionId, sourceProductId);
     const context: PricingContext = { ...contextBase, offerKey };
     let pricing: AlibabaCatalogPricing;
-    if (unsupported) {
+    if (detail.productType === 'wholesale' && detail.wholesaleTrade?.priceLexeme !== undefined) {
+      const trade = detail.wholesaleTrade;
+      const parsed = parseWholesalePrice(detail.wholesaleTrade.priceLexeme);
+      // Batch and non-piece trading need a distinct quantity contract. Never
+      // label a lot/kg quote as a per-piece price.
+      pricing =
+        parsed.ok && trade.saleType === 'normal' && trade.unitType === 'Piece'
+          ? finalize(
+              {
+                ...baseFields({ ...context, currency: 'USD' }),
+                mode: 'fixed',
+                amountMinor: parsed.minorUnits,
+              },
+              context,
+            )
+          : unavailablePricing(context);
+    } else if (unsupported || unsupportedSaleUnit) {
       pricing = unavailablePricing(context);
     } else if (detail.ladderPrices.length > 0) {
       pricing = tieredPricing(detail.ladderPrices, context);

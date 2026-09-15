@@ -81,6 +81,32 @@ test('SKU prices normalize to fixed offers with provenance', () => {
   assert.equal(second?.pricing.mode, 'unavailable');
 });
 
+test('live SKU ladder prices normalize to tiered offers', () => {
+  const result = normalize(
+    detail({
+      moqLexeme: '500',
+      skus: [
+        {
+          sourceSkuId: 'sku-live',
+          availableQuantity: 10000,
+          attributes: {},
+          ladderPrices: [
+            { minQuantityLexeme: '500', priceLexeme: '3.50' },
+            { minQuantityLexeme: '1000', priceLexeme: '3.17' },
+          ],
+        },
+      ],
+    }),
+  );
+  const offer = result.offers[0];
+  assert.equal(offer?.pricing.mode, 'tiered');
+  assert.deepEqual(offer?.pricing.tiers, [
+    { minQuantity: 500, maxQuantity: 999, unitAmountMinor: 350 },
+    { minQuantity: 1000, unitAmountMinor: 317 },
+  ]);
+  assert.equal(offer?.sourceAvailability, 10000);
+});
+
 test('ladder prices become sorted closed tiers with an open final tier', () => {
   const result = normalize(
     detail({
@@ -145,9 +171,7 @@ test('a price-less product yields one unavailable product-level offer', () => {
   assert.equal(result.offers[0]?.pricing.sourceProductId, '987');
 });
 
-test('an MOQ below the first tier start is dropped instead of degrading the tiers', () => {
-  // Source data inconsistency: MOQ 50 but the cheapest tier starts at 100 —
-  // the validator would reject the pair, so the MOQ drops and the tiers stay.
+test('an MOQ below the first tier start is retained independently of quoted coverage', () => {
   const result = normalize(
     detail({
       moqLexeme: '50',
@@ -156,7 +180,7 @@ test('an MOQ below the first tier start is dropped instead of degrading the tier
   );
   const pricing = result.offers[0]?.pricing;
   assert.equal(pricing?.mode, 'tiered');
-  assert.equal(pricing?.sourceMoq, undefined);
+  assert.equal(pricing?.sourceMoq, 50);
   // The compatible pair keeps the MOQ.
   const compatible = normalize(
     detail({

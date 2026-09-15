@@ -39,9 +39,11 @@ const config: AdminConfig = {
   jwtSecret: optionalEnv('JWT_SECRET', 'dev-secret-do-not-use-in-production'),
   loginUrl: optionalEnv('LOGIN_URL', 'http://localhost:4321/login'),
   resetPasswordUrl: optionalEnv('RESET_PASSWORD_URL', 'http://localhost:4321/reset'),
+  enableDetailApproval: optionalEnv('CATALOG_DETAIL_APPROVAL_ENABLED') === '1',
+  enableInquiries: optionalEnv('CATALOG_RFQ_ENABLED') === '1',
 };
 
-const adapter = new JsonFileAdapter(DB_FILE);
+const adapter = new JsonFileAdapter(DB_FILE, config.enableInquiries === true);
 setAdapter(adapter);
 
 // The DB stays file-backed locally, but media UPLOADS always mint a real
@@ -216,7 +218,15 @@ app.get('/api/files/:id', async (req, res) => {
 // `getCatalogItem`) for the same parity reason as the image route above — in
 // particular the public field allowlist and the server-side role-gated VIP
 // tier (verified from the Bearer token) must not drift between the two.
-const catalogConfig: PublicApiConfig = { jwtSecret: config.jwtSecret };
+const catalogConfig = {
+  jwtSecret: config.jwtSecret,
+  enableInquiries: config.enableInquiries === true,
+  enableCatalogDetail: config.enableDetailApproval === true,
+  corsAllowedOrigins: optionalEnv(
+    'LOCAL_SITE_ORIGINS',
+    'http://localhost:4321,http://127.0.0.1:4321,http://127.0.0.1:4328',
+  ).split(','),
+};
 
 function registerCatalog(collection: PublicCatalog, basePath: string): void {
   registerCatalogRoutes(app, collection, basePath, catalogConfig);

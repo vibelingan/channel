@@ -37,6 +37,8 @@ export function buildFunctionDefs(ctx) {
         TCB_ENV: ctx.envId,
         APP_ENV: ctx.appEnv,
         ADMIN_EMAIL: ctx.adminEmail,
+        CATALOG_RFQ_ENABLED: ctx.optionalEnv('CATALOG_RFQ_ENABLED'),
+        CATALOG_DETAIL_APPROVAL_ENABLED: ctx.optionalEnv('CATALOG_DETAIL_APPROVAL_ENABLED'),
         JWT_SECRET: ctx.requireEnv('JWT_SECRET'),
         ADMIN_PASSWORD_HASH: ctx.requireEnv('ADMIN_PASSWORD_HASH'),
         BOOTSTRAP_ENABLED: process.env.BOOTSTRAP_ENABLED || '0',
@@ -61,6 +63,8 @@ export function buildFunctionDefs(ctx) {
         TCB_ENV: ctx.envId,
         APP_ENV: ctx.appEnv,
         PUBLIC_API_BASE_URL: ctx.apiUrl,
+        CATALOG_DETAIL_APPROVAL_ENABLED: ctx.optionalEnv('CATALOG_DETAIL_APPROVAL_ENABLED'),
+        CATALOG_RFQ_ENABLED: ctx.optionalEnv('CATALOG_RFQ_ENABLED'),
         CORS_ALLOWED_ORIGINS: ctx.corsAllowedOrigins,
         // Same secret the admin function signs sessions with — the public catalog
         // verifies a presented Bearer token to attach role-gated VIP pricing.

@@ -1,4 +1,78 @@
 export const REQUIRED_NOSQL_RESOURCES = [
+  // The read-only Admin import menu is deployed even when the optional Excel
+  // worker is disabled. Missing collections must not turn an empty list into 500.
+  {
+    collectionName: 'catalogImportJobs',
+    permission: 'ADMINONLY',
+    indexes: [index('catalog_import_started', [['startedAt', '-1']])],
+  },
+  {
+    collectionName: 'catalogImportItems',
+    permission: 'ADMINONLY',
+    indexes: [
+      index('catalog_import_job_sku', [
+        ['jobId', '1'],
+        ['parentSku', '1'],
+      ]),
+    ],
+  },
+  // API gallery import and detail approval both resolve source URL -> owned
+  // image IDs here. Provision independently of the optional Excel worker.
+  {
+    collectionName: 'catalogSourceLinks',
+    permission: 'ADMINONLY',
+    indexes: [],
+  },
+  {
+    collectionName: 'catalogDetailApprovals',
+    permission: 'ADMINONLY',
+    indexes: [],
+  },
+  {
+    collectionName: 'catalogDetailVariants',
+    permission: 'ADMINONLY',
+    indexes: [
+      index('approved_variant_page', [
+        ['productId', '1'],
+        ['catalogDetailRevision', '1'],
+        ['catalogDetailPosition', '1'],
+        ['_id', '1'],
+      ]),
+    ],
+  },
+  // Public catalog reads attach variants even when no importer has run. An
+  // absent collection is a database error, not an empty variant list.
+  {
+    collectionName: 'productVariants',
+    permission: 'ADMINONLY',
+    indexes: [
+      index('variant_product_position', [
+        ['productId', '1'],
+        ['position', '1'],
+      ]),
+    ],
+  },
+  {
+    collectionName: 'catalogQuoteRequests',
+    permission: 'ADMINONLY',
+    indexes: [
+      index('inquiry_attention', [
+        ['attentionRank', '1'],
+        ['createdAt', '-1'],
+        ['_id', '1'],
+      ]),
+      index('inquiry_status', [
+        ['status', '1'],
+        ['createdAt', '-1'],
+        ['_id', '1'],
+      ]),
+    ],
+  },
+  {
+    collectionName: 'catalogInquiryLimits',
+    permission: 'ADMINONLY',
+    indexes: [],
+  },
   {
     collectionName: 'passwordResets',
     permission: 'ADMINONLY',
@@ -30,6 +104,24 @@ export const REQUIRED_NOSQL_RESOURCES = [
     permission: 'ADMINONLY',
     indexes: [],
   },
+  // Existing canonical catalog collection. Declared here so the pending-review
+  // queue's default All/family ordering cannot depend on an operator-created
+  // console index. The collection is already function-only (ADMINONLY).
+  {
+    collectionName: 'products',
+    permission: 'ADMINONLY',
+    indexes: [
+      index('product_alibaba_review_queue', [
+        ['alibabaReviewPending', '-1'],
+        ['createdAt', '-1'],
+      ]),
+      index('product_family_alibaba_review_queue', [
+        ['productFamily', '1'],
+        ['alibabaReviewPending', '-1'],
+        ['createdAt', '-1'],
+      ]),
+    ],
+  },
   // Alibaba linked catalog sync (docs/alibaba-linked-catalog-sync/, MIU 3).
   // All ADMINONLY: every read/write goes through the functions, never the
   // client SDK. Deterministic document ids (sourceKey/offerKey/connectionId)
@@ -43,6 +135,13 @@ export const REQUIRED_NOSQL_RESOURCES = [
     collectionName: 'alibabaOAuthStates',
     permission: 'ADMINONLY',
     indexes: [index('alibaba_oauth_state_expires_at', [['expiresAt', '1']])],
+  },
+  {
+    // Durable secret-free attempt trail (7-day retention) — outlives the
+    // 10-minute state TTL so a failed Connect is still diagnosable later.
+    collectionName: 'alibabaOAuthAttempts',
+    permission: 'ADMINONLY',
+    indexes: [index('alibaba_oauth_attempt_started', [['startedAt', '-1']])],
   },
   {
     collectionName: 'alibabaSyncLeases',
@@ -104,6 +203,48 @@ export const REQUIRED_NOSQL_RESOURCES = [
     collectionName: 'alibabaCategoryMappings',
     permission: 'ADMINONLY',
     indexes: [index('alibaba_category_mapping_source', [['alibabaCategoryId', '1']], true)],
+  },
+  // Shared category contract used by Alibaba API and workbook adapters. This
+  // must be provisioned before draft materialization: an empty collection is
+  // a valid "unmapped" state, while a missing collection is an infrastructure
+  // error in CloudBase.
+  {
+    collectionName: 'sourceCategoryMappings',
+    permission: 'ADMINONLY',
+    indexes: [
+      index(
+        'source_category_mapping_identity',
+        [
+          ['provider', '1'],
+          ['sourceTaxonomy', '1'],
+          ['sourceCategoryId', '1'],
+        ],
+        true,
+      ),
+    ],
+  },
+  // Provider-neutral current view emitted by API and workbook adapters. Raw
+  // evidence and canonical products live elsewhere; no browser writes.
+  {
+    collectionName: 'catalogSourceObservations',
+    permission: 'ADMINONLY',
+    indexes: [
+      index('catalog_observation_provider_active', [
+        ['provider', '1'],
+        ['active', '1'],
+      ]),
+      index('catalog_observation_external_product', [
+        ['provider', '1'],
+        ['externalProductId', '1'],
+      ]),
+    ],
+  },
+  // Short-lived, server-owned proof that the complete ordered raw dataset
+  // passed dry-run before any derived observation write is admitted.
+  {
+    collectionName: 'alibabaRawReplayManifests',
+    permission: 'ADMINONLY',
+    indexes: [],
   },
 ];
 

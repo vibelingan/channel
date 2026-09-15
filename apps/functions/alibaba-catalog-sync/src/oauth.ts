@@ -15,6 +15,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { AlibabaClient, AlibabaEndpoints } from '@vibelingan-channel/alibaba-catalog-sync';
 import { buildAuthorizeUrl } from '@vibelingan-channel/alibaba-catalog-sync';
 import { type AlibabaTokenEnvelope, decryptTokenPayload, encryptTokenPayload } from './crypto.ts';
+import { advanceAttempt, attemptIdForStateHash, startAttempt } from './oauth-attempts.ts';
 import {
   createDoc,
   createDocWithId,
@@ -43,6 +44,12 @@ export interface OAuthDeps {
   alert: (message: string) => Promise<void>;
 }
 
+/**
+ * Names the authorization shape in the attempt trail, so a stored attempt says
+ * WHICH experiment produced it. Bump this whenever the parameter set changes.
+ */
+export const AUTHORIZATION_VARIANT = 'force_auth-only-2026-08-31';
+
 export type OAuthStartResult =
   | { ok: true; authorizeUrl: string }
   | { ok: false; reason: 'state-mint-failed' };
@@ -53,26 +60,36 @@ export async function startOAuth(deps: OAuthDeps, userId: string): Promise<OAuth
   const state = randomBytes(32).toString('base64url');
   const stateHash = createHash('sha256').update(state).digest('hex');
   const expiresAt = new Date(Date.parse(now) + OAUTH_STATE_TTL_MS).toISOString();
+  const authorizeUrl = buildAuthorizeUrl(deps.endpoints, {
+    appKey: deps.appKey,
+    redirectUri: deps.callbackUrl,
+    state,
+  });
+  // Open the durable trail BEFORE the state row, and record only parameter
+  // NAMES — `state` is secret and `client_id` is not ours to scatter around.
+  const attemptId = await startAttempt({
+    requestedByUserId: userId,
+    now,
+    authorizationVariant: AUTHORIZATION_VARIANT,
+    authorizationHost: new URL(authorizeUrl).host,
+    authorizationParameterNames: [...new URL(authorizeUrl).searchParams.keys()],
+  });
   const created = await createDocWithId('alibabaOAuthStates', stateHash, {
     requestedByUserId: userId,
     intent: 'connect',
     consumeClaim: 0,
     expiresAt,
     consumedAt: '',
+    // Carries the attempt forward so the callback can advance it from the
+    // state hash alone, never from the raw state.
+    attemptId,
     createdAt: now,
     updatedAt: now,
   });
   // 32 random bytes colliding an existing hash means the RNG is broken —
   // refuse rather than reuse someone else's state record.
   if (created !== 'created') return { ok: false, reason: 'state-mint-failed' };
-  return {
-    ok: true,
-    authorizeUrl: buildAuthorizeUrl(deps.endpoints, {
-      appKey: deps.appKey,
-      redirectUri: deps.callbackUrl,
-      state,
-    }),
-  };
+  return { ok: true, authorizeUrl };
 }
 
 async function sweepExpiredStates(now: string): Promise<void> {
@@ -149,30 +166,58 @@ export async function handleOAuthCallback(
   code: string | undefined,
   state: string | undefined,
 ): Promise<OAuthCallbackOutcome> {
-  if (!code || !state) return { ok: false, reason: 'missing-params' };
   const now = deps.now();
+  // A callback with no usable params has no state to attribute an attempt by,
+  // so it can only be refused.
+  if (!code || !state) return { ok: false, reason: 'missing-params' };
   const stateHash = createHash('sha256').update(state).digest('hex');
+  // Resolve the attempt BEFORE the state is consumed or rejected, so every
+  // exit below records WHICH boundary stopped the flow.
+  const attemptId = await attemptIdForStateHash(stateHash);
+  await advanceAttempt({ attemptId, status: 'callback_received', now });
+
   const record = await getDoc('alibabaOAuthStates', stateHash);
-  if (!record) return { ok: false, reason: 'unknown-state' };
+  if (!record) {
+    await advanceAttempt({ attemptId, status: 'rejected_unknown_state', now });
+    return { ok: false, reason: 'unknown-state' };
+  }
   if (typeof record.expiresAt !== 'string' || record.expiresAt <= now) {
+    await advanceAttempt({ attemptId, status: 'rejected_expired_state', now });
     return { ok: false, reason: 'expired-state' };
   }
   // Single-use CAS: exactly one caller flips 0→1.
   const claim = await incrementField('alibabaOAuthStates', stateHash, 'consumeClaim', 1);
-  if (claim !== 1) return { ok: false, reason: 'replayed-state' };
+  if (claim !== 1) {
+    await advanceAttempt({ attemptId, status: 'rejected_replayed_state', now });
+    return { ok: false, reason: 'replayed-state' };
+  }
   await updateDoc('alibabaOAuthStates', stateHash, { consumedAt: now });
 
+  await advanceAttempt({ attemptId, status: 'exchange_started', now });
   const result = await deps.client.callApi({
     apiPath: deps.endpoints.tokenCreatePath,
     params: { code },
     maxAttempts: 1,
   });
   if (!result.ok) {
+    await advanceAttempt({
+      attemptId,
+      status: 'exchange_failed_transport',
+      now,
+      // Failure CLASS only — never the body, which can echo credentials.
+      failureCategory: result.kind,
+    });
     await deps.alert('Alibaba OAuth token exchange failed (transport).');
     return { ok: false, reason: 'exchange-failed' };
   }
   const grant = readTokenResponse(result.bodyText, now);
   if (!grant) {
+    await advanceAttempt({
+      attemptId,
+      status: 'exchange_failed_response',
+      now,
+      failureCategory: 'unparseable-grant',
+    });
     await deps.alert('Alibaba OAuth token exchange failed (unexpected response shape).');
     return { ok: false, reason: 'exchange-failed' };
   }
@@ -196,6 +241,7 @@ export async function handleOAuthCallback(
     firstAuthErrorAt: '',
     lastAuthErrorAt: '',
   });
+  await advanceAttempt({ attemptId, status: 'connected', now });
   return { ok: true };
 }
 

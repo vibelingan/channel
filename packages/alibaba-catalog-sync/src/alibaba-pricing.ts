@@ -225,18 +225,7 @@ export function validateAlibabaCatalogPricing(value: unknown): PricingValidation
       forbid('amountMinor');
       forbid('minAmountMinor');
       forbid('maxAmountMinor');
-      if (validateTiers(record.tiers, errors)) {
-        const tiers = record.tiers as AlibabaPriceTier[];
-        const first = tiers[0];
-        if (
-          first &&
-          record.sourceMoq !== undefined &&
-          isPositiveInteger(record.sourceMoq) &&
-          first.minQuantity > record.sourceMoq
-        ) {
-          errors.push('first tier minQuantity must not exceed sourceMoq');
-        }
-      }
+      validateTiers(record.tiers, errors);
       break;
     }
     case 'negotiable':

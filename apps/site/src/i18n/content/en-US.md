@@ -230,7 +230,7 @@ footer:
         - { label: Admin Portal, href: '/admin' }
     - heading: Contact Us
       links:
-        - { label: 'Email: info@supplychainsai.com', href: 'mailto:info@supplychainsai.com' }
+        - { label: 'Email: sales@supplychainsai.com', href: 'mailto:sales@supplychainsai.com' }
         - { label: 'Phone: +852 6941 6140', href: 'tel:+85269416140' }
         - { label: 'Hong Kong · Dongguan, China', href: '#' }
   legal: © 2004–2026 Diversity Technology Limited. All rights reserved.

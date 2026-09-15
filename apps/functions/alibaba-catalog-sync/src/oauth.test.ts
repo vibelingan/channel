@@ -463,7 +463,211 @@ test('connectionStatus is redacted and disconnect destroys the envelope', async 
   assert.equal(connection?.tokenEnvelope, null, 'secret material destroyed');
 });
 
+test('inspectProductDetail is admin-only and validates one bounded provider id', async () => {
+  setup();
+  const contributor = await contributorToken();
+  const forbidden = await handleAlibabaSyncRequest(
+    {
+      action: 'inspectProductDetail',
+      token: contributor,
+      data: { sourceProductId: 'AAGmBBhgAOVTpOOZBg7MoZq_' },
+    },
+    baseConfig,
+  );
+  assert.equal(forbidden.ok, false);
+  if (!forbidden.ok) assert.equal(forbidden.error.code, 'FORBIDDEN');
+
+  const admin = await adminToken();
+  const invalid = await handleAlibabaSyncRequest(
+    {
+      action: 'inspectProductDetail',
+      token: admin,
+      data: { sourceProductId: '../not-a-product-id' },
+    },
+    baseConfig,
+  );
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.equal(invalid.error.code, 'VALIDATION_ERROR');
+});
+
+test('draft materialization is admin-only and validates its bounded cursor page', async () => {
+  setup();
+  const contributor = await contributorToken();
+  const forbidden = await handleAlibabaSyncRequest(
+    { action: 'materializeDrafts', token: contributor, data: { afterSourceKey: '', limit: 20 } },
+    baseConfig,
+  );
+  assert.equal(forbidden.ok, false);
+  if (!forbidden.ok) assert.equal(forbidden.error.code, 'FORBIDDEN');
+
+  const admin = await adminToken();
+  const invalid = await handleAlibabaSyncRequest(
+    { action: 'materializeDrafts', token: admin, data: { limit: 21 } },
+    baseConfig,
+  );
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.equal(invalid.error.code, 'VALIDATION_ERROR');
+
+  const empty = await handleAlibabaSyncRequest(
+    { action: 'materializeDrafts', token: admin, data: { afterSourceKey: '', limit: 20 } },
+    baseConfig,
+  );
+  assert.equal(empty.ok, true);
+  if (empty.ok) {
+    assert.deepEqual(empty.data, {
+      afterSourceKey: '',
+      nextSourceKey: '',
+      done: true,
+      visited: 0,
+      created: 0,
+      existing: 0,
+      failures: [],
+    });
+  }
+});
+
+test('manual sync cannot be started by a contributor', async () => {
+  setup();
+  const contributor = await contributorToken();
+  const forbidden = await handleAlibabaSyncRequest(
+    { action: 'runNow', token: contributor },
+    baseConfig,
+  );
+  assert.equal(forbidden.ok, false);
+  if (!forbidden.ok) assert.equal(forbidden.error.code, 'FORBIDDEN');
+  assert.equal(currentStore.alibabaSyncRuns?.length ?? 0, 0);
+});
+
+test('selected product sync is admin-only and rejects malformed provider ids', async () => {
+  setup();
+  const contributor = await contributorToken();
+  const forbidden = await handleAlibabaSyncRequest(
+    {
+      action: 'syncProduct',
+      token: contributor,
+      data: { sourceProductId: 'AAGmBBhgAOVTpOOZBg7MoZq_' },
+    },
+    baseConfig,
+  );
+  assert.equal(forbidden.ok, false);
+  if (!forbidden.ok) assert.equal(forbidden.error.code, 'FORBIDDEN');
+
+  const admin = await adminToken();
+  const invalid = await handleAlibabaSyncRequest(
+    { action: 'syncProduct', token: admin, data: { sourceProductId: '../../secret' } },
+    baseConfig,
+  );
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.equal(invalid.error.code, 'VALIDATION_ERROR');
+});
+
+test('raw observation replay is admin-only and apply requires hash, total and manifest', async () => {
+  setup();
+  const contributor = await contributorToken();
+  const forbidden = await handleAlibabaSyncRequest(
+    {
+      action: 'replaySourceObservations',
+      token: contributor,
+      data: { mode: 'dry-run', limit: 10 },
+    },
+    baseConfig,
+  );
+  assert.equal(forbidden.ok, false);
+  if (!forbidden.ok) assert.equal(forbidden.error.code, 'FORBIDDEN');
+
+  const admin = await adminToken();
+  const missingHash = await handleAlibabaSyncRequest(
+    {
+      action: 'replaySourceObservations',
+      token: admin,
+      data: { mode: 'apply', limit: 10 },
+    },
+    baseConfig,
+  );
+  assert.equal(missingHash.ok, false);
+  if (!missingHash.ok) assert.equal(missingHash.error.code, 'VALIDATION_ERROR');
+
+  const missingTotal = await handleAlibabaSyncRequest(
+    {
+      action: 'replaySourceObservations',
+      token: admin,
+      data: { mode: 'apply', limit: 10, expectedPageHash: 'a'.repeat(64) },
+    },
+    baseConfig,
+  );
+  assert.equal(missingTotal.ok, false);
+  if (!missingTotal.ok) assert.equal(missingTotal.error.code, 'VALIDATION_ERROR');
+
+  const missingManifest = await handleAlibabaSyncRequest(
+    {
+      action: 'replaySourceObservations',
+      token: admin,
+      data: {
+        mode: 'apply',
+        limit: 10,
+        expectedPageHash: 'a'.repeat(64),
+        expectedTotalSourceProducts: 1,
+      },
+    },
+    baseConfig,
+  );
+  assert.equal(missingManifest.ok, false);
+  if (!missingManifest.ok) assert.equal(missingManifest.error.code, 'VALIDATION_ERROR');
+
+  const unknownField = await handleAlibabaSyncRequest(
+    {
+      action: 'replaySourceObservations',
+      token: admin,
+      data: { mode: 'dry-run', limit: 10, raw: true },
+    },
+    baseConfig,
+  );
+  assert.equal(unknownField.ok, false);
+  if (!unknownField.ok) assert.equal(unknownField.error.code, 'VALIDATION_ERROR');
+});
+
 // --- http adapter ------------------------------------------------------------
+
+test('authenticated targeted replay forwards the exact source key instead of scanning the catalog', async (t) => {
+  const store = setup();
+  class ReplayAdapter extends MemoryAdapter {
+    async acquireAlibabaSyncLease() {
+      return { result: 'granted' as const, fence: 1 };
+    }
+    async releaseAlibabaSyncLease() {
+      return true;
+    }
+  }
+  const adapter = new ReplayAdapter(store);
+  setAdapter(adapter);
+  const originalGet = adapter.get.bind(adapter);
+  const originalList = adapter.list.bind(adapter);
+  const targets: string[] = [];
+  t.mock.method(adapter, 'get', async (collection: string, id: string) => {
+    if (collection === 'alibabaSourceProducts') targets.push(id);
+    return originalGet(collection, id);
+  });
+  t.mock.method(adapter, 'list', async (query: AdapterListQuery) => {
+    assert.notEqual(
+      query.collection,
+      'alibabaSourceProducts',
+      'Narrow repair must not become a full scan',
+    );
+    return originalList(query);
+  });
+  const token = await adminToken();
+  const result = await handleAlibabaSyncRequest(
+    {
+      action: 'replaySourceObservations',
+      token,
+      data: { mode: 'dry-run', sourceKey: 'a'.repeat(64), limit: 1 },
+    },
+    baseConfig,
+  );
+  assert.ok(!result.ok);
+  assert.equal(result.error.code, 'CONFLICT');
+  assert.deepEqual(targets, ['a'.repeat(64)]);
+});
 
 test('http adapter: OPTIONS preflight, health, callback redirect, POST envelope, 405', async () => {
   setup();
@@ -962,4 +1166,112 @@ test('a refresh TRANSPORT outage is retryable — never authorization_expired', 
   if (!recoveredRuntime.ok) return;
   const recovered = await getConnectionAccessToken(recoveredRuntime.runtime.deps);
   assert.deepEqual(recovered, { ok: true, accessToken: 'recovered-access-token' });
+});
+
+// --- OAuth attempt diagnostics ------------------------------------------------
+
+test('a successful connect leaves a durable attempt trail ending in connected', async () => {
+  setup();
+  const token = await adminToken();
+  const log: FetchLogEntry[] = [];
+  const fetchImpl = fakeAlibabaFetch(log);
+  const state = await startAndExtractState(token, fetchImpl);
+
+  const started = currentStore.alibabaOAuthAttempts ?? [];
+  assert.equal(started.length, 1, 'Connect opens an attempt');
+  assert.equal(started[0]?.status, 'started');
+  assert.equal(started[0]?.authorizationHost, 'open-api.alibaba.com');
+  // Parameter NAMES only — never values.
+  assert.equal(
+    started[0]?.authorizationParameterNames,
+    'client_id,force_auth,redirect_uri,response_type,state',
+  );
+
+  await handleOAuthCallbackRequest({ code: 'c', state }, baseConfig, {}, overrides(fetchImpl));
+  const done = (currentStore.alibabaOAuthAttempts ?? [])[0] as CollectionDoc;
+  assert.equal(done.status, 'connected');
+  assert.ok(String(done.callbackReceivedAt) !== '', 'callback boundary timestamped');
+  assert.ok(String(done.exchangeStartedAt) !== '', 'exchange boundary timestamped');
+  assert.ok(String(done.completedAt) !== '', 'completion timestamped');
+});
+
+test('the attempt trail NEVER stores state, code, or token material', async () => {
+  setup();
+  const token = await adminToken();
+  const log: FetchLogEntry[] = [];
+  const fetchImpl = fakeAlibabaFetch(log);
+  const state = await startAndExtractState(token, fetchImpl);
+  await handleOAuthCallbackRequest(
+    { code: 'SECRET-CODE', state },
+    baseConfig,
+    {},
+    overrides(fetchImpl),
+  );
+  const serialized = JSON.stringify(currentStore.alibabaOAuthAttempts ?? []);
+  for (const secret of [state, 'SECRET-CODE', 'live-access-token', 'live-refresh-token']) {
+    assert.ok(!serialized.includes(secret), `attempt row leaked: ${secret.slice(0, 12)}`);
+  }
+});
+
+test('a replayed callback is recorded as rejected_replayed_state, not a silent failure', async () => {
+  setup();
+  const token = await adminToken();
+  const log: FetchLogEntry[] = [];
+  const fetchImpl = fakeAlibabaFetch(log);
+  const state = await startAndExtractState(token, fetchImpl);
+  await handleOAuthCallbackRequest({ code: 'c', state }, baseConfig, {}, overrides(fetchImpl));
+  await handleOAuthCallbackRequest({ code: 'c', state }, baseConfig, {}, overrides(fetchImpl));
+  assert.equal(
+    (currentStore.alibabaOAuthAttempts ?? [])[0]?.status,
+    'rejected_replayed_state',
+    'the second use is attributable, not lost',
+  );
+});
+
+test('an attempt that never gets a callback stays at started — the Alibaba-side signal', async () => {
+  // This is the whole point of the trail: distinguishing "Alibaba never came
+  // back" from "our callback rejected it".
+  setup();
+  const token = await adminToken();
+  await startAndExtractState(token, fakeAlibabaFetch([]));
+  const attempt = (currentStore.alibabaOAuthAttempts ?? [])[0] as CollectionDoc;
+  assert.equal(attempt.status, 'started');
+  assert.equal(attempt.callbackReceivedAt, '', 'no callback was ever received');
+});
+
+test('attempt retention outlives the 10-minute state TTL', async () => {
+  setup();
+  const token = await adminToken();
+  await startAndExtractState(token, fakeAlibabaFetch([]));
+  const attempt = (currentStore.alibabaOAuthAttempts ?? [])[0] as CollectionDoc;
+  const retainedMs = Date.parse(String(attempt.expiresAt)) - Date.parse(NOW);
+  assert.equal(retainedMs, 7 * 24 * 60 * 60_000, 'seven days');
+  assert.ok(retainedMs > 10 * 60_000, 'and far longer than the state TTL');
+});
+
+test('a diagnostics write failure does NOT break authorization', async () => {
+  setup();
+  const token = await adminToken();
+  // Make every attempts write throw; Connect must still hand back a URL.
+  const store = currentStore as Record<string, unknown>;
+  Object.defineProperty(store, 'alibabaOAuthAttempts', {
+    get() {
+      throw new Error('diagnostics backend down');
+    },
+    configurable: true,
+  });
+  const result = await handleAlibabaSyncRequest(
+    { action: 'oauthStart', token },
+    baseConfig,
+    {},
+    overrides(fakeAlibabaFetch([])),
+  );
+  // Restore a plain data property — assigning undefined would hit the throwing
+  // accessor, and the getter must not survive into later tests.
+  Object.defineProperty(store, 'alibabaOAuthAttempts', {
+    value: [],
+    writable: true,
+    configurable: true,
+  });
+  assert.equal(result.ok, true, 'OAuth proceeds even with diagnostics broken');
 });
