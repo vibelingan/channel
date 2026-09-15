@@ -3,7 +3,7 @@
     "cloudbase": {
       "command": "npx",
       "args": ["@cloudbase/cloudbase-mcp@2.34.3"],
-      "description": "CloudBase MCP 2.34.3 for infrastructure inspection only (postgres, vpc, tcbr). Use with: npx mcporter --config config/mcporter.infra.json call cloudbase.callCloudApi ... The CloudBase deploy must stay on config/mcporter.json, which pins the version its gateway calls were reviewed against.",
+      "description": "CloudBase MCP 2.34.3 for infrastructure work: inspection (postgres, vpc, tcbr) and the AI CloudRun deploy (scripts/deploy-ai-cloudrun.mjs), which needs this version to replace a service's settings outright and to attach a VPC when it creates a service. Use with: npx mcporter --config config/mcporter.infra.json call cloudbase.<tool> ... The CloudBase functions and site deploy must stay on config/mcporter.json, which pins the version its gateway calls were reviewed against.",
       "lifecycle": "keep-alive"
     }
   }
