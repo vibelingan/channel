@@ -13,7 +13,12 @@ import {
   type EngineProvenance,
   provenanceFromEnv,
 } from '@vibelingan-channel/ai-engine/capabilities';
-import { AiStore, type EventRow, migrateUp } from '@vibelingan-channel/ai-store';
+import {
+  AiStore,
+  type EventRow,
+  isDatabaseUnavailable,
+  waitForDatabase,
+} from '@vibelingan-channel/ai-store';
 
 export interface AiBffConfig {
   allowedOrigins: ReadonlySet<string>;
@@ -31,7 +36,20 @@ export interface AiBffConfig {
   sseMaxDurationMs: number;
 }
 
-export function createAiBffServer(store: AiStore, config: AiBffConfig): Server {
+export interface AiBffServerOptions {
+  /**
+   * False while startup is still waiting for the database. Until then every
+   * route except liveness answers 503, so a visitor gets "try again shortly"
+   * rather than a failure from a store that has not been migrated yet.
+   */
+  isReady?: () => boolean;
+}
+
+export function createAiBffServer(
+  store: AiStore,
+  config: AiBffConfig,
+  options: AiBffServerOptions = {},
+): Server {
   return createServer(async (request, response) => {
     const requestId = randomUUID();
     try {
@@ -57,12 +75,21 @@ export function createAiBffServer(store: AiStore, config: AiBffConfig): Server {
       // out of rotation instead of routing visitors to it. It returns only safe
       // status — never a host, path or credential.
       if (request.method === 'GET' && url.pathname === '/api/ai/readyz') {
+        if (options.isReady && !options.isReady()) {
+          json(response, 503, { status: 'starting' });
+          return;
+        }
         try {
           const database = await store.health();
           json(response, 200, { status: 'ready', database, service: 'channel-ai-bff' });
         } catch {
           json(response, 503, { status: 'unavailable', database: 'unavailable' });
         }
+        return;
+      }
+
+      if (options.isReady && !options.isReady()) {
+        unavailable(response, requestId);
         return;
       }
 
@@ -165,6 +192,14 @@ export function createAiBffServer(store: AiStore, config: AiBffConfig): Server {
         error(response, 400, 'BAD_REQUEST', 'Invalid JSON body', requestId);
       } else if (message === 'conversation_closed') {
         error(response, 409, 'CONFLICT', 'Conversation is closed', requestId);
+      } else if (isDatabaseUnavailable(caught)) {
+        // An outage, not a bug: say so, and say when to try again.
+        console.error(JSON.stringify({ level: 'error', requestId, code: 'database_unavailable' }));
+        if (!response.headersSent) {
+          unavailable(response, requestId);
+        } else {
+          response.end();
+        }
       } else {
         console.error(JSON.stringify({ level: 'error', requestId, code: 'request_failed' }));
         if (!response.headersSent) {
@@ -175,6 +210,12 @@ export function createAiBffServer(store: AiStore, config: AiBffConfig): Server {
       }
     }
   });
+}
+
+/** "Try again shortly": the database is out, or startup has not reached it yet. */
+function unavailable(response: ServerResponse, requestId: string): void {
+  response.setHeader('Retry-After', '5');
+  error(response, 503, 'UNAVAILABLE', 'The assistant is temporarily unavailable', requestId);
 }
 
 function applyCors(
@@ -403,17 +444,37 @@ function numberEnv(name: string, fallback: number): number {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error('DATABASE_URL is required');
+  const config = configFromEnvironment();
   const store = new AiStore(databaseUrl);
-  await migrateUp(store.pool);
-  await store.health();
-  const server = createAiBffServer(store, configFromEnvironment());
+  // Listen before waiting on the database. The platform then sees a live
+  // process that is not ready yet, and visitors get "try again shortly"
+  // instead of a refused connection, for as long as the outage lasts.
+  let ready = false;
+  const stopping = new AbortController();
+  const server = createAiBffServer(store, config, { isReady: () => ready });
   const port = numberEnv('PORT', 8080);
   server.listen(port, '0.0.0.0', () => {
     console.log(JSON.stringify({ level: 'info', event: 'listening', port }));
   });
   const shutdown = (): void => {
+    stopping.abort();
     server.close(() => void store.close());
   };
   process.once('SIGTERM', shutdown);
   process.once('SIGINT', shutdown);
+  try {
+    await waitForDatabase(store, {
+      signal: stopping.signal,
+      onRetry: (attempt, error) => {
+        const code = error instanceof Error && 'code' in error ? String(error.code) : null;
+        console.error(
+          JSON.stringify({ level: 'error', event: 'database_unavailable', attempt, code }),
+        );
+      },
+    });
+    ready = true;
+    console.log(JSON.stringify({ level: 'info', event: 'ready' }));
+  } catch (error) {
+    if (!stopping.signal.aborted) throw error;
+  }
 }

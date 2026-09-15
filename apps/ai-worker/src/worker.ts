@@ -18,7 +18,8 @@ import {
   AiStore,
   type OutboxItem,
   type RunExecutionContext,
-  migrateUp,
+  isDatabaseUnavailable,
+  waitForDatabase,
 } from '@vibelingan-channel/ai-store';
 
 export interface WorkerConfig {
@@ -480,7 +481,16 @@ async function cancelRun(
   });
 }
 
-export function createWorkerHealthServer(store: AiStore, engine: ConversationEngine): Server {
+export interface WorkerHealthServerOptions {
+  /** False until startup has reached the knowledge base and the database. */
+  isStarted?: () => boolean;
+}
+
+export function createWorkerHealthServer(
+  store: AiStore,
+  engine: ConversationEngine,
+  options: WorkerHealthServerOptions = {},
+): Server {
   return createServer(async (request, response) => {
     if (request.method !== 'GET') {
       response.writeHead(404).end();
@@ -498,6 +508,14 @@ export function createWorkerHealthServer(store: AiStore, engine: ConversationEng
 
     if (request.url !== '/readyz') {
       response.writeHead(404).end();
+      return;
+    }
+
+    // Still starting: the process is alive and waiting out an outage, but it
+    // has not reached the knowledge base and the database yet.
+    if (options.isStarted && !options.isStarted()) {
+      response.writeHead(503, { 'content-type': 'application/json; charset=utf-8' });
+      response.end(JSON.stringify({ status: 'starting' }));
       return;
     }
 
@@ -549,6 +567,94 @@ async function delay(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * How old knowledge-base evidence may be when the worker starts. Every deploy
+ * records fresh evidence; 30 days covers a restart long after the last one.
+ */
+export const KB_EVIDENCE_MAX_AGE_MS_DEFAULT = 30 * 24 * 60 * 60 * 1000;
+
+const MAX_BACKOFF_MS = 30_000;
+
+/**
+ * Whether a startup failure is an outage worth waiting out rather than a
+ * mistake. The database or the knowledge base being briefly unreachable passes
+ * on its own; stale evidence, a wrong key or an enabled agent surface does not.
+ */
+export function isRetryableStartupError(error: unknown): boolean {
+  if (isDatabaseUnavailable(error)) return true;
+  if (error instanceof EngineError) {
+    return (
+      error.category === 'transient' ||
+      error.category === 'timeout' ||
+      error.category === 'unavailable'
+    );
+  }
+  return error instanceof TypeError && /fetch failed/i.test(error.message);
+}
+
+function logFailure(event: string, error: unknown, extra: Record<string, unknown> = {}): void {
+  let code: string | null = null;
+  if (error instanceof EngineError) code = error.category;
+  else if (error instanceof Error && 'code' in error && typeof error.code === 'string') {
+    code = error.code;
+  }
+  console.error(JSON.stringify({ level: 'error', event, code, ...extra }));
+}
+
+/** Run one startup step until it succeeds, waiting out outages and stopping on mistakes. */
+async function retryStartupStep(
+  event: string,
+  step: () => Promise<void>,
+  shouldStop: () => boolean,
+): Promise<void> {
+  for (let attempt = 1; !shouldStop(); attempt += 1) {
+    try {
+      await step();
+      return;
+    } catch (error) {
+      if (!isRetryableStartupError(error)) throw error;
+      logFailure(event, error, { attempt });
+      await delay(Math.min(MAX_BACKOFF_MS, 1_000 * 2 ** Math.min(attempt - 1, 5)));
+    }
+  }
+}
+
+export interface WorkerLoopOptions {
+  step: () => Promise<'idle' | 'processed' | 'retried' | 'dead_letter'>;
+  pollMs: number;
+  shouldStop: () => boolean;
+  sleep?: (ms: number) => Promise<void>;
+  onError?: (error: unknown, databaseUnavailable: boolean) => void;
+}
+
+/**
+ * The worker's main loop. A failed iteration is logged and retried after a
+ * growing pause instead of ending the process: while the database is out every
+ * iteration fails the same way, and exiting would only have CloudRun restart
+ * the worker into the same outage.
+ */
+export async function runWorkerLoop(options: WorkerLoopOptions): Promise<void> {
+  const sleep = options.sleep ?? delay;
+  const onError =
+    options.onError ??
+    ((error: unknown, databaseUnavailable: boolean) =>
+      logFailure('worker_iteration_failed', error, { databaseUnavailable }));
+  let consecutiveFailures = 0;
+  while (!options.shouldStop()) {
+    try {
+      const disposition = await options.step();
+      consecutiveFailures = 0;
+      if (disposition === 'idle') await sleep(options.pollMs);
+    } catch (error) {
+      consecutiveFailures += 1;
+      onError(error, isDatabaseUnavailable(error));
+      await sleep(
+        Math.min(MAX_BACKOFF_MS, options.pollMs * 2 ** Math.min(consecutiveFailures, 10)),
+      );
+    }
+  }
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error('DATABASE_URL is required');
@@ -593,7 +699,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       );
     }
     await verifyKnowledgeAttestation(engine, evidence, {
-      maxAgeMs: envNumber('AI_KB_EVIDENCE_MAX_AGE_MS', 7 * 24 * 60 * 60 * 1000),
+      maxAgeMs: envNumber('AI_KB_EVIDENCE_MAX_AGE_MS', KB_EVIDENCE_MAX_AGE_MS_DEFAULT),
       expectedCredentialId: requiredEnv('AI_KNOWLEDGE_CREDENTIAL_ID'),
       expectedWorkspaceId: requiredEnv('ANYTHINGLLM_WORKSPACE_ID'),
       expectedCorpusGeneration: requiredEnv('AI_CORPUS_GENERATION'),
@@ -602,11 +708,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     if (!(engine instanceof AnythingLlmEngine)) {
       throw new Error('AnythingLLM engine construction mismatch');
     }
-    await assertNoToolSurface(() => engine.inspectToolSurface());
   }
-  const store = new AiStore(databaseUrl);
-  await migrateUp(store.pool);
-  await store.health();
   const config = validateWorkerConfig({
     pollMs: envNumber('AI_WORKER_POLL_MS', 250),
     leaseSeconds: envNumber('AI_WORKER_LEASE_SECONDS', 90),
@@ -622,18 +724,65 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     approvedSourcePrefix: process.env.AI_APPROVED_SOURCE_PREFIX ?? 'channelkb',
     citationSiteOrigin: process.env.AI_SITE_ORIGIN ?? 'http://localhost:4321',
   });
-  const healthServer = createWorkerHealthServer(store, engine);
-  healthServer.listen(envNumber('PORT', 8080), '0.0.0.0');
+  const store = new AiStore(databaseUrl);
+
+  // Answer health checks before anything that can wait on an outage, so the
+  // platform sees a live process that is not ready yet, not a container that
+  // never opened its port.
+  let started = false;
   let shuttingDown = false;
+  const stopping = new AbortController();
+  const healthServer = createWorkerHealthServer(store, engine, { isStarted: () => started });
+  healthServer.listen(envNumber('PORT', 8080), '0.0.0.0');
   const shutdown = (): void => {
     shuttingDown = true;
+    stopping.abort();
     healthServer.close(() => void store.close());
   };
   process.once('SIGTERM', shutdown);
   process.once('SIGINT', shutdown);
-  while (!shuttingDown) {
-    const disposition = await processOne(store, engine, config);
-    if (disposition === 'idle') await delay(config.pollMs);
+
+  if (engine instanceof AnythingLlmEngine) {
+    await retryStartupStep(
+      'knowledge_base_unreachable',
+      async () => {
+        const surface = await engine.inspectToolSurface();
+        if (!surface.known) {
+          // A rejected key is a mistake to stop on; a timeout or a server error
+          // is an outage to wait out.
+          if (/status 40[13]/.test(surface.detail)) {
+            throw new Error(
+              `refusing to serve; the knowledge base rejected the key (${surface.detail})`,
+            );
+          }
+          throw new EngineError('unavailable', { safeDetail: surface.detail });
+        }
+        // An enabled agent surface is a mistake, and this throws for it.
+        await assertNoToolSurface(async () => surface);
+      },
+      () => shuttingDown,
+    );
+  }
+
+  let databaseReady = false;
+  try {
+    await waitForDatabase(store, {
+      signal: stopping.signal,
+      onRetry: (attempt, error) => logFailure('database_unavailable', error, { attempt }),
+    });
+    databaseReady = true;
+  } catch (error) {
+    if (!shuttingDown) throw error;
+  }
+
+  if (databaseReady) {
+    started = true;
+    console.log(JSON.stringify({ level: 'info', event: 'worker_started' }));
+    await runWorkerLoop({
+      step: () => processOne(store, engine, config),
+      pollMs: config.pollMs,
+      shouldStop: () => shuttingDown,
+    });
   }
 }
 
