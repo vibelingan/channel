@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening Handoff
 
-Status: 49-MIU packet; MIUs 01-16 released; MIU 17 active; MIU 18 planned; implementation continues; verify live local/remote equality before declaring publication.
+Status: 49-MIU packet; MIUs 01-17 released; no active exact reservations; MIUs 18-19 planned; implementation continues; verify final closure publication with live Git refs.
 Branch: `refactor/catalog-architecture-hardening`
 Planning packet SHA: `bc1e69e25e9e8d453584be0fde9279f7bdf0c006`.
 
@@ -20,13 +20,17 @@ git status --short
 git rev-parse HEAD origin/refactor/catalog-architecture-hardening
 ```
 
-Expected branch: `refactor/catalog-architecture-hardening`. MIU 17 is active with three source owners.
+Expected branch: `refactor/catalog-architecture-hardening`. MIU 17 is RELEASED; no active exact reservations remain.
 Parent execution-subagent observed full local PASS: all workspace tests (site 258/258), workspace/E2E typechecks,
 Astro 0 errors/0 warnings/7 existing hints, build 15 pages, Biome 359 files; not independently rerun by this doc-writer.
 Later test-only `facts()` assertion after `localized.detail` mutation: focused 7/7, test types, scoped Biome PASS; production unchanged.
-Independent reviews: 0 P1/P2; one P3 coverage gap fixed; doc freshness corrected here. Craft: 14 existing/0 new/0 execution errors.
+Final independent review at `134e62d`: 0 P1/P2/P3 after the P3 coverage gap and doc freshness were resolved. Craft: 14 existing/0 new/0 execution errors, not a clean total.
 Implementation checkpoint: `d54fc71641022df167f71a70bfcf07887ecacaa6`. The complete site suite passed again after the review correction (258/258), followed by repository-wide Biome.
-See [EXECUTION.md](EXECUTION.md#miu-17-implementation-record). MIU 17 stays active until source publication is verified.
+Historical source checkpoint `134e62d0b6a371e663f8c0ca9ebe5162a065c448` was pushed feature-only and verified; release recorded here.
+Push-hook craft/review/doc guards passed; pre-push scripts were 92/93 solely on `local-only-completion`, then post-push canonical architecture reported 0 issues and scripts passed 93/93.
+The generic pipeline validator's three baseline issues remain non-green; see [EXECUTION.md](EXECUTION.md#miu-17-validation-deviation).
+Use live `git rev-parse HEAD` and `origin/refactor/catalog-architecture-hardening` to verify final closure publication before continuing.
+See [EXECUTION.md](EXECUTION.md#miu-17-implementation-record) for source history and review dispositions.
 Only local work and feature-source pushes are authorized; no new browser E2E, route integration, `test`/`main` merge, workflow dispatch, or deployment occurred.
 
 ### HISTORICAL: MIU 16 Release Snapshot
@@ -101,8 +105,8 @@ MIU 16. Do not reset, rebase, cherry-pick, or create another branch to manufactu
 	the existing retired media allowlist. Route smoke enumerates each status; no blanket delete is allowed.
 - MIU 16 is RELEASED after source publication and verification, activated at `8ff32fb`, with three released owners:
 	`apps/site/src/catalog/families/headphones.ts`, `apps/site/src/catalog/families/headphones.test.ts`,
-	and `apps/site/src/i18n/headphones.ts`. MIUs 01-16 are released; MIU 17 is active with three exact owners;
-	MIU 18 is planned. Later MIUs retain their lifecycle states and exact owner files, with
+	and `apps/site/src/i18n/headphones.ts`. MIUs 01-17 are released; no active exact reservations remain;
+	MIUs 18-19 are planned. Later MIUs retain their lifecycle states and exact owner files, with
 	references/transfers for sequential reuse. Release transition `801d871` and handoff snapshot `48405b2`
 	are historical; verify live local/remote equality before declaring publication.
 	No deployment or `test`/`main` merge is authorized. MIU 20 registration and MIU 22 route/controller
@@ -131,5 +135,6 @@ status may point to `HEAD`.
 
 MIU 16 source publication was completed and verified at historical checkpoint `2eef322`.
 Release transition `801d871` and handoff snapshot `48405b2` are historical records, not current Git claims.
-The task remains in implementation; this MIU's release is not delivery of the entire 49-MIU task.
-Verify live local/remote equality before declaring publication, with evidence external to the closure commit.
+MIU 17 source publication was completed and verified at historical checkpoint `134e62d`; release recorded here.
+The task remains in implementation; these releases are not delivery of the entire 49-MIU task.
+Verify final closure publication by live local/remote equality, with evidence external to the closure commit.

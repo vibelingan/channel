@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening
 
-Status: MIUs 01-16 released; MIU 17 active; MIU 18 planned; implementation continues; verify live local/remote equality before declaring publication.
+Status: MIUs 01-17 released; no active exact reservations; MIUs 18-19 planned; implementation continues; verify final closure publication with live Git refs.
 
 ## Decision
 
@@ -110,7 +110,7 @@ Intentional follow-up for MIU 20 registry and MIU 22 composition: display labels
 The released adapter tests do not establish browser or production-build behavior for that future
 default-loader route path; see `EXECUTION.md` and `SDK-PROBE.md` for the narrower evidence.
 
-MIU 17 adds default `aiGadgetsAdapter` and
+MIU 17's released implementation adds default `aiGadgetsAdapter` and
 `createAiGadgetsAdapter(content: CatalogAdapterContent, family: CatalogFamilyContent)`;
 `family.key !== 'ai-gadgets'` throws `TypeError`. Labels combine unprefixed list copy, seven route fields
 (`label`, `href`, `eyebrow`, `heading`, `description`, `seoTitle`, `seoDescription`), and `detail.*`.
@@ -154,7 +154,11 @@ for full retirement: `CatalogFamilyGrid`, `HeadphonesProductCard`, `HeadphonesPr
 
 ## Reservation And Deployment Control
 
-MIUs 01-16 are released; MIU 17 is active with three exact source owners; MIU 18 is planned.
+MIUs 01-17 are released; no active exact reservations remain; MIUs 18-19 are planned.
+MIU 17 historical source checkpoint `134e62d0b6a371e663f8c0ca9ebe5162a065c448` was pushed feature-only and verified; release recorded here.
+Use live `git rev-parse HEAD` and `origin/refactor/catalog-architecture-hardening` to verify final closure publication before continuing.
+Post-push canonical architecture: 0 issues; scripts: 93/93. The generic pipeline validator's three baseline issues remain non-green; see [EXECUTION.md](EXECUTION.md#miu-17-validation-deviation).
+
 HISTORICAL MIU 16 activated at `8ff32fb`, implemented at `d7fd55f8dc13ffdd0966176f4985468624fb1ae7`, and published its
 historical reviewed ACTIVE source checkpoint `2eef3220a79cb53da764ccba11ee2b0e23854d1e` on the origin
 feature branch; that source publication was verified.

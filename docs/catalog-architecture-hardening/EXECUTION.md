@@ -1,18 +1,19 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-16 released; MIU 17 active with a full local PASS checkpoint; MIU 18 planned.
+Status: MIUs 01-17 released; no active exact reservations; MIUs 18-19 planned; implementation continues.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implement`.
 
-**Current/next MIU:** MIU 17 active; MIUs 18-19 remain planned.
+**Current/next MIU:** none active; MIU 18 next/planned; MIU 19 planned.
 
 ## MIU 17 Implementation Record
 
-Evidence: parent execution-subagent observed the validation below; independent reviewers supplied review evidence. This doc-writer ran no commands/tests and did not independently rerun checks.
+Evidence: parent supplied validation and verified feature-source publication; independent reviewers supplied review evidence. This doc-writer ran no commands/tests and did not independently rerun checks.
 - Historical pre-activation baseline `fad653964f71ee5d1c0a5671496be1c253b17fc8` was reported clean and equal to the feature remote.
 - Activation/red `f819b183f06e2a602e37e15261612c5f0998b6e5` was committed BEFORE implementation:
   six behavioral failures, one dependency PASS, and test typecheck PASS on the unimplemented factory/default instance.
 - Implementation checkpoint: `d54fc71641022df167f71a70bfcf07887ecacaa6`, limited to the three source owners.
+- Documentation checkpoint: `f39e75f`; correction and final reviewed source packet: `134e62d0b6a371e663f8c0ca9ebe5162a065c448`.
 - Exact owners: `apps/site/src/catalog/families/ai-gadgets.ts`, `apps/site/src/catalog/families/ai-gadgets.test.ts`, and `apps/site/src/i18n/catalog.ts`.
 
 **What / Why:** Add named-exported default instance `aiGadgetsAdapter`, `createAiGadgetsAdapter(content: CatalogAdapterContent, family: CatalogFamilyContent)`,
@@ -25,11 +26,18 @@ Astro 0 errors, 0 warnings, 7 existing hints; production build 15 pages; reposit
 **Later test-only correction:** Assert `facts()` AFTER mutating `localized.detail`, closing the P3 coverage gap left by pre-mutation assertions.
 Focused 7/7, test typecheck, and scoped Biome PASS afterward; production code unchanged.
 The full site suite was then rerun before the implementation commit: 258/258, with repository-wide Biome clean.
-**Review / Craft:** Independent assumption, deep TypeScript, test, and cross-file reviews: 0 P1/P2; the one P3 coverage gap is now fixed.
-Documentation freshness is corrected here. Craft: 14 existing findings, 0 new findings, 0 execution errors; not a clean total.
-**Result:** MIU 17 remains ACTIVE; MIUs 18-19 planned. No release until reviewed source publication is verified.
+**Review disposition:** Final independent review at `134e62d0b6a371e663f8c0ca9ebe5162a065c448`: 0 P1/P2/P3.
+- P3 coverage: earlier assertions ran before `localized.detail` mutation and did not prove isolation afterward; the added post-mutation `facts()` assertion closes that gap. Focused 7/7, test types, site 258/258, and Biome passed afterward.
+- Documentation freshness: stale validation/review statements were corrected in the reviewed source packet at `134e62d`; this resolves the documentation finding without changing production code.
+
+**Craft:** 14 existing findings, 0 new findings, 0 execution errors; not a clean total.
+**Publication:** Historical source checkpoint `134e62d0b6a371e663f8c0ca9ebe5162a065c448` was pushed feature-only to
+`origin/refactor/catalog-architecture-hardening` and verified; release recorded here. Push-hook craft, review, and doc guards passed.
+Pre-push scripts were 92/93 solely because of `local-only-completion`, not green; after source push, canonical architecture reported 0 issues and scripts passed 93/93.
+**Result:** MIU 17 RELEASED; MIUs 01-17 released; no active exact reservations; MIUs 18-19 planned.
 Only local work and feature-source pushes are authorized; no new browser E2E, route integration, `test`/`main` merge, workflow dispatch, or deployment occurred.
-E2E TypeScript and the build do not prove route/browser integration. Verify live local/remote equality before declaring publication.
+E2E TypeScript and the build do not prove route/browser integration.
+Use live `git rev-parse HEAD` and `origin/refactor/catalog-architecture-hardening` to verify final closure publication before continuing.
 **Engineering rationale:** Narrow content inputs and explicit family rejection prevent stale categories from introducing Headphones policy;
 no React, fetching, pricing, MOQ, media, or family inference. MIU 20 registry and MIU 22 controller remain future consumers.
 **Deviations:** The existing generic-validator limitation below remains non-green; released history is not rewritten.
@@ -64,7 +72,8 @@ are parser errors caused by treating `Reservation state` prose as `Depends on` c
 The actual MIU04 dependencies are 02/03 and MIU06 depends on 02. Do not count this generic check as
 green or rewrite released history. For this bounded continuation, the repository's canonical
 architecture verifier validates the full 49-MIU manifest, real dependency graph and exact ownership;
-it passed before implementation. MIU17 retains exactly three files and depends only on released MIU15.
+it passed before implementation and reported 0 issues after source publication at `134e62d`.
+MIU17 retains exactly three files and depends only on released MIU15.
 Initial execution-helper path typos were recovered through explicit absolute paths, not code changes.
 
 ## Git Truth
@@ -134,6 +143,10 @@ Initial execution-helper path typos were recovered through explicit absolute pat
   `48405b23bcb43d9207e8b2a856768da45704719f` followed, then a handoff correction.
   At that historical observation, the remote branch was at the historical reviewed source
   checkpoint `2eef3220a79cb53da764ccba11ee2b0e23854d1e`; this is not closure-publication evidence.
+- MIU 17 activation/red `f819b183f06e2a602e37e15261612c5f0998b6e5`, implementation
+  `d54fc71641022df167f71a70bfcf07887ecacaa6`, documentation `f39e75f`, and correction/reviewed source
+  checkpoint `134e62d0b6a371e663f8c0ca9ebe5162a065c448` form the published source history.
+  That historical source checkpoint was pushed feature-only and verified; MIU 17 release is recorded here.
 - Verify live local/remote equality before declaring publication, with evidence external to the closure commit;
   historical handoff snapshots do not establish it.
 - Source publication is not runtime deployment. No merge into `test` or `main`, CloudBase operation,
@@ -146,10 +159,10 @@ Initial execution-helper path typos were recovered through explicit absolute pat
 
 The tracked files in this directory are authoritative. Local `.claude` state is a disposable pointer.
 `TASK_REGISTRY.json` is a claim manifest, but live Git refs, worktrees, and remote refs are validated
-rather than trusted from JSON strings. MIUs 01-16 are released; MIU 17 is active with three exact owners.
+rather than trusted from JSON strings. MIUs 01-17 are released; no active exact reservations remain.
 MIU 16's released owners are
 `apps/site/src/catalog/families/headphones.ts`, `apps/site/src/catalog/families/headphones.test.ts`,
-and `apps/site/src/i18n/headphones.ts`. MIU 18 is planned; later plans remain `planned|blocked`
+and `apps/site/src/i18n/headphones.ts`. MIUs 18-19 are planned; later plans remain `planned|blocked`
 claims. The denominator remains 49 MIUs; D1 and D2 are unchanged. Activation is one MIU at a time.
 
 ## MIU 16 Release Validation
@@ -542,4 +555,5 @@ rejected because distinct categories could collapse. The intended display-label 
 future composition, not current route wiring.
 
 MIU 17 validation deviation: [generic-validator limitation](#miu-17-validation-deviation) remains non-green;
-the repository verifier passed before implementation. Historical exceptions and future gates are unchanged.
+the canonical repository verifier passed before implementation and reported 0 issues after source push at `134e62d`.
+Historical exceptions, the 49-MIU denominator, and D1/D2 gates are unchanged.

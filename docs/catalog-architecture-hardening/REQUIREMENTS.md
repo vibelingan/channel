@@ -1,8 +1,12 @@
 # Catalog Architecture Hardening Requirements
 
-Status: approved architecture baseline; MIUs 01-16 released; MIU 17 active; MIU 18 planned; implementation continues; verify live local/remote equality before declaring publication.
+Status: approved architecture baseline; MIUs 01-17 released; no active exact reservations; MIUs 18-19 planned; implementation continues; verify final closure publication with live Git refs.
 Branch: `refactor/catalog-architecture-hardening`
 Base: `origin/main` at `9ddda85593517bc9d1d2bea81c4862ce492b144f`.
+
+MIU 17 historical source checkpoint `134e62d0b6a371e663f8c0ca9ebe5162a065c448` was pushed feature-only and verified; release recorded here.
+Use live `git rev-parse HEAD` and `origin/refactor/catalog-architecture-hardening` to verify final closure publication before continuing.
+Review dispositions and post-push checks are recorded in [EXECUTION.md](EXECUTION.md#miu-17-implementation-record).
 
 The denominator remains 49 MIUs; D1 and D2 are unchanged. HISTORICAL MIU 16 reviewed source checkpoint
 `2eef3220a79cb53da764ccba11ee2b0e23854d1e` was pushed and verified. The registry release transition was

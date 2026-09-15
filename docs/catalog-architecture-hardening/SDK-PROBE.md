@@ -1,6 +1,8 @@
 # MIU 16 SDK Probe
 
-Status: full local validation PASS; MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive; implementation continues; MIU 16 source published and verified; closure publication requires live Git equality verification.
+Status: MIUs 01-17 released; no active exact reservations; MIUs 18-19 planned; implementation continues; verify final closure publication with live Git refs.
+
+**HISTORICAL MIU 16 snapshot (through Evidence Limits):** full local validation PASS; MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive; MIU 16 source published and verified.
 Recorded: 2026-09-07.
 Scope: Astro/Vite test loading for the Headphones adapter; no route, environment, or business SDK change.
 
@@ -76,7 +78,7 @@ source checkpoint `2eef3220a79cb53da764ccba11ee2b0e23854d1e` were pushed to
 Pre-push scripts were 92/93 solely because of `local-only-completion`, not fully green; post-push
 architecture verification reported 0 issues and scripts passed 93/93. MIU 16 is RELEASED after these checks.
 The registry release transition was recorded by `801d8712e3abb9a0fe05adcd31328eb37523b054`; handoff
-document snapshot `48405b23bcb43d9207e8b2a856768da45704719f` followed, then this correction.
+document snapshot `48405b23bcb43d9207e8b2a856768da45704719f` followed, then a historical handoff correction.
 
 ## Evidence Limits
 
@@ -86,16 +88,16 @@ harness and successful 15-page production build do not establish default-adapter
 production-build integration: adapters are not wired into routes yet. MIU 20 registration and MIU 22
 composition remain future work; no user-visible route/controller behavior change is delivered here.
 Source publication was completed and verified at historical checkpoint `2eef322`; release transition
-`801d871` and handoff snapshot `48405b2` were recorded before this correction; they do not prove its publication.
-Use `git rev-parse HEAD` and live `origin/refactor/catalog-architecture-hardening` to confirm closure publication before continuing.
-Require local/remote equality evidence; no publication of this correction is claimed. MIUs 01-16 are
-released; no active exact reservations remain; MIU 17 is planned/inactive; the task remains in implementation.
+`801d871` and handoff snapshot `48405b2` preceded a historical handoff correction; these snapshots do not establish final closure publication.
+Use live `git rev-parse HEAD` and `origin/refactor/catalog-architecture-hardening` to verify final closure publication before continuing.
+HISTORICAL MIU 16 lifecycle: MIUs 01-16 were released; no active exact reservations remained;
+MIU 17 was planned/inactive; the task remained in implementation.
 No merge into `test` or `main`, CloudBase operation, workflow dispatch, or browser E2E occurred for MIU 16. The denominator
 remains 49; D1 and D2 are unchanged.
 
 ## MIU 17 Addendum
 
-The preceding MIU-16 record is historical. MIU 17 is ACTIVE; full local PASS is recorded in [EXECUTION.md](EXECUTION.md#miu-17-implementation-record), not independently rerun by this doc-writer.
+The preceding MIU-16 record is historical. MIU 17 is RELEASED; full local PASS and supplied publication evidence are recorded in [EXECUTION.md](EXECUTION.md#miu-17-implementation-record), not independently rerun by this doc-writer.
 Installed Astro **6.4.6** and Vite **7.3.5** contracts were confirmed by the independent read-only cross-file reviewer:
 - `apps/site/node_modules/astro/dist/config/index.d.ts:13`; implementation `apps/site/node_modules/astro/dist/config/index.js:24/36/41` (`getViteConfig`).
 - `apps/site/node_modules/vite/dist/node/index.d.ts`: `createServer` 2607, `ssrLoadModule` 2553, `close` 2576;
@@ -109,4 +111,8 @@ the adapter guard checks object shape without executing callbacks. Focused behav
 shared `rootProductFamily` and the `canonicalPublicProduct` family union both use unchanged `PRODUCT_FAMILY_OPTIONS`.
 MIUs 18/19 shared content, 20 registry, and 22 controller remain future consumers. No new browser E2E, route integration, merge into `test`/`main`, or deployment is established.
 Implementation checkpoint: `d54fc71641022df167f71a70bfcf07887ecacaa6`; the complete site suite passed again after the test-only review correction (258/258), followed by repository-wide Biome.
-MIU 17 cannot release before verified source publication. The generic-validator deviation remains non-green; 49 MIUs and D1/D2 are unchanged.
+Final review at `134e62d` found 0 P1/P2/P3 after post-mutation `facts()` coverage and documentation freshness were resolved; focused 7/7 and test types passed.
+Historical source checkpoint `134e62d0b6a371e663f8c0ca9ebe5162a065c448` was pushed feature-only and verified; release recorded here.
+Push-hook craft/review/doc guards passed. Pre-push scripts were 92/93 solely on `local-only-completion`, not green; post-push canonical architecture reported 0 issues and scripts passed 93/93.
+Use live `git rev-parse HEAD` and `origin/refactor/catalog-architecture-hardening` to verify final closure publication before continuing.
+The generic pipeline validator's three baseline issues remain non-green; 49 MIUs and D1/D2 are unchanged. MIUs 18-19 remain planned; registry MIU 20 and controller MIU 22 remain future work.
