@@ -65,7 +65,10 @@ if (messageResponse.status !== 202) {
 }
 
 const streamController = new AbortController();
-const streamTimer = setTimeout(() => streamController.abort(), 20_000);
+// A deployed answer can take up to the worker's stream limit to arrive, so the
+// deploy waits longer than the local default.
+const streamTimeoutMs = Number(process.env.AI_SMOKE_STREAM_TIMEOUT_MS ?? 20_000);
+const streamTimer = setTimeout(() => streamController.abort(), streamTimeoutMs);
 try {
   const streamResponse = await fetch(
     `${baseUrl}/api/ai/conversations/${conversation.conversationId}/events`,

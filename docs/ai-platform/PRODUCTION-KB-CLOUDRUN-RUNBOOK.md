@@ -360,3 +360,68 @@ Before any cloud write:
    behavior; then release the temporary instance if the approved window ends.
 
 No cloud resource was created, purchased, updated or deleted during this pass.
+
+## Deploying ai-bff and ai-worker to CloudRun
+
+Added 2026-09-15. `.github/workflows/deploy-ai-cloudrun.yml` deploys both
+services from one commit and then asks them a real question.
+
+### What a deploy does
+
+1. Tests the commit first, in a separate job with no access to secrets: lint,
+   typecheck, the full test suite, and the AI tests against a throwaway
+   PostgreSQL. The deploy job starts only if that job passes, so a tagged commit
+   with a failing test is never deployed.
+2. Probes the knowledge base with the production key and records a proof
+   (`scripts/probe-anythingllm.mjs`). The worker refuses to start without a
+   proof that matches its settings, and accepts one for 30 days, so every
+   deploy records a fresh one.
+3. Uploads a clean copy of the commit for each service: tracked files only,
+   minus the site media and docs that `.dockerignore` already keeps out of the
+   image. CloudRun builds each image from the service's Dockerfile; no image is
+   built or stored anywhere else.
+4. Creates or updates both services with every setting replaced, both inside
+   the database VPC, the BFF public and the worker reachable only inside the VPC.
+5. Reads each service's configuration back and compares it with the manifest.
+6. Waits for the BFF to report ready, which means it reached PostgreSQL, then
+   sends one question through the BFF and waits for the answer. The answer only
+   arrives once the worker has reached both PostgreSQL and the knowledge base.
+
+### Starting a deploy
+
+Push a tag named `ai-cloudrun-deploy-<anything>` on the commit to deploy:
+
+```bash
+git tag ai-cloudrun-deploy-20260915-1 <commit>
+git push origin ai-cloudrun-deploy-20260915-1
+```
+
+The `test` environment hands its secrets only to the branches and tags it
+allows, so it needs a deployment rule for the tag pattern `ai-cloudrun-deploy-*`
+(Settings → Environments → test → Deployment branches and tags). Once the
+workflow is on `main` it can also be started from the Actions tab, on any branch
+or tag that the `test` environment allows.
+
+### Settings it reads from the `test` environment
+
+- Secrets: `TENCENTCLOUD_SECRETID`, `TENCENTCLOUD_SECRETKEY`, `DATABASE_URL`,
+  `KB_API_KEY`, `AI_IP_HASH_SECRET`.
+- Variables: `TCB_ENV_ID`, `APP_ENV`, `AI_VPC_ID`, `AI_CLOUDRUN_SUBNET_ID`,
+  `CORS_ALLOWED_ORIGINS`, `AI_SITE_ORIGIN`, `AI_TRUST_PROXY`, `AI_ENGINE_ID`,
+  `AI_ENGINE_VERSION`, `AI_ENGINE_PROVENANCE_KIND` with the fields of that kind,
+  `AI_PROFILE_ID`, `AI_WORKER_LEASE_SECONDS`, `AI_MAX_STREAM_DURATION_MS`,
+  `AI_MAX_OUTPUT_TOKENS`, `AI_MAX_TOOL_CALLS`, `AI_APPROVED_SOURCE_PREFIX`,
+  `AI_CORPUS_GENERATION`, `AI_KNOWLEDGE_CREDENTIAL_ID`, and the `KB_*` settings.
+
+`scripts/deploy-ai-cloudrun-workflow.test.mjs` fails if the manifest needs a
+setting that the workflow does not pass.
+
+### Two things to know
+
+- **Redeploy at least every 30 days.** A running worker keeps working, but a
+  worker instance that starts more than 30 days after the last deploy (after a
+  restart or a scale-out) finds its proof too old and refuses to start.
+- **The worker reaches the knowledge base through CloudRun's default internet
+  exit.** The VPC has no NAT gateway. If internet access is switched off in the
+  worker's network settings, the worker logs `knowledge_base_unreachable` and
+  keeps retrying until a NAT gateway is added.
