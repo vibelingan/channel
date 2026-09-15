@@ -89,11 +89,12 @@ test('network repair tags update existing services without staging or uploading 
   const repair = script
     .split("if (env.AI_CLOUDRUN_NETWORK_ONLY === '1') {")[1]
     ?.split('} else {')[0];
-  assert.ok(repair?.includes('cloudRunNetworkUpdateArgs(def)'));
+  assert.ok(repair?.includes("callTool('callCloudApi', cloudRunNetworkApiArgs(def, ctx.envId)"));
   assert.ok(repair?.includes('network-only mode requires an existing deployment'));
   assert.ok(repair?.includes('await waitForNetworkUpdates(deployments)'));
   assert.ok(!repair?.includes('stageService('));
   assert.ok(!repair?.includes('cloudRunDeployArgs('));
+  assert.ok(!repair?.includes("callTool('manageCloudRun'"));
 });
 
 /**

@@ -118,6 +118,25 @@ export function cloudRunNetworkUpdateArgs(def) {
   };
 }
 
+/** MCP 2.34.3 manageCloudRun strips CIDRs; raw API params preserve the full binding. */
+export function cloudRunNetworkApiArgs(def, envId) {
+  if (!envId?.trim()) throw new Error('A CloudBase environment is required for the network update');
+  const config = cloudRunNetworkUpdateArgs(def).serverConfig;
+  return {
+    service: 'tcbr',
+    action: 'SubmitServerConfigChangeDiff',
+    version: '2022-02-17',
+    params: {
+      EnvId: envId,
+      ServerName: def.name,
+      Items: [
+        { Key: 'InternalAccess', Value: config.InternalAccess },
+        { Key: 'VpcConf', VpcConf: config.VpcConf },
+      ],
+    },
+  };
+}
+
 /** Arguments for CloudBase MCP `manageCloudRun` to deploy one manifest service. */
 export function cloudRunDeployArgs(def, targetPath) {
   if (!isAbsolute(targetPath)) {
@@ -209,7 +228,7 @@ function envParamKeys(raw) {
  * `queryCloudRun detail` rather than assumed from what the deploy was sent.
  * Setting values come back masked, so settings are compared by name.
  */
-export function deployedConfigProblems(def, config) {
+export function networkBindingProblems(def, config) {
   const problems = [];
   if (config?.InternalAccess !== 'open') {
     problems.push(`${def.name} InternalAccess must be open for the private network binding`);
@@ -228,6 +247,11 @@ export function deployedConfigProblems(def, config) {
       `${def.name} is not in the database VPC ${def.vpc.vpcId} / ${def.vpc.subnetId} (it has "${vpc.VpcId ?? ''}" / "${vpc.SubnetId ?? ''}"), so it cannot reach PostgreSQL`,
     );
   }
+  return problems;
+}
+
+export function deployedConfigProblems(def, config) {
+  const problems = networkBindingProblems(def, config);
 
   const access = [...(config?.OpenAccessTypes ?? [])];
   const expected = accessTypes(def);

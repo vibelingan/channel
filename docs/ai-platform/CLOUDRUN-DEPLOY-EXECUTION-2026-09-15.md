@@ -145,6 +145,23 @@ unchanged (public BFF, VPC-only worker) and retain public egress for the KB.
 Three regression assertions failed before this correction and passed after it.
 The live result is still to be recorded below.
 
+## MCP transport defect: CIDRs stripped before the API call
+
+While the switch update ran, inspection of the pinned CloudBase MCP 2.34.3
+input schema found a concrete transport defect: `serverConfig.VpcConf` declares
+only `VpcId` and `SubnetId`. Its Zod object strips unknown keys. Executing the
+extracted schema with a four-field fixture returned **only the two IDs**.
+The update implementation can handle CIDRs, but its input boundary removes
+them first. The earlier conclusion that the closed switch alone explained
+the failure was therefore incomplete.
+
+Correction: route the network patch through `callCloudApi` using the official
+`tcbr / SubmitServerConfigChangeDiff / 2022-02-17` contract. The reviewed Items
+contain only `InternalAccess` and the full `VpcConf`; credentials, images and
+public ingress are untouched. Normal source deployments also repair a missing
+binding through this route before acceptance, so the next deployment cannot
+silently regress. Focused tests: 28/28 passed. Live result remains pending.
+
 The current production website was inspected separately in a real browser:
 it contains neither the assistant island nor its launch button. Backend release
 does not automatically enable the website widget.

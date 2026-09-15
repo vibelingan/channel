@@ -14,6 +14,7 @@ import { test } from 'node:test';
 import {
   STAGING_EXCLUDES,
   cloudRunDeployArgs,
+  cloudRunNetworkApiArgs,
   cloudRunNetworkUpdateArgs,
   deployContextFromEnv,
   deployProgress,
@@ -156,6 +157,28 @@ test('network binding includes real CIDRs and rejects mismatched inventory', () 
       }),
     /CIDR/,
   );
+});
+
+test('raw cloud API carries both CIDRs without replacing credentials or public ingress', () => {
+  const args = cloudRunNetworkApiArgs(bff, 'env-fixture');
+  assert.equal(args.service, 'tcbr');
+  assert.equal(args.action, 'SubmitServerConfigChangeDiff');
+  assert.equal(args.version, '2022-02-17');
+  assert.equal(args.params.EnvId, 'env-fixture');
+  assert.equal(args.params.ServerName, 'ai-bff');
+  assert.deepEqual(args.params.Items, [
+    { Key: 'InternalAccess', Value: 'open' },
+    {
+      Key: 'VpcConf',
+      VpcConf: {
+        VpcId: 'vpc-fixture1',
+        SubnetId: 'subnet-fixture1',
+        VpcCIDR: '10.20.0.0/16',
+        SubnetCIDR: '10.20.1.0/24',
+      },
+    },
+  ]);
+  assert.throws(() => cloudRunNetworkApiArgs(bff, ''), /environment/);
 });
 
 test('the BFF is deployed public, the worker private, and both join the database VPC', () => {

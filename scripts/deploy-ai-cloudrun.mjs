@@ -25,12 +25,14 @@ import {
   GITHUB_SECRETS,
   STAGING_EXCLUDES,
   cloudRunDeployArgs,
+  cloudRunNetworkApiArgs,
   cloudRunNetworkUpdateArgs,
   deployContextFromEnv,
   deployProgress,
   deployedConfigProblems,
   evidenceProblems,
   existingDeploymentSettled,
+  networkBindingProblems,
   parseToolOutput,
   publicUrl,
   redactValues,
@@ -391,8 +393,12 @@ async function main() {
       const previousDeployId = await currentDeployId(def.name);
       if (!previousDeployId)
         throw new Error(`${def.name}: network-only mode requires an existing deployment`);
-      const updated = callTool('manageCloudRun', cloudRunNetworkUpdateArgs(def), { attempts: 1 });
-      log(`${def.name}: network-only update submitted (${updated.data?.status ?? 'accepted'})`);
+      const updated = callTool('callCloudApi', cloudRunNetworkApiArgs(def, ctx.envId), {
+        attempts: 1,
+      });
+      log(
+        `${def.name}: raw network update submitted (task ${updated.TaskId ?? updated.Response?.TaskId ?? 'synchronous'})`,
+      );
       deployments.push({ def, previousDeployId, detail: undefined });
     }
     await waitForNetworkUpdates(deployments);
@@ -414,6 +420,21 @@ async function main() {
     } finally {
       rmSync(stagingRoot, { recursive: true, force: true });
     }
+  }
+
+  // New services and source updates also need an actual network read-back.
+  // manageCloudRun 2.34.3 drops CIDRs at its schema boundary, even if the
+  // caller supplies them, so repair through the raw API before acceptance.
+  if (env.AI_CLOUDRUN_NETWORK_ONLY !== '1') {
+    const repairs = deployments.filter(
+      ({ def, detail }) => networkBindingProblems(def, detail?.service?.ServerConfig).length > 0,
+    );
+    for (const deployment of repairs) {
+      await currentDeployId(deployment.def.name);
+      callTool('callCloudApi', cloudRunNetworkApiArgs(deployment.def, ctx.envId), { attempts: 1 });
+      deployment.detail = undefined;
+    }
+    await waitForNetworkUpdates(repairs);
   }
 
   for (const { def, detail } of deployments) {
