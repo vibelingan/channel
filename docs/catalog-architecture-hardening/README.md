@@ -25,7 +25,8 @@ Parent execution-subagent observed full local PASS: all workspace tests (site 25
 Astro 0 errors/0 warnings/7 existing hints, build 15 pages, Biome 359 files; not independently rerun by this doc-writer.
 Later test-only `facts()` assertion after `localized.detail` mutation: focused 7/7, test types, scoped Biome PASS; production unchanged.
 Independent reviews: 0 P1/P2; one P3 coverage gap fixed; doc freshness corrected here. Craft: 14 existing/0 new/0 execution errors.
-See [EXECUTION.md](EXECUTION.md#miu-17-implementation-record). Code commit pending parent record; MIU 17 stays active until source publication is verified.
+Implementation checkpoint: `d54fc71641022df167f71a70bfcf07887ecacaa6`. The complete site suite passed again after the review correction (258/258), followed by repository-wide Biome.
+See [EXECUTION.md](EXECUTION.md#miu-17-implementation-record). MIU 17 stays active until source publication is verified.
 Only local work and feature-source pushes are authorized; no new browser E2E, route integration, `test`/`main` merge, workflow dispatch, or deployment occurred.
 
 ### HISTORICAL: MIU 16 Release Snapshot

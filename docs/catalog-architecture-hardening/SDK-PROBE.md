@@ -108,4 +108,5 @@ the adapter guard checks object shape without executing callbacks. Focused behav
 `aiGadgetsAdapter` is a named-exported default instance, not an ESM default export. Bounded reviewer traces cover all new exports and unchanged existing catalog-type consumers;
 shared `rootProductFamily` and the `canonicalPublicProduct` family union both use unchanged `PRODUCT_FAMILY_OPTIONS`.
 MIUs 18/19 shared content, 20 registry, and 22 controller remain future consumers. No new browser E2E, route integration, merge into `test`/`main`, or deployment is established.
-MIU 17 cannot release before verified source publication; code commit pending parent record. The generic-validator deviation remains non-green; 49 MIUs and D1/D2 are unchanged.
+Implementation checkpoint: `d54fc71641022df167f71a70bfcf07887ecacaa6`; the complete site suite passed again after the test-only review correction (258/258), followed by repository-wide Biome.
+MIU 17 cannot release before verified source publication. The generic-validator deviation remains non-green; 49 MIUs and D1/D2 are unchanged.

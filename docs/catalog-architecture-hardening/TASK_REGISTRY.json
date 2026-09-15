@@ -715,7 +715,7 @@
           ]
         }
       ],
-      "handoff": "MIUs 01-16 are released; MIU 17 is active with three exact source owners; MIU 18 remains planned. MIU 17 focused 7/7, test typecheck and scoped Biome PASS; full suite RUNNING at the reported checkpoint. MIU 16 source packet 2eef322 and its post-push checks are HISTORICAL evidence. Verify live local/remote equality before declaring publication. Only local work and feature-source pushes are authorized; no test/main merge or deployment."
+      "handoff": "MIUs 01-16 are released; MIU 17 is active with three exact source owners; MIU 18 remains planned. MIU 17 implementation d54fc71 passed focused 7/7, site 258/258, workspace tests/types, E2E types, 15-page build and Biome. Verify live local/remote equality before declaring publication. Only local work and feature-source pushes are authorized; no test/main merge or deployment."
     }
   ]
 }
