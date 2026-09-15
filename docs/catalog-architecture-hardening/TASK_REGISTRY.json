@@ -46,14 +46,10 @@
       "claimedLocalHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "claimedRemoteHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "status": "implementation-in-progress",
-      "currentMiu": "17",
+      "currentMiu": null,
       "dependencies": [],
-      "activeExactReservations": [
-        "apps/site/src/catalog/families/ai-gadgets.ts",
-        "apps/site/src/catalog/families/ai-gadgets.test.ts",
-        "apps/site/src/i18n/catalog.ts"
-      ],
-      "activeReservationPurpose": "MIU 17 AI gadgets content adapter; local validation and feature-source publication only.",
+      "activeExactReservations": [],
+      "activeReservationPurpose": "",
       "externalGates": {
         "D1": {
           "scope": ["26", "27", "28"],
@@ -387,7 +383,7 @@
         "14": { "reservationState": "released", "previousReservationState": "active" },
         "15": { "reservationState": "released", "previousReservationState": "active" },
         "16": { "reservationState": "released", "previousReservationState": "active" },
-        "17": { "reservationState": "active", "previousReservationState": "planned" },
+        "17": { "reservationState": "released", "previousReservationState": "active" },
         "18": { "reservationState": "planned" },
         "19": { "reservationState": "planned" },
         "20": { "reservationState": "planned" },
@@ -715,7 +711,7 @@
           ]
         }
       ],
-      "handoff": "MIUs 01-16 are released; MIU 17 is active with three exact source owners; MIU 18 remains planned. MIU 17 implementation d54fc71 passed focused 7/7, site 258/258, workspace tests/types, E2E types, 15-page build and Biome. Verify live local/remote equality before declaring publication. Only local work and feature-source pushes are authorized; no test/main merge or deployment."
+      "handoff": "MIUs 01-17 are released; no exact source reservation is active; MIU 18 remains planned. MIU 17 implementation d54fc71 passed focused 7/7, site 258/258, workspace tests/types, E2E types, 15-page build and Biome. Reviewed source checkpoint 134e62d was pushed and verified with architecture 0 issues and scripts 93/93. Verify live local/remote equality for closure publication. No test/main merge or deployment."
     }
   ]
 }
