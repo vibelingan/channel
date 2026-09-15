@@ -187,6 +187,10 @@ test('long localized copy stays plain data and does not alias mutable source con
   translatedFamily.heading = 'Changed';
   assert.equal(adapter.labels.heading, longCopy);
   assert.equal(adapter.labels['detail.productCodeLabel'], longCopy);
+  assert.deepEqual(
+    adapter.facts(createPublicProduct({ productFamily: 'ai-gadgets', productCode: longCopy })),
+    [{ key: 'product-code', label: longCopy, value: longCopy }],
+  );
   assert.ok(Object.values(adapter.labels).every((value) => typeof value === 'string'));
 });
 

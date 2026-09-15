@@ -1,4 +1,6 @@
-import type { ProductFamily } from '@vibelingan-channel/shared';
+import type { PublicProduct } from '@vibelingan-channel/shared/catalog';
+
+type ProductFamily = PublicProduct['productFamily'];
 
 export interface CatalogCategoryContent {
   key: string;
@@ -56,6 +58,7 @@ export interface CatalogContent {
     seriesLabel: string;
     modelLabel: string;
     typeLabel: string;
+    productCodeLabel?: string;
     moqLabel: string;
     unitPriceLabel: string;
     wholesaleLabel: string;
@@ -72,6 +75,8 @@ export interface CatalogContent {
   };
   families: readonly CatalogFamilyContent[];
 }
+
+export type CatalogAdapterContent = Pick<CatalogContent, 'list' | 'detail'>;
 
 interface MarkdownModule {
   frontmatter: CatalogContent;
