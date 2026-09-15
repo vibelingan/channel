@@ -46,10 +46,13 @@
       "claimedLocalHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "claimedRemoteHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "status": "implementation-in-progress",
-      "currentMiu": null,
+      "currentMiu": "18",
       "dependencies": [],
-      "activeExactReservations": [],
-      "activeReservationPurpose": "",
+      "activeExactReservations": [
+        "apps/site/src/catalog/families/toys.ts",
+        "apps/site/src/catalog/families/toys.test.ts"
+      ],
+      "activeReservationPurpose": "MIU 18 Toys adapter and configuration-only route selection; local validation and feature-source publication.",
       "externalGates": {
         "D1": {
           "scope": ["26", "27", "28"],
@@ -384,7 +387,7 @@
         "15": { "reservationState": "released", "previousReservationState": "active" },
         "16": { "reservationState": "released", "previousReservationState": "active" },
         "17": { "reservationState": "released", "previousReservationState": "active" },
-        "18": { "reservationState": "planned" },
+        "18": { "reservationState": "active", "previousReservationState": "planned" },
         "19": { "reservationState": "planned" },
         "20": { "reservationState": "planned" },
         "21": { "reservationState": "planned" },

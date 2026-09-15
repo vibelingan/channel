@@ -1,10 +1,30 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-17 released; no active exact reservations; MIUs 18-19 planned; implementation continues.
+Status: MIUs 01-17 released; MIU 18 active; MIU 19 planned.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implement`.
 
-**Current/next MIU:** none active; MIU 18 next/planned; MIU 19 planned.
+**Current/next MIU:** MIU 18 active; MIU 19 planned.
+
+## MIU 18 Implementation Record
+
+- Historical baseline `3beb38af9f16c7716918123356396b25b4f1d692` was clean and equal to the live feature branch.
+- Owners: `apps/site/src/catalog/families/toys.ts` and `apps/site/src/catalog/families/toys.test.ts` only.
+  Catalog content and existing adapters remain read-only. Tests precede implementation.
+- Check: real Markdown copy, identity-only facts, empty filters/null grouping, optional-field safety,
+  localized copy isolation, same canonical instance for approved route pathnames, unknown-path rejection.
+- Validation and source publication must be observed before release. No test/main merge or deployment.
+
+### MIU 18 Route Interpretation
+
+The approved plan names `/electronics-toys` as a Toys route alias, but the existing Astro page is a
+multi-family hub. Preserve that page: implement and test a configuration-only `selectToysAdapter`
+for the two approved pathnames (with or without one trailing slash), without wiring it into routes.
+The result always has family `toys` and canonical content href `/toys/`; it is not a redirect or a
+fifth product family. Query strings, full URLs and unrelated paths are not pathname keys.
+MIU20/22 must preserve the hub when consuming the selector; replacing it requires a separate scope
+decision. The production build must still contain both the hub and Toys page. The inherited generic
+validator limitation recorded under MIU17 is unchanged and is not counted as a passing check.
 
 ## MIU 17 Implementation Record
 
