@@ -715,7 +715,7 @@
           ]
         }
       ],
-      "handoff": "MIUs 01-16 are released with no active exact-file reservation. MIU 17 remains planned; reviewed MIU 16 source packet 2eef322 was pushed and post-push architecture/script checks passed. No test merge or deployment was performed."
+      "handoff": "MIUs 01-16 are released; MIU 17 is active with three exact source owners; MIU 18 remains planned. MIU 17 focused 7/7, test typecheck and scoped Biome PASS; full suite RUNNING at the reported checkpoint. MIU 16 source packet 2eef322 and its post-push checks are HISTORICAL evidence. Verify live local/remote equality before declaring publication. Only local work and feature-source pushes are authorized; no test/main merge or deployment."
     }
   ]
 }
