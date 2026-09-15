@@ -29,6 +29,7 @@ import {
   deployProgress,
   deployedConfigProblems,
   evidenceProblems,
+  existingDeploymentSettled,
   parseToolOutput,
   publicUrl,
   redactValues,
@@ -48,6 +49,9 @@ const DEPLOY_TIMEOUT_MS = 40 * 60 * 1000;
 const POLL_INTERVAL_MS = 20_000;
 const READY_TIMEOUT_MS = 5 * 60 * 1000;
 const SMOKE_ATTEMPTS = 3;
+// Includes source upload and the MCP server's 45-second registration wait.
+// mcporter otherwise times out at 60 seconds, before execFileSync's deadline.
+const MCP_CALL_TIMEOUT_MS = 240_000;
 
 const secretValues = [...GITHUB_SECRETS].map((name) => process.env[name]);
 const safe = (text) => redactValues(text, secretValues);
@@ -76,6 +80,8 @@ function callTool(tool, args, { attempts = 3 } = {}) {
           `cloudbase.${tool}`,
           '--args',
           JSON.stringify(args),
+          '--timeout',
+          String(MCP_CALL_TIMEOUT_MS),
           '--output',
           'json',
         ],
@@ -113,11 +119,20 @@ function serviceDetail(name) {
 }
 
 /** The id of the deployment a service is on now, or null for a service that does not exist yet. */
-function currentDeployId(name) {
+async function currentDeployId(name) {
   const services =
     callTool('queryCloudRun', { action: 'list', pageSize: 100 }).data?.services ?? [];
   if (!services.some((service) => service.ServerName === name)) return null;
-  return serviceDetail(name)?.latestDeploy?.DeployId ?? null;
+  const deadline = Date.now() + DEPLOY_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const detail = serviceDetail(name);
+    if (existingDeploymentSettled(detail)) return detail?.latestDeploy?.DeployId ?? null;
+    log(
+      `${name}: waiting for existing cloud task (${detail?.latestDeploy?.Status ?? 'unknown'}) before uploading`,
+    );
+    await delay(POLL_INTERVAL_MS);
+  }
+  throw new Error(`${name}: existing cloud task has not settled; no duplicate deploy submitted`);
 }
 
 /**
@@ -270,7 +285,7 @@ async function main() {
   const deployments = [];
   try {
     for (const def of defs) {
-      const previousDeployId = currentDeployId(def.name);
+      const previousDeployId = await currentDeployId(def.name);
       const targetPath = stageService(def, commit);
       // One attempt only: repeating a deploy that did start queues a second one.
       const started = callTool('manageCloudRun', cloudRunDeployArgs(def, targetPath), {

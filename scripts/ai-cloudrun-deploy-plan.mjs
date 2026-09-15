@@ -117,6 +117,13 @@ export function evidenceProblems(evidence, env) {
 
 const FAILED_STATUS = /fail|error|abnormal/i;
 
+/** A client timeout does not cancel the task already accepted by CloudRun. */
+export function existingDeploymentSettled(detail) {
+  if (detail?.latestDeploy?.IsReleasing === true) return false;
+  const status = String(detail?.latestDeploy?.Status ?? detail?.service?.BaseInfo?.Status ?? '');
+  return status === 'normal' || FAILED_STATUS.test(status);
+}
+
 /**
  * Where a deploy stands, from `queryCloudRun detail`. A deploy only counts once
  * a NEW deployment record appears: until then the service still shows the

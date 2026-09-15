@@ -18,6 +18,7 @@ import {
   deployProgress,
   deployedConfigProblems,
   evidenceProblems,
+  existingDeploymentSettled,
   parseToolOutput,
   publicUrl,
   redactValues,
@@ -254,6 +255,16 @@ test('secret values never reach the log, whether plain or JSON-escaped', () => {
   assert.ok(!redacted.includes('10.0.0.3:5432/ai'), redacted);
   assert.ok(!redacted.includes('p"w'), redacted);
   assert.equal(redactValues('nothing secret here', ['true']), 'nothing secret here');
+});
+
+test('an existing cloud deployment must settle before another upload starts', () => {
+  const detail = (Status, IsReleasing = false) => ({ latestDeploy: { Status, IsReleasing } });
+  assert.equal(existingDeploymentSettled(detail('normal')), true);
+  assert.equal(existingDeploymentSettled(detail('deploy_failed')), true);
+  assert.equal(existingDeploymentSettled(detail('normal', true)), false);
+  assert.equal(existingDeploymentSettled(detail('building')), false);
+  assert.equal(existingDeploymentSettled(detail('unknown')), false);
+  assert.equal(existingDeploymentSettled({}), false);
 });
 
 test('MCP issue links redact URL-encoded settings, including nested JSON', () => {

@@ -49,6 +49,30 @@ encoded-value gap. No secret-bearing issue link was opened or submitted.
 Verification after these corrections: 38 deployment/manifest tests passed;
 the real installed mcporter normalizer now selects the repository root.
 
+## Attempt 2: the caller timed out at 60 seconds
+
+- Tag: `ai-cloudrun-deploy-20260915-2`, commit `a2e87d2`.
+- [Deployment run](https://github.com/vibelingan/channel/actions/runs/34933670912).
+- Full test job and authenticated KB probe passed. Local script tests also
+  passed (197/197).
+- The working-directory rejection was resolved. `manageCloudRun` then exceeded
+  mcporter's default 60-second call timeout. The outer Node child-process
+  timeout was five minutes, but did not configure the nested MCP client.
+- MCP 2.34.3 uploads the code and waits up to 45 seconds for task registration,
+  in addition to its other API requests; it does not wait for the full build.
+
+Correction: set the MCP request timeout explicitly to 240 seconds, below the
+300-second enclosing process timeout. Before submitting another upload, query
+the existing service and wait for any prior task to settle. A timeout is not
+proof that the cloud task was canceled. Never use force deployment or recreate
+a service to work around an ambiguous response. Focused tests: 40/40 passed.
+
+Local MCP device authorization also needs a persistent MCP process: the tool
+returns the login URL before its background credential polling finishes. A
+one-shot process cannot complete that flow. Keep the login process alive until
+authorization succeeds; CI deployments use the existing GitHub secrets and do
+not depend on this local session.
+
 ## Acceptance still to record
 
 The next attempt must complete both remote builds, verify the deployed VPC and

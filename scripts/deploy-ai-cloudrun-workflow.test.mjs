@@ -33,6 +33,15 @@ test('the infrastructure MCP can access staged builds from the repository root',
   assert.equal(serverCwd, resolve(dirname(configPath), '..'));
 });
 
+test('the MCP upload deadline is explicit and shorter than its enclosing process deadline', () => {
+  const script = readFileSync(new URL('./deploy-ai-cloudrun.mjs', import.meta.url), 'utf8');
+  assert.match(script, /'--timeout',\s*String\(MCP_CALL_TIMEOUT_MS\)/);
+  const timeout = Number(
+    script.match(/const MCP_CALL_TIMEOUT_MS = ([\d_]+)/)?.[1].replaceAll('_', ''),
+  );
+  assert.ok(timeout >= 180_000 && timeout < 300_000);
+});
+
 /**
  * The one step in a job whose command is exactly this. Exact, not a prefix:
  * `pnpm test` must not be satisfied by a step that runs `pnpm test:ai`.
