@@ -1,5 +1,21 @@
 # AI CloudRun deployment execution — 2026-09-15
 
+## Final outcome: deployed and verified
+
+The backend deployment is **complete**. The historical failures below are
+resolved, not outstanding blockers. [Deployment 34941035696](https://github.com/vibelingan/channel/actions/runs/34941035696)
+and [branch CI 34941036379](https://github.com/vibelingan/channel/actions/runs/34941036379)
+both succeeded for `a1085b0e64ed53751be4bdc873255cb77c2291ab`.
+
+- BFF: `https://ai-bff-298020-11-1443560658.sh.run.tcloudbase.com`.
+- Worker: VPC-only ingress; no public worker endpoint is required by the browser.
+- Both services use the customer's existing Shanghai VPC/PostgreSQL and the
+  external hosted KB. No new database was bought or exposed publicly.
+- Real browser-origin acceptance passed: website origin → BFF → PostgreSQL →
+  worker → hosted KB → answer with three approved, live public citations.
+- **Website activation is not included:** the current live website has no
+  assistant island/button. An API deployment does not publish that UI.
+
 ## Scope and preserved work
 
 Deploy `ai-bff` and `ai-worker` from `feat/ai-assistant-platform-design` into
@@ -201,12 +217,60 @@ against a newly created disposable PostgreSQL 16 (store 38, BFF 8, worker 27).
 The built BFF also starts with `verify-full` and reads the CA successfully.
 The parser is an explicit runtime dependency of both apps, preventing its
 CommonJS filesystem loader from being incorrectly inlined into an ESM bundle.
-Docker runtime-image checks and the new hosted deployment are still pending.
+The actual Docker runtime-image checks subsequently passed for both apps, as
+did branch CI and the deployment's own Node 22 / PostgreSQL 16 test job. The
+temporary local test database and its disposable volume were removed; existing
+local business databases and uncommitted human-support documents were untouched.
 
-## Acceptance still to record
+## Final hosted acceptance
 
-Both remote builds have completed. The next attempt must verify the deployed VPC and
-access configuration, confirm BFF readiness, and receive a real answer through
-BFF → PostgreSQL → worker → hosted KB. A started workflow or CloudRun `normal`
-status alone is not completion. Website-widget activation is a separate check;
-it has not been claimed from an API-only test.
+Tag: `ai-cloudrun-deploy-20260915-4`; source commit:
+`a1085b0e64ed53751be4bdc873255cb77c2291ab`.
+
+| Check | Observed result (UTC, 2026-09-15) |
+| --- | --- |
+| BFF source build | `2604543730`; source deployment normal at 07:26:08 |
+| Worker source build | `2604544662`; source deployment normal at 07:28:33 |
+| Full VPC binding | BFF verified 07:30:30; worker verified 07:30:57 |
+| BFF readiness | Independent HTTP observer returned 200 at 07:30:20; database live, READ COMMITTED |
+| Worker config version in process log | `ai-worker-006` |
+| Deployment's real round-trip smoke | PASS at 07:31:23 |
+| Workflow conclusion | Both test and deploy jobs succeeded |
+
+Independent Playwright acceptance ran **inside** the real
+`https://www.supplychainsai.com` browser origin, not merely a curl request with
+a forged Origin header:
+
+1. Created a conversation (201), sent `What does the company do?` (202), then
+   replayed the same idempotency key (200, same message ID, `replayed`).
+2. Received `token → citation → citation → citation → final`, with no error
+   category. The answer described the company's OEM/ODM development,
+   manufacturing, quality-control and delivery services.
+3. All three source IDs matched the approved `channelkb` namespace. Citation
+   links were `/portfolio`, `/`, and `/oem` on the approved website origin;
+   each independently returned HTTP 200 without following redirects.
+4. Reconnected with Last-Event-ID immediately before the final event and
+   received exactly that final event, with its original sequence number.
+5. Missing conversation credential returned 401. A separate unapproved-origin
+   preflight returned 403 without Access-Control-Allow-Origin. Public access
+   to the worker returned 403.
+
+The first browser checker incorrectly expected 202 for an idempotent replay;
+the existing BFF contract and unit test specify 200. The checker was corrected
+and the complete browser flow rerun, with all six checks true. No application
+behavior was weakened to make the test pass. Synthetic test conversations were
+created; credentials and private visitor content were not recorded in this doc.
+
+## Website handoff (separate release, not yet performed)
+
+The live website was inspected in a real browser and has no AssistantWidget
+island. To expose customer chat next, use the existing widget and wire the
+website build's `PUBLIC_AI_API_BASE_URL` to the BFF URL above. Preserve the
+approved origin `https://www.supplychainsai.com`; if another browser origin is
+required, review/update CORS explicitly. Release and test the actual rendered
+widget, including mobile flow and recovery states. Do not open the worker or
+PostgreSQL to the public internet, and do not put the KB key in browser config.
+
+The backend is already running in the customer's infrastructure; no further
+local Tencent login or additional infrastructure purchase was needed to finish
+this deployment. CI used the existing environment-scoped Tencent credentials.
