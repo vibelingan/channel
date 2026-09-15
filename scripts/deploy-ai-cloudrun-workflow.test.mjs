@@ -11,7 +11,9 @@
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { GITHUB_SECRETS, deployContextFromEnv } from './ai-cloudrun-deploy-plan.mjs';
 import { buildCloudRunServiceDefs } from './cloudrun-service-manifest.mjs';
@@ -21,6 +23,15 @@ const readWorkflow = (file) =>
 const workflow = readWorkflow('deploy-ai-cloudrun.yml');
 const verify = workflow.jobs?.verify;
 const deploy = workflow.jobs?.deploy;
+
+test('the infrastructure MCP can access staged builds from the repository root', () => {
+  const configPath = fileURLToPath(new URL('../config/mcporter.infra.json', import.meta.url));
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  // mcporter 0.13.13 resolves stdio cwd relative to the CONFIG directory.
+  // --root controls discovery, not the spawned server's filesystem boundary.
+  const serverCwd = resolve(dirname(configPath), config.mcpServers.cloudbase.cwd ?? '.');
+  assert.equal(serverCwd, resolve(dirname(configPath), '..'));
+});
 
 /**
  * The one step in a job whose command is exactly this. Exact, not a prefix:

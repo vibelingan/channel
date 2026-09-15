@@ -256,6 +256,15 @@ test('secret values never reach the log, whether plain or JSON-escaped', () => {
   assert.equal(redactValues('nothing secret here', ['true']), 'nothing secret here');
 });
 
+test('MCP issue links redact URL-encoded settings, including nested JSON', () => {
+  const secret = 'postgres://app:fake-password@10.0.0.3:5432/ai?sslmode=verify-full';
+  const body = JSON.stringify({ EnvParams: JSON.stringify({ DATABASE_URL: secret }) });
+  for (const encoded of [encodeURIComponent(body), encodeURIComponent(encodeURIComponent(body))]) {
+    const redacted = redactValues(`https://example.com/issues/new?body=${encoded}`, [secret]);
+    assert.ok(!redacted.includes('fake-password'), 'encoded secret survived redaction');
+  }
+});
+
 test("the worker's start-up state is the last thing it logged", () => {
   const line = (event, level = 'error') => JSON.stringify({ level, event, code: null });
   const verdict = (lines) => workerStartupVerdict(lines).verdict;

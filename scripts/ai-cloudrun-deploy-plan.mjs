@@ -224,7 +224,8 @@ export function publicUrl(detail) {
 /**
  * Replace every occurrence of each value with ***, including the escaped forms
  * it takes inside JSON and inside JSON nested in a JSON string (the service
- * settings travel as exactly that). Short values are skipped: they are not
+ * settings travel as exactly that), and URI-encoded in MCP issue links.
+ * Short values are skipped: they are not
  * secrets, and masking every "true" would hide the log instead of the secret.
  */
 export function redactValues(text, values) {
@@ -232,7 +233,12 @@ export function redactValues(text, values) {
   for (const value of values) {
     if (typeof value !== 'string' || value.length < 8) continue;
     const once = JSON.stringify(value).slice(1, -1);
-    forms.add(value).add(once).add(JSON.stringify(once).slice(1, -1));
+    for (const form of [value, once, JSON.stringify(once).slice(1, -1)]) {
+      forms
+        .add(form)
+        .add(encodeURIComponent(form))
+        .add(encodeURIComponent(encodeURIComponent(form)));
+    }
   }
   let result = String(text);
   for (const form of [...forms].sort((a, b) => b.length - a.length)) {

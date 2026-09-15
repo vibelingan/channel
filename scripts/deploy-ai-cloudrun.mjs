@@ -94,11 +94,15 @@ function callTool(tool, args, { attempts = 3 } = {}) {
       );
       const result = parseToolOutput(output);
       if (result.success !== false && !result.error) return result;
-      failure = JSON.stringify({ error: result.error, message: result.message }).slice(0, 1500);
+      failure = safe(JSON.stringify({ error: result.error, message: result.message })).slice(
+        0,
+        1500,
+      );
     } catch (error) {
       // Never error.message: it embeds the full command line, settings included.
       failure = `exit ${error.status ?? error.signal ?? 'unknown'}: ${error.stdout ?? ''}${error.stderr ?? ''}`;
-      failure = failure.slice(0, 1500);
+      // Redact before truncation: a partial credential cannot match its full value.
+      failure = safe(failure).slice(0, 1500);
     }
   }
   throw new Error(safe(`cloudbase.${tool} ${args.action ?? ''} failed: ${failure}`));
