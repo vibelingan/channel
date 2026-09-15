@@ -73,28 +73,17 @@ test('waitForDatabase keeps waiting while the database refuses connections', asy
   }
 });
 
-test('waitForDatabase stops at once on a mistake retrying cannot fix', async () => {
+test('the store fails before connecting when its configured CA file is missing', () => {
   // A certificate file that does not exist is a deployment mistake. Waiting
   // would hide it behind a service that never becomes ready.
-  const store = new AiStore(
-    'postgres://nobody:nothing@127.0.0.1:1/none?sslmode=verify-full&sslrootcert=/nonexistent/ca.crt',
-    1,
+  assert.throws(
+    () =>
+      new AiStore(
+        'postgres://nobody:nothing@127.0.0.1:1/none?sslmode=verify-full&sslrootcert=/nonexistent/ca.crt',
+        1,
+      ),
+    (error: unknown) => !isDatabaseUnavailable(error),
   );
-  let retries = 0;
-  try {
-    await assert.rejects(
-      waitForDatabase(store, {
-        delaysMs: [5],
-        onRetry: () => {
-          retries += 1;
-        },
-      }),
-      (error: unknown) => !isDatabaseUnavailable(error),
-    );
-    assert.equal(retries, 0);
-  } finally {
-    await store.close();
-  }
 });
 
 test(

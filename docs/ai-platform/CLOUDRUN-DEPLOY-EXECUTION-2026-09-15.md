@@ -173,6 +173,36 @@ The current production website was inspected separately in a real browser:
 it contains neither the assistant island nor its launch button. Backend release
 does not automatically enable the website widget.
 
+## VPC attached; verified TLS startup defect caused rollback
+
+- Raw-API network run [34938686548](https://github.com/vibelingan/channel/actions/runs/34938686548)
+  produced version `004` for both services, with all four VPC fields correct.
+- Read-only inspection [34939609924](https://github.com/vibelingan/channel/actions/runs/34939609924)
+  confirmed database address/port matching and the TCP 5432 security-group rule
+  from the CloudRun subnet. No database public-access change was needed.
+- The new runtime reached PostgreSQL but crashed with
+  `ERR_TLS_CERT_ALTNAME_INVALID`: Node checked `localhost` against the valid
+  certificate SAN `IP Address:10.42.20.3`. Tencent rolled back the failed
+  version, explaining why the service-level VPC appeared empty again.
+
+Correction: use pg's own connection-string parser once, preserve its CA/SSL
+options, and verify IP connections against the actual IP SAN. Do not disable
+certificate-chain or server-identity verification. Route both `AiStore` (the
+actual BFF/worker entry point) and the migration CLI through this shared pool.
+
+A real PostgreSQL SSLRequest/TLS-upgrade regression first failed with the same
+`localhost` error. After the fix it connects using a trusted matching IP
+certificate; a different IP and an untrusted CA both remain rejected. A fourth
+test covers the actual `AiStore` entry point. A missing CA now fails during
+pool configuration rather than waiting for the first connection.
+
+Local validation: typecheck/lint pass; 206 script tests pass; `test:ai` passes
+against a newly created disposable PostgreSQL 16 (store 38, BFF 8, worker 27).
+The built BFF also starts with `verify-full` and reads the CA successfully.
+The parser is an explicit runtime dependency of both apps, preventing its
+CommonJS filesystem loader from being incorrectly inlined into an ESM bundle.
+Docker runtime-image checks and the new hosted deployment are still pending.
+
 ## Acceptance still to record
 
 Both remote builds have completed. The next attempt must verify the deployed VPC and

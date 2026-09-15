@@ -15,7 +15,8 @@
     "@vibelingan-channel/ai-engine-anythingllm": "workspace:*",
     "@vibelingan-channel/ai-policy": "workspace:*",
     "@vibelingan-channel/ai-store": "workspace:*",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "pg-connection-string": "^2.14.0"
   },
   "devDependencies": {
     "@types/node": "^22.19.21",

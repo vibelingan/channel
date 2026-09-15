@@ -6,7 +6,10 @@
  * behaviour that only holds there.
  */
 
+import { isIP } from 'node:net';
+import { checkServerIdentity } from 'node:tls';
 import { Pool, type PoolClient, type PoolConfig } from 'pg';
+import { parseIntoClientConfig } from 'pg-connection-string';
 
 /**
  * Passed to the backend in the connection startup packet, so the level is in
@@ -41,11 +44,27 @@ export interface AiPoolConfig extends PoolConfig {
  * no such race and no such expiry date.
  */
 export function createAiPool(config: AiPoolConfig): Pool {
+  // Resolve URL options once, with pg's own parser and precedence. Otherwise
+  // pg reparses sslmode/sslrootcert and silently replaces our TLS identity hook.
+  const { connectionString, ...options } = config;
+  const resolved = { ...options, ...parseIntoClientConfig(connectionString) };
+  const host = resolved.host;
+  if (host && isIP(host) && resolved.ssl) {
+    const ssl = typeof resolved.ssl === 'object' ? resolved.ssl : {};
+    const verifyIdentity = ssl.checkServerIdentity ?? checkServerIdentity;
+    resolved.ssl = {
+      ...ssl,
+      // pg omits SNI for IP connections; Node then defaults the identity to
+      // localhost. Check the real IP SAN without sending an invalid IP SNI.
+      // CA validation and any operator-supplied identity check stay enabled.
+      checkServerIdentity: (_name, certificate) => verifyIdentity(host, certificate),
+    };
+  }
   return handleIdleConnectionErrors(
     new Pool({
-      ...config,
-      application_name: config.application_name ?? 'channel-ai',
-      options: config.options ? `${config.options} ${ISOLATION_OPTION}` : ISOLATION_OPTION,
+      ...resolved,
+      application_name: resolved.application_name ?? 'channel-ai',
+      options: resolved.options ? `${resolved.options} ${ISOLATION_OPTION}` : ISOLATION_OPTION,
     }),
   );
 }

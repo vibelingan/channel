@@ -1,5 +1,5 @@
-import { Pool } from 'pg';
 import { migrateDown, migrateUp } from './migrations.ts';
+import { createAiPool } from './pool.ts';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL is required');
@@ -9,7 +9,7 @@ if (direction !== 'up' && direction !== 'down') {
   throw new Error('usage: migrate-cli.ts <up|down>');
 }
 
-const pool = new Pool({ connectionString: databaseUrl, max: 2 });
+const pool = createAiPool({ connectionString: databaseUrl, max: 2 });
 try {
   if (direction === 'up') await migrateUp(pool);
   else await migrateDown(pool);
