@@ -137,3 +137,7 @@ Toys focused tests pass 8/8. Full workspace tests/typechecks, E2E TypeScript, bu
 passed; production code was unchanged by the later test-harness fix. Built-HTML checks preserved
 both headings/canonicals and the hub's four family links. This is not browser E2E or proof that the
 new selector is wired into live routes. No deployment or test/main merge occurred.
+Final post-correction workspace run passed 814/814 tests, including site266, with no test-server
+error logs. Reviewed source checkpoint `fc01b488ce167a5514ba9c8ee6a7eee344bcab2a` was pushed and
+verified with live equality, architecture 0 issues and scripts 93/93. MIU18 is released; MIU19 is
+planned. Confirm final closure publication with live local/remote Git equality before continuing.

@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening
 
-Status: MIUs 01-17 released; MIU 18 active; MIU 19 planned.
+Status: MIUs 01-18 released; no active exact reservations; MIU 19 planned.
 
 ## Decision
 
@@ -161,7 +161,9 @@ for full retirement: `CatalogFamilyGrid`, `HeadphonesProductCard`, `HeadphonesPr
 
 ## Reservation And Deployment Control
 
-MIUs 01-17 are released; MIU 18 is active with its two exact owner files; MIU 19 is planned.
+MIUs 01-18 are released; no exact owner file is active; MIU 19 is planned.
+MIU18 source checkpoint `fc01b48` was reviewed, pushed feature-only, and verified with live equality,
+architecture 0 issues and scripts 93/93. Its configuration-only selector does not replace the hub.
 MIU 17 historical source checkpoint `134e62d0b6a371e663f8c0ca9ebe5162a065c448` was pushed feature-only and verified; release recorded here.
 Use live `git rev-parse HEAD` and `origin/refactor/catalog-architecture-hardening` to verify final closure publication before continuing.
 Post-push canonical architecture: 0 issues; scripts: 93/93. The generic pipeline validator's three baseline issues remain non-green; see [EXECUTION.md](EXECUTION.md#miu-17-validation-deviation).

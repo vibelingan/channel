@@ -1,10 +1,10 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-17 released; MIU 18 active; MIU 19 planned.
+Status: MIUs 01-18 released; no active exact reservations; MIU 19 planned.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implement`.
 
-**Current/next MIU:** MIU 18 active; MIU 19 planned.
+**Current/next MIU:** none active; MIU 19 next/planned.
 
 ## MIU 18 Implementation Record
 
@@ -17,7 +17,9 @@ Branch: `refactor/catalog-architecture-hardening`
   Catalog content and existing adapters remain read-only. Tests precede implementation.
 - Check: real Markdown copy, identity-only facts, empty filters/null grouping, optional-field safety,
   localized copy isolation, same canonical instance for approved route pathnames, unknown-path rejection.
-- Validation and source publication must be observed before release. No test/main merge or deployment.
+- Reviewed source checkpoint `fc01b488ce167a5514ba9c8ee6a7eee344bcab2a` was pushed feature-only
+  and verified with live equality, architecture 0 issues and scripts 93/93. Before push the script
+  result was 92/93 solely on local-only-completion. MIU18 is released; no test/main merge or deployment.
 - Local checks passed: focused 8/8; all workspace tests (site 266/266); all workspace and E2E
   typechecks; Astro 0 errors/0 warnings/7 existing hints; 15-page build; Biome 361 files.
   After the test-harness correction, the complete site suite passed again with an explicit scan
@@ -28,7 +30,9 @@ Branch: `refactor/catalog-architecture-hardening`
   error scan was empty. Workspace/E2E types, site build and Biome passed again. Craft gates:
   14 existing baseline findings, 0 new, 0 execution errors. The generic validator's historical
   limitations remain explicitly non-green. Bounded execution-context review found no concrete
-  P1/P2/P3 issues; exact committed-packet review and publication checks follow separately.
+  P1/P2/P3 issues; final exact-packet review at `fc01b48` also passed. Dedicated parallel reviewer
+  tools were unavailable; the recorded review used a separate read-only execution context, not an
+  unrun multi-agent gate. Confirm final closure publication with live local/remote Git equality.
 
 ```yaml
 cross-file-reasoning:

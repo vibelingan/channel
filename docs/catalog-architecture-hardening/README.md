@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening Handoff
 
-Status: 49-MIU packet; MIUs 01-17 released; MIU 18 active; MIU 19 planned.
+Status: 49-MIU packet; MIUs 01-18 released; no active exact reservations; MIU 19 planned.
 Branch: `refactor/catalog-architecture-hardening`
 Planning packet SHA: `bc1e69e25e9e8d453584be0fde9279f7bdf0c006`.
 
@@ -20,12 +20,14 @@ git status --short
 git rev-parse HEAD origin/refactor/catalog-architecture-hardening
 ```
 
-Expected branch: `refactor/catalog-architecture-hardening`. MIU 18 is active with two owner files.
+Expected branch: `refactor/catalog-architecture-hardening`. MIU 18 is released; no owner files are active.
 Toys implementation `2a5e613` and separate released-test harness correction `5e2f5d7` passed local
 validation: focused 8/8, site 266/266 without WebSocket error logs, workspace/E2E typechecks, build
 15 pages and Biome 361 files. Both built routes retain their original headings and canonical URLs.
-The selector is configuration-only; the multi-family hub is unchanged. Review and live publication
-verification precede release. See [EXECUTION.md](EXECUTION.md#miu-18-implementation-record).
+The selector is configuration-only; the multi-family hub is unchanged. Reviewed source checkpoint
+`fc01b48` was pushed and verified: architecture 0 issues, scripts 93/93, live refs equal. Final workspace
+tests passed 814/814. Verify final closure publication through live local/remote Git equality.
+See [EXECUTION.md](EXECUTION.md#miu-18-implementation-record) for review availability and evidence limits.
 
 ### HISTORICAL: MIU 17 Release Snapshot
 
