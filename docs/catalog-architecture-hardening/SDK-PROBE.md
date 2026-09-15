@@ -116,3 +116,24 @@ Historical source checkpoint `134e62d0b6a371e663f8c0ca9ebe5162a065c448` was push
 Push-hook craft/review/doc guards passed. Pre-push scripts were 92/93 solely on `local-only-completion`, not green; post-push canonical architecture reported 0 issues and scripts passed 93/93.
 Use live `git rev-parse HEAD` and `origin/refactor/catalog-architecture-hardening` to verify final closure publication before continuing.
 The generic pipeline validator's three baseline issues remain non-green; 49 MIUs and D1/D2 are unchanged. MIUs 18-19 remain planned; registry MIU 20 and controller MIU 22 remain future work.
+
+## MIU 18 Addendum
+
+The MIU17 lifecycle above is a historical checkpoint. MIU18 tests use the same real Astro 6.4.6 /
+Vite 7.3.5 Markdown loader; the content module and real routes remain unchanged. Official Astro
+testing and astro:config documentation was queried through Context7 `/websites/astro_build_en`.
+Installed `astro/dist/config/index.d.ts:13` confirms `getViteConfig`; Vite's
+`dist/node/index.d.ts:2553/2576/2607` confirms `ssrLoadModule`, `close` and `createServer`.
+
+Vite's installed `ServerOptions` declares experimental `ws?: false` next to `hmr`. Bundle inspection
+confirmed it disables WebSocket binding independently of `hmr: false`. The inherited two-harness
+test reproduced the collision without Toys: 14 assertions passed but port 24678 logged an error.
+Toys uses `ws: false`; separate correction `5e2f5d7` applies it to the two older test harnesses.
+All three assert the resolved option and await server closure. Site 266/266 then passed with an
+explicit log scan containing no `[ERROR]`, WebSocket server error or port-24678 message. The setting
+is experimental and must be rechecked on Vite upgrades; it is test-only, not production server config.
+
+Toys focused tests pass 8/8. Full workspace tests/typechecks, E2E TypeScript, build15 and Biome361
+passed; production code was unchanged by the later test-harness fix. Built-HTML checks preserved
+both headings/canonicals and the hub's four family links. This is not browser E2E or proof that the
+new selector is wired into live routes. No deployment or test/main merge occurred.
