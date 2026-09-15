@@ -10,8 +10,8 @@ test('extracts supported response shapes without printing a credential', () => {
 
 test('updates key and attestation together and refuses accidental rotation', () => {
   const key = 'local-test-key-that-is-long-enough';
-  const next = updateEnvText('ANYTHINGLLM_API_KEY=\nAI_KNOWLEDGE_CREDENTIAL_ID=\n', key);
-  assert.match(next, new RegExp(`^ANYTHINGLLM_API_KEY=${key}$`, 'm'));
+  const next = updateEnvText('KB_API_KEY=\nAI_KNOWLEDGE_CREDENTIAL_ID=\n', key);
+  assert.match(next, new RegExp(`^KB_API_KEY=${key}$`, 'm'));
   assert.match(next, /^AI_KNOWLEDGE_CREDENTIAL_ID=[0-9a-f]{16}$/m);
   assert.throws(() => updateEnvText(next, 'another-key-that-is-long-enough'), /--rotate/);
 });

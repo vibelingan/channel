@@ -24,11 +24,11 @@ provider key:
 | Key | What it is |
 |---|---|
 | `GENERIC_OPEN_AI_API_KEY` | The zenmux key. The model provider |
-| `ANYTHINGLLM_API_KEY` | Generated locally, see below |
+| `KB_API_KEY` | Generated locally, see below |
 | `AI_KNOWLEDGE_CREDENTIAL_ID` | First 16 lowercase hex characters of SHA-256 of the API key |
 | `AI_ENGINE_VERSION`, `AI_ENGINE_IMAGE_DIGEST` | Must remain `1.16.0` and the pinned digest unless the image is deliberately reviewed and upgraded |
-| `ANYTHINGLLM_WORKSPACE_SLUG`, `AI_APPROVED_SOURCE_PREFIX` | The dedicated public corpus and its document namespace |
-| `ANYTHINGLLM_CITATIONS_VERIFIED` | Set to `1` only after this exact workspace returns real citations |
+| `KB_WORKSPACE_SLUG`, `AI_APPROVED_SOURCE_PREFIX` | The dedicated public corpus and its document namespace |
+| `KB_CITATIONS_VERIFIED` | Set to `1` only after this exact workspace returns real citations |
 | `JWT_SECRET`, `SIG_KEY`, `SIG_SALT` | Any long random strings, set once |
 
 Start PostgreSQL and the pinned KB first:
@@ -37,7 +37,7 @@ Start PostgreSQL and the pinned KB first:
 pnpm dev:ai:full
 ```
 
-If `ANYTHINGLLM_API_KEY` is not yet in `.env.ai`, use the non-printing helper.
+If `KB_API_KEY` is not yet in `.env.ai`, use the non-printing helper.
 It calls only the loopback container, atomically stores both the key and its
 attestation in `.env.ai`, and sets the file mode to `0600`; the key never goes
 to terminal output:
@@ -47,7 +47,7 @@ pnpm ai:key:generate
 ```
 
 Configure the dedicated workspace, then set
-`ANYTHINGLLM_CITATIONS_VERIFIED=1` only after a successful citation-bearing
+`KB_CITATIONS_VERIFIED=1` only after a successful citation-bearing
 probe:
 
 Then load the content and the answer policy:

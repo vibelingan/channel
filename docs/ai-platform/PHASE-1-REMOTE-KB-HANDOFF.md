@@ -160,13 +160,13 @@ Required for the worker:
 ```dotenv
 DATABASE_URL=postgres://<user>:<password>@127.0.0.1:<port>/<database>
 PORT=58081
-ANYTHINGLLM_BASE_URL=https://<approved-kb-host>
-ANYTHINGLLM_API_KEY=<secret-manager-value>
-ANYTHINGLLM_WORKSPACE_SLUG=<dedicated-public-workspace>
-ANYTHINGLLM_WORKSPACE_ID=<vendor-workspace-id>
+KB_BASE_URL=https://<approved-kb-host>
+KB_API_KEY=<secret-manager-value>
+KB_WORKSPACE_SLUG=<dedicated-public-workspace>
+KB_WORKSPACE_ID=<vendor-workspace-id>
 AI_KNOWLEDGE_CREDENTIAL_ID=<first-16-hex-of-sha256-api-key>
-ANYTHINGLLM_CITATIONS_VERIFIED=1
-ANYTHINGLLM_CREDENTIAL_ROTATION=<monotonic-counter>
+KB_CITATIONS_VERIFIED=1
+KB_CREDENTIAL_ROTATION=<monotonic-counter>
 AI_CORPUS_GENERATION=<approved-ingest-generation>
 AI_KB_EVIDENCE_JSON=<single-line-secret-free-probe-evidence>
 AI_APPROVED_SOURCE_PREFIX=<approved-document-prefix>
@@ -177,7 +177,7 @@ AI_WORKER_LEASE_SECONDS=90
 AI_MAX_STREAM_DURATION_MS=55000
 ```
 
-`ALLOW_INSECURE_ANYTHINGLLM=true` is for the loopback/private local container
+`ALLOW_INSECURE_KB=true` is for the loopback/private local container
 only. It is forbidden by the production manifest and must not appear in a
 production environment; the hosted endpoint is HTTPS.
 

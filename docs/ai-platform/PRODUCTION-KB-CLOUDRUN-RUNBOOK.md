@@ -87,7 +87,7 @@ sequenceDiagram
 `scripts/probe-anythingllm.mjs` now:
 
 - refuses to send a bearer token to remote HTTP unless a bounded diagnostic
-  explicitly sets `ALLOW_INSECURE_ANYTHINGLLM=true`;
+  explicitly sets `ALLOW_INSECURE_KB=true`;
 - checks auth, workspace lookup and vector retrieval before chat;
 - creates one named probe thread, then checks sync and SSE chat;
 - handles both HTTP-error and SSE-abort failure shapes;
@@ -325,8 +325,8 @@ must be taken from the logged-in calculator at purchase time.
 | Variable / identifier | Where it belongs |
 | --- | --- |
 | `DATABASE_URL` | BFF and worker protected runtime environment |
-| `ANYTHINGLLM_BASE_URL` | worker runtime environment; HTTPS/private only |
-| `ANYTHINGLLM_API_KEY` | worker protected runtime environment |
+| `KB_BASE_URL` | worker runtime environment; HTTPS/private only |
+| `KB_API_KEY` | worker protected runtime environment |
 | `AI_KNOWLEDGE_CREDENTIAL_ID` | non-secret approved attestation identity; worker startup must match it |
 | `AI_IP_HASH_SECRET` | BFF protected runtime environment; HMAC-pseudonymizes rate-limit subjects |
 | `AI_WORKER_LEASE_SECONDS` | worker runtime; must exceed maximum stream duration by at least five seconds |

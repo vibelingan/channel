@@ -712,7 +712,7 @@ function parseVendorDate(value: string | undefined): string | null {
  * satisfy is not a control.
  *
  * The Docker compose stack still reaches the engine over http on a private
- * network; it now does so by setting ALLOW_INSECURE_ANYTHINGLLM explicitly,
+ * network; it now does so by setting ALLOW_INSECURE_KB explicitly,
  * which is auditable, refused in production by FORBIDDEN_ENV_KEYS, and cannot
  * be arrived at by accident.
  */

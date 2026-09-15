@@ -701,9 +701,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     await verifyKnowledgeAttestation(engine, evidence, {
       maxAgeMs: envNumber('AI_KB_EVIDENCE_MAX_AGE_MS', KB_EVIDENCE_MAX_AGE_MS_DEFAULT),
       expectedCredentialId: requiredEnv('AI_KNOWLEDGE_CREDENTIAL_ID'),
-      expectedWorkspaceId: requiredEnv('ANYTHINGLLM_WORKSPACE_ID'),
+      expectedWorkspaceId: requiredEnv('KB_WORKSPACE_ID'),
       expectedCorpusGeneration: requiredEnv('AI_CORPUS_GENERATION'),
-      allowInsecureTransport: process.env.ALLOW_INSECURE_ANYTHINGLLM === 'true',
+      allowInsecureTransport: process.env.ALLOW_INSECURE_KB === 'true',
     });
     if (!(engine instanceof AnythingLlmEngine)) {
       throw new Error('AnythingLLM engine construction mismatch');
@@ -820,9 +820,9 @@ function engineFromEnvironment(): ConversationEngine {
     });
   }
   if (engineId !== 'anythingllm') throw new Error(`unsupported_AI_ENGINE_ID:${engineId}`);
-  const baseUrl = requiredEnv('ANYTHINGLLM_BASE_URL');
-  const apiKey = requiredEnv('ANYTHINGLLM_API_KEY');
-  const workspaceSlug = requiredEnv('ANYTHINGLLM_WORKSPACE_SLUG');
+  const baseUrl = requiredEnv('KB_BASE_URL');
+  const apiKey = requiredEnv('KB_API_KEY');
+  const workspaceSlug = requiredEnv('KB_WORKSPACE_SLUG');
   return new AnythingLlmEngine({
     baseUrl,
     apiKey,
@@ -833,11 +833,11 @@ function engineFromEnvironment(): ConversationEngine {
     // bearer in cleartext on the network path, and the supplied hosted KB was
     // found on exactly that footing on 2026-08-25. Remote HTTP therefore has to
     // be asked for by name, once, in a file that is not production.
-    allowInsecureRemoteHttp: process.env.ALLOW_INSECURE_ANYTHINGLLM === 'true',
+    allowInsecureRemoteHttp: process.env.ALLOW_INSECURE_KB === 'true',
     engineVersion: requiredEnv('AI_ENGINE_VERSION'),
     provenance: provenanceFromEnvironment(),
-    citationsVerified: process.env.ANYTHINGLLM_CITATIONS_VERIFIED === '1',
-    credentialRotationCounter: envNumber('ANYTHINGLLM_CREDENTIAL_ROTATION', 1),
+    citationsVerified: process.env.KB_CITATIONS_VERIFIED === '1',
+    credentialRotationCounter: envNumber('KB_CREDENTIAL_ROTATION', 1),
   });
 }
 

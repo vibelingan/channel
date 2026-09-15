@@ -407,21 +407,21 @@ export function knowledgeEvidenceRefusals(evidence, expected) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const required = ['ANYTHINGLLM_BASE_URL', 'ANYTHINGLLM_API_KEY', 'ANYTHINGLLM_WORKSPACE_SLUG'];
+  const required = ['KB_BASE_URL', 'KB_API_KEY', 'KB_WORKSPACE_SLUG'];
   const missing = required.filter((name) => !process.env[name]);
   if (missing.length > 0) {
     console.error(`Missing environment variables: ${missing.join(', ')}`);
     process.exitCode = 2;
   } else {
     probeAnythingLlm({
-      baseUrl: process.env.ANYTHINGLLM_BASE_URL,
-      apiKey: process.env.ANYTHINGLLM_API_KEY,
-      workspaceSlug: process.env.ANYTHINGLLM_WORKSPACE_SLUG,
-      retrievalQuery: process.env.ANYTHINGLLM_RETRIEVAL_QUERY ?? 'What does the company do?',
-      chatQuery: process.env.ANYTHINGLLM_CHAT_QUERY ?? 'What does the company do?',
-      allowInsecure: process.env.ALLOW_INSECURE_ANYTHINGLLM === 'true',
+      baseUrl: process.env.KB_BASE_URL,
+      apiKey: process.env.KB_API_KEY,
+      workspaceSlug: process.env.KB_WORKSPACE_SLUG,
+      retrievalQuery: process.env.KB_RETRIEVAL_QUERY ?? 'What does the company do?',
+      chatQuery: process.env.KB_CHAT_QUERY ?? 'What does the company do?',
+      allowInsecure: process.env.ALLOW_INSECURE_KB === 'true',
       approvedSourcePrefix: process.env.AI_APPROVED_SOURCE_PREFIX,
-      credentialRotationCounter: Number(process.env.ANYTHINGLLM_CREDENTIAL_ROTATION),
+      credentialRotationCounter: Number(process.env.KB_CREDENTIAL_ROTATION),
     })
       .then(async (report) => {
         console.log(JSON.stringify(sanitizedProbeReport(report), null, 2));
@@ -431,7 +431,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         if (out) {
           const evidenceRequired = [
             'AI_APPROVED_SOURCE_PREFIX',
-            'ANYTHINGLLM_CREDENTIAL_ROTATION',
+            'KB_CREDENTIAL_ROTATION',
             'AI_CORPUS_GENERATION',
           ];
           const evidenceMissing = evidenceRequired.filter((name) => !process.env[name]);
@@ -443,11 +443,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
           });
           const refusals = knowledgeEvidenceRefusals(evidence, {
             credentialId: report.auth.credentialId,
-            workspaceSlug: process.env.ANYTHINGLLM_WORKSPACE_SLUG,
+            workspaceSlug: process.env.KB_WORKSPACE_SLUG,
             workspaceId: report.workspace.id,
-            rotationCounter: Number(process.env.ANYTHINGLLM_CREDENTIAL_ROTATION),
+            rotationCounter: Number(process.env.KB_CREDENTIAL_ROTATION),
             corpusGeneration: process.env.AI_CORPUS_GENERATION,
-            allowInsecureTransport: process.env.ALLOW_INSECURE_ANYTHINGLLM === 'true',
+            allowInsecureTransport: process.env.ALLOW_INSECURE_KB === 'true',
             maxAgeMs: 60_000,
           });
           if (refusals.length > 0) {

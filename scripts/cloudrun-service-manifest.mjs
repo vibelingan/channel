@@ -25,7 +25,7 @@ export const CLOUDRUN_SERVICE_NAMES = ['ai-bff', 'ai-worker'];
  * Environment values that must come from a secret store at deploy time and
  * must never appear as literals in this repository.
  */
-export const SECRET_ENV_KEYS = ['DATABASE_URL', 'ANYTHINGLLM_API_KEY', 'AI_IP_HASH_SECRET'];
+export const SECRET_ENV_KEYS = ['DATABASE_URL', 'KB_API_KEY', 'AI_IP_HASH_SECRET'];
 
 /**
  * Switches that must never appear in a deployed service definition.
@@ -38,13 +38,13 @@ export const SECRET_ENV_KEYS = ['DATABASE_URL', 'ANYTHINGLLM_API_KEY', 'AI_IP_HA
  */
 // Flags that disable a control. Each one is legitimate on a developer's machine
 // and never in production, so production refuses to deploy carrying any of them.
-// ALLOW_INSECURE_ANYTHINGLLM turns off the HTTPS requirement on the knowledge
+// ALLOW_INSECURE_KB turns off the HTTPS requirement on the knowledge
 // base — which carries an INSTANCE-WIDE developer token — so it belongs here
 // beside the harness flag rather than relying on nobody copying a compose file.
 export const FORBIDDEN_ENV_KEYS = [
   'AI_LOCAL_HARNESS',
   'AI_DEV_UNSAFE_ALLOW_UNGATED_ENGINE',
-  'ALLOW_INSECURE_ANYTHINGLLM',
+  'ALLOW_INSECURE_KB',
 ];
 
 /** Drop undefined values so optional variables are omitted, not set to "undefined". */
@@ -174,13 +174,13 @@ export function buildCloudRunServiceDefs(ctx) {
         AI_MAX_STREAM_DURATION_MS: ctx.requireEnv('AI_MAX_STREAM_DURATION_MS'),
         AI_MAX_OUTPUT_TOKENS: ctx.requireEnv('AI_MAX_OUTPUT_TOKENS'),
         AI_MAX_TOOL_CALLS: ctx.requireEnv('AI_MAX_TOOL_CALLS'),
-        ANYTHINGLLM_BASE_URL: ctx.requireEnv('ANYTHINGLLM_BASE_URL'),
-        ANYTHINGLLM_API_KEY: ctx.requireEnv('ANYTHINGLLM_API_KEY'),
-        ANYTHINGLLM_WORKSPACE_SLUG: ctx.requireEnv('ANYTHINGLLM_WORKSPACE_SLUG'),
-        ANYTHINGLLM_WORKSPACE_ID: ctx.requireEnv('ANYTHINGLLM_WORKSPACE_ID'),
+        KB_BASE_URL: ctx.requireEnv('KB_BASE_URL'),
+        KB_API_KEY: ctx.requireEnv('KB_API_KEY'),
+        KB_WORKSPACE_SLUG: ctx.requireEnv('KB_WORKSPACE_SLUG'),
+        KB_WORKSPACE_ID: ctx.requireEnv('KB_WORKSPACE_ID'),
         AI_KNOWLEDGE_CREDENTIAL_ID: ctx.requireEnv('AI_KNOWLEDGE_CREDENTIAL_ID'),
-        ANYTHINGLLM_CITATIONS_VERIFIED: ctx.requireEnv('ANYTHINGLLM_CITATIONS_VERIFIED'),
-        ANYTHINGLLM_CREDENTIAL_ROTATION: ctx.requireEnv('ANYTHINGLLM_CREDENTIAL_ROTATION'),
+        KB_CITATIONS_VERIFIED: ctx.requireEnv('KB_CITATIONS_VERIFIED'),
+        KB_CREDENTIAL_ROTATION: ctx.requireEnv('KB_CREDENTIAL_ROTATION'),
         AI_CORPUS_GENERATION: ctx.requireEnv('AI_CORPUS_GENERATION'),
         AI_KB_EVIDENCE_JSON: ctx.requireEnv('AI_KB_EVIDENCE_JSON'),
         AI_APPROVED_SOURCE_PREFIX: ctx.requireEnv('AI_APPROVED_SOURCE_PREFIX'),

@@ -39,14 +39,14 @@ function renderWithDocker() {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'ignore'],
         timeout: 60_000,
-        // The file uses `${ANYTHINGLLM_API_KEY:?...}`, so rendering fails
+        // The file uses `${KB_API_KEY:?...}`, so rendering fails
         // outright without a value. A placeholder keeps this check independent
         // of whether a developer has a real .env.ai — an earlier version
         // omitted it and silently fell back to file parsing while appearing to
         // verify the rendered configuration.
         env: {
           ...process.env,
-          ANYTHINGLLM_API_KEY: process.env.ANYTHINGLLM_API_KEY ?? 'placeholder',
+          KB_API_KEY: process.env.KB_API_KEY ?? 'placeholder',
         },
       },
     );

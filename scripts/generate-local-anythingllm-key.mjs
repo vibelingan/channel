@@ -13,9 +13,9 @@ export function extractGeneratedApiKey(body) {
 }
 
 export function updateEnvText(source, key, allowRotate = false) {
-  const existing = source.match(/^ANYTHINGLLM_API_KEY=(.*)$/m)?.[1]?.trim();
+  const existing = source.match(/^KB_API_KEY=(.*)$/m)?.[1]?.trim();
   if (existing && !allowRotate) {
-    throw new Error('ANYTHINGLLM_API_KEY already exists; pass --rotate to replace it deliberately');
+    throw new Error('KB_API_KEY already exists; pass --rotate to replace it deliberately');
   }
   const credentialId = createHash('sha256').update(key).digest('hex').slice(0, 16);
   const replace = (text, name, value) => {
@@ -24,11 +24,7 @@ export function updateEnvText(source, key, allowRotate = false) {
       ? text.replace(new RegExp(`^${name}=.*$`, 'm'), line)
       : `${text.replace(/\n?$/, '\n')}${line}\n`;
   };
-  return replace(
-    replace(source, 'ANYTHINGLLM_API_KEY', key),
-    'AI_KNOWLEDGE_CREDENTIAL_ID',
-    credentialId,
-  );
+  return replace(replace(source, 'KB_API_KEY', key), 'AI_KNOWLEDGE_CREDENTIAL_ID', credentialId);
 }
 
 async function main() {
@@ -36,10 +32,7 @@ async function main() {
   const source = readFileSync(envPath, 'utf8');
   // The worker uses http://anythingllm:3001 inside Docker. This helper runs on
   // the host and deliberately uses a separate loopback-only admin URL.
-  const baseUrl = (process.env.ANYTHINGLLM_LOCAL_ADMIN_URL ?? 'http://127.0.0.1:53001').replace(
-    /\/$/,
-    '',
-  );
+  const baseUrl = (process.env.KB_LOCAL_ADMIN_URL ?? 'http://127.0.0.1:53001').replace(/\/$/, '');
   const url = new URL(baseUrl);
   if (url.protocol !== 'http:' || !['localhost', '127.0.0.1', '::1'].includes(url.hostname)) {
     throw new Error('local key generation requires a loopback HTTP AnythingLLM URL');

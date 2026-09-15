@@ -139,10 +139,10 @@ services:
       AI_ENGINE_GIT_COMMIT: ${AI_ENGINE_GIT_COMMIT:-}
       AI_ENGINE_GIT_REPOSITORY: ${AI_ENGINE_GIT_REPOSITORY:-}
       AI_ENGINE_CONFIG_DIGEST: ${AI_ENGINE_CONFIG_DIGEST:-}
-      ANYTHINGLLM_BASE_URL: ${ANYTHINGLLM_BASE_URL:-http://anythingllm:3001}
-      ANYTHINGLLM_WORKSPACE_SLUG: ${ANYTHINGLLM_WORKSPACE_SLUG:-channel-public-assistant}
-      ANYTHINGLLM_WORKSPACE_ID: ${ANYTHINGLLM_WORKSPACE_ID:-}
-      ANYTHINGLLM_API_KEY: ${ANYTHINGLLM_API_KEY:-}
+      KB_BASE_URL: ${KB_BASE_URL:-http://anythingllm:3001}
+      KB_WORKSPACE_SLUG: ${KB_WORKSPACE_SLUG:-channel-public-assistant}
+      KB_WORKSPACE_ID: ${KB_WORKSPACE_ID:-}
+      KB_API_KEY: ${KB_API_KEY:-}
       # Container-to-container on a private docker network, so http is the only
       # option here and the engine would otherwise refuse to start. This is the
       # ONLY place this flag belongs: any remote knowledge base must be HTTPS,
@@ -150,10 +150,10 @@ services:
       # Defaults TRUE for this stack only, and is what now permits the plaintext
       # hop — the engine no longer treats the hostname `anythingllm` as local,
       # because a name is not a network boundary. Set it to false the moment
-      # ANYTHINGLLM_BASE_URL points anywhere but this compose network.
-      ALLOW_INSECURE_ANYTHINGLLM: ${ALLOW_INSECURE_ANYTHINGLLM:-true}
-      ANYTHINGLLM_CITATIONS_VERIFIED: ${ANYTHINGLLM_CITATIONS_VERIFIED:-0}
-      ANYTHINGLLM_CREDENTIAL_ROTATION: ${ANYTHINGLLM_CREDENTIAL_ROTATION:-1}
+      # KB_BASE_URL points anywhere but this compose network.
+      ALLOW_INSECURE_KB: ${ALLOW_INSECURE_KB:-true}
+      KB_CITATIONS_VERIFIED: ${KB_CITATIONS_VERIFIED:-0}
+      KB_CREDENTIAL_ROTATION: ${KB_CREDENTIAL_ROTATION:-1}
       AI_CORPUS_GENERATION: ${AI_CORPUS_GENERATION:-}
       # Secret-free JSON emitted by the authenticated probe. The process also
       # accepts a file path, but an env value works in both Compose and
