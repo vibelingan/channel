@@ -111,6 +111,15 @@ existing services: no image rebuild, no environment replacement, no change to
 public/private access controls. Normal future deployments also use the complete
 binding. Read-back and runtime acceptance remain mandatory.
 
+The network-only run is
+[34935924769](https://github.com/vibelingan/channel/actions/runs/34935924769),
+tag `ai-cloudrun-deploy-network-20260915-1` at `4e90b7c`. Its complete test job
+and authenticated KB probe passed. The configuration update's final outcome
+is still pending. Read-only inspection additionally queries
+[`DescribeServerManageTask`](https://cloud.tencent.com/document/product/1243/76021)
+for the exact management-task state and failure reason; it does not retry a
+mutation or expose environment values.
+
 The current production website was inspected separately in a real browser:
 it contains neither the assistant island nor its launch button. Backend release
 does not automatically enable the website widget.

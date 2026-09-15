@@ -178,6 +178,30 @@ function printProcessLog(name) {
   }
 }
 
+function printManageTask(name, taskId = 0) {
+  const raw = callTool('callCloudApi', {
+    service: 'tcbr',
+    action: 'DescribeServerManageTask',
+    version: '2022-02-17',
+    params: { EnvId: requireSetting(env, 'TCB_ENV_ID'), ServerName: name, TaskId: taskId },
+  });
+  const result = raw.Response ?? raw;
+  const task = result.Task;
+  log(
+    JSON.stringify({
+      service: name,
+      managementTask: {
+        exists: result.IsExist,
+        id: task?.Id,
+        status: task?.Status,
+        failReason: task?.FailReason,
+        version: task?.VersionName,
+        steps: task?.Steps?.map(({ Name, Status, FailReason }) => ({ Name, Status, FailReason })),
+      },
+    }),
+  );
+}
+
 async function waitForDeploys(deployments) {
   const deadline = Date.now() + DEPLOY_TIMEOUT_MS;
   const pending = new Set(deployments);
@@ -329,6 +353,7 @@ async function main() {
         }
       }
       printProcessLog(name);
+      printManageTask(name);
     }
     return;
   }

@@ -53,6 +53,7 @@ test('inspection tags query existing services without uploading or probing the K
     .split("if (env.AI_CLOUDRUN_INSPECT_ONLY === '1') {")[1]
     ?.split('const ctx =')[0];
   assert.ok(inspect?.includes('serviceDetail(name)'));
+  assert.ok(inspect?.includes('printManageTask(name)'));
   assert.ok(inspect?.includes('return;'));
   assert.ok(!inspect?.includes("callTool('manageCloudRun'"));
 });
