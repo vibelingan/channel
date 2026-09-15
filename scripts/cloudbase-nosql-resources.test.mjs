@@ -295,8 +295,9 @@ test('deploy provisions NoSQL resources before functions and smoke crosses the l
   );
   assert.equal(
     packageJson.scripts['test:deploy-smoke'],
-    'node --test scripts/*.test.mjs',
-    'the root deploy-smoke test command must include every script contract test',
+    'node --experimental-strip-types --test scripts/*.test.mjs',
+    'the root deploy-smoke test command must include every script contract test, ' +
+      'and load the TypeScript policy module the eval tests import on Node 22',
   );
 });
 

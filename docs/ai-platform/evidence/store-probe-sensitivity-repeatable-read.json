@@ -1,0 +1,78 @@
+{
+  "probedAt": "2026-08-15T16:55:45.050Z",
+  "verdict": "FAIL",
+  "results": [
+    {
+      "id": "S0",
+      "requirement": "server reachable",
+      "pass": true,
+      "detail": "PostgreSQL 16.14 (Debian 16.14-1.pgdg13+1) on x86_64-pc-linux-gnu"
+    },
+    {
+      "id": "S1",
+      "requirement": "default isolation is 'read committed'",
+      "pass": false,
+      "detail": "observed: repeatable read. LLD-001 §4.4 requires READ COMMITTED — under REPEATABLE READ a lost fence raises a serialization error instead of returning zero rows, so \"someone else took over first\" becomes a 500."
+    },
+    {
+      "id": "S2",
+      "requirement": "a conditional UPDATE whose predicate fails returns zero rows",
+      "pass": true,
+      "detail": "rowCount=0. This is Primitive A's entire contract."
+    },
+    {
+      "id": "S3",
+      "requirement": "RETURNING exposes post-update values (sequence allocation)",
+      "pass": true,
+      "detail": "allocated=1; expected 1. LLD-001 §4.2 allocates the sequence and fences in one statement using this."
+    },
+    {
+      "id": "S4",
+      "requirement": "a blocked conditional UPDATE re-evaluates its predicate after the lock clears",
+      "pass": false,
+      "detail": "the blocked statement RAISED instead of returning zero rows: \"could not serialize access due to concurrent update\". This is the exact failure LLD-001 §4.4 predicts above READ COMMITTED: \"someone else took over first\" becomes a 500 rather than a clean conflict. Either pin READ COMMITTED, or the takeover paths need explicit serialization-failure retry."
+    },
+    {
+      "id": "S5",
+      "requirement": "rollback restores the sequence counter (gaplessness, LLD-001 §8)",
+      "pass": true,
+      "detail": "before=2 after=2. A Postgres SEQUENCE would NOT restore — which is exactly why §8 forbids replacing the counter column with one."
+    },
+    {
+      "id": "S6",
+      "requirement": "now() is transaction-start; clock_timestamp() advances",
+      "pass": true,
+      "detail": "now() fixed=true, clock_timestamp() advanced=true. Every lease deadline in LLD-001 uses clock_timestamp() for this reason: a renewal written with now() after a long lock wait is already expired."
+    },
+    {
+      "id": "S7",
+      "requirement": "partial unique index enforces one live run per conversation",
+      "pass": true,
+      "detail": "a second live run was rejected; a terminal run was accepted alongside."
+    },
+    {
+      "id": "S8",
+      "requirement": "ON CONFLICT DO UPDATE ... WHERE ... RETURNING behaves as a claim",
+      "pass": true,
+      "detail": "first claim rows=1 (want 1), non-matching claim rows=0 (want 0). LLD-001 §7's engine_operations claim uses this."
+    },
+    {
+      "id": "S9",
+      "requirement": "composite unique keys and FKs available",
+      "pass": true,
+      "detail": "needed to bind an event to (conversation, run)."
+    },
+    {
+      "id": "S10",
+      "requirement": "transaction isolation can be set explicitly per transaction",
+      "pass": true,
+      "detail": "observed read committed. MIU 2a asserts this at connection setup rather than inheriting a pooler default."
+    },
+    {
+      "id": "S11",
+      "requirement": "multi-statement transactions survive the connection path",
+      "pass": true,
+      "detail": "if this store sits behind a transaction-pooling proxy (e.g. pgbouncer in transaction mode), verify separately that session-scoped state is not assumed."
+    }
+  ]
+}
