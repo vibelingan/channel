@@ -23,36 +23,32 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ctx = {
   envId: 'env-fixture',
   appEnv: 'test',
-  images: {
-    'ai-bff': `registry.example/channel/ai-bff@sha256:${'a'.repeat(64)}`,
-    'ai-worker': `registry.example/channel/ai-worker@sha256:${'b'.repeat(64)}`,
-  },
+  vpc: { vpcId: 'vpc-fixture', subnetId: 'subnet-fixture' },
   siteOrigins: 'https://site.example',
   engineProvenanceKind: 'oci',
   requireEnv: (name) => `secret://${name}`,
-  optionalEnv: () => undefined,
 };
 const defs = buildCloudRunServiceDefs(ctx);
 
-test('a floating image tag is refused', () => {
-  assert.throws(
-    () =>
-      buildCloudRunServiceDefs({
-        ...ctx,
-        images: { ...ctx.images, 'ai-worker': 'registry.example/channel/ai-worker:latest' },
-      }),
-    /immutable sha256 OCI reference/,
-  );
-  assert.throws(
-    () => buildCloudRunServiceDefs({ ...ctx, images: { 'ai-bff': ctx.images['ai-bff'] } }),
-    /ai-worker image/,
-  );
+test('each service is built by CloudRun from its own Dockerfile, not from a pre-built image', () => {
+  // Deploys upload a clean copy of the tested commit and CloudRun runs the
+  // Dockerfile, so nothing here may point at an image built somewhere else.
+  for (const def of defs) {
+    assert.equal(def.image, undefined, `${def.name} still names a pre-built image`);
+    assert.equal(def.dockerfile, `apps/${def.name}/Dockerfile`);
+    assert.equal(def.buildContext, '.', 'the Dockerfiles copy the whole workspace');
+  }
 });
 
-test('the manifest emits the exact complete immutable service references', () => {
-  assert.equal(defs.find((def) => def.name === 'ai-bff').image, ctx.images['ai-bff']);
-  assert.equal(defs.find((def) => def.name === 'ai-worker').image, ctx.images['ai-worker']);
-  for (const def of defs) assert.match(def.image, /@sha256:[0-9a-f]{64}$/);
+test('both services join the database VPC through the CloudRun subnet', () => {
+  // PostgreSQL only accepts connections from that subnet, so a service outside
+  // it cannot reach the database at all.
+  for (const def of defs) assert.deepEqual(def.vpc, ctx.vpc, `${def.name} is not in the VPC`);
+  assert.throws(() => buildCloudRunServiceDefs({ ...ctx, vpc: undefined }), /VPC/);
+  assert.throws(
+    () => buildCloudRunServiceDefs({ ...ctx, vpc: { vpcId: 'vpc-fixture', subnetId: '' } }),
+    /VPC/,
+  );
 });
 
 test('every deployable AI app is in the manifest', () => {

@@ -1,7 +1,7 @@
 /**
  * THE CloudRun (云托管) service manifest for the AI assistant — the single
- * source of truth for every containerised service's name, image build context,
- * port, scaling, public exposure, and environment map.
+ * source of truth for every containerised service's name, build recipe, port,
+ * network, scaling, public exposure, and environment map.
  *
  * It exists for the same reason `cloudbase-function-manifest.mjs` does: a
  * deployable that is not in a manifest drifts silently, and the first time
@@ -9,7 +9,8 @@
  * worse, is publicly reachable when it was never meant to be.
  *
  * Consumers (must be updated in lockstep): scripts/cloudrun-manifest.test.mjs,
- * scripts/smoke-ai-bff.mjs, scripts/smoke-ai-worker.mjs, docker-compose.ai.yml.
+ * scripts/deploy-ai-cloudrun.mjs, scripts/smoke-ai-bff.mjs,
+ * scripts/smoke-ai-worker.mjs, docker-compose.ai.yml.
  *
  * MIU 0 measured that CloudRun serves each service on its OWN hostname and is
  * not mounted under the CloudBase environment service domain. That is why the
@@ -53,14 +54,6 @@ export function envEntries(record) {
 }
 
 /**
- * Build the per-service deploy definitions from a deploy context:
- * { envId, appEnv, images, siteOrigins, requireEnv, optionalEnv }.
- *
- * Each complete service image reference must end in a sha256 digest. Appending
- * a service path after a digest produces an invalid OCI reference, so callers
- * pass the two final references rather than a pseudo-prefix.
- */
-/**
  * The engine's provenance, as a discriminated pair of variables.
  *
  * `AI_ENGINE_IMAGE_DIGEST` used to be required unconditionally. The knowledge
@@ -97,15 +90,36 @@ export function provenanceEnv(ctx) {
   throw new Error(`AI_ENGINE_PROVENANCE_KIND must be "oci" or "git", got: ${JSON.stringify(kind)}`);
 }
 
-export function buildCloudRunServiceDefs(ctx) {
-  const digestReference =
-    /^(?:[a-z0-9]+(?:[._-][a-z0-9]+)*(?::[0-9]+)?\/)?[a-z0-9]+(?:[._/-][a-z0-9]+)*@sha256:[0-9a-f]{64}$/;
-  for (const service of CLOUDRUN_SERVICE_NAMES) {
-    const image = ctx.images?.[service];
-    if (!image || !digestReference.test(image)) {
-      throw new Error(`${service} image must be a complete immutable sha256 OCI reference`);
-    }
+/**
+ * The private network both services join. PostgreSQL has no public address:
+ * it accepts connections only from inside its VPC, and its security group
+ * admits only the CloudRun subnet. A service deployed outside it has no route
+ * to the database and would report "starting" forever, so a missing or
+ * malformed id is refused before anything is uploaded.
+ */
+function databaseVpc(vpc) {
+  const vpcId = vpc?.vpcId ?? '';
+  const subnetId = vpc?.subnetId ?? '';
+  if (!/^vpc-[a-z0-9]+$/.test(vpcId) || !/^subnet-[a-z0-9]+$/.test(subnetId)) {
+    throw new Error(
+      'Both AI services must join the database VPC: pass vpc.vpcId (vpc-…) and vpc.subnetId (subnet-…)',
+    );
   }
+  return { vpcId, subnetId };
+}
+
+/**
+ * Build the per-service deploy definitions from a deploy context:
+ * { envId, appEnv, vpc: { vpcId, subnetId }, siteOrigins, engineProvenanceKind,
+ *   requireEnv }.
+ *
+ * CloudRun builds each image itself: a deploy uploads a clean copy of one
+ * commit and CloudRun runs the service's Dockerfile against it. No image is
+ * built anywhere else, so there is no image reference to pin here — the commit
+ * the copy came from is what identifies a deployment.
+ */
+export function buildCloudRunServiceDefs(ctx) {
+  const vpc = databaseVpc(ctx.vpc);
 
   return [
     {
@@ -113,13 +127,13 @@ export function buildCloudRunServiceDefs(ctx) {
       workspacePackage: '@vibelingan-channel/ai-bff',
       dockerfile: 'apps/ai-bff/Dockerfile',
       buildContext: '.',
-      image: ctx.images['ai-bff'],
       containerPort: 8080,
       healthPath: '/api/ai/healthz',
       readyPath: '/api/ai/readyz',
       // Public: the widget in the visitor's browser calls this directly, on
       // this service's own hostname.
       publicAccess: true,
+      vpc,
       cpu: 0.5,
       mem: 1,
       // Not zero. A scaled-to-zero BFF makes the first visitor of the hour wait
@@ -145,7 +159,6 @@ export function buildCloudRunServiceDefs(ctx) {
       workspacePackage: '@vibelingan-channel/ai-worker',
       dockerfile: 'apps/ai-worker/Dockerfile',
       buildContext: '.',
-      image: ctx.images['ai-worker'],
       containerPort: 8080,
       healthPath: '/healthz',
       readyPath: '/readyz',
@@ -153,6 +166,11 @@ export function buildCloudRunServiceDefs(ctx) {
       // streams and drains the outbox. Exposing it would publish a health
       // surface and an attack surface for no benefit.
       publicAccess: false,
+      // Same network as the BFF, for the database. The worker ALSO calls the
+      // knowledge base over the internet, and joining a VPC does not by itself
+      // give a service an internet route: without one (a NAT gateway) the
+      // worker keeps logging knowledge_base_unreachable instead of starting.
+      vpc,
       cpu: 0.5,
       mem: 1,
       // Also not zero, for a different reason: the worker is not request-driven.
