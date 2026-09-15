@@ -93,6 +93,7 @@ function evidence(overrides = {}) {
 /** What `queryCloudRun detail` reports for a service deployed exactly as planned. */
 function deployedConfig(def, overrides = {}) {
   return {
+    InternalAccess: 'open',
     VpcConf: {
       VpcId: def.vpc.vpcId,
       SubnetId: def.vpc.subnetId,
@@ -128,6 +129,7 @@ test('network binding includes real CIDRs and rejects mismatched inventory', () 
     action: 'updateConfig',
     serverName: 'ai-bff',
     serverConfig: {
+      InternalAccess: 'open',
       VpcConf: {
         VpcId: 'vpc-fixture1',
         SubnetId: 'subnet-fixture1',
@@ -163,6 +165,7 @@ test('the BFF is deployed public, the worker private, and both join the database
   // VPC-only: reachable from inside the private network, never from the internet.
   assert.deepEqual(workerArgs.serverConfig.OpenAccessTypes, ['VPC']);
   for (const args of [bffArgs, workerArgs]) {
+    assert.equal(args.serverConfig.InternalAccess, 'open');
     assert.deepEqual(args.serverConfig.VpcConf, {
       VpcId: 'vpc-fixture1',
       SubnetId: 'subnet-fixture1',
@@ -170,6 +173,11 @@ test('the BFF is deployed public, the worker private, and both join the database
       SubnetCIDR: '10.20.1.0/24',
     });
   }
+});
+
+test('a filled VPC with the private network switch still closed is not ready', () => {
+  const problems = deployedConfigProblems(bff, deployedConfig(bff, { InternalAccess: 'close' }));
+  assert.ok(problems.some((problem) => problem.includes('InternalAccess')));
 });
 
 test('a deploy replaces the whole environment, so no removed or hand-added setting lingers', () => {

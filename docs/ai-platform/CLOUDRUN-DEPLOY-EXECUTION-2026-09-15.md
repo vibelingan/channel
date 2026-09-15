@@ -129,6 +129,22 @@ state. A VM execution regression reproduces that exact ReferenceError; the
 helper now reads the explicit process environment and inspection includes
 `InternalAccess` as well as the VPC fields.
 
+## Inspection 3: the network switch is closed
+
+[Inspection 34937282796](https://github.com/vibelingan/channel/actions/runs/34937282796)
+completed successfully at 06:34 UTC. Both services are on version `002`.
+Management tasks `2155706` (BFF) and `2155710` (worker) are `finished`, with no
+failure reason, but both configurations show `InternalAccess: "close"` and
+empty `VpcConf`. This was not an unfinished background update.
+
+The [official API schema](https://cloud.tencent.com/document/product/1243/75713)
+defines `InternalAccess` as the `open | close` intranet switch. Correction:
+submit `InternalAccess: "open"` **together with** the complete VPC binding,
+and require that switch in read-back acceptance. Keep `OpenAccessTypes`
+unchanged (public BFF, VPC-only worker) and retain public egress for the KB.
+Three regression assertions failed before this correction and passed after it.
+The live result is still to be recorded below.
+
 The current production website was inspected separately in a real browser:
 it contains neither the assistant island nor its launch button. Backend release
 does not automatically enable the website widget.

@@ -107,6 +107,7 @@ export function cloudRunNetworkUpdateArgs(def) {
     action: 'updateConfig',
     serverName: def.name,
     serverConfig: {
+      InternalAccess: 'open',
       VpcConf: {
         VpcId: def.vpc.vpcId,
         SubnetId: def.vpc.subnetId,
@@ -139,7 +140,7 @@ export function cloudRunDeployArgs(def, targetPath) {
       MaxNum: def.maxNum,
       Port: def.containerPort,
       Dockerfile: 'Dockerfile',
-      VpcConf: cloudRunNetworkUpdateArgs(def).serverConfig.VpcConf,
+      ...cloudRunNetworkUpdateArgs(def).serverConfig,
       EnvParams: JSON.stringify(def.envVariables),
     },
   };
@@ -210,6 +211,9 @@ function envParamKeys(raw) {
  */
 export function deployedConfigProblems(def, config) {
   const problems = [];
+  if (config?.InternalAccess !== 'open') {
+    problems.push(`${def.name} InternalAccess must be open for the private network binding`);
+  }
 
   const vpc = config?.VpcConf ?? {};
   for (const [key, expected] of [
