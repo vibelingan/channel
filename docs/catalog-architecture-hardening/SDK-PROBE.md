@@ -92,3 +92,20 @@ Require local/remote equality evidence; no publication of this correction is cla
 released; no active exact reservations remain; MIU 17 is planned/inactive; the task remains in implementation.
 No merge into `test` or `main`, CloudBase operation, workflow dispatch, or browser E2E occurred for MIU 16. The denominator
 remains 49; D1 and D2 are unchanged.
+
+## MIU 17 Addendum
+
+The preceding MIU-16 record is historical. MIU 17 is ACTIVE; full local PASS is recorded in [EXECUTION.md](EXECUTION.md#miu-17-implementation-record), not independently rerun by this doc-writer.
+Installed Astro **6.4.6** and Vite **7.3.5** contracts were confirmed by the independent read-only cross-file reviewer:
+- `apps/site/node_modules/astro/dist/config/index.d.ts:13`; implementation `apps/site/node_modules/astro/dist/config/index.js:24/36/41` (`getViteConfig`).
+- `apps/site/node_modules/vite/dist/node/index.d.ts`: `createServer` 2607, `ssrLoadModule` 2553, `close` 2576;
+  options `root` 3217, `configFile` 3431, `middlewareMode` 2392, `watch` 2387, `hmr` 2363, `noDiscovery` 838.
+- Actual new harness imports/calls: `apps/site/src/catalog/families/ai-gadgets.test.ts:5,7,19,27,28,36/37`.
+The parent fetched official [testing](https://docs.astro.build/en/guides/testing/) and [astro:config](https://docs.astro.build/en/reference/modules/astro-config/) docs through Context7 `/withastro/docs`, using the library ID resolved earlier in the session.
+These confirm `getViteConfig` merges the actual Astro configuration. Actual reads supersede the incorrect execution-helper "no API references" summary.
+Teardown awaits server closure. Dynamic-module/function type assertions and parsed-frontmatter casts are not runtime schema validation;
+the adapter guard checks object shape without executing callbacks. Focused behavior assertions supply separate runtime evidence.
+`aiGadgetsAdapter` is a named-exported default instance, not an ESM default export. Bounded reviewer traces cover all new exports and unchanged existing catalog-type consumers;
+shared `rootProductFamily` and the `canonicalPublicProduct` family union both use unchanged `PRODUCT_FAMILY_OPTIONS`.
+MIUs 18/19 shared content, 20 registry, and 22 controller remain future consumers. No new browser E2E, route integration, merge into `test`/`main`, or deployment is established.
+MIU 17 cannot release before verified source publication; code commit pending parent record. The generic-validator deviation remains non-green; 49 MIUs and D1/D2 are unchanged.

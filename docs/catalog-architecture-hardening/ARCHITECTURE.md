@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening
 
-Status: MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive; implementation continues; MIU 16 source published and verified; closure publication requires live Git equality verification.
+Status: MIUs 01-16 released; MIU 17 active; MIU 18 planned; implementation continues; verify live local/remote equality before declaring publication.
 
 ## Decision
 
@@ -110,6 +110,17 @@ Intentional follow-up for MIU 20 registry and MIU 22 composition: display labels
 The released adapter tests do not establish browser or production-build behavior for that future
 default-loader route path; see `EXECUTION.md` and `SDK-PROBE.md` for the narrower evidence.
 
+MIU 17 adds default `aiGadgetsAdapter` and
+`createAiGadgetsAdapter(content: CatalogAdapterContent, family: CatalogFamilyContent)`;
+`family.key !== 'ai-gadgets'` throws `TypeError`. Labels combine unprefixed list copy, seven route fields
+(`label`, `href`, `eyebrow`, `heading`, `description`, `seoTitle`, `seoDescription`), and `detail.*`.
+Optional `detail.productCodeLabel` falls back to `'Product Code'`; facts contain only present
+series/model/type/product-code values. Filter capabilities are empty; grouping returns `null` even for
+stale categories. No React, fetching, pricing, MOQ, media, or family inference enters the adapter.
+The i18n owner adds `CatalogAdapterContent = Pick<CatalogContent, 'list' | 'detail'>` and derives the
+family-key union from the canonical public-product type; the Markdown loader is unchanged.
+MIUs 18/19 consume that content contract; registry MIU 20 and controller MIU 22 remain unwired.
+
 ## Old Owner Migration And Retirement
 
 | Old owner | New owner | Call-site switch | Retirement evidence | Rollback |
@@ -143,17 +154,17 @@ for full retirement: `CatalogFamilyGrid`, `HeadphonesProductCard`, `HeadphonesPr
 
 ## Reservation And Deployment Control
 
-MIUs 01-16 are released; no active exact reservations remain; MIU 17 is planned/inactive. MIU 16
-activated at `8ff32fb`, implemented at `d7fd55f8dc13ffdd0966176f4985468624fb1ae7`, and published its
+MIUs 01-16 are released; MIU 17 is active with three exact source owners; MIU 18 is planned.
+HISTORICAL MIU 16 activated at `8ff32fb`, implemented at `d7fd55f8dc13ffdd0966176f4985468624fb1ae7`, and published its
 historical reviewed ACTIVE source checkpoint `2eef3220a79cb53da764ccba11ee2b0e23854d1e` on the origin
 feature branch; that source publication was verified.
 Its three released owners are `apps/site/src/catalog/families/headphones.ts`,
 `apps/site/src/catalog/families/headphones.test.ts`, and `apps/site/src/i18n/headphones.ts`.
 The registry release transition was recorded by `801d8712e3abb9a0fe05adcd31328eb37523b054`; handoff
-document snapshot `48405b23bcb43d9207e8b2a856768da45704719f` followed, then this correction.
-Use `git rev-parse HEAD` and live `origin/refactor/catalog-architecture-hardening` to confirm closure publication before continuing.
-Require local/remote equality evidence; no publication of this correction is claimed.
-Post-source-push architecture verification reported 0 issues and the script suite passed
+document snapshot `48405b23bcb43d9207e8b2a856768da45704719f` followed, then a handoff correction.
+Verify live local/remote equality before declaring publication; only local work and feature-source
+pushes are authorized, not `test`/`main` merges or deployment.
+MIU 16's historical post-source-push architecture verification reported 0 issues and the script suite passed
 93/93. Source publication does not compose adapters into routes: MIU 20 registry and MIU 22 controller
 remain future work. No merge into `test` or `main`, CloudBase operation, workflow dispatch, or browser
 E2E occurred for MIU 16. The denominator remains 49 MIUs; D1 and D2 are unchanged.

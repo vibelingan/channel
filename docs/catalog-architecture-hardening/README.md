@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening Handoff
 
-Status: 49-MIU packet; MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive; implementation continues; MIU 16 source published and verified; closure publication requires live Git equality verification.
+Status: 49-MIU packet; MIUs 01-16 released; MIU 17 active; MIU 18 planned; implementation continues; verify live local/remote equality before declaring publication.
 Branch: `refactor/catalog-architecture-hardening`
 Planning packet SHA: `bc1e69e25e9e8d453584be0fde9279f7bdf0c006`.
 
@@ -20,15 +20,24 @@ git status --short
 git rev-parse HEAD origin/refactor/catalog-architecture-hardening
 ```
 
-Expected branch: `refactor/catalog-architecture-hardening`. MIU 16 activation `8ff32fb`, implementation
+Expected branch: `refactor/catalog-architecture-hardening`. MIU 17 is active with three source owners.
+Parent execution-subagent observed full local PASS: all workspace tests (site 258/258), workspace/E2E typechecks,
+Astro 0 errors/0 warnings/7 existing hints, build 15 pages, Biome 359 files; not independently rerun by this doc-writer.
+Later test-only `facts()` assertion after `localized.detail` mutation: focused 7/7, test types, scoped Biome PASS; production unchanged.
+Independent reviews: 0 P1/P2; one P3 coverage gap fixed; doc freshness corrected here. Craft: 14 existing/0 new/0 execution errors.
+See [EXECUTION.md](EXECUTION.md#miu-17-implementation-record). Code commit pending parent record; MIU 17 stays active until source publication is verified.
+Only local work and feature-source pushes are authorized; no new browser E2E, route integration, `test`/`main` merge, workflow dispatch, or deployment occurred.
+
+### HISTORICAL: MIU 16 Release Snapshot
+
+MIU 16 activation `8ff32fb`, implementation
 `d7fd55f8dc13ffdd0966176f4985468624fb1ae7`, and the historical reviewed ACTIVE source checkpoint
 `2eef3220a79cb53da764ccba11ee2b0e23854d1e` were pushed to that origin branch and verified.
 The registry release transition was recorded by `801d8712e3abb9a0fe05adcd31328eb37523b054`;
-handoff document snapshot `48405b23bcb43d9207e8b2a856768da45704719f` followed, then this correction.
-At the observation preceding this correction, the remote branch was at the reviewed source checkpoint
+handoff document snapshot `48405b23bcb43d9207e8b2a856768da45704719f` followed, then a handoff correction.
+At that historical observation, the remote branch was at the reviewed source checkpoint
 `2eef3220a79cb53da764ccba11ee2b0e23854d1e`; that historical observation does not establish closure publication.
-Use `git rev-parse HEAD` and live `origin/refactor/catalog-architecture-hardening` to confirm closure publication before continuing.
-Verify local/remote equality; neither the handoff snapshot nor this correction establishes a pushed closure.
+Verify live local/remote equality before declaring publication; historical snapshots do not establish it.
 
 Full local validation passed: all workspace tests (site 251/251), workspace and E2E typechecks, Astro
 check (0 errors, 0 warnings, 7 existing hints), production Astro build (15 pages), and repository-wide
@@ -91,11 +100,11 @@ MIU 16. Do not reset, rebase, cherry-pick, or create another branch to manufactu
 	the existing retired media allowlist. Route smoke enumerates each status; no blanket delete is allowed.
 - MIU 16 is RELEASED after source publication and verification, activated at `8ff32fb`, with three released owners:
 	`apps/site/src/catalog/families/headphones.ts`, `apps/site/src/catalog/families/headphones.test.ts`,
-	and `apps/site/src/i18n/headphones.ts`. MIUs 01-16 are released; no active exact reservations remain;
-	MIU 17 is planned/inactive. Later MIUs retain their lifecycle states and exact owner files, with
+	and `apps/site/src/i18n/headphones.ts`. MIUs 01-16 are released; MIU 17 is active with three exact owners;
+	MIU 18 is planned. Later MIUs retain their lifecycle states and exact owner files, with
 	references/transfers for sequential reuse. Release transition `801d871` and handoff snapshot `48405b2`
-	precede this correction; closure publication requires live Git equality verification before continuing.
-	No deployment or test-branch merge is authorized. MIU 20 registration and MIU 22 route/controller
+	are historical; verify live local/remote equality before declaring publication.
+	No deployment or `test`/`main` merge is authorized. MIU 20 registration and MIU 22 route/controller
 	composition remain future work. The denominator is 49; D1 and D2 are unchanged.
 - MIUs 39-43 separately own the real deploy script modification, its new test, the existing smoke script
 	modification, its new test, and the new browser smoke. MIU 44 produces and validates the immutable
@@ -120,7 +129,6 @@ external registry/tool output proves closure local/remote equality after push, w
 status may point to `HEAD`.
 
 MIU 16 source publication was completed and verified at historical checkpoint `2eef322`.
-Release transition `801d871` and handoff snapshot `48405b2` were recorded afterward, followed by this correction.
+Release transition `801d871` and handoff snapshot `48405b2` are historical records, not current Git claims.
 The task remains in implementation; this MIU's release is not delivery of the entire 49-MIU task.
-Use `git rev-parse HEAD` and live `origin/refactor/catalog-architecture-hardening` to confirm closure publication before continuing.
-Require local/remote equality evidence external to the closure commit; no publication of this correction is claimed.
+Verify live local/remote equality before declaring publication, with evidence external to the closure commit.
