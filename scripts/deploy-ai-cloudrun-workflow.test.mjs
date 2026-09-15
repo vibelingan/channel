@@ -42,6 +42,21 @@ test('the MCP upload deadline is explicit and shorter than its enclosing process
   assert.ok(timeout >= 180_000 && timeout < 300_000);
 });
 
+test('inspection tags query existing services without uploading or probing the KB', () => {
+  assert.match(deploy.env.AI_CLOUDRUN_INSPECT_ONLY, /ai-cloudrun-deploy-inspect-/);
+  assert.equal(
+    stepRunning(deploy, 'node scripts/probe-anythingllm.mjs').if,
+    "env.AI_CLOUDRUN_INSPECT_ONLY != '1'",
+  );
+  const script = readFileSync(new URL('./deploy-ai-cloudrun.mjs', import.meta.url), 'utf8');
+  const inspect = script
+    .split("if (env.AI_CLOUDRUN_INSPECT_ONLY === '1') {")[1]
+    ?.split('const ctx =')[0];
+  assert.ok(inspect?.includes('serviceDetail(name)'));
+  assert.ok(inspect?.includes('return;'));
+  assert.ok(!inspect?.includes("callTool('manageCloudRun'"));
+});
+
 /**
  * The one step in a job whose command is exactly this. Exact, not a prefix:
  * `pnpm test` must not be satisfied by a step that runs `pnpm test:ai`.

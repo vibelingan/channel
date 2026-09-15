@@ -105,6 +105,8 @@ jobs:
     env:
       CI: 'true'
       APP_ENV: ${{ vars.APP_ENV || 'test' }}
+      # Read-only diagnostics use the same authorized tag rule and credentials.
+      AI_CLOUDRUN_INSPECT_ONLY: ${{ startsWith(github.ref_name, 'ai-cloudrun-deploy-inspect-') && '1' || '0' }}
       TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
       TCB_REGION: ${{ vars.TCB_REGION || 'ap-shanghai' }}
       AI_VPC_ID: ${{ vars.AI_VPC_ID }}
@@ -157,6 +159,7 @@ jobs:
       # knowledge base, that matches its settings. It accepts one for 30 days,
       # so every deploy records a fresh one.
       - name: Prove the knowledge base answers from the approved workspace
+        if: env.AI_CLOUDRUN_INSPECT_ONLY != '1'
         env:
           KB_API_KEY: ${{ secrets.KB_API_KEY }}
           AI_KB_EVIDENCE_FILE: ${{ runner.temp }}/kb-evidence.json

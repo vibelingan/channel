@@ -73,6 +73,22 @@ one-shot process cannot complete that flow. Keep the login process alive until
 authorization succeeds; CI deployments use the existing GitHub secrets and do
 not depend on this local session.
 
+## Attempt 3: both builds succeeded; network read-back gate failed
+
+- Tag: `ai-cloudrun-deploy-20260915-3`, commit `38bfd44`.
+- [Deployment run](https://github.com/vibelingan/channel/actions/runs/34934166974).
+- `ai-bff`: build `2604485285`, deployment `001`, `normal` at 05:55:43 UTC.
+- `ai-worker`: build `2604485296`, deployment `001`, `normal` at 05:56:33 UTC.
+- The post-deployment contract could not read the desired VPC/subnet from
+  `ServerConfig.VpcConf`. This is not yet proof of either successful database
+  connectivity or an actual missing binding. Do not bypass the gate.
+
+A tag named `ai-cloudrun-deploy-inspect-*` now uses the same credential-scoped
+workflow for **read-only** service metadata, liveness/readiness and process-log
+inspection. It skips the billable KB probe and returns before the deployment
+path. This lets the CI credential inspect the live state without rebuilding or
+requiring local login. An inspection run finishing is not a deployment PASS.
+
 ## Acceptance still to record
 
 The next attempt must complete both remote builds, verify the deployed VPC and

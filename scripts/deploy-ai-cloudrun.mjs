@@ -274,6 +274,43 @@ async function main() {
     requireSetting(env, 'TENCENTCLOUD_SECRETID');
     requireSetting(env, 'TENCENTCLOUD_SECRETKEY');
   }
+  if (env.AI_CLOUDRUN_INSPECT_ONLY === '1') {
+    for (const name of ['ai-bff', 'ai-worker']) {
+      const detail = serviceDetail(name);
+      const service = detail?.service;
+      const config = service?.ServerConfig;
+      log(
+        JSON.stringify({
+          name,
+          serviceKeys: Object.keys(service ?? {}),
+          configKeys: Object.keys(config ?? {}),
+          defaultDomain: service?.BaseInfo?.DefaultDomainName,
+          status: service?.BaseInfo?.Status,
+          latestDeploy: {
+            id: detail?.latestDeploy?.DeployId,
+            status: detail?.latestDeploy?.Status,
+            isReleasing: detail?.latestDeploy?.IsReleasing,
+            buildId: detail?.latestDeploy?.BuildId,
+            runId: detail?.latestDeploy?.RunId,
+          },
+          vpc: config?.VpcConf ?? null,
+          access: config?.OpenAccessTypes,
+          publicNet: config?.PublicNetConf,
+          port: config?.Port,
+        }),
+      );
+      if (name === 'ai-bff') {
+        const url = publicUrl(detail);
+        for (const path of ['/api/ai/healthz', '/api/ai/readyz']) {
+          const response = await fetch(`${url}${path}`, { signal: AbortSignal.timeout(15_000) });
+          const body = await response.json();
+          log(JSON.stringify({ url: `${url}${path}`, httpStatus: response.status, body }));
+        }
+      }
+      printProcessLog(name);
+    }
+    return;
+  }
   env.AI_KB_EVIDENCE_JSON = loadEvidenceJson(env);
   // Builds every service definition, so a missing setting stops the deploy
   // here, before either service has changed.
