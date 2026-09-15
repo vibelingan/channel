@@ -202,6 +202,94 @@ function printManageTask(name, taskId = 0) {
       },
     }),
   );
+  return task;
+}
+
+function printRuntimeSignals(name) {
+  try {
+    const result = callTool('queryLogs', {
+      action: 'searchLogs',
+      service: 'tcbr',
+      queryString: `"${name}"`,
+      startTime: new Date(Date.now() - 12 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 19)
+        .replace('T', ' '),
+      limit: 30,
+      sort: 'desc',
+    });
+    // Never print raw application logs: they may contain visitor messages.
+    const signals = [
+      ...new Set(
+        JSON.stringify(result).match(
+          /\b(database_unavailable|knowledge_base_unreachable|ECONNREFUSED|ETIMEDOUT|ECONNRESET|ENOTFOUND|28P01|3D000|42501|startup_failed)\b/g,
+        ) ?? [],
+      ),
+    ];
+    log(
+      JSON.stringify({
+        service: name,
+        runtimeLogSignals: signals,
+        resultKeys: Object.keys(result.data ?? {}),
+      }),
+    );
+  } catch (error) {
+    log(`${name}: runtime log query unavailable: ${error.message}`);
+  }
+}
+
+function printDatabaseNetwork(env) {
+  const database = new URL(requireSetting(env, 'DATABASE_URL'));
+  const region = requireSetting(env, 'TCB_REGION');
+  const result = callTool('callCloudApi', {
+    service: 'postgres',
+    action: 'DescribeDBInstances',
+    version: '2017-03-12',
+    region,
+    params: { Limit: 20, Offset: 0 },
+  });
+  const instances = (result.Response ?? result).DBInstanceSet ?? [];
+  const selected = instances.filter((instance) => instance.VpcId === env.AI_VPC_ID);
+  log(
+    JSON.stringify({
+      databaseNetwork: selected.map((instance) => ({
+        id: instance.DBInstanceId,
+        status: instance.DBInstanceStatus,
+        vpcId: instance.VpcId,
+        subnetId: instance.SubnetId,
+        networks: instance.DBInstanceNetInfo?.map((network) => ({
+          type: network.NetType,
+          status: network.Status,
+          port: network.Port,
+          configuredAddressMatches: [network.Ip, network.Address].includes(database.hostname),
+          configuredPortMatches: Number(database.port || '5432') === Number(network.Port),
+        })),
+      })),
+    }),
+  );
+  const sg = env.AI_POSTGRES_SECURITY_GROUP_ID;
+  if (sg) {
+    const policies = callTool('callCloudApi', {
+      service: 'vpc',
+      action: 'DescribeSecurityGroupPolicies',
+      version: '2017-03-12',
+      region,
+      params: { SecurityGroupId: sg },
+    });
+    const ingress = (policies.Response ?? policies).SecurityGroupPolicySet?.Ingress ?? [];
+    log(
+      JSON.stringify({
+        databaseSecurityGroup: sg,
+        ingress: ingress.map(({ Protocol, Port, CidrBlock, SecurityGroupId, Action }) => ({
+          Protocol,
+          Port,
+          CidrBlock,
+          SecurityGroupId,
+          Action,
+        })),
+      }),
+    );
+  }
 }
 
 async function waitForDeploys(deployments) {
@@ -356,8 +444,27 @@ async function main() {
         }
       }
       printProcessLog(name);
-      printManageTask(name);
+      const task = printManageTask(name);
+      if (task?.VersionName) {
+        const raw = callTool('callCloudApi', {
+          service: 'tcbr',
+          action: 'DescribeVersionDetail',
+          version: '2022-02-17',
+          params: { EnvId: env.TCB_ENV_ID, ServerName: name, VersionName: task.VersionName },
+        });
+        const version = raw.Response ?? raw;
+        log(
+          JSON.stringify({
+            service: name,
+            version: task.VersionName,
+            versionStatus: version.Status,
+            versionVpc: version.VpcConf,
+          }),
+        );
+      }
+      printRuntimeSignals(name);
     }
+    printDatabaseNetwork(env);
     return;
   }
   env.AI_KB_EVIDENCE_JSON = loadEvidenceJson(env);

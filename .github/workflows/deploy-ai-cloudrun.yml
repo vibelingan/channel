@@ -112,6 +112,7 @@ jobs:
       TCB_REGION: ${{ vars.TCB_REGION || 'ap-shanghai' }}
       AI_VPC_ID: ${{ vars.AI_VPC_ID }}
       AI_CLOUDRUN_SUBNET_ID: ${{ vars.AI_CLOUDRUN_SUBNET_ID }}
+      AI_POSTGRES_SECURITY_GROUP_ID: ${{ vars.AI_POSTGRES_SECURITY_GROUP_ID }}
       CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS }}
       AI_SITE_ORIGIN: ${{ vars.AI_SITE_ORIGIN }}
       AI_TRUST_PROXY: ${{ vars.AI_TRUST_PROXY }}

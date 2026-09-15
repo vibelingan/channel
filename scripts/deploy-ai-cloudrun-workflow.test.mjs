@@ -49,6 +49,54 @@ test('management-task diagnostics run outside main without capturing its local e
   assert.deepEqual(calls[0].args.params, { EnvId: 'env-fixture', ServerName: 'ai-bff', TaskId: 0 });
 });
 
+test('database and runtime diagnostics are read-only and never print credentials or visitor text', () => {
+  const script = readFileSync(new URL('./deploy-ai-cloudrun.mjs', import.meta.url), 'utf8');
+  const helpers = script.slice(
+    script.indexOf('function printManageTask('),
+    script.indexOf('async function waitForDeploys('),
+  );
+  const output = [];
+  const actions = [];
+  runInNewContext(`${helpers}\nprintDatabaseNetwork(process.env); printRuntimeSignals('ai-bff');`, {
+    URL,
+    requireSetting,
+    process: {
+      env: {
+        DATABASE_URL: 'postgres://private-user:private-password@10.0.0.4:5432/ai',
+        TCB_REGION: 'ap-shanghai',
+        AI_VPC_ID: 'vpc-fixture',
+        AI_POSTGRES_SECURITY_GROUP_ID: 'sg-fixture',
+      },
+    },
+    callTool(name, args) {
+      actions.push(args.action);
+      if (name === 'queryLogs')
+        return { data: { results: ['private visitor message: database_unavailable 28P01'] } };
+      if (args.action === 'DescribeSecurityGroupPolicies')
+        return { SecurityGroupPolicySet: { Ingress: [] } };
+      return {
+        DBInstanceSet: [
+          {
+            DBInstanceId: 'postgres-fixture',
+            VpcId: 'vpc-fixture',
+            DBInstanceNetInfo: [{ Ip: '10.0.0.4', Port: 5432, NetType: '1' }],
+          },
+        ],
+      };
+    },
+    log(value) {
+      output.push(value);
+    },
+  });
+  assert.deepEqual(actions, ['DescribeDBInstances', 'DescribeSecurityGroupPolicies', 'searchLogs']);
+  const joined = output.join('\n');
+  for (const secret of ['private-user', 'private-password', 'private visitor message'])
+    assert.ok(!joined.includes(secret));
+  assert.match(joined, /"configuredAddressMatches":true/);
+  assert.match(joined, /database_unavailable/);
+  assert.match(joined, /28P01/);
+});
+
 test('the infrastructure MCP can access staged builds from the repository root', () => {
   const configPath = fileURLToPath(new URL('../config/mcporter.infra.json', import.meta.url));
   const config = JSON.parse(readFileSync(configPath, 'utf8'));

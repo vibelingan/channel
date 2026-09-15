@@ -162,6 +162,13 @@ public ingress are untouched. Normal source deployments also repair a missing
 binding through this route before acceptance, so the next deployment cannot
 silently regress. Focused tests: 28/28 passed. Live result remains pending.
 
+If runtime readiness still fails, the read-only inspector now reports the
+actual version's VPC, PostgreSQL network/address matching (not its password),
+the configured database security-group ingress, and a fixed allowlist of
+container error categories. Raw runtime logs/visitor text are never printed.
+This separates a stale service summary, wrong database address, firewall issue
+and application startup error in one inspection.
+
 The current production website was inspected separately in a real browser:
 it contains neither the assistant island nor its launch button. Backend release
 does not automatically enable the website widget.
