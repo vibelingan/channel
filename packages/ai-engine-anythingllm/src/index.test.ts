@@ -54,7 +54,10 @@ test('adapter streams normalized tokens, citation and final without leaking cred
       turns: [{ role: 'visitor', text: 'Question' }],
       profileId: 'channel-public-v1',
       locale: 'en',
-      limits: { maxDeliveredOutputUnits: 100, maxStreamDurationMs: 1_000, maxToolCalls: 1 },
+      // This test is about what the stream carries, not how long it may take;
+      // engine.test.ts covers the deadline. One second failed on a machine busy
+      // running every package's tests at once, so it uses the others' 5 seconds.
+      limits: { maxDeliveredOutputUnits: 100, maxStreamDurationMs: 5_000, maxToolCalls: 1 },
     },
     new AbortController().signal,
   );
