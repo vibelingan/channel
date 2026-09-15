@@ -25,7 +25,6 @@ import {
   setMediaStorage,
 } from '@vibelingan-channel/media-storage';
 import {
-  type ApiResult,
   CATALOG_IMAGE_MAX_BYTES,
   type CollectionDoc,
   LOGIN_RATE_MAX_PER_SOURCE,
@@ -41,7 +40,12 @@ import {
   matchesFilter,
   ok,
 } from '@vibelingan-channel/shared';
-import { type AdminConfig, type RequestContext, handleAdminRequest } from './handler.ts';
+import {
+  type AdminConfig,
+  type AdminResult,
+  type RequestContext,
+  handleAdminRequest,
+} from './handler.ts';
 
 type Store = Record<string, CollectionDoc[]>;
 
@@ -55,6 +59,14 @@ class MemoryAdapter implements DbAdapter {
   async list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>> {
     this.listQueries.push(query);
     let docs = [...(this.store[query.collection] ?? [])];
+    if (query.needsClassification) {
+      docs = docs.filter((doc) =>
+        matchesFilter(doc, {
+          combinator: 'and',
+          clauses: [{ field: 'productFamily', op: 'hasNoProductFamily' }],
+        }),
+      );
+    }
     if (query.productFamily) {
       docs = docs.filter((doc) =>
         matchesFilter(doc, {
@@ -263,10 +275,254 @@ function sessionToken(claims: SessionClaims): Promise<string> {
   return signSession('test-secret', claims);
 }
 
-function expectErr(result: ApiResult<unknown>, code: string): void {
+function expectErr(result: AdminResult, code: string): void {
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.error.code, code);
 }
+
+function reviewProduct(overrides: Partial<CollectionDoc> = {}): CollectionDoc {
+  return {
+    _id: 'review-product',
+    name: 'Review headset',
+    description: 'Review description',
+    productFamily: 'headphones',
+    imageIds: ['review-image'],
+    published: false,
+    archived: false,
+    alibabaPrimarySourceKey: 'source-a',
+    alibabaLinkRevision: 1,
+    alibabaReviewPending: true,
+    ...overrides,
+  };
+}
+
+class ReviewRaceAdapter extends MemoryAdapter {
+  private raced = false;
+
+  constructor(
+    store: Store,
+    private readonly concurrentPatch: Partial<CollectionDoc>,
+  ) {
+    super(store);
+  }
+
+  private async race(collection: string, id: string): Promise<void> {
+    if (collection !== 'products' || this.raced) return;
+    this.raced = true;
+    await super.update(collection, id, this.concurrentPatch);
+  }
+
+  override async update(collection: string, id: string, data: Record<string, unknown>) {
+    await this.race(collection, id);
+    return super.update(collection, id, data);
+  }
+
+  override async saveCatalogProductWithIdentities(input: CatalogProductSaveInput) {
+    await this.race('products', input.productId);
+    return super.saveCatalogProductWithIdentities(input);
+  }
+}
+
+for (const action of ['mark', 'publish', 'archive'] as const) {
+  test(`Alibaba review acknowledgement ${action} rejects a concurrent relink at the write boundary`, async () => {
+    const product = reviewProduct();
+    const store = setup({ users: [], products: [product] });
+    const concurrentPatch = {
+      alibabaPrimarySourceKey: 'source-b',
+      alibabaLinkRevision: 2,
+      alibabaReviewPending: true,
+      description: 'Concurrent source B description',
+    };
+    setAdapter(new ReviewRaceAdapter(store, concurrentPatch));
+    const token = await adminToken();
+    const result = await handleAdminRequest(
+      action === 'mark'
+        ? { action: 'markProductReviewed', token, data: { productId: product._id } }
+        : {
+            action: 'update',
+            token,
+            data: {
+              collection: 'products',
+              id: product._id,
+              values: action === 'publish' ? { published: true } : { archived: true },
+            },
+          },
+      config,
+    );
+    expectErr(result, 'CONFLICT');
+    assert.deepEqual(store.products?.[0], { ...product, ...concurrentPatch });
+    assert.deepEqual(store.catalogProductIdentities ?? [], []);
+    assert.deepEqual(store.auditLogs ?? [], []);
+  });
+
+  test(`Alibaba review acknowledgement ${action} preserves the first concurrent review and other fields`, async () => {
+    const product = reviewProduct();
+    const store = setup({ users: [], products: [product] });
+    const concurrentPatch = {
+      alibabaReviewPending: false,
+      alibabaReviewedAt: '2026-09-15T00:00:00.000Z',
+      alibabaReviewedByUserId: 'first-reviewer',
+      description: 'Concurrent description',
+    };
+    setAdapter(new ReviewRaceAdapter(store, concurrentPatch));
+    const token = await adminToken();
+    const result = await handleAdminRequest(
+      action === 'mark'
+        ? { action: 'markProductReviewed', token, data: { productId: product._id } }
+        : {
+            action: 'update',
+            token,
+            data: {
+              collection: 'products',
+              id: product._id,
+              values: {
+                ...(action === 'publish' ? { published: true } : { archived: true }),
+                slug: ' Review Headset ',
+                skuCode: ' review-1 ',
+              },
+            },
+          },
+      config,
+    );
+    assert.equal(result.ok, true);
+    const saved = store.products?.[0];
+    assert.ok(saved);
+    for (const [field, value] of Object.entries(concurrentPatch)) {
+      assert.equal(saved[field], value);
+    }
+    if (action === 'mark') {
+      assert.deepEqual(saved, { ...product, ...concurrentPatch });
+      if (result.ok) assert.equal(Reflect.get(result.data as object, 'alreadyReviewed'), true);
+    } else {
+      assert.equal(saved.published, action === 'publish');
+      assert.equal(saved.archived, action === 'archive');
+      assert.equal(saved.slug, 'review-headset');
+      assert.equal(saved.skuCode, 'review-1');
+    }
+  });
+
+  test(`Alibaba review acknowledgement ${action} denies non-admins without changing the product`, async () => {
+    const product = reviewProduct();
+    const store = setup({ users: [], products: [product] });
+    const token = await sessionToken({
+      sub: 'review-member',
+      name: 'Review member',
+      email: 'review-member@example.com',
+      role: 'member',
+    });
+    const result = await handleAdminRequest(
+      action === 'mark'
+        ? { action: 'markProductReviewed', token, data: { productId: product._id } }
+        : {
+            action: 'update',
+            token,
+            data: {
+              collection: 'products',
+              id: product._id,
+              values: action === 'publish' ? { published: true } : { archived: true },
+            },
+          },
+      config,
+    );
+    expectErr(result, 'FORBIDDEN');
+    assert.deepEqual(store.products?.[0], product);
+  });
+}
+
+test('Alibaba review acknowledgement preserves unrelated edits across a relink', async () => {
+  const product = reviewProduct();
+  const store = setup({ users: [], products: [product] });
+  setAdapter(
+    new ReviewRaceAdapter(store, {
+      alibabaPrimarySourceKey: 'source-b',
+      alibabaLinkRevision: 2,
+    }),
+  );
+  const result = await handleAdminRequest(
+    {
+      action: 'update',
+      token: await adminToken(),
+      data: { collection: 'products', id: product._id, values: { name: 'Ordinary edit' } },
+    },
+    config,
+  );
+  assert.equal(result.ok, true);
+  assert.equal(store.products?.[0]?.name, 'Ordinary edit');
+  assert.equal(store.products?.[0]?.alibabaPrimarySourceKey, 'source-b');
+  assert.equal(store.products?.[0]?.alibabaReviewPending, true);
+  assert.equal(store.products?.[0]?.alibabaReviewedAt, undefined);
+});
+
+test('Alibaba review acknowledgement is idempotent for a legacy unchanged source and denies non-admins', async () => {
+  const product = reviewProduct({ alibabaLinkRevision: undefined });
+  const store = setup({ users: [], products: [product] });
+  const token = await adminToken();
+  const request = { action: 'markProductReviewed', token, data: { productId: product._id } };
+  assert.equal((await handleAdminRequest(request, config)).ok, true);
+  const reviewed = structuredClone(store.products?.[0]);
+  assert.equal(reviewed?.alibabaReviewPending, false);
+  assert.equal(typeof reviewed?.alibabaReviewedAt, 'string');
+  assert.equal(typeof reviewed?.alibabaReviewedByUserId, 'string');
+  assert.equal((await handleAdminRequest(request, config)).ok, true);
+  assert.deepEqual(store.products?.[0], reviewed);
+  const denied = await handleAdminRequest(
+    {
+      ...request,
+      token: await sessionToken({
+        sub: 'review-member',
+        name: 'Review member',
+        email: 'review-member@example.com',
+        role: 'member',
+      }),
+    },
+    config,
+  );
+  expectErr(denied, 'FORBIDDEN');
+  assert.deepEqual(store.products?.[0], reviewed);
+});
+
+test('inquiry cloud actions are opt-in, admin-only and unavailable to generic CRUD', async () => {
+  const store = setup();
+  const token = await adminToken();
+  assert.deepEqual(
+    await handleAdminRequest({ action: 'inquiryCapabilities', token }, config),
+    ok({ enabled: false, notification: 'disabled' }),
+  );
+  expectErr(
+    await handleAdminRequest({ action: 'inquiry', token, data: { action: 'list' } }, config),
+    'FORBIDDEN',
+  );
+  const enabled = { ...config, enableInquiries: true };
+  expectErr(
+    await handleAdminRequest({ action: 'inquiry', data: { action: 'list' } }, enabled),
+    'UNAUTHORIZED',
+  );
+  expectErr(
+    await handleAdminRequest(
+      { action: 'inquiry', token, data: { note: 'x'.repeat(16385) } },
+      enabled,
+    ),
+    'VALIDATION_ERROR',
+  );
+  expectErr(
+    await handleAdminRequest(
+      { action: 'list', token, data: { collection: 'catalogQuoteRequests' } },
+      enabled,
+    ),
+    'UNKNOWN_COLLECTION',
+  );
+  const actor = store.users?.[0];
+  assert.ok(actor);
+  actor.role = 'member';
+  expectErr(
+    await handleAdminRequest({ action: 'inquiryCapabilities', token }, enabled),
+    'FORBIDDEN',
+  );
+  expectErr(
+    await handleAdminRequest({ action: 'inquiry', token, data: { action: 'list' } }, enabled),
+    'FORBIDDEN',
+  );
+});
 
 test('incrementField atomically adjusts a numeric field; null for a missing doc', async () => {
   const store = setup({
@@ -527,7 +783,7 @@ const validOemIntent = {
 };
 
 /** Extract the `data` payload of a successful ApiResult (asserts ok first). */
-function okData<T = Record<string, unknown>>(res: ApiResult<unknown>): T {
+function okData<T = Record<string, unknown>>(res: AdminResult): T {
   assert.equal(res.ok, true);
   if (!res.ok) throw new Error('unreachable');
   return res.data as T;
@@ -632,6 +888,154 @@ test('manual tier pricing can be explicitly cleared only on product update', asy
   );
   assert.equal(cleared.manualCatalogPricing, '');
   assert.equal(store.products?.[0]?.manualCatalogPricing, '');
+});
+
+test('pricing policy persists, rejects unknown modes, and source restoration retains manual values', async () => {
+  const store = setup({
+    users: [],
+    products: [
+      {
+        _id: 'price-policy',
+        name: 'Linked item',
+        productFamily: 'headphones',
+        alibabaPrimarySourceKey: 'linked',
+        published: false,
+        archived: false,
+      },
+    ],
+  });
+  const token = await adminToken();
+  const updatePrice = (values: Record<string, unknown>) =>
+    call('update', { collection: 'products', id: 'price-policy', values }, token);
+  expectErr(await updatePrice({ catalogPricingMode: 'typo' }), 'VALIDATION_ERROR');
+  expectErr(await updatePrice({ catalogPricingMode: 'manual' }), 'VALIDATION_ERROR');
+  assert.equal(store.products?.[0]?.catalogPricingMode, undefined);
+  const pricing = {
+    schemaVersion: 'manual-catalog-pricing-v1',
+    currency: 'USD',
+    tiers: [{ minQuantity: 1000, unitAmountMinor: 310 }],
+  };
+  const manual = okData<CollectionDoc>(
+    await updatePrice({ catalogPricingMode: 'manual', manualCatalogPricing: pricing }),
+  );
+  assert.equal(manual.catalogPricingMode, 'manual');
+  assert.deepEqual(manual.manualCatalogPricing, pricing);
+  const restored = okData<CollectionDoc>(await updatePrice({ catalogPricingMode: 'source' }));
+  assert.equal(restored.catalogPricingMode, 'source');
+  assert.deepEqual(restored.manualCatalogPricing, pricing);
+  assert.deepEqual(store.products?.[0]?.manualCatalogPricing, pricing);
+});
+
+test('product review queue is admin-only, counted by family, and pending-first by default', async () => {
+  const store = setup({
+    users: [],
+    products: [
+      {
+        _id: 'reviewed-newer',
+        name: 'Reviewed newer',
+        productFamily: 'headphones',
+        alibabaPrimarySourceKey: 'source-reviewed',
+        alibabaReviewPending: false,
+        createdAt: '2026-09-04T12:00:00.000Z',
+      },
+      {
+        _id: 'pending-headphones',
+        name: 'Pending headphones',
+        productFamily: 'headphones',
+        alibabaPrimarySourceKey: 'source-hp',
+        alibabaReviewPending: true,
+        createdAt: '2026-09-04T10:00:00.000Z',
+      },
+      {
+        _id: 'pending-unmapped',
+        name: 'Pending unmapped',
+        alibabaPrimarySourceKey: 'source-unmapped',
+        alibabaReviewPending: true,
+        createdAt: '2026-09-04T11:00:00.000Z',
+      },
+    ] as CollectionDoc[],
+  });
+  const contributor = await contributorToken();
+  expectErr(await call('productReviewSummary', {}, contributor), 'FORBIDDEN');
+
+  const admin = await adminToken();
+  const summary = okData<{
+    pendingTotal: number;
+    byFamily: Record<string, number>;
+  }>(await call('productReviewSummary', {}, admin));
+  assert.equal(summary.pendingTotal, 2);
+  assert.equal(summary.byFamily.headphones, 1);
+  assert.equal(summary.byFamily['ai-gadgets'], 0);
+  assert.equal(summary.byFamily.toys, 0);
+  assert.equal(summary.byFamily.misc, 0);
+
+  const listed = okData<ListResult<CollectionDoc>>(
+    await call('list', { collection: 'products', page: 1, pageSize: 20 }, admin),
+  );
+  assert.deepEqual(
+    listed.items.map((item) => item._id),
+    ['pending-unmapped', 'pending-headphones', 'reviewed-newer'],
+  );
+  assert.equal(store.products?.length, 3);
+});
+
+test('admin can acknowledge one Alibaba draft and publishing also consumes New once', async () => {
+  const store = setup({
+    users: [],
+    products: [
+      {
+        _id: 'pending-explicit',
+        ...publishableProduct({ published: false }),
+        alibabaPrimarySourceKey: 'source-explicit',
+        alibabaReviewPending: true,
+      },
+      {
+        _id: 'pending-publish',
+        ...publishableProduct({ published: false }),
+        alibabaPrimarySourceKey: 'source-publish',
+        alibabaReviewPending: true,
+      },
+      { _id: 'manual', ...publishableProduct({ published: false }) },
+    ] as CollectionDoc[],
+    catalogProductIdentities: [],
+  });
+  const contributor = await contributorToken();
+  expectErr(
+    await call('markProductReviewed', { productId: 'pending-explicit' }, contributor),
+    'FORBIDDEN',
+  );
+  const admin = await adminToken();
+  const reviewed = okData<CollectionDoc>(
+    await call('markProductReviewed', { productId: 'pending-explicit' }, admin),
+  );
+  assert.equal(reviewed.alibabaReviewPending, false);
+  assert.equal(reviewed.alibabaReviewedByUserId, undefined, 'reviewer id is not returned to UI');
+  assert.equal(typeof reviewed.alibabaReviewedAt, 'string');
+  assert.equal(
+    store.products?.find((item) => item._id === 'pending-explicit')?.alibabaReviewedByUserId,
+    'admin-1',
+  );
+
+  const published = okData<CollectionDoc>(
+    await call(
+      'update',
+      { collection: 'products', id: 'pending-publish', values: { published: true } },
+      admin,
+    ),
+  );
+  assert.equal(published.published, true);
+  assert.equal(published.alibabaReviewPending, false);
+  assert.equal(published.alibabaReviewedByUserId, undefined);
+  assert.equal(
+    store.products?.find((item) => item._id === 'pending-publish')?.alibabaReviewedByUserId,
+    'admin-1',
+  );
+
+  expectErr(await call('markProductReviewed', { productId: 'manual' }, admin), 'CONFLICT');
+  assert.equal(
+    store.products?.find((item) => item._id === 'manual')?.alibabaReviewPending,
+    undefined,
+  );
 });
 
 test('product publish requires the complete lifecycle contract', async () => {
@@ -2261,6 +2665,63 @@ test('list rejects unknown families and family filters on non-product collection
   expectErr(
     await call('list', { collection: 'users', productFamily: 'toys' }, token),
     'BAD_REQUEST',
+  );
+});
+
+test('unclassified queue is paginated server-side, excludes legacy headphones, and rejects contradictory scopes', async () => {
+  setup({
+    products: [
+      { _id: 'unmapped-a', name: 'Desk Clock', published: false },
+      { _id: 'unmapped-b', name: 'Wall Clock', published: false },
+      { _id: 'legacy', name: 'Headset', category: 'office' },
+      { _id: 'mapped', name: 'Toy Clock', productFamily: 'toys' },
+      { _id: 'invalid', name: 'Invalid Clock', productFamily: null, category: 'office' },
+    ],
+  });
+  const token = await adminToken();
+  const query = {
+    collection: 'products',
+    needsClassification: true,
+    pageSize: 1,
+    sort: [{ field: '_id', dir: 'asc' }],
+  };
+  const result = okData<{ items: CollectionDoc[]; total: number }>(
+    await call('list', { ...query, page: 2 }, token),
+  );
+  assert.equal(result.total, 3);
+  assert.deepEqual(
+    result.items.map((row) => row._id),
+    ['unmapped-a'],
+  );
+  const filtered = okData<{ items: CollectionDoc[]; total: number }>(
+    await call(
+      'list',
+      {
+        ...query,
+        filter: {
+          combinator: 'or',
+          clauses: [
+            { field: 'name', op: 'contains', value: 'Desk' },
+            { field: 'name', op: 'contains', value: 'Toy' },
+          ],
+        },
+      },
+      token,
+    ),
+  );
+  assert.equal(filtered.total, 1);
+  assert.equal(filtered.items[0]?._id, 'unmapped-a');
+  expectErr(await call('list', { ...query, productFamily: 'headphones' }, token), 'BAD_REQUEST');
+  expectErr(await call('list', { ...query, collection: 'users' }, token), 'BAD_REQUEST');
+  expectErr(await call('list', { ...query, needsClassification: 'true' }, token), 'BAD_REQUEST');
+  expectErr(await call('list', query, ''), 'UNAUTHORIZED');
+  expectErr(
+    await call(
+      'create',
+      { collection: 'products', values: { name: 'Invalid', productFamily: 'unclassified' } },
+      token,
+    ),
+    'VALIDATION_ERROR',
   );
 });
 

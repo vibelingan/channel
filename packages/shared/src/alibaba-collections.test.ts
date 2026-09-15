@@ -26,10 +26,11 @@ const EXPECTED_ACCESS: Record<string, 'crud' | 'readOnly' | 'none'> = {
   alibabaProductLinks: 'readOnly',
   alibabaSupplierOffers: 'readOnly',
   alibabaSyncRuns: 'readOnly',
+  alibabaRawReplayManifests: 'none',
   alibabaCategoryMappings: 'crud',
 };
 
-test('all ten Alibaba collections are registered with the charter access levels', () => {
+test('all Alibaba collections are registered with the charter access levels', () => {
   for (const [name, access] of Object.entries(EXPECTED_ACCESS)) {
     const def = getCollection(name);
     assert.ok(def, `${name} must be registered`);
@@ -75,14 +76,20 @@ test('category mapping is operator-writable with the Channel category enum', () 
 
 const ALIBABA_PRODUCT_FIELDS = [
   'alibabaPrimarySourceKey',
+  'alibabaSourceProductId',
+  'alibabaSourceCategoryId',
+  'alibabaSourceImageUrls',
   'alibabaPrimaryOfferKey',
   'alibabaPinnedOfferKey',
   'alibabaCatalogPricing',
   'alibabaSourceStatus',
   'alibabaSourceLastSyncedAt',
+  'alibabaReviewPending',
+  'alibabaReviewedAt',
+  'alibabaReviewedByUserId',
 ];
 
-test('products gains the five additive Alibaba fields, all read-only', () => {
+test('products exposes every additive Alibaba field as read-only', () => {
   const def = getCollection('products');
   assert.ok(def);
   for (const name of ALIBABA_PRODUCT_FIELDS) {

@@ -1,4 +1,3 @@
-import type { CollectionDoc } from '@vibelingan-channel/shared';
 /**
  * Alibaba Catalog Sync operations page (MIU 13) — the dedicated admin
  * surface for the connection lifecycle, manual runs, run history, quarantine
@@ -6,21 +5,35 @@ import type { CollectionDoc } from '@vibelingan-channel/shared';
  * generic-CRUD section; the sync-internal collections are readOnly/none and
  * only ever surface through these dedicated actions.
  */
+import { useQueryClient } from '@tanstack/react-query';
+import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { listRecords } from '../api.ts';
+import { AlibabaCategoryAssignment } from './AlibabaCategoryAssignment.tsx';
 import { AlibabaConnectionPanel } from './AlibabaConnectionPanel.tsx';
+import { AlibabaDraftMaterialization } from './AlibabaDraftMaterialization.tsx';
+import { AlibabaObservationReplay } from './AlibabaObservationReplay.tsx';
+import { AlibabaProductDetailInspection } from './AlibabaProductDetailInspection.tsx';
 import { AlibabaProductLinkAction } from './AlibabaProductLinkAction.tsx';
 import { AlibabaQuarantineReview } from './AlibabaQuarantineReview.tsx';
 import { AlibabaSyncRunTable } from './AlibabaSyncRunTable.tsx';
 import {
   type ConnectionStatus,
+  type ProductDetailInspectionSummary,
+  type SourceObservationReplayPlan,
+  applySourceObservationReplay,
   approveQuarantine,
   disconnectAlibaba,
   fetchConnectionStatus,
+  inspectProductDetail,
   linkSourceProduct,
-  runSyncNow,
+  materializeAlibabaDrafts,
+  repairAlibabaSourcePricing,
+  runSyncToTerminal,
   startOAuthFlow,
+  syncProduct,
   unlinkSourceProduct,
+  validateSourceObservationReplay,
 } from './alibaba-api.ts';
 
 /** Reads the ?alibaba= status the OAuth callback redirect carries. */
@@ -60,6 +73,7 @@ export function callbackNotice(search: string): string | null {
 }
 
 export function AlibabaCatalogSyncPage() {
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<ConnectionStatus | null>(null);
   const [runs, setRuns] = useState<CollectionDoc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,6 +82,26 @@ export function AlibabaCatalogSyncPage() {
     typeof window === 'undefined' ? null : callbackNotice(window.location.search),
   );
   const [linkResult, setLinkResult] = useState<string | null>(null);
+  const [pricingRepairProgress, setPricingRepairProgress] = useState<string | null>(null);
+  const [detailInspection, setDetailInspection] = useState<ProductDetailInspectionSummary | null>(
+    null,
+  );
+  const [inspectingDetail, setInspectingDetail] = useState(false);
+  const [selectedSyncResult, setSelectedSyncResult] = useState<Awaited<
+    ReturnType<typeof syncProduct>
+  > | null>(null);
+  const [replayPlan, setReplayPlan] = useState<SourceObservationReplayPlan | null>(null);
+  const [replayPhase, setReplayPhase] = useState<
+    'idle' | 'validating' | 'validated' | 'applying' | 'applied' | 'failed'
+  >('idle');
+  const [replayProgress, setReplayProgress] = useState<string | null>(null);
+  const [replayApplied, setReplayApplied] = useState<number | null>(null);
+  const [draftProgress, setDraftProgress] = useState<{
+    visited: number;
+    created: number;
+    existing: number;
+    failures: number;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -109,8 +143,19 @@ export function AlibabaCatalogSyncPage() {
     [refresh],
   );
 
+  const refreshProductReviewQueue = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ['list', 'products'] });
+    void queryClient.invalidateQueries({ queryKey: ['product-review-summary'] });
+  }, [queryClient]);
+
   return (
     <div data-alibaba-sync-page className="space-y-4">
+      <AlibabaCategoryAssignment
+        onApplied={() => {
+          refreshProductReviewQueue();
+          void queryClient.invalidateQueries({ queryKey: ['list', 'products'] });
+        }}
+      />
       <AlibabaConnectionPanel
         status={status}
         loading={loading}
@@ -131,10 +176,160 @@ export function AlibabaCatalogSyncPage() {
         }
         onRunNow={() =>
           void guard(async () => {
-            const report = await runSyncNow();
-            return `Sync tick finished: ${report.outcome}${report.runId ? ` (${report.runId})` : ''}.`;
+            const { report, ticks } = await runSyncToTerminal({
+              onProgress: (progress, completedTicks) => {
+                if (progress.outcome !== 'continued') return;
+                setNotice(
+                  `Sync in progress: ${completedTicks} worker tick${completedTicks === 1 ? '' : 's'} completed${progress.runId ? ` (${progress.runId})` : ''}…`,
+                );
+              },
+            });
+            refreshProductReviewQueue();
+            return `Sync finished after ${ticks} worker tick${ticks === 1 ? '' : 's'}: ${report.outcome}${report.runId ? ` (${report.runId})` : ''}.`;
           })
         }
+      />
+      <AlibabaProductDetailInspection
+        connected={status?.status === 'active'}
+        busy={busy}
+        inspecting={inspectingDetail}
+        result={detailInspection}
+        syncResult={selectedSyncResult}
+        onInspect={(sourceProductId) => {
+          setInspectingDetail(true);
+          void guard(async () => {
+            setDetailInspection(null);
+            const summary = await inspectProductDetail(sourceProductId);
+            setDetailInspection(summary);
+            return `Detail inspection completed for ${summary.sourceProductId}.`;
+          }).finally(() => setInspectingDetail(false));
+        }}
+        onSync={(sourceProductId) => {
+          setInspectingDetail(true);
+          void guard(async () => {
+            setSelectedSyncResult(null);
+            const result = await syncProduct(sourceProductId);
+            setSelectedSyncResult(result);
+            refreshProductReviewQueue();
+            return `${result.draftCreated ? 'Created' : 'Updated'} an unpublished product draft for ${result.sourceProductId}.`;
+          }).finally(() => setInspectingDetail(false));
+        }}
+      />
+      <AlibabaDraftMaterialization
+        connected={status?.status === 'active'}
+        busy={busy}
+        progress={draftProgress}
+        onMaterialize={(sourceCategoryId) => {
+          setDraftProgress({ visited: 0, created: 0, existing: 0, failures: 0 });
+          void guard(async () => {
+            const result = await materializeAlibabaDrafts(setDraftProgress, sourceCategoryId);
+            setDraftProgress(result);
+            refreshProductReviewQueue();
+            return `Product drafts ready: ${result.created} created, ${result.existing} already present, ${result.failures} failed.`;
+          });
+        }}
+      />
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="font-semibold text-slate-900">Repair missing source quotes</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Rebuild missing website source-quote fields from successfully synchronized data. No
+          Alibaba API calls, no automatic publication, and no changes to manual prices, images or
+          website categories. Existing source quotes are not overwritten.
+        </p>
+        <button
+          type="button"
+          disabled={busy}
+          className="mt-3 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
+          onClick={() => {
+            if (
+              confirm(
+                'Repair missing source-quote fields from completed syncs? This also restores source quotes on already published products. Manual website prices are unchanged.',
+              )
+            ) {
+              void guard(async () => {
+                setPricingRepairProgress('Checking synchronized products…');
+                try {
+                  const result = await repairAlibabaSourcePricing(setPricingRepairProgress);
+                  setPricingRepairProgress(result);
+                  refreshProductReviewQueue();
+                  return result;
+                } catch (error) {
+                  setPricingRepairProgress(
+                    error instanceof Error ? error.message : 'Repair stopped.',
+                  );
+                  refreshProductReviewQueue();
+                  throw error;
+                }
+              });
+            }
+          }}
+        >
+          Repair missing quotes
+        </button>
+        {pricingRepairProgress && (
+          <output className="mt-3 block break-words text-sm text-slate-700">
+            {pricingRepairProgress}
+          </output>
+        )}
+      </section>
+      <AlibabaObservationReplay
+        connected={status?.status === 'active'}
+        busy={busy}
+        phase={replayPhase}
+        progress={replayProgress}
+        plan={replayPlan}
+        applied={replayApplied}
+        onValidate={() => {
+          setReplayPlan(null);
+          setReplayApplied(null);
+          setReplayPhase('validating');
+          setReplayProgress('Starting full validation…');
+          void guard(async () => {
+            try {
+              const plan = await validateSourceObservationReplay((pages, products) => {
+                setReplayProgress(
+                  `Validated ${products.toLocaleString('en-US')} source products across ${pages} page(s)…`,
+                );
+              });
+              setReplayPlan(plan);
+              setReplayPhase(plan.ready ? 'validated' : 'failed');
+              setReplayProgress(
+                plan.ready
+                  ? 'Validation complete. Review the summary, then apply the exact validated pages.'
+                  : 'Validation stopped. Nothing was written.',
+              );
+              return plan.ready
+                ? `Raw evidence validation passed for ${plan.counts.sourceProducts} source products.`
+                : 'Raw evidence validation failed; nothing was written.';
+            } catch (error) {
+              setReplayPhase('failed');
+              setReplayProgress(error instanceof Error ? error.message : 'Validation failed.');
+              throw error;
+            }
+          });
+        }}
+        onApply={() => {
+          if (!replayPlan?.ready) return;
+          setReplayPhase('applying');
+          setReplayProgress('Applying hash-locked pages…');
+          void guard(async () => {
+            try {
+              const applied = await applySourceObservationReplay(replayPlan, (pages, count) => {
+                setReplayProgress(
+                  `Applied ${count.toLocaleString('en-US')} observations across ${pages} page(s)…`,
+                );
+              });
+              setReplayApplied(applied);
+              setReplayPhase('applied');
+              setReplayProgress('Apply complete. The database can now be independently verified.');
+              return `Applied ${applied} common source observations.`;
+            } catch (error) {
+              setReplayPhase('failed');
+              setReplayProgress(error instanceof Error ? error.message : 'Apply failed.');
+              throw error;
+            }
+          });
+        }}
       />
       <AlibabaQuarantineReview
         runs={runs.filter((run) => run.status === 'quarantined')}

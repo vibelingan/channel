@@ -1,0 +1,459 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { test } from 'node:test';
+import { buildCatalogDetailCandidate } from '@vibelingan-channel/catalog-import/detail-candidate';
+import { extractProductDetail, parseAlibabaApiResponse } from './alibaba-contracts.ts';
+import { alibabaObservationAdapter } from './alibaba-observation-adapter.ts';
+
+// Redacted wire shape from the 2026-09-03 camping-light product.get response.
+// Never start this regression at an already-normalized observation.
+function observeRaw(product: unknown) {
+  const response = parseAlibabaApiResponse(
+    JSON.stringify({ alibaba_icbu_product_get_response: { product } }),
+  );
+  assert.equal(response.kind, 'success');
+  if (response.kind !== 'success') throw new Error('Invalid test envelope');
+  const result = alibabaObservationAdapter.toObservations({
+    connectionId: 'fixture-account',
+    detail: extractProductDetail(response.root),
+    payloadId: 'a'.repeat(64),
+    observedAt: '2026-09-03T07:51:00.841Z',
+    captureMode: 'selected',
+  });
+  assert.equal(result.observations.length, 1, JSON.stringify(result.findings));
+  const observation = result.observations[0];
+  assert.ok(observation);
+  return observation;
+}
+
+const invalidSkuProduct = {
+  product_id: 'fixture-light',
+  subject: 'Camping light',
+  wholesale_trade: { min_order_quantity: 1 },
+  product_sku: {
+    skus: {
+      sku_definition: [
+        {
+          sku_id: 'fixture-white',
+          bulk_discount_prices: { bulk_discount_price: [{ start_quantity: -1, price: '7.67' }] },
+        },
+      ],
+    },
+  },
+};
+
+test('real SKU value image_url survives raw parsing independently of the six product photos', () => {
+  const wire = JSON.parse(
+    readFileSync(
+      new URL('../../../tests/fixtures/alibaba-variant-images-wire.json', import.meta.url),
+      'utf8',
+    ),
+  );
+  const observation = observeRaw(wire.alibaba_icbu_product_get_response.product);
+  assert.equal(observation.content.media.length, 6);
+  assert.deepEqual(
+    observation.variants.map((v) => ({
+      color: v.options.find((o) => o.sourceName === 'color')?.value,
+      images: v.media.map((m) => m.sourceUrl),
+    })),
+    [
+      {
+        color: 'Black',
+        images: ['https://sc04.alicdn.com/kf/Hdd76b413997a44cb91f594cc004237e8N.jpg'],
+      },
+      {
+        color: 'White',
+        images: ['https://sc04.alicdn.com/kf/Hbb64fd6a2fd041c2879fe6bd84472d31U.jpg'],
+      },
+      {
+        color: 'Pink',
+        images: ['https://sc04.alicdn.com/kf/H445a300485e148579071381c766d0aacj.jpg'],
+      },
+    ],
+  );
+});
+
+test('source image bindings use attribute/value identity, not option or gallery order', () => {
+  const image = 'https://sc04.alicdn.com/black.jpg';
+  const product = {
+    product_id: 'mapping-edges',
+    main_image: { image: ['https://sc04.alicdn.com/white.jpg'] },
+    product_sku: {
+      sku_attributes: {
+        sku_attribute: [
+          {
+            attribute_id: 1,
+            attribute_name: 'Color',
+            values: {
+              sku_attribute_value: [
+                { value_id: 10, system_value_name: 'Black', image_url: image },
+                { value_id: 11, system_value_name: 'White' },
+              ],
+            },
+          },
+          // The same value ID under another axis is a different identity.
+          {
+            attribute_id: 2,
+            attribute_name: 'Size',
+            values: {
+              sku_attribute_value: [{ value_id: 10, system_value_name: 'Large', image_url: image }],
+            },
+          },
+        ],
+      },
+      skus: {
+        sku_definition: [
+          { sku_id: 'white', attr2_value: '{"1":11}' },
+          { sku_id: 'black-large', attr2_value: '{"2":10,"1":10}' },
+          { sku_id: 'unknown', attr2_value: '{"1":999}' },
+          { sku_id: 'invalid', attr2_value: '{not JSON' },
+        ],
+      },
+    },
+  };
+  const observation = observeRaw(product);
+  assert.deepEqual(
+    observation.variants.map((v) => v.media.map((m) => m.sourceUrl)),
+    [[], [image], [], []],
+  );
+  for (const image_url of ['javascript:alert(1)', 'data:image/png;base64,abc', 'not a URL']) {
+    const changed = structuredClone(product);
+    const value =
+      changed.product_sku.sku_attributes.sku_attribute[0]?.values.sku_attribute_value[0];
+    assert.ok(value);
+    value.image_url = image_url;
+    changed.product_sku.skus.sku_definition = [{ sku_id: 'bad-url', attr2_value: '{"1":10}' }];
+    assert.deepEqual(observeRaw(changed).variants[0]?.media, [], image_url);
+  }
+  const ambiguous = structuredClone(product);
+  const color = ambiguous.product_sku.sku_attributes.sku_attribute[0];
+  assert.ok(color);
+  color.values.sku_attribute_value.push({
+    value_id: 10,
+    system_value_name: 'Black',
+    image_url: 'https://sc04.alicdn.com/other.jpg',
+  });
+  ambiguous.product_sku.skus.sku_definition = [{ sku_id: 'ambiguous', attr2_value: '{"1":10}' }];
+  assert.deepEqual(observeRaw(ambiguous).variants[0]?.media, []);
+});
+
+test('raw invalid SKU tier keeps independently known MOQ without inventing a quantity', () => {
+  const observation = observeRaw(invalidSkuProduct);
+  assert.deepEqual(observation.offers[0]?.pricing, {
+    mode: 'unavailable',
+    minimumOrderQuantity: 1,
+  });
+  assert.ok(observation.warnings.some((w) => w.code === 'invalid-source-pricing'));
+});
+
+test('raw decimal-form integer MOQ and tier boundaries retain their exact quantities', () => {
+  for (const lexeme of ['1', '1.0', '1.000', '001.00']) {
+    const observation = observeRaw({
+      ...invalidSkuProduct,
+      wholesale_trade: { min_order_quantity: lexeme },
+    });
+    assert.deepEqual(observation.offers[0]?.pricing, {
+      mode: 'unavailable',
+      minimumOrderQuantity: 1,
+    });
+  }
+  const observation = observeRaw({
+    ...invalidSkuProduct,
+    wholesale_trade: { min_order_quantity: '1000.0' },
+    currency: 'USD',
+    product_sku: {
+      skus: {
+        sku_definition: [
+          {
+            sku_id: 'one',
+            bulk_discount_prices: {
+              bulk_discount_price: [{ start_quantity: '1000.00', price: '3.10' }],
+            },
+          },
+        ],
+      },
+    },
+  });
+  assert.deepEqual(observation.offers[0]?.pricing, {
+    mode: 'tiered',
+    currency: 'USD',
+    minimumOrderQuantity: 1000,
+    tiers: [{ minimumQuantity: 1000, unitAmountMinor: 310 }],
+  });
+});
+
+test('quantity parsing never rounds fractional, non-finite or unsafe source values to integers', () => {
+  for (const lexeme of [
+    '0.0',
+    '-1.0',
+    '1.1',
+    '1.0000000000000001',
+    '9007199254740992.0',
+    'NaN',
+    'Infinity',
+  ]) {
+    const observation = observeRaw({
+      ...invalidSkuProduct,
+      wholesale_trade: { min_order_quantity: lexeme },
+    });
+    assert.equal(observation.offers[0]?.pricing.minimumOrderQuantity, undefined, lexeme);
+    const tier = observeRaw({
+      ...invalidSkuProduct,
+      wholesale_trade: { min_order_quantity: '1.0' },
+      product_sku: {
+        skus: {
+          sku_definition: [
+            {
+              sku_id: 'one',
+              bulk_discount_prices: {
+                bulk_discount_price: [{ start_quantity: lexeme, price: '3.10' }],
+              },
+            },
+          ],
+        },
+      },
+    });
+    assert.deepEqual(
+      tier.offers[0]?.pricing,
+      { mode: 'unavailable', minimumOrderQuantity: 1 },
+      lexeme,
+    );
+  }
+});
+
+test('raw FOB product quote survives invalid SKU tiers and remains product-scoped', () => {
+  const observation = observeRaw({
+    ...invalidSkuProduct,
+    product_type: 'sourcing',
+    wholesale_trade: undefined,
+    sourcing_trade: {
+      fob_min_price: '7.75',
+      fob_max_price: '9.0',
+      fob_currency: 'USD',
+      fob_unit_type: 'Piece',
+      min_order_unit_type: 'Piece',
+      min_order_quantity: '2',
+    },
+  });
+  assert.deepEqual(observation.offers.find((o) => !o.sourceVariantKey)?.pricing, {
+    mode: 'range',
+    currency: 'USD',
+    minimumAmountMinor: 775,
+    maximumAmountMinor: 900,
+    minimumOrderQuantity: 2,
+  });
+  assert.deepEqual(observation.offers.find((o) => o.sourceVariantKey)?.pricing, {
+    mode: 'unavailable',
+    minimumOrderQuantity: 2,
+  });
+});
+
+test('FOB and SKU prices retain independent scopes even when the SKU price is usable', () => {
+  const observation = observeRaw({
+    product_id: 'independent-FOB',
+    product_type: 'sourcing',
+    sourcing_trade: {
+      fob_min_price: '14.9',
+      fob_max_price: '14.9',
+      fob_currency: 'USD',
+      fob_unit_type: 'Piece',
+      min_order_unit_type: 'Piece',
+      min_order_quantity: '2',
+    },
+    product_sku: { skus: { sku_definition: [{ sku_id: 'red', price: '15.00' }] } },
+  });
+  assert.equal(observation.offers.length, 2);
+  assert.deepEqual(observation.offers.find((o) => !o.sourceVariantKey)?.pricing, {
+    mode: 'fixed',
+    currency: 'USD',
+    amountMinor: 1490,
+    minimumOrderQuantity: 2,
+  });
+  assert.deepEqual(observation.offers.find((o) => o.sourceVariantKey)?.pricing, {
+    mode: 'fixed',
+    currency: 'USD',
+    amountMinor: 1500,
+    minimumOrderQuantity: 2,
+  });
+});
+
+test('explicit non-piece FOB units never become per-piece prices, with or without SKUs', () => {
+  for (const unit of ['Acre', 'Set', 'Pole']) {
+    for (const sku of [
+      undefined,
+      { skus: { sku_definition: [{ sku_id: 'one', price: '5.18' }] } },
+    ]) {
+      const observation = observeRaw({
+        product_id: 'non-piece-FOB',
+        product_type: 'sourcing',
+        sourcing_trade: {
+          fob_min_price: '5.18',
+          fob_max_price: '5.18',
+          fob_currency: 'USD',
+          fob_unit_type: unit,
+          min_order_unit_type: unit,
+          min_order_quantity: '1',
+        },
+        product_sku: sku,
+      });
+      assert.ok(
+        observation.offers.every((o) => o.pricing.mode === 'unavailable'),
+        unit,
+      );
+    }
+  }
+});
+
+test('raw product attributes preserve repeated names and stay separate from SKU options', () => {
+  const observation = observeRaw({
+    product_id: 'attributes',
+    attributes: {
+      product_attribute: [
+        { attribute_name: 'Application', value_name: 'Hiking' },
+        { attribute_name: 'Application', value_name: 'Camping' },
+        { attribute_name: 'Power', value_name: '20W' },
+        { attribute_name: '', value_name: 'unlabeled' },
+        { attribute_name: 'Bad value', value_name: null },
+      ],
+    },
+  });
+  assert.deepEqual(observation.identity.attributes, [
+    { sourceName: 'Application', value: 'Hiking' },
+    { sourceName: 'Application', value: 'Camping' },
+    { sourceName: 'Power', value: '20W' },
+  ]);
+  assert.deepEqual(observation.variants, []);
+  assert.ok(observation.warnings.some((w) => w.code === 'invalid-product-attribute'));
+});
+
+test('wholesale USD quote is product-scoped, tolerates only decimal serialization noise, not an invented SKU tier', () => {
+  const observation = observeRaw({
+    ...invalidSkuProduct,
+    product_type: 'wholesale',
+    wholesale_trade: {
+      min_order_quantity: 1,
+      sale_type: 'normal',
+      unit_type: 'Piece',
+      price: '7.6699999999999999289457264239899814128875732421875',
+    },
+  });
+  const productOffer = observation.offers.find((o) => o.sourceVariantKey === undefined);
+  assert.deepEqual(productOffer?.pricing, {
+    mode: 'fixed',
+    currency: 'USD',
+    amountMinor: 767,
+    minimumOrderQuantity: 1,
+  });
+  assert.equal(observation.offers.find((o) => o.sourceVariantKey)?.pricing.mode, 'unavailable');
+  for (const price of ['7.671', '7.675', 'garbage', '-1', '0', '10000000']) {
+    const invalid = observeRaw({
+      product_id: 'invalid',
+      product_type: 'wholesale',
+      wholesale_trade: { price, min_order_quantity: 1, sale_type: 'normal', unit_type: 'Piece' },
+    });
+    assert.equal(invalid.offers[0]?.pricing.mode, 'unavailable', price);
+    assert.equal(invalid.offers[0]?.pricing.minimumOrderQuantity, 1, price);
+  }
+});
+
+test('MOQ below the first quoted tier remains known, without filling the unquoted gap', () => {
+  const observation = observeRaw({
+    product_id: 'tier-gap',
+    moq: 1,
+    currency: 'USD',
+    ladder_prices: [{ min_quantity: 100, price: '3.50' }],
+  });
+  assert.deepEqual(observation.offers[0]?.pricing, {
+    mode: 'tiered',
+    currency: 'USD',
+    minimumOrderQuantity: 1,
+    tiers: [{ minimumQuantity: 100, unitAmountMinor: 350 }],
+  });
+});
+
+test('image-only descriptions retain ordered description media separately from the gallery', () => {
+  const observation = observeRaw({
+    product_id: 'image-description',
+    subject: 'Image description',
+    main_image: { images: { string: ['https://sc04.alicdn.com/main.jpg'] } },
+    description:
+      '<p>&nbsp;<img src="http://sc04.alicdn.com/detail.jpg" onerror="bad()"></p><img src="https://sc04.alicdn.com/second.jpg"><img src="javascript:bad()"><script><img src="https://sc04.alicdn.com/hidden.jpg"></script>',
+  });
+  assert.equal(observation.content.description?.placeholder, false);
+  assert.deepEqual(observation.content.description?.imageUrls, [
+    'http://sc04.alicdn.com/detail.jpg',
+    'https://sc04.alicdn.com/second.jpg',
+  ]);
+  assert.deepEqual(
+    observation.content.media.map((m) => m.sourceUrl),
+    ['https://sc04.alicdn.com/main.jpg'],
+  );
+  assert.equal(observation.content.description?.text, undefined);
+  const candidate = buildCatalogDetailCandidate(observation, {
+    productId: 'image-description',
+    variants: new Map(),
+    images: new Map([['http://sc04.alicdn.com/detail.jpg', 'owned-detail']]),
+  });
+  assert.ok(candidate.ok);
+  assert.deepEqual(candidate.value.descriptionImages, ['/api/images/owned-detail']);
+  assert.deepEqual(candidate.value.images, []);
+});
+
+test('captured wire regression retains 47 attributes, 17 description images and both price scopes', () => {
+  const raw = readFileSync(
+    new URL('../../../tests/fixtures/alibaba-camping-light-wire.json', import.meta.url),
+    'utf8',
+  );
+  const observation = observeRaw(JSON.parse(raw).alibaba_icbu_product_get_response.product);
+  assert.equal(observation.identity.attributes.length, 47);
+  assert.equal(observation.content.media.length, 6);
+  assert.equal(observation.content.description?.imageUrls?.length, 17);
+  assert.equal(observation.content.description?.placeholder, false);
+  assert.equal(observation.variants[0]?.options.length, 3);
+  assert.deepEqual(observation.offers.find((o) => !o.sourceVariantKey)?.pricing, {
+    mode: 'fixed',
+    currency: 'USD',
+    amountMinor: 767,
+    minimumOrderQuantity: 1,
+  });
+  assert.deepEqual(observation.offers.find((o) => o.sourceVariantKey)?.pricing, {
+    mode: 'unavailable',
+    minimumOrderQuantity: 1,
+  });
+});
+
+test('active trade MOQ wins over stale flat and other-trade values; no per-piece quote for lots', () => {
+  const product = {
+    product_id: 'mixed-trade',
+    product_type: 'wholesale',
+    moq: 1000,
+    sourcing_trade: { min_order_quantity: 500 },
+    wholesale_trade: {
+      min_order_quantity: 1,
+      price: '7.67',
+      sale_type: 'normal',
+      unit_type: 'Piece',
+    },
+  };
+  assert.equal(observeRaw(product).offers[0]?.pricing.minimumOrderQuantity, 1);
+  for (const trade of [
+    { sale_type: 'batch', unit_type: 'Piece' },
+    { sale_type: 'normal', unit_type: 'Kilogram' },
+  ]) {
+    assert.equal(
+      observeRaw({ ...product, wholesale_trade: { ...product.wholesale_trade, ...trade } })
+        .offers[0]?.pricing.mode,
+      'unavailable',
+    );
+  }
+});
+
+test('unsupported description media is a retained-data warning, not falsely absent source content', () => {
+  const observation = observeRaw({
+    product_id: 'bad-media',
+    description: '<img src="javascript:alert(1)">',
+  });
+  assert.equal(observation.content.description?.placeholder, false);
+  assert.ok(observation.warnings.some((w) => w.code === 'invalid-description-media'));
+  assert.equal(observation.content.description?.imageUrls, undefined);
+});

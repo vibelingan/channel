@@ -1,14 +1,14 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 import { type ApiResult, ok, rateLimited } from '@vibelingan-channel/shared';
-import type { AdminConfig, AdminRequest } from './handler.ts';
+import type { AdminConfig, AdminRequest, AdminResult } from './handler.ts';
 import {
   type HttpResponse,
   handleAdminFunctionEvent,
   parseAllowedOrigins,
 } from './http-adapter.ts';
 
-function isHttpResponse(value: ApiResult<unknown> | HttpResponse): value is HttpResponse {
+function isHttpResponse(value: AdminResult | HttpResponse): value is HttpResponse {
   return 'statusCode' in value;
 }
 

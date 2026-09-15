@@ -83,9 +83,31 @@ test('rejects pathological nesting depth', () => {
   bad(deep);
 });
 
+test('runtime boundary rejects non-string input without throwing', () => {
+  for (const value of [null, undefined, 0, false, {}, []]) {
+    const result = parseJsonPreservingNumbers(value as unknown as string);
+    assert.deepEqual(result, { ok: false, error: 'input must be a string' });
+  }
+});
+
+test('rejects dangerous and duplicate object keys', () => {
+  bad('{"__proto__":{"polluted":true}}');
+  bad('{"constructor":{"prototype":{"polluted":true}}}');
+  bad('{"prototype":{"polluted":true}}');
+  bad('{"same":1,"same":2}');
+  assert.equal(({} as { polluted?: boolean }).polluted, undefined);
+});
+
+test('optional character cap fails before parsing oversized embedded JSON', () => {
+  const result = parseJsonPreservingNumbers('{"a":1}', { maxChars: 6 });
+  assert.deepEqual(result, { ok: false, error: 'input exceeds 6 characters' });
+  assert.equal(parseJsonPreservingNumbers('{"a":1}', { maxChars: 7 }).ok, true);
+});
+
 test('getPath returns undefined on any miss', () => {
   const v = parse('{"a": {"b": 1}}');
   assert.equal(getPath(v, ['a', 'x']), undefined);
   assert.equal(getPath(v, ['a', 'b', 'c']), undefined);
   assert.equal(getPath(v, [0]), undefined);
+  assert.equal(getPath(parse('{}'), ['toString']), undefined, 'prototype members are not data');
 });

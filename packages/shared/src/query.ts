@@ -29,7 +29,8 @@ export type FilterOperator =
   | (typeof FILTER_OPERATORS)[number]
   | 'isLiteralTrue'
   | 'isFalseOrMissing'
-  | 'matchesProductFamily';
+  | 'matchesProductFamily'
+  | 'hasNoProductFamily';
 
 /** A single field/operator/value condition. */
 export interface FilterClause {
@@ -55,7 +56,11 @@ export interface SortClause {
 /** Operators that do not take a value. */
 export function isValuelessOperator(op: FilterOperator): boolean {
   return (
-    op === 'isEmpty' || op === 'isNotEmpty' || op === 'isLiteralTrue' || op === 'isFalseOrMissing'
+    op === 'isEmpty' ||
+    op === 'isNotEmpty' ||
+    op === 'isLiteralTrue' ||
+    op === 'isFalseOrMissing' ||
+    op === 'hasNoProductFamily'
   );
 }
 
@@ -89,6 +94,7 @@ const OPERATOR_LABELS: Record<FilterOperator, string> = {
   isLiteralTrue: 'is literal true',
   isFalseOrMissing: 'is false or missing',
   matchesProductFamily: 'matches product family',
+  hasNoProductFamily: 'has no website category',
 };
 
 export function operatorLabel(op: FilterOperator): string {
@@ -141,6 +147,8 @@ function matchesClause(doc: Record<string, unknown>, clause: FilterClause): bool
       return !Object.hasOwn(doc, clause.field) || actual === false;
     case 'matchesProductFamily':
       return isProductFamily(value) && productFamilyForDoc(doc) === value;
+    case 'hasNoProductFamily':
+      return productFamilyForDoc(doc) === null;
     default:
       return false;
   }

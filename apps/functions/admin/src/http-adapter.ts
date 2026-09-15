@@ -1,5 +1,5 @@
 import { type ApiErr, type ApiResult, err } from '@vibelingan-channel/shared';
-import type { AdminConfig, AdminRequest, RequestContext } from './handler.ts';
+import type { AdminConfig, AdminRequest, AdminResult, RequestContext } from './handler.ts';
 
 export interface AdminHttpConfig extends AdminConfig {
   corsAllowedOrigins?: readonly string[];
@@ -16,7 +16,7 @@ export type AdminRequestHandler = (
   req: AdminRequest,
   config: AdminConfig,
   context?: RequestContext,
-) => Promise<ApiResult<unknown>>;
+) => Promise<AdminResult>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -118,9 +118,10 @@ function parseHttpBody(event: Record<string, unknown>): AdminRequest | ApiErr {
   }
 }
 
-function errorStatus(result: ApiResult<unknown>): number {
+export function errorStatus(result: AdminResult): number {
   if (result.ok) return 200;
-  switch (result.error.code) {
+  const code = result.error.code;
+  switch (code) {
     case 'BAD_REQUEST':
     case 'VALIDATION_ERROR':
       return 400;
@@ -132,13 +133,20 @@ function errorStatus(result: ApiResult<unknown>): number {
     case 'UNKNOWN_COLLECTION':
       return 404;
     case 'CONFLICT':
+    case 'VERSION_CONFLICT':
+    case 'IDEMPOTENCY_CONFLICT':
+    case 'INVALID_TRANSITION':
+    case 'REASON_REQUIRED':
+    case 'HISTORY_LIMIT':
       return 409;
+    case 'INVALID_RECORD':
+      return 500;
     case 'RATE_LIMITED':
       return 429;
     case 'INTERNAL_ERROR':
       return 500;
     default: {
-      const _exhaustive: never = result.error.code;
+      const _exhaustive: never = code;
       throw new Error(`Unhandled error code: ${_exhaustive}`);
     }
   }
@@ -170,10 +178,11 @@ function responseHeaders(
 function jsonResponse(
   event: Record<string, unknown>,
   config: AdminHttpConfig,
-  result: ApiResult<unknown>,
+  result: AdminResult,
   statusCode = errorStatus(result),
 ): HttpResponse {
   const headers = responseHeaders(event, config);
+  headers['Cache-Control'] = 'no-store';
   if (!result.ok && typeof result.error.retryAfterSeconds === 'number') {
     headers['Retry-After'] = String(result.error.retryAfterSeconds);
   }
@@ -205,7 +214,7 @@ export async function handleAdminFunctionEvent(
   event: unknown,
   config: AdminHttpConfig,
   handler: AdminRequestHandler,
-): Promise<ApiResult<unknown> | HttpResponse> {
+): Promise<AdminResult | HttpResponse> {
   if (!isHttpEnvelope(event)) {
     return handler(isAdminRequest(event) ? event : { action: '' }, config);
   }

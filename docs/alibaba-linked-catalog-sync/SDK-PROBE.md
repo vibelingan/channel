@@ -63,11 +63,17 @@ differently, and the distinction matters:
 - **Response shapes** — table-driven contracts in `alibaba-contracts.ts`; a
   response that misses a required field quarantines the run rather than
   silently degrading.
-- **Endpoints** — `oauth.alibaba.com/authorize` is CONFIRMED official. The
-  `/rest` gateway host and the token create/refresh paths remain
-  **ASSUMED-UNVERIFIED** until the MIU 15 live smoke; they are overridable at
-  runtime via `ALI_API_BASE_URL` (suffix-anchored to `alibaba.com`, https
-  only) so a correction needs no redeploy.
+- **Endpoints — CORRECTED 2026-08-16.** This section previously called
+  `oauth.alibaba.com/authorize` "CONFIRMED official". It was the RETIRED host.
+  The live, verified endpoints are `open-api.alibaba.com/oauth/authorize` and
+  `open-api.alibaba.com/rest`, proven by a credential-free control probe:
+  app key `511630` returns `IncompleteSignature` (key resolved) while a
+  fabricated key returns `InvalidAppKey`. Overrides remain available via
+  `ALI_API_BASE_URL` so a future correction needs no redeploy.
+
+  The lesson worth keeping: "CONFIRMED from docs" was written twice in this
+  file about endpoints that had never been called. An endpoint is confirmed
+  when a request to it succeeds, not when a page describes it.
 
 That last point is load-bearing for the token layer: because the refresh path
 is unverified, a bare HTTP status is **not** treated as evidence that a

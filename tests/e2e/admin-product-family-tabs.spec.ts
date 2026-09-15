@@ -34,7 +34,7 @@ test('Products family tabs compose list queries, recover URL state, and prefill 
       return;
     }
     if (body.action === 'list') {
-      listBodies.push(body.data ?? {});
+      if (body.data?.pageSize !== 1) listBodies.push(body.data ?? {});
       const productsPage = body.data?.collection === 'products';
       await route.fulfill({
         status: 200,
@@ -66,7 +66,7 @@ test('Products family tabs compose list queries, recover URL state, and prefill 
   await page.goto('/admin?productFamily=toys');
   await page.getByRole('button', { name: 'Products', exact: true }).click();
   const tabs = page.getByRole('group', { name: 'Product family', exact: true });
-  await expect(tabs.getByRole('button')).toHaveCount(5);
+  await expect(tabs.getByRole('button')).toHaveCount(6);
   await expect(tabs.getByRole('button', { name: 'Toys', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
@@ -99,6 +99,15 @@ test('Products family tabs compose list queries, recover URL state, and prefill 
   await expect(page).not.toHaveURL(/productFamily=/);
   await expect.poll(() => listBodies.at(-1)?.productFamily).toBeUndefined();
 
+  await tabs.getByRole('button', { name: /Needs classification/ }).click();
+  await expect(page).toHaveURL(/productFamily=unclassified/);
+  await expect.poll(() => listBodies.at(-1)?.needsClassification).toBe(true);
+  expect(listBodies.at(-1)?.productFamily).toBeUndefined();
+  await expect(page.getByText(/Source-wide rules are managed/)).toBeVisible();
+  await page.getByRole('button', { name: 'New Product' }).click();
+  await expect(page.locator('select#productFamily')).not.toHaveValue('unclassified');
+  await page.getByRole('button', { name: 'Cancel' }).click();
+
   await page.getByRole('button', { name: 'Users', exact: true }).click();
   await expect(page.getByRole('group', { name: 'Product family', exact: true })).toHaveCount(0);
 });
@@ -129,10 +138,17 @@ test('mobile Products view exposes a full-width family select', async ({ page })
   await select.click();
   await page
     .getByRole('listbox', { name: 'Product family' })
-    .getByRole('option', { name: 'Other Electronics & Toys' })
+    .getByRole('option', { name: 'Misc' })
     .click();
-  await expect(select).toContainText('Other Electronics & Toys');
+  await expect(select).toContainText('Misc');
   await expect(page).toHaveURL(/productFamily=misc/);
+  await select.click();
+  await page
+    .getByRole('listbox', { name: 'Product family' })
+    .getByRole('option', { name: /Needs classification/ })
+    .click();
+  await expect(page).toHaveURL(/productFamily=unclassified/);
+  await expect(page.getByText(/Source-wide rules are managed/)).toBeVisible();
   await select.click();
   await page
     .getByRole('listbox', { name: 'Product family' })

@@ -5,8 +5,21 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  assertToolSucceeded,
+  ensureGateway,
+  reconcileTriggers,
+  requestIdFrom,
+  toolMessage,
+} from './cloudbase-deploy-resources.mjs';
 import { buildFunctionDefs, desiredTriggersFor } from './cloudbase-function-manifest.mjs';
+import { waitForFunctionActive } from './cloudbase-function-state.mjs';
 import { ensureNoSqlResources } from './cloudbase-nosql-resources.mjs';
+import {
+  hostedAssetManifest,
+  publishVerifiedAssets,
+  verifyHostedAssets,
+} from './hosting-integrity.mjs';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const functionRootPath = resolve(root, '.cloudbase-artifacts/functions');
@@ -119,41 +132,6 @@ function redactSecretJson(text) {
     /("[^"]*(?:SECRET|PASSWORD|TOKEN|HASH|SECRETID|SECRETKEY|SESSIONTOKEN)[^"]*"\s*:\s*)"(?:[^"\\]|\\.)*"/gi,
     '$1"***"',
   );
-}
-
-function requestIdFrom(result) {
-  return (
-    result?.data?.raw?.RequestId ??
-    result?.data?.raw?.codeRes?.RequestId ??
-    result?.data?.raw?.configRes?.RequestId ??
-    result?.data?.requestId ??
-    result?.data?.RequestId ??
-    result?.requestId ??
-    null
-  );
-}
-
-function toolMessage(result) {
-  if (!result || typeof result !== 'object') return 'no result object returned';
-  const raw = result.data?.raw;
-  const summary = {
-    success: result.success,
-    code: result.code ?? raw?.Code,
-    message: result.message ?? raw?.Message,
-    requestId: requestIdFrom(result),
-    dataKeys: result.data && typeof result.data === 'object' ? Object.keys(result.data) : [],
-    rawKeys: raw && typeof raw === 'object' ? Object.keys(raw) : [],
-  };
-  return JSON.stringify(summary).slice(0, 700);
-}
-
-function assertToolSucceeded(result, label) {
-  if (!result || typeof result !== 'object') {
-    throw new Error(`${label} returned no result object.`);
-  }
-  if (result.success === false) {
-    throw new Error(`${label} failed: ${toolMessage(result)}`);
-  }
 }
 
 function parseCliJsonWithNoise(output) {
@@ -349,22 +327,6 @@ function sleep(ms) {
   }
 }
 
-function summarizeFunctionState(state) {
-  const detail = state?.detail;
-  if (!detail) {
-    return state?.message ? `query failed: ${state.message}` : 'no function detail returned';
-  }
-  return JSON.stringify({
-    status: detail.Status,
-    availableStatus: detail.AvailableStatus,
-    runtime: detail.Runtime,
-    codeSize: detail.CodeSize,
-    statusReason: detail.StatusReason,
-    statusDesc: detail.StatusDesc,
-    updateTime: detail.UpdateTime,
-  });
-}
-
 function artifactSummary(functionName) {
   const indexFile = resolve(functionRootPath, functionName, 'index.js');
   const size = statSync(indexFile).size;
@@ -373,27 +335,13 @@ function artifactSummary(functionName) {
 }
 
 function waitForActive(functionName) {
-  const deadline = Date.now() + functionActiveTimeoutMs;
-  let nextLogAt = Date.now();
-  let lastState = null;
-
-  while (Date.now() < deadline) {
-    lastState = functionDetailResult(functionName, true);
-    const detail = lastState.detail;
-    if (detail?.Status === 'Active' || detail?.AvailableStatus === 'Available') return detail;
-
-    const now = Date.now();
-    if (now >= nextLogAt) {
-      console.log(
-        `${functionName}: waiting for active state; ${summarizeFunctionState(lastState)}`,
-      );
-      nextLogAt = now + 30_000;
-    }
-    sleep(Math.min(functionPollIntervalMs, Math.max(deadline - now, 0)));
-  }
-  throw new Error(
-    `${functionName} did not become active within ${functionActiveTimeoutMs}ms; last state: ${summarizeFunctionState(lastState)}`,
-  );
+  return waitForFunctionActive({
+    functionName,
+    readState: (name) => functionDetailResult(name, true),
+    timeoutMs: functionActiveTimeoutMs,
+    pollIntervalMs: functionPollIntervalMs,
+    sleep,
+  });
 }
 
 function envEntries(record) {
@@ -420,6 +368,7 @@ function updateFunctionConfig(def) {
     console.log(
       `${def.name}: config update hit Updating state; waiting before retry ${attempt + 1}`,
     );
+    sleep(functionPollIntervalMs);
     waitForActive(def.name);
   }
   assertToolSucceeded(configResult, `${def.name}: updateFunctionConfig`);
@@ -457,6 +406,7 @@ function deployFunction(def) {
     );
   }
 
+  if (before) waitForActive(def.name);
   deployFunctionWithCloudBaseCli(
     def,
     before ? 'primary CI code update' : 'primary CI create',
@@ -474,30 +424,6 @@ function deployFunction(def) {
   console.log(
     `${def.name}: deployed on ${configAfter.Runtime}; code deploy cloudbase-cli-primary; config request ${configRequestId}`,
   );
-}
-
-function ensureGateway(def) {
-  const current = callTool(
-    'cloudbase.queryGateway',
-    { action: 'getAccess', targetType: 'function', targetName: def.name },
-    { allowFailure: true },
-  );
-  const apis = current.data?.apis ?? current.data?.raw?.accessList?.APISet ?? [];
-  if (apis.some((api) => api.Path === def.routePath)) {
-    console.log(`${def.name}: gateway route ${def.routePath} already present`);
-    return;
-  }
-
-  const created = callTool('cloudbase.manageGateway', {
-    action: 'createAccess',
-    targetType: 'function',
-    targetName: def.name,
-    path: def.routePath,
-    type: 'Event',
-    auth: false,
-  });
-  const requestId = created.data?.requestId ?? created.data?.raw?.RequestId ?? 'unknown';
-  console.log(`${def.name}: created gateway route ${def.routePath}; request ${requestId}`);
 }
 
 // Static hosting `upload` is additive: it creates/overwrites files but never
@@ -541,25 +467,37 @@ function pruneLegacyHostingPaths() {
   }
 }
 
-function deployWebApp() {
+async function deployWebApp() {
   const distPath = resolve(siteRootPath, 'dist');
   if (!existsSync(resolve(distPath, 'index.html'))) {
     throw new Error(`Missing site build output: ${distPath}`);
   }
 
-  const uploaded = callTool(
-    'cloudbase.manageHosting',
-    {
-      action: 'upload',
-      localPath: distPath,
-      cloudPath: '/',
-      isDir: true,
+  const assets = hostedAssetManifest(distPath);
+  await publishVerifiedAssets({
+    upload: () => {
+      const uploaded = callTool(
+        'cloudbase.manageHosting',
+        {
+          action: 'upload',
+          localPath: distPath,
+          cloudPath: '/',
+          isDir: true,
+        },
+        { timeoutMs: 300_000 },
+      );
+      assertToolSucceeded(uploaded, `${webAppServiceName}: static hosting upload`);
+      const uploadRequestId =
+        uploaded.data?.requestId ?? uploaded.data?.raw?.RequestId ?? 'unknown';
+      console.log(
+        `${webAppServiceName}: static hosting upload finished; request ${uploadRequestId}`,
+      );
     },
-    { timeoutMs: 300_000 },
+    verify: () => verifyHostedAssets(assets, siteUrl),
+  });
+  console.log(
+    `${webAppServiceName}: verified ${assets.length} hosted page/assets against build hashes`,
   );
-  assertToolSucceeded(uploaded, `${webAppServiceName}: static hosting upload`);
-  const uploadRequestId = uploaded.data?.requestId ?? uploaded.data?.raw?.RequestId ?? 'unknown';
-  console.log(`${webAppServiceName}: static hosting upload finished; request ${uploadRequestId}`);
 
   pruneLegacyHostingPaths();
 
@@ -578,82 +516,12 @@ console.log(`Deploying CloudBase test env ${envId} with function runtime ${targe
 callTool('cloudbase.auth', { action: 'set_env', envId });
 ensureNoSqlResources(callTool);
 
-/**
- * RECONCILE triggers to the manifest's desired state (ARCHITECTURE §14.1).
- *
- * This replaced a hard-fail on any trigger found. That rule assumed a separate
- * production environment applied its own timer; with a single live
- * environment it was a booby trap — anyone adding a timer in the console broke
- * every future deploy, and the fix was undocumented. Desired state is strictly
- * better: it converges instead of refusing, and it still guarantees no
- * unintended trigger survives, because anything not declared is removed.
- */
-function reconcileTriggers(def) {
-  const desired = desiredTriggersFor(def.name);
-  const detail = callTool('cloudbase.queryFunctions', {
-    action: 'getFunctionDetail',
-    functionName: def.name,
-  });
-  const existing = (detail.data?.functionDetail?.Triggers ?? []).filter(Boolean);
-  const desiredByName = new Map(desired.map((trigger) => [trigger.name, trigger]));
-
-  for (const trigger of existing) {
-    const name = trigger.TriggerName ?? trigger.name;
-    const want = desiredByName.get(name);
-    // Remove anything undeclared, and anything whose schedule has drifted —
-    // re-created below from the manifest rather than edited in place.
-    if (!want || String(trigger.TriggerDesc ?? '') !== `${want.config}`) {
-      console.log(`  trigger: removing ${def.name}/${name}`);
-      callTool('cloudbase.manageFunctions', {
-        action: 'deleteFunctionTrigger',
-        functionName: def.name,
-        triggerName: name,
-      });
-    }
-  }
-
-  const remaining = new Set(
-    (
-      callTool('cloudbase.queryFunctions', {
-        action: 'getFunctionDetail',
-        functionName: def.name,
-      }).data?.functionDetail?.Triggers ?? []
-    )
-      .filter(Boolean)
-      .map((trigger) => trigger.TriggerName ?? trigger.name),
-  );
-  for (const trigger of desired) {
-    if (remaining.has(trigger.name)) continue;
-    console.log(`  trigger: creating ${def.name}/${trigger.name} (${trigger.config})`);
-    callTool('cloudbase.manageFunctions', {
-      action: 'createFunctionTrigger',
-      functionName: def.name,
-      triggers: [trigger],
-    });
-  }
-
-  // VERIFY the outcome. A reconcile that is not asserted is a wish.
-  const finalTriggers = (
-    callTool('cloudbase.queryFunctions', {
-      action: 'getFunctionDetail',
-      functionName: def.name,
-    }).data?.functionDetail?.Triggers ?? []
-  ).filter(Boolean);
-  const finalNames = finalTriggers.map((trigger) => trigger.TriggerName ?? trigger.name).sort();
-  const wantNames = desired.map((trigger) => trigger.name).sort();
-  if (JSON.stringify(finalNames) !== JSON.stringify(wantNames)) {
-    throw new Error(
-      `${def.name}: trigger reconcile failed — wanted [${wantNames.join(', ')}], found [${finalNames.join(', ')}]`,
-    );
-  }
-}
-
 for (const def of functionDefs) {
   deployFunction(def);
-  ensureGateway(def);
-  reconcileTriggers(def);
+  ensureGateway(def, { callTool });
+  reconcileTriggers(def, desiredTriggersFor(def.name), { callTool });
 }
 
-deployWebApp();
+await deployWebApp();
 
 console.log(`Deployment submitted for ${siteUrl}`);

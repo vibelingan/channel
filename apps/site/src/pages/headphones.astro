@@ -1,7 +1,7 @@
 ---
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
-import { getCatalogContent, getCatalogFamily } from '../i18n/catalog.ts';
+import { getCatalogContent, getCatalogFamily, getSharedDetailContent } from '../i18n/catalog.ts';
 import { getHeadphonesContent } from '../i18n/headphones.ts';
 import { DEFAULT_LOCALE, getSiteContent } from '../i18n/site.ts';
 import { CatalogFamilyPage } from '../islands/shop/CatalogFamilyPage.tsx';
@@ -14,6 +14,7 @@ import { OEM_INQUIRY_HREF } from '../lib/site-navigation.ts';
 const site = getSiteContent(DEFAULT_LOCALE);
 const hp = getHeadphonesContent(DEFAULT_LOCALE);
 const catalog = getCatalogContent(DEFAULT_LOCALE);
+const previewContent = getSharedDetailContent(DEFAULT_LOCALE);
 const family = getCatalogFamily('headphones', DEFAULT_LOCALE);
 const { brand, nav, footer } = site;
 
@@ -171,7 +172,7 @@ const schemaNodes = [catalogBreadcrumbSchema(breadcrumbs, Astro.site ?? Astro.ur
         </div>
       </noscript>
       <div class="mx-auto max-w-[var(--width-container)] px-4 py-12 sm:px-6 lg:px-8">
-        <CatalogFamilyPage content={catalog} family={family} client:load />
+        <CatalogFamilyPage content={catalog} family={family} previewContent={previewContent} client:load />
       </div>
     </div>
 

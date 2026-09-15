@@ -21,6 +21,45 @@ function readStore(file: string): Record<string, CollectionDoc[]> {
   return JSON.parse(readFileSync(file, 'utf8')) as Record<string, CollectionDoc[]>;
 }
 
+test('classification queue filters before pagination and a saved assignment survives reopen without publishing', async (t) => {
+  const { directory, file } = temporaryDatabase();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  writeFileSync(
+    file,
+    JSON.stringify({
+      products: [
+        { _id: 'clock-a', name: 'Clock A', published: false },
+        { _id: 'clock-b', name: 'Clock B', published: false },
+        { _id: 'legacy', name: 'Headphones', category: 'wired' },
+        { _id: 'toy', name: 'Toy', productFamily: 'toys' },
+      ],
+    }),
+  );
+  const adapter = new JsonFileAdapter(file);
+  const query = {
+    collection: 'products',
+    needsClassification: true,
+    page: 2,
+    pageSize: 1,
+    search: '',
+    sort: [{ field: '_id', dir: 'asc' as const }],
+  };
+  const result = await adapter.list(query);
+  assert.equal(result.total, 2);
+  assert.equal(result.items[0]?._id, 'clock-b');
+  setAdapter(adapter);
+  const saved = await saveCatalogProductWithIdentities({
+    mode: 'update',
+    productId: 'clock-b',
+    data: { productFamily: 'misc' },
+  });
+  assert.equal(saved.result, 'saved');
+  const reopened = new JsonFileAdapter(file);
+  assert.equal((await reopened.list({ ...query, page: 1 })).total, 1);
+  assert.equal((await reopened.get('products', 'clock-b'))?.productFamily, 'misc');
+  assert.equal((await reopened.get('products', 'clock-b'))?.published, false);
+});
+
 test('RACE: JsonFileAdapter persists exactly one owner for a shared slug and SKU', async (t) => {
   const { directory, file } = temporaryDatabase();
   t.after(() => rmSync(directory, { recursive: true, force: true }));

@@ -16,6 +16,7 @@ export default defineConfig({
     'process.env.CHANNEL_BUILD_TIME': JSON.stringify(buildTime),
   },
   noExternal: [
+    '@vibelingan-channel/catalog-import',
     '@vibelingan-channel/shared',
     '@vibelingan-channel/auth',
     '@vibelingan-channel/db',
@@ -26,6 +27,7 @@ export default defineConfig({
     'jose',
     'nodemailer',
     'wx-server-sdk',
+    'xlsx',
     'zod',
   ],
 });

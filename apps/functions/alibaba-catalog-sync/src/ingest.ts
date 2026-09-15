@@ -6,21 +6,27 @@
  * normalization, or mirror write; a raw-write failure aborts the page with
  * nothing else written.
  *
- * Mirror writes are deterministic-id upserts — reruns and duplicate timer
- * deliveries converge on identical documents. Mirror rows are last-write-wins
- * by design (R1 E7 acceptance: a stale holder's mirror write can only delay
- * freshness until the next run; PRODUCT promotion is the fenced surface).
+ * Mirror writes are deterministic-id, lease-fenced upserts — reruns converge on
+ * identical documents, while a stale timer holder cannot commit after takeover.
  */
 import { createHash } from 'node:crypto';
 import {
   type AlibabaProductDetailDraft,
+  alibabaObservationAdapter,
   extractProductDetail,
   normalizeProductDetail,
   parseAlibabaApiResponse,
 } from '@vibelingan-channel/alibaba-catalog-sync';
-import { list } from '@vibelingan-channel/db';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
+import type { AlibabaLeaseGuard } from '@vibelingan-channel/db';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
-import { createDocWithId, getDoc, updateDoc, upsertDocWithId } from './repo.ts';
+import { listAllDocs } from './list-all.ts';
+import {
+  createDocWithId,
+  getDoc,
+  updateDocWithAlibabaLease,
+  upsertDocWithAlibabaLease,
+} from './repo.ts';
 
 export interface StoreRawPayloadInput {
   bodyText: string;
@@ -82,11 +88,17 @@ export async function storeRawPayload(input: StoreRawPayloadInput): Promise<Stor
 
 export interface IngestDetailInput {
   bodyText: string;
+  /** Product id used for the product.get request; the response must echo it exactly. */
+  expectedSourceProductId: string;
   endpointId: string;
   requestFingerprint: string;
   connectionId: string;
   runId: string;
   now: string;
+  /** Acquisition context only; product.get itself is always a full product detail. */
+  captureMode?: 'full' | 'incremental' | 'selected';
+  /** Fresh lease guard factory; every mutable mirror write rechecks it atomically. */
+  leaseGuard: () => AlibabaLeaseGuard;
   contentType?: string;
 }
 
@@ -100,7 +112,14 @@ export type IngestDetailResult =
     }
   | {
       ok: false;
-      error: 'raw-write-failed' | 'api-error' | 'malformed-response' | 'missing-product-id';
+      error:
+        | 'raw-write-failed'
+        | 'api-error'
+        | 'malformed-response'
+        | 'missing-product-id'
+        | 'product-id-mismatch'
+        | 'invalid-source-observation'
+        | 'lease-lost';
     };
 
 /** Raw bytes first, then parse -> normalize -> deterministic mirror upserts. */
@@ -158,6 +177,10 @@ export async function ingestProductDetail(input: IngestDetailInput): Promise<Ing
   if (envelope.kind === 'api-error') return { ok: false, error: 'api-error' };
 
   const detail: AlibabaProductDetailDraft = extractProductDetail(envelope.root);
+  if (!detail.sourceProductId) return { ok: false, error: 'missing-product-id' };
+  if (detail.sourceProductId !== input.expectedSourceProductId) {
+    return { ok: false, error: 'product-id-mismatch' };
+  }
   const normalized = normalizeProductDetail({
     connectionId: input.connectionId,
     detail,
@@ -167,30 +190,56 @@ export async function ingestProductDetail(input: IngestDetailInput): Promise<Ing
   if (!normalized.ok) return { ok: false, error: 'missing-product-id' };
 
   const { sourceProduct, offers } = normalized;
+  const observed = alibabaObservationAdapter.toObservations({
+    connectionId: input.connectionId,
+    detail,
+    payloadId: raw.payloadId,
+    observedAt: input.now,
+    captureMode: input.captureMode ?? 'incremental',
+  });
+  const observation = observed.observations[0];
+  if (
+    observation === undefined ||
+    observed.findings.some((finding) => finding.severity === 'error')
+  ) {
+    console.error(
+      '[alibaba-catalog-sync] common observation validation failed:',
+      observed.findings.map((finding) => finding.code),
+    );
+    return { ok: false, error: 'invalid-source-observation' };
+  }
   const existingProduct = await getDoc('alibabaSourceProducts', sourceProduct.sourceKey);
   const contentHash = contentFingerprint(
     sourceProduct as unknown as Record<string, unknown>,
     offers,
   );
   const changed = String(existingProduct?.contentHash ?? '') !== contentHash;
-  await upsertDocWithId('alibabaSourceProducts', sourceProduct.sourceKey, {
-    ...sourceProduct,
-    lastSeenRunId: input.runId,
-    contentHash,
-    lastChangedRunId: changed
-      ? input.runId
-      : String(existingProduct?.lastChangedRunId ?? input.runId),
-    // First-seen provenance is written once and never rewritten; tombstone
-    // state clears because the product is demonstrably present again.
-    ...(existingProduct ? {} : { firstSeenRunId: input.runId, createdAt: input.now }),
-    tombstonedAt: '',
-  });
+  const sourceWritten = await upsertDocWithAlibabaLease(
+    'alibabaSourceProducts',
+    sourceProduct.sourceKey,
+    {
+      ...sourceProduct,
+      lastSeenRunId: input.runId,
+      contentHash,
+      lastChangedRunId: changed
+        ? input.runId
+        : String(existingProduct?.lastChangedRunId ?? input.runId),
+      tombstonedAt: '',
+    },
+    { firstSeenRunId: input.runId },
+    input.leaseGuard(),
+  );
+  if (!sourceWritten) return { ok: false, error: 'lease-lost' };
 
   for (const offer of offers) {
-    await upsertDocWithId('alibabaSupplierOffers', offer.offerKey, {
-      ...offer,
-      lastSeenRunId: input.runId,
-    });
+    const offerWritten = await upsertDocWithAlibabaLease(
+      'alibabaSupplierOffers',
+      offer.offerKey,
+      { ...offer, lastSeenRunId: input.runId },
+      {},
+      input.leaseGuard(),
+    );
+    if (!offerWritten) return { ok: false, error: 'lease-lost' };
   }
 
   // Product-scoped offer sweep: a detail response is the COMPLETE current SKU
@@ -202,13 +251,42 @@ export async function ingestProductDetail(input: IngestDetailInput): Promise<Ing
   const siblings = await listOffersBySourceKey(sourceProduct.sourceKey);
   for (const sibling of siblings) {
     if (!currentKeys.has(sibling._id) && sibling.active === true) {
-      await updateDoc('alibabaSupplierOffers', sibling._id, {
-        active: false,
-        lastSeenRunId: input.runId,
-      });
+      const deactivatedOffer = await updateDocWithAlibabaLease(
+        'alibabaSupplierOffers',
+        sibling._id,
+        { active: false, lastSeenRunId: input.runId },
+        input.leaseGuard(),
+      );
+      if (!deactivatedOffer) return { ok: false, error: 'lease-lost' };
       deactivated.push(sibling._id);
     }
   }
+
+  // This is a private, provider-neutral CURRENT materialized view. The raw
+  // payload remains immutable evidence and canonical products remain behind
+  // their explicit link/category/promotion gates.
+  const observationId = sourceObservationDocumentId('alibaba', sourceProduct.sourceKey);
+  const observationWritten = await upsertDocWithAlibabaLease(
+    'catalogSourceObservations',
+    observationId,
+    {
+      provider: 'alibaba',
+      sourceProductKey: sourceProduct.sourceKey,
+      externalProductId: sourceProduct.sourceProductId,
+      schemaVersion: observation.schemaVersion,
+      observedAt: observation.source.observedAt,
+      ...(observation.source.sourceUpdatedAt === undefined
+        ? {}
+        : { sourceUpdatedAt: observation.source.sourceUpdatedAt }),
+      evidenceId: raw.payloadId,
+      active: true,
+      observation,
+      lastSeenOperationId: input.runId,
+    },
+    { firstSeenOperationId: input.runId },
+    input.leaseGuard(),
+  );
+  if (!observationWritten) return { ok: false, error: 'lease-lost' };
 
   return {
     ok: true,
@@ -220,13 +298,5 @@ export async function ingestProductDetail(input: IngestDetailInput): Promise<Ing
 }
 
 async function listOffersBySourceKey(sourceKey: string) {
-  // Offers per product are bounded by the source SKU count; one filtered page
-  // covers it on every adapter.
-  const result = await list({
-    collection: 'alibabaSupplierOffers',
-    page: 1,
-    pageSize: 100,
-    filter: { combinator: 'and', clauses: [{ field: 'sourceKey', op: 'eq', value: sourceKey }] },
-  });
-  return result.items;
+  return listAllDocs('alibabaSupplierOffers', [{ field: 'sourceKey', op: 'eq', value: sourceKey }]);
 }

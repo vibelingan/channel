@@ -1,0 +1,362 @@
+import {
+  CaretDown, CaretLeft, CaretRight, Check, CheckCircle, Cpu,
+  EnvelopeSimple, ImageSquare, Images, Info, List, LockKey, Minus,
+  Package, Plus, ShieldCheck, X,
+} from "@phosphor-icons/react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+const variants = [
+  { id: "black", color: "Black", storage: "12GB + 256GB", sku: "5924621964128", available: 9, tone: "#202124" },
+  { id: "white", color: "White", storage: "12GB + 256GB", sku: "5924621964124", available: 7, tone: "#f5f5f2" },
+  { id: "blue", color: "Blue", storage: "12GB + 256GB", sku: "5924621964120", available: 15, tone: "#5978a5" },
+  { id: "powder", color: "Powder", storage: "12GB + 256GB", sku: "5924621964132", available: 8, tone: "#dca9bf" },
+];
+
+const parentGallery = [
+  { id: "image-1", label: "Image 1", image: "/assets/xiaomi-blue.webp" },
+  { id: "image-2", label: "Image 2", image: "/assets/xiaomi-white.webp" },
+  { id: "image-3", label: "Image 3", image: "/assets/xiaomi-black.webp" },
+  { id: "image-4", label: "Image 4", image: "/assets/xiaomi-powder.webp" },
+  { id: "image-5", label: "Image 5", image: "/assets/xiaomi-gallery.webp" },
+];
+
+const dataStates = {
+  current: {
+    label: "Current XLSX", note: "Exact current row group: five parent images, four variants, optional cells empty.",
+    mediaCount: 5, intro: "6.36-inch OLED · 5G full Netcom · 4610mAh · Bluetooth 5.4", specMode: "full",
+  },
+  partial: {
+    label: "Partial missing", note: "Simulation: short description and most additional images are unavailable.",
+    mediaCount: 1, intro: "", specMode: "partial",
+  },
+  sparse: {
+    label: "Main media missing", note: "Simulation: product media and description are unavailable; SKU data remains usable.",
+    mediaCount: 0, intro: "", specMode: "empty",
+  },
+};
+
+const specGroups = [
+  {
+    id: "performance", icon: Cpu, label: "Performance",
+    summary: "CPU, operating system, display, battery and wired charging",
+    rows: [
+      ["Processor", "3rd Generation Snapdragon® 8 Mobile Platform"],
+      ["Operating system", "Xiaomi HyperOS"],
+      ["CPU cores", "Eight cores"], ["Display", "6.36-inch OLED, 2670 × 1200, 120Hz"],
+      ["Battery", "4610mAh"], ["Wired charging", "90W"],
+    ],
+  },
+  {
+    id: "camera", icon: Images, label: "Camera",
+    summary: "50MP triple camera · 32MP front camera",
+    rows: [
+      ["Main camera", "50 million pixels"], ["Ultra wide-angle", "50 million pixels"],
+      ["Telephoto", "50 million pixels"], ["Front camera", "32 million pixels"],
+      ["Maximum aperture", "F1.6"],
+    ],
+  },
+  {
+    id: "connectivity", icon: ShieldCheck, label: "Connectivity & materials",
+    summary: "5G · Bluetooth 5.4 · NFC · Type‑C · glass back",
+    rows: [
+      ["Network", "5G full Netcom"], ["Bluetooth", "5.4"], ["NFC", "Supported"],
+      ["Interface", "Type‑C"], ["Back shell", "Glass"],
+    ],
+  },
+  {
+    id: "packaging", icon: Package, label: "Commercial & packaging",
+    summary: "Warranty, tax and package dimensions",
+    rows: [
+      ["Warranty type", "No Warranty"], ["Tax", "default"], ["Package weight", "4 kg"],
+      ["Package dimensions", "30 × 20 × 10 cm"], ["Store", "MI Retail Store_MY"],
+    ],
+  },
+];
+
+const optionalDetails = [
+  ["Variant image", "Not provided in source file"], ["Marketing scene image", "Not provided in source file"],
+  ["Marketing white-background image", "Not provided in source file"], ["Video URL", "Not provided in source file"],
+  ["Packing contents", "Not provided in source file"], ["Remarks", "Not provided in source file"],
+];
+
+function QuantityInput({ value, onChange }) {
+  const setSafe = (next) => onChange(Math.max(1, Math.min(999999, Number(next) || 1)));
+  return (
+    <div className="quantity-control">
+      <button type="button" onClick={() => setSafe(value - 1)} aria-label="Decrease quantity"><Minus size={16} weight="bold" /></button>
+      <input value={value} onChange={(event) => setSafe(event.target.value)} inputMode="numeric" aria-label="Quantity" />
+      <span>pcs</span>
+      <button type="button" onClick={() => setSafe(value + 1)} aria-label="Increase quantity"><Plus size={16} weight="bold" /></button>
+    </div>
+  );
+}
+
+function QuoteStepIndicator({ step, intent }) {
+  const labels = intent === "customization"
+    ? ["Customization", "Contact", "Confirmation"]
+    : ["Product details", "Contact", "Confirmation"];
+  return (
+    <ol className="quote-steps" aria-label="Quote request progress">
+      {labels.map((label, index) => {
+        const number = index + 1;
+        return (
+          <li key={label} className={step === number ? "active" : step > number ? "complete" : ""}>
+            <span>{step > number ? <Check size={13} weight="bold" /> : number}</span><b>{label}</b>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function QuoteSheet({ open, variant, intent, productImage, onClose }) {
+  const [step, setStep] = useState(1);
+  const [quantity, setQuantity] = useState(100);
+  const [customization, setCustomization] = useState("");
+  const [customizationType, setCustomizationType] = useState("Branding");
+  const [targetDate, setTargetDate] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [company, setCompany] = useState("");
+  const [country, setCountry] = useState("");
+  const [error, setError] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const dialogRef = useRef(null);
+  const customizationRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    setStep(1); setSubmitted(false); setError("");
+    const timer = window.setTimeout(() => {
+      if (intent === "customization") customizationRef.current?.focus();
+      else dialogRef.current?.focus();
+    }, 260);
+    const onKeyDown = (event) => { if (event.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKeyDown);
+    document.body.classList.add("sheet-open");
+    return () => {
+      window.clearTimeout(timer); window.removeEventListener("keydown", onKeyDown);
+      document.body.classList.remove("sheet-open");
+    };
+  }, [open, intent, onClose]);
+
+  const goToContact = () => {
+    if (quantity < 1) return setError("Enter a quantity of at least 1.");
+    if (intent === "customization" && !customization.trim()) return setError("Describe what you would like to customize.");
+    setError(""); setStep(2);
+  };
+  const goToConfirmation = () => {
+    if (!name.trim() || !company.trim() || !email.includes("@") || !country) {
+      return setError("Complete your name, company, business email, and delivery country.");
+    }
+    setError(""); setStep(3);
+  };
+
+  return (
+    <>
+      <button className={`quote-backdrop ${open ? "visible" : ""}`} onClick={onClose} aria-label="Close quote request" tabIndex={open ? 0 : -1} />
+      <section ref={dialogRef} className={`quote-sheet ${open ? "open" : ""}`} role="dialog" aria-modal="true" aria-labelledby="quote-title" aria-hidden={!open} tabIndex={-1}>
+        <div className="sheet-handle" aria-hidden="true" />
+        <header className="quote-header">
+          <div>
+            <p className="eyebrow">{intent === "customization" ? "Product development conversation" : "Selected-variant RFQ"}</p>
+            <h2 id="quote-title">{intent === "customization" ? "Discuss customization" : "Request a quote"}</h2>
+          </div>
+          <button className="icon-button" type="button" onClick={onClose} aria-label="Close quote request"><X size={24} /></button>
+        </header>
+        {!submitted && <QuoteStepIndicator step={step} intent={intent} />}
+        <div className="quote-content">
+          {submitted ? (
+            <div className="success-state" role="status">
+              <CheckCircle size={64} weight="fill" />
+              <p className="eyebrow">{intent === "customization" ? "Consultation prepared" : "Quote request prepared"}</p>
+              <h3>{intent === "customization" ? "Your customization brief is ready." : "Everything is ready for client review."}</h3>
+              <p>This prototype stops before sending data. In production, the request would preserve the selected product, SKU, quantity, and requirements for the sales team.</p>
+              <div className="success-reference">Demo reference · CH-Q-01428</div>
+              <button className="primary-button navy" type="button" onClick={onClose}>Return to product</button>
+            </div>
+          ) : (
+            <>
+              <article className={`quote-product ${productImage ? "" : "no-media"}`}>
+                {productImage ? <img src={productImage} alt="" /> : <span className="quote-media-empty"><ImageSquare size={25} /></span>}
+                <div><strong>Xiaomi 14</strong><span>{variant.color} · {variant.storage}</span><small>SKU {variant.sku}</small></div>
+                <span className="availability"><i /> {variant.available} available</span>
+              </article>
+
+              {step === 1 && intent === "quote" && (
+                <div className="form-stage stage-enter">
+                  <div className="field-row">
+                    <label><span>Quantity *</span><QuantityInput value={quantity} onChange={setQuantity} /></label>
+                    <label><span>Target delivery date <em>Optional</em></span><input type="date" value={targetDate} onChange={(event) => setTargetDate(event.target.value)} /></label>
+                  </div>
+                  <p className="flow-explanation"><Info size={17} /> This route asks for price and availability for the selected SKU. Product changes use the separate customization route.</p>
+                </div>
+              )}
+
+              {step === 1 && intent === "customization" && (
+                <div className="form-stage stage-enter customization-stage">
+                  <p className="flow-explanation"><Info size={17} /> These are buyer-supplied requirements, not imported product facts.</p>
+                  <div className="customization-types" role="group" aria-label="Customization type">
+                    {["Branding", "Packaging", "Firmware", "Certification support", "Other"].map((type) => (
+                      <button key={type} className={customizationType === type ? "selected" : ""} type="button" onClick={() => setCustomizationType(type)}>{type}{customizationType === type && <Check size={13} weight="bold" />}</button>
+                    ))}
+                  </div>
+                  <label><span>What would you like to customize? *</span>
+                    <textarea ref={customizationRef} rows="3" value={customization} onChange={(event) => setCustomization(event.target.value)} placeholder="Describe the required change, target market, branding, packaging, firmware, or certification support" />
+                    <small>{customization.length} / 500 characters</small>
+                  </label>
+                  <label><span>Estimated quantity *</span><QuantityInput value={quantity} onChange={setQuantity} /></label>
+                </div>
+              )}
+
+              {step === 2 && (
+                <div className="form-stage stage-enter">
+                  <div className="field-row">
+                    <label><span>Your name *</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Alex Johnson" /></label>
+                    <label><span>Business email *</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="alex@company.com" /></label>
+                  </div>
+                  <div className="field-row second-row">
+                    <label><span>Company *</span><input value={company} onChange={(event) => setCompany(event.target.value)} placeholder="Your company" /></label>
+                    <label><span>Delivery country *</span>
+                      <select value={country} onChange={(event) => setCountry(event.target.value)}>
+                        <option value="">Select a country</option><option>United Kingdom</option><option>United States</option>
+                        <option>Germany</option><option>Japan</option><option>Singapore</option>
+                      </select>
+                    </label>
+                  </div>
+                  <p className="privacy-note"><LockKey size={16} /> Your details are used only to process this request.</p>
+                </div>
+              )}
+
+              {step === 3 && (
+                <div className="review-stage stage-enter">
+                  <div className="review-heading">
+                    <div><p className="eyebrow">Review before sending</p><h3>{quantity.toLocaleString()} units for {company}</h3></div>
+                    <button type="button" onClick={() => setStep(1)}>Edit requirements</button>
+                  </div>
+                  <dl>
+                    <div><dt>Request type</dt><dd>{intent === "customization" ? `Customization · ${customizationType}` : "Selected-variant quote"}</dd></div>
+                    <div><dt>Variant</dt><dd>{variant.color} · {variant.storage}</dd></div><div><dt>SKU</dt><dd>{variant.sku}</dd></div>
+                    <div><dt>Delivery</dt><dd>{country}{targetDate ? ` · ${targetDate}` : " · Date flexible"}</dd></div>
+                    <div><dt>Contact</dt><dd>{name} · {email}</dd></div>
+                    {intent === "customization" && <div><dt>Customization brief</dt><dd>{customization}</dd></div>}
+                  </dl>
+                </div>
+              )}
+
+              {error && <p className="form-error" role="alert">{error}</p>}
+              <footer className="quote-actions">
+                {step > 1 && <button className="secondary-button" type="button" onClick={() => { setError(""); setStep(step - 1); }}><CaretLeft size={18} /> Back</button>}
+                <span className="secure"><LockKey size={15} /> Secure enquiry</span>
+                {step === 1 && <button className="primary-button navy" type="button" onClick={goToContact}>Continue to contact <CaretRight size={18} /></button>}
+                {step === 2 && <button className="primary-button navy" type="button" onClick={goToConfirmation}>Review request <CaretRight size={18} /></button>}
+                {step === 3 && <button className="primary-button navy" type="button" onClick={() => setSubmitted(true)}><EnvelopeSimple size={19} /> {intent === "customization" ? "Send customization brief" : "Send quote request"}</button>}
+              </footer>
+            </>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
+export function App() {
+  const [selectedId, setSelectedId] = useState("black");
+  const [activeMedia, setActiveMedia] = useState("image-1");
+  const [dataStateId, setDataStateId] = useState("current");
+  const [quoteOpen, setQuoteOpen] = useState(false);
+  const [quoteIntent, setQuoteIntent] = useState("quote");
+  const [openSpec, setOpenSpec] = useState("performance");
+  const [additionalOpen, setAdditionalOpen] = useState(false);
+  const [supplierOpen, setSupplierOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const selected = useMemo(() => variants.find((item) => item.id === selectedId) ?? variants[0], [selectedId]);
+  const dataState = dataStates[dataStateId];
+  const mediaItems = parentGallery.slice(0, dataState.mediaCount);
+  const activeImage = mediaItems.find((item) => item.id === activeMedia)?.image ?? mediaItems[0]?.image ?? null;
+  const visibleSpecGroups = dataState.specMode === "full" ? specGroups : dataState.specMode === "partial" ? specGroups.slice(0, 2) : [];
+
+  const chooseMedia = (item) => { setActiveMedia(item.id); };
+  const chooseDataState = (stateId) => {
+    setDataStateId(stateId);
+    setActiveMedia("image-1");
+    setOpenSpec(stateId === "sparse" ? "" : "performance");
+  };
+  const openQuote = (intent = "quote") => { setQuoteIntent(intent); setQuoteOpen(true); };
+
+  return (
+    <div className="app-shell">
+      <header className="site-header">
+        <a href="#product" className="brand" aria-label="Channel home"><img src="/assets/logo-channel.svg" alt="Channel" /><span>Diversity Technology Limited</span></a>
+        <nav className="desktop-nav" aria-label="Primary navigation"><a href="#product">Products</a><a href="#specifications">Capabilities</a><a href="#specifications">OEM / ODM</a><button type="button" onClick={() => openQuote()}>Request a Quote</button></nav>
+        <button className="mobile-menu-button" type="button" onClick={() => setMenuOpen(!menuOpen)} aria-expanded={menuOpen} aria-label="Toggle navigation">{menuOpen ? <X size={25} /> : <List size={25} />}</button>
+        {menuOpen && <nav className="mobile-nav" aria-label="Mobile navigation"><a href="#product" onClick={() => setMenuOpen(false)}>Products</a><a href="#specifications" onClick={() => setMenuOpen(false)}>Capabilities</a><button type="button" onClick={() => { setMenuOpen(false); openQuote(); }}>Request a Quote</button></nav>}
+      </header>
+
+      <main id="product">
+        <div className="breadcrumbs"><a href="#">Electronics & Toys</a><span>/</span><a href="#">Miscellaneous</a></div>
+        <section className="prototype-state-switcher" aria-label="Missing-data design preview">
+          <div><p className="eyebrow">Client prototype control</p><strong>Preview imported-data states</strong><span>{dataState.note}</span></div>
+          <div role="group" aria-label="Choose data state">
+            {Object.entries(dataStates).map(([stateId, state]) => (
+              <button key={stateId} className={dataStateId === stateId ? "selected" : ""} type="button" aria-pressed={dataStateId === stateId} onClick={() => chooseDataState(stateId)}>{state.label}</button>
+            ))}
+          </div>
+        </section>
+        <section className="product-hero">
+          <div className="media-column">
+            <div className={`main-media ${activeImage ? "" : "empty"}`} key={`${dataStateId}-${activeMedia}`}>
+              {activeImage ? <img src={activeImage} alt="Xiaomi 14 parent product gallery" /> : <div className="media-empty-state"><ImageSquare size={48} /><strong>Product image pending</strong><span>The layout remains stable until a source image is provided.</span></div>}
+            </div>
+            {mediaItems.length > 1 && <div className="thumbnail-scroller" aria-label="Parent product gallery">
+              {mediaItems.map((item) => {
+                const isActive = item.id === activeMedia;
+                return <button key={item.id} className={isActive ? "active" : ""} type="button" aria-pressed={isActive} onClick={() => chooseMedia(item)}><span className="thumbnail-image"><img src={item.image} alt="" />{isActive && <i><Check size={13} weight="bold" /></i>}</span><b>{item.label}</b></button>;
+              })}
+            </div>}
+            {mediaItems.length > 0 && <p className="mapping-note"><Info size={16} /> These are parent-gallery images. The XLSX variant-image cells are empty, so gallery clicks do not change the selected SKU.</p>}
+          </div>
+
+          <div className="product-summary">
+            <p className="eyebrow">{dataStateId === "current" ? "Imported product · Source-backed view" : "Design simulation · Missing-data preview"}</p><h1>Xiaomi 14</h1>
+            {dataState.intro ? <p className="product-intro">{dataState.intro}</p> : <div className="intro-empty"><Info size={17} /><span>Short description not provided. The page moves directly to verified variant information.</span></div>}
+            <div className="configuration">
+              <div className="configuration-heading"><div><span>Selected configuration</span><strong>{selected.color} · {selected.storage}</strong></div><span className="availability"><i /> {selected.available} available</span></div>
+              <fieldset><legend>Color</legend><div className="color-options">
+                {variants.map((variant) => <button type="button" key={variant.id} className={variant.id === selected.id ? "selected" : ""} aria-pressed={variant.id === selected.id} onClick={() => setSelectedId(variant.id)}><i className="color-swatch" style={{ backgroundColor: variant.tone }} /><span>{variant.color}</span>{variant.id === selected.id && <Check size={14} weight="bold" />}</button>)}
+              </div></fieldset>
+              <fieldset><legend>Storage capacity</legend><button className="storage-option selected" type="button" aria-pressed="true">12GB + 256GB <Check size={14} weight="bold" /></button></fieldset>
+              <div className="sku-line"><span>SKU</span><strong>{selected.sku}</strong><span>·</span><span>{selected.available} available</span></div>
+            </div>
+            <button className="primary-button quote-trigger" type="button" onClick={() => openQuote()}>Request a quote for this variant</button>
+            <button className="customization-link" type="button" onClick={() => openQuote("customization")}>Ask about customization</button>
+          </div>
+        </section>
+
+        <section id="specifications" className="details-grid">
+          <div className="highlights"><p className="eyebrow">From source description</p><h2>{dataState.specMode === "empty" ? "Details pending" : "Verified highlights"}</h2>
+            {dataState.specMode === "empty" ? <div className="section-empty"><Info size={22} /><p><b>No description supplied</b><span>This region stays compact instead of showing empty cards or invented copy.</span></p></div> : <ul>
+              <li><CheckCircle size={20} weight="fill" /><span><b>Display</b>6.36-inch OLED · 2670 × 1200 · 120Hz.</span></li>
+              <li><CheckCircle size={20} weight="fill" /><span><b>Processor</b>3rd Generation Snapdragon® 8 Mobile Platform.</span></li>
+              <li><CheckCircle size={20} weight="fill" /><span><b>Camera</b>50MP main, ultra-wide and telephoto · 32MP front.</span></li>
+              <li><CheckCircle size={20} weight="fill" /><span><b>Connectivity</b>5G full Netcom · Bluetooth 5.4 · NFC · Type-C.</span></li>
+            </ul>}
+          </div>
+
+          <div className="specifications">
+            <div className="section-title"><div><p className="eyebrow">Conservative extraction</p><h2>Technical specifications</h2></div><span>Structured from imported data</span></div>
+            {visibleSpecGroups.length > 0 ? <div className="spec-accordion">{visibleSpecGroups.map((group) => {
+              const Icon = group.icon; const isOpen = openSpec === group.id;
+              return <article key={group.id} className={isOpen ? "open" : ""}><button type="button" aria-expanded={isOpen} onClick={() => setOpenSpec(isOpen ? "" : group.id)}><Icon size={21} /><span><b>{group.label}</b><small>{group.summary}</small></span><CaretDown size={18} /></button><div className="spec-panel"><dl>{group.rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></div></article>;
+            })}</div> : <div className="spec-empty"><Info size={24} /><div><b>Technical specifications not provided</b><span>The section keeps its heading and a single calm empty state, without blank rows.</span></div></div>}
+            {dataStateId === "current" && <article className={`additional-info ${additionalOpen ? "open" : ""}`}><button type="button" aria-expanded={additionalOpen} onClick={() => setAdditionalOpen(!additionalOpen)}><span><b>Optional XLSX fields</b><small>Empty source columns stay supported without occupying the main product area</small></span><CaretDown size={18} /></button><div className="additional-panel"><dl>{optionalDetails.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></div></article>}
+            {dataState.specMode !== "empty" && <article className={`supplier-details ${supplierOpen ? "open" : ""}`}><button type="button" aria-expanded={supplierOpen} onClick={() => setSupplierOpen(!supplierOpen)}><span><b>Source conflicts requiring review</b><small>Contradictory values are preserved but not promoted as verified facts</small></span><CaretDown size={18} /></button><div className="supplier-panel"><p>The source says both “No support for wireless charging: Yes” and “Wireless charging power: 50W”. Its key-attributes JSON also conflicts with the description for screen size, processor, and battery. These values need supplier review before display.</p></div></article>}
+          </div>
+        </section>
+      </main>
+
+      {!quoteOpen && <div className="mobile-sticky-cta"><div><small>Selected</small><strong>{selected.color} · {selected.storage}</strong></div><button type="button" onClick={() => openQuote()}>Request quote</button></div>}
+      <QuoteSheet open={quoteOpen} variant={selected} intent={quoteIntent} productImage={activeImage} onClose={() => setQuoteOpen(false)} />
+    </div>
+  );
+}

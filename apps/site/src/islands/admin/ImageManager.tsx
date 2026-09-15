@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
+import { ImageViewer, PreviewImageContent } from './ImageViewer.tsx';
 import { getImagePreview, uploadImage } from './api.ts';
 
 interface Props {
@@ -9,6 +10,7 @@ interface Props {
   inputId?: string;
   errorId?: string;
   onBusyChange?: (busy: boolean) => void;
+  purpose?: 'gallery' | 'description';
 }
 
 /** A file still uploading, or one that failed and can be retried. Successful
@@ -110,12 +112,17 @@ export function ImageManager({
   inputId = 'imageIds',
   errorId,
   onBusyChange,
+  purpose = 'gallery',
 }: Props) {
+  const imageLabel = purpose === 'description' ? 'Description image' : 'Product image';
+  const addLabel = purpose === 'description' ? 'Add description images' : 'Add product images';
   const [pending, setPending] = useState<PendingUpload[]>([]);
   const [selectionNotice, setSelectionNotice] = useState('');
-  // Object URLs for the just-uploaded session; fetched data URLs for persisted ids.
+  const [previewId, setPreviewId] = useState<string>();
+  // Browser-local object URLs for both uploaded and authenticated persisted bytes.
   const [objectUrls, setObjectUrls] = useState<Record<string, string>>({});
   const [fetched, setFetched] = useState<Record<string, string>>({});
+  const fetchedRef = useRef<Record<string, string>>({});
 
   // Latest committed list, so a slow upload appends to the CURRENT value (not the
   // render-time snapshot) — concurrent removes/reorders are preserved.
@@ -135,9 +142,13 @@ export function ImageManager({
       if (objectUrls[id] || fetched[id] || requestedPreviewsRef.current.has(id)) continue;
       requestedPreviewsRef.current.add(id);
       getImagePreview(id)
-        .then((url) => {
-          if (mountedRef.current && valueRef.current.includes(id)) {
-            setFetched((current) => ({ ...current, [id]: url }));
+        .then((dataUrl) => fetch(dataUrl))
+        .then((response) => response.blob())
+        .then((blob) => {
+          if (mountedRef.current && valueRef.current.includes(id) && !fetchedRef.current[id]) {
+            const next = { ...fetchedRef.current, [id]: URL.createObjectURL(blob) };
+            fetchedRef.current = next;
+            setFetched(next);
           }
         })
         .catch(() => {
@@ -150,6 +161,16 @@ export function ImageManager({
   // Revoke an object URL once its id leaves `value`, and all on unmount — a long
   // editing session with large images would otherwise leak blob memory.
   useEffect(() => {
+    const retained: Record<string, string> = {};
+    for (const [id, url] of Object.entries(fetchedRef.current)) {
+      if (value.includes(id)) retained[id] = url;
+      else {
+        URL.revokeObjectURL(url);
+        requestedPreviewsRef.current.delete(id);
+      }
+    }
+    fetchedRef.current = retained;
+    setFetched(retained);
     setObjectUrls((m) => {
       let changed = false;
       const next: Record<string, string> = {};
@@ -169,6 +190,9 @@ export function ImageManager({
     return () => {
       mountedRef.current = false;
       for (const url of Object.values(objectUrlsRef.current)) URL.revokeObjectURL(url);
+      for (const url of Object.values(fetchedRef.current)) URL.revokeObjectURL(url);
+      fetchedRef.current = {};
+      requestedPreviewsRef.current.clear();
     };
   }, []);
 
@@ -290,7 +314,7 @@ export function ImageManager({
   const liveNotice = [selectionNotice, failureNotice].filter(Boolean).join(' ');
 
   return (
-    <div data-image-manager>
+    <div data-image-manager={purpose}>
       <div className="flex flex-wrap gap-3">
         {value.map((id, i) => (
           <div
@@ -298,15 +322,20 @@ export function ImageManager({
             data-image-id={id}
             className="group relative h-20 w-20 overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
           >
-            {previewSrc(id) ? (
-              <img src={previewSrc(id)} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <span className="grid h-full w-full place-items-center text-[10px] text-slate-400">
-                …
-              </span>
-            )}
-            {i === 0 && (
-              <span className="absolute left-1 top-1 rounded bg-slate-900/80 px-1 py-0.5 text-[9px] font-semibold text-white">
+            <button
+              type="button"
+              aria-label={`Preview ${imageLabel.toLowerCase()} ${i + 1}`}
+              onClick={() => setPreviewId(id)}
+              className="h-full w-full pb-5 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-600"
+            >
+              <PreviewImageContent
+                src={previewSrc(id)}
+                alt=""
+                className="h-full w-full object-contain"
+              />
+            </button>
+            {i === 0 && purpose === 'gallery' && (
+              <span className="pointer-events-none absolute left-1 top-1 rounded bg-slate-900/80 px-1 py-0.5 text-[9px] font-semibold text-white">
                 Primary
               </span>
             )}
@@ -385,7 +414,7 @@ export function ImageManager({
           <span className="text-2xl leading-none" aria-hidden="true">
             +
           </span>
-          <span className="sr-only">Add product images</span>
+          <span className="sr-only">{addLabel}</span>
           <input
             id={inputId}
             type="file"
@@ -393,7 +422,7 @@ export function ImageManager({
             multiple
             disabled={availableSlots <= 0}
             className="sr-only"
-            aria-label="Add product images"
+            aria-label={addLabel}
             aria-invalid={Boolean(errorId) || undefined}
             aria-describedby={[`${inputId}-capacity`, errorId].filter(Boolean).join(' ')}
             onChange={(e) => {
@@ -404,12 +433,24 @@ export function ImageManager({
         </label>
       </div>
       <p id={`${inputId}-capacity`} className="mt-2 text-xs text-slate-400">
-        JPG, PNG, or WebP. The first image is primary. Use ‹ › to reorder.
+        JPG, PNG, or WebP. {purpose === 'gallery' ? 'The first image is primary. ' : ''}Use ‹ › to
+        reorder.
         {capacityText ? ` ${capacityText}` : ''}
       </p>
       <output className="mt-1 block text-xs text-amber-700" aria-live="polite">
         {liveNotice}
       </output>
+      {previewId && (
+        <ImageViewer
+          images={value.map((id, index) => ({
+            id,
+            src: previewSrc(id),
+            label: `${imageLabel} ${index + 1}`,
+          }))}
+          initialId={previewId}
+          onClose={() => setPreviewId(undefined)}
+        />
+      )}
     </div>
   );
 }

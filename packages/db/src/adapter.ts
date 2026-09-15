@@ -15,15 +15,27 @@ import type {
   SortClause,
 } from '@vibelingan-channel/shared';
 import {
+  isProductFamily,
   normalizeProductSlug,
   normalizeSkuCode,
   validateProductPublication,
 } from '@vibelingan-channel/shared';
+import { alibabaLinkRevision } from './alibaba-product-identity.ts';
+import { publicationContentFingerprint } from './catalog-publication-fingerprint.ts';
+export {
+  ALIBABA_PRODUCT_LINK_LIMIT,
+  alibabaLinkRevision,
+  runAlibabaProductMutation,
+  type AlibabaProductLinkIdentity,
+  type AlibabaProductMutationInput,
+  type AlibabaProductMutationResult,
+} from './alibaba-product-identity.ts';
 
 /** Normalized query passed to adapters: defaults already applied. */
 export interface AdapterListQuery {
   collection: string;
   productFamily?: ProductFamily;
+  needsClassification?: boolean;
   page: number;
   pageSize: number;
   search: string;
@@ -38,6 +50,11 @@ export interface CatalogProductSaveInput {
   mode: 'create' | 'update';
   productId: string;
   data: Record<string, unknown>;
+  requireDetailApproval?: boolean;
+  expectedAlibabaIdentity?: {
+    revision: number | null;
+    primarySourceKey: string | null;
+  };
 }
 
 export interface CatalogProductIdentity {
@@ -48,15 +65,27 @@ export interface CatalogProductIdentity {
 
 export type CatalogProductSaveResult =
   | { result: 'saved'; doc: CollectionDoc; previous: CollectionDoc | null }
+  | { result: 'alibaba-identity-conflict' }
   | { result: 'conflict'; kind: 'slug' | 'sku'; normalizedValue: string }
   | { result: 'invalid'; kind: 'slug' | 'sku' }
   | { result: 'invalid-product'; issues: ReturnType<typeof validateProductPublication> }
   | { result: 'missing' | 'exists' };
 
+export type CatalogSourceObservationUpsertResult =
+  | { result: 'applied'; doc: CollectionDoc }
+  | { result: 'stale'; doc: CollectionDoc };
+
+export type AlibabaSyncRunClaimResult =
+  | 'claimed'
+  | 'lease-lost'
+  | 'checkpoint-missing'
+  | 'checkpoint-busy'
+  | 'run-exists';
+
 export type CatalogProductSavePlan =
   | Extract<
       CatalogProductSaveResult,
-      { result: 'invalid' | 'invalid-product' | 'missing' | 'exists' }
+      { result: 'invalid' | 'invalid-product' | 'missing' | 'exists' | 'alibaba-identity-conflict' }
     >
   | {
       result: 'ready';
@@ -101,12 +130,34 @@ export function planCatalogProductSave(
   now: string,
 ): CatalogProductSavePlan {
   if (input.mode === 'create' && existing) return { result: 'exists' };
+  const expected = input.expectedAlibabaIdentity;
+  if (
+    expected &&
+    (!existing ||
+      expected.revision === null ||
+      alibabaLinkRevision(existing) !== expected.revision ||
+      (existing.alibabaPrimarySourceKey ?? null) !== expected.primarySourceKey)
+  ) {
+    return { result: 'alibaba-identity-conflict' };
+  }
   if (input.mode === 'update' && !existing) return { result: 'missing' };
   const { _id, ...inputData } = input.data as Record<string, unknown> & { _id?: unknown };
-  const data =
+  let data: Record<string, unknown> =
     input.mode === 'create'
       ? { published: false, archived: false, ...inputData }
       : { ...inputData };
+  if (expected && existing?.alibabaReviewPending === false && data.alibabaReviewPending === false) {
+    const {
+      alibabaReviewPending: _pending,
+      alibabaReviewedAt: _reviewedAt,
+      alibabaReviewedByUserId: _reviewer,
+      ...remainingData
+    } = data;
+    data = remainingData;
+    if (Object.keys(data).length === 0) {
+      return { result: 'ready', doc: existing, identities: [], staleIdentities: [] };
+    }
+  }
   if (input.mode === 'update' && Object.hasOwn(data, 'archived')) {
     const wasArchived = existing?.archived === true;
     const willBeArchived = data.archived === true;
@@ -119,6 +170,13 @@ export function planCatalogProductSave(
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   } as CollectionDoc;
+  if (
+    Object.hasOwn(data, 'productFamily') &&
+    isProductFamily(data.productFamily) &&
+    typeof doc.alibabaSourceCategoryId === 'string'
+  ) {
+    doc.alibabaClassifiedCategoryId = doc.alibabaSourceCategoryId;
+  }
   // `category` is the legacy Headphones subcategory. Historical rows may carry a
   // stale value after moving to another family. Clear it in the transaction on the
   // next write so unrelated edits stay possible and no caller must know old storage
@@ -127,6 +185,22 @@ export function planCatalogProductSave(
     doc.category = '';
   }
   const issues = validateProductPublication(doc);
+  if (
+    input.requireDetailApproval &&
+    doc.published === true &&
+    typeof doc.alibabaPrimarySourceKey === 'string'
+  ) {
+    const receipt = existing?.catalogDetailApprovalReceipt;
+    if (
+      !receipt ||
+      typeof receipt !== 'object' ||
+      Reflect.get(receipt, 'contentFingerprint') !== publicationContentFingerprint(doc)
+    )
+      issues.push({
+        field: 'published',
+        message: 'Review and approve the current product details before publishing.',
+      });
+  }
   if (issues.length > 0) return { result: 'invalid-product', issues };
   const identities = productIdentities(doc);
   if (!Array.isArray(identities)) return { result: 'invalid', kind: identities.invalid };
@@ -362,6 +436,26 @@ export function holdsAlibabaLease(
 }
 
 export interface DbAdapter {
+  mutateAlibabaProduct?(
+    input: import('./alibaba-product-identity.ts').AlibabaProductMutationInput,
+  ): Promise<import('./alibaba-product-identity.ts').AlibabaProductMutationResult>;
+  persistCatalogDetailApproval?(
+    actorId: string,
+    input: import('./catalog-detail-staging.ts').ApprovalPersistenceCommand,
+  ): Promise<import('./catalog-detail-staging.ts').ApprovalStageResult>;
+  manageCatalogCategory?(
+    actorId: string,
+    input: unknown,
+  ): Promise<import('./category-transaction.ts').CategoryResult>;
+  approveCatalogDetail?(
+    actorId: string,
+    input: unknown,
+  ): Promise<import('./catalog-detail-commit.ts').CatalogApprovalResult>;
+  submitCatalogQuote?(input: unknown): Promise<import('./catalog-quote.ts').QuoteSaveResult>;
+  manageCatalogInquiry?(
+    actorId: string,
+    input: unknown,
+  ): Promise<import('@vibelingan-channel/shared/catalog-inquiry').InquiryResult>;
   list(query: AdapterListQuery): Promise<ListResult<CollectionDoc>>;
   get(collection: string, id: string): Promise<CollectionDoc | null>;
   /** Find the first document where `field` exactly equals `value`. */
@@ -423,7 +517,18 @@ export interface DbAdapter {
     collection: string,
     id: string,
     data: Record<string, unknown>,
+    /** Fields applied only by the transaction that creates the document. */
+    createOnly?: Record<string, unknown>,
   ): Promise<CollectionDoc>;
+  /**
+   * Atomically materialize the newest provider observation. Creation-only
+   * lineage is preserved and an older observedAt can never replace a newer row.
+   */
+  upsertCatalogSourceObservation?(
+    id: string,
+    data: Record<string, unknown>,
+    createOnly: Record<string, unknown>,
+  ): Promise<CatalogSourceObservationUpsertResult>;
   /** Transactionally acquire the per-connection sync lease (fence increments on takeover). */
   acquireAlibabaSyncLease?(
     connectionId: string,
@@ -458,6 +563,29 @@ export interface DbAdapter {
     patch: Record<string, unknown>,
     guard: AlibabaLeaseGuard,
   ): Promise<boolean>;
+  /**
+   * Fenced deterministic-id create-or-patch. The lease check and target write
+   * happen in the same transaction/critical section. `createOnly` is applied
+   * only when the target does not yet exist (first-seen provenance).
+   */
+  upsertDocWithAlibabaLease?(
+    collection: string,
+    id: string,
+    patch: Record<string, unknown>,
+    createOnly: Record<string, unknown>,
+    guard: AlibabaLeaseGuard,
+  ): Promise<boolean>;
+  /**
+   * Atomically create a sync run and claim the empty checkpoint slot while
+   * re-verifying the lease. No orphan run or overwritten active slot can be
+   * produced by a holder that stalls across lease takeover.
+   */
+  claimAlibabaSyncRun?(
+    runId: string,
+    run: Record<string, unknown>,
+    checkpointPatch: Record<string, unknown>,
+    guard: AlibabaLeaseGuard,
+  ): Promise<AlibabaSyncRunClaimResult>;
 }
 
 // Re-exported so callers building queries can reference the input shape.
