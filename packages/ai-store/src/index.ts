@@ -1,5 +1,10 @@
 export { migrateDown, migrateUp } from './migrations.ts';
 export {
+  isDatabaseUnavailable,
+  type WaitForDatabaseOptions,
+  waitForDatabase,
+} from './resilience.ts';
+export {
   AiStore,
   type ConversationRow,
   type EventRow,
