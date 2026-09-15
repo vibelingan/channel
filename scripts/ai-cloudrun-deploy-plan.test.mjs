@@ -14,6 +14,7 @@ import { test } from 'node:test';
 import {
   STAGING_EXCLUDES,
   cloudRunDeployArgs,
+  cloudRunNetworkUpdateArgs,
   deployContextFromEnv,
   deployProgress,
   deployedConfigProblems,
@@ -22,6 +23,7 @@ import {
   parseToolOutput,
   publicUrl,
   redactValues,
+  withVpcInventory,
   workerStartupVerdict,
 } from './ai-cloudrun-deploy-plan.mjs';
 import { buildCloudRunServiceDefs } from './cloudrun-service-manifest.mjs';
@@ -91,7 +93,12 @@ function evidence(overrides = {}) {
 /** What `queryCloudRun detail` reports for a service deployed exactly as planned. */
 function deployedConfig(def, overrides = {}) {
   return {
-    VpcConf: { VpcId: def.vpc.vpcId, SubnetId: def.vpc.subnetId },
+    VpcConf: {
+      VpcId: def.vpc.vpcId,
+      SubnetId: def.vpc.subnetId,
+      VpcCIDR: def.vpc.vpcCIDR,
+      SubnetCIDR: def.vpc.subnetCIDR,
+    },
     OpenAccessTypes: def.publicAccess ? ['PUBLIC'] : ['VPC'],
     // detail masks every value but keeps the keys.
     EnvParams: JSON.stringify(
@@ -105,7 +112,49 @@ function deployedConfig(def, overrides = {}) {
   };
 }
 
-const [bff, worker] = buildCloudRunServiceDefs(deployContextFromEnv(settings()));
+const [bff, worker] = buildCloudRunServiceDefs(deployContextFromEnv(settings())).map((def) => ({
+  ...def,
+  vpc: { ...def.vpc, vpcCIDR: '10.20.0.0/16', subnetCIDR: '10.20.1.0/24' },
+}));
+
+test('network binding includes real CIDRs and rejects mismatched inventory', () => {
+  const vpcs = { VpcSet: [{ VpcId: 'vpc-fixture1', CidrBlock: '10.20.0.0/16' }] };
+  const subnets = {
+    SubnetSet: [{ VpcId: 'vpc-fixture1', SubnetId: 'subnet-fixture1', CidrBlock: '10.20.1.0/24' }],
+  };
+  const def = withVpcInventory(bff, vpcs, subnets);
+  const update = cloudRunNetworkUpdateArgs(def);
+  assert.deepEqual(update, {
+    action: 'updateConfig',
+    serverName: 'ai-bff',
+    serverConfig: {
+      VpcConf: {
+        VpcId: 'vpc-fixture1',
+        SubnetId: 'subnet-fixture1',
+        VpcCIDR: '10.20.0.0/16',
+        SubnetCIDR: '10.20.1.0/24',
+      },
+    },
+  });
+  assert.throws(
+    () =>
+      withVpcInventory(bff, vpcs, { SubnetSet: [{ ...subnets.SubnetSet[0], VpcId: 'vpc-other' }] }),
+    /does not belong/,
+  );
+  assert.throws(
+    () => withVpcInventory(bff, vpcs, { SubnetSet: [{ ...subnets.SubnetSet[0], CidrBlock: '' }] }),
+    /CIDR/,
+  );
+  assert.throws(() => withVpcInventory(bff, { VpcSet: [] }, subnets), /not found/);
+  assert.throws(
+    () =>
+      cloudRunNetworkUpdateArgs({
+        ...bff,
+        vpc: { vpcId: 'vpc-fixture1', subnetId: 'subnet-fixture1' },
+      }),
+    /CIDR/,
+  );
+});
 
 test('the BFF is deployed public, the worker private, and both join the database VPC', () => {
   const bffArgs = cloudRunDeployArgs(bff, '/stage/ai-bff');
@@ -117,6 +166,8 @@ test('the BFF is deployed public, the worker private, and both join the database
     assert.deepEqual(args.serverConfig.VpcConf, {
       VpcId: 'vpc-fixture1',
       SubnetId: 'subnet-fixture1',
+      VpcCIDR: '10.20.0.0/16',
+      SubnetCIDR: '10.20.1.0/24',
     });
   }
 });

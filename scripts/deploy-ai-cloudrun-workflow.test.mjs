@@ -57,6 +57,19 @@ test('inspection tags query existing services without uploading or probing the K
   assert.ok(!inspect?.includes("callTool('manageCloudRun'"));
 });
 
+test('network repair tags update existing services without staging or uploading source', () => {
+  assert.match(deploy.env.AI_CLOUDRUN_NETWORK_ONLY, /ai-cloudrun-deploy-network-/);
+  const script = readFileSync(new URL('./deploy-ai-cloudrun.mjs', import.meta.url), 'utf8');
+  const repair = script
+    .split("if (env.AI_CLOUDRUN_NETWORK_ONLY === '1') {")[1]
+    ?.split('} else {')[0];
+  assert.ok(repair?.includes('cloudRunNetworkUpdateArgs(def)'));
+  assert.ok(repair?.includes('network-only mode requires an existing deployment'));
+  assert.ok(repair?.includes('await waitForNetworkUpdates(deployments)'));
+  assert.ok(!repair?.includes('stageService('));
+  assert.ok(!repair?.includes('cloudRunDeployArgs('));
+});
+
 /**
  * The one step in a job whose command is exactly this. Exact, not a prefix:
  * `pnpm test` must not be satisfied by a step that runs `pnpm test:ai`.

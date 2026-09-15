@@ -25,6 +25,7 @@ import {
   GITHUB_SECRETS,
   STAGING_EXCLUDES,
   cloudRunDeployArgs,
+  cloudRunNetworkUpdateArgs,
   deployContextFromEnv,
   deployProgress,
   deployedConfigProblems,
@@ -34,6 +35,7 @@ import {
   publicUrl,
   redactValues,
   requireSetting,
+  withVpcInventory,
   workerStartupVerdict,
 } from './ai-cloudrun-deploy-plan.mjs';
 import { buildCloudRunServiceDefs } from './cloudrun-service-manifest.mjs';
@@ -236,6 +238,25 @@ async function waitForReady(url) {
   );
 }
 
+async function waitForNetworkUpdates(deployments) {
+  const deadline = Date.now() + 10 * 60 * 1000;
+  for (const deployment of deployments) {
+    while (Date.now() < deadline) {
+      const detail = serviceDetail(deployment.def.name);
+      const problems = deployedConfigProblems(deployment.def, detail?.service?.ServerConfig);
+      if (problems.length === 0 && existingDeploymentSettled(detail)) {
+        deployment.detail = detail;
+        log(`${deployment.def.name}: full VPC binding verified`);
+        break;
+      }
+      log(`${deployment.def.name}: waiting for network update (${problems.join('; ')})`);
+      await delay(POLL_INTERVAL_MS);
+    }
+    if (!deployment.detail)
+      throw new Error(`${deployment.def.name}: network update did not become effective`);
+  }
+}
+
 async function smokeRoundTrip(url) {
   for (let attempt = 1; attempt <= SMOKE_ATTEMPTS; attempt += 1) {
     try {
@@ -315,27 +336,58 @@ async function main() {
   // Builds every service definition, so a missing setting stops the deploy
   // here, before either service has changed.
   const ctx = deployContextFromEnv(env);
-  const defs = buildCloudRunServiceDefs(ctx);
+  const baseDefs = buildCloudRunServiceDefs(ctx);
+  const region = requireSetting(env, 'TCB_REGION');
+  const vpcs = callTool('callCloudApi', {
+    service: 'vpc',
+    action: 'DescribeVpcs',
+    version: '2017-03-12',
+    region,
+    params: { VpcIds: [env.AI_VPC_ID] },
+  });
+  const subnets = callTool('callCloudApi', {
+    service: 'vpc',
+    action: 'DescribeSubnets',
+    version: '2017-03-12',
+    region,
+    params: { SubnetIds: [env.AI_CLOUDRUN_SUBNET_ID] },
+  });
+  const defs = baseDefs.map((def) => withVpcInventory(def, vpcs, subnets));
+  log(
+    `Resolved network: ${JSON.stringify(cloudRunNetworkUpdateArgs(defs[0]).serverConfig.VpcConf)}`,
+  );
   const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
   log(`Deploying ${defs.map((def) => def.name).join(' and ')} from ${commit} to ${ctx.envId}`);
 
   const deployments = [];
-  try {
+  if (env.AI_CLOUDRUN_NETWORK_ONLY === '1') {
     for (const def of defs) {
       const previousDeployId = await currentDeployId(def.name);
-      const targetPath = stageService(def, commit);
-      // One attempt only: repeating a deploy that did start queues a second one.
-      const started = callTool('manageCloudRun', cloudRunDeployArgs(def, targetPath), {
-        attempts: 1,
-      });
-      log(
-        `${def.name}: ${previousDeployId ? 'update' : 'first deploy'} started. ${started.message ?? ''}`,
-      );
-      deployments.push({ def, previousDeployId, lastStatus: undefined, detail: undefined });
+      if (!previousDeployId)
+        throw new Error(`${def.name}: network-only mode requires an existing deployment`);
+      const updated = callTool('manageCloudRun', cloudRunNetworkUpdateArgs(def), { attempts: 1 });
+      log(`${def.name}: network-only update submitted (${updated.data?.status ?? 'accepted'})`);
+      deployments.push({ def, previousDeployId, detail: undefined });
     }
-    await waitForDeploys(deployments);
-  } finally {
-    rmSync(stagingRoot, { recursive: true, force: true });
+    await waitForNetworkUpdates(deployments);
+  } else {
+    try {
+      for (const def of defs) {
+        const previousDeployId = await currentDeployId(def.name);
+        const targetPath = stageService(def, commit);
+        // One attempt only: repeating a deploy that did start queues a second one.
+        const started = callTool('manageCloudRun', cloudRunDeployArgs(def, targetPath), {
+          attempts: 1,
+        });
+        log(
+          `${def.name}: ${previousDeployId ? 'update' : 'first deploy'} started. ${started.message ?? ''}`,
+        );
+        deployments.push({ def, previousDeployId, lastStatus: undefined, detail: undefined });
+      }
+      await waitForDeploys(deployments);
+    } finally {
+      rmSync(stagingRoot, { recursive: true, force: true });
+    }
   }
 
   for (const { def, detail } of deployments) {

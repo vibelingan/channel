@@ -89,9 +89,35 @@ inspection. It skips the billable KB probe and returns before the deployment
 path. This lets the CI credential inspect the live state without rebuilding or
 requiring local login. An inspection run finishing is not a deployment PASS.
 
+## Inspection 1: missing VPC binding confirmed
+
+- Tag: `ai-cloudrun-deploy-inspect-20260915-1`, commit `ead7972`.
+- [Read-only inspection](https://github.com/vibelingan/channel/actions/runs/34935095119)
+  succeeded; this is not deployment acceptance.
+- Both services have a present `ServerConfig.VpcConf` with all four fields
+  empty: `VpcId`, `SubnetId`, `VpcCIDR`, `SubnetCIDR`.
+- BFF URL: `https://ai-bff-298020-11-1443560658.sh.run.tcloudbase.com`.
+  Independent local HTTP requests confirm liveness 200 and readiness 503
+  (`starting`). The worker retains VPC-only ingress; public egress remains
+  enabled for the external KB.
+
+Correction: resolve the configured VPC and subnet through read-only
+`DescribeVpcs` / `DescribeSubnets`, validate that the subnet belongs to that
+VPC, and supply the complete four-field binding. The
+[official deployment CLI](https://docs.cloudbase.net/cli-v1/cloudrun/deploy)
+requires both IDs and CIDRs. CIDRs are taken from cloud inventory, never guessed.
+A dedicated `ai-cloudrun-deploy-network-*` tag updates only `VpcConf` on the
+existing services: no image rebuild, no environment replacement, no change to
+public/private access controls. Normal future deployments also use the complete
+binding. Read-back and runtime acceptance remain mandatory.
+
+The current production website was inspected separately in a real browser:
+it contains neither the assistant island nor its launch button. Backend release
+does not automatically enable the website widget.
+
 ## Acceptance still to record
 
-The next attempt must complete both remote builds, verify the deployed VPC and
+Both remote builds have completed. The next attempt must verify the deployed VPC and
 access configuration, confirm BFF readiness, and receive a real answer through
 BFF → PostgreSQL → worker → hosted KB. A started workflow or CloudRun `normal`
 status alone is not completion. Website-widget activation is a separate check;

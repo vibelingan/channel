@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 /**
  * The decisions behind an AI CloudRun deploy, kept free of side effects so each
  * one can be tested: which settings a deploy needs and where each lives, what
@@ -71,6 +72,51 @@ function accessTypes(def) {
   return def.publicAccess ? ['PUBLIC'] : ['VPC'];
 }
 
+function requireCidr(value) {
+  const [ip, prefix] = String(value ?? '').split('/');
+  if (isIP(ip) !== 4 || !/^\d+$/.test(prefix ?? '') || Number(prefix) > 32) {
+    throw new Error('Missing or invalid VPC/subnet CIDR from cloud inventory');
+  }
+  return value;
+}
+
+/** Complete the binding from read-only cloud inventory, never guessed ranges. */
+export function withVpcInventory(def, vpcs, subnets) {
+  const vpc = (vpcs.VpcSet ?? vpcs.Response?.VpcSet ?? []).find(
+    (item) => item.VpcId === def.vpc.vpcId,
+  );
+  const subnet = (subnets.SubnetSet ?? subnets.Response?.SubnetSet ?? []).find(
+    (item) => item.SubnetId === def.vpc.subnetId,
+  );
+  if (!vpc || !subnet) throw new Error('Configured VPC/subnet not found in the selected region');
+  if (subnet.VpcId !== vpc.VpcId)
+    throw new Error('Configured subnet does not belong to the database VPC');
+  return {
+    ...def,
+    vpc: {
+      ...def.vpc,
+      vpcCIDR: requireCidr(vpc.CidrBlock),
+      subnetCIDR: requireCidr(subnet.CidrBlock),
+    },
+  };
+}
+
+/** Network-only repair preserves the deployed image, environment and access controls. */
+export function cloudRunNetworkUpdateArgs(def) {
+  return {
+    action: 'updateConfig',
+    serverName: def.name,
+    serverConfig: {
+      VpcConf: {
+        VpcId: def.vpc.vpcId,
+        SubnetId: def.vpc.subnetId,
+        VpcCIDR: requireCidr(def.vpc.vpcCIDR),
+        SubnetCIDR: requireCidr(def.vpc.subnetCIDR),
+      },
+    },
+  };
+}
+
 /** Arguments for CloudBase MCP `manageCloudRun` to deploy one manifest service. */
 export function cloudRunDeployArgs(def, targetPath) {
   if (!isAbsolute(targetPath)) {
@@ -93,7 +139,7 @@ export function cloudRunDeployArgs(def, targetPath) {
       MaxNum: def.maxNum,
       Port: def.containerPort,
       Dockerfile: 'Dockerfile',
-      VpcConf: { VpcId: def.vpc.vpcId, SubnetId: def.vpc.subnetId },
+      VpcConf: cloudRunNetworkUpdateArgs(def).serverConfig.VpcConf,
       EnvParams: JSON.stringify(def.envVariables),
     },
   };
@@ -166,6 +212,13 @@ export function deployedConfigProblems(def, config) {
   const problems = [];
 
   const vpc = config?.VpcConf ?? {};
+  for (const [key, expected] of [
+    ['VpcCIDR', def.vpc.vpcCIDR],
+    ['SubnetCIDR', def.vpc.subnetCIDR],
+  ]) {
+    if (expected && vpc[key] !== expected)
+      problems.push(`${def.name} ${key} does not match cloud inventory`);
+  }
   if (vpc.VpcId !== def.vpc.vpcId || vpc.SubnetId !== def.vpc.subnetId) {
     problems.push(
       `${def.name} is not in the database VPC ${def.vpc.vpcId} / ${def.vpc.subnetId} (it has "${vpc.VpcId ?? ''}" / "${vpc.SubnetId ?? ''}"), so it cannot reach PostgreSQL`,

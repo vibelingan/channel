@@ -107,6 +107,7 @@ jobs:
       APP_ENV: ${{ vars.APP_ENV || 'test' }}
       # Read-only diagnostics use the same authorized tag rule and credentials.
       AI_CLOUDRUN_INSPECT_ONLY: ${{ startsWith(github.ref_name, 'ai-cloudrun-deploy-inspect-') && '1' || '0' }}
+      AI_CLOUDRUN_NETWORK_ONLY: ${{ startsWith(github.ref_name, 'ai-cloudrun-deploy-network-') && '1' || '0' }}
       TCB_ENV_ID: ${{ vars.TCB_ENV_ID }}
       TCB_REGION: ${{ vars.TCB_REGION || 'ap-shanghai' }}
       AI_VPC_ID: ${{ vars.AI_VPC_ID }}
