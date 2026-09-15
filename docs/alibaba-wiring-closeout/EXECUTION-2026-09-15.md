@@ -350,3 +350,29 @@ the one obsolete-fixture failure and must not be called an all-green run.
 
 Submission is not launch completion: retain the DNS, real-mail, renewal ownership
 and performance follow-ups. AI PR #53 remains separately owned and mutable.
+
+## PR 55 and Mobile Follow-Up
+
+The main-based feature was committed and pushed as
+`dbf802b270bf24ab32a666f591b1aaa4086da406`; PR #55 targets main and does not carry
+test or AI feature ancestry. CI run 34964102498 passed all steps, including unit
+tests, both production-build browser lanes and packaged function runtime smoke.
+
+The previously incomplete local command later returned: package tests and 150
+script tests passed, but its formal lane failed the narrow mobile country picker
+flow. The PR remained unmerged despite the green remote run. Instrumented local
+repetition reproduced page/dialog scroll anchoring closing the popup; a following
+Escape could close the quote sheet. Initial repeat matrix: 15 passed, 5 failed.
+
+The follow-up disables scroll anchoring for the open sheet and restores the
+previous page value; picker Escape/native cancel dismisses only the nested
+popup and preserves the quote. A second Escape closes the sheet normally.
+The real diff is CountryPicker.tsx, CatalogQuoteSheet.tsx and sku-detail.spec.ts;
+global CSS was not changed. Independent review found no concrete P1/P2 issue.
+
+Final targeted production-build matrix: 80/80 passed, zero retries, across
+320/390px Chromium and WebKit, including repeated input/popup/native cancel,
+retained fields, focus and original quote/customization journeys. Local root and
+E2E TypeScript and Biome (594 files) passed after this patch. The owned fixture
+was removed. Full same-commit CI must rerun after pushing the follow-up; the old
+green run does not certify it. No live deployment or DNS modification yet.

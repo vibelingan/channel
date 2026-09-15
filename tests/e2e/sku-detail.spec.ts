@@ -59,6 +59,152 @@ async function expectContainedQuote(dialog: Locator) {
   expect(measured.touchAction).toContain('pinch-zoom');
 }
 
+test.describe('country Escape layering', { tag: '@mobile-regression' }, () => {
+  test.use({ hasTouch: true });
+  test.beforeEach(async ({ page }, testInfo) => {
+    testInfo.annotations.push({
+      type: 'browser',
+      description: page.context().browser()?.version() ?? 'unknown',
+    });
+  });
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 390, height: 844 },
+  ]) {
+    for (const escapeTarget of ['input', 'popup', 'native cancel'] as const) {
+      test(`preserves the quote at ${viewport.width}px from ${escapeTarget}`, async ({
+        page,
+      }, testInfo) => {
+        await page.setViewportSize(viewport);
+        const detail = detailFixture();
+        detail.name = `Product-${'X'.repeat(180)}`;
+        const first = detail.variants.items[0];
+        if (!first) throw new Error('Missing fixture variant');
+        first.options = [{ name: 'Configuration', value: `Option-${'Y'.repeat(150)}` }];
+        await page.route('**/api/products/canonical-product/detail*', (route) =>
+          route.fulfill({ contentType: 'application/json', body: envelope(detail) }),
+        );
+        await page.route('**/api/images/**', (route) =>
+          route.fulfill({ contentType: 'image/png', body: imageBytes }),
+        );
+        await page.goto('/products/item/?id=canonical-product');
+        const originalAnchor = await page.evaluate(
+          () => document.documentElement.style.overflowAnchor,
+        );
+        const opener = page.getByRole('button', { name: 'Request a quote', exact: true });
+        await opener.tap();
+        const dialog = page.getByRole('dialog');
+        await expect(dialog).toBeVisible();
+        await dialog.getByRole('textbox', { name: 'Requested quantity', exact: true }).fill('20');
+        const date = new Date();
+        date.setDate(date.getDate() + 14);
+        await dialog.locator('input[type=date]').fill(date.toISOString().slice(0, 10));
+        await dialog.getByRole('button', { name: 'Continue to contact' }).tap();
+        const contact = dialog.getByRole('textbox', { name: 'Contact name', exact: true });
+        const email = dialog.getByRole('textbox', { name: 'Email', exact: true });
+        const company = dialog.getByRole('textbox', { name: 'Company', exact: true });
+        await contact.fill('Escape Buyer');
+        await email.fill('escape@example.test');
+        await company.fill('Escape Company');
+        const country = dialog.getByRole('combobox', { name: 'Company country / region' });
+        await focusCountry(country);
+        await country.fill('HK');
+        const option = dialog.getByRole('option', { name: /Hong Kong/ });
+        await expect(option).toBeVisible();
+        const hit = await option.evaluate((element) => {
+          const bounds = element.getBoundingClientRect();
+          const center = { x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 };
+          return {
+            ...center,
+            reachable: element.contains(document.elementFromPoint(center.x, center.y)),
+          };
+        });
+        expect(hit.reachable).toBe(true);
+        await page.touchscreen.tap(hit.x, hit.y);
+        const countryLabel = await page.evaluate(() =>
+          new Intl.DisplayNames(['en'], { type: 'region' }).of('HK'),
+        );
+        if (!countryLabel) throw new Error('Missing HK display name');
+        await expect(country).toHaveValue(countryLabel);
+        await expect(country).toBeFocused();
+        const fields = {
+          contactName: 'Escape Buyer',
+          email: 'escape@example.test',
+          company: 'Escape Company',
+          country: 'HK',
+        };
+        const contactState = () =>
+          dialog.evaluate((element) => {
+            const form = element.querySelector('form');
+            const input = element.querySelector<HTMLInputElement>('[role="combobox"]');
+            if (!form || !input) throw new Error('Quote contact controls are missing');
+            const fields: Record<string, FormDataEntryValue> = {};
+            new FormData(form).forEach((value, key) => {
+              fields[key] = value;
+            });
+            return {
+              fields,
+              method: form.method,
+              countryLabel: input.value,
+              expanded: input.getAttribute('aria-expanded'),
+              focused: document.activeElement === input,
+              listboxes: element.querySelectorAll('[role="listbox"]').length,
+            };
+          });
+        for (let cycle = 0; cycle < 3; cycle++) {
+          await country.press('ArrowDown');
+          await expect(country).toHaveAttribute('aria-expanded', 'true');
+          const listbox = dialog.getByRole('listbox');
+          await expect(listbox).toBeVisible();
+          if (escapeTarget === 'popup') {
+            const dismissButton = dialog
+              .locator('[data-trigger="ComboBox"]')
+              .getByRole('button', { name: 'Dismiss', exact: true });
+            await dismissButton.evaluate((element) => element.focus({ preventScroll: true }));
+            await expect(dismissButton).toBeFocused();
+          }
+          if (escapeTarget === 'native cancel') {
+            if (cycle === 0) {
+              await dialog.dispatchEvent('cancel', { bubbles: false, cancelable: true });
+            } else {
+              await page.keyboard.down('Escape');
+              await expect(country).toHaveAttribute('aria-expanded', 'false');
+              await dialog.dispatchEvent('cancel', { bubbles: false, cancelable: true });
+              await page.keyboard.up('Escape');
+            }
+          } else {
+            await page.keyboard.press('Escape');
+          }
+          await expect(dialog).toBeVisible();
+          await expect.poll(contactState).toMatchObject({
+            fields,
+            method: 'post',
+            countryLabel,
+            expanded: 'false',
+            focused: true,
+            listboxes: 0,
+          });
+        }
+        await expectContainedQuote(dialog);
+        if (process.env.E2E_RECORD_ARTIFACTS === '1')
+          await page.screenshot({ path: testInfo.outputPath('escape-dismissed.png') });
+        await page.keyboard.press('Escape');
+        await expect(dialog).not.toBeVisible();
+        await expect
+          .poll(() => page.evaluate(() => document.documentElement.style.overflowAnchor))
+          .toBe(originalAnchor);
+        await expect(opener).toBeFocused();
+        await opener.tap();
+        await expect(
+          dialog.getByRole('textbox', { name: 'Requested quantity', exact: true }),
+        ).toHaveValue('20');
+        await dialog.getByRole('button', { name: 'Continue to contact' }).tap();
+        await expect.poll(contactState).toMatchObject({ fields, countryLabel });
+      });
+    }
+  }
+});
+
 test.describe('responsive quote sheet', { tag: '@mobile-regression' }, () => {
   test.use({ hasTouch: true });
   for (const viewport of [
