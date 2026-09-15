@@ -20,12 +20,13 @@ before(async () => {
   const config = await getViteConfig(
     {
       root,
-      server: { middlewareMode: true, watch: null, hmr: false },
+      server: { middlewareMode: true, watch: null, hmr: false, ws: false },
       optimizeDeps: { noDiscovery: true },
     },
     { root },
   )({ mode: 'test', command: 'serve' });
   server = await createServer({ ...config, configFile: false });
+  assert.equal(server.config.server.ws, false);
   const loaded: Record<string, unknown> = await server.ssrLoadModule(
     '/src/catalog/families/toys.ts',
   );
