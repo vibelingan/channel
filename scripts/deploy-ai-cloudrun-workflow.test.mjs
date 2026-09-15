@@ -14,8 +14,13 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 import { parse as parseYaml } from 'yaml';
-import { GITHUB_SECRETS, deployContextFromEnv } from './ai-cloudrun-deploy-plan.mjs';
+import {
+  GITHUB_SECRETS,
+  deployContextFromEnv,
+  requireSetting,
+} from './ai-cloudrun-deploy-plan.mjs';
 import { buildCloudRunServiceDefs } from './cloudrun-service-manifest.mjs';
 
 const readWorkflow = (file) =>
@@ -23,6 +28,26 @@ const readWorkflow = (file) =>
 const workflow = readWorkflow('deploy-ai-cloudrun.yml');
 const verify = workflow.jobs?.verify;
 const deploy = workflow.jobs?.deploy;
+
+test('management-task diagnostics run outside main without capturing its local env variable', () => {
+  const script = readFileSync(new URL('./deploy-ai-cloudrun.mjs', import.meta.url), 'utf8');
+  const helper = script.slice(
+    script.indexOf('function printManageTask('),
+    script.indexOf('async function waitForDeploys('),
+  );
+  const calls = [];
+  runInNewContext(`${helper}\nprintManageTask('ai-bff');`, {
+    process: { env: { TCB_ENV_ID: 'env-fixture' } },
+    requireSetting,
+    callTool(name, args) {
+      calls.push(JSON.parse(JSON.stringify({ name, args })));
+      return { IsExist: false };
+    },
+    log() {},
+  });
+  assert.equal(calls[0].name, 'callCloudApi');
+  assert.deepEqual(calls[0].args.params, { EnvId: 'env-fixture', ServerName: 'ai-bff', TaskId: 0 });
+});
 
 test('the infrastructure MCP can access staged builds from the repository root', () => {
   const configPath = fileURLToPath(new URL('../config/mcporter.infra.json', import.meta.url));

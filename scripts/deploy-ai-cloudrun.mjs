@@ -183,7 +183,7 @@ function printManageTask(name, taskId = 0) {
     service: 'tcbr',
     action: 'DescribeServerManageTask',
     version: '2022-02-17',
-    params: { EnvId: requireSetting(env, 'TCB_ENV_ID'), ServerName: name, TaskId: taskId },
+    params: { EnvId: requireSetting(process.env, 'TCB_ENV_ID'), ServerName: name, TaskId: taskId },
   });
   const result = raw.Response ?? raw;
   const task = result.Task;
@@ -339,6 +339,7 @@ async function main() {
             runId: detail?.latestDeploy?.RunId,
           },
           vpc: config?.VpcConf ?? null,
+          internalAccess: config?.InternalAccess,
           access: config?.OpenAccessTypes,
           publicNet: config?.PublicNetConf,
           port: config?.Port,

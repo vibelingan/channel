@@ -115,10 +115,19 @@ The network-only run is
 [34935924769](https://github.com/vibelingan/channel/actions/runs/34935924769),
 tag `ai-cloudrun-deploy-network-20260915-1` at `4e90b7c`. Its complete test job
 and authenticated KB probe passed. The configuration update's final outcome
-is still pending. Read-only inspection additionally queries
+failed: the API accepted both updates and BFF version `002` appeared, but its
+VPC remained empty for the entire ten-minute read-back window. Supplying CIDRs
+alone did not fix the binding. Read-only inspection additionally queries
 [`DescribeServerManageTask`](https://cloud.tencent.com/document/product/1243/76021)
 for the exact management-task state and failure reason; it does not retry a
 mutation or expose environment values.
+
+Inspection `34936764277` confirmed BFF `002` is normal but still returns
+readiness 503. Its new task-diagnostic helper then hit a local script bug
+(`env` was scoped inside `main`). This diagnostic failure did not mutate cloud
+state. A VM execution regression reproduces that exact ReferenceError; the
+helper now reads the explicit process environment and inspection includes
+`InternalAccess` as well as the VPC fields.
 
 The current production website was inspected separately in a real browser:
 it contains neither the assistant island nor its launch button. Backend release
