@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening
 
-Status: MIUs 01-17 released; no active exact reservations; MIUs 18-19 planned; implementation continues; verify final closure publication with live Git refs.
+Status: MIUs 01-17 released; MIU 18 active; MIU 19 planned.
 
 ## Decision
 
@@ -121,6 +121,13 @@ The i18n owner adds `CatalogAdapterContent = Pick<CatalogContent, 'list' | 'deta
 family-key union from the canonical public-product type; the Markdown loader is unchanged.
 MIUs 18/19 consume that content contract; registry MIU 20 and controller MIU 22 remain unwired.
 
+MIU 18 adds `toysAdapter`, `createToysAdapter`, and configuration-only `selectToysAdapter(pathname)`.
+Its content/identity mapping follows the same contract, with no filters, grouping, pricing or media
+policy. The four exact `/toys`, `/toys/`, `/electronics-toys`, `/electronics-toys/` keys select the
+same `toys` instance; all other strings return null. This does not change the existing multi-family
+hub at `/electronics-toys/`. Future composition must preserve that hub rather than treating this
+selector as permission to replace it. Both existing pages remain independently built and unchanged.
+
 ## Old Owner Migration And Retirement
 
 | Old owner | New owner | Call-site switch | Retirement evidence | Rollback |
@@ -154,7 +161,7 @@ for full retirement: `CatalogFamilyGrid`, `HeadphonesProductCard`, `HeadphonesPr
 
 ## Reservation And Deployment Control
 
-MIUs 01-17 are released; no active exact reservations remain; MIUs 18-19 are planned.
+MIUs 01-17 are released; MIU 18 is active with its two exact owner files; MIU 19 is planned.
 MIU 17 historical source checkpoint `134e62d0b6a371e663f8c0ca9ebe5162a065c448` was pushed feature-only and verified; release recorded here.
 Use live `git rev-parse HEAD` and `origin/refactor/catalog-architecture-hardening` to verify final closure publication before continuing.
 Post-push canonical architecture: 0 issues; scripts: 93/93. The generic pipeline validator's three baseline issues remain non-green; see [EXECUTION.md](EXECUTION.md#miu-17-validation-deviation).

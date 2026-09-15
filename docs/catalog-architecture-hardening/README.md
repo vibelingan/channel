@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening Handoff
 
-Status: 49-MIU packet; MIUs 01-17 released; no active exact reservations; MIUs 18-19 planned; implementation continues; verify final closure publication with live Git refs.
+Status: 49-MIU packet; MIUs 01-17 released; MIU 18 active; MIU 19 planned.
 Branch: `refactor/catalog-architecture-hardening`
 Planning packet SHA: `bc1e69e25e9e8d453584be0fde9279f7bdf0c006`.
 
@@ -20,7 +20,16 @@ git status --short
 git rev-parse HEAD origin/refactor/catalog-architecture-hardening
 ```
 
-Expected branch: `refactor/catalog-architecture-hardening`. MIU 17 is RELEASED; no active exact reservations remain.
+Expected branch: `refactor/catalog-architecture-hardening`. MIU 18 is active with two owner files.
+Toys implementation `2a5e613` and separate released-test harness correction `5e2f5d7` passed local
+validation: focused 8/8, site 266/266 without WebSocket error logs, workspace/E2E typechecks, build
+15 pages and Biome 361 files. Both built routes retain their original headings and canonical URLs.
+The selector is configuration-only; the multi-family hub is unchanged. Review and live publication
+verification precede release. See [EXECUTION.md](EXECUTION.md#miu-18-implementation-record).
+
+### HISTORICAL: MIU 17 Release Snapshot
+
+MIU 17 was released with no active exact reservations at its closure checkpoint.
 Parent execution-subagent observed full local PASS: all workspace tests (site 258/258), workspace/E2E typechecks,
 Astro 0 errors/0 warnings/7 existing hints, build 15 pages, Biome 359 files; not independently rerun by this doc-writer.
 Later test-only `facts()` assertion after `localized.detail` mutation: focused 7/7, test types, scoped Biome PASS; production unchanged.

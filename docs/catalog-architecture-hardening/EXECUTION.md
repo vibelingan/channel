@@ -9,11 +9,50 @@ Branch: `refactor/catalog-architecture-hardening`
 ## MIU 18 Implementation Record
 
 - Historical baseline `3beb38af9f16c7716918123356396b25b4f1d692` was clean and equal to the live feature branch.
+- Activation/red checkpoint `5e6690723d3a8c9baf45dac4d60718011b66073f`: seven behavior failures,
+  one dependency pass, and passing test TypeScript before implementation.
+- Implementation `2a5e6139af5b8ebc4bf8af400842c999afbb8897`; separate inherited test-harness
+  correction `5e2f5d796f2a19ea9d0777e7fd58c95a6c926374`.
 - Owners: `apps/site/src/catalog/families/toys.ts` and `apps/site/src/catalog/families/toys.test.ts` only.
   Catalog content and existing adapters remain read-only. Tests precede implementation.
 - Check: real Markdown copy, identity-only facts, empty filters/null grouping, optional-field safety,
   localized copy isolation, same canonical instance for approved route pathnames, unknown-path rejection.
 - Validation and source publication must be observed before release. No test/main merge or deployment.
+- Local checks passed: focused 8/8; all workspace tests (site 266/266); all workspace and E2E
+  typechecks; Astro 0 errors/0 warnings/7 existing hints; 15-page build; Biome 361 files.
+  After the test-harness correction, the complete site suite passed again with an explicit scan
+  showing no `[ERROR]`, WebSocket server error or port-24678 message. Test TypeScript ran with it.
+- Built HTML assertions confirmed both canonicals and headings, plus all four family links in the
+  multi-family hub. No browser E2E or live route integration is claimed for the new selector.
+- Final post-correction workspace run: 814/814 assertions passed, including site266; the test-server
+  error scan was empty. Workspace/E2E types, site build and Biome passed again. Craft gates:
+  14 existing baseline findings, 0 new, 0 execution errors. The generic validator's historical
+  limitations remain explicitly non-green. Bounded execution-context review found no concrete
+  P1/P2/P3 issues; exact committed-packet review and publication checks follow separately.
+
+```yaml
+cross-file-reasoning:
+  scope: [families/toys.ts, families/toys.test.ts]
+  symbols-traced:
+    - {name: createToysAdapter, trace: "catalog content + contract -> factory -> tests", verdict: PASS}
+    - {name: toysAdapter, trace: "real Markdown -> default instance -> tests", verdict: PASS}
+    - {name: selectToysAdapter, trace: "approved pathname keys -> same toys instance -> tests", verdict: PASS}
+  runtime-consumers: none; registry and controller composition remain future MIUs
+  route-change: none; electronics-toys remains the multi-family hub
+  inherited-test-correction: two SSR harnesses use ws=false, separately committed
+  verdict: PASS
+  boundary: bounded implementation checks, not publication clearance
+```
+
+### MIU 18 Test Harness Correction
+
+The full site suite passed 266 assertions but logged a WebSocket bind error on port 24678. Running
+only the unchanged Headphones and AI-gadgets tests reproduced it (14 passing assertions plus the
+same error). Vite 7.3.5 `hmr: false` does not prevent creating the WebSocket listener; installed
+`server.ws?: false` does. Disable WebSockets and assert the resolved option in all three SSR-only
+adapter harnesses. The two older test files are a separately committed, reviewed post-release test
+correction, not new MIU18 owner files or a change to their released lifecycle. No production code
+in MIUs16/17 changes. Verify the full suite with an explicit error-log scan, not only its exit code.
 
 ### MIU 18 Route Interpretation
 
@@ -27,6 +66,8 @@ decision. The production build must still contain both the hub and Toys page. Th
 validator limitation recorded under MIU17 is unchanged and is not counted as a passing check.
 
 ## MIU 17 Implementation Record
+
+This section records the historical MIU17 completion checkpoint, not the current MIU18 lifecycle.
 
 Evidence: parent supplied validation and verified feature-source publication; independent reviewers supplied review evidence. This doc-writer ran no commands/tests and did not independently rerun checks.
 - Historical pre-activation baseline `fad653964f71ee5d1c0a5671496be1c253b17fc8` was reported clean and equal to the feature remote.

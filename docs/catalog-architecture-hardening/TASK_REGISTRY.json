@@ -678,6 +678,30 @@
       },
       "postReleaseCorrections": [
         {
+          "miu": "16",
+          "commit": "5e2f5d796f2a19ea9d0777e7fd58c95a6c926374",
+          "files": ["apps/site/src/catalog/families/headphones.test.ts"],
+          "reason": "SSR-only test harness must disable WebSocket binding; hmr=false alone still races on port 24678.",
+          "reservationStateChanged": false,
+          "validation": [
+            "inherited two-harness run reproduced port conflict",
+            "site 266/266 and explicit error-log scan clean",
+            "test TypeScript and Biome passed"
+          ]
+        },
+        {
+          "miu": "17",
+          "commit": "5e2f5d796f2a19ea9d0777e7fd58c95a6c926374",
+          "files": ["apps/site/src/catalog/families/ai-gadgets.test.ts"],
+          "reason": "Apply the same verified ws=false setting to the second inherited SSR-only adapter harness.",
+          "reservationStateChanged": false,
+          "validation": [
+            "inherited two-harness run reproduced port conflict",
+            "site 266/266 and explicit error-log scan clean",
+            "test TypeScript and Biome passed"
+          ]
+        },
+        {
           "miu": "09",
           "commit": "c98250b16d7c2989203ec53672484dd6314bddf6",
           "files": ["apps/site/src/islands/shop/CatalogFamilyGrid.tsx"],
@@ -714,7 +738,7 @@
           ]
         }
       ],
-      "handoff": "MIUs 01-17 are released; no exact source reservation is active; MIU 18 remains planned. MIU 17 implementation d54fc71 passed focused 7/7, site 258/258, workspace tests/types, E2E types, 15-page build and Biome. Reviewed source checkpoint 134e62d was pushed and verified with architecture 0 issues and scripts 93/93. Verify live local/remote equality for closure publication. No test/main merge or deployment."
+      "handoff": "MIUs 01-17 are released; MIU 18 is active with exactly two owner files; MIU 19 is planned. Implementation 2a5e613 passed local tests/types/build; inherited SSR harness correction 5e2f5d7 is separately recorded without lifecycle changes. Verify reviewed source publication and live equality before release. No test/main merge or deployment."
     }
   ]
 }
