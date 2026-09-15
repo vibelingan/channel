@@ -425,3 +425,26 @@ setting that the workflow does not pass.
   exit.** The VPC has no NAT gateway. If internet access is switched off in the
   worker's network settings, the worker logs `knowledge_base_unreachable` and
   keeps retrying until a NAT gateway is added.
+
+## Turning on the website chat widget
+
+Added 2026-09-15. Running AI services are not enough on their own: the chat
+button appears on the live site only after the website is rebuilt with the
+assistant's address and released.
+
+1. **Tell the site build where the assistant is.** Set the `test` environment
+   variable `PUBLIC_AI_API_BASE_URL` to the BFF's https address. Deploy Test
+   passes it to the site build, and stops before releasing if it is missing,
+   is not https, or is absent from the built pages.
+   `scripts/site-ai-widget-deploy.test.mjs` keeps that wiring in place.
+2. **Let every site address call the assistant.** The site answers on both
+   `https://supplychainsai.com` (its canonical address) and
+   `https://www.supplychainsai.com`. The BFF refuses browser calls from any
+   address missing from `CORS_ALLOWED_ORIGINS`, so list both, then redeploy the
+   AI services with a new `ai-cloudrun-deploy-*` tag. The website's own
+   functions read the same variable and already accept both addresses.
+3. **Release the website.** Merge this branch into `test`. Deploy Test runs the
+   full CI, rebuilds the site with the widget, and deploys it.
+
+The widget is mounted on `/`, `/headphones` and `/oem` only
+(`apps/site/src/lib/ai-widget-routes.ts`).

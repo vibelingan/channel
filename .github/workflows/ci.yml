@@ -15,66 +15,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  checks:
-    name: Build and smoke
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    env:
-      CI: 'true'
-      PUBLIC_CB_PROXY: '0'
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.5.0
-          run_install: false
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.13.0
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Verify CloudBase SDK contract
-        run: pnpm verify:cloudbase-sdk
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Unit tests
-        run: pnpm test
-
-      - name: Package CloudBase functions
-        run: pnpm package:functions
-
-      - name: Smoke function artifacts
-        run: pnpm smoke:functions
-
-      - name: Build site
-        run: pnpm build
-
-      - name: Scan built site for server secret names
-        run: |
-          if grep -R -I -n -E 'JWT_SECRET|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|EMAIL_PASSWORD|EMAIL_USER|TENCENTCLOUD_SECRET(ID|KEY)|TENCENTCLOUD_SESSIONTOKEN|ALI_APP_KEY|ALI_APP_SECRET|ALI_OAUTH_CALLBACK_URL|ALI_TOKEN_ENCRYPTION_KEY_V1|WECOM_WEBHOOK_URL|DATABASE_URL|KB_API_KEY|AI_IP_HASH_SECRET' apps/site/dist; then
-            echo "Server secret names were found in the public site build." >&2
-            exit 1
-          fi
-
-      - name: Discover Playwright specs
-        run: pnpm test:e2e --list
-
   ai-store:
     name: AI store contract (PostgreSQL)
     runs-on: ubuntu-latest
@@ -168,3 +108,66 @@ jobs:
 
       - name: Smoke the running services
         run: pnpm smoke:ai
+
+  # Listed after ai-store on purpose. Other branches add steps to the end of this
+  # job, and a job appended after it here collided with them at the end of the
+  # file on every merge. Job order does not affect how the jobs run.
+  checks:
+    name: Build and smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      CI: 'true'
+      PUBLIC_CB_PROXY: '0'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify CloudBase SDK contract
+        run: pnpm verify:cloudbase-sdk
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Package CloudBase functions
+        run: pnpm package:functions
+
+      - name: Smoke function artifacts
+        run: pnpm smoke:functions
+
+      - name: Build site
+        run: pnpm build
+
+      - name: Scan built site for server secret names
+        run: |
+          if grep -R -I -n -E 'JWT_SECRET|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|EMAIL_PASSWORD|EMAIL_USER|TENCENTCLOUD_SECRET(ID|KEY)|TENCENTCLOUD_SESSIONTOKEN|ALI_APP_KEY|ALI_APP_SECRET|ALI_OAUTH_CALLBACK_URL|ALI_TOKEN_ENCRYPTION_KEY_V1|WECOM_WEBHOOK_URL|DATABASE_URL|KB_API_KEY|AI_IP_HASH_SECRET' apps/site/dist; then
+            echo "Server secret names were found in the public site build." >&2
+            exit 1
+          fi
+
+      - name: Discover Playwright specs
+        run: pnpm test:e2e --list
