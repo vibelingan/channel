@@ -1,10 +1,30 @@
 # Catalog Architecture Hardening - Execution
-Status: MIUs 01-16 released; no active exact reservations; MIU 17 planned/inactive; implementation continues; MIU 16 source published and verified; closure publication requires live Git equality verification.
+Status: MIUs 01-16 released; MIU 17 active for local implementation and validation.
 Branch: `refactor/catalog-architecture-hardening`
 
 **Current phase:** `implement`.
 
-**Current/next MIU:** none active; MIUs 01-16 RELEASED; MIU 17 planned/inactive; confirm closure publication through live Git equality before continuing.
+**Current/next MIU:** MIU 17 active; MIUs 18-19 remain planned.
+
+## MIU 17 Implementation Record
+
+- Baseline `fad653964f71ee5d1c0a5671496be1c253b17fc8` was clean and equal to the live feature remote.
+- Exact owners: `apps/site/src/catalog/families/ai-gadgets.ts`, its adjacent test, and `apps/site/src/i18n/catalog.ts`.
+- Initial real-loader test run: six behavior cases failed on the unimplemented factory/default export;
+  the dependency test passed. Test TypeScript passed. No implementation behavior existed yet.
+- Preserve existing AI-gadgets copy, empty filter capabilities, no grouping, and optional identity facts.
+  No route wiring, pricing, media policy, test/main merge, workflow dispatch, or deployment is in scope.
+
+### MIU 17 Validation Deviation
+
+The generic plugin breakdown validator reports three issues in unchanged historical MIUs: MIU04's
+five-file ownership is a real existing exception; its self-dependency and MIU06's forward dependency
+are parser errors caused by treating `Reservation state` prose as `Depends on` continuation.
+The actual MIU04 dependencies are 02/03 and MIU06 depends on 02. Do not count this generic check as
+green or rewrite released history. For this bounded continuation, the repository's canonical
+architecture verifier validates the full 49-MIU manifest, real dependency graph and exact ownership;
+it passed before implementation. MIU17 retains exactly three files and depends only on released MIU15.
+Initial execution-helper path typos were recovered through explicit absolute paths, not code changes.
 
 ## Git Truth
 

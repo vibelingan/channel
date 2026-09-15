@@ -1,6 +1,6 @@
 # Catalog Architecture Hardening MIU Breakdown
 
-Status: MIUs 01-16 released after verified feature-source publication; MIU 17 planned and inactive.
+Status: MIUs 01-16 released; MIU 17 active for local implementation and validation.
 
 ```mermaid
 flowchart TD
@@ -57,7 +57,7 @@ flowchart TD
 
 ## Reservation Lifecycle
 
-- No MIU or exact file is active. MIUs 01-16 are released; MIU 17 is planned; MIUs 26-28 remain blocked by D1.
+- MIU 17 is the sole active MIU. MIUs 01-16 are released; MIUs 26-28 remain blocked by D1.
 - Activation follows `TASK_REGISTRY.json`: verify dependencies, gates, live refs/worktrees, and zero
   conflicting active owner claims, then atomically mark one MIU `active`. Completion marks it `released`
   before any explicit successor transfer activates.
@@ -406,7 +406,7 @@ flowchart TD
 - **Files:** `apps/site/src/catalog/families/ai-gadgets.ts`, `apps/site/src/catalog/families/ai-gadgets.test.ts`, `apps/site/src/i18n/catalog.ts`
 - **Type:** new-file
 - **Depends on:** MIU 15
-- **Reservation state:** `planned`; owns `apps/site/src/i18n/catalog.ts` for later adapter consumers.
+- **Reservation state:** `active`; owns `apps/site/src/i18n/catalog.ts` for later adapter consumers.
 - **What it does:**
   - Exports `aiGadgetsAdapter: CatalogFamilyAdapter` from
     `apps/site/src/catalog/families/catalog-family-adapter.ts` with route labels, filters, facts, and empty behavior.

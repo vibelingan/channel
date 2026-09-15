@@ -46,10 +46,14 @@
       "claimedLocalHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "claimedRemoteHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "status": "implementation-in-progress",
-      "currentMiu": null,
+      "currentMiu": "17",
       "dependencies": [],
-      "activeExactReservations": [],
-      "activeReservationPurpose": "",
+      "activeExactReservations": [
+        "apps/site/src/catalog/families/ai-gadgets.ts",
+        "apps/site/src/catalog/families/ai-gadgets.test.ts",
+        "apps/site/src/i18n/catalog.ts"
+      ],
+      "activeReservationPurpose": "MIU 17 AI gadgets content adapter; local validation and feature-source publication only.",
       "externalGates": {
         "D1": {
           "scope": ["26", "27", "28"],
@@ -383,7 +387,7 @@
         "14": { "reservationState": "released", "previousReservationState": "active" },
         "15": { "reservationState": "released", "previousReservationState": "active" },
         "16": { "reservationState": "released", "previousReservationState": "active" },
-        "17": { "reservationState": "planned" },
+        "17": { "reservationState": "active", "previousReservationState": "planned" },
         "18": { "reservationState": "planned" },
         "19": { "reservationState": "planned" },
         "20": { "reservationState": "planned" },
