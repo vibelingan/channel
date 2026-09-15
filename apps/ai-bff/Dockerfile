@@ -19,7 +19,17 @@ COPY --from=manifests /manifests/ ./
 RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm --filter @vibelingan-channel/ai-bff build
-RUN pnpm --filter @vibelingan-channel/ai-bff deploy --prod --legacy /runtime
+# pnpm refuses packages downloaded from a URL or git, but its legacy deploy
+# applies that rule to the dependencies of EVERY workspace project, not just
+# this service. The website's catalog importer takes SheetJS (xlsx) from
+# SheetJS's own download address, which failed this build although none of it
+# is installed here. The rule is off for this one command; the check after it
+# fails the build instead if anything from a URL or git lands in the runtime.
+RUN pnpm --filter @vibelingan-channel/ai-bff deploy --prod --legacy --config.block-exotic-subdeps=false /runtime \
+ && if ls /runtime/node_modules/.pnpm | grep -E '@(https?|git)\+'; then \
+      echo "a package downloaded from a URL or git would ship in the ai-bff runtime" >&2; \
+      exit 1; \
+    fi
 
 FROM node:22.13.0-bookworm-slim AS runtime
 ENV NODE_ENV=production
