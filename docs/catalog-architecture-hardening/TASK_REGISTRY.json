@@ -46,13 +46,10 @@
       "claimedLocalHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "claimedRemoteHead": "d00a923076d04646f22b211f13288c4c8c8f0c21",
       "status": "implementation-in-progress",
-      "currentMiu": "18",
+      "currentMiu": null,
       "dependencies": [],
-      "activeExactReservations": [
-        "apps/site/src/catalog/families/toys.ts",
-        "apps/site/src/catalog/families/toys.test.ts"
-      ],
-      "activeReservationPurpose": "MIU 18 Toys adapter and configuration-only route selection; local validation and feature-source publication.",
+      "activeExactReservations": [],
+      "activeReservationPurpose": "",
       "externalGates": {
         "D1": {
           "scope": ["26", "27", "28"],
@@ -387,7 +384,7 @@
         "15": { "reservationState": "released", "previousReservationState": "active" },
         "16": { "reservationState": "released", "previousReservationState": "active" },
         "17": { "reservationState": "released", "previousReservationState": "active" },
-        "18": { "reservationState": "active", "previousReservationState": "planned" },
+        "18": { "reservationState": "released", "previousReservationState": "active" },
         "19": { "reservationState": "planned" },
         "20": { "reservationState": "planned" },
         "21": { "reservationState": "planned" },
@@ -738,7 +735,7 @@
           ]
         }
       ],
-      "handoff": "MIUs 01-17 are released; MIU 18 is active with exactly two owner files; MIU 19 is planned. Implementation 2a5e613 passed local tests/types/build; inherited SSR harness correction 5e2f5d7 is separately recorded without lifecycle changes. Verify reviewed source publication and live equality before release. No test/main merge or deployment."
+      "handoff": "MIUs 01-18 are released; no active exact reservations remain; MIU 19 is planned. Reviewed source checkpoint fc01b48 was pushed and verified with architecture 0 issues and scripts 93/93. Toys implementation 2a5e613 and separate inherited SSR harness correction 5e2f5d7 passed local validation. Verify final closure publication through live Git equality. No test/main merge or deployment."
     }
   ]
 }
