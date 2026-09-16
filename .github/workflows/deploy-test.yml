@@ -68,6 +68,8 @@ jobs:
       CLOUDBASE_WEBAPP_SERVICE: channel-test
       PUBLIC_CB_PROXY: '0'
       PUBLIC_API_BASE_URL: ${{ vars.PUBLIC_API_BASE_URL || format('https://{0}.service.tcloudbase.com', vars.TCB_ENV_ID) }}
+      # The AI assistant API that the website's chat widget calls from the browser.
+      PUBLIC_AI_API_BASE_URL: ${{ vars.PUBLIC_AI_API_BASE_URL }}
       SITE_URL: ${{ vars.SITE_URL || format('https://channel-test-{0}.webapps.tcloudbase.com', vars.TCB_ENV_ID) }}
       CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS || format('https://channel-test-{0}.webapps.tcloudbase.com,http://localhost:4321', vars.TCB_ENV_ID) }}
       LOGIN_URL: ${{ vars.LOGIN_URL || format('https://channel-test-{0}.webapps.tcloudbase.com/login', vars.TCB_ENV_ID) }}
@@ -132,8 +134,25 @@ jobs:
 
       - name: Scan built site for server secret names
         run: |
-          if grep -R -I -n -E 'JWT_SECRET|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|EMAIL_PASSWORD|EMAIL_USER|TENCENTCLOUD_SECRET(ID|KEY)|TENCENTCLOUD_SESSIONTOKEN|ALI_APP_KEY|ALI_APP_SECRET|ALI_OAUTH_CALLBACK_URL|ALI_TOKEN_ENCRYPTION_KEY_V1|WECOM_WEBHOOK_URL' apps/site/dist; then
+          if grep -R -I -n -E 'JWT_SECRET|ADMIN_PASSWORD_HASH|BOOTSTRAP_ADMIN_TOKEN|EMAIL_PASSWORD|EMAIL_USER|TENCENTCLOUD_SECRET(ID|KEY)|TENCENTCLOUD_SESSIONTOKEN|ALI_APP_KEY|ALI_APP_SECRET|ALI_OAUTH_CALLBACK_URL|ALI_TOKEN_ENCRYPTION_KEY_V1|WECOM_WEBHOOK_URL|DATABASE_URL|KB_API_KEY|AI_IP_HASH_SECRET' apps/site/dist; then
             echo "Server secret names were found in the public site build." >&2
+            exit 1
+          fi
+
+      # The chat widget is built into public pages. Without the assistant's
+      # address it renders a button that can only say "unavailable", so a build
+      # missing that address must never reach the live site.
+      - name: Check the built site can reach the AI assistant
+        run: |
+          case "$PUBLIC_AI_API_BASE_URL" in
+            https://*) ;;
+            *)
+              echo "Set PUBLIC_AI_API_BASE_URL (GitHub variable, test environment) to the assistant API's https address." >&2
+              exit 1
+              ;;
+          esac
+          if ! grep -R -q -F "$PUBLIC_AI_API_BASE_URL" apps/site/dist; then
+            echo "The built site does not contain the assistant API address." >&2
             exit 1
           fi
 
