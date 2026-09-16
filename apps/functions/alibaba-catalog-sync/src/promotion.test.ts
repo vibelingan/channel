@@ -1,22 +1,69 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 import { alibabaOfferKey, alibabaSourceKey } from '@vibelingan-channel/alibaba-catalog-sync';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import';
 import type { AdapterListQuery, AlibabaLeaseGuard, DbAdapter } from '@vibelingan-channel/db';
-import { holdsAlibabaLease, setAdapter } from '@vibelingan-channel/db';
+import { setAdapter } from '@vibelingan-channel/db';
+import {
+  type AlibabaProductLinkIdentity,
+  type AlibabaProductMutationInput,
+  type AlibabaProductMutationResult,
+  runAlibabaProductMutation,
+} from '@vibelingan-channel/db/adapter';
 import {
   type CollectionDoc,
   type ListResult,
   compareBySort,
   matchesFilter,
 } from '@vibelingan-channel/shared';
-import { setPinnedOffer } from './linking.ts';
+import { linkExistingProduct, setPinnedOffer, unlinkProduct } from './linking.ts';
 import { promoteLinkedProduct } from './promotion.ts';
 
 type Store = Record<string, CollectionDoc[]>;
 
 class FencedMemoryAdapter implements DbAdapter {
   lastPromotionPatch: Record<string, unknown> | null = null;
+  mutations: AlibabaProductMutationInput[] = [];
+  beforeMutation: (() => Promise<void>) | undefined;
+  private mutationQueue = Promise.resolve();
   constructor(readonly store: Store) {}
+  async mutateAlibabaProduct(
+    input: AlibabaProductMutationInput,
+  ): Promise<AlibabaProductMutationResult> {
+    this.mutations.push(structuredClone(input));
+    await this.beforeMutation?.();
+    const operation = this.mutationQueue.then(async () => {
+      const copy = structuredClone(this.store);
+      const result = await runAlibabaProductMutation(
+        {
+          get: async (collection, id) =>
+            structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+          set: async (collection, row) => {
+            copy[collection] ??= [];
+            const rows = copy[collection];
+            const index = rows.findIndex((existing) => existing._id === row._id);
+            if (index < 0) rows.push(structuredClone(row));
+            else rows[index] = structuredClone(row);
+          },
+          remove: async (collection, id) => {
+            copy[collection] = (copy[collection] ?? []).filter((row) => row._id !== id);
+          },
+        },
+        (copy.alibabaProductLinks ?? []).filter((row) => row.productId === input.productId),
+        input,
+      );
+      if (result.ok) {
+        Object.assign(this.store, copy);
+        if (input.action === 'promote') this.lastPromotionPatch = structuredClone(input.patch);
+      }
+      return result;
+    });
+    this.mutationQueue = operation.then(
+      () => {},
+      () => {},
+    );
+    return operation;
+  }
   private docs(collection: string): CollectionDoc[] {
     this.store[collection] ??= [];
     return this.store[collection] as CollectionDoc[];
@@ -65,20 +112,8 @@ class FencedMemoryAdapter implements DbAdapter {
   async incrementField(): Promise<number | null> {
     throw new Error('not used');
   }
-  async updateDocWithAlibabaLease(
-    collection: string,
-    id: string,
-    patch: Record<string, unknown>,
-    guard: AlibabaLeaseGuard,
-  ): Promise<boolean> {
-    const lease = this.docs('alibabaSyncLeases').find((d) => d._id === guard.connectionId) ?? null;
-    if (!holdsAlibabaLease(lease, guard.holder, guard.fence, guard.now)) return false;
-    this.lastPromotionPatch = { ...patch };
-    const docs = this.docs(collection);
-    const index = docs.findIndex((d) => d._id === id);
-    if (index < 0) return false;
-    docs[index] = { ...(docs[index] as CollectionDoc), ...patch };
-    return true;
+  async updateDocWithAlibabaLease(): Promise<boolean> {
+    throw new Error('promotion bypassed product identity transaction');
   }
 }
 
@@ -124,15 +159,38 @@ function offerDoc(
 
 let store: Store = {};
 let adapter: FencedMemoryAdapter;
+function productLink(
+  overrides: Partial<AlibabaProductLinkIdentity> = {},
+): CollectionDoc & AlibabaProductLinkIdentity {
+  return {
+    _id: SOURCE_KEY,
+    sourceKey: SOURCE_KEY,
+    connectionId: 'primary',
+    sourceProductId: '987',
+    productId: 'p-1',
+    linkedAt: NOW,
+    ...overrides,
+  };
+}
+
+function sourceDoc(overrides: Partial<CollectionDoc> = {}): CollectionDoc {
+  return {
+    _id: SOURCE_KEY,
+    sourceKey: SOURCE_KEY,
+    connectionId: 'primary',
+    sourceProductId: '987',
+    sourceCategoryId: '44',
+    sourceImageUrls: ['https://sc04.alicdn.com/product.jpg'],
+    active: true,
+    ...overrides,
+  };
+}
+
 function setup(overrides: Partial<Store> = {}): Store {
   store = {
     alibabaSyncLeases: [liveLease],
-    alibabaProductLinks: [
-      { _id: SOURCE_KEY, sourceKey: SOURCE_KEY, productId: 'p-1' } as CollectionDoc,
-    ],
-    alibabaSourceProducts: [
-      { _id: SOURCE_KEY, sourceKey: SOURCE_KEY, active: true } as CollectionDoc,
-    ],
+    alibabaProductLinks: [productLink()],
+    alibabaSourceProducts: [sourceDoc()],
     alibabaSupplierOffers: [
       {
         _id: OFFER_KEY,
@@ -157,9 +215,16 @@ function setup(overrides: Partial<Store> = {}): Store {
         moq: 10,
         unitPrice: 12.5,
         wholesalePrice: 10,
+        catalogPricingMode: 'manual',
+        manualCatalogPricing: {
+          schemaVersion: 'manual-catalog-pricing-v1',
+          currency: 'USD',
+          tiers: [{ minQuantity: 10, unitAmountMinor: 310 }],
+        },
         vipPrice: 8,
         published: true,
         archived: false,
+        catalogDetailPublication: { state: 'approved', revision: 'manual' },
         imageIds: ['img-1'],
         alibabaPrimarySourceKey: SOURCE_KEY,
       } as CollectionDoc,
@@ -170,6 +235,96 @@ function setup(overrides: Partial<Store> = {}): Store {
   setAdapter(adapter);
   return store;
 }
+
+test('R1: promotion carries its original revision and exact complete link set', async () => {
+  setup({
+    alibabaProductLinks: [productLink(), productLink({ _id: 'secondary', sourceKey: 'secondary' })],
+  });
+  assert.equal(
+    (await promoteLinkedProduct({ sourceKey: SOURCE_KEY, guard: GUARD, now: NOW })).ok,
+    true,
+  );
+  const input = adapter.mutations[0];
+  assert.ok(input);
+  assert.equal(input.action, 'promote');
+  assert.equal(input.expectedRevision, 0);
+  assert.equal(input.expectedPrimarySourceKey, SOURCE_KEY);
+  assert.deepEqual(input.expectedLinks, store.alibabaProductLinks);
+  if (input.action === 'promote') assert.deepEqual(input.guard, GUARD);
+  assert.equal(store.products?.[0]?.alibabaLinkRevision, 1);
+});
+
+for (const relink of [false, true]) {
+  test(`R1: promotion cannot restore supplier fields after ${relink ? 'same-source relink' : 'unlink'}`, async () => {
+    setup();
+    let afterConcurrent: Store | undefined;
+    adapter.beforeMutation = async () => {
+      adapter.beforeMutation = undefined;
+      assert.equal((await unlinkProduct('p-1', { now: NOW })).ok, true);
+      if (relink)
+        assert.equal(
+          (await linkExistingProduct(SOURCE_KEY, 'p-1', { now: NOW, userId: 'admin' })).ok,
+          true,
+        );
+      afterConcurrent = structuredClone(store);
+    };
+    assert.deepEqual(
+      await promoteLinkedProduct({ sourceKey: SOURCE_KEY, guard: GUARD, now: NOW }),
+      {
+        ok: false,
+        reason: 'link-identity-mismatch',
+      },
+    );
+    assert.deepEqual(store, afterConcurrent);
+  });
+}
+
+test('R1: changed secondary link identity rejects promotion without a revision change', async () => {
+  setup({
+    alibabaProductLinks: [productLink(), productLink({ _id: 'secondary', sourceKey: 'secondary' })],
+  });
+  let concurrent: Store | undefined;
+  adapter.beforeMutation = async () => {
+    const secondary = store.alibabaProductLinks?.[1];
+    assert.ok(secondary);
+    secondary.linkedAt = '2026-08-06T12:01:00.000Z';
+    concurrent = structuredClone(store);
+  };
+  assert.deepEqual(await promoteLinkedProduct({ sourceKey: SOURCE_KEY, guard: GUARD, now: NOW }), {
+    ok: false,
+    reason: 'link-identity-mismatch',
+  });
+  assert.deepEqual(store, concurrent);
+});
+
+test('R1: promotion refuses an oversized link set before dispatching a transaction', async () => {
+  setup({
+    alibabaProductLinks: [
+      productLink(),
+      ...Array.from({ length: 104 }, (_, index) =>
+        productLink({ _id: `secondary-${index}`, sourceKey: `secondary-${index}` }),
+      ),
+    ],
+  });
+  const before = structuredClone(store.products);
+  assert.deepEqual(await promoteLinkedProduct({ sourceKey: SOURCE_KEY, guard: GUARD, now: NOW }), {
+    ok: false,
+    reason: 'link-limit',
+  });
+  assert.equal(adapter.mutations.length, 0);
+  assert.deepEqual(store.products, before);
+});
+
+test('R1: concurrent promotion and unlink have exactly one successful writer', async () => {
+  setup();
+  const results = await Promise.all([
+    promoteLinkedProduct({ sourceKey: SOURCE_KEY, guard: GUARD, now: NOW }),
+    unlinkProduct('p-1', { now: NOW }),
+  ]);
+  assert.equal(results.filter((result) => result.ok).length, 1);
+  assert.equal(results.filter((result) => !result.ok).length, 1);
+  assert.equal(store.products?.[0]?.alibabaLinkRevision, 1);
+});
 
 test('promotion materializes the primary offer through the fenced write, touching ONLY Alibaba fields', async () => {
   setup();
@@ -183,11 +338,18 @@ test('promotion materializes the primary offer through the fenced write, touchin
   assert.equal(after.alibabaPrimaryOfferKey, OFFER_KEY);
   assert.equal((after.alibabaCatalogPricing as { amountMinor?: number }).amountMinor, 250);
   assert.equal(after.alibabaSourceStatus, 'available');
+  assert.equal(after.alibabaSourceProductId, '987');
+  assert.equal(after.alibabaSourceCategoryId, '44');
+  assert.deepEqual(after.alibabaSourceImageUrls, ['https://sc04.alicdn.com/product.jpg']);
   assert.equal(after.alibabaSourceLastSyncedAt, NOW);
   assert.deepEqual(Object.keys(adapter.lastPromotionPatch ?? {}).sort(), [
     'alibabaCatalogPricing',
+    'alibabaDescriptionImageUrls',
     'alibabaPrimaryOfferKey',
+    'alibabaSourceCategoryId',
+    'alibabaSourceImageUrls',
     'alibabaSourceLastSyncedAt',
+    'alibabaSourceProductId',
     'alibabaSourceStatus',
   ]);
   // Every non-Alibaba field is byte-identical (protected-surface proof).
@@ -221,6 +383,72 @@ test('promotion materializes the primary offer through the fenced write, touchin
       archived: false,
     },
   );
+});
+
+test('promotion reads offers beyond the first 100 rows and does not lose an operator pin', async () => {
+  setup({
+    alibabaSupplierOffers: Array.from({ length: 105 }, (_, index) =>
+      offerDoc(`offer-${String(index).padStart(3, '0')}`, SOURCE_KEY, `sku-${index}`, 500 + index),
+    ),
+  });
+  const product = store.products?.[0];
+  assert.ok(product);
+  product.alibabaPinnedOfferKey = 'offer-104';
+  const result = await promoteLinkedProduct({ sourceKey: SOURCE_KEY, guard: GUARD, now: NOW });
+  assert.equal(result.ok, true);
+  assert.equal(store.products?.[0]?.alibabaPrimaryOfferKey, 'offer-104');
+  assert.equal(
+    (store.products?.[0]?.alibabaCatalogPricing as { amountMinor: number }).amountMinor,
+    604,
+  );
+});
+
+test('ordinary linked-product promotion refreshes the compact source review projection', async () => {
+  setup({
+    catalogSourceObservations: [
+      {
+        _id: sourceObservationDocumentId('alibaba', SOURCE_KEY),
+        observation: {
+          schemaVersion: 'catalog-source-observation-v1',
+          source: {
+            provider: 'alibaba',
+            sourceProductKey: SOURCE_KEY,
+            externalProductId: '987',
+            observedAt: NOW,
+            captureMode: 'incremental',
+            completeness: 'full-product',
+          },
+          identity: {
+            title: 'Source title',
+            matchHints: {},
+            category: { sourceTaxonomy: 'alibaba:icbu', sourceCategoryId: '44' },
+            attributes: [],
+          },
+          content: { media: [] },
+          lifecycle: { sourceListingStatus: 'published' },
+          variants: [],
+          offers: [],
+          evidence: [{ kind: 'raw-payload', evidenceId: 'a'.repeat(64) }],
+          warnings: [],
+        },
+      } as CollectionDoc,
+    ],
+  });
+
+  const result = await promoteLinkedProduct({ sourceKey: SOURCE_KEY, guard: GUARD, now: NOW });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(store.products?.[0]?.alibabaSourceReview, {
+    schemaVersion: 'alibaba-source-review-v1',
+    provider: 'alibaba',
+    externalProductId: '987',
+    sourceCategoryId: '44',
+    sourceListingStatus: 'published',
+    variantCount: 0,
+    offerCount: 0,
+    modelNumbers: [],
+    optionNames: [],
+  });
 });
 
 test('a stale holder cannot promote after fence takeover (write rejected, doc untouched)', async () => {
@@ -278,9 +506,7 @@ test('a >30% price move applies but raises the alert; unchanged repromotion repo
 
 test('source deletion demotes to removed + canonical unavailable while preserving legacy fields', async () => {
   setup({
-    alibabaSourceProducts: [
-      { _id: SOURCE_KEY, sourceKey: SOURCE_KEY, active: false } as CollectionDoc,
-    ],
+    alibabaSourceProducts: [sourceDoc({ active: false })],
   });
   const result = await promoteLinkedProduct({ sourceKey: SOURCE_KEY, guard: GUARD, now: NOW });
   assert.equal(result.ok, true);

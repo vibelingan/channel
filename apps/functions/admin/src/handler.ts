@@ -21,6 +21,7 @@ import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password'
 import {
   UnknownCollectionError,
   acquireImageMutation,
+  alibabaLinkRevision,
   backfillPublishedRefCounts,
   batchRemove,
   batchUpdate,
@@ -30,8 +31,11 @@ import {
   get,
   incrementField,
   list,
+  manageCatalogDetailApproval,
+  manageCatalogInquiry,
   releaseImageMutation,
   remove,
+  saveCatalogProductWithIdentities,
   update,
   updateDoc,
 } from '@vibelingan-channel/db';
@@ -84,12 +88,15 @@ import {
   canReadCollection,
   canReadRegisteredCollection,
   catalogImageUploadSchema,
+  catalogReferencedImageIds,
   err,
   evaluateFixedWindowRateLimit,
   fileExtension,
   getCollection,
   isKnownCollection,
   normalizeCatalogImageIds,
+  normalizeProductSlug,
+  normalizeSkuCode,
   oemFileUploadSchema,
   ok,
   rateLimited,
@@ -100,8 +107,14 @@ import {
   toRole,
   withinPendingCap,
 } from '@vibelingan-channel/shared';
+import {
+  type InquiryEnvelope,
+  inquiryErrorMessages,
+} from '@vibelingan-channel/shared/catalog-inquiry';
 import { releaseInfo } from '@vibelingan-channel/shared/release';
 import { z } from 'zod';
+import { manageCatalogCategories, saveCategoryMapping } from './catalog-categories.ts';
+import { prepareCatalogSource } from './catalog-detail-source.ts';
 import {
   CatalogProductWriteError,
   createCatalogProductRecord,
@@ -110,6 +123,9 @@ import {
 
 export interface AdminConfig {
   jwtSecret: string;
+  enableInquiries?: boolean;
+  /** Rollout gate: keep disabled until producer, frontend and resource manifest ship together. */
+  enableDetailApproval?: boolean;
   /** Absolute URL of the login page, used in emails. */
   loginUrl?: string;
   /** Absolute URL of the password-reset page; the reset token is appended as `?token=`. */
@@ -127,6 +143,7 @@ export interface AdminRequest {
   data?: unknown;
   token?: string;
 }
+export type AdminResult = ApiResult<unknown> | InquiryEnvelope;
 
 /**
  * Per-request context the transport (HTTP adapter) derives from the raw event
@@ -196,6 +213,7 @@ const sortClauseSchema = z.object({
 const listSchema = z.object({
   collection: z.string(),
   productFamily: z.enum(PRODUCT_FAMILY_OPTIONS).optional(),
+  needsClassification: z.boolean().optional(),
   page: z.number().int().positive().default(1),
   pageSize: z.number().int().positive().max(100).default(20),
   search: z.string().max(200).default(''),
@@ -218,6 +236,7 @@ const batchRemoveSchema = z.object({
   collection: z.string(),
   ids: z.array(z.string().min(1)).min(1).max(500),
 });
+const markProductReviewedSchema = z.object({ productId: z.string().min(1).max(200) });
 
 const completeUploadSchema = z.object({
   imageId: z.string().min(1),
@@ -408,6 +427,10 @@ function redact(collection: string, doc: CollectionDoc): CollectionDoc {
     } = doc;
     return rest as CollectionDoc;
   }
+  if (collection === 'products') {
+    const { alibabaReviewedByUserId: _reviewer, ...rest } = doc;
+    return rest as CollectionDoc;
+  }
   return doc;
 }
 
@@ -512,7 +535,7 @@ export async function handleAdminRequest(
   req: AdminRequest,
   config: AdminConfig,
   context?: RequestContext,
-): Promise<ApiResult<unknown>> {
+): Promise<AdminResult> {
   try {
     // ---- Public auth actions ------------------------------------------
     switch (req.action) {
@@ -544,6 +567,67 @@ export async function handleAdminRequest(
     switch (req.action) {
       case 'me':
         return await me(claims);
+      case 'inquiryCapabilities':
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        return ok({ enabled: config.enableInquiries === true, notification: 'disabled' });
+      case 'catalogDetailCapabilities':
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        return ok({ enabled: config.enableDetailApproval === true });
+      case 'catalogCategories':
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        if (Buffer.byteLength(JSON.stringify(req.data ?? null), 'utf8') > 16384)
+          return err('VALIDATION_ERROR', 'Category request is too large.');
+        return ok(await manageCatalogCategories(claims.sub, req.data));
+      case 'catalogDetailApproval': {
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        if (config.enableDetailApproval !== true)
+          return err('FORBIDDEN', 'Catalog detail approval is not enabled.');
+        if (Buffer.byteLength(JSON.stringify(req.data ?? null), 'utf8') > 4096)
+          return err('VALIDATION_ERROR', 'Approval request is too large.');
+        const result =
+          req.data && typeof req.data === 'object' && Reflect.get(req.data, 'action') === 'prepare'
+            ? await prepareCatalogSource(claims.sub, req.data)
+            : await manageCatalogDetailApproval(claims.sub, req.data);
+        if (result.ok) return ok(result);
+        if (result.code === 'SOURCE_NOT_READY')
+          return err(
+            'CONFLICT',
+            'The complete product data is not ready for review. Refresh after synchronization finishes.',
+          );
+        if (result.code === 'MEDIA_NOT_READY')
+          return err(
+            'CONFLICT',
+            'The product images are missing or busy. Confirm the gallery before approval.',
+          );
+        if (result.code === 'APPROVAL_TOO_LARGE')
+          return err(
+            'VALIDATION_ERROR',
+            'Too many images changed at once. Save and approve gallery changes separately from description-image changes. The current website version has not changed.',
+          );
+        return err(
+          result.code,
+          result.code === 'CONFLICT'
+            ? 'The reviewed product changed. Refresh and review it again.'
+            : 'The catalog approval could not be completed.',
+        );
+      }
+      case 'inquiry': {
+        if (claims.role !== 'admin') return err('FORBIDDEN', 'Admin permission is required.');
+        if (config.enableInquiries !== true)
+          return err('FORBIDDEN', 'Product inquiries are not enabled.');
+        if (Buffer.byteLength(JSON.stringify(req.data ?? null), 'utf8') > 16384)
+          return err('VALIDATION_ERROR', 'Inquiry request is too large.');
+        const result = await manageCatalogInquiry(claims.sub, req.data);
+        return result.ok
+          ? result
+          : {
+              ok: false,
+              error: {
+                code: result.code,
+                message: inquiryErrorMessages[result.code] ?? 'Request could not be completed.',
+              },
+            };
+      }
       case 'updateProfile':
         return await updateProfile(req, claims, config);
       case 'changePassword':
@@ -559,13 +643,17 @@ export async function handleAdminRequest(
       case 'create':
         return await createAction(req, claims);
       case 'update':
-        return await updateAction(req, claims);
+        return await updateAction(req, claims, config);
       case 'remove':
         return await removeAction(req, claims);
       case 'batchUpdate':
         return await batchUpdateAction(req, claims);
       case 'batchRemove':
         return await batchRemoveAction(req, claims);
+      case 'productReviewSummary':
+        return await productReviewSummaryAction(claims);
+      case 'markProductReviewed':
+        return await markProductReviewedAction(req, claims);
       case 'backfillImageRefCounts':
         return await backfillImageRefCountsAction(req, claims);
       case 'cleanupOrphanImages':
@@ -1252,19 +1340,161 @@ async function listAction(req: AdminRequest, claims: SessionClaims): Promise<Api
   if (!canReadRegisteredCollection(claims.role, parsed.data.collection)) {
     return err('FORBIDDEN', 'You do not have access to this collection.');
   }
-  if (parsed.data.productFamily && parsed.data.collection !== 'products') {
+  if (
+    (parsed.data.productFamily || parsed.data.needsClassification) &&
+    parsed.data.collection !== 'products'
+  ) {
     return err('BAD_REQUEST', 'Product family filtering is only available for products.');
   }
-  const { filter, productFamily, sort, ...rest } = parsed.data;
+  if (parsed.data.productFamily && parsed.data.needsClassification) {
+    return err('BAD_REQUEST', 'Choose a product family or the unclassified queue, not both.');
+  }
+  const { filter, productFamily, needsClassification, sort, ...rest } = parsed.data;
   const badClause = validateQueryClauses(parsed.data.collection, filter, sort);
   if (badClause) return badClause;
+  // Entering Products is an operational review queue: unless the operator
+  // explicitly chose another column sort, first-seen Alibaba drafts lead the
+  // result set. A compound CloudBase index backs both All and family views.
+  const effectiveSort =
+    parsed.data.collection === 'products' && (!sort || sort.length === 0)
+      ? [
+          { field: 'alibabaReviewPending', dir: 'desc' as const },
+          { field: 'createdAt', dir: 'desc' as const },
+          ...(needsClassification ? [{ field: '_id', dir: 'asc' as const }] : []),
+        ]
+      : sort;
   const result = await list({
     ...rest,
     ...(productFamily ? { productFamily } : {}),
+    ...(needsClassification ? { needsClassification: true } : {}),
     ...(filter ? { filter } : {}),
-    ...(sort ? { sort } : {}),
+    ...(effectiveSort ? { sort: effectiveSort } : {}),
   });
   return ok({ ...result, items: result.items.map((d) => redact(parsed.data.collection, d)) });
+}
+
+async function pendingProductCount(productFamily?: (typeof PRODUCT_FAMILY_OPTIONS)[number]) {
+  const result = await list({
+    collection: 'products',
+    page: 1,
+    pageSize: 1,
+    search: '',
+    filter: {
+      combinator: 'and',
+      clauses: [
+        { field: 'alibabaReviewPending', op: 'eq', value: true },
+        ...(productFamily
+          ? [{ field: 'productFamily', op: 'eq' as const, value: productFamily }]
+          : []),
+      ],
+    },
+    sort: [
+      { field: 'alibabaReviewPending', dir: 'desc' },
+      { field: 'createdAt', dir: 'desc' },
+    ],
+  });
+  return result.total;
+}
+
+async function productReviewSummaryAction(claims: SessionClaims): Promise<ApiResult<unknown>> {
+  if (claims.role !== 'admin') {
+    return err('FORBIDDEN', 'Only admins can view the Alibaba review queue summary.');
+  }
+  const [total, ...familyCounts] = await Promise.all([
+    pendingProductCount(),
+    ...PRODUCT_FAMILY_OPTIONS.map((family) => pendingProductCount(family)),
+  ]);
+  return ok({
+    pendingTotal: total,
+    byFamily: Object.fromEntries(
+      PRODUCT_FAMILY_OPTIONS.map((family, index) => [family, familyCounts[index] ?? 0]),
+    ),
+  });
+}
+
+async function acknowledgeAlibabaProductReview(
+  product: CollectionDoc,
+  values: Record<string, unknown>,
+  reviewerId: string,
+  requireDetailApproval = false,
+) {
+  const data = { ...values };
+  for (const field of ['slug', 'skuCode'] as const) {
+    const value = data[field];
+    if (value === undefined || value === null) continue;
+    const normalized =
+      typeof value === 'string' && value.trim() === ''
+        ? ''
+        : field === 'slug'
+          ? normalizeProductSlug(value)
+          : normalizeSkuCode(value);
+    if (normalized === null) {
+      throw new CatalogProductWriteError('INVALID_IDENTITY', `Product ${field} is invalid.`);
+    }
+    data[field] = normalized;
+  }
+  const result = await saveCatalogProductWithIdentities({
+    mode: 'update',
+    productId: product._id,
+    data: {
+      ...data,
+      alibabaReviewPending: false,
+      alibabaReviewedAt: new Date().toISOString(),
+      alibabaReviewedByUserId: reviewerId,
+    },
+    expectedAlibabaIdentity: {
+      revision: alibabaLinkRevision(product),
+      primarySourceKey:
+        typeof product.alibabaPrimarySourceKey === 'string'
+          ? product.alibabaPrimarySourceKey
+          : null,
+    },
+    requireDetailApproval,
+  });
+  if (result.result === 'saved') return result;
+  if (result.result === 'alibaba-identity-conflict') {
+    throw new CatalogProductWriteError(
+      'IDENTITY_CONFLICT',
+      'The Alibaba product source changed. Refresh and review the current source.',
+    );
+  }
+  if (result.result === 'conflict') {
+    throw new CatalogProductWriteError(
+      'IDENTITY_CONFLICT',
+      `Product ${result.kind} is already in use: ${result.normalizedValue}`,
+    );
+  }
+  if (result.result === 'invalid') {
+    throw new CatalogProductWriteError('INVALID_IDENTITY', `Product ${result.kind} is invalid.`);
+  }
+  if (result.result === 'invalid-product') {
+    throw new CatalogProductWriteError(
+      'INVALID_PRODUCT',
+      result.issues.map((issue) => issue.message).join('; '),
+    );
+  }
+  throw new CatalogProductWriteError('PRODUCT_NOT_FOUND', 'Product was not found.');
+}
+
+async function markProductReviewedAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+): Promise<ApiResult<unknown>> {
+  if (claims.role !== 'admin') {
+    return err('FORBIDDEN', 'Only admins can acknowledge Alibaba product reviews.');
+  }
+  const parsed = markProductReviewedSchema.safeParse(req.data);
+  if (!parsed.success) return err('BAD_REQUEST', 'productId is required');
+  const product = await get('products', parsed.data.productId);
+  if (!product) return err('NOT_FOUND', 'Product not found');
+  if (typeof product.alibabaPrimarySourceKey !== 'string' || !product.alibabaPrimarySourceKey) {
+    return err('CONFLICT', 'Only Alibaba-linked products belong to this review queue.');
+  }
+  const result = await acknowledgeAlibabaProductReview(product, {}, claims.sub);
+  return ok({
+    ...redact('products', result.doc),
+    ...(result.previous?.alibabaReviewPending === false ? { alreadyReviewed: true } : {}),
+  });
 }
 
 async function getAction(req: AdminRequest, claims: SessionClaims): Promise<ApiResult<unknown>> {
@@ -1295,7 +1525,7 @@ function tracksImageVisibility(collection: string): boolean {
  */
 function publishedImageIdSet(doc: CollectionDoc | null): Set<string> {
   if (!doc || doc.published !== true) return new Set();
-  return new Set(normalizeCatalogImageIds(doc.imageIds));
+  return new Set(catalogReferencedImageIds(doc));
 }
 
 /**
@@ -1476,12 +1706,7 @@ async function findImageReference(
           : {}),
       });
       for (const document of result.items) {
-        if (
-          Array.isArray(document.imageIds) &&
-          document.imageIds.some(
-            (candidate) => typeof candidate === 'string' && candidate.trim() === imageId,
-          )
-        ) {
+        if (catalogReferencedImageIds(document).includes(imageId)) {
           return { collection: definition.name, documentId: String(document._id) };
         }
       }
@@ -1594,6 +1819,10 @@ async function createAction(req: AdminRequest, claims: SessionClaims): Promise<A
       const transition = await createCatalogProductRecord(values);
       doc = transition.doc;
       authoritativeBefore = transition.previous;
+    } else if (parsed.data.collection === 'sourceCategoryMappings') {
+      const mapping = await saveCategoryMapping(parsed.data.values);
+      if (!mapping) return err('CONFLICT', 'Category mapping was not saved. Refresh and retry.');
+      doc = mapping;
     } else {
       doc = await create(parsed.data.collection, parsed.data.values);
     }
@@ -1606,7 +1835,11 @@ async function createAction(req: AdminRequest, claims: SessionClaims): Promise<A
   }
 }
 
-async function updateAction(req: AdminRequest, claims: SessionClaims): Promise<ApiResult<unknown>> {
+async function updateAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+  config: AdminConfig,
+): Promise<ApiResult<unknown>> {
   const parsed = updateSchema.safeParse(req.data);
   if (!parsed.success) return err('BAD_REQUEST', 'collection, id and values are required');
   if (!canEditRegisteredCollection(claims.role, parsed.data.collection)) {
@@ -1638,9 +1871,18 @@ async function updateAction(req: AdminRequest, claims: SessionClaims): Promise<A
       const productValues = clearsManualPricing ? productValuesWithoutPricing : parsed.data.values;
       const values = buildWriteSchema(definition).partial().parse(productValues);
       if (clearsManualPricing) values.manualCatalogPricing = '';
-      const transition = await updateCatalogProductRecord(parsed.data.id, values);
+      const acknowledgesReview =
+        before?.alibabaReviewPending === true &&
+        (values.published === true || values.archived === true);
+      const requiresApproval = config.enableDetailApproval === true && values.published === true;
+      const transition =
+        acknowledgesReview && before
+          ? await acknowledgeAlibabaProductReview(before, values, claims.sub, requiresApproval)
+          : await updateCatalogProductRecord(parsed.data.id, values, requiresApproval);
       doc = transition.doc;
       authoritativeBefore = transition.previous;
+    } else if (parsed.data.collection === 'sourceCategoryMappings') {
+      doc = await saveCategoryMapping(parsed.data.values, parsed.data.id);
     } else {
       doc = await update(parsed.data.collection, parsed.data.id, parsed.data.values);
     }
@@ -1686,6 +1928,11 @@ async function batchUpdateAction(
   if (parsed.data.collection === 'products') {
     return err('BAD_REQUEST', 'Products must be updated individually.');
   }
+  if (parsed.data.collection === 'sourceCategoryMappings')
+    return err(
+      'BAD_REQUEST',
+      'Category rules must be edited individually to validate their source identity.',
+    );
   const tracks = tracksImageVisibility(parsed.data.collection);
   // Capture before-states once per unique id (a duplicate id must not double
   // count the visibility delta).

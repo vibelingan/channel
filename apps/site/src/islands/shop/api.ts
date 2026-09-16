@@ -196,6 +196,9 @@ function isProduct(value: unknown): value is Product {
     return false;
   }
   return (
+    (value.catalogPricingMode === undefined ||
+      value.catalogPricingMode === 'source' ||
+      value.catalogPricingMode === 'manual') &&
     (value.alibabaCatalogPricing === undefined ||
       isAlibabaCatalogPricing(value.alibabaCatalogPricing)) &&
     (value.manualCatalogPricing === undefined ||

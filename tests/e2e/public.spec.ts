@@ -28,6 +28,69 @@ const longNameMember = {
   role: 'member',
 } satisfies SessionUser;
 
+test('auth forms cannot submit credentials before JavaScript is ready', async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  try {
+    const page = await context.newPage();
+    for (const path of ['/login', '/register', '/reset?token=synthetic-reset-token']) {
+      await page.goto(`${e2e.siteUrl}${path}`, { waitUntil: 'domcontentloaded' });
+      const password = page.locator('input[type="password"]');
+      await expect(password).toBeDisabled();
+      await expect(page.locator('form button[type="submit"]')).toBeDisabled();
+      await expect(page.locator('form')).toHaveAttribute('method', 'post');
+      // Playwright text selectors exclude NOSCRIPT even in a no-JS context.
+      expect(await page.locator('form noscript').textContent()).toBe(
+        'Enable JavaScript to use this secure form.',
+      );
+      await expect(page.locator('form noscript')).toBeVisible();
+    }
+  } finally {
+    await context.close();
+  }
+});
+
+test('delayed auth hydration enables one JSON POST, never a password URL', async ({ page }) => {
+  let releaseScripts!: () => void;
+  const scriptsReady = new Promise<void>((resolve) => {
+    releaseScripts = resolve;
+  });
+  await page.route('**/_astro/*.js', async (route) => {
+    await scriptsReady;
+    await route.continue();
+  });
+  const requests: { method: string; action: string }[] = [];
+  await page.route('**/api/admin', async (route) => {
+    requests.push({
+      method: route.request().method(),
+      action: route.request().postDataJSON().action,
+    });
+    await route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: false,
+        error: { code: 'UNAUTHORIZED', message: 'Invalid email or password.' },
+      }),
+    });
+  });
+  try {
+    await page.goto('/login', { waitUntil: 'commit' });
+    await expect(page.getByLabel('Password', { exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeDisabled();
+    releaseScripts();
+    await expect(page.getByLabel('Password', { exact: true })).toBeEnabled();
+    await page.getByLabel('Email', { exact: true }).fill('synthetic-auth@example.invalid');
+    await page.getByLabel('Password', { exact: true }).fill('synthetic-not-a-real-password');
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await expect(page.getByText('Invalid email or password.', { exact: true })).toBeVisible();
+    expect(requests).toEqual([{ method: 'POST', action: 'login' }]);
+    expect(new URL(page.url()).search).toBe('');
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
+  } finally {
+    releaseScripts();
+  }
+});
+
 function captureConsoleProblems(page: Page): string[] {
   const problems: string[] = [];
   page.on('console', (message) => {
@@ -746,10 +809,24 @@ test.describe('public browser smoke', () => {
         expect(rendered.height).toBeGreaterThan(0);
       }
 
+      const selectedId = await productCards.first().getAttribute('data-product-card');
+      expect(selectedId).toBeTruthy();
       await productCards.first().click();
-      await expect(page.locator('[data-product-detail]')).toBeVisible();
-      await page.getByRole('button', { name: 'Back to all products', exact: true }).click();
-      await expect(page.locator('[data-product-detail]')).toHaveCount(0);
+      // Approved source products use the shared detail; legacy/manual records
+      // remain on the compatible legacy detail. Assert identity, not just a shell.
+      const openedDetail = page.locator('[data-product-detail], [data-shared-catalog-detail]');
+      await expect(openedDetail).toHaveCount(1);
+      await expect(openedDetail).toBeVisible();
+      expect(
+        await openedDetail.evaluate(
+          (element) =>
+            element.getAttribute('data-shared-catalog-detail') ??
+            element.getAttribute('data-product-detail'),
+        ),
+      ).toBe(selectedId);
+      await expect(openedDetail.getByRole('heading', { level: 1 })).toBeVisible();
+      await page.getByRole('button', { name: 'Back to catalog', exact: true }).click();
+      await expect(openedDetail).toHaveCount(0);
       await expect(productCards.first()).toBeVisible();
     }
   });
@@ -762,6 +839,30 @@ test.describe('public browser smoke', () => {
     const requestedImageIds: string[] = [];
     let catalogMode: 'gallery' | 'fallback' = 'gallery';
     let releaseDetailFallback: (() => void) | undefined;
+
+    // Legacy fixtures have no approved shared detail. Model BOTH endpoints:
+    // the new contract returns 404, then the public legacy item is fetched.
+    await page.route('**/api/products/miu8-**', (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path.endsWith('/detail')) return route.fulfill({ status: 404, body: '' });
+      const id = path.split('/').at(-1);
+      const missing = id === 'miu8-product-missing';
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          data: {
+            _id: id,
+            name: missing
+              ? 'MIU 8 Missing Product'
+              : `MIU 8 Product ${id?.endsWith('-a') ? 'A' : 'B'}`,
+            category: 'bluetooth',
+            images: missing ? [imagePath('miu8-missing')] : imageIdsA.map(imagePath),
+          },
+        }),
+      });
+    });
 
     await page.route('**/api/products?**', (route) => {
       const items =
@@ -873,11 +974,13 @@ test.describe('public browser smoke', () => {
         .poll(() => [...new Set(requestedImageIds)].sort())
         .toEqual(imageIdsA.slice(0, 4).sort());
       expect(requestedImageIds.length).toBeGreaterThanOrEqual(4);
-      expect(requestedImageIds.length).toBeLessThanOrEqual(5);
+      // Two visible list cards share the primary URL, and dedicated detail
+      // mounts a third primary consumer. no-store intentionally counts all.
+      expect(requestedImageIds.length).toBeLessThanOrEqual(6);
       for (const id of imageIdsA.slice(0, 4)) {
         const count = requestedImageIds.filter((requestedId) => requestedId === id).length;
         expect(count, `${id} request multiplicity`).toBeGreaterThanOrEqual(1);
-        expect(count, `${id} request multiplicity`).toBeLessThanOrEqual(id === 'miu8-a1' ? 2 : 1);
+        expect(count, `${id} request multiplicity`).toBeLessThanOrEqual(id === 'miu8-a1' ? 3 : 1);
       }
 
       await frame.scrollIntoViewIfNeeded();
@@ -1002,6 +1105,8 @@ test.describe('public browser smoke', () => {
       await expect(viewAll).toHaveText('Show Less');
       await expect(viewAll).toBeFocused();
 
+      await page.getByRole('button', { name: 'Back to catalog', exact: true }).click();
+      await expect(productA).toBeFocused();
       await productB.click();
       await expect(thumbnails).toHaveCount(4);
       await expect(viewAll).toHaveAttribute('aria-expanded', 'false');
@@ -1020,7 +1125,9 @@ test.describe('public browser smoke', () => {
         const options = host.__miu8ScrollOptions;
         return typeof options === 'object' ? options.behavior : undefined;
       });
-      expect(scrollBehavior).toBe(viewport.width === 390 ? 'auto' : 'smooth');
+      // The dedicated detail route positions its Back action immediately;
+      // scrolling is never animated, including reduced-motion mode.
+      expect(scrollBehavior).toBe('instant');
 
       catalogMode = 'fallback';
       requestedImageIds.length = 0;
@@ -1090,6 +1197,18 @@ test.describe('public browser smoke', () => {
       switch (payload.action) {
         case 'me':
           data = { user: adminUser };
+          break;
+        case 'inquiryCapabilities':
+          data = { enabled: false, notification: 'disabled' };
+          break;
+        case 'catalogDetailCapabilities':
+          data = { enabled: false };
+          break;
+        case 'productReviewSummary':
+          data = {
+            pendingTotal: 0,
+            byFamily: { headphones: 0, 'ai-gadgets': 0, toys: 0, misc: 0 },
+          };
           break;
         case 'list':
           data =
@@ -1226,6 +1345,10 @@ test.describe('public browser smoke', () => {
     await expect(existingManager.locator('output')).toContainText('Image removed');
     await expect(existingInput).toBeEnabled();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'Edit Product' })).toContainText(
+      'Discard your unsaved changes?',
+    );
+    await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
 
     await page.getByRole('button', { name: /^New / }).click();
 
@@ -1304,6 +1427,15 @@ test.describe('public browser smoke', () => {
       '7b76ee416a68209d0110670520562928',
       '0e0afdc26a68209c00523a7b50cb8647',
     ] as const;
+    // Isolate hero retry counts from product cards that may legitimately share
+    // these same image identities. Real hero bytes remain unmocked initially.
+    await page.route('**/api/products?*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, data: { items: [], total: 0, page: 1, pageSize: 12 } }),
+      }),
+    );
 
     // client:load SSR. Assert ONLY on markup that client:load emits: the
     // wrapper div and the island's serialized props exist under client:only
@@ -1327,6 +1459,13 @@ test.describe('public browser smoke', () => {
     await expect(heroMedia).toBeVisible();
     const heroImage = heroMedia.locator('[data-product-media="image"]');
     await expect(heroImage).toBeVisible();
+    await expect(
+      page.locator('p:not(.sr-only)', { hasText: 'No products match these filters.' }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(() => window.scrollY),
+      'initial hydration must not auto-scroll to the list',
+    ).toBe(0);
     // Unrouted load: the FIRST reviewed source is the one actually served.
     await expect(heroImage).toHaveAttribute('src', new RegExp(heroSourceIds[0]));
     const mediaBox = await heroMedia.boundingBox();
@@ -1467,6 +1606,17 @@ test.describe('public browser smoke', () => {
     }));
     const imageRequests: string[] = [];
 
+    await page.route('**/api/products/miu13-focus-**', (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path.endsWith('/detail')) return route.fulfill({ status: 404, body: '' });
+      const product = items.find((item) => item._id === path.split('/').at(-1));
+      return route.fulfill({
+        status: product ? 200 : 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: Boolean(product), data: product }),
+      });
+    });
+
     await page.route('**/api/products?**', (route) =>
       route.fulfill({
         status: 200,
@@ -1575,7 +1725,7 @@ test.describe('public browser smoke', () => {
       await expect(page.getByText('Factory Strength & Quality Assurance')).toHaveCount(0);
 
       // Back returns focus to the originating card.
-      await page.locator('[data-detail-back]').click();
+      await page.getByRole('button', { name: 'Back to catalog', exact: true }).click();
       await expect(page.locator('[data-product-detail]')).toHaveCount(0);
       await expect(originCard).toBeFocused();
 
@@ -1583,14 +1733,11 @@ test.describe('public browser smoke', () => {
       // open handler cannot rely on the active product changing identity.
       await page.keyboard.press('Enter');
       await expect(heading).toBeFocused();
-      await originCard.focus();
-      await page.keyboard.press('Enter');
-      await expect(
-        heading,
-        `re-activating the open card refocuses its heading at ${viewport.width}px`,
-      ).toBeFocused();
-      await page.locator('[data-detail-back]').click();
+      // A dedicated detail hides (but preserves) the list; return before
+      // another activation instead of trying to focus an invisible card.
+      await page.getByRole('button', { name: 'Back to catalog', exact: true }).click();
       await expect(page.locator('[data-product-detail]')).toHaveCount(0);
+      await expect(originCard).toBeFocused();
     }
 
     await page.unroute('**/api/images/**');
@@ -1757,7 +1904,8 @@ test.describe('public browser smoke', () => {
       await expect(signedInPage.locator('[data-menu-toggle]')).toBeVisible();
       const mobileAccountTrigger = signedInPage
         .locator('[data-mobile-menu]')
-        .getByRole('button', { name: new RegExp(longNameMember.username) });
+        .getByRole('link', { name: 'Account settings', exact: true });
+      await expect(mobileAccountTrigger).toHaveAttribute('href', '/account');
       await expect(mobileAccountTrigger).toBeFocused();
       expect(
         await signedInPage.evaluate(
@@ -1789,7 +1937,7 @@ test.describe('public browser smoke', () => {
       await expect(
         signedInPage
           .locator('[data-mobile-menu]')
-          .getByRole('button', { name: new RegExp(longNameMember.username) }),
+          .getByRole('link', { name: 'Account settings', exact: true }),
       ).toBeFocused();
     } finally {
       await signedInContext.close();
@@ -1902,6 +2050,23 @@ test.describe('public browser smoke', () => {
       await expect(filing).toHaveAttribute('href', 'https://beian.miit.gov.cn/');
       await expect(filing).toHaveAttribute('target', '_blank');
       await expect(filing).toHaveAttribute('rel', 'noopener noreferrer');
+    }
+  });
+
+  test('public contact email is consistent in visible links and structured data', async ({
+    page,
+  }) => {
+    for (const path of ['/', '/headphones', '/oem']) {
+      await page.goto(path, { waitUntil: 'domcontentloaded' });
+      const contact = page.getByRole('link', {
+        name: 'Email: sales@supplychainsai.com',
+        exact: true,
+      });
+      await expect(contact).toHaveAttribute('href', 'mailto:sales@supplychainsai.com');
+      await expect(page.locator('a[href="mailto:info@supplychainsai.com"]')).toHaveCount(0);
+      const structured = await page.locator('script[type="application/ld+json"]').allTextContents();
+      expect(structured.join('\n')).toContain('sales@supplychainsai.com');
+      expect(structured.join('\n')).not.toContain('info@supplychainsai.com');
     }
   });
 

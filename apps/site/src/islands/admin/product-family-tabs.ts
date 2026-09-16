@@ -1,11 +1,17 @@
 import { type ProductFamily, isProductFamily } from '@vibelingan-channel/shared';
 import type { ListArgs } from './api.ts';
 
-export type AdminProductFamily = ProductFamily | null;
+export type AdminProductFamily = ProductFamily | 'unclassified' | null;
+export const ADMIN_PRODUCT_FAMILY_LABELS: Record<ProductFamily, string> = {
+  headphones: 'Headphones',
+  'ai-gadgets': 'AI Gadgets',
+  toys: 'Toys',
+  misc: 'Misc',
+};
 
 export function adminProductFamilyFromSearch(search: string): AdminProductFamily {
   const value = new URLSearchParams(search).get('productFamily');
-  return isProductFamily(value) ? value : null;
+  return isProductFamily(value) || value === 'unclassified' ? value : null;
 }
 
 export function adminProductFamilySearch(
@@ -20,8 +26,17 @@ export function adminProductFamilySearch(
 }
 
 export function productFamilyListArgs(args: ListArgs, productFamily: AdminProductFamily): ListArgs {
+  const {
+    productFamily: _previousFamily,
+    needsClassification: _previousScope,
+    ...scopedArgs
+  } = args;
   return {
-    ...args,
-    ...(args.collection === 'products' && productFamily ? { productFamily } : {}),
+    ...scopedArgs,
+    ...(args.collection === 'products' && productFamily
+      ? productFamily === 'unclassified'
+        ? { needsClassification: true }
+        : { productFamily }
+      : {}),
   };
 }

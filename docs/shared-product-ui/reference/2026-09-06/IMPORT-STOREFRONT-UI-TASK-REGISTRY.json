@@ -1,0 +1,374 @@
+{
+  "schemaVersion": "dianxiaomi-catalog-ui-registry-v1",
+  "updatedAt": "2026-09-02T00:00:00Z",
+  "status": "design-only",
+  "baselines": {
+    "dianxiaomiImport": "origin/feat/dianxiaomi-excel-import@0cf5526",
+    "catalogRefactor": "origin/refactor/catalog-architecture-hardening@759a214",
+    "main": "origin/main@78506d5"
+  },
+  "activationPolicy": {
+    "activeReservations": [],
+    "rule": "Re-read live refs and worktrees, satisfy dependencies and named gates, then reserve exact files before implementation.",
+    "sequentialRule": "Any file reserved by the Catalog refactor or an earlier DXUI MIU must be released before a later MIU activates.",
+    "deploymentRule": "Deployment, CloudBase mutation and real notifications require a separate explicit authorization gate."
+  },
+  "gates": {
+    "G-CAT-BASE": "Reviewed Catalog refactor integration base and exact SHA",
+    "G-CAT-MEDIA": "Catalog refactor MIU 12 released with Gallery delegation proof",
+    "G-CAT-ROUTE": "Catalog refactor MIUs 15-22 released or exact ownership transferred",
+    "G-IMPORT-ACTIONS": "Production import action contracts frozen",
+    "G-RFQ-BIZ": "RFQ lifecycle, recipients, SLA and out-of-stock policy approved",
+    "G-IMPORT-ROLE": "Import approval/apply roles approved",
+    "G-DEPLOY": "Exact environment and release mutation/deployment authorized"
+  },
+  "tasks": [
+    {
+      "id": "DXUI-00",
+      "title": "Replace the hand-written HTML parser",
+      "status": "planned",
+      "dependsOn": [],
+      "gates": [],
+      "files": [
+        "packages/catalog-import/package.json",
+        "packages/catalog-import/src/descriptions.ts",
+        "packages/catalog-import/src/descriptions.test.ts",
+        "pnpm-lock.yaml"
+      ],
+      "sequentialAfter": []
+    },
+    {
+      "id": "DXUI-01",
+      "title": "Canonical public product-detail contract",
+      "status": "blocked",
+      "dependsOn": [],
+      "gates": ["G-CAT-BASE"],
+      "files": [
+        "packages/shared/src/catalog/index.ts",
+        "packages/shared/src/catalog/index.test.ts"
+      ],
+      "sequentialAfter": ["catalog-refactor-MIU-02"]
+    },
+    {
+      "id": "DXUI-02",
+      "title": "Conservative catalog-content evidence extractor",
+      "status": "planned",
+      "dependsOn": ["DXUI-00"],
+      "gates": [],
+      "files": [
+        "packages/catalog-import/src/catalog-content-evidence.ts",
+        "packages/catalog-import/src/catalog-content-evidence.test.ts",
+        "packages/catalog-import/src/index.ts"
+      ],
+      "sequentialAfter": []
+    },
+    {
+      "id": "DXUI-03",
+      "title": "Attach evidence to provider-neutral candidates",
+      "status": "planned",
+      "dependsOn": ["DXUI-02"],
+      "gates": [],
+      "files": [
+        "packages/catalog-import/src/contracts.ts",
+        "packages/catalog-import/src/grouping.ts",
+        "packages/catalog-import/src/grouping.test.ts"
+      ],
+      "sequentialAfter": []
+    },
+    {
+      "id": "DXUI-04",
+      "title": "Persist approved canonical content",
+      "status": "planned",
+      "dependsOn": ["DXUI-03"],
+      "gates": [],
+      "files": [
+        "packages/shared/src/collections.ts",
+        "apps/functions/admin/src/catalog-import-publish.ts",
+        "apps/functions/admin/src/catalog-import-publish.test.ts"
+      ],
+      "sequentialAfter": []
+    },
+    {
+      "id": "DXUI-05",
+      "title": "Detail-only public projection",
+      "status": "blocked",
+      "dependsOn": ["DXUI-01", "DXUI-04"],
+      "gates": ["G-CAT-BASE"],
+      "files": [
+        "apps/functions/public-api/src/catalog/project-public-product-detail.ts",
+        "apps/functions/public-api/src/catalog/project-public-product-detail.test.ts",
+        "apps/functions/public-api/src/handler.ts"
+      ],
+      "sequentialAfter": ["catalog-refactor-MIU-04"]
+    },
+    {
+      "id": "DXUI-06",
+      "title": "Strict browser detail gateway",
+      "status": "blocked",
+      "dependsOn": ["DXUI-01", "DXUI-05"],
+      "gates": ["G-CAT-BASE"],
+      "files": [
+        "apps/site/src/catalog/infrastructure/catalog-api.ts",
+        "apps/site/src/catalog/infrastructure/catalog-api.test.ts",
+        "apps/site/src/test/factories/catalog.ts"
+      ],
+      "sequentialAfter": ["catalog-refactor-MIU-05"]
+    },
+    {
+      "id": "DXUI-07",
+      "title": "Pure real-variant selection module",
+      "status": "planned",
+      "dependsOn": ["DXUI-01"],
+      "gates": [],
+      "files": [
+        "apps/site/src/catalog/application/catalog-variant-state.ts",
+        "apps/site/src/catalog/application/catalog-variant-state.test.ts"
+      ],
+      "sequentialAfter": []
+    },
+    {
+      "id": "DXUI-08",
+      "title": "Variant-media semantic projection",
+      "status": "blocked",
+      "dependsOn": ["DXUI-07"],
+      "gates": ["G-CAT-MEDIA"],
+      "files": [
+        "apps/site/src/catalog/application/catalog-variant-media.ts",
+        "apps/site/src/catalog/application/catalog-variant-media.test.ts"
+      ],
+      "sequentialAfter": ["catalog-refactor-MIU-12"]
+    },
+    {
+      "id": "DXUI-09",
+      "title": "Variant selector and SKU disclosure",
+      "status": "planned",
+      "dependsOn": ["DXUI-07"],
+      "gates": [],
+      "files": [
+        "apps/site/src/catalog/presentation/CatalogVariantSelector.tsx",
+        "apps/site/src/catalog/presentation/CatalogSkuDisclosure.tsx",
+        "apps/site/src/catalog/presentation/catalog-variant-render.test.ts"
+      ],
+      "sequentialAfter": []
+    },
+    {
+      "id": "DXUI-10",
+      "title": "Approved content and specification presentation",
+      "status": "planned",
+      "dependsOn": ["DXUI-01"],
+      "gates": [],
+      "files": [
+        "apps/site/src/catalog/presentation/CatalogContent.tsx",
+        "apps/site/src/catalog/presentation/CatalogSpecifications.tsx",
+        "apps/site/src/catalog/presentation/catalog-content-render.test.ts"
+      ],
+      "sequentialAfter": []
+    },
+    {
+      "id": "DXUI-11",
+      "title": "Deepen the family-neutral detail shell",
+      "status": "blocked",
+      "dependsOn": ["DXUI-09", "DXUI-10"],
+      "gates": ["G-CAT-BASE"],
+      "files": [
+        "apps/site/src/catalog/presentation/CatalogDetail.tsx",
+        "apps/site/src/catalog/presentation/catalog-detail.test.ts"
+      ],
+      "sequentialAfter": ["catalog-refactor-MIU-11"]
+    },
+    {
+      "id": "DXUI-12",
+      "title": "Product-detail application and controller integration",
+      "status": "blocked",
+      "dependsOn": ["DXUI-06", "DXUI-07", "DXUI-08", "DXUI-09", "DXUI-10", "DXUI-11"],
+      "gates": ["G-CAT-MEDIA", "G-CAT-ROUTE"],
+      "files": [
+        "apps/site/src/catalog/application/catalog-product-detail-state.ts",
+        "apps/site/src/catalog/application/catalog-product-detail-state.test.ts",
+        "apps/site/src/islands/shop/CatalogFamilyPage.tsx"
+      ],
+      "sequentialAfter": ["catalog-refactor-MIU-22"]
+    },
+    {
+      "id": "DXUI-13",
+      "title": "Catalog quote domain and storage contract",
+      "status": "blocked",
+      "dependsOn": [],
+      "gates": ["G-RFQ-BIZ"],
+      "files": [
+        "packages/shared/src/catalog-quote.ts",
+        "packages/shared/src/catalog-quote.test.ts",
+        "packages/shared/src/collections.ts"
+      ],
+      "sequentialAfter": ["DXUI-04"]
+    },
+    {
+      "id": "DXUI-14",
+      "title": "Durable server-derived catalog quote action",
+      "status": "blocked",
+      "dependsOn": ["DXUI-13"],
+      "gates": ["G-RFQ-BIZ"],
+      "files": [
+        "apps/functions/admin/src/catalog-quote-submit.ts",
+        "apps/functions/admin/src/catalog-quote-submit.test.ts",
+        "apps/functions/admin/src/handler.ts"
+      ],
+      "sequentialAfter": ["DXUI-05"]
+    },
+    {
+      "id": "DXUI-15",
+      "title": "Quote gateway and pure sheet state",
+      "status": "planned",
+      "dependsOn": ["DXUI-13"],
+      "gates": [],
+      "files": [
+        "apps/site/src/catalog/infrastructure/catalog-quote-api.ts",
+        "apps/site/src/catalog/application/catalog-quote-state.ts",
+        "apps/site/src/catalog/application/catalog-quote-state.test.ts"
+      ],
+      "sequentialAfter": []
+    },
+    {
+      "id": "DXUI-16",
+      "title": "Responsive accessible catalog quote sheet",
+      "status": "planned",
+      "dependsOn": ["DXUI-15"],
+      "gates": [],
+      "files": [
+        "apps/site/package.json",
+        "apps/site/src/catalog/presentation/CatalogQuoteSheet.tsx",
+        "apps/site/src/catalog/presentation/catalog-quote-sheet.test.ts",
+        "pnpm-lock.yaml"
+      ],
+      "sequentialAfter": ["DXUI-00"]
+    },
+    {
+      "id": "DXUI-17",
+      "title": "RFQ action integration in Catalog controller",
+      "status": "blocked",
+      "dependsOn": ["DXUI-12", "DXUI-14", "DXUI-16"],
+      "gates": ["G-CAT-ROUTE", "G-RFQ-BIZ"],
+      "files": [
+        "apps/site/src/islands/shop/CatalogFamilyPage.tsx",
+        "apps/site/src/islands/shop/catalog-family-page-render.test.ts"
+      ],
+      "sequentialAfter": ["DXUI-12"]
+    },
+    {
+      "id": "DXUI-18",
+      "title": "Typed Admin import gateway",
+      "status": "blocked",
+      "dependsOn": [],
+      "gates": ["G-IMPORT-ACTIONS"],
+      "files": [
+        "apps/site/src/islands/admin/catalog-import/catalog-import-api.ts",
+        "apps/site/src/islands/admin/catalog-import/catalog-import-contracts.ts",
+        "apps/site/src/islands/admin/catalog-import/catalog-import-api.test.ts"
+      ],
+      "sequentialAfter": []
+    },
+    {
+      "id": "DXUI-19",
+      "title": "Admin Query policy and local workspace state",
+      "status": "blocked",
+      "dependsOn": ["DXUI-18"],
+      "gates": [],
+      "files": [
+        "apps/site/src/islands/admin/catalog-import/catalog-import-query.ts",
+        "apps/site/src/islands/admin/catalog-import/catalog-import-query.test.ts",
+        "apps/site/src/islands/admin/catalog-import/catalog-import-workspace-state.ts"
+      ],
+      "sequentialAfter": []
+    },
+    {
+      "id": "DXUI-20",
+      "title": "Upload and import-job navigation",
+      "status": "blocked",
+      "dependsOn": ["DXUI-19"],
+      "gates": ["G-IMPORT-ACTIONS"],
+      "files": [
+        "apps/site/src/islands/admin/catalog-import/CatalogImportUploadPanel.tsx",
+        "apps/site/src/islands/admin/catalog-import/CatalogImportJobList.tsx",
+        "apps/site/src/islands/admin/catalog-import/catalog-import-upload-render.test.ts"
+      ],
+      "sequentialAfter": []
+    },
+    {
+      "id": "DXUI-21",
+      "title": "Paged import review and product evidence drawer",
+      "status": "blocked",
+      "dependsOn": ["DXUI-19"],
+      "gates": [],
+      "files": [
+        "apps/site/src/islands/admin/catalog-import/CatalogImportReviewTable.tsx",
+        "apps/site/src/islands/admin/catalog-import/CatalogImportProductDrawer.tsx",
+        "apps/site/src/islands/admin/catalog-import/catalog-import-review-render.test.ts"
+      ],
+      "sequentialAfter": []
+    },
+    {
+      "id": "DXUI-22",
+      "title": "Source-category mapping decision UI",
+      "status": "blocked",
+      "dependsOn": ["DXUI-19"],
+      "gates": ["G-IMPORT-ROLE"],
+      "files": [
+        "apps/site/src/islands/admin/catalog-import/CatalogCategoryMappingPanel.tsx",
+        "apps/site/src/islands/admin/catalog-import/catalog-category-mapping.test.ts"
+      ],
+      "sequentialAfter": []
+    },
+    {
+      "id": "DXUI-23",
+      "title": "Revision-bound publish plan and apply UI",
+      "status": "blocked",
+      "dependsOn": ["DXUI-22"],
+      "gates": ["G-IMPORT-ACTIONS", "G-IMPORT-ROLE"],
+      "files": [
+        "apps/site/src/islands/admin/catalog-import/CatalogPublishPlanPanel.tsx",
+        "apps/site/src/islands/admin/catalog-import/CatalogApplyResult.tsx",
+        "apps/site/src/islands/admin/catalog-import/catalog-import-plan-render.test.ts"
+      ],
+      "sequentialAfter": []
+    },
+    {
+      "id": "DXUI-24",
+      "title": "Admin workspace composition",
+      "status": "blocked",
+      "dependsOn": ["DXUI-20", "DXUI-21", "DXUI-23"],
+      "gates": [],
+      "files": [
+        "apps/site/src/islands/admin/catalog-import/CatalogImportPage.tsx",
+        "apps/site/src/islands/admin/catalog-import/CatalogImportSummary.tsx",
+        "apps/site/src/islands/admin/catalog-import/catalog-import-render.test.ts"
+      ],
+      "sequentialAfter": []
+    },
+    {
+      "id": "DXUI-25",
+      "title": "Public compatibility and responsive E2E",
+      "status": "blocked",
+      "dependsOn": ["DXUI-12", "DXUI-17"],
+      "gates": [],
+      "files": [
+        "tests/e2e/catalog-product-detail.spec.ts",
+        "tests/e2e/helpers/catalog-detail-factory.ts",
+        "apps/site/src/islands/shop/catalog-product-detail-source-contract.test.ts"
+      ],
+      "sequentialAfter": ["catalog-refactor-MIU-30", "catalog-refactor-MIU-38"]
+    },
+    {
+      "id": "DXUI-26",
+      "title": "Real workbook Admin integration and release evidence",
+      "status": "blocked",
+      "dependsOn": ["DXUI-24", "DXUI-25"],
+      "gates": ["G-DEPLOY"],
+      "files": [
+        "tests/e2e/catalog-import-admin.spec.ts",
+        "tests/e2e/helpers/catalog-import-fixture.ts",
+        "docs/dianxiaomi-excel-import/IMPORT-STOREFRONT-UI-EXECUTION.md"
+      ],
+      "sequentialAfter": []
+    }
+  ]
+}

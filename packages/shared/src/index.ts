@@ -9,6 +9,7 @@ export * from './media-content.ts';
 export * from './media-lifecycle.ts';
 export * from './media-ratelimit.ts';
 export * from './abuse-limits.ts';
+export * from './category-api.ts';
 export * from './auth.ts';
 export * from './query.ts';
 
@@ -18,6 +19,8 @@ import type { FilterModel, SortClause } from './query.ts';
 export interface ListQuery {
   collection: string;
   productFamily?: import('./catalog-product.ts').ProductFamily;
+  /** Admin classification queue, not a persisted product family. */
+  needsClassification?: boolean;
   page?: number;
   pageSize?: number;
   search?: string;

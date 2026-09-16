@@ -85,7 +85,7 @@ const renderDetail = (product: Product): string =>
 test('MATRIX unlinked: card and detail render the legacy pricing surfaces unchanged', () => {
   const card = renderCard(legacyProduct());
   assert.ok(card.includes('data-product-card-price'));
-  assert.ok(card.includes('$18.90'));
+  assert.ok(card.includes('$15.50'));
   assert.ok(card.includes('<strong>1000</strong>'));
   assert.ok(!card.includes('data-alibaba'), 'no alibaba markup on legacy cards');
 
@@ -97,27 +97,28 @@ test('MATRIX unlinked: card and detail render the legacy pricing surfaces unchan
 
 // --- linked with pricing: Alibaba renderer everywhere ------------------------
 
-test('MATRIX linked+priced: every legacy price surface is replaced by the Alibaba branch', () => {
+test('MATRIX linked+priced: explicit source policy replaces retained manual values', () => {
   const product = createAlibabaLinkedProduct({
     moq: 1000,
     unitPrice: 18.9,
     wholesalePrice: 15.5,
     vipPrice: 13.2,
+    catalogPricingMode: 'source',
     alibabaCatalogPricing: createAlibabaCatalogPricing({ amountMinor: 250, sourceMoq: 100 }),
   });
 
   const card = renderCard(product);
-  assert.ok(card.includes('data-alibaba-card-price'));
+  assert.ok(card.includes('data-product-card-price'));
   assert.ok(card.includes('$2.50'));
   assert.ok(card.includes('<strong>100</strong>'), 'sourceMoq replaces legacy moq');
-  assert.ok(!card.includes('data-product-card-price'), 'legacy price badge suppressed');
+  assert.ok(!card.includes('$15.50'), 'retained manual price suppressed by explicit source mode');
   assert.ok(!card.includes('$18.90'), 'legacy unit price never renders');
   assert.ok(!card.includes('<strong>1000</strong>'), 'legacy moq never renders');
 
   const detail = renderDetail(product);
   assert.ok(detail.includes('data-alibaba-pricing'));
   assert.ok(detail.includes('$2.50'));
-  assert.ok(detail.includes('data-alibaba-source-moq'));
+  assert.ok(detail.includes('data-alibaba-moq'));
   assert.ok(!detail.includes('$18.90'), 'spec-sheet unit price suppressed');
   assert.ok(!detail.includes('$15.50'), 'PriceBlock wholesale suppressed');
   assert.ok(!detail.includes('$13.20'), 'VIP price suppressed even for registered viewers');
@@ -130,15 +131,16 @@ test('MATRIX linked+missing: quote-required state renders and legacy values stay
     moq: 1000,
     unitPrice: 18.9,
     wholesalePrice: 15.5,
+    catalogPricingMode: 'source',
     alibabaCatalogPricing: undefined,
   });
 
   const card = renderCard(product);
   assert.ok(!card.includes('$18.90'), 'no legacy fallback on the card');
-  assert.ok(!card.includes('data-product-card-price'));
+  assert.ok(card.includes('data-product-card-price'));
   // The card is never silently price-less (review R2 #2): the quote-required
   // marker renders where the price would.
-  assert.ok(card.includes('data-alibaba-card-unavailable'), 'card renders the unavailable label');
+  assert.ok(card.includes('Pricing unavailable'), 'card renders the unavailable label');
 
   const detail = renderDetail(product);
   assert.ok(detail.includes('data-alibaba-unavailable'), 'quote-required state renders');
@@ -150,6 +152,7 @@ test('MATRIX linked+unavailable-mode: explicit unavailable renders the same quot
   const detail = renderDetail(
     createAlibabaLinkedProduct({
       unitPrice: 18.9,
+      catalogPricingMode: 'source',
       alibabaCatalogPricing: createAlibabaCatalogPricing({
         mode: 'unavailable',
         amountMinor: undefined as unknown as number,
@@ -168,5 +171,5 @@ test('MATRIX link-removed: clearing the source key restores the legacy renderer 
   restored.alibabaPrimarySourceKey = undefined as unknown as string;
   const card = renderCard(restored);
   assert.ok(card.includes('data-product-card-price'));
-  assert.ok(card.includes('$18.90'));
+  assert.ok(card.includes('$10.00'));
 });

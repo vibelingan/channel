@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   extractProductDetail,
   extractProductListPage,
+  isAlibabaProductAbsentError,
   isAuthorizationError,
   parseAlibabaApiResponse,
 } from './alibaba-contracts.ts';
@@ -29,6 +30,18 @@ test('error envelope surfaces code/message/request id', () => {
   }
 });
 
+test('TOP error envelope surfaces code/message/request id', () => {
+  const envelope = parseAlibabaApiResponse(
+    '{"type":"ISV","code":"InvalidApiPath","message":"bad path","request_id":"r-top"}',
+  );
+  assert.deepEqual(envelope, {
+    kind: 'api-error',
+    errorCode: 'InvalidApiPath',
+    errorMessage: 'bad path',
+    requestId: 'r-top',
+  });
+});
+
 test('malformed body is reported, never thrown', () => {
   const envelope = parseAlibabaApiResponse('<html>gateway error</html>');
   assert.equal(envelope.kind, 'malformed');
@@ -43,6 +56,18 @@ test('authorization errors are classified', () => {
     isAuthorizationError(parseAlibabaApiResponse('{"error_code": "AppCallLimit"}')),
     false,
   );
+});
+
+test('no unverified provider error is accepted as destructive product absence', () => {
+  for (const body of [
+    '{"error_code":"ProductNotFound"}',
+    '{"error_code":"IllegalAccessToken"}',
+    '{"error_code":"AppCallLimit"}',
+    '{"error_code":"UnexpectedProviderFailure"}',
+    '<html>bad gateway</html>',
+  ]) {
+    assert.equal(isAlibabaProductAbsentError(parseAlibabaApiResponse(body)), false, body);
+  }
 });
 
 test('extracts a product list page (documented shape)', () => {
@@ -69,6 +94,39 @@ test('extracts a product list page (documented shape)', () => {
     gmtModified: '2026-08-01 10:00:00',
   });
   assert.equal(page.items[1]?.sourceProductId, '2345678');
+});
+
+test('extracts the live TOP wrapper around product-list arrays', () => {
+  const envelope = parseAlibabaApiResponse(
+    JSON.stringify({
+      alibaba_icbu_product_list_response: {
+        total_item: 3,
+        products: {
+          alibaba_product_brief_response: [
+            {
+              product_id: 'AAGGBBhgAOVTpOKZBnRd99iV',
+              subject: 'AI Translation Earphones',
+              gmt_modified: '2026-01-13 22:28:43',
+            },
+            { product_id: 'AAEtBBhgAOVTpOKZBnRh_y7a' },
+          ],
+        },
+      },
+    }),
+  );
+  assert.equal(envelope.kind, 'success');
+  if (envelope.kind !== 'success') return;
+  assert.deepEqual(extractProductListPage(envelope.root), {
+    totalItems: 3,
+    items: [
+      {
+        sourceProductId: 'AAGGBBhgAOVTpOKZBnRd99iV',
+        subject: 'AI Translation Earphones',
+        gmtModified: '2026-01-13 22:28:43',
+      },
+      { sourceProductId: 'AAEtBBhgAOVTpOKZBnRh_y7a' },
+    ],
+  });
 });
 
 test('list extraction degrades to empty on unknown shapes', () => {
@@ -141,6 +199,247 @@ test('extracts product detail with exact money lexemes', () => {
     availableQuantity: 1000,
     attributes: { Color: 'Black' },
   });
+});
+
+test('extracts live TOP detail wrappers and nested sourcing trade fields', () => {
+  const envelope = parseAlibabaApiResponse(
+    JSON.stringify({
+      alibaba_icbu_product_get_response: {
+        product: {
+          product_id: 'AAGmBBhgAOVTpOOZBg7MoZq_',
+          subject: 'Live headset',
+          main_image: { images: { string: ['https://sc04.alicdn.com/a.jpg'] } },
+          sourcing_trade: {
+            fob_currency: 'USD',
+            fob_min_price: '12.34',
+            fob_max_price: '56.78',
+            min_order_quantity: '3',
+          },
+          product_sku: {
+            skus: {
+              sku_definition: [
+                {
+                  sku_id: 29581034890,
+                  inventory_dto_list: {
+                    product_inventory_dto: [
+                      { store_code: 'CN_OWN_01', inventory: 20 },
+                      { store_code: 'CN_OWN_02', inventory: 30 },
+                    ],
+                  },
+                  bulk_discount_prices: {
+                    bulk_discount_price: [
+                      { start_quantity: 500, price: '3.50' },
+                      { start_quantity: 1000, price: '3.17' },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    }),
+  );
+  assert.equal(envelope.kind, 'success');
+  if (envelope.kind !== 'success') return;
+  const draft = extractProductDetail(envelope.root);
+  assert.deepEqual(draft.imageUrls, ['https://sc04.alicdn.com/a.jpg']);
+  assert.equal(draft.currencyLexeme, 'USD');
+  assert.equal(draft.fobMinLexeme, '12.34');
+  assert.equal(draft.fobMaxLexeme, '56.78');
+  assert.equal(draft.moqLexeme, '3');
+  assert.deepEqual(draft.skus, [
+    {
+      sourceSkuId: '29581034890',
+      availableQuantity: 50,
+      attributes: {},
+      ladderPrices: [
+        { minQuantityLexeme: '500', priceLexeme: '3.50' },
+        { minQuantityLexeme: '1000', priceLexeme: '3.17' },
+      ],
+    },
+  ]);
+});
+
+test('joins live TOP SKU attribute dictionaries with each SKU attr2_value selection', () => {
+  const envelope = parseAlibabaApiResponse(
+    JSON.stringify({
+      alibaba_icbu_product_get_response: {
+        product: {
+          product_id: 'live-product',
+          product_sku: {
+            sku_attributes: {
+              sku_attribute: [
+                {
+                  attribute_id: 19089,
+                  attribute_name: 'Connectors',
+                  values: {
+                    sku_attribute_value: [
+                      { value_id: 3236313, system_value_name: '3.5 mm' },
+                      // Alibaba uses negative ids for some merchant-defined values.
+                      { value_id: -2, system_value_name: 'USB + 3.5mm' },
+                      {
+                        value_id: -3,
+                        system_value_name: '',
+                        custom_value_name: 'USB-C',
+                      },
+                    ],
+                  },
+                },
+                {
+                  attribute_id: 191288010,
+                  attribute_name: 'color',
+                  values: {
+                    sku_attribute_value: [
+                      { value_id: 3327837, system_value_name: 'Black' },
+                      { value_id: 3331260, system_value_name: 'Red' },
+                    ],
+                  },
+                },
+              ],
+            },
+            skus: {
+              sku_definition: [
+                {
+                  sku_id: 1000089617928,
+                  attr2_value: '{"19089":3236313,"191288010":3327837}',
+                },
+                {
+                  sku_id: 1000089617929,
+                  attr2_value: '{"19089":-2,"191288010":3331260}',
+                },
+                {
+                  sku_id: 1000089617930,
+                  attr2_value: '{"19089":-3,"191288010":3331260}',
+                },
+              ],
+            },
+          },
+        },
+      },
+    }),
+  );
+  assert.equal(envelope.kind, 'success');
+  if (envelope.kind !== 'success') return;
+  assert.deepEqual(extractProductDetail(envelope.root).skus, [
+    {
+      sourceSkuId: '1000089617928',
+      attributes: { Connectors: '3.5 mm', color: 'Black' },
+    },
+    {
+      sourceSkuId: '1000089617929',
+      attributes: { Connectors: 'USB + 3.5mm', color: 'Red' },
+    },
+    {
+      sourceSkuId: '1000089617930',
+      attributes: { Connectors: 'USB-C', color: 'Red' },
+    },
+  ]);
+});
+
+test('malformed or unknown attr2_value entries do not erase direct SKU attributes', () => {
+  const envelope = parseAlibabaApiResponse(
+    JSON.stringify({
+      product: {
+        product_id: 'mixed-shape',
+        product_sku: {
+          sku_attributes: {
+            sku_attribute: {
+              attribute_id: 1,
+              attribute_name: 'Color',
+              values: {
+                sku_attribute_value: { value_id: 10, system_value_name: 'Red' },
+              },
+            },
+          },
+          skus: {
+            sku_definition: [
+              {
+                sku_id: 'known',
+                attributes: [
+                  { attribute_name: 'Material', attribute_value: 'ABS' },
+                  { attribute_name: 'Color', attribute_value: 'stale-direct-value' },
+                ],
+                attr2_value: '{"1":10,"999":42}',
+              },
+              {
+                sku_id: 'malformed',
+                attributes: [{ attribute_name: 'Material', attribute_value: 'Metal' }],
+                attr2_value: 'not-json',
+              },
+            ],
+          },
+        },
+      },
+    }),
+  );
+  assert.equal(envelope.kind, 'success');
+  if (envelope.kind !== 'success') return;
+  assert.deepEqual(extractProductDetail(envelope.root).skus, [
+    {
+      sourceSkuId: 'known',
+      attributes: { Material: 'ABS', Color: 'Red' },
+    },
+    {
+      sourceSkuId: 'malformed',
+      attributes: { Material: 'Metal' },
+    },
+  ]);
+});
+
+test('unexpected embedded SKU selections degrade to direct attributes without throwing', () => {
+  const strangeSelections: unknown[] = [
+    '',
+    '   ',
+    null,
+    false,
+    42,
+    [],
+    '[1,2,3]',
+    'null',
+    'false',
+    '42',
+    '{',
+    `${'['.repeat(70)}0${']'.repeat(70)}`,
+    `{"1":10,"padding":"${'x'.repeat(70_000)}"}`,
+  ];
+  const envelope = parseAlibabaApiResponse(
+    JSON.stringify({
+      product: {
+        product_id: 'strange-embedded-json',
+        product_sku: {
+          sku_attributes: {
+            sku_attribute: {
+              attribute_id: 1,
+              attribute_name: 'Color',
+              values: {
+                sku_attribute_value: { value_id: 10, system_value_name: 'Red' },
+              },
+            },
+          },
+          skus: {
+            sku_definition: strangeSelections.map((attr2Value, index) => ({
+              sku_id: `sku-${index}`,
+              attributes: [
+                { attribute_name: 'Material', attribute_value: 'ABS' },
+                { attribute_name: 'Color', attribute_value: 'direct-fallback' },
+              ],
+              attr2_value: attr2Value,
+            })),
+          },
+        },
+      },
+    }),
+  );
+  assert.equal(envelope.kind, 'success');
+  if (envelope.kind !== 'success') return;
+  assert.deepEqual(
+    extractProductDetail(envelope.root).skus,
+    strangeSelections.map((_value, index) => ({
+      sourceSkuId: `sku-${index}`,
+      attributes: { Material: 'ABS', Color: 'direct-fallback' },
+    })),
+  );
 });
 
 test('parses a string fob_price range', () => {

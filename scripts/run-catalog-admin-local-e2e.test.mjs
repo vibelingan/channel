@@ -1,7 +1,26 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { access } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import test from 'node:test';
+
+test('catalog acceptance uses isolated production artifacts and cannot inherit CloudBase media configuration', async () => {
+  const source = await readFile('scripts/run-catalog-admin-local-e2e.mjs', 'utf8');
+  assert.match(source, /\['build', '--outDir', siteDirectory\]/);
+  assert.match(source, /\['preview', '--outDir', siteDirectory/);
+  assert.doesNotMatch(source, /\['dev',/);
+  assert.match(source, /PUBLIC_API_BASE_URL: apiUrl/);
+  assert.match(source, /TCB_ENV: ''/);
+  for (const spec of [
+    'public.spec.ts',
+    'sku-detail.spec.ts',
+    'catalog-category.spec.ts',
+    'catalog-family-routes.spec.ts',
+    'catalog-hub.spec.ts',
+    'header-navigation.spec.ts',
+  ]) {
+    assert.ok(source.includes(`tests/e2e/${spec}`), `${spec} must run before deployment`);
+  }
+});
 
 async function runFailure(stage) {
   return new Promise((resolve, reject) => {

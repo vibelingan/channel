@@ -7,11 +7,11 @@
  * boundary, and the source may type prices as JSON numbers OR strings — so
  * every number is preserved as its exact source lexeme.
  *
- * Hand-rolled deliberately: the usual dependency for this (`lossless-json`)
- * could not be added offline (REVISION_R1 context — no registry access), the
- * JSON grammar is small and frozen (RFC 8259), and this parser is fully
- * covered by tests. Revisit if a dependency refresh happens for other
- * reasons.
+ * Kept local deliberately: `lossless-json` preserves number text but does not
+ * provide this boundary's maximum-depth and dangerous-key policy, while
+ * `secure-json-parse` starts from ordinary JSON numbers after precision may
+ * already be lost. The grammar is small and frozen (RFC 8259); the security
+ * and compatibility policies below are mutation-tested in this package.
  */
 
 export class JsonNumberLexeme {
@@ -31,9 +31,27 @@ export type LosslessParseResult =
   | { ok: false; error: string };
 
 const MAX_DEPTH = 64;
+const FORBIDDEN_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 
-export function parseJsonPreservingNumbers(text: string): LosslessParseResult {
+export interface LosslessParseOptions {
+  /** Optional caller-specific cap, measured in JavaScript characters. */
+  maxChars?: number;
+}
+
+export function parseJsonPreservingNumbers(
+  text: string,
+  options: LosslessParseOptions = {},
+): LosslessParseResult {
   if (typeof text !== 'string') return { ok: false, error: 'input must be a string' };
+  if (
+    options.maxChars !== undefined &&
+    (!Number.isSafeInteger(options.maxChars) || options.maxChars < 0)
+  ) {
+    return { ok: false, error: 'maxChars must be a non-negative safe integer' };
+  }
+  if (options.maxChars !== undefined && text.length > options.maxChars) {
+    return { ok: false, error: `input exceeds ${options.maxChars} characters` };
+  }
   let pos = 0;
 
   const fail = (message: string): never => {
@@ -126,6 +144,8 @@ export function parseJsonPreservingNumbers(text: string): LosslessParseResult {
         skipWs();
         if (text[pos] !== '"') fail('expected object key');
         const key = parseString();
+        if (FORBIDDEN_OBJECT_KEYS.has(key)) fail('forbidden object key');
+        if (Object.hasOwn(obj, key)) fail('duplicate object key');
         skipWs();
         if (text[pos] !== ':') fail('expected ":"');
         pos += 1;
@@ -214,6 +234,7 @@ export function getPath(
     ) {
       return undefined;
     }
+    if (!Object.hasOwn(current, segment)) return undefined;
     current = (current as { [key: string]: LosslessJsonValue })[segment];
   }
   return current;
