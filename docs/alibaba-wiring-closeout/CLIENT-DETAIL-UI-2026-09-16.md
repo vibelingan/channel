@@ -151,7 +151,12 @@ No baseline, rule exemption, global knowledge file or Git hook was changed.
   private-media or inquiry-state regressions after the no-SKU correction.
 - Tests are updated to assert the new client-requested behavior rather than
   deleting SKU identity, error-state or privacy checks.
-- No commit, push, test deployment or main merge of this UI update has occurred.
+- At the initial evidence checkpoint no commit/push/deployment had occurred.
+  UI implementation and tests are now committed as
+  `c9158356fc0f2ab2729b32e39887e328495a813d`, parent `3833105`, 22 files.
+  Independent exact-commit assumption review passed with no high/medium findings;
+  its only low finding was this historical status sentence, now corrected.
+  Test deployment and main merge remain pending and require a fresh remote check.
 
 ## Concurrent AI Work
 
