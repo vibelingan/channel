@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { detailFixture } from '../../apps/site/src/catalog/testing/detail-fixture.ts';
+import { decodeCatalogDetailView } from '../../packages/shared/src/catalog/product-detail.ts';
 
 // @skip-when Local preview opt-in is off; the isolated shared-product-ui config covers this development-only entry.
 test.skip(process.env.E2E_SHARED_DETAIL_PREVIEW !== '1', 'Requires the isolated local preview');
@@ -116,13 +117,18 @@ test('local RFQ validates fields, keeps configuration and quantity, and never se
   });
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(preview(samples[0][0]));
-  const quantity = page.getByRole('textbox', { name: 'Requested quantity', exact: true });
-  await quantity.fill('500');
-  await page.getByRole('radio').nth(1).check();
-  const chosen = await page.getByRole('radio').nth(1).getAttribute('value');
   const open = page.getByRole('button', { name: 'Request a quote', exact: true });
+  await expect(page.getByRole('textbox', { name: 'Requested quantity', exact: true })).toHaveCount(
+    0,
+  );
   await open.click();
   const dialog = page.getByRole('dialog');
+  const quantity = dialog.getByRole('textbox', { name: 'Requested quantity', exact: true });
+  await quantity.fill('500');
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('radio').nth(1).check();
+  const chosen = await page.getByRole('radio').nth(1).getAttribute('value');
+  await open.click();
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('[data-rfq-context]')).toHaveAttribute(
     'data-configuration-id',
@@ -158,9 +164,12 @@ test('local RFQ validates fields, keeps configuration and quantity, and never se
   await page.keyboard.press('Escape');
   await expect(dialog).not.toBeVisible();
   await expect(open).toBeFocused();
-  await expect(quantity).toHaveValue('1');
+  await expect(page.getByRole('textbox', { name: 'Requested quantity', exact: true })).toHaveCount(
+    0,
+  );
   await page.getByRole('radio').first().check();
   await open.click();
+  await expect(quantity).toHaveValue('1');
   await expect(dialog.locator('[data-rfq-context]')).toHaveAttribute(
     'data-configuration-id',
     (await page.getByRole('radio', { includeHidden: true }).first().getAttribute('value')) ??
@@ -192,8 +201,18 @@ test('customization requires type and brief, dialog contains focus and remains u
 }) => {
   await page.setViewportSize({ width: 320, height: 568 });
   await page.goto(preview(samples[0][0]));
-  await page.getByRole('button', { name: 'Ask about customization' }).click();
+  const opener = page.getByRole('button', { name: 'Request a quote', exact: true });
+  await expect(page.getByRole('button', { name: /customization/i })).toHaveCount(0);
+  await opener.click();
   const dialog = page.getByRole('dialog');
+  const customization = dialog.getByRole('checkbox', {
+    name: 'Ask about customization',
+    exact: true,
+  });
+  await expect(customization).not.toBeChecked();
+  await customization.check();
+  await expect(customization).toBeChecked();
+  await expect(dialog.locator('input[name="intent"]')).toHaveValue('customization');
   await dialog.getByRole('textbox', { name: 'Requested quantity', exact: true }).fill('20');
   await dialog.getByRole('button', { name: 'Continue to contact' }).click();
   await expect(dialog.getByRole('alert')).toHaveCount(2);
@@ -230,7 +249,7 @@ test('customization requires type and brief, dialog contains focus and remains u
   expect(await dialog.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(false);
   await page.keyboard.press('Escape');
   await expect(dialog).not.toBeVisible();
-  await expect(page.getByRole('button', { name: 'Ask about customization' })).toBeFocused();
+  await expect(opener).toBeFocused();
 });
 
 test('a delivery date that expires while the form is open invalidates review', async ({ page }) => {
@@ -263,11 +282,13 @@ test('revised real description uses grouped rows and keeps supplier copy seconda
   page,
 }) => {
   await page.goto(preview(samples[0][0]));
-  await expect(page.locator('[data-catalog-key-facts]')).toContainText('ABS');
+  await expect(page.locator('[data-catalog-key-facts]')).toHaveCount(0);
+  await expect(page.locator('[data-catalog-specifications]')).toContainText('ABS');
   await expect(page.locator('[data-catalog-packaging]')).toContainText('Aux cable');
-  const notes = page.locator('[data-catalog-notes]');
-  await expect(notes).not.toHaveAttribute('open', '');
-  await notes.locator('summary').click();
+  const notes = page.locator('section[data-catalog-notes]');
+  await expect(notes.locator('summary')).toHaveCount(0);
+  await notes.scrollIntoViewIfNeeded();
+  await expect(notes.locator('p').filter({ hasText: '60,000' })).toBeVisible();
   await expect(notes).toContainText('60,000');
   await expect(notes.locator('h3')).toHaveText([
     'Experienced Headphones Manufacturer',
@@ -278,53 +299,86 @@ test('revised real description uses grouped rows and keeps supplier copy seconda
   ).toBeLessThanOrEqual(850);
 });
 
-test('source tiers follow exact quantity boundaries, retain SKU quantity and reset on product navigation', async ({
+test('source reference range stays stable across dialog quantities, retains SKU quantity and resets on product navigation', async ({
   page,
 }) => {
   await page.goto(preview(samples[0][0]));
-  const quantity = page.getByRole('textbox', { name: 'Requested quantity', exact: true });
-  const result = page.locator('[data-quote-result]');
+  const reference = page.locator('[data-catalog-compact-price]');
+  await expect(reference).toContainText('USD 3.80 - USD 5.70 per unit');
+  await expect(reference).toContainText('Reference');
+  await expect(page.locator('[data-catalog-quote-conditions]')).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'Requested quantity', exact: true })).toHaveCount(
+    0,
+  );
+  const open = page.getByRole('button', { name: 'Request a quote', exact: true });
+  await open.click();
+  const dialog = page.getByRole('dialog');
+  const quantity = dialog.getByRole('textbox', { name: 'Requested quantity', exact: true });
   await expect(quantity).toHaveValue('');
-  for (const [value, price] of [
-    ['2', '5.70'],
-    ['499', '5.70'],
-    ['500', '5.00'],
-    ['999', '5.00'],
-    ['1000', '3.80'],
-  ] as const) {
+  for (const value of ['2', '499', '500', '999', '1000']) {
     await quantity.fill(value);
-    await expect(result).toHaveText(`USD ${price} per unit`);
-    await expect(page.locator('[data-active-tier="true"]')).toHaveCount(1);
+    await dialog.getByRole('button', { name: 'Continue to contact' }).click();
+    await expect(dialog.getByRole('textbox', { name: 'Contact name', exact: true })).toBeVisible();
+    await expect(reference).toContainText('USD 3.80 - USD 5.70 per unit');
+    await dialog.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(quantity).toHaveValue(value);
   }
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   await page.getByRole('radio').nth(1).check();
+  await open.click();
   await expect(quantity).toHaveValue('1000');
-  await expect(result).toHaveText('USD 3.80 per unit');
+  await expect(reference).toContainText('USD 3.80 - USD 5.70 per unit');
   await quantity.fill('1');
-  await expect(result).toContainText('Minimum order quantity: 2');
-  await expect(page.locator('[data-active-tier="true"]')).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Continue to contact' }).click();
+  await expect(dialog.getByRole('textbox', { name: 'Contact name', exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Back', exact: true }).click();
   for (const value of ['', '0', '1e3', '1.5', '9007199254740992']) {
     await quantity.fill(value);
-    await expect(page.locator('[data-active-tier="true"]')).toHaveCount(0);
-    await expect(result).not.toContainText('USD');
-    await expect(quantity).toHaveAttribute('aria-invalid', value ? 'true' : 'false');
+    await dialog.getByRole('button', { name: 'Continue to contact' }).click();
+    await expect(quantity).toBeFocused();
+    await expect(quantity).toHaveAttribute('aria-invalid', 'true');
+    await expect(dialog.getByRole('alert')).toContainText('positive whole number');
+    await expect(reference).toContainText('USD 3.80 - USD 5.70 per unit');
   }
   await quantity.fill('500');
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   await page.evaluate((url) => {
     history.pushState({}, '', url);
     dispatchEvent(new PopStateEvent('popstate'));
   }, preview(samples[1][0]));
   await expect(page.locator(`[data-shared-catalog-detail="${samples[1][0]}"]`)).toBeVisible();
+  await expect(reference).not.toContainText('USD');
+  await expect(open).toBeEnabled();
+  await open.click();
   await expect(quantity).toHaveValue('');
   await quantity.fill('500');
-  await expect(result).not.toContainText('USD');
-  await expect(page.getByRole('button', { name: 'Request a quote' })).toBeEnabled();
+  await dialog.getByRole('button', { name: 'Continue to contact' }).click();
+  await expect(dialog.getByRole('textbox', { name: 'Contact name', exact: true })).toBeVisible();
+  await expect(reference).not.toContainText('USD');
 });
 
 test('gallery geometry stays bounded across mobile tablet and desktop without a fixed disabled CTA', async ({
   page,
 }) => {
+  const responsePromise = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === `/api/products/${samples[0][0]}/detail`,
+  );
   await page.goto(preview(samples[0][0]));
-  await expect(page.locator('[data-catalog-key-facts]')).toBeVisible();
+  await expect(page.locator('[data-catalog-compact-price]')).toBeVisible();
+  await expect(page.locator('[data-catalog-key-facts]')).toHaveCount(0);
+  const response = await responsePromise;
+  expect(response.ok()).toBe(true);
+  const decoded = decodeCatalogDetailView((await response.json()).data);
+  if (!decoded.ok) throw new Error('Invalid sample detail');
+  const selectedId = await page
+    .locator('[data-catalog-variant-selector] input:checked')
+    .inputValue();
+  const variant = decoded.value.variants.items.find((item) => item.id === selectedId);
+  if (!variant) throw new Error('Selected sample variant missing');
+  const photos = [...new Set([...variant.images, ...decoded.value.images])];
+  expect(photos.length).toBeGreaterThan(1);
+  await expect(page.locator('[data-gallery-thumbnail]')).toHaveCount(photos.length);
+  const selectedUrl = page.url();
   for (const width of [390, 640, 700, 768, 900, 1023, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const frame = await page.locator('[data-gallery-frame]').boundingBox();
@@ -341,8 +395,18 @@ test('gallery geometry stays bounded across mobile tablet and desktop without a 
         el.parentElement ? getComputedStyle(el.parentElement).position : 'missing',
       ),
     ).not.toBe('fixed');
-    await page.getByRole('button', { name: 'View image 6', exact: true }).click();
-    await expect(page.locator('[data-gallery-count]')).toHaveText('6 / 6');
+    await page.locator('[data-gallery-thumbnail]').last().click();
+    await expect(page.locator('[data-gallery-count]')).toHaveText(
+      `${photos.length} / ${photos.length}`,
+    );
+    await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute(
+      'src',
+      new RegExp(`${photos.at(-1)}$`),
+    );
+    await expect(page.locator('[data-catalog-variant-selector] input:checked')).toHaveValue(
+      selectedId,
+    );
+    await expect(page).toHaveURL(selectedUrl);
   }
 });
 for (const [id, variants] of samples)
@@ -360,15 +424,14 @@ for (const [id, variants] of samples)
     const last = article.getByRole('radio').last();
     await last.check();
     await expect(last).toBeChecked();
-    await article.getByText('Configuration reference', { exact: true }).click();
-    await expect(
-      article.getByText((await last.getAttribute('value')) ?? '', { exact: true }),
-    ).toBeVisible();
+    const selectedId = await last.inputValue();
+    expect(new URL(page.url()).searchParams.get('variant')).toBe(selectedId);
+    await expect(article.getByText('Configuration reference', { exact: true })).toHaveCount(0);
     await expect(article.getByRole('button', { name: 'Request a quote' })).toBeEnabled();
     await article.getByRole('button', { name: 'Request a quote' }).click();
     await expect(page.getByRole('dialog').locator('[data-rfq-context]')).toHaveAttribute(
       'data-configuration-id',
-      (await last.getAttribute('value')) ?? 'missing',
+      selectedId,
     );
     await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
     const image = article.locator('[data-gallery-frame] img');
@@ -413,9 +476,11 @@ test('mobile has visible SKU choices, independent image navigation, and no horiz
   const image = page.locator('[data-gallery-frame] img');
   await expect(image).toBeVisible();
   const oldSource = await image.getAttribute('src');
-  await page.getByRole('button', { name: 'View image 2', exact: true }).click();
+  const selectedUrl = page.url();
+  await page.locator('[data-gallery-thumbnail="1"]').click();
   await expect(image).not.toHaveAttribute('src', oldSource ?? '');
   await expect(radios.nth(1)).toBeChecked();
+  await expect(page).toHaveURL(selectedUrl);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
 });
 
@@ -552,7 +617,8 @@ test('empty approved fields show honest placeholders and source HTML remains tex
       .getByText('No variant configuration', { exact: false }),
   ).toBeVisible();
   await expect(page.locator('[data-gallery-frame]')).toContainText('unavailable');
-  await page.getByText('Product description', { exact: true }).click();
+  await expect(page.locator('section[data-catalog-notes]')).toBeVisible();
+  await expect(page.locator('[data-catalog-notes] summary')).toHaveCount(0);
   await expect(page.getByText(detail.descriptionText, { exact: true })).toBeVisible();
   await expect(page.locator('[data-shared-catalog-detail] img')).toHaveCount(0);
 });

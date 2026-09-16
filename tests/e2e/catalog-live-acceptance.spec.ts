@@ -100,7 +100,7 @@ test('live release: approved categories, existing published galleries, real inqu
     {
       id: 'a5ab40df-d3ff-4baa-ad3a-1aacc4615448',
       summary: 'USD 7.75–9.00',
-      detail: 'USD 7.75 – USD 9.00 per unit',
+      detail: 'USD 7.75 - USD 9.00 per unit',
       mode: 'range',
     },
     {
@@ -145,9 +145,13 @@ test('live release: approved categories, existing published galleries, real inqu
     await row.getByRole('button', { name: 'Preview', exact: true }).click();
     const preview = page.getByRole('dialog', { name: 'Product preview', exact: true });
     await expect(preview.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 120000 });
-    await expect(preview).toContainText('Product-level quotes');
-    await expect(preview).toContainText(sample.detail);
-    await expect(preview).toContainText('Minimum order quantity: 2');
+    const productPrice = preview.locator(
+      '[data-catalog-compact-price] [data-quote-scope="product"]',
+    );
+    await expect(productPrice).toContainText('Product-level quotes');
+    await expect(productPrice).toContainText(sample.detail);
+    await expect(productPrice).toContainText('Reference');
+    await expect(preview.locator('[data-catalog-quote-conditions]')).toHaveCount(0);
     await expect(preview.locator('[data-quote-open]')).toBeDisabled();
     await preview.getByRole('button', { name: 'Close', exact: true }).first().click();
     const after = await adminAction<CollectionDoc>(
@@ -229,22 +233,49 @@ test('live release: approved categories, existing published galleries, real inqu
     );
     await page.goto(`/headphones/?id=${id}`);
     await expect(page.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
-    await expect(page.locator('[data-catalog-quote-conditions]')).toContainText('Website pricing');
+    const reference = page.locator('[data-catalog-compact-price]');
+    await expect(reference).toBeVisible();
+    await expect(page.locator('[data-catalog-quote-conditions]')).toHaveCount(0);
     const publicDetail = await request.get(`${e2e.apiUrl}/api/products/${id}/detail?view=sections`);
     expect(publicDetail.ok()).toBe(true);
-    const pricing = (await publicDetail.json()).data.websitePricing.pricing;
+    const decoded = decodeCatalogDetailView((await publicDetail.json()).data);
+    if (!decoded.ok) throw new Error('Invalid public detail');
+    const pricing = decoded.value.websitePricing?.pricing;
+    if (!pricing) throw new Error('Missing authoritative website pricing');
+    await expect(reference.locator('[data-quote-scope]')).toHaveCount(0);
     if (pricing.mode === 'fixed' || pricing.mode === 'range') {
-      const reference = page.locator('[data-quote-reference-price]');
-      await expect(reference).toBeVisible();
-      await expect(reference).toContainText(pricing.currency);
+      await expect(reference).toContainText('Reference');
+      const minimum = pricing.mode === 'fixed' ? pricing.amountMinor : pricing.minimumAmountMinor;
+      const maximum = pricing.mode === 'fixed' ? pricing.amountMinor : pricing.maximumAmountMinor;
+      const amount = (value: number) => `${pricing.currency} ${(value / 100).toFixed(2)}`;
+      await expect(reference).toContainText(
+        minimum === maximum ? amount(minimum) : `${amount(minimum)} - ${amount(maximum)}`,
+      );
     }
-    const generalGallery = page.getByRole('button', { name: /^View product gallery/ });
-    if (await generalGallery.isVisible()) await generalGallery.click();
+    await expect(page.getByRole('button', { name: /^View product gallery/ })).toHaveCount(0);
+    const selectedId = await page
+      .locator('[data-catalog-variant-selector] input:checked')
+      .inputValue();
+    const selectedVariant = decoded.value.variants.items.find(
+      (variant) => variant.id === selectedId,
+    );
+    if (!selectedVariant) throw new Error('Selected variant missing from approved public detail');
+    const photos = [...new Set([...selectedVariant.images, ...decoded.value.images])];
     const thumbnails = page.locator('[data-gallery-thumbnail]');
-    await expect(thumbnails).toHaveCount(Array.isArray(after.imageIds) ? after.imageIds.length : 0);
-    for (let index = 0; index < (await thumbnails.count()); index++) {
+    await expect(thumbnails).toHaveCount(photos.length);
+    await expect(page.locator('[data-gallery-count]')).toHaveText(`1 / ${photos.length}`);
+    const selectedUrl = page.url();
+    for (const [index, source] of photos.entries()) {
       await thumbnails.nth(index).click();
       await expect(thumbnails.nth(index)).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute(
+        'src',
+        new RegExp(`${source}$`),
+      );
+      await expect(page.locator('[data-catalog-variant-selector] input:checked')).toHaveValue(
+        selectedId,
+      );
+      await expect(page).toHaveURL(selectedUrl);
       await expect
         .poll(
           () =>
@@ -487,8 +518,12 @@ for (const sample of mediaRepairs)
         .getByRole('radio')
         .nth(index)
         .check();
-      await expect(preview.locator('[data-variant-gallery]')).toContainText(
-        'Configuration photos —',
+      await expect(preview.locator('[data-gallery-frame] img')).toHaveAttribute(
+        'alt',
+        /\(selected configuration\)$/,
+      );
+      await expect(preview.locator('[data-catalog-variant-selector] input:checked')).toHaveValue(
+        variant.id,
       );
       await expect
         .poll(
@@ -536,6 +571,10 @@ for (const sample of mediaRepairs)
       await page.locator('[data-catalog-variant-selector]').getByRole('radio').nth(index).check();
       const hero = page.locator('[data-gallery-frame] img');
       await expect(hero).toHaveAttribute('src', new RegExp(`${ownedByColor.get(color)}$`));
+      await expect(hero).toHaveAttribute('alt', /\(selected configuration\)$/);
+      const count = new Set([...variant.images, ...decoded.value.images]).size;
+      await expect(page.locator('[data-gallery-count]')).toHaveText(`1 / ${count}`);
+      await expect(page.locator('[data-gallery-thumbnail]')).toHaveCount(count);
       await expect
         .poll(
           () => hero.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0),
@@ -548,10 +587,32 @@ for (const sample of mediaRepairs)
         path: `output/catalog-live/public-sku-${id}-${index}-${color.toLowerCase()}.png`,
       });
     }
-    await page
-      .getByRole('button', { name: `View product gallery (${sample.gallery})`, exact: true })
-      .click();
-    await expect(page.locator('[data-gallery-thumbnail]')).toHaveCount(sample.gallery);
+    await expect(page.getByRole('button', { name: /^View product gallery/ })).toHaveCount(0);
+    const lastVariant = decoded.value.variants.items.at(-1);
+    if (!lastVariant) throw new Error('Missing last approved variant');
+    const photos = [...new Set([...lastVariant.images, ...decoded.value.images])];
+    await expect(page.locator('[data-gallery-thumbnail]')).toHaveCount(photos.length);
+    const selectedUrl = page.url();
+    for (const [index, source] of photos.entries()) {
+      await page.locator('[data-gallery-thumbnail]').nth(index).click();
+      await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute(
+        'src',
+        new RegExp(`${source}$`),
+      );
+      await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute(
+        'alt',
+        lastVariant.images.includes(source)
+          ? /\(selected configuration\)$/
+          : /General product photo$/,
+      );
+      await expect(page.locator('[data-gallery-count]')).toHaveText(
+        `${index + 1} / ${photos.length}`,
+      );
+      await expect(page.locator('[data-catalog-variant-selector] input:checked')).toHaveValue(
+        lastVariant.id,
+      );
+      await expect(page).toHaveURL(selectedUrl);
+    }
     await expect(
       page.locator('[data-catalog-variant-selector]').getByRole('radio').last(),
     ).toBeChecked();

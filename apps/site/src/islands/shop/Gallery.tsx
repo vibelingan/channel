@@ -5,6 +5,8 @@ import { ProductMedia, productMediaKey } from './ProductMedia.tsx';
 
 interface Props {
   images: readonly string[];
+  imageLabels?: readonly string[];
+  resolveImage?: (source: string) => string | undefined;
   alt: string;
   productId?: string;
   viewAllLabel?: string;
@@ -18,6 +20,8 @@ interface Props {
 
 interface GalleryThumbnailListProps {
   images: readonly string[];
+  imageLabels?: readonly string[];
+  resolveImage?: (source: string) => string | undefined;
   activeIndex: number;
   expanded: boolean;
   viewAllLabel: string;
@@ -71,6 +75,8 @@ export function gallerySessionKey(
 
 export function GalleryThumbnailList({
   images,
+  imageLabels,
+  resolveImage,
   activeIndex,
   expanded,
   viewAllLabel,
@@ -107,11 +113,11 @@ export function GalleryThumbnailList({
             className={`h-20 w-20 shrink-0 cursor-pointer overflow-hidden rounded-lg border-2 bg-surface-alt transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 ${
               index === activeIndex ? 'border-brand-600' : 'border-slate-200 hover:border-slate-400'
             }`}
-            aria-label={`View image ${index + 1}`}
+            aria-label={`View image ${index + 1}${imageLabels?.[index] ? `: ${imageLabels[index]}` : ''}`}
             aria-pressed={index === activeIndex}
           >
             <ProductMedia
-              sources={[image]}
+              sources={resolveImage ? [resolveImage(image) ?? ''] : [image]}
               alt=""
               unavailableLabel={unavailableLabel}
               width={80}
@@ -143,6 +149,8 @@ export function GalleryThumbnailList({
 
 function GallerySession({
   images,
+  imageLabels,
+  resolveImage,
   alt,
   productId: _productId,
   viewAllLabel = 'View All',
@@ -162,6 +170,7 @@ function GallerySession({
     ? images.findIndex((source) => source === controlledSource)
     : active;
   const activeSource = images[activeIndex];
+  const resolvedSource = activeSource && (resolveImage ? resolveImage(activeSource) : activeSource);
 
   return (
     <div
@@ -177,8 +186,8 @@ function GallerySession({
         }
       >
         <ProductMedia
-          sources={activeSource ? [activeSource] : []}
-          alt={alt}
+          sources={resolvedSource ? [resolvedSource] : []}
+          alt={imageLabels?.[activeIndex] || alt}
           unavailableLabel={unavailableLabel}
           loading="eager"
           fetchPriority={mainImagePriority}
@@ -194,6 +203,8 @@ function GallerySession({
       )}
       <GalleryThumbnailList
         images={images}
+        imageLabels={imageLabels}
+        resolveImage={resolveImage}
         activeIndex={activeIndex}
         expanded={expanded}
         viewAllLabel={viewAllLabel}
@@ -214,6 +225,8 @@ function GallerySession({
 
 export function Gallery({
   images,
+  imageLabels,
+  resolveImage,
   alt,
   productId,
   viewAllLabel,
@@ -222,12 +235,26 @@ export function Gallery({
   layout,
   selection,
   onMainImageLoad,
+  mainImagePriority,
 }: Props) {
-  const list = boundedGalleryImages(images);
+  const labelsBySource = new Map<string, string>();
+  const sources = images.flatMap((image, index) => {
+    const normalized = boundedGalleryImages([image]);
+    const source = normalized[0];
+    if (source && !labelsBySource.has(source)) {
+      labelsBySource.set(source, imageLabels?.[index] || alt);
+    }
+    return normalized;
+  });
+  const list = layout === 'detail' ? [...new Set(sources)] : boundedGalleryImages(sources);
   return (
     <GallerySession
       key={gallerySessionKey(productId, list)}
       images={list}
+      imageLabels={
+        imageLabels ? list.map((source) => labelsBySource.get(source) ?? alt) : undefined
+      }
+      resolveImage={resolveImage}
       alt={alt}
       productId={productId}
       viewAllLabel={viewAllLabel}
@@ -236,6 +263,7 @@ export function Gallery({
       layout={layout}
       selection={selection}
       onMainImageLoad={onMainImageLoad}
+      mainImagePriority={mainImagePriority}
     />
   );
 }

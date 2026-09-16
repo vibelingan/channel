@@ -1,5 +1,6 @@
 import { type Locator, expect, test } from '@playwright/test';
 import { detailFixture } from '../../apps/site/src/catalog/testing/detail-fixture.ts';
+import type { CatalogQuoteSubmission } from '../../packages/shared/src/catalog/quote-draft.ts';
 
 async function focusCountry(country: Locator) {
   await country.click();
@@ -244,11 +245,18 @@ test.describe('responsive quote sheet', { tag: '@mobile-regression' }, () => {
         new Intl.DisplayNames(['en'], { type: 'region' }).of('HK'),
       );
       if (!hongKongLabel) throw new Error('Missing HK display name');
-      for (const action of ['Request a quote', 'Ask about customization']) {
-        const opener = page.getByRole('button', { name: action, exact: true });
+      for (const customization of [false, true]) {
+        const action = customization ? 'customization' : 'quote';
+        const opener = page.getByRole('button', { name: 'Request a quote', exact: true });
         await opener.click();
         const dialog = page.getByRole('dialog');
         await expect(dialog).toBeVisible();
+        const customizationToggle = dialog.getByRole('checkbox', {
+          name: 'Ask about customization',
+          exact: true,
+        });
+        await customizationToggle.setChecked(customization);
+        await expect(customizationToggle).toBeChecked({ checked: customization });
         await expectContainedQuote(dialog);
         if (process.env.E2E_RECORD_ARTIFACTS === '1' && [390, 1440].includes(viewport.width))
           await page.screenshot({ path: testInfo.outputPath(`${action}-requirements.png`) });
@@ -259,7 +267,7 @@ test.describe('responsive quote sheet', { tag: '@mobile-regression' }, () => {
         const date = new Date();
         date.setDate(date.getDate() + 14);
         await dialog.locator('input[type=date]').fill(date.toISOString().slice(0, 10));
-        if (action === 'Ask about customization') {
+        if (customization) {
           await dialog.getByRole('checkbox', { name: 'Packaging', exact: true }).check();
           await dialog
             .locator('textarea')
@@ -443,20 +451,37 @@ test('mobile selected photos use explicit SKU bindings; general photos never cha
   await page.goto('/products/item/?id=canonical-product');
   const hero = page.locator('[data-gallery-frame] img');
   await expect(hero).toHaveAttribute('src', /\/sku-black$/);
+  await expect(hero).toHaveAttribute('alt', /Black \(selected configuration\)$/);
   await expect(page.getByRole('radio', { name: /Black/ })).toBeChecked();
-  await expect(page.locator('[data-gallery-count]')).toHaveText('1 / 1');
-  await page.getByRole('button', { name: 'View product gallery (6)' }).click();
-  await expect(page.locator('[data-gallery-thumbnail]')).toHaveCount(6);
-  await page.getByRole('button', { name: 'View image 3', exact: true }).click();
+  await expect(page.locator('[data-gallery-count]')).toHaveText('1 / 7');
+  await expect(page.getByRole('button', { name: /^View product gallery/ })).toHaveCount(0);
+  await expect(page.locator('[data-gallery-mode], [data-gallery-view-all]')).toHaveCount(0);
+  const thumbnails = page.locator('[data-gallery-thumbnail]');
+  await expect(thumbnails).toHaveCount(7);
+  for (const thumbnail of await thumbnails.all())
+    await expect(thumbnail).toHaveAttribute('aria-label', /^View image /);
+  const selectedUrl = page.url();
+  await thumbnails.nth(3).click();
   await expect(hero).toHaveAttribute('src', /\/general-2$/);
+  await expect(hero).toHaveAttribute('alt', /General product photo$/);
+  await expect(page.locator('[data-gallery-count]')).toHaveText('4 / 7');
   await expect(page.getByRole('radio', { name: /Black/ })).toBeChecked();
+  await expect(page).toHaveURL(selectedUrl);
+  const strip = page.locator('#gallery-thumbnails');
+  expect(await strip.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+  expect(await strip.evaluate((element) => getComputedStyle(element).overflowX)).toBe('auto');
+  await thumbnails.last().click();
+  await expect(hero).toHaveAttribute('src', /\/general-5$/);
+  await expect(page.locator('[data-gallery-count]')).toHaveText('7 / 7');
+  expect(await strip.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  await expect(page.getByRole('radio', { name: /Black/ })).toBeChecked();
+  await expect(page).toHaveURL(selectedUrl);
   for (const color of ['Pink', 'White', 'Black', 'Pink']) {
     await page.getByRole('radio', { name: new RegExp(color) }).check();
     await expect(hero).toHaveAttribute('src', new RegExp(`/sku-${color.toLowerCase()}$`));
-    await expect(page.locator('[data-variant-gallery]')).toHaveAttribute(
-      'data-gallery-mode',
-      'configuration',
-    );
+    await expect(hero).toHaveAttribute('alt', new RegExp(`${color} \\(selected configuration\\)$`));
+    await expect(page.locator('[data-gallery-count]')).toHaveText('1 / 7');
+    await expect(page.getByRole('radio', { name: new RegExp(color) })).toBeChecked();
   }
   expect(reads).toBe(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
@@ -471,6 +496,7 @@ test('unequal image/spec counts, unmapped and broken SKU images never fall back 
   const [black, , pink] = detail.variants.items;
   if (!black || !pink) throw new Error('Missing color fixtures');
   black.images.push('/api/images/sku-black-side');
+  detail.images.push('/api/images/sku-black', '/api/images/general-0');
   pink.images = [];
   await page.route('**/api/products/canonical-product/detail*', (route) =>
     route.fulfill({ contentType: 'application/json', body: envelope(detail) }),
@@ -481,23 +507,60 @@ test('unequal image/spec counts, unmapped and broken SKU images never fall back 
       : route.fulfill({ contentType: 'image/png', body: imageBytes }),
   );
   await page.goto('/products/item/?id=canonical-product');
-  await expect(page.locator('[data-gallery-count]')).toHaveText('1 / 2');
-  await page.getByRole('button', { name: 'View image 2', exact: true }).click();
+  await expect(page.locator('[data-gallery-count]')).toHaveText('1 / 8');
+  await expect(page.locator('[data-gallery-thumbnail]')).toHaveCount(8);
+  await expect
+    .poll(() =>
+      page
+        .locator('[data-gallery-thumbnail] img')
+        .evaluateAll((images) =>
+          images.map((image) => new URL((image as HTMLImageElement).src).pathname),
+        ),
+    )
+    .toEqual([
+      '/api/images/sku-black',
+      '/api/images/sku-black-side',
+      ...Array.from({ length: 6 }, (_, index) => `/api/images/general-${index}`),
+    ]);
+  await page.locator('[data-gallery-thumbnail="1"]').click();
   await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute(
     'src',
     /\/sku-black-side$/,
   );
+  await expect(page.getByRole('radio', { name: /Black/ })).toBeChecked();
   await page.getByRole('radio', { name: /Pink/ }).check();
-  await expect(page.locator('[data-gallery-frame] img')).toHaveCount(0);
+  await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute('src', /\/general-0$/);
+  await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute(
+    'alt',
+    /General product photo$/,
+  );
+  await expect(page.locator('[data-gallery-count]')).toHaveText('1 / 7');
   await expect(
     page.getByText('No photo is assigned to this configuration.', { exact: true }),
-  ).toBeVisible();
+  ).toHaveCount(0);
+  await expect(page.getByRole('radio', { name: /Pink/ })).toBeChecked();
   await page.getByRole('radio', { name: /White/ }).check();
   await expect(page.locator('[data-gallery-frame] [data-product-media="fallback"]')).toBeVisible();
   await expect(page.locator('[data-gallery-frame] img')).toHaveCount(0);
-  await page.getByRole('button', { name: 'View product gallery (6)' }).click();
+  await expect(page.locator('[data-gallery-count]')).toHaveText('1 / 8');
+  await expect(page.locator('[data-gallery-thumbnail="0"]')).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  const whiteUrl = page.url();
+  await page.locator('[data-gallery-thumbnail="1"]').click();
   await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute('src', /\/general-0$/);
+  await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute(
+    'alt',
+    /General product photo$/,
+  );
   await expect(page.getByRole('radio', { name: /White/ })).toBeChecked();
+  await expect(page).toHaveURL(whiteUrl);
+  await page.locator('[data-gallery-thumbnail="0"]').click();
+  await expect(page.locator('[data-gallery-frame] [data-product-media="fallback"]')).toBeVisible();
+  await expect(page.locator('[data-gallery-frame] img')).toHaveCount(0);
+  await expect(page.getByRole('radio', { name: /White/ })).toBeChecked();
+  await expect(page).toHaveURL(whiteUrl);
 });
 
 test('visible hero loads first; fast selection joins in-flight prefetch and late completion cannot change selection', async ({
@@ -524,7 +587,8 @@ test('visible hero loads first; fast selection joins in-flight prefetch and late
   });
   await page.goto('/products/item/?id=canonical-product', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute('src', /\/sku-black$/);
-  expect(requests).toEqual(['/api/images/sku-black']);
+  await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute('fetchpriority', 'high');
+  expect(requests.filter((source) => source.includes('/sku-'))).toEqual(['/api/images/sku-black']);
   releaseBlack();
   await expect.poll(() => requests.includes('/api/images/sku-white')).toBe(true);
   await page.getByRole('radio', { name: /White/ }).check();
@@ -540,7 +604,17 @@ test('visible hero loads first; fast selection joins in-flight prefetch and late
     )
     .toBe(true);
   expect(requests.filter((path) => path.endsWith('/sku-white'))).toHaveLength(1);
-  expect(requests.some((path) => path.includes('/general-'))).toBe(false);
+  await expect(page.getByRole('radio', { name: /Pink/ })).toBeChecked();
+  const visibleSources = await page
+    .locator('[data-gallery-thumbnail] img')
+    .evaluateAll((images) =>
+      images.map((image) => new URL((image as HTMLImageElement).src).pathname),
+    );
+  expect(
+    requests
+      .filter((source) => source.includes('/general-'))
+      .every((source) => visibleSources.includes(source)),
+  ).toBe(true);
 });
 
 for (const connection of [
@@ -569,15 +643,375 @@ for (const connection of [
       .poll(() => hero.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0))
       .toBe(true);
     await page.clock.runFor(2000);
-    expect(requests).toEqual(['/api/images/sku-black']);
+    expect(requests.filter((source) => source.includes('/sku-'))).toEqual([
+      '/api/images/sku-black',
+    ]);
     await page.getByRole('radio', { name: /Pink/ }).check();
     await expect(hero).toHaveAttribute('src', /\/sku-pink$/);
     await expect
       .poll(() => hero.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0))
       .toBe(true);
-    expect(requests).toEqual(['/api/images/sku-black', '/api/images/sku-pink']);
+    await page.clock.runFor(2000);
+    expect(requests.filter((source) => source.includes('/sku-'))).toEqual([
+      '/api/images/sku-black',
+      '/api/images/sku-pink',
+    ]);
+    await expect(page.getByRole('radio', { name: /Pink/ })).toBeChecked();
   });
 }
+
+for (const width of [320, 390, 1440]) {
+  for (const websiteAuthority of [false, true]) {
+    test(`primary detail order and ${websiteAuthority ? 'website' : 'product/SKU'} reference prices at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const detail = colorDetail();
+      const variant = detail.variants.items[0];
+      if (!variant) throw new Error('Missing priced variant');
+      variant.sku = 'INTERNAL-SKU-REFERENCE';
+      detail.offers = [
+        {
+          kind: 'supplier',
+          basis: 'source-quote',
+          pricing: { mode: 'fixed', currency: 'EUR', amountMinor: 1200 },
+        },
+      ];
+      variant.offers = [
+        {
+          kind: 'regular',
+          basis: 'source-quote',
+          pricing: {
+            mode: 'range',
+            currency: 'CNY',
+            minimumAmountMinor: 570,
+            maximumAmountMinor: 880,
+          },
+        },
+      ];
+      if (websiteAuthority)
+        detail.websitePricing = {
+          basis: 'website-manual',
+          pricing: {
+            mode: 'tiered',
+            currency: 'USD',
+            tiers: [
+              { minimumQuantity: 2, maximumQuantity: 999, unitAmountMinor: 570 },
+              { minimumQuantity: 1000, unitAmountMinor: 380 },
+            ],
+          },
+        };
+      detail.descriptionText = 'Supplier notes remain visible without expansion.';
+      detail.descriptionImages = ['/api/images/description-1', '/api/images/description-2'];
+      await page.route('**/api/products/canonical-product/detail*', (route) =>
+        route.fulfill({ contentType: 'application/json', body: envelope(detail) }),
+      );
+      await page.route('**/api/images/**', (route) =>
+        route.fulfill({ contentType: 'image/png', body: imageBytes }),
+      );
+      let sends = 0;
+      await page.route('**/api/catalog-quote-requests', (route) => {
+        sends++;
+        return route.abort();
+      });
+      await page.goto('/products/item/?id=canonical-product');
+      const article = page.locator('[data-shared-catalog-detail]');
+      const price = article.locator('[data-catalog-compact-price]');
+      await expect(price).toBeVisible();
+      const primary = article.locator('header').locator('..');
+      await expect(
+        primary.locator('[data-catalog-key-facts], [data-catalog-quote-conditions], table'),
+      ).toHaveCount(0);
+      await expect(
+        primary.getByRole('heading', { name: 'Selected configuration', exact: true }),
+      ).toHaveCount(0);
+      const primaryText = await primary.evaluate((element) => {
+        const copy = element.cloneNode(true) as HTMLElement;
+        for (const dialog of Array.from(copy.querySelectorAll('dialog'))) dialog.remove();
+        return copy.textContent;
+      });
+      expect(primaryText).not.toMatch(/INTERNAL-SKU-REFERENCE|SKU:|Configuration reference/);
+      await expect(primary.getByText('Configuration reference', { exact: true })).toHaveCount(0);
+      await expect(primary.locator('input[name="quantity"]:not(dialog input)')).toHaveCount(0);
+      await expect(
+        primary.getByRole('button', { name: 'Request a quote', exact: true }),
+      ).toHaveCount(1);
+      await expect(primary.getByRole('button', { name: /customization/i })).toHaveCount(0);
+      for (const selector of [
+        '[data-variant-gallery]',
+        '[data-shared-detail-heading]',
+        '[data-catalog-compact-price]',
+        '[data-catalog-variant-selector]',
+        '[data-quote-open]',
+      ]) {
+        await expect(primary.locator(selector)).toBeVisible();
+      }
+      const geometry = await primary.evaluate((element) => {
+        const selectors = [
+          '[data-variant-gallery]',
+          '[data-shared-detail-heading]',
+          '[data-catalog-compact-price]',
+          '[data-catalog-variant-selector]',
+          '[data-quote-open]',
+        ];
+        const nodes = selectors.map((selector) => {
+          const node = element.querySelector(selector);
+          if (!node) throw new Error(`Missing primary region: ${selector}`);
+          return node;
+        });
+        return {
+          viewport: innerWidth,
+          ordered: nodes.every((node, index) => {
+            const previous = nodes[index - 1];
+            return (
+              index === 0 ||
+              Boolean(
+                previous &&
+                  previous.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING,
+              )
+            );
+          }),
+          boxes: nodes.map((node) => {
+            const bounds = node.getBoundingClientRect();
+            return {
+              top: bounds.top,
+              bottom: bounds.bottom,
+              left: bounds.left,
+              right: bounds.right,
+            };
+          }),
+        };
+      });
+      expect(geometry.viewport).toBe(width);
+      expect(geometry.ordered).toBe(true);
+      for (let index = width < 1024 ? 1 : 2; index < geometry.boxes.length; index++) {
+        const current = geometry.boxes[index];
+        const previous = geometry.boxes[index - 1];
+        if (!current || !previous) throw new Error('Missing primary region bounds');
+        expect(current.top).toBeGreaterThanOrEqual(previous.bottom - 1);
+      }
+      const [galleryBounds, headingBounds] = geometry.boxes;
+      if (!galleryBounds || !headingBounds) throw new Error('Missing gallery or heading bounds');
+      if (width >= 1024) {
+        expect(galleryBounds.right).toBeLessThanOrEqual(headingBounds.left);
+        const galleryWidth = galleryBounds.right - galleryBounds.left;
+        const headingWidth = headingBounds.right - headingBounds.left;
+        expect(galleryWidth / (galleryWidth + headingWidth)).toBeCloseTo(0.46, 2);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(
+        false,
+      );
+      if (websiteAuthority) {
+        await expect(price).toContainText('Website price / Reference');
+        await expect(price).toContainText('USD 3.80 - USD 5.70 per unit');
+        await expect(price).not.toContainText(/EUR|CNY/);
+        await expect(price.locator('[data-quote-scope]')).toHaveCount(0);
+      } else {
+        await expect(price.locator('[data-quote-scope="product"]')).toContainText('EUR 12.00');
+        await expect(price.locator('[data-quote-scope="product"]')).not.toContainText('CNY');
+        await expect(price.locator('[data-quote-scope="variant"]')).toContainText(
+          'CNY 5.70 - CNY 8.80 per unit',
+        );
+        await expect(price.locator('[data-quote-scope="variant"]')).not.toContainText('EUR');
+      }
+      const reference = await price.textContent();
+      if (!reference) throw new Error('Missing compact price text');
+      await article.locator('[data-quote-open]').click();
+      const dialog = page.getByRole('dialog');
+      await expect(dialog.locator('[data-rfq-context]')).toHaveAttribute(
+        'data-configuration-id',
+        variant.id,
+      );
+      await dialog.getByRole('textbox', { name: 'Requested quantity', exact: true }).fill('1000');
+      await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+      await expect(price).toHaveText(reference);
+      await article.getByRole('radio', { name: /White/ }).check();
+      if (websiteAuthority) await expect(price).toHaveText(reference);
+      else {
+        await expect(price.locator('[data-quote-scope="variant"]')).toContainText(
+          'Request a quote',
+        );
+        await expect(price.locator('[data-quote-scope="variant"]')).not.toContainText(
+          /EUR|CNY|12\.00|0\.00/,
+        );
+      }
+      const notes = article.locator('section[data-catalog-notes]');
+      await expect(notes.locator('summary')).toHaveCount(0);
+      await notes.scrollIntoViewIfNeeded();
+      await expect(notes.getByText(detail.descriptionText, { exact: true })).toBeVisible();
+      const description = article.locator('section[data-description-images]');
+      await expect(description.locator('summary')).toHaveCount(0);
+      await expect(description.locator('img')).toHaveCount(2);
+      for (const image of await description.locator('img').all()) {
+        await image.scrollIntoViewIfNeeded();
+        await expect(image).toBeVisible();
+        await expect
+          .poll(() =>
+            image.evaluate(
+              (element: HTMLImageElement) => element.complete && element.naturalWidth > 0,
+            ),
+          )
+          .toBe(true);
+      }
+      if (process.env.E2E_RECORD_ARTIFACTS === '1') {
+        await page.screenshot({
+          path: `output/playwright/client-detail-${width}-${websiteAuthority ? 'website' : 'supplier'}.png`,
+          fullPage: true,
+        });
+      }
+      expect(sends).toBe(0);
+    });
+  }
+}
+
+test('no-SKU detail directly shows every general photo in a horizontally scrolling gallery', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const detail = detailFixture(0);
+  const generalImages = Array.from({ length: 9 }, (_, index) => `/api/images/general-${index}`);
+  detail.images = generalImages;
+  await page.route('**/api/products/canonical-product/detail*', (route) =>
+    route.fulfill({ contentType: 'application/json', body: envelope(detail) }),
+  );
+  await page.route('**/api/images/**', (route) =>
+    route.fulfill({ contentType: 'image/png', body: imageBytes }),
+  );
+  await page.goto('/products/item/?id=canonical-product');
+  const hero = page.locator('[data-gallery-frame] img');
+  await expect(hero).toHaveAttribute('src', /\/general-0$/);
+  await expect(hero).toHaveAttribute('alt', /General product photo$/);
+  await expect(page.getByRole('radio')).toHaveCount(0);
+  await expect(page.locator('[data-gallery-count]')).toHaveText('1 / 9');
+  await expect(page.locator('[data-gallery-view-all], [data-gallery-mode]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^View product gallery/ })).toHaveCount(0);
+  const thumbnails = page.locator('[data-gallery-thumbnail]');
+  await expect(thumbnails).toHaveCount(9);
+  const strip = page.locator('#gallery-thumbnails');
+  expect(await strip.evaluate((element) => getComputedStyle(element).overflowX)).toBe('auto');
+  expect(await strip.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+  const canonicalUrl = page.url();
+  for (const [index, source] of generalImages.entries()) {
+    await thumbnails.nth(index).click();
+    await expect(hero).toHaveAttribute('src', new RegExp(`${source}$`));
+    await expect(hero).toHaveAttribute('alt', /General product photo$/);
+    await expect(thumbnails.nth(index)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('[data-gallery-count]')).toHaveText(`${index + 1} / 9`);
+    await expect(page).toHaveURL(canonicalUrl);
+  }
+  expect(await strip.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+});
+
+test('no-SKU product completes a customization inquiry without inventing a variant', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const detail = detailFixture(0);
+  const requestId = '391b7edf-35f3-42c9-af2a-7d2a988107dd';
+  const requests: CatalogQuoteSubmission[] = [];
+  await page.route('**/api/products/canonical-product/detail*', (route) =>
+    route.fulfill({ contentType: 'application/json', body: envelope(detail) }),
+  );
+  await page.route('**/api/images/**', (route) =>
+    route.fulfill({ contentType: 'image/png', body: imageBytes }),
+  );
+  await page.route('**/api/catalog-quote-requests', (route) => {
+    expect(route.request().method()).toBe('POST');
+    requests.push(route.request().postDataJSON());
+    return route.fulfill({ json: { ok: true, requestId } });
+  });
+  await page.goto('/products/item/?id=canonical-product');
+  await page.getByRole('button', { name: 'Request a quote', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  const customization = dialog.getByRole('checkbox', {
+    name: 'Ask about customization',
+    exact: true,
+  });
+  await expect(customization).toBeChecked();
+  await expect(customization).toBeDisabled();
+  await dialog.getByRole('textbox', { name: 'Requested quantity', exact: true }).fill('20');
+  await dialog.getByRole('checkbox', { name: 'Packaging', exact: true }).check();
+  await dialog
+    .locator('textarea')
+    .fill('Recyclable packaging for the product without configurations.');
+  await dialog.getByRole('button', { name: 'Continue to contact' }).click();
+  await dialog.getByRole('textbox', { name: 'Contact name', exact: true }).fill('No SKU Buyer');
+  await dialog.getByRole('textbox', { name: 'Email', exact: true }).fill('no-sku@example.test');
+  await dialog.getByRole('textbox', { name: 'Company', exact: true }).fill('Local UI Test');
+  const country = dialog.getByRole('combobox', { name: 'Company country / region' });
+  await focusCountry(country);
+  await country.fill('HK');
+  await expect(dialog.getByRole('option', { name: /Hong Kong/ })).toBeVisible();
+  await country.press('ArrowDown');
+  await country.press('Enter');
+  await expect(dialog.locator('input[name="country"]')).toHaveValue('HK');
+  await dialog.getByRole('button', { name: 'Review request' }).click();
+  await expect(dialog.locator('[data-rfq-review]')).toContainText('Packaging');
+  expect(requests).toHaveLength(0);
+  const submit = dialog.locator('form > div').getByRole('button').last();
+  await expect(submit).toBeEnabled();
+  await submit.click();
+  await expect(dialog.locator('[data-rfq-receipt]')).toContainText(requestId);
+  await expect(submit).toBeDisabled();
+  expect(requests).toHaveLength(1);
+  expect(requests[0]?.target).toEqual({
+    productId: detail._id,
+    revision: detail.revision,
+    intent: 'customization',
+  });
+  expect(requests[0]?.fields).toMatchObject({
+    intent: 'customization',
+    quantity: '20',
+    country: 'HK',
+  });
+});
+
+test('combined gallery retains all twelve assigned and general photos without truncating or changing SKU', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const detail = colorDetail();
+  const first = detail.variants.items[0];
+  if (!first) throw new Error('Missing assigned-photo variant');
+  first.images = [
+    '/api/images/sku-black',
+    '/api/images/sku-black-side',
+    '/api/images/sku-black-back',
+  ];
+  detail.images = Array.from({ length: 9 }, (_, index) => `/api/images/general-${index}`);
+  const photos = [...first.images, ...detail.images];
+  await page.route('**/api/products/canonical-product/detail*', (route) =>
+    route.fulfill({ contentType: 'application/json', body: envelope(detail) }),
+  );
+  await page.route('**/api/images/**', (route) =>
+    route.fulfill({ contentType: 'image/png', body: imageBytes }),
+  );
+  await page.goto('/products/item/?id=canonical-product');
+  const thumbnails = page.locator('[data-gallery-thumbnail]');
+  await expect(thumbnails).toHaveCount(12);
+  await expect(page.locator('[data-gallery-count]')).toHaveText('1 / 12');
+  const canonicalUrl = page.url();
+  for (const [index, source] of photos.entries()) {
+    await thumbnails.nth(index).click();
+    await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute(
+      'src',
+      new RegExp(`${source}$`),
+    );
+    await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute(
+      'alt',
+      index < 3 ? /\(selected configuration\)$/ : /General product photo$/,
+    );
+    await expect(page.locator('[data-gallery-count]')).toHaveText(`${index + 1} / 12`);
+    await expect(page.getByRole('radio', { name: /Black/ })).toBeChecked();
+    await expect(page).toHaveURL(canonicalUrl);
+  }
+  expect(
+    await page.locator('#gallery-thumbnails').evaluate((element) => element.scrollLeft),
+  ).toBeGreaterThan(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+});
 
 const product = {
   _id: 'current',

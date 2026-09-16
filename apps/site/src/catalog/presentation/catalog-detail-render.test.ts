@@ -37,7 +37,8 @@ test('production presentation excludes development notices and preview opts in e
   const production = renderToStaticMarkup(component);
   assert.doesNotMatch(production, /Local preview|sample database|publish or sync|not connected/);
   assert.match(production, /Request a quote/);
-  assert.match(production, /Availability, shipping and final terms require confirmation/);
+  assert.match(production, /not a confirmed price, stock allocation or delivery promise/);
+  assert.match(production, /Source information only\. Confirm availability before ordering/);
   const local = renderToStaticMarkup(
     createElement(CatalogLocalPreviewContext.Provider, { value: true }, component),
   );
@@ -135,12 +136,13 @@ test('manual tier prices use a website label instead of claiming to be supplier 
   assert.match(html, /1000\+/);
   assert.match(html, /USD 3\.80/);
 });
-test('structured content separates specifications packaging and collapsed supplier notes', () => {
+test('structured content expands specifications packaging notes and description images in order', () => {
   const result = startDetailPages(
     {
       ...detailFixture(),
       facts: [],
       schemaVersion: 'catalog-product-detail-v2',
+      descriptionImages: ['/api/images/approved-description'],
       content: {
         schemaVersion: 'catalog-content-v1',
         specifications: [{ name: 'Material', value: 'ABS' }],
@@ -162,12 +164,39 @@ test('structured content separates specifications packaging and collapsed suppli
       onClear: () => undefined,
     }),
   );
-  assert.match(html, /data-catalog-key-facts/);
-  assert.match(html, /data-catalog-packaging/);
-  assert.match(html, /data-catalog-notes/);
-  assert.doesNotMatch(html, /<details open=""[^>]*data-catalog-notes/);
+  const markers = [
+    'data-quote-open',
+    'data-catalog-specifications',
+    'data-catalog-packaging',
+    'data-catalog-notes',
+    'data-description-images',
+  ];
+  for (const [index, marker] of markers.entries()) {
+    assert.ok(html.includes(marker), marker);
+    if (index > 0) assert.ok(html.indexOf(markers[index - 1]) < html.indexOf(marker), marker);
+  }
+  const specifications = html.split('data-catalog-specifications')[1]?.split('</details>')[0];
+  assert.ok(specifications);
+  assert.match(specifications, /<details[^>]*open=""/);
+  assert.match(specifications, /<summary[^>]*>Product specifications<\/summary>/);
+  assert.match(specifications, /<dt[^>]*>Material<\/dt>/);
+  assert.match(specifications, /<dd[^>]*>ABS<\/dd>/);
+  for (const marker of [
+    'data-catalog-packaging',
+    'data-catalog-notes',
+    'data-description-images',
+  ]) {
+    const section = html.match(
+      new RegExp(`<section\\b[^>]*${marker}[^>]*>[\\s\\S]*?<\\/section>`),
+    )?.[0];
+    assert.ok(section, `${marker} is an expanded section`);
+    assert.match(section, /<h2[^>]*>[^<]+<\/h2>/);
+    assert.doesNotMatch(section, /<details|<summary|\bhidden(?:[\s=>"]|$)|aria-hidden="true"/);
+  }
+  assert.match(html, /<dd[^>]*>AUX cable<\/dd>/);
+  assert.match(html, /src="\/api\/images\/approved-description"/);
   assert.doesNotMatch(html, /No structured specifications|<script|fixed bottom/);
-  assert.match(html, /Supplier statement &lt;script&gt;/);
+  assert.match(html, /<p[^>]*>Supplier statement &lt;script&gt;unsafe\(\)&lt;\/script&gt;<\/p>/);
 });
 test('legacy descriptions remain paragraph text, never inferred key value rows', () => {
   const html = renderToStaticMarkup(
@@ -231,10 +260,24 @@ test('missing facts images category and zero variants still permit a truthful pr
 });
 test('RFQ preparation is available without a submission action and selection stays visible', () => {
   const html = render();
-  assert.match(html, /data-quote-open/);
+  const primary = html.split('<dialog')[0];
+  assert.match(primary, /data-catalog-variant-selector/);
+  assert.match(primary, /Color 1/);
+  assert.match(primary, /Color 2/);
+  assert.ok(
+    primary.indexOf('data-catalog-compact-price') <
+      primary.indexOf('data-catalog-variant-selector'),
+  );
+  assert.ok(primary.indexOf('data-catalog-variant-selector') < primary.indexOf('data-quote-open'));
+  assert.equal((primary.match(/data-quote-open/g) ?? []).length, 1);
+  assert.doesNotMatch(
+    primary,
+    /name="(?:quantity|customizationTypes|brief)"|inputmode="numeric"|Ask about customization|At a glance|Selected configuration</i,
+  );
+  assert.match(html, /data-configuration-id="variant-1"/);
+  assert.match(html, /name="quantity"/);
   assert.match(html, /This is an inquiry, not an order/);
   assert.doesNotMatch(html, /<form[^>]*action=/);
-  assert.match(html, /Selected configuration/);
   assert.doesNotMatch(html, /<fieldset[^>]*class="[^"]*hidden/);
 });
 
