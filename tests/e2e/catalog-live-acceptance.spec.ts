@@ -4,6 +4,7 @@ import { type CollectionDoc, adminAction, loginAdmin } from './helpers/admin-api
 import { e2e, requireAdminCredentialsWhenEnabled } from './helpers/env';
 import { expectInquirySaved } from './helpers/inquiry-followup';
 import { expectProductSaved } from './helpers/product-save';
+import { publicCatalogSnapshot } from './helpers/public-catalog-snapshot.mjs';
 
 const enabled = process.env.E2E_CATALOG_LIVE_ACCEPTANCE === '1';
 const scope = process.env.E2E_CATALOG_ACCEPTANCE_SCOPE ?? 'full';
@@ -48,12 +49,10 @@ test('live release: approved categories, existing published galleries, real inqu
     enabled: true,
     notification: 'disabled',
   });
-  const publicIds = async () => {
-    const response = await request.get(`${e2e.apiUrl}/api/products?pageSize=100`);
-    const data = (await response.json()).data;
-    expect(data.total).toBeLessThanOrEqual(100);
-    return data.items.map((p: { _id: string }) => p._id).sort();
-  };
+  const publicIds = () =>
+    publicCatalogSnapshot((page, pageSize) =>
+      request.get(`${e2e.apiUrl}/api/products?pageSize=${pageSize}&page=${page}`),
+    );
   const beforeIds = await publicIds();
   for (const id of sampleIds) expect(beforeIds).toContain(id);
   await page.goto('/login?returnTo=%2Fadmin');
@@ -430,11 +429,10 @@ for (const sample of mediaRepairs)
     const expectedImages: Record<string, string | undefined> = sample.images;
     const getProduct = () =>
       adminAction<CollectionDoc>(request, 'get', { collection: 'products', id }, session.token);
-    const publicIds = async () => {
-      const body = await (await request.get(`${e2e.apiUrl}/api/products?pageSize=100`)).json();
-      expect(body.data.total).toBeLessThanOrEqual(100);
-      return body.data.items.map((p: { _id: string }) => p._id).sort();
-    };
+    const publicIds = () =>
+      publicCatalogSnapshot((page, pageSize) =>
+        request.get(`${e2e.apiUrl}/api/products?pageSize=${pageSize}&page=${page}`),
+      );
     const beforeIds = await publicIds();
     const before = await getProduct();
     expect(beforeIds).toContain(id);

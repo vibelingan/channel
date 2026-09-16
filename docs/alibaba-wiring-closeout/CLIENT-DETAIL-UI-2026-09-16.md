@@ -4,7 +4,36 @@ Date: 2026-09-16
 Branch: feat/alibaba-wiring-closeout; starting commit 38331057544ee0031b25d82db7e30502e38d4acf
 PR: https://github.com/vibelingan/channel/pull/55 (open at start)
 
-Status: local UI acceptance passed; remote test/main promotion not performed.
+Status: deployed to test with the concurrent AI release preserved; authenticated
+catalog acceptance is being repaired and rerun. Main PR #55 remains open.
+
+## Test Release Checkpoint
+
+- Feature CI 35066530832 passed for `b4f6c11`.
+- AI PR #54 advanced test to `b319dae` while the old candidate was being checked.
+  The pre-push check stopped that candidate. AI changes were then merged and
+  verified: 708 files passed Biome, all 19 projects passed types, production
+  public/catalog/formal browser groups passed (41/67/6). AI source parity was
+  confirmed against `b319dae`; its separate service deployments were untouched.
+- Combined test `a20e8b2a7266f3aa97af397c079ae3f6ff9c259d` deployed successfully in
+  [35072003167](https://github.com/vibelingan/channel/actions/runs/35072003167),
+  including both CI jobs, CloudBase release smoke, AI widget build-address
+  verification and public browser E2E.
+- Full authenticated acceptance
+  [35076244382](https://github.com/vibelingan/channel/actions/runs/35076244382)
+  passed service release checks but failed before category/product/inquiry writes:
+  the single-page inventory check could not find the fixed page-two sample.
+  Read-only diagnosis: 90 public products, effective pageSize 48 despite requesting
+  100; page two contained 42 products and the sample. Direct item/detail returned
+  200. This was an incomplete acceptance snapshot, not an unpublished sample.
+- Both full and variant-media inventories now use one bounded pagination helper.
+  It retains the 100-product approval ceiling and fixed sample IDs, rejects
+  duplicate/missing/extra products and changing pagination metadata, and only
+  returns after collecting the advertised total. Mutation steps are unchanged.
+  The original helpers failed the 90/48 regression; 65 helper regressions passed
+  on Node 20 and 24. No UI/backend/workflow behavior changed in this correction.
+- The corrected acceptance still needs a verified test release and live run;
+  neither the failed acceptance nor its four other-scope skips count as a pass.
 
 ## Final Local Results
 
