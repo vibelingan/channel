@@ -1,4 +1,4 @@
-import { type Locator, expect, test } from '@playwright/test';
+import { type Locator, type Page, expect, test } from '@playwright/test';
 import { detailFixture } from '../../apps/site/src/catalog/testing/detail-fixture.ts';
 import type { CatalogQuoteSubmission } from '../../packages/shared/src/catalog/quote-draft.ts';
 
@@ -563,9 +563,38 @@ test('unequal image/spec counts, unmapped and broken SKU images never fall back 
   await expect(page).toHaveURL(whiteUrl);
 });
 
+async function trackCatalogPrefetch(
+  page: Page,
+  connection: { saveData: boolean; effectiveType: string },
+) {
+  await page.addInitScript((value) => {
+    Object.defineProperty(navigator, 'connection', { value, configurable: true });
+    const images: HTMLImageElement[] = [];
+    Reflect.set(window, '__catalogPrefetchImages', images);
+    window.Image = new Proxy(window.Image, {
+      construct(target, args, newTarget) {
+        const image: HTMLImageElement = Reflect.construct(target, args, newTarget);
+        images.push(image);
+        return image;
+      },
+    });
+  }, connection);
+  return () =>
+    page.evaluate(() => {
+      const images: HTMLImageElement[] = Reflect.get(window, '__catalogPrefetchImages');
+      return images
+        .map((image) => new URL(image.src).pathname)
+        .filter((source) => source.includes('/sku-'));
+    });
+}
+
 test('visible hero loads first; fast selection joins in-flight prefetch and late completion cannot change selection', async ({
   page,
 }) => {
+  const prefetchSources = await trackCatalogPrefetch(page, {
+    saveData: false,
+    effectiveType: '4g',
+  });
   const requests: string[] = [];
   let releaseBlack: () => void = () => {};
   let releaseWhite: () => void = () => {};
@@ -590,6 +619,7 @@ test('visible hero loads first; fast selection joins in-flight prefetch and late
   await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute('fetchpriority', 'high');
   expect(requests.filter((source) => source.includes('/sku-'))).toEqual(['/api/images/sku-black']);
   releaseBlack();
+  await expect.poll(prefetchSources).toContain('/api/images/sku-white');
   await expect.poll(() => requests.includes('/api/images/sku-white')).toBe(true);
   await page.getByRole('radio', { name: /White/ }).check();
   await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute('src', /\/sku-white$/);
@@ -625,10 +655,7 @@ for (const connection of [
     page,
   }) => {
     const requests: string[] = [];
-    await page.addInitScript(
-      (value) => Object.defineProperty(navigator, 'connection', { value, configurable: true }),
-      connection,
-    );
+    const prefetchSources = await trackCatalogPrefetch(page, connection);
     await page.clock.install();
     await page.route('**/api/products/canonical-product/detail*', (route) =>
       route.fulfill({ contentType: 'application/json', body: envelope(colorDetail()) }),
@@ -643,7 +670,8 @@ for (const connection of [
       .poll(() => hero.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0))
       .toBe(true);
     await page.clock.runFor(2000);
-    expect(requests.filter((source) => source.includes('/sku-'))).toEqual([
+    expect(await prefetchSources()).toEqual([]);
+    expect([...new Set(requests.filter((source) => source.includes('/sku-')))]).toEqual([
       '/api/images/sku-black',
     ]);
     await page.getByRole('radio', { name: /Pink/ }).check();
@@ -652,7 +680,8 @@ for (const connection of [
       .poll(() => hero.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0))
       .toBe(true);
     await page.clock.runFor(2000);
-    expect(requests.filter((source) => source.includes('/sku-'))).toEqual([
+    expect(await prefetchSources()).toEqual([]);
+    expect([...new Set(requests.filter((source) => source.includes('/sku-')))]).toEqual([
       '/api/images/sku-black',
       '/api/images/sku-pink',
     ]);
