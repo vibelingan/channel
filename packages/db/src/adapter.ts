@@ -20,7 +20,16 @@ import {
   normalizeSkuCode,
   validateProductPublication,
 } from '@vibelingan-channel/shared';
+import { alibabaLinkRevision } from './alibaba-product-identity.ts';
 import { publicationContentFingerprint } from './catalog-publication-fingerprint.ts';
+export {
+  ALIBABA_PRODUCT_LINK_LIMIT,
+  alibabaLinkRevision,
+  runAlibabaProductMutation,
+  type AlibabaProductLinkIdentity,
+  type AlibabaProductMutationInput,
+  type AlibabaProductMutationResult,
+} from './alibaba-product-identity.ts';
 
 /** Normalized query passed to adapters: defaults already applied. */
 export interface AdapterListQuery {
@@ -42,6 +51,10 @@ export interface CatalogProductSaveInput {
   productId: string;
   data: Record<string, unknown>;
   requireDetailApproval?: boolean;
+  expectedAlibabaIdentity?: {
+    revision: number | null;
+    primarySourceKey: string | null;
+  };
 }
 
 export interface CatalogProductIdentity {
@@ -52,6 +65,7 @@ export interface CatalogProductIdentity {
 
 export type CatalogProductSaveResult =
   | { result: 'saved'; doc: CollectionDoc; previous: CollectionDoc | null }
+  | { result: 'alibaba-identity-conflict' }
   | { result: 'conflict'; kind: 'slug' | 'sku'; normalizedValue: string }
   | { result: 'invalid'; kind: 'slug' | 'sku' }
   | { result: 'invalid-product'; issues: ReturnType<typeof validateProductPublication> }
@@ -71,7 +85,7 @@ export type AlibabaSyncRunClaimResult =
 export type CatalogProductSavePlan =
   | Extract<
       CatalogProductSaveResult,
-      { result: 'invalid' | 'invalid-product' | 'missing' | 'exists' }
+      { result: 'invalid' | 'invalid-product' | 'missing' | 'exists' | 'alibaba-identity-conflict' }
     >
   | {
       result: 'ready';
@@ -116,12 +130,34 @@ export function planCatalogProductSave(
   now: string,
 ): CatalogProductSavePlan {
   if (input.mode === 'create' && existing) return { result: 'exists' };
+  const expected = input.expectedAlibabaIdentity;
+  if (
+    expected &&
+    (!existing ||
+      expected.revision === null ||
+      alibabaLinkRevision(existing) !== expected.revision ||
+      (existing.alibabaPrimarySourceKey ?? null) !== expected.primarySourceKey)
+  ) {
+    return { result: 'alibaba-identity-conflict' };
+  }
   if (input.mode === 'update' && !existing) return { result: 'missing' };
   const { _id, ...inputData } = input.data as Record<string, unknown> & { _id?: unknown };
-  const data: Record<string, unknown> =
+  let data: Record<string, unknown> =
     input.mode === 'create'
       ? { published: false, archived: false, ...inputData }
       : { ...inputData };
+  if (expected && existing?.alibabaReviewPending === false && data.alibabaReviewPending === false) {
+    const {
+      alibabaReviewPending: _pending,
+      alibabaReviewedAt: _reviewedAt,
+      alibabaReviewedByUserId: _reviewer,
+      ...remainingData
+    } = data;
+    data = remainingData;
+    if (Object.keys(data).length === 0) {
+      return { result: 'ready', doc: existing, identities: [], staleIdentities: [] };
+    }
+  }
   if (input.mode === 'update' && Object.hasOwn(data, 'archived')) {
     const wasArchived = existing?.archived === true;
     const willBeArchived = data.archived === true;
@@ -400,6 +436,9 @@ export function holdsAlibabaLease(
 }
 
 export interface DbAdapter {
+  mutateAlibabaProduct?(
+    input: import('./alibaba-product-identity.ts').AlibabaProductMutationInput,
+  ): Promise<import('./alibaba-product-identity.ts').AlibabaProductMutationResult>;
   persistCatalogDetailApproval?(
     actorId: string,
     input: import('./catalog-detail-staging.ts').ApprovalPersistenceCommand,

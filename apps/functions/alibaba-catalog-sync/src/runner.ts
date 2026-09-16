@@ -54,6 +54,11 @@ import { listAllDocs } from './list-all.ts';
 import { PRIMARY_CONNECTION_ID } from './oauth.ts';
 import { promoteLinkedProduct } from './promotion.ts';
 import {
+  type QuarantineCandidate,
+  computeQuarantineCandidateHash,
+  snapshotQuarantineCandidate,
+} from './quarantine.ts';
+import {
   type CollectionDoc,
   claimAlibabaSyncRun,
   getDoc,
@@ -676,7 +681,7 @@ async function executeSlice(
     const seenItems = await listAllDocs('alibabaSourceProducts', [
       { field: 'lastSeenRunId', op: 'eq', value: state.activeRunId },
     ]);
-    const linkedCandidates: { sourceKey: string }[] = [];
+    const linkedCandidates: QuarantineCandidate[] = [];
     // Sources with no link yet. Drafts for these are created AFTER the
     // quarantine gate — createDraftForSource writes `products` rows, and this
     // stage's whole contract is that no product write happens before the gate
@@ -699,7 +704,7 @@ async function executeSlice(
       if (!(await keepLease())) return { outcome: 'lease-lost', runId: state.activeRunId };
       const link = await getDoc('alibabaProductLinks', source._id);
       if (link && typeof link.productId === 'string' && link.productId !== '') {
-        linkedCandidates.push({ sourceKey: source._id });
+        linkedCandidates.push(await snapshotQuarantineCandidate(source._id));
         if (String(source.lastChangedRunId ?? '') === state.activeRunId) changedCandidates += 1;
       } else {
         unlinkedSources.push(source._id);
@@ -732,9 +737,7 @@ async function executeSlice(
       leaseOrFenceInvalid: false,
     });
     if (quarantine.quarantine) {
-      // Hash STABLE identifiers only (review R2 #6): full docs carry mutable
-      // stamps that would make approval's recomputation spuriously mismatch.
-      const candidateHash = computeCandidateHash({
+      const candidateHash = computeQuarantineCandidateHash({
         runId: state.activeRunId,
         candidates: linkedCandidates,
         tombstones: tombstoneCandidates.map((doc) => doc._id),

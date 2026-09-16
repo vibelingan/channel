@@ -30,6 +30,11 @@ import {
   transitionImageMutationAcquire,
   transitionImageMutationRelease,
 } from '@vibelingan-channel/db';
+import {
+  ALIBABA_PRODUCT_LINK_LIMIT,
+  type AlibabaProductMutationInput,
+  runAlibabaProductMutation,
+} from '@vibelingan-channel/db/adapter';
 import { commitCatalogApproval } from '@vibelingan-channel/db/catalog-detail-commit';
 import {
   type ApprovalPersistenceCommand,
@@ -147,6 +152,49 @@ function registerOwnerCleanup(): void {
 }
 
 export class JsonFileAdapter implements DbAdapter {
+  async mutateAlibabaProduct(input: AlibabaProductMutationInput) {
+    return this.withMutationLock(async () => {
+      const copy = structuredClone(this.store);
+      const links = (copy.alibabaProductLinks ?? [])
+        .filter((row) => row.productId === input.productId)
+        .slice(0, ALIBABA_PRODUCT_LINK_LIMIT + 1);
+      let changed = false;
+      const result = await runAlibabaProductMutation(
+        {
+          get: async (collection, id) =>
+            structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+          set: async (collection, row) => {
+            copy[collection] ??= [];
+            const rows = copy[collection];
+            const index = rows.findIndex((existing) => existing._id === row._id);
+            if (index < 0) rows.push(structuredClone(row));
+            else rows[index] = structuredClone(row);
+            changed = true;
+          },
+          remove: async (collection, id) => {
+            const rows = copy[collection];
+            const index = rows?.findIndex((row) => row._id === id) ?? -1;
+            if (!rows || index < 0) throw new Error('Alibaba link disappeared');
+            rows.splice(index, 1);
+            changed = true;
+          },
+        },
+        links,
+        input,
+      );
+      if (result.ok && changed) {
+        const previous = this.store;
+        this.store = copy;
+        try {
+          this.persist();
+        } catch (error) {
+          this.store = previous;
+          throw error;
+        }
+      }
+      return result;
+    });
+  }
   async persistCatalogDetailApproval(actorId: string, input: ApprovalPersistenceCommand) {
     return this.withMutationLock(async () => {
       const copy = structuredClone(this.store);

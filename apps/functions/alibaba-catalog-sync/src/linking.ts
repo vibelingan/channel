@@ -1,7 +1,7 @@
 /**
  * Deterministic product linking + unpublished draft projection (MIU 7).
  *
- * `alibabaProductLinks._id = sourceKey` and create-if-absent enforce ONE
+ * `alibabaProductLinks._id = sourceKey` and revision-checked transactions enforce ONE
  * Channel product per source product under any concurrency; a Channel product
  * may aggregate several source products (DESIGN_CHARTER §9). No fuzzy
  * matching exists anywhere — links come from an explicit admin action or an
@@ -15,9 +15,22 @@ import {
   sourceObservationDocumentId,
   validateCatalogSourceObservation,
 } from '@vibelingan-channel/catalog-import';
-import { list, remove } from '@vibelingan-channel/db';
-import { LEGACY_HEADPHONES_CATEGORY_OPTIONS, isProductFamily } from '@vibelingan-channel/shared';
-import { createDocWithId, getDoc, updateDoc } from './repo.ts';
+import {
+  ALIBABA_PRODUCT_LINK_LIMIT,
+  type AlibabaProductLinkIdentity,
+  type AlibabaProductMutationInput,
+  type AlibabaProductMutationResult,
+  alibabaLinkRevision,
+  list,
+  mutateAlibabaProduct,
+} from '@vibelingan-channel/db';
+import {
+  type CollectionDoc,
+  LEGACY_HEADPHONES_CATEGORY_OPTIONS,
+  isProductFamily,
+} from '@vibelingan-channel/shared';
+import { listAllDocs } from './list-all.ts';
+import { getDoc } from './repo.ts';
 
 export interface LinkContext {
   now: string;
@@ -27,10 +40,61 @@ export interface LinkContext {
 
 export type LinkResult =
   | { ok: true; sourceKey: string; productId: string; alreadyLinked: boolean }
-  | {
-      ok: false;
-      reason: 'source-not-found' | 'product-not-found' | 'source-linked-elsewhere';
-    };
+  | Extract<AlibabaProductMutationResult, { ok: false }>;
+
+type AlibabaProductIdentitySnapshot = Pick<
+  AlibabaProductMutationInput,
+  'productId' | 'expectedRevision' | 'expectedPrimarySourceKey' | 'expectedLinks'
+>;
+
+export async function snapshotAlibabaProductIdentity(
+  product: CollectionDoc,
+): Promise<
+  | { ok: true; expectation: AlibabaProductIdentitySnapshot }
+  | { ok: false; reason: 'identity-conflict' | 'link-limit' }
+> {
+  const expectedRevision = alibabaLinkRevision(product);
+  const expectedPrimarySourceKey = product.alibabaPrimarySourceKey ?? null;
+  if (
+    expectedRevision === null ||
+    expectedRevision === Number.MAX_SAFE_INTEGER ||
+    (expectedPrimarySourceKey !== null && typeof expectedPrimarySourceKey !== 'string')
+  )
+    return { ok: false, reason: 'identity-conflict' };
+
+  const links = await listAllDocs('alibabaProductLinks', [
+    { field: 'productId', op: 'eq', value: product._id },
+  ]);
+  if (links.length > ALIBABA_PRODUCT_LINK_LIMIT) return { ok: false, reason: 'link-limit' };
+  const expectedLinks: AlibabaProductLinkIdentity[] = [];
+  for (const link of links) {
+    const { _id, sourceKey, connectionId, sourceProductId, productId, linkedAt } = link;
+    if (
+      typeof sourceKey !== 'string' ||
+      typeof connectionId !== 'string' ||
+      typeof sourceProductId !== 'string' ||
+      typeof productId !== 'string' ||
+      typeof linkedAt !== 'string' ||
+      [_id, sourceKey, connectionId, sourceProductId, productId, linkedAt].some(
+        (value) => value.trim() === '',
+      ) ||
+      _id !== sourceKey ||
+      productId !== product._id ||
+      expectedLinks.some((expected) => expected._id === _id)
+    )
+      return { ok: false, reason: 'identity-conflict' };
+    expectedLinks.push({ _id, sourceKey, connectionId, sourceProductId, productId, linkedAt });
+  }
+  return {
+    ok: true,
+    expectation: {
+      productId: product._id,
+      expectedRevision,
+      expectedPrimarySourceKey,
+      expectedLinks,
+    },
+  };
+}
 
 /** Explicit admin link of an EXISTING Channel product to a source product. */
 export async function linkExistingProduct(
@@ -38,58 +102,33 @@ export async function linkExistingProduct(
   productId: string,
   context: LinkContext,
 ): Promise<LinkResult> {
-  const source = await getDoc('alibabaSourceProducts', sourceKey);
-  if (!source) return { ok: false, reason: 'source-not-found' };
   const product = await getDoc('products', productId);
   if (!product) return { ok: false, reason: 'product-not-found' };
-
-  const created = await createDocWithId('alibabaProductLinks', sourceKey, {
-    sourceKey,
-    connectionId: source.connectionId,
-    sourceProductId: source.sourceProductId,
-    productId,
-    linkedByUserId: context.userId ?? '',
-    linkedAt: context.now,
-    createdAt: context.now,
-    updatedAt: context.now,
-  });
-  let alreadyLinked = false;
-  if (created === 'exists') {
-    const existing = await getDoc('alibabaProductLinks', sourceKey);
-    if (existing?.productId === productId) {
-      alreadyLinked = true;
-    } else if (existing && existing.productId === '') {
-      // Repair path: a crashed draft claim leaves productId '' — adopt it.
-      await updateDoc('alibabaProductLinks', sourceKey, {
-        productId,
-        linkedByUserId: context.userId ?? '',
-        linkedAt: context.now,
-      });
-    } else {
-      return { ok: false, reason: 'source-linked-elsewhere' };
-    }
-  }
-
-  // The product becomes Alibaba-linked; pricing materialization is MIU 8's
-  // fenced promotion — here only the link identity + a conservative status.
+  const snapshot = await snapshotAlibabaProductIdentity(product);
+  if (!snapshot.ok) return snapshot;
+  const source = await getDoc('alibabaSourceProducts', sourceKey);
+  if (!source) return { ok: false, reason: 'source-not-found' };
   const observation = await loadAlibabaObservation(source);
-  await updateDoc('products', productId, {
-    alibabaPrimarySourceKey: sourceKey,
-    alibabaSourceProductId: String(source.sourceProductId ?? ''),
-    alibabaSourceCategoryId: String(source.sourceCategoryId ?? ''),
-    alibabaDescriptionImageUrls: observation?.content.description?.imageUrls ?? [],
-    alibabaSourceImageUrls: Array.isArray(source.sourceImageUrls)
-      ? source.sourceImageUrls.filter((value): value is string => typeof value === 'string')
-      : [],
-    alibabaSourceStatus: source.active === true ? 'available' : 'removed',
-    alibabaSourceLastSyncedAt: context.now,
+  const result = await mutateAlibabaProduct({
+    ...snapshot.expectation,
+    action: 'link',
+    sourceKey,
+    linkedByUserId: context.userId ?? '',
+    now: context.now,
+    patch: {
+      alibabaDescriptionImageUrls: observation?.content.description?.imageUrls ?? [],
+      alibabaSourceImageUrls: Array.isArray(source.sourceImageUrls)
+        ? source.sourceImageUrls.filter((value): value is string => typeof value === 'string')
+        : [],
+    },
   });
-  return { ok: true, sourceKey, productId, alreadyLinked };
+  if (!result.ok) return result;
+  return { ok: true, sourceKey, productId, alreadyLinked: result.alreadyLinked === true };
 }
 
 export type UnlinkResult =
   | { ok: true; productId: string; clearedLinks: number }
-  | { ok: false; reason: 'product-not-found' };
+  | Extract<AlibabaProductMutationResult, { ok: false }>;
 
 /**
  * Explicit unlink: remove the link rows and clear ONLY the Alibaba-owned
@@ -103,40 +142,24 @@ export async function unlinkProduct(
 ): Promise<UnlinkResult> {
   const product = await getDoc('products', productId);
   if (!product) return { ok: false, reason: 'product-not-found' };
-  const links = await list({
-    collection: 'alibabaProductLinks',
-    page: 1,
-    pageSize: 100,
-    filter: { combinator: 'and', clauses: [{ field: 'productId', op: 'eq', value: productId }] },
+  const snapshot = await snapshotAlibabaProductIdentity(product);
+  if (!snapshot.ok) return snapshot;
+  const result = await mutateAlibabaProduct({
+    ...snapshot.expectation,
+    action: 'unlink',
+    now: context.now,
   });
-  for (const link of links.items) {
-    await remove('alibabaProductLinks', link._id);
-  }
-  await updateDoc('products', productId, {
-    alibabaPrimarySourceKey: null,
-    alibabaSourceProductId: null,
-    alibabaSourceCategoryId: null,
-    alibabaSourceImageUrls: null,
-    alibabaDescriptionImageUrls: null,
-    alibabaPrimaryOfferKey: null,
-    // The operator pin must clear too (blessing-gate P2): unlink is the
-    // documented rollback command, and a surviving pin would silently rebind
-    // a stale offer if the product were ever linked again.
-    alibabaPinnedOfferKey: null,
-    alibabaCatalogPricing: null,
-    alibabaSourceStatus: null,
-    alibabaSourceLastSyncedAt: context.now,
-    alibabaSourceReview: null,
-    alibabaReviewPending: null,
-    alibabaReviewedAt: null,
-    alibabaReviewedByUserId: null,
-  });
-  return { ok: true, productId, clearedLinks: links.items.length };
+  if (!result.ok) return result;
+  return { ok: true, productId, clearedLinks: result.clearedLinks };
 }
 
 export type DraftResult =
   | { ok: true; productId: string; created: boolean }
   | { ok: false; reason: 'source-not-found' | 'linked-elsewhere' };
+
+type DraftMutationResult =
+  | Extract<DraftResult, { ok: true }>
+  | Extract<AlibabaProductMutationResult, { ok: false }>;
 
 /**
  * Stable opaque id for the first Channel draft created from one source row.
@@ -294,26 +317,23 @@ export async function loadAlibabaSourceReview(
 }
 
 async function reconcileLinkedDraft(
-  productId: string,
-  product: Record<string, unknown>,
+  expectation: AlibabaProductIdentitySnapshot,
   source: Record<string, unknown> & { _id: string },
-  _category: { productFamily?: string; channelCategory?: string },
   observation: CatalogSourceObservation | null,
-): Promise<void> {
-  // A legacy row may already carry acknowledgement evidence from a partially
-  // rolled-out release. In that case materialization must not resurrect it.
-  const reviewed =
-    typeof product.alibabaReviewedAt === 'string' && product.alibabaReviewedAt.trim() !== '';
+  now: string,
+): Promise<DraftMutationResult> {
   const patch: Record<string, unknown> = {
     alibabaDescriptionImageUrls: observation?.content.description?.imageUrls ?? [],
-    ...(typeof product.alibabaReviewPending === 'boolean'
-      ? {}
-      : { alibabaReviewPending: !reviewed }),
     ...(observation === null ? {} : { alibabaSourceReview: buildAlibabaSourceReview(observation) }),
-    // Existing classifications are operator-owned. Backfills use the dedicated
-    // compare-and-set batch, not a stale read followed by a worker patch.
   };
-  if (Object.keys(patch).length > 0) await updateDoc('products', productId, patch);
+  const result = await mutateAlibabaProduct({
+    ...expectation,
+    action: 'reconcile',
+    sourceKey: source._id,
+    patch,
+    now,
+  });
+  return result.ok ? { ok: true, productId: expectation.productId, created: false } : result;
 }
 
 async function mappedCategory(sourceCategoryId: string): Promise<{
@@ -393,66 +413,110 @@ export function createAlibabaCategoryResolver() {
  * still requires an operator-chosen family. Never fuzzy-map, auto-publish, or
  * auto-import media.
  *
- * Race-safe: the link row is claimed FIRST with a deterministic product id;
- * a crash between link and product is repaired by the next invocation.
+ * Product creation and claim repair share one transaction and product revision.
+ * Existing claims are compared exactly before repair; no standalone claim is written.
  */
 export async function createDraftForSource(
   sourceKey: string,
   context: LinkContext,
 ): Promise<DraftResult> {
+  const result = await materializeDraftForSource(sourceKey, context);
+  return result.ok
+    ? result
+    : {
+        ok: false,
+        reason: result.reason === 'source-not-found' ? 'source-not-found' : 'linked-elsewhere',
+      };
+}
+
+async function materializeDraftForSource(
+  sourceKey: string,
+  context: LinkContext,
+): Promise<DraftMutationResult> {
+  const proposedProductId = draftProductId(sourceKey);
+
+  const claim = await getDoc('alibabaProductLinks', sourceKey);
+  let expectedClaim: AlibabaProductLinkIdentity | null = null;
+  if (claim) {
+    const {
+      _id,
+      sourceKey: claimedSourceKey,
+      connectionId,
+      sourceProductId,
+      productId,
+      linkedAt,
+    } = claim;
+    if (
+      claimedSourceKey !== sourceKey ||
+      _id !== sourceKey ||
+      typeof connectionId !== 'string' ||
+      connectionId.trim() === '' ||
+      typeof sourceProductId !== 'string' ||
+      sourceProductId.trim() === '' ||
+      typeof productId !== 'string' ||
+      (productId !== '' && productId.trim() === '') ||
+      typeof linkedAt !== 'string' ||
+      linkedAt.trim() === ''
+    )
+      return { ok: false, reason: 'identity-conflict' };
+    expectedClaim = {
+      _id,
+      sourceKey: claimedSourceKey,
+      connectionId,
+      sourceProductId,
+      productId,
+      linkedAt,
+    };
+  }
+  const productId = expectedClaim?.productId || proposedProductId;
+  const product = await getDoc('products', productId);
+  const snapshot = await snapshotAlibabaProductIdentity(product ?? { _id: productId });
+  if (!snapshot.ok) return snapshot;
   const source = await getDoc('alibabaSourceProducts', sourceKey);
   if (!source) return { ok: false, reason: 'source-not-found' };
-
+  const observation = await loadAlibabaObservation(source);
+  if (product && expectedClaim?.productId === productId) {
+    return reconcileLinkedDraft(snapshot.expectation, source, observation, context.now);
+  }
   const category = await (context.resolveCategory ?? createAlibabaCategoryResolver())(
     String(source.sourceCategoryId ?? ''),
   );
-  const observation = await loadAlibabaObservation(source);
-  const proposedProductId = draftProductId(sourceKey);
-
-  const claim = await createDocWithId('alibabaProductLinks', sourceKey, {
-    sourceKey,
-    connectionId: source.connectionId,
-    sourceProductId: source.sourceProductId,
-    productId: proposedProductId,
-    linkedByUserId: '',
-    linkedAt: context.now,
-    createdAt: context.now,
-    updatedAt: context.now,
-  });
-  if (claim === 'exists') {
-    const existing = await getDoc('alibabaProductLinks', sourceKey);
-    if (existing && typeof existing.productId === 'string' && existing.productId !== '') {
-      const linkedProduct = await getDoc('products', existing.productId);
-      if (linkedProduct) {
-        await reconcileLinkedDraft(
-          existing.productId,
-          linkedProduct,
-          source,
-          category,
-          observation,
-        );
-        return { ok: true, productId: existing.productId, created: false };
-      }
-      // A previous invocation committed the link then crashed. Recreate the
-      // missing product at the id already named by the authoritative link.
-      return createLinkedDraft(source, existing.productId, category, observation, context.now);
+  const result = await createLinkedDraft(
+    source,
+    {
+      ...snapshot.expectation,
+      expectedRevision: product ? snapshot.expectation.expectedRevision : null,
+    },
+    expectedClaim,
+    category,
+    observation,
+    context.now,
+  );
+  if (!result.ok && result.reason === 'identity-conflict' && product === null) {
+    const winner = await getDoc('products', productId);
+    const winnerClaim = await getDoc('alibabaProductLinks', sourceKey);
+    if (
+      winner?.alibabaPrimarySourceKey === sourceKey &&
+      alibabaLinkRevision(winner) === 1 &&
+      winnerClaim?.productId === productId &&
+      winnerClaim.sourceKey === sourceKey &&
+      winnerClaim.connectionId === source.connectionId &&
+      winnerClaim.sourceProductId === source.sourceProductId
+    ) {
+      return { ok: true, productId, created: false };
     }
-    if (!existing) return { ok: false, reason: 'linked-elsewhere' };
-    // Compatibility repair for old empty claims written by the previous
-    // algorithm. Every retry chooses the same id.
-    await updateDoc('alibabaProductLinks', sourceKey, { productId: proposedProductId });
   }
-
-  return createLinkedDraft(source, proposedProductId, category, observation, context.now);
+  return result;
 }
 
 async function createLinkedDraft(
   source: Record<string, unknown> & { _id: string },
-  productId: string,
+  expectation: AlibabaProductIdentitySnapshot,
+  expectedClaim: AlibabaProductLinkIdentity | null,
   category: { productFamily?: string; channelCategory?: string },
   observation: CatalogSourceObservation | null,
   now: string,
-): Promise<DraftResult> {
+): Promise<DraftMutationResult> {
   const observedTitle = observation?.identity.title;
   const observedDescription = observation?.content.description?.text;
 
@@ -491,23 +555,22 @@ async function createLinkedDraft(
   };
   // Runtime invariant, not just a default: the worker can never publish.
   if (draft.published !== false) throw new Error('draft must be unpublished');
-  const created = await createDocWithId('products', productId, draft);
-  if (created === 'exists') {
-    const existingProduct = await getDoc('products', productId);
-    if (existingProduct?.alibabaPrimarySourceKey !== source._id) {
-      return { ok: false, reason: 'linked-elsewhere' };
-    }
-    await reconcileLinkedDraft(productId, existingProduct, source, category, observation);
-  }
-  return { ok: true, productId, created: created === 'created' };
+  const result = await mutateAlibabaProduct({
+    ...expectation,
+    action: 'create-draft',
+    sourceKey: source._id,
+    expectedClaim,
+    draft,
+    now,
+  });
+  return result.ok
+    ? { ok: true, productId: expectation.productId, created: result.created === true }
+    : result;
 }
 
 export type SetPinnedOfferResult =
   | { ok: true; productId: string; pinnedOfferKey: string }
-  | {
-      ok: false;
-      reason: 'product-not-found' | 'not-linked' | 'offer-not-found' | 'offer-not-active';
-    };
+  | Extract<AlibabaProductMutationResult, { ok: false }>;
 
 /**
  * Operator pin for ARCHITECTURE §5 rule 1 (MIU_BREAKDOWN R1 L4). The field is
@@ -529,17 +592,15 @@ export async function setPinnedOffer(input: {
     typeof product.alibabaPrimarySourceKey === 'string' ? product.alibabaPrimarySourceKey : '';
   if (sourceKey === '') return { ok: false, reason: 'not-linked' };
 
-  if (input.offerKey !== '') {
-    const offer = await getDoc('alibabaSupplierOffers', input.offerKey);
-    if (!offer) return { ok: false, reason: 'offer-not-found' };
-    if (String(offer.sourceKey ?? '') !== sourceKey)
-      return { ok: false, reason: 'offer-not-found' };
-    if (offer.active !== true) return { ok: false, reason: 'offer-not-active' };
-  }
-
-  await updateDoc('products', input.productId, {
-    alibabaPinnedOfferKey: input.offerKey,
-    updatedAt: input.now,
+  const snapshot = await snapshotAlibabaProductIdentity(product);
+  if (!snapshot.ok) return snapshot;
+  const result = await mutateAlibabaProduct({
+    ...snapshot.expectation,
+    action: 'pin',
+    sourceKey,
+    offerKey: input.offerKey,
+    now: input.now,
   });
+  if (!result.ok) return result;
   return { ok: true, productId: input.productId, pinnedOfferKey: input.offerKey };
 }

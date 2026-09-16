@@ -280,6 +280,207 @@ function expectErr(result: AdminResult, code: string): void {
   if (!result.ok) assert.equal(result.error.code, code);
 }
 
+function reviewProduct(overrides: Partial<CollectionDoc> = {}): CollectionDoc {
+  return {
+    _id: 'review-product',
+    name: 'Review headset',
+    description: 'Review description',
+    productFamily: 'headphones',
+    imageIds: ['review-image'],
+    published: false,
+    archived: false,
+    alibabaPrimarySourceKey: 'source-a',
+    alibabaLinkRevision: 1,
+    alibabaReviewPending: true,
+    ...overrides,
+  };
+}
+
+class ReviewRaceAdapter extends MemoryAdapter {
+  private raced = false;
+
+  constructor(
+    store: Store,
+    private readonly concurrentPatch: Partial<CollectionDoc>,
+  ) {
+    super(store);
+  }
+
+  private async race(collection: string, id: string): Promise<void> {
+    if (collection !== 'products' || this.raced) return;
+    this.raced = true;
+    await super.update(collection, id, this.concurrentPatch);
+  }
+
+  override async update(collection: string, id: string, data: Record<string, unknown>) {
+    await this.race(collection, id);
+    return super.update(collection, id, data);
+  }
+
+  override async saveCatalogProductWithIdentities(input: CatalogProductSaveInput) {
+    await this.race('products', input.productId);
+    return super.saveCatalogProductWithIdentities(input);
+  }
+}
+
+for (const action of ['mark', 'publish', 'archive'] as const) {
+  test(`Alibaba review acknowledgement ${action} rejects a concurrent relink at the write boundary`, async () => {
+    const product = reviewProduct();
+    const store = setup({ users: [], products: [product] });
+    const concurrentPatch = {
+      alibabaPrimarySourceKey: 'source-b',
+      alibabaLinkRevision: 2,
+      alibabaReviewPending: true,
+      description: 'Concurrent source B description',
+    };
+    setAdapter(new ReviewRaceAdapter(store, concurrentPatch));
+    const token = await adminToken();
+    const result = await handleAdminRequest(
+      action === 'mark'
+        ? { action: 'markProductReviewed', token, data: { productId: product._id } }
+        : {
+            action: 'update',
+            token,
+            data: {
+              collection: 'products',
+              id: product._id,
+              values: action === 'publish' ? { published: true } : { archived: true },
+            },
+          },
+      config,
+    );
+    expectErr(result, 'CONFLICT');
+    assert.deepEqual(store.products?.[0], { ...product, ...concurrentPatch });
+    assert.deepEqual(store.catalogProductIdentities ?? [], []);
+    assert.deepEqual(store.auditLogs ?? [], []);
+  });
+
+  test(`Alibaba review acknowledgement ${action} preserves the first concurrent review and other fields`, async () => {
+    const product = reviewProduct();
+    const store = setup({ users: [], products: [product] });
+    const concurrentPatch = {
+      alibabaReviewPending: false,
+      alibabaReviewedAt: '2026-09-15T00:00:00.000Z',
+      alibabaReviewedByUserId: 'first-reviewer',
+      description: 'Concurrent description',
+    };
+    setAdapter(new ReviewRaceAdapter(store, concurrentPatch));
+    const token = await adminToken();
+    const result = await handleAdminRequest(
+      action === 'mark'
+        ? { action: 'markProductReviewed', token, data: { productId: product._id } }
+        : {
+            action: 'update',
+            token,
+            data: {
+              collection: 'products',
+              id: product._id,
+              values: {
+                ...(action === 'publish' ? { published: true } : { archived: true }),
+                slug: ' Review Headset ',
+                skuCode: ' review-1 ',
+              },
+            },
+          },
+      config,
+    );
+    assert.equal(result.ok, true);
+    const saved = store.products?.[0];
+    assert.ok(saved);
+    for (const [field, value] of Object.entries(concurrentPatch)) {
+      assert.equal(saved[field], value);
+    }
+    if (action === 'mark') {
+      assert.deepEqual(saved, { ...product, ...concurrentPatch });
+      if (result.ok) assert.equal(Reflect.get(result.data as object, 'alreadyReviewed'), true);
+    } else {
+      assert.equal(saved.published, action === 'publish');
+      assert.equal(saved.archived, action === 'archive');
+      assert.equal(saved.slug, 'review-headset');
+      assert.equal(saved.skuCode, 'review-1');
+    }
+  });
+
+  test(`Alibaba review acknowledgement ${action} denies non-admins without changing the product`, async () => {
+    const product = reviewProduct();
+    const store = setup({ users: [], products: [product] });
+    const token = await sessionToken({
+      sub: 'review-member',
+      name: 'Review member',
+      email: 'review-member@example.com',
+      role: 'member',
+    });
+    const result = await handleAdminRequest(
+      action === 'mark'
+        ? { action: 'markProductReviewed', token, data: { productId: product._id } }
+        : {
+            action: 'update',
+            token,
+            data: {
+              collection: 'products',
+              id: product._id,
+              values: action === 'publish' ? { published: true } : { archived: true },
+            },
+          },
+      config,
+    );
+    expectErr(result, 'FORBIDDEN');
+    assert.deepEqual(store.products?.[0], product);
+  });
+}
+
+test('Alibaba review acknowledgement preserves unrelated edits across a relink', async () => {
+  const product = reviewProduct();
+  const store = setup({ users: [], products: [product] });
+  setAdapter(
+    new ReviewRaceAdapter(store, {
+      alibabaPrimarySourceKey: 'source-b',
+      alibabaLinkRevision: 2,
+    }),
+  );
+  const result = await handleAdminRequest(
+    {
+      action: 'update',
+      token: await adminToken(),
+      data: { collection: 'products', id: product._id, values: { name: 'Ordinary edit' } },
+    },
+    config,
+  );
+  assert.equal(result.ok, true);
+  assert.equal(store.products?.[0]?.name, 'Ordinary edit');
+  assert.equal(store.products?.[0]?.alibabaPrimarySourceKey, 'source-b');
+  assert.equal(store.products?.[0]?.alibabaReviewPending, true);
+  assert.equal(store.products?.[0]?.alibabaReviewedAt, undefined);
+});
+
+test('Alibaba review acknowledgement is idempotent for a legacy unchanged source and denies non-admins', async () => {
+  const product = reviewProduct({ alibabaLinkRevision: undefined });
+  const store = setup({ users: [], products: [product] });
+  const token = await adminToken();
+  const request = { action: 'markProductReviewed', token, data: { productId: product._id } };
+  assert.equal((await handleAdminRequest(request, config)).ok, true);
+  const reviewed = structuredClone(store.products?.[0]);
+  assert.equal(reviewed?.alibabaReviewPending, false);
+  assert.equal(typeof reviewed?.alibabaReviewedAt, 'string');
+  assert.equal(typeof reviewed?.alibabaReviewedByUserId, 'string');
+  assert.equal((await handleAdminRequest(request, config)).ok, true);
+  assert.deepEqual(store.products?.[0], reviewed);
+  const denied = await handleAdminRequest(
+    {
+      ...request,
+      token: await sessionToken({
+        sub: 'review-member',
+        name: 'Review member',
+        email: 'review-member@example.com',
+        role: 'member',
+      }),
+    },
+    config,
+  );
+  expectErr(denied, 'FORBIDDEN');
+  assert.deepEqual(store.products?.[0], reviewed);
+});
+
 test('inquiry cloud actions are opt-in, admin-only and unavailable to generic CRUD', async () => {
   const store = setup();
   const token = await adminToken();

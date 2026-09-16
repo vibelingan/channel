@@ -54,6 +54,7 @@ export function AlibabaProductDetailInspection({
       </div>
 
       <form
+        method="post"
         className="mt-4 flex max-w-3xl flex-col gap-3 sm:flex-row sm:items-end"
         onSubmit={submit}
       >

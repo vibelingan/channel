@@ -7,6 +7,11 @@ import {
   transitionAlibabaLeaseRelease,
 } from '@vibelingan-channel/db';
 import {
+  type AlibabaProductMutationInput,
+  type AlibabaProductMutationResult,
+  runAlibabaProductMutation,
+} from '@vibelingan-channel/db/adapter';
+import {
   type MediaStorageAdapter,
   type PutMediaObjectInput,
   objectStoragePath,
@@ -20,6 +25,40 @@ const NOW = '2026-09-04T04:00:00.000Z';
 
 class InspectionAdapter implements DbAdapter {
   readonly store: Record<string, CollectionDoc[]> = {};
+  private mutationQueue = Promise.resolve();
+
+  async mutateAlibabaProduct(
+    input: AlibabaProductMutationInput,
+  ): Promise<AlibabaProductMutationResult> {
+    const operation = this.mutationQueue.then(async () => {
+      const copy = structuredClone(this.store);
+      const result = await runAlibabaProductMutation(
+        {
+          get: async (collection, id) =>
+            structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+          set: async (collection, row) => {
+            copy[collection] ??= [];
+            const rows = copy[collection];
+            const index = rows.findIndex((existing) => existing._id === row._id);
+            if (index < 0) rows.push(structuredClone(row));
+            else rows[index] = structuredClone(row);
+          },
+          remove: async (collection, id) => {
+            copy[collection] = (copy[collection] ?? []).filter((row) => row._id !== id);
+          },
+        },
+        (copy.alibabaProductLinks ?? []).filter((row) => row.productId === input.productId),
+        input,
+      );
+      if (result.ok) Object.assign(this.store, copy);
+      return result;
+    });
+    this.mutationQueue = operation.then(
+      () => {},
+      () => {},
+    );
+    return operation;
+  }
 
   private docs(collection: string): CollectionDoc[] {
     const existing = this.store[collection];

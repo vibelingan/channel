@@ -22,7 +22,7 @@ export interface DraftMaterializationPageInput {
 
 export interface DraftMaterializationFailure {
   sourceKey: string;
-  reason: 'source-not-found' | 'linked-elsewhere';
+  reason: Extract<Awaited<ReturnType<typeof createDraftForSource>>, { ok: false }>['reason'];
 }
 
 export interface DraftMaterializationPageResult {

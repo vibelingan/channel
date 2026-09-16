@@ -4,6 +4,7 @@ import {
   type AlibabaClient,
   DEFAULT_ALIBABA_ENDPOINTS,
   alibabaSourceKey,
+  computeCandidateHash,
   createAlibabaClient,
   initialEnumerationState,
 } from '@vibelingan-channel/alibaba-catalog-sync';
@@ -24,6 +25,12 @@ import {
   transitionAlibabaLeaseRenew,
 } from '@vibelingan-channel/db';
 import {
+  type AlibabaProductLinkIdentity,
+  type AlibabaProductMutationInput,
+  type AlibabaProductMutationResult,
+  runAlibabaProductMutation,
+} from '@vibelingan-channel/db/adapter';
+import {
   type MediaStorageAdapter,
   type PutMediaObjectInput,
   objectStoragePath,
@@ -35,6 +42,8 @@ import {
   compareBySort,
   matchesFilter,
 } from '@vibelingan-channel/shared';
+import { linkExistingProduct, unlinkProduct } from './linking.ts';
+import { promoteLinkedProduct } from './promotion.ts';
 import { approveQuarantinedRun } from './quarantine.ts';
 import { runSyncTick } from './runner.ts';
 
@@ -44,7 +53,40 @@ type Store = Record<string, CollectionDoc[]>;
 
 class RunnerMemoryAdapter implements DbAdapter {
   private nextId = 1;
+  private mutationQueue = Promise.resolve();
   constructor(readonly store: Store) {}
+  async mutateAlibabaProduct(
+    input: AlibabaProductMutationInput,
+  ): Promise<AlibabaProductMutationResult> {
+    const operation = this.mutationQueue.then(async () => {
+      const copy = structuredClone(this.store);
+      const result = await runAlibabaProductMutation(
+        {
+          get: async (collection, id) =>
+            structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+          set: async (collection, row) => {
+            copy[collection] ??= [];
+            const rows = copy[collection];
+            const index = rows.findIndex((existing) => existing._id === row._id);
+            if (index < 0) rows.push(structuredClone(row));
+            else rows[index] = structuredClone(row);
+          },
+          remove: async (collection, id) => {
+            copy[collection] = (copy[collection] ?? []).filter((row) => row._id !== id);
+          },
+        },
+        (copy.alibabaProductLinks ?? []).filter((row) => row.productId === input.productId),
+        input,
+      );
+      if (result.ok) Object.assign(this.store, copy);
+      return result;
+    });
+    this.mutationQueue = operation.then(
+      () => {},
+      () => {},
+    );
+    return operation;
+  }
   private docs(collection: string): CollectionDoc[] {
     this.store[collection] ??= [];
     return this.store[collection] as CollectionDoc[];
@@ -333,6 +375,22 @@ function fakeBackend(items: () => FakeItem[]): { fetchImpl: typeof fetch; calls:
 // --- harness -----------------------------------------------------------------
 
 const T0 = '2026-08-06T12:16:00.000Z'; // just past the 12:15 incremental boundary
+function productLink(
+  sourceProductId: string,
+  overrides: Partial<AlibabaProductLinkIdentity> = {},
+): CollectionDoc & AlibabaProductLinkIdentity {
+  const sourceKey = alibabaSourceKey('primary', sourceProductId);
+  return {
+    _id: sourceKey,
+    sourceKey,
+    connectionId: 'primary',
+    sourceProductId,
+    productId: 'p-1',
+    linkedAt: T0,
+    ...overrides,
+  };
+}
+
 let clockMs = Date.parse(T0);
 const now = () => new Date(clockMs).toISOString();
 
@@ -410,7 +468,7 @@ test('the first successful sync materializes source pricing on a new draft witho
 test('incremental tick: enumerates the window, ingests, promotes linked, advances the cursor', async () => {
   setup();
   const sourceKey = alibabaSourceKey('primary', 'item-1');
-  store.alibabaProductLinks = [{ _id: sourceKey, sourceKey, productId: 'p-1' } as CollectionDoc];
+  store.alibabaProductLinks = [productLink('item-1')];
   store.products = [
     {
       _id: 'p-1',
@@ -825,7 +883,7 @@ test('overdue run: failed AND the slot is vacated so the next tick starts fresh'
 test('unsupported currency quarantines BEFORE promotion; approval promotes the frozen candidate', async () => {
   setup();
   const sourceKey = alibabaSourceKey('primary', 'item-1');
-  store.alibabaProductLinks = [{ _id: sourceKey, sourceKey, productId: 'p-1' } as CollectionDoc];
+  store.alibabaProductLinks = [productLink('item-1')];
   store.products = [
     {
       _id: 'p-1',
@@ -905,6 +963,494 @@ test('unsupported currency quarantines BEFORE promotion; approval promotes the f
   assert.equal(promotedProduct.unitPrice, 12.5, 'legacy untouched throughout');
 });
 
+async function quarantineLinkedProducts(count = 1, products?: CollectionDoc[]) {
+  setup();
+  const items = Array.from({ length: count }, (_, index) => ({
+    id: `item-${index + 1}`,
+    modifiedMs: ITEM_TIME,
+    priceLexeme: '2.50',
+  }));
+  store.alibabaProductLinks = items.map((item, index) =>
+    productLink(item.id, { productId: `p-${index + 1}` }),
+  );
+  store.products =
+    products ??
+    items.map((item, index) => ({
+      _id: `p-${index + 1}`,
+      name: 'Curated',
+      unitPrice: 12.5,
+      alibabaPrimarySourceKey: alibabaSourceKey('primary', item.id),
+    }));
+  const backend = fakeBackend(() => items);
+  const fetchImpl: typeof fetch = async (url, init) => {
+    const response = await backend.fetchImpl(url, init);
+    return new Response((await response.text()).replace('"USD"', '"EUR"'), { status: 200 });
+  };
+  const report = await runSyncTick({ deps: makeDeps(fetchImpl), trigger: 'timer' });
+  assert.equal(report.outcome, 'quarantined');
+  const run = store.alibabaSyncRuns?.[0];
+  assert.ok(run);
+  assert.equal(typeof run.candidateHash, 'string');
+  alerts.length = 0;
+  return { runId: run._id, candidateHash: String(run.candidateHash) };
+}
+
+for (const order of ['A-first', 'B-first']) {
+  for (const relinkSecondary of [false, true]) {
+    test(`R1: multi-source quarantine ${order} ${relinkSecondary ? 'rejects secondary relink' : 'promotes only frozen primary'}`, async (context) => {
+      setup();
+      const secondaryKey = alibabaSourceKey('primary', 'item-a');
+      const primaryKey = alibabaSourceKey('primary', 'item-b');
+      const sourceOrder =
+        order === 'A-first' ? [secondaryKey, primaryKey] : [primaryKey, secondaryKey];
+      store.alibabaProductLinks = [productLink('item-a'), productLink('item-b')];
+      store.products = [
+        {
+          _id: 'p-1',
+          name: 'Curated',
+          unitPrice: 12.5,
+          alibabaPrimarySourceKey: primaryKey,
+          alibabaLinkRevision: 7,
+        },
+      ];
+      const adapter = new RunnerMemoryAdapter(store);
+      setAdapter(adapter);
+      const list = adapter.list.bind(adapter);
+      context.mock.method(adapter, 'list', async (query: AdapterListQuery) => {
+        const result = await list(query);
+        if (query.collection === 'alibabaSourceProducts') {
+          result.items.sort(
+            (left, right) => sourceOrder.indexOf(left._id) - sourceOrder.indexOf(right._id),
+          );
+        }
+        return result;
+      });
+      const backend = fakeBackend(() => [
+        { id: 'item-a', modifiedMs: ITEM_TIME, priceLexeme: '1.50' },
+        { id: 'item-b', modifiedMs: ITEM_TIME, priceLexeme: '2.50' },
+      ]);
+      const fetchImpl: typeof fetch = async (url, init) => {
+        const response = await backend.fetchImpl(url, init);
+        return new Response((await response.text()).replace('"USD"', '"EUR"'), { status: 200 });
+      };
+      assert.equal(
+        (await runSyncTick({ deps: makeDeps(fetchImpl), trigger: 'timer' })).outcome,
+        'quarantined',
+      );
+      const run = store.alibabaSyncRuns?.[0];
+      assert.ok(run);
+      assert.equal(typeof run.candidateHash, 'string');
+      const frozenLinks = structuredClone(store.alibabaProductLinks);
+      if (relinkSecondary) {
+        const secondary = store.alibabaProductLinks?.find((link) => link._id === secondaryKey);
+        assert.ok(secondary);
+        secondary.productId = 'p-2';
+        store.products?.push({ _id: 'p-2', alibabaPrimarySourceKey: secondaryKey });
+      }
+      const before = structuredClone(store.products);
+      const attempts: Extract<AlibabaProductMutationInput, { action: 'promote' }>[] = [];
+      const mutate = adapter.mutateAlibabaProduct.bind(adapter);
+      context.mock.method(
+        adapter,
+        'mutateAlibabaProduct',
+        async (input: AlibabaProductMutationInput) => {
+          if (input.action === 'promote') attempts.push(structuredClone(input));
+          return mutate(input);
+        },
+      );
+      alerts.length = 0;
+      const result = await approveQuarantinedRun({
+        runId: run._id,
+        candidateHash: String(run.candidateHash),
+        approvedByUserId: 'admin-1',
+        now,
+        alert: async (message) => {
+          alerts.push(message);
+        },
+      });
+      if (relinkSecondary) {
+        assert.deepEqual(result, { ok: false, reason: 'superseded' });
+        assert.deepEqual(store.products, before);
+        assert.equal(attempts.length, 0, 'secondary membership is checked before promotion');
+        assert.equal(store.alibabaSyncRuns?.[0]?.status, 'quarantined');
+        assert.equal(alerts.length, 0);
+      } else {
+        assert.deepEqual(result, { ok: true, runId: run._id, promoted: 1 });
+        assert.equal(attempts.length, 1);
+        assert.equal(attempts[0]?.sourceKey, primaryKey);
+        assert.equal(attempts[0]?.expectedRevision, 7);
+        assert.equal(attempts[0]?.expectedPrimarySourceKey, primaryKey);
+        assert.deepEqual(new Set(attempts[0]?.expectedLinks), new Set(frozenLinks));
+        assert.equal(store.products?.[0]?.alibabaLinkRevision, 8);
+        assert.equal(store.products?.[0]?.alibabaPrimarySourceKey, primaryKey);
+        assert.equal(store.products?.[0]?.alibabaSourceProductId, 'item-b');
+        assert.equal(store.products?.[0]?.unitPrice, 12.5);
+        assert.deepEqual(store.alibabaProductLinks, frozenLinks);
+        assert.equal(store.alibabaSyncRuns?.[0]?.status, 'approved');
+        assert.equal(alerts.length, 1);
+      }
+      assert.equal(store.alibabaSyncRuns?.[0]?.candidateHash, run.candidateHash);
+    });
+  }
+}
+
+test('R1: quarantine success matches normal promotion and does not count unchanged products', async () => {
+  const frozen = await quarantineLinkedProducts(2);
+  const before = structuredClone(store);
+  const approve = (input: typeof frozen) =>
+    approveQuarantinedRun({
+      ...input,
+      approvedByUserId: 'admin-1',
+      now,
+      alert: async (message) => {
+        alerts.push(message);
+      },
+    });
+  assert.deepEqual(await approve(frozen), { ok: true, runId: frozen.runId, promoted: 2 });
+  const approvedProducts = structuredClone(store.products);
+  assert.ok(approvedProducts);
+  const normal = new RunnerMemoryAdapter(before);
+  setAdapter(normal);
+  const grant = await normal.acquireAlibabaSyncLease(
+    'primary',
+    'normal-promotion',
+    T0,
+    ALIBABA_SYNC_LEASE_TTL_MS,
+  );
+  assert.equal(grant.result, 'granted');
+  if (grant.result !== 'granted') assert.fail('normal promotion lease missing');
+  for (const link of before.alibabaProductLinks ?? []) {
+    const result = await promoteLinkedProduct({
+      sourceKey: link._id,
+      guard: { connectionId: 'primary', holder: 'normal-promotion', fence: grant.fence, now: T0 },
+      now: T0,
+    });
+    assert.equal(result.ok, true);
+  }
+  assert.deepEqual(before.products, approvedProducts);
+  const unchanged = await quarantineLinkedProducts(2, approvedProducts);
+  assert.deepEqual(await approve(unchanged), { ok: true, runId: unchanged.runId, promoted: 0 });
+  assert.equal(store.alibabaSyncRuns?.[0]?.status, 'approved');
+});
+
+for (const target of ['p-2', 'p-1']) {
+  for (const timing of ['before-approval', 'lease-acquisition']) {
+    test(`R1: quarantine rejects unlink/relink to ${target} at ${timing}`, async () => {
+      const frozen = await quarantineLinkedProducts();
+      const sourceKey = alibabaSourceKey('primary', 'item-1');
+      const originalLink = structuredClone(store.alibabaProductLinks?.[0]);
+      if (target === 'p-2') store.products?.push({ _id: target, name: 'Other', unitPrice: 25 });
+      const relink = async () => {
+        assert.equal((await unlinkProduct('p-1', { now: T0 })).ok, true);
+        assert.equal((await linkExistingProduct(sourceKey, target, { now: T0 })).ok, true);
+        if (target === 'p-1') {
+          assert.ok(originalLink);
+          for (const field of [
+            '_id',
+            'sourceKey',
+            'connectionId',
+            'sourceProductId',
+            'productId',
+            'linkedAt',
+          ]) {
+            assert.equal(
+              store.alibabaProductLinks?.[0]?.[field],
+              originalLink[field],
+              'ABA recreates the same identity and timestamp',
+            );
+          }
+          assert.equal(store.products?.[0]?.alibabaLinkRevision, 2);
+        }
+      };
+      if (timing === 'before-approval') await relink();
+      else {
+        class RelinkBeforeLeaseAdapter extends RunnerMemoryAdapter {
+          override async acquireAlibabaSyncLease(
+            connectionId: string,
+            holder: string,
+            acquiredAt: string,
+            ttlMs: number,
+          ): Promise<AlibabaLeaseGrant> {
+            await relink();
+            return super.acquireAlibabaSyncLease(connectionId, holder, acquiredAt, ttlMs);
+          }
+        }
+        setAdapter(new RelinkBeforeLeaseAdapter(store));
+      }
+      const result = await approveQuarantinedRun({
+        ...frozen,
+        approvedByUserId: 'admin-1',
+        now,
+        alert: async (message) => {
+          alerts.push(message);
+        },
+      });
+      assert.deepEqual(result, { ok: false, reason: 'superseded' });
+      assert.equal(
+        store.products?.find((product) => product._id === target)?.alibabaCatalogPricing ?? null,
+        null,
+      );
+      assert.equal(store.alibabaSyncRuns?.[0]?.status, 'quarantined');
+      assert.equal(store.alibabaSyncRuns?.[0]?.candidateHash, frozen.candidateHash);
+      assert.equal(alerts.length, 0);
+    });
+  }
+}
+
+test('R1: quarantine rejects legacy source-key-only hashes without upgrading approval', async () => {
+  const frozen = await quarantineLinkedProducts();
+  const legacyHash = computeCandidateHash({
+    runId: frozen.runId,
+    candidates: [{ sourceKey: alibabaSourceKey('primary', 'item-1') }],
+    tombstones: [],
+  });
+  const run = store.alibabaSyncRuns?.[0];
+  assert.ok(run);
+  run.candidateHash = legacyHash;
+  const before = structuredClone(store.products);
+  assert.deepEqual(
+    await approveQuarantinedRun({
+      ...frozen,
+      candidateHash: legacyHash,
+      approvedByUserId: 'admin-1',
+      now,
+      alert: async (message) => {
+        alerts.push(message);
+      },
+    }),
+    { ok: false, reason: 'superseded' },
+  );
+  assert.deepEqual(store.products, before);
+  assert.equal(store.alibabaSyncRuns?.[0]?.candidateHash, legacyHash);
+  assert.equal(store.alibabaSyncRuns?.[0]?.status, 'quarantined');
+  assert.equal(alerts.length, 0);
+});
+
+test('R1: partial quarantine promotion cannot silently rebase a retry onto newer revisions', async (context) => {
+  const frozen = await quarantineLinkedProducts(2);
+  const adapter = new RunnerMemoryAdapter(store);
+  setAdapter(adapter);
+  const mutate = adapter.mutateAlibabaProduct.bind(adapter);
+  let rejected = false;
+  let attempts = 0;
+  context.mock.method(
+    adapter,
+    'mutateAlibabaProduct',
+    async (input: AlibabaProductMutationInput): Promise<AlibabaProductMutationResult> => {
+      if (input.action === 'promote') attempts += 1;
+      if (attempts === 2 && !rejected) {
+        rejected = true;
+        return { ok: false, reason: 'identity-conflict' };
+      }
+      return mutate(input);
+    },
+  );
+  const approve = () =>
+    approveQuarantinedRun({
+      ...frozen,
+      approvedByUserId: 'admin-1',
+      now,
+      alert: async (message) => {
+        alerts.push(message);
+      },
+    });
+  assert.equal((await approve()).ok, false);
+  assert.equal(rejected, true, 'the second promotion was attempted');
+  assert.equal(store.products?.filter((product) => product.alibabaLinkRevision === 1).length, 1);
+  assert.equal(
+    store.products?.filter((product) => product.alibabaCatalogPricing === undefined).length,
+    1,
+  );
+  const afterPartial = structuredClone(store.products);
+  assert.deepEqual(await approve(), { ok: false, reason: 'superseded' });
+  assert.deepEqual(store.products, afterPartial);
+  assert.equal(store.alibabaSyncRuns?.[0]?.candidateHash, frozen.candidateHash);
+  assert.equal(store.alibabaSyncRuns?.[0]?.status, 'quarantined');
+  assert.equal(alerts.length, 0);
+});
+
+for (const target of ['p-2', 'p-1']) {
+  test(`R1: quarantine keeps frozen expectations when relink to ${target} occurs after verification`, async (context) => {
+    const frozen = await quarantineLinkedProducts();
+    const sourceKey = alibabaSourceKey('primary', 'item-1');
+    if (target === 'p-2') store.products?.push({ _id: target, name: 'Other' });
+    const adapter = new RunnerMemoryAdapter(store);
+    setAdapter(adapter);
+    const get = adapter.get.bind(adapter);
+    let relinked = false;
+    context.mock.method(adapter, 'get', async (collection: string, id: string) => {
+      if (collection === 'catalogSourceObservations' && !relinked) {
+        relinked = true;
+        assert.equal((await unlinkProduct('p-1', { now: T0 })).ok, true);
+        assert.equal((await linkExistingProduct(sourceKey, target, { now: T0 })).ok, true);
+      }
+      return structuredClone(await get(collection, id));
+    });
+    assert.deepEqual(
+      await approveQuarantinedRun({
+        ...frozen,
+        approvedByUserId: 'admin-1',
+        now,
+        alert: async (message) => {
+          alerts.push(message);
+        },
+      }),
+      { ok: false, reason: 'superseded' },
+    );
+    assert.equal(
+      relinked,
+      true,
+      'the race ran after hash verification and before the promotion write',
+    );
+    assert.equal(
+      store.products?.find((product) => product._id === target)?.alibabaCatalogPricing ?? null,
+      null,
+    );
+    assert.equal(store.alibabaSyncRuns?.[0]?.status, 'quarantined');
+    assert.equal(alerts.length, 0);
+  });
+}
+
+function frozenSingleProductHash(runId: string, sourceKey: string): string {
+  return computeCandidateHash({
+    schemaVersion: 'alibaba-quarantine-identity-v2',
+    runId,
+    candidates: [
+      {
+        sourceKey,
+        expectation: {
+          productId: 'p-1',
+          expectedRevision: 0,
+          expectedPrimarySourceKey: sourceKey,
+          expectedLinks: [productLink('item-1')],
+        },
+      },
+    ],
+    tombstones: [],
+  });
+}
+
+test('quarantine approval rejects a mirror changed immediately before lease acquisition', async () => {
+  setup();
+  const runId = 'quarantined-race';
+  const sourceKey = alibabaSourceKey('primary', 'item-1');
+  const candidateHash = frozenSingleProductHash(runId, sourceKey);
+  store.alibabaSyncRuns = [
+    { _id: runId, status: 'quarantined', mode: 'incremental', candidateHash },
+  ];
+  store.alibabaSourceProducts = [
+    {
+      _id: sourceKey,
+      sourceKey,
+      connectionId: 'primary',
+      sourceProductId: 'item-1',
+      active: true,
+      lastSeenRunId: runId,
+    },
+  ];
+  store.alibabaProductLinks = [productLink('item-1')];
+  store.products = [{ _id: 'p-1', unitPrice: 12.5, alibabaPrimarySourceKey: sourceKey }];
+  class InterveningSyncAdapter extends RunnerMemoryAdapter {
+    override async acquireAlibabaSyncLease(
+      connectionId: string,
+      holder: string,
+      acquiredAt: string,
+      ttlMs: number,
+    ): Promise<AlibabaLeaseGrant> {
+      await this.update('alibabaSourceProducts', sourceKey, { lastSeenRunId: 'newer-run' });
+      return super.acquireAlibabaSyncLease(connectionId, holder, acquiredAt, ttlMs);
+    }
+  }
+  setAdapter(new InterveningSyncAdapter(store));
+  const result = await approveQuarantinedRun({
+    runId,
+    candidateHash,
+    approvedByUserId: 'admin-1',
+    now,
+    alert: async (message) => {
+      alerts.push(message);
+    },
+  });
+  assert.deepEqual(result, { ok: false, reason: 'superseded' });
+  assert.equal(store.alibabaSyncRuns?.[0]?.status, 'quarantined');
+  assert.equal(store.products?.[0]?.alibabaCatalogPricing, undefined);
+  assert.equal(alerts.length, 0);
+});
+
+for (const takeoverCollection of ['products', 'alibabaSyncRuns']) {
+  test(`quarantine approval cannot report success after takeover at ${takeoverCollection}`, async () => {
+    setup();
+    const runId = 'quarantined-takeover';
+    const sourceKey = alibabaSourceKey('primary', 'item-1');
+    const candidateHash = frozenSingleProductHash(runId, sourceKey);
+    store.alibabaSyncRuns = [
+      { _id: runId, status: 'quarantined', mode: 'incremental', candidateHash },
+    ];
+    store.alibabaSourceProducts = [
+      {
+        _id: sourceKey,
+        sourceKey,
+        connectionId: 'primary',
+        sourceProductId: 'item-1',
+        active: true,
+        lastSeenRunId: runId,
+      },
+    ];
+    store.alibabaProductLinks = [productLink('item-1')];
+    store.products = [{ _id: 'p-1', unitPrice: 12.5, alibabaPrimarySourceKey: sourceKey }];
+    let takeoverCount = 0;
+    class TakeoverAdapter extends RunnerMemoryAdapter {
+      override async mutateAlibabaProduct(
+        input: AlibabaProductMutationInput,
+      ): Promise<AlibabaProductMutationResult> {
+        if (takeoverCollection === 'products' && input.action === 'promote') {
+          takeoverCount += 1;
+          await this.update('alibabaSyncLeases', input.guard.connectionId, {
+            holder: 'new-owner',
+            fence: input.guard.fence + 1,
+          });
+          const beforeMutation = structuredClone(this.store);
+          const result = await super.mutateAlibabaProduct(input);
+          assert.deepEqual(result, { ok: false, reason: 'fence-rejected' });
+          assert.deepEqual(this.store, beforeMutation, 'a rejected transaction writes nothing');
+          return result;
+        }
+        return super.mutateAlibabaProduct(input);
+      }
+      override async updateDocWithAlibabaLease(
+        collection: string,
+        id: string,
+        patch: Record<string, unknown>,
+        guard: AlibabaLeaseGuard,
+      ): Promise<boolean> {
+        if (collection === takeoverCollection) {
+          takeoverCount += 1;
+          await this.update('alibabaSyncLeases', guard.connectionId, {
+            holder: 'new-owner',
+            fence: guard.fence + 1,
+          });
+        }
+        return super.updateDocWithAlibabaLease(collection, id, patch, guard);
+      }
+    }
+    setAdapter(new TakeoverAdapter(store));
+    const result = await approveQuarantinedRun({
+      runId,
+      candidateHash,
+      approvedByUserId: 'admin-1',
+      now,
+      alert: async (message) => {
+        alerts.push(message);
+      },
+    });
+    assert.equal(takeoverCount, 1, 'the intended write reaches the takeover interception');
+    assert.deepEqual(result, { ok: false, reason: 'lease-busy' });
+    assert.equal(store.alibabaSyncRuns?.[0]?.status, 'quarantined');
+    assert.equal(store.alibabaSyncLeases?.[0]?.holder, 'new-owner');
+    assert.equal(alerts.length, 0);
+  });
+}
+
 test('full run: an unverified ProductNotFound response quarantines without tombstoning', async () => {
   setup();
   const sourceKey = alibabaSourceKey('primary', 'item-gone');
@@ -931,7 +1477,7 @@ test('full run: an unverified ProductNotFound response quarantines without tombs
       lastSeenRunId: 'old-run',
     } as CollectionDoc,
   ];
-  store.alibabaProductLinks = [{ _id: sourceKey, sourceKey, productId: 'p-1' } as CollectionDoc];
+  store.alibabaProductLinks = [productLink('item-gone')];
   const observationId = sourceObservationDocumentId('alibaba', sourceKey);
   store.catalogSourceObservations = [
     {

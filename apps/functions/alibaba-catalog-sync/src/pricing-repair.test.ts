@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { signSession } from '@vibelingan-channel/auth';
 import { setAdapter } from '@vibelingan-channel/db';
+import type { AlibabaProductLinkIdentity } from '@vibelingan-channel/db/adapter';
 import { JsonFileAdapter } from '../../../local-server/src/json-adapter.ts';
 import { publicDoc } from '../../public-api/src/handler.ts';
 import { handleAlibabaSyncRequest } from './handler.ts';
@@ -44,11 +45,21 @@ test('pricing repair uses completed mirror evidence, skips existing prices/quara
     });
     await db.create('alibabaSourceProducts', {
       _id: `source-${id}`,
+      sourceKey: `source-${id}`,
+      connectionId: 'primary',
       active: true,
       lastSeenRunId: id === 'c' ? 'quarantine' : 'clean',
       sourceProductId: id,
     });
-    await db.create('alibabaProductLinks', { _id: `source-${id}`, productId: id });
+    const link = {
+      _id: `source-${id}`,
+      sourceKey: `source-${id}`,
+      connectionId: 'primary',
+      sourceProductId: id,
+      productId: id,
+      linkedAt: '2026-09-08T00:00:00.000Z',
+    } satisfies AlibabaProductLinkIdentity;
+    await db.create('alibabaProductLinks', link);
     await db.create('alibabaSupplierOffers', {
       _id: `offer-${id}`,
       sourceKey: `source-${id}`,

@@ -6,6 +6,44 @@ import { parse } from 'yaml';
 const workflow = (name) =>
   parse(readFileSync(new URL(`../.github/workflows/${name}.yml`, import.meta.url), 'utf8'));
 
+function assertSharedEnvironmentLock(release, e2e) {
+  for (const candidate of [release, e2e]) {
+    assert.deepEqual(candidate.concurrency, {
+      group: 'cloudbase-deploy-test',
+      'cancel-in-progress': false,
+    });
+  }
+  assert.equal(e2e.jobs.e2e.environment, release.jobs.deploy.environment);
+  assert.equal(e2e.jobs.e2e.environment, release.jobs['catalog-acceptance'].environment);
+}
+
+test('all dispatched E2E suites share the deployment and acceptance environment lock', () => {
+  assertSharedEnvironmentLock(workflow('deploy-test'), workflow('e2e'));
+});
+
+test('environment lock regression detects suite/ref partitioning and cancellation', () => {
+  const release = workflow('deploy-test');
+  const e2e = workflow('e2e');
+  e2e.concurrency = structuredClone(release.concurrency);
+  assertSharedEnvironmentLock(release, e2e);
+  for (const group of [
+    'e2e-${{ github.workflow }}-${{ inputs.suite }}',
+    'cloudbase-deploy-${{ github.ref }}',
+    'cloudbase-deploy-${{ vars.TCB_ENV_ID }}',
+  ]) {
+    for (const candidate of ['release', 'e2e']) {
+      const workflows = { release: structuredClone(release), e2e: structuredClone(e2e) };
+      workflows[candidate].concurrency.group = group;
+      assert.throws(() => assertSharedEnvironmentLock(workflows.release, workflows.e2e));
+    }
+  }
+  for (const candidate of ['release', 'e2e']) {
+    const workflows = { release: structuredClone(release), e2e: structuredClone(e2e) };
+    workflows[candidate].concurrency['cancel-in-progress'] = true;
+    assert.throws(() => assertSharedEnvironmentLock(workflows.release, workflows.e2e));
+  }
+});
+
 test('live acceptance probes sync HTTP health rather than an unsupported POST action', () => {
   const source = readFileSync(
     new URL('../tests/e2e/catalog-live-acceptance.spec.ts', import.meta.url),

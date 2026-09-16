@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { detailFixture } from '../../apps/site/src/catalog/testing/detail-fixture.ts';
 
-// Explicit opt-in: this suite tests the development-only CUI-04 entry, not production routes.
+// @skip-when Local preview opt-in is off; the isolated shared-product-ui config covers this development-only entry.
 test.skip(process.env.E2E_SHARED_DETAIL_PREVIEW !== '1', 'Requires the isolated local preview');
 const preview = (id: string, variant?: string) =>
   `/products/item/?preview=shared&id=${encodeURIComponent(id)}${variant ? `&variant=${encodeURIComponent(variant)}` : ''}`;
@@ -67,6 +67,7 @@ test('country picker searches codes, clears selection, rejects free text and kee
 test('local inquiry explicitly saves with canonical context and only shows a verified receipt', async ({
   page,
 }) => {
+  // @skip-when Local writes are not opted in; this retains a sample and is excluded from isolated acceptance.
   test.skip(process.env.E2E_LOCAL_QUOTE_WRITE !== '1', 'Opt in to one local sample inquiry write');
   await page.goto(preview(samples[0][0]));
   await page.getByRole('button', { name: 'Request a quote', exact: true }).click();

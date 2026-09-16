@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 
+// @skip-when Local preview opt-in is off; the isolated shared-product-ui config enables this suite.
 test.skip(process.env.E2E_SHARED_DETAIL_PREVIEW !== '1', 'Requires the isolated local preview');
 const productId = '24ee8f21-1cac-49f0-93a2-30ba1746289f';
 const variantId = '3cb695af-2fc5-4796-b345-3ba2c6a82fe1';

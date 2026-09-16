@@ -23,6 +23,12 @@ import { processCatalogInquiry } from './catalog-inquiry.ts';
 import { approveCatalogDetailInCloud } from './catalog-detail-commit.ts';
 import { persistStagedApprovalInCloud } from './catalog-detail-staging.ts';
 import { runCategoryCommand } from './category-transaction.ts';
+import {
+  ALIBABA_PRODUCT_LINK_LIMIT,
+  type AlibabaProductMutationInput,
+  type AlibabaProductMutationResult,
+  runAlibabaProductMutation,
+} from './alibaba-product-identity.ts';
 import type {
   AlibabaLeaseGrant,
   AlibabaLeaseGuard,
@@ -304,7 +310,53 @@ export async function manageCatalogCategoryInCloud(db: Pick<NodeSdkDatabase,'run
   },actorId,input,now));
 }
 
+export interface AlibabaProductCloudDatabase {
+  collection(name: string): {
+    where(filter: { productId: string }): {
+      limit(count: number): { get(): Promise<{ data: unknown }> };
+    };
+  };
+  runTransaction<Result>(operation: (transaction: {
+    collection(name: string): {
+      doc(id: string): {
+        get(): Promise<{ data: unknown }>;
+        set(data: Record<string, unknown>): Promise<{ updated?: number; upserted?: Array<{ _id?: string }> }>;
+        remove(): Promise<{ deleted?: number }>;
+      };
+    };
+  }) => Promise<Result>): Promise<Result>;
+}
+
+export async function mutateAlibabaProductInCloud(
+  db: AlibabaProductCloudDatabase,
+  input: AlibabaProductMutationInput,
+): Promise<AlibabaProductMutationResult> {
+  const result = await db.collection('alibabaProductLinks')
+    .where({ productId: input.productId }).limit(ALIBABA_PRODUCT_LINK_LIMIT + 1).get();
+  if (!Array.isArray(result.data) || result.data.some((row) => !row || typeof row !== 'object' || typeof row._id !== 'string')) {
+    throw new Error('Alibaba link query was not acknowledged');
+  }
+  const links = result.data as CollectionDoc[];
+  return db.runTransaction((transaction) => runAlibabaProductMutation({
+    get: async (collection, id) => normalizeSingle((await transaction.collection(collection).doc(id).get()).data),
+    set: async (collection, row) => {
+      const { _id, ...data } = row;
+      const acknowledgement = await transaction.collection(collection).doc(_id).set(data);
+      if (acknowledgement.updated !== 1 && !acknowledgement.upserted?.some((entry) => entry._id === _id)) {
+        throw new Error('Alibaba product write was not acknowledged');
+      }
+    },
+    remove: async (collection, id) => {
+      const acknowledgement = await transaction.collection(collection).doc(id).remove();
+      if (acknowledgement.deleted !== 1) throw new Error('Alibaba link removal was not acknowledged');
+    },
+  }, links, input));
+}
+
 export const cloudBaseAdapter: DbAdapter = {
+  async mutateAlibabaProduct(input) {
+    return mutateAlibabaProductInCloud(cloudStorageSdk().database(), input);
+  },
   async persistCatalogDetailApproval(actorId, input) {
     return persistStagedApprovalInCloud(cloudStorageSdk().database(), actorId, input);
   },

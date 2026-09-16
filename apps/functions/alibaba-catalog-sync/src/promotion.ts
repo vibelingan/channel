@@ -2,9 +2,9 @@
  * Fenced product promotion (MIU 8): materialize the selected primary offer
  * into the linked product's Alibaba-owned fields.
  *
- * The write path is `updateDocWithAlibabaLease` — the lease's holder/fence/
- * expiry are re-verified INSIDE the same transaction as the patch (R1 E2),
- * so a stale holder can never promote after a fence takeover. The patch
+ * The write path is `mutateAlibabaProduct`: product revision, exact links and
+ * lease holder/fence/expiry are re-verified in the same transaction as the patch.
+ * A stale candidate cannot promote after unlink or fence takeover. The patch
  * carries ONLY Alibaba-owned additive fields; curated fields,
  * publication state, and legacy pricing are structurally out of reach.
  */
@@ -15,8 +15,16 @@ import {
   computeCandidateHash,
   priceMoveExceedsThreshold,
 } from '@vibelingan-channel/alibaba-catalog-sync';
-import { type AlibabaLeaseGuard, updateDocWithAlibabaLease } from '@vibelingan-channel/db';
-import { buildAlibabaSourceReview, loadAlibabaObservation } from './linking.ts';
+import {
+  type AlibabaLeaseGuard,
+  type AlibabaProductMutationResult,
+  mutateAlibabaProduct,
+} from '@vibelingan-channel/db';
+import {
+  buildAlibabaSourceReview,
+  loadAlibabaObservation,
+  snapshotAlibabaProductIdentity,
+} from './linking.ts';
 import { listAllDocs } from './list-all.ts';
 import { getDoc } from './repo.ts';
 
@@ -37,7 +45,8 @@ export type PromoteResult =
   | {
       ok: false;
       reason: 'not-linked' | 'product-missing' | 'link-identity-mismatch' | 'fence-rejected';
-    };
+    }
+  | Extract<AlibabaProductMutationResult, { ok: false }>;
 
 /** Read the ACTIVE offers for one source product (bounded by SKU count). */
 async function activeOffers(sourceKey: string): Promise<OfferForSelection[]> {
@@ -68,6 +77,13 @@ export async function promoteLinkedProduct(input: PromoteInput): Promise<Promote
   // the candidate stale.
   if (product.alibabaPrimarySourceKey !== input.sourceKey) {
     return { ok: false, reason: 'link-identity-mismatch' };
+  }
+  const snapshot = await snapshotAlibabaProductIdentity(product);
+  if (!snapshot.ok) {
+    return {
+      ok: false,
+      reason: snapshot.reason === 'identity-conflict' ? 'link-identity-mismatch' : snapshot.reason,
+    };
   }
 
   const source = await getDoc('alibabaSourceProducts', input.sourceKey);
@@ -133,7 +149,20 @@ export async function promoteLinkedProduct(input: PromoteInput): Promise<Promote
       r: sourceReview,
     });
 
-  const applied = await updateDocWithAlibabaLease('products', link.productId, patch, input.guard);
-  if (!applied) return { ok: false, reason: 'fence-rejected' };
+  const result = await mutateAlibabaProduct({
+    ...snapshot.expectation,
+    action: 'promote',
+    sourceKey: input.sourceKey,
+    guard: input.guard,
+    now: input.now,
+    patch,
+  });
+  if (!result.ok) {
+    if (result.reason === 'product-not-found') return { ok: false, reason: 'product-missing' };
+    if (result.reason === 'identity-conflict' || result.reason === 'source-linked-elsewhere') {
+      return { ok: false, reason: 'link-identity-mismatch' };
+    }
+    return result;
+  }
   return { ok: true, productId: link.productId, candidateHash, priceMoveAlert, changed };
 }

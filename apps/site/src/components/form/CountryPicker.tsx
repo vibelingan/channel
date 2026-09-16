@@ -1,8 +1,17 @@
 import { countryOptions } from '@vibelingan-channel/shared/countries';
-import { type Ref, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type Ref,
+  type RefObject,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Button,
   ComboBox,
+  ComboBoxStateContext,
   Input,
   Label,
   ListBox,
@@ -28,6 +37,51 @@ export interface CountryPickerProps {
   clearLabel: string;
 }
 
+function CountryPickerDismissal({ root }: { root: RefObject<HTMLDivElement | null> }) {
+  const state = useContext(ComboBoxStateContext);
+  const escapeHeld = useRef(false);
+  useLayoutEffect(() => {
+    const picker = root.current;
+    if (!picker || !state) return;
+    const dialog = picker.closest('dialog');
+    const dismiss = () => {
+      state.revert();
+      picker.querySelector<HTMLInputElement>('[role="combobox"]')?.focus({ preventScroll: true });
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (
+        event.key !== 'Escape' ||
+        event.isComposing ||
+        !(event.target instanceof Node) ||
+        !picker.contains(event.target)
+      )
+        return;
+      if (!event.repeat) escapeHeld.current = state.isOpen;
+      if (!escapeHeld.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      dismiss();
+    };
+    const releaseEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') escapeHeld.current = false;
+    };
+    const handleCancel = (event: Event) => {
+      if (event.target !== dialog || (!state.isOpen && !escapeHeld.current)) return;
+      event.preventDefault();
+      dismiss();
+    };
+    window.addEventListener('keydown', handleEscape, true);
+    window.addEventListener('keyup', releaseEscape, true);
+    dialog?.addEventListener('cancel', handleCancel, true);
+    return () => {
+      window.removeEventListener('keydown', handleEscape, true);
+      window.removeEventListener('keyup', releaseEscape, true);
+      dialog?.removeEventListener('cancel', handleCancel, true);
+    };
+  }, [root, state]);
+  return null;
+}
+
 /** A searchable sibling of Select, using the same visual tokens. React Aria
  * owns keyboard, focus, filtering and selection semantics; no free-text values. */
 export function CountryPicker({
@@ -48,21 +102,6 @@ export function CountryPicker({
 }: CountryPickerProps) {
   const root = useRef<HTMLDivElement>(null);
   const [portal, setPortal] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    // React Aria closes overlays in document capture. Record/prevent the native
-    // dialog default at window capture, before that close removes aria-expanded.
-    const handleEscape = (event: KeyboardEvent) => {
-      if (
-        event.key === 'Escape' &&
-        event.target instanceof Node &&
-        root.current?.contains(event.target) &&
-        root.current.querySelector('[aria-expanded="true"]')
-      )
-        event.preventDefault();
-    };
-    window.addEventListener('keydown', handleEscape, true);
-    return () => window.removeEventListener('keydown', handleEscape, true);
-  }, []);
   const options = useMemo(() => countryOptions(locale), [locale]);
   return (
     <div ref={root} className="min-w-0" data-country-picker>
@@ -98,6 +137,7 @@ export function CountryPicker({
         onBlur={onBlur}
         className="min-w-0"
       >
+        <CountryPickerDismissal root={root} />
         <Label className="mb-2 block text-sm font-medium text-ink">{label}</Label>
         <div
           className={`flex min-h-11 rounded-lg border bg-white focus-within:ring-2 focus-within:ring-brand-600/25 ${error ? 'border-red-500' : 'border-slate-300'}`}
@@ -133,7 +173,7 @@ export function CountryPicker({
           <ListBox<{ value: string; label: string }>
             // ComboBox's scrollRef points to ListBox: it must own scrolling so
             // focusing a selected option never scrolls/dismisses the outer dialog.
-            className="min-h-0 overflow-auto overscroll-contain outline-none"
+            className="max-h-[240px] min-h-0 overflow-auto overscroll-contain outline-none"
             renderEmptyState={() => <p className="p-3 text-sm text-ink-muted">{emptyLabel}</p>}
           >
             {(item) => (

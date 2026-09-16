@@ -40,6 +40,9 @@ test('live release: approved categories, existing published galleries, real inqu
   expect(health.releaseId).toBe(process.env.CHANNEL_EXPECTED_RELEASE);
   const publicHealth = await request.get(`${e2e.apiUrl}/api/health`);
   expect((await publicHealth.json()).data.releaseId).toBe(process.env.CHANNEL_EXPECTED_RELEASE);
+  const syncHealth = await request.get(`${e2e.apiUrl}/api/alibaba-catalog-sync/health`);
+  expect(syncHealth.ok()).toBe(true);
+  expect((await syncHealth.json()).data.releaseId).toBe(process.env.CHANNEL_EXPECTED_RELEASE);
   const session = await loginAdmin(request);
   expect(await adminAction(request, 'inquiryCapabilities', undefined, session.token)).toEqual({
     enabled: true,
@@ -114,6 +117,12 @@ test('live release: approved categories, existing published galleries, real inqu
       session.token,
     );
     expect(before.published).toBe(false);
+    const anonymousProduct = await request.get(`${e2e.apiUrl}/api/products/${sample.id}`);
+    expect(anonymousProduct.status()).toBe(404);
+    expect(await anonymousProduct.json()).toEqual({
+      ok: false,
+      error: { code: 'NOT_FOUND', message: 'Item not found' },
+    });
     expect(before.alibabaSourceReview).toMatchObject({
       minimumOrderQuantity: 2,
       primaryPricing: { mode: sample.mode },

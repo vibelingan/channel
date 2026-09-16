@@ -16,6 +16,8 @@ import {
 import type {
   AlibabaLeaseGrant,
   AlibabaLeaseGuard,
+  AlibabaProductMutationInput,
+  AlibabaProductMutationResult,
   AlibabaSyncRunClaimResult,
   CatalogProductSaveInput,
   CatalogProductSaveResult,
@@ -32,6 +34,8 @@ export function manageCatalogCategory(actorId: string, input: unknown) {
   return adapter.manageCatalogCategory(actorId, input);
 }
 export {
+  ALIBABA_PRODUCT_LINK_LIMIT,
+  alibabaLinkRevision,
   readImageMutationState,
   transitionImageMutationAcquire,
   transitionImageMutationRelease,
@@ -51,6 +55,9 @@ export type {
   AlibabaLeaseGrant,
   AlibabaLeaseGuard,
   AlibabaLeaseState,
+  AlibabaProductLinkIdentity,
+  AlibabaProductMutationInput,
+  AlibabaProductMutationResult,
   AlibabaSyncRunClaimResult,
   CatalogProductIdentity,
   CatalogProductSaveInput,
@@ -87,6 +94,15 @@ function db(): DbAdapter {
 }
 
 const DEFAULT_PAGE_SIZE = 20;
+export async function mutateAlibabaProduct(
+  input: AlibabaProductMutationInput,
+): Promise<AlibabaProductMutationResult> {
+  const adapter = db();
+  if (!adapter.mutateAlibabaProduct) {
+    throw new Error('@vibelingan-channel/db: Alibaba product mutation is not implemented.');
+  }
+  return adapter.mutateAlibabaProduct(input);
+}
 export function manageCatalogDetailApproval(actorId: string, input: unknown) {
   return runCatalogApprovalWorkflow({ get, persist: persistCatalogDetailApproval }, actorId, input);
 }
@@ -376,6 +392,19 @@ export function saveCatalogProductWithIdentities(
     throw new Error('@vibelingan-channel/db: invalid catalog product save input.');
   }
   requireNonEmpty(input.productId, 'product id');
+  const expected = input.expectedAlibabaIdentity;
+  if (
+    expected !== undefined &&
+    (input.mode !== 'update' ||
+      !expected ||
+      typeof expected !== 'object' ||
+      Array.isArray(expected) ||
+      (expected.revision !== null &&
+        (!Number.isSafeInteger(expected.revision) || expected.revision < 0)) ||
+      (expected.primarySourceKey !== null && typeof expected.primarySourceKey !== 'string'))
+  ) {
+    throw new Error('@vibelingan-channel/db: invalid expected Alibaba identity.');
+  }
   const adapter = db();
   if (!adapter.saveCatalogProductWithIdentities) {
     throw new Error(

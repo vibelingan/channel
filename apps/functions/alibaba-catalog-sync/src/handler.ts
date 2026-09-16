@@ -183,7 +183,12 @@ export async function handleAlibabaSyncRequest(
         if (result.reason === 'source-linked-elsewhere') {
           return err('CONFLICT', 'This source product is already linked to another product.');
         }
-        return err('NOT_FOUND', `Link failed: ${result.reason}.`);
+        return err(
+          result.reason === 'product-not-found' || result.reason === 'source-not-found'
+            ? 'NOT_FOUND'
+            : 'CONFLICT',
+          `Link failed: ${result.reason}.`,
+        );
       }
       return ok(result);
     }
@@ -196,7 +201,11 @@ export async function handleAlibabaSyncRequest(
         now: new Date().toISOString(),
         userId: admin.data.userId,
       });
-      if (!result.ok) return err('NOT_FOUND', 'Product not found.');
+      if (!result.ok)
+        return err(
+          result.reason === 'product-not-found' ? 'NOT_FOUND' : 'CONFLICT',
+          `Unlink failed: ${result.reason}.`,
+        );
       return ok(result);
     }
     case 'setAlibabaPrimaryOffer': {
@@ -421,7 +430,7 @@ export async function handleAlibabaSyncRequest(
       });
       if (!result.ok) {
         return err(
-          result.reason === 'superseded' ? 'CONFLICT' : 'NOT_FOUND',
+          result.reason === 'run-not-found' ? 'NOT_FOUND' : 'CONFLICT',
           `Quarantine approval failed: ${result.reason}.`,
         );
       }

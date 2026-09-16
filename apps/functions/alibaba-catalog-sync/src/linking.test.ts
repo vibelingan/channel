@@ -3,7 +3,13 @@ import test from 'node:test';
 import { alibabaSourceKey } from '@vibelingan-channel/alibaba-catalog-sync';
 import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import';
 import type { AdapterListQuery, DbAdapter } from '@vibelingan-channel/db';
+import * as repository from '@vibelingan-channel/db';
 import { setAdapter } from '@vibelingan-channel/db';
+import {
+  type AlibabaProductMutationInput,
+  type AlibabaProductMutationResult,
+  runAlibabaProductMutation,
+} from '@vibelingan-channel/db/adapter';
 import {
   type CollectionDoc,
   type ListResult,
@@ -22,7 +28,44 @@ type Store = Record<string, CollectionDoc[]>;
 
 class MemoryAdapter implements DbAdapter {
   private nextId = 1;
+  private mutationQueue = Promise.resolve();
+  mutations: AlibabaProductMutationInput[] = [];
+  beforeMutation: (() => Promise<void>) | undefined;
   constructor(readonly store: Store) {}
+  async mutateAlibabaProduct(
+    input: AlibabaProductMutationInput,
+  ): Promise<AlibabaProductMutationResult> {
+    this.mutations.push(structuredClone(input));
+    await this.beforeMutation?.();
+    const operation = this.mutationQueue.then(async () => {
+      const copy = structuredClone(this.store);
+      const result = await runAlibabaProductMutation(
+        {
+          get: async (collection, id) =>
+            structuredClone(copy[collection]?.find((row) => row._id === id) ?? null),
+          set: async (collection, row) => {
+            copy[collection] ??= [];
+            const rows = copy[collection];
+            const index = rows.findIndex((existing) => existing._id === row._id);
+            if (index < 0) rows.push(structuredClone(row));
+            else rows[index] = structuredClone(row);
+          },
+          remove: async (collection, id) => {
+            copy[collection] = (copy[collection] ?? []).filter((row) => row._id !== id);
+          },
+        },
+        (copy.alibabaProductLinks ?? []).filter((row) => row.productId === input.productId),
+        input,
+      );
+      if (result.ok) Object.assign(this.store, copy);
+      return result;
+    });
+    this.mutationQueue = operation.then(
+      () => {},
+      () => {},
+    );
+    return operation;
+  }
   private docs(collection: string): CollectionDoc[] {
     this.store[collection] ??= [];
     return this.store[collection] as CollectionDoc[];
@@ -196,6 +239,7 @@ const SOURCE_OBSERVATION: CollectionDoc = {
 } as CollectionDoc;
 
 let store: Store = {};
+let adapter: MemoryAdapter;
 function setup(extra: Store = {}): Store {
   store = {
     alibabaSourceProducts: [
@@ -228,9 +272,185 @@ function setup(extra: Store = {}): Store {
     catalogSourceObservations: [SOURCE_OBSERVATION],
     ...extra,
   };
-  setAdapter(new MemoryAdapter(store));
+  adapter = new MemoryAdapter(store);
+  setAdapter(adapter);
   return store;
 }
+
+function identityLink(overrides: Partial<CollectionDoc> = {}): CollectionDoc {
+  return {
+    _id: SOURCE_KEY,
+    sourceKey: SOURCE_KEY,
+    connectionId: 'primary',
+    sourceProductId: '987',
+    productId: 'p-1',
+    linkedAt: NOW,
+    ...overrides,
+  };
+}
+
+test('R1: facade refuses an adapter without the atomic operation', async () => {
+  setup();
+  const unsupported: DbAdapter = {
+    list: adapter.list.bind(adapter),
+    get: adapter.get.bind(adapter),
+    findByField: adapter.findByField.bind(adapter),
+    create: adapter.create.bind(adapter),
+    update: adapter.update.bind(adapter),
+    remove: adapter.remove.bind(adapter),
+    incrementField: adapter.incrementField.bind(adapter),
+  };
+  setAdapter(unsupported);
+  assert.equal(typeof repository.mutateAlibabaProduct, 'function');
+  await assert.rejects(
+    async () =>
+      repository.mutateAlibabaProduct({
+        action: 'unlink',
+        productId: 'p-1',
+        expectedRevision: 0,
+        expectedPrimarySourceKey: null,
+        expectedLinks: [],
+        now: NOW,
+      }),
+    /Alibaba product mutation.*not implemented/i,
+  );
+  assert.equal(store.products?.[0]?.alibabaPrimarySourceKey, undefined);
+});
+
+test('R1: link and unlink use only atomic writes and carry exact expectations', async (context) => {
+  setup();
+  for (const method of ['createDocWithId', 'update', 'remove'] as const) {
+    context.mock.method(adapter, method, async () => {
+      assert.fail(`consumer bypassed atomic operation: ${method}`);
+    });
+  }
+  assert.equal((await linkExistingProduct(SOURCE_KEY, 'p-1', CTX)).ok, true);
+  assert.equal(store.products?.[0]?.alibabaLinkRevision, 1);
+  const link = adapter.mutations[0];
+  assert.ok(link);
+  assert.equal(link.action, 'link');
+  assert.equal(link.expectedRevision, 0);
+  assert.equal(link.expectedPrimarySourceKey, null);
+  assert.deepEqual(link.expectedLinks, []);
+  assert.equal((await unlinkProduct('p-1', CTX)).ok, true);
+  const unlink = adapter.mutations[1];
+  assert.ok(unlink);
+  assert.equal(unlink.action, 'unlink');
+  assert.equal(unlink.expectedRevision, 1);
+  assert.equal(unlink.expectedPrimarySourceKey, SOURCE_KEY);
+  assert.deepEqual(unlink.expectedLinks, [identityLink()]);
+  assert.equal(store.products?.[0]?.alibabaLinkRevision, 2);
+});
+
+for (const action of ['link', 'unlink'] as const) {
+  for (const change of ['revision', 'membership', 'linkedAt'] as const) {
+    test(`R1: ${action} rejects changed ${change} after enumeration`, async () => {
+      setup({ alibabaProductLinks: [identityLink()] });
+      const product = store.products?.[0];
+      assert.ok(product);
+      product.alibabaPrimarySourceKey = SOURCE_KEY;
+      let concurrent: Store | undefined;
+      adapter.beforeMutation = async () => {
+        if (change === 'revision') product.alibabaLinkRevision = 1;
+        else if (change === 'membership')
+          store.alibabaProductLinks?.push(identityLink({ _id: 'extra', sourceKey: 'extra' }));
+        else {
+          const link = store.alibabaProductLinks?.[0];
+          assert.ok(link);
+          link.linkedAt = '2026-08-06T11:01:00.000Z';
+        }
+        concurrent = structuredClone(store);
+      };
+      const result =
+        action === 'link'
+          ? await linkExistingProduct(SOURCE_KEY, 'p-1', CTX)
+          : await unlinkProduct('p-1', CTX);
+      assert.deepEqual(result, { ok: false, reason: 'identity-conflict' });
+      assert.deepEqual(store, concurrent);
+    });
+  }
+}
+
+for (const count of [40, 41, 105]) {
+  test(`R1: unlink enumerates all ${count} links and never truncates at its bound`, async () => {
+    setup({
+      alibabaProductLinks: Array.from({ length: count }, (_, index) =>
+        identityLink({
+          _id: `source-${String(index).padStart(3, '0')}`,
+          sourceKey: `source-${String(index).padStart(3, '0')}`,
+        }),
+      ),
+    });
+    const before = structuredClone(store.products);
+    const result = await unlinkProduct('p-1', CTX);
+    if (count === 40) {
+      assert.deepEqual(result, { ok: true, productId: 'p-1', clearedLinks: 40 });
+      assert.equal(adapter.mutations[0]?.expectedLinks.length, 40);
+    } else {
+      assert.deepEqual(result, { ok: false, reason: 'link-limit' });
+      assert.equal(adapter.mutations.length, 0);
+      assert.deepEqual(store.products, before);
+      assert.equal(store.alibabaProductLinks?.length, count);
+    }
+  });
+}
+
+for (const action of ['draft', 'link'] as const) {
+  for (const pausedCollection of ['alibabaSourceProducts', 'catalogSourceObservations']) {
+    test(`R1: ${action} rejects stale data when promotion commits after reading ${pausedCollection}`, async (context) => {
+      setup({ alibabaProductLinks: [identityLink()] });
+      const product = store.products?.[0];
+      assert.ok(product);
+      product.alibabaPrimarySourceKey = SOURCE_KEY;
+      product.alibabaLinkRevision = 3;
+      const originalGet = adapter.get.bind(adapter);
+      let concurrentProduct: CollectionDoc | undefined;
+      context.mock.method(adapter, 'get', async (collection: string, id: string) => {
+        const captured = structuredClone(await originalGet(collection, id));
+        if (collection === pausedCollection && !concurrentProduct) {
+          concurrentProduct = {
+            ...product,
+            alibabaLinkRevision: 4,
+            alibabaDescriptionImageUrls: ['https://sc04.alicdn.com/new-description.jpg'],
+            alibabaSourceImageUrls: ['https://sc04.alicdn.com/new-product.jpg'],
+            alibabaSourceReview: { externalProductId: 'newer-promotion' },
+          };
+          store.products = [structuredClone(concurrentProduct)];
+        }
+        return captured;
+      });
+      const result =
+        action === 'draft'
+          ? await createDraftForSource(SOURCE_KEY, CTX)
+          : await linkExistingProduct(SOURCE_KEY, 'p-1', CTX);
+      assert.ok(concurrentProduct, 'the newer promotion committed at the paused read');
+      assert.deepEqual(result, {
+        ok: false,
+        reason: action === 'draft' ? 'linked-elsewhere' : 'identity-conflict',
+      });
+      assert.equal(adapter.mutations[0]?.expectedRevision, 3);
+      assert.deepEqual(store.products, [concurrentProduct]);
+    });
+  }
+}
+
+test('R1: malformed link identities and revisions fail closed without coercion', async () => {
+  for (const overrides of [{ connectionId: 123 }, { linkedAt: '' }, { sourceKey: 'wrong' }]) {
+    setup({ alibabaProductLinks: [identityLink(overrides)] });
+    assert.deepEqual(await unlinkProduct('p-1', CTX), { ok: false, reason: 'identity-conflict' });
+    assert.equal(adapter.mutations.length, 0);
+  }
+  for (const revision of [null, -1, '0', 0.5, Number.MAX_SAFE_INTEGER]) {
+    setup();
+    const product = store.products?.[0];
+    assert.ok(product);
+    product.alibabaLinkRevision = revision;
+    assert.deepEqual(await linkExistingProduct(SOURCE_KEY, 'p-1', CTX), {
+      ok: false,
+      reason: 'identity-conflict',
+    });
+  }
+});
 
 // --- explicit link -----------------------------------------------------------
 

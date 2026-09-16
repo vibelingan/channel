@@ -21,6 +21,7 @@ import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password'
 import {
   UnknownCollectionError,
   acquireImageMutation,
+  alibabaLinkRevision,
   backfillPublishedRefCounts,
   batchRemove,
   batchUpdate,
@@ -34,6 +35,7 @@ import {
   manageCatalogInquiry,
   releaseImageMutation,
   remove,
+  saveCatalogProductWithIdentities,
   update,
   updateDoc,
 } from '@vibelingan-channel/db';
@@ -93,6 +95,8 @@ import {
   getCollection,
   isKnownCollection,
   normalizeCatalogImageIds,
+  normalizeProductSlug,
+  normalizeSkuCode,
   oemFileUploadSchema,
   ok,
   rateLimited,
@@ -1408,6 +1412,70 @@ async function productReviewSummaryAction(claims: SessionClaims): Promise<ApiRes
   });
 }
 
+async function acknowledgeAlibabaProductReview(
+  product: CollectionDoc,
+  values: Record<string, unknown>,
+  reviewerId: string,
+  requireDetailApproval = false,
+) {
+  const data = { ...values };
+  for (const field of ['slug', 'skuCode'] as const) {
+    const value = data[field];
+    if (value === undefined || value === null) continue;
+    const normalized =
+      typeof value === 'string' && value.trim() === ''
+        ? ''
+        : field === 'slug'
+          ? normalizeProductSlug(value)
+          : normalizeSkuCode(value);
+    if (normalized === null) {
+      throw new CatalogProductWriteError('INVALID_IDENTITY', `Product ${field} is invalid.`);
+    }
+    data[field] = normalized;
+  }
+  const result = await saveCatalogProductWithIdentities({
+    mode: 'update',
+    productId: product._id,
+    data: {
+      ...data,
+      alibabaReviewPending: false,
+      alibabaReviewedAt: new Date().toISOString(),
+      alibabaReviewedByUserId: reviewerId,
+    },
+    expectedAlibabaIdentity: {
+      revision: alibabaLinkRevision(product),
+      primarySourceKey:
+        typeof product.alibabaPrimarySourceKey === 'string'
+          ? product.alibabaPrimarySourceKey
+          : null,
+    },
+    requireDetailApproval,
+  });
+  if (result.result === 'saved') return result;
+  if (result.result === 'alibaba-identity-conflict') {
+    throw new CatalogProductWriteError(
+      'IDENTITY_CONFLICT',
+      'The Alibaba product source changed. Refresh and review the current source.',
+    );
+  }
+  if (result.result === 'conflict') {
+    throw new CatalogProductWriteError(
+      'IDENTITY_CONFLICT',
+      `Product ${result.kind} is already in use: ${result.normalizedValue}`,
+    );
+  }
+  if (result.result === 'invalid') {
+    throw new CatalogProductWriteError('INVALID_IDENTITY', `Product ${result.kind} is invalid.`);
+  }
+  if (result.result === 'invalid-product') {
+    throw new CatalogProductWriteError(
+      'INVALID_PRODUCT',
+      result.issues.map((issue) => issue.message).join('; '),
+    );
+  }
+  throw new CatalogProductWriteError('PRODUCT_NOT_FOUND', 'Product was not found.');
+}
+
 async function markProductReviewedAction(
   req: AdminRequest,
   claims: SessionClaims,
@@ -1422,17 +1490,11 @@ async function markProductReviewedAction(
   if (typeof product.alibabaPrimarySourceKey !== 'string' || !product.alibabaPrimarySourceKey) {
     return err('CONFLICT', 'Only Alibaba-linked products belong to this review queue.');
   }
-  if (product.alibabaReviewPending === false) {
-    return ok({ ...redact('products', product), alreadyReviewed: true });
-  }
-  const reviewedAt = new Date().toISOString();
-  const updated = await updateDoc('products', parsed.data.productId, {
-    alibabaReviewPending: false,
-    alibabaReviewedAt: reviewedAt,
-    alibabaReviewedByUserId: claims.sub,
+  const result = await acknowledgeAlibabaProductReview(product, {}, claims.sub);
+  return ok({
+    ...redact('products', result.doc),
+    ...(result.previous?.alibabaReviewPending === false ? { alreadyReviewed: true } : {}),
   });
-  if (!updated) return err('NOT_FOUND', 'Product not found');
-  return ok(redact('products', updated));
 }
 
 async function getAction(req: AdminRequest, claims: SessionClaims): Promise<ApiResult<unknown>> {
@@ -1812,20 +1874,11 @@ async function updateAction(
       const acknowledgesReview =
         before?.alibabaReviewPending === true &&
         (values.published === true || values.archived === true);
-      const transition = await updateCatalogProductRecord(
-        parsed.data.id,
-        {
-          ...values,
-          ...(acknowledgesReview
-            ? {
-                alibabaReviewPending: false,
-                alibabaReviewedAt: new Date().toISOString(),
-                alibabaReviewedByUserId: claims.sub,
-              }
-            : {}),
-        },
-        config.enableDetailApproval === true && values.published === true,
-      );
+      const requiresApproval = config.enableDetailApproval === true && values.published === true;
+      const transition =
+        acknowledgesReview && before
+          ? await acknowledgeAlibabaProductReview(before, values, claims.sub, requiresApproval)
+          : await updateCatalogProductRecord(parsed.data.id, values, requiresApproval);
       doc = transition.doc;
       authoritativeBefore = transition.previous;
     } else if (parsed.data.collection === 'sourceCategoryMappings') {

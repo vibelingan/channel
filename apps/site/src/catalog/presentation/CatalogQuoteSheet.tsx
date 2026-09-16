@@ -106,6 +106,15 @@ export function CatalogQuoteSheet({
   // localStorage, URL/contact serialization, transport, or synthetic receipt.
   const wasOpen = useRef(false);
   useEffect(() => {
+    if (!open) return;
+    const root = document.documentElement;
+    const previousAnchor = root.style.overflowAnchor;
+    root.style.overflowAnchor = 'none';
+    return () => {
+      root.style.overflowAnchor = previousAnchor;
+    };
+  }, [open]);
+  useEffect(() => {
     const element = dialog.current;
     if (!element) return;
     if (open && !wasOpen.current) {
@@ -268,10 +277,12 @@ export function CatalogQuoteSheet({
       aria-labelledby={`${id}-title`}
       aria-describedby={`${id}-notice`}
       onCancel={(event) => {
+        if (event.defaultPrevented) return;
         event.preventDefault();
         if (!sending.current) onClose();
       }}
       onClose={onClose}
+      style={{ overflowAnchor: 'none' }}
       className="fixed inset-x-0 bottom-0 top-auto m-0 max-h-[92dvh] w-full min-w-0 max-w-none overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain rounded-t-2xl border border-slate-200 bg-white p-0 text-ink shadow-xl [touch-action:pan-y_pinch-zoom] backdrop:bg-brand-950/50 sm:inset-0 sm:m-auto sm:w-[min(44rem,calc(100%_-_2rem))] sm:rounded-2xl"
     >
       <div className="min-w-0 p-5 [overflow-wrap:anywhere] sm:p-8">
@@ -335,6 +346,7 @@ export function CatalogQuoteSheet({
           </p>
         )}
         <form
+          method="post"
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
