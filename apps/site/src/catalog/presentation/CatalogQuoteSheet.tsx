@@ -45,6 +45,7 @@ export function CatalogQuoteSheet({
   blocked,
   quantity,
   onQuantityChange,
+  onIntentChange,
   copy,
 }: {
   open: boolean;
@@ -55,6 +56,7 @@ export function CatalogQuoteSheet({
   blocked: boolean;
   quantity: string;
   onQuantityChange: (value: string) => void;
+  onIntentChange?: (value: CatalogQuoteFields['intent']) => void;
   copy: SharedDetailContent;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -356,6 +358,35 @@ export function CatalogQuoteSheet({
           <input type="hidden" {...register('intent')} />
           <fieldset hidden={step !== 'requirements'} className="min-w-0 space-y-5">
             <legend className="sr-only">{text.steps.requirements}</legend>
+            {onIntentChange && (
+              <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={target.intent === 'customization'}
+                  disabled={
+                    !variant ||
+                    blocked ||
+                    submission.status === 'sending' ||
+                    submission.status === 'saved'
+                  }
+                  onChange={(event) => {
+                    if (!variant || blocked || sending.current || submission.status === 'saved')
+                      return;
+                    const next = event.target.checked ? 'customization' : 'variant_quote';
+                    setValue('intent', next);
+                    if (next === 'variant_quote') setValue('customizationTypes', []);
+                    clearErrors();
+                    setContextError(false);
+                    setState({
+                      step: 'requirements',
+                      key: quoteContextKey({ ...target, intent: next }),
+                    });
+                    onIntentChange(next);
+                  }}
+                />
+                {text.customizationAction}
+              </label>
+            )}
             {field('quantity', copy.quantityLabel, { maxLength: 16 })}
             <p className="text-xs leading-5 text-ink-muted">{text.quantityPolicy}</p>
             {field('deliveryDate', text.deliveryDate, { type: 'date' })}
@@ -477,7 +508,10 @@ export function CatalogQuoteSheet({
               <button
                 type="button"
                 disabled={
-                  !transport || submission.status === 'sending' || submission.status === 'saved'
+                  blocked ||
+                  !transport ||
+                  submission.status === 'sending' ||
+                  submission.status === 'saved'
                 }
                 onClick={() => void send()}
                 className="min-h-11 rounded-lg bg-accent-500 px-4 py-2 font-semibold disabled:opacity-50"
@@ -493,6 +527,7 @@ export function CatalogQuoteSheet({
             ) : (
               <button
                 type="submit"
+                disabled={blocked}
                 className="min-h-11 rounded-lg bg-brand-700 px-5 py-2 font-semibold text-white"
               >
                 {step === 'requirements' ? text.continue : text.review}

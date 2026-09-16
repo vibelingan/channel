@@ -21,7 +21,7 @@ test.beforeEach(async ({ baseURL, page }) => {
   );
 });
 
-test('real list search -> detail -> back/forward retains focus, scroll, configuration and in-detail quantity', async ({
+test('real list search -> detail -> back/forward retains focus, scroll, configuration and dialog quantity across SKU changes', async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -44,10 +44,27 @@ test('real list search -> detail -> back/forward retains focus, scroll, configur
   await expect(back).toBeInViewport();
   const backBox = await back.boundingBox();
   expect(backBox?.y).toBeGreaterThanOrEqual(72);
-  const quantity = page.getByRole('textbox', { name: 'Requested quantity', exact: true });
+  await expect(page.getByRole('textbox', { name: 'Requested quantity', exact: true })).toHaveCount(
+    0,
+  );
+  const open = page.getByRole('button', { name: 'Request a quote', exact: true });
+  await open.click();
+  const dialog = page.getByRole('dialog');
+  const quantity = dialog.getByRole('textbox', { name: 'Requested quantity', exact: true });
   await quantity.fill('500');
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   await page.getByRole('radio', { name: `Black · ${variantId}`, exact: true }).check();
+  await open.click();
   await expect(quantity).toHaveValue('500');
+  await expect(dialog.locator('[data-rfq-context]')).toHaveAttribute(
+    'data-configuration-id',
+    variantId,
+  );
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(open).toBeFocused();
+  await expect(page.getByRole('textbox', { name: 'Requested quantity', exact: true })).toHaveCount(
+    0,
+  );
   expect(new URL(page.url()).searchParams.get('variant')).toBe(variantId);
   await back.click();
   await expect(card).toBeFocused();

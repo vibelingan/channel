@@ -255,12 +255,23 @@ test('controlled Gallery renders the explicit source, not index zero or an inven
   assert.doesNotMatch(unknown, /aria-pressed="true"/);
 });
 
-test('detail layout shows every bounded thumbnail in a scroll lane without changing legacy layout', () => {
+test('detail layout retains every merged photo in order without changing legacy gallery limits', () => {
   const images = Array.from({ length: 12 }, (_, i) => `/api/images/${i}`);
   const detail = renderToStaticMarkup(
-    createElement(Gallery, { images, alt: 'Detail', layout: 'detail' }),
+    createElement(Gallery, {
+      images: [' ', ...images, images[0]],
+      alt: 'Detail',
+      layout: 'detail',
+    }),
   );
-  assert.equal((detail.match(/data-gallery-thumbnail=/g) ?? []).length, 9);
+  assert.equal((detail.match(/data-gallery-thumbnail=/g) ?? []).length, 12);
+  assert.deepEqual(
+    [...detail.matchAll(/data-gallery-thumbnail="\d+"[\s\S]*?<img[^>]*src="([^"]+)"/g)].map(
+      (match) => match[1],
+    ),
+    images,
+  );
+  assert.match(detail, />1 \/ 12</);
   assert.match(detail, /overflow-x-auto/);
   assert.match(detail, /sm:h-\[360px\]/);
   assert.match(detail, /lg:h-\[420px\]/);
@@ -268,6 +279,7 @@ test('detail layout shows every bounded thumbnail in a scroll lane without chang
   assert.match(detail, /data-gallery-count/);
   assert.doesNotMatch(detail, /data-gallery-view-all/);
   const legacy = renderToStaticMarkup(createElement(Gallery, { images, alt: 'Legacy' }));
+  assert.deepEqual(boundedGalleryImages(images), images.slice(0, 9));
   assert.equal((legacy.match(/data-gallery-thumbnail=/g) ?? []).length, 4);
   assert.match(legacy, /aspect-square[^>]*max-w-\[520px\]/);
   assert.match(legacy, /data-gallery-view-all/);

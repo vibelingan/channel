@@ -59,7 +59,9 @@ test('real raw color mappings → owned media → Admin Preview → approval →
       .poll(() => hero.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0))
       .toBe(true);
     previewSources.add((await hero.getAttribute('src')) ?? '');
-    await expect(preview.locator('[data-gallery-count]')).toHaveText('1 / 1');
+    await expect(preview.locator('[data-gallery-count]')).toHaveText('1 / 7');
+    await expect(preview.locator('[data-gallery-thumbnail]')).toHaveCount(7);
+    await expect(hero).toHaveAttribute('alt', /\(selected configuration\)$/);
   }
   expect(previewSources.size).toBe(3);
   // Viewing and changing selection never publish private media.
@@ -109,10 +111,20 @@ test('real raw color mappings → owned media → Admin Preview → approval →
     await page.getByRole('radio', { name: new RegExp(color) }).check();
     const hero = page.locator('[data-gallery-frame] img');
     await expect(hero).toHaveAttribute('src', new RegExp(`/raw-color-image-${i}$`));
+    await expect(page.locator('[data-gallery-count]')).toHaveText('1 / 7');
+    await expect(page.locator('[data-gallery-thumbnail]')).toHaveCount(7);
     await expect
       .poll(() => hero.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0))
       .toBe(true);
   }
+  const pinkUrl = page.url();
+  await page.locator('[data-gallery-thumbnail]').last().click();
+  await expect(page.locator('[data-gallery-frame] img')).toHaveAttribute(
+    'alt',
+    /General product photo$/,
+  );
+  await expect(page.getByRole('radio', { name: /Pink/ })).toBeChecked();
+  await expect(page).toHaveURL(pinkUrl);
   await page.screenshot({ path: info.outputPath('raw-color-mobile.png'), fullPage: true });
 });
 
@@ -139,10 +151,14 @@ test('raw sourcing FOB quote remains visible in list, Edit and Preview despite i
   await row.getByRole('button', { name: 'Preview', exact: true }).click();
   const preview = page.getByRole('dialog', { name: 'Product preview', exact: true });
   await expect(preview.locator('[data-shared-catalog-detail]')).toBeVisible();
-  await expect(preview).toContainText('Product-level quotes');
-  await expect(preview).toContainText('USD 7.75 – USD 9.00 per unit');
-  await expect(preview).toContainText('Minimum order quantity: 2');
-  await expect(preview).toContainText('No usable source price is supplied');
+  const price = preview.locator('[data-catalog-compact-price]');
+  await expect(price.locator('[data-quote-scope="product"]')).toContainText('Product-level quotes');
+  await expect(price.locator('[data-quote-scope="product"]')).toContainText(
+    'USD 7.75 - USD 9.00 per unit',
+  );
+  await expect(price.locator('[data-quote-scope="variant"]')).toContainText('Request a quote');
+  await expect(price.locator('[data-quote-scope="variant"]')).not.toContainText(/7\.75|9\.00/);
+  await expect(preview.locator('[data-catalog-quote-conditions]')).toHaveCount(0);
   await expect(preview.locator('[data-quote-open]')).toBeDisabled();
 });
 
@@ -206,21 +222,27 @@ test('raw Alibaba response → draft/edit/preview → approved detail preserves 
   await expect(preview.getByRole('alert')).toContainText('Saved images have not been removed');
   expect(mediaFailureInjected).toBe(true);
   await preview.getByRole('button', { name: 'Retry images' }).click();
-  await expect(preview).toContainText('USD 7.67');
-  await expect(preview).toContainText('Minimum order quantity: 1');
+  await expect(preview.locator('[data-catalog-compact-price]')).toContainText('USD 7.67');
+  await expect(preview.locator('[data-catalog-compact-price]')).toContainText('Reference');
   // 30 unambiguous facts + 17 values under repeated labels. The latter stay
   // in notes, not misleading single-valued headline specs.
   await expect(preview.locator('[data-catalog-specifications] dd')).toHaveCount(30);
   await expect(preview.locator('[data-catalog-notes] p')).toHaveCount(17);
   await expect(preview.locator('[data-catalog-notes]')).toContainText('Application — Hiking');
   await expect(preview.locator('[data-catalog-notes]')).toContainText('Application — Camping');
-  await preview.getByRole('button', { name: 'View product gallery (6)' }).click();
+  await expect(preview.getByRole('button', { name: /^View product gallery/ })).toHaveCount(0);
   await expect(preview.locator('[data-gallery-thumbnail]')).toHaveCount(6);
+  await expect(preview.locator('[data-gallery-count]')).toHaveText('1 / 6');
   await expect(preview.locator('[data-description-images] img')).toHaveCount(17);
   await expect(preview.getByRole('alert')).toHaveCount(0);
   await expect(preview).not.toContainText('No product description has been supplied');
   await expect(preview.locator('[data-quote-open]')).toBeDisabled();
-  await preview.locator('[data-description-images] summary').click();
+  await expect(preview.locator('section[data-catalog-notes]')).toBeVisible();
+  await expect(preview.locator('section[data-description-images]')).toBeVisible();
+  await expect(
+    preview.locator('[data-catalog-notes] summary, [data-description-images] summary'),
+  ).toHaveCount(0);
+  await expect(preview.locator('[data-catalog-notes] p').first()).toBeVisible();
   const last = preview.locator('[data-description-images] img').last();
   await last.scrollIntoViewIfNeeded();
   await expect
@@ -278,8 +300,12 @@ test('raw Alibaba response → draft/edit/preview → approved detail preserves 
   await expect(page.locator('[data-shared-catalog-detail]')).toBeVisible();
   await expect(page.locator('[data-catalog-specifications] dd')).toHaveCount(30);
   await expect(page.locator('[data-catalog-notes] p')).toHaveCount(17);
-  await expect(page.locator('main')).toContainText('USD 7.67');
-  await expect(page.locator('main')).toContainText('Minimum order quantity: 1');
+  await expect(page.locator('[data-catalog-compact-price]')).toContainText('USD 7.67');
+  await expect(page.locator('section[data-catalog-notes] p').first()).toBeVisible();
+  await expect(page.locator('section[data-description-images] img').first()).toBeVisible();
+  await expect(
+    page.locator('[data-catalog-notes] summary, [data-description-images] summary'),
+  ).toHaveCount(0);
   await expect(page.locator('[data-description-images] img')).toHaveCount(17);
   expect((await request.get(`${e2e.apiUrl}/api/images/raw-wire-image-6`)).status()).toBe(200);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -353,8 +379,12 @@ test('missing preview script keeps Admin usable and recovers after an explicit r
   await expect(page.getByRole('heading', { name: 'Users', exact: true })).toBeVisible();
   await openPreview();
   await expect(dialog.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
-  await dialog.getByRole('button', { name: 'View product gallery (9)' }).click();
-  await expect(dialog.locator('[data-gallery-thumbnail]')).toHaveCount(9);
+  await expect(dialog.getByRole('button', { name: /^View product gallery/ })).toHaveCount(0);
+  await expect(dialog.locator('[data-gallery-thumbnail]')).toHaveCount(10);
+  await expect(dialog.locator('[data-gallery-thumbnail]').first()).toHaveAttribute(
+    'aria-label',
+    /selected configuration/,
+  );
   await dialog.getByRole('button', { name: 'Close', exact: true }).first().click();
   const after = await getDraft();
   expect(after.published).toBe(before.published);
@@ -417,16 +447,33 @@ test('untouched sync draft: source prices, shared preview, pagination and access
   await expect(dialog.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 30000 });
   await expect(dialog).toContainText('import the source gallery before publishing');
   await expect(dialog.getByRole('button', { name: 'Prepare detail review' })).toHaveCount(0);
-  await dialog.getByRole('button', { name: 'View product gallery (9)' }).click();
-  await expect(dialog.locator('[data-gallery-thumbnail]')).toHaveCount(9);
-  await dialog.getByRole('button', { name: 'View image 9', exact: true }).click();
-  await expect(dialog).toContainText('9 / 9');
-  await dialog.getByRole('button', { name: 'View image 1', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: /^View product gallery/ })).toHaveCount(0);
+  await expect(dialog.locator('[data-gallery-thumbnail]')).toHaveCount(10);
+  await expect(dialog.locator('[data-gallery-thumbnail]').first()).toHaveAttribute(
+    'aria-label',
+    /selected configuration/,
+  );
+  for (let index = 0; index < 9; index++) {
+    const thumbnail = dialog.locator(`[data-gallery-thumbnail="${index + 1}"]`);
+    await expect(thumbnail).toHaveAttribute('aria-label', /General product photo/);
+    await expect(thumbnail.locator('img')).toHaveAttribute(
+      'src',
+      `https://s.alicdn.com/formal-draft-${index}.png`,
+    );
+  }
+  const configuration = dialog.getByRole('combobox', { name: 'Choose configuration', exact: true });
+  const selected = await configuration.inputValue();
+  expect(selected).not.toBe('');
+  await dialog.locator('[data-gallery-thumbnail="9"]').click();
+  await expect(dialog.locator('[data-gallery-count]')).toHaveText('10 / 10');
+  await expect(configuration).toHaveValue(selected);
+  await dialog.locator('[data-gallery-thumbnail="0"]').click();
   await expect(dialog.locator('[data-quote-open]')).toBeDisabled();
-  await expect(dialog.getByRole('button', { name: 'Ask about customization' })).toBeDisabled();
-  await expect(dialog).toContainText('USD 7.89');
-  await expect(dialog).toContainText('USD 7.00');
-  await expect(dialog).toContainText('USD 6.00');
+  await expect(dialog.getByRole('button', { name: /customization/i })).toHaveCount(0);
+  await expect(dialog.locator('[data-catalog-compact-price]')).toContainText(
+    'USD 6.00 - USD 7.89 per unit',
+  );
+  await expect(dialog.locator('[data-catalog-compact-price]')).toContainText('Reference');
   await expect(dialog).toContainText('Page 1 of 2');
   await dialog.getByRole('button', { name: 'Next configurations' }).click();
   await expect(dialog).toContainText('Page 2 of 2');
@@ -653,11 +700,12 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
   await page.goto(`/headphones/?id=${id}`);
   await expect(page.locator('[data-catalog-variant-selector]')).toBeVisible();
   expect(page.url()).not.toContain('preview=');
-  const generalGallery = page.getByRole('button', { name: 'View product gallery (2)' });
-  if (await generalGallery.isVisible()) await generalGallery.click();
+  await expect(page.getByRole('button', { name: /^View product gallery/ })).toHaveCount(0);
   await expect(page.locator('[data-gallery-thumbnail]')).toHaveCount(2);
+  const selectedUrl = page.url();
   for (let index = 0; index < 2; index++) {
-    await page.getByRole('button', { name: `View image ${index + 1}`, exact: true }).click();
+    await page.locator('[data-gallery-thumbnail]').nth(index).click();
+    await expect(page).toHaveURL(selectedUrl);
     await expect
       .poll(() =>
         page
@@ -670,8 +718,12 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
   }
   await page.locator('[data-catalog-variant-selector] select').selectOption({ index: 2 });
   await expect(page.locator('[data-quote-open]')).toBeEnabled();
-  await page.getByRole('textbox', { name: 'Requested quantity', exact: true }).fill('500');
-  await expect(page.locator('main')).toContainText('3.80');
+  await expect(page.getByRole('textbox', { name: 'Requested quantity', exact: true })).toHaveCount(
+    0,
+  );
+  await expect(page.locator('[data-catalog-compact-price]')).toContainText(
+    'USD 3.80 - USD 5.70 per unit',
+  );
   await page.screenshot({ path: info.outputPath('normal-product-detail.png'), fullPage: true });
   await page.locator('[data-quote-open]').click();
   const dialog = page.locator('[data-catalog-quote-sheet]');
@@ -680,6 +732,10 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
   await dialog.getByRole('button', { name: 'Continue to contact', exact: true }).click();
   await expect(dialog.getByRole('alert')).toBeVisible();
   await dialog.getByLabel('Requested quantity', { exact: true }).fill('500');
+  await expect(dialog.getByLabel('Requested quantity', { exact: true })).toHaveValue('500');
+  await expect(page.locator('[data-catalog-compact-price]')).toContainText(
+    'USD 3.80 - USD 5.70 per unit',
+  );
   await dialog.getByRole('button', { name: 'Continue to contact', exact: true }).click();
   await dialog.getByLabel('Contact name', { exact: true }).fill('Acceptance Buyer');
   await dialog.getByLabel('Email', { exact: true }).fill('acceptance@example.invalid');

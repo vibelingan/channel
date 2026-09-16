@@ -1,6 +1,6 @@
 import type { CatalogDetailVariant } from '@vibelingan-channel/shared/catalog-detail';
 import { useState } from 'react';
-import { Gallery } from '../../islands/shop/Gallery.tsx';
+import { Gallery, boundedGalleryImages } from '../../islands/shop/Gallery.tsx';
 import { catalogVariantLabels } from '../application/catalog-variant-labels.ts';
 import { variantMediaSources } from '../application/catalog-variant-media.ts';
 import type { VariantSelection } from '../application/catalog-variant-state.ts';
@@ -34,35 +34,46 @@ function Session({
   unavailableLabel,
   onMainImageLoad,
 }: CatalogVariantGalleryProps) {
-  const [general, setGeneral] = useState(false);
   const selected = selection.status === 'selected' ? selection.variant : undefined;
   const specific = selected
-    ? variantMediaSources(images, selection).flatMap((src) => {
-        const resolved = resolveImage(src);
-        return resolved ? [resolved] : [];
-      })
+    ? selected.images.length
+      ? variantMediaSources(images, selection)
+      : (sourceImages ?? [])
     : [];
-  // Source previews have an explicit provider URL contract. Do not fall back
-  // from a failed owned image to a different source or to the product gallery.
-  const photos =
-    general || !selected ? images : selected.images.length ? specific : (sourceImages ?? []);
+  const assigned = new Map<string, string | undefined>();
+  const assignedUrls = new Set<string>();
+  for (const source of specific) {
+    const normalized = boundedGalleryImages([source])[0];
+    if (!normalized || assigned.has(normalized)) continue;
+    const resolved = selected?.images.length ? resolveImage(source.trim()) : source;
+    const url = resolved ? boundedGalleryImages([resolved])[0] : undefined;
+    if (url && assignedUrls.has(url)) continue;
+    assigned.set(normalized, url);
+    if (url) assignedUrls.add(url);
+  }
+  const general = images
+    .flatMap((source) => boundedGalleryImages([source]))
+    .filter((source) => !assigned.has(source) && !assignedUrls.has(source));
+  const photos = [...new Set([...assigned.keys(), ...general])];
   const label = selected
     ? (catalogVariantLabels(variants, (index) => `Configuration ${index + 1}`)[
         variants.findIndex((v) => v.id === selected.id)
       ] ?? 'Selected configuration')
     : '';
   return (
-    <section
-      data-variant-gallery
-      data-gallery-mode={general || !selected ? 'product' : 'configuration'}
-    >
+    <section data-variant-gallery>
       <p className="mb-3 text-sm font-semibold text-ink" aria-live="polite">
-        {general || !selected ? 'Product photos' : `Configuration photos — ${label}`}
+        Product photos
       </p>
       <Gallery
-        key={general ? 'product' : 'configuration'}
         images={photos}
-        alt={general || !selected ? name : `${name} — ${label}`}
+        imageLabels={photos.map((source) =>
+          assigned.has(source)
+            ? `${name} - ${label} (selected configuration)`
+            : `${name} - General product photo`,
+        )}
+        resolveImage={(source) => (assigned.has(source) ? assigned.get(source) : source)}
+        alt={name}
         productId={productId}
         layout="detail"
         mainImagePriority="high"
@@ -70,26 +81,11 @@ function Session({
         unavailableLabel={
           loadingImages
             ? 'Loading images…'
-            : selected && !general && !selected.images.length && !sourceImages?.length
+            : selected && photos.length === 0
               ? 'No photo is assigned to this configuration.'
               : unavailableLabel
         }
       />
-      {selected && images.length > 0 && (
-        <button
-          type="button"
-          onClick={() => setGeneral((v) => !v)}
-          className="mt-3 min-h-11 rounded-md px-2 text-sm font-semibold text-brand-700 underline focus-visible:outline-brand-700"
-        >
-          {general ? 'Back to configuration photos' : `View product gallery (${images.length})`}
-        </button>
-      )}
-      {general && (
-        <p className="mt-2 text-xs leading-relaxed text-ink-muted">
-          General product photos may include other colors and accessories. Your selected
-          configuration has not changed.
-        </p>
-      )}
     </section>
   );
 }

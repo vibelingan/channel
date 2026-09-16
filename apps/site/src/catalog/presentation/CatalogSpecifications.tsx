@@ -71,10 +71,10 @@ export function CatalogSpecifications({
         </section>
       )}
       {notes.length > 0 && (
-        <details data-catalog-notes className="border-b border-slate-200 py-6">
-          <summary className="cursor-pointer font-display text-xl font-semibold text-ink focus-visible:outline-brand-700">
+        <section data-catalog-notes className="border-b border-slate-200 py-6">
+          <h2 className="font-display text-xl font-semibold text-ink">
             {content ? copy.supplierNotesLabel : copy.descriptionLabel}
-          </summary>
+          </h2>
           <div className="mt-5 max-w-[70ch] space-y-3 break-words text-sm leading-7 text-ink-soft">
             {noteBlocks ? (
               <>
@@ -98,7 +98,7 @@ export function CatalogSpecifications({
               notes.map((paragraph, index) => <p key={`${index}:${paragraph}`}>{paragraph}</p>)
             )}
           </div>
-        </details>
+        </section>
       )}
     </section>
   );
