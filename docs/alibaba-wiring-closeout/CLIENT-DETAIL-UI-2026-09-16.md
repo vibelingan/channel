@@ -32,8 +32,20 @@ catalog acceptance is being repaired and rerun. Main PR #55 remains open.
   returns after collecting the advertised total. Mutation steps are unchanged.
   The original helpers failed the 90/48 regression; 65 helper regressions passed
   on Node 20 and 24. No UI/backend/workflow behavior changed in this correction.
-- The corrected acceptance still needs a verified test release and live run;
-  neither the failed acceptance nor its four other-scope skips count as a pass.
+- Pagination correction deployed as `3b89462` in
+  [35082627074](https://github.com/vibelingan/channel/actions/runs/35082627074)
+  with both CI jobs, deployment and public smoke successful.
+- Acceptance rerun 35086683026 stopped in its prerequisite local browser CI,
+  before any live acceptance operation. Save-Data/2g checks mistook two requests
+  for the selected black image (hero and visible thumbnail with routing/cache
+  disabled) for speculative fetching. There was no unselected-color request.
+  The test now observes native Image-constructor prefetch directly, alongside
+  unique visible-source checks. Its normal-4g positive control detects prefetch;
+  removing the connection guard makes both saving-mode cases fail with three
+  speculative SKU sources. The hook was restored byte-for-byte, and 15 final
+  browser repetitions passed with zero retries. Only test code changed.
+- Corrected live acceptance remains pending; failed runs and other-scope skips
+  do not count as passing acceptance.
 
 ## Final Local Results
 
