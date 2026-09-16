@@ -1,5 +1,6 @@
-const maxProducts = 100;
-const maxPages = 10;
+const requestPageSize = 100;
+const maxSnapshotProducts = 1000;
+const maxPages = 25;
 
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
 function isRecord(value) {
@@ -19,7 +20,7 @@ export async function publicCatalogSnapshot(fetchPage) {
   let expectedPageSize;
 
   for (let requestedPage = 1; requestedPage <= maxPages; requestedPage += 1) {
-    const response = await fetchPage(requestedPage, maxProducts);
+    const response = await fetchPage(requestedPage, requestPageSize);
     if (!response.ok()) throw new Error(`Public catalog HTTP failure on page ${requestedPage}.`);
     const body = await response.json();
     if (!isRecord(body) || body.ok !== true || !isRecord(body.data))
@@ -36,12 +37,14 @@ export async function publicCatalogSnapshot(fetchPage) {
       typeof pageSize !== 'number' ||
       !Number.isSafeInteger(pageSize) ||
       pageSize < 1 ||
-      pageSize > maxProducts
+      pageSize > requestPageSize
     )
       throw new Error('Malformed public catalog pagination metadata.');
     if (page !== requestedPage) throw new Error('Unexpected public catalog page.');
-    if (total > maxProducts)
-      throw new Error('Public catalog exceeds the 100-product approval scope.');
+    if (total > maxSnapshotProducts)
+      throw new Error(
+        `Public catalog exceeds the ${maxSnapshotProducts}-product snapshot read budget.`,
+      );
     if (expectedTotal !== undefined && total !== expectedTotal)
       throw new Error('Public catalog total changed during pagination.');
     if (expectedPageSize !== undefined && pageSize !== expectedPageSize)
@@ -49,7 +52,7 @@ export async function publicCatalogSnapshot(fetchPage) {
     expectedTotal = total;
     expectedPageSize = pageSize;
     if (Math.ceil(total / pageSize) > maxPages)
-      throw new Error('Public catalog snapshot would exceed 10 pages.');
+      throw new Error(`Public catalog snapshot would exceed ${maxPages} pages.`);
     const expectedCount = Math.min(pageSize, total - ids.size);
     if (items.length > expectedCount) throw new Error('Excess public catalog records.');
     if (items.length < expectedCount) throw new Error('Incomplete public catalog page.');
@@ -61,5 +64,5 @@ export async function publicCatalogSnapshot(fetchPage) {
     }
     if (ids.size === total) return [...ids].sort();
   }
-  throw new Error('Incomplete public catalog snapshot after 10 pages.');
+  throw new Error(`Incomplete public catalog snapshot after ${maxPages} pages.`);
 }

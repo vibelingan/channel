@@ -5,7 +5,9 @@ Branch: feat/alibaba-wiring-closeout; starting commit 38331057544ee0031b25d82db7
 PR: https://github.com/vibelingan/channel/pull/55 (open at start)
 
 Status: deployed to test with the concurrent AI release preserved; authenticated
-catalog acceptance is being repaired and rerun. Main PR #55 remains open.
+catalog acceptance last failed before writes at a legacy snapshot-size limit.
+The test-only capacity correction is locally verified, not deployed or rerun live.
+Main PR #55 remains open at this checkpoint.
 
 ## Test Release Checkpoint
 
@@ -26,10 +28,11 @@ catalog acceptance is being repaired and rerun. Main PR #55 remains open.
   Read-only diagnosis: 90 public products, effective pageSize 48 despite requesting
   100; page two contained 42 products and the sample. Direct item/detail returned
   200. This was an incomplete acceptance snapshot, not an unpublished sample.
-- Both full and variant-media inventories now use one bounded pagination helper.
-  It retains the 100-product approval ceiling and fixed sample IDs, rejects
+- Both full and variant-media inventories were moved to one bounded pagination helper.
+  At that checkpoint it retained a legacy 100-product test-size assumption,
+  not a business authorization limit. It retained fixed sample IDs and rejected
   duplicate/missing/extra products and changing pagination metadata, and only
-  returns after collecting the advertised total. Mutation steps are unchanged.
+  returned after collecting the advertised total. Mutation steps were unchanged.
   The original helpers failed the 90/48 regression; 65 helper regressions passed
   on Node 20 and 24. No UI/backend/workflow behavior changed in this correction.
 - Pagination correction deployed as `3b89462` in
@@ -44,8 +47,51 @@ catalog acceptance is being repaired and rerun. Main PR #55 remains open.
   removing the connection guard makes both saving-mode cases fail with three
   speculative SKU sources. The hook was restored byte-for-byte, and 15 final
   browser repetitions passed with zero retries. Only test code changed.
+- Parent-observed follow-up: feature CI
+  [35091259284](https://github.com/vibelingan/channel/actions/runs/35091259284)
+  succeeded; test release `19a641` deployed successfully in
+  [35091705246](https://github.com/vibelingan/channel/actions/runs/35091705246).
+- The latest full live run
+  [35095549791](https://github.com/vibelingan/channel/actions/runs/35095549791)
+  passed both CI jobs, then failed at the read-only before-snapshot check:
+  107 public products exceeded the helper's legacy maximum of 100. No acceptance
+  mutation ran. The parent verified the count of 107 with a read-only inventory;
+  the earlier count was 90, and owner publishing had increased it. This is a
+  test read-capacity failure, not an owner publication-policy violation.
 - Corrected live acceptance remains pending; failed runs and other-scope skips
   do not count as passing acceptance.
+
+## Snapshot Capacity Correction
+
+This local correction starts from clean `c4a1677` and changes only the shared
+test snapshot helper, its regression tests and this client record. No commit,
+push, cloud operation or live acceptance run is part of this correction.
+The release/run observations above were supplied by the parent, not re-queried
+from the cloud during this local task.
+
+- Request pageSize remains 100; response metadata must be at most the requested
+  100. The observed server cap remains 48, and smaller valid pages still work.
+- The complete read-only snapshot may contain at most 1,000 products and require
+  at most 25 pages. More than 1,000 products or 25 required pages fails closed.
+  These are test read budgets, not product-publishing policy or new write scope.
+- The full and variant-media mutation steps and strict fixed product/source IDs
+  are unchanged, as is the original maximum of 302 reviewed draft assignments.
+  The original before snapshot remains the comparison baseline. No automatic
+  skip, snapshot replacement, ignored concurrent total/pageSize change, or
+  weakened duplicate/missing/extra-ID or before/after inventory assertion was added.
+  Owner publishing has not been paused or made a prerequisite for this fix.
+- Tests were changed first: 68 total, 63 passed and the five requested capacity
+  boundaries failed against the old helper. After the helper change, all 68
+  passed on both Node 20.20.0 and 24.14.1, with zero failures or skips. The old
+  65-test result above is historical, not the new count.
+- Explicit boundaries: 107 products use 48/48/11 rows across three pages;
+  1,000 use 21 pages with 40 final rows; 25 products at one row per page succeed;
+  26 at one row per page and 1,001 total products reject before another request.
+  Every requested page still uses pageSize 100, including after page ten.
+- Root and E2E TypeScript checks, plus direct checkJs for the helper/tests, passed.
+  Scoped Biome passed for both code files; full Biome passed for 602 files.
+  No SDK, API route, runtime, adapter or type declaration was changed. The parent
+  still owns the later review gate, deployment and authenticated live acceptance.
 
 ## Final Local Results
 

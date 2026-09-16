@@ -67,6 +67,27 @@ test('collects all 90 products when requested 100 is capped to 48, including the
   ]);
 });
 
+for (const [total, pageCount, finalPageCount] of [
+  [107, 3, 11],
+  [1000, 21, 40],
+]) {
+  test(`collects all ${total} products across ${pageCount} capped pages with ${finalPageCount} final rows`, async () => {
+    const ids = productIds(total);
+    const pages = catalogPages(ids, 48);
+    assert.equal(pages.length, pageCount);
+    assert.ok(pages.slice(0, -1).every((body) => body.data.items.length === 48));
+    assert.equal(pages[pageCount - 1].data.items.length, finalPageCount);
+    const source = fakePages(pages);
+    const snapshot = await publicCatalogSnapshot(source.fetchPage);
+    assert.equal(snapshot.length, total);
+    assert.deepEqual(snapshot, [...ids].sort());
+    assert.deepEqual(
+      source.calls,
+      Array.from({ length: pageCount }, (_, index) => ({ page: index + 1, pageSize: 100 })),
+    );
+  });
+}
+
 for (const [total, pageSize] of [
   [0, 48],
   [1, 48],
@@ -75,6 +96,7 @@ for (const [total, pageSize] of [
   [100, 48],
   [100, 100],
   [20, 2],
+  [25, 1],
 ]) {
   test(`returns a complete sorted snapshot for total=${total}, pageSize=${pageSize}`, async () => {
     const ids = productIds(total);
@@ -129,15 +151,19 @@ test('rejects pageSize beyond the requested limit', async () => {
   await assert.rejects(publicCatalogSnapshot(source.fetchPage), /Malformed/);
 });
 
-test('fails closed above the original 100-product approval scope', async () => {
-  const source = fakePages([catalogBody({ total: 101 })]);
-  await assert.rejects(publicCatalogSnapshot(source.fetchPage), /100/);
+test('fails closed above the 1000-product snapshot read budget', async () => {
+  const source = fakePages([catalogBody({ total: 1001 })]);
+  await assert.rejects(publicCatalogSnapshot(source.fetchPage), {
+    message: 'Public catalog exceeds the 1000-product snapshot read budget.',
+  });
   assert.equal(source.calls.length, 1);
 });
 
-test('fails closed when completing the snapshot would need more than 10 pages', async () => {
-  const source = fakePages([catalogBody({ total: 11, pageSize: 1 })]);
-  await assert.rejects(publicCatalogSnapshot(source.fetchPage), /10 pages/);
+test('fails closed when completing the snapshot would need more than 25 pages', async () => {
+  const source = fakePages([catalogBody({ total: 26, pageSize: 1 })]);
+  await assert.rejects(publicCatalogSnapshot(source.fetchPage), {
+    message: 'Public catalog snapshot would exceed 25 pages.',
+  });
   assert.equal(source.calls.length, 1);
 });
 
