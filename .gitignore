@@ -10,6 +10,7 @@ dist/
 output/playwright/
 playwright-report/
 test-results/
+.playwright-cli/
 
 # Local DB (file-backed mock for development)
 apps/local-server/data/
@@ -43,3 +44,22 @@ Thumbs.db
 # dev-pipeline local bookkeeping (durable record lives in docs/)
 .claude/archive/
 .claude/pipeline-state.json
+.e2e-logs/
+.e2e-pids.txt
+
+# AI assistant local secrets — the real file never, the template always
+.env.ai
+!.env.ai.example
+!.env.ai-runtime.example
+.env.ai-probe
+!.env.ai-probe.example
+.ai-kb-evidence.json
+scripts/pipeline-e2e.sh
+
+# Working files an agent writes while a session runs: the pipeline's bridge and
+# log, and the planning skill's notes. They describe one session, not the repo.
+.claude/context-bridge.md
+.claude/session-log.md
+/findings.md
+/progress.md
+/task_plan.md
