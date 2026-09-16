@@ -1,0 +1,247 @@
+# Local development substrate for the AI assistant (MIU 2a).
+#
+# Production runs on CloudRun; this reproduces the *shape* of that runtime
+# locally — container process, ports, health checks, environment, graceful
+# shutdown — so the store, state machine and race suites have something real to
+# run against without buying anything.
+#
+# It deliberately does NOT reproduce: CloudRun's managed gateway, the CORS edge,
+# scale-to-zero cold starts, VPC attachment, TLS termination, managed pooling,
+# quotas or billing. Those stay deployed integration tests
+# (architecture §14: "production-shaped, not production-equivalent").
+#
+#   docker compose -f docker-compose.ai.yml up -d postgres
+#   node scripts/probe-ai-store.mjs --url postgres://ai:ai@localhost:55432/ai_assistant
+#
+# The BFF and worker are real services in this compose file. Their default
+# engine is deterministic and local; selecting AnythingLLM requires explicit
+# server-only configuration and a verified citation contract.
+
+name: channel-ai
+
+# PORT RULE 1 — every published port binds to 127.0.0.1 ONLY.
+#
+# `"58080:8080"` binds 0.0.0.0 and ::, which puts all four of these on every
+# network the machine is attached to. That is a PostgreSQL with static
+# credentials, an AnythingLLM admin surface, and an unauthenticated chat route,
+# reachable by anything on the same café wifi. Never publish a port from this
+# file without the 127.0.0.1 prefix; scripts/compose-ports.test.mjs fails if you
+# do.
+#
+# This binding is also what makes copying the file somewhere else safe. The
+# service does NOT refuse to start on this configuration — it declares
+# development, so the harness is permitted — and an earlier version of this
+# comment wrongly claimed it did. What fails closed is the production image and
+# the CloudRun manifest. Here, the control is reachability.
+#
+# PORT RULE 2 — every published port is in the 5xxxx range.
+# This machine already runs other project stacks, and low ports collide: 5432
+# was taken by another Postgres, 4321/4322/4323 by stale Astro servers, and 3001
+# by an unrelated node service. A collision does not fail loudly — docker
+# compose exited 0 while the container never started, so the failure looked
+# like success. High ports keep this stack's problems its own.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: channel-ai-postgres
+    environment:
+      POSTGRES_USER: ai
+      POSTGRES_PASSWORD: ai
+      POSTGRES_DB: ai_assistant
+      # LLD-001 §4.4 requires READ COMMITTED. Postgres defaults to it, but the
+      # store probe (S1) asserts it rather than trusting the default, because a
+      # managed provider can ship a different default and the failure mode is a
+      # takeover returning a 500 instead of a clean conflict.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    # 55432, not 5432: developers on this team already run other Postgres
+    # containers (a stale one was found squatting ports during MIU 0), and a
+    # port clash here looks like a database fault.
+    ports:
+      - "127.0.0.1:${AI_POSTGRES_PORT:-55432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai -d ai_assistant"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - ai-pgdata:/var/lib/postgresql/data
+
+  ai-bff:
+    build:
+      context: .
+      dockerfile: apps/ai-bff/Dockerfile
+    container_name: channel-ai-bff
+    environment:
+      DATABASE_URL: postgres://ai:ai@postgres:5432/ai_assistant
+      PORT: "8080"
+      CORS_ALLOWED_ORIGINS: ${AI_CORS_ALLOWED_ORIGINS:-http://localhost:4321}
+      # Required whenever the real engine is selected. Hashes visitor IPs for
+      # rate limiting; the raw address is never persisted. Keep the value in a
+      # gitignored env file, not in this compose document.
+      AI_IP_HASH_SECRET: ${AI_IP_HASH_SECRET:-local-development-only-secret}
+      AI_ENGINE_ID: ${AI_ENGINE_ID:-fake}
+      AI_ENGINE_VERSION: ${AI_ENGINE_VERSION:-0.1.0}
+      # WHICH KIND of artifact produced the answer, then the fields that kind
+      # has. `oci` for a pinned container, `git` for a source checkout on a VM —
+      # which is what the hosted knowledge base actually is. A git sha in a
+      # variable named for an image digest is a lie an audit cannot detect.
+      AI_ENGINE_PROVENANCE_KIND: ${AI_ENGINE_PROVENANCE_KIND:-}
+      AI_ENGINE_IMAGE_DIGEST: ${AI_ENGINE_IMAGE_DIGEST:-}
+      AI_ENGINE_GIT_COMMIT: ${AI_ENGINE_GIT_COMMIT:-}
+      AI_ENGINE_GIT_REPOSITORY: ${AI_ENGINE_GIT_REPOSITORY:-}
+      AI_ENGINE_CONFIG_DIGEST: ${AI_ENGINE_CONFIG_DIGEST:-}
+    ports:
+      # The loopback prefix is NOT optional and is not decoration. Without it
+      # this publishes an unauthenticated conversation API on every network the
+      # machine is attached to. The port number is overridable; the interface
+      # is not. scripts/compose-ports.test.mjs fails if this regresses.
+      - "127.0.0.1:${AI_BFF_PORT:-58080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:8080/api/ai/healthz').then(r=>{if(!r.ok)process.exit(1)})",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  ai-worker:
+    build:
+      context: .
+      dockerfile: apps/ai-worker/Dockerfile
+    container_name: channel-ai-worker
+    environment:
+      DATABASE_URL: postgres://ai:ai@postgres:5432/ai_assistant
+      PORT: "8080"
+      # The engine lives HERE, not in the BFF: the worker holds the long-lived
+      # generation stream. It defaults to the fake engine so `pnpm dev:ai`
+      # comes up with no model key and no cost. The local AnythingLLM profile
+      # requires every attestation/corpus variable in .env.ai.example and is
+      # started with `pnpm dev:ai:build`; AI_ENGINE_ID alone is insufficient.
+      AI_ENGINE_ID: ${AI_ENGINE_ID:-fake}
+      # The version of the engine this worker would connect to, and what the
+      # run records for incident scoping. Read only when AI_ENGINE_ID is
+      # anythingllm. Change it in the SAME edit as the image digest below it.
+      AI_ENGINE_VERSION: ${AI_ENGINE_VERSION:-0.1.0}
+      # WHICH KIND of artifact produced the answer, then the fields that kind
+      # has. `oci` for a pinned container, `git` for a source checkout on a VM —
+      # which is what the hosted knowledge base actually is. A git sha in a
+      # variable named for an image digest is a lie an audit cannot detect.
+      AI_ENGINE_PROVENANCE_KIND: ${AI_ENGINE_PROVENANCE_KIND:-}
+      AI_ENGINE_IMAGE_DIGEST: ${AI_ENGINE_IMAGE_DIGEST:-}
+      AI_ENGINE_GIT_COMMIT: ${AI_ENGINE_GIT_COMMIT:-}
+      AI_ENGINE_GIT_REPOSITORY: ${AI_ENGINE_GIT_REPOSITORY:-}
+      AI_ENGINE_CONFIG_DIGEST: ${AI_ENGINE_CONFIG_DIGEST:-}
+      KB_BASE_URL: ${KB_BASE_URL:-http://anythingllm:3001}
+      KB_WORKSPACE_SLUG: ${KB_WORKSPACE_SLUG:-channel-public-assistant}
+      KB_WORKSPACE_ID: ${KB_WORKSPACE_ID:-}
+      KB_API_KEY: ${KB_API_KEY:-}
+      # Container-to-container on a private docker network, so http is the only
+      # option here and the engine would otherwise refuse to start. This is the
+      # ONLY place this flag belongs: any remote knowledge base must be HTTPS,
+      # because the token it carries can read the whole instance.
+      # Defaults TRUE for this stack only, and is what now permits the plaintext
+      # hop — the engine no longer treats the hostname `anythingllm` as local,
+      # because a name is not a network boundary. Set it to false the moment
+      # KB_BASE_URL points anywhere but this compose network.
+      ALLOW_INSECURE_KB: ${ALLOW_INSECURE_KB:-true}
+      KB_CITATIONS_VERIFIED: ${KB_CITATIONS_VERIFIED:-0}
+      KB_CREDENTIAL_ROTATION: ${KB_CREDENTIAL_ROTATION:-1}
+      AI_CORPUS_GENERATION: ${AI_CORPUS_GENERATION:-}
+      # Secret-free JSON emitted by the authenticated probe. The process also
+      # accepts a file path, but an env value works in both Compose and
+      # CloudRun without pretending a host file was mounted into the container.
+      AI_KB_EVIDENCE_JSON: ${AI_KB_EVIDENCE_JSON:-}
+      AI_KB_EVIDENCE_FILE: /run/channel/kb-evidence.json
+      AI_KNOWLEDGE_CREDENTIAL_ID: ${AI_KNOWLEDGE_CREDENTIAL_ID:-}
+      AI_APPROVED_SOURCE_PREFIX: ${AI_APPROVED_SOURCE_PREFIX:-channelkb}
+      AI_SITE_ORIGIN: ${AI_SITE_ORIGIN:-http://localhost:4321}
+      # The engine's OWN generation ceiling — must match
+      # GENERIC_OPEN_AI_MAX_TOKENS on the anythingllm service. It is the only
+      # per-answer bound the vendor honours, so it is what the cost model uses
+      # for an abandoned run.
+      AI_MAX_OUTPUT_TOKENS: "4096"
+      AI_MAX_TOOL_CALLS: "0"
+      AI_PROFILE_ID: channel-public-v1
+      AI_WORKER_LEASE_SECONDS: "90"
+      AI_MAX_STREAM_DURATION_MS: "55000"
+    ports:
+      - "127.0.0.1:${AI_WORKER_PORT:-58081}:8080"
+    volumes:
+      - "${AI_KB_EVIDENCE_HOST_FILE:-./scripts/fixtures/empty-kb-evidence.json}:/run/channel/kb-evidence.json:ro"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai-bff:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:8080/healthz').then(r=>{if(!r.ok)process.exit(1)})",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Retrieval + chat engine for local development (see
+  # docs/ai-platform/ENGINE-EVALUATION-ANYTHINGLLM.md).
+  #
+  # The DOCKER image, never the desktop build: the desktop build ships
+  # closed-source telemetry, which is disqualifying for anything that will see
+  # customer questions.
+  #
+  # Secrets come from a gitignored .env.ai file, never from this file and never
+  # from the command line (a key on argv is visible in `ps` to every process on
+  # the machine). Create it from .env.ai.example.
+  anythingllm:
+    # PINNED BY DIGEST, never `:latest`. ADR-002 §4 required this and the file
+    # contradicted it: `latest` means the engine can change under a stack whose
+    # answers are its whole product, with no diff and no way to tell afterwards
+    # which version produced an answer a customer is quoting back at you.
+    #
+    # anythingllm 1.16.0. To move: pull the new tag, read its digest with
+    #   docker image inspect mintplexlabs/anythingllm:<tag> --format '{{index .RepoDigests 0}}'
+    # and change BOTH the digest and the version comment in the same edit.
+    image: mintplexlabs/anythingllm@sha256:68bcedecb720e3fadde986bcc4f3aad20059fa64805bc9b306a3023244947515
+    container_name: channel-ai-anythingllm
+    env_file:
+      - .env.ai
+    environment:
+      STORAGE_DIR: /app/server/storage
+      # zenmux is OpenAI-compatible, so the "generic OpenAI" provider is the
+      # right adapter — no zenmux-specific plugin needed.
+      LLM_PROVIDER: generic-openai
+      GENERIC_OPEN_AI_BASE_PATH: https://zenmux.ai/api/v1
+      GENERIC_OPEN_AI_MODEL_PREF: z-ai/glm-5.2
+      # Reasoning models spend completion budget on reasoning before emitting a
+      # single visible token. 30 tokens produced an EMPTY answer in testing;
+      # Kimi K3 spent 103 reasoning tokens on a one-sentence reply. Keep real
+      # headroom or visitors get blank replies with no error.
+      GENERIC_OPEN_AI_MAX_TOKENS: "4096"
+      EMBEDDING_ENGINE: native
+      VECTOR_DB: lancedb
+      DISABLE_TELEMETRY: "true"
+    ports:
+      # 53001, not 3001 — see the port rule at the top of this file.
+      - "127.0.0.1:53001:3001"
+    volumes:
+      - ai-anythingllm:/app/server/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3001/api/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  ai-pgdata:
+  ai-anythingllm:

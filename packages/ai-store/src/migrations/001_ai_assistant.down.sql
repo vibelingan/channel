@@ -1,0 +1,12 @@
+DROP TABLE IF EXISTS ai_rate_limit_buckets;
+DROP TABLE IF EXISTS audit_events;
+DROP TABLE IF EXISTS outbox;
+DROP TABLE IF EXISTS leads;
+DROP TABLE IF EXISTS conversation_events;
+DROP TABLE IF EXISTS conversation_messages;
+DROP TABLE IF EXISTS engine_run_handles;
+ALTER TABLE IF EXISTS conversations DROP CONSTRAINT IF EXISTS conversations_active_run_fk;
+DROP TABLE IF EXISTS ai_runs;
+DROP TABLE IF EXISTS conversation_credentials;
+DROP TABLE IF EXISTS conversations;
+DROP TABLE IF EXISTS ai_schema_migrations;
