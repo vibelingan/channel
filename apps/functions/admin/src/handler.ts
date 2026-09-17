@@ -1874,7 +1874,9 @@ async function updateAction(
       const acknowledgesReview =
         before?.alibabaReviewPending === true &&
         (values.published === true || values.archived === true);
-      const requiresApproval = config.enableDetailApproval === true && values.published === true;
+      // The atomic save checks the resulting persisted publication state. A
+      // partial price patch must not bypass that check by omitting `published`.
+      const requiresApproval = config.enableDetailApproval === true;
       const transition =
         acknowledgesReview && before
           ? await acknowledgeAlibabaProductReview(before, values, claims.sub, requiresApproval)
