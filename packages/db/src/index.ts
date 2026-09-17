@@ -35,6 +35,7 @@ export function manageCatalogCategory(actorId: string, input: unknown) {
 }
 export {
   ALIBABA_PRODUCT_LINK_LIMIT,
+  alibabaPricingFingerprint,
   alibabaLinkRevision,
   readImageMutationState,
   transitionImageMutationAcquire,
@@ -52,6 +53,7 @@ export {
 
 export type {
   AdapterListQuery,
+  AlibabaPricingEvidenceExpectation,
   AlibabaLeaseGrant,
   AlibabaLeaseGuard,
   AlibabaLeaseState,

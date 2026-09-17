@@ -39,7 +39,7 @@ test('pricing repair uses completed mirror evidence, skips existing prices/quara
       published: id === 'a',
       productFamily: 'toys',
       imageIds: ['curated'],
-      unitPrice: 99,
+      ...(id === 'b' ? { unitPrice: 99 } : {}),
       alibabaPrimarySourceKey: `source-${id}`,
       ...(id === 'b' ? { alibabaCatalogPricing: { mode: 'unavailable' } } : {}),
     });
@@ -65,6 +65,7 @@ test('pricing repair uses completed mirror evidence, skips existing prices/quara
       sourceKey: `source-${id}`,
       sourceSkuId: id,
       active: true,
+      lastSeenRunId: id === 'c' ? 'quarantine' : 'clean',
       pricing: {
         schemaVersion: 'alibaba-catalog-pricing-v1',
         source: 'alibaba',
@@ -83,13 +84,18 @@ test('pricing repair uses completed mirror evidence, skips existing prices/quara
       },
     });
   }
-  const result = await repairMissingSourcePricing({});
+  const audit = await repairMissingSourcePricing({});
+  assert.equal(audit.repaired, 0);
+  const result = await repairMissingSourcePricing({
+    mode: 'apply',
+    expectedPageHash: audit.pageHash,
+  });
   assert.equal(result.repaired, 1);
   assert.equal(result.deferred.length, 1);
   const row = await new JsonFileAdapter(join(dir, 'db.json')).get('products', 'a');
   assert.deepEqual(
     [row?.published, row?.productFamily, row?.unitPrice, row?.imageIds],
-    [true, 'toys', 99, ['curated']],
+    [true, 'toys', undefined, ['curated']],
   );
   assert.ok(row);
   const projected = publicDoc('products', row, { apiBaseUrl: 'https://channel.local/api' });

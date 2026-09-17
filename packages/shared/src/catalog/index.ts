@@ -25,6 +25,7 @@ export {
   type CatalogPricingDecision,
   type CatalogPricingInput,
   resolveCatalogPricing,
+  resolveManualCatalogPricing,
 } from './resolve-pricing.ts';
 
 const nonEmptyString = z.string().trim().min(1);

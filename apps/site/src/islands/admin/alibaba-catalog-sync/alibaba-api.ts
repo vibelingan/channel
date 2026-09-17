@@ -245,7 +245,26 @@ function decodeDraftMaterializationPage(value: unknown): DraftMaterializationPag
     'existing',
     'failures',
   ] as const;
-  if (!isRecord(value) || !hasExactKeys(value, keys)) return null;
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, Object.hasOwn(value, 'pricing') ? [...keys, 'pricing'] : keys)
+  )
+    return null;
+  if (
+    Object.hasOwn(value, 'pricing') &&
+    (!Array.isArray(value.pricing) ||
+      value.pricing.length !== Number(value.created) + Number(value.existing) ||
+      !value.pricing.every(
+        (row) =>
+          isRecord(row) &&
+          hasExactKeys(row, ['productId', 'status', 'reason']) &&
+          typeof row.productId === 'string' &&
+          typeof row.status === 'string' &&
+          PRICING_STATUSES.has(row.status) &&
+          typeof row.reason === 'string',
+      ))
+  )
+    return null;
   const visited = readNonNegativeSafeInteger(value.visited);
   const created = readNonNegativeSafeInteger(value.created);
   const existing = readNonNegativeSafeInteger(value.existing);
@@ -905,6 +924,117 @@ export function importAlibabaSourceImage(
   );
 }
 
+const PRICING_STATUSES = new Set([
+  'archived',
+  'unlinked',
+  'manual',
+  'invalid-manual',
+  'valid-source',
+  'stale-source',
+  'eligible',
+  'quote-only',
+  'invalid-source',
+  'incomplete-run',
+  'invalid-pin',
+  'invalid-offer',
+  'identity-conflict',
+  'error',
+  'repaired',
+  'conflict',
+]);
+
+interface PricingRepairPage {
+  mode: 'dry-run' | 'apply';
+  visited: number;
+  eligible: number;
+  repaired: number;
+  deferred: string[];
+  nextId: string | null;
+  pageHash: string;
+  stopped: string | null;
+  outcomes: Array<{ productId: string; status: string }>;
+}
+
+function pricingRepairPage(
+  raw: unknown,
+  mode: 'dry-run' | 'apply',
+  afterId?: string,
+): PricingRepairPage {
+  const rawOutcomes: unknown[] = isRecord(raw) && Array.isArray(raw.outcomes) ? raw.outcomes : [];
+  const outcomes = rawOutcomes.filter(
+    (row): row is { productId: string; status: string } =>
+      isRecord(row) &&
+      typeof row.productId === 'string' &&
+      row.productId.length > 0 &&
+      typeof row.status === 'string',
+  );
+  if (
+    !isRecord(raw) ||
+    raw.mode !== mode ||
+    !isNonNegativeSafeInteger(raw.visited) ||
+    raw.visited > 20 ||
+    !isNonNegativeSafeInteger(raw.eligible) ||
+    raw.eligible > raw.visited ||
+    !isNonNegativeSafeInteger(raw.repaired) ||
+    raw.repaired > raw.eligible ||
+    (mode === 'dry-run' && raw.repaired !== 0) ||
+    typeof raw.pageHash !== 'string' ||
+    !/^[0-9a-f]{64}$/.test(raw.pageHash) ||
+    (raw.stopped !== null && typeof raw.stopped !== 'string') ||
+    !Array.isArray(raw.outcomes) ||
+    raw.outcomes.length !== raw.visited ||
+    !raw.outcomes.every(
+      (row) =>
+        isRecord(row) &&
+        typeof row.productId === 'string' &&
+        row.productId.length > 0 &&
+        typeof row.status === 'string' &&
+        PRICING_STATUSES.has(row.status),
+    ) ||
+    outcomes.some((row, index) =>
+      index > 0
+        ? row.productId <= outcomes[index - 1].productId
+        : afterId !== undefined && row.productId <= afterId,
+    ) ||
+    raw.outcomes.filter((row) => row.status === 'repaired').length !== raw.repaired ||
+    (mode === 'dry-run' &&
+      outcomes.filter((row) => row.status === 'eligible').length !== raw.eligible) ||
+    (mode === 'apply' &&
+      raw.stopped === null &&
+      (raw.eligible !== raw.repaired || outcomes.some((row) => row.status === 'eligible'))) ||
+    !Array.isArray(raw.deferred) ||
+    raw.deferred.length > raw.visited - raw.repaired ||
+    new Set(raw.deferred).size !== raw.deferred.length ||
+    !raw.deferred.every(
+      (id) =>
+        typeof id === 'string' &&
+        outcomes.some((row) => row.productId === id && row.status !== 'repaired'),
+    ) ||
+    (raw.nextId !== null &&
+      (raw.visited !== 20 ||
+        typeof raw.nextId !== 'string' ||
+        !raw.nextId ||
+        raw.nextId !== raw.outcomes.at(-1)?.productId ||
+        (afterId !== undefined && raw.nextId <= afterId)))
+  ) {
+    throw new AlibabaSyncApiError(
+      'INVALID_RESPONSE',
+      'Pricing repair result was not confirmed. Re-audit before restarting.',
+    );
+  }
+  return {
+    mode,
+    visited: raw.visited,
+    eligible: raw.eligible,
+    repaired: raw.repaired,
+    deferred: raw.deferred,
+    nextId: raw.nextId as string | null,
+    pageHash: raw.pageHash,
+    stopped: raw.stopped,
+    outcomes,
+  };
+}
+
 export async function repairAlibabaSourcePricing(
   onProgress: (message: string) => void,
 ): Promise<string> {
@@ -912,61 +1042,58 @@ export async function repairAlibabaSourcePricing(
   let visited = 0;
   let repaired = 0;
   let deferredCount = 0;
+  let quoteOnly = 0;
   const deferredSample: string[] = [];
-  for (let page = 0; page < 1000; page++) {
-    let raw: unknown;
+  // A bounded request budget is independent of the total catalog size.
+  while (true) {
+    let page: PricingRepairPage;
     try {
-      raw = await call<unknown>(
-        'repairSourcePricing',
-        afterId ? { afterId } : {},
-        AbortSignal.timeout(60_000),
+      const cursor = afterId ? { afterId } : {};
+      page = pricingRepairPage(
+        await call<unknown>(
+          'repairSourcePricing',
+          { ...cursor, mode: 'dry-run' },
+          AbortSignal.timeout(60_000),
+        ),
+        'dry-run',
+        afterId,
       );
+      if (page.stopped)
+        throw new AlibabaSyncApiError('CONFLICT', `Audit stopped: ${page.stopped}.`);
+      if (page.eligible > 0) {
+        const expectedPageHash = page.pageHash;
+        page = pricingRepairPage(
+          await call<unknown>(
+            'repairSourcePricing',
+            { ...cursor, mode: 'apply', expectedPageHash },
+            AbortSignal.timeout(60_000),
+          ),
+          'apply',
+          afterId,
+        );
+        if (page.stopped || page.pageHash !== expectedPageHash)
+          throw new AlibabaSyncApiError(
+            'CONFLICT',
+            `Repair stopped: ${page.stopped ?? 'page changed'}.`,
+          );
+      }
     } catch (error) {
       throw new AlibabaSyncApiError(
         error instanceof AlibabaSyncApiError ? error.code : 'UNCONFIRMED',
-        `${visited} checked and ${repaired} repairs confirmed before stopping. The last page may have saved; safely restart the repair after checking the connection/session. ${error instanceof Error ? error.message : 'Request failed.'}`,
+        `${visited} checked and ${repaired} repairs confirmed before stopping. The last page may have saved; re-audit before restarting. Resume cursor: ${afterId ?? '(start)'}. ${error instanceof Error ? error.message : 'Request failed.'}`,
       );
     }
-    if (
-      !isRecord(raw) ||
-      !Number.isSafeInteger(raw.visited) ||
-      typeof raw.visited !== 'number' ||
-      raw.visited < 0 ||
-      raw.visited > 20 ||
-      !Number.isSafeInteger(raw.repaired) ||
-      typeof raw.repaired !== 'number' ||
-      raw.repaired < 0 ||
-      raw.repaired > raw.visited ||
-      !Array.isArray(raw.deferred) ||
-      raw.deferred.length > raw.visited - raw.repaired ||
-      new Set(raw.deferred).size !== raw.deferred.length ||
-      !raw.deferred.every((id) => typeof id === 'string' && id.length > 0 && id.length <= 200) ||
-      (raw.nextId !== null &&
-        (raw.visited !== 20 ||
-          typeof raw.nextId !== 'string' ||
-          !raw.nextId ||
-          raw.nextId.length > 200 ||
-          (afterId !== undefined && raw.nextId <= afterId)))
-    ) {
-      throw new AlibabaSyncApiError(
-        'INVALID_RESPONSE',
-        'Pricing repair result was not confirmed. You can safely restart the missing-price repair.',
-      );
-    }
-    visited += raw.visited;
-    repaired += raw.repaired;
-    deferredCount += raw.deferred.length;
-    deferredSample.push(...raw.deferred.slice(0, Math.max(0, 20 - deferredSample.length)));
-    const message = `${visited} checked · ${repaired} source quotes repaired · ${deferredCount} require a successful source sync before repair.`;
+    visited += page.visited;
+    repaired += page.repaired;
+    deferredCount += page.deferred.length;
+    quoteOnly += page.outcomes.filter((row) => row.status === 'quote-only').length;
+    deferredSample.push(...page.deferred.slice(0, Math.max(0, 20 - deferredSample.length)));
+    const message = `${visited} checked · ${repaired} source quotes repaired · ${deferredCount} require review · ${quoteOnly} source quotes have no numeric price.`;
     onProgress(message);
-    if (raw.nextId === null)
+    if (page.nextId === null)
       return `${message}${deferredCount ? ` Deferred product IDs (first ${deferredSample.length}): ${deferredSample.join(', ')}` : ''}`;
-    afterId = raw.nextId;
+    afterId = page.nextId;
   }
-  throw new AlibabaSyncApiError(
-    'CONFLICT',
-    'Pricing repair reached its page limit. Restart to recheck safely.',
-  );
 }
 
 export function removeAlibabaImportedImage(imageId: string): Promise<{ imageId: string }> {
