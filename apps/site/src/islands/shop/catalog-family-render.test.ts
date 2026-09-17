@@ -12,12 +12,11 @@ import {
   hasUsableCatalogSlug,
 } from './CatalogFamilyGrid.tsx';
 import {
-  beginInitialLoad,
-  beginLoadMore,
-  commitCatalogPage,
-  initialHeadphonesCatalogState,
-  resetCatalogGeneration,
-} from './headphonesCatalogState.ts';
+  beginNumberedPage,
+  failNumberedPage,
+  initialNumberedCatalogState,
+  receiveNumberedPage,
+} from './numbered-catalog-state.ts';
 
 const read = (fileName: string) =>
   readFileSync(fileURLToPath(new URL(fileName, import.meta.url)), 'utf8');
@@ -67,7 +66,11 @@ const content = {
   detail: { inquiryCta: 'Request a Quote' },
 } as CatalogContent;
 
-const renderGrid = (state: ReturnType<typeof initialHeadphonesCatalogState>) =>
+const firstQuery = { page: 1, search: '', categories: null };
+
+const readyState = () => ({ ...initialNumberedCatalogState(), committed: firstQuery });
+
+const renderGrid = (state: ReturnType<typeof initialNumberedCatalogState>) =>
   renderToStaticMarkup(
     createElement(CatalogFamilyGrid, {
       content,
@@ -77,45 +80,57 @@ const renderGrid = (state: ReturnType<typeof initialHeadphonesCatalogState>) =>
       searchInput: '',
       onCategoriesChange: () => undefined,
       onSearchInputChange: () => undefined,
-      onRetryInitial: () => undefined,
+      onRetry: () => undefined,
       onOpenProduct: () => undefined,
-      onLoadMore: () => undefined,
+      onPageChange: () => undefined,
     }),
   );
 
-test('family catalog reuses generation guards and first-seen page dedupe', () => {
-  const initial = beginInitialLoad(resetCatalogGeneration(initialHeadphonesCatalogState()));
-  const first = commitCatalogPage(initial, initial.generation, {
-    items: [
-      { _id: 'a', name: 'A', slug: 'a' },
-      { _id: 'b', name: 'B', slug: 'b' },
-    ],
-    total: 3,
-    page: 1,
-    pageSize: 2,
-  });
-  const loadingMore = beginLoadMore(first);
-  const committed = commitCatalogPage(loadingMore, loadingMore.generation, {
-    items: [
-      { _id: 'b', name: 'B', slug: 'b' },
-      { _id: 'c', name: 'C', slug: 'c' },
-    ],
-    total: 3,
-    page: 2,
-    pageSize: 2,
-  });
-  assert.deepEqual(
-    committed.products.map((product) => product._id),
-    ['a', 'b', 'c'],
+test('family catalog replaces twelve-card pages and rejects stale responses', () => {
+  const initial = beginNumberedPage(initialNumberedCatalogState(), firstQuery);
+  const first = receiveNumberedPage(
+    initial,
+    initial.generation,
+    {
+      items: Array.from({ length: 12 }, (_, index) => ({ _id: `first-${index}`, name: 'First' })),
+      total: 25,
+      page: 1,
+      pageSize: 12,
+    },
+    'Load failed',
   );
-  assert.equal(
-    commitCatalogPage(loadingMore, loadingMore.generation - 1, {
-      items: [{ _id: 'stale', name: 'Stale', slug: 'stale' }],
-      total: 4,
+  const loading = beginNumberedPage(first, { ...firstQuery, page: 2 });
+  const secondItems = Array.from({ length: 12 }, (_, index) => ({
+    _id: `second-${index}`,
+    name: 'Second',
+  }));
+  const committed = receiveNumberedPage(
+    loading,
+    loading.generation,
+    {
+      items: secondItems,
+      total: 25,
       page: 2,
-      pageSize: 2,
-    }),
-    loadingMore,
+      pageSize: 12,
+    },
+    'Load failed',
+  );
+  assert.deepEqual(committed.products, secondItems);
+  assert.equal(committed.committed?.page, 2);
+  assert.match(renderGrid(committed), /13\u201324 of 25 products/);
+  assert.equal(
+    receiveNumberedPage(
+      loading,
+      loading.generation - 1,
+      {
+        items: [{ _id: 'stale', name: 'Stale', slug: 'stale' }],
+        total: 25,
+        page: 2,
+        pageSize: 12,
+      },
+      'Load failed',
+    ),
+    loading,
   );
 });
 
@@ -164,37 +179,34 @@ test('family controller owns family/filter/search generation resets and abortabl
   const source = parse('./CatalogFamilyPage.tsx');
   assert.match(source, /fetchCatalog\(\s*'\/api\/products',\s*\{[\s\S]*productFamily/);
   assert.match(source, /AbortController/);
-  assert.match(source, /resetCatalogGeneration/);
+  assert.match(source, /beginNumberedPage/);
   assert.match(source, /selectedCategories/);
   assert.match(source, /search/);
-  assert.match(source, /beginLoadMore/);
-  assert.match(source, /commitCatalogPage/);
+  assert.match(source, /parseCatalogQuery/);
+  assert.match(source, /receiveNumberedPage/);
 });
 
 test('family grid renders mutually exclusive loading, error, empty, and success states', () => {
-  const loading = renderGrid({ ...initialHeadphonesCatalogState(), status: 'loading-initial' });
+  const loading = renderGrid({ ...initialNumberedCatalogState(), pending: true });
   assert.match(loading, /Loading products/);
   assert.match(loading, /animate-pulse/);
   assert.doesNotMatch(loading, /role="alert"|\/products\/item/);
 
   const error = renderGrid({
-    ...initialHeadphonesCatalogState(),
-    status: 'initial-error',
-    initialError: 'Load failed',
+    ...initialNumberedCatalogState(),
+    error: 'Load failed',
   });
   assert.match(error, /role="alert"/);
   assert.match(error, /Try Again/);
   assert.doesNotMatch(error, /animate-pulse|\/products\/item/);
 
-  const empty = renderGrid({ ...initialHeadphonesCatalogState(), status: 'ready', total: 0 });
+  const empty = renderGrid({ ...readyState(), total: 0 });
   assert.match(empty, /No products/);
   assert.doesNotMatch(empty, /animate-pulse|role="alert"|\/products\/item/);
 
   const success = renderGrid({
-    ...initialHeadphonesCatalogState(),
-    status: 'ready',
+    ...readyState(),
     total: 1,
-    nextPage: 2,
     products: [{ _id: 'valid', name: 'Valid', slug: ' valid ', images: [] }],
   });
   // The card expands the detail band on the same page, keyed by product id, so it
@@ -207,10 +219,8 @@ test('family grid renders mutually exclusive loading, error, empty, and success 
 
 test('family grid shows every published product, including rows without a slug', () => {
   const markup = renderGrid({
-    ...initialHeadphonesCatalogState(),
-    status: 'ready',
-    total: 4,
-    nextPage: 2,
+    ...readyState(),
+    total: 25,
     products: [
       { _id: 'blank-slug', name: 'Blank Slug Product', slug: '   ' },
       { _id: 'legacy', name: 'Legacy Product Without Slug' },
@@ -222,7 +232,23 @@ test('family grid shows every published product, including rows without a slug',
   assert.match(markup, /Legacy Product Without Slug/);
   assert.match(markup, /data-product-card="legacy"/);
   assert.doesNotMatch(markup, /No products/);
-  assert.match(markup, /Load More/);
+  assert.match(markup, /aria-label="Pagination"/);
+  assert.match(markup, /aria-label="Page 3"/);
+  assert.doesNotMatch(markup, /Load More/);
+});
+
+test('pending pagination disables every page control and failure preserves clickable cards and retry', () => {
+  const current = { ...readyState(), products: [{ _id: 'retained', name: 'Retained' }], total: 25 };
+  const pending = beginNumberedPage(current, { ...firstQuery, page: 2 });
+  const markup = renderGrid(pending);
+  const pagination = markup.match(/<nav aria-label="Pagination"[\s\S]*?<\/nav>/)?.[0] ?? '';
+  assert.equal((pagination.match(/<button/g) ?? []).length, 5);
+  assert.equal((pagination.match(/disabled=""/g) ?? []).length, 5);
+  const failed = renderGrid(failNumberedPage(pending, pending.generation, 'Load failed'));
+  assert.match(failed, /role="alert"/);
+  assert.match(failed, /Try Again/);
+  assert.match(failed, /data-product-card="retained"/);
+  assert.doesNotMatch(failed, /animate-pulse/);
 });
 
 test('family grid source keeps public card fields and excludes VIP and video', () => {
@@ -232,10 +258,10 @@ test('family grid source keeps public card fields and excludes VIP and video', (
   assert.match(source, /ProductMedia/);
   assert.match(source, /effectiveCatalogPriceSummary/);
   assert.match(source, /quote/iu);
-  assert.match(source, /initial-error/);
-  assert.match(source, /loading-initial/);
-  assert.match(source, /loading-more/);
-  assert.match(source, /loadMoreError/);
+  assert.match(source, /loadingInitial/);
+  assert.match(source, /state\.pending/);
+  assert.match(source, /state\.error/);
+  assert.match(source, /CatalogPagination/);
   assert.match(source, /categories\.length\s*>\s*0/);
   assert.doesNotMatch(source, /vipPrice|VIP|video/iu);
   assert.doesNotMatch(

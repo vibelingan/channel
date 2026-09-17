@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import type { CatalogPage, Product } from '../../apps/site/src/islands/shop/catalog-types.ts';
 
 // @skip-when Local preview opt-in is off; the isolated shared-product-ui config enables this suite.
 test.skip(process.env.E2E_SHARED_DETAIL_PREVIEW !== '1', 'Requires the isolated local preview');
@@ -34,7 +35,7 @@ test('real list search -> detail -> back/forward retains focus, scroll, configur
   const search = page.getByRole('searchbox', { name: 'Search products' });
   await search.fill('Wireless Earphones');
   const card = page.locator(cardSelector);
-  await expect(page.locator('[data-result-progress]')).toHaveText('1 products');
+  await expect(page.locator('[data-result-progress]')).toHaveText('1\u20131 of 1 products');
   await card.scrollIntoViewIfNeeded();
   const scrollY = await page.evaluate(() => window.scrollY);
   await card.click();
@@ -90,41 +91,45 @@ test('a loaded second page and non-default category filter survive return withou
   await page.goto(listUrl);
   const response = await pending;
   expect(response.status()).toBe(200);
-  const envelope = await response.json();
-  const product = envelope.data.items.find((item: { _id: string }) => item._id === productId);
+  const envelope: { data: CatalogPage } = await response.json();
+  const product = envelope.data.items.find((item) => item._id === productId);
   expect(product).toBeTruthy();
-  // Controlled pagination boundary fixture, not 13 claimed database records.
-  const rows = Array.from({ length: 12 }, (_, index) => ({
+  if (!product) throw new Error('Shared-detail fixture product missing from first catalog page');
+  const rows: Product[] = Array.from({ length: 25 }, (_, index) => ({
     ...product,
     _id: `pagination-fixture-${index}`,
     name: `Pagination fixture ${index}`,
     category: 'wired',
   }));
-  rows.push({ ...product, category: 'wired' });
+  rows[12] = { ...product, category: 'wired' };
   const queries: string[] = [];
   await page.route('**/api/products?*', async (route) => {
     const url = new URL(route.request().url());
     queries.push(url.search);
     const number = Number(url.searchParams.get('page'));
+    expect(url.searchParams.get('pageSize')).toBe('12');
+    const data: CatalogPage = {
+      items: rows.slice((number - 1) * 12, number * 12),
+      total: 25,
+      page: number,
+      pageSize: 12,
+    };
     await route.fulfill({
       json: {
         ok: true,
-        data: {
-          items: rows.slice((number - 1) * 12, number * 12),
-          total: 13,
-          page: number,
-          pageSize: 12,
-        },
+        data,
       },
     });
   });
   await page.goto(listUrl);
   await expect(page.locator('[data-product-card]')).toHaveCount(12);
   await page.getByRole('checkbox', { name: 'Office Headphones', exact: true }).uncheck();
-  await expect.poll(() => queries.at(-1)).toContain('category=wired%2Cbluetooth');
+  await expect.poll(() => queries.at(-1)).toContain('category=bluetooth%2Cwired');
   await expect(page.locator('[data-product-card]')).toHaveCount(12);
-  await page.locator('[data-load-more]').click();
-  await expect(page.locator('[data-product-card]')).toHaveCount(13);
+  await page.getByRole('button', { name: 'Next page', exact: true }).click();
+  await expect(page.locator('[data-result-progress]')).toHaveText('13\u201324 of 25 products');
+  await expect(page.locator('[data-product-card]')).toHaveCount(12);
+  await expect(page.locator('[data-product-card="pagination-fixture-0"]')).toHaveCount(0);
   expect(queries.at(-1)).toContain('page=2');
   const count = queries.length;
   await page.locator(cardSelector).click();
@@ -134,8 +139,10 @@ test('a loaded second page and non-default category filter survive return withou
   await expect(
     page.getByRole('checkbox', { name: 'Office Headphones', exact: true }),
   ).not.toBeChecked();
-  await expect(page.locator('[data-product-card]')).toHaveCount(13);
-  await expect(page.locator('[data-load-more]')).toHaveCount(0);
+  await expect(page.locator('[data-product-card]')).toHaveCount(12);
+  await expect(page.locator('[data-result-progress]')).toHaveText('13\u201324 of 25 products');
+  expect(new URL(page.url()).searchParams.get('page')).toBe('2');
+  expect(new URL(page.url()).searchParams.get('category')).toBe('bluetooth,wired');
   expect(queries.length).toBe(count);
 });
 
@@ -188,7 +195,10 @@ test('category-independent deep links reload canonical selection and fresh Back 
   await page.getByRole('button', { name: 'Back to catalog', exact: true }).click();
   await expect(page.locator('[data-shared-catalog-list]')).toBeVisible();
   expect(new URL(page.url()).pathname).toBe('/misc/');
-  expect(new URL(page.url()).search).toBe('?preview=shared');
+  await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe('1');
+  expect(new URL(page.url()).searchParams.get('preview')).toBe('shared');
+  expect(new URL(page.url()).searchParams.has('id')).toBe(false);
+  expect(new URL(page.url()).searchParams.has('variant')).toBe(false);
   await page.goto(`/products/item/?preview=shared&id=${productId}&variant=${variantId}`);
   await expect(
     page.getByRole('radio', { name: `Black · ${variantId}`, exact: true }),
@@ -222,5 +232,5 @@ test('ordinary local category routes still open the old detail with no shared na
   await expect(
     page.locator('[data-shared-detail-navigation], [data-shared-catalog-detail]'),
   ).toHaveCount(0);
-  expect(new URL(page.url()).search).toBe('');
+  expect(new URL(page.url()).searchParams.get('page')).toBe('1');
 });

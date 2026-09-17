@@ -19,7 +19,7 @@ const cardTypographyCatalog = {
   ],
   total: 1,
   page: 1,
-  pageSize: 48,
+  pageSize: 12,
 } satisfies CatalogPage;
 const longNameMember = {
   id: 'e2e-long-header-user',
@@ -898,7 +898,7 @@ test.describe('public browser smoke', () => {
             items,
             total: items.length,
             page: 1,
-            pageSize: 48,
+            pageSize: 12,
           },
         }),
       });
@@ -1519,31 +1519,31 @@ test.describe('public browser smoke', () => {
     await page.unroute('**/api/images/**');
   });
 
-  test('Headphones Load More paginates, dedupes, and recovers without losing cards', async ({
+  test('Headphones numbered pagination replaces cards and retries without losing the committed page', async ({
     page,
   }) => {
-    // Server pages overlap by one id (concurrent inserts shift offset windows)
-    // so the dedup contract is exercised, not just assumed.
-    const pageFor = (n: number) => {
-      const start = (n - 1) * 12 - (n - 1);
-      return Array.from({ length: 12 }, (_, i) => ({
-        _id: `miu13-p${start + i + 1}`,
-        name: `MIU13 Model ${start + i + 1}`,
+    const pageFor = (pageNumber: number): CatalogPage => {
+      const start = (pageNumber - 1) * 12;
+      const items = Array.from({ length: Math.min(12, 25 - start) }, (_, index) => ({
+        _id: `miu13-p${start + index + 1}`,
+        name: `MIU13 Model ${start + index + 1}`,
         category: 'bluetooth',
-        unitPrice: 10 + n,
+        unitPrice: 10 + pageNumber,
         moq: 500,
         images: [],
       }));
+      return { items, total: 25, page: pageNumber, pageSize: 12 };
     };
     const catalogRequests: string[] = [];
-    let failNextLoadMore = false;
+    let failNextPage = false;
 
     await page.route('**/api/products?**', (route) => {
       const url = new URL(route.request().url());
       catalogRequests.push(url.search);
       const pageNumber = Number(url.searchParams.get('page') ?? '1');
-      if (pageNumber > 1 && failNextLoadMore) {
-        failNextLoadMore = false;
+      expect(url.searchParams.get('pageSize')).toBe('12');
+      if (pageNumber > 1 && failNextPage) {
+        failNextPage = false;
         return route.fulfill({ status: 500, contentType: 'text/plain', body: 'boom' });
       }
       return route.fulfill({
@@ -1551,7 +1551,7 @@ test.describe('public browser smoke', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           ok: true,
-          data: { items: pageFor(pageNumber), total: 30, page: pageNumber, pageSize: 12 },
+          data: pageFor(pageNumber),
         }),
       });
     });
@@ -1561,30 +1561,42 @@ test.describe('public browser smoke', () => {
     await ensureApplicationPage(page);
 
     const cards = page.locator('[data-product-card]');
-    const loadMore = page.locator('[data-load-more]');
+    const nextPage = page.getByRole('button', { name: 'Next page', exact: true });
     await expect(cards).toHaveCount(12);
     // Exactly one initial catalog call, and it asks for 12 items.
     expect(catalogRequests).toHaveLength(1);
     expect(catalogRequests[0]).toContain('pageSize=12');
     expect(catalogRequests[0]).toContain('page=1');
-    await expect(page.locator('[data-result-progress]')).toContainText('12');
+    await expect(page.locator('[data-result-progress]')).toHaveText('1\u201312 of 25 products');
+    await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe('1');
 
-    // A recoverable load-more failure keeps the loaded cards usable.
-    failNextLoadMore = true;
-    await loadMore.click();
+    failNextPage = true;
+    await nextPage.click();
     await expect(page.getByRole('alert')).toBeVisible();
     await expect(cards).toHaveCount(12);
-    await expect(loadMore).toBeEnabled();
+    await expect(cards.first()).toBeEnabled();
+    await expect(nextPage).toBeEnabled();
+    expect(new URL(page.url()).searchParams.get('page')).toBe('1');
 
-    // Retry: page 2 overlaps page 1 by one id, so 12 + 11 unique = 23.
-    await loadMore.click();
-    await expect(cards).toHaveCount(23);
+    await page.getByRole('button', { name: 'Try Again', exact: true }).click();
+    await expect(cards).toHaveCount(12);
+    await expect(cards.first()).toHaveAttribute('data-product-card', 'miu13-p13');
+    await expect(page.locator('[data-product-card="miu13-p1"]')).toHaveCount(0);
+    await expect(page.locator('[data-result-progress]')).toHaveText('13\u201324 of 25 products');
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    expect(new URL(page.url()).searchParams.get('page')).toBe('2');
     expect(catalogRequests.at(-1)).toContain('page=2');
     // Every rendered card id is unique.
     const ids = await cards.evaluateAll((nodes) =>
       nodes.map((node) => node.getAttribute('data-product-card')),
     );
     expect(new Set(ids).size).toBe(ids.length);
+
+    await page.getByRole('button', { name: 'Page 3', exact: true }).click();
+    await expect(cards).toHaveCount(1);
+    await expect(cards.first()).toHaveAttribute('data-product-card', 'miu13-p25');
+    await expect(page.locator('[data-result-progress]')).toHaveText('25\u201325 of 25 products');
+    await expect(nextPage).toBeDisabled();
 
     await page.unroute('**/api/products?**');
   });
@@ -2487,28 +2499,47 @@ test.describe('public browser smoke', () => {
   // does so without console errors or unhandled rejections.
   test('headphones page hydrates and resolves catalog loading state', async ({ page }) => {
     const problems = captureConsoleProblems(page);
-    const productsResponse = page.waitForResponse(
-      (response) => response.url().includes('/api/products') && response.status() === 200,
-    );
+    const productsResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === '/api/products' &&
+        url.searchParams.get('productFamily') === 'headphones' &&
+        response.status() === 200
+      );
+    });
 
     await page.goto('/headphones', { waitUntil: 'domcontentloaded' });
     await ensureApplicationPage(page);
-    await productsResponse;
+    const response = await productsResponse;
+    const envelope: { ok: boolean; data: CatalogPage } = await response.json();
+    expect(envelope.ok).toBe(true);
+    expect(envelope.data.page).toBe(1);
+    expect(envelope.data.pageSize).toBe(12);
+    expect(Number.isSafeInteger(envelope.data.total)).toBe(true);
+    expect(envelope.data.total).toBeGreaterThanOrEqual(0);
+    expect(envelope.data.items).toHaveLength(Math.min(12, envelope.data.total));
 
     // The catalog heading is server-rendered; the skeleton must clear once the
     // island hydrates and commits its first page.
     await expect(page.locator('[data-catalog-heading]')).toBeVisible();
     await expect(page.locator('.animate-pulse')).toHaveCount(0, { timeout: 15_000 });
 
-    // Terminal state is either real cards or the authored empty state — never
-    // an indefinite skeleton and never a blocking error.
-    await expect
-      .poll(async () => {
-        const cards = await page.locator('[data-product-card]').count();
-        const empty = await page.getByText('No published headphone models are available').count();
-        return cards + empty;
-      })
-      .toBeGreaterThan(0);
+    const cards = page.locator('[data-product-card]');
+    await expect(cards).toHaveCount(envelope.data.items.length);
+    expect(
+      await cards.evaluateAll((nodes) =>
+        nodes.map((node) => node.getAttribute('data-product-card')),
+      ),
+    ).toEqual(envelope.data.items.map((product) => product._id));
+    const start = envelope.data.total > 0 ? 1 : 0;
+    await expect(page.locator('[data-result-progress]')).toHaveText(
+      `${start}\u2013${envelope.data.items.length} of ${envelope.data.total} products`,
+    );
+    if (envelope.data.total === 0) {
+      await expect(
+        page.getByText('No products match these filters.', { exact: true }),
+      ).toBeVisible();
+    }
     await expect(page.getByRole('alert')).toHaveCount(0);
     expect(problems).toEqual([]);
   });

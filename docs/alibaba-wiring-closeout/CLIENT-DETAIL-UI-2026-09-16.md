@@ -4,10 +4,36 @@ Date: 2026-09-16
 Branch: feat/alibaba-wiring-closeout; starting commit 38331057544ee0031b25d82db7e30502e38d4acf
 PR: https://github.com/vibelingan/channel/pull/55 (open at start)
 
-Status: deployed to test with the concurrent AI release preserved; authenticated
-catalog acceptance last failed before writes at a legacy snapshot-size limit.
-The test-only capacity correction is locally verified, not deployed or rerun live.
-Main PR #55 remains open at this checkpoint.
+Status: test deployment and both authenticated live acceptance scopes passed.
+The latest main (including AI PR #53) has been integrated into PR #55; its
+runtime tree matches the accepted test release. Main merge is the remaining step.
+
+## Final Release Evidence
+
+Accepted test SHA: `75475b1bb1bf6f6b02f596909f57839a27d0f451`.
+
+| Gate | Verified result |
+| --- | --- |
+| Deploy Test [35099448295](https://github.com/vibelingan/channel/actions/runs/35099448295) | Both CI jobs, CloudBase deployment, AI build-address check, release smoke and public browser E2E succeeded |
+| Full live acceptance [35104056246](https://github.com/vibelingan/channel/actions/runs/35104056246) | Selected full test passed; four other-scope cases intentionally skipped |
+| Variant-media acceptance [35106064681](https://github.com/vibelingan/channel/actions/runs/35106064681) | All four approved product cases passed; full-scope case intentionally skipped |
+
+Full acceptance verified the deployed admin/public/sync release IDs, the complete
+public inventory, real product list/Edit/Preview/detail behavior, and a TEST ONLY
+inquiry through persisted Admin completion. Category preview found zero eligible
+assignments. Inquiry `ec972a1d-3bd9-4d55-8a61-63fb80877e8a` completed with email
+notification disabled. Public product IDs were unchanged by acceptance.
+The separate media scope verified all four original audited products, preserving
+their manual fields and public inventory. No new sample was published to pass.
+
+During the final merge check AI PR #53 advanced main to
+`fe5012a5c80e397aed8ab611594ec1f8963a121d`. Its last change relative to the AI
+version already on test was only ignore rules and removal of an obsolete
+handoff document. That main commit, not test, was merged into the feature.
+Git comparison against accepted test proved identical `apps`, `packages`,
+`scripts`, `tests`, workflows, dependency lockfile and TypeScript configuration.
+Only main/test-specific baseline, ignore rules and documentation differed.
+The historical failures below remain diagnostic history, not pending blockers.
 
 ## Test Release Checkpoint
 
@@ -51,23 +77,22 @@ Main PR #55 remains open at this checkpoint.
   [35091259284](https://github.com/vibelingan/channel/actions/runs/35091259284)
   succeeded; test release `19a641` deployed successfully in
   [35091705246](https://github.com/vibelingan/channel/actions/runs/35091705246).
-- The latest full live run
+- The earlier full live run
   [35095549791](https://github.com/vibelingan/channel/actions/runs/35095549791)
   passed both CI jobs, then failed at the read-only before-snapshot check:
   107 public products exceeded the helper's legacy maximum of 100. No acceptance
   mutation ran. The parent verified the count of 107 with a read-only inventory;
   the earlier count was 90, and owner publishing had increased it. This is a
   test read-capacity failure, not an owner publication-policy violation.
-- Corrected live acceptance remains pending; failed runs and other-scope skips
-  do not count as passing acceptance.
+- Both corrected live scopes subsequently passed; see Final Release Evidence.
+  Earlier failed runs and other-scope skips are not counted as passing cases.
 
 ## Snapshot Capacity Correction
 
-This local correction starts from clean `c4a1677` and changes only the shared
-test snapshot helper, its regression tests and this client record. No commit,
-push, cloud operation or live acceptance run is part of this correction.
-The release/run observations above were supplied by the parent, not re-queried
-from the cloud during this local task.
+This correction started from clean `c4a1677` and changed only the shared test
+snapshot helper, its regression tests and this client record. The implementing
+agent made no cloud changes. The coordinator subsequently reviewed and committed
+it as `75365d9`, deployed the combined test release and verified both live scopes.
 
 - Request pageSize remains 100; response metadata must be at most the requested
   100. The observed server cap remains 48, and smaller valid pages still work.
@@ -90,8 +115,8 @@ from the cloud during this local task.
   Every requested page still uses pageSize 100, including after page ten.
 - Root and E2E TypeScript checks, plus direct checkJs for the helper/tests, passed.
   Scoped Biome passed for both code files; full Biome passed for 602 files.
-  No SDK, API route, runtime, adapter or type declaration was changed. The parent
-  still owns the later review gate, deployment and authenticated live acceptance.
+  No SDK, API route, runtime, adapter or type declaration was changed. Review,
+  deployment and authenticated acceptance were subsequently completed above.
 
 ## Final Local Results
 
