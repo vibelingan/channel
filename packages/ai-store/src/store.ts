@@ -29,7 +29,24 @@ export interface EventRow {
   type: EventType;
   payload: Record<string, unknown>;
   createdAt: string;
+  /**
+   * The visitor message this event's run answers: the `messageId` the visitor
+   * got back when they posted it. Null for an event without a run.
+   */
+  replyTo: string | null;
 }
+
+/**
+ * The visitor message answered by the run of event row `e`. A run answers
+ * exactly one message, stamped when the run is reserved; the LIMIT keeps a
+ * broken invariant from ever duplicating an event in the stream.
+ */
+const EVENT_REPLY_TO = `(
+  SELECT q.id FROM conversation_messages q
+  WHERE q.conversation_id = e.conversation_id AND q.answered_by_run = e.run_id
+    AND q.role = 'visitor'
+  ORDER BY q.created_at, q.id LIMIT 1
+)`;
 
 export interface NewRun {
   id: string;
@@ -756,6 +773,7 @@ export class AiStore {
       type: EventType;
       payload: Record<string, unknown>;
       created_at: Date;
+      reply_to: string | null;
     }>(
       `WITH fenced_sequence AS (
          UPDATE conversations AS c
@@ -789,8 +807,9 @@ export class AiStore {
          ON CONFLICT (conversation_id, idempotency_key) DO NOTHING
          RETURNING id
        )
-       SELECT id, conversation_id, run_id, sequence, type, payload, created_at
-       FROM inserted_event`,
+       SELECT e.id, e.conversation_id, e.run_id, e.sequence, e.type, e.payload, e.created_at,
+              ${EVENT_REPLY_TO} AS reply_to
+       FROM inserted_event e`,
       [
         input.conversationId,
         input.runId,
@@ -1059,11 +1078,13 @@ export class AiStore {
       type: EventType;
       payload: Record<string, unknown>;
       created_at: Date;
+      reply_to: string | null;
     }>(
-      `SELECT id, conversation_id, run_id, sequence, type, payload, created_at
-       FROM conversation_events
-       WHERE conversation_id = $1 AND sequence > $2
-       ORDER BY sequence ASC LIMIT $3`,
+      `SELECT e.id, e.conversation_id, e.run_id, e.sequence, e.type, e.payload, e.created_at,
+              ${EVENT_REPLY_TO} AS reply_to
+       FROM conversation_events e
+       WHERE e.conversation_id = $1 AND e.sequence > $2
+       ORDER BY e.sequence ASC LIMIT $3`,
       [conversationId, afterSequence, limit],
     );
     return result.rows.map(mapEvent);
@@ -1094,6 +1115,7 @@ function mapEvent(row: {
   type: EventType;
   payload: Record<string, unknown>;
   created_at: Date;
+  reply_to: string | null;
 }): EventRow {
   return {
     id: row.id,
@@ -1103,5 +1125,6 @@ function mapEvent(row: {
     type: row.type,
     payload: row.payload,
     createdAt: row.created_at.toISOString(),
+    replyTo: row.reply_to,
   };
 }

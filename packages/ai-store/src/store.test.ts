@@ -310,6 +310,88 @@ test(
   },
 );
 
+test('every streamed event names the question its run answers', { skip }, async () => {
+  assert.ok(store);
+  const conversation = await store.createConversation();
+  const ask = (key: string, content: string) =>
+    store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: key,
+      content,
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+  // The stream carries every event of the conversation. Without this field the
+  // widget could only assume the next events answer its newest question, so an
+  // answer that finished after the visitor changed page appeared under the
+  // question they asked next.
+  const answered = await ask('reply-0', 'answered question');
+  const failed = await ask('reply-1', 'queued question whose run fails');
+  assert.ok(answered.run);
+  assert.equal(failed.run, null);
+
+  const first = await store.claimRun(answered.run.id);
+  assert.ok(first);
+  const streamed = await store.appendEventFenced({
+    conversationId: conversation.id,
+    runId: answered.run.id,
+    expectedControlVersion: first.controlVersion,
+    claimEpoch: first.claimEpoch,
+    type: 'token',
+    payload: { text: 'answer' },
+  });
+  assert.equal(streamed?.replyTo, answered.messageId);
+  assert.equal(
+    await store.finishRunFenced({
+      conversationId: conversation.id,
+      runId: answered.run.id,
+      expectedControlVersion: first.controlVersion,
+      claimEpoch: first.claimEpoch,
+      status: 'completed',
+      events: [
+        { type: 'citation', payload: { sourceId: 'channelkb-g1-faq', title: 'Public FAQ' } },
+        { type: 'final', payload: { text: 'answer' } },
+      ],
+    }),
+    true,
+  );
+
+  const drainedRun = (await store.getConversation(conversation.id))?.activeRunId;
+  assert.ok(drainedRun);
+  const second = await store.claimRun(drainedRun);
+  assert.ok(second);
+  assert.equal(
+    await store.finishRunFenced({
+      conversationId: conversation.id,
+      runId: drainedRun,
+      expectedControlVersion: second.controlVersion,
+      claimEpoch: second.claimEpoch,
+      status: 'failed',
+      events: [{ type: 'error', payload: { category: 'knowledge_empty', retriable: false } }],
+    }),
+    true,
+  );
+
+  const stopped = await ask('reply-2', 'question the visitor stops');
+  assert.ok(stopped.run);
+  assert.equal(await store.requestCancellation(conversation.id, conversation.controlVersion), true);
+  assert.equal(
+    await store.terminalizeRun({ runId: stopped.run.id, reason: 'cancel_requested' }),
+    true,
+  );
+
+  assert.deepEqual(
+    (await store.listEvents(conversation.id)).map((event) => [event.type, event.replyTo]),
+    [
+      ['token', answered.messageId],
+      ['citation', answered.messageId],
+      ['final', answered.messageId],
+      ['error', failed.messageId],
+      ['assistant.cancelled', stopped.messageId],
+    ],
+  );
+});
+
 test('database rejects an event whose run belongs to another conversation', { skip }, async () => {
   assert.ok(store);
   const a = await store.createConversation();
