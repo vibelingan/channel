@@ -4,6 +4,11 @@ import type {
   Product,
   ProductFamily,
 } from '../../apps/site/src/islands/shop/catalog-types.ts';
+import { mockCatalogTaxonomy } from './helpers/admin-api';
+
+test.beforeEach(async ({ page }) => {
+  await mockCatalogTaxonomy(page);
+});
 
 const catalogPaths = [
   '/electronics-toys/',
@@ -46,6 +51,7 @@ test('catalog loading motion is disabled for reduced-motion users', async ({ bro
   });
   const page = await context.newPage();
   let releaseCatalog: (() => void) | undefined;
+  await mockCatalogTaxonomy(page);
   const catalogReleased = new Promise<void>((resolve) => {
     releaseCatalog = resolve;
   });
@@ -125,11 +131,15 @@ async function mockCatalog(
     }
     const pageNumber = Number(url.searchParams.get('page') ?? '1');
     const category = url.searchParams.get('category');
+    const subcategoryIds = url.searchParams.get('subcategoryIds')?.split(',');
     const search = url.searchParams.get('search')?.toLowerCase() ?? '';
     const filtered = products.filter(
       (product) =>
         product.name.toLowerCase().includes(search) &&
-        (category === null || category.split(',').includes(product.category ?? '')),
+        (category === null || category.split(',').includes(product.category ?? '')) &&
+        (subcategoryIds === undefined ||
+          (product.productFamily === 'headphones' &&
+            subcategoryIds.includes(`headphones-${product.category}`))),
     );
     const data: CatalogPage = {
       items: filtered.slice((pageNumber - 1) * 12, pageNumber * 12),
@@ -236,8 +246,12 @@ test('Headphones category and search reset page one; no selected categories stay
   await expectPage(page, 'headphones', 2);
   await page.getByRole('checkbox', { name: 'Office Headphones' }).uncheck();
   await expectPage(page, 'headphones', 1);
-  expect(requests.at(-1)?.searchParams.get('category')).toBe('bluetooth,wired');
-  await expect.poll(() => new URL(page.url()).searchParams.get('category')).toBe('bluetooth,wired');
+  expect(requests.at(-1)?.searchParams.get('subcategoryIds')).toBe(
+    'headphones-bluetooth,headphones-wired',
+  );
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get('category'))
+    .toBe('headphones-bluetooth,headphones-wired');
   await page.getByRole('button', { name: 'Page 2', exact: true }).click();
   await expectPage(page, 'headphones', 2);
   await page.getByRole('searchbox').fill('25');
@@ -439,11 +453,16 @@ for (const family of families) {
     ]) {
       await page.goto(`/${family}/?page=2&${query}`);
       await expect(
-        page.getByText('No products match these filters.', { exact: true }),
+        page
+          .getByRole('alert')
+          .getByText('The selected catalog categories are no longer available.', { exact: true }),
       ).toBeVisible();
       await expect(page.locator('[data-product-card]')).toHaveCount(0);
       expect(requests).toHaveLength(0);
-      expect(new URL(page.url()).searchParams.get('category')).toBe('__none__');
+      expect(new URL(page.url()).searchParams.get('category')).toBe(
+        new URLSearchParams(query).get('category'),
+      );
+      await expect(page.getByRole('button', { name: 'Clear filters', exact: true })).toBeVisible();
     }
   });
 }

@@ -1,6 +1,7 @@
 import { type Locator, type Page, expect, test } from '@playwright/test';
 import { detailFixture } from '../../apps/site/src/catalog/testing/detail-fixture.ts';
 import type { CatalogQuoteSubmission } from '../../packages/shared/src/catalog/quote-draft.ts';
+import { mockCatalogTaxonomy } from './helpers/admin-api';
 
 async function focusCountry(country: Locator) {
   await country.click();
@@ -1086,6 +1087,7 @@ const tieredToy = {
 const envelope = (data: unknown) => JSON.stringify({ ok: true, data });
 
 test.beforeEach(async ({ page }) => {
+  await mockCatalogTaxonomy(page);
   // These fixtures deliberately predate shared approval. Never let a mocked
   // legacy product depend on a real remote /detail response.
   await page.route('**/api/products/*/detail*', (route) =>

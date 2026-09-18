@@ -1,13 +1,18 @@
+import { useQuery } from '@tanstack/react-query';
 import {
   type CollectionDef,
   type CollectionDoc,
   type FieldDef,
   LEGACY_HEADPHONES_CATEGORY_OPTIONS,
+  MAX_PRODUCT_SUBCATEGORIES,
   PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT,
   type ProductFamily,
+  isProductFamily,
   needsCategoryReview,
+  readProductSubcategories,
+  validateProductSubcategories,
 } from '@vibelingan-channel/shared';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { ImageManager } from './ImageManager.tsx';
@@ -22,6 +27,7 @@ import { importAlibabaGallery } from './alibaba-gallery-import.ts';
 import { alibabaSourcePreviewInfo, alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { AdminApiError } from './api.ts';
 import { ADMIN_PRODUCT_FAMILY_LABELS } from './product-family-tabs.ts';
+import { taxonomyQuery } from './taxonomy-ui-state.ts';
 import { useModalDialog } from './use-modal-dialog.ts';
 
 interface RecordFormProps {
@@ -152,6 +158,9 @@ export function RecordForm({
   const [sourceImageNotice, setSourceImageNotice] = useState('');
   const [newSourceImageIds, setNewSourceImageIds] = useState<string[]>([]);
   const [pricingInvalid, setPricingInvalid] = useState(false);
+  const [mappingInvalid, setMappingInvalid] = useState(
+    collection.name === 'sourceCategoryMappings',
+  );
   const [discardRequested, setDiscardRequested] = useState(false);
   const [sourcePreviewId, setSourcePreviewId] = useState<string>();
   const dialogRef = useModalDialog();
@@ -162,6 +171,19 @@ export function RecordForm({
   const dirty = JSON.stringify(state) !== JSON.stringify(initialStateRef.current);
 
   function setField(name: string, value: string | boolean) {
+    if (collection.name === 'sourceCategoryMappings' && name === 'productFamily') {
+      if (value === state.productFamily) return;
+      setFieldAnnouncement(
+        'Draft subcategories cleared for the new main category. Mapping not saved.',
+      );
+      setState((prev) => ({
+        ...prev,
+        productFamily: value,
+        subcategoryIds: '[]',
+        channelCategory: '',
+      }));
+      return;
+    }
     if (collection.name === 'products' && name === 'productFamily') {
       const transition = productFamilyTransition(state, value as ProductFamily);
       setFieldAnnouncement(transition.announcement);
@@ -173,7 +195,7 @@ export function RecordForm({
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (busy || pricingInvalid || discardRequested) return;
+    if (busy || pricingInvalid || mappingInvalid || discardRequested) return;
     setLocalError('');
     try {
       const values = coerceValues(collection, state, initial);
@@ -343,8 +365,11 @@ export function RecordForm({
                         >
                           {section.heading !== 'Pricing & Order' &&
                             section.fields.map((field) =>
-                              field.name === 'category' &&
-                              state.productFamily !== 'headphones' ? null : (
+                              (initial &&
+                                Object.hasOwn(initial, 'subcategoryIds') &&
+                                ['category', 'productFamily'].includes(field.name)) ||
+                              (field.name === 'category' &&
+                                state.productFamily !== 'headphones') ? null : (
                                 <div
                                   key={field.name}
                                   className={`min-w-0 ${['name', 'description', 'imageIds'].includes(field.name) ? 'sm:col-span-2' : ''}`}
@@ -466,20 +491,37 @@ export function RecordForm({
               )}
             </div>
           ) : (
-            <div className="mt-4 space-y-4">
-              {editableFields.map((field) => (
-                <Field
-                  key={field.name}
-                  field={field}
-                  value={state[field.name]}
-                  onChange={(value) => setField(field.name, value)}
-                />
-              ))}
-            </div>
+            <fieldset disabled={busy || discardRequested} className="mt-4 min-w-0 space-y-4">
+              {editableFields.map((field) =>
+                collection.name === 'sourceCategoryMappings' && field.name === 'subcategoryIds' ? (
+                  <MappingSubcategories
+                    key={field.name}
+                    state={state}
+                    onChange={(value) => setField(field.name, value)}
+                    onValidityChange={setMappingInvalid}
+                  />
+                ) : collection.name === 'sourceCategoryMappings' &&
+                  field.name === 'channelCategory' &&
+                  String(state.subcategoryIds ?? '').trim() !== '' ? null : (
+                  <Field
+                    key={field.name}
+                    field={field}
+                    value={state[field.name]}
+                    onChange={(value) => setField(field.name, value)}
+                  />
+                ),
+              )}
+            </fieldset>
           )}
         </div>
 
-        <output data-product-form-announcement className="sr-only" aria-live="polite">
+        <output
+          data-product-form-announcement
+          className={
+            collection.name === 'sourceCategoryMappings' ? 'px-5 text-sm text-slate-600' : 'sr-only'
+          }
+          aria-live="polite"
+        >
           {fieldAnnouncement}
         </output>
 
@@ -526,7 +568,7 @@ export function RecordForm({
               </button>
               <button
                 type="submit"
-                disabled={busy || pricingInvalid}
+                disabled={busy || pricingInvalid || mappingInvalid}
                 className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
               >
                 {mediaBusy ? 'Waiting for uploads…' : submitting ? 'Saving…' : 'Save'}
@@ -547,6 +589,106 @@ export function RecordForm({
         />
       )}
     </dialog>
+  );
+}
+
+function MappingSubcategories({
+  state,
+  onChange,
+  onValidityChange,
+}: {
+  state: FormState;
+  onChange: (value: string) => void;
+  onValidityChange: (invalid: boolean) => void;
+}) {
+  const family = isProductFamily(state.productFamily) ? state.productFamily : null;
+  const query = useQuery({ ...taxonomyQuery(family ?? 'headphones'), enabled: family !== null });
+  const registry = query.data;
+  const raw = String(state.subcategoryIds ?? '').trim();
+  let selected: string[] = [];
+  let valid = raw === '' && family === null;
+  if (family && registry) {
+    try {
+      const classification = readProductSubcategories(
+        raw
+          ? { productFamily: family, subcategoryIds: JSON.parse(raw) }
+          : { productFamily: family, category: state.channelCategory ?? '' },
+        registry,
+      );
+      if (classification.status === 'valid') {
+        selected = classification.subcategoryIds;
+        valid = validateProductSubcategories(family, selected, registry);
+      }
+    } catch {
+      valid = false;
+    }
+  }
+  const invalid = !valid || (family !== null && (query.isFetching || Boolean(query.error)));
+  useEffect(() => onValidityChange(invalid), [invalid, onValidityChange]);
+  const children = (family && registry?.family === family ? registry.children : [])
+    .filter((child) => child.status === 'active')
+    .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name));
+
+  return (
+    <fieldset className="min-w-0 space-y-2" aria-busy={family !== null && query.isFetching}>
+      <legend className="text-sm font-medium text-slate-700">Subcategories</legend>
+      {!family ? (
+        <p className="text-sm text-slate-500">No main category selected.</p>
+      ) : query.error ? (
+        <div role="alert" className="text-sm text-red-600">
+          <p>{query.error.message}</p>
+          <button type="button" className="min-h-11 underline" onClick={() => void query.refetch()}>
+            Retry categories
+          </button>
+        </div>
+      ) : !registry || query.isFetching ? (
+        <output className="block text-sm text-slate-500">Loading categories...</output>
+      ) : (
+        <>
+          {!valid && (
+            <p role="alert" className="text-sm text-red-600">
+              Selected subcategories are unavailable. Clear or replace the selection.
+            </p>
+          )}
+          {children.length === 0 && (
+            <p className="text-sm text-slate-500">No active subcategories.</p>
+          )}
+          {children.map((child) => (
+            <label
+              key={child.id}
+              className="flex min-h-11 items-center gap-2 text-sm text-slate-700"
+            >
+              <input
+                type="checkbox"
+                value={child.id}
+                checked={selected.includes(child.id)}
+                disabled={
+                  !selected.includes(child.id) && selected.length >= MAX_PRODUCT_SUBCATEGORIES
+                }
+                onChange={(event) =>
+                  onChange(
+                    JSON.stringify(
+                      event.target.checked
+                        ? [...selected, child.id]
+                        : selected.filter((id) => id !== child.id),
+                    ),
+                  )
+                }
+                className="h-4 w-4 shrink-0 rounded border-slate-300"
+              />
+              <span className="min-w-0 break-words">{child.name}</span>
+            </label>
+          ))}
+          <button
+            type="button"
+            className="min-h-11 text-sm underline"
+            onClick={() => onChange('[]')}
+          >
+            Clear subcategories
+          </button>
+        </>
+      )}
+    </fieldset>
   );
 }
 
@@ -733,7 +875,29 @@ export function coerceValues(
   const values: Record<string, unknown> = {};
   for (const field of collection.fields) {
     if (field.readOnly || field.hideInForm) continue;
+    if (
+      collection.name === 'sourceCategoryMappings' &&
+      field.name === 'channelCategory' &&
+      String(state.subcategoryIds ?? '').trim() !== ''
+    )
+      continue;
+    if (
+      collection.name === 'products' &&
+      initial &&
+      Object.hasOwn(initial, 'subcategoryIds') &&
+      ['category', 'productFamily'].includes(field.name)
+    )
+      continue;
     const raw = state[field.name];
+
+    if (
+      collection.name === 'products' &&
+      field.name === 'published' &&
+      initial?.published === true &&
+      raw === true &&
+      state.productFamily !== initial.productFamily
+    )
+      continue;
 
     // Restoring inheritance changes policy only, not the retained manual record.
     if (

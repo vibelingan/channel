@@ -1,11 +1,174 @@
 # Catalog Navigation and Subcategories Execution
 
 Updated: 2026-09-18. This document is the restart checkpoint after VS Code crash.
-Branch: feat/catalog-navigation-subcategories
+Branch: feat/catalog-multi-subcategories
 Starting main: ba3cd6296cddf3eb0fd67866b0819cd7b0db33bd
-Status: Pagination implemented and locally verified; delivery in progress.
-Current phase: deliver (pagination only)
-Current/next MIU: 4 (pagination release), then 5 (taxonomy contracts/storage).
+Status: Pagination deployed and merged; multi-subcategory implementation locally validated, delivery pending.
+Current phase: deliver (taxonomy; separate release)
+Current/next MIU: 8 (final CI, test deployment, cloud acceptance and main-based PR).
+
+## Latest Delivery and Resume State
+
+- Pagination feature commit: ad0c587e9d384c368993d52e7cdafcdef849e691.
+  PR https://github.com/vibelingan/channel/pull/56 merged normally into main as
+  b0015c015c7410b9b1c383ee5a83bbc160b8d5b8. No test history merged into main.
+- Deployed test commit: 84a813f633075290ca48334908519aeb1bef84f8, parents
+  75475b1bb1bf6f6b02f596909f57839a27d0f451 and ad0c587. Release worktree:
+  .claude/worktrees/catalog-pagination-test-release (clean).
+- Feature CI 35267490781, test CI 35297514053, and Deploy Test 35297514253
+  all succeeded. Deploy includes same-SHA cloud smoke and public/catalog browser
+  tests. A local gh watcher lost its network connection during upload; a later
+  direct API read confirmed the workflow succeeded, not a second deployment.
+- Live site https://www.supplychainsai.com/headphones/?page=2 verified with
+  actual data: 12 replacement cards, no Load More, refresh, browser Back and detail
+  return preserving page 2 and focus. Four families at exact 390/1440 widths had
+  no overflow. Observed totals: headphones 120, AI gadgets 5, toys 3, misc 0.
+  Real visible images loaded in headphones/AI/toys; misc showed its empty state.
+- Visual evidence /tmp/channel-pagination-live-84a813f/ (eight PNGs), temporary
+  read-only script /tmp/channel-pagination-live-acceptance.mjs. Early captures
+  preceded image loading and were replaced after image-ready assertions. One
+  desktop detail-return wait timed out; diagnostic rerun passed without source
+  changes. Cause is unproven; do not label the entire manual run zero-flake.
+- Main post-merge CI 35301157888 succeeded for exact b0015c0.
+- Taxonomy work is uncommitted on feat/catalog-multi-subcategories, based on
+  b0015c0; dirty changes were preserved when switching from the merged PR branch.
+  Parent worktree path remains catalog-navigation-subcategories.
+- Implemented local slices: shared registry/assignment validators (10 tests),
+  transaction read/save with immutable IDs/slugs, archive-only removal, strict
+  16 KiB commands, admin authorization and expected revision (24 tests), plus
+  legacy transaction regression (3 tests): 37 passed. Real admin API integration
+  and persistent local restart/concurrent-edit test plus old scenarios: 3 passed.
+  Root/local-server/admin typechecks and touched-file Biome passed.
+- Subsequent implementation: transactional product assignments with product and
+  registry version checks, explicit clear, archive retention, and registry fence;
+  42 focused save regressions passed. Admin assignment API supports replace,
+  append, clear and up to 20 products; five real local API scenarios pass,
+  including partial conflicts and unknown outcomes stopping the remaining batch.
+  Admin management and classification components are wired into CollectionView;
+  migrated-product ordinary forms omit old classification fields.
+- Public active-only taxonomy and strict ID filters pass 39 tests. Cloud predicate
+  is serialized by both installed SDKs; six tests include 6,336 local parity
+  comparisons. Frontend list and desktop/mobile header consume the taxonomy;
+  frontend agent reports 61 focused tests and mocked browser checks passing.
+  Local route delegates the public handler; migration script is offline/dry-run
+  only. No customer backfill has occurred.
+- Cloud CLI 3.5.7 device login authorized; optional telemetry declined. MCP still
+  reports unauthenticated, so the probe uses CLI session credentials in memory,
+  never printed or persisted by the script. Target confirmed NoSQL, Shanghai.
+- Real SDK probe scripts/probe-catalog-taxonomy.mjs passed on the actual env:
+  headphones 26 results (25 assignments plus one absent-field legacy row), each
+  other family 25; three 12-item pages per family, malformed/empty/scalar/private
+  rows rejected. Concurrent same-revision transactions yielded saved/conflict.
+  All 131 synthetic records cleaned; remaining count 0. Empty ADMINONLY collection
+  taxonomyProbedca5a9b3f8af48b2 retained. Earlier attempt hit ETIMEDOUT; its one
+  unconfirmed deletion was explicitly cleaned and count 0 confirmed in
+  taxonomyProbebc5c2605defb444e. No customer collection was written.
+- Alibaba multi-child mapping, checkbox configuration and suggestion draft/apply
+  now exist. Mapping writes revalidate inside transactions. Accepted suggestions
+  carry their evidence into the existing product transaction; source/link/mapping
+  dependencies, actor authorization and taxonomy are fenced. Seventy-four focused
+  integration tests passed after wiring evidence and actor IDs. Product-save
+  timestamps advance monotonically to reject same-clock stale requests.
+- Independent review found four backend and four frontend issues. Fixes include
+  transactional mapping validation and permission rechecks; full checkbox selection
+  means the unfiltered main list; explicit recovery from archived/unknown URL IDs;
+  generation-guarded registry reload; BFCache header taxonomy reload. Twelve new
+  frontend regressions passed. Updated service tests pass 20 integration cases.
+- Full site unit suite passed 476 with one existing opt-in skip before the last
+  review fixes. Shared full suite passed 156; DB later passed 181. A helper used
+  the wrong public package filter (matched zero packages): that is NOT a pass;
+  rerun @vibelingan-channel/fn-public-api explicitly. Local-server full-suite result
+  must also be re-established after the transaction/caller changes.
+- Closed browser defects: CollectionView mounts the registry manager on first
+  disclosure open; initial catalog requests await initial taxonomy completion;
+  invalid selected IDs show errors without broadening queries; desktop header
+  tests distinguish five primary destinations from child links. Focused category
+  spec passed 23/23 with zero retries after the fixes.
+- A real-backend E2E caught a client/server mismatch hidden by an incorrect mock:
+  reads return replayed, initial saves configured, subsequent saves applied.
+  Client decoder and mock now match; two observed failures became 17 passing
+  client tests. Save replies also require expected revision + 1.
+- Registry status output no longer simultaneously announces saving and saved.
+  Unclassified-product assertions preserve absent legacy category. The new E2E
+  chooses a publicly readable seed image rather than an arbitrary prior test's
+  invalid image ID, retaining image-load assertions. Actual production-build
+  admin plus four-family taxonomy journey passed 6/6, zero retries, in 48.1s:
+  /tmp/channel-taxonomy-journey-ready.log; 16 screenshots under the corresponding
+  /tmp/channel-taxonomy-journey-ready/test-results/catalog-taxonomy-* directory.
+- Probe bootstrap errors are sanitized without raw child stdout/JSON/cause;
+  transaction probe waits for both operations to settle before cleanup. Twelve
+  helper tests plus 18 resource tests pass. Resource assertions now cover 28
+  ADMINONLY collections and the added product-family public index.
+- Probe invocation (Node 22+): TCB_ENV_ID=<target> node --experimental-strip-types
+  scripts/probe-catalog-taxonomy.mjs --allow-isolated-writes. CLI credentials stay
+  in memory. No new live probe was needed for helper-only hardening.
+- SDK contract follows the production adapter's delegate into the actual save
+  transaction callback, rather than requiring the old inline method body.
+  Contract check passed with SDK_EXIT=0. A temporary duplicate variable in the
+  script was fixed and verified before resuming full validation.
+- Final serial validation completed in terminal
+  4ea230a6-4d32-43ac-bbea-625e2ef7def7: pnpm test and standard production runner
+  passed; formal runner exposed the approval-path test mismatch below. Logs
+  /tmp/channel-taxonomy-final-all-unit.log,
+  /tmp/channel-taxonomy-final-standard.log, /tmp/channel-taxonomy-final-formal.log.
+  Script suite passed 424; local-server full suite passed 149. The overall command
+  exited 1, not a full green claim. Subsequent focused formal verification is below.
+- The standard runner has now finished successfully: public 41, catalog 87,
+  font 1, seed 1, admin lifecycle 5, editor 11, taxonomy journey 1; every lane
+  passed without retries in this run, and the disposable directory was removed.
+  Formal runner had one failed scenario and five passes; no test data was retained.
+- Formal approval regression now uses the existing Edit Product path for its
+  unmigrated already-published fixture. The dedicated classifier intentionally
+  requires withdrawing before a parent move; retain concurrent withdrawal and
+  terminal publication assertions in the ordinary-edit approval test, and retain
+  new draft classification followed by explicit Publish in taxonomy E2E.
+- A narrow form regression reproduced and fixed: changing only the main category of an already-published
+  product must omit an unchanged published=true field. Explicit withdrawal,
+  draft publication, same-family saves and migrated detail edits stay unchanged.
+  The new test failed before the fix; all 14 form tests passed afterward. Legacy
+  category clearing also needed accepting the established empty-string sentinel
+  at the product write-schema boundary; a focused red test became 15 passing
+  product-contract tests. No other enum field was relaxed.
+- Formal fixture restoration now refreshes its browser list after an API-only
+  republish, avoiding editing an obsolete unpublished row. Its concurrent
+  withdrawal and persisted approval assertions remain. Final production-build
+  formal plus taxonomy journey: 7 passed, zero retries, FORMAL_FINAL_EXIT=0,
+  /tmp/channel-taxonomy-formal-final.log. Earlier font-screenshot timeout is
+  recorded, not misreported as functional success.
+- Final release checks after these last two runtime changes: shared 156/156,
+  site 490 passed / 1 existing opt-in skip / 0 failures. Root, E2E and site-test
+  TypeScript passed; Biome checked 749 files; diff check passed. Craft gate:
+  12 baseline findings, zero new findings, zero execution errors; baseline unchanged.
+  A helper incorrectly invoked root pnpm typecheck and prompted
+  to install pnpm 12.4.2; installation was declined, no dependencies replaced.
+  Root check was then run successfully with node node_modules/typescript/bin/tsc --noEmit.
+- Concurrent price ownership verified against Git objects at
+  origin/feat/catalog-price-repair-handoff 88a669090c3352a8dd924b4026450fdaffdb62cf.
+  Three overlapping tracked files: admin handler, DB adapter exports and DB index
+  exports. Pricing keeps ownership of its partial-price-save approval change,
+  currency normalization and repair evidence. This feature does not import or
+  rewrite the unmerged price implementation. Future integration must combine
+  both export sets and preserve price's requiresApproval=config.enableDetailApproval
+  condition, not restore the old published-only condition. Taxonomy's save-helper
+  extraction still forwards the full input to planCatalogProductSave.
+  Classification changes intentionally stale any previous price-repair dry-run;
+  replan those records rather than weakening evidence checks. No price worktree,
+  refactor worktree, dirty root checkout, or remote price branch was modified.
+  Recheck remote main/test/price immediately before publishing: this is a snapshot,
+  not a lock against another agent completing work.
+- Feature commit 792db3400a1250f4e8bc3dd826f254a02d2b88ff pushed normally;
+  PR https://github.com/vibelingan/channel/pull/58 is main-based and mergeable.
+  First CI 35353107705 passed AI and prior browser lanes, but the new taxonomy
+  journey redundantly logged in via API then UI and hit the shared login limit
+  on fast CI. Artifact confirms 'Too many requests. Please retry in 33s.'
+  The test now reuses its actual API-issued session for the same local origin;
+  no authentication/limiter implementation changed. Focused production taxonomy
+  journey passed with zero retries, SINGLE_SESSION_EXIT=0, 52.6s, owned DB cleaned.
+- Still required: green same-SHA CI, test deployment
+  and main-based PR delivery. Do not treat any earlier test count as final SHA proof.
+  No subcategory release has yet occurred.
+
+Earlier checkpoints below are historical evidence, not the current release state.
 
 ## User-Approved Requirements
 
@@ -55,7 +218,8 @@ Current/next MIU: 4 (pagination release), then 5 (taxonomy contracts/storage).
 7. Public child filters/navigation using one classification source and paged APIs.
 8. Taxonomy tests, migration verification, independent review and separate release.
 
-Units 5-8 remain pending; they are not completed by shipping pagination.
+Units 5-7 are implemented and locally validated. Unit 8 delivery remains pending;
+neither local validation nor the earlier pagination release completes taxonomy delivery.
 Each unit uses small testable slices and immediate focused checks. No destructive
 data migration or broad customer-data modification is hidden in a UI release.
 

@@ -122,6 +122,11 @@ test('draft writes remain backward compatible while product identity fields vali
     true,
   );
   assert.equal(schema.safeParse({ name: 'Bad', productFamily: 'garden' }).success, false);
+  assert.equal(
+    schema.safeParse({ name: 'Clear legacy child', productFamily: 'misc', category: '' }).success,
+    true,
+  );
+  assert.equal(schema.safeParse({ name: 'Bad child', category: 'unknown' }).success, false);
 });
 
 test('publication allows missing SKU and slug but still requires content and a primary image', () => {

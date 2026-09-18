@@ -203,12 +203,33 @@ test('catalog identity coordination collections are function-only resources', ()
   assert.deepEqual(resource.indexes, []);
 });
 
-test('products declares the All and family Alibaba review queue indexes', () => {
+test('taxonomy registry and planned probe collections remain function-only resources', () => {
+  for (const collectionName of ['catalogTaxonomies', 'catalogTaxonomyProbe']) {
+    const resource = REQUIRED_NOSQL_RESOURCES.find(
+      (candidate) => candidate.collectionName === collectionName,
+    );
+    assert.ok(resource, `${collectionName} must be provisioned before catalog deploy`);
+    assert.equal(resource.permission, 'ADMINONLY');
+    assert.deepEqual(resource.indexes, []);
+  }
+});
+
+test('products declares review queues and the public family pagination index', () => {
   const resource = REQUIRED_NOSQL_RESOURCES.find(
     (candidate) => candidate.collectionName === 'products',
   );
   assert.ok(resource);
   assert.equal(resource.permission, 'ADMINONLY');
+  assert.equal(resource.indexes.length, 3);
+  assert.deepEqual(
+    resource.indexes.map((candidate) => candidate.IndexName),
+    [
+      'product_alibaba_review_queue',
+      'product_family_alibaba_review_queue',
+      'product_family_public_page',
+    ],
+  );
+  assert.ok(resource.indexes.every((candidate) => candidate.MgoKeySchema.MgoIsUnique === false));
   assert.deepEqual(
     resource.indexes.map((candidate) =>
       candidate.MgoKeySchema.MgoIndexKeys.map(({ Name, Direction }) => `${Name}:${Direction}`),
@@ -216,6 +237,7 @@ test('products declares the All and family Alibaba review queue indexes', () => 
     [
       ['alibabaReviewPending:-1', 'createdAt:-1'],
       ['productFamily:1', 'alibabaReviewPending:-1', 'createdAt:-1'],
+      ['productFamily:1', 'published:1', 'archived:1', '_id:1'],
     ],
   );
 });
@@ -298,11 +320,7 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
   const messages = [];
   ensureNoSqlResources(callTool, (message) => messages.push(message));
 
-  // Anchor: a silent registry change must fail here, not slip through the
-  // derived expectations below (2 auth/abuse + 3 catalog + 10 alibaba collections).
-  // 26: includes source media bindings and read-only import pages, independent of the worker.
-  // This count is deliberate: a new collection must be a conscious change.
-  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 26);
+  assert.equal(REQUIRED_NOSQL_RESOURCES.length, 28);
   assert.equal(collections.size, REQUIRED_NOSQL_RESOURCES.length);
   assert.equal(
     [...indexesByCollection.values()].reduce((total, indexes) => total + indexes.size, 0),
@@ -333,6 +351,8 @@ test('ensureNoSqlResources creates missing resources and verifies the resulting 
   assert.ok(messages.some((message) => message.includes('passwordResets: ready')));
   assert.ok(messages.some((message) => message.includes('alibabaSupplierOffers: ready')));
   assert.ok(messages.some((message) => message.includes('alibabaRawReplayManifests: ready')));
+  assert.ok(messages.some((message) => message.includes('catalogTaxonomies: ready')));
+  assert.ok(messages.some((message) => message.includes('catalogTaxonomyProbe: ready')));
 });
 
 test('ensureNoSqlResources is idempotent when the collection and indexes exist', () => {

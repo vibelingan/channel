@@ -9,6 +9,11 @@ import { HeadphonesProductDetail } from './HeadphonesProductDetail.tsx';
 import { LegacySkuDetailPage } from './SkuDetailPage.tsx';
 import { fetchCatalog } from './api.ts';
 import {
+  type PublicCatalogTaxonomy,
+  fetchCatalogTaxonomy,
+  parseTaxonomyCatalogQuery,
+} from './catalog-taxonomy.ts';
+import {
   CATALOG_PAGE_SIZE,
   type NumberedCatalogQuery,
   type NumberedCatalogState,
@@ -39,7 +44,9 @@ function detailIsOpen() {
 
 function writeCatalogHistory(query: NumberedCatalogQuery, mode: 'push' | 'replace') {
   if (detailIsOpen()) return;
-  const next = catalogUrl(window.location.href, query);
+  const currentUrl = new URL(window.location.href);
+  currentUrl.searchParams.delete('subcategoryIds');
+  const next = catalogUrl(currentUrl.href, query);
   if (next === `${window.location.pathname}${window.location.search}${window.location.hash}`)
     return;
   window.history[mode === 'push' ? 'pushState' : 'replaceState'](window.history.state, '', next);
@@ -56,6 +63,7 @@ export function CatalogFamilyPage({ content, family, previewContent }: Props) {
           )}
           renderList={(open, locationSearch) => (
             <CatalogFamilyList
+              key={family.key}
               content={content}
               family={family}
               onOpenProduct={open}
@@ -65,21 +73,106 @@ export function CatalogFamilyPage({ content, family, previewContent }: Props) {
         />
       </Suspense>
     );
-  return <CatalogFamilyList content={content} family={family} />;
+  return <CatalogFamilyList key={family.key} content={content} family={family} />;
 }
 
-function CatalogFamilyList({
+type ListProps = Props & { onOpenProduct?: (id: string) => void; locationSearch?: string };
+
+function CatalogFamilyList(props: ListProps) {
+  const { family } = props;
+  const [attempt, setAttempt] = useState(0);
+  const taxonomyGenerationRef = useRef(0);
+  const [loaded, setLoaded] = useState<{
+    source: CatalogFamilyContent;
+    family: CatalogFamilyContent;
+    registry: PublicCatalogTaxonomy | null;
+    error: string | null;
+    pending: boolean;
+  }>(() => ({
+    source: family,
+    family: { ...family, categories: [] },
+    registry: null,
+    error: null,
+    pending: true,
+  }));
+  const retryTaxonomy = useCallback(() => setAttempt((current) => current + 1), []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    taxonomyGenerationRef.current = attempt;
+    setLoaded((current) =>
+      current.source === family
+        ? { ...current, pending: true, error: null }
+        : {
+            source: family,
+            family: { ...family, categories: [] },
+            registry: null,
+            error: null,
+            pending: true,
+          },
+    );
+    void fetchCatalogTaxonomy(family.key, controller.signal).then(
+      (registry) => {
+        if (controller.signal.aborted || taxonomyGenerationRef.current !== attempt) return;
+        setLoaded({
+          source: family,
+          family: {
+            ...family,
+            label: registry.name,
+            heading: registry.name,
+            categories: registry.children.map((child) => ({ key: child.id, label: child.name })),
+          },
+          registry,
+          error: null,
+          pending: false,
+        });
+      },
+      () => {
+        if (controller.signal.aborted || taxonomyGenerationRef.current !== attempt) return;
+        setLoaded((current) => ({
+          ...current,
+          pending: false,
+          error: 'Unable to load catalog categories.',
+        }));
+      },
+    );
+    return () => controller.abort();
+  }, [family, attempt]);
+
+  return (
+    <CatalogFamilyController
+      {...props}
+      family={loaded.family}
+      registry={loaded.registry}
+      taxonomyError={loaded.error}
+      taxonomyPending={loaded.pending}
+      onTaxonomyRetry={retryTaxonomy}
+    />
+  );
+}
+
+function CatalogFamilyController({
   content,
   family,
   onOpenProduct,
   locationSearch,
-}: Props & { onOpenProduct?: (id: string) => void; locationSearch?: string }) {
+  registry,
+  taxonomyError,
+  taxonomyPending,
+  onTaxonomyRetry,
+}: ListProps & {
+  registry: PublicCatalogTaxonomy | null;
+  taxonomyError: string | null;
+  taxonomyPending: boolean;
+  onTaxonomyRetry: () => void;
+}) {
   const categoryKeys = family.categories.map((category) => category.key);
   const [selectedCategories, setSelectedCategories] = useState<string[]>(categoryKeys);
   const [searchInput, setSearchInput] = useState('');
   const [state, setState] = useState<NumberedCatalogState>(initialNumberedCatalogState);
   const stateRef = useRef(state);
   const abortRef = useRef<AbortController | null>(null);
+  const invalidSelectionRef = useRef(false);
   const listTopRef = useRef<HTMLDivElement>(null);
   const focusGenerationRef = useRef<number | null>(null);
   const [activeProductId, setActiveProductId] = useState<string | null>(null);
@@ -129,7 +222,7 @@ function CatalogFamilyList({
                     productFamily: family.key,
                     ...(requested.categories === null
                       ? {}
-                      : { categories: [...requested.categories] }),
+                      : { subcategoryIds: [...requested.categories] }),
                     ...(requested.search ? { search: requested.search } : {}),
                     page: requested.page,
                     pageSize: CATALOG_PAGE_SIZE,
@@ -175,10 +268,31 @@ function CatalogFamilyList({
   );
 
   const readLocation = useCallback(() => {
-    const query = parseCatalogQuery(
-      window.location.search,
-      family.categories.map((category) => category.key),
-    );
+    if (taxonomyPending && registry === null) return;
+    let query: NumberedCatalogQuery;
+    try {
+      query = parseTaxonomyCatalogQuery(window.location.search, registry);
+      invalidSelectionRef.current = false;
+    } catch (error) {
+      invalidSelectionRef.current = true;
+      abortRef.current?.abort();
+      const failed = cancelNumberedPage(stateRef.current);
+      commit({
+        ...failed,
+        committed: null,
+        requested: { ...parseCatalogQuery(window.location.search, []), categories: [] },
+        products: [],
+        total: null,
+        pending: taxonomyPending,
+        error: taxonomyPending
+          ? null
+          : error instanceof Error
+            ? error.message
+            : content.list.errorLabel,
+      });
+      setSelectedCategories([]);
+      return;
+    }
     const params = new URLSearchParams(window.location.search);
     if (
       params.has('page') &&
@@ -198,7 +312,7 @@ function CatalogFamilyList({
       return;
     }
     void navigate(query, 'replace');
-  }, [commit, family.categories, navigate, restoreInputs]);
+  }, [commit, content.list.errorLabel, registry, taxonomyPending, navigate, restoreInputs]);
 
   useEffect(() => {
     readLocation();
@@ -233,6 +347,10 @@ function CatalogFamilyList({
   const handleRetry = () => {
     const current = stateRef.current;
     if (current.pending || detailIsOpen()) return;
+    if (invalidSelectionRef.current) {
+      onTaxonomyRetry();
+      return;
+    }
     restoreInputs(current.requested);
     void navigate(current.requested, current.committed ? 'push' : 'replace');
   };
@@ -253,13 +371,34 @@ function CatalogFamilyList({
     void navigate({ ...current.committed, page }, 'push', true);
   };
 
-  const handleFilters = (search: string, categories: string[]) => {
-    if (detailIsOpen()) return;
+  const handleFilters = (search: string, categories: string[], categoriesChanged = false) => {
+    if (detailIsOpen() || (invalidSelectionRef.current && !categoriesChanged)) return;
+    if (categories.some((category) => !categoryKeys.includes(category))) return;
     setSearchInput(search);
     setSelectedCategories(categories);
     const current = stateRef.current;
-    const query = catalogQueryWithFilters(current.requested, search, categories, categoryKeys);
+    const query: NumberedCatalogQuery = {
+      page: 1,
+      search: search.trim(),
+      categories: categoriesChanged
+        ? categories.length === 0
+          ? []
+          : catalogQueryWithFilters(current.requested, search, categories, categoryKeys).categories
+        : current.requested.categories,
+    };
+    if (invalidSelectionRef.current) writeCatalogHistory(query, 'replace');
+    invalidSelectionRef.current = false;
     if (catalogQueryEquals(current.requested, query) && !current.error) return;
+    void navigate(query, 'push');
+  };
+
+  const handleClearFilters = () => {
+    if (detailIsOpen()) return;
+    const query: NumberedCatalogQuery = { page: 1, search: '', categories: null };
+    setSearchInput('');
+    setSelectedCategories(categoryKeys);
+    writeCatalogHistory(query, 'replace');
+    invalidSelectionRef.current = false;
     void navigate(query, 'push');
   };
 
@@ -324,6 +463,19 @@ function CatalogFamilyList({
 
   return (
     <>
+      {taxonomyError && !invalidSelectionRef.current && (
+        <div role="alert" className="mt-8 border border-red-200 bg-red-50 p-6 text-sm text-red-800">
+          <p>{taxonomyError}</p>
+          <button
+            type="button"
+            onClick={onTaxonomyRetry}
+            disabled={taxonomyPending}
+            className="mt-4 min-h-11 border border-red-300 bg-white px-4 py-2 font-semibold hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
+          >
+            {content.list.retryLabel}
+          </button>
+        </div>
+      )}
       <div ref={listTopRef} tabIndex={-1} data-catalog-list-top>
         <CatalogFamilyGrid
           content={content}
@@ -331,12 +483,21 @@ function CatalogFamilyList({
           state={state}
           selectedCategories={selectedCategories}
           searchInput={searchInput}
-          onCategoriesChange={(categories) => handleFilters(searchInput, categories)}
+          onCategoriesChange={(categories) => handleFilters(searchInput, categories, true)}
           onSearchInputChange={(search) => handleFilters(search, selectedCategories)}
           onRetry={handleRetry}
           onPageChange={handlePageChange}
           onOpenProduct={handleOpenProduct}
         />
+        {invalidSelectionRef.current && state.error && (
+          <button
+            type="button"
+            onClick={handleClearFilters}
+            className="mt-4 min-h-11 border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-800 hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
+          >
+            Clear filters
+          </button>
+        )}
       </div>
       {activeProduct && (
         <HeadphonesProductDetail
