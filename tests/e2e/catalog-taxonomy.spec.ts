@@ -218,11 +218,17 @@ test('local taxonomy: saved categories and assignments drive all four storefront
   }
   expect(imageIds).toHaveLength(1);
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/login?returnTo=%2Fadmin');
-  await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
-  await page.getByLabel('Password', { exact: true }).fill(e2e.adminPassword);
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.addInitScript(
+    ({ session, origin }) => {
+      if (window.location.origin !== origin) return;
+      localStorage.setItem('channel.token', session.token);
+      localStorage.setItem('channel.user', JSON.stringify(session.user));
+    },
+    { session, origin: new URL(e2e.siteUrl).origin },
+  );
+  await page.goto('/admin');
   await expect(page).toHaveURL(/\/admin\/?$/);
+  await expect(page.getByRole('button', { name: 'Products', exact: true })).toBeVisible();
 
   for (const family of PRODUCT_FAMILY_OPTIONS) {
     await test.step(`${family}: real admin categories, draft assignments and publication`, async () => {

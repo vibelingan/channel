@@ -156,7 +156,15 @@ Current/next MIU: 8 (final CI, test deployment, cloud acceptance and main-based 
   refactor worktree, dirty root checkout, or remote price branch was modified.
   Recheck remote main/test/price immediately before publishing: this is a snapshot,
   not a lock against another agent completing work.
-- Still required: commit/push, same-SHA CI, test deployment
+- Feature commit 792db3400a1250f4e8bc3dd826f254a02d2b88ff pushed normally;
+  PR https://github.com/vibelingan/channel/pull/58 is main-based and mergeable.
+  First CI 35353107705 passed AI and prior browser lanes, but the new taxonomy
+  journey redundantly logged in via API then UI and hit the shared login limit
+  on fast CI. Artifact confirms 'Too many requests. Please retry in 33s.'
+  The test now reuses its actual API-issued session for the same local origin;
+  no authentication/limiter implementation changed. Focused production taxonomy
+  journey passed with zero retries, SINGLE_SESSION_EXIT=0, 52.6s, owned DB cleaned.
+- Still required: green same-SHA CI, test deployment
   and main-based PR delivery. Do not treat any earlier test count as final SHA proof.
   No subcategory release has yet occurred.
 
