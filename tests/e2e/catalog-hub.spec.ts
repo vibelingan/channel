@@ -1,4 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { mockCatalogTaxonomy } from './helpers/admin-api';
+
+test.beforeEach(async ({ page }) => {
+  await mockCatalogTaxonomy(page);
+});
 
 const catalogPath = '**/api/products*';
 

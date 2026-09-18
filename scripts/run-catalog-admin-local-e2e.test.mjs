@@ -22,6 +22,33 @@ test('catalog acceptance uses isolated production artifacts and cannot inherit C
   }
 });
 
+test('taxonomy mutations run last with owned local database guards and real API calls', async () => {
+  const source = await readFile('scripts/run-catalog-admin-local-e2e.mjs', 'utf8');
+  assert.match(
+    source,
+    /\['test', 'tests\/e2e\/catalog-taxonomy\.spec\.ts'\],\s*e2eEnvironment,?\s*\);\s*\} finally/,
+  );
+  assert.match(source, /E2E_CATALOG_LOCAL_SEED: '1'/);
+  assert.match(source, /E2E_CATALOG_LOCAL_DB: databaseFile/);
+  assert.match(source, /E2E_ADMIN_EMAIL: 'admin@channel\.local'/);
+  assert.match(source, /E2E_ADMIN_PASSWORD: 'admin'/);
+  const spec = await readFile('tests/e2e/catalog-taxonomy.spec.ts', 'utf8');
+  assert.match(spec, /const enabled = e2e\.catalogLocalSeed/);
+  assert.match(spec, /test\.skip\(!enabled,/);
+  assert.match(spec, /requireCatalogLocalSeedWhenEnabled\(enabled\)/);
+  assert.match(spec, /requireAdminCredentialsWhenEnabled\(enabled,/);
+  assert.match(spec, /!e2e\.allowMutation/);
+  assert.match(spec, /e2e\.adminEmail !== 'admin@channel\.local'/);
+  assert.match(spec, /e2e\.adminPassword !== 'admin'/);
+  const ownershipCheck = spec.indexOf('expect(healthBody.data?.db).toBe(e2e.catalogLocalDb)');
+  assert.ok(ownershipCheck > spec.indexOf("expect(healthBody.data?.mode).toBe('local')"));
+  assert.ok(ownershipCheck < spec.indexOf('const session = await loginAdmin(request)'));
+  assert.doesNotMatch(spec, /\.(?:route|routeFromHAR)\s*\(|route\.fulfill|as any/);
+  const manifest = JSON.parse(await readFile('package.json', 'utf8'));
+  assert.doesNotMatch(manifest.scripts['test:e2e:public'], /catalog-taxonomy/);
+  assert.doesNotMatch(manifest.scripts['test:e2e:catalog'], /catalog-taxonomy/);
+});
+
 async function runFailure(stage) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ['scripts/run-catalog-admin-local-e2e.mjs'], {

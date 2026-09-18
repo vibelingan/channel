@@ -609,8 +609,7 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
   expect(product.imageIds).toEqual(['formal-image-0', 'formal-image-1']);
   expect(product.descriptionImageIds).toBeUndefined();
   expect(sourceMediaImports).toEqual([]);
-  // Classification must update the already-public immutable detail as well as
-  // the admin row. Exercise the same bulk control the client asked for.
+  expect(Object.hasOwn(product, 'subcategoryIds')).toBe(false);
   for (const label of ['Misc', 'Headphones']) {
     let withdrawnDuringPreparation = false;
     if (label === 'Misc') {
@@ -634,16 +633,23 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
         await route.continue();
       });
     }
-    await page.getByRole('checkbox', { name: 'Select all rows' }).check();
     await page
-      .getByRole('combobox', { name: 'Website main category' })
-      .and(page.locator('button'))
+      .getByRole('row')
+      .filter({ hasText: 'SonicAir Move' })
+      .getByRole('button', { name: 'Edit', exact: true })
+      .click();
+    const classification = page.getByRole('dialog', {
+      name: 'Edit Product',
+      exact: true,
+    });
+    await classification
+      .getByRole('combobox', { name: 'Website main category', exact: true })
+      .and(classification.locator('button'))
       .click();
     await page
-      .getByRole('listbox', { name: 'Website main category' })
+      .getByRole('listbox', { name: 'Website main category', exact: true })
       .getByRole('option', { name: label, exact: true })
       .click();
-    await page.getByRole('button', { name: 'Assign category', exact: true }).click();
     const committed = page.waitForResponse(async (response) => {
       if (!response.url().endsWith('/api/admin') || response.request().method() !== 'POST')
         return false;
@@ -652,7 +658,7 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
       const body = await response.json();
       return body.ok && body.data?.catalogDetailPublication?.header?.categoryLabel === label;
     });
-    await page.getByRole('button', { name: 'Confirm assignment' }).click();
+    await classification.getByRole('button', { name: 'Save', exact: true }).click();
     // This is the terminal read (or the old buggy republish response), not an
     // intermediate approved snapshot followed by an unnoticed publication write.
     expect((await (await committed).json()).data.published).toBe(label !== 'Misc');
@@ -672,7 +678,7 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
         { timeout: 30000 },
       )
       .toMatchObject({ state: 'approved', header: { categoryLabel: label } });
-    await expect(page.getByRole('status')).toContainText('1 updated', { timeout: 30000 });
+    await expectProductSaved(page);
     const saved = await adminAction<CollectionDoc>(
       request,
       'get',
@@ -680,6 +686,9 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
       session.token,
     );
     expect(saved.published).toBe(label !== 'Misc');
+    expect(Object.hasOwn(saved, 'subcategoryIds')).toBe(false);
+    expect(saved.category).toBe('');
+    expect(saved.productFamily).toBe(label === 'Misc' ? 'misc' : 'headphones');
     expect(saved.catalogDetailPublication).toMatchObject({
       state: 'approved',
       header: { categoryLabel: label },
@@ -695,6 +704,16 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
         { collection: 'products', id, values: { published: true } },
         session.token,
       );
+      await page.reload();
+      await page.getByRole('button', { name: 'Products', exact: true }).click();
+      await page.getByPlaceholder(/^Search name/).fill('SonicAir Move');
+      await page.getByRole('button', { name: 'Search', exact: true }).click();
+      await expect(
+        page
+          .getByRole('row')
+          .filter({ hasText: 'SonicAir Move' })
+          .getByRole('button', { name: 'Published', exact: true }),
+      ).toBeVisible();
     }
   }
   await page.goto(`/headphones/?id=${id}`);

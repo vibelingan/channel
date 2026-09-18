@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import { type Browser, type Page, expect, test } from '@playwright/test';
 import type { CatalogPage } from '../../apps/site/src/islands/shop/catalog-types.ts';
 import type { SessionUser } from '../../packages/shared/src/auth.ts';
+import { mockCatalogTaxonomy } from './helpers/admin-api';
 import { e2e } from './helpers/env';
 
 const cardTypographyCatalog = {
@@ -834,6 +835,7 @@ test.describe('public browser smoke', () => {
   test('Headphones Gallery bounds media, falls back, and resets across products', async ({
     page,
   }) => {
+    await mockCatalogTaxonomy(page);
     const imageIdsA = Array.from({ length: 6 }, (_, index) => `miu8-a${index + 1}`);
     const imagePath = (id: string) => `/api/images/${id}`;
     const requestedImageIds: string[] = [];
@@ -1420,6 +1422,7 @@ test.describe('public browser smoke', () => {
   test('Headphones hero serves gated product media SSR-first with ordered fallback', async ({
     page,
   }) => {
+    await mockCatalogTaxonomy(page);
     // The reviewed hero provenance (i18n/content/headphones/en-US.md
     // hero.sources): three gated 800x800 images, tried in order.
     const heroSourceIds = [
@@ -1522,6 +1525,7 @@ test.describe('public browser smoke', () => {
   test('Headphones numbered pagination replaces cards and retries without losing the committed page', async ({
     page,
   }) => {
+    await mockCatalogTaxonomy(page);
     const pageFor = (pageNumber: number): CatalogPage => {
       const start = (pageNumber - 1) * 12;
       const items = Array.from({ length: Math.min(12, 25 - start) }, (_, index) => ({
@@ -1604,6 +1608,7 @@ test.describe('public browser smoke', () => {
   test('Headphones keyboard flow moves focus card -> detail -> back to origin card', async ({
     page,
   }) => {
+    await mockCatalogTaxonomy(page);
     const items = Array.from({ length: 3 }, (_, i) => ({
       _id: `miu13-focus-${i + 1}`,
       name: `MIU13 Focus Model ${i + 1}`,
@@ -1777,6 +1782,7 @@ test.describe('public browser smoke', () => {
       expectDesktopHeaderContained(await readHeaderGeometry(page));
     }
 
+    await mockCatalogTaxonomy(page);
     await page.route('**/api/products?**', (route) =>
       route.fulfill({
         status: 200,

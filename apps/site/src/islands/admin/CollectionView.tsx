@@ -17,8 +17,9 @@ import type {
 import { PRODUCT_FAMILY_OPTIONS, isProductFamily } from '@vibelingan-channel/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
-import { BatchCategoryAssignment } from './BatchCategoryAssignment.tsx';
 import { BatchUpdateFeedback } from './BatchUpdateFeedback.tsx';
+import { CatalogTaxonomyManager } from './CatalogTaxonomyManager.tsx';
+import { ClassificationDialog } from './ClassificationDialog.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { FilterBuilder } from './FilterBuilder.tsx';
 import { PreviewModal } from './PreviewModal.tsx';
@@ -64,6 +65,8 @@ export function CollectionView({ collection, section, role }: Props) {
   const [editing, setEditing] = useState<CollectionDoc | null>(null);
   const [creating, setCreating] = useState(false);
   const [previewing, setPreviewing] = useState<CollectionDoc | null>(null);
+  const [classifying, setClassifying] = useState<CollectionDoc[] | null>(null);
+  const [taxonomyOpened, setTaxonomyOpened] = useState(false);
 
   const isCatalog = section.catalog === true;
   const isProducts = collection.name === 'products';
@@ -362,6 +365,16 @@ export function CollectionView({ collection, section, role }: Props) {
         const doc = row.original;
         return (
           <div className="whitespace-nowrap text-right">
+            {isProducts && role === 'admin' && (
+              <button
+                type="button"
+                disabled={updateMutation.isPending || batchUpdateMutation.isPending}
+                onClick={() => setClassifying([doc])}
+                className="mr-3 min-h-11 text-sm font-medium text-brand-700 disabled:opacity-50"
+              >
+                Classify
+              </button>
+            )}
             {isCatalog && (
               <button
                 type="button"
@@ -399,6 +412,7 @@ export function CollectionView({ collection, section, role }: Props) {
     tableFields,
     isCatalog,
     isProducts,
+    role,
     inlineEdit,
     updateMutation.isPending,
     batchUpdateMutation.isPending,
@@ -499,6 +513,19 @@ export function CollectionView({ collection, section, role }: Props) {
         </div>
       )}
 
+      {isProducts && role === 'admin' && (
+        <details
+          className="mt-4 border-y border-slate-200 py-3"
+          onToggle={(event) => {
+            if (event.currentTarget.open) setTaxonomyOpened(true);
+          }}
+        >
+          <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">
+            Manage website categories
+          </summary>
+          {taxonomyOpened && <CatalogTaxonomyManager />}
+        </details>
+      )}
       <div className="mt-6 flex flex-wrap items-center gap-2">
         <form
           method="get"
@@ -544,6 +571,7 @@ export function CollectionView({ collection, section, role }: Props) {
             updateMutation.isPending
           }
           onClear={clearSelection}
+          onClassify={() => setClassifying(rows.filter((row) => selectedIds.includes(row._id)))}
           onSetValues={(values) =>
             batchUpdateMutation.mutate({
               ids: selectedIds,
@@ -695,6 +723,17 @@ export function CollectionView({ collection, section, role }: Props) {
         </div>
       </div>
 
+      {classifying && (
+        <ClassificationDialog
+          products={classifying}
+          onClose={() => setClassifying(null)}
+          onSaved={() => {
+            setClassifying(null);
+            clearSelection();
+            invalidate();
+          }}
+        />
+      )}
       {creating && (
         <RecordForm
           collection={collection}
@@ -786,6 +825,7 @@ function BatchBar({
   collection,
   busy,
   onClear,
+  onClassify,
   onSetValues,
   onDelete,
 }: {
@@ -795,6 +835,7 @@ function BatchBar({
   collection: CollectionDef;
   busy: boolean;
   onClear: () => void;
+  onClassify: () => void;
   onSetValues: (values: Record<string, unknown>) => void;
   onDelete: () => void;
 }) {
@@ -835,7 +876,14 @@ function BatchBar({
         />
       )}
       {collection.name === 'products' && (
-        <BatchCategoryAssignment count={count} busy={busy} onApply={onSetValues} />
+        <button
+          type="button"
+          disabled={busy || count > 20}
+          onClick={onClassify}
+          className="min-h-11 rounded-lg border border-brand-300 bg-white px-4 text-sm font-semibold text-brand-700 disabled:opacity-50"
+        >
+          Assign category
+        </button>
       )}
       {isUsers && statusField && (
         <BatchSelect

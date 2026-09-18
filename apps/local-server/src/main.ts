@@ -18,6 +18,7 @@ import {
 } from '@vibelingan-channel/fn-alibaba-catalog-sync/handler';
 import { getCatalogImage } from '@vibelingan-channel/fn-public-api/handler';
 import type { PublicApiConfig, PublicCatalog } from '@vibelingan-channel/fn-public-api/handler';
+import { handlePublicApiEvent } from '@vibelingan-channel/fn-public-api/http-adapter';
 import { setMediaStorage } from '@vibelingan-channel/media-storage';
 import { LocalDiskMediaStorage } from '@vibelingan-channel/media-storage/local-disk';
 import { optionalEnv } from '@vibelingan-channel/shared';
@@ -234,6 +235,17 @@ function registerCatalog(collection: PublicCatalog, basePath: string): void {
 
 registerCatalog('products', '/api/products');
 registerCatalog('overstock', '/api/overstock');
+
+app.get('/api/catalog-taxonomy', async (req, res) => {
+  const response = await handlePublicApiEvent(
+    { httpMethod: req.method, path: req.originalUrl, headers: req.headers },
+    catalogConfig,
+  );
+  for (const [name, value] of Object.entries(response.headers)) {
+    res.setHeader(name, value);
+  }
+  res.status(response.statusCode).send(response.body);
+});
 
 const server = app.listen(PORT, '127.0.0.1', () => {
   const address = server.address();
