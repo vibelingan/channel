@@ -151,7 +151,7 @@ test(
     assert.ok(first.run);
     const claim = await store.claimRun(first.run.id);
     assert.ok(claim);
-    const context = await store.getRunExecutionContext(first.run.id);
+    const context = await store.getRunExecutionContext(first.run.id, 20);
     assert.deepEqual(context?.turns, [{ role: 'visitor', text: 'first question' }]);
 
     const final = await store.appendEventFenced({
@@ -177,6 +177,63 @@ test(
       { role: 'visitor', content: 'queued question', event_sequence: null },
       { role: 'assistant', content: 'grounded answer', event_sequence: String(final.sequence) },
     ]);
+  },
+);
+
+test(
+  'run context keeps the newest turns, oldest first, once a conversation outgrows the window',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const conversation = await store.createConversation();
+    const transcript: Array<{ role: 'visitor' | 'assistant'; text: string }> = [];
+    // 16 answered questions plus the one being asked is 33 eligible messages.
+    // The read used to take the OLDEST 30, so the question the visitor had just
+    // asked never reached the engine and the model answered an old message.
+    for (let n = 1; n <= 16; n += 1) {
+      const accepted = await store.appendVisitorMessage({
+        conversationId: conversation.id,
+        idempotencyKey: `window-${n}`,
+        content: `question ${n}`,
+        engineId: 'fake',
+        engineVersion: '0.1.0',
+      });
+      assert.ok(accepted.run);
+      const claim = await store.claimRun(accepted.run.id);
+      assert.ok(claim);
+      assert.equal(
+        await store.finishRunFenced({
+          conversationId: conversation.id,
+          runId: accepted.run.id,
+          expectedControlVersion: claim.controlVersion,
+          claimEpoch: claim.claimEpoch,
+          status: 'completed',
+          events: [
+            { type: 'token', payload: { text: `answer ${n}` } },
+            { type: 'final', payload: { text: `answer ${n}` } },
+          ],
+        }),
+        true,
+      );
+      transcript.push(
+        { role: 'visitor', text: `question ${n}` },
+        { role: 'assistant', text: `answer ${n}` },
+      );
+    }
+    const latest = await store.appendVisitorMessage({
+      conversationId: conversation.id,
+      idempotencyKey: 'window-17',
+      content: 'question 17',
+      engineId: 'fake',
+      engineVersion: '0.1.0',
+    });
+    assert.ok(latest.run);
+    assert.ok(await store.claimRun(latest.run.id));
+    transcript.push({ role: 'visitor', text: 'question 17' });
+
+    const context = await store.getRunExecutionContext(latest.run.id, 20);
+    assert.deepEqual(context?.turns.at(-1), { role: 'visitor', text: 'question 17' });
+    assert.deepEqual(context?.turns, transcript.slice(-20));
   },
 );
 

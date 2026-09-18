@@ -446,7 +446,14 @@ export class AiStore {
     return status === 'pending' ? 'retry' : status === 'dead_letter' ? 'dead_letter' : 'stale';
   }
 
-  async getRunExecutionContext(runId: string): Promise<RunExecutionContext | null> {
+  /**
+   * `maxTurns` comes from the caller's answer policy, so the store reads the
+   * same window the policy keeps instead of holding its own copy of the number.
+   */
+  async getRunExecutionContext(
+    runId: string,
+    maxTurns: number,
+  ): Promise<RunExecutionContext | null> {
     const run = await this.pool.query<{
       conversation_id: string;
       id: string;
@@ -463,12 +470,18 @@ export class AiStore {
     );
     const row = run.rows[0];
     if (!row) return null;
+    // Pick the NEWEST turns, then put them back in reading order. Ordering
+    // ascending before the LIMIT kept the oldest turns, so once a conversation
+    // outgrew the window the question being answered was cut off.
     const turns = await this.pool.query<{ role: 'visitor' | 'assistant'; content: string }>(
-      `SELECT role, content FROM conversation_messages
-       WHERE conversation_id = $1 AND role IN ('visitor', 'assistant')
-         AND (role = 'assistant' OR answered_by_run IS NOT NULL)
-       ORDER BY created_at ASC, id ASC LIMIT 30`,
-      [row.conversation_id],
+      `SELECT role, content FROM (
+         SELECT role, content, created_at, id FROM conversation_messages
+         WHERE conversation_id = $1 AND role IN ('visitor', 'assistant')
+           AND (role = 'assistant' OR answered_by_run IS NOT NULL)
+         ORDER BY created_at DESC, id DESC LIMIT $2
+       ) AS newest
+       ORDER BY created_at ASC, id ASC`,
+      [row.conversation_id, maxTurns],
     );
     return {
       conversationId: row.conversation_id,
