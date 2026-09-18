@@ -23,7 +23,7 @@ export default function SharedCatalogPreview({
   renderLegacyDetail,
 }: {
   copy: SharedDetailContent;
-  renderList: (open?: (productId: string) => void) => ReactNode;
+  renderList: (open?: (productId: string) => void, locationSearch?: string) => ReactNode;
   renderLegacyDetail?: (productId: string) => ReactNode;
 }) {
   const localPreview =
@@ -175,12 +175,12 @@ export default function SharedCatalogPreview({
   if (search === undefined)
     return <output className="block p-12 text-center">{copy.loadingLabel}</output>;
   const target = sharedListTarget(true, search);
-  if (target.status === 'legacy') return renderList();
+  if (target.status === 'legacy') return renderList(undefined, search);
   const detailOpen = target.status !== 'list';
   return (
     <>
       <div ref={list} hidden={detailOpen} tabIndex={-1} data-shared-catalog-list>
-        {renderList(open)}
+        {renderList(open, search)}
       </div>
       {detailOpen && (
         <section ref={navigation} data-shared-detail-navigation>
