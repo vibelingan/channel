@@ -1,6 +1,10 @@
 /** Shared transaction body for CloudBase and the persistent local adapter. */
 import { createHash } from 'node:crypto';
-import { type CollectionDoc, productFamilyForDoc } from '@vibelingan-channel/shared';
+import {
+  type CatalogTaxonomyResult,
+  type CollectionDoc,
+  productFamilyForDoc,
+} from '@vibelingan-channel/shared';
 import { CategoryApplySchema } from '@vibelingan-channel/shared';
 import { z } from 'zod';
 import {
@@ -9,6 +13,13 @@ import {
   categoryRuleId,
   classificationTarget,
 } from './catalog-classification.ts';
+import {
+  type CatalogMappingResult,
+  runCatalogMappingCommand,
+} from './catalog-mapping-transaction.ts';
+import { runCatalogTaxonomyCommand } from './catalog-taxonomy-transaction.ts';
+
+export { resolveCatalogMappingEvidence } from './catalog-mapping-transaction.ts';
 
 const id = z
   .string()
@@ -23,9 +34,20 @@ export interface CategoryTransaction {
   get(collection: string, id: string): Promise<CollectionDoc | null>;
   set(collection: string, row: CollectionDoc): Promise<void>;
 }
-export type CategoryResult = {
-  status: 'configured' | 'applied' | 'replayed' | 'conflict' | 'forbidden' | 'invalid' | 'missing';
-};
+export type CategoryResult =
+  | {
+      kind?: never;
+      status:
+        | 'configured'
+        | 'applied'
+        | 'replayed'
+        | 'conflict'
+        | 'forbidden'
+        | 'invalid'
+        | 'missing';
+    }
+  | CatalogTaxonomyResult
+  | CatalogMappingResult;
 function ordered(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(ordered);
   if (value && typeof value === 'object')
@@ -123,6 +145,10 @@ export async function runCategoryCommand(
   input: unknown,
   now: string,
 ): Promise<CategoryResult> {
+  if (input && typeof input === 'object' && 'kind' in input && input.kind === 'mapping')
+    return runCatalogMappingCommand(tx, actorId, input, now);
+  if (input && typeof input === 'object' && 'kind' in input && input.kind === 'taxonomy')
+    return runCatalogTaxonomyCommand(tx, actorId, input, now);
   const parsed = CategoryCommandSchema.safeParse(input);
   if (!parsed.success || !Number.isFinite(Date.parse(now))) return { status: 'invalid' };
   const actor = await tx.get('users', actorId);

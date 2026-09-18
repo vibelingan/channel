@@ -202,6 +202,28 @@ test('coercion preserves image order and cannot submit hidden VIP values', () =>
   assert.equal(Object.hasOwn(values, 'vipPrice'), false);
 });
 
+test('moving a published product without toggling publication does not request republishing', () => {
+  const initial = { _id: 'published-product', productFamily: 'headphones', published: true };
+  const state = { name: 'Product', productFamily: 'misc', published: true, archived: false };
+  const moved = coerceValues(products, state, initial);
+  assert.equal(Object.hasOwn(moved, 'published'), false);
+  assert.equal(moved.productFamily, 'misc');
+  assert.equal(coerceValues(products, { ...state, published: false }, initial).published, false);
+  assert.equal(coerceValues(products, state, { ...initial, published: false }).published, true);
+  assert.equal(
+    coerceValues(products, { ...state, productFamily: 'headphones' }, initial).published,
+    true,
+  );
+  assert.equal(
+    coerceValues(
+      products,
+      { ...state, productFamily: 'headphones' },
+      { ...initial, subcategoryIds: [] },
+    ).published,
+    true,
+  );
+});
+
 test('coercion omits non-Headphones subcategory and clears only existing tier pricing', () => {
   const values = coerceValues(products, {
     name: 'Toy',

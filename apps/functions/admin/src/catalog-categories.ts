@@ -1,32 +1,40 @@
-import {
-  create,
-  createDocWithId,
-  get,
-  list,
-  manageCatalogCategory,
-  update,
-} from '@vibelingan-channel/db';
+import { randomUUID } from 'node:crypto';
+import { get, list, manageCatalogCategory } from '@vibelingan-channel/db';
 import {
   APPROVED_CATEGORY_RULES,
   categoryRuleId,
 } from '@vibelingan-channel/db/catalog-classification';
 import { previewCategory } from '@vibelingan-channel/db/category-transaction';
 import {
+  CatalogClassificationAssignmentRequestSchema,
+  type CatalogClassificationAssignmentResult,
+  CatalogTaxonomyCommandSchema,
+  type CatalogTaxonomyResult,
+  CatalogTaxonomyResultSchema,
   CategoryApiRequestSchema,
   CategoryApiResponseSchema,
   type CollectionDoc,
   buildWriteSchema,
   getCollection,
-  isProductFamily,
 } from '@vibelingan-channel/shared';
 import { z } from 'zod';
+import {
+  type CatalogCategorySuggestion,
+  readCatalogCategorySuggestion,
+  validateSuggestedAssignment,
+} from './catalog-category-suggestion.ts';
+import { manageCatalogClassificationAssignment } from './catalog-classification-assignment.ts';
 
 function mappingError(message: string): never {
   throw new z.ZodError([{ code: 'custom', path: [], message }]);
 }
 
 /** Generic mapping editor shares the deterministic Alibaba identity with setup. */
-export async function saveCategoryMapping(values: Record<string, unknown>, id?: string) {
+export async function saveCategoryMapping(
+  values: Record<string, unknown>,
+  id?: string,
+  actorId = '',
+) {
   const definition = getCollection('sourceCategoryMappings');
   if (!definition) throw new Error('Missing category mapping schema');
   const schema = buildWriteSchema(definition);
@@ -34,29 +42,29 @@ export async function saveCategoryMapping(values: Record<string, unknown>, id?: 
   const previous = id ? await get('sourceCategoryMappings', id) : null;
   if (id && !previous) return null;
   const merged = { ...previous, ...patch };
-  if (merged.reviewRequired !== true && !isProductFamily(merged.productFamily))
-    mappingError('Choose a website category or require manual assignment.');
   const alibaba = merged.provider === 'alibaba' && merged.sourceTaxonomy === 'alibaba:icbu';
-  const wasAlibaba = previous?.provider === 'alibaba' && previous.sourceTaxonomy === 'alibaba:icbu';
-  if (
-    id &&
-    (alibaba || wasAlibaba) &&
-    ['provider', 'sourceTaxonomy', 'sourceCategoryId'].some(
-      (key) => merged[key] !== previous?.[key],
-    )
-  )
-    mappingError('A mapping source identity cannot be changed. Create a separate rule.');
-  if (id) return update('sourceCategoryMappings', id, patch);
-  if (!alibaba) return create('sourceCategoryMappings', patch);
-  if (typeof merged.sourceCategoryId !== 'string' || !/^\d+$/.test(merged.sourceCategoryId))
-    mappingError('Alibaba category ID must be the numeric ID returned by the API.');
-  const categoryId = merged.sourceCategoryId;
-  if ((await mappings()).some((row) => row.sourceCategoryId === categoryId))
-    mappingError('A mapping already exists for this Alibaba category. Edit the existing rule.');
-  const target = categoryRuleId(categoryId);
-  if ((await createDocWithId('sourceCategoryMappings', target, patch)) !== 'created')
-    mappingError('A mapping was created concurrently. Refresh the list.');
-  return get('sourceCategoryMappings', target);
+  let target = id ?? randomUUID();
+  if (!id && alibaba) {
+    if (typeof merged.sourceCategoryId !== 'string' || !/^\d+$/.test(merged.sourceCategoryId))
+      mappingError('Alibaba category ID must be the numeric ID returned by the API.');
+    const categoryId = merged.sourceCategoryId;
+    if ((await mappings()).some((row) => row.sourceCategoryId === categoryId))
+      mappingError('A mapping already exists for this Alibaba category. Edit the existing rule.');
+    target = categoryRuleId(categoryId);
+  }
+  if (previous && !z.string().datetime({ offset: true }).safeParse(previous.updatedAt).success)
+    mappingError('The mapping revision is missing or invalid. Refresh the list.');
+  const result = await manageCatalogCategory(actorId, {
+    kind: 'mapping',
+    id: target,
+    expectedUpdatedAt: previous?.updatedAt ?? null,
+    data: patch,
+  });
+  if (result.kind !== 'mapping') mappingError('Unexpected category mapping result.');
+  if (result.status === 'missing') return null;
+  if ((result.status === 'configured' || result.status === 'applied') && result.doc)
+    return result.doc;
+  mappingError(result.message ?? `Category mapping ${result.status}. Refresh and retry.`);
 }
 
 async function mappings() {
@@ -81,7 +89,65 @@ async function mappings() {
 }
 
 /** Same bounded, authenticated action in local-server and the deployed admin function. */
-export async function manageCatalogCategories(actorId: string, input: unknown) {
+export function manageCatalogCategories(
+  actorId: string,
+  input: { kind: 'suggestion'; productId: string },
+): Promise<CatalogCategorySuggestion>;
+export function manageCatalogCategories(
+  actorId: string,
+  input: { kind: 'assignment'; [key: string]: unknown },
+): Promise<CatalogClassificationAssignmentResult>;
+export function manageCatalogCategories(
+  actorId: string,
+  input: { kind: 'taxonomy'; [key: string]: unknown },
+): Promise<CatalogTaxonomyResult>;
+export function manageCatalogCategories(
+  actorId: string,
+  input: { kind: 'configure'; offset?: number },
+): Promise<Extract<z.infer<typeof CategoryApiResponseSchema>, { kind: 'configure' }>>;
+export function manageCatalogCategories(
+  actorId: string,
+  input: { kind: 'configure' | 'preview' | 'apply'; [key: string]: unknown },
+): Promise<z.infer<typeof CategoryApiResponseSchema>>;
+export function manageCatalogCategories(
+  actorId: string,
+  input: unknown,
+): Promise<
+  | CatalogCategorySuggestion
+  | CatalogClassificationAssignmentResult
+  | CatalogTaxonomyResult
+  | z.infer<typeof CategoryApiResponseSchema>
+>;
+export async function manageCatalogCategories(
+  actorId: string,
+  input: unknown,
+): Promise<
+  | CatalogCategorySuggestion
+  | CatalogClassificationAssignmentResult
+  | CatalogTaxonomyResult
+  | z.infer<typeof CategoryApiResponseSchema>
+> {
+  if (input && typeof input === 'object' && 'kind' in input && input.kind === 'suggestion') {
+    return readCatalogCategorySuggestion(actorId, input);
+  }
+  if (input && typeof input === 'object' && 'kind' in input && input.kind === 'assignment') {
+    if ('expectedSuggestion' in input) {
+      const { expectedSuggestion, ...assignment } = input;
+      const command = CatalogClassificationAssignmentRequestSchema.parse(assignment);
+      if (!(await validateSuggestedAssignment(actorId, input))) {
+        return {
+          kind: 'assignment',
+          results: command.products.map(({ productId }) => ({ productId, status: 'conflict' })),
+        };
+      }
+      return manageCatalogClassificationAssignment(actorId, command, expectedSuggestion);
+    }
+    return manageCatalogClassificationAssignment(actorId, input);
+  }
+  if (input && typeof input === 'object' && 'kind' in input && input.kind === 'taxonomy') {
+    const command = CatalogTaxonomyCommandSchema.parse(input);
+    return CatalogTaxonomyResultSchema.parse(await manageCatalogCategory(actorId, command));
+  }
   const command = CategoryApiRequestSchema.parse(input);
   const actor = await get('users', actorId);
   if (actor?.role !== 'admin' || actor.status === 'suspended')

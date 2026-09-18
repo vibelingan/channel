@@ -146,6 +146,7 @@ test.describe('Admin catalog lifecycle', () => {
     )?.imageIds;
     expect(Array.isArray(imageIds)).toBe(true);
     const ids: string[] = [];
+    const originals = new Map<string, CollectionDoc>();
     for (const [label, images] of [
       ['Ready', imageIds],
       ['Needs image', []],
@@ -168,6 +169,7 @@ test.describe('Admin catalog lifecycle', () => {
         session.token,
       );
       ids.push(row._id);
+      originals.set(row._id, row);
     }
     await page.goto('/login?returnTo=%2Fadmin');
     await page.getByLabel('Email', { exact: true }).fill(e2e.adminEmail);
@@ -179,19 +181,37 @@ test.describe('Admin catalog lifecycle', () => {
     await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect(page.getByRole('checkbox', { name: 'Select row', exact: true })).toHaveCount(2);
     await page.getByRole('checkbox', { name: 'Select all rows' }).check();
-    // Wait for the enhanced control, not the native fallback that is hidden
-    // during hydration. No forced click or arbitrary sleep.
-    await page
+    await page.getByRole('button', { name: 'Assign category', exact: true }).click();
+    const classification = page.getByRole('dialog', { name: 'Edit website classification' });
+    await expect(classification).toContainText(
+      '2 selected products. Drafts will not be published.',
+    );
+    await expect(classification.getByRole('button', { name: 'Confirm assignment' })).toHaveCount(0);
+    await classification
       .getByRole('combobox', { name: 'Website main category' })
       .and(page.locator('button'))
       .click();
     await page
       .getByRole('listbox', { name: 'Website main category' })
-      .getByRole('option', { name: 'Misc', exact: true })
+      .getByRole('option', { name: 'Miscellaneous', exact: true })
       .click();
-    await page.getByRole('button', { name: 'Assign category', exact: true }).click();
-    await page.getByRole('button', { name: 'Confirm assignment' }).click();
-    await expect(page.getByRole('status')).toContainText('2 updated');
+    await classification.getByRole('button', { name: 'Review assignment', exact: true }).click();
+    await expect(classification).toContainText('Confirm replace for 2 products in Miscellaneous?');
+    for (const id of ids) {
+      expect(
+        await adminAction<CollectionDoc>(
+          request,
+          'get',
+          { collection: 'products', id },
+          session.token,
+        ),
+      ).toEqual(originals.get(id));
+    }
+    await classification.getByRole('button', { name: 'Cancel confirmation', exact: true }).click();
+    await expect(classification.getByRole('button', { name: 'Confirm assignment' })).toHaveCount(0);
+    await classification.getByRole('button', { name: 'Review assignment', exact: true }).click();
+    await classification.getByRole('button', { name: 'Confirm assignment', exact: true }).click();
+    await expect(classification).toHaveCount(0);
     for (const id of ids) {
       const saved = await adminAction<CollectionDoc>(
         request,
@@ -202,10 +222,25 @@ test.describe('Admin catalog lifecycle', () => {
       expect(saved).toMatchObject({
         productFamily: 'misc',
         category: '',
+        subcategoryIds: [],
         published: false,
         unitPrice: 5.7,
       });
+      for (const field of [
+        'imageIds',
+        'images',
+        'catalogPricingMode',
+        'manualCatalogPricing',
+        'alibabaCatalogPricing',
+      ]) {
+        expect(saved[field]).toEqual(originals.get(id)?.[field]);
+      }
     }
+    await page.reload();
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await page.getByPlaceholder(/^Search name/).fill(prefix);
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await expect(page.getByRole('checkbox', { name: 'Select row', exact: true })).toHaveCount(2);
     await page.getByRole('checkbox', { name: 'Select all rows' }).check();
     await page.getByRole('button', { name: 'Publish', exact: true }).click();
     await expect(page.getByRole('alert')).toContainText('1 published · 1 need attention');
@@ -282,14 +317,19 @@ test.describe('Admin catalog lifecycle', () => {
     );
     await page.screenshot({ path: 'output/playwright/category-queue-mobile.png' });
     await page.setViewportSize({ width: 1280, height: 900 });
-    await row.getByRole('button', { name: 'Edit', exact: true }).click();
-    await page.locator('button#productFamily-trigger').click();
+    await row.getByRole('button', { name: 'Classify', exact: true }).click();
+    const classification = page.getByRole('dialog', { name: 'Edit website classification' });
+    await classification
+      .getByRole('combobox', { name: 'Website main category', exact: true })
+      .and(page.locator('button'))
+      .click();
     await page
       .getByRole('listbox', { name: 'Website main category', exact: true })
-      .getByRole('option', { name: 'Misc', exact: true })
+      .getByRole('option', { name: 'Miscellaneous', exact: true })
       .click();
-    await page.getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await classification.getByRole('button', { name: 'Review assignment', exact: true }).click();
+    await classification.getByRole('button', { name: 'Confirm assignment', exact: true }).click();
+    await expect(classification).toHaveCount(0);
     await expect(row).toHaveCount(0);
     await page
       .getByRole('group', { name: 'Product family', exact: true })
@@ -306,7 +346,8 @@ test.describe('Admin catalog lifecycle', () => {
     );
     expect(saved.productFamily).toBe('misc');
     expect(saved.published).toBe(false);
-    expect(saved).not.toHaveProperty('category');
+    expect(saved.category).toBe(draft.category);
+    expect(saved.subcategoryIds).toEqual([]);
     expect(errors).toEqual([]);
   });
 

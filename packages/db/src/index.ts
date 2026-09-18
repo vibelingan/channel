@@ -8,6 +8,7 @@ import {
   type ListQuery,
   type ListResult,
   PUBLIC_CATALOG_COLLECTIONS,
+  type ProductFamily,
   type SortClause,
   buildWriteSchema,
   catalogReferencedImageIds,
@@ -32,6 +33,9 @@ export function manageCatalogCategory(actorId: string, input: unknown) {
   if (!adapter.manageCatalogCategory)
     throw new Error('Catalog classification adapter is not configured');
   return adapter.manageCatalogCategory(actorId, input);
+}
+export function getCatalogTaxonomy(family: ProductFamily): Promise<CollectionDoc | null> {
+  return db().get('catalogTaxonomies', family);
 }
 export {
   ALIBABA_PRODUCT_LINK_LIMIT,

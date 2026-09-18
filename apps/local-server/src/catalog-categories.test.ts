@@ -8,10 +8,21 @@ import { signSession } from '@vibelingan-channel/auth/jwt';
 import { setAdapter } from '@vibelingan-channel/db';
 import { handleAdminRequest } from '@vibelingan-channel/fn-admin/handler';
 import { CategoryApiResponseSchema } from '@vibelingan-channel/shared';
-import { manageCatalogCategories } from '../../functions/admin/src/catalog-categories.ts';
-import { saveCategoryMapping } from '../../functions/admin/src/catalog-categories.ts';
+import type { z } from 'zod';
+import {
+  manageCatalogCategories,
+  saveCategoryMapping as saveCategoryMappingAsActor,
+} from '../../functions/admin/src/catalog-categories.ts';
+import {
+  createAlibabaCategoryResolver,
+  createDraftForSource,
+} from '../../functions/alibaba-catalog-sync/src/linking.ts';
 import { categoryAcceptanceFixture } from './category-acceptance-fixture.ts';
 import { JsonFileAdapter } from './json-adapter.ts';
+
+function saveCategoryMapping(values: Record<string, unknown>, id?: string) {
+  return saveCategoryMappingAsActor(values, id, 'admin');
+}
 
 test('bounded classification action survives restart and concurrent retries without publishing or touching deferred products', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'channel-categories-'));
@@ -40,7 +51,10 @@ test('bounded classification action survives restart and concurrent retries with
   }
   const before = await db.get('products', 'deferred');
   for (let offset: number | null = 0; offset !== null; ) {
-    const page = await manageCatalogCategories('admin', { kind: 'configure', offset });
+    const page: z.infer<typeof CategoryApiResponseSchema> = await manageCatalogCategories('admin', {
+      kind: 'configure',
+      offset,
+    });
     assert.equal(page.kind, 'configure');
     assert.ok(page.results.every((row) => row.status === 'configured'));
     offset = page.nextOffset;
@@ -106,6 +120,90 @@ test('bounded classification action survives restart and concurrent retries with
       commands: [{ ...row.command, operationId: randomUUID(), productFamily: 'toys' }],
     }),
   );
+});
+
+test('Alibaba category baseline sync and draft reconciliation preserve manual subcategory IDs and explicit clears', async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), 'channel-category-preservation-'));
+  context.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = join(directory, 'db.json');
+  const database = new JsonFileAdapter(file);
+  setAdapter(database);
+  await database.create('users', { _id: 'admin', role: 'admin', status: 'active' });
+  for (const [sourceCategoryId, productFamily, channelCategory] of [
+    ['supplier-original', 'headphones', 'bluetooth'],
+    ['supplier-new', 'toys', ''],
+  ]) {
+    await database.create('sourceCategoryMappings', {
+      _id: sourceCategoryId,
+      provider: 'alibaba',
+      sourceTaxonomy: 'alibaba:icbu',
+      sourceCategoryId,
+      productFamily,
+      channelCategory,
+    });
+  }
+  assert.deepEqual(await createAlibabaCategoryResolver()('supplier-new'), {
+    productFamily: 'toys',
+  });
+  const now = new Date().toISOString();
+  const lease = await database.acquireAlibabaSyncLease('preservation', 'worker', now, 60000);
+  assert.equal(lease.result, 'granted');
+  for (const subcategoryIds of [['headphones-office'], []]) {
+    const sourceKey = subcategoryIds.length ? 'source-manual' : 'source-cleared';
+    await database.create('alibabaSourceProducts', {
+      _id: sourceKey,
+      connectionId: 'preservation',
+      sourceProductId: sourceKey,
+      sourceCategoryId: 'supplier-original',
+      sourceTitle: 'Synthetic supplier product',
+      active: true,
+    });
+    const draft = await createDraftForSource(sourceKey, { now });
+    assert.equal(draft.ok, true);
+    assert.ok(draft.ok);
+    assert.equal(draft.created, true);
+    const created = await database.get('products', draft.productId);
+    assert.ok(created && typeof created.updatedAt === 'string');
+    const manual = await database.saveCatalogProductWithIdentities({
+      mode: 'update',
+      productId: draft.productId,
+      data: { subcategoryIds },
+      expectedClassification: {
+        actorId: 'admin',
+        productUpdatedAt: created.updatedAt,
+        taxonomyRevision: 0,
+      },
+    });
+    assert.equal(manual.result, 'saved');
+    const before = await database.get('products', draft.productId);
+    assert.ok(before);
+    assert.deepEqual(before.subcategoryIds, subcategoryIds);
+    await database.update('alibabaSourceProducts', sourceKey, { sourceCategoryId: 'supplier-new' });
+    assert.equal(
+      await database.updateDocWithAlibabaLease(
+        'products',
+        draft.productId,
+        { alibabaSourceCategoryId: 'supplier-new' },
+        { connectionId: 'preservation', holder: 'worker', fence: lease.fence, now },
+      ),
+      true,
+    );
+    assert.deepEqual(await createDraftForSource(sourceKey, { now }), {
+      ok: true,
+      productId: draft.productId,
+      created: false,
+    });
+    const reopened = new JsonFileAdapter(file);
+    const after = await reopened.get('products', draft.productId);
+    assert.ok(after);
+    assert.deepEqual(after.subcategoryIds, subcategoryIds);
+    assert.equal(Object.hasOwn(after, 'subcategoryIds'), true);
+    assert.equal(after.productFamily, before.productFamily);
+    assert.equal(after.category, before.category);
+    assert.equal(after.alibabaSourceCategoryId, 'supplier-new');
+    assert.equal(after.alibabaClassifiedCategoryId, 'supplier-original');
+    assert.equal(after.published, false);
+  }
 });
 
 test('dated audit fixture: real admin handler paginates 1081 rows, assigns 302, leaves 56 and 723 existing rows unchanged', async (t) => {

@@ -1646,6 +1646,7 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         type: 'select',
         options: PRODUCT_FAMILY_OPTIONS,
       },
+      { name: 'subcategoryIds', label: 'Subcategories', type: 'json', hideInTable: true },
       {
         name: 'reviewRequired',
         label: 'Mixed source category: manual assignment required',
@@ -1764,7 +1765,11 @@ function zodForField(field: FieldDef): z.ZodTypeAny {
 export function buildWriteSchema(def: CollectionDef): z.ZodObject<z.ZodRawShape> {
   const shape: z.ZodRawShape = {};
   for (const field of writableFields(def)) {
-    shape[field.name] = zodForField(field);
+    const schema = zodForField(field);
+    shape[field.name] =
+      def.name === 'products' && field.name === 'category'
+        ? z.union([schema, z.literal('')])
+        : schema;
   }
   // Reject unknown keys so clients cannot write arbitrary data.
   return z.object(shape).strict();

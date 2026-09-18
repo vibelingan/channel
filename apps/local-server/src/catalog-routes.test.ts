@@ -1,8 +1,10 @@
 import { strict as assert } from 'node:assert';
+import { readFileSync } from 'node:fs';
 import { request } from 'node:http';
 import test from 'node:test';
 import type { AdapterListQuery, DbAdapter } from '@vibelingan-channel/db';
 import { setAdapter } from '@vibelingan-channel/db';
+import { handlePublicApiEvent } from '@vibelingan-channel/fn-public-api/http-adapter';
 import {
   type ApiResult,
   type CollectionDoc,
@@ -86,7 +88,51 @@ async function rawGet(
   });
 }
 
-test('local catalog route uses production repeated-query parsing and family filtering', async (t) => {
+test('local taxonomy route delegates its request and response to the public HTTP handler', async () => {
+  const source = readFileSync(new URL('./main.ts', import.meta.url), 'utf8');
+  assert.match(
+    source,
+    /import \{ handlePublicApiEvent \} from '@vibelingan-channel\/fn-public-api\/http-adapter'/,
+  );
+  const route = source.match(
+    /app\.get\('\/api\/catalog-taxonomy', async \(req, res\) => \{([\s\S]*?)\n\}\);/,
+  )?.[1];
+  assert.ok(route, 'main.ts must register GET /api/catalog-taxonomy');
+  assert.match(route, /await handlePublicApiEvent\(/);
+  assert.match(route, /httpMethod: req\.method/);
+  assert.match(route, /path: req\.originalUrl/);
+  assert.match(route, /headers: req\.headers/);
+  assert.match(route, /catalogConfig/);
+  assert.match(route, /Object\.entries\(response\.headers\)/);
+  assert.match(route, /res\.setHeader\(name, value\)/);
+  assert.match(route, /res\.status\(response\.statusCode\)\.send\(response\.body\)/);
+
+  setAdapter(new CatalogMemoryAdapter([]));
+  for (const [query, expectedStatus] of [
+    ['family=headphones', 200],
+    ['family=toys', 200],
+    ['family=ai-gadgets', 200],
+    ['family=misc', 200],
+    ['family=unknown', 400],
+    ['family=toys&family=misc', 400],
+  ] as const) {
+    const response = await handlePublicApiEvent(
+      {
+        httpMethod: 'GET',
+        path: `/api/catalog-taxonomy?${query}`,
+        headers: { origin: 'http://localhost:4321' },
+      },
+      { corsAllowedOrigins: ['http://localhost:4321'] },
+    );
+    assert.equal(response.statusCode, expectedStatus, query);
+    assert.equal(response.headers['Content-Type'], 'application/json; charset=utf-8');
+    assert.equal(response.headers['Access-Control-Allow-Origin'], 'http://localhost:4321');
+    assert.equal(response.headers.Vary, 'Origin');
+    assert.equal(JSON.parse(response.body).ok, expectedStatus === 200);
+  }
+});
+
+test('local catalog route rejects repeated families and preserves single-family filtering', async (t) => {
   setAdapter(
     new CatalogMemoryAdapter([
       { _id: 'toy', name: 'Toy', productFamily: 'toys', published: true },
@@ -96,9 +142,15 @@ test('local catalog route uses production repeated-query parsing and family filt
   const server = testServer();
   t.after(() => closeServer(server));
 
-  const response = await fetch(
+  const repeated = await fetch(
     `${serverOrigin(server)}/api/products?productFamily=toys&productFamily=misc`,
   );
+  assert.equal(repeated.status, 400);
+  const rejected = (await repeated.json()) as ApiResult<unknown>;
+  assert.equal(rejected.ok, false);
+  if (!rejected.ok) assert.equal(rejected.error.code, 'VALIDATION_ERROR');
+
+  const response = await fetch(`${serverOrigin(server)}/api/products?productFamily=toys`);
   assert.equal(response.status, 200);
   const payload = (await response.json()) as {
     ok: true;

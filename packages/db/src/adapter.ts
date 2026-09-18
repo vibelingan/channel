@@ -22,6 +22,15 @@ import {
 } from '@vibelingan-channel/shared';
 import { alibabaLinkRevision } from './alibaba-product-identity.ts';
 import { publicationContentFingerprint } from './catalog-publication-fingerprint.ts';
+import type { CatalogExpectedSuggestion } from './catalog-suggestion-save.ts';
+export {
+  CatalogExpectedSuggestionSchema,
+  type CatalogExpectedSuggestion,
+  catalogSuggestionChanged,
+  parseCatalogExpectedSuggestion,
+  planCatalogSuggestionSave,
+} from './catalog-suggestion-save.ts';
+export { planProductSubcategorySave } from './product-subcategory-save.ts';
 export {
   ALIBABA_PRODUCT_LINK_LIMIT,
   alibabaLinkRevision,
@@ -51,6 +60,12 @@ export interface CatalogProductSaveInput {
   productId: string;
   data: Record<string, unknown>;
   requireDetailApproval?: boolean;
+  expectedSuggestion?: CatalogExpectedSuggestion;
+  expectedClassification?: {
+    productUpdatedAt: string | null;
+    taxonomyRevision: number;
+    actorId?: string;
+  };
   expectedAlibabaIdentity?: {
     revision: number | null;
     primarySourceKey: string | null;
@@ -163,12 +178,19 @@ export function planCatalogProductSave(
     const willBeArchived = data.archived === true;
     if (wasArchived !== willBeArchived) data.published = false;
   }
+  const previousUpdatedAt =
+    typeof existing?.updatedAt === 'string' ? Date.parse(existing.updatedAt) : Number.NaN;
+  const nowMs = Date.parse(now);
+  const updatedAt =
+    Number.isFinite(nowMs) && Number.isFinite(previousUpdatedAt) && previousUpdatedAt >= nowMs
+      ? new Date(previousUpdatedAt + 1).toISOString()
+      : now;
   const doc = {
     ...(existing ?? {}),
     ...data,
     _id: input.productId,
     createdAt: existing?.createdAt ?? now,
-    updatedAt: now,
+    updatedAt,
   } as CollectionDoc;
   if (
     Object.hasOwn(data, 'productFamily') &&

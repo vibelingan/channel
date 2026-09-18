@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import * as cloudbase from '@cloudbase/node-sdk';
 import type { CloudBase } from '@cloudbase/node-sdk';
 import {
@@ -23,6 +24,12 @@ import { processCatalogInquiry } from './catalog-inquiry.ts';
 import { approveCatalogDetailInCloud } from './catalog-detail-commit.ts';
 import { persistStagedApprovalInCloud } from './catalog-detail-staging.ts';
 import { runCategoryCommand } from './category-transaction.ts';
+import { productSubcategoryWhere } from './product-subcategory-query.ts';
+import {
+  catalogSuggestionChanged,
+  parseCatalogExpectedSuggestion,
+  planCatalogSuggestionSave,
+} from './catalog-suggestion-save.ts';
 import {
   ALIBABA_PRODUCT_LINK_LIMIT,
   type AlibabaProductMutationInput,
@@ -33,6 +40,7 @@ import type {
   AlibabaLeaseGrant,
   AlibabaLeaseGuard,
   AlibabaSyncRunClaimResult,
+  CatalogProductSaveInput,
   CatalogProductSaveResult,
   CatalogSourceObservationUpsertResult,
   DbAdapter,
@@ -43,6 +51,7 @@ import {
   ALIBABA_SYNC_LEASE_COLLECTION,
   holdsAlibabaLease,
   planCatalogProductSave,
+  planProductSubcategorySave,
   transitionAlibabaLeaseAcquire,
   transitionAlibabaLeaseRelease,
   transitionAlibabaLeaseRenew,
@@ -90,6 +99,7 @@ interface WxCommand {
   in(values: unknown[]): unknown;
   nin(values: unknown[]): unknown;
   exists(value: boolean): unknown;
+  expr(expression: Record<string, unknown>): Record<string, unknown>;
   /**
    * Update command: replace a field WHOLESALE instead of the default
    * dot-path merge. Present on the installed wx-server-sdk 4.0.2 command
@@ -131,6 +141,156 @@ interface NodeSdkTransaction {
 export interface NodeSdkDatabase {
   command: { set(value: unknown): unknown };
   runTransaction<T>(operation: (transaction: NodeSdkTransaction) => Promise<T>): Promise<T>;
+}
+
+export async function saveCatalogProductInCloudBase(
+  db: NodeSdkDatabase,
+  input: CatalogProductSaveInput,
+  now = new Date().toISOString(),
+): Promise<CatalogProductSaveResult> {
+  return db.runTransaction(async (transaction) => {
+    const expectedSuggestion =
+      input.expectedSuggestion === undefined
+        ? undefined
+        : parseCatalogExpectedSuggestion(input.expectedSuggestion);
+    if (expectedSuggestion === null || (expectedSuggestion && input.mode !== 'update'))
+      return catalogSuggestionChanged();
+    const productRef = transaction.collection('products').doc(input.productId);
+    const existing = normalizeSingle((await productRef.get()).data);
+    if (expectedSuggestion && !existing) return catalogSuggestionChanged();
+    const plan = planCatalogProductSave(existing, input, now);
+    if (plan.result !== 'ready') return plan;
+
+    const actorId = input.expectedClassification?.actorId;
+    const actorRef =
+      typeof actorId === 'string' && actorId.trim().length > 0
+        ? transaction.collection('users').doc(actorId)
+        : null;
+    const actor = actorRef ? normalizeSingle((await actorRef.get()).data) : null;
+    const family = expectedSuggestion
+      ? expectedSuggestion.family
+      : Object.hasOwn(input.data, 'productFamily')
+        ? input.data.productFamily
+        : existing?.productFamily;
+    const registry =
+      (expectedSuggestion || Object.hasOwn(input.data, 'subcategoryIds')) && isProductFamily(family)
+        ? normalizeSingle((await transaction.collection('catalogTaxonomies').doc(family).get()).data)
+        : null;
+    const source = expectedSuggestion
+      ? normalizeSingle(
+          (
+            await transaction
+              .collection('alibabaSourceProducts')
+              .doc(expectedSuggestion.source.primarySourceKey)
+              .get()
+          ).data,
+        )
+      : null;
+    const link = expectedSuggestion
+      ? normalizeSingle(
+          (
+            await transaction
+              .collection('alibabaProductLinks')
+              .doc(expectedSuggestion.source.primarySourceKey)
+              .get()
+          ).data,
+        )
+      : null;
+    const mapping = expectedSuggestion
+      ? normalizeSingle(
+          (
+            await transaction
+              .collection('sourceCategoryMappings')
+              .doc(expectedSuggestion.mapping.id)
+              .get()
+          ).data,
+        )
+      : null;
+    const suggestion = planCatalogSuggestionSave(
+      existing,
+      input,
+      { source, link, mapping, registry },
+      randomUUID(),
+    );
+    if (suggestion.result !== 'ready') return suggestion;
+    const classification = planProductSubcategorySave(existing, input, registry, actor);
+    if (classification.result !== 'ready') return classification;
+
+    const identityById = new Map<string, CollectionDoc | null>();
+    for (const identity of [...plan.identities, ...plan.staleIdentities]) {
+      if (!identityById.has(identity.id)) {
+        const ref = transaction.collection('catalogProductIdentities').doc(identity.id);
+        identityById.set(identity.id, normalizeSingle((await ref.get()).data));
+      }
+    }
+    for (const identity of plan.identities) {
+      const existingIdentity = identityById.get(identity.id);
+      if (
+        existingIdentity &&
+        (existingIdentity.productId !== input.productId ||
+          existingIdentity.kind !== identity.kind ||
+          existingIdentity.normalizedValue !== identity.normalizedValue)
+      ) {
+        return { result: 'conflict', kind: identity.kind, normalizedValue: identity.normalizedValue };
+      }
+    }
+
+    const setAcknowledged = async (collection: string, doc: CollectionDoc) => {
+      const { _id: id, ...data } = doc;
+      const acknowledgement = await transaction.collection(collection).doc(id).set(data);
+      if (
+        !(
+          typeof acknowledgement?.updated === 'number' &&
+          Number.isSafeInteger(acknowledgement.updated) &&
+          acknowledgement.updated > 0
+        ) &&
+        !acknowledgement?.upserted?.some((entry) => entry._id === id)
+      )
+        throw new Error(`Classification ${collection} write was not acknowledged`);
+    };
+    if (actorRef) {
+      const acknowledgement = await actorRef.update({ classificationAuthFence: randomUUID() });
+      if (
+        !acknowledgement ||
+        typeof acknowledgement !== 'object' ||
+        typeof Reflect.get(acknowledgement, 'updated') !== 'number' ||
+        !Number.isSafeInteger(Reflect.get(acknowledgement, 'updated')) ||
+        Reflect.get(acknowledgement, 'updated') <= 0
+      ) {
+        throw new Error('Classification authorization write was not acknowledged');
+      }
+    }
+    for (const identity of plan.identities) {
+      if (!identityById.get(identity.id)) {
+        await transaction.collection('catalogProductIdentities').doc(identity.id).set({
+          kind: identity.kind,
+          normalizedValue: identity.normalizedValue,
+          productId: input.productId,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    }
+    if (classification.registryFence) {
+      await setAcknowledged('catalogTaxonomies', classification.registryFence);
+    }
+    for (const { collection, doc } of suggestion.fences) await setAcknowledged(collection, doc);
+    const { _id, ...productData } = plan.doc;
+    if (input.mode === 'create') {
+      await productRef.set(productData);
+    } else {
+      if (existing?.createdAt !== undefined && existing.createdAt !== null) {
+        delete productData.createdAt;
+      }
+      await productRef.update(replaceNestedObjects(productData, db.command));
+    }
+    for (const identity of plan.staleIdentities) {
+      if (identityById.get(identity.id)?.productId === input.productId) {
+        await transaction.collection('catalogProductIdentities').doc(identity.id).remove();
+      }
+    }
+    return { result: 'saved', doc: plan.doc, previous: existing };
+  });
 }
 
 let initialized = false;
@@ -614,64 +774,8 @@ export const cloudBaseAdapter: DbAdapter = {
   },
 
   async saveCatalogProductWithIdentities(input): Promise<CatalogProductSaveResult> {
-    const db = cloudStorageSdk().database();
-    return db.runTransaction(async (transaction: NodeSdkTransaction) => {
-      const productRef = transaction.collection('products').doc(input.productId);
-      const existing = normalizeSingle((await productRef.get()).data);
-      const now = new Date().toISOString();
-      const plan = planCatalogProductSave(existing, input, now);
-      if (plan.result !== 'ready') return plan;
-
-      const identityById = new Map<string, CollectionDoc | null>();
-      for (const identity of [...plan.identities, ...plan.staleIdentities]) {
-        if (!identityById.has(identity.id)) {
-          const ref = transaction.collection('catalogProductIdentities').doc(identity.id);
-          identityById.set(identity.id, normalizeSingle((await ref.get()).data));
-        }
-      }
-      for (const identity of plan.identities) {
-        const existingIdentity = identityById.get(identity.id);
-        if (
-          existingIdentity &&
-          (existingIdentity.productId !== input.productId ||
-            existingIdentity.kind !== identity.kind ||
-            existingIdentity.normalizedValue !== identity.normalizedValue)
-        ) {
-          return {
-            result: 'conflict',
-            kind: identity.kind,
-            normalizedValue: identity.normalizedValue,
-          };
-        }
-      }
-
-      for (const identity of plan.identities) {
-        if (!identityById.get(identity.id)) {
-          await transaction.collection('catalogProductIdentities').doc(identity.id).set({
-            kind: identity.kind,
-            normalizedValue: identity.normalizedValue,
-            productId: input.productId,
-            createdAt: now,
-            updatedAt: now,
-          });
-        }
-      }
-      const { _id, ...productData } = plan.doc;
-      if (input.mode === 'create') {
-        await productRef.set(productData);
-      } else {
-        if (existing?.createdAt !== undefined && existing.createdAt !== null) {
-          delete productData.createdAt;
-        }
-        await productRef.update(replaceNestedObjects(productData, db.command));
-      }
-      for (const identity of plan.staleIdentities) {
-        if (identityById.get(identity.id)?.productId === input.productId) {
-          await transaction.collection('catalogProductIdentities').doc(identity.id).remove();
-        }
-      }
-      return { result: 'saved', doc: plan.doc, previous: existing };
-    });
+    const db = cloudStorageSdk().database() as unknown as NodeSdkDatabase;
+    return saveCatalogProductInCloudBase(db, input);
   },
 
   async upsertDocWithId(collection, id, data, createOnly = {}): Promise<CollectionDoc> {
@@ -882,6 +986,8 @@ function clauseToWhere(
         ]);
       }
       return { [field]: _.eq(value) };
+    case 'matchesProductSubcategories':
+      return productSubcategoryWhere(_, value);
     case 'hasNoProductFamily':
       return unclassifiedProductWhere(_);
     default:

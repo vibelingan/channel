@@ -118,7 +118,7 @@ const expectedCatalogLinks = [
   '/misc/',
 ];
 
-test('desktop catalog disclosure exposes five links and returns focus on Escape', async ({
+test('desktop catalog disclosure retains five destinations with taxonomy links and returns focus on Escape', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -130,10 +130,16 @@ test('desktop catalog disclosure exposes five links and returns focus on Escape'
   await summary.click();
   await expect(disclosure).toHaveAttribute('open', '');
   const links = disclosure.locator('[data-catalog-menu] a');
-  await expect(links).toHaveCount(5);
-  expect(
-    await links.evaluateAll((anchors) => anchors.map((anchor) => anchor.getAttribute('href'))),
-  ).toEqual(expectedCatalogLinks);
+  const destinations = await links.evaluateAll((anchors) =>
+    anchors
+      .map((anchor) => anchor.getAttribute('href'))
+      .filter((href) => href && !href.includes('?')),
+  );
+  expect(destinations).toEqual(expectedCatalogLinks);
+  await expect(disclosure.locator('[data-taxonomy-children] a').first()).toHaveAttribute(
+    'href',
+    /category=headphones-/,
+  );
 
   await links.first().focus();
   await page.keyboard.press('Escape');

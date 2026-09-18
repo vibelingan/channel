@@ -90,7 +90,7 @@ const afterCatalog = orderedMenuItems
             <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" />
           </svg>
         </summary>
-        <div class="absolute left-0 top-[calc(100%+0.5rem)] w-72 border border-slate-200 bg-white p-2 shadow-xl" data-catalog-menu>
+        <div class="absolute left-0 top-[calc(100%+0.5rem)] max-h-[calc(100dvh-var(--spacing-header)-1rem)] w-72 overflow-y-auto overscroll-contain border border-slate-200 bg-white p-2 shadow-xl" data-catalog-menu>
           <a
             href="/electronics-toys/"
             aria-current={catalogPath === '/electronics-toys' ? 'page' : undefined}
@@ -103,6 +103,7 @@ const afterCatalog = orderedMenuItems
           </a>
           <div class="my-1 border-t border-slate-100"></div>
           {catalog.families.map((family) => (
+            <div data-taxonomy-family={family.key}>
             <a
               href={family.href}
               aria-current={catalogPath === family.href.replace(/\/$/, '') ? 'page' : undefined}
@@ -114,9 +115,13 @@ const afterCatalog = orderedMenuItems
                 },
               ]}
             >
-              <span class="block text-sm font-semibold text-ink">{family.label}</span>
+              <span class="block break-words text-sm font-semibold text-ink" data-taxonomy-name>{family.label}</span>
               <span class="mt-0.5 block text-xs leading-snug text-ink-soft">{family.description}</span>
             </a>
+            <div class="ml-4 border-l border-slate-200 pl-2" data-taxonomy-children></div>
+            <p hidden role="alert" class="px-3 text-sm text-red-800" data-taxonomy-error>{catalog.list.filterLabel}: {catalog.list.errorLabel}</p>
+            <button hidden type="button" class="min-h-11 px-3 text-sm font-semibold text-brand-700 underline" data-taxonomy-retry>{catalog.list.retryLabel}</button>
+            </div>
           ))}
         </div>
       </details>
@@ -177,6 +182,7 @@ const afterCatalog = orderedMenuItems
                 {catalog.menu.allLabel}
               </a>
               {catalog.families.map((family) => (
+                <div data-taxonomy-family={family.key}>
                 <a
                   href={family.href}
                   aria-current={catalogPath === family.href.replace(/\/$/, '') ? 'page' : undefined}
@@ -188,8 +194,12 @@ const afterCatalog = orderedMenuItems
                     },
                   ]}
                 >
-                  {family.label}
+                  <span class="break-words" data-taxonomy-name>{family.label}</span>
                 </a>
+                <div class="ml-4 border-l border-slate-200 pl-2" data-taxonomy-children></div>
+                <p hidden role="alert" class="px-3 text-sm text-red-800" data-taxonomy-error>{catalog.list.filterLabel}: {catalog.list.errorLabel}</p>
+                <button hidden type="button" class="min-h-11 px-3 text-sm font-semibold text-brand-700 underline" data-taxonomy-retry>{catalog.list.retryLabel}</button>
+                </div>
               ))}
             </div>
           </details>
@@ -216,6 +226,9 @@ const afterCatalog = orderedMenuItems
 <div class="h-[var(--spacing-header)]" aria-hidden="true"></div>
 
 <script>
+  import { type ProductFamily, isProductFamily } from '@vibelingan-channel/shared';
+  import { fetchCatalogTaxonomy } from '../islands/shop/catalog-taxonomy.ts';
+
   const header = document.querySelector<HTMLElement>('[data-site-header]');
   const layout = header?.firstElementChild as HTMLElement | null;
   const brand = header?.querySelector<HTMLElement>('[data-brand-link]');
@@ -231,6 +244,66 @@ const afterCatalog = orderedMenuItems
     ...catalogDisclosures,
   ];
   let fitFrame = 0;
+  const taxonomyRequests = new Map<ProductFamily, AbortController>();
+
+  async function loadMenuTaxonomy(family: ProductFamily) {
+    taxonomyRequests.get(family)?.abort();
+    const controller = new AbortController();
+    taxonomyRequests.set(family, controller);
+    const groups = [...(header?.querySelectorAll<HTMLElement>(`[data-taxonomy-family="${family}"]`) ?? [])];
+    for (const group of groups) {
+      const retry = group.querySelector<HTMLButtonElement>('[data-taxonomy-retry]');
+      if (retry) retry.disabled = true;
+    }
+    try {
+      const registry = await fetchCatalogTaxonomy(family, controller.signal);
+      if (controller.signal.aborted) return;
+      for (const group of groups) {
+        const name = group.querySelector<HTMLElement>('[data-taxonomy-name]');
+        const parentLink = group.querySelector<HTMLAnchorElement>('a');
+        const children = group.querySelector<HTMLElement>('[data-taxonomy-children]');
+        if (name) name.textContent = registry.name;
+        if (!parentLink || !children) continue;
+        children.replaceChildren(...registry.children.map((child) => {
+          const link = document.createElement('a');
+          const url = new URL(parentLink.href);
+          url.searchParams.set('category', child.id);
+          url.searchParams.set('page', '1');
+          link.href = `${url.pathname}${url.search}`;
+          link.textContent = child.name;
+          link.className = 'block min-h-11 break-words rounded-md px-3 py-2.5 text-sm text-ink-soft hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-700';
+          return link;
+        }));
+        for (const element of group.querySelectorAll<HTMLElement>('[data-taxonomy-error], [data-taxonomy-retry]')) element.hidden = true;
+      }
+      scheduleHeaderFit();
+    } catch {
+      if (controller.signal.aborted) return;
+      for (const group of groups) {
+        group.querySelector('[data-taxonomy-children]')?.replaceChildren();
+        for (const element of group.querySelectorAll<HTMLElement>('[data-taxonomy-error], [data-taxonomy-retry]')) element.hidden = false;
+        const retry = group.querySelector<HTMLButtonElement>('[data-taxonomy-retry]');
+        if (retry) retry.disabled = false;
+      }
+    }
+  }
+
+  const menuFamilies = new Set([...header?.querySelectorAll<HTMLElement>('[data-taxonomy-family]') ?? []].map((group) => group.dataset.taxonomyFamily));
+  for (const family of menuFamilies) if (isProductFamily(family)) void loadMenuTaxonomy(family);
+  header?.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) return;
+    const family = event.target.closest('[data-taxonomy-retry]')?.closest<HTMLElement>('[data-taxonomy-family]')?.dataset.taxonomyFamily;
+    if (isProductFamily(family)) void loadMenuTaxonomy(family);
+  });
+  const abortTaxonomies = () => {
+    for (const controller of taxonomyRequests.values()) controller.abort();
+  };
+  window.addEventListener('pagehide', abortTaxonomies);
+  window.addEventListener('pageshow', (event) => {
+    if (!event.persisted) return;
+    for (const family of menuFamilies) if (isProductFamily(family)) void loadMenuTaxonomy(family);
+  });
+  document.addEventListener('astro:before-swap', abortTaxonomies);
 
   function focusForDesktop(previousFocus: Element | null) {
     if (!(previousFocus instanceof HTMLElement) || !mobileDisclosure?.contains(previousFocus)) {
@@ -333,10 +406,8 @@ const afterCatalog = orderedMenuItems
         if (other !== disclosure) other.open = false;
       }
     });
-    disclosure.querySelectorAll('a').forEach((link) => {
-      link.addEventListener('click', () => {
-        disclosure.open = false;
-      });
+    disclosure.addEventListener('click', (event) => {
+      if (event.target instanceof Element && event.target.closest('a[href]')) disclosure.open = false;
     });
   }
   for (const disclosure of dismissibleDisclosures) {

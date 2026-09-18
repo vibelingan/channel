@@ -7,12 +7,14 @@ import { validAlibabaTiers, validMinorAmount } from './catalog-pricing.ts';
 import type {
   AlibabaCatalogPricing,
   CatalogPage,
-  CatalogQuery,
+  CatalogQuery as LegacyCatalogQuery,
   Product,
   ProductFamily,
 } from './catalog-types.ts';
 
-export type { CatalogPage, CatalogQuery, Product, ProductFamily } from './catalog-types.ts';
+export type { CatalogPage, Product, ProductFamily } from './catalog-types.ts';
+
+export type CatalogQuery = LegacyCatalogQuery & { subcategoryIds?: string[] };
 
 const PRODUCT_IMAGE_LIMIT = 9;
 const ALIBABA_PRICING_SCHEMA_VERSION = 'alibaba-catalog-pricing-v1';
@@ -239,6 +241,15 @@ export async function fetchCatalog(
   signal?: AbortSignal,
 ): Promise<CatalogPage> {
   const params = new URLSearchParams();
+  if (query.subcategoryIds !== undefined) {
+    if (
+      query.categories !== undefined ||
+      query.subcategoryIds.length === 0 ||
+      query.subcategoryIds.some((id) => !/^[a-z0-9][a-z0-9_-]{0,79}$/.test(id))
+    )
+      throw new Error('Invalid catalog subcategory filter');
+    params.set('subcategoryIds', query.subcategoryIds.join(','));
+  }
   if (query.productFamily) params.set('productFamily', query.productFamily);
   if (query.categories && query.categories.length > 0) {
     params.set('category', query.categories.join(','));

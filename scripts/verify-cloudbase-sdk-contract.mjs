@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 
 const root = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const rootRequire = createRequire(new URL('../package.json', import.meta.url));
@@ -97,6 +98,96 @@ requireCheck(
   typeof wxDatabase.command.exists === 'function' && wxDatabase.command.exists(false) !== undefined,
   'wx-server-sdk command exposes exists(false) for strict missing-field queries',
 );
+
+for (const [name, command] of [
+  ['@cloudbase/node-sdk', nodeDatabase.command],
+  ['wx-server-sdk', wxDatabase.command],
+]) {
+  requireCheck(
+    ['and', 'or', 'eq', 'in', 'exists', 'expr', 'elemMatch'].every(
+      (method) => typeof command[method] === 'function',
+    ),
+    `${name} exposes the subcategory query command surface`,
+  );
+  requireCheck(
+    [
+      'cond',
+      'isArray',
+      'size',
+      'setUnion',
+      'setIsSubset',
+      'setIntersection',
+      'and',
+      'eq',
+      'lte',
+      'gt',
+    ].every((method) => typeof command.aggregate[method] === 'function'),
+    `${name} exposes the subcategory aggregation expression operators`,
+  );
+}
+
+const subcategoryProbe = `
+  import { createRequire } from 'node:module';
+  import { dirname, join } from 'node:path';
+  import { productSubcategoryWhere } from './packages/db/src/product-subcategory-query.ts';
+  const require = createRequire(new URL('./packages/db/package.json', import.meta.url));
+  const sdkRequire = createRequire(require.resolve('@cloudbase/node-sdk/package.json'));
+  const { QuerySerializer } = sdkRequire(join(dirname(sdkRequire.resolve('@cloudbase/database')), 'serializer/query.js'));
+  const nodeSdk = require('@cloudbase/node-sdk');
+  const wxSdk = require('wx-server-sdk');
+  wxSdk.init({ env: 'offline-subcategory-contract' });
+  const commands = [nodeSdk.init({ env: 'offline-subcategory-contract' }).database().command, wxSdk.database().command];
+  console.log(JSON.stringify(commands.map((command) => ({
+    invalid: JSON.parse(QuerySerializer.encodeEJSON(productSubcategoryWhere(command, null))),
+    queries: ['headphones', 'ai-gadgets', 'toys', 'misc'].map((family) => {
+      const ids = [family === 'headphones' ? 'headphones-wired' : 'selected'];
+      return JSON.parse(QuerySerializer.encodeEJSON(productSubcategoryWhere(command, { family, ids, knownIds: [...ids, 'retired'] })));
+    }),
+  }))));
+`;
+const subcategoryProbes = JSON.parse(
+  execFileSync(
+    process.execPath,
+    ['--experimental-strip-types', '--input-type=module', '--eval', subcategoryProbe],
+    { cwd: root, encoding: 'utf8' },
+  ).trim(),
+);
+requireCheck(
+  isDeepStrictEqual(subcategoryProbes[0], subcategoryProbes[1]) &&
+    subcategoryProbes.every((probe) =>
+      isDeepStrictEqual(probe.invalid, { _id: { $exists: false } }),
+    ),
+  'node and wx SDKs serialize the import-free subcategory helper identically and fail closed',
+);
+for (const [position, family] of ['headphones', 'ai-gadgets', 'toys', 'misc'].entries()) {
+  const ids = [family === 'headphones' ? 'headphones-wired' : 'selected'];
+  const expected = {
+    $cond: [
+      { $isArray: '$subcategoryIds' },
+      {
+        $and: [
+          { $lte: [{ $size: '$subcategoryIds' }, { $numberInt: '16' }] },
+          {
+            $eq: [{ $size: '$subcategoryIds' }, { $size: { $setUnion: ['$subcategoryIds', []] } }],
+          },
+          { $setIsSubset: ['$subcategoryIds', [...ids, 'retired']] },
+          { $gt: [{ $size: { $setIntersection: ['$subcategoryIds', ids] } }, { $numberInt: '0' }] },
+        ],
+      },
+      false,
+    ],
+  };
+  requireCheck(
+    subcategoryProbes.every(({ queries }) => {
+      const assignment = queries[position].$and[1];
+      return isDeepStrictEqual(
+        family === 'headphones' ? assignment.$or[0].$expr : assignment.$expr,
+        expected,
+      );
+    }),
+    `installed SDK query serializer preserves the guarded ${family} subcategory expression`,
+  );
+}
 
 const nodeTypes = readPackageFile(
   nodeSdk,
@@ -693,7 +784,6 @@ for (const method of [
   'releaseAlibabaSyncLease',
   'updateDocWithAlibabaLease',
   'createDocWithId',
-  'saveCatalogProductWithIdentities',
   'upsertDocWithId',
 ]) {
   const calls = objectMethodCalls('cloudBaseAdapter', method);
@@ -702,13 +792,44 @@ for (const method of [
     `db cloudbase ${method} performs its read-and-write inside runTransaction`,
   );
 }
+const saveFunction = adapterAst.statements.find(
+  (node) =>
+    typescript.isFunctionDeclaration(node) && node.name?.text === 'saveCatalogProductInCloudBase',
+);
+const productTransactionCalls = [];
+function inspectProductTransaction(node) {
+  if (
+    typescript.isCallExpression(node) &&
+    node.expression.getText(adapterAst) === 'db.runTransaction'
+  ) {
+    const callback = node.arguments[0];
+    if (
+      callback &&
+      (typescript.isArrowFunction(callback) || typescript.isFunctionExpression(callback))
+    ) {
+      const collect = (child) => {
+        if (typescript.isCallExpression(child))
+          productTransactionCalls.push(child.expression.getText(adapterAst));
+        typescript.forEachChild(child, collect);
+      };
+      collect(callback.body);
+    }
+  }
+  typescript.forEachChild(node, inspectProductTransaction);
+}
+if (saveFunction?.body) inspectProductTransaction(saveFunction.body);
 requireCheck(
   objectMethodCalls('cloudBaseAdapter', 'saveCatalogProductWithIdentities').includes(
-    'planCatalogProductSave',
+    'saveCatalogProductInCloudBase',
   ) &&
-    objectMethodCalls('cloudBaseAdapter', 'saveCatalogProductWithIdentities').includes(
+    [
+      'transaction.collection',
+      'planCatalogProductSave',
+      'planProductSubcategorySave',
+      'planCatalogSuggestionSave',
       'replaceNestedObjects',
-    ),
+      'productRef.update',
+    ].every((name) => productTransactionCalls.includes(name)),
   'db cloudbase catalog save plans and writes product identities inside one transaction callback',
 );
 requireCheck(

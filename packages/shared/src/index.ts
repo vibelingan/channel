@@ -3,6 +3,7 @@ export * from './errors.ts';
 export * from './env.ts';
 export * from './collections.ts';
 export * from './catalog-product.ts';
+export * from './catalog-taxonomy.ts';
 export * from './manual-catalog-pricing.ts';
 export * from './media.ts';
 export * from './media-content.ts';
