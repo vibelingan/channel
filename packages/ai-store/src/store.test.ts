@@ -237,6 +237,79 @@ test(
   },
 );
 
+test(
+  'a queued question follows the answer it waited for and is the last turn of its own run',
+  { skip },
+  async () => {
+    assert.ok(store);
+    const conversation = await store.createConversation();
+    const ask = (n: number) =>
+      store.appendVisitorMessage({
+        conversationId: conversation.id,
+        idempotencyKey: `queued-${n}`,
+        content: `Q${n}`,
+        engineId: 'fake',
+        engineVersion: '0.1.0',
+      });
+    const liveRun = async () => {
+      const runId = (await store.getConversation(conversation.id))?.activeRunId;
+      assert.ok(runId);
+      const claim = await store.claimRun(runId);
+      assert.ok(claim);
+      return { runId, ...claim };
+    };
+    const answer = async (
+      run: { runId: string; controlVersion: number; claimEpoch: number },
+      text: string,
+    ) =>
+      assert.equal(
+        await store.finishRunFenced({
+          conversationId: conversation.id,
+          runId: run.runId,
+          expectedControlVersion: run.controlVersion,
+          claimEpoch: run.claimEpoch,
+          status: 'completed',
+          events: [
+            { type: 'token', payload: { text } },
+            { type: 'final', payload: { text } },
+          ],
+        }),
+        true,
+      );
+
+    assert.ok((await ask(0)).run);
+    // Q1 and Q2 arrive while Q0 is still being answered, so both queue. Each
+    // answer is stored AFTER the questions it held up, which is why ordering
+    // turns by storage time put Q1 before A0 and handed the engine A0 as the
+    // customer's current question.
+    assert.equal((await ask(1)).run, null);
+    assert.equal((await ask(2)).run, null);
+
+    await answer(await liveRun(), 'A0');
+    const second = await liveRun();
+    assert.deepEqual((await store.getRunExecutionContext(second.runId, 20))?.turns, [
+      { role: 'visitor', text: 'Q0' },
+      { role: 'assistant', text: 'A0' },
+      { role: 'visitor', text: 'Q1' },
+    ]);
+
+    await answer(second, 'A1');
+    const third = await liveRun();
+    assert.deepEqual((await store.getRunExecutionContext(third.runId, 20))?.turns, [
+      { role: 'visitor', text: 'Q0' },
+      { role: 'assistant', text: 'A0' },
+      { role: 'visitor', text: 'Q1' },
+      { role: 'assistant', text: 'A1' },
+      { role: 'visitor', text: 'Q2' },
+    ]);
+    // The newest-turns window is cut in the same order.
+    assert.deepEqual((await store.getRunExecutionContext(third.runId, 2))?.turns, [
+      { role: 'assistant', text: 'A1' },
+      { role: 'visitor', text: 'Q2' },
+    ]);
+  },
+);
+
 test('database rejects an event whose run belongs to another conversation', { skip }, async () => {
   assert.ok(store);
   const a = await store.createConversation();

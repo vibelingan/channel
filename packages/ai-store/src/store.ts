@@ -470,17 +470,29 @@ export class AiStore {
     );
     const row = run.rows[0];
     if (!row) return null;
-    // Pick the NEWEST turns, then put them back in reading order. Ordering
-    // ascending before the LIMIT kept the oldest turns, so once a conversation
-    // outgrew the window the question being answered was cut off.
+    // Turns follow the runs that answered them, question before answer, not the
+    // time each message was stored. A question sent while an earlier answer was
+    // being written is stored BEFORE that answer, so storage order made the old
+    // answer the last turn, and the engine reads the last turn as the question
+    // being asked. Runs start one at a time, in the order their questions are
+    // taken up, so this run's own question is always last.
+    //
+    // Pick the NEWEST turns in that order, then return them oldest first.
+    // Ordering ascending before the LIMIT kept the oldest turns, so once a
+    // conversation outgrew the window the question being answered was cut off.
     const turns = await this.pool.query<{ role: 'visitor' | 'assistant'; content: string }>(
       `SELECT role, content FROM (
-         SELECT role, content, created_at, id FROM conversation_messages
-         WHERE conversation_id = $1 AND role IN ('visitor', 'assistant')
-           AND (role = 'assistant' OR answered_by_run IS NOT NULL)
-         ORDER BY created_at DESC, id DESC LIMIT $2
+         SELECT m.role, m.content, m.created_at, m.id,
+                COALESCE(r.created_at, m.created_at) AS turn_at,
+                CASE m.role WHEN 'assistant' THEN 1 ELSE 0 END AS is_answer
+         FROM conversation_messages m
+         LEFT JOIN ai_runs r
+           ON r.conversation_id = m.conversation_id AND r.id = m.answered_by_run
+         WHERE m.conversation_id = $1 AND m.role IN ('visitor', 'assistant')
+           AND (m.role = 'assistant' OR m.answered_by_run IS NOT NULL)
+         ORDER BY turn_at DESC, is_answer DESC, m.created_at DESC, m.id DESC LIMIT $2
        ) AS newest
-       ORDER BY created_at ASC, id ASC`,
+       ORDER BY turn_at ASC, is_answer ASC, created_at ASC, id ASC`,
       [row.conversation_id, maxTurns],
     );
     return {
