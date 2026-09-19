@@ -4,18 +4,12 @@ import type {
   PublicSseEvent,
 } from '@vibelingan-channel/ai-contracts';
 import { useEffect, useRef, useState } from 'react';
+import { type ChatMessage, isReplyTo, withEvent } from './transcript.ts';
 
 interface StoredConversation {
   conversationId: string;
   credential: string;
   expiresAt: string;
-}
-
-interface ChatMessage {
-  id: string;
-  role: 'visitor' | 'assistant' | 'status';
-  text: string;
-  citations?: Array<{ title: string; url?: string }>;
 }
 
 const STORAGE_KEY = 'channel.ai.conversation.v1';
@@ -41,8 +35,11 @@ export function AssistantWidget() {
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
+  // Closing only hides the panel, as the launcher button always did. An answer
+  // on its way keeps arriving into its own bubble and is there on reopening;
+  // Stop is how a visitor cancels one. Aborting here left the run going on the
+  // server with nobody reading its events.
   function closeAssistant() {
-    abortRef.current?.abort();
     setOpen(false);
     requestAnimationFrame(() => triggerRef.current?.focus());
   }
@@ -62,7 +59,6 @@ export function AssistantWidget() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && open) {
-        abortRef.current?.abort();
         setOpen(false);
         requestAnimationFrame(() => triggerRef.current?.focus());
       }
@@ -115,7 +111,7 @@ export function AssistantWidget() {
       );
       if (!response.ok) throw new Error('message_failed');
       const accepted = parseAppendMessage(await response.json());
-      if (accepted.disposition !== 'replayed') await stream(active);
+      if (accepted.disposition !== 'replayed') await stream(active, accepted.messageId);
     } catch (caught) {
       if (isAbortError(caught)) return;
       setStatus('unavailable');
@@ -132,14 +128,16 @@ export function AssistantWidget() {
     }
   }
 
-  async function stream(active: StoredConversation) {
+  async function stream(active: StoredConversation, messageId: string) {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     setStatus('streaming');
-    const assistantId = crypto.randomUUID();
     let cursor = lastSequence;
-    setMessages((current) => [...current, { id: assistantId, role: 'assistant', text: '' }]);
+    setMessages((current) => [
+      ...current,
+      { id: crypto.randomUUID(), role: 'assistant', text: '', replyTo: messageId },
+    ]);
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const response = await fetch(
         `${apiBase}/api/ai/conversations/${active.conversationId}/events`,
@@ -156,47 +154,19 @@ export function AssistantWidget() {
         cursor = Math.max(cursor, event.sequence);
         setLastSequence(cursor);
         sessionStorage.setItem(SEQUENCE_KEY, String(cursor));
-        if (event.type === 'token') {
-          setMessages((current) =>
-            current.map((item) =>
-              item.id === assistantId ? { ...item, text: item.text + event.text } : item,
-            ),
-          );
-        } else if (event.type === 'citation') {
-          const safeUrl = safeCitationUrl(event.url);
-          setMessages((current) =>
-            current.map((item) =>
-              item.id === assistantId
-                ? {
-                    ...item,
-                    citations: [
-                      ...(item.citations ?? []),
-                      { title: event.title, ...(safeUrl ? { url: safeUrl } : {}) },
-                    ],
-                  }
-                : item,
-            ),
-          );
-        } else if (event.type === 'error' || event.type === 'run.failed') {
-          setMessages((current) =>
-            current.map((item) =>
-              item.id === assistantId
-                ? {
-                    ...item,
-                    role: 'status',
-                    text: 'I could not ground an answer. Please ask our team.',
-                  }
-                : item,
-            ),
-          );
+        setMessages((current) => withEvent(current, event, messageId, window.location.origin));
+        // An earlier question's answer finishing does not finish this one.
+        if (!isReplyTo(event, messageId)) continue;
+        if (event.type === 'error' || event.type === 'run.failed') {
           setStatus('unavailable');
           controller.abort();
           return;
-        } else if (event.type === 'final') {
-          setStatus('ready');
-          controller.abort();
-          return;
-        } else if (event.type === 'assistant.cancelled' || event.type === 'handoff.started') {
+        }
+        if (
+          event.type === 'final' ||
+          event.type === 'assistant.cancelled' ||
+          event.type === 'handoff.started'
+        ) {
           setStatus('ready');
           controller.abort();
           return;
@@ -510,16 +480,6 @@ function isPublicEvent(value: unknown): value is PublicSseEvent {
     typeof value.type === 'string' &&
     typeof value.sequence === 'number'
   );
-}
-
-function safeCitationUrl(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  try {
-    const url = new URL(value, window.location.origin);
-    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 function isAbortError(value: unknown): boolean {
