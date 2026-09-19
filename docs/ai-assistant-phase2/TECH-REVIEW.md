@@ -4,6 +4,8 @@
 **Companion to:** [PLAN.md](./PLAN.md) (what the assistant should do). This
 document is about how it should feel: speed, streaming, interface quality, and
 what to build on instead of hand-rolling.
+**Visual version:** [Chat Experience Architecture](https://claude.ai/artifact/Coikw7MKpiupvdUcU4AbV1)
+(private until shared), the companion to the business page linked from PLAN.md.
 
 Evidence labels: **observed** (code or recorded evidence), **reported** (named
 source), **assumed** (not yet checked; the step that checks it is named).
