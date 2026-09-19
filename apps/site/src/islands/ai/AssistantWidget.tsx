@@ -237,7 +237,7 @@ export function AssistantWidget() {
                       : 'mr-6 rounded-xl bg-white px-4 py-3 text-sm leading-relaxed text-ink shadow-sm'
                 }
               >
-                <p className="whitespace-pre-wrap">{message.text || '…'}</p>
+                <AnswerBody text={message.text} />
                 {message.citations && message.citations.length > 0 && (
                   <ul className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-xs text-ink-muted">
                     {message.citations.map((citation, index) => (
@@ -350,6 +350,35 @@ export function AssistantWidget() {
         </a>
       </noscript>
     </div>
+  );
+}
+
+/**
+ * One message body, and the waiting state that replaces it until an answer
+ * exists.
+ *
+ * The worker publishes nothing until the grounding check has approved the
+ * whole answer (`approvedEvents` in apps/ai-worker/src/worker.ts), so an
+ * assistant bubble is empty for as long as that takes — a measured median of
+ * about 15 seconds. A bare "…" reads as a stalled page. Naming the wait is
+ * honest and costs nothing, but it is presentation only: it does not make the
+ * answer arrive sooner. Real streaming needs the sources looked up before
+ * generation starts, which is Stage X in docs/ai-assistant-phase2/TECH-REVIEW.md.
+ *
+ * The dots animate only under `motion-safe`, and they are `aria-hidden` so the
+ * live region announces the sentence rather than the decoration.
+ */
+export function AnswerBody({ text }: { text: string }) {
+  if (text) return <p className="whitespace-pre-wrap">{text}</p>;
+  return (
+    <p className="flex items-center gap-2 text-ink-muted">
+      <span className="flex gap-1" aria-hidden="true">
+        <span className="h-1.5 w-1.5 rounded-full bg-current motion-safe:animate-bounce [animation-delay:-0.3s]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-current motion-safe:animate-bounce [animation-delay:-0.15s]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-current motion-safe:animate-bounce" />
+      </span>
+      Checking approved sources…
+    </p>
   );
 }
 
