@@ -909,6 +909,14 @@ anything from the engine directly.
 
 - The SSE id is the event sequence. Reconnect sends `Last-Event-ID`, and the
   dispatcher resumes from the next sequence — no duplicates, no gaps.
+- An answer's events carry `replyTo`: the id of the visitor message its run
+  answers, which is the `messageId` returned when that message was posted. The
+  stream is the whole conversation, so a client that stopped reading before an
+  answer ended (page change, reload) resumes from a cursor that still sits
+  before that answer. The widget renders an event only under the question it
+  names and finishes waiting only on its own question's terminal event, so an
+  earlier answer can never appear under a later question. Closing the panel
+  only hides it; Stop is the cancel.
 - Events carry `mode_version` so the client can label the transition, and the
   client drops any AI event whose version is below the last `handoff.started` it
   saw. **This filter is defence in depth.** If it is ever the thing preventing a
