@@ -156,6 +156,58 @@ test('publication requires the exact reviewed website content inside the atomic 
   );
 });
 
+test('admin save scope compares pricing against the current atomic row, not an earlier form read', () => {
+  const product = reviewProduct({
+    published: true,
+    description: 'Reviewed product description',
+    imageIds: ['image'],
+    unitPrice: 3,
+    moq: 5,
+    manualCatalogPricing: {
+      schemaVersion: 'manual-catalog-pricing-v1',
+      currency: 'USD',
+      tiers: [{ minQuantity: 5, unitAmountMinor: 300 }],
+    },
+  });
+  product.catalogDetailApprovalReceipt = {
+    contentFingerprint: publicationContentFingerprint(product),
+  };
+  const input: CatalogProductSaveInput = {
+    mode: 'update',
+    productId: product._id,
+    requireDetailApproval: 'publication-or-pricing',
+    data: {
+      productFamily: 'misc',
+      unitPrice: 3,
+      moq: 5,
+      manualCatalogPricing: structuredClone(product.manualCatalogPricing),
+    },
+  };
+  const unchanged = structuredClone(product);
+  const result = planCatalogProductSave(product, input, 'now');
+  assert.equal(result.result, 'ready');
+  if (result.result === 'ready') {
+    assert.equal(result.doc.published, true);
+    assert.equal(result.doc.alibabaReviewPending, true);
+    assert.deepEqual(result.doc.catalogDetailApprovalReceipt, product.catalogDetailApprovalReceipt);
+  }
+  assert.equal(
+    planCatalogProductSave(product, { ...input, requireDetailApproval: true }, 'now').result,
+    'invalid-product',
+  );
+  assert.equal(
+    planCatalogProductSave(product, { ...input, data: { ...input.data, published: true } }, 'now')
+      .result,
+    'invalid-product',
+  );
+  const concurrent: CollectionDoc = { ...product, unitPrice: 4 };
+  concurrent.catalogDetailApprovalReceipt = {
+    contentFingerprint: publicationContentFingerprint(concurrent),
+  };
+  assert.equal(planCatalogProductSave(concurrent, input, 'now').result, 'invalid-product');
+  assert.deepEqual(product, unchanged);
+});
+
 test('adding optional description media leaves historical publication receipts unchanged until edited', () => {
   const product = { _id: 'historical', name: 'Historical', description: 'Text', imageIds: ['old'] };
   assert.equal(
