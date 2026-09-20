@@ -137,11 +137,38 @@ test('manual price patches cannot leave published list and approved detail on di
   await approve();
   assert.ok((await save({ published: true })).ok);
   await assertPublicPrice(3);
+  await t.test(
+    'non-price form saves preserve publication and approved detail until review',
+    async () => {
+      const approved = await adapter.get('products', 'headset');
+      const result = await save({
+        productFamily: 'misc',
+        category: '',
+        unitPrice: 3,
+        catalogPricingMode: 'manual',
+      });
+      assert.ok(result.ok, JSON.stringify(result));
+      const saved = await adapter.get('products', 'headset');
+      assert.equal(saved?.published, true);
+      assert.equal(saved?.productFamily, 'misc');
+      assert.deepEqual(saved?.catalogDetailPublication, approved?.catalogDetailPublication);
+      assert.deepEqual(saved?.catalogDetailApprovalReceipt, approved?.catalogDetailApprovalReceipt);
+      assert.equal((await save({ published: true })).ok, false);
+      assert.deepEqual(await adapter.get('products', 'headset'), saved);
+      await assertPublicPrice(3);
+      await approve();
+      assert.ok((await save({ productFamily: 'headphones', category: 'wired' })).ok);
+      await approve();
+    },
+  );
   const before = await adapter.get('products', 'headset');
   for (const values of [
     { unitPrice: 8.5 },
     { wholesalePrice: 8.5 },
     { catalogPricingMode: 'source' },
+    { moq: 10 },
+    { manualCatalogPricing: null },
+    { productFamily: 'misc', category: '', unitPrice: 8.5 },
     {
       manualCatalogPricing: {
         schemaVersion: 'manual-catalog-pricing-v1',

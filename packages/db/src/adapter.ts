@@ -6,6 +6,7 @@
  * development wires a file-backed adapter. This keeps the persistence layer
  * swappable without any module-aliasing tricks.
  */
+import { isDeepStrictEqual } from 'node:util';
 import type {
   CollectionDoc,
   FilterModel,
@@ -63,7 +64,7 @@ export interface CatalogProductSaveInput {
   mode: 'create' | 'update';
   productId: string;
   data: Record<string, unknown>;
-  requireDetailApproval?: boolean;
+  requireDetailApproval?: boolean | 'publication-or-pricing';
   expectedSuggestion?: CatalogExpectedSuggestion;
   expectedClassification?: {
     productUpdatedAt: string | null;
@@ -214,7 +215,12 @@ export function planCatalogProductSave(
   if (
     input.requireDetailApproval &&
     doc.published === true &&
-    typeof doc.alibabaPrimarySourceKey === 'string'
+    typeof doc.alibabaPrimarySourceKey === 'string' &&
+    (input.requireDetailApproval === true ||
+      data.published === true ||
+      ['catalogPricingMode', 'manualCatalogPricing', 'unitPrice', 'wholesalePrice', 'moq'].some(
+        (field) => !isDeepStrictEqual(existing?.[field], doc[field]),
+      ))
   ) {
     const receipt = existing?.catalogDetailApprovalReceipt;
     if (
