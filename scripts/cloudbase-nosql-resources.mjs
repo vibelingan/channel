@@ -104,6 +104,16 @@ export const REQUIRED_NOSQL_RESOURCES = [
     permission: 'ADMINONLY',
     indexes: [],
   },
+  {
+    collectionName: 'catalogTaxonomies',
+    permission: 'ADMINONLY',
+    indexes: [],
+  },
+  {
+    collectionName: 'catalogTaxonomyProbe',
+    permission: 'ADMINONLY',
+    indexes: [],
+  },
   // Existing canonical catalog collection. Declared here so the pending-review
   // queue's default All/family ordering cannot depend on an operator-created
   // console index. The collection is already function-only (ADMINONLY).
@@ -119,6 +129,12 @@ export const REQUIRED_NOSQL_RESOURCES = [
         ['productFamily', '1'],
         ['alibabaReviewPending', '-1'],
         ['createdAt', '-1'],
+      ]),
+      index('product_family_public_page', [
+        ['productFamily', '1'],
+        ['published', '1'],
+        ['archived', '1'],
+        ['_id', '1'],
       ]),
     ],
   },

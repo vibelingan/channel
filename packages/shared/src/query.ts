@@ -1,4 +1,9 @@
 import { isProductFamily, productFamilyForDoc } from './catalog-product.ts';
+import {
+  MAX_PRODUCT_SUBCATEGORIES,
+  MAX_TAXONOMY_CHILDREN,
+  readProductSubcategories,
+} from './catalog-taxonomy.ts';
 
 /**
  * Server-side query model — shared by the admin grid (UI), the API handler, and
@@ -30,6 +35,7 @@ export type FilterOperator =
   | 'isLiteralTrue'
   | 'isFalseOrMissing'
   | 'matchesProductFamily'
+  | 'matchesProductSubcategories'
   | 'hasNoProductFamily';
 
 /** A single field/operator/value condition. */
@@ -94,6 +100,7 @@ const OPERATOR_LABELS: Record<FilterOperator, string> = {
   isLiteralTrue: 'is literal true',
   isFalseOrMissing: 'is false or missing',
   matchesProductFamily: 'matches product family',
+  matchesProductSubcategories: 'matches product subcategories',
   hasNoProductFamily: 'has no website category',
 };
 
@@ -147,11 +154,54 @@ function matchesClause(doc: Record<string, unknown>, clause: FilterClause): bool
       return !Object.hasOwn(doc, clause.field) || actual === false;
     case 'matchesProductFamily':
       return isProductFamily(value) && productFamilyForDoc(doc) === value;
+    case 'matchesProductSubcategories':
+      return matchesProductSubcategories(doc, value);
     case 'hasNoProductFamily':
       return productFamilyForDoc(doc) === null;
     default:
       return false;
   }
+}
+
+export function isProductSubcategoryIds(
+  value: unknown,
+  maximum = MAX_PRODUCT_SUBCATEGORIES,
+): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length <= maximum &&
+    Array.from(value).every(
+      (id) => typeof id === 'string' && /^[a-z0-9][a-z0-9_-]{0,79}$/.test(id),
+    ) &&
+    new Set(value).size === value.length
+  );
+}
+
+function matchesProductSubcategories(doc: Record<string, unknown>, value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const { family, ids, knownIds } = value as Record<string, unknown>;
+  if (
+    !isProductFamily(family) ||
+    !isProductSubcategoryIds(ids) ||
+    ids.length === 0 ||
+    !isProductSubcategoryIds(knownIds, MAX_TAXONOMY_CHILDREN) ||
+    !ids.every((id) => knownIds.includes(id))
+  ) {
+    return false;
+  }
+  const membership = readProductSubcategories(doc, {
+    family,
+    name: family,
+    revision: 0,
+    children: knownIds.map((id, order) => ({
+      id,
+      name: id,
+      slug: `child-${order}`,
+      order,
+      status: 'active',
+    })),
+  });
+  return membership.status === 'valid' && membership.subcategoryIds.some((id) => ids.includes(id));
 }
 
 function looseEquals(a: unknown, b: unknown): boolean {

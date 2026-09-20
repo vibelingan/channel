@@ -6,6 +6,14 @@
  * The session token is shared with the rest of the site via `lib/session`.
  */
 import {
+  type CatalogClassificationAssignmentRequest,
+  CatalogClassificationAssignmentRequestSchema,
+  type CatalogClassificationAssignmentResult,
+  CatalogClassificationAssignmentResultSchema,
+  type CatalogTaxonomyCommand,
+  CatalogTaxonomyCommandSchema,
+  type CatalogTaxonomyResult,
+  CatalogTaxonomyResultSchema,
   type CategoryApiRequest,
   CategoryApiResponseSchema,
   type CollectionDoc,
@@ -18,6 +26,7 @@ import {
   type SortClause,
   isProductFamily,
 } from '@vibelingan-channel/shared';
+import { z } from 'zod';
 import { readApiEnvelope } from '../../lib/api-envelope.ts';
 import { apiUrl } from '../../lib/api-url.ts';
 import { getToken } from '../../lib/session.ts';
@@ -81,6 +90,95 @@ export async function manageCategoryAssignments(input: CategoryApiRequest) {
       'Category response was malformed. Refresh the preview before retrying.',
     );
   return response.data;
+}
+
+const suggestionIdentifier = z
+  .string()
+  .min(1)
+  .max(200)
+  .refine((value) => value.trim() === value);
+const suggestionBase = {
+  kind: z.literal('suggestion'),
+  productId: suggestionIdentifier,
+};
+const suggestionSchema = z.discriminatedUnion('status', [
+  z
+    .object({
+      ...suggestionBase,
+      status: z.literal('ready'),
+      productUpdatedAt: z.string().datetime(),
+      source: z
+        .object({
+          primarySourceKey: suggestionIdentifier,
+          sourceCategoryId: z.string().regex(/^\d{1,200}$/),
+        })
+        .strict(),
+      mapping: z
+        .object({
+          id: suggestionIdentifier,
+          revision: z.string().regex(/^[a-f0-9]{64}$/),
+        })
+        .strict(),
+      family: z.enum(PRODUCT_FAMILY_OPTIONS),
+      subcategoryIds: z
+        .array(z.string().regex(/^[a-z0-9][a-z0-9_-]{0,79}$/))
+        .max(16)
+        .refine((ids) => new Set(ids).size === ids.length),
+      taxonomyRevision: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+    })
+    .strict(),
+  z
+    .object({
+      ...suggestionBase,
+      status: z.enum([
+        'forbidden',
+        'missing',
+        'no-source',
+        'unmapped',
+        'review-required',
+        'conflict',
+        'invalid',
+      ]),
+    })
+    .strict(),
+]);
+
+export type CategorySuggestion = z.infer<typeof suggestionSchema>;
+
+export async function fetchCategorySuggestion(
+  productId: string,
+  signal?: AbortSignal,
+): Promise<CategorySuggestion> {
+  const id = suggestionIdentifier.parse(productId);
+  const response = suggestionSchema.safeParse(
+    await call<unknown>('catalogCategories', { kind: 'suggestion', productId: id }, signal),
+  );
+  if (!response.success || response.data.productId !== id)
+    throw new AdminApiError(
+      'INVALID_RESPONSE',
+      'Classification suggestion was malformed. Reload the suggestion.',
+    );
+  return response.data;
+}
+
+export function categorySuggestionMatchesProduct(
+  suggestion: Extract<CategorySuggestion, { status: 'ready' }>,
+  product: CollectionDoc,
+): boolean {
+  const review = product.alibabaSourceReview;
+  const nested =
+    review && typeof review === 'object' && !Array.isArray(review)
+      ? (review as Record<string, unknown>).sourceCategoryId
+      : undefined;
+  const direct = product.alibabaSourceCategoryId;
+  if (typeof direct === 'string' && typeof nested === 'string' && direct !== nested) return false;
+  const category = typeof direct === 'string' ? direct : typeof nested === 'string' ? nested : '';
+  return (
+    product._id === suggestion.productId &&
+    product.updatedAt === suggestion.productUpdatedAt &&
+    product.alibabaPrimarySourceKey === suggestion.source.primarySourceKey &&
+    category === suggestion.source.sourceCategoryId
+  );
 }
 
 export interface ListArgs {
@@ -445,4 +543,66 @@ export async function getImagePreview(id: string): Promise<string> {
     id,
   });
   return `data:${res.mimeType};base64,${res.dataBase64}`;
+}
+
+export async function taxonomyCall(
+  input: CatalogTaxonomyCommand,
+  signal?: AbortSignal,
+): Promise<CatalogTaxonomyResult> {
+  const command = CatalogTaxonomyCommandSchema.parse(input);
+  const response = CatalogTaxonomyResultSchema.safeParse(
+    await call<unknown>('catalogCategories', command, signal),
+  );
+  if (
+    !response.success ||
+    ('registry' in response.data && response.data.registry.family !== command.family) ||
+    (command.operation === 'read' &&
+      response.data.status !== 'replayed' &&
+      'registry' in response.data) ||
+    (command.operation === 'save' &&
+      'registry' in response.data &&
+      (response.data.status === 'replayed' ||
+        response.data.registry.revision !== command.expectedRevision + 1))
+  ) {
+    throw new AdminApiError(
+      'INVALID_RESPONSE',
+      'Category response was malformed. Reload categories before retrying.',
+    );
+  }
+  return response.data;
+}
+
+export async function assignmentCall(
+  input: CatalogClassificationAssignmentRequest,
+  signal?: AbortSignal,
+  expectedSuggestion?: Extract<CategorySuggestion, { status: 'ready' }>,
+): Promise<CatalogClassificationAssignmentResult> {
+  const command = CatalogClassificationAssignmentRequestSchema.parse(input);
+  const evidence =
+    expectedSuggestion === undefined ? undefined : suggestionSchema.parse(expectedSuggestion);
+  const response = CatalogClassificationAssignmentResultSchema.safeParse(
+    await call<unknown>(
+      'catalogCategories',
+      evidence ? { ...command, expectedSuggestion: evidence } : command,
+      signal,
+    ),
+  );
+  if (!response.success) {
+    throw new AdminApiError(
+      'INVALID_RESPONSE',
+      'Product results were malformed. Refresh products before retrying.',
+    );
+  }
+  const ids = new Set(response.data.results.map((item) => item.productId));
+  if (
+    ids.size !== command.products.length ||
+    response.data.results.length !== command.products.length ||
+    command.products.some((item) => !ids.has(item.productId))
+  ) {
+    throw new AdminApiError(
+      'INVALID_RESPONSE',
+      'Product results were incomplete. Refresh products before retrying.',
+    );
+  }
+  return response.data;
 }

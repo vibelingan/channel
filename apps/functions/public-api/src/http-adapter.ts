@@ -1,7 +1,14 @@
-import { type ApiResult, err, isProductFamily, ok } from '@vibelingan-channel/shared';
+import {
+  type ApiResult,
+  err,
+  isProductFamily,
+  isProductSubcategoryIds,
+  ok,
+} from '@vibelingan-channel/shared';
 import { releaseInfo } from '@vibelingan-channel/shared/release';
 import { getProductDetail } from './catalog-detail.ts';
 import { handleQuoteEvent } from './catalog-quote-http.ts';
+import { getPublicCatalogTaxonomy } from './catalog-taxonomy.ts';
 import {
   type BinaryResult,
   type CatalogQuery,
@@ -204,6 +211,25 @@ function queryParams(event: Record<string, unknown>, url: URL): URLSearchParams 
       if (text) params.set(key, text);
     }
   }
+  const raw = new URLSearchParams(
+    typeof event.rawQueryString === 'string' ? event.rawQueryString : '',
+  );
+  for (const key of ['family', 'productFamily', 'subcategoryIds', 'category']) {
+    const sources = [url.searchParams.getAll(key), raw.getAll(key)];
+    for (const source of [event.queryStringParameters, event.multiValueQueryStringParameters]) {
+      if (!isRecord(source) || !hasKey(source, key)) continue;
+      const value = source[key];
+      const values = Array.isArray(value) && value.length > 0 ? value : [value];
+      sources.push(values.map((entry) => (typeof entry === 'string' ? entry : '')));
+    }
+    const values: string[] = [];
+    for (const source of sources) {
+      if (source.length === 1 && values.includes(source[0] ?? '')) continue;
+      values.push(...source);
+    }
+    params.delete(key);
+    for (const value of values) params.append(key, value);
+  }
   return params;
 }
 
@@ -213,12 +239,29 @@ function parsePositiveInt(value: string, fallback: number): number {
 }
 
 export function parseCatalogQuery(params: URLSearchParams): CatalogQuery | ApiResult<never> {
+  if (
+    ['productFamily', 'subcategoryIds', 'category'].some((key) => params.getAll(key).length > 1)
+  ) {
+    return err('VALIDATION_ERROR', 'Repeated catalog query parameter.');
+  }
   const productFamily = params.get('productFamily')?.trim();
   if (productFamily && !isProductFamily(productFamily)) {
     return err('VALIDATION_ERROR', 'Unknown product family.');
   }
   const parsedProductFamily =
     productFamily && isProductFamily(productFamily) ? productFamily : undefined;
+  let subcategoryIds: string[] | undefined;
+  if (params.has('subcategoryIds')) {
+    subcategoryIds = (params.get('subcategoryIds') ?? '').split(',');
+    if (
+      !isProductFamily(params.get('productFamily')) ||
+      params.has('category') ||
+      !isProductSubcategoryIds(subcategoryIds) ||
+      subcategoryIds.length === 0
+    ) {
+      return err('VALIDATION_ERROR', 'Invalid product subcategory selection.');
+    }
+  }
   const category = params.get('category')?.trim();
   const categories = category
     ? category
@@ -229,6 +272,7 @@ export function parseCatalogQuery(params: URLSearchParams): CatalogQuery | ApiRe
   return {
     ...(parsedProductFamily ? { productFamily: parsedProductFamily } : {}),
     ...(categories.length > 0 ? { categories } : {}),
+    ...(subcategoryIds ? { subcategoryIds } : {}),
     search: params.get('search') ?? '',
     page: parsePositiveInt(params.get('page') ?? '', 1),
     pageSize: parsePositiveInt(params.get('pageSize') ?? '', 24),
@@ -272,6 +316,10 @@ async function routeGet(
 
   if (segments.length === 1 && segments[0] === 'health') {
     return jsonResponse(event, config, ok(releaseInfo('public-api')));
+  }
+
+  if (segments.length === 1 && segments[0] === 'catalog-taxonomy') {
+    return jsonResponse(event, config, await getPublicCatalogTaxonomy(params));
   }
 
   const collection = segments[0] ? parseCatalogName(segments[0]) : null;

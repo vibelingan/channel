@@ -11,6 +11,8 @@ import {
   canSeeVipPricing,
   catalogReferencedImageIds,
   err,
+  isProductFamily,
+  isProductSubcategoryIds,
   normalizeCatalogImageIds,
   normalizeProductSlug,
   normalizeSkuCode,
@@ -19,6 +21,7 @@ import {
   toRole,
   validateManualCatalogPricing,
 } from '@vibelingan-channel/shared';
+import { readCatalogTaxonomy } from './catalog-taxonomy.ts';
 
 const CATALOGS = PUBLIC_CATALOG_COLLECTIONS;
 const MAX_PUBLIC_PAGE_SIZE = 48;
@@ -30,6 +33,7 @@ export type PublicCatalog = (typeof CATALOGS)[number];
 export interface CatalogQuery {
   productFamily?: ProductFamily;
   categories?: readonly string[];
+  subcategoryIds?: readonly string[];
   search?: string;
   page?: number;
   pageSize?: number;
@@ -350,6 +354,34 @@ export async function listCatalog(
   const page = positiveInt(query.page, 1);
   const pageSize = Math.min(MAX_PUBLIC_PAGE_SIZE, positiveInt(query.pageSize, 24));
   const clauses: FilterClause[] = [{ field: 'published', op: 'isLiteralTrue' }];
+  if (query.subcategoryIds !== undefined) {
+    if (
+      collection !== 'products' ||
+      !isProductFamily(query.productFamily) ||
+      query.categories !== undefined ||
+      !isProductSubcategoryIds(query.subcategoryIds) ||
+      query.subcategoryIds.length === 0
+    ) {
+      return err('VALIDATION_ERROR', 'Invalid product subcategory selection.');
+    }
+    const taxonomy = await readCatalogTaxonomy(query.productFamily);
+    if (!taxonomy.ok) return taxonomy;
+    const activeIds = new Set(
+      taxonomy.data.children.filter((child) => child.status === 'active').map((child) => child.id),
+    );
+    if (!query.subcategoryIds.every((id) => activeIds.has(id))) {
+      return err('VALIDATION_ERROR', 'Unknown or archived product subcategory.');
+    }
+    clauses.push({
+      field: 'subcategoryIds',
+      op: 'matchesProductSubcategories',
+      value: {
+        family: query.productFamily,
+        ids: query.subcategoryIds,
+        knownIds: taxonomy.data.children.map((child) => child.id),
+      },
+    });
+  }
   if (collection === 'products') {
     clauses.push({ field: 'archived', op: 'isFalseOrMissing' });
     if (query.productFamily) {

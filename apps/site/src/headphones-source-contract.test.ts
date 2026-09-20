@@ -59,5 +59,8 @@ test('the Headphones island stays a thin controller', () => {
   assert.doesNotMatch(islandSource, /['"`][^'"`]*\breveal\b/);
   // Presentation is delegated, not inlined.
   assert.match(islandSource, /CatalogFamilyGrid/);
-  assert.match(islandSource, /headphonesCatalogState/);
+  assert.match(islandSource, /from '\.\/numbered-catalog-state\.ts'/);
+  assert.match(islandSource, /beginNumberedPage\(/);
+  assert.match(islandSource, /receiveNumberedPage\(/);
+  assert.doesNotMatch(islandSource, /beginLoadMore|commitCatalogPage/);
 });

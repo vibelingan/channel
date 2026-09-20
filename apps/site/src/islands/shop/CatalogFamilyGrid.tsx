@@ -1,20 +1,21 @@
 import type { CatalogContent, CatalogFamilyContent } from '../../i18n/catalog.ts';
+import { CatalogPagination } from './CatalogPagination.tsx';
 import { effectiveCatalogPriceSummary } from './EffectiveCatalogPricingBlock.tsx';
 import { ProductMedia } from './ProductMedia.tsx';
 import { effectiveCatalogMoq } from './catalog-pricing.ts';
 import type { Product } from './catalog-types.ts';
-import { type HeadphonesCatalogState, hasMoreProducts } from './headphonesCatalogState.ts';
+import { CATALOG_PAGE_SIZE, type NumberedCatalogState } from './numbered-catalog-state.ts';
 
 interface Props {
   content: CatalogContent;
   family: CatalogFamilyContent;
-  state: HeadphonesCatalogState;
+  state: NumberedCatalogState;
   selectedCategories: readonly string[];
   searchInput: string;
   onCategoriesChange: (categories: string[]) => void;
   onSearchInputChange: (search: string) => void;
-  onRetryInitial: () => void;
-  onLoadMore: () => void;
+  onRetry: () => void;
+  onPageChange: (page: number) => void;
   onOpenProduct: (productId: string) => void;
 }
 
@@ -98,8 +99,8 @@ export function CatalogFamilyGrid({
   searchInput,
   onCategoriesChange,
   onSearchInputChange,
-  onRetryInitial,
-  onLoadMore,
+  onRetry,
+  onPageChange,
   onOpenProduct,
 }: Props) {
   const { list } = content;
@@ -107,15 +108,12 @@ export function CatalogFamilyGrid({
   // so filtering the grid by slug hid real, sellable products behind "no products match".
   // The slug only decides whether a card links to its detail page.
   const products = state.products;
-  const loadingInitial = state.status === 'idle' || state.status === 'loading-initial';
-  const loadingMore = state.status === 'loading-more';
-  const announcement = loadingInitial
-    ? list.loadingLabel
-    : state.status === 'initial-error'
-      ? (state.initialError ?? list.errorLabel)
-      : products.length === 0
-        ? list.emptyLabel
-        : `${products.length} ${list.resultsLabel}`;
+  const loadingInitial = state.committed === null && (state.pending || state.error === null);
+  const page = state.committed?.page ?? 1;
+  const start = products.length ? (page - 1) * CATALOG_PAGE_SIZE + 1 : 0;
+  const progress = `${start}\u2013${start ? start + products.length - 1 : 0} of ${state.total ?? 0} ${list.resultsLabel}`;
+  const announcement =
+    loadingInitial || state.pending ? list.loadingLabel : (state.error ?? progress);
 
   const toggleCategory = (category: string) => {
     onCategoriesChange(
@@ -126,7 +124,7 @@ export function CatalogFamilyGrid({
   };
 
   return (
-    <div className="mt-10">
+    <div className="mt-10" aria-busy={state.pending || undefined}>
       <div
         className={`flex flex-col gap-5 border-y border-slate-200 py-5 sm:flex-row sm:items-end ${
           family.categories.length > 0 ? 'sm:justify-between' : 'sm:justify-end'
@@ -185,12 +183,12 @@ export function CatalogFamilyGrid({
         </div>
       )}
 
-      {state.status === 'initial-error' && (
+      {state.error && (
         <div role="alert" className="mt-8 border border-red-200 bg-red-50 p-6 text-sm text-red-800">
-          <p>{state.initialError ?? list.errorLabel}</p>
+          <p>{state.error}</p>
           <button
             type="button"
-            onClick={onRetryInitial}
+            onClick={onRetry}
             className="mt-4 min-h-11 border border-red-300 bg-white px-4 py-2 font-semibold hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
           >
             {list.retryLabel}
@@ -198,17 +196,20 @@ export function CatalogFamilyGrid({
         </div>
       )}
 
-      {!loadingInitial && state.status !== 'initial-error' && products.length === 0 && (
+      {state.committed && (
+        <p className="mt-6 text-sm text-ink-muted" data-result-progress>
+          {progress}
+        </p>
+      )}
+
+      {state.committed && products.length === 0 && (
         <p className="mt-8 border-y border-slate-200 bg-white px-5 py-10 text-center text-ink-muted">
           {list.emptyLabel}
         </p>
       )}
 
-      {!loadingInitial && state.status !== 'initial-error' && products.length > 0 && (
+      {state.committed && products.length > 0 && (
         <>
-          <p className="mt-6 text-sm text-ink-muted" data-result-progress>
-            {products.length} {list.resultsLabel}
-          </p>
           {/* Real gaps, not a painted container. A partly filled last row used to
               expose the container background as grey placeholder blocks. */}
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -224,29 +225,14 @@ export function CatalogFamilyGrid({
         </>
       )}
 
-      {!loadingInitial &&
-        state.status !== 'initial-error' &&
-        (state.loadMoreError !== null || hasMoreProducts(state)) && (
-          <div className="mt-8 text-center">
-            {state.loadMoreError && (
-              <p role="alert" className="text-sm text-red-700">
-                {state.loadMoreError}
-              </p>
-            )}
-            {hasMoreProducts(state) && (
-              <button
-                type="button"
-                disabled={loadingMore}
-                aria-busy={loadingMore || undefined}
-                onClick={onLoadMore}
-                data-load-more
-                className="mt-4 min-h-11 border border-brand-300 bg-white px-6 py-2 text-sm font-semibold text-brand-700 disabled:opacity-60"
-              >
-                {loadingMore ? list.loadingLabel : list.loadMoreLabel}
-              </button>
-            )}
-          </div>
-        )}
+      {state.committed && state.total !== null && state.total > 0 && (
+        <CatalogPagination
+          page={page}
+          total={state.total}
+          pending={state.pending}
+          onPageChange={onPageChange}
+        />
+      )}
     </div>
   );
 }

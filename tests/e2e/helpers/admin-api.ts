@@ -1,5 +1,38 @@
-import type { APIRequestContext } from '@playwright/test';
+import { type APIRequestContext, type Page, expect } from '@playwright/test';
+import { isProductFamily } from '../../../packages/shared/src/catalog-product.ts';
+import {
+  type CatalogTaxonomy,
+  initialCatalogTaxonomy,
+} from '../../../packages/shared/src/catalog-taxonomy.ts';
 import { e2e } from './env';
+
+type PublicCatalogTaxonomy = Omit<CatalogTaxonomy, 'children'> & {
+  children: Omit<CatalogTaxonomy['children'][number], 'status'>[];
+};
+
+export async function mockCatalogTaxonomy(page: Page): Promise<void> {
+  await page.route('**/api/catalog-taxonomy?*', async (route) => {
+    const url = new URL(route.request().url());
+    expect(url.pathname).toBe('/api/catalog-taxonomy');
+    expect(route.request().method()).toBe('GET');
+    const family = url.searchParams.get('family');
+    if (!isProductFamily(family)) {
+      await route.fulfill({
+        status: 400,
+        json: { ok: false, error: { code: 'INVALID_INPUT', message: 'Invalid product family.' } },
+      });
+      return;
+    }
+    const registry = initialCatalogTaxonomy(family);
+    const data: PublicCatalogTaxonomy = {
+      family: registry.family,
+      name: registry.name,
+      revision: registry.revision,
+      children: registry.children.map(({ id, name, slug, order }) => ({ id, name, slug, order })),
+    };
+    await route.fulfill({ json: { ok: true, data } });
+  });
+}
 
 export interface SessionUser {
   id: string;

@@ -33,6 +33,10 @@ import {
 import {
   ALIBABA_PRODUCT_LINK_LIMIT,
   type AlibabaProductMutationInput,
+  catalogSuggestionChanged,
+  parseCatalogExpectedSuggestion,
+  planCatalogSuggestionSave,
+  planProductSubcategorySave,
   runAlibabaProductMutation,
 } from '@vibelingan-channel/db/adapter';
 import { commitCatalogApproval } from '@vibelingan-channel/db/catalog-detail-commit';
@@ -674,13 +678,57 @@ export class JsonFileAdapter implements DbAdapter {
     input: CatalogProductSaveInput,
   ): Promise<CatalogProductSaveResult> {
     return this.withMutationLock(() => {
-      const products = this.docs('products');
+      const expectedSuggestion =
+        input.expectedSuggestion === undefined
+          ? undefined
+          : parseCatalogExpectedSuggestion(input.expectedSuggestion);
+      if (expectedSuggestion === null || (expectedSuggestion && input.mode !== 'update'))
+        return catalogSuggestionChanged();
+      const copy = structuredClone(this.store);
+      copy.products ??= [];
+      const products = copy.products;
       const productIndex = products.findIndex((document) => document._id === input.productId);
       const existing = productIndex >= 0 ? (products[productIndex] as CollectionDoc) : null;
+      if (expectedSuggestion && !existing) return catalogSuggestionChanged();
       const plan = planCatalogProductSave(existing, input, new Date().toISOString());
       if (plan.result !== 'ready') return plan;
 
-      const identityDocs = this.docs('catalogProductIdentities');
+      const family = expectedSuggestion
+        ? expectedSuggestion.family
+        : Object.hasOwn(input.data, 'productFamily')
+          ? input.data.productFamily
+          : existing?.productFamily;
+      const registry = copy.catalogTaxonomies?.find((document) => document._id === family) ?? null;
+      const actor =
+        copy.users?.find((document) => document._id === input.expectedClassification?.actorId) ??
+        null;
+      const source = expectedSuggestion
+        ? (copy.alibabaSourceProducts?.find(
+            (document) => document._id === expectedSuggestion.source.primarySourceKey,
+          ) ?? null)
+        : null;
+      const link = expectedSuggestion
+        ? (copy.alibabaProductLinks?.find(
+            (document) => document._id === expectedSuggestion.source.primarySourceKey,
+          ) ?? null)
+        : null;
+      const mapping = expectedSuggestion
+        ? (copy.sourceCategoryMappings?.find(
+            (document) => document._id === expectedSuggestion.mapping.id,
+          ) ?? null)
+        : null;
+      const suggestion = planCatalogSuggestionSave(
+        existing,
+        input,
+        { source, link, mapping, registry },
+        randomUUID(),
+      );
+      if (suggestion.result !== 'ready') return suggestion;
+      const classification = planProductSubcategorySave(existing, input, registry, actor);
+      if (classification.result !== 'ready') return classification;
+
+      copy.catalogProductIdentities ??= [];
+      const identityDocs = copy.catalogProductIdentities;
       for (const identity of plan.identities) {
         const existingIdentity = identityDocs.find((document) => document._id === identity.id);
         if (
@@ -708,6 +756,22 @@ export class JsonFileAdapter implements DbAdapter {
           } as CollectionDoc);
         }
       }
+      if (actor && input.expectedClassification) actor.classificationAuthFence = randomUUID();
+      if (classification.registryFence) {
+        copy.catalogTaxonomies ??= [];
+        const taxonomies = copy.catalogTaxonomies;
+        const registryIndex = taxonomies.findIndex(
+          (document) => document._id === classification.registryFence?._id,
+        );
+        if (registryIndex < 0) taxonomies.push(classification.registryFence);
+        else taxonomies[registryIndex] = classification.registryFence;
+      }
+      for (const { collection, doc } of suggestion.fences) {
+        const documents = copy[collection];
+        const index = documents?.findIndex((document) => document._id === doc._id) ?? -1;
+        if (!documents || index < 0) throw new Error('Suggestion fence document disappeared');
+        documents[index] = doc;
+      }
       if (productIndex >= 0) products[productIndex] = plan.doc;
       else products.push(plan.doc);
       for (const identity of plan.staleIdentities) {
@@ -716,7 +780,14 @@ export class JsonFileAdapter implements DbAdapter {
         );
         if (index >= 0) identityDocs.splice(index, 1);
       }
-      this.persist();
+      const previous = this.store;
+      this.store = copy;
+      try {
+        this.persist();
+      } catch (error) {
+        this.store = previous;
+        throw error;
+      }
       return { result: 'saved', doc: plan.doc, previous: existing };
     });
   }

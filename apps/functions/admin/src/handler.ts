@@ -1820,7 +1820,7 @@ async function createAction(req: AdminRequest, claims: SessionClaims): Promise<A
       doc = transition.doc;
       authoritativeBefore = transition.previous;
     } else if (parsed.data.collection === 'sourceCategoryMappings') {
-      const mapping = await saveCategoryMapping(parsed.data.values);
+      const mapping = await saveCategoryMapping(parsed.data.values, undefined, claims.sub);
       if (!mapping) return err('CONFLICT', 'Category mapping was not saved. Refresh and retry.');
       doc = mapping;
     } else {
@@ -1884,7 +1884,7 @@ async function updateAction(
       doc = transition.doc;
       authoritativeBefore = transition.previous;
     } else if (parsed.data.collection === 'sourceCategoryMappings') {
-      doc = await saveCategoryMapping(parsed.data.values, parsed.data.id);
+      doc = await saveCategoryMapping(parsed.data.values, parsed.data.id, claims.sub);
     } else {
       doc = await update(parsed.data.collection, parsed.data.id, parsed.data.values);
     }
