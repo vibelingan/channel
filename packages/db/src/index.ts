@@ -39,6 +39,7 @@ export function getCatalogTaxonomy(family: ProductFamily): Promise<CollectionDoc
 }
 export {
   ALIBABA_PRODUCT_LINK_LIMIT,
+  alibabaPricingFingerprint,
   alibabaLinkRevision,
   readImageMutationState,
   transitionImageMutationAcquire,
@@ -56,6 +57,7 @@ export {
 
 export type {
   AdapterListQuery,
+  AlibabaPricingEvidenceExpectation,
   AlibabaLeaseGrant,
   AlibabaLeaseGuard,
   AlibabaLeaseState,

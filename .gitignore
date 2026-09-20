@@ -8,6 +8,8 @@ dist/
 .astro/
 *.tsbuildinfo
 output/playwright/
+# Private price-repair manifests, local fixtures and evidence
+output/catalog-price-repair/
 playwright-report/
 test-results/
 .playwright-cli/

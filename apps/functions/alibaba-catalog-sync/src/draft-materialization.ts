@@ -10,6 +10,10 @@
  */
 import { list } from '@vibelingan-channel/db';
 import { createAlibabaCategoryResolver, createDraftForSource } from './linking.ts';
+import {
+  type PricingMaterializationOutcome,
+  materializeCompletedProductPricing,
+} from './pricing-repair.ts';
 
 export const DRAFT_MATERIALIZATION_PAGE_MAX = 20;
 
@@ -33,6 +37,7 @@ export interface DraftMaterializationPageResult {
   created: number;
   existing: number;
   failures: DraftMaterializationFailure[];
+  pricing: PricingMaterializationOutcome[];
 }
 
 export async function materializeAlibabaDraftPage(
@@ -63,6 +68,7 @@ export async function materializeAlibabaDraftPage(
   let created = 0;
   let existing = 0;
   const failures: DraftMaterializationFailure[] = [];
+  const pricing: PricingMaterializationOutcome[] = [];
   const now = input.now ?? (() => new Date().toISOString());
   const resolveCategory = createAlibabaCategoryResolver();
   for (const source of page.items) {
@@ -74,6 +80,7 @@ export async function materializeAlibabaDraftPage(
     } else {
       existing += 1;
     }
+    if (result.ok) pricing.push(await materializeCompletedProductPricing(result.productId));
   }
 
   const last = page.items.at(-1);
@@ -85,5 +92,6 @@ export async function materializeAlibabaDraftPage(
     created,
     existing,
     failures,
+    pricing,
   };
 }

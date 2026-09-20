@@ -21,6 +21,10 @@ import {
   validateProductPublication,
 } from '@vibelingan-channel/shared';
 import { alibabaLinkRevision } from './alibaba-product-identity.ts';
+export {
+  alibabaPricingFingerprint,
+  type AlibabaPricingEvidenceExpectation,
+} from './alibaba-pricing-fingerprint.ts';
 import { publicationContentFingerprint } from './catalog-publication-fingerprint.ts';
 import type { CatalogExpectedSuggestion } from './catalog-suggestion-save.ts';
 export {

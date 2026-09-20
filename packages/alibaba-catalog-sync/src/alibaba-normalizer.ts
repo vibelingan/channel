@@ -241,6 +241,12 @@ export function normalizeProductDetail(input: {
     [detail.sourcingTrade?.fobUnitType, detail.sourcingTrade?.minimumOrderUnitType].some(
       (unit) => unit !== undefined && unit !== 'Piece',
     );
+  const wholesaleSku = detail.productType === 'wholesale';
+  const unsupportedWholesaleSku =
+    wholesaleSku &&
+    (detail.wholesaleTrade?.saleType !== 'normal' ||
+      detail.wholesaleTrade.unitType !== 'Piece' ||
+      (detail.currencyLexeme !== undefined && currency !== 'USD'));
 
   const sourceMoq = positiveIntegerQuantity(detail.moqLexeme);
 
@@ -272,9 +278,18 @@ export function normalizeProductDetail(input: {
   if (detail.skus.length > 0) {
     for (const sku of detail.skus) {
       const offerKey = alibabaOfferKey(connectionId, sourceProductId, sku.sourceSkuId);
-      const context: PricingContext = { ...contextBase, offerKey, sourceSkuId: sku.sourceSkuId };
+      // product.add specifies USD for wholesale SKU prices (apiId=25347);
+      // product.get returns their quantity discounts without a currency field
+      // (apiId=25439). Apply that contract only to normal per-piece wholesale
+      // SKUs. The product's reference amount is never a SKU price fallback.
+      const context: PricingContext = {
+        ...contextBase,
+        ...(wholesaleSku && !unsupportedWholesaleSku ? { currency: 'USD' as const } : {}),
+        offerKey,
+        sourceSkuId: sku.sourceSkuId,
+      };
       const pricing =
-        unsupported || unsupportedSaleUnit
+        unsupported || unsupportedSaleUnit || unsupportedWholesaleSku
           ? unavailablePricing(context)
           : sku.ladderPrices && sku.ladderPrices.length > 0
             ? tieredPricing(sku.ladderPrices, context)

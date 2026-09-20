@@ -356,6 +356,94 @@ test('wholesale USD quote is product-scoped, tolerates only decimal serializatio
   }
 });
 
+test('wholesale SKU quantity prices retain the USD contract when product.get omits currency', () => {
+  // Redacted headphones wire shape with synthetic amounts: five units cost
+  // 4.20 each, not the 3.90 product reference. Never copy that into the SKU.
+  const observation = observeRaw({
+    product_id: 'wholesale-headphones',
+    product_type: 'wholesale',
+    wholesale_trade: {
+      price: 3.9,
+      min_order_quantity: 5,
+      sale_type: 'normal',
+      unit_type: 'Piece',
+    },
+    product_sku: {
+      skus: {
+        sku_definition: [
+          {
+            sku_id: 'blue',
+            bulk_discount_prices: {
+              bulk_discount_price: [
+                { start_quantity: 5, price: 4.2 },
+                { start_quantity: 500, price: 4 },
+                { start_quantity: 1000, price: 3.9 },
+              ],
+            },
+          },
+          { sku_id: 'unquoted' },
+        ],
+      },
+    },
+  });
+  assert.deepEqual(observation.offers.find((o) => o.externalVariantId === 'blue')?.pricing, {
+    mode: 'tiered',
+    currency: 'USD',
+    minimumOrderQuantity: 5,
+    tiers: [
+      { minimumQuantity: 5, maximumQuantity: 499, unitAmountMinor: 420 },
+      { minimumQuantity: 500, maximumQuantity: 999, unitAmountMinor: 400 },
+      { minimumQuantity: 1000, unitAmountMinor: 390 },
+    ],
+  });
+  assert.equal(
+    observation.offers.find((o) => o.externalVariantId === 'unquoted')?.pricing.mode,
+    'unavailable',
+  );
+  assert.deepEqual(observation.offers.find((o) => !o.sourceVariantKey)?.pricing, {
+    mode: 'fixed',
+    currency: 'USD',
+    amountMinor: 390,
+    minimumOrderQuantity: 5,
+  });
+});
+
+test('wholesale SKU currency does not bless conflicting currencies, units or invalid tiers', () => {
+  const product = {
+    product_id: 'wholesale-boundaries',
+    product_type: 'wholesale',
+    wholesale_trade: {
+      price: '2.90',
+      min_order_quantity: 5,
+      sale_type: 'normal',
+      unit_type: 'Piece',
+    },
+    product_sku: { skus: [{ sku_id: 'blue', price: '3.20' }] },
+  };
+  assert.equal(observeRaw(product).offers.find((o) => o.sourceVariantKey)?.pricing.mode, 'fixed');
+  for (const patch of [
+    { currency: 'CNY' },
+    { currency: 'EUR' },
+    { wholesale_trade: { ...product.wholesale_trade, sale_type: 'batch' }, currency: 'USD' },
+    { wholesale_trade: { ...product.wholesale_trade, unit_type: 'Kilogram' }, currency: 'USD' },
+    { wholesale_trade: undefined },
+    { product_type: 'sourcing', sourcing_trade: { fob_unit_type: 'Piece' } },
+    { product_type: undefined },
+    { product_sku: { skus: [{ sku_id: 'blue', price: '3.201' }] } },
+    {
+      product_sku: {
+        skus: [{ sku_id: 'blue', bulk_discount_prices: [{ start_quantity: -1, price: '3.20' }] }],
+      },
+    },
+  ]) {
+    assert.equal(
+      observeRaw({ ...product, ...patch }).offers.find((o) => o.sourceVariantKey)?.pricing.mode,
+      'unavailable',
+      JSON.stringify(patch),
+    );
+  }
+});
+
 test('MOQ below the first quoted tier remains known, without filling the unquoted gap', () => {
   const observation = observeRaw({
     product_id: 'tier-gap',

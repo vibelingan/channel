@@ -1,9 +1,17 @@
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import {
+  createAlibabaPricingAdapter,
+  resolveManualCatalogPricing,
+} from '@vibelingan-channel/shared/catalog';
+import {
   ALIBABA_SYNC_LEASE_COLLECTION,
   type AlibabaLeaseGuard,
   holdsAlibabaLease,
 } from './adapter.ts';
+import {
+  type AlibabaPricingEvidenceExpectation,
+  alibabaPricingFingerprint,
+} from './alibaba-pricing-fingerprint.ts';
 
 export const ALIBABA_PRODUCT_LINK_LIMIT = 40;
 
@@ -35,6 +43,14 @@ export type AlibabaProductMutationInput = AlibabaProductExpectation &
         sourceKey: string;
         expectedClaim: AlibabaProductLinkIdentity | null;
         draft: Record<string, unknown>;
+      }
+    | {
+        action: 'repair-pricing';
+        sourceKey: string;
+        guard: AlibabaLeaseGuard;
+        expectedProductHash: string;
+        expectedEvidence: AlibabaPricingEvidenceExpectation[];
+        patch: Record<string, unknown>;
       }
     | {
         action: 'promote';
@@ -331,6 +347,91 @@ export async function runAlibabaProductMutation(
   }
 
   if (!product || revision === null) return { ok: false, reason: 'identity-conflict' };
+  if (input.action === 'repair-pricing') {
+    if (
+      !alreadyLinked ||
+      primary !== input.sourceKey ||
+      source.active !== true ||
+      product.archived === true ||
+      alibabaPricingFingerprint(product) !== input.expectedProductHash
+    )
+      return { ok: false, reason: 'identity-conflict' };
+    if (
+      resolveManualCatalogPricing({ ...product, catalogPricingMode: product.catalogPricingMode })
+        .source !== 'inherit'
+    )
+      return { ok: false, reason: 'invalid-patch' };
+    const fields = Object.keys(input.patch);
+    const pricing = input.patch.alibabaCatalogPricing;
+    const offerKey = input.patch.alibabaPrimaryOfferKey;
+    if (
+      fields.length !== 2 ||
+      fields.some((key) => !['alibabaCatalogPricing', 'alibabaPrimaryOfferKey'].includes(key)) ||
+      !pricing ||
+      typeof pricing !== 'object' ||
+      Array.isArray(pricing) ||
+      typeof offerKey !== 'string'
+    )
+      return { ok: false, reason: 'invalid-patch' };
+    const publicPricing = Object.fromEntries(
+      Object.entries(pricing).filter(
+        ([key]) => !['sourceOfferKey', 'sourceProductId', 'sourceSkuId'].includes(key),
+      ),
+    );
+    if (createAlibabaPricingAdapter().resolve(primary, publicPricing).state !== 'available')
+      return { ok: false, reason: 'invalid-patch' };
+    if (
+      input.expectedEvidence.length > 48 ||
+      !input.expectedEvidence.some(
+        (e) => e.collection === 'alibabaSourceProducts' && e.id === input.sourceKey,
+      ) ||
+      !input.expectedEvidence.some(
+        (e) => e.collection === 'alibabaSupplierOffers' && e.id === offerKey,
+      ) ||
+      !input.expectedEvidence.some(
+        (e) => e.collection === 'alibabaSyncRuns' && e.id === source.lastSeenRunId,
+      )
+    )
+      return { ok: false, reason: 'invalid-patch' };
+    for (const expected of input.expectedEvidence) {
+      if (
+        !['alibabaSourceProducts', 'alibabaSupplierOffers', 'alibabaSyncRuns'].includes(
+          expected.collection,
+        )
+      )
+        return { ok: false, reason: 'invalid-patch' };
+      const row = await transaction.get(expected.collection, expected.id);
+      if (
+        !row ||
+        alibabaPricingFingerprint(row) !== expected.hash ||
+        (expected.collection === 'alibabaSyncRuns' && row.status !== 'completed')
+      )
+        return { ok: false, reason: 'identity-conflict' };
+      if (
+        expected.collection === 'alibabaSupplierOffers' &&
+        (row.sourceKey !== input.sourceKey ||
+          row.active !== true ||
+          alibabaPricingFingerprint(row.pricing) !== alibabaPricingFingerprint(pricing))
+      )
+        return { ok: false, reason: 'identity-conflict' };
+    }
+    const lease = await transaction.get(ALIBABA_SYNC_LEASE_COLLECTION, input.guard.connectionId);
+    // Re-evaluate wall time on native retries, rather than trusting the old plan's timestamp.
+    if (
+      !lease ||
+      input.guard.connectionId !== source.connectionId ||
+      !holdsAlibabaLease(lease, input.guard.holder, input.guard.fence, new Date().toISOString())
+    )
+      return { ok: false, reason: 'fence-rejected' };
+    await transaction.set(ALIBABA_SYNC_LEASE_COLLECTION, lease);
+    await transaction.set('products', {
+      ...product,
+      ...input.patch,
+      alibabaLinkRevision: revision + 1,
+      updatedAt: input.now,
+    });
+    return { ok: true, revision: revision + 1, clearedLinks: 0 };
+  }
   if (input.action === 'pin') {
     if (!alreadyLinked || primary !== input.sourceKey) return { ok: false, reason: 'not-linked' };
     if (input.offerKey !== '') {

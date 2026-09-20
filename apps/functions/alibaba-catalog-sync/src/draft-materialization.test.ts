@@ -134,7 +134,12 @@ test('materializes active sources in stable cursor pages and is idempotent', asy
     limit: 2,
     now: () => '2026-09-04T08:00:00.000Z',
   });
-  assert.deepEqual(first, {
+  assert.deepEqual(
+    first.pricing.map((row) => row.status),
+    ['incomplete-run', 'incomplete-run'],
+  );
+  const { pricing: _pricing, ...firstCounts } = first;
+  assert.deepEqual(firstCounts, {
     afterSourceKey: '',
     nextSourceKey: 'source-2',
     done: false,
@@ -200,6 +205,7 @@ test('propagates identity conflicts without changing products or links', async (
     created: 0,
     existing: 0,
     failures: [{ sourceKey: 'source-conflict', reason: conflict.reason }],
+    pricing: [],
   });
   assert.deepEqual(store.products, before.products);
   assert.deepEqual(store.alibabaProductLinks, before.alibabaProductLinks);

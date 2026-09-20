@@ -1,18 +1,60 @@
 # Catalog Navigation and Subcategories Execution
 
-Updated: 2026-09-18. This document is the restart checkpoint after VS Code crash.
+Updated: 2026-09-19. This document is the restart checkpoint after VS Code crash.
 Branch: feat/catalog-multi-subcategories
 Starting main: ba3cd6296cddf3eb0fd67866b0819cd7b0db33bd
-Status: Pagination deployed and merged; multi-subcategory implementation locally validated, delivery pending.
+Status: Pagination deployed and merged; multi-subcategories deployed and accepted, main PR finalization pending.
 Current phase: deliver (taxonomy; separate release)
-Current/next MIU: 8 (final CI, test deployment, cloud acceptance and main-based PR).
+Current/next MIU: 8 (main-based PR #58 merge and post-merge CI).
 
 ## Latest Delivery and Resume State
+
+- Taxonomy application commit: 9305e3acf04bd0cf1bd43efaf360c7bf12bc0307;
+  feature CI 35355586034 succeeded after the test-only session-reuse correction.
+  PR https://github.com/vibelingan/channel/pull/58 remains main-based.
+- Taxonomy release fd6c1b4c0fa0e7af4b49e2653085f0e732a26c34 was pushed normally
+  to test, with parents 84a813f / 9305e3a. Independent integration review confirmed
+  exact preservation of both parent trees, without importing price or AI branches.
+  Release root/E2E/site-test TypeScript, Biome, SDK and craft checks passed.
+  Craft: 12 baseline findings, zero new findings, zero execution errors, exit 0.
+- Test CI 35359859809 and Deploy Test 35359860254 both succeeded for fd6c1b4.
+  Deployment includes same-SHA function smoke, public/catalog browser acceptance,
+  and the complete reusable CI with isolated admin/taxonomy and AI checks.
+  Live public-api and admin health independently confirmed release fd6c1b4.
+- Read-only live acceptance at https://www.supplychainsai.com passed all four
+  families at exact widths 390 and 1440: menu names/child links agree with the
+  public registry, real visible product images load, no horizontal overflow,
+  unknown child URLs fail closed and explicit Clear filters recovers the list.
+  Child selection survives reload. Public registry exposes only approved fields.
+  Existing totals remain headphones 120, AI gadgets 5, toys 3, miscellaneous 0.
+  Headphones wired/office/bluetooth totals are 8/7/14; collecting every filtered
+  page at pageSize 12 matches each count with no duplicate products.
+- Seven sampled existing public unit prices matched the predeploy values. The
+  price repair branch remains unmerged; existing unavailable-price cards are
+  not claimed fixed by this taxonomy release. No customer category assignments,
+  source mappings, prices or taxonomy registries were changed during live acceptance.
+  Four-family admin mutation journeys used disposable local data; the earlier
+  real CloudBase transaction/query probe used cleaned synthetic collections.
+- Live evidence: /tmp/channel-taxonomy-live-fd6c1b4/ (16 screenshots plus the
+  desktop/API report), /tmp/channel-taxonomy-live-desktop.log, and temporary
+  /tmp/channel-taxonomy-live-acceptance.mjs. The first run passed all four mobile
+  views, then timed out after 60 seconds while the desktop headphones list was
+  loading. Independent API reads returned 200 (products about 1.6 seconds);
+  an instrumented desktop rerun passed all four views without application changes
+  or relaxed assertions. The original timeout's cause is unproven; this was not
+  a zero-flake combined manual run. Both browser contexts were closed.
+- Last pre-merge refresh: main b0015c0, test fd6c1b4, price branch
+  88a669090c3352a8dd924b4026450fdaffdb62cf unchanged, AI PR #57 still open.
+  PR #58 is mergeable/clean with no reviews. Preserve other agents' contracts;
+  recheck shared refs before merge. Final merge and post-merge CI evidence will
+  be attached to PR #58; this checkpoint does not predeclare either successful.
+
+Historical implementation and verification checkpoints follow.
 
 - Pagination feature commit: ad0c587e9d384c368993d52e7cdafcdef849e691.
   PR https://github.com/vibelingan/channel/pull/56 merged normally into main as
   b0015c015c7410b9b1c383ee5a83bbc160b8d5b8. No test history merged into main.
-- Deployed test commit: 84a813f633075290ca48334908519aeb1bef84f8, parents
+- Pagination deployed test commit: 84a813f633075290ca48334908519aeb1bef84f8, parents
   75475b1bb1bf6f6b02f596909f57839a27d0f451 and ad0c587. Release worktree:
   .claude/worktrees/catalog-pagination-test-release (clean).
 - Feature CI 35267490781, test CI 35297514053, and Deploy Test 35297514253
@@ -30,7 +72,7 @@ Current/next MIU: 8 (final CI, test deployment, cloud acceptance and main-based 
   desktop detail-return wait timed out; diagnostic rerun passed without source
   changes. Cause is unproven; do not label the entire manual run zero-flake.
 - Main post-merge CI 35301157888 succeeded for exact b0015c0.
-- Taxonomy work is uncommitted on feat/catalog-multi-subcategories, based on
+- At the initial taxonomy checkpoint, work was uncommitted on feat/catalog-multi-subcategories, based on
   b0015c0; dirty changes were preserved when switching from the merged PR branch.
   Parent worktree path remains catalog-navigation-subcategories.
 - Implemented local slices: shared registry/assignment validators (10 tests),
@@ -164,9 +206,9 @@ Current/next MIU: 8 (final CI, test deployment, cloud acceptance and main-based 
   The test now reuses its actual API-issued session for the same local origin;
   no authentication/limiter implementation changed. Focused production taxonomy
   journey passed with zero retries, SINGLE_SESSION_EXIT=0, 52.6s, owned DB cleaned.
-- Still required: green same-SHA CI, test deployment
-  and main-based PR delivery. Do not treat any earlier test count as final SHA proof.
-  No subcategory release has yet occurred.
+- That pre-release checkpoint still required green same-SHA CI, test deployment
+  and main-based PR delivery. The release and live-acceptance results above supersede
+  that status; earlier test counts are not substitutes for the exact release evidence.
 
 Earlier checkpoints below are historical evidence, not the current release state.
 
@@ -218,8 +260,8 @@ Earlier checkpoints below are historical evidence, not the current release state
 7. Public child filters/navigation using one classification source and paged APIs.
 8. Taxonomy tests, migration verification, independent review and separate release.
 
-Units 5-7 are implemented and locally validated. Unit 8 delivery remains pending;
-neither local validation nor the earlier pagination release completes taxonomy delivery.
+Units 5-7 are implemented and validated. Unit 8 has passing feature/release CI,
+successful test deployment and live acceptance; main PR finalization remains pending.
 Each unit uses small testable slices and immediate focused checks. No destructive
 data migration or broad customer-data modification is hidden in a UI release.
 
