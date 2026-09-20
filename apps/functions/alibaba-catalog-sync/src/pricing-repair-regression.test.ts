@@ -20,19 +20,23 @@ import { materializeAlibabaDraftPage } from './draft-materialization.ts';
 import { handleAlibabaSyncRequest } from './handler.ts';
 import { planProductPricingRepair, repairMissingSourcePricing } from './pricing-repair.ts';
 
-async function linked(db: JsonFileAdapter, extra: Record<string, unknown> = {}) {
+async function linked(
+  db: JsonFileAdapter,
+  extra: Record<string, unknown> = {},
+  sourceProductId = 'g2',
+) {
   const product = await db.create('products', {
-    _id: 'g2-product',
+    _id: `${sourceProductId}-product`,
     name: 'Same name',
     published: true,
     archived: false,
-    alibabaPrimarySourceKey: 'source-g2',
+    alibabaPrimarySourceKey: `source-${sourceProductId}`,
     ...extra,
   });
   await db.create('alibabaProductLinks', {
-    _id: 'source-g2',
-    sourceKey: 'source-g2',
-    sourceProductId: 'g2',
+    _id: `source-${sourceProductId}`,
+    sourceKey: `source-${sourceProductId}`,
+    sourceProductId,
     connectionId: 'primary',
     productId: product._id,
     linkedAt: '2026-09-03T00:00:00.000Z',
@@ -45,43 +49,158 @@ async function applyPage() {
   return repairMissingSourcePricing({ mode: 'apply', expectedPageHash: dry.pageHash });
 }
 
-async function fixture(t: TestContext) {
+async function fixture(t: TestContext, sourceProductIds = ['g2']) {
   const dir = mkdtempSync(join(tmpdir(), 'catalog-pricing-regression-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const db = new JsonFileAdapter(join(dir, 'db.json'));
   setAdapter(db);
   await db.create('alibabaSyncRuns', { _id: 'completed-run', status: 'completed' });
-  await db.create('alibabaSourceProducts', {
-    _id: 'source-g2',
-    sourceKey: 'source-g2',
-    connectionId: 'primary',
-    sourceProductId: 'g2',
-    active: true,
-    lastSeenRunId: 'completed-run',
-    lastChangedRunId: 'completed-run',
-    sourceTitle: 'G2',
-    sourceCategoryId: 'source-category',
-  });
-  await db.create('alibabaSupplierOffers', {
-    _id: 'offer-g2',
-    sourceKey: 'source-g2',
-    sourceProductId: 'g2',
-    sourceSkuId: '@product',
-    active: true,
-    lastSeenRunId: 'completed-run',
-    pricing: {
-      schemaVersion: 'alibaba-catalog-pricing-v1',
-      source: 'alibaba',
-      mode: 'fixed',
-      currency: 'USD',
-      amountMinor: 290,
-      sourceProductId: 'g2',
-      sourceOfferKey: 'offer-g2',
-      syncedAt: '2026-09-03T00:00:00.000Z',
-    },
-  });
+  for (const sourceProductId of sourceProductIds) {
+    await db.create('alibabaSourceProducts', {
+      _id: `source-${sourceProductId}`,
+      sourceKey: `source-${sourceProductId}`,
+      connectionId: 'primary',
+      sourceProductId,
+      active: true,
+      lastSeenRunId: 'completed-run',
+      lastChangedRunId: 'completed-run',
+      sourceTitle: sourceProductId.toUpperCase(),
+      sourceCategoryId: 'source-category',
+    });
+    await db.create('alibabaSupplierOffers', {
+      _id: `offer-${sourceProductId}`,
+      sourceKey: `source-${sourceProductId}`,
+      sourceProductId,
+      sourceSkuId: '@product',
+      active: true,
+      lastSeenRunId: 'completed-run',
+      pricing: {
+        schemaVersion: 'alibaba-catalog-pricing-v1',
+        source: 'alibaba',
+        mode: 'fixed',
+        currency: 'USD',
+        amountMinor: 290,
+        sourceProductId,
+        sourceOfferKey: `offer-${sourceProductId}`,
+        syncedAt: '2026-09-03T00:00:00.000Z',
+      },
+    });
+  }
   return db;
 }
+
+test('repair retains confirmed rows and stops later writes on an unconfirmed row', async (t) => {
+  for (const failure of [
+    'mutation-before-commit',
+    'mutation-after-commit',
+    'readback',
+    'guard',
+    'mutation-and-release',
+  ])
+    await t.test(failure, async (t) => {
+      const sourceProductIds = ['g2', 'g3', 'g4'];
+      const db = await fixture(t, sourceProductIds);
+      for (const sourceProductId of sourceProductIds) await linked(db, {}, sourceProductId);
+      const dry = await repairMissingSourcePricing({});
+      const mutation = db.mutateAlibabaProduct.bind(db);
+      const getProduct = db.get.bind(db);
+      const renew = db.renewAlibabaSyncLease.bind(db);
+      const secret = 'private-database-token-do-not-expose';
+      const throwAfterCommit =
+        failure === 'mutation-after-commit' || failure === 'mutation-and-release';
+      let mutations = 0;
+      let readbackFailed = false;
+      t.mock.method(db, 'mutateAlibabaProduct', async (input: AlibabaProductMutationInput) => {
+        mutations++;
+        if (mutations === 2 && failure === 'mutation-before-commit') throw new Error(secret);
+        const result = await mutation(input);
+        if (mutations === 2 && throwAfterCommit) throw new Error(secret);
+        return result;
+      });
+      t.mock.method(db, 'get', async (...args: Parameters<JsonFileAdapter['get']>) => {
+        if (
+          failure === 'readback' &&
+          mutations === 2 &&
+          args[0] === 'products' &&
+          args[1] === 'g3-product'
+        ) {
+          readbackFailed = true;
+          throw new Error(secret);
+        }
+        return getProduct(...args);
+      });
+      t.mock.method(
+        db,
+        'renewAlibabaSyncLease',
+        async (...args: Parameters<JsonFileAdapter['renewAlibabaSyncLease']>) => {
+          if (failure === 'guard' && mutations === 1) throw new Error(secret);
+          return renew(...args);
+        },
+      );
+      if (failure === 'mutation-and-release')
+        t.mock.method(db, 'releaseAlibabaSyncLease', async () => {
+          throw new Error(secret);
+        });
+      const applied = await repairMissingSourcePricing({
+        mode: 'apply',
+        expectedPageHash: dry.pageHash,
+      });
+      assert.equal(applied.visited, 3);
+      assert.equal(applied.eligible, 3);
+      assert.equal(applied.repaired, 1);
+      assert.equal(applied.pageHash, dry.pageHash);
+      assert.equal(applied.nextId, dry.nextId);
+      assert.equal(
+        applied.stopped,
+        failure === 'mutation-and-release'
+          ? 'write-unconfirmed;lease-release-unconfirmed'
+          : 'write-unconfirmed',
+      );
+      assert.deepEqual(applied.deferred, ['g3-product']);
+      assert.deepEqual(
+        applied.outcomes.map((row) => row.status),
+        ['repaired', 'error', 'eligible'],
+      );
+      assert.deepEqual(applied.outcomes[2], dry.outcomes[2]);
+      assert.match(applied.outcomes[1]?.reason ?? '', /unconfirmed.*re-audit/i);
+      assert.equal(JSON.stringify(applied).includes(secret), false);
+      assert.equal(mutations, failure === 'guard' ? 1 : 2);
+      assert.equal(readbackFailed, failure === 'readback');
+      assert.ok((await getProduct('products', 'g2-product'))?.alibabaCatalogPricing);
+      assert.equal(
+        Boolean((await getProduct('products', 'g3-product'))?.alibabaCatalogPricing),
+        throwAfterCommit || failure === 'readback',
+      );
+      assert.equal((await getProduct('products', 'g4-product'))?.alibabaCatalogPricing, undefined);
+    });
+});
+
+test('repair returns confirmed results with a stop flag when lease release is unconfirmed', async (t) => {
+  for (const failure of ['throw', 'false'])
+    await t.test(failure, async (t) => {
+      const db = await fixture(t);
+      await linked(db);
+      const secret = 'private-lease-token-do-not-expose';
+      const release = t.mock.method(db, 'releaseAlibabaSyncLease', async () => {
+        if (failure === 'throw') throw new Error(secret);
+        return false;
+      });
+      const dry = await repairMissingSourcePricing({});
+      assert.equal(release.mock.callCount(), 0);
+      const applied = await repairMissingSourcePricing({
+        mode: 'apply',
+        expectedPageHash: dry.pageHash,
+      });
+      assert.equal(applied.repaired, 1);
+      assert.equal(applied.outcomes[0]?.status, 'repaired');
+      assert.equal(applied.stopped, 'lease-release-unconfirmed');
+      assert.equal(applied.pageHash, dry.pageHash);
+      assert.deepEqual(applied.deferred, []);
+      assert.equal(release.mock.callCount(), 1);
+      assert.equal(JSON.stringify(applied).includes(secret), false);
+      assert.ok((await db.get('products', 'g2-product'))?.alibabaCatalogPricing);
+    });
+});
 
 test('repair preserves every field outside price and internal revision/timestamp', async (t) => {
   const db = await fixture(t);

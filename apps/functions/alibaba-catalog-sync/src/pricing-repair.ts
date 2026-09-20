@@ -309,13 +309,15 @@ export async function planProductPricingRepair(product: CollectionDoc): Promise<
 
 async function withPricingLease<T>(
   operation: (guard: () => Promise<AlibabaLeaseGuard>) => Promise<T>,
+  onReleaseFailure?: (result: T) => T,
 ): Promise<T> {
   const holder = `pricing-repair-${randomUUID()}`;
   const lease = await acquireAlibabaSyncLease('primary', holder, now(), ALIBABA_SYNC_LEASE_TTL_MS);
   if (lease.result !== 'granted')
     throw new Error(`Pricing repair cannot start: lease ${lease.result}.`);
+  let completion: { ok: true; result: T } | { ok: false; error: unknown };
   try {
-    return await operation(async () => {
+    const result = await operation(async () => {
       if (
         !(await renewAlibabaSyncLease(
           'primary',
@@ -328,9 +330,22 @@ async function withPricingLease<T>(
         throw new Error('Pricing repair lost the sync lease. Re-audit this page.');
       return { connectionId: 'primary', holder, fence: lease.fence, now: now() };
     });
-  } finally {
-    await releaseAlibabaSyncLease('primary', holder, lease.fence, now());
+    completion = { ok: true, result };
+  } catch (error) {
+    completion = { ok: false, error };
   }
+  let released: boolean;
+  try {
+    released = await releaseAlibabaSyncLease('primary', holder, lease.fence, now());
+  } catch {
+    released = false;
+  }
+  if (!released) {
+    if (completion.ok && onReleaseFailure) return onReleaseFailure(completion.result);
+    throw new Error('Pricing repair lease release unconfirmed; re-audit before retrying.');
+  }
+  if (!completion.ok) throw completion.error;
+  return completion.result;
 }
 
 /** Called after a requested link/catch-up, using the same pricing owner as historical repair. */
@@ -440,23 +455,33 @@ export async function repairMissingSourcePricing(input: z.infer<typeof PricingRe
     if (mode === 'apply' && !stopped && guard) {
       for (const [index, plan] of plans.entries()) {
         if (!plan.write) continue;
-        const result = await mutateAlibabaProduct({
-          ...plan.write,
-          guard: await guard(),
-          now: now(),
-        });
-        if (!result.ok) {
-          outcomes[index] = { ...plan.outcome, status: 'conflict', reason: result.reason };
-          stopped = result.reason;
+        try {
+          const result = await mutateAlibabaProduct({
+            ...plan.write,
+            guard: await guard(),
+            now: now(),
+          });
+          if (!result.ok) {
+            outcomes[index] = { ...plan.outcome, status: 'conflict', reason: result.reason };
+            stopped = result.reason;
+            break;
+          }
+          await verifyPricingReadback(plan.outcome, result.revision);
+          outcomes[index] = {
+            ...plan.outcome,
+            status: 'repaired',
+            reason: 'Price-only write verified.',
+          };
+          repaired++;
+        } catch {
+          outcomes[index] = {
+            ...plan.outcome,
+            status: 'error',
+            reason: 'Price repair unconfirmed; re-audit this product before retrying.',
+          };
+          stopped = 'write-unconfirmed';
           break;
         }
-        await verifyPricingReadback(plan.outcome, result.revision);
-        outcomes[index] = {
-          ...plan.outcome,
-          status: 'repaired',
-          reason: 'Price-only write verified.',
-        };
-        repaired++;
       }
     }
     const deferred = outcomes
@@ -486,5 +511,12 @@ export async function repairMissingSourcePricing(input: z.infer<typeof PricingRe
     };
   };
   // Audit does not acquire a lease or write a manifest collection.
-  return mode === 'apply' ? withPricingLease(execute) : execute();
+  return mode === 'apply'
+    ? withPricingLease(execute, (page) => ({
+        ...page,
+        stopped: page.stopped
+          ? `${page.stopped};lease-release-unconfirmed`
+          : 'lease-release-unconfirmed',
+      }))
+    : execute();
 }

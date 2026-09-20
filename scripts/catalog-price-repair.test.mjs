@@ -84,6 +84,12 @@ test('apply verifies every repaired record before checkpointing and stops on sta
     /page-changed/,
   );
   assert.equal(manifest.nextApplyIndex, 0);
+  assert.equal(manifest.status, 'reconciliation-required');
+  const newAudit = {
+    status: 'ready',
+    pages: [{ afterId: null, result: result('dry-run', 0, 1) }],
+    nextApplyIndex: 0,
+  };
   const verified = [];
   await applyCatalog(
     async (input) => {
@@ -91,12 +97,12 @@ test('apply verifies every repaired record before checkpointing and stops on sta
       return result('apply', 0, 1);
     },
     async () => {},
-    manifest,
+    newAudit,
     async (row) => verified.push(row.productId),
   );
   assert.deepEqual(verified, ['p-000']);
-  assert.equal(manifest.nextApplyIndex, 1);
-  assert.equal(manifest.status, 'applied');
+  assert.equal(newAudit.nextApplyIndex, 1);
+  assert.equal(newAudit.status, 'applied');
 });
 
 test('lost acknowledgement and failed public verification cannot advance apply', async () => {
@@ -121,6 +127,54 @@ test('lost acknowledgement and failed public verification cannot advance apply',
       new RegExp(failure),
     );
     assert.equal(manifest.nextApplyIndex, 0);
+  }
+});
+
+test('partial acknowledgements and failed readback remain durable and prohibit replay', async () => {
+  for (const failure of ['transport', 'partial', 'verify']) {
+    const manifest = {
+      status: 'ready',
+      pages: [{ afterId: null, result: result('dry-run', 0, 2) }],
+      nextApplyIndex: 0,
+    };
+    const saved = [];
+    const response = result('apply', 0, 2);
+    if (failure === 'partial') {
+      response.repaired = 1;
+      response.outcomes[1].status = 'error';
+      response.deferred = ['p-001'];
+      response.stopped = 'write-unconfirmed';
+    }
+    await assert.rejects(
+      applyCatalog(
+        async () => {
+          assert.equal(saved.at(-1).pages[0].attempt.status, 'pending');
+          if (failure === 'transport') throw Error('transport');
+          return response;
+        },
+        async (value) => saved.push(structuredClone(value)),
+        manifest,
+        async () => {
+          assert.deepEqual(saved.at(-1).pages[0].attempt.response, response);
+          if (failure === 'verify') throw Error('verify');
+        },
+      ),
+    );
+    const durable = saved.at(-1);
+    assert.equal(durable.status, 'reconciliation-required');
+    assert.equal(durable.nextApplyIndex, 0);
+    assert.equal(durable.pages[0].applied, undefined);
+    assert.equal(durable.pages[0].attempt.status, 'unconfirmed');
+    if (failure !== 'transport') assert.deepEqual(durable.pages[0].attempt.response, response);
+    await assert.rejects(
+      applyCatalog(
+        async () => assert.fail('A possibly committed page must not be replayed'),
+        async () => {},
+        durable,
+        async () => {},
+      ),
+      /reconcil/i,
+    );
   }
 });
 

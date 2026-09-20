@@ -88,28 +88,44 @@ export async function auditCatalog(call, save, manifest) {
 }
 
 export async function applyCatalog(call, save, manifest, verifyProduct) {
+  if (
+    manifest.status === 'reconciliation-required' ||
+    manifest.pages.some((page) => page.attempt && page.attempt.status !== 'verified')
+  )
+    throw new Error(
+      'Reconciliation required: verify every eligible product on the attempted page, then create a new audit manifest. Do not replay this manifest.',
+    );
   if (!['ready', 'applying'].includes(manifest.status))
     throw new Error('A completed dry-run manifest is required.');
   manifest.status = 'applying';
   await save(manifest);
   while (manifest.nextApplyIndex < manifest.pages.length) {
     const page = manifest.pages[manifest.nextApplyIndex];
-    const result = verifyPage(
-      await call({
+    page.attempt = { status: 'pending', startedAt: new Date().toISOString() };
+    await save(manifest);
+    try {
+      const response = await call({
         mode: 'apply',
         expectedPageHash: page.result.pageHash,
         ...(page.afterId ? { afterId: page.afterId } : {}),
-      }),
-      'apply',
-      page.afterId,
-    );
-    if (result.pageHash !== page.result.pageHash)
-      throw new Error('Applied response does not match the audited page.');
-    for (const row of result.outcomes.filter((row) => row.status === 'repaired'))
-      await verifyProduct(row);
-    page.applied = result;
-    manifest.nextApplyIndex++;
-    await save(manifest);
+      });
+      page.attempt = { ...page.attempt, status: 'received', response };
+      await save(manifest);
+      const result = verifyPage(response, 'apply', page.afterId);
+      if (result.pageHash !== page.result.pageHash)
+        throw new Error('Applied response does not match the audited page.');
+      for (const row of result.outcomes.filter((row) => row.status === 'repaired'))
+        await verifyProduct(row);
+      page.applied = result;
+      page.attempt.status = 'verified';
+      manifest.nextApplyIndex++;
+      await save(manifest);
+    } catch (error) {
+      page.attempt.status = 'unconfirmed';
+      manifest.status = 'reconciliation-required';
+      await save(manifest);
+      throw error;
+    }
   }
   manifest.status = 'applied';
   await save(manifest);
