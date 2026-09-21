@@ -19,6 +19,7 @@ import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { type SessionClaims, signSession, verifySession } from '@vibelingan-channel/auth/jwt';
 import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password';
 import {
+  type CatalogProductSaveInput,
   UnknownCollectionError,
   acquireImageMutation,
   alibabaLinkRevision,
@@ -1416,7 +1417,7 @@ async function acknowledgeAlibabaProductReview(
   product: CollectionDoc,
   values: Record<string, unknown>,
   reviewerId: string,
-  requireDetailApproval = false,
+  requireDetailApproval: CatalogProductSaveInput['requireDetailApproval'] = false,
 ) {
   const data = { ...values };
   for (const field of ['slug', 'skuCode'] as const) {
@@ -1874,7 +1875,10 @@ async function updateAction(
       const acknowledgesReview =
         before?.alibabaReviewPending === true &&
         (values.published === true || values.archived === true);
-      const requiresApproval = config.enableDetailApproval === true && values.published === true;
+      // Compare price changes in the atomic save, while allowing non-price
+      // form edits to reach the subsequent detail review and approval.
+      const requiresApproval =
+        config.enableDetailApproval === true ? 'publication-or-pricing' : false;
       const transition =
         acknowledgesReview && before
           ? await acknowledgeAlibabaProductReview(before, values, claims.sub, requiresApproval)

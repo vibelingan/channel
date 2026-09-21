@@ -18,7 +18,11 @@ import { type AlertSender, createAlertSender } from './alerts.ts';
 import { type AlibabaSyncFunctionConfig, resolveOAuthConfig } from './config.ts';
 import { inspectAlibabaProductDetail, isAlibabaProductId } from './detail-inspection.ts';
 import { materializeAlibabaDraftPage } from './draft-materialization.ts';
-import { PricingRepairInputSchema, repairMissingSourcePricing } from './pricing-repair.ts';
+import {
+  PricingRepairInputSchema,
+  materializeCompletedProductPricing,
+  repairMissingSourcePricing,
+} from './pricing-repair.ts';
 
 export type { AlibabaSyncFunctionConfig } from './config.ts';
 import { linkExistingProduct, setPinnedOffer, unlinkProduct } from './linking.ts';
@@ -190,7 +194,7 @@ export async function handleAlibabaSyncRequest(
           `Link failed: ${result.reason}.`,
         );
       }
-      return ok(result);
+      return ok({ ...result, pricing: await materializeCompletedProductPricing(result.productId) });
     }
     case 'unlinkProduct': {
       const admin = await requireLiveAdmin(config, token);
@@ -270,7 +274,8 @@ export async function handleAlibabaSyncRequest(
       const admin = await requireLiveAdmin(config, token);
       if (!admin.ok) return admin;
       const payload = PricingRepairInputSchema.safeParse(parsed.data.data);
-      if (!payload.success) return err('VALIDATION_ERROR', 'Invalid pricing repair cursor.');
+      if (!payload.success)
+        return err('VALIDATION_ERROR', 'Invalid pricing repair mode, cursor or dry-run hash.');
       return ok(await repairMissingSourcePricing(payload.data));
     }
     case 'materializeDrafts': {

@@ -522,6 +522,7 @@ test('draft materialization is admin-only and validates its bounded cursor page'
       created: 0,
       existing: 0,
       failures: [],
+      pricing: [],
     });
   }
 });

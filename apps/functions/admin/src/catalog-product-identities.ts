@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { saveCatalogProductWithIdentities } from '@vibelingan-channel/db';
+import {
+  type CatalogProductSaveInput,
+  saveCatalogProductWithIdentities,
+} from '@vibelingan-channel/db';
 import {
   type CollectionDoc,
   normalizeProductSlug,
@@ -71,13 +74,13 @@ async function saveCatalogProduct(input: {
   mode: 'create' | 'update';
   productId: string;
   values: unknown;
-  requireDetailApproval?: boolean;
+  requireDetailApproval?: CatalogProductSaveInput['requireDetailApproval'];
 }): Promise<CatalogProductWriteTransition> {
   const result = await saveCatalogProductWithIdentities({
     mode: input.mode,
     productId: input.productId,
     data: canonicalizeIdentityFields(input.values),
-    ...(input.requireDetailApproval ? { requireDetailApproval: true } : {}),
+    ...(input.requireDetailApproval ? { requireDetailApproval: input.requireDetailApproval } : {}),
   });
   if (result.result === 'saved') return { doc: result.doc, previous: result.previous };
   if (result.result === 'conflict') {
@@ -111,7 +114,7 @@ export function createCatalogProductRecord(
 export function updateCatalogProductRecord(
   productId: string,
   values: unknown,
-  requireDetailApproval = false,
+  requireDetailApproval: CatalogProductSaveInput['requireDetailApproval'] = false,
 ): Promise<CatalogProductWriteTransition> {
   return saveCatalogProduct({ mode: 'update', productId, values, requireDetailApproval });
 }
