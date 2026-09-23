@@ -1,0 +1,342 @@
+import { type Locator, type Page, expect, test } from '@playwright/test';
+import type { ProductFamily } from '../../packages/shared/src/catalog-product.ts';
+import {
+  type CatalogClassificationAssignmentRequest,
+  CatalogClassificationAssignmentResultSchema,
+  type CatalogTaxonomy,
+  type CatalogTaxonomyCommand,
+  CatalogTaxonomyResultSchema,
+} from '../../packages/shared/src/catalog-taxonomy.ts';
+import type { CollectionDoc } from '../../packages/shared/src/collections.ts';
+import { type ListResult, adminAction, loginAdmin } from './helpers/admin-api';
+import {
+  e2e,
+  requireAdminCredentialsWhenEnabled,
+  requireCatalogLocalSeedWhenEnabled,
+} from './helpers/env';
+
+const enabled = e2e.catalogLocalSeed;
+// @skip-when outside the disposable local runner; CI runs this lane with owned DB and synthetic credentials, whose absence then throws below.
+test.skip(!enabled, 'Run through the disposable catalog-admin-local runner, never a live site.');
+requireCatalogLocalSeedWhenEnabled(enabled);
+requireAdminCredentialsWhenEnabled(enabled, 'local admin subcategory journey');
+if (
+  enabled &&
+  (!e2e.allowMutation || e2e.adminEmail !== 'admin@channel.local' || e2e.adminPassword !== 'admin')
+) {
+  throw new Error('Admin subcategories require the runner mutation opt-in and local credentials.');
+}
+test.describe.configure({ mode: 'serial', retries: 0 });
+
+const marker = `${e2e.runId} Admin subcategory`;
+
+async function choose(scope: Locator | Page, label: string, option: string) {
+  await scope
+    .getByRole('combobox', { name: label, exact: true })
+    .and(scope.locator('button'))
+    .click();
+  await scope
+    .getByRole('listbox', { name: label, exact: true })
+    .getByRole('option', { name: option, exact: true })
+    .click();
+}
+
+test('local admin subcategories: saved names, scoped filter, pagination and read-only summary', async ({
+  page,
+  request,
+}, info) => {
+  test.setTimeout(240_000);
+  const health = await request.get(`${e2e.apiUrl}/api/health`);
+  expect(health.ok()).toBe(true);
+  const healthBody: { data?: { mode?: unknown; db?: unknown } } = await health.json();
+  expect(healthBody.data?.mode).toBe('local');
+  expect(healthBody.data?.db).toBe(e2e.catalogLocalDb);
+  const session = await loginAdmin(request);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+
+  const readProduct = (id: string) =>
+    adminAction<CollectionDoc>(request, 'get', { collection: 'products', id }, session.token);
+  async function taxonomy(command: CatalogTaxonomyCommand): Promise<CatalogTaxonomy> {
+    const result = CatalogTaxonomyResultSchema.parse(
+      await adminAction<unknown>(request, 'catalogCategories', command, session.token),
+    );
+    if (!('registry' in result)) throw new Error(`Taxonomy ${command.operation}: ${result.status}`);
+    return result.registry;
+  }
+  const saveTaxonomy = (registry: CatalogTaxonomy) =>
+    taxonomy({
+      kind: 'taxonomy',
+      operation: 'save',
+      family: registry.family,
+      expectedRevision: registry.revision,
+      name: registry.name,
+      children: registry.children,
+    });
+  async function create(family: ProductFamily, index: number, extra: Record<string, unknown> = {}) {
+    return adminAction<CollectionDoc>(
+      request,
+      'create',
+      {
+        collection: 'products',
+        values: {
+          name: `${marker} ${family} ${String(index).padStart(2, '0')}`,
+          productFamily: family,
+          description: 'Disposable local admin subcategory acceptance product.',
+          published: false,
+          archived: false,
+          ...extra,
+        },
+      },
+      session.token,
+    );
+  }
+  async function assign(registry: CatalogTaxonomy, ids: string[], subcategoryIds: string[]) {
+    for (let start = 0; start < ids.length; start += 20) {
+      const batch = ids.slice(start, start + 20);
+      const products = await Promise.all(batch.map(readProduct));
+      const command: CatalogClassificationAssignmentRequest = {
+        kind: 'assignment',
+        operation: subcategoryIds.length ? 'replace' : 'clear',
+        family: registry.family,
+        taxonomyRevision: registry.revision,
+        subcategoryIds,
+        products: products.map((product) => {
+          if (typeof product.updatedAt !== 'string') throw new Error('Missing product revision');
+          return { productId: product._id, expectedUpdatedAt: product.updatedAt };
+        }),
+      };
+      const result = CatalogClassificationAssignmentResultSchema.parse(
+        await adminAction<unknown>(request, 'catalogCategories', command, session.token),
+      );
+      expect(result.results).toEqual(batch.map((productId) => ({ productId, status: 'saved' })));
+    }
+  }
+  async function rawList(data: Record<string, unknown>) {
+    const response = await request.post(`${e2e.apiUrl}/api/admin`, {
+      data: { action: 'list', data, token: session.token },
+    });
+    return (await response.json()) as {
+      ok: boolean;
+      data?: ListResult<CollectionDoc>;
+      error?: { code: string };
+    };
+  }
+
+  const initialToys = await taxonomy({ kind: 'taxonomy', operation: 'read', family: 'toys' });
+  const blocks = {
+    id: `${e2e.runId}-toys-blocks`,
+    name: `Blocks ${e2e.runId}`,
+    slug: `${e2e.runId}-toys-blocks`,
+    order: initialToys.children.length,
+    status: 'active' as const,
+  };
+  const puzzles = {
+    ...blocks,
+    id: `${e2e.runId}-toys-puzzles`,
+    name: `Puzzles ${e2e.runId}`,
+    slug: `${e2e.runId}-toys-puzzles`,
+    order: initialToys.children.length + 1,
+  };
+  let toys = await saveTaxonomy({
+    ...initialToys,
+    children: [...initialToys.children, blocks, puzzles],
+  });
+
+  // Default admin order is newest first; create the inspected rows last so they stay on page 1.
+  const blocksOnly: CollectionDoc[] = [];
+  for (let index = 4; index <= 25; index++) blocksOnly.push(await create('toys', index));
+  const both = await create('toys', 1);
+  const cleared = await create('toys', 2);
+  const unassigned = await create('toys', 3);
+  const legacy = await create('headphones', 1, { category: 'office' });
+  await assign(toys, [both._id], [blocks.id, puzzles.id]);
+  await assign(toys, [cleared._id], []);
+  await assign(
+    toys,
+    blocksOnly.map((product) => product._id),
+    [blocks.id],
+  );
+  toys = await saveTaxonomy({
+    ...toys,
+    children: toys.children.map((child) =>
+      child.id === puzzles.id ? { ...child, status: 'archived' } : child,
+    ),
+  });
+
+  await test.step('server scopes, validates and pages the filter', async () => {
+    const scoped = await rawList({
+      collection: 'products',
+      productFamily: 'toys',
+      subcategoryIds: [blocks.id],
+      search: marker,
+      page: 2,
+      pageSize: 20,
+    });
+    expect(scoped.ok).toBe(true);
+    expect(scoped.data).toMatchObject({ total: 23, page: 2 });
+    expect(scoped.data?.items).toHaveLength(3);
+    const archived = await rawList({
+      collection: 'products',
+      productFamily: 'toys',
+      subcategoryIds: [puzzles.id],
+      search: marker,
+    });
+    expect(archived.data?.items.map((item) => item._id)).toEqual([both._id]);
+    for (const data of [
+      { collection: 'products', subcategoryIds: [blocks.id] },
+      { collection: 'products', productFamily: 'misc', subcategoryIds: [blocks.id] },
+      { collection: 'products', productFamily: 'toys', subcategoryIds: ['headphones-office'] },
+    ]) {
+      expect((await rawList(data)).error?.code).toBe('BAD_REQUEST');
+    }
+  });
+
+  const tracked = [both, cleared, unassigned, legacy, ...blocksOnly.slice(0, 2)];
+  const revisions = async () =>
+    (await Promise.all(tracked.map((product) => readProduct(product._id)))).map(
+      (product) => product.updatedAt,
+    );
+  const before = await revisions();
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.addInitScript(
+    ({ session, origin }) => {
+      if (window.location.origin !== origin) return;
+      localStorage.setItem('channel.token', session.token);
+      localStorage.setItem('channel.user', JSON.stringify(session.user));
+    },
+    { session, origin: new URL(e2e.siteUrl).origin },
+  );
+  const rowFor = (product: CollectionDoc) =>
+    page.getByRole('row').filter({ has: page.getByText(String(product.name), { exact: true }) });
+  const subcategoriesOf = (product: CollectionDoc) =>
+    rowFor(product).locator('[data-subcategory-state]');
+  const records = page.getByText(/^\d+ records?$/);
+  const subcategoryTrigger = page
+    .getByRole('combobox', { name: 'Website subcategory', exact: true })
+    .and(page.locator('button'));
+  // A pending-review badge appends "N new product(s) to review" to the tab name.
+  const familyTab = (label: string) =>
+    page
+      .getByRole('group', { name: 'Product family', exact: true })
+      .getByRole('button', { name: new RegExp(`^${label}(?: \\d+ new products? to review)?$`) });
+  async function searchProducts() {
+    await page.getByPlaceholder(/^Search name/).fill(marker);
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+  }
+
+  await test.step('list shows saved website subcategory names, not legacy scalars', async () => {
+    await page.goto('/admin?productFamily=toys');
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await searchProducts();
+    await expect(page.getByRole('columnheader', { name: 'Website subcategories' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Headphone type' })).toHaveCount(0);
+    await expect(records).toHaveText('25 records');
+    await expect(subcategoriesOf(both)).toHaveText(`${blocks.name}, ${puzzles.name} (archived)`);
+    await expect(subcategoriesOf(cleared)).toHaveText('None');
+    await expect(subcategoriesOf(unassigned)).toHaveText('None');
+    await page.screenshot({ path: info.outputPath('toys-list-1440.png'), fullPage: true });
+  });
+
+  await test.step('filter scopes counts and pagination and survives reload and history', async () => {
+    await choose(page, 'Website subcategory', blocks.name);
+    await expect(page).toHaveURL(new RegExp(`subcategory=${blocks.id}`));
+    await expect(records).toHaveText('23 records');
+    await expect(page.getByText('1 / 2', { exact: true })).toBeVisible();
+    await expect(rowFor(unassigned)).toHaveCount(0);
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(page.getByText('2 / 2', { exact: true })).toBeVisible();
+    await expect(page.getByRole('checkbox', { name: 'Select row', exact: true })).toHaveCount(3);
+
+    await choose(page, 'Website subcategory', `${puzzles.name} (archived)`);
+    await expect(records).toHaveText('1 record');
+    await expect(page.getByText('1 / 1', { exact: true })).toBeVisible();
+    await expect(subcategoriesOf(both)).toHaveText(`${blocks.name}, ${puzzles.name} (archived)`);
+
+    await page.goBack();
+    await expect(page).toHaveURL(new RegExp(`subcategory=${blocks.id}`));
+    await expect(records).toHaveText('23 records');
+    await page.goForward();
+    await expect(records).toHaveText('1 record');
+
+    await page.reload();
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    await searchProducts();
+    await expect(subcategoryTrigger).toContainText(`${puzzles.name} (archived)`);
+    await expect(records).toHaveText('1 record');
+
+    await choose(page, 'Website subcategory', 'All subcategories');
+    await expect(page).not.toHaveURL(/subcategory=/);
+    await expect(records).toHaveText('25 records');
+  });
+
+  await test.step('legacy headphones show the website subcategory and the family tab clears the filter', async () => {
+    await choose(page, 'Website subcategory', blocks.name);
+    await familyTab('Headphones').click();
+    await expect(page).not.toHaveURL(/subcategory=/);
+    await searchProducts();
+    const headphones = await taxonomy({
+      kind: 'taxonomy',
+      operation: 'read',
+      family: 'headphones',
+    });
+    const office = headphones.children.find((child) => child.id === 'headphones-office');
+    if (!office) throw new Error('Missing legacy office subcategory');
+    await expect(subcategoriesOf(legacy)).toHaveText(
+      office.status === 'archived' ? `${office.name} (archived)` : office.name,
+    );
+  });
+
+  await test.step('edit form shows the saved classification read-only', async () => {
+    await familyTab('Toys').click();
+    await searchProducts();
+    await rowFor(both).getByRole('button', { name: 'Edit', exact: true }).click();
+    const editor = page.getByRole('dialog', { name: 'Edit Product', exact: true });
+    const summary = editor.getByRole('region', { name: 'Saved website classification' });
+    await expect(summary).toContainText('Toys');
+    await expect(summary.locator('[data-saved-subcategories]')).toHaveText(
+      `${blocks.name}, ${puzzles.name} (archived)`,
+    );
+    await expect(summary.locator('input, select, textarea')).toHaveCount(0);
+    await editor.screenshot({ path: info.outputPath('edit-summary-1440.png') });
+    await editor.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(editor).toHaveCount(0);
+  });
+
+  await test.step('registry failures show a retry that recovers without reload', async () => {
+    // Fault injection only for the registry read; every other admin call hits the real API.
+    await page.route('**/api/admin', async (route) => {
+      const body = route.request().postDataJSON() as { action?: string };
+      if (body.action === 'catalogCategories') {
+        await route.fulfill({ status: 503, body: 'unavailable' });
+        return;
+      }
+      await route.continue();
+    });
+    await page.goto('/admin?productFamily=toys');
+    await page.getByRole('button', { name: 'Products', exact: true }).click();
+    const alert = page
+      .getByRole('alert')
+      .filter({ hasText: 'Toys subcategories could not be loaded' });
+    await expect(alert).toBeVisible();
+    // Rows mounting on an errored query refetch once; wait until they have failed too.
+    await expect(page.locator('[data-subcategory-state="error"]').first()).toBeVisible();
+    await expect(page.locator('[data-subcategory-state="loading"]')).toHaveCount(0);
+    await page.unroute('**/api/admin');
+    await alert.getByRole('button', { name: 'Retry subcategories', exact: true }).click();
+    await expect(subcategoryTrigger).toBeVisible();
+    await searchProducts();
+    await expect(subcategoriesOf(both)).toHaveText(`${blocks.name}, ${puzzles.name} (archived)`);
+  });
+
+  await test.step('mobile keeps the filter usable', async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await choose(page, 'Website subcategory', blocks.name);
+    await expect(records).toHaveText('23 records');
+    await page.screenshot({ path: info.outputPath('toys-filter-390.png'), fullPage: true });
+  });
+
+  expect(await revisions()).toEqual(before);
+  expect(errors).toEqual([]);
+});

@@ -19,6 +19,7 @@ import { ImageManager } from './ImageManager.tsx';
 import { ImageViewer, PreviewImageContent } from './ImageViewer.tsx';
 import { ProductPricingEditor } from './ProductPricingEditor.tsx';
 import { QuantityTierPricingEditor } from './QuantityTierPricingEditor.tsx';
+import { SavedClassificationSummary } from './SavedClassificationSummary.tsx';
 import {
   importAlibabaSourceImage,
   removeAlibabaImportedImage,
@@ -35,6 +36,8 @@ interface RecordFormProps {
   title: string;
   initial?: CollectionDoc;
   defaults?: Record<string, unknown>;
+  /** Admin-only: the registry read behind the summary is forbidden for contributors. */
+  showSavedClassification?: boolean;
   submitting: boolean;
   error: Error | null;
   onSubmit: (values: Record<string, unknown>) => void;
@@ -144,6 +147,7 @@ export function RecordForm({
   title,
   initial,
   defaults,
+  showSavedClassification = false,
   submitting,
   error,
   onSubmit,
@@ -347,6 +351,9 @@ export function RecordForm({
                         className="min-w-0 space-y-4 rounded-xl border border-slate-200 p-4"
                       >
                         <legend className="font-semibold text-slate-900">{section.heading}</legend>
+                        {section.heading === 'Identity' && initial && showSavedClassification && (
+                          <SavedClassificationSummary product={initial} />
+                        )}
                         {section.heading === 'Pricing & Order' && (
                           <ProductPricingEditor
                             initial={initial}

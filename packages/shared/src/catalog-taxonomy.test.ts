@@ -8,6 +8,7 @@ import {
   MAX_TAXONOMY_CHILDREN,
   initialCatalogTaxonomy,
   readProductSubcategories,
+  storedCatalogTaxonomy,
   validateProductSubcategories,
 } from './catalog-taxonomy.ts';
 
@@ -52,6 +53,15 @@ for (const family of PRODUCT_FAMILY_OPTIONS) {
     );
   });
 }
+
+test('stored registry falls back only when absent and fails closed on corrupt or foreign rows', () => {
+  assert.deepEqual(storedCatalogTaxonomy('headphones', null), initialCatalogTaxonomy('headphones'));
+  const stored = { _id: 'toys', updatedAt: '2026-09-23T00:00:00.000Z', ...taxonomy('toys') };
+  assert.deepEqual(storedCatalogTaxonomy('toys', stored), taxonomy('toys'));
+  assert.equal(storedCatalogTaxonomy('misc', stored), null);
+  assert.equal(storedCatalogTaxonomy('toys', { ...stored, children: 'corrupt' }), null);
+  assert.equal(storedCatalogTaxonomy('toys', { ...stored, revision: -1 }), null);
+});
 
 test('initial registries are independent and legacy children have deterministic IDs', () => {
   const headphones = initialCatalogTaxonomy('headphones');

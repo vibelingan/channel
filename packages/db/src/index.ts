@@ -161,6 +161,7 @@ export async function list(query: ListQuery): Promise<ListResult<CollectionDoc>>
     collection: query.collection,
     ...(query.productFamily ? { productFamily: query.productFamily } : {}),
     ...(query.needsClassification ? { needsClassification: true } : {}),
+    ...(query.productSubcategories ? { productSubcategories: query.productSubcategories } : {}),
     page,
     pageSize,
     search: (query.search ?? '').trim(),

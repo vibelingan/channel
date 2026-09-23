@@ -13,6 +13,7 @@ import type {
   ListQuery,
   ListResult,
   ProductFamily,
+  ProductSubcategoryScope,
   SortClause,
 } from '@vibelingan-channel/shared';
 import {
@@ -50,6 +51,7 @@ export interface AdapterListQuery {
   collection: string;
   productFamily?: ProductFamily;
   needsClassification?: boolean;
+  productSubcategories?: ProductSubcategoryScope;
   page: number;
   pageSize: number;
   search: string;

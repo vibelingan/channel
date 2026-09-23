@@ -185,6 +185,8 @@ export interface ListArgs {
   collection: string;
   productFamily?: ProductFamily;
   needsClassification?: boolean;
+  /** Admin-only; valid only with `productFamily`, resolved against the saved registry by the server. */
+  subcategoryIds?: string[];
   page?: number;
   pageSize?: number;
   search?: string;

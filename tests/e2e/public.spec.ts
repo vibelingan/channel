@@ -2,6 +2,8 @@ import { Buffer } from 'node:buffer';
 import { type Browser, type Page, expect, test } from '@playwright/test';
 import type { CatalogPage } from '../../apps/site/src/islands/shop/catalog-types.ts';
 import type { SessionUser } from '../../packages/shared/src/auth.ts';
+import { isProductFamily } from '../../packages/shared/src/catalog-product.ts';
+import { initialCatalogTaxonomy } from '../../packages/shared/src/catalog-taxonomy.ts';
 import { mockCatalogTaxonomy } from './helpers/admin-api';
 import { e2e } from './helpers/env';
 
@@ -1264,6 +1266,21 @@ test.describe('public browser smoke', () => {
         case 'completeUpload':
           data = {};
           break;
+        case 'catalogCategories': {
+          // Products rows read the family registry to name saved subcategories; nothing else.
+          const family = payload.data?.family;
+          if (
+            payload.data?.kind !== 'taxonomy' ||
+            payload.data?.operation !== 'read' ||
+            !isProductFamily(family)
+          ) {
+            throw new Error(
+              `Unexpected catalogCategories request: ${JSON.stringify(payload.data)}`,
+            );
+          }
+          data = { kind: 'taxonomy', status: 'replayed', registry: initialCatalogTaxonomy(family) };
+          break;
+        }
         default:
           throw new Error(`Unexpected admin action: ${payload.action}`);
       }

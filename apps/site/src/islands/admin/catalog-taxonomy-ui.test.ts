@@ -15,6 +15,9 @@ import {
   classificationChoices,
   classificationRequest,
   initialClassification,
+  savedProductSubcategories,
+  savedSubcategoriesText,
+  subcategoryFilterOptions,
   summarizeAssignment,
 } from './taxonomy-ui-state.ts';
 
@@ -377,4 +380,86 @@ test('malformed product IDs block assignment and registry reads show a loading s
   assert.match(html, /malformed/i);
   assert.match(html, /<button[^>]*disabled=""[^>]*>Review assignment<\/button>/);
   assert.ok(renderWithTaxonomy(content, false).includes('Loading categories'));
+});
+
+test('saved subcategory names come from subcategoryIds, not the stale legacy scalar', () => {
+  const migrated = product({ category: 'wired', subcategoryIds: ['headphones-office'] });
+  const before = structuredClone(migrated);
+  const saved = savedProductSubcategories(migrated, registry());
+  assert.deepEqual(saved, {
+    kind: 'assigned',
+    children: [{ id: 'headphones-office', name: 'Office Headphones', archived: false }],
+  });
+  assert.equal(savedSubcategoriesText(saved), 'Office Headphones');
+  assert.deepEqual(migrated, before);
+});
+
+test('saved subcategory states cover legacy, archived, empty, unclassified and invalid rows', () => {
+  const text = (overrides: Partial<CollectionDoc>) =>
+    savedSubcategoriesText(savedProductSubcategories(product(overrides), registry()));
+  const { productFamily: _family, ...legacy } = product({ category: 'wired' });
+  assert.equal(
+    savedSubcategoriesText(savedProductSubcategories(legacy, registry())),
+    'Wired Headphones (archived)',
+  );
+  assert.equal(
+    text({ subcategoryIds: ['headphones-wired', 'headphones-bluetooth'] }),
+    'Wired Headphones (archived), Bluetooth Headphones',
+  );
+  assert.equal(text({ subcategoryIds: [] }), 'None');
+  assert.equal(text({ category: 'wired', subcategoryIds: [] }), 'None');
+  assert.equal(text({}), 'None');
+  assert.deepEqual(savedProductSubcategories(product({ productFamily: undefined }), registry()), {
+    kind: 'unclassified',
+  });
+  for (const overrides of [
+    { subcategoryIds: ['missing'] },
+    { subcategoryIds: 'headphones-office' },
+    { subcategoryIds: ['headphones-office', 'headphones-office'] },
+    { productFamily: 'toys', subcategoryIds: ['headphones-office'] },
+    { productFamily: 'toys', category: 'wired' },
+  ] as Partial<CollectionDoc>[]) {
+    const saved = savedProductSubcategories(product(overrides), registry());
+    assert.equal(saved.kind, 'invalid', JSON.stringify(overrides));
+    assert.equal(savedSubcategoriesText(saved), 'Invalid saved subcategories');
+  }
+});
+
+test('filter options keep registry order and label archived children', () => {
+  assert.deepEqual(subcategoryFilterOptions(registry()), [
+    { value: 'headphones-wired', label: 'Wired Headphones (archived)' },
+    { value: 'headphones-office', label: 'Office Headphones' },
+    { value: 'headphones-bluetooth', label: 'Bluetooth Headphones' },
+  ]);
+  assert.deepEqual(subcategoryFilterOptions(initialCatalogTaxonomy('toys')), []);
+});
+
+test('edit summary shows saved names read-only, with loading and invalid states', async () => {
+  const { SavedClassificationSummary } = await import('./SavedClassificationSummary.tsx');
+  const assigned = renderWithTaxonomy(
+    createElement(SavedClassificationSummary, {
+      product: product({ subcategoryIds: ['headphones-wired', 'headphones-office'] }),
+    }),
+  );
+  assert.ok(assigned.includes('Saved website classification'));
+  assert.ok(assigned.includes('Headphones'));
+  assert.ok(assigned.includes('Wired Headphones (archived), Office Headphones'));
+  assert.doesNotMatch(assigned, /<(input|select|textarea)\b/);
+  const invalid = renderWithTaxonomy(
+    createElement(SavedClassificationSummary, {
+      product: product({ subcategoryIds: ['missing'] }),
+    }),
+  );
+  assert.match(invalid, /Invalid saved subcategories/);
+  const loading = renderWithTaxonomy(
+    createElement(SavedClassificationSummary, { product: product() }),
+    false,
+  );
+  assert.match(loading, /Loading subcategories/);
+  const unclassified = renderWithTaxonomy(
+    createElement(SavedClassificationSummary, { product: product({ productFamily: undefined }) }),
+    false,
+  );
+  assert.match(unclassified, /Needs classification/);
+  assert.doesNotMatch(unclassified, /Loading/);
 });
