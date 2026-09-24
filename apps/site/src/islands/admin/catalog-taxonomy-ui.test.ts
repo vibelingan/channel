@@ -10,7 +10,7 @@ import {
 } from '@vibelingan-channel/shared';
 import { type ReactNode, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { assignmentCall, taxonomyCall } from './api.ts';
+import { assignmentCall, publishConfirmedClassification, taxonomyCall } from './api.ts';
 import {
   classificationChoices,
   classificationRequest,
@@ -368,6 +368,72 @@ test('classification editor preloads archived current IDs, previews products and
   assert.match(html, /archived/i);
   assert.match(html, /drafts will not be published/i);
   assert.ok(html.includes('Review assignment'));
+});
+
+test('bulk classification offers an explicit classify-and-publish review', async () => {
+  const { ProductClassificationEditor } = await import('./ProductClassificationEditor.tsx');
+  const html = renderWithTaxonomy(
+    createElement(ProductClassificationEditor, {
+      products: [product({ published: false })],
+      publishOnSave: true,
+      onSaved: () => {},
+    }),
+  );
+  assert.match(html, /publish only after all classifications are confirmed/i);
+  assert.ok(html.includes('Review classification and publish'));
+  assert.ok(html.includes('Studio headset'));
+});
+
+test('bulk publish runs only after every selected assignment is confirmed', async (context) => {
+  const input = {
+    ...command(),
+    includeSavedRevision: true as const,
+    products: [
+      { productId: 'product-1', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
+      { productId: 'product-2', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
+    ],
+  } satisfies CatalogClassificationAssignmentRequest;
+  const fetchMock = context.mock.method(
+    globalThis,
+    'fetch',
+    async (_url: unknown, init: RequestInit) => {
+      const request = JSON.parse(String(init.body));
+      if (request.action === 'catalogDetailCapabilities')
+        return Response.json({ ok: true, data: { enabled: false } });
+      assert.equal(request.action, 'update');
+      assert.deepEqual(request.data.values, { published: true });
+      assert.equal(request.data.expectedUpdatedAt, '2026-09-24T00:00:00.000Z');
+      return Response.json({ ok: true, data: { _id: request.data.id, published: true } });
+    },
+  );
+  const saved = {
+    kind: 'assignment' as const,
+    results: input.products.map(({ productId }) => ({
+      productId,
+      status: 'saved' as const,
+      updatedAt: '2026-09-24T00:00:00.000Z',
+    })),
+  };
+  for (const response of [
+    {
+      ...saved,
+      results: [{ productId: 'product-1', status: 'conflict' as const }, saved.results[1]],
+    },
+    {
+      ...saved,
+      results: [{ productId: 'product-1', status: 'unknown' as const }, saved.results[1]],
+    },
+    { ...saved, results: saved.results.slice(0, 1) },
+    { ...saved, results: [{ productId: 'other', status: 'saved' as const }, saved.results[1]] },
+    { ...saved, refreshRequired: true as const },
+    { ...saved, results: [{ productId: 'product-1', status: 'saved' as const }, saved.results[1]] },
+  ]) {
+    assert.equal(await publishConfirmedClassification(input, response), null);
+  }
+  assert.equal(fetchMock.mock.callCount(), 0);
+  const result = await publishConfirmedClassification(input, saved);
+  assert.equal(result?.updated, 2);
+  assert.equal(fetchMock.mock.callCount(), 4);
 });
 
 test('malformed product IDs block assignment and registry reads show a loading state', async () => {

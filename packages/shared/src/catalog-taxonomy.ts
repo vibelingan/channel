@@ -236,6 +236,7 @@ export const CatalogClassificationAssignmentRequestSchema = z
           new Set(products.map((product) => product.productId)).size === products.length,
       ),
     subcategoryIds: assignmentIds,
+    includeSavedRevision: z.literal(true).optional(),
   })
   .strict()
   .refine((command) => command.operation !== 'clear' || command.subcategoryIds.length === 0, {
@@ -264,6 +265,7 @@ export const CatalogClassificationAssignmentResultSchema = z
               'unknown',
               'notattempted',
             ]),
+            updatedAt: z.string().datetime().optional(),
           })
           .strict(),
       )

@@ -12,11 +12,14 @@ import {
 } from '@vibelingan-channel/shared';
 import { useEffect, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
+import { BatchUpdateFeedback } from './BatchUpdateFeedback.tsx';
 import {
+  type BatchUpdateResult,
   type CategorySuggestion,
   assignmentCall,
   categorySuggestionMatchesProduct,
   fetchCategorySuggestion,
+  publishConfirmedClassification,
 } from './api.ts';
 import {
   classificationChoices,
@@ -29,6 +32,7 @@ import {
 export interface ProductClassificationEditorProps {
   products: readonly CollectionDoc[];
   busy?: boolean;
+  publishOnSave?: boolean;
   onBusyChange?: (busy: boolean) => void;
   onSaved: () => void;
   onCancel?: () => void;
@@ -52,6 +56,7 @@ const resultLabels: Record<
 export function ProductClassificationEditor({
   products,
   busy = false,
+  publishOnSave = false,
   onBusyChange,
   onSaved,
   onCancel,
@@ -101,6 +106,7 @@ export function ProductClassificationEditor({
     () => productFamilyForDoc(products[0] ?? {}) ?? 'headphones',
   );
   const [mode, setMode] = useState<CatalogClassificationAssignmentRequest['operation']>('replace');
+  const [publish, setPublish] = useState(publishOnSave);
   const [selected, setSelected] = useState<string[] | null>(null);
   const [confirmation, setConfirmation] = useState<CatalogClassificationAssignmentRequest | null>(
     null,
@@ -109,6 +115,7 @@ export function ProductClassificationEditor({
   const [finished, setFinished] = useState(false);
   const [message, setMessage] = useState('');
   const [results, setResults] = useState<CatalogClassificationAssignmentResult['results']>([]);
+  const [publicationResult, setPublicationResult] = useState<BatchUpdateResult | null>(null);
   const [refreshRequested, setRefreshRequested] = useState(false);
   const refreshBaseline = useRef(products);
   const mounted = useRef(true);
@@ -139,7 +146,8 @@ export function ProductClassificationEditor({
       'Product source or categories changed since the suggestion. Cancel and review the product again.';
   if (registry && !validation) {
     try {
-      request = classificationRequest(products, registry, mode, ids);
+      const classification = classificationRequest(products, registry, mode, ids);
+      request = publish ? { ...classification, includeSavedRevision: true } : classification;
     } catch (error) {
       validation = error instanceof Error ? error.message : 'Invalid assignment.';
     }
@@ -161,6 +169,7 @@ export function ProductClassificationEditor({
     setRefreshRequested(false);
     setFinished(false);
     setResults([]);
+    setPublicationResult(null);
     setMessage('');
     setSelected(null);
     setAppliedSuggestion(null);
@@ -237,20 +246,43 @@ export function ProductClassificationEditor({
       uncertain
         ? 'Some results are not confirmed. Refresh products before trying again.'
         : allSaved
-          ? 'Classification saved. Drafts were not published.'
+          ? publish
+            ? 'Classification saved. Publishing selected products...'
+            : 'Classification saved. Drafts were not published.'
           : 'Review the product results and refresh before another assignment.',
     );
     try {
+      if (publish && allSaved) {
+        const publication = publishConfirmedClassification(confirmation, result);
+        if (publication) {
+          const outcome = await publication;
+          if (mounted.current) {
+            setPublicationResult(outcome);
+            setMessage(
+              outcome.failures.length
+                ? `${outcome.updated} published; ${outcome.failures.length} need attention. Refresh statuses before retrying. Confirmed publications are not rolled back.`
+                : `${outcome.updated} products classified and published.`,
+            );
+          }
+        } else {
+          setMessage(
+            'Publication blocked: assignment results were not confirmed. Refresh products.',
+          );
+        }
+      }
       await Promise.all([
         client.invalidateQueries({ queryKey: ['list', 'products'] }),
         client.invalidateQueries({ queryKey: ['catalog-taxonomy'] }),
       ]);
+    } catch {
+      if (mounted.current)
+        setMessage('Publication could not be confirmed. Refresh product statuses before retrying.');
     } finally {
       inFlight.current = false;
       if (mounted.current) {
         setPending(false);
         busyCallback.current?.(false);
-        if (allSaved) onSaved();
+        if (allSaved && !publish) onSaved();
       }
     }
   }
@@ -262,8 +294,23 @@ export function ProductClassificationEditor({
     >
       <h2 className="text-lg font-semibold text-ink">Website classification</h2>
       <p className="text-sm text-slate-600">
-        {products.length} selected products. Drafts will not be published.
+        {products.length} selected products.
+        {!publish && ' Drafts will not be published.'}
       </p>
+      {publishOnSave && (
+        <label className="flex items-center gap-3 text-sm">
+          <input
+            type="checkbox"
+            checked={publish}
+            disabled={locked}
+            onChange={(event) => {
+              setPublish(event.currentTarget.checked);
+              setConfirmation(null);
+            }}
+          />
+          Publish only after all classifications are confirmed
+        </label>
+      )}
       {singleProduct && typeof singleProduct.alibabaPrimarySourceKey === 'string' && (
         <div
           aria-label="Source classification suggestion"
@@ -475,8 +522,10 @@ export function ProductClassificationEditor({
           className="space-y-3 border-y border-brand-200 py-3"
         >
           <p className="break-words text-sm">
-            Confirm {mode} for {products.length} products in {registry?.name}? Drafts will not be
-            published.
+            Confirm {mode} for {products.length} products in {registry?.name}?
+            {publish
+              ? ' Publish all selected products after classification is confirmed.'
+              : ' Drafts will not be published.'}
           </p>
           {!confirmationCurrent && (
             <p role="alert">
@@ -510,7 +559,7 @@ export function ProductClassificationEditor({
           disabled={locked || !request || query.isFetching || Boolean(query.error)}
           onClick={() => setConfirmation(request)}
         >
-          Review assignment
+          {publish ? 'Review classification and publish' : 'Review assignment'}
         </button>
         <button
           type="button"
@@ -541,8 +590,27 @@ export function ProductClassificationEditor({
           </button>
         )}
       </div>
-      {pending && <output className="block">Saving classification...</output>}
+      {pending && (
+        <output className="block">
+          {publish ? 'Classifying and publishing...' : 'Saving classification...'}
+        </output>
+      )}
       {message && <output className="block break-words text-sm">{message}</output>}
+      {publicationResult && (
+        <BatchUpdateFeedback
+          result={publicationResult}
+          names={Object.fromEntries(
+            products.map((product) => [product._id, String(product.name ?? product._id)]),
+          )}
+          published
+          onDismiss={() => setPublicationResult(null)}
+        />
+      )}
+      {publicationResult && publicationResult.failures.length === 0 && (
+        <button type="button" className={buttonClass} onClick={onSaved}>
+          Done
+        </button>
+      )}
       {results.length > 0 && (
         <ul aria-label="Product assignment results" className="divide-y divide-slate-200">
           {results.map((item) => (

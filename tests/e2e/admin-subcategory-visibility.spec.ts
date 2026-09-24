@@ -340,3 +340,210 @@ test('local admin subcategories: saved names, scoped filter, pagination and read
   expect(await revisions()).toEqual(before);
   expect(errors).toEqual([]);
 });
+
+test('bulk classification publishes confirmed selections and reports rejected publications', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(180_000);
+  const session = await loginAdmin(request);
+  const seeds = await adminAction<ListResult<CollectionDoc>>(
+    request,
+    'list',
+    { collection: 'products', page: 1, pageSize: 100 },
+    session.token,
+  );
+  const imageIds = seeds.items.find(
+    (item) => Array.isArray(item.imageIds) && item.imageIds.length,
+  )?.imageIds;
+  expect(Array.isArray(imageIds) && imageIds.length > 0).toBe(true);
+  const initial = CatalogTaxonomyResultSchema.parse(
+    await adminAction<unknown>(
+      request,
+      'catalogCategories',
+      { kind: 'taxonomy', operation: 'read', family: 'toys' },
+      session.token,
+    ),
+  );
+  if (!('registry' in initial)) throw new Error('Toy categories unavailable');
+  const child = {
+    id: `${e2e.runId}-bulk-toys`,
+    slug: `${e2e.runId}-bulk-toys`,
+    name: `Bulk toys ${e2e.runId}`,
+    order: initial.registry.children.length,
+    status: 'active' as const,
+  };
+  const saved = CatalogTaxonomyResultSchema.parse(
+    await adminAction<unknown>(
+      request,
+      'catalogCategories',
+      {
+        kind: 'taxonomy',
+        operation: 'save',
+        family: 'toys',
+        expectedRevision: initial.registry.revision,
+        name: initial.registry.name,
+        children: [...initial.registry.children, child],
+      },
+      session.token,
+    ),
+  );
+  expect(saved.status).toMatch(/configured|applied/);
+  const prefix = `${e2e.runId} Bulk workflow`;
+  async function create(label: string, images: unknown) {
+    return adminAction<CollectionDoc>(
+      request,
+      'create',
+      {
+        collection: 'products',
+        values: {
+          name: `${prefix} ${label}`,
+          productFamily: 'toys',
+          description: 'Disposable combined classification and publication.',
+          imageIds: images,
+          unitPrice: 5.7,
+          published: false,
+          archived: false,
+        },
+      },
+      session.token,
+    );
+  }
+  const excluded = await create('Excluded', imageIds);
+  const rejected = await create('Rejected', []);
+  const later = await create('Later', imageIds);
+  const first = await create('First', imageIds);
+  const second = await create('Second', imageIds);
+  const raced = await create('Concurrent edit', imageIds);
+  const read = (id: string) =>
+    adminAction<CollectionDoc>(request, 'get', { collection: 'products', id }, session.token);
+  const excludedBefore = await read(excluded._id);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const writes: { action: string; ids: string[] }[] = [];
+  page.on('request', (webRequest) => {
+    if (!webRequest.url().endsWith('/api/admin') || webRequest.method() !== 'POST') return;
+    const body = webRequest.postDataJSON() as {
+      action: string;
+      data?: {
+        kind?: string;
+        products?: { productId: string }[];
+        id?: string;
+        values?: { published?: boolean };
+      };
+    };
+    if (body.action === 'catalogCategories' && body.data?.kind === 'assignment')
+      writes.push({
+        action: 'classify',
+        ids: body.data.products?.map((item) => item.productId) ?? [],
+      });
+    if (body.action === 'update' && body.data?.values?.published === true)
+      writes.push({ action: 'publish', ids: [body.data.id ?? ''] });
+  });
+  await page.addInitScript(
+    ({ session, origin }) => {
+      if (window.location.origin !== origin) return;
+      localStorage.setItem('channel.token', session.token);
+      localStorage.setItem('channel.user', JSON.stringify(session.user));
+    },
+    { session, origin: new URL(e2e.siteUrl).origin },
+  );
+  await page.goto('/admin?productFamily=toys');
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByPlaceholder(/^Search name/).fill(prefix);
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  const row = (product: CollectionDoc) =>
+    page.getByRole('row').filter({ has: page.getByText(String(product.name), { exact: true }) });
+  async function selectAndReview(products: CollectionDoc[]) {
+    for (const product of products)
+      await row(product).getByRole('checkbox', { name: 'Select row', exact: true }).check();
+    await page.getByRole('button', { name: 'Assign category', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Edit website classification' });
+    await expect(
+      dialog.getByRole('checkbox', {
+        name: 'Publish only after all classifications are confirmed',
+      }),
+    ).toBeChecked();
+    await dialog.getByRole('checkbox', { name: child.name, exact: true }).check();
+    await dialog.getByRole('button', { name: 'Review classification and publish' }).click();
+    await expect(dialog).toContainText(
+      'Publish all selected products after classification is confirmed.',
+    );
+    return dialog;
+  }
+  const success = await selectAndReview([first, second]);
+  expect(await read(first._id)).toMatchObject({ published: false });
+  await success.getByRole('button', { name: 'Confirm assignment' }).click();
+  await expect(success).toContainText('2 products classified and published.');
+  await expect(success.locator('section[role="status"]')).toContainText('2 published');
+  const firstIds = writes[0]?.ids ?? [];
+  expect([...firstIds].sort()).toEqual([first._id, second._id].sort());
+  expect(writes).toEqual([
+    { action: 'classify', ids: firstIds },
+    ...firstIds.map((id) => ({ action: 'publish', ids: [id] })),
+  ]);
+  for (const product of [first, second])
+    expect(await read(product._id)).toMatchObject({ published: true, subcategoryIds: [child.id] });
+  expect(await read(excluded._id)).toEqual(excludedBefore);
+  await success.getByRole('button', { name: 'Done' }).click();
+  await expect(success).toHaveCount(0);
+  const partial = await selectAndReview([later, rejected]);
+  await partial.getByRole('button', { name: 'Confirm assignment' }).click();
+  await expect(partial.locator('section[role="alert"]')).toContainText('1 published');
+  await expect(partial.locator('section[role="alert"]')).toContainText('1 need attention');
+  const laterIds = writes[3]?.ids ?? [];
+  expect([...laterIds].sort()).toEqual([later._id, rejected._id].sort());
+  expect(writes.slice(3)).toEqual([
+    { action: 'classify', ids: laterIds },
+    ...laterIds.map((id) => ({ action: 'publish', ids: [id] })),
+  ]);
+  expect(await read(later._id)).toMatchObject({ published: true, subcategoryIds: [child.id] });
+  expect(await read(rejected._id)).toMatchObject({ published: false, subcategoryIds: [child.id] });
+  expect(await read(excluded._id)).toEqual(excludedBefore);
+  await partial.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
+  let intervened = false;
+  await page.route('**/api/admin', async (route) => {
+    const body = route.request().postDataJSON() as {
+      action?: string;
+      data?: { id?: string; values?: { published?: boolean }; expectedUpdatedAt?: string };
+    };
+    if (
+      body.action === 'update' &&
+      body.data?.id === raced._id &&
+      body.data.values?.published === true
+    ) {
+      expect(body.data.expectedUpdatedAt).toBe((await read(raced._id)).updatedAt);
+      await adminAction(
+        request,
+        'update',
+        {
+          collection: 'products',
+          id: raced._id,
+          values: { description: 'Another admin changed this draft after classification.' },
+        },
+        session.token,
+      );
+      intervened = true;
+    }
+    await route.continue();
+  });
+  const conflict = await selectAndReview([raced]);
+  await conflict.getByRole('button', { name: 'Confirm assignment' }).click();
+  await expect(conflict.locator('section[role="alert"]')).toContainText('0 published');
+  await expect(conflict.locator('section[role="alert"]')).toContainText(
+    'changed since classification',
+  );
+  expect(intervened).toBe(true);
+  expect(await read(raced._id)).toMatchObject({ published: false, subcategoryIds: [child.id] });
+  await page.unrouteAll();
+  const publicResponse = await request.get(
+    `${e2e.apiUrl}/api/products?search=${encodeURIComponent(prefix)}`,
+  );
+  expect(publicResponse.ok()).toBe(true);
+  const publicBody: { data: ListResult<CollectionDoc> } = await publicResponse.json();
+  expect(publicBody.data.items.map((item) => item._id).sort()).toEqual(
+    [first._id, second._id, later._id].sort(),
+  );
+  expect(errors).toEqual([]);
+});

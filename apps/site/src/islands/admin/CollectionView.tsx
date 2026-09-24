@@ -76,7 +76,10 @@ export function CollectionView({ collection, section, role }: Props) {
   const [editing, setEditing] = useState<CollectionDoc | null>(null);
   const [creating, setCreating] = useState(false);
   const [previewing, setPreviewing] = useState<CollectionDoc | null>(null);
-  const [classifying, setClassifying] = useState<CollectionDoc[] | null>(null);
+  const [classifying, setClassifying] = useState<{
+    products: CollectionDoc[];
+    publishOnSave: boolean;
+  } | null>(null);
   const [taxonomyOpened, setTaxonomyOpened] = useState(false);
 
   const isCatalog = section.catalog === true;
@@ -406,7 +409,7 @@ export function CollectionView({ collection, section, role }: Props) {
               <button
                 type="button"
                 disabled={updateMutation.isPending || batchUpdateMutation.isPending}
-                onClick={() => setClassifying([doc])}
+                onClick={() => setClassifying({ products: [doc], publishOnSave: false })}
                 className="mr-3 min-h-11 text-sm font-medium text-brand-700 disabled:opacity-50"
               >
                 Classify
@@ -617,7 +620,12 @@ export function CollectionView({ collection, section, role }: Props) {
             updateMutation.isPending
           }
           onClear={clearSelection}
-          onClassify={() => setClassifying(rows.filter((row) => selectedIds.includes(row._id)))}
+          onClassify={() =>
+            setClassifying({
+              products: rows.filter((row) => selectedIds.includes(row._id)),
+              publishOnSave: true,
+            })
+          }
           onSetValues={(values) =>
             batchUpdateMutation.mutate({
               ids: selectedIds,
@@ -771,7 +779,8 @@ export function CollectionView({ collection, section, role }: Props) {
 
       {classifying && (
         <ClassificationDialog
-          products={classifying}
+          products={classifying.products}
+          publishOnSave={classifying.publishOnSave}
           onClose={() => setClassifying(null)}
           onSaved={() => {
             setClassifying(null);

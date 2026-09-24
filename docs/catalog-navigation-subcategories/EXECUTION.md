@@ -34,6 +34,31 @@ What operators see (admins only; contributors keep the list without it):
 
 Out of scope (unchanged): atomic batch publish and category data migration.
 
+### Bulk classify and publish (2026-09-24, pending test release)
+
+- In the Products selected-row bar, Assign category now opens the saved taxonomy
+  picker with a checked option to publish after all selected classifications
+  succeed. Uncheck it to save classifications as drafts. The single-row Classify
+  action remains classification-only. Both choices require a preview and an
+  explicit confirmation.
+- This is a sequential workflow, **not an atomic batch transaction**. The Admin
+  assignment endpoint returns confirmed saved timestamps only on request. If
+  any selected assignment is rejected, uncertain, or lacks a saved timestamp,
+  the UI does not attempt any publication. Each subsequent publish write carries
+  that product's saved timestamp, checked inside the same product transaction;
+  intervening edits produce a conflict and leave that product private. Product
+  publication validation, permissions and media rules still apply independently.
+  Confirmed earlier publications are never claimed rolled back. Supplier-linked
+  products requiring the separate detail-approval/media workflow are directed
+  to Edit instead of silently advancing approval in the bulk path.
+- The disposable production-build browser journey verifies saved names and
+  scoped filters, two selected products classified then published, an unselected
+  product unchanged, an invalid product remaining private with row-level
+  feedback, and a concurrent edit blocked between classification and publish.
+  The default and approval-enabled browser lanes passed with owned local data;
+  neither is a deployed-environment acceptance claim. Same-SHA CI, test branch
+  deployment, and live read-only verification remain release gates.
+
 Verification before release (worktree above, local disposable DB only):
 
 - Unit: admin handler 174 (two new subcategory-scope tests), shared taxonomy 11,
@@ -52,6 +77,17 @@ Verification before release (worktree above, local disposable DB only):
   shared-address login count over the production limit.
 - Default lane: 149 passed. Formal lane: 137 passed. Both removed their owned
   temporary DB/site directories.
+
+Post-revision-guard verification (2026-09-25, release worktree 5a6317e plus
+pending feature diff): `pnpm lint`, all 19 package/app typechecks and E2E
+typecheck, `pnpm test`, `pnpm test:deploy-smoke`, `pnpm verify:cloudbase-sdk`,
+and staged/unstaged `git diff --check` passed. Both disposable built-site
+browser lanes passed, including two selected publications, partial rejection,
+and an intervening edit remaining unpublished; the approval-enabled lane also
+passed its formal journeys. The first default run had one `ECONNRESET` on a final
+read-only product revision check after the UI assertions; a fresh isolated run
+passed the entire lane without changes. Its cause remains unproven. These are
+local results, not proof that the test environment has been deployed or accepted.
 
 ## Latest Delivery and Resume State
 

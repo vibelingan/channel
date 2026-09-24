@@ -66,6 +66,7 @@ export interface CatalogProductSaveInput {
   mode: 'create' | 'update';
   productId: string;
   data: Record<string, unknown>;
+  expectedUpdatedAt?: string;
   requireDetailApproval?: boolean | 'publication-or-pricing';
   expectedSuggestion?: CatalogExpectedSuggestion;
   expectedClassification?: {
@@ -91,7 +92,7 @@ export type CatalogProductSaveResult =
   | { result: 'conflict'; kind: 'slug' | 'sku'; normalizedValue: string }
   | { result: 'invalid'; kind: 'slug' | 'sku' }
   | { result: 'invalid-product'; issues: ReturnType<typeof validateProductPublication> }
-  | { result: 'missing' | 'exists' };
+  | { result: 'missing' | 'exists' | 'stale' };
 
 export type CatalogSourceObservationUpsertResult =
   | { result: 'applied'; doc: CollectionDoc }
@@ -107,7 +108,15 @@ export type AlibabaSyncRunClaimResult =
 export type CatalogProductSavePlan =
   | Extract<
       CatalogProductSaveResult,
-      { result: 'invalid' | 'invalid-product' | 'missing' | 'exists' | 'alibaba-identity-conflict' }
+      {
+        result:
+          | 'invalid'
+          | 'invalid-product'
+          | 'missing'
+          | 'exists'
+          | 'stale'
+          | 'alibaba-identity-conflict';
+      }
     >
   | {
       result: 'ready';
@@ -163,6 +172,8 @@ export function planCatalogProductSave(
     return { result: 'alibaba-identity-conflict' };
   }
   if (input.mode === 'update' && !existing) return { result: 'missing' };
+  if (input.expectedUpdatedAt !== undefined && existing?.updatedAt !== input.expectedUpdatedAt)
+    return { result: 'stale' };
   const { _id, ...inputData } = input.data as Record<string, unknown> & { _id?: unknown };
   let data: Record<string, unknown> =
     input.mode === 'create'

@@ -234,6 +234,7 @@ const updateSchema = z.object({
   collection: z.string(),
   id: z.string().min(1),
   values: z.record(z.unknown()),
+  expectedUpdatedAt: z.string().datetime().optional(),
 });
 const batchUpdateSchema = z.object({
   collection: z.string(),
@@ -684,7 +685,11 @@ export async function handleAdminRequest(
   } catch (e) {
     if (e instanceof UnknownCollectionError) return err('UNKNOWN_COLLECTION', e.message);
     if (e instanceof CatalogProductWriteError) {
-      if (e.code === 'IDENTITY_CONFLICT' || e.code === 'PRODUCT_EXISTS') {
+      if (
+        e.code === 'IDENTITY_CONFLICT' ||
+        e.code === 'PRODUCT_EXISTS' ||
+        e.code === 'PRODUCT_STALE'
+      ) {
         return err('CONFLICT', e.message);
       }
       if (e.code === 'PRODUCT_NOT_FOUND') return err('NOT_FOUND', e.message);
@@ -1898,6 +1903,8 @@ async function updateAction(
   if (parsed.data.collection === 'products' && !before) {
     return err('NOT_FOUND', 'Document not found');
   }
+  if (parsed.data.expectedUpdatedAt && parsed.data.collection !== 'products')
+    return err('BAD_REQUEST', 'Product revision is only valid for products.');
   const changesImageIds =
     collectionUsesImageIds(parsed.data.collection) && Object.hasOwn(parsed.data.values, 'imageIds');
   const locks = await acquireImageReferenceLocks(
@@ -1922,6 +1929,11 @@ async function updateAction(
       const acknowledgesReview =
         before?.alibabaReviewPending === true &&
         (values.published === true || values.archived === true);
+      if (acknowledgesReview && parsed.data.expectedUpdatedAt)
+        return err(
+          'CONFLICT',
+          'Complete supplier review before publishing this classified product.',
+        );
       // Compare price changes in the atomic save, while allowing non-price
       // form edits to reach the subsequent detail review and approval.
       const requiresApproval =
@@ -1929,7 +1941,12 @@ async function updateAction(
       const transition =
         acknowledgesReview && before
           ? await acknowledgeAlibabaProductReview(before, values, claims.sub, requiresApproval)
-          : await updateCatalogProductRecord(parsed.data.id, values, requiresApproval);
+          : await updateCatalogProductRecord(
+              parsed.data.id,
+              values,
+              requiresApproval,
+              parsed.data.expectedUpdatedAt,
+            );
       doc = transition.doc;
       authoritativeBefore = transition.previous;
     } else if (parsed.data.collection === 'sourceCategoryMappings') {

@@ -1016,6 +1016,23 @@ test('admin can acknowledge one Alibaba draft and publishing also consumes New o
     'FORBIDDEN',
   );
   const admin = await adminToken();
+  expectErr(
+    await call(
+      'update',
+      {
+        collection: 'products',
+        id: 'pending-publish',
+        values: { published: true },
+        expectedUpdatedAt: '2026-09-24T00:00:00.000Z',
+      },
+      admin,
+    ),
+    'CONFLICT',
+  );
+  assert.equal(
+    store.products?.find((item) => item._id === 'pending-publish')?.alibabaReviewPending,
+    true,
+  );
   const reviewed = okData<CollectionDoc>(
     await call('markProductReviewed', { productId: 'pending-explicit' }, admin),
   );
