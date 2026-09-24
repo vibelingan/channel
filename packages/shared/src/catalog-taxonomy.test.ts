@@ -59,6 +59,7 @@ test('stored registry falls back only when absent and fails closed on corrupt or
   const stored = { _id: 'toys', updatedAt: '2026-09-23T00:00:00.000Z', ...taxonomy('toys') };
   assert.deepEqual(storedCatalogTaxonomy('toys', stored), taxonomy('toys'));
   assert.equal(storedCatalogTaxonomy('misc', stored), null);
+  assert.equal(storedCatalogTaxonomy('toys', { ...stored, _id: 'misc' }), null);
   assert.equal(storedCatalogTaxonomy('toys', { ...stored, children: 'corrupt' }), null);
   assert.equal(storedCatalogTaxonomy('toys', { ...stored, revision: -1 }), null);
 });

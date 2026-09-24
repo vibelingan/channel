@@ -153,6 +153,7 @@ export function storedCatalogTaxonomy(
   stored: Record<string, unknown> | null,
 ): CatalogTaxonomy | null {
   if (stored === null) return initialCatalogTaxonomy(family);
+  if (stored._id !== family) return null;
   const parsed = CatalogTaxonomySchema.safeParse({
     family: stored.family,
     name: stored.name,
