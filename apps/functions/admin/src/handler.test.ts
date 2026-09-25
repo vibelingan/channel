@@ -1066,6 +1066,118 @@ test('admin can acknowledge one Alibaba draft and publishing also consumes New o
   );
 });
 
+test('contributor cannot acknowledge pending supplier review through product status changes', async () => {
+  const store = setup({
+    users: [],
+    products: [
+      reviewProduct({ _id: 'pending-publish' }),
+      reviewProduct({ _id: 'pending-archive' }),
+    ],
+    catalogProductIdentities: [],
+  });
+  const contributor = await contributorToken();
+  for (const [id, values] of [
+    ['pending-publish', { published: true }],
+    ['pending-archive', { archived: true }],
+  ] as const) {
+    expectErr(
+      await call('update', { collection: 'products', id, values }, contributor),
+      'FORBIDDEN',
+    );
+    assert.equal(store.products?.find((item) => item._id === id)?.alibabaReviewPending, true);
+  }
+});
+
+for (const values of [{ published: true }, { archived: true }]) {
+  for (const role of ['admin', 'contributor'] as const) {
+    test(`${role} cannot ${Object.keys(values)[0]} a source linked after the read`, async () => {
+      const product = {
+        _id: 'link-race',
+        ...publishableProduct({ published: false }),
+      } as CollectionDoc;
+      const store = setup({ users: [], products: [product], catalogProductIdentities: [] });
+      const concurrentPatch = {
+        alibabaPrimarySourceKey: 'source-a',
+        alibabaReviewPending: null,
+        updatedAt: '2026-09-25T00:00:00.000Z',
+      };
+      setAdapter(new ReviewRaceAdapter(store, concurrentPatch));
+      expectErr(
+        await call(
+          'update',
+          { collection: 'products', id: product._id, values },
+          role === 'admin' ? await adminToken() : await contributorToken(),
+        ),
+        'CONFLICT',
+      );
+      assert.deepEqual(store.products?.[0], { ...product, ...concurrentPatch });
+    });
+
+    test(`${role} cannot ${Object.keys(values)[0]} when supplier review starts after the read`, async () => {
+      const product = {
+        _id: 'review-race',
+        ...publishableProduct({ published: false }),
+        updatedAt: '2026-09-24T00:00:00.000Z',
+        alibabaPrimarySourceKey: 'source-a',
+        alibabaReviewPending: false,
+      } as CollectionDoc;
+      const store = setup({ users: [], products: [product], catalogProductIdentities: [] });
+      const concurrentPatch = {
+        alibabaReviewPending: true,
+        updatedAt: '2026-09-25T00:00:00.000Z',
+      };
+      setAdapter(new ReviewRaceAdapter(store, concurrentPatch));
+      expectErr(
+        await call(
+          'update',
+          { collection: 'products', id: product._id, values },
+          role === 'admin' ? await adminToken() : await contributorToken(),
+        ),
+        'CONFLICT',
+      );
+      assert.deepEqual(store.products?.[0], { ...product, ...concurrentPatch });
+    });
+  }
+}
+
+test('contributor status changes on reviewed suppliers preserve the client revision', async () => {
+  const product = {
+    _id: 'reviewed-supplier',
+    ...publishableProduct({ published: false }),
+    updatedAt: '2026-09-24T00:00:00.000Z',
+    alibabaPrimarySourceKey: 'source-a',
+    alibabaReviewPending: false,
+  } as CollectionDoc;
+  const store = setup({ users: [], products: [product], catalogProductIdentities: [] });
+  const contributor = await contributorToken();
+  expectErr(
+    await call(
+      'update',
+      {
+        collection: 'products',
+        id: product._id,
+        values: { archived: true },
+        expectedUpdatedAt: '2026-09-23T00:00:00.000Z',
+      },
+      contributor,
+    ),
+    'CONFLICT',
+  );
+  assert.deepEqual(store.products?.[0], product);
+  assert.equal(
+    (
+      await call(
+        'update',
+        { collection: 'products', id: product._id, values: { archived: true } },
+        contributor,
+      )
+    ).ok,
+    true,
+  );
+  assert.equal(store.products?.[0]?.alibabaReviewPending, false);
+  assert.equal(store.products?.[0]?.archived, true);
+});
+
 test('product publish requires the complete lifecycle contract', async () => {
   setup({ users: [], products: [] });
   const token = await adminToken();

@@ -67,6 +67,8 @@ export interface CatalogProductSaveInput {
   productId: string;
   data: Record<string, unknown>;
   expectedUpdatedAt?: string;
+  rejectPendingReview?: boolean;
+  expectedPrimarySourceKey?: string | null;
   requireDetailApproval?: boolean | 'publication-or-pricing';
   expectedSuggestion?: CatalogExpectedSuggestion;
   expectedClassification?: {
@@ -173,6 +175,12 @@ export function planCatalogProductSave(
   }
   if (input.mode === 'update' && !existing) return { result: 'missing' };
   if (input.expectedUpdatedAt !== undefined && existing?.updatedAt !== input.expectedUpdatedAt)
+    return { result: 'stale' };
+  if (
+    input.rejectPendingReview &&
+    (existing?.alibabaReviewPending === true ||
+      (existing?.alibabaPrimarySourceKey ?? null) !== input.expectedPrimarySourceKey)
+  )
     return { result: 'stale' };
   const { _id, ...inputData } = input.data as Record<string, unknown> & { _id?: unknown };
   let data: Record<string, unknown> =

@@ -56,6 +56,39 @@ test('classification publication rejects a concurrent product edit inside the sa
   );
 });
 
+test('ordinary status writes reject newly linked sources and pending supplier review atomically', () => {
+  const input: CatalogProductSaveInput = {
+    mode: 'update',
+    productId: 'review-product',
+    data: { published: true },
+    rejectPendingReview: true,
+    expectedPrimarySourceKey: null,
+  };
+  const unlinked = reviewProduct({
+    alibabaPrimarySourceKey: undefined,
+    alibabaReviewPending: undefined,
+    imageIds: ['image'],
+    description: 'Ready to publish',
+  });
+  assert.equal(planCatalogProductSave(unlinked, input, '2026-09-24T00:00:00.000Z').result, 'ready');
+  for (const current of [
+    { ...unlinked, alibabaPrimarySourceKey: 'source-a', alibabaReviewPending: null },
+    { ...unlinked, alibabaPrimarySourceKey: 'source-a', alibabaReviewPending: true },
+  ]) {
+    assert.deepEqual(planCatalogProductSave(current, input, '2026-09-24T00:00:00.000Z'), {
+      result: 'stale',
+    });
+  }
+  assert.deepEqual(
+    planCatalogProductSave(
+      reviewProduct({ alibabaReviewPending: true }),
+      { ...input, expectedPrimarySourceKey: 'source-a' },
+      '2026-09-24T00:00:00.000Z',
+    ),
+    { result: 'stale' },
+  );
+});
+
 test('Alibaba review CAS checks revision and primary source independently before validation or identities', () => {
   for (const product of [
     reviewProduct({ alibabaLinkRevision: 2 }),

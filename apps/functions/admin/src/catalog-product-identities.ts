@@ -77,12 +77,17 @@ async function saveCatalogProduct(input: {
   values: unknown;
   requireDetailApproval?: CatalogProductSaveInput['requireDetailApproval'];
   expectedUpdatedAt?: string;
+  rejectPendingReview?: boolean;
+  expectedPrimarySourceKey?: string | null;
 }): Promise<CatalogProductWriteTransition> {
   const result = await saveCatalogProductWithIdentities({
     mode: input.mode,
     productId: input.productId,
     data: canonicalizeIdentityFields(input.values),
     ...(input.expectedUpdatedAt ? { expectedUpdatedAt: input.expectedUpdatedAt } : {}),
+    ...(input.rejectPendingReview
+      ? { rejectPendingReview: true, expectedPrimarySourceKey: input.expectedPrimarySourceKey }
+      : {}),
     ...(input.requireDetailApproval ? { requireDetailApproval: input.requireDetailApproval } : {}),
   });
   if (result.result === 'saved') return { doc: result.doc, previous: result.previous };
@@ -125,6 +130,8 @@ export function updateCatalogProductRecord(
   values: unknown,
   requireDetailApproval: CatalogProductSaveInput['requireDetailApproval'] = false,
   expectedUpdatedAt?: string,
+  rejectPendingReview = false,
+  expectedPrimarySourceKey: string | null = null,
 ): Promise<CatalogProductWriteTransition> {
   return saveCatalogProduct({
     mode: 'update',
@@ -132,5 +139,6 @@ export function updateCatalogProductRecord(
     values,
     requireDetailApproval,
     ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+    ...(rejectPendingReview ? { rejectPendingReview: true, expectedPrimarySourceKey } : {}),
   });
 }

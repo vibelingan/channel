@@ -1929,11 +1929,25 @@ async function updateAction(
       const acknowledgesReview =
         before?.alibabaReviewPending === true &&
         (values.published === true || values.archived === true);
+      if (acknowledgesReview && claims.role !== 'admin')
+        return err('FORBIDDEN', 'Only admins can acknowledge Alibaba product reviews.');
       if (acknowledgesReview && parsed.data.expectedUpdatedAt)
         return err(
           'CONFLICT',
           'Complete supplier review before publishing this classified product.',
         );
+      const contributorSupplierStatusChange =
+        claims.role !== 'admin' &&
+        typeof before?.alibabaPrimarySourceKey === 'string' &&
+        (values.published === true || values.archived === true);
+      if (contributorSupplierStatusChange && typeof before?.updatedAt !== 'string')
+        return err('CONFLICT', 'Refresh the supplier product before changing its status.');
+      if (
+        contributorSupplierStatusChange &&
+        parsed.data.expectedUpdatedAt &&
+        parsed.data.expectedUpdatedAt !== before?.updatedAt
+      )
+        return err('CONFLICT', 'Product changed since classification. Refresh before publishing.');
       // Compare price changes in the atomic save, while allowing non-price
       // form edits to reach the subsequent detail review and approval.
       const requiresApproval =
@@ -1945,7 +1959,11 @@ async function updateAction(
               parsed.data.id,
               values,
               requiresApproval,
-              parsed.data.expectedUpdatedAt,
+              contributorSupplierStatusChange ? before?.updatedAt : parsed.data.expectedUpdatedAt,
+              values.published === true || values.archived === true,
+              typeof before?.alibabaPrimarySourceKey === 'string'
+                ? before.alibabaPrimarySourceKey
+                : null,
             );
       doc = transition.doc;
       authoritativeBefore = transition.previous;

@@ -436,6 +436,61 @@ test('bulk publish runs only after every selected assignment is confirmed', asyn
   assert.equal(fetchMock.mock.callCount(), 4);
 });
 
+test('revisioned bulk publish never approves unseen supplier detail', async (context) => {
+  const input = {
+    ...command(),
+    includeSavedRevision: true as const,
+    products: [
+      { productId: 'supplier-linked', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
+      { productId: 'ordinary-draft', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
+    ],
+  } satisfies CatalogClassificationAssignmentRequest;
+  const revision = '2026-09-24T00:00:00.000Z';
+  const actions: string[] = [];
+  context.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const request = JSON.parse(String(init.body));
+    actions.push(request.action);
+    if (request.action === 'catalogDetailCapabilities')
+      return Response.json({ ok: true, data: { enabled: true } });
+    if (request.action === 'get')
+      return Response.json({
+        ok: true,
+        data: {
+          _id: request.data.id,
+          published: false,
+          ...(request.data.id === 'supplier-linked'
+            ? { alibabaPrimarySourceKey: 'a'.repeat(64) }
+            : {}),
+        },
+      });
+    assert.equal(request.action, 'update');
+    assert.equal(request.data.id, 'ordinary-draft');
+    assert.equal(request.data.expectedUpdatedAt, revision);
+    assert.deepEqual(request.data.values, { published: true });
+    return Response.json({ ok: true, data: { _id: request.data.id, published: true } });
+  });
+  const result = await publishConfirmedClassification(input, {
+    kind: 'assignment',
+    results: input.products.map(({ productId }) => ({
+      productId,
+      status: 'saved',
+      updatedAt: revision,
+    })),
+  });
+  assert.equal(result?.updated, 1);
+  assert.deepEqual(
+    result?.failures.map(({ id, code, outcome }) => ({ id, code, outcome })),
+    [{ id: 'supplier-linked', code: 'CONFLICT', outcome: 'rejected' }],
+  );
+  assert.deepEqual(actions, [
+    'catalogDetailCapabilities',
+    'get',
+    'catalogDetailCapabilities',
+    'get',
+    'update',
+  ]);
+});
+
 test('malformed product IDs block assignment and registry reads show a loading state', async () => {
   const { ProductClassificationEditor } = await import('./ProductClassificationEditor.tsx');
   const content = createElement(ProductClassificationEditor, {
