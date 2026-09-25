@@ -81,6 +81,17 @@ class MemoryAdapter implements DbAdapter {
         }),
       );
     }
+    const subcategoryScope = query.productSubcategories;
+    if (subcategoryScope) {
+      docs = docs.filter((doc) =>
+        matchesFilter(doc, {
+          combinator: 'and',
+          clauses: [
+            { field: 'subcategoryIds', op: 'matchesProductSubcategories', value: subcategoryScope },
+          ],
+        }),
+      );
+    }
     if (query.filter) {
       const filter = query.filter;
       docs = docs.filter((doc) => matchesFilter(doc, filter));
@@ -1005,6 +1016,23 @@ test('admin can acknowledge one Alibaba draft and publishing also consumes New o
     'FORBIDDEN',
   );
   const admin = await adminToken();
+  expectErr(
+    await call(
+      'update',
+      {
+        collection: 'products',
+        id: 'pending-publish',
+        values: { published: true },
+        expectedUpdatedAt: '2026-09-24T00:00:00.000Z',
+      },
+      admin,
+    ),
+    'CONFLICT',
+  );
+  assert.equal(
+    store.products?.find((item) => item._id === 'pending-publish')?.alibabaReviewPending,
+    true,
+  );
   const reviewed = okData<CollectionDoc>(
     await call('markProductReviewed', { productId: 'pending-explicit' }, admin),
   );
@@ -1036,6 +1064,118 @@ test('admin can acknowledge one Alibaba draft and publishing also consumes New o
     store.products?.find((item) => item._id === 'manual')?.alibabaReviewPending,
     undefined,
   );
+});
+
+test('contributor cannot acknowledge pending supplier review through product status changes', async () => {
+  const store = setup({
+    users: [],
+    products: [
+      reviewProduct({ _id: 'pending-publish' }),
+      reviewProduct({ _id: 'pending-archive' }),
+    ],
+    catalogProductIdentities: [],
+  });
+  const contributor = await contributorToken();
+  for (const [id, values] of [
+    ['pending-publish', { published: true }],
+    ['pending-archive', { archived: true }],
+  ] as const) {
+    expectErr(
+      await call('update', { collection: 'products', id, values }, contributor),
+      'FORBIDDEN',
+    );
+    assert.equal(store.products?.find((item) => item._id === id)?.alibabaReviewPending, true);
+  }
+});
+
+for (const values of [{ published: true }, { archived: true }]) {
+  for (const role of ['admin', 'contributor'] as const) {
+    test(`${role} cannot ${Object.keys(values)[0]} a source linked after the read`, async () => {
+      const product = {
+        _id: 'link-race',
+        ...publishableProduct({ published: false }),
+      } as CollectionDoc;
+      const store = setup({ users: [], products: [product], catalogProductIdentities: [] });
+      const concurrentPatch = {
+        alibabaPrimarySourceKey: 'source-a',
+        alibabaReviewPending: null,
+        updatedAt: '2026-09-25T00:00:00.000Z',
+      };
+      setAdapter(new ReviewRaceAdapter(store, concurrentPatch));
+      expectErr(
+        await call(
+          'update',
+          { collection: 'products', id: product._id, values },
+          role === 'admin' ? await adminToken() : await contributorToken(),
+        ),
+        'CONFLICT',
+      );
+      assert.deepEqual(store.products?.[0], { ...product, ...concurrentPatch });
+    });
+
+    test(`${role} cannot ${Object.keys(values)[0]} when supplier review starts after the read`, async () => {
+      const product = {
+        _id: 'review-race',
+        ...publishableProduct({ published: false }),
+        updatedAt: '2026-09-24T00:00:00.000Z',
+        alibabaPrimarySourceKey: 'source-a',
+        alibabaReviewPending: false,
+      } as CollectionDoc;
+      const store = setup({ users: [], products: [product], catalogProductIdentities: [] });
+      const concurrentPatch = {
+        alibabaReviewPending: true,
+        updatedAt: '2026-09-25T00:00:00.000Z',
+      };
+      setAdapter(new ReviewRaceAdapter(store, concurrentPatch));
+      expectErr(
+        await call(
+          'update',
+          { collection: 'products', id: product._id, values },
+          role === 'admin' ? await adminToken() : await contributorToken(),
+        ),
+        'CONFLICT',
+      );
+      assert.deepEqual(store.products?.[0], { ...product, ...concurrentPatch });
+    });
+  }
+}
+
+test('contributor status changes on reviewed suppliers preserve the client revision', async () => {
+  const product = {
+    _id: 'reviewed-supplier',
+    ...publishableProduct({ published: false }),
+    updatedAt: '2026-09-24T00:00:00.000Z',
+    alibabaPrimarySourceKey: 'source-a',
+    alibabaReviewPending: false,
+  } as CollectionDoc;
+  const store = setup({ users: [], products: [product], catalogProductIdentities: [] });
+  const contributor = await contributorToken();
+  expectErr(
+    await call(
+      'update',
+      {
+        collection: 'products',
+        id: product._id,
+        values: { archived: true },
+        expectedUpdatedAt: '2026-09-23T00:00:00.000Z',
+      },
+      contributor,
+    ),
+    'CONFLICT',
+  );
+  assert.deepEqual(store.products?.[0], product);
+  assert.equal(
+    (
+      await call(
+        'update',
+        { collection: 'products', id: product._id, values: { archived: true } },
+        contributor,
+      )
+    ).ok,
+    true,
+  );
+  assert.equal(store.products?.[0]?.alibabaReviewPending, false);
+  assert.equal(store.products?.[0]?.archived, true);
 });
 
 test('product publish requires the complete lifecycle contract', async () => {
@@ -2666,6 +2806,175 @@ test('list rejects unknown families and family filters on non-product collection
     await call('list', { collection: 'users', productFamily: 'toys' }, token),
     'BAD_REQUEST',
   );
+});
+
+function toysTaxonomy(overrides: Partial<CollectionDoc> = {}): CollectionDoc {
+  return {
+    _id: 'toys',
+    family: 'toys',
+    revision: 3,
+    name: 'Toys',
+    children: [
+      { id: 'toys-blocks', name: 'Blocks', slug: 'blocks', order: 0, status: 'active' },
+      { id: 'toys-retired', name: 'Retired', slug: 'retired', order: 1, status: 'archived' },
+    ],
+    ...overrides,
+  };
+}
+
+test('admin subcategory filter scopes one family before counting and paging, without writes', async () => {
+  const store = setup({
+    users: [],
+    catalogTaxonomies: [toysTaxonomy()],
+    products: [
+      { _id: 't1', name: 'Blocks A', productFamily: 'toys', subcategoryIds: ['toys-blocks'] },
+      {
+        _id: 't2',
+        name: 'Blocks B',
+        productFamily: 'toys',
+        subcategoryIds: ['toys-blocks', 'toys-retired'],
+      },
+      { _id: 't3', name: 'Retired C', productFamily: 'toys', subcategoryIds: ['toys-retired'] },
+      { _id: 't4', name: 'Empty D', productFamily: 'toys', subcategoryIds: [] },
+      { _id: 't5', name: 'Unassigned E', productFamily: 'toys' },
+      { _id: 't6', name: 'Unknown F', productFamily: 'toys', subcategoryIds: ['toys-gone'] },
+      { _id: 'm1', name: 'Blocks misc', productFamily: 'misc', subcategoryIds: ['toys-blocks'] },
+      { _id: 'h1', name: 'Legacy wired', category: 'wired' },
+      {
+        _id: 'h2',
+        name: 'Assigned wired',
+        productFamily: 'headphones',
+        subcategoryIds: ['headphones-wired'],
+      },
+      {
+        _id: 'h3',
+        name: 'Cleared wired',
+        productFamily: 'headphones',
+        category: 'wired',
+        subcategoryIds: [],
+      },
+    ],
+  });
+  const token = await adminToken();
+  const before = structuredClone(store);
+  const scoped = (data: Record<string, unknown>) =>
+    call('list', { collection: 'products', sort: [{ field: '_id', dir: 'asc' }], ...data }, token);
+
+  const secondPage = okData<ListResult<CollectionDoc>>(
+    await scoped({ productFamily: 'toys', subcategoryIds: ['toys-blocks'], page: 2, pageSize: 1 }),
+  );
+  assert.equal(secondPage.total, 2);
+  assert.deepEqual(
+    secondPage.items.map((row) => row._id),
+    ['t2'],
+  );
+
+  const archived = okData<ListResult<CollectionDoc>>(
+    await scoped({ productFamily: 'toys', subcategoryIds: ['toys-retired'] }),
+  );
+  assert.deepEqual(
+    archived.items.map((row) => row._id),
+    ['t2', 't3'],
+  );
+
+  const withOrFilter = okData<ListResult<CollectionDoc>>(
+    await scoped({
+      productFamily: 'toys',
+      subcategoryIds: ['toys-blocks'],
+      filter: {
+        combinator: 'or',
+        clauses: [
+          { field: 'name', op: 'contains', value: 'Blocks' },
+          { field: 'name', op: 'contains', value: 'Empty' },
+        ],
+      },
+    }),
+  );
+  assert.equal(withOrFilter.total, 2);
+  assert.deepEqual(
+    withOrFilter.items.map((row) => row._id),
+    ['t1', 't2'],
+  );
+
+  const legacy = okData<ListResult<CollectionDoc>>(
+    await scoped({ productFamily: 'headphones', subcategoryIds: ['headphones-wired'] }),
+  );
+  assert.deepEqual(
+    legacy.items.map((row) => row._id),
+    ['h1', 'h2'],
+  );
+  assert.deepEqual(store, before);
+});
+
+test('admin subcategory filter rejects unsafe scopes, non-admins and unknown registry ids', async () => {
+  const store = setup({
+    users: [],
+    catalogTaxonomies: [toysTaxonomy()],
+    products: [
+      { _id: 't1', name: 'Blocks A', productFamily: 'toys', subcategoryIds: ['toys-blocks'] },
+      { _id: 't2', name: 'Plain B', productFamily: 'toys' },
+    ],
+  });
+  const admin = await adminToken();
+  const contributor = await contributorToken();
+  const query = { collection: 'products', productFamily: 'toys', subcategoryIds: ['toys-blocks'] };
+
+  expectErr(await call('list', query, contributor), 'FORBIDDEN');
+  expectErr(await call('list', query, ''), 'UNAUTHORIZED');
+  const { productFamily: _family, ...withoutFamily } = query;
+  expectErr(await call('list', withoutFamily, admin), 'BAD_REQUEST');
+  expectErr(
+    await call('list', { ...withoutFamily, needsClassification: true }, admin),
+    'BAD_REQUEST',
+  );
+  expectErr(await call('list', { ...query, collection: 'users' }, admin), 'BAD_REQUEST');
+  for (const subcategoryIds of [
+    [],
+    ['Bad Id'],
+    ['toys-blocks', 'toys-blocks'],
+    Array.from({ length: 17 }, (_, index) => `toys-${index}`),
+    'toys-blocks',
+    ['toys-gone'],
+    ['headphones-wired'],
+  ]) {
+    expectErr(await call('list', { ...query, subcategoryIds }, admin), 'BAD_REQUEST');
+  }
+  expectErr(
+    await call(
+      'list',
+      {
+        collection: 'products',
+        productFamily: 'toys',
+        filter: {
+          combinator: 'and',
+          clauses: [
+            {
+              field: 'productFamily',
+              op: 'matchesProductSubcategories',
+              value: { family: 'toys', ids: ['toys-blocks'], knownIds: ['toys-blocks'] },
+            },
+          ],
+        },
+      },
+      admin,
+    ),
+    'BAD_REQUEST',
+  );
+  const injected = okData<ListResult<CollectionDoc>>(
+    await call(
+      'list',
+      {
+        collection: 'products',
+        productFamily: 'toys',
+        productSubcategories: { family: 'toys', ids: ['toys-blocks'], knownIds: ['toys-blocks'] },
+      },
+      admin,
+    ),
+  );
+  assert.equal(injected.total, 2, 'server-built scope cannot be supplied by the client');
+
+  store.catalogTaxonomies = [toysTaxonomy({ children: 'corrupt' })];
+  expectErr(await call('list', query, admin), 'INTERNAL_ERROR');
 });
 
 test('unclassified queue is paginated server-side, excludes legacy headphones, and rejects contradictory scopes', async () => {

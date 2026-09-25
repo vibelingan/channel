@@ -147,6 +147,22 @@ export function initialCatalogTaxonomy(family: ProductFamily): CatalogTaxonomy {
   };
 }
 
+/** A missing row means the initial registry; unusable stored data returns null (fail closed). */
+export function storedCatalogTaxonomy(
+  family: ProductFamily,
+  stored: Record<string, unknown> | null,
+): CatalogTaxonomy | null {
+  if (stored === null) return initialCatalogTaxonomy(family);
+  if (stored._id !== family) return null;
+  const parsed = CatalogTaxonomySchema.safeParse({
+    family: stored.family,
+    name: stored.name,
+    revision: stored.revision,
+    children: stored.children,
+  });
+  return parsed.success && parsed.data.family === family ? parsed.data : null;
+}
+
 export function validateProductSubcategories(
   family: ProductFamily,
   subcategoryIds: unknown,
@@ -221,6 +237,7 @@ export const CatalogClassificationAssignmentRequestSchema = z
           new Set(products.map((product) => product.productId)).size === products.length,
       ),
     subcategoryIds: assignmentIds,
+    includeSavedRevision: z.literal(true).optional(),
   })
   .strict()
   .refine((command) => command.operation !== 'clear' || command.subcategoryIds.length === 0, {
@@ -249,6 +266,7 @@ export const CatalogClassificationAssignmentResultSchema = z
               'unknown',
               'notattempted',
             ]),
+            updatedAt: z.string().datetime().optional(),
           })
           .strict(),
       )

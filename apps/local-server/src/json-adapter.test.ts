@@ -60,6 +60,48 @@ test('classification queue filters before pagination and a saved assignment surv
   assert.equal((await reopened.get('products', 'clock-b'))?.published, false);
 });
 
+test('subcategory scope is ANDed with an OR filter before counting and pagination', async (t) => {
+  const { directory, file } = temporaryDatabase();
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  writeFileSync(
+    file,
+    JSON.stringify({
+      products: [
+        { _id: 'a', name: 'Blocks A', productFamily: 'toys', subcategoryIds: ['toys-blocks'] },
+        { _id: 'b', name: 'Blocks B', productFamily: 'toys', subcategoryIds: ['toys-blocks'] },
+        { _id: 'c', name: 'Dolls C', productFamily: 'toys', subcategoryIds: ['toys-dolls'] },
+        { _id: 'd', name: 'Blocks misc', productFamily: 'misc', subcategoryIds: ['toys-blocks'] },
+      ],
+    }),
+  );
+  const adapter = new JsonFileAdapter(file);
+  const result = await adapter.list({
+    collection: 'products',
+    productFamily: 'toys',
+    productSubcategories: {
+      family: 'toys',
+      ids: ['toys-blocks'],
+      knownIds: ['toys-blocks', 'toys-dolls'],
+    },
+    filter: {
+      combinator: 'or',
+      clauses: [
+        { field: 'name', op: 'contains', value: 'Blocks' },
+        { field: 'name', op: 'contains', value: 'Dolls' },
+      ],
+    },
+    page: 2,
+    pageSize: 1,
+    search: '',
+    sort: [{ field: '_id', dir: 'asc' }],
+  });
+  assert.equal(result.total, 2);
+  assert.deepEqual(
+    result.items.map((item) => item._id),
+    ['b'],
+  );
+});
+
 test('RACE: JsonFileAdapter persists exactly one owner for a shared slug and SKU', async (t) => {
   const { directory, file } = temporaryDatabase();
   t.after(() => rmSync(directory, { recursive: true, force: true }));

@@ -68,6 +68,7 @@ interface ApiFailure {
   error: {
     code: string;
     message: string;
+    retryAfterSeconds?: number;
   };
 }
 
@@ -101,10 +102,22 @@ export async function adminAction<T>(
 }
 
 export async function loginAdmin(request: APIRequestContext): Promise<AdminSession> {
-  return adminAction<AdminSession>(request, 'login', {
-    email: e2e.adminEmail,
-    password: e2e.adminPassword,
-  });
+  const credentials = { email: e2e.adminEmail, password: e2e.adminPassword };
+  for (let attempt = 1; ; attempt++) {
+    const response = await request.post(`${e2e.apiUrl}/api/admin`, {
+      data: { action: 'login', data: credentials },
+    });
+    const json = (await response.json()) as ApiEnvelope<AdminSession>;
+    if (response.ok() && json.ok) return json.data;
+    const retryAfter =
+      !json.ok && json.error.code === 'RATE_LIMITED' ? json.error.retryAfterSeconds : undefined;
+    // Sequential local journeys share one source address; wait out the limiter once, never bypass it.
+    if (attempt === 1 && typeof retryAfter === 'number' && retryAfter > 0 && retryAfter <= 60) {
+      await new Promise((resolve) => setTimeout(resolve, (retryAfter + 1) * 1000));
+      continue;
+    }
+    throw new Error(`login failed (${response.status()}): ${errorMessage(json)}`);
+  }
 }
 
 export async function removeIfPresent(

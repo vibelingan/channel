@@ -14,7 +14,7 @@ export * from './category-api.ts';
 export * from './auth.ts';
 export * from './query.ts';
 
-import type { FilterModel, SortClause } from './query.ts';
+import type { FilterModel, ProductSubcategoryScope, SortClause } from './query.ts';
 
 /** Shared types for the generic admin CRUD protocol. */
 export interface ListQuery {
@@ -22,6 +22,8 @@ export interface ListQuery {
   productFamily?: import('./catalog-product.ts').ProductFamily;
   /** Admin classification queue, not a persisted product family. */
   needsClassification?: boolean;
+  /** Built by the server from the saved registry; never accepted from a client. */
+  productSubcategories?: ProductSubcategoryScope;
   page?: number;
   pageSize?: number;
   search?: string;

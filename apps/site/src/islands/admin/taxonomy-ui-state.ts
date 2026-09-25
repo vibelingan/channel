@@ -30,6 +30,56 @@ export function taxonomyQuery(family: ProductFamily) {
   };
 }
 
+export type SavedSubcategories =
+  | { kind: 'unclassified' }
+  | { kind: 'invalid' }
+  | { kind: 'none' }
+  | { kind: 'assigned'; children: { id: string; name: string; archived: boolean }[] };
+
+/** Read-only view of what the website currently uses for this product; never a draft value. */
+export function savedProductSubcategories(
+  product: CollectionDoc,
+  registry: CatalogTaxonomy,
+): SavedSubcategories {
+  const family = productFamilyForDoc(product);
+  if (family === null) return { kind: 'unclassified' };
+  if (family !== registry.family) return { kind: 'invalid' };
+  const state = readProductSubcategories(product, registry);
+  if (state.status === 'invalid') return { kind: 'invalid' };
+  if (state.subcategoryIds.length === 0) return { kind: 'none' };
+  return {
+    kind: 'assigned',
+    children: state.subcategoryIds.map((id) => {
+      const child = registry.children.find((candidate) => candidate.id === id);
+      return { id, name: child?.name ?? id, archived: child?.status === 'archived' };
+    }),
+  };
+}
+
+export function savedSubcategoriesText(saved: SavedSubcategories): string {
+  switch (saved.kind) {
+    case 'unclassified':
+      return '';
+    case 'invalid':
+      return 'Invalid saved subcategories';
+    case 'none':
+      return 'None';
+    case 'assigned':
+      return saved.children
+        .map((child) => (child.archived ? `${child.name} (archived)` : child.name))
+        .join(', ');
+  }
+}
+
+export function subcategoryFilterOptions(registry: CatalogTaxonomy) {
+  return [...registry.children]
+    .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name))
+    .map((child) => ({
+      value: child.id,
+      label: child.status === 'archived' ? `${child.name} (archived)` : child.name,
+    }));
+}
+
 export function initialClassification(
   products: readonly CollectionDoc[],
   registry: CatalogTaxonomy,

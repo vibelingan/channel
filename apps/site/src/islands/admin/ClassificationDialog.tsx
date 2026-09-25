@@ -5,10 +5,12 @@ import { useModalDialog } from './use-modal-dialog.ts';
 
 export function ClassificationDialog({
   products,
+  publishOnSave = false,
   onClose,
   onSaved,
 }: {
   products: readonly CollectionDoc[];
+  publishOnSave?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -26,6 +28,7 @@ export function ClassificationDialog({
     >
       <ProductClassificationEditor
         products={products}
+        publishOnSave={publishOnSave}
         onBusyChange={setBusy}
         onCancel={onClose}
         onSaved={onSaved}

@@ -10,11 +10,14 @@ import {
 } from '@vibelingan-channel/shared';
 import { type ReactNode, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { assignmentCall, taxonomyCall } from './api.ts';
+import { assignmentCall, publishConfirmedClassification, taxonomyCall } from './api.ts';
 import {
   classificationChoices,
   classificationRequest,
   initialClassification,
+  savedProductSubcategories,
+  savedSubcategoriesText,
+  subcategoryFilterOptions,
   summarizeAssignment,
 } from './taxonomy-ui-state.ts';
 
@@ -367,6 +370,127 @@ test('classification editor preloads archived current IDs, previews products and
   assert.ok(html.includes('Review assignment'));
 });
 
+test('bulk classification offers an explicit classify-and-publish review', async () => {
+  const { ProductClassificationEditor } = await import('./ProductClassificationEditor.tsx');
+  const html = renderWithTaxonomy(
+    createElement(ProductClassificationEditor, {
+      products: [product({ published: false })],
+      publishOnSave: true,
+      onSaved: () => {},
+    }),
+  );
+  assert.match(html, /publish only after all classifications are confirmed/i);
+  assert.ok(html.includes('Review classification and publish'));
+  assert.ok(html.includes('Studio headset'));
+});
+
+test('bulk publish runs only after every selected assignment is confirmed', async (context) => {
+  const input = {
+    ...command(),
+    includeSavedRevision: true as const,
+    products: [
+      { productId: 'product-1', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
+      { productId: 'product-2', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
+    ],
+  } satisfies CatalogClassificationAssignmentRequest;
+  const fetchMock = context.mock.method(
+    globalThis,
+    'fetch',
+    async (_url: unknown, init: RequestInit) => {
+      const request = JSON.parse(String(init.body));
+      if (request.action === 'catalogDetailCapabilities')
+        return Response.json({ ok: true, data: { enabled: false } });
+      assert.equal(request.action, 'update');
+      assert.deepEqual(request.data.values, { published: true });
+      assert.equal(request.data.expectedUpdatedAt, '2026-09-24T00:00:00.000Z');
+      return Response.json({ ok: true, data: { _id: request.data.id, published: true } });
+    },
+  );
+  const saved = {
+    kind: 'assignment' as const,
+    results: input.products.map(({ productId }) => ({
+      productId,
+      status: 'saved' as const,
+      updatedAt: '2026-09-24T00:00:00.000Z',
+    })),
+  };
+  for (const response of [
+    {
+      ...saved,
+      results: [{ productId: 'product-1', status: 'conflict' as const }, saved.results[1]],
+    },
+    {
+      ...saved,
+      results: [{ productId: 'product-1', status: 'unknown' as const }, saved.results[1]],
+    },
+    { ...saved, results: saved.results.slice(0, 1) },
+    { ...saved, results: [{ productId: 'other', status: 'saved' as const }, saved.results[1]] },
+    { ...saved, refreshRequired: true as const },
+    { ...saved, results: [{ productId: 'product-1', status: 'saved' as const }, saved.results[1]] },
+  ]) {
+    assert.equal(await publishConfirmedClassification(input, response), null);
+  }
+  assert.equal(fetchMock.mock.callCount(), 0);
+  const result = await publishConfirmedClassification(input, saved);
+  assert.equal(result?.updated, 2);
+  assert.equal(fetchMock.mock.callCount(), 4);
+});
+
+test('revisioned bulk publish never approves unseen supplier detail', async (context) => {
+  const input = {
+    ...command(),
+    includeSavedRevision: true as const,
+    products: [
+      { productId: 'supplier-linked', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
+      { productId: 'ordinary-draft', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
+    ],
+  } satisfies CatalogClassificationAssignmentRequest;
+  const revision = '2026-09-24T00:00:00.000Z';
+  const actions: string[] = [];
+  context.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const request = JSON.parse(String(init.body));
+    actions.push(request.action);
+    if (request.action === 'catalogDetailCapabilities')
+      return Response.json({ ok: true, data: { enabled: true } });
+    if (request.action === 'get')
+      return Response.json({
+        ok: true,
+        data: {
+          _id: request.data.id,
+          published: false,
+          ...(request.data.id === 'supplier-linked'
+            ? { alibabaPrimarySourceKey: 'a'.repeat(64) }
+            : {}),
+        },
+      });
+    assert.equal(request.action, 'update');
+    assert.equal(request.data.id, 'ordinary-draft');
+    assert.equal(request.data.expectedUpdatedAt, revision);
+    assert.deepEqual(request.data.values, { published: true });
+    return Response.json({ ok: true, data: { _id: request.data.id, published: true } });
+  });
+  const result = await publishConfirmedClassification(input, {
+    kind: 'assignment',
+    results: input.products.map(({ productId }) => ({
+      productId,
+      status: 'saved',
+      updatedAt: revision,
+    })),
+  });
+  assert.equal(result?.updated, 1);
+  assert.deepEqual(
+    result?.failures.map(({ id, code, outcome }) => ({ id, code, outcome })),
+    [{ id: 'supplier-linked', code: 'CONFLICT', outcome: 'rejected' }],
+  );
+  assert.deepEqual(actions, [
+    'catalogDetailCapabilities',
+    'get',
+    'catalogDetailCapabilities',
+    'get',
+    'update',
+  ]);
+});
+
 test('malformed product IDs block assignment and registry reads show a loading state', async () => {
   const { ProductClassificationEditor } = await import('./ProductClassificationEditor.tsx');
   const content = createElement(ProductClassificationEditor, {
@@ -377,4 +501,86 @@ test('malformed product IDs block assignment and registry reads show a loading s
   assert.match(html, /malformed/i);
   assert.match(html, /<button[^>]*disabled=""[^>]*>Review assignment<\/button>/);
   assert.ok(renderWithTaxonomy(content, false).includes('Loading categories'));
+});
+
+test('saved subcategory names come from subcategoryIds, not the stale legacy scalar', () => {
+  const migrated = product({ category: 'wired', subcategoryIds: ['headphones-office'] });
+  const before = structuredClone(migrated);
+  const saved = savedProductSubcategories(migrated, registry());
+  assert.deepEqual(saved, {
+    kind: 'assigned',
+    children: [{ id: 'headphones-office', name: 'Office Headphones', archived: false }],
+  });
+  assert.equal(savedSubcategoriesText(saved), 'Office Headphones');
+  assert.deepEqual(migrated, before);
+});
+
+test('saved subcategory states cover legacy, archived, empty, unclassified and invalid rows', () => {
+  const text = (overrides: Partial<CollectionDoc>) =>
+    savedSubcategoriesText(savedProductSubcategories(product(overrides), registry()));
+  const { productFamily: _family, ...legacy } = product({ category: 'wired' });
+  assert.equal(
+    savedSubcategoriesText(savedProductSubcategories(legacy, registry())),
+    'Wired Headphones (archived)',
+  );
+  assert.equal(
+    text({ subcategoryIds: ['headphones-wired', 'headphones-bluetooth'] }),
+    'Wired Headphones (archived), Bluetooth Headphones',
+  );
+  assert.equal(text({ subcategoryIds: [] }), 'None');
+  assert.equal(text({ category: 'wired', subcategoryIds: [] }), 'None');
+  assert.equal(text({}), 'None');
+  assert.deepEqual(savedProductSubcategories(product({ productFamily: undefined }), registry()), {
+    kind: 'unclassified',
+  });
+  for (const overrides of [
+    { subcategoryIds: ['missing'] },
+    { subcategoryIds: 'headphones-office' },
+    { subcategoryIds: ['headphones-office', 'headphones-office'] },
+    { productFamily: 'toys', subcategoryIds: ['headphones-office'] },
+    { productFamily: 'toys', category: 'wired' },
+  ] as Partial<CollectionDoc>[]) {
+    const saved = savedProductSubcategories(product(overrides), registry());
+    assert.equal(saved.kind, 'invalid', JSON.stringify(overrides));
+    assert.equal(savedSubcategoriesText(saved), 'Invalid saved subcategories');
+  }
+});
+
+test('filter options keep registry order and label archived children', () => {
+  assert.deepEqual(subcategoryFilterOptions(registry()), [
+    { value: 'headphones-wired', label: 'Wired Headphones (archived)' },
+    { value: 'headphones-office', label: 'Office Headphones' },
+    { value: 'headphones-bluetooth', label: 'Bluetooth Headphones' },
+  ]);
+  assert.deepEqual(subcategoryFilterOptions(initialCatalogTaxonomy('toys')), []);
+});
+
+test('edit summary shows saved names read-only, with loading and invalid states', async () => {
+  const { SavedClassificationSummary } = await import('./SavedClassificationSummary.tsx');
+  const assigned = renderWithTaxonomy(
+    createElement(SavedClassificationSummary, {
+      product: product({ subcategoryIds: ['headphones-wired', 'headphones-office'] }),
+    }),
+  );
+  assert.ok(assigned.includes('Saved website classification'));
+  assert.ok(assigned.includes('Headphones'));
+  assert.ok(assigned.includes('Wired Headphones (archived), Office Headphones'));
+  assert.doesNotMatch(assigned, /<(input|select|textarea)\b/);
+  const invalid = renderWithTaxonomy(
+    createElement(SavedClassificationSummary, {
+      product: product({ subcategoryIds: ['missing'] }),
+    }),
+  );
+  assert.match(invalid, /Invalid saved subcategories/);
+  const loading = renderWithTaxonomy(
+    createElement(SavedClassificationSummary, { product: product() }),
+    false,
+  );
+  assert.match(loading, /Loading subcategories/);
+  const unclassified = renderWithTaxonomy(
+    createElement(SavedClassificationSummary, { product: product({ productFamily: undefined }) }),
+    false,
+  );
+  assert.match(unclassified, /Needs classification/);
+  assert.doesNotMatch(unclassified, /Loading/);
 });

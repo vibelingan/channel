@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 const adminSelectFiles = {
   './RecordForm.tsx': 1,
   './QuantityTierPricingEditor.tsx': 1,
-  './CollectionView.tsx': 3,
+  './CollectionView.tsx': 4,
   './FilterBuilder.tsx': 4,
 } as const;
 
