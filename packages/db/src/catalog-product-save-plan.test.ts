@@ -32,6 +32,63 @@ function reviewSave(overrides: Partial<CatalogProductSaveInput> = {}): CatalogPr
   };
 }
 
+test('classification publication rejects a concurrent product edit inside the save transaction', () => {
+  const { expectedAlibabaIdentity: _identity, ...input } = reviewSave({
+    data: { published: true },
+    expectedUpdatedAt: '2026-09-24T00:00:00.000Z',
+  });
+  const current = reviewProduct({
+    alibabaPrimarySourceKey: undefined,
+    alibabaReviewPending: false,
+    description: 'Ready for publication',
+    imageIds: ['image'],
+    unitPrice: 5.7,
+    updatedAt: '2026-09-24T00:00:00.000Z',
+  });
+  assert.equal(planCatalogProductSave(current, input, '2026-09-24T00:01:00.000Z').result, 'ready');
+  assert.deepEqual(
+    planCatalogProductSave(
+      { ...current, updatedAt: '2026-09-24T00:00:30.000Z' },
+      input,
+      '2026-09-24T00:01:00.000Z',
+    ),
+    { result: 'stale' },
+  );
+});
+
+test('ordinary status writes reject newly linked sources and pending supplier review atomically', () => {
+  const input: CatalogProductSaveInput = {
+    mode: 'update',
+    productId: 'review-product',
+    data: { published: true },
+    rejectPendingReview: true,
+    expectedPrimarySourceKey: null,
+  };
+  const unlinked = reviewProduct({
+    alibabaPrimarySourceKey: undefined,
+    alibabaReviewPending: undefined,
+    imageIds: ['image'],
+    description: 'Ready to publish',
+  });
+  assert.equal(planCatalogProductSave(unlinked, input, '2026-09-24T00:00:00.000Z').result, 'ready');
+  for (const current of [
+    { ...unlinked, alibabaPrimarySourceKey: 'source-a', alibabaReviewPending: null },
+    { ...unlinked, alibabaPrimarySourceKey: 'source-a', alibabaReviewPending: true },
+  ]) {
+    assert.deepEqual(planCatalogProductSave(current, input, '2026-09-24T00:00:00.000Z'), {
+      result: 'stale',
+    });
+  }
+  assert.deepEqual(
+    planCatalogProductSave(
+      reviewProduct({ alibabaReviewPending: true }),
+      { ...input, expectedPrimarySourceKey: 'source-a' },
+      '2026-09-24T00:00:00.000Z',
+    ),
+    { result: 'stale' },
+  );
+});
+
 test('Alibaba review CAS checks revision and primary source independently before validation or identities', () => {
   for (const product of [
     reviewProduct({ alibabaLinkRevision: 2 }),

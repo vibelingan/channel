@@ -595,6 +595,10 @@ export const cloudBaseAdapter: DbAdapter = {
       );
     }
 
+    if (query.productSubcategories) {
+      ands.push(productSubcategoryWhere(_, query.productSubcategories));
+    }
+
     // Free-text search across the collection's searchable fields.
     if (query.search && def && def.searchableFields.length > 0) {
       const term = db.RegExp({ regexp: escapeRegExp(query.search), options: 'i' });

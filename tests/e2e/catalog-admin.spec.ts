@@ -183,6 +183,9 @@ test.describe('Admin catalog lifecycle', () => {
     await page.getByRole('checkbox', { name: 'Select all rows' }).check();
     await page.getByRole('button', { name: 'Assign category', exact: true }).click();
     const classification = page.getByRole('dialog', { name: 'Edit website classification' });
+    await classification
+      .getByRole('checkbox', { name: 'Publish only after all classifications are confirmed' })
+      .uncheck();
     await expect(classification).toContainText(
       '2 selected products. Drafts will not be published.',
     );

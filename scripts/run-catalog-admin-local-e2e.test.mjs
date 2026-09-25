@@ -49,6 +49,22 @@ test('taxonomy mutations run last with owned local database guards and real API 
   assert.doesNotMatch(manifest.scripts['test:e2e:catalog'], /catalog-taxonomy/);
 });
 
+test('admin subcategory journey runs in every lane before taxonomy with owned local guards', async () => {
+  const source = await readFile('scripts/run-catalog-admin-local-e2e.mjs', 'utf8');
+  const journey = source.indexOf("'tests/e2e/admin-subcategory-visibility.spec.ts'");
+  assert.ok(journey > source.indexOf('tests/e2e/catalog-formal-journey.spec.ts'));
+  assert.ok(journey > source.indexOf('tests/e2e/admin-product-family-tabs.spec.ts'));
+  assert.ok(journey < source.indexOf("'tests/e2e/catalog-taxonomy.spec.ts'"));
+  const spec = await readFile('tests/e2e/admin-subcategory-visibility.spec.ts', 'utf8');
+  assert.match(spec, /const enabled = e2e\.catalogLocalSeed/);
+  assert.match(spec, /test\.skip\(!enabled,/);
+  assert.match(spec, /requireCatalogLocalSeedWhenEnabled\(enabled\)/);
+  assert.match(spec, /!e2e\.allowMutation/);
+  const ownershipCheck = spec.indexOf('expect(healthBody.data?.db).toBe(e2e.catalogLocalDb)');
+  assert.ok(ownershipCheck > 0 && ownershipCheck < spec.indexOf('await loginAdmin(request)'));
+  assert.doesNotMatch(spec, /as any/);
+});
+
 async function runFailure(stage) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ['scripts/run-catalog-admin-local-e2e.mjs'], {

@@ -2,12 +2,11 @@ import { getCatalogTaxonomy } from '@vibelingan-channel/db';
 import {
   type ApiResult,
   type CatalogTaxonomy,
-  CatalogTaxonomySchema,
   type ProductFamily,
   err,
-  initialCatalogTaxonomy,
   isProductFamily,
   ok,
+  storedCatalogTaxonomy,
 } from '@vibelingan-channel/shared';
 
 interface PublicCatalogTaxonomy {
@@ -21,18 +20,8 @@ export async function readCatalogTaxonomy(
   family: ProductFamily,
 ): Promise<ApiResult<CatalogTaxonomy>> {
   try {
-    const stored = await getCatalogTaxonomy(family);
-    if (stored === null) return ok(initialCatalogTaxonomy(family));
-    const parsed = CatalogTaxonomySchema.safeParse({
-      family: stored.family,
-      name: stored.name,
-      revision: stored.revision,
-      children: stored.children,
-    });
-    if (!parsed.success || parsed.data.family !== family) {
-      return err('INTERNAL_ERROR', 'Catalog taxonomy is unavailable.');
-    }
-    return ok(parsed.data);
+    const registry = storedCatalogTaxonomy(family, await getCatalogTaxonomy(family));
+    return registry ? ok(registry) : err('INTERNAL_ERROR', 'Catalog taxonomy is unavailable.');
   } catch {
     return err('INTERNAL_ERROR', 'Catalog taxonomy is unavailable.');
   }

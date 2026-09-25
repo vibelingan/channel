@@ -14,7 +14,11 @@ import type {
   ProductFamily,
   SortClause,
 } from '@vibelingan-channel/shared';
-import { PRODUCT_FAMILY_OPTIONS, isProductFamily } from '@vibelingan-channel/shared';
+import {
+  PRODUCT_FAMILY_OPTIONS,
+  isProductFamily,
+  productFamilyForDoc,
+} from '@vibelingan-channel/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
 import { BatchUpdateFeedback } from './BatchUpdateFeedback.tsx';
@@ -42,9 +46,16 @@ import {
   type AdminProductFamily,
   adminProductFamilyFromSearch,
   adminProductFamilySearch,
+  adminSubcategoryFromSearch,
   productFamilyListArgs,
 } from './product-family-tabs.ts';
 import type { DashboardSection } from './sections.ts';
+import {
+  savedProductSubcategories,
+  savedSubcategoriesText,
+  subcategoryFilterOptions,
+  taxonomyQuery,
+} from './taxonomy-ui-state.ts';
 
 const PAGE_SIZE = 20;
 
@@ -65,15 +76,25 @@ export function CollectionView({ collection, section, role }: Props) {
   const [editing, setEditing] = useState<CollectionDoc | null>(null);
   const [creating, setCreating] = useState(false);
   const [previewing, setPreviewing] = useState<CollectionDoc | null>(null);
-  const [classifying, setClassifying] = useState<CollectionDoc[] | null>(null);
+  const [classifying, setClassifying] = useState<{
+    products: CollectionDoc[];
+    publishOnSave: boolean;
+  } | null>(null);
   const [taxonomyOpened, setTaxonomyOpened] = useState(false);
 
   const isCatalog = section.catalog === true;
   const isProducts = collection.name === 'products';
   const canReviewAlibabaProducts = isProducts && role === 'admin';
+  // Registry reads are admin-only on the server, so only admins get subcategory names and filters.
+  const canReadSubcategories = isProducts && role === 'admin';
   const [productFamily, setProductFamily] = useState<AdminProductFamily>(() =>
     isProducts && typeof window !== 'undefined'
       ? adminProductFamilyFromSearch(window.location.search)
+      : null,
+  );
+  const [subcategoryId, setSubcategoryId] = useState<string | null>(() =>
+    canReadSubcategories && typeof window !== 'undefined'
+      ? adminSubcategoryFromSearch(window.location.search)
       : null,
   );
   const isUsers = collection.name === 'users';
@@ -89,6 +110,7 @@ export function CollectionView({ collection, section, role }: Props) {
     'list',
     collection.name,
     productFamily,
+    subcategoryId,
     page,
     search,
     filter,
@@ -108,6 +130,7 @@ export function CollectionView({ collection, section, role }: Props) {
             ...(sortClauses.length > 0 ? { sort: sortClauses } : {}),
           },
           productFamily,
+          subcategoryId,
         ),
       ),
   });
@@ -202,28 +225,42 @@ export function CollectionView({ collection, section, role }: Props) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset triggers
   useEffect(() => {
     setRowSelection({});
-  }, [search, filter, page, productFamily]);
+  }, [search, filter, page, productFamily, subcategoryId]);
+
+  function pushProductScope(nextFamily: AdminProductFamily, nextSubcategory: string | null) {
+    if (typeof window === 'undefined') return;
+    const nextUrl = `${window.location.pathname}${adminProductFamilySearch(window.location.search, nextFamily, nextSubcategory)}${window.location.hash}`;
+    window.history.pushState(null, '', nextUrl);
+  }
 
   function changeProductFamily(next: AdminProductFamily) {
     setProductFamily(next);
+    setSubcategoryId(null);
     setPage(1);
     clearSelection();
-    if (typeof window !== 'undefined') {
-      const nextUrl = `${window.location.pathname}${adminProductFamilySearch(window.location.search, next)}${window.location.hash}`;
-      window.history.pushState(null, '', nextUrl);
-    }
+    pushProductScope(next, null);
+  }
+
+  function changeSubcategory(next: string | null) {
+    setSubcategoryId(next);
+    setPage(1);
+    clearSelection();
+    pushProductScope(productFamily, next);
   }
 
   useEffect(() => {
     if (!isProducts) return;
     const recoverFamily = () => {
       setProductFamily(adminProductFamilyFromSearch(window.location.search));
+      setSubcategoryId(
+        canReadSubcategories ? adminSubcategoryFromSearch(window.location.search) : null,
+      );
       setPage(1);
       setRowSelection({});
     };
     window.addEventListener('popstate', recoverFamily);
     return () => window.removeEventListener('popstate', recoverFamily);
-  }, [isProducts]);
+  }, [isProducts, canReadSubcategories]);
 
   const tableFields = useMemo(() => {
     const visible = collection.fields.filter(
@@ -233,8 +270,10 @@ export function CollectionView({ collection, section, role }: Props) {
     // product document. Fields that Alibaba does not supply (slug, series,
     // website prices) stay editable in the form but do not become columns full
     // of misleading blanks. The source evidence columns below replace them.
+    // The legacy scalar `category` is not shown: saved subcategory names come
+    // from `subcategoryIds` through the registry (admin column below).
     return isProducts
-      ? visible.filter((field) => ['name', 'productFamily', 'category'].includes(field.name))
+      ? visible.filter((field) => ['name', 'productFamily'].includes(field.name))
       : visible;
   }, [collection.fields, isCatalog, isProducts]);
 
@@ -280,23 +319,15 @@ export function CollectionView({ collection, section, role }: Props) {
         id: field.name,
         accessorKey: field.name,
         header:
-          isProducts && field.name === 'productFamily'
-            ? 'Website main category'
-            : isProducts && field.name === 'category'
-              ? 'Headphone type'
-              : field.label,
+          isProducts && field.name === 'productFamily' ? 'Website main category' : field.label,
         cell: ({ row }) => {
           const doc = row.original;
           if (isProducts && field.name === 'productFamily') {
-            const family = doc.productFamily;
+            const family = productFamilyForDoc(doc);
             return (
               <TextCell
                 field={field.name}
-                value={
-                  isProductFamily(family)
-                    ? ADMIN_PRODUCT_FAMILY_LABELS[family]
-                    : 'Needs classification'
-                }
+                value={family ? ADMIN_PRODUCT_FAMILY_LABELS[family] : 'Needs classification'}
               />
             );
           }
@@ -314,6 +345,15 @@ export function CollectionView({ collection, section, role }: Props) {
           }
           return <TextCell field={field.name} value={doc[field.name]} />;
         },
+      });
+    }
+
+    if (canReadSubcategories) {
+      cols.push({
+        id: 'websiteSubcategories',
+        header: 'Website subcategories',
+        enableSorting: false,
+        cell: ({ row }) => <SavedSubcategoriesCell doc={row.original} />,
       });
     }
 
@@ -369,7 +409,7 @@ export function CollectionView({ collection, section, role }: Props) {
               <button
                 type="button"
                 disabled={updateMutation.isPending || batchUpdateMutation.isPending}
-                onClick={() => setClassifying([doc])}
+                onClick={() => setClassifying({ products: [doc], publishOnSave: false })}
                 className="mr-3 min-h-11 text-sm font-medium text-brand-700 disabled:opacity-50"
               >
                 Classify
@@ -412,6 +452,7 @@ export function CollectionView({ collection, section, role }: Props) {
     tableFields,
     isCatalog,
     isProducts,
+    canReadSubcategories,
     role,
     inlineEdit,
     updateMutation.isPending,
@@ -510,6 +551,14 @@ export function CollectionView({ collection, section, role }: Props) {
               products automatically.
             </p>
           )}
+          {canReadSubcategories && isProductFamily(productFamily) && (
+            <SubcategoryFilter
+              key={productFamily}
+              family={productFamily}
+              value={subcategoryId}
+              onChange={changeSubcategory}
+            />
+          )}
         </div>
       )}
 
@@ -571,7 +620,12 @@ export function CollectionView({ collection, section, role }: Props) {
             updateMutation.isPending
           }
           onClear={clearSelection}
-          onClassify={() => setClassifying(rows.filter((row) => selectedIds.includes(row._id)))}
+          onClassify={() =>
+            setClassifying({
+              products: rows.filter((row) => selectedIds.includes(row._id)),
+              publishOnSave: true,
+            })
+          }
           onSetValues={(values) =>
             batchUpdateMutation.mutate({
               ids: selectedIds,
@@ -725,7 +779,8 @@ export function CollectionView({ collection, section, role }: Props) {
 
       {classifying && (
         <ClassificationDialog
-          products={classifying}
+          products={classifying.products}
+          publishOnSave={classifying.publishOnSave}
           onClose={() => setClassifying(null)}
           onSaved={() => {
             setClassifying(null);
@@ -751,6 +806,7 @@ export function CollectionView({ collection, section, role }: Props) {
           collection={collection}
           title={`Edit ${singular}`}
           initial={editing}
+          showSavedClassification={canReadSubcategories}
           submitting={updateMutation.isPending}
           error={updateMutation.error as Error | null}
           onCancel={() => setEditing(null)}
@@ -778,6 +834,109 @@ export function CollectionView({ collection, section, role }: Props) {
 
 function productFamilyLabel(productFamily: ProductFamily): string {
   return ADMIN_PRODUCT_FAMILY_LABELS[productFamily];
+}
+
+/** Read-only: rows show what the website uses; nothing here writes product data. */
+function SavedSubcategoriesCell({ doc }: { doc: CollectionDoc }) {
+  const family = productFamilyForDoc(doc);
+  const registry = useQuery({
+    ...taxonomyQuery(family ?? 'headphones'),
+    enabled: family !== null,
+  });
+  if (!family) return <TextCell field="websiteSubcategories" value="" />;
+  if (registry.error) {
+    return (
+      <span data-subcategory-state="error" className="text-sm text-red-700">
+        Unavailable.{' '}
+        <button
+          type="button"
+          onClick={() => void registry.refetch()}
+          className="min-h-8 font-medium underline"
+        >
+          Retry subcategories
+        </button>
+      </span>
+    );
+  }
+  if (!registry.data) {
+    return (
+      <span data-subcategory-state="loading" className="text-slate-400">
+        Loading…
+      </span>
+    );
+  }
+  const saved = savedProductSubcategories(doc, registry.data);
+  return (
+    <span
+      data-subcategory-state={saved.kind}
+      className={saved.kind === 'invalid' ? 'text-amber-800' : undefined}
+    >
+      <TextCell field="websiteSubcategories" value={savedSubcategoriesText(saved)} />
+    </span>
+  );
+}
+
+function SubcategoryFilter({
+  family,
+  value,
+  onChange,
+}: {
+  family: ProductFamily;
+  value: string | null;
+  onChange: (value: string | null) => void;
+}) {
+  const registry = useQuery(taxonomyQuery(family));
+  const label = productFamilyLabel(family);
+  if (registry.error) {
+    return (
+      <div role="alert" className="mt-3 text-sm text-red-700">
+        {label} subcategories could not be loaded.{' '}
+        <button
+          type="button"
+          onClick={() => void registry.refetch()}
+          className="min-h-11 font-medium underline"
+        >
+          Retry subcategories
+        </button>
+      </div>
+    );
+  }
+  if (!registry.data) {
+    return (
+      <output className="mt-3 block text-sm text-slate-500">Loading {label} subcategories…</output>
+    );
+  }
+  const options = subcategoryFilterOptions(registry.data);
+  const unknown = value !== null && !options.some((option) => option.value === value);
+  return (
+    <div className="mt-3 space-y-2">
+      {options.length === 0 ? (
+        <p className="text-sm text-slate-600">No subcategories are configured for {label}.</p>
+      ) : (
+        <Select
+          label="Website subcategory"
+          value={unknown ? '' : (value ?? '')}
+          placeholder="All subcategories"
+          options={options}
+          className="w-full sm:w-80"
+          triggerClassName="mt-1"
+          onChange={(next) => onChange(next || null)}
+        />
+      )}
+      {unknown && (
+        <p role="alert" className="text-sm text-amber-800">
+          The selected subcategory does not belong to {label}.{' '}
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="min-h-11 font-medium underline"
+          >
+            Show all {label} products
+          </button>
+        </p>
+      )}
+    </div>
+  );
 }
 
 export function ProductFamilyTab({
@@ -1107,6 +1266,7 @@ const TEXT_CELL_WIDTHS: Record<string, string> = {
   reviewModel: 'max-w-40',
   reviewVariants: 'max-w-36',
   reviewPricing: 'max-w-56',
+  websiteSubcategories: 'max-w-56',
 };
 const DEFAULT_TEXT_CELL_WIDTH = 'max-w-48';
 

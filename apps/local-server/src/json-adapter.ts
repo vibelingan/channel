@@ -453,6 +453,21 @@ export class JsonFileAdapter implements DbAdapter {
           }),
         );
       }
+      const subcategoryScope = query.productSubcategories;
+      if (subcategoryScope) {
+        docs = docs.filter((doc) =>
+          matchesFilter(doc, {
+            combinator: 'and',
+            clauses: [
+              {
+                field: 'subcategoryIds',
+                op: 'matchesProductSubcategories',
+                value: subcategoryScope,
+              },
+            ],
+          }),
+        );
+      }
 
       if (query.search && def) {
         const needle = query.search.toLowerCase();

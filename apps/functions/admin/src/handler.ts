@@ -30,6 +30,7 @@ import {
   createDoc,
   findByField,
   get,
+  getCatalogTaxonomy,
   incrementField,
   list,
   manageCatalogDetailApproval,
@@ -56,6 +57,7 @@ import {
   type FilterClause,
   LOGIN_RATE_MAX_GLOBAL,
   LOGIN_RATE_MAX_PER_SOURCE,
+  MAX_PRODUCT_SUBCATEGORIES,
   type MediaSignature,
   type MediaStatus,
   OEM_DOWNLOAD_URL_TTL_SECONDS,
@@ -72,6 +74,8 @@ import {
   PRODUCT_FAMILY_OPTIONS,
   PUBLIC_CATALOG_COLLECTIONS,
   PUBLIC_RATE_WINDOW_MS,
+  type ProductFamily,
+  type ProductSubcategoryScope,
   RATE_LIMIT_HITS_SWEEP_LIMIT,
   RECOVER_RATE_MAX_GLOBAL,
   RECOVER_RATE_MAX_PER_SOURCE,
@@ -95,6 +99,7 @@ import {
   fileExtension,
   getCollection,
   isKnownCollection,
+  isProductSubcategoryIds,
   normalizeCatalogImageIds,
   normalizeProductSlug,
   normalizeSkuCode,
@@ -105,6 +110,7 @@ import {
   selectExpiredPendingForSweep,
   signatureMatchesMime,
   sniffMagicBytes,
+  storedCatalogTaxonomy,
   toRole,
   withinPendingCap,
 } from '@vibelingan-channel/shared';
@@ -215,6 +221,7 @@ const listSchema = z.object({
   collection: z.string(),
   productFamily: z.enum(PRODUCT_FAMILY_OPTIONS).optional(),
   needsClassification: z.boolean().optional(),
+  subcategoryIds: z.array(z.string()).min(1).max(MAX_PRODUCT_SUBCATEGORIES).optional(),
   page: z.number().int().positive().default(1),
   pageSize: z.number().int().positive().max(100).default(20),
   search: z.string().max(200).default(''),
@@ -227,6 +234,7 @@ const updateSchema = z.object({
   collection: z.string(),
   id: z.string().min(1),
   values: z.record(z.unknown()),
+  expectedUpdatedAt: z.string().datetime().optional(),
 });
 const batchUpdateSchema = z.object({
   collection: z.string(),
@@ -677,7 +685,11 @@ export async function handleAdminRequest(
   } catch (e) {
     if (e instanceof UnknownCollectionError) return err('UNKNOWN_COLLECTION', e.message);
     if (e instanceof CatalogProductWriteError) {
-      if (e.code === 'IDENTITY_CONFLICT' || e.code === 'PRODUCT_EXISTS') {
+      if (
+        e.code === 'IDENTITY_CONFLICT' ||
+        e.code === 'PRODUCT_EXISTS' ||
+        e.code === 'PRODUCT_STALE'
+      ) {
         return err('CONFLICT', e.message);
       }
       if (e.code === 'PRODUCT_NOT_FOUND') return err('NOT_FOUND', e.message);
@@ -1350,7 +1362,18 @@ async function listAction(req: AdminRequest, claims: SessionClaims): Promise<Api
   if (parsed.data.productFamily && parsed.data.needsClassification) {
     return err('BAD_REQUEST', 'Choose a product family or the unclassified queue, not both.');
   }
-  const { filter, productFamily, needsClassification, sort, ...rest } = parsed.data;
+  const { filter, productFamily, needsClassification, subcategoryIds, sort, ...rest } = parsed.data;
+  let productSubcategories: ProductSubcategoryScope | undefined;
+  if (subcategoryIds) {
+    const scope = await productSubcategoryScope(
+      claims,
+      parsed.data.collection,
+      productFamily,
+      subcategoryIds,
+    );
+    if (!scope.ok) return scope;
+    productSubcategories = scope.data;
+  }
   const badClause = validateQueryClauses(parsed.data.collection, filter, sort);
   if (badClause) return badClause;
   // Entering Products is an operational review queue: unless the operator
@@ -1368,10 +1391,39 @@ async function listAction(req: AdminRequest, claims: SessionClaims): Promise<Api
     ...rest,
     ...(productFamily ? { productFamily } : {}),
     ...(needsClassification ? { needsClassification: true } : {}),
+    ...(productSubcategories ? { productSubcategories } : {}),
     ...(filter ? { filter } : {}),
     ...(effectiveSort ? { sort: effectiveSort } : {}),
   });
   return ok({ ...result, items: result.items.map((d) => redact(parsed.data.collection, d)) });
+}
+
+/** Resolve requested ids against the saved registry so the filter can never widen or leak scope. */
+async function productSubcategoryScope(
+  claims: SessionClaims,
+  collection: string,
+  family: ProductFamily | undefined,
+  ids: string[],
+): Promise<ApiResult<ProductSubcategoryScope>> {
+  if (collection !== 'products' || !family) {
+    return err('BAD_REQUEST', 'Choose a website main category before filtering by subcategory.');
+  }
+  if (claims.role !== 'admin') {
+    return err('FORBIDDEN', 'Only admins can filter products by website subcategory.');
+  }
+  if (!isProductSubcategoryIds(ids)) return err('BAD_REQUEST', 'Invalid subcategory selection.');
+  let registry: ReturnType<typeof storedCatalogTaxonomy>;
+  try {
+    registry = storedCatalogTaxonomy(family, await getCatalogTaxonomy(family));
+  } catch {
+    registry = null;
+  }
+  if (!registry) return err('INTERNAL_ERROR', 'Website categories are unavailable. Retry.');
+  const knownIds = registry.children.map((child) => child.id);
+  if (!ids.every((id) => knownIds.includes(id))) {
+    return err('BAD_REQUEST', 'That subcategory does not belong to this website main category.');
+  }
+  return ok({ family, ids, knownIds });
 }
 
 async function pendingProductCount(productFamily?: (typeof PRODUCT_FAMILY_OPTIONS)[number]) {
@@ -1851,6 +1903,8 @@ async function updateAction(
   if (parsed.data.collection === 'products' && !before) {
     return err('NOT_FOUND', 'Document not found');
   }
+  if (parsed.data.expectedUpdatedAt && parsed.data.collection !== 'products')
+    return err('BAD_REQUEST', 'Product revision is only valid for products.');
   const changesImageIds =
     collectionUsesImageIds(parsed.data.collection) && Object.hasOwn(parsed.data.values, 'imageIds');
   const locks = await acquireImageReferenceLocks(
@@ -1875,6 +1929,25 @@ async function updateAction(
       const acknowledgesReview =
         before?.alibabaReviewPending === true &&
         (values.published === true || values.archived === true);
+      if (acknowledgesReview && claims.role !== 'admin')
+        return err('FORBIDDEN', 'Only admins can acknowledge Alibaba product reviews.');
+      if (acknowledgesReview && parsed.data.expectedUpdatedAt)
+        return err(
+          'CONFLICT',
+          'Complete supplier review before publishing this classified product.',
+        );
+      const contributorSupplierStatusChange =
+        claims.role !== 'admin' &&
+        typeof before?.alibabaPrimarySourceKey === 'string' &&
+        (values.published === true || values.archived === true);
+      if (contributorSupplierStatusChange && typeof before?.updatedAt !== 'string')
+        return err('CONFLICT', 'Refresh the supplier product before changing its status.');
+      if (
+        contributorSupplierStatusChange &&
+        parsed.data.expectedUpdatedAt &&
+        parsed.data.expectedUpdatedAt !== before?.updatedAt
+      )
+        return err('CONFLICT', 'Product changed since classification. Refresh before publishing.');
       // Compare price changes in the atomic save, while allowing non-price
       // form edits to reach the subsequent detail review and approval.
       const requiresApproval =
@@ -1882,7 +1955,16 @@ async function updateAction(
       const transition =
         acknowledgesReview && before
           ? await acknowledgeAlibabaProductReview(before, values, claims.sub, requiresApproval)
-          : await updateCatalogProductRecord(parsed.data.id, values, requiresApproval);
+          : await updateCatalogProductRecord(
+              parsed.data.id,
+              values,
+              requiresApproval,
+              contributorSupplierStatusChange ? before?.updatedAt : parsed.data.expectedUpdatedAt,
+              values.published === true || values.archived === true,
+              typeof before?.alibabaPrimarySourceKey === 'string'
+                ? before.alibabaPrimarySourceKey
+                : null,
+            );
       doc = transition.doc;
       authoritativeBefore = transition.previous;
     } else if (parsed.data.collection === 'sourceCategoryMappings') {

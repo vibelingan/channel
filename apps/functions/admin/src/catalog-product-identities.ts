@@ -14,6 +14,7 @@ export type CatalogProductWriteErrorCode =
   | 'INVALID_IDENTITY'
   | 'INVALID_PRODUCT'
   | 'PRODUCT_EXISTS'
+  | 'PRODUCT_STALE'
   | 'PRODUCT_NOT_FOUND';
 
 export class CatalogProductWriteError extends Error {
@@ -75,11 +76,18 @@ async function saveCatalogProduct(input: {
   productId: string;
   values: unknown;
   requireDetailApproval?: CatalogProductSaveInput['requireDetailApproval'];
+  expectedUpdatedAt?: string;
+  rejectPendingReview?: boolean;
+  expectedPrimarySourceKey?: string | null;
 }): Promise<CatalogProductWriteTransition> {
   const result = await saveCatalogProductWithIdentities({
     mode: input.mode,
     productId: input.productId,
     data: canonicalizeIdentityFields(input.values),
+    ...(input.expectedUpdatedAt ? { expectedUpdatedAt: input.expectedUpdatedAt } : {}),
+    ...(input.rejectPendingReview
+      ? { rejectPendingReview: true, expectedPrimarySourceKey: input.expectedPrimarySourceKey }
+      : {}),
     ...(input.requireDetailApproval ? { requireDetailApproval: input.requireDetailApproval } : {}),
   });
   if (result.result === 'saved') return { doc: result.doc, previous: result.previous };
@@ -101,6 +109,12 @@ async function saveCatalogProduct(input: {
   if (result.result === 'exists') {
     throw new CatalogProductWriteError('PRODUCT_EXISTS', 'Product already exists.');
   }
+  if (result.result === 'stale') {
+    throw new CatalogProductWriteError(
+      'PRODUCT_STALE',
+      'Product changed since classification. Refresh before publishing.',
+    );
+  }
   throw new CatalogProductWriteError('PRODUCT_NOT_FOUND', 'Product was not found.');
 }
 
@@ -115,6 +129,16 @@ export function updateCatalogProductRecord(
   productId: string,
   values: unknown,
   requireDetailApproval: CatalogProductSaveInput['requireDetailApproval'] = false,
+  expectedUpdatedAt?: string,
+  rejectPendingReview = false,
+  expectedPrimarySourceKey: string | null = null,
 ): Promise<CatalogProductWriteTransition> {
-  return saveCatalogProduct({ mode: 'update', productId, values, requireDetailApproval });
+  return saveCatalogProduct({
+    mode: 'update',
+    productId,
+    values,
+    requireDetailApproval,
+    ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+    ...(rejectPendingReview ? { rejectPendingReview: true, expectedPrimarySourceKey } : {}),
+  });
 }

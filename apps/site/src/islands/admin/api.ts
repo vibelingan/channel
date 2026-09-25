@@ -185,6 +185,8 @@ export interface ListArgs {
   collection: string;
   productFamily?: ProductFamily;
   needsClassification?: boolean;
+  /** Admin-only; valid only with `productFamily`, resolved against the saved registry by the server. */
+  subcategoryIds?: string[];
   page?: number;
   pageSize?: number;
   search?: string;
@@ -257,6 +259,7 @@ export async function updateRecord(
   collection: string,
   id: string,
   values: Record<string, unknown>,
+  expectedUpdatedAt?: string,
 ): Promise<CollectionDoc> {
   let refreshPublishedDetail = false;
   if (
@@ -278,6 +281,11 @@ export async function updateRecord(
     if (capabilities.enabled) {
       let current = await call<CollectionDoc>('get', { collection, id });
       if (typeof current.alibabaPrimarySourceKey === 'string') {
+        if (expectedUpdatedAt)
+          throw new AdminApiError(
+            'CONFLICT',
+            'Open Edit to review supplier media and approve this product before publishing.',
+          );
         // Save reviewed form edits first without changing publication. Preparation
         // and approval have resumable, server-checked requests, not one long call.
         const { published: _published, ...draftValues } = values;
@@ -351,11 +359,21 @@ export async function updateRecord(
         const review = await prepareDetailReview(id);
         await approveDetailReview(review, crypto.randomUUID());
         if (refreshPublishedDetail) return call<CollectionDoc>('get', { collection, id });
-        return call<CollectionDoc>('update', { collection, id, values: { published: true } });
+        return call<CollectionDoc>('update', {
+          collection,
+          id,
+          values: { published: true },
+          ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+        });
       }
     }
   }
-  return call<CollectionDoc>('update', { collection, id, values });
+  return call<CollectionDoc>('update', {
+    collection,
+    id,
+    values,
+    ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+  });
 }
 
 export function removeRecord(collection: string, id: string): Promise<{ deleted: boolean }> {
@@ -380,6 +398,7 @@ export async function batchUpdateRecords(
   collection: string,
   ids: string[],
   values: Record<string, unknown>,
+  expectedRevisions?: ReadonlyMap<string, string>,
 ): Promise<BatchUpdateResult> {
   if (collection !== 'products') {
     const result = await call<{ updated: number; items: CollectionDoc[] }>('batchUpdate', {
@@ -416,7 +435,7 @@ export async function batchUpdateRecords(
       continue;
     }
     try {
-      const item = await updateRecord(collection, id, values);
+      const item = await updateRecord(collection, id, values, expectedRevisions?.get(id));
       if (
         !item ||
         item._id !== id ||
@@ -605,4 +624,28 @@ export async function assignmentCall(
     );
   }
   return response.data;
+}
+
+export function publishConfirmedClassification(
+  command: CatalogClassificationAssignmentRequest,
+  result: CatalogClassificationAssignmentResult,
+): Promise<BatchUpdateResult> | null {
+  const ids = command.products.map((item) => item.productId);
+  const confirmed = new Set(result.results.map((item) => item.productId));
+  if (
+    command.includeSavedRevision !== true ||
+    result.refreshRequired ||
+    ids.length === 0 ||
+    ids.length !== new Set(ids).size ||
+    ids.length !== confirmed.size ||
+    result.results.length !== ids.length ||
+    ids.some((id) => !confirmed.has(id))
+  )
+    return null;
+  const revisions = new Map<string, string>();
+  for (const item of result.results) {
+    if (item.status !== 'saved' || typeof item.updatedAt !== 'string') return null;
+    revisions.set(item.productId, item.updatedAt);
+  }
+  return batchUpdateRecords('products', ids, { published: true }, revisions);
 }

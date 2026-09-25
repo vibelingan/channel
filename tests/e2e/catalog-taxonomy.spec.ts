@@ -330,6 +330,9 @@ test('local taxonomy: saved categories and assignments drive all four storefront
       await page.getByRole('button', { name: 'Assign category', exact: true }).click();
       dialog = page.getByRole('dialog', { name: 'Edit website classification', exact: true });
       await expect(dialog).toContainText('2 selected products.');
+      await dialog
+        .getByRole('checkbox', { name: 'Publish only after all classifications are confirmed' })
+        .uncheck();
       for (const child of children)
         await dialog.getByRole('checkbox', { name: child.name, exact: true }).check();
       await confirmAssignment();
@@ -449,6 +452,7 @@ test('local taxonomy: saved categories and assignments drive all four storefront
             path: info.outputPath(`${family}-${width}-header.png`),
             fullPage: true,
           });
+          if (!(await childLink.isVisible())) await menu.locator(':scope > summary').click();
           await childLink.click();
           await expect(
             page.getByRole('checkbox', { name: firstChild.name, exact: true }),

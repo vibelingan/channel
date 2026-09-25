@@ -38,6 +38,13 @@ export type FilterOperator =
   | 'matchesProductSubcategories'
   | 'hasNoProductFamily';
 
+/** Server-built subcategory membership scope; always ANDed with every other list condition. */
+export interface ProductSubcategoryScope {
+  family: import('./catalog-product.ts').ProductFamily;
+  ids: string[];
+  knownIds: string[];
+}
+
 /** A single field/operator/value condition. */
 export interface FilterClause {
   field: string;

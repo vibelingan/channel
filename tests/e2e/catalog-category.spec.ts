@@ -269,9 +269,40 @@ test('Headphones category and search reset page one; no selected categories stay
   await expect(page.getByRole('checkbox', { checked: true })).toHaveCount(0);
   expect(requests).toHaveLength(count);
   for (const checkbox of await page.getByRole('checkbox').all()) await checkbox.check();
+  await expect(page).toHaveURL((url) => !url.searchParams.has('category'));
   await expectPage(page, 'headphones', 1);
-  expect(new URL(page.url()).searchParams.has('category')).toBe(false);
-  expect(requests.at(-1)?.searchParams.has('category')).toBe(false);
+  expect(requests.at(-1)?.searchParams.has('subcategoryIds')).toBe(false);
+});
+
+test('Headphones all-category URL commits after the identical-card response', async ({ page }) => {
+  const started = deferred();
+  const release = deferred();
+  const categories = 'headphones-bluetooth,headphones-wired';
+  const requests = await mockCatalog(page, 'headphones', async (url) => {
+    if (!url.searchParams.has('subcategoryIds')) {
+      started.resolve();
+      await release.promise;
+    }
+    return false;
+  });
+
+  try {
+    await page.goto(`/headphones/?page=1&category=${categories}`);
+    await expectPage(page, 'headphones', 1);
+    await page.getByRole('checkbox', { name: 'Office Headphones' }).check();
+    await started.promise;
+    await expectPage(page, 'headphones', 1);
+    expect(new URL(page.url()).searchParams.get('category')).toBe(categories);
+    await expect(page.getByRole('checkbox', { checked: true })).toHaveCount(3);
+    await expect(page.getByRole('button', { name: 'Next page', exact: true })).toBeDisabled();
+    release.resolve();
+    await expect(page).toHaveURL((url) => !url.searchParams.has('category'));
+    await expectPage(page, 'headphones', 1);
+    await expect(page.getByRole('button', { name: 'Next page', exact: true })).toBeEnabled();
+    expect(requests.at(-1)?.searchParams.has('subcategoryIds')).toBe(false);
+  } finally {
+    release.resolve();
+  }
 });
 
 test('page-two failure retains page-one URL and clickable cards; retry replaces the page', async ({

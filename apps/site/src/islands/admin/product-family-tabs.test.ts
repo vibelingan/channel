@@ -5,6 +5,7 @@ import {
   ADMIN_PRODUCT_FAMILY_LABELS,
   adminProductFamilyFromSearch,
   adminProductFamilySearch,
+  adminSubcategoryFromSearch,
   productFamilyListArgs,
 } from './product-family-tabs.ts';
 
@@ -87,4 +88,51 @@ test('a new scope clears stale flags when returning to All or another family', (
     collection: 'products',
     needsClassification: true,
   });
+});
+
+test('subcategory URL state exists only inside a real family and accepts only safe ids', () => {
+  assert.equal(
+    adminSubcategoryFromSearch('?productFamily=toys&subcategory=toys-blocks'),
+    'toys-blocks',
+  );
+  assert.equal(
+    adminSubcategoryFromSearch('?productFamily=unclassified&subcategory=toys-blocks'),
+    null,
+  );
+  assert.equal(adminSubcategoryFromSearch('?subcategory=toys-blocks'), null);
+  assert.equal(adminSubcategoryFromSearch('?productFamily=toys&subcategory=Bad%20Id'), null);
+  assert.equal(
+    adminProductFamilySearch('?page=2&subcategory=old', 'toys', 'toys-blocks'),
+    '?page=2&subcategory=toys-blocks&productFamily=toys',
+  );
+  assert.equal(
+    adminProductFamilySearch('?productFamily=toys&subcategory=old', 'misc'),
+    '?productFamily=misc',
+  );
+  assert.equal(
+    adminProductFamilySearch('?productFamily=toys&subcategory=old', 'unclassified', 'old'),
+    '?productFamily=unclassified',
+  );
+});
+
+test('subcategory list args are sent only with a family and cleared with every scope change', () => {
+  const args = productFamilyListArgs(
+    { collection: 'products', filter: userFilter, page: 3 },
+    'toys',
+    'toys-blocks',
+  );
+  assert.deepEqual(args.subcategoryIds, ['toys-blocks']);
+  assert.equal(args.productFamily, 'toys');
+  assert.equal(args.filter, userFilter);
+  const stale = { collection: 'products', subcategoryIds: ['toys-blocks'] };
+  assert.equal(productFamilyListArgs(stale, 'toys').subcategoryIds, undefined);
+  assert.equal(productFamilyListArgs(stale, null, 'toys-blocks').subcategoryIds, undefined);
+  assert.equal(
+    productFamilyListArgs(stale, 'unclassified', 'toys-blocks').subcategoryIds,
+    undefined,
+  );
+  assert.equal(
+    productFamilyListArgs({ collection: 'users' }, 'toys', 'toys-blocks').subcategoryIds,
+    undefined,
+  );
 });

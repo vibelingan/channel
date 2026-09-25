@@ -7,6 +7,88 @@ Status: Pagination deployed and merged; multi-subcategories deployed and accepte
 Current phase: deliver (taxonomy; separate release)
 Current/next MIU: 8 (main-based PR #58 merge and post-merge CI).
 
+## Admin Subcategory Visibility (2026-09-23)
+
+Branch `fix/admin-subcategory-delivery-20260923` from main fcf1431. Reworked
+from the 2026-09-22 handoff because its bundle, patch and commits never reached
+this machine or GitHub; nothing here is the original implementation.
+
+What operators see (admins only; contributors keep the list without it):
+
+- Products list: "Headphone type" (the legacy scalar `category`) is replaced by
+  "Website subcategories", the names the storefront actually uses. Names come
+  from saved `subcategoryIds` through the family registry; products without that
+  field fall back to the legacy Headphones type exactly like the storefront.
+  States: None, archived names suffixed "(archived)", "Invalid saved
+  subcategories" for unknown/cross-family/malformed data, loading, and a retry.
+- The main-category column now uses the same legacy fallback, so legacy
+  Headphones rows no longer read "Needs classification" inside the Headphones tab.
+- A "Website subcategory" filter appears inside one main-category tab. The
+  server resolves ids against that family's saved registry (archived allowed,
+  unknown/cross-family rejected, contributors forbidden) and ANDs the scope
+  with search and any AND/OR filter before counting and paging. The choice is
+  kept in the URL (`subcategory=`), survives reload/history, and is cleared by
+  switching tabs. Clients cannot supply the internal scope object.
+- Edit Product shows a read-only "Saved website classification" summary of the
+  last saved values. Viewing the list, filter or summary never writes products.
+
+Out of scope (unchanged): atomic batch publish and category data migration.
+
+### Bulk classify and publish (2026-09-24, pending test release)
+
+- In the Products selected-row bar, Assign category now opens the saved taxonomy
+  picker with a checked option to publish after all selected classifications
+  succeed. Uncheck it to save classifications as drafts. The single-row Classify
+  action remains classification-only. Both choices require a preview and an
+  explicit confirmation.
+- This is a sequential workflow, **not an atomic batch transaction**. The Admin
+  assignment endpoint returns confirmed saved timestamps only on request. If
+  any selected assignment is rejected, uncertain, or lacks a saved timestamp,
+  the UI does not attempt any publication. Each subsequent publish write carries
+  that product's saved timestamp, checked inside the same product transaction;
+  intervening edits produce a conflict and leave that product private. Product
+  publication validation, permissions and media rules still apply independently.
+  Confirmed earlier publications are never claimed rolled back. Supplier-linked
+  products requiring the separate detail-approval/media workflow are directed
+  to Edit instead of silently advancing approval in the bulk path.
+- The disposable production-build browser journey verifies saved names and
+  scoped filters, two selected products classified then published, an unselected
+  product unchanged, an invalid product remaining private with row-level
+  feedback, and a concurrent edit blocked between classification and publish.
+  The default and approval-enabled browser lanes passed with owned local data;
+  neither is a deployed-environment acceptance claim. Same-SHA CI, test branch
+  deployment, and live read-only verification remain release gates.
+
+Verification before release (worktree above, local disposable DB only):
+
+- Unit: admin handler 174 (two new subcategory-scope tests), shared taxonomy 11,
+  local JSON adapter 9, public API 115, admin UI taxonomy/tabs/form 43. Full
+  `pnpm test` exit 0 (site 497 + 1 skipped, admin 233, db 227, shared 157,
+  local-server 152); the shared-Select usage guard now expects 4 in CollectionView.
+- New browser journey `tests/e2e/admin-subcategory-visibility.spec.ts` runs in
+  both local lanes before the taxonomy journey: 25 toys drafts, archived child,
+  legacy Headphones row, filter 23 → page 2 of 3 rows, archived filter 1,
+  reload/back/forward, tab reset, read-only edit summary, injected registry
+  failure then Retry, 390px filter, and unchanged `updatedAt` for every
+  inspected product (display never writes).
+- Two lane fixes found on the way: the strict public.spec admin mock now
+  answers the read-only registry request, and `loginAdmin` waits out one
+  `RATE_LIMITED` (10 logins/source/60s) because the extra journey pushed the
+  shared-address login count over the production limit.
+- Default lane: 149 passed. Formal lane: 137 passed. Both removed their owned
+  temporary DB/site directories.
+
+Post-revision-guard verification (2026-09-25, release worktree 5a6317e plus
+pending feature diff): `pnpm lint`, all 19 package/app typechecks and E2E
+typecheck, `pnpm test`, `pnpm test:deploy-smoke`, `pnpm verify:cloudbase-sdk`,
+and staged/unstaged `git diff --check` passed. Both disposable built-site
+browser lanes passed, including two selected publications, partial rejection,
+and an intervening edit remaining unpublished; the approval-enabled lane also
+passed its formal journeys. The first default run had one `ECONNRESET` on a final
+read-only product revision check after the UI assertions; a fresh isolated run
+passed the entire lane without changes. Its cause remains unproven. These are
+local results, not proof that the test environment has been deployed or accepted.
+
 ## Latest Delivery and Resume State
 
 - Taxonomy application commit: 9305e3acf04bd0cf1bd43efaf360c7bf12bc0307;

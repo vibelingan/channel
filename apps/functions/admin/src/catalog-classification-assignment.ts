@@ -48,7 +48,7 @@ async function assignProduct(
   command: CatalogClassificationAssignmentRequest,
   item: AssignmentItem,
   expectedSuggestion?: CatalogExpectedSuggestion,
-): Promise<AssignmentStatus> {
+): Promise<AssignmentStatus | { status: 'saved'; updatedAt: string }> {
   const actor = await get('users', actorId);
   if (actor?.role !== 'admin' || actor.status === 'suspended') return 'forbidden';
   const state = await readAssignmentState(actorId, command, item);
@@ -81,6 +81,12 @@ async function assignProduct(
   });
   switch (result.result) {
     case 'saved':
+      if (command.includeSavedRevision) {
+        if (typeof result.doc.updatedAt !== 'string')
+          throw new Error('Saved product has no revision');
+        return { status: 'saved', updatedAt: result.doc.updatedAt };
+      }
+      return 'saved';
     case 'missing':
       return result.result;
     case 'conflict':
@@ -114,8 +120,11 @@ export async function manageCatalogClassificationAssignment(
       continue;
     }
     try {
-      const status = await assignProduct(actorId, command, item, expectedSuggestion);
-      results.push({ productId: item.productId, status });
+      const saved = await assignProduct(actorId, command, item, expectedSuggestion);
+      results.push({
+        productId: item.productId,
+        ...(typeof saved === 'string' ? { status: saved } : saved),
+      });
     } catch {
       results.push({ productId: item.productId, status: 'unknown' });
       interrupted = true;
