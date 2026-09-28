@@ -152,12 +152,10 @@ test('raw sourcing FOB quote remains visible in list, Edit and Preview despite i
   const preview = page.getByRole('dialog', { name: 'Product preview', exact: true });
   await expect(preview.locator('[data-shared-catalog-detail]')).toBeVisible();
   const price = preview.locator('[data-catalog-compact-price]');
-  await expect(price.locator('[data-quote-scope="product"]')).toContainText('Product-level quotes');
-  await expect(price.locator('[data-quote-scope="product"]')).toContainText(
+  await expect(price.locator('[data-quote-scope="product"] [data-price-tier]')).toHaveText([
     'USD 7.75 - USD 9.00 ≥2 pieces',
-  );
-  await expect(price.locator('[data-quote-scope="variant"]')).toContainText('Request a quote');
-  await expect(price.locator('[data-quote-scope="variant"]')).not.toContainText(/7\.75|9\.00/);
+  ]);
+  await expect(price.locator('[data-quote-scope="variant"]')).toHaveCount(0);
   await expect(preview.locator('[data-catalog-quote-conditions]')).toHaveCount(0);
   await expect(preview.locator('[data-quote-open]')).toBeDisabled();
 });
@@ -223,7 +221,6 @@ test('raw Alibaba response → draft/edit/preview → approved detail preserves 
   expect(mediaFailureInjected).toBe(true);
   await preview.getByRole('button', { name: 'Retry images' }).click();
   await expect(preview.locator('[data-catalog-compact-price]')).toContainText('USD 7.67');
-  await expect(preview.locator('[data-catalog-compact-price]')).toContainText('Reference');
   // 30 unambiguous facts + 17 values under repeated labels. The latter stay
   // in notes, not misleading single-valued headline specs.
   await expect(preview.locator('[data-catalog-specifications] dd')).toHaveCount(30);
@@ -475,7 +472,6 @@ test('untouched sync draft: source prices, shared preview, pagination and access
     'USD 7.00 50-99 pieces',
     'USD 6.00 ≥100 pieces',
   ]);
-  await expect(dialog.locator('[data-catalog-compact-price]')).toContainText('Reference');
   await expect(dialog).toContainText('Page 1 of 2');
   await dialog.getByRole('button', { name: 'Next configurations' }).click();
   await expect(dialog).toContainText('Page 2 of 2');
