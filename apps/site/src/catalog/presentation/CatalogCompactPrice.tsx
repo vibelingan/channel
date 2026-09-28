@@ -3,7 +3,6 @@ import type { SharedDetailContent } from '../../i18n/catalog.ts';
 import { formatCatalogQuoteAmount } from './CatalogQuoteConditions.tsx';
 
 type Offer = CatalogProductDetail['offers'][number];
-type WebsitePricing = NonNullable<CatalogProductDetail['websitePricing']>;
 
 const valid = (amount: number) => Number.isSafeInteger(amount) && amount >= 0;
 
@@ -66,87 +65,83 @@ function pricePairs(pricing: Offer['pricing'], copy: SharedDetailContent): Price
   ];
 }
 
-function PriceReference({
-  offer,
-  copy,
-}: { offer: Offer | WebsitePricing; copy: SharedDetailContent }) {
-  const pairs = pricePairs(offer.pricing, copy);
-  const label =
-    offer.basis === 'website-manual'
-      ? 'Website price'
-      : offer.kind === 'supplier'
-        ? copy.quoteSupplierLabel
-        : offer.kind === 'regular'
-          ? copy.quoteRegularLabel
-          : copy.quotePromotionLabel;
+function offerLabel(offer: Offer, copy: SharedDetailContent) {
+  return offer.kind === 'supplier'
+    ? copy.quoteSupplierLabel
+    : offer.kind === 'regular'
+      ? copy.quoteRegularLabel
+      : copy.quotePromotionLabel;
+}
+
+function PriceTiers({ pairs, copy }: { pairs: PricePair[]; copy: SharedDetailContent }) {
   return (
-    <div className="min-w-0">
-      <p className="text-xs text-ink-muted">
-        {label}
-        {pairs.length ? ' / Reference' : ''}
-      </p>
-      {pairs.length ? (
-        <ul className="mt-1 flex flex-wrap gap-x-8 gap-y-3">
-          {pairs.map((pair) => (
-            <li key={`${pair.amount}:${pair.quantity}`} data-price-tier className="min-w-0">
-              <p className="break-words text-[28px] font-semibold leading-9 tabular-nums text-brand-950">
-                {pair.amount}
-              </p>{' '}
-              <p className="text-sm leading-5 tabular-nums text-ink-muted">
-                {pair.quantity ?? copy.quoteUnitLabel}
-              </p>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-1 break-words text-xl font-semibold leading-snug text-brand-950">
-          {copy.inquiryLabel}
-        </p>
-      )}
-    </div>
+    <ul className="flex flex-wrap gap-x-8 gap-y-3">
+      {pairs.map((pair) => (
+        <li key={`${pair.amount}:${pair.quantity}`} data-price-tier className="min-w-0">
+          <p className="break-words text-[28px] font-semibold leading-9 tabular-nums text-brand-950">
+            {pair.amount}
+          </p>{' '}
+          <p className="mt-1 text-sm leading-5 tabular-nums text-ink-muted">
+            {pair.quantity ?? copy.quoteUnitLabel}
+          </p>
+        </li>
+      ))}
+    </ul>
   );
 }
 
+const inquiry = (copy: SharedDetailContent) => (
+  <p className="text-xl font-semibold leading-snug text-brand-950">{copy.inquiryLabel}</p>
+);
+
+/** One price block: website price, else the selected configuration's own
+ * quote, else the product quote. A configuration whose own quote is unknown
+ * says so instead of silently adopting the product price. */
 export function CatalogCompactPrice({
   productOffers,
   websitePricing,
   variantOffers,
-  hasVariants,
   copy,
 }: {
   productOffers: CatalogProductDetail['offers'];
   websitePricing?: CatalogProductDetail['websitePricing'];
   variantOffers?: CatalogProductDetail['offers'];
-  hasVariants: boolean;
   copy: SharedDetailContent;
 }) {
-  const scope = (name: 'product' | 'variant', offers: Offer[], label: string) => (
-    <section data-quote-scope={name} className="min-w-0 space-y-2">
-      <h2 className="font-sans text-xs font-medium text-ink-muted">{label}</h2>
-      {offers.length ? (
-        offers.map((offer, index) => (
-          <PriceReference key={`${index}:${offer.kind}`} offer={offer} copy={copy} />
-        ))
-      ) : (
-        <p className="text-xl font-semibold text-brand-950">{copy.inquiryLabel}</p>
-      )}
-    </section>
-  );
+  const priced = (offers: Offer[]) =>
+    offers
+      .map((offer) => ({ offer, pairs: pricePairs(offer.pricing, copy) }))
+      .filter(({ pairs }) => pairs.length > 0);
+  const variant = priced(variantOffers ?? []);
+  const product = priced(productOffers);
+  const scope = variant.length ? 'variant' : product.length ? 'product' : undefined;
+  const shown = variant.length ? variant : product;
+  const variantUnknown = !variant.length && Boolean(variantOffers?.length) && product.length > 0;
   return (
     <div data-catalog-compact-price className="min-w-0 space-y-3 font-sans" aria-live="polite">
       {websitePricing ? (
-        <PriceReference offer={websitePricing} copy={copy} />
-      ) : (
-        <>
-          {(productOffers.length > 0 || !hasVariants) &&
-            scope('product', productOffers, copy.productQuoteLabel)}
-          {hasVariants &&
-            variantOffers !== undefined &&
-            scope('variant', variantOffers, copy.variantQuoteLabel)}
-          {hasVariants && variantOffers === undefined && productOffers.length === 0 && (
-            <p className="text-xl font-semibold text-brand-950">{copy.inquiryLabel}</p>
+        (() => {
+          const pairs = pricePairs(websitePricing.pricing, copy);
+          return pairs.length ? <PriceTiers pairs={pairs} copy={copy} /> : inquiry(copy);
+        })()
+      ) : scope ? (
+        <div data-quote-scope={scope} className="min-w-0 space-y-3">
+          {shown.map(({ offer, pairs }, index) => (
+            <div key={`${index}:${offer.kind}`} className="min-w-0">
+              {shown.length > 1 && (
+                <p className="mb-1 text-xs text-ink-muted">{offerLabel(offer, copy)}</p>
+              )}
+              <PriceTiers pairs={pairs} copy={copy} />
+            </div>
+          ))}
+          {variantUnknown && (
+            <p data-variant-price-unknown className="text-sm text-ink-muted">
+              {copy.variantPriceOnRequest}
+            </p>
           )}
-        </>
+        </div>
+      ) : (
+        inquiry(copy)
       )}
     </div>
   );

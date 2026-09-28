@@ -309,7 +309,6 @@ test('source reference range stays stable across dialog quantities, retains SKU 
     await expect(reference).toContainText('USD 5.70');
   };
   await expectReference();
-  await expect(reference).toContainText('Reference');
   await expect(page.locator('[data-catalog-quote-conditions]')).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: 'Requested quantity', exact: true })).toHaveCount(
     0,

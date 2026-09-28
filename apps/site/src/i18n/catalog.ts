@@ -152,6 +152,7 @@ export interface SharedDetailContent {
   quoteUnitLabel: string;
   quotePieceLabel: string;
   quotePiecesLabel: string;
+  variantPriceOnRequest: string;
   quoteTierQuantityLabel: string;
   quoteTierPriceLabel: string;
   quoteSupplierLabel: string;

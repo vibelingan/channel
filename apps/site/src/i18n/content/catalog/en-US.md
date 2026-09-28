@@ -154,6 +154,7 @@ sharedDetail:
   quoteUnitLabel: per unit
   quotePieceLabel: piece
   quotePiecesLabel: pieces
+  variantPriceOnRequest: Selected configuration price on request.
   quoteTierQuantityLabel: Quantity
   quoteTierPriceLabel: Source unit quote
   quoteSupplierLabel: Supplier quote
