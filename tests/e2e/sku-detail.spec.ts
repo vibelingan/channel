@@ -833,7 +833,10 @@ for (const width of [320, 390, 1440]) {
       );
       if (websiteAuthority) {
         await expect(price).toContainText('Website price / Reference');
-        await expect(price).toContainText('USD 3.80 - USD 5.70 per unit');
+        await expect(price.locator('[data-price-tier]')).toHaveText([
+          'USD 5.70 2-999 pieces',
+          'USD 3.80 ≥1,000 pieces',
+        ]);
         await expect(price).not.toContainText(/EUR|CNY/);
         await expect(price.locator('[data-quote-scope]')).toHaveCount(0);
       } else {

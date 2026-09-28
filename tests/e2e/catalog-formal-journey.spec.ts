@@ -154,7 +154,7 @@ test('raw sourcing FOB quote remains visible in list, Edit and Preview despite i
   const price = preview.locator('[data-catalog-compact-price]');
   await expect(price.locator('[data-quote-scope="product"]')).toContainText('Product-level quotes');
   await expect(price.locator('[data-quote-scope="product"]')).toContainText(
-    'USD 7.75 - USD 9.00 per unit',
+    'USD 7.75 - USD 9.00 ≥2 pieces',
   );
   await expect(price.locator('[data-quote-scope="variant"]')).toContainText('Request a quote');
   await expect(price.locator('[data-quote-scope="variant"]')).not.toContainText(/7\.75|9\.00/);
@@ -470,9 +470,11 @@ test('untouched sync draft: source prices, shared preview, pagination and access
   await dialog.locator('[data-gallery-thumbnail="0"]').click();
   await expect(dialog.locator('[data-quote-open]')).toBeDisabled();
   await expect(dialog.getByRole('button', { name: /customization/i })).toHaveCount(0);
-  await expect(dialog.locator('[data-catalog-compact-price]')).toContainText(
-    'USD 6.00 - USD 7.89 per unit',
-  );
+  await expect(dialog.locator('[data-catalog-compact-price] [data-price-tier]')).toHaveText([
+    'USD 7.89 10-49 pieces',
+    'USD 7.00 50-99 pieces',
+    'USD 6.00 ≥100 pieces',
+  ]);
   await expect(dialog.locator('[data-catalog-compact-price]')).toContainText('Reference');
   await expect(dialog).toContainText('Page 1 of 2');
   await dialog.getByRole('button', { name: 'Next configurations' }).click();
@@ -740,9 +742,10 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
   await expect(page.getByRole('textbox', { name: 'Requested quantity', exact: true })).toHaveCount(
     0,
   );
-  await expect(page.locator('[data-catalog-compact-price]')).toContainText(
-    'USD 3.80 - USD 5.70 per unit',
-  );
+  await expect(page.locator('[data-catalog-compact-price] [data-price-tier]')).toHaveText([
+    'USD 5.70 2-499 pieces',
+    'USD 3.80 ≥500 pieces',
+  ]);
   await page.screenshot({ path: info.outputPath('normal-product-detail.png'), fullPage: true });
   await page.locator('[data-quote-open]').click();
   const dialog = page.locator('[data-catalog-quote-sheet]');
@@ -752,9 +755,10 @@ test('ordinary routes: approved multi-image SKU detail → real RFQ → persiste
   await expect(dialog.getByRole('alert')).toBeVisible();
   await dialog.getByLabel('Requested quantity', { exact: true }).fill('500');
   await expect(dialog.getByLabel('Requested quantity', { exact: true })).toHaveValue('500');
-  await expect(page.locator('[data-catalog-compact-price]')).toContainText(
-    'USD 3.80 - USD 5.70 per unit',
-  );
+  await expect(page.locator('[data-catalog-compact-price] [data-price-tier]')).toHaveText([
+    'USD 5.70 2-499 pieces',
+    'USD 3.80 ≥500 pieces',
+  ]);
   await dialog.getByRole('button', { name: 'Continue to contact', exact: true }).click();
   await dialog.getByLabel('Contact name', { exact: true }).fill('Acceptance Buyer');
   await dialog.getByLabel('Email', { exact: true }).fill('acceptance@example.invalid');

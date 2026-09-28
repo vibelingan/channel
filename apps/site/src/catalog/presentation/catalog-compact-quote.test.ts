@@ -111,6 +111,105 @@ test('website fixed, range and tier amounts are visible before quantity, overrid
   }
 });
 
+function tierTexts(html: string) {
+  return [...html.matchAll(/<li[^>]*data-price-tier[^>]*>([\s\S]*?)<\/li>/g)].map((match) =>
+    (match[1] ?? '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&gt;/g, '>')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  );
+}
+
+function websiteTiers(pricing: Pricing) {
+  return tierTexts(
+    primaryArea(
+      renderPanel(pricedDetail({ websitePricing: { basis: 'website-manual', pricing } })),
+    ),
+  );
+}
+
+test('every tier price is paired with its quantity window in tier order', () => {
+  const html = primaryArea(
+    renderPanel(
+      pricedDetail({
+        websitePricing: {
+          basis: 'website-manual',
+          pricing: {
+            mode: 'tiered',
+            currency: 'USD',
+            tiers: [
+              { minimumQuantity: 2, maximumQuantity: 99, unitAmountMinor: 661 },
+              { minimumQuantity: 100, maximumQuantity: 999, unitAmountMinor: 555 },
+              { minimumQuantity: 1000, unitAmountMinor: 476 },
+            ],
+          },
+        },
+      }),
+    ),
+  );
+  assert.deepEqual(tierTexts(html), [
+    'USD 6.61 2-99 pieces',
+    'USD 5.55 100-999 pieces',
+    'USD 4.76 ≥1,000 pieces',
+  ]);
+  assert.doesNotMatch(html, /USD 4\.76 - USD 6\.61|per unit/);
+  const price = html.match(/<p[^>]*>USD 6\.61<\/p>/)?.[0] ?? '';
+  assert.match(price, /text-\[28px\]/);
+  assert.match(price, /font-semibold/);
+  assert.match(html, /<p[^>]*text-sm[^>]*>2-99 pieces<\/p>/);
+  assert.match(
+    html,
+    /data-catalog-compact-price[^>]*font-sans|font-sans[^>]*data-catalog-compact-price/,
+  );
+});
+
+test('equal contiguous tiers merge, while a quantity gap and single-piece tiers stay exact', () => {
+  assert.deepEqual(
+    websiteTiers({
+      mode: 'tiered',
+      currency: 'USD',
+      tiers: [
+        { minimumQuantity: 1, maximumQuantity: 9, unitAmountMinor: 570 },
+        { minimumQuantity: 20, unitAmountMinor: 570 },
+      ],
+    }),
+    ['USD 5.70 1-9 pieces', 'USD 5.70 ≥20 pieces'],
+  );
+  assert.deepEqual(
+    websiteTiers({
+      mode: 'tiered',
+      currency: 'USD',
+      tiers: [
+        { minimumQuantity: 1, maximumQuantity: 1, unitAmountMinor: 900 },
+        { minimumQuantity: 2, maximumQuantity: 5, unitAmountMinor: 800 },
+        { minimumQuantity: 6, maximumQuantity: 6, unitAmountMinor: 800 },
+      ],
+    }),
+    ['USD 9.00 1 piece', 'USD 8.00 2-6 pieces'],
+  );
+});
+
+test('fixed and range prices show their minimum order quantity, or per unit when none is known', () => {
+  assert.deepEqual(websiteTiers({ mode: 'fixed', currency: 'EUR', amountMinor: 1200 }), [
+    'EUR 12.00 per unit',
+  ]);
+  assert.deepEqual(
+    websiteTiers({ mode: 'fixed', currency: 'USD', amountMinor: 1490, minimumOrderQuantity: 2 }),
+    ['USD 14.90 ≥2 pieces'],
+  );
+  assert.deepEqual(
+    websiteTiers({
+      mode: 'range',
+      currency: 'USD',
+      minimumAmountMinor: 310,
+      maximumAmountMinor: 570,
+      minimumOrderQuantity: 1000,
+    }),
+    ['USD 3.10 - USD 5.70 ≥1,000 pieces'],
+  );
+});
+
 test('product and selected configuration offers keep independent labels and currencies', () => {
   const detail = pricedDetail();
   detail.variants.items[0].offers = [

@@ -152,6 +152,8 @@ sharedDetail:
   quoteNegotiable: Price is negotiable — confirm by inquiry.
   quoteMoqLabel: Minimum order quantity
   quoteUnitLabel: per unit
+  quotePieceLabel: piece
+  quotePiecesLabel: pieces
   quoteTierQuantityLabel: Quantity
   quoteTierPriceLabel: Source unit quote
   quoteSupplierLabel: Supplier quote
