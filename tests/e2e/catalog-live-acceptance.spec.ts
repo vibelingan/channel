@@ -99,13 +99,13 @@ test('live release: approved categories, existing published galleries, real inqu
     {
       id: 'a5ab40df-d3ff-4baa-ad3a-1aacc4615448',
       summary: 'USD 7.75–9.00',
-      detail: 'USD 7.75 - USD 9.00 per unit',
+      detail: 'USD 7.75 - USD 9.00 ≥2 pieces',
       mode: 'range',
     },
     {
       id: 'b8677602-2935-417d-a8fa-64fb377b9835',
       summary: 'USD 14.90',
-      detail: 'USD 14.90 per unit',
+      detail: 'USD 14.90 ≥2 pieces',
       mode: 'fixed',
     },
   ]) {

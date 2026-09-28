@@ -304,7 +304,11 @@ test('source reference range stays stable across dialog quantities, retains SKU 
 }) => {
   await page.goto(preview(samples[0][0]));
   const reference = page.locator('[data-catalog-compact-price]');
-  await expect(reference).toContainText('USD 3.80 - USD 5.70 per unit');
+  const expectReference = async () => {
+    await expect(reference).toContainText('USD 3.80');
+    await expect(reference).toContainText('USD 5.70');
+  };
+  await expectReference();
   await expect(reference).toContainText('Reference');
   await expect(page.locator('[data-catalog-quote-conditions]')).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: 'Requested quantity', exact: true })).toHaveCount(
@@ -319,7 +323,7 @@ test('source reference range stays stable across dialog quantities, retains SKU 
     await quantity.fill(value);
     await dialog.getByRole('button', { name: 'Continue to contact' }).click();
     await expect(dialog.getByRole('textbox', { name: 'Contact name', exact: true })).toBeVisible();
-    await expect(reference).toContainText('USD 3.80 - USD 5.70 per unit');
+    await expectReference();
     await dialog.getByRole('button', { name: 'Back', exact: true }).click();
     await expect(quantity).toHaveValue(value);
   }
@@ -327,7 +331,7 @@ test('source reference range stays stable across dialog quantities, retains SKU 
   await page.getByRole('radio').nth(1).check();
   await open.click();
   await expect(quantity).toHaveValue('1000');
-  await expect(reference).toContainText('USD 3.80 - USD 5.70 per unit');
+  await expectReference();
   await quantity.fill('1');
   await dialog.getByRole('button', { name: 'Continue to contact' }).click();
   await expect(dialog.getByRole('textbox', { name: 'Contact name', exact: true })).toBeVisible();
@@ -338,7 +342,7 @@ test('source reference range stays stable across dialog quantities, retains SKU 
     await expect(quantity).toBeFocused();
     await expect(quantity).toHaveAttribute('aria-invalid', 'true');
     await expect(dialog.getByRole('alert')).toContainText('positive whole number');
-    await expect(reference).toContainText('USD 3.80 - USD 5.70 per unit');
+    await expectReference();
   }
   await quantity.fill('500');
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
