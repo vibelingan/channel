@@ -398,6 +398,7 @@ test('confirmed publication keeps its receipt when the product status refresh fa
   await dialog.getByRole('button', { name: 'Save and publish' }).click();
   let published = false;
   let publicationRequests = 0;
+  let productReadBeforeList = false;
   let releaseReadback!: () => void;
   let readbackStarted!: () => void;
   const readbackGate = new Promise<void>((resolve) => {
@@ -421,6 +422,8 @@ test('confirmed publication keeps its receipt when the product status refresh fa
       });
       return;
     }
+    if (body.action === 'get' && body.data?.id === product._id && published)
+      productReadBeforeList = true;
     if (
       body.action === 'update' &&
       body.data?.id === product._id &&
@@ -439,6 +442,7 @@ test('confirmed publication keeps its receipt when the product status refresh fa
   try {
     await expect(dialog.getByText('Checking product statuses...', { exact: true })).toBeVisible();
     await expect(dialog.getByRole('button', { name: 'Done' })).toHaveCount(0);
+    expect(productReadBeforeList).toBe(false);
   } finally {
     releaseReadback();
   }
@@ -1064,9 +1068,9 @@ test('bulk classification publishes confirmed selections and reports rejected pu
   expect(await read(rejected._id)).toMatchObject({ published: false, subcategoryIds: [child.id] });
   expect(await read(excluded._id)).toEqual(excludedBefore);
   await partial.getByRole('button', { name: 'Check later', exact: true }).click();
-  await expect(page.getByRole('alert').filter({ hasText: String(rejected.name) })).toContainText(
-    '1 need attention',
-  );
+  const partialReminder = page.getByRole('alert').filter({ hasText: String(rejected.name) });
+  await expect(partialReminder).toContainText('1 need attention');
+  await expect(partialReminder.locator('p').nth(1)).toHaveText(String(rejected.name));
   const attention = page.getByRole('list', { name: 'Products needing attention' });
   await expect(attention).toContainText(String(rejected.name));
   await expect(attention).toContainText(/image/i);
@@ -1158,6 +1162,9 @@ test('bulk classification publishes confirmed selections and reports rejected pu
   await unknown.getByRole('button', { name: 'Check later' }).click();
   const reminder = page.getByRole('alert').filter({ hasText: String(lostResponse.name) });
   await expect(reminder).toContainText('1 unresolved');
+  await expect(reminder.getByRole('list', { name: 'Products to verify' })).toContainText(
+    String(lostResponse.name),
+  );
   await reminder.getByRole('button', { name: 'Refresh statuses' }).click();
   await expect(reminder).toHaveCount(0);
   await expect(

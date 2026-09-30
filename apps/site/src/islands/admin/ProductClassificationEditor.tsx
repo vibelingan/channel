@@ -349,13 +349,16 @@ export function ProductClassificationEditor({
     setConfirmation(null);
     busyCallback.current?.(true);
     try {
-      const [, , records] = await Promise.all([
+      await Promise.all([
         client.invalidateQueries({ queryKey: ['list', 'products'] }, { throwOnError: true }),
         client.invalidateQueries({ queryKey: ['catalog-taxonomy'] }, { throwOnError: true }),
-        submittedCommand && unresolvedSnapshot
-          ? Promise.all(unresolvedSnapshot.submittedIds.map((id) => getRecord('products', id)))
-          : Promise.resolve(null),
       ]);
+      const records =
+        submittedCommand && unresolvedSnapshot
+          ? await Promise.all(
+              unresolvedSnapshot.submittedIds.map((id) => getRecord('products', id)),
+            )
+          : null;
       if (
         records &&
         unresolvedSnapshot &&
@@ -498,11 +501,11 @@ export function ProductClassificationEditor({
     );
     let readbackSucceeded = false;
     try {
-      const [, , verified] = await Promise.all([
+      await Promise.all([
         client.invalidateQueries({ queryKey: ['list', 'products'] }, { throwOnError: true }),
         client.invalidateQueries({ queryKey: ['catalog-taxonomy'] }, { throwOnError: true }),
-        verifySubmittedProducts(snapshot, products),
       ]);
+      const verified = await verifySubmittedProducts(snapshot, products);
       if (!verified) throw new Error('Product statuses do not match the submitted classification.');
       readbackSucceeded = true;
     } catch {
@@ -864,25 +867,29 @@ export function ProductClassificationEditor({
         </output>
       )}
       {message && <output className="block break-words text-sm">{message}</output>}
-      {publicationResult && !readbackVerified && showPublicationFeedback && (
-        <BatchUpdateFeedback
-          result={publicationResult}
-          names={Object.fromEntries(
-            products.map((product) => [product._id, String(product.name ?? product._id)]),
-          )}
-          published
-          onDismiss={() => setShowPublicationFeedback(false)}
-        />
-      )}
-      {publicationResult && !readbackVerified && !showPublicationFeedback && (
-        <button
-          type="button"
-          className={buttonClass}
-          onClick={() => setShowPublicationFeedback(true)}
-        >
-          View publication receipts
-        </button>
-      )}
+      {publicationResult &&
+        (publicationResult.failures.length === 0 || !readbackVerified) &&
+        showPublicationFeedback && (
+          <BatchUpdateFeedback
+            result={publicationResult}
+            names={Object.fromEntries(
+              products.map((product) => [product._id, String(product.name ?? product._id)]),
+            )}
+            published
+            onDismiss={() => setShowPublicationFeedback(false)}
+          />
+        )}
+      {publicationResult &&
+        (publicationResult.failures.length === 0 || !readbackVerified) &&
+        !showPublicationFeedback && (
+          <button
+            type="button"
+            className={buttonClass}
+            onClick={() => setShowPublicationFeedback(true)}
+          >
+            View publication receipts
+          </button>
+        )}
       {publicationResult && readbackVerified && publicationResult.failures.length > 0 && (
         <details className="border-t border-slate-200 pt-3 text-sm">
           <summary className="cursor-pointer font-medium">Original publication response</summary>

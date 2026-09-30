@@ -109,6 +109,14 @@ export function CollectionView({
     publishOnSave: boolean;
   } | null>(null);
   const classificationReview = isProducts ? productReview : null;
+  const reviewIds = classificationReview
+    ? [
+        ...new Set([
+          ...classificationReview.snapshot.unresolvedIds,
+          ...classificationReview.snapshot.attentionIds,
+        ]),
+      ]
+    : [];
   const setClassificationReview = onProductReviewChange;
   const currentReviewRef = useRef(classificationReview);
   currentReviewRef.current = classificationReview;
@@ -667,7 +675,7 @@ export function CollectionView({
                 : 'Product status refresh failed for:'}
           </p>
           <p className="mt-1 break-words">
-            {classificationReview.snapshot.submittedIds
+            {(reviewIds.length > 0 ? reviewIds : classificationReview.snapshot.submittedIds)
               .map((id) => classificationReview.names[id] ?? id)
               .join(', ')}
           </p>
@@ -677,6 +685,17 @@ export function CollectionView({
             {classificationReview.snapshot.attentionIds.length} need attention. Check product
             statuses before retrying.
           </p>
+          {classificationReview.snapshot.unresolvedIds.length > 0 && (
+            <ul aria-label="Products to verify" className="mt-2 list-disc space-y-1 pl-5">
+              {classificationReview.snapshot.unresolvedIds.map((id) => (
+                <li key={id} className="break-words">
+                  {classificationReview.names[id] ?? id}:{' '}
+                  {classificationReview.snapshot.issuesById[id] ??
+                    'Result not confirmed; inspect before retrying.'}
+                </li>
+              ))}
+            </ul>
+          )}
           {classificationReview.snapshot.attentionIds.length > 0 && (
             <ul aria-label="Products needing attention" className="mt-2 list-disc space-y-1 pl-5">
               {classificationReview.snapshot.attentionIds.map((id) => (
