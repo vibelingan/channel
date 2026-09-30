@@ -29,7 +29,7 @@ import { FilterBuilder } from './FilterBuilder.tsx';
 import { PreviewModal } from './PreviewModal.tsx';
 import {
   type UnresolvedClassificationSnapshot,
-  matchesSubmittedProducts,
+  matchesVerifiedOutcome,
 } from './ProductClassificationEditor.tsx';
 import { RecordForm } from './RecordForm.tsx';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
@@ -99,6 +99,8 @@ export function CollectionView({
   const [localRowSelection, setLocalRowSelection] = useState<Record<string, boolean>>({});
   const rowSelection = isProducts ? productSelection : localRowSelection;
   const setRowSelection = isProducts ? onProductSelectionChange : setLocalRowSelection;
+  const currentSelectionRef = useRef(rowSelection);
+  currentSelectionRef.current = rowSelection;
   const [editing, setEditing] = useState<CollectionDoc | null>(null);
   const [creating, setCreating] = useState(false);
   const [previewing, setPreviewing] = useState<CollectionDoc | null>(null);
@@ -193,6 +195,7 @@ export function CollectionView({
   async function refreshClassificationStatuses() {
     if (!classificationReview || reviewRefreshing) return;
     const current = classificationReview;
+    const selectionAtRefresh = rowSelection;
     setReviewRefreshing(true);
     setReviewMessage('');
     try {
@@ -204,13 +207,9 @@ export function CollectionView({
         { throwOnError: true },
       );
       if (currentReviewRef.current !== current) return;
-      if (
-        current.snapshot.unresolvedIds.length === 0 &&
-        current.snapshot.attentionIds.length === 0 &&
-        matchesSubmittedProducts(current.snapshot, current.beforeProducts, products)
-      ) {
+      if (matchesVerifiedOutcome(current.snapshot, current.beforeProducts, products)) {
         setClassificationReview(null);
-        clearSelection();
+        if (currentSelectionRef.current === selectionAtRefresh) clearSelection();
       } else {
         setReviewMessage('Statuses refreshed. Inspect affected products before retrying.');
       }
@@ -670,6 +669,16 @@ export function CollectionView({
             {classificationReview.snapshot.attentionIds.length} need attention. Check product
             statuses before retrying.
           </p>
+          {classificationReview.snapshot.attentionIds.length > 0 && (
+            <ul aria-label="Products needing attention" className="mt-2 list-disc space-y-1 pl-5">
+              {classificationReview.snapshot.attentionIds.map((id) => (
+                <li key={id} className="break-words">
+                  {classificationReview.names[id] ?? id}:{' '}
+                  {classificationReview.snapshot.issuesById[id] ?? 'Review product status'}
+                </li>
+              ))}
+            </ul>
+          )}
           {reviewMessage && <p className="mt-1">{reviewMessage}</p>}
           <button
             type="button"

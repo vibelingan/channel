@@ -421,6 +421,7 @@ test('unresolved classification snapshot preserves submitted, confirmed and unkn
     confirmedPublishedIds: [],
     unresolvedIds: ['product-1', 'product-2'],
     attentionIds: [],
+    issuesById: {},
   });
   assert.deepEqual(
     unresolvedClassificationSnapshot(
@@ -437,6 +438,10 @@ test('unresolved classification snapshot preserves submitted, confirmed and unkn
       confirmedPublishedIds: [],
       unresolvedIds: [],
       attentionIds: ['product-1', 'product-2'],
+      issuesById: {
+        'product-1': 'Assignment saved; publication blocked',
+        'product-2': 'Changed since preview; refresh needed',
+      },
     },
   );
   const saved = [
@@ -450,6 +455,7 @@ test('unresolved classification snapshot preserves submitted, confirmed and unkn
     confirmedPublishedIds: [],
     unresolvedIds: ['product-1', 'product-2'],
     attentionIds: [],
+    issuesById: {},
   });
   assert.deepEqual(
     unresolvedClassificationSnapshot(input, saved, {
@@ -470,6 +476,7 @@ test('unresolved classification snapshot preserves submitted, confirmed and unkn
       confirmedPublishedIds: ['product-1'],
       unresolvedIds: ['product-2'],
       attentionIds: [],
+      issuesById: { 'product-2': 'Unconfirmed' },
     },
   );
   assert.deepEqual(
@@ -491,6 +498,7 @@ test('unresolved classification snapshot preserves submitted, confirmed and unkn
       confirmedPublishedIds: ['product-1'],
       unresolvedIds: [],
       attentionIds: ['product-2'],
+      issuesById: { 'product-2': 'Approved image required' },
     },
   );
 });
@@ -557,6 +565,42 @@ test('readback preserves known assignment rejections without claiming full succe
       [product({ subcategoryIds: [] }), unchanged],
     ),
     true,
+  );
+});
+
+test('confirmed final state resolves a lost publication response without replaying it', async () => {
+  const { unresolvedClassificationSnapshot, matchesVerifiedOutcome } = await import(
+    './ProductClassificationEditor.tsx'
+  );
+  const input = { ...command(), includeSavedRevision: true as const };
+  const before = product({ subcategoryIds: [] });
+  const snapshot = unresolvedClassificationSnapshot(
+    input,
+    [{ productId: before._id, status: 'saved' }],
+    {
+      updated: 0,
+      items: [],
+      failures: [
+        { id: before._id, code: 'NETWORK_ERROR', message: 'Unknown', outcome: 'unconfirmed' },
+      ],
+    },
+  );
+  assert.deepEqual(snapshot.unresolvedIds, [before._id]);
+  assert.equal(
+    matchesVerifiedOutcome(snapshot, [before], [product({ subcategoryIds: [], published: false })]),
+    false,
+  );
+  assert.equal(
+    matchesVerifiedOutcome(snapshot, [before], [product({ subcategoryIds: [], published: true })]),
+    true,
+  );
+  assert.equal(
+    matchesVerifiedOutcome(
+      snapshot,
+      [before],
+      [product({ subcategoryIds: ['wrong-child'], published: true })],
+    ),
+    false,
   );
 });
 

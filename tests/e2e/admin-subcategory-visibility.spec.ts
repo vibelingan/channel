@@ -607,10 +607,11 @@ test('Check later retains confirmed publication receipts and restores row focus'
   });
   await reminder.getByRole('button', { name: 'Refresh statuses' }).click();
   await oldRefreshRequest;
-  await reminder.getByRole('button', { name: 'Clear selection and reminder' }).click();
+  await row.getByRole('checkbox', { name: 'Select row' }).uncheck();
   await row.getByRole('checkbox', { name: 'Select row' }).check();
   releaseOldRefresh();
   await page.waitForLoadState('networkidle');
+  await expect(reminder).toHaveCount(0);
   await expect(row.getByRole('checkbox', { name: 'Select row' })).toBeChecked();
   expect(publications).toBe(1);
 });
@@ -703,9 +704,6 @@ test('lost assignment response preserves the selected product after Escape', asy
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(row.getByRole('checkbox', { name: 'Select row' })).toBeChecked();
   const reminder = page.getByRole('alert').filter({ hasText: String(product.name) });
-  await reminder.getByRole('button', { name: 'Refresh statuses' }).click();
-  await expect(reminder).toContainText('Statuses refreshed. Inspect affected products');
-  await expect(row.getByRole('checkbox', { name: 'Select row' })).toBeChecked();
   await page.getByRole('button', { name: 'Users', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
   await page.getByRole('button', { name: 'Products', exact: true }).click();
@@ -713,8 +711,9 @@ test('lost assignment response preserves the selected product after Escape', asy
   await page.getByPlaceholder(/^Search name/).fill(String(product.name));
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(row.getByRole('checkbox', { name: 'Select row' })).toBeChecked();
-  await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
-  await expect(page.getByRole('alert').filter({ hasText: String(product.name) })).toHaveCount(0);
+  await reminder.getByRole('button', { name: 'Refresh statuses' }).click();
+  await expect(reminder).toHaveCount(0);
+  await expect(row.getByRole('checkbox', { name: 'Select row' })).not.toBeChecked();
   expect(assignments).toBe(1);
 });
 
@@ -1028,6 +1027,10 @@ test('bulk classification publishes confirmed selections and reports rejected pu
   await expect(page.getByRole('alert').filter({ hasText: String(rejected.name) })).toContainText(
     '1 need attention',
   );
+  const attention = page.getByRole('list', { name: 'Products needing attention' });
+  await expect(attention).toContainText(String(rejected.name));
+  await expect(attention).toContainText(/image/i);
+  await expect(attention).not.toContainText(String(later.name));
   await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
   let intervened = false;
   await page.route('**/api/admin', async (route) => {
@@ -1116,7 +1119,10 @@ test('bulk classification publishes confirmed selections and reports rejected pu
   const reminder = page.getByRole('alert').filter({ hasText: String(lostResponse.name) });
   await expect(reminder).toContainText('1 unresolved');
   await reminder.getByRole('button', { name: 'Refresh statuses' }).click();
-  await expect(reminder).toBeVisible();
+  await expect(reminder).toHaveCount(0);
+  await expect(
+    row(lostResponse).getByRole('checkbox', { name: 'Select row', exact: true }),
+  ).not.toBeChecked();
   expect(writes.slice(writesBeforeLoss)).toHaveLength(2);
   expect(errors).toEqual([]);
 });

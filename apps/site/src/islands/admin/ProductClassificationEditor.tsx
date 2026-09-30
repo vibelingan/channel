@@ -47,6 +47,7 @@ export interface UnresolvedClassificationSnapshot {
   confirmedPublishedIds: string[];
   unresolvedIds: string[];
   attentionIds: string[];
+  issuesById: Record<string, string>;
 }
 
 export function unresolvedClassificationSnapshot(
@@ -89,7 +90,15 @@ export function unresolvedClassificationSnapshot(
       (status === 'saved' && command.includeSavedRevision === true && !allAssignmentsSaved)
     );
   });
-  return { command, submittedIds, confirmedPublishedIds, unresolvedIds, attentionIds };
+  const issuesById: Record<string, string> = {};
+  for (const result of assignmentResults ?? []) {
+    if (result.status !== 'saved') issuesById[result.productId] = resultLabels[result.status];
+  }
+  for (const id of attentionIds) {
+    if (!issuesById[id]) issuesById[id] = 'Assignment saved; publication blocked';
+  }
+  for (const failure of publication?.failures ?? []) issuesById[failure.id] = failure.message;
+  return { command, submittedIds, confirmedPublishedIds, unresolvedIds, attentionIds, issuesById };
 }
 
 export function matchesSubmittedProducts(
@@ -132,6 +141,26 @@ export function matchesSubmittedProducts(
       record.published === (confirmedPublished.has(record._id) ? true : before.published)
     );
   });
+}
+
+export function matchesVerifiedOutcome(
+  snapshot: UnresolvedClassificationSnapshot,
+  beforeProducts: readonly CollectionDoc[],
+  records: readonly CollectionDoc[],
+): boolean {
+  if (snapshot.attentionIds.length > 0) return false;
+  return matchesSubmittedProducts(
+    {
+      ...snapshot,
+      unresolvedIds: [],
+      confirmedPublishedIds:
+        snapshot.command.includeSavedRevision === true
+          ? snapshot.submittedIds
+          : snapshot.confirmedPublishedIds,
+    },
+    beforeProducts,
+    records,
+  );
 }
 
 async function verifySubmittedProducts(
@@ -256,7 +285,7 @@ export function ProductClassificationEditor({
   const needsVerification = Boolean(
     finished &&
       unresolvedSnapshot &&
-      (unresolvedSnapshot.unresolvedIds.length > 0 ||
+      ((unresolvedSnapshot.unresolvedIds.length > 0 && !readbackVerified) ||
         unresolvedSnapshot.attentionIds.length > 0 ||
         readbackFailed),
   );
@@ -320,20 +349,25 @@ export function ProductClassificationEditor({
     setConfirmation(null);
     busyCallback.current?.(true);
     try {
-      const [, , verified] = await Promise.all([
+      const [, , records] = await Promise.all([
         client.invalidateQueries({ queryKey: ['list', 'products'] }, { throwOnError: true }),
         client.invalidateQueries({ queryKey: ['catalog-taxonomy'] }, { throwOnError: true }),
         submittedCommand && unresolvedSnapshot
-          ? verifySubmittedProducts(unresolvedSnapshot, products)
-          : Promise.resolve(true),
+          ? Promise.all(unresolvedSnapshot.submittedIds.map((id) => getRecord('products', id)))
+          : Promise.resolve(null),
       ]);
-      if (!verified) throw new Error('Product statuses do not match the submitted classification.');
+      if (
+        records &&
+        unresolvedSnapshot &&
+        !matchesSubmittedProducts(unresolvedSnapshot, products, records)
+      )
+        throw new Error('Product statuses do not match the submitted classification.');
       if (mounted.current) {
         setReadbackFailed(false);
         if (
           unresolvedSnapshot &&
-          unresolvedSnapshot.unresolvedIds.length === 0 &&
-          unresolvedSnapshot.attentionIds.length === 0
+          records &&
+          matchesVerifiedOutcome(unresolvedSnapshot, products, records)
         ) {
           setReadbackVerified(true);
           onVerified?.(unresolvedSnapshot.submittedIds);
