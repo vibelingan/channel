@@ -372,8 +372,14 @@ export function ProductClassificationEditor({
           setReadbackVerified(true);
           onVerified?.(unresolvedSnapshot.submittedIds);
           setRefreshRequested(true);
+          setMessage(
+            unresolvedSnapshot.command.includeSavedRevision === true
+              ? 'Current product statuses verified: selected products are published. No write was retried.'
+              : 'Current product classifications verified. No write was retried.',
+          );
+        } else {
+          setMessage('Product statuses refreshed. Inspect affected products before retrying.');
         }
-        setMessage('Product statuses refreshed. Inspect affected products before retrying.');
       }
     } catch {
       if (mounted.current) {
@@ -858,7 +864,7 @@ export function ProductClassificationEditor({
         </output>
       )}
       {message && <output className="block break-words text-sm">{message}</output>}
-      {publicationResult && showPublicationFeedback && (
+      {publicationResult && !readbackVerified && showPublicationFeedback && (
         <BatchUpdateFeedback
           result={publicationResult}
           names={Object.fromEntries(
@@ -868,7 +874,7 @@ export function ProductClassificationEditor({
           onDismiss={() => setShowPublicationFeedback(false)}
         />
       )}
-      {publicationResult && !showPublicationFeedback && (
+      {publicationResult && !readbackVerified && !showPublicationFeedback && (
         <button
           type="button"
           className={buttonClass}
@@ -877,15 +883,24 @@ export function ProductClassificationEditor({
           View publication receipts
         </button>
       )}
-      {publicationResult &&
-        publicationResult.failures.length === 0 &&
-        readbackVerified &&
-        !pending &&
-        !readbackFailed && (
-          <button type="button" className={buttonClass} onClick={onSaved}>
-            Done
-          </button>
-        )}
+      {publicationResult && readbackVerified && publicationResult.failures.length > 0 && (
+        <details className="border-t border-slate-200 pt-3 text-sm">
+          <summary className="cursor-pointer font-medium">Original publication response</summary>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {publicationResult.failures.map((failure) => (
+              <li key={failure.id} className="break-words">
+                {String(products.find((product) => product._id === failure.id)?.name ?? failure.id)}
+                : {failure.message}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {publicationResult && readbackVerified && !pending && !readbackFailed && (
+        <button type="button" className={buttonClass} onClick={onSaved}>
+          Done
+        </button>
+      )}
       {results && results.length > 0 && (
         <ul aria-label="Product assignment results" className="divide-y divide-slate-200">
           {results.map((item) => (

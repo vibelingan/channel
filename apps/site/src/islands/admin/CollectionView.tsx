@@ -112,6 +112,13 @@ export function CollectionView({
   const setClassificationReview = onProductReviewChange;
   const currentReviewRef = useRef(classificationReview);
   currentReviewRef.current = classificationReview;
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const [reviewRefreshing, setReviewRefreshing] = useState(false);
   const [reviewMessage, setReviewMessage] = useState('');
   const reviewAction = useRef<HTMLButtonElement>(null);
@@ -199,14 +206,15 @@ export function CollectionView({
     setReviewRefreshing(true);
     setReviewMessage('');
     try {
-      const products = await Promise.all(
-        current.snapshot.submittedIds.map((id) => getRecord('products', id)),
-      );
       await queryClient.invalidateQueries(
         { queryKey: ['list', 'products'] },
         { throwOnError: true },
       );
-      if (currentReviewRef.current !== current) return;
+      if (!mounted.current || currentReviewRef.current !== current) return;
+      const products = await Promise.all(
+        current.snapshot.submittedIds.map((id) => getRecord('products', id)),
+      );
+      if (!mounted.current || currentReviewRef.current !== current) return;
       if (matchesVerifiedOutcome(current.snapshot, current.beforeProducts, products)) {
         setClassificationReview(null);
         if (currentSelectionRef.current === selectionAtRefresh) clearSelection();
@@ -214,10 +222,10 @@ export function CollectionView({
         setReviewMessage('Statuses refreshed. Inspect affected products before retrying.');
       }
     } catch {
-      if (currentReviewRef.current === current)
+      if (mounted.current && currentReviewRef.current === current)
         setReviewMessage('Product status refresh failed. Confirmed receipts remain available.');
     } finally {
-      setReviewRefreshing(false);
+      if (mounted.current) setReviewRefreshing(false);
     }
   }
 

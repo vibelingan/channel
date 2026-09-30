@@ -574,9 +574,21 @@ test('Check later retains confirmed publication receipts and restores row focus'
     { collection: 'products', id: product._id },
     session.token,
   );
+  let productReadBeforeList = false;
+  let listCompleted = false;
   await page.route('**/api/admin', async (route) => {
-    const body = route.request().postDataJSON() as { action?: string; data?: { id?: string } };
+    const body = route.request().postDataJSON() as {
+      action?: string;
+      data?: { id?: string; collection?: string };
+    };
+    if (body.action === 'list' && body.data?.collection === 'products') {
+      const response = await route.fetch();
+      await route.fulfill({ response });
+      listCompleted = true;
+      return;
+    }
     if (body.action === 'get' && body.data?.id === product._id) {
+      productReadBeforeList = !listCompleted;
       await route.fulfill({
         status: 200,
         json: { ok: true, data: { ...savedProduct, subcategoryIds: ['wrong-child'] } },
@@ -587,8 +599,36 @@ test('Check later retains confirmed publication receipts and restores row focus'
   });
   await reminder.getByRole('button', { name: 'Refresh statuses' }).click();
   await expect(reminder).toContainText('Inspect affected products');
+  expect(productReadBeforeList).toBe(false);
   await expect(row.getByRole('checkbox', { name: 'Select row' })).toBeChecked();
   await page.unrouteAll();
+  let releaseSectionRefresh!: () => void;
+  let sectionRefreshStarted!: () => void;
+  const sectionRefreshGate = new Promise<void>((resolve) => {
+    releaseSectionRefresh = resolve;
+  });
+  const sectionRefreshRequest = new Promise<void>((resolve) => {
+    sectionRefreshStarted = resolve;
+  });
+  await page.route('**/api/admin', async (route) => {
+    const body = route.request().postDataJSON() as { action?: string; data?: { id?: string } };
+    if (body.action === 'get' && body.data?.id === product._id) {
+      sectionRefreshStarted();
+      await sectionRefreshGate;
+    }
+    await route.continue();
+  });
+  await reminder.getByRole('button', { name: 'Refresh statuses' }).click();
+  await sectionRefreshRequest;
+  await page.getByRole('button', { name: 'Users', exact: true }).click();
+  releaseSectionRefresh();
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await expect(reminder).toBeVisible();
+  await page.unrouteAll();
+  await page.getByPlaceholder(/^Search name/).fill(String(product.name));
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(row.getByRole('checkbox', { name: 'Select row' })).toBeChecked();
   let releaseOldRefresh!: () => void;
   let oldRefreshStarted!: () => void;
   const oldRefreshGate = new Promise<void>((resolve) => {
@@ -1124,5 +1164,44 @@ test('bulk classification publishes confirmed selections and reports rejected pu
     row(lostResponse).getByRole('checkbox', { name: 'Select row', exact: true }),
   ).not.toBeChecked();
   expect(writes.slice(writesBeforeLoss)).toHaveLength(2);
+
+  const inDialogReadback = await create('Dialog publication readback', imageIds);
+  await page.reload();
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByPlaceholder(/^Search name/).fill(prefix);
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await page.route('**/api/admin', async (route) => {
+    const body = route.request().postDataJSON() as {
+      action?: string;
+      data?: { id?: string; values?: { published?: boolean } };
+    };
+    if (
+      body.action === 'update' &&
+      body.data?.id === inDialogReadback._id &&
+      body.data.values?.published === true
+    ) {
+      await route.fetch();
+      await route.fulfill({ status: 503, json: { ok: false, error: { code: 'UNAVAILABLE' } } });
+      return;
+    }
+    await route.continue();
+  });
+  const writesBeforeDialogReadback = writes.length;
+  const readback = await selectAndReview([inDialogReadback]);
+  await readback.getByRole('button', { name: 'Confirm save and publish' }).click();
+  await expect(readback.getByRole('button', { name: 'Check later' })).toBeEnabled();
+  await page.unrouteAll();
+  await readback.getByRole('button', { name: 'Refresh statuses' }).click();
+  await expect(readback).toContainText('Current product statuses verified');
+  await expect(readback.getByRole('button', { name: 'Done' })).toBeEnabled();
+  expect(await read(inDialogReadback._id)).toMatchObject({
+    published: true,
+    subcategoryIds: [child.id],
+  });
+  await readback.getByRole('button', { name: 'Done' }).click();
+  expect(writes.slice(writesBeforeDialogReadback)).toEqual([
+    { action: 'classify', ids: [inDialogReadback._id] },
+    { action: 'publish', ids: [inDialogReadback._id] },
+  ]);
   expect(errors).toEqual([]);
 });
