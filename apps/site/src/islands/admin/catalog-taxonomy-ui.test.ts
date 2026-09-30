@@ -528,6 +528,38 @@ test('append readback must preserve previously assigned subcategories', async ()
   );
 });
 
+test('readback preserves known assignment rejections without claiming full success', async () => {
+  const { unresolvedClassificationSnapshot, matchesSubmittedProducts } = await import(
+    './ProductClassificationEditor.tsx'
+  );
+  const input = {
+    ...command(),
+    includeSavedRevision: true as const,
+    products: [
+      { productId: 'product-1', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
+      { productId: 'product-2', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
+    ],
+  };
+  const unchanged = product({ _id: 'product-2', productFamily: 'toys', subcategoryIds: [] });
+  const snapshot = unresolvedClassificationSnapshot(
+    input,
+    [
+      { productId: 'product-1', status: 'saved' },
+      { productId: 'product-2', status: 'conflict' },
+    ],
+    null,
+  );
+  assert.deepEqual(snapshot.attentionIds, ['product-1', 'product-2']);
+  assert.equal(
+    matchesSubmittedProducts(
+      snapshot,
+      [product({ subcategoryIds: [] }), unchanged],
+      [product({ subcategoryIds: [] }), unchanged],
+    ),
+    true,
+  );
+});
+
 test('bulk publish runs only after every selected assignment is confirmed', async (context) => {
   const input = {
     ...command(),

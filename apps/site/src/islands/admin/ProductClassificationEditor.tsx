@@ -105,10 +105,11 @@ export function matchesSubmittedProducts(
   return snapshot.submittedIds.every((id) => {
     const before = beforeById.get(id);
     const record = recordById.get(id);
-    const actualIds = record?.subcategoryIds;
+    if (!before || !record) return false;
+    if (snapshot.unresolvedIds.includes(id) || snapshot.attentionIds.includes(id))
+      return !confirmedPublished.has(id) || record.published === true;
+    const actualIds = record.subcategoryIds;
     if (
-      !before ||
-      !record ||
       productFamilyForDoc(record) !== command.family ||
       !Array.isArray(actualIds) ||
       !actualIds.every((id) => typeof id === 'string')

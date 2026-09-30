@@ -108,6 +108,8 @@ export function CollectionView({
   } | null>(null);
   const classificationReview = isProducts ? productReview : null;
   const setClassificationReview = onProductReviewChange;
+  const currentReviewRef = useRef(classificationReview);
+  currentReviewRef.current = classificationReview;
   const [reviewRefreshing, setReviewRefreshing] = useState(false);
   const [reviewMessage, setReviewMessage] = useState('');
   const reviewAction = useRef<HTMLButtonElement>(null);
@@ -201,18 +203,20 @@ export function CollectionView({
         { queryKey: ['list', 'products'] },
         { throwOnError: true },
       );
+      if (currentReviewRef.current !== current) return;
       if (
         current.snapshot.unresolvedIds.length === 0 &&
         current.snapshot.attentionIds.length === 0 &&
         matchesSubmittedProducts(current.snapshot, current.beforeProducts, products)
       ) {
-        setClassificationReview((latest) => (latest === current ? null : latest));
+        setClassificationReview(null);
         clearSelection();
       } else {
         setReviewMessage('Statuses refreshed. Inspect affected products before retrying.');
       }
     } catch {
-      setReviewMessage('Product status refresh failed. Confirmed receipts remain available.');
+      if (currentReviewRef.current === current)
+        setReviewMessage('Product status refresh failed. Confirmed receipts remain available.');
     } finally {
       setReviewRefreshing(false);
     }

@@ -589,10 +589,29 @@ test('Check later retains confirmed publication receipts and restores row focus'
   await expect(reminder).toContainText('Inspect affected products');
   await expect(row.getByRole('checkbox', { name: 'Select row' })).toBeChecked();
   await page.unrouteAll();
+  let releaseOldRefresh!: () => void;
+  let oldRefreshStarted!: () => void;
+  const oldRefreshGate = new Promise<void>((resolve) => {
+    releaseOldRefresh = resolve;
+  });
+  const oldRefreshRequest = new Promise<void>((resolve) => {
+    oldRefreshStarted = resolve;
+  });
+  await page.route('**/api/admin', async (route) => {
+    const body = route.request().postDataJSON() as { action?: string; data?: { id?: string } };
+    if (body.action === 'get' && body.data?.id === product._id) {
+      oldRefreshStarted();
+      await oldRefreshGate;
+    }
+    await route.continue();
+  });
   await reminder.getByRole('button', { name: 'Refresh statuses' }).click();
-  await expect(opener).toBeVisible();
-  await expect(reminder).toHaveCount(0);
-  await expect(row.getByRole('checkbox', { name: 'Select row' })).not.toBeChecked();
+  await oldRefreshRequest;
+  await reminder.getByRole('button', { name: 'Clear selection and reminder' }).click();
+  await row.getByRole('checkbox', { name: 'Select row' }).check();
+  releaseOldRefresh();
+  await page.waitForLoadState('networkidle');
+  await expect(row.getByRole('checkbox', { name: 'Select row' })).toBeChecked();
   expect(publications).toBe(1);
 });
 
