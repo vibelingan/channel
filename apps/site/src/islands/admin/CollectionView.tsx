@@ -109,6 +109,7 @@ export function CollectionView({
     publishOnSave: boolean;
   } | null>(null);
   const classificationReview = isProducts ? productReview : null;
+  const classificationBlocked = classificationReview !== null;
   const reviewIds = classificationReview
     ? [
         ...new Set([
@@ -495,7 +496,14 @@ export function CollectionView({
             {isProducts && role === 'admin' && (
               <button
                 type="button"
-                disabled={updateMutation.isPending || batchUpdateMutation.isPending}
+                disabled={
+                  classificationBlocked || updateMutation.isPending || batchUpdateMutation.isPending
+                }
+                title={
+                  classificationBlocked
+                    ? 'Resolve the pending classification result before starting another'
+                    : undefined
+                }
                 onClick={() => setClassifying({ products: [doc], publishOnSave: false })}
                 className="mr-3 min-h-11 text-sm font-medium text-brand-700 disabled:opacity-50"
               >
@@ -542,6 +550,7 @@ export function CollectionView({
     canReadSubcategories,
     role,
     inlineEdit,
+    classificationBlocked,
     updateMutation.isPending,
     batchUpdateMutation.isPending,
   ]);
@@ -768,6 +777,7 @@ export function CollectionView({
           isCatalog={isCatalog}
           isUsers={isUsers}
           canClassify={isProducts && role === 'admin'}
+          classifyBlocked={classificationBlocked}
           collection={collection}
           busy={
             batchUpdateMutation.isPending ||
@@ -1170,6 +1180,7 @@ function BatchBar({
   isCatalog,
   isUsers,
   canClassify,
+  classifyBlocked,
   collection,
   busy,
   onClear,
@@ -1181,6 +1192,7 @@ function BatchBar({
   isCatalog: boolean;
   isUsers: boolean;
   canClassify: boolean;
+  classifyBlocked: boolean;
   collection: CollectionDef;
   busy: boolean;
   onClear: () => void;
@@ -1228,7 +1240,12 @@ function BatchBar({
       {canClassify && (
         <button
           type="button"
-          disabled={busy || count > 20}
+          disabled={busy || count > 20 || classifyBlocked}
+          title={
+            classifyBlocked
+              ? 'Resolve the pending classification result before starting another'
+              : undefined
+          }
           onClick={onClassify}
           className="min-h-11 rounded-lg border border-brand-300 bg-white px-4 text-sm font-semibold text-brand-700 disabled:opacity-50"
         >

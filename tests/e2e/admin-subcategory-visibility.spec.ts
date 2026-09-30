@@ -741,6 +741,8 @@ test('lost assignment response preserves the selected product after Escape', asy
     'not confirmed',
   );
   await expect(row.getByRole('checkbox', { name: 'Select row' })).toBeChecked();
+  await expect(row.getByRole('button', { name: 'Classify' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Assign category' })).toBeDisabled();
   await page.getByPlaceholder(/^Search name/).fill('no matching products');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page.getByRole('alert').filter({ hasText: String(product.name) })).toBeVisible();
@@ -758,6 +760,9 @@ test('lost assignment response preserves the selected product after Escape', asy
   await reminder.getByRole('button', { name: 'Refresh statuses' }).click();
   await expect(reminder).toHaveCount(0);
   await expect(row.getByRole('checkbox', { name: 'Select row' })).not.toBeChecked();
+  await expect(row.getByRole('button', { name: 'Classify' })).toBeEnabled();
+  await row.getByRole('checkbox', { name: 'Select row' }).check();
+  await expect(page.getByRole('button', { name: 'Assign category' })).toBeEnabled();
   expect(assignments).toBe(1);
 });
 
