@@ -544,6 +544,27 @@ export function ProductClassificationEditor({
     setConfirmation(nextPublish ? { ...draftRequest, includeSavedRevision: true } : draftRequest);
   }
 
+  const previewItems = registry
+    ? products.map((product, index) => {
+        const previous = readProductSubcategories(product, registry);
+        const nextIds =
+          mode === 'append' && previous.status === 'valid'
+            ? [...new Set([...previous.subcategoryIds, ...ids])]
+            : ids;
+        const names = nextIds.map(
+          (id) => registry.children.find((child) => child.id === id)?.name ?? 'Invalid subcategory',
+        );
+        return (
+          <li key={`${product._id}-${index}`} className="min-w-0 break-words py-2 text-sm">
+            <span className="font-semibold">{String(product.name ?? product._id)}</span>
+            <p>
+              {registry.name}: {names.join(', ') || 'No subcategories'}
+            </p>
+          </li>
+        );
+      })
+    : [];
+
   return (
     <section
       aria-label="Product classification"
@@ -740,28 +761,15 @@ export function ProductClassificationEditor({
           </fieldset>
           <div aria-label="Selected product preview" className="min-w-0">
             <h3 className="text-sm font-semibold">Assignment preview</h3>
-            <ul className="divide-y divide-slate-200">
-              {products.map((product, index) => {
-                const previous = readProductSubcategories(product, registry);
-                const nextIds =
-                  mode === 'append' && previous.status === 'valid'
-                    ? [...new Set([...previous.subcategoryIds, ...ids])]
-                    : ids;
-                const names = nextIds.map(
-                  (id) =>
-                    registry.children.find((child) => child.id === id)?.name ??
-                    'Invalid subcategory',
-                );
-                return (
-                  <li key={`${product._id}-${index}`} className="min-w-0 break-words py-2 text-sm">
-                    <span className="font-semibold">{String(product.name ?? product._id)}</span>
-                    <p>
-                      {registry.name}: {names.join(', ') || 'No subcategories'}
-                    </p>
-                  </li>
-                );
-              })}
-            </ul>
+            <ul className="divide-y divide-slate-200">{previewItems.slice(0, 2)}</ul>
+            {previewItems.length > 2 && (
+              <details>
+                <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-brand-700">
+                  Show all {previewItems.length} products
+                </summary>
+                <ul className="divide-y divide-slate-200">{previewItems.slice(2)}</ul>
+              </details>
+            )}
           </div>
         </>
       )}

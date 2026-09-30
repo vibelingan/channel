@@ -786,7 +786,6 @@ export function CollectionView({
           }
           onClear={() => {
             clearSelection();
-            setClassificationReview(null);
           }}
           onClassify={() =>
             setClassifying({

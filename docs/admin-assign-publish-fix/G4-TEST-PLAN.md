@@ -1,6 +1,6 @@
 # G4 test plan: Admin classification UX and responsive navigation
 
-Status: **UI-only local regular and formal production-build browser lanes pass; live Admin-only acceptance is authorized for the known production-serving `test` target, pending deployment and per-product state snapshots.** Scope is the current <=20-product, revision-checked sequential publication workflow in [SPEC.md](SPEC.md), [ui-design.md](ui-design.md) and [miu-breakdown.md](miu-breakdown.md). The true backend batch and SDK cloud-transaction proof remain deferred in [SDK-PROBE.md](SDK-PROBE.md).
+Status: **Prior UI commits passed the regular and formal production-build browser lanes; the latest review repair passed the focused Admin lane, but current full-lane runs have not cleared release gates.** The formal run passed Admin 7/7 and the six-case journey before the local taxonomy API returned `ECONNRESET`; the regular run stopped on an unrelated public-page reveal-opacity assertion. Live Admin-only acceptance is authorized for the known production-serving `test` target only after review, integration and deployment, with per-product state snapshots. Scope is the current <=20-product, revision-checked sequential publication workflow in [SPEC.md](SPEC.md), [ui-design.md](ui-design.md) and [miu-breakdown.md](miu-breakdown.md). The true backend batch and SDK cloud-transaction proof remain deferred in [SDK-PROBE.md](SDK-PROBE.md).
 
 ## Test boundary and proof of isolation
 

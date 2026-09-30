@@ -743,6 +743,11 @@ test('lost assignment response preserves the selected product after Escape', asy
   await expect(row.getByRole('checkbox', { name: 'Select row' })).toBeChecked();
   await expect(row.getByRole('button', { name: 'Classify' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Assign category' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
+  await expect(row.getByRole('checkbox', { name: 'Select row' })).not.toBeChecked();
+  await expect(page.getByRole('alert').filter({ hasText: String(product.name) })).toBeVisible();
+  await expect(row.getByRole('button', { name: 'Classify' })).toBeDisabled();
+  await row.getByRole('checkbox', { name: 'Select row' }).check();
   await page.getByPlaceholder(/^Search name/).fill('no matching products');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page.getByRole('alert').filter({ hasText: String(product.name) })).toBeVisible();
@@ -1043,6 +1048,19 @@ test('bulk classification publishes confirmed selections and reports rejected pu
     );
     return dialog;
   }
+  for (const product of [first, second, excluded])
+    await row(product).getByRole('checkbox', { name: 'Select row', exact: true }).check();
+  await page.getByRole('button', { name: 'Assign category', exact: true }).click();
+  const previewDialog = page.getByRole('dialog', { name: 'Edit website classification' });
+  const preview = previewDialog.locator('[aria-label="Selected product preview"]');
+  await expect(preview.getByText(String(first.name), { exact: true })).toBeVisible();
+  await expect(preview.getByText(String(second.name), { exact: true })).toBeVisible();
+  await expect(preview.getByText(String(excluded.name), { exact: true })).toBeHidden();
+  await preview.getByText('Show all 3 products').click();
+  await expect(preview.getByText(String(excluded.name), { exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(previewDialog).toHaveCount(0);
+  await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
   const success = await selectAndReview([first, second]);
   expect(await read(first._id)).toMatchObject({ published: false });
   await success.getByRole('button', { name: 'Confirm save and publish' }).click();
@@ -1081,6 +1099,9 @@ test('bulk classification publishes confirmed selections and reports rejected pu
   await expect(attention).toContainText(/image/i);
   await expect(attention).not.toContainText(String(later.name));
   await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
+  await expect(partialReminder).toBeVisible();
+  await partialReminder.getByRole('button', { name: 'Clear selection and reminder' }).click();
+  await expect(partialReminder).toHaveCount(0);
   let intervened = false;
   await page.route('**/api/admin', async (route) => {
     const body = route.request().postDataJSON() as {
