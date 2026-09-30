@@ -19,7 +19,7 @@ import {
   isProductFamily,
   productFamilyForDoc,
 } from '@vibelingan-channel/shared';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
 import { BatchUpdateFeedback } from './BatchUpdateFeedback.tsx';
 import { CatalogTaxonomyManager } from './CatalogTaxonomyManager.tsx';
@@ -27,6 +27,10 @@ import { ClassificationDialog } from './ClassificationDialog.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { FilterBuilder } from './FilterBuilder.tsx';
 import { PreviewModal } from './PreviewModal.tsx';
+import {
+  type UnresolvedClassificationSnapshot,
+  matchesSubmittedProducts,
+} from './ProductClassificationEditor.tsx';
 import { RecordForm } from './RecordForm.tsx';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { productReviewCellValue } from './alibaba-source-review.ts';
@@ -35,6 +39,7 @@ import {
   batchUpdateRecords,
   createRecord,
   fetchProductReviewSummary,
+  getRecord,
   imageUrl,
   listRecords,
   markProductReviewed,
@@ -59,20 +64,41 @@ import {
 
 const PAGE_SIZE = 20;
 
+export interface ProductClassificationReview {
+  snapshot: UnresolvedClassificationSnapshot;
+  names: Record<string, string>;
+  beforeProducts: readonly CollectionDoc[];
+}
+
 interface Props {
   collection: CollectionDef;
   section: DashboardSection;
   role: string;
+  productSelection: Record<string, boolean>;
+  onProductSelectionChange: Dispatch<SetStateAction<Record<string, boolean>>>;
+  productReview: ProductClassificationReview | null;
+  onProductReviewChange: Dispatch<SetStateAction<ProductClassificationReview | null>>;
 }
 
-export function CollectionView({ collection, section, role }: Props) {
+export function CollectionView({
+  collection,
+  section,
+  role,
+  productSelection,
+  onProductSelectionChange,
+  productReview,
+  onProductReviewChange,
+}: Props) {
   const queryClient = useQueryClient();
+  const isProducts = collection.name === 'products';
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [filter, setFilter] = useState<FilterModel | null>(null);
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
+  const [localRowSelection, setLocalRowSelection] = useState<Record<string, boolean>>({});
+  const rowSelection = isProducts ? productSelection : localRowSelection;
+  const setRowSelection = isProducts ? onProductSelectionChange : setLocalRowSelection;
   const [editing, setEditing] = useState<CollectionDoc | null>(null);
   const [creating, setCreating] = useState(false);
   const [previewing, setPreviewing] = useState<CollectionDoc | null>(null);
@@ -80,10 +106,14 @@ export function CollectionView({ collection, section, role }: Props) {
     products: CollectionDoc[];
     publishOnSave: boolean;
   } | null>(null);
+  const classificationReview = isProducts ? productReview : null;
+  const setClassificationReview = onProductReviewChange;
+  const [reviewRefreshing, setReviewRefreshing] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState('');
+  const reviewAction = useRef<HTMLButtonElement>(null);
   const [taxonomyOpened, setTaxonomyOpened] = useState(false);
 
   const isCatalog = section.catalog === true;
-  const isProducts = collection.name === 'products';
   const canReviewAlibabaProducts = isProducts && role === 'admin';
   // Registry reads are admin-only on the server, so only admins get subcategory names and filters.
   const canReadSubcategories = isProducts && role === 'admin';
@@ -158,6 +188,36 @@ export function CollectionView({ collection, section, role }: Props) {
     setRowSelection({});
   }
 
+  async function refreshClassificationStatuses() {
+    if (!classificationReview || reviewRefreshing) return;
+    const current = classificationReview;
+    setReviewRefreshing(true);
+    setReviewMessage('');
+    try {
+      const products = await Promise.all(
+        current.snapshot.submittedIds.map((id) => getRecord('products', id)),
+      );
+      await queryClient.invalidateQueries(
+        { queryKey: ['list', 'products'] },
+        { throwOnError: true },
+      );
+      if (
+        current.snapshot.unresolvedIds.length === 0 &&
+        current.snapshot.attentionIds.length === 0 &&
+        matchesSubmittedProducts(current.snapshot, current.beforeProducts, products)
+      ) {
+        setClassificationReview((latest) => (latest === current ? null : latest));
+        clearSelection();
+      } else {
+        setReviewMessage('Statuses refreshed. Inspect affected products before retrying.');
+      }
+    } catch {
+      setReviewMessage('Product status refresh failed. Confirmed receipts remain available.');
+    } finally {
+      setReviewRefreshing(false);
+    }
+  }
+
   const createMutation = useMutation({
     mutationFn: (values: Record<string, unknown>) => createRecord(collection.name, values),
     onSuccess: () => {
@@ -221,11 +281,19 @@ export function CollectionView({ collection, section, role }: Props) {
     updateMutation.mutate({ id, values });
   }
 
-  // Drop any stale selection when the visible result set changes.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset triggers
+  // biome-ignore lint/correctness/useExhaustiveDependencies: selection resets only when the visible scope changes
   useEffect(() => {
-    setRowSelection({});
+    setRowSelection(
+      classificationReview
+        ? Object.fromEntries(classificationReview.snapshot.submittedIds.map((id) => [id, true]))
+        : {},
+    );
   }, [search, filter, page, productFamily, subcategoryId]);
+
+  useEffect(() => {
+    if (!classifying && classificationReview && document.activeElement === document.body)
+      reviewAction.current?.focus({ preventScroll: true });
+  }, [classifying, classificationReview]);
 
   function pushProductScope(nextFamily: AdminProductFamily, nextSubcategory: string | null) {
     if (typeof window === 'undefined') return;
@@ -260,7 +328,7 @@ export function CollectionView({ collection, section, role }: Props) {
     };
     window.addEventListener('popstate', recoverFamily);
     return () => window.removeEventListener('popstate', recoverFamily);
-  }, [isProducts, canReadSubcategories]);
+  }, [isProducts, canReadSubcategories, setRowSelection]);
 
   const tableFields = useMemo(() => {
     const visible = collection.fields.filter(
@@ -496,7 +564,7 @@ export function CollectionView({ collection, section, role }: Props) {
 
       {isProducts && (
         <div className="mt-6 border-b border-slate-200 pb-3">
-          <fieldset className="hidden min-w-0 gap-1 overflow-x-auto sm:flex">
+          <fieldset className="hidden min-w-0 flex-wrap gap-1 xl:flex">
             <legend className="sr-only">Product family</legend>
             <ProductFamilyTab
               label="All products"
@@ -537,7 +605,7 @@ export function CollectionView({ collection, section, role }: Props) {
                 label: `${productFamilyLabel(value)}${(reviewSummary?.byFamily[value] ?? 0) > 0 ? ' • New' : ''}`,
               })),
             ]}
-            className="block sm:hidden"
+            className="block xl:hidden"
             triggerClassName="font-medium text-slate-800"
             onChange={(value) =>
               changeProductFamily(isProductFamily(value) || value === 'unclassified' ? value : null)
@@ -574,6 +642,52 @@ export function CollectionView({ collection, section, role }: Props) {
           </summary>
           {taxonomyOpened && <CatalogTaxonomyManager />}
         </details>
+      )}
+      {classificationReview && (
+        <div
+          role="alert"
+          className="mt-4 border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+        >
+          <p className="font-semibold">
+            {classificationReview.snapshot.unresolvedIds.length > 0
+              ? 'Classification result not confirmed for:'
+              : classificationReview.snapshot.attentionIds.length > 0
+                ? 'Classification needs attention for:'
+                : 'Product status refresh failed for:'}
+          </p>
+          <p className="mt-1 break-words">
+            {classificationReview.snapshot.submittedIds
+              .map((id) => classificationReview.names[id] ?? id)
+              .join(', ')}
+          </p>
+          <p className="mt-1">
+            {classificationReview.snapshot.confirmedPublishedIds.length} confirmed published;{' '}
+            {classificationReview.snapshot.unresolvedIds.length} unresolved;{' '}
+            {classificationReview.snapshot.attentionIds.length} need attention. Check product
+            statuses before retrying.
+          </p>
+          {reviewMessage && <p className="mt-1">{reviewMessage}</p>}
+          <button
+            type="button"
+            disabled={reviewRefreshing}
+            className="mt-2 mr-4 min-h-11 text-sm font-semibold underline disabled:opacity-50"
+            onClick={() => void refreshClassificationStatuses()}
+          >
+            {reviewRefreshing ? 'Refreshing statuses...' : 'Refresh statuses'}
+          </button>
+          <button
+            type="button"
+            ref={reviewAction}
+            className="mt-2 min-h-11 text-sm font-semibold underline"
+            onClick={() => {
+              clearSelection();
+              setClassificationReview(null);
+              setReviewMessage('');
+            }}
+          >
+            Clear selection and reminder
+          </button>
+        </div>
       )}
       <div className="mt-6 flex flex-wrap items-center gap-2">
         <form
@@ -613,13 +727,17 @@ export function CollectionView({ collection, section, role }: Props) {
           count={selectedIds.length}
           isCatalog={isCatalog}
           isUsers={isUsers}
+          canClassify={isProducts && role === 'admin'}
           collection={collection}
           busy={
             batchUpdateMutation.isPending ||
             batchRemoveMutation.isPending ||
             updateMutation.isPending
           }
-          onClear={clearSelection}
+          onClear={() => {
+            clearSelection();
+            setClassificationReview(null);
+          }}
           onClassify={() =>
             setClassifying({
               products: rows.filter((row) => selectedIds.includes(row._id)),
@@ -682,7 +800,10 @@ export function CollectionView({ collection, section, role }: Props) {
           </button>
         </div>
       )}
-      <div className="mt-4 max-w-full overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <div
+        className="mt-4 max-w-full overflow-x-auto rounded-xl border border-slate-200 bg-white"
+        style={{ contain: 'paint' }}
+      >
         <table className="w-full min-w-max text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             {table.getHeaderGroups().map((group) => (
@@ -782,6 +903,33 @@ export function CollectionView({ collection, section, role }: Props) {
           products={classifying.products}
           publishOnSave={classifying.publishOnSave}
           onClose={() => setClassifying(null)}
+          onUnresolved={(snapshot) => {
+            setReviewMessage('');
+            setClassificationReview({
+              snapshot,
+              beforeProducts: classifying.products,
+              names: Object.fromEntries(
+                classifying.products.map((product) => [
+                  product._id,
+                  String(product.name ?? product._id),
+                ]),
+              ),
+            });
+            setRowSelection((current) => ({
+              ...current,
+              ...Object.fromEntries(snapshot.submittedIds.map((id) => [id, true])),
+            }));
+          }}
+          onVerified={(ids) => {
+            setReviewMessage('');
+            setClassificationReview((current) =>
+              current &&
+              current.snapshot.submittedIds.length === ids.length &&
+              ids.every((id) => current.snapshot.submittedIds.includes(id))
+                ? null
+                : current,
+            );
+          }}
           onSaved={() => {
             setClassifying(null);
             clearSelection();
@@ -981,6 +1129,7 @@ function BatchBar({
   count,
   isCatalog,
   isUsers,
+  canClassify,
   collection,
   busy,
   onClear,
@@ -991,6 +1140,7 @@ function BatchBar({
   count: number;
   isCatalog: boolean;
   isUsers: boolean;
+  canClassify: boolean;
   collection: CollectionDef;
   busy: boolean;
   onClear: () => void;
@@ -1000,6 +1150,7 @@ function BatchBar({
 }) {
   const roleField = collection.fields.find((f) => f.name === 'role');
   const statusField = collection.fields.find((f) => f.name === 'status');
+  const compactActions = collection.name === 'products';
 
   return (
     <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3">
@@ -1011,7 +1162,7 @@ function BatchBar({
             type="button"
             disabled={busy}
             onClick={() => onSetValues({ published: true })}
-            className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+            className={`${compactActions ? 'hidden xl:inline-flex' : ''} rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50`}
           >
             Publish
           </button>
@@ -1019,7 +1170,7 @@ function BatchBar({
             type="button"
             disabled={busy}
             onClick={() => onSetValues({ published: false })}
-            className="rounded-lg bg-slate-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+            className={`${compactActions ? 'hidden xl:inline-flex' : ''} rounded-lg bg-slate-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50`}
           >
             Disable
           </button>
@@ -1034,7 +1185,7 @@ function BatchBar({
           onPick={(value) => onSetValues({ role: value })}
         />
       )}
-      {collection.name === 'products' && (
+      {canClassify && (
         <button
           type="button"
           disabled={busy || count > 20}
@@ -1057,10 +1208,48 @@ function BatchBar({
         type="button"
         disabled={busy}
         onClick={onDelete}
-        className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+        className={`${compactActions ? 'hidden xl:inline-flex' : ''} rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50`}
       >
         Delete
       </button>
+
+      {compactActions && (
+        <details className="relative xl:hidden">
+          <summary className="flex min-h-11 cursor-pointer items-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700">
+            Actions
+          </summary>
+          <div className="absolute left-0 z-20 mt-1 flex min-w-40 flex-col gap-1 border border-slate-200 bg-white p-2 shadow-md sm:left-auto sm:right-0">
+            {isCatalog && (
+              <>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onSetValues({ published: true })}
+                  className="min-h-11 rounded-lg bg-green-600 px-3 text-left text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  Publish
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onSetValues({ published: false })}
+                  className="min-h-11 rounded-lg bg-slate-600 px-3 text-left text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  Disable
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onDelete}
+              className="min-h-11 rounded-lg bg-red-600 px-3 text-left text-sm font-semibold text-white disabled:opacity-50"
+            >
+              Delete
+            </button>
+          </div>
+        </details>
+      )}
 
       <button
         type="button"

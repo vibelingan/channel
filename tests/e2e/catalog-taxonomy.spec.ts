@@ -192,8 +192,8 @@ test('local taxonomy: saved categories and assignments drive all four storefront
   }
   async function confirmAssignment() {
     const dialog = page.getByRole('dialog', { name: 'Edit website classification', exact: true });
-    await dialog.getByRole('button', { name: 'Review assignment', exact: true }).click();
-    await dialog.getByRole('button', { name: 'Confirm assignment', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Save classification', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Confirm save', exact: true }).click();
     await expect(dialog).toHaveCount(0);
   }
 
@@ -330,9 +330,8 @@ test('local taxonomy: saved categories and assignments drive all four storefront
       await page.getByRole('button', { name: 'Assign category', exact: true }).click();
       dialog = page.getByRole('dialog', { name: 'Edit website classification', exact: true });
       await expect(dialog).toContainText('2 selected products.');
-      await dialog
-        .getByRole('checkbox', { name: 'Publish only after all classifications are confirmed' })
-        .uncheck();
+      await expect(dialog.getByRole('button', { name: 'Save classification' })).toBeVisible();
+      await expect(dialog.getByRole('button', { name: 'Save and publish' })).toBeVisible();
       for (const child of children)
         await dialog.getByRole('checkbox', { name: child.name, exact: true }).check();
       await confirmAssignment();

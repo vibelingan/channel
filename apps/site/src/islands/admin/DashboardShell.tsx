@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { getCollection } from '@vibelingan-channel/shared';
 import { Suspense, lazy, useMemo, useState } from 'react';
+import { Select } from '../../components/form/Select.tsx';
 import { canManageUsers, getUser } from '../../lib/session.ts';
-import { CollectionView } from './CollectionView.tsx';
+import { CollectionView, type ProductClassificationReview } from './CollectionView.tsx';
 import { AlibabaCatalogSyncPage } from './alibaba-catalog-sync/AlibabaCatalogSyncPage.tsx';
 import { CatalogImportPage } from './catalog-import/CatalogImportPage.tsx';
 import {
@@ -78,12 +79,14 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
   );
 
   const [active, setActive] = useState(sections[0]?.collection ?? '');
+  const [productSelection, setProductSelection] = useState<Record<string, boolean>>({});
+  const [productReview, setProductReview] = useState<ProductClassificationReview | null>(null);
   const section = sections.find((s) => s.collection === active);
   const collection = section ? getCollection(section.collection) : undefined;
 
   return (
-    <div className="flex min-h-screen min-w-0 max-w-full flex-col overflow-x-hidden lg:flex-row">
-      <aside className="flex w-full shrink-0 flex-col border-b border-slate-200 bg-white lg:w-60 lg:border-b-0 lg:border-r">
+    <div className="flex min-h-screen min-w-0 max-w-full flex-col overflow-x-hidden xl:flex-row">
+      <aside className="flex w-full min-w-0 shrink-0 flex-col border-b border-slate-200 bg-white xl:w-60 xl:border-b-0 xl:border-r">
         <div className="border-b border-slate-200 px-5 py-4">
           <p className="text-sm font-semibold text-slate-900">Channel Admin</p>
           <p className="mt-0.5 text-xs capitalize text-slate-500">{role || 'member'}</p>
@@ -91,13 +94,13 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
             <p className="mt-2 text-xs text-amber-800">Local sample workspace · inquiries only</p>
           )}
         </div>
-        <nav className="flex gap-1 overflow-x-auto p-3 lg:block lg:flex-1 lg:space-y-1">
+        <nav className="hidden p-3 xl:block xl:flex-1 xl:space-y-1">
           {sections.map((s) => (
             <button
               type="button"
               key={s.collection}
               onClick={() => setActive(s.collection)}
-              className={`min-h-11 shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm transition lg:w-full ${
+              className={`min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm transition ${
                 s.collection === active
                   ? 'bg-slate-900 text-white'
                   : 'text-slate-700 hover:bg-slate-100'
@@ -108,17 +111,30 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
             </button>
           ))}
         </nav>
-        <div className="flex gap-2 border-t border-slate-200 p-3 lg:block">
+        <div className="min-w-0 p-3 xl:hidden">
+          <span className="mb-1 block text-xs font-semibold text-slate-600">Section</span>
+          <Select
+            ariaLabel="Section"
+            value={active}
+            placeholder=""
+            options={sections.map((item) => ({ value: item.collection, label: item.label }))}
+            className="w-full"
+            onChange={(value) => {
+              if (sections.some((item) => item.collection === value)) setActive(value);
+            }}
+          />
+        </div>
+        <div className="flex gap-2 border-t border-slate-200 p-3 xl:block">
           <a
             href="/"
-            className="min-h-11 flex-1 rounded-lg px-3 py-2 text-center text-sm text-slate-600 hover:bg-slate-100 lg:block lg:text-left"
+            className="min-h-11 flex-1 rounded-lg px-3 py-2 text-center text-sm text-slate-600 hover:bg-slate-100 xl:block xl:text-left"
           >
             ← Back to site
           </a>
           <button
             type="button"
             onClick={onLogout}
-            className="min-h-11 flex-1 rounded-lg px-3 py-2 text-center text-sm text-slate-600 hover:bg-slate-100 lg:mt-1 lg:w-full lg:text-left"
+            className="min-h-11 flex-1 rounded-lg px-3 py-2 text-center text-sm text-slate-600 hover:bg-slate-100 xl:mt-1 xl:w-full xl:text-left"
           >
             Sign out
           </button>
@@ -146,6 +162,10 @@ export function DashboardShell({ onLogout }: { onLogout: () => void }) {
             collection={collection}
             section={section}
             role={role}
+            productSelection={productSelection}
+            onProductSelectionChange={setProductSelection}
+            productReview={productReview}
+            onProductReviewChange={setProductReview}
           />
         ) : (
           <p className="p-8 text-slate-500">No collections available.</p>
