@@ -1,6 +1,6 @@
 # Admin classification and publication — SPEC
 
-> 2026-09-30. G1 confirmed the two explicit classification actions; G2 approved the responsive design and original Admin palette. The user then authorized completion of the remaining UI-only phases, locally verified with the disposable production-build suite. No production mutation or deployment authorized; true atomic backend batching remains deferred.
+> Updated 2026-10-01. G1 confirmed the two explicit classification actions; G2 approved the responsive design and original Admin palette. The user subsequently authorized UI-only implementation, deployment to the production-serving `test` environment and controlled Admin-page acceptance with UI-only product restoration. No direct database/API cleanup or atomic-batch experiment is authorized; true atomic backend batching remains deferred.
 
 ## 1. Problem Statement (问题陈述)
 

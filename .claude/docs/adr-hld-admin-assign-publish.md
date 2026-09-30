@@ -1,8 +1,8 @@
 # ADR: Admin classification and publication UX
 
 Date: 2026-09-29
-Phase: HLD for G3 review
-Status: Revised UI-only G3 proposal, pending review; G4 pending. True atomic product batch deferred.
+Phase: UI-only HLD accepted for local validation
+Status: UI-only flow locally verified; production-serving `test` deployment and controlled Admin-only acceptance authorized. True atomic product batch deferred.
 
 ## Context
 
@@ -37,6 +37,6 @@ The user keeps the existing <=20 selection, but defers the true server-side batc
 - Do not invent atomicity or per-item live progress. Use the existing validated per-product receipts for confirmed/rejected/unknown/not-attempted final results; one failure need not roll back earlier products. On a lost response, read back submitted IDs before showing final status; do not auto-retry. Supplier-linked products needing media/detail approval remain directed to Edit.
 - Use TanStack Query v5's active refetch after invalidation as an explicit **read** stage. The installed v5.101.0 runtime/types support `throwOnError`; a failed readback cannot erase prior confirmed write receipts.
 
-## Gate Blockers
+## Remaining Gates
 
-Current G3/G4 are **not approved**; review the revised UI-only MIUs and the narrow G2 waiting/result copy addendum first. Verify no server contract, SDK or database change is smuggled into this release. The reported blank region's cause and live publication latency remain unmeasured; do not promise speed or all-or-nothing publication. Remote transaction validation and physically separate NoSQL test environment are blockers for the **later batch feature only**, not for this UI release.
+The UI-only architecture and test scope were authorized and validated locally. Before live product writes, CI must confirm the deployed release SHA and the operator must capture baseline business fields for the A/C test-only drafts and B existing image-backed product as specified in [G4-TEST-PLAN.md](../../docs/admin-assign-publish-fix/G4-TEST-PLAN.md). Test and restore only through Admin, without direct database/API cleanup; a transient storefront change and revision/audit history cannot be rolled back. No server contract, SDK or database change belongs to this UI release. The local blank-region cause was measured and contained, but live publication latency remains unmeasured; do not promise speed or all-or-nothing publication. Remote transaction validation and a physically separate NoSQL environment remain blockers for the **later atomic batch feature only**.
