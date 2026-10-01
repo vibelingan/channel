@@ -775,6 +775,7 @@ test('tablet product actions keep classification visible and visibility commands
   page,
   request,
 }) => {
+  test.setTimeout(90_000);
   await page.setViewportSize({ width: 768, height: 900 });
   const session = await loginAdmin(request);
   const seeds = await adminAction<ListResult<CollectionDoc>>(
@@ -869,6 +870,43 @@ test('tablet product actions keep classification visible and visibility commands
       .getByRole('button', { name: 'Published' }),
   ).toBeVisible();
   expect(writes).toEqual(['publish']);
+  const row = page.getByRole('row').filter({ hasText: String(product.name) });
+  await row.getByRole('checkbox', { name: 'Select row' }).check();
+  let releaseUpdate!: () => void;
+  let updateStarted!: () => void;
+  const updateGate = new Promise<void>((resolve) => {
+    releaseUpdate = resolve;
+  });
+  const pendingUpdate = new Promise<void>((resolve) => {
+    updateStarted = resolve;
+  });
+  await page.route('**/api/admin', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    const body = route.request().postDataJSON() as {
+      action?: string;
+      data?: { id?: string; values?: { published?: boolean } };
+    };
+    if (
+      body.action === 'update' &&
+      body.data?.id === product._id &&
+      body.data.values?.published === false
+    ) {
+      updateStarted();
+      await updateGate;
+    }
+    await route.continue();
+  });
+  await row.getByRole('button', { name: 'Published' }).click();
+  await pendingUpdate;
+  try {
+    await expect(row.getByRole('button', { name: 'Edit' })).toBeDisabled();
+    await expect(row.getByRole('button', { name: 'Delete' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Assign category' })).toBeDisabled();
+    await expect(row.getByRole('button', { name: 'Preview' })).toBeEnabled();
+  } finally {
+    releaseUpdate();
+  }
+  await expect(row.getByRole('button', { name: 'Disabled' })).toBeVisible();
 });
 
 test('contributor sees products but not the admin-only bulk classification action', async ({

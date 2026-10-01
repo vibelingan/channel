@@ -290,6 +290,11 @@ export function CollectionView({
       invalidate();
     },
   });
+  const recordWritePending =
+    updateMutation.isPending ||
+    removeMutation.isPending ||
+    batchUpdateMutation.isPending ||
+    batchRemoveMutation.isPending;
 
   const visibleMutationError =
     batchUpdateMutation.error ||
@@ -476,7 +481,7 @@ export function CollectionView({
         cell: ({ row }) => (
           <PublishToggle
             published={row.original.published === true}
-            busy={updateMutation.isPending || batchUpdateMutation.isPending}
+            busy={recordWritePending}
             onToggle={() =>
               patch(row.original._id, { published: !(row.original.published === true) })
             }
@@ -496,9 +501,7 @@ export function CollectionView({
             {isProducts && role === 'admin' && (
               <button
                 type="button"
-                disabled={
-                  classificationBlocked || updateMutation.isPending || batchUpdateMutation.isPending
-                }
+                disabled={classificationBlocked || recordWritePending}
                 title={
                   classificationBlocked
                     ? 'Resolve the pending classification result before starting another'
@@ -521,7 +524,7 @@ export function CollectionView({
             )}
             <button
               type="button"
-              disabled={batchUpdateMutation.isPending}
+              disabled={recordWritePending}
               onClick={() => setEditing(doc)}
               className="ml-3 text-sm font-medium text-slate-700 hover:text-slate-900 disabled:opacity-50"
             >
@@ -529,7 +532,7 @@ export function CollectionView({
             </button>
             <button
               type="button"
-              disabled={batchUpdateMutation.isPending}
+              disabled={recordWritePending}
               onClick={() => {
                 if (confirm('Delete this record?')) removeMutation.mutate(doc._id);
               }}
@@ -551,8 +554,7 @@ export function CollectionView({
     role,
     inlineEdit,
     classificationBlocked,
-    updateMutation.isPending,
-    batchUpdateMutation.isPending,
+    recordWritePending,
   ]);
 
   const table = useReactTable({
@@ -779,11 +781,7 @@ export function CollectionView({
           canClassify={isProducts && role === 'admin'}
           classifyBlocked={classificationBlocked}
           collection={collection}
-          busy={
-            batchUpdateMutation.isPending ||
-            batchRemoveMutation.isPending ||
-            updateMutation.isPending
-          }
+          busy={recordWritePending}
           onClear={() => {
             clearSelection();
           }}
