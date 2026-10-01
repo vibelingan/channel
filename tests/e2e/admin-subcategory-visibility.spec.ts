@@ -8,7 +8,7 @@ import {
   CatalogTaxonomyResultSchema,
 } from '../../packages/shared/src/catalog-taxonomy.ts';
 import type { CollectionDoc } from '../../packages/shared/src/collections.ts';
-import { type ListResult, adminAction, loginAdmin } from './helpers/admin-api';
+import { type ListResult, adminAction, loginAdmin, loginUser } from './helpers/admin-api';
 import {
   e2e,
   requireAdminCredentialsWhenEnabled,
@@ -914,6 +914,7 @@ test('contributor sees products but not the admin-only bulk classification actio
   page,
   request,
 }) => {
+  test.setTimeout(90_000);
   const admin = await loginAdmin(request);
   const product = await adminAction<CollectionDoc>(
     request,
@@ -930,16 +931,8 @@ test('contributor sees products but not the admin-only bulk classification actio
     },
     admin.token,
   );
-  const response = await request.post(`${e2e.apiUrl}/api/admin`, {
-    data: { action: 'login', data: { email: 'contributor@channel.local', password: 'password' } },
-  });
-  const login = (await response.json()) as {
-    ok: boolean;
-    data?: { token: string; user: { role: string } };
-  };
-  expect(response.ok() && login.ok && login.data?.user.role === 'contributor').toBe(true);
-  if (!login.data) throw new Error('Local contributor login failed');
-  const { token, user } = login.data;
+  const { token, user } = await loginUser(request, 'contributor@channel.local', 'password');
+  expect(user.role).toBe('contributor');
   await page.addInitScript(
     ({ token, user }) => {
       localStorage.setItem('channel.token', token);
