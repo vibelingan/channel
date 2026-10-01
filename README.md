@@ -56,6 +56,13 @@ default, see `ADMIN_PASSWORD`). Edits are written to
 
 ### Production (CloudBase)
 
+As of 2026-09-30, the GitHub `test` branch deploys the CloudBase environment
+that also serves `supplychainsai.com`, `www.supplychainsai.com`, and `/api/admin`.
+Treat pushes or merges into `test` as production-impacting deployments, not an
+isolated staging release. The [deploy workflow](.github/workflows/deploy-test.yml)
+automatically runs after a `test` push; the [Admin acceptance plan](docs/admin-assign-publish-fix/G4-TEST-PLAN.md)
+requires owned fixtures and Admin-page restoration for live product checks.
+
 The admin function (`apps/functions/admin`) deploys to CloudBase. It requires:
 
 - `TCB_ENV` — CloudBase environment id (wx-server-sdk `cloud.init`)

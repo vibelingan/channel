@@ -1,0 +1,19 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {"id":"actor","type":"rectangle","x":45,"y":210,"width":200,"height":95,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#b2f2bb","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Operator\nConfirms outcome","fontSize":18,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"editor","type":"rectangle","x":410,"y":210,"width":230,"height":95,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#a5d8ff","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Classification editor\nStage + receipts","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"client","type":"rectangle","x":805,"y":210,"width":225,"height":95,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#ffd43b","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Admin API client\nSequential updates","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"server","type":"rectangle","x":1190,"y":210,"width":230,"height":95,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#e9ecef","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Admin function\nPer-product validation","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"a1","type":"arrow","x":245,"y":250,"width":165,"height":0,"points":[[0,0],[165,0]],"startBinding":{"elementId":"actor","gap":5,"focus":0},"endBinding":{"elementId":"editor","gap":5,"focus":0},"label":{"text":"Save or Save+publish","fontSize":14,"fontFamily":5}},
+    {"id":"a2","type":"arrow","x":640,"y":250,"width":165,"height":0,"points":[[0,0],[165,0]],"startBinding":{"elementId":"editor","gap":5,"focus":0},"endBinding":{"elementId":"client","gap":5,"focus":0},"label":{"text":"Validated assignment","fontSize":14,"fontFamily":5}},
+    {"id":"a3","type":"arrow","x":1030,"y":250,"width":160,"height":0,"points":[[0,0],[160,0]],"startBinding":{"elementId":"client","gap":5,"focus":0},"endBinding":{"elementId":"server","gap":5,"focus":0},"label":{"text":"POST catalogCategories","fontSize":14,"fontFamily":5}},
+    {"id":"a4","type":"arrow","x":1190,"y":390,"width":-160,"height":0,"points":[[0,0],[-160,0]],"startBinding":{"elementId":"server","gap":5,"focus":0},"endBinding":{"elementId":"client","gap":5,"focus":0},"label":{"text":"Saved revision or unknown","fontSize":14,"fontFamily":5}},
+    {"id":"a5","type":"arrow","x":1030,"y":480,"width":160,"height":0,"points":[[0,0],[160,0]],"startBinding":{"elementId":"client","gap":5,"focus":0},"endBinding":{"elementId":"server","gap":5,"focus":0},"label":{"text":"POST update per draft","fontSize":14,"fontFamily":5}},
+    {"id":"a6","type":"arrow","x":805,"y":580,"width":-165,"height":0,"points":[[0,0],[-165,0]],"startBinding":{"elementId":"client","gap":5,"focus":0},"endBinding":{"elementId":"editor","gap":5,"focus":0},"label":{"text":"Final receipts / unknown","fontSize":14,"fontFamily":5}}
+  ],
+  "appState": {"viewBackgroundColor":"#ffffff","gridSize":20},
+  "files": {}
+}

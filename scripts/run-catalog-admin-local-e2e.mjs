@@ -12,6 +12,7 @@ const siteDirectory = join(temporaryDirectory, 'site');
 const readyFile = join(temporaryDirectory, 'api-ready.json');
 const readyToken = randomUUID();
 const formal = process.env.E2E_CATALOG_FORMAL === '1';
+const adminOnly = process.argv.includes('--admin-only');
 const reservation = createServer();
 await new Promise((resolve) => reservation.listen(0, '127.0.0.1', resolve));
 const address = reservation.address();
@@ -225,51 +226,67 @@ try {
     E2E_CATALOG_LOCAL_SEED: '1',
     E2E_CATALOG_LOCAL_DB: databaseFile,
   };
-  // Legacy and shared routes ship together. The same public browser gate must
-  // run against disposable local production artifacts BEFORE deployment.
-  await run(bin('.', 'playwright'), ['test', 'tests/e2e/public.spec.ts'], e2eEnvironment);
-  await run(
-    bin('.', 'playwright'),
-    [
-      'test',
-      'tests/e2e/header-navigation.spec.ts',
-      'tests/e2e/catalog-hub.spec.ts',
-      'tests/e2e/catalog-family-routes.spec.ts',
-      'tests/e2e/catalog-category.spec.ts',
-      'tests/e2e/sku-detail.spec.ts',
-    ],
-    e2eEnvironment,
-  );
-  if (formal) {
+  if (adminOnly) {
     await run(
       bin('.', 'playwright'),
-      ['test', 'tests/e2e/catalog-formal-journey.spec.ts'],
+      ['test', 'tests/e2e/admin-subcategory-visibility.spec.ts'],
       e2eEnvironment,
     );
   } else {
-    await run(bin('.', 'playwright'), ['test', 'tests/e2e/font-loading.spec.ts'], e2eEnvironment);
-    await run(
-      bin('.', 'playwright'),
-      ['test', 'tests/e2e/catalog-local-seed.spec.ts'],
-      e2eEnvironment,
-    );
-    await run(bin('.', 'playwright'), ['test', 'tests/e2e/catalog-admin.spec.ts'], e2eEnvironment);
+    // Legacy and shared routes ship together. The same public browser gate must
+    // run against disposable local production artifacts BEFORE deployment.
+    await run(bin('.', 'playwright'), ['test', 'tests/e2e/public.spec.ts'], e2eEnvironment);
     await run(
       bin('.', 'playwright'),
       [
         'test',
-        'tests/e2e/admin-product-form.spec.ts',
-        'tests/e2e/admin-product-family-tabs.spec.ts',
+        'tests/e2e/header-navigation.spec.ts',
+        'tests/e2e/catalog-hub.spec.ts',
+        'tests/e2e/catalog-family-routes.spec.ts',
+        'tests/e2e/catalog-category.spec.ts',
+        'tests/e2e/sku-detail.spec.ts',
       ],
       e2eEnvironment,
     );
+    if (formal) {
+      await run(
+        bin('.', 'playwright'),
+        ['test', 'tests/e2e/catalog-formal-journey.spec.ts'],
+        e2eEnvironment,
+      );
+    } else {
+      await run(bin('.', 'playwright'), ['test', 'tests/e2e/font-loading.spec.ts'], e2eEnvironment);
+      await run(
+        bin('.', 'playwright'),
+        ['test', 'tests/e2e/catalog-local-seed.spec.ts'],
+        e2eEnvironment,
+      );
+      await run(
+        bin('.', 'playwright'),
+        ['test', 'tests/e2e/catalog-admin.spec.ts'],
+        e2eEnvironment,
+      );
+      await run(
+        bin('.', 'playwright'),
+        [
+          'test',
+          'tests/e2e/admin-product-form.spec.ts',
+          'tests/e2e/admin-product-family-tabs.spec.ts',
+        ],
+        e2eEnvironment,
+      );
+    }
+    await run(
+      bin('.', 'playwright'),
+      ['test', 'tests/e2e/admin-subcategory-visibility.spec.ts'],
+      e2eEnvironment,
+    );
+    await run(
+      bin('.', 'playwright'),
+      ['test', 'tests/e2e/catalog-taxonomy.spec.ts'],
+      e2eEnvironment,
+    );
   }
-  await run(
-    bin('.', 'playwright'),
-    ['test', 'tests/e2e/admin-subcategory-visibility.spec.ts'],
-    e2eEnvironment,
-  );
-  await run(bin('.', 'playwright'), ['test', 'tests/e2e/catalog-taxonomy.spec.ts'], e2eEnvironment);
 } finally {
   await cleanup();
 }

@@ -1,6 +1,9 @@
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { useState } from 'react';
-import { ProductClassificationEditor } from './ProductClassificationEditor.tsx';
+import {
+  ProductClassificationEditor,
+  type UnresolvedClassificationSnapshot,
+} from './ProductClassificationEditor.tsx';
 import { useModalDialog } from './use-modal-dialog.ts';
 
 export function ClassificationDialog({
@@ -8,11 +11,15 @@ export function ClassificationDialog({
   publishOnSave = false,
   onClose,
   onSaved,
+  onUnresolved,
+  onVerified,
 }: {
   products: readonly CollectionDoc[];
   publishOnSave?: boolean;
   onClose: () => void;
   onSaved: () => void;
+  onUnresolved?: (snapshot: UnresolvedClassificationSnapshot) => void;
+  onVerified?: (submittedIds: readonly string[]) => void;
 }) {
   const dialog = useModalDialog();
   const [busy, setBusy] = useState(false);
@@ -30,6 +37,8 @@ export function ClassificationDialog({
         products={products}
         publishOnSave={publishOnSave}
         onBusyChange={setBusy}
+        onUnresolved={onUnresolved}
+        onVerified={onVerified}
         onCancel={onClose}
         onSaved={onSaved}
       />

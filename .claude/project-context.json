@@ -1,0 +1,37 @@
+{
+  "projectType": "FULLSTACK",
+  "primaryFramework": "astro+react",
+  "techStack": ["typescript", "astro", "react", "cloudbase", "playwright", "biome"],
+  "checkCommand": "corepack pnpm -r --if-present --workspace-concurrency=1 typecheck && corepack pnpm typecheck:e2e",
+  "lintCommand": "corepack pnpm exec biome check .",
+  "testCommand": "corepack pnpm --filter @vibelingan-channel/site test && corepack pnpm test:e2e:catalog-admin-local",
+  "buildCommand": "corepack pnpm --filter @vibelingan-channel/site build",
+  "formatCommand": "corepack pnpm exec biome check .",
+  "deployTargets": ["cloudbase"],
+  "deployConfigExists": { "cloudbase": true },
+  "deployMiusNeeded": [],
+  "skillsHigh": ["vercel-react-best-practices"],
+  "skillsMedium": ["ui-ux-pro-max", "web-design-guidelines", "nodejs-testing"],
+  "skillsContext7": ["typescript", "tanstack-query", "zod"],
+  "bestPracticeSources": [
+    {
+      "signal": "typescript",
+      "skill": "typescript-best-practices",
+      "status": "missing",
+      "fallback": "context7:typescript"
+    },
+    {
+      "signal": "react",
+      "skill": "vercel-react-best-practices",
+      "status": "installed",
+      "fallback": "context7:react"
+    }
+  ],
+  "designSource": "screenshot",
+  "designSystemDoc": "DESIGN.md",
+  "gitHooksInstalled": true,
+  "taskType": "ENHANCEMENT",
+  "pipelinePhases": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+  "gates": ["G1", "G2", "G3", "G4"],
+  "detectedAt": "2026-09-29"
+}

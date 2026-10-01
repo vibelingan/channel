@@ -367,10 +367,12 @@ test('classification editor preloads archived current IDs, previews products and
   assert.match(html, /checked=""[^>]*value="headphones-wired"/);
   assert.match(html, /archived/i);
   assert.match(html, /drafts will not be published/i);
-  assert.ok(html.includes('Review assignment'));
+  assert.ok(html.includes('Save classification'));
+  assert.ok(html.includes('Save and publish'));
+  assert.doesNotMatch(html, /Publish only after all classifications are confirmed/);
 });
 
-test('bulk classification offers an explicit classify-and-publish review', async () => {
+test('bulk classification offers separate draft and publish actions without a default', async () => {
   const { ProductClassificationEditor } = await import('./ProductClassificationEditor.tsx');
   const html = renderWithTaxonomy(
     createElement(ProductClassificationEditor, {
@@ -379,9 +381,227 @@ test('bulk classification offers an explicit classify-and-publish review', async
       onSaved: () => {},
     }),
   );
-  assert.match(html, /publish only after all classifications are confirmed/i);
-  assert.ok(html.includes('Review classification and publish'));
+  assert.ok(html.includes('Save classification'));
+  assert.ok(html.includes('Save and publish'));
+  assert.doesNotMatch(html, /Publish only after all classifications are confirmed/);
   assert.ok(html.includes('Studio headset'));
+});
+
+test('published or mixed selections warn before save and cannot silently publish drafts', async () => {
+  const { ProductClassificationEditor } = await import('./ProductClassificationEditor.tsx');
+  for (const products of [
+    [product({ published: true })],
+    [product(), product({ _id: 'already-public', published: true })],
+  ]) {
+    const html = renderWithTaxonomy(
+      createElement(ProductClassificationEditor, {
+        products,
+        onSaved: () => {},
+      }),
+    );
+    assert.match(html, /saving.*published.*storefront filters/i);
+    assert.match(html, /<button[^>]*>Save classification<\/button>/);
+    assert.match(html, /<button[^>]*disabled=""[^>]*>Save and publish<\/button>/);
+    assert.match(html, /Select drafts separately to publish/);
+  }
+});
+
+test('unresolved classification snapshot preserves submitted, confirmed and unknown IDs', async () => {
+  const { unresolvedClassificationSnapshot } = await import('./ProductClassificationEditor.tsx');
+  const input = {
+    ...command(),
+    products: [
+      { productId: 'product-1', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
+      { productId: 'product-2', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
+    ],
+  } satisfies CatalogClassificationAssignmentRequest;
+  assert.deepEqual(unresolvedClassificationSnapshot(input, null, null), {
+    command: input,
+    submittedIds: ['product-1', 'product-2'],
+    confirmedPublishedIds: [],
+    unresolvedIds: ['product-1', 'product-2'],
+    attentionIds: [],
+    issuesById: {},
+  });
+  assert.deepEqual(
+    unresolvedClassificationSnapshot(
+      { ...input, includeSavedRevision: true },
+      [
+        { productId: 'product-1', status: 'saved' },
+        { productId: 'product-2', status: 'conflict' },
+      ],
+      null,
+    ),
+    {
+      command: { ...input, includeSavedRevision: true },
+      submittedIds: ['product-1', 'product-2'],
+      confirmedPublishedIds: [],
+      unresolvedIds: [],
+      attentionIds: ['product-1', 'product-2'],
+      issuesById: {
+        'product-1': 'Assignment saved; publication blocked',
+        'product-2': 'Changed since preview; refresh needed',
+      },
+    },
+  );
+  const saved = [
+    { productId: 'product-1', status: 'saved' as const },
+    { productId: 'product-2', status: 'saved' as const },
+  ];
+  const publishInput = { ...input, includeSavedRevision: true as const };
+  assert.deepEqual(unresolvedClassificationSnapshot(publishInput, saved, null), {
+    command: publishInput,
+    submittedIds: ['product-1', 'product-2'],
+    confirmedPublishedIds: [],
+    unresolvedIds: ['product-1', 'product-2'],
+    attentionIds: [],
+    issuesById: {},
+  });
+  assert.deepEqual(
+    unresolvedClassificationSnapshot(input, saved, {
+      updated: 1,
+      items: [product()],
+      failures: [
+        {
+          id: 'product-2',
+          code: 'NETWORK_ERROR',
+          message: 'Unconfirmed',
+          outcome: 'unconfirmed',
+        },
+      ],
+    }),
+    {
+      command: input,
+      submittedIds: ['product-1', 'product-2'],
+      confirmedPublishedIds: ['product-1'],
+      unresolvedIds: ['product-2'],
+      attentionIds: [],
+      issuesById: { 'product-2': 'Unconfirmed' },
+    },
+  );
+  assert.deepEqual(
+    unresolvedClassificationSnapshot(publishInput, saved, {
+      updated: 1,
+      items: [product()],
+      failures: [
+        {
+          id: 'product-2',
+          code: 'VALIDATION_ERROR',
+          message: 'Approved image required',
+          outcome: 'rejected',
+        },
+      ],
+    }),
+    {
+      command: publishInput,
+      submittedIds: ['product-1', 'product-2'],
+      confirmedPublishedIds: ['product-1'],
+      unresolvedIds: [],
+      attentionIds: ['product-2'],
+      issuesById: { 'product-2': 'Approved image required' },
+    },
+  );
+});
+
+test('append readback must preserve previously assigned subcategories', async () => {
+  const { unresolvedClassificationSnapshot, matchesSubmittedProducts } = await import(
+    './ProductClassificationEditor.tsx'
+  );
+  const input = {
+    ...command(),
+    operation: 'append' as const,
+    subcategoryIds: ['headphones-bluetooth'],
+  };
+  const before = product({ subcategoryIds: ['headphones-wired'] });
+  const snapshot = unresolvedClassificationSnapshot(
+    input,
+    [{ productId: before._id, status: 'saved' }],
+    null,
+  );
+  assert.equal(
+    matchesSubmittedProducts(
+      snapshot,
+      [before],
+      [product({ subcategoryIds: ['headphones-bluetooth'] })],
+    ),
+    false,
+  );
+  assert.equal(
+    matchesSubmittedProducts(
+      snapshot,
+      [before],
+      [product({ subcategoryIds: ['headphones-wired', 'headphones-bluetooth'] })],
+    ),
+    true,
+  );
+});
+
+test('readback preserves known assignment rejections without claiming full success', async () => {
+  const { unresolvedClassificationSnapshot, matchesSubmittedProducts } = await import(
+    './ProductClassificationEditor.tsx'
+  );
+  const input = {
+    ...command(),
+    includeSavedRevision: true as const,
+    products: [
+      { productId: 'product-1', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
+      { productId: 'product-2', expectedUpdatedAt: '2026-09-18T10:00:00.000Z' },
+    ],
+  };
+  const unchanged = product({ _id: 'product-2', productFamily: 'toys', subcategoryIds: [] });
+  const snapshot = unresolvedClassificationSnapshot(
+    input,
+    [
+      { productId: 'product-1', status: 'saved' },
+      { productId: 'product-2', status: 'conflict' },
+    ],
+    null,
+  );
+  assert.deepEqual(snapshot.attentionIds, ['product-1', 'product-2']);
+  assert.equal(
+    matchesSubmittedProducts(
+      snapshot,
+      [product({ subcategoryIds: [] }), unchanged],
+      [product({ subcategoryIds: [] }), unchanged],
+    ),
+    true,
+  );
+});
+
+test('confirmed final state resolves a lost publication response without replaying it', async () => {
+  const { unresolvedClassificationSnapshot, matchesVerifiedOutcome } = await import(
+    './ProductClassificationEditor.tsx'
+  );
+  const input = { ...command(), includeSavedRevision: true as const };
+  const before = product({ subcategoryIds: [] });
+  const snapshot = unresolvedClassificationSnapshot(
+    input,
+    [{ productId: before._id, status: 'saved' }],
+    {
+      updated: 0,
+      items: [],
+      failures: [
+        { id: before._id, code: 'NETWORK_ERROR', message: 'Unknown', outcome: 'unconfirmed' },
+      ],
+    },
+  );
+  assert.deepEqual(snapshot.unresolvedIds, [before._id]);
+  assert.equal(
+    matchesVerifiedOutcome(snapshot, [before], [product({ subcategoryIds: [], published: false })]),
+    false,
+  );
+  assert.equal(
+    matchesVerifiedOutcome(snapshot, [before], [product({ subcategoryIds: [], published: true })]),
+    true,
+  );
+  assert.equal(
+    matchesVerifiedOutcome(
+      snapshot,
+      [before],
+      [product({ subcategoryIds: ['wrong-child'], published: true })],
+    ),
+    false,
+  );
 });
 
 test('bulk publish runs only after every selected assignment is confirmed', async (context) => {
@@ -499,7 +719,8 @@ test('malformed product IDs block assignment and registry reads show a loading s
   });
   const html = renderWithTaxonomy(content);
   assert.match(html, /malformed/i);
-  assert.match(html, /<button[^>]*disabled=""[^>]*>Review assignment<\/button>/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*>Save classification<\/button>/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*>Save and publish<\/button>/);
   assert.ok(renderWithTaxonomy(content, false).includes('Loading categories'));
 });
 

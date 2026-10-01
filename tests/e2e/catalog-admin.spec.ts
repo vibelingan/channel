@@ -183,13 +183,12 @@ test.describe('Admin catalog lifecycle', () => {
     await page.getByRole('checkbox', { name: 'Select all rows' }).check();
     await page.getByRole('button', { name: 'Assign category', exact: true }).click();
     const classification = page.getByRole('dialog', { name: 'Edit website classification' });
-    await classification
-      .getByRole('checkbox', { name: 'Publish only after all classifications are confirmed' })
-      .uncheck();
+    await expect(classification.getByRole('button', { name: 'Save classification' })).toBeVisible();
+    await expect(classification.getByRole('button', { name: 'Save and publish' })).toBeVisible();
     await expect(classification).toContainText(
       '2 selected products. Drafts will not be published.',
     );
-    await expect(classification.getByRole('button', { name: 'Confirm assignment' })).toHaveCount(0);
+    await expect(classification.getByRole('button', { name: 'Confirm save' })).toHaveCount(0);
     await classification
       .getByRole('combobox', { name: 'Website main category' })
       .and(page.locator('button'))
@@ -198,7 +197,7 @@ test.describe('Admin catalog lifecycle', () => {
       .getByRole('listbox', { name: 'Website main category' })
       .getByRole('option', { name: 'Miscellaneous', exact: true })
       .click();
-    await classification.getByRole('button', { name: 'Review assignment', exact: true }).click();
+    await classification.getByRole('button', { name: 'Save classification', exact: true }).click();
     await expect(classification).toContainText('Confirm replace for 2 products in Miscellaneous?');
     for (const id of ids) {
       expect(
@@ -211,9 +210,9 @@ test.describe('Admin catalog lifecycle', () => {
       ).toEqual(originals.get(id));
     }
     await classification.getByRole('button', { name: 'Cancel confirmation', exact: true }).click();
-    await expect(classification.getByRole('button', { name: 'Confirm assignment' })).toHaveCount(0);
-    await classification.getByRole('button', { name: 'Review assignment', exact: true }).click();
-    await classification.getByRole('button', { name: 'Confirm assignment', exact: true }).click();
+    await expect(classification.getByRole('button', { name: 'Confirm save' })).toHaveCount(0);
+    await classification.getByRole('button', { name: 'Save classification', exact: true }).click();
+    await classification.getByRole('button', { name: 'Confirm save', exact: true }).click();
     await expect(classification).toHaveCount(0);
     for (const id of ids) {
       const saved = await adminAction<CollectionDoc>(
@@ -330,8 +329,8 @@ test.describe('Admin catalog lifecycle', () => {
       .getByRole('listbox', { name: 'Website main category', exact: true })
       .getByRole('option', { name: 'Miscellaneous', exact: true })
       .click();
-    await classification.getByRole('button', { name: 'Review assignment', exact: true }).click();
-    await classification.getByRole('button', { name: 'Confirm assignment', exact: true }).click();
+    await classification.getByRole('button', { name: 'Save classification', exact: true }).click();
+    await classification.getByRole('button', { name: 'Confirm save', exact: true }).click();
     await expect(classification).toHaveCount(0);
     await expect(row).toHaveCount(0);
     await page

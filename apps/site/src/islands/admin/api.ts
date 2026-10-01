@@ -198,6 +198,16 @@ export function listRecords(args: ListArgs): Promise<ListResult<CollectionDoc>> 
   return call<ListResult<CollectionDoc>>('list', args);
 }
 
+export async function getRecord(collection: string, id: string): Promise<CollectionDoc> {
+  const record = await call<CollectionDoc>('get', { collection, id });
+  if (record?._id !== id)
+    throw new AdminApiError(
+      'INVALID_RESPONSE',
+      'Product status response did not match the request.',
+    );
+  return record;
+}
+
 export interface ProductReviewSummary {
   pendingTotal: number;
   byFamily: Record<ProductFamily, number>;
