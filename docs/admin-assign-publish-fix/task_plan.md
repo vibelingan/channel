@@ -9,7 +9,7 @@ Goal: deliver the explicit category-and-publication workflow plus responsive Adm
 3. [complete] Audit responsive navigation and classification design; user approved G2.
 4. [complete for UI-only scope] Lock the revised architecture, MIUs, prototype and test plan after the user deferred true backend batching and authorized the remaining UI phases.
 5. [complete for UI-only scope] Implement and review classification outcomes, read-only recovery and responsive Admin navigation; validate the local production build and disposable-DB E2E.
-6. [pending] Push reviewed branch, merge safely into production-serving `test`, verify deployed SHA, then run and restore the specifically authorized A/C/B Admin-page acceptance.
+6. [in progress] Push reviewed branch, merge safely into production-serving `test`, verify deployed SHA, then run and restore the specifically authorized A/C/B Admin-page acceptance.
 
 Deferred separately: a true atomic backend batch with transaction, approval, image-counter and lost-response proofs in an isolated NoSQL environment. The UI release retains the existing <=20 revision-checked sequential publication behavior; it makes no atomicity claim.
 
