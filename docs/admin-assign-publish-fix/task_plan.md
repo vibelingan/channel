@@ -13,7 +13,7 @@ Goal: deliver the explicit category-and-publication workflow plus responsive Adm
 
 Deferred separately: a true atomic backend batch with transaction, approval, image-counter and lost-response proofs in an isolated NoSQL environment. The UI release retains the existing <=20 revision-checked sequential publication behavior; it makes no atomicity claim.
 
-Branch: `fix/admin-assign-category-publish-20260928` from fetched `origin/main` at `bf699b4`. Other dirty worktrees stay untouched.
+Branch: `fix/admin-assign-category-publish-20260928` originally from `origin/main` at `bf699b4`, then replayed onto `origin/test` at `4b1e6d5` for delivery. Other dirty worktrees stay untouched.
 
 ## Safety
 

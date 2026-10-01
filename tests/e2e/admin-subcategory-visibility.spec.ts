@@ -899,6 +899,7 @@ test('tablet product actions keep classification visible and visibility commands
   await row.getByRole('button', { name: 'Published' }).click();
   await pendingUpdate;
   try {
+    await expect(row.getByRole('button', { name: 'Classify' })).toBeDisabled();
     await expect(row.getByRole('button', { name: 'Edit' })).toBeDisabled();
     await expect(row.getByRole('button', { name: 'Delete' })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Assign category' })).toBeDisabled();

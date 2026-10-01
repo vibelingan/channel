@@ -361,7 +361,12 @@ test('local taxonomy: saved categories and assignments drive all four storefront
         )
         .toBe(true);
       expect(await readProduct(single._id)).toMatchObject({ subcategoryIds: [], published: true });
-      expect((await publicProducts(family)).total).toBe(14);
+      const unfilteredFirst = await publicProducts(family);
+      const unfilteredSecond = await publicProducts(family, undefined, 2);
+      expect(unfilteredFirst.total).toBe(14);
+      expect(
+        [...unfilteredFirst.items, ...unfilteredSecond.items].map((product) => product._id).sort(),
+      ).toEqual(products.map((product) => product._id).sort());
 
       await test.step('public filters, header, overlap deduplication and responsive evidence', async () => {
         const exposed = await publicTaxonomy(family);
