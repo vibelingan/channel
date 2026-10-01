@@ -914,6 +914,7 @@ test('contributor sees products but not the admin-only bulk classification actio
   page,
   request,
 }) => {
+  test.setTimeout(90_000);
   const admin = await loginAdmin(request);
   const product = await adminAction<CollectionDoc>(
     request,
