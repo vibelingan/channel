@@ -350,6 +350,9 @@ test('local taxonomy: saved categories and assignments drive all four storefront
       await expect(page.getByRole('checkbox', { name: 'Select row', exact: true })).toHaveCount(14);
       await page.getByRole('checkbox', { name: 'Select all rows', exact: true }).check();
       await page.getByRole('button', { name: 'Publish', exact: true }).click();
+      await expect(page.getByRole('status').filter({ hasText: '14 published' })).toBeVisible({
+        timeout: 60_000,
+      });
       await expect
         .poll(async () =>
           (await Promise.all(products.map((product) => readProduct(product._id)))).every(
