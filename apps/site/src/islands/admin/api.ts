@@ -419,16 +419,20 @@ export async function batchUpdateRecords(
     return { ...result, failures: [] };
   }
   const uniqueIds = [...new Set(ids)];
+  const isArchive =
+    Object.keys(values).length === 2 && values.archived === true && values.published === false;
+  const isSingleFieldUpdate =
+    Object.keys(values).length === 1 &&
+    (typeof values.published === 'boolean' || isProductFamily(values.productFamily));
   if (
     uniqueIds.length === 0 ||
     uniqueIds.length > 20 ||
     uniqueIds.some((id) => typeof id !== 'string' || !id.trim()) ||
-    Object.keys(values).length !== 1 ||
-    (typeof values.published !== 'boolean' && !isProductFamily(values.productFamily))
+    (!isSingleFieldUpdate && !isArchive)
   ) {
     throw new AdminApiError(
       'BAD_REQUEST',
-      'Select up to 20 products to publish, disable or classify.',
+      'Select up to 20 products to publish, disable, classify or archive.',
     );
   }
   const items: CollectionDoc[] = [];

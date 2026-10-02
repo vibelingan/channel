@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { CollectionDoc } from '../../../../../packages/shared/src/collections.ts';
 import { batchUpdateRecords, updateRecord } from './api.ts';
 
 for (const sourceImageCount of [1, 19]) {
@@ -169,6 +170,30 @@ test('category-only edits never republish a product withdrawn by another admin d
   assert.equal(result.items[0]?.published, false);
 });
 
+test('product archive batches unpublish each product and confirm both fields', async (t) => {
+  const ids: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    assert.equal(body.action, 'update');
+    assert.deepEqual(body.data.values, { archived: true, published: false });
+    ids.push(body.data.id);
+    const product: CollectionDoc = {
+      _id: body.data.id,
+      productFamily: 'headphones',
+      archived: true,
+      published: false,
+    };
+    return Response.json({ ok: true, data: product });
+  });
+  const result = await batchUpdateRecords('products', ['one', 'two', 'one'], {
+    archived: true,
+    published: false,
+  });
+  assert.deepEqual(ids, ['one', 'two']);
+  assert.equal(result.updated, 2);
+  assert.deepEqual(result.failures, []);
+});
+
 test('category batches reject unknown categories and mixed changes before network', async (t) => {
   t.mock.method(globalThis, 'fetch', async () => {
     throw new Error('Must not send');
@@ -177,6 +202,10 @@ test('category batches reject unknown categories and mixed changes before networ
     { productFamily: 'wired' },
     { productFamily: '' },
     { productFamily: 'toys', published: true },
+    { archived: true },
+    { archived: true, published: true },
+    { archived: false, published: false },
+    { archived: true, published: false, imageIds: [] },
   ]) {
     await assert.rejects(batchUpdateRecords('products', ['one'], values), /up to 20/);
   }
