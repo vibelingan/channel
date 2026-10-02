@@ -32,3 +32,65 @@ The per-row action is draft-only by design but not usable for an operator who ex
 - The former narrow horizontal nav is replaced by a role-filtered Section picker below 1280px; the original sidebar remains at desktop widths. Existing mobile/tablet form and classification specs were adjusted to navigate through the picker and passed in the full local E2E runner.
 - The real Admin page showed no root overflow at 1440 or 720 CSS px, while wide table columns remained locally scrollable. Browser tooling scaled requested sizes by 1.25, so actual innerWidth was asserted. A 720px reflow was used as a 200%-zoom-width proxy; native browser zoom was not independently exercised.
 - Full local acceptance: 157 passing Playwright browser cases on a disposable production-build site and JSON database, 502 passing site unit tests (one existing skip), workspace/E2E typechecks and repository-wide Biome. This verifies existing sequential publication, not atomic backend batching or a deployed CloudBase environment.
+
+## Live acceptance and repair findings - 2026-10-02
+
+Latest facts below are reported by the acceptance caller. Earlier hypotheses
+remain historical; these findings supersede their unresolved status where noted.
+
+- Deploy `24936f0` / run `36849272212` was verified before actual-admin live
+	testing. A/C image-free draft creation, A assignment-only save, no-write
+	cancellation/focus and Clear restoration passed. Bulk Replace Office, Append
+	Bluetooth retaining Office and Clear None kept both drafts and public-prefix
+	results at zero. Clear selection made no write.
+- B withdrawal cleared legacy `category:bluetooth` on an unrelated publication
+	update. The normalization path was broader than the requested change; earlier
+	UI-focused green tests did not expose this legacy-record case. Red-first DB
+	coverage now proves clearing only for an explicit recognized non-headphone
+	family (51 DB tests and tsc green). This repair is local, not deployed.
+- B Wired Save and publish showed one published with per-ID verified Done and
+	public $5.50/MOQ 500. UI restored Headphones / Bluetooth Headphones / Published
+	before any bulk draft test. Actual unit/wholesale/VIP prices are 6.2/5.5/4.3.
+	Original keys excluding category/updatedAt compare `differences:[]`, not full
+	identity: explicit family `headphones`, subcategories `[headphones-bluetooth]`
+	now replace the legacy category, and save plan added createdAt
+	`2026-10-02T03:25:31.832Z`; updatedAt is `2026-10-02T03:26:10.694Z`.
+	Temporary visibility and timestamps cannot be undone. Nine ordered images
+	and the full baseline are retained in the live ledger.
+- Product deletion is deliberately forbidden server-side: live Remove A returned
+	HTTP 400 `Products must be archived instead of deleted`. No retry/bypass.
+	Edit UI successfully archived A+C, unpublished with empty subcategories;
+	retained records are NOT deleted and original absence is unrestorable. The
+	prior UI deletion plan assumed confirmation implied deletion support; the
+	live policy rejection disproved it. Local row/bulk actions now use Archive
+	with exact `{archived:true,published:false}`. API rejects other combinations,
+	deduplicates <=20, proceeds sequentially and stops on unknown; single/bulk
+	readback, API 16 and owned Admin 8 tests pass.
+- Ordinary selection resets on scope change intentionally. Unresolved-review
+	selection and receipts persist in local tests; ordinary live selection loss
+	is not that recovery defect. Synthetic native cancel closes/returns focus;
+	transported VS Code keyboard Escape did not, so it is not a real-key live
+	pass. Local real Chromium Escape passes.
+- Actual live widths 375/390/734/1024/1440 had no root overflow. At 390px modal
+	left/right were 16/374 and scrollWidth/clientWidth 357/357, with no screenshot
+	overlaps. Exact 768px was proven locally, not live due editor zoom. No
+	pageerror; known failed Remove produced console 400, not a clean console.
+
+## Latest verification and unresolved gates
+
+- Before integrating advanced remote `test`: 2,755 unit passes/3 skips, default
+	158/formal 144 browser passes with cleanup, 19 workspace/E2E types and
+	site/test types green. Pinned no-install equivalents passed after the root
+	typecheck/function-build wrappers offered unpinned pnpm through npx and that
+	install was declined. Biome 760 green after terminal-newline formatting of
+	three local ignored review JSON files; three function builds/artifact smoke
+	passed. These are local-tree results, not post-integration or live repair proof.
+- Independent assumption-checker: no new P1/P2; archive graph PASS. New browser
+	case uses drafts only; existing server tests cover published withdrawal.
+- Backend legacy fix and UI policy repair are authorized deviations under the
+	user's test-fix-all request. No SDK/schema/atomic-batch changes were made.
+- Remote `test` is now `2f8567f` from PR #64 price tiers. Integration, commit,
+	exact-SHA review, CI, merge, deploy and post-fix live acceptance remain pending.
+	Public-images screenshot was blank in a hidden shared tab; cause is under
+	investigation and independent public-only verification is pending. This is
+	neither confirmed broken media nor a completed image acceptance check.

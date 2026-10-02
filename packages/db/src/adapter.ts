@@ -229,7 +229,12 @@ export function planCatalogProductSave(
   // stale value after moving to another family. Clear it in the transaction on the
   // next write so unrelated edits stay possible and no caller must know old storage
   // cleanup rules. Empty string is the established clear sentinel for patch writes.
-  if (doc.productFamily !== 'headphones' && typeof doc.category === 'string' && doc.category) {
+  if (
+    isProductFamily(doc.productFamily) &&
+    doc.productFamily !== 'headphones' &&
+    typeof doc.category === 'string' &&
+    doc.category
+  ) {
     doc.category = '';
   }
   const issues = validateProductPublication(doc);

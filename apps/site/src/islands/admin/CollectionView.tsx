@@ -532,13 +532,16 @@ export function CollectionView({
             </button>
             <button
               type="button"
-              disabled={recordWritePending}
+              disabled={recordWritePending || (isProducts && doc.archived === true)}
               onClick={() => {
-                if (confirm('Delete this record?')) removeMutation.mutate(doc._id);
+                if (isProducts) {
+                  if (confirm('Archive this product? It will no longer be published.'))
+                    patch(doc._id, { archived: true, published: false });
+                } else if (confirm('Delete this record?')) removeMutation.mutate(doc._id);
               }}
               className="ml-3 text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
             >
-              Delete
+              {isProducts ? 'Archive' : 'Delete'}
             </button>
           </div>
         );
@@ -799,7 +802,18 @@ export function CollectionView({
             })
           }
           onDelete={() => {
-            if (confirm(`Delete ${selectedIds.length} record(s)?`)) {
+            if (isProducts) {
+              if (
+                confirm(`Archive ${selectedIds.length} products? They will no longer be published.`)
+              )
+                batchUpdateMutation.mutate({
+                  ids: selectedIds,
+                  values: { archived: true, published: false },
+                  names: Object.fromEntries(
+                    rows.map((row) => [row._id, String(row.name ?? row._id)]),
+                  ),
+                });
+            } else if (confirm(`Delete ${selectedIds.length} record(s)?`)) {
               batchRemoveMutation.mutate(selectedIds);
             }
           }}
@@ -1264,7 +1278,7 @@ function BatchBar({
         onClick={onDelete}
         className={`${compactActions ? 'hidden xl:inline-flex' : ''} rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50`}
       >
-        Delete
+        {compactActions ? 'Archive' : 'Delete'}
       </button>
 
       {compactActions && (
@@ -1299,7 +1313,7 @@ function BatchBar({
               onClick={onDelete}
               className="min-h-11 rounded-lg bg-red-600 px-3 text-left text-sm font-semibold text-white disabled:opacity-50"
             >
-              Delete
+              Archive
             </button>
           </div>
         </details>

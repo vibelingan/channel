@@ -839,7 +839,8 @@ test('tablet product actions keep classification visible and visibility commands
   await actions.locator('summary').click();
   await expect(actions.getByRole('button', { name: 'Publish', exact: true })).toBeVisible();
   await expect(actions.getByRole('button', { name: 'Disable', exact: true })).toBeVisible();
-  await expect(actions.getByRole('button', { name: 'Delete', exact: true })).toBeVisible();
+  await expect(actions.getByRole('button', { name: 'Archive', exact: true })).toBeVisible();
+  await expect(actions.getByRole('button', { name: 'Delete', exact: true })).toHaveCount(0);
   for (const width of [390, 1024]) {
     await page.setViewportSize({ width, height: 900 });
     await expect(page.getByRole('combobox', { name: 'Product family' })).toBeVisible();
@@ -901,7 +902,7 @@ test('tablet product actions keep classification visible and visibility commands
   try {
     await expect(row.getByRole('button', { name: 'Classify' })).toBeDisabled();
     await expect(row.getByRole('button', { name: 'Edit' })).toBeDisabled();
-    await expect(row.getByRole('button', { name: 'Delete' })).toBeDisabled();
+    await expect(row.getByRole('button', { name: 'Archive' })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Assign category' })).toBeDisabled();
     await expect(row.getByRole('button', { name: 'Preview' })).toBeEnabled();
   } finally {
@@ -1269,4 +1270,80 @@ test('bulk classification publishes confirmed selections and reports rejected pu
     { action: 'publish', ids: [inDialogReadback._id] },
   ]);
   expect(errors).toEqual([]);
+});
+
+test('product row and bulk Archive use supported updates instead of forbidden deletion', async ({
+  page,
+  request,
+}) => {
+  const session = await loginAdmin(request);
+  const prefix = `${marker} archive`;
+  const products: CollectionDoc[] = [];
+  for (const suffix of ['row', 'bulk']) {
+    products.push(
+      await adminAction<CollectionDoc>(
+        request,
+        'create',
+        {
+          collection: 'products',
+          values: { name: `${prefix} ${suffix}`, productFamily: 'headphones', published: false },
+        },
+        session.token,
+      ),
+    );
+  }
+  const [rowProduct, bulkProduct] = products;
+  if (!rowProduct || !bulkProduct) throw new Error('Archive fixtures were not created.');
+  await page.addInitScript(({ token, user }) => {
+    localStorage.setItem('channel.token', token);
+    localStorage.setItem('channel.user', JSON.stringify(user));
+  }, session);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/admin?productFamily=headphones');
+  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByPlaceholder(/^Search name/).fill(prefix);
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  const row = page.getByRole('row').filter({ hasText: `${prefix} row` });
+  await expect(row).toBeVisible();
+  await expect(row.getByRole('button', { name: 'Delete', exact: true })).toHaveCount(0);
+  const actions: string[] = [];
+  page.on('request', (event) => {
+    if (!event.url().endsWith('/api/admin') || event.method() !== 'POST') return;
+    const body = event.postDataJSON() as { action: string };
+    actions.push(body.action);
+  });
+  page.on('dialog', (dialog) => dialog.accept());
+  await row.getByRole('button', { name: 'Archive', exact: true }).click();
+  await expect(row.getByRole('button', { name: 'Archive', exact: true })).toBeDisabled();
+  await expect
+    .poll(async () =>
+      adminAction<CollectionDoc>(
+        request,
+        'get',
+        { collection: 'products', id: rowProduct._id },
+        session.token,
+      ),
+    )
+    .toMatchObject({ archived: true, published: false, productFamily: 'headphones' });
+  const bulk = page.getByRole('row').filter({ hasText: `${prefix} bulk` });
+  await bulk.getByRole('checkbox', { name: 'Select row', exact: true }).check();
+  await page
+    .getByText('1 selected', { exact: true })
+    .locator('..')
+    .getByRole('button', { name: 'Archive', exact: true })
+    .filter({ visible: true })
+    .click();
+  await expect
+    .poll(async () =>
+      adminAction<CollectionDoc>(
+        request,
+        'get',
+        { collection: 'products', id: bulkProduct._id },
+        session.token,
+      ),
+    )
+    .toMatchObject({ archived: true, published: false, productFamily: 'headphones' });
+  expect(actions).not.toContain('remove');
+  expect(actions).not.toContain('batchRemove');
+  expect(actions.filter((action) => action === 'update')).toHaveLength(2);
 });
