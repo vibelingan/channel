@@ -1174,28 +1174,30 @@ for (const values of [{ published: true }, { archived: true }]) {
     assert.deepEqual(store.products?.[0], { ...product, ...concurrentPatch });
   });
 
-  test(`status ${Object.keys(values)[0]} rejects a source linked after the read with no pending flag`, async () => {
-    const product = {
-      _id: 'explicit-link-race',
-      ...publishableProduct({ published: false }),
-    } as CollectionDoc;
-    const store = setup({ users: [], products: [product], catalogProductIdentities: [] });
-    const concurrentPatch = {
-      alibabaPrimarySourceKey: 'source-a',
-      alibabaReviewPending: null,
-      updatedAt: '2026-08-19T01:00:00.000Z',
-    };
-    setAdapter(new ReviewRaceAdapter(store, concurrentPatch));
-    expectErr(
-      await call(
-        'update',
-        { collection: 'products', id: product._id, values },
-        await contributorToken(),
-      ),
-      'CONFLICT',
-    );
-    assert.deepEqual(store.products?.[0], { ...product, ...concurrentPatch });
-  });
+  for (const role of ['admin', 'contributor'] as const) {
+    test(`${role} status ${Object.keys(values)[0]} rejects a source linked after the read with no pending flag`, async () => {
+      const product = {
+        _id: 'explicit-link-race',
+        ...publishableProduct({ published: false }),
+      } as CollectionDoc;
+      const store = setup({ users: [], products: [product], catalogProductIdentities: [] });
+      const concurrentPatch = {
+        alibabaPrimarySourceKey: 'source-a',
+        alibabaReviewPending: null,
+        updatedAt: '2026-08-19T01:00:00.000Z',
+      };
+      setAdapter(new ReviewRaceAdapter(store, concurrentPatch));
+      expectErr(
+        await call(
+          'update',
+          { collection: 'products', id: product._id, values },
+          role === 'admin' ? await adminToken() : await contributorToken(),
+        ),
+        'CONFLICT',
+      );
+      assert.deepEqual(store.products?.[0], { ...product, ...concurrentPatch });
+    });
+  }
 }
 
 test('contributor status changes on reviewed supplier products honor the supplied revision', async () => {
