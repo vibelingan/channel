@@ -167,3 +167,19 @@ scope.** Caller-supplied verification, not tests rerun by this documentation pas
 	changes, terminal/git/tests/commit/push. Its eventual commit is not a new
 	tested runtime or deployed doc follow-up; no final doc commit ID invented.
 	Canonical detailed ledger: [Final live closure](LIVE-ACCEPTANCE-20261002.md#final-closure---2026-10-02).
+
+## Main promotion preflight - 2026-10-02
+
+- User requested promotion to main and delegated routine decisions when unavailable.
+	Preserve the complete accepted runtime, including deployed price tiers, and final records.
+- Main's latest squash `bf699b4` has the same business files as the pre-feature
+	test baseline `4b1e6d5`; its differing Admin tests contained two administrator
+	supplier-link races absent from the accepted branch. Restored both without
+	removing contributor coverage in `7a2ac28`; handler tests passed 186/186,
+	all 19 workspace and E2E typechecks plus Biome passed.
+- Ancestry merge `284467f` preserves the exact `7a2ac28` tree. Versus final
+	acceptance snapshot `acc6aa0`, only the test file differs; runtime is unchanged.
+	Independent exact-SHA review passed with no P1/P2 and no main-only behavior lost.
+- This is historical preflight evidence, not a claim of main merge or new deployment.
+	Main-target PR checks and merged-main CI must pass; final outcome is recorded
+	on the promotion PR. No additional live product mutations are authorized or needed.
