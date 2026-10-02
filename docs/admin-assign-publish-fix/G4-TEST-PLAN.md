@@ -1,6 +1,6 @@
 # G4 test plan: Admin classification UX and responsive navigation
 
-Status: **IN PROGRESS: initial deploy `24936f0` / run 36849272212 was verified before live testing; subsequent local repairs passed default 158/158 and formal 144/144 browser lanes, but integration, exact-SHA delivery gates and post-fix live acceptance remain pending.** Earlier 157/143 results and failures are preserved in progress history. Live Admin-only acceptance is authorized for the known production-serving `test` target with per-product state snapshots. Scope is the current <=20-product, revision-checked sequential publication workflow in [SPEC.md](SPEC.md), [ui-design.md](ui-design.md) and [miu-breakdown.md](miu-breakdown.md), plus the authorized legacy-category and Archive policy repairs recorded below. The true backend batch and SDK cloud-transaction proof remain deferred in [SDK-PROBE.md](SDK-PROBE.md).
+Status: **COMPLETE: Phase 6 and live acceptance for the current authorized UI/sequential scope.** See [Final gate closure](#final-gate-closure---2026-10-02) for CI/deployment, independent runtime proof, post-fix UI results and explicit gaps. Earlier pending states, 157/143 results and failures are preserved as history, not current gates. Live Admin-only acceptance is authorized for the known production-serving `test` target with per-product state snapshots. Scope is the current <=20-product, revision-checked sequential publication workflow in [SPEC.md](SPEC.md), [ui-design.md](ui-design.md) and [miu-breakdown.md](miu-breakdown.md), plus the authorized legacy-category and Archive policy repairs recorded below. The true backend batch and SDK cloud-transaction proof remain deferred in [SDK-PROBE.md](SDK-PROBE.md).
 
 ## Test boundary and proof of isolation
 
@@ -30,7 +30,11 @@ Status: **IN PROGRESS: initial deploy `24936f0` / run 36849272212 was verified b
 3. Before delivery: `pnpm --filter @vibelingan-channel/site test`, `pnpm --filter @vibelingan-channel/site typecheck`, `pnpm exec tsc --noEmit --project tsconfig.e2e.json`, `pnpm exec biome check .`, `pnpm --filter @vibelingan-channel/site build`, and `pnpm test:e2e:catalog-admin-local` must succeed. Inspect browser console/network for errors and verify actual CSS viewport sizes before counting screenshot evidence. Branch-specific CI does not substitute for this local lane.
 4. Exit criteria: no schema/SDK/deploy configuration change, no unauthorized production data mutation, no claim of throughput or atomicity improvement. The discovered backend legacy-category fix and safe Archive policy repair are explicitly authorized deviations. Approved live writes require B's business-visible restoration through Admin and A/C archival; disclose that baseline absence, timestamps/audit and transient public visibility cannot be undone. No deletion bypass.
 
-## Requested Admin-only live acceptance and restoration (in progress; fixtures archived)
+## Authorized Admin-only live acceptance and restoration (complete within final limits)
+
+The procedure below preserves the approved plan and intended gate order. Actual
+completion, the premerge exception and restoration limits are recorded in
+[Final gate closure](#final-gate-closure---2026-10-02).
 
 The `test` branch push automatically deploys the shared CloudBase environment after CI; pushing this feature branch alone does not. First finish the owned local production-build runner, workspace typecheck/lint, diff review, and release-SHA review. Push the reviewed feature branch, pass PR checks, then merge into `test` after identifying safe fixture candidates in Admin. Verify the deployed SHA and read-only public/Admin smoke before a live product write. Never dispatch `catalog_acceptance_only=1`: that existing workflow sets `E2E_ALLOW_MUTATION=1` and uses direct API-backed fixtures outside this UI-only acceptance scope.
 
@@ -44,7 +48,7 @@ Use A/C as two uniquely named, test-only **unpublished, image-free** products cr
 
 After **each** scenario, use only Admin controls to restore the affected fields before moving on, then reload Admin and public views and compare the captured business-visible state. Do not leave B withdrawn during A/C tests; restore B's original category and Published state before starting the bulk scenario. Archive A/C through Admin at the end and verify retained archived records, unpublished and absent from public search, rather than deleted records. If any write or status is unknown, stop subsequent cases, refresh through Admin only, preserve screenshots/receipts and do not retry blindly; request manual resolution before declaring restoration. Record the cause and recovery of every issue. UI restoration cannot rewind added `createdAt`, `updatedAt`, revisions, audit history, original A/C absence or the temporary public absence/category change of B: only B's original business-visible state can be compared.
 
-## Latest evidence and follow-up gates - 2026-10-02
+## Historical evidence and follow-up gates - 2026-10-02, before integration
 
 - Reported live results and exact fixture IDs/baseline are in
 	[LIVE-ACCEPTANCE-20261002.md](LIVE-ACCEPTANCE-20261002.md). Actual-admin row
@@ -78,3 +82,112 @@ After **each** scenario, use only Admin controls to restore the affected fields 
 	in the hidden shared tab. No pageerror observed; console 400 from failed
 	Remove is known and must not be labeled clean console. Do not mark deployment
 	of the repairs or overall live acceptance complete.
+
+## Historical gate evidence - 2026-10-02, through 05:08:47
+
+Caller-verified evidence below distinguishes later facts from the earlier pending
+entries. **Status then: IN PROGRESS; current COMPLETE status is limited by
+Final gate closure below.**
+
+- Integrated local gate passed: only the repair commit was rebased onto PR #64
+	`2f8567f302accb8790898e6f274436bd5a71439a`; reviewed fix HEAD
+	`be8d463da51ab462728bf9c914c69b4a9298be3a`. Exclusive main-agent runs passed
+	19 workspace typechecks, E2E TypeScript and site/test types, Biome 760 (761
+	with later ignored review metadata), 2,760 units / 3 existing skips, full
+	default 158 and formal 144 owned browser cases with disposable DB removal,
+	and all three function builds/packaging/artifact smokes.
+- Six independent exact-SHA reviewers: 0 P1 / 0 P2. P3 suggestions are still
+	published/multi-select Archive browser fixtures, changed legacy name/status/
+	published-name-only DB assertions, and incomplete archive-pair response
+	coverage. Do not claim those additions passed. Craft gate: 12 baseline
+	findings, 0 new / 0 execution errors, not fixed baseline debt. Blessing and
+	normal push hooks passed for `be8d463`.
+- [PR #65](https://github.com/vibelingan/channel/pull/65) created and
+	squash-merged at `2026-10-02T04:59:15Z` as
+	`de5e347bdc7e60e1b9736600e96bf4cbe1eb59f3`. Empty
+	`git diff be8d463..origin/test` proves merged/tested tree equality and PR #64
+	preservation. This was a process exception to the intended premerge checks:
+	`gh pr merge --auto` merged immediately because protection did not require
+	all PR CI. **No premerge remote CI pass.** PR CI `36966277671`, test CI
+	`36966932042` and Deploy Test `36966932172` were running at last observation.
+- Deployment is still unverified. Deploy Test requires complete reusable
+	merge-SHA CI success before deploying; no production publication ahead of
+	that gate. Independent all-three-service read-only probes at 05:05:25 and
+	05:08:47 returned old `2f8567f`, HTTP 200 / status ok. A constant target-SHA
+	`waitForFunction` result was contradicted, not runtime proof; acceptance did
+	not start on it.
+- Read-only media checks passed independently: public catalog and all nine
+	original ordered gallery images, $5.50 / MOQ 500, no pageerror; legacy approved
+	sections 404 then working fallback. Screenshot:
+	`output/playwright/live-syt8-public-20261002.png`. Authenticated SY-T8 Edit
+	at 05:03 showed saved Headphones / Bluetooth / Published, $5.50 / MOQ 500
+	preview, nine `complete:true` images at naturalWidth 790 or 800; cancelled
+	without saving. Earlier Image unavailable was transient loading, not a
+	reproduced product bug. `addInitScript` preserves original browser baseline
+	across upcoming reload; credentials are excluded.
+- Current restoration evidence, not final sign-off: A's 05:07 Admin UI readback
+	is `ccbff7a5-0dcf-463b-b948-c2f592ed95d8`, archived true, published false,
+	empty subcategoryIds, updatedAt `2026-10-02T03:29:21.046Z`; C's prior
+	`2026-10-02T03:29:22.298Z` also shows archived true / published false.
+	Neither was deleted or restored to absence. B's original business keys
+	excluding category/audit were already unchanged; explicit headphones /
+	`[headphones-bluetooth]` / empty category and added createdAt
+	`2026-10-02T03:25:31.832Z`, updatedAt `2026-10-02T03:26:10.694Z` remain.
+	Do not claim byte-for-byte restoration.
+
+### Exit checks still pending at 05:08:47 (now resolved below)
+
+1. Complete remote CI and Deploy Test; independently observe exact merge SHA
+	 `de5e347bdc7e60e1b9736600e96bf4cbe1eb59f3` on all three running services.
+2. Only after that proof, exercise new UI Archive cancel (no write), row A
+	 Archive, then two-product A/C bulk Archive. Use Admin controls only; retain
+	 receipts and authoritative UI readbacks, with no blind retry or deletion.
+3. Finish final B baseline comparison and public fixture exclusion, preserving
+	 archived A/C and disclosing category/audit representation limits.
+4. Finalize plan only after these checks; Phase 6/live acceptance stay IN PROGRESS.
+
+## Final gate closure - 2026-10-02
+
+**Phase 6 and live acceptance COMPLETE for the authorized UI/sequential scope.**
+This closeout records caller-verified results, not a new execution of tests.
+
+| Exit check | Final evidence / boundary |
+| --- | --- |
+| Reviewed and merged implementation | PR #65 merged `de5e347bdc7e60e1b9736600e96bf4cbe1eb59f3`; tree identical to reviewed `be8d463da51ab462728bf9c914c69b4a9298be3a`. All recorded exact-tree static/unit/default 158/formal 144/build/artifact/review gates remain implementation evidence. |
+| Remote CI and deployment | PR CI `36966277671` SUCCESS finished `05:11:57`; separate test CI `36966932042` SUCCESS. Deploy Test `36966932172` completed SUCCESS: both full reusable CI jobs and Build/deploy/smoke SUCCESS. Complete merge-SHA CI required before deployment publication; deployed smoke/public browser E2E passed. Optional catalog-acceptance skipped by push design; optional media/OEM upload smokes not requested, not claimed run. |
+| Independent running release | Browser time `05:45:13`: public API/Admin/Alibaba all strict HTTP 200, ok true, status ok, releaseId `de5e347`. Build times `2026-10-02T05:19:53.821Z` / `2026-10-02T05:19:53.787Z` / `2026-10-02T05:19:53.706Z`, respectively. |
+| New row Archive cancel / accept | Actual authenticated reload preserved B baseline, zero Delete buttons and disabled Archive for already-archived A/C. Edit made A draft/unarchived with Published false guard, HTTP 200 updatedAt `2026-10-02T05:48:18.940Z`. Dismissed native `Archive this product? It will no longer be published.`: zero product mutations, fresh unchanged flags/timestamp. Accepted row Archive: exact `{archived:true,published:false}`, matching A HTTP 200, updatedAt `2026-10-02T05:49:28.355Z`; Archive disabled. |
+| Exactly-two A/C bulk Archive | Edit prepared drafts with Published false guards, A/C updatedAt `2026-10-02T05:50:11.330Z` / `2026-10-02T05:50:14.827Z`. Accepted native `Archive 2 products? They will no longer be published.`; two sequential exact-safe-pair requests, two matching-ID HTTP 200 receipts. Existing generic receipt `2 disabled`, not `2 archived`. Data plus fresh reload proved both archived/unpublished/headphones/empty subcategories/no images or prices, disabled Archive/no alerts. Final A/C updatedAt `2026-10-02T05:50:45.553Z` / `2026-10-02T05:50:44.727Z`. |
+| Final B comparison / restoration | Fresh original-key comparison except category/updatedAt: differences empty. Headphones/Bluetooth/Published/not archived; unit 6.2/wholesale 5.5/VIP 4.3/MOQ 500; original name/model/description/nine ordered IDs unchanged. No B writes this round; added createdAt `2026-10-02T03:25:31.832Z` and latest updatedAt `2026-10-02T03:26:10.694Z` unchanged. Original July 31 timestamp and legacy representation not restored. |
+| Responsive new controls | Actual 390px Section/Product family comboboxes/no root overflow. B-only selection, no product write; existing Actions details/summary exposed Publish/Disable/Archive, no Delete. All three buttons left 41.24/right 183.99/width 143, text fit/no overlap. Cleared selection/restored actual/root 1440; B visible/unselected. Initial Actions button-role timeout was an automation selector mistake, not product defect. |
+| Public exclusion / B gallery | Shared fresh fixture-prefix URL search zero; SY-T8 one product/$5.50/MOQ 500. Independent post-deploy headless Chromium read-only/no auth/no API product mutations: native fixture search zero, catalog image loaded, actual card/details/View All/View image 1..9 passed. Each currentSrc original expected ID in exact order, naturalWidths 800 or 790, positive heights; screenshot `output/playwright/live-syt8-postfix-20261002.png` inspected; pageerror empty; browser finally closed. |
+
+### Exceptions and unclaimed coverage
+
+- Auto-merge at `04:59:15Z` preceded branch CI completion; no protection bypass
+	flag. Later PR CI success is not a premerge pass. The deployment's complete
+	merge-SHA CI gate did succeed before publication; these are separate facts.
+- Original Remove HTTP 400 remains. Bridge requestFailed ERR_ABORTED after row
+	Archive had unknown action/1969 timestamp: neither proven mutation failure nor
+	proven read. Row HTTP 200 and later reload establish Archive success. Legacy
+	formal sections/media 404 has working fallback; no zero-all-network or
+	zero-HTTP-error claim. Hidden shared-image complete false is a visibility
+	artifact; independent native loaded-image proof is valid.
+- Live real-key Escape and exact 768px remain unverified/not passes; local
+	native Escape and exact 768px passed. Deliberate lost-response/uncertain-write
+	cases stayed isolated local, never intentionally induced live. No optional
+	upload smoke or catalog-acceptance result is implied by complete status.
+- Only <=20 revision-checked sequential behavior is accepted. True atomic batch,
+	SDK/isolated transaction proof and atomicity/throughput improvement deferred.
+- A/C cleanup is archived retained records, NOT deletion/restored absence. B
+	business-visible restoration is NOT byte-identical representation/timestamps/
+	audit or undone temporary public history. Complete means this authorized scope.
+- P3 suggestions remain published/multi-select Archive browser fixtures, DB
+	changed legacy name/status/published-name-only assertions, incomplete
+	archive-pair response test. Live two-draft bulk proof does not implement those
+	additions or prove published Archive browser coverage. All 12 baseline craft
+	findings remain debt, not fixed.
+- Current closeout edits only these five existing docs. No terminal/git/tests/
+	commit/push, no runtime change or doc-only deployment. An eventual doc commit
+	SHA is not a newly tested runtime; no final doc commit ID is invented.
+	Detailed receipts: [Final live ledger](LIVE-ACCEPTANCE-20261002.md#final-closure---2026-10-02).

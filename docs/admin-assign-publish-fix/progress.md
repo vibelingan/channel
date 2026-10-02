@@ -1,5 +1,9 @@
 # Progress
 
+Status: **COMPLETE: Phase 6 and live acceptance for the authorized UI/sequential
+scope.** The chronological entries below preserve earlier pending/failed states;
+use [Final closeout](#final-closeout---2026-10-02) for current status and limits.
+
 - 2026-09-28: Fetched main via explicit SSH URL after HTTPS fetch failed; created isolated external worktree at `bf699b4`. Read editor, list action and publication helper plus nearest tests. No live data writes and no product code edits.
 - 2026-09-29: Earlier local single-row publish proof passed in disposable built-site E2E; a new withheld-publication request test failed on missing stage feedback after public/catalog lanes passed. After the user requested design first, reverted only my three experimental implementation/test edits; focused classification unit tests 24/24 pass and tracked source diff is empty.
 - 2026-09-29: Entered the requested dev-pipeline workflow. Phase 0 JSON context is pinned to the tracked DESIGN.md foundation, Astro/React, CloudBase, screenshots, Playwright and Biome. Authenticated production UI was inspected read-only (no confirmation, save or publication). Requirements analysis found public edits on already-published products, supplier review gates, uncertain results, permission mismatch and two nested horizontal scrollers. Next: G1 product-intent confirmation before design/implementation.
@@ -40,3 +44,126 @@
 - 2026-10-02 (drafts, geometry and cleanup): A+C Replace Office, Append Bluetooth retaining Office, and Clear None passed; both remained drafts, public-prefix result zero, Clear selection no write. Ordinary scope changes reset ordinary selection intentionally; unresolved-review selection/receipts preservation is tested locally. Live measured 375/390/734/1024/1440px had no root overflow; 390px modal left 16/right 374, scrollWidth/clientWidth 357/357, screenshot no overlaps. Exact 768px is local only due editor zoom. Synthetic native cancel closes/returns focus; VS Code keyboard Escape did not, a transport limitation rather than a real-key pass; local real Chromium Escape passed. Live Remove A returned HTTP 400 `Products must be archived instead of deleted`; no retry/bypass. Edit UI archived A+C with published false, archived true, subcategories empty; both succeeded. Retain archived records, NOT deleted; baseline absence is unrestorable via permitted UI. No pageerror; console 400 is known failed Remove, not clean console.
 - 2026-10-02 (authorized repairs): Under user test-fix-all authorization, Fix 1 narrows DB save-plan legacy category clearing to explicit recognized non-headphone family; red-first test, DB 51/51 and tsc passed. Fix 2 changes row/bulk product Delete to Archive with exact `{archived:true,published:false}`; local single/bulk readback passed. API permits only this safe two-field combination, otherwise rejects; deduplicated <=20 sequential updates stop on unknown outcome. API 16/16 and owned Admin 8/8 passed. This materially extends the UI-only plan to the discovered backend bug and policy repair; no SDK/schema/atomic-batch change.
 - 2026-10-02 (latest local gates, before origin/test integration): Full units 2,755 pass/3 skips; default 158/158 and formal 144/144 browser lanes green with cleanup; 19 workspace + E2E types and site/test types green using pinned no-install equivalents. Root Biome checked 760 files after formatting terminal newlines in three local ignored review JSON files. Root pnpm typecheck/build:functions wrappers used npx and offered unpinned pnpm; declined, pinned equivalents succeeded. Three function builds/artifact smoke green. Independent assumption-checker found no new P1/P2; archive graph PASS. Residual: new browser coverage uses drafts only; existing server tests cover withdrawal. Remote test advanced to `2f8567f` (PR #64 price tiers); integration, commit, exact-SHA review, CI, merge, deploy and post-fix live acceptance all pending. Public-images hidden shared-tab blank screenshot remains under investigation; independent public-only check pending. Work remains IN PROGRESS. Full live baseline/results: [LIVE-ACCEPTANCE-20261002.md](LIVE-ACCEPTANCE-20261002.md).
+
+## Historical progress - 2026-10-02, through 05:08:47
+
+Caller-verified chronology follows; preceding pending entries describe earlier
+states and are not erased. **Status then: IN PROGRESS; see Final closeout for
+current COMPLETE status within the authorized scope.**
+
+- Integration/review: only the new repair commit was rebased onto PR #64 base
+	`2f8567f302accb8790898e6f274436bd5a71439a`; exact reviewed fix HEAD
+	`be8d463da51ab462728bf9c914c69b4a9298be3a`. Exclusive main-agent integrated
+	runs passed all 19 workspace typechecks, E2E TypeScript, site/test types,
+	Biome 760 (761 with later ignored review metadata), 2,760 units with 3 existing
+	skips, default 158 and formal 144 full owned browser cases with DB removal,
+	and all three function builds/packaging/artifact smokes. Six independent
+	exact-SHA reviewers reported 0 P1 / 0 P2. P3 suggestions remain published/
+	multi-select Archive fixtures, DB changed legacy name/status/published-name-only
+	assertions, and incomplete archive-pair response coverage. Craft gate had
+	12 baseline findings, 0 new / 0 execution errors; baseline debt is not fixed.
+	`be8d463` blessing and normal push hooks passed.
+- 04:59:15Z: [PR #65](https://github.com/vibelingan/channel/pull/65) was created
+	then squash-merged into `test` as `de5e347bdc7e60e1b9736600e96bf4cbe1eb59f3`.
+	Empty `git diff be8d463..origin/test` proves tested/merged tree equality and
+	preservation of PR #64. `gh pr merge --auto` merged immediately without all
+	PR CI because branch protection did not require them. No premerge remote CI
+	success is claimed. PR CI `36966277671` remained running at last check;
+	test CI `36966932042` and Deploy Test `36966932172` were running. Deployment
+	requires complete reusable merge-SHA CI success; no production publication
+	ahead of that gate.
+- 05:03: authenticated read-only SY-T8 Edit confirmed Headphones / Bluetooth /
+	Published, public-price preview $5.50 / MOQ 500 and all nine Admin images
+	`complete:true`, naturalWidth 790 or 800; cancelled without save. Earlier
+	Image unavailable was transient loading, not a reproduced product bug.
+	Independent public-only Chromium already verified catalog plus all nine
+	original ordered gallery images, $5.50 / MOQ 500, no pageerror; legacy approved
+	sections 404 was followed by working fallback. Screenshot:
+	`output/playwright/live-syt8-public-20261002.png`. Original browser baseline
+	was preserved across upcoming reload via `addInitScript`, excluding credentials.
+- 05:05:25 and 05:08:47: independent read-only probes of all three services still
+	returned old `2f8567f`, HTTP 200 / status ok. A constant target-SHA result from
+	`waitForFunction` was contradicted by the independent probe; it was not runtime
+	proof and no acceptance started on it. Repairs are not yet verified deployed.
+- 05:07: Admin UI A search/readback confirmed ID
+	`ccbff7a5-0dcf-463b-b948-c2f592ed95d8`, archived true, published false,
+	subcategoryIds empty, updatedAt `2026-10-02T03:29:21.046Z`. C's prior
+	`2026-10-02T03:29:22.298Z` readback also showed archived true / published false.
+	A/C remain retained records, not deleted or restored to absence. B's original
+	business keys excluding category/audit were already unchanged; explicit
+	headphones/[headphones-bluetooth]/empty-category representation and added
+	createdAt `2026-10-02T03:25:31.832Z`, updatedAt `2026-10-02T03:26:10.694Z`
+	preclude a byte-for-byte baseline claim.
+- Next: finish CI/deploy, independently prove all three runtime merge SHAs,
+	perform new UI Archive cancel/row A/A+C bulk checks with receipts/readbacks,
+	finish B baseline comparison and public fixture exclusion, then finalize plan.
+
+## Final closeout - 2026-10-02
+
+**Phase 6 and live acceptance COMPLETE for the current authorized UI/sequential
+scope.** Caller-supplied verification, not tests rerun by this documentation pass:
+
+- PR #65 merge `de5e347bdc7e60e1b9736600e96bf4cbe1eb59f3` is tree-identical to
+	reviewed `be8d463da51ab462728bf9c914c69b4a9298be3a`. Recorded exact-tree
+	static/unit/default 158/formal 144/build/artifact/review gates remain intact.
+- PR CI `36966277671` SUCCESS, finished `05:11:57`; separate test CI
+	`36966932042` SUCCESS; Deploy Test `36966932172` completed SUCCESS, including
+	both full reusable CI jobs and Build/deploy/smoke SUCCESS. Complete merge-SHA
+	CI was required before publication; deployed smoke and public browser E2E
+	passed. Optional catalog-acceptance skipped by push design, optional media/OEM
+	upload smokes not requested, not claimed run. Auto-merge at `04:59:15Z`
+	preceded branch CI completion; no protection bypass flag or premerge CI pass.
+- 05:45:13 browser time: independent public API/Admin/Alibaba health each strict
+	HTTP 200 / ok true / status ok / releaseId `de5e347`; respective build times
+	`2026-10-02T05:19:53.821Z`, `2026-10-02T05:19:53.787Z`,
+	`2026-10-02T05:19:53.706Z`. Actual authenticated Admin reload preserved the
+	original B baseline; zero Delete buttons, archived A/C Archive disabled.
+- 05:48:18.940Z: Edit unarchived A as a draft, Published false asserted before
+	Save, HTTP 200 archived false/published false. Dismissed native `Archive this
+	product? It will no longer be published.`; zero product mutations and fresh
+	list readback retained the same timestamp/flags. Accepted row Archive with
+	exact `{archived:true,published:false}`, HTTP 200 matching A,
+	updatedAt `2026-10-02T05:49:28.355Z`; Archive disabled afterwards.
+- Prepared A/C drafts via Edit with Published false guard, updatedAt
+	`2026-10-02T05:50:11.330Z` / `2026-10-02T05:50:14.827Z`. Selected exactly
+	A/C, accepted `Archive 2 products? They will no longer be published.` Two
+	sequential exact-safe-pair UI requests, two HTTP 200 matching-ID receipts.
+	Existing generic receipt reads `2 disabled`, not `2 archived`. Fresh reload
+	proved both archived/unpublished, headphones/empty subcategories/no images
+	or prices, both Archive disabled, no alerts. Final A/C updatedAt:
+	`2026-10-02T05:50:45.553Z` / `2026-10-02T05:50:44.727Z`.
+- Fresh B Admin search/readback: original keys except category/updatedAt yielded
+	`differences:[]`; headphones/Bluetooth/Published/not archived, prices
+	6.2/5.5/4.3, MOQ 500, original description/name/model/nine ordered IDs unchanged.
+	Original updatedAt July 31; added createdAt `2026-10-02T03:25:31.832Z` and
+	latest updatedAt `2026-10-02T03:26:10.694Z` unchanged in this round. No B writes.
+- Actual 390px new UI: Section/Product family comboboxes, no root overflow.
+	Selecting B only made no product write; Actions is an existing details/summary
+	(initial button-role lookup timed out, corrected selector worked, not a defect).
+	Publish/Disable/Archive, no Delete; all buttons left 41.24/right 183.99/width
+	143, text fit/no overlap. Cleared selection and restored actual/root 1440;
+	B left visible/unselected. Shared fresh public fixture search showed zero;
+	SY-T8 UI search one at $5.50/MOQ 500.
+- Independent post-deploy read-only/no-auth/no-product-mutation Chromium:
+	native fixture search zero, catalog image loaded, product-card click/details
+	View All/View image 1..9 passed; currentSrc original IDs in exact order,
+	naturalWidth 800 or 790/positive heights, pageerror empty. Inspected screenshot
+	`output/playwright/live-syt8-postfix-20261002.png`; browser closed in finally.
+	Legacy formal sections/media 404 with fallback retained; hidden shared-image
+	complete false is a visibility artifact, not contrary native loaded-image proof.
+- Bridge surfaced one requestFailed ERR_ABORTED after row Archive, unknown
+	action/1969 timestamp: do not infer request type or mutation failure. HTTP 200
+	row receipt and later reload proved archive. Original Remove HTTP 400 remains;
+	no zero-all-network/zero-HTTP-error claim.
+- Limits: true atomic batch deferred, <=20 revision-checked sequential only;
+	real-key Escape/exact 768px local passes only, not live passes. Deliberate
+	uncertain/lost-response cases stayed isolated local, never induced live.
+	A/C are archived, not deleted/restored absence; B business visibility restored,
+	not byte-identical audit/timestamps/representation or reversed storefront history.
+	P3 published/multi-select Archive fixtures, changed legacy name/status/
+	published-name-only DB assertions and incomplete archive-pair response coverage
+	remain suggestions; all 12 baseline craft findings remain debt.
+- This final documentation pass changed only the five existing docs; no runtime
+	changes, terminal/git/tests/commit/push. Its eventual commit is not a new
+	tested runtime or deployed doc follow-up; no final doc commit ID invented.
+	Canonical detailed ledger: [Final live closure](LIVE-ACCEPTANCE-20261002.md#final-closure---2026-10-02).
