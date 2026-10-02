@@ -10,6 +10,7 @@ import { EngineError } from '@vibelingan-channel/ai-engine/errors';
 import { FakeEngine } from '@vibelingan-channel/ai-engine/fake';
 import type { ConversationEngine, EngineEvent } from '@vibelingan-channel/ai-engine/port';
 import {
+  CHANNEL_PUBLIC_PROFILE,
   enforceGroundedFinal,
   normalizeCitations,
   preparePublicTurns,
@@ -323,7 +324,9 @@ async function startRun(
     );
     return;
   }
-  const context = await workerStage('load_run_context', () => store.getRunExecutionContext(runId));
+  const context = await workerStage('load_run_context', () =>
+    store.getRunExecutionContext(runId, CHANNEL_PUBLIC_PROFILE.maxContextTurns),
+  );
   if (!context) throw new WorkerFailure('invalid_request', 'run_context_missing');
   const controller = new AbortController();
   const handle = await workerStage('create_engine_run', () =>
