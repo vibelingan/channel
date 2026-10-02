@@ -150,6 +150,9 @@ export interface SharedDetailContent {
   quoteNegotiable: string;
   quoteMoqLabel: string;
   quoteUnitLabel: string;
+  quotePieceLabel: string;
+  quotePiecesLabel: string;
+  variantPriceOnRequest: string;
   quoteTierQuantityLabel: string;
   quoteTierPriceLabel: string;
   quoteSupplierLabel: string;

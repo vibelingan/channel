@@ -51,7 +51,6 @@ export function CatalogQuotePanel({
       <CatalogCompactPrice
         productOffers={detail.offers}
         websitePricing={detail.websitePricing}
-        hasVariants={detail.variants.total > 0}
         variantOffers={variant?.offers}
         copy={copy}
       />

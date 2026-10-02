@@ -99,13 +99,13 @@ test('live release: approved categories, existing published galleries, real inqu
     {
       id: 'a5ab40df-d3ff-4baa-ad3a-1aacc4615448',
       summary: 'USD 7.75–9.00',
-      detail: 'USD 7.75 - USD 9.00 per unit',
+      detail: 'USD 7.75 - USD 9.00 ≥2 pieces',
       mode: 'range',
     },
     {
       id: 'b8677602-2935-417d-a8fa-64fb377b9835',
       summary: 'USD 14.90',
-      detail: 'USD 14.90 per unit',
+      detail: 'USD 14.90 ≥2 pieces',
       mode: 'fixed',
     },
   ]) {
@@ -144,12 +144,13 @@ test('live release: approved categories, existing published galleries, real inqu
     await row.getByRole('button', { name: 'Preview', exact: true }).click();
     const preview = page.getByRole('dialog', { name: 'Product preview', exact: true });
     await expect(preview.locator('[data-shared-catalog-detail]')).toBeVisible({ timeout: 120000 });
-    const productPrice = preview.locator(
-      '[data-catalog-compact-price] [data-quote-scope="product"]',
-    );
-    await expect(productPrice).toContainText('Product-level quotes');
-    await expect(productPrice).toContainText(sample.detail);
-    await expect(productPrice).toContainText('Reference');
+    // One price block: the selected configuration's own quote when it has
+    // one, otherwise this product-level source quote.
+    const compactPrice = preview.locator('[data-catalog-compact-price]');
+    await expect(compactPrice.locator('[data-price-tier]').first()).toBeVisible();
+    const scope = await compactPrice.locator('[data-quote-scope]').getAttribute('data-quote-scope');
+    if (scope === 'product') await expect(compactPrice).toContainText(sample.detail);
+    else expect(scope).toBe('variant');
     await expect(preview.locator('[data-catalog-quote-conditions]')).toHaveCount(0);
     await expect(preview.locator('[data-quote-open]')).toBeDisabled();
     await preview.getByRole('button', { name: 'Close', exact: true }).first().click();
@@ -243,7 +244,6 @@ test('live release: approved categories, existing published galleries, real inqu
     if (!pricing) throw new Error('Missing authoritative website pricing');
     await expect(reference.locator('[data-quote-scope]')).toHaveCount(0);
     if (pricing.mode === 'fixed' || pricing.mode === 'range') {
-      await expect(reference).toContainText('Reference');
       const minimum = pricing.mode === 'fixed' ? pricing.amountMinor : pricing.minimumAmountMinor;
       const maximum = pricing.mode === 'fixed' ? pricing.amountMinor : pricing.maximumAmountMinor;
       const amount = (value: number) => `${pricing.currency} ${(value / 100).toFixed(2)}`;

@@ -831,18 +831,21 @@ for (const width of [320, 390, 1440]) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(
         false,
       );
+      await expect(price).not.toContainText(/Reference|quotes|Website price/);
       if (websiteAuthority) {
-        await expect(price).toContainText('Website price / Reference');
-        await expect(price).toContainText('USD 3.80 - USD 5.70 per unit');
+        await expect(price.locator('[data-price-tier]')).toHaveText([
+          'USD 5.70 2-999 pieces',
+          'USD 3.80 ≥1,000 pieces',
+        ]);
         await expect(price).not.toContainText(/EUR|CNY/);
         await expect(price.locator('[data-quote-scope]')).toHaveCount(0);
       } else {
-        await expect(price.locator('[data-quote-scope="product"]')).toContainText('EUR 12.00');
-        await expect(price.locator('[data-quote-scope="product"]')).not.toContainText('CNY');
-        await expect(price.locator('[data-quote-scope="variant"]')).toContainText(
+        // The selected configuration's own quote replaces the product quote.
+        await expect(price.locator('[data-quote-scope]')).toHaveCount(1);
+        await expect(price.locator('[data-quote-scope="variant"] [data-price-tier]')).toHaveText([
           'CNY 5.70 - CNY 8.80 per unit',
-        );
-        await expect(price.locator('[data-quote-scope="variant"]')).not.toContainText('EUR');
+        ]);
+        await expect(price).not.toContainText('EUR');
       }
       const reference = await price.textContent();
       if (!reference) throw new Error('Missing compact price text');
@@ -858,12 +861,11 @@ for (const width of [320, 390, 1440]) {
       await article.getByRole('radio', { name: /White/ }).check();
       if (websiteAuthority) await expect(price).toHaveText(reference);
       else {
-        await expect(price.locator('[data-quote-scope="variant"]')).toContainText(
-          'Request a quote',
-        );
-        await expect(price.locator('[data-quote-scope="variant"]')).not.toContainText(
-          /EUR|CNY|12\.00|0\.00/,
-        );
+        // White has no quote of its own, so the product quote is shown.
+        await expect(price.locator('[data-quote-scope="product"] [data-price-tier]')).toHaveText([
+          'EUR 12.00 per unit',
+        ]);
+        await expect(price).not.toContainText(/CNY|on request/);
       }
       const notes = article.locator('section[data-catalog-notes]');
       await expect(notes.locator('summary')).toHaveCount(0);
