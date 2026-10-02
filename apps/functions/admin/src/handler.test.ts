@@ -1066,13 +1066,14 @@ test('admin can acknowledge one Alibaba draft and publishing also consumes New o
   );
 });
 
-test('contributor cannot acknowledge pending supplier review through product status changes', async () => {
+test('contributor cannot acknowledge pending supplier review through publish or archive', async () => {
   const store = setup({
     users: [],
     products: [
-      reviewProduct({ _id: 'pending-publish' }),
-      reviewProduct({ _id: 'pending-archive' }),
-    ],
+      reviewProduct({ _id: 'pending-publish', published: false }),
+      reviewProduct({ _id: 'pending-archive', published: false }),
+      { _id: 'manual', ...publishableProduct({ published: false }) },
+    ] as CollectionDoc[],
     catalogProductIdentities: [],
   });
   const contributor = await contributorToken();
@@ -1084,47 +1085,106 @@ test('contributor cannot acknowledge pending supplier review through product sta
       await call('update', { collection: 'products', id, values }, contributor),
       'FORBIDDEN',
     );
-    assert.equal(store.products?.find((item) => item._id === id)?.alibabaReviewPending, true);
+    const row = store.products?.find((item) => item._id === id);
+    assert.equal(row?.alibabaReviewPending, true);
+    assert.equal(row?.alibabaReviewedByUserId, undefined);
+    assert.equal(row?.published, false);
+    assert.equal(row?.archived, false);
   }
+  assert.equal(
+    (
+      await call(
+        'update',
+        { collection: 'products', id: 'manual', values: { archived: true } },
+        contributor,
+      )
+    ).ok,
+    true,
+  );
 });
 
 for (const values of [{ published: true }, { archived: true }]) {
+  test(`contributor cannot set ${Object.keys(values)[0]} when supplier review starts after the read`, async () => {
+    const product = {
+      _id: 'review-race',
+      ...publishableProduct({ published: false }),
+      updatedAt: '2026-08-19T00:00:00.000Z',
+      alibabaPrimarySourceKey: 'source-a',
+      alibabaReviewPending: false,
+    } as CollectionDoc;
+    const store = setup({ users: [], products: [product], catalogProductIdentities: [] });
+    const concurrentPatch = {
+      alibabaReviewPending: true,
+      updatedAt: '2026-08-19T01:00:00.000Z',
+    };
+    setAdapter(new ReviewRaceAdapter(store, concurrentPatch));
+    expectErr(
+      await call(
+        'update',
+        { collection: 'products', id: product._id, values },
+        await contributorToken(),
+      ),
+      'CONFLICT',
+    );
+    assert.deepEqual(store.products?.[0], { ...product, ...concurrentPatch });
+  });
+
+  test(`contributor cannot set ${Object.keys(values)[0]} when a supplier link is created after the read`, async () => {
+    const product = {
+      _id: 'new-link-race',
+      ...publishableProduct({ published: false }),
+      updatedAt: '2026-08-19T00:00:00.000Z',
+    } as CollectionDoc;
+    const store = setup({ users: [], products: [product], catalogProductIdentities: [] });
+    const concurrentPatch = {
+      alibabaPrimarySourceKey: 'source-a',
+      alibabaReviewPending: true,
+      updatedAt: '2026-08-19T01:00:00.000Z',
+    };
+    setAdapter(new ReviewRaceAdapter(store, concurrentPatch));
+    expectErr(
+      await call(
+        'update',
+        { collection: 'products', id: product._id, values },
+        await contributorToken(),
+      ),
+      'CONFLICT',
+    );
+    assert.deepEqual(store.products?.[0], { ...product, ...concurrentPatch });
+  });
+
+  test(`admin cannot set ${Object.keys(values)[0]} without reviewing a supplier change after the read`, async () => {
+    const product = {
+      _id: 'admin-review-race',
+      ...publishableProduct({ published: false }),
+      updatedAt: '2026-08-19T00:00:00.000Z',
+      alibabaPrimarySourceKey: 'source-a',
+      alibabaReviewPending: false,
+    } as CollectionDoc;
+    const store = setup({ users: [], products: [product], catalogProductIdentities: [] });
+    const concurrentPatch = {
+      alibabaReviewPending: true,
+      updatedAt: '2026-08-19T01:00:00.000Z',
+    };
+    setAdapter(new ReviewRaceAdapter(store, concurrentPatch));
+    expectErr(
+      await call('update', { collection: 'products', id: product._id, values }, await adminToken()),
+      'CONFLICT',
+    );
+    assert.deepEqual(store.products?.[0], { ...product, ...concurrentPatch });
+  });
+
   for (const role of ['admin', 'contributor'] as const) {
-    test(`${role} cannot ${Object.keys(values)[0]} a source linked after the read`, async () => {
+    test(`${role} status ${Object.keys(values)[0]} rejects a source linked after the read with no pending flag`, async () => {
       const product = {
-        _id: 'link-race',
+        _id: 'explicit-link-race',
         ...publishableProduct({ published: false }),
       } as CollectionDoc;
       const store = setup({ users: [], products: [product], catalogProductIdentities: [] });
       const concurrentPatch = {
         alibabaPrimarySourceKey: 'source-a',
         alibabaReviewPending: null,
-        updatedAt: '2026-09-25T00:00:00.000Z',
-      };
-      setAdapter(new ReviewRaceAdapter(store, concurrentPatch));
-      expectErr(
-        await call(
-          'update',
-          { collection: 'products', id: product._id, values },
-          role === 'admin' ? await adminToken() : await contributorToken(),
-        ),
-        'CONFLICT',
-      );
-      assert.deepEqual(store.products?.[0], { ...product, ...concurrentPatch });
-    });
-
-    test(`${role} cannot ${Object.keys(values)[0]} when supplier review starts after the read`, async () => {
-      const product = {
-        _id: 'review-race',
-        ...publishableProduct({ published: false }),
-        updatedAt: '2026-09-24T00:00:00.000Z',
-        alibabaPrimarySourceKey: 'source-a',
-        alibabaReviewPending: false,
-      } as CollectionDoc;
-      const store = setup({ users: [], products: [product], catalogProductIdentities: [] });
-      const concurrentPatch = {
-        alibabaReviewPending: true,
-        updatedAt: '2026-09-25T00:00:00.000Z',
+        updatedAt: '2026-08-19T01:00:00.000Z',
       };
       setAdapter(new ReviewRaceAdapter(store, concurrentPatch));
       expectErr(
@@ -1140,11 +1200,11 @@ for (const values of [{ published: true }, { archived: true }]) {
   }
 }
 
-test('contributor status changes on reviewed suppliers preserve the client revision', async () => {
+test('contributor status changes on reviewed supplier products honor the supplied revision', async () => {
   const product = {
     _id: 'reviewed-supplier',
     ...publishableProduct({ published: false }),
-    updatedAt: '2026-09-24T00:00:00.000Z',
+    updatedAt: '2026-08-19T00:00:00.000Z',
     alibabaPrimarySourceKey: 'source-a',
     alibabaReviewPending: false,
   } as CollectionDoc;
@@ -1157,7 +1217,7 @@ test('contributor status changes on reviewed suppliers preserve the client revis
         collection: 'products',
         id: product._id,
         values: { archived: true },
-        expectedUpdatedAt: '2026-09-23T00:00:00.000Z',
+        expectedUpdatedAt: '2026-08-18T00:00:00.000Z',
       },
       contributor,
     ),

@@ -494,7 +494,11 @@ test('manual tier pricing is keyboard-editable, blocks invalid drafts, and submi
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/admin');
-  await page.getByRole('button', { name: 'Products', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Section' }).and(page.locator('button')).click();
+  await page
+    .getByRole('listbox', { name: 'Section' })
+    .getByRole('option', { name: 'Products', exact: true })
+    .click();
   await page.getByRole('button', { name: 'Edit' }).click();
   const dialog = page.getByRole('dialog', { name: 'Edit Product' });
   await expect(dialog.getByLabel('Headphone type (optional)')).toHaveCount(0);

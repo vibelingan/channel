@@ -105,13 +105,143 @@ test('website fixed, range and tier amounts are visible before quantity, overrid
     const primary = primaryArea(renderPanel(detail));
     assert.match(primary, /USD 3\.10/);
     if (pricing.mode !== 'fixed') assert.match(primary, /USD 5\.70/);
-    assert.match(primary, /[Rr]eference/);
-    assert.doesNotMatch(primary, /EUR|CNY|Enter a quantity|<table|<input/);
+    assert.doesNotMatch(
+      primary,
+      /EUR|CNY|Enter a quantity|<table|<input|[Rr]eference|data-quote-scope/,
+    );
     assert.equal((primary.match(/USD 3\.10/g) ?? []).length, 1);
   }
 });
 
-test('product and selected configuration offers keep independent labels and currencies', () => {
+function tierTexts(html: string) {
+  return [...html.matchAll(/<li[^>]*data-price-tier[^>]*>([\s\S]*?)<\/li>/g)].map((match) =>
+    (match[1] ?? '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&gt;/g, '>')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  );
+}
+
+function websiteTiers(pricing: Pricing) {
+  return tierTexts(
+    primaryArea(
+      renderPanel(pricedDetail({ websitePricing: { basis: 'website-manual', pricing } })),
+    ),
+  );
+}
+
+test('every tier price is paired with its quantity window in tier order', () => {
+  const html = primaryArea(
+    renderPanel(
+      pricedDetail({
+        websitePricing: {
+          basis: 'website-manual',
+          pricing: {
+            mode: 'tiered',
+            currency: 'USD',
+            tiers: [
+              { minimumQuantity: 2, maximumQuantity: 99, unitAmountMinor: 661 },
+              { minimumQuantity: 100, maximumQuantity: 999, unitAmountMinor: 555 },
+              { minimumQuantity: 1000, unitAmountMinor: 476 },
+            ],
+          },
+        },
+      }),
+    ),
+  );
+  assert.deepEqual(tierTexts(html), [
+    'USD 6.61 2-99 pieces',
+    'USD 5.55 100-999 pieces',
+    'USD 4.76 ≥1,000 pieces',
+  ]);
+  assert.doesNotMatch(html, /USD 4\.76 - USD 6\.61|per unit/);
+  const price = html.match(/<p[^>]*>USD 6\.61<\/p>/)?.[0] ?? '';
+  assert.match(price, /text-\[28px\]/);
+  assert.match(price, /font-semibold/);
+  assert.match(html, /<p[^>]*text-sm[^>]*>2-99 pieces<\/p>/);
+  assert.match(
+    html,
+    /data-catalog-compact-price[^>]*font-sans|font-sans[^>]*data-catalog-compact-price/,
+  );
+});
+
+test('equal contiguous tiers merge, while a quantity gap and single-piece tiers stay exact', () => {
+  assert.deepEqual(
+    websiteTiers({
+      mode: 'tiered',
+      currency: 'USD',
+      tiers: [
+        { minimumQuantity: 1, maximumQuantity: 9, unitAmountMinor: 570 },
+        { minimumQuantity: 20, unitAmountMinor: 570 },
+      ],
+    }),
+    ['USD 5.70 1-9 pieces', 'USD 5.70 ≥20 pieces'],
+  );
+  assert.deepEqual(
+    websiteTiers({
+      mode: 'tiered',
+      currency: 'USD',
+      tiers: [
+        { minimumQuantity: 1, maximumQuantity: 1, unitAmountMinor: 900 },
+        { minimumQuantity: 2, maximumQuantity: 5, unitAmountMinor: 800 },
+        { minimumQuantity: 6, maximumQuantity: 6, unitAmountMinor: 800 },
+      ],
+    }),
+    ['USD 9.00 1 piece', 'USD 8.00 2-6 pieces'],
+  );
+});
+
+test('fixed and range prices show their minimum order quantity, or per unit when none is known', () => {
+  assert.deepEqual(websiteTiers({ mode: 'fixed', currency: 'EUR', amountMinor: 1200 }), [
+    'EUR 12.00 per unit',
+  ]);
+  assert.deepEqual(
+    websiteTiers({ mode: 'fixed', currency: 'USD', amountMinor: 1490, minimumOrderQuantity: 2 }),
+    ['USD 14.90 ≥2 pieces'],
+  );
+  assert.deepEqual(
+    websiteTiers({
+      mode: 'range',
+      currency: 'USD',
+      minimumAmountMinor: 310,
+      maximumAmountMinor: 570,
+      minimumOrderQuantity: 1000,
+    }),
+    ['USD 3.10 - USD 5.70 ≥1,000 pieces'],
+  );
+});
+
+test('a priced configuration replaces the product quote, so one price block is shown', () => {
+  const detail = pricedDetail();
+  detail.variants.items[0].offers = [
+    {
+      kind: 'supplier',
+      basis: 'source-quote',
+      pricing: {
+        mode: 'tiered',
+        currency: 'USD',
+        tiers: [
+          { minimumQuantity: 2, maximumQuantity: 99, unitAmountMinor: 661 },
+          { minimumQuantity: 100, unitAmountMinor: 555 },
+        ],
+      },
+    },
+  ];
+  const primary = primaryArea(renderPanel(detail));
+  assert.equal((primary.match(/data-quote-scope=/g) ?? []).length, 1);
+  assert.match(primary, /data-quote-scope="variant"/);
+  assert.deepEqual(tierTexts(primary), ['USD 6.61 2-99 pieces', 'USD 5.55 ≥100 pieces']);
+  assert.doesNotMatch(
+    primary,
+    /EUR|Product-level quotes|Selected configuration quotes|Supplier quote|[Rr]eference|<h2/,
+  );
+  const unselected = primaryArea(renderPanel(detail, { status: 'unselected' }));
+  assert.match(unselected, /data-quote-scope="product"/);
+  assert.deepEqual(tierTexts(unselected), ['EUR 12.00 per unit']);
+});
+
+test('several offers in the shown scope keep their own labels and currencies', () => {
   const detail = pricedDetail();
   detail.variants.items[0].offers = [
     {
@@ -126,29 +256,40 @@ test('product and selected configuration offers keep independent labels and curr
     },
   ];
   const primary = primaryArea(renderPanel(detail));
-  const product = primary.split('data-quote-scope="product"')[1]?.split('</section>')[0] ?? '';
-  const variant = primary.split('data-quote-scope="variant"')[1]?.split('</section>')[0] ?? '';
-  assert.match(product, /Product-level quotes/);
-  assert.match(product, /EUR 12\.00/);
-  assert.doesNotMatch(product, /CNY|USD/);
-  assert.match(variant, /Selected configuration quotes/);
-  assert.match(variant, /CNY 5\.70/);
-  assert.match(variant, /USD 0\.80/);
-  assert.doesNotMatch(variant, /EUR/);
+  assert.deepEqual(tierTexts(primary), ['CNY 5.70 per unit', 'USD 0.80 per unit']);
+  assert.ok(primary.indexOf('Regular source quote') < primary.indexOf('CNY 5.70'));
+  assert.ok(primary.indexOf('Promotional source quote') < primary.indexOf('USD 0.80'));
+  assert.doesNotMatch(primary, /EUR/);
 });
 
-test('unknown configuration prices never inherit a product price and authoritative unknown prices never fall back', () => {
+test('unknown configuration prices never pass as the configuration price and authoritative unknown prices never fall back', () => {
   for (const pricing of [{ mode: 'unavailable' }, { mode: 'negotiable' }] satisfies Pricing[]) {
     const detail = pricedDetail();
     detail.variants.items[0].offers = [{ kind: 'supplier', basis: 'source-quote', pricing }];
-    const variant = primaryArea(renderPanel(detail)).split('data-quote-scope="variant"')[1] ?? '';
-    assert.match(variant, /Request a quote/);
-    assert.doesNotMatch(variant, /EUR|12\.00|0\.00/);
+    const primary = primaryArea(renderPanel(detail));
+    assert.match(primary, /data-quote-scope="product"/);
+    assert.doesNotMatch(primary, /data-quote-scope="variant"/);
+    assert.deepEqual(tierTexts(primary), ['EUR 12.00 per unit']);
+    assert.match(
+      primary,
+      /data-variant-price-unknown[^>]*>Selected configuration price on request\./,
+    );
+    const unpriced = primaryArea(renderPanel({ ...detail, offers: [] }));
+    assert.match(unpriced, /Request a quote<\/p>/);
+    assert.doesNotMatch(unpriced, /data-price-tier|data-variant-price-unknown|EUR|12\.00|0\.00/);
     detail.websitePricing = { basis: 'website-manual', pricing };
     const website = primaryArea(renderPanel(detail));
     assert.match(website, /Request a quote/);
     assert.doesNotMatch(website, /EUR|12\.00|0\.00/);
   }
+});
+
+test('a configuration without any quote of its own shows the product quote without a notice', () => {
+  const detail = pricedDetail();
+  detail.variants.items[0].offers = [];
+  const primary = primaryArea(renderPanel(detail));
+  assert.deepEqual(tierTexts(primary), ['EUR 12.00 per unit']);
+  assert.doesNotMatch(primary, /data-variant-price-unknown/);
 });
 
 test('compact prices retain zero, exact hundredths, and a single amount for equal tier prices', () => {

@@ -1,0 +1,20 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {"id":"shell","type":"rectangle","x":40,"y":70,"width":230,"height":100,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#a5d8ff","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"DashboardShell\nResponsive sections","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"collection","type":"rectangle","x":415,"y":70,"width":230,"height":100,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#a5d8ff","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"CollectionView\nRow/bulk + family","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"dialog","type":"rectangle","x":790,"y":70,"width":230,"height":100,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#a5d8ff","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"ClassificationDialog\nFocus + close","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"editor","type":"rectangle","x":790,"y":355,"width":230,"height":100,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#ffd43b","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"ProductClassificationEditor\nOutcome + stages","fontSize":16,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"client","type":"rectangle","x":415,"y":355,"width":230,"height":100,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#e9ecef","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Admin API client\nValidated final results","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"server","type":"rectangle","x":40,"y":355,"width":230,"height":100,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#e9ecef","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Existing Admin function\nRevisioned writes","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"a1","type":"arrow","x":270,"y":120,"width":145,"height":0,"points":[[0,0],[145,0]],"startBinding":{"elementId":"shell","gap":5,"focus":0},"endBinding":{"elementId":"collection","gap":5,"focus":0},"label":{"text":"Current section","fontSize":14,"fontFamily":5}},
+    {"id":"a2","type":"arrow","x":645,"y":120,"width":145,"height":0,"points":[[0,0],[145,0]],"startBinding":{"elementId":"collection","gap":5,"focus":0},"endBinding":{"elementId":"dialog","gap":5,"focus":0},"label":{"text":"Selected products","fontSize":14,"fontFamily":5}},
+    {"id":"a3","type":"arrow","x":905,"y":170,"width":0,"height":185,"points":[[0,0],[0,185]],"startBinding":{"elementId":"dialog","gap":5,"focus":0},"endBinding":{"elementId":"editor","gap":5,"focus":0},"label":{"text":"Busy + close lifecycle","fontSize":14,"fontFamily":5}},
+    {"id":"a4","type":"arrow","x":790,"y":410,"width":-145,"height":0,"points":[[0,0],[-145,0]],"startBinding":{"elementId":"editor","gap":5,"focus":0},"endBinding":{"elementId":"client","gap":5,"focus":0},"label":{"text":"Intent / receipts","fontSize":14,"fontFamily":5}},
+    {"id":"a5","type":"arrow","x":415,"y":410,"width":-145,"height":0,"points":[[0,0],[-145,0]],"startBinding":{"elementId":"client","gap":5,"focus":0},"endBinding":{"elementId":"server","gap":5,"focus":0},"label":{"text":"Existing API actions","fontSize":14,"fontFamily":5}}
+  ],
+  "appState": {"viewBackgroundColor":"#ffffff","gridSize":20},
+  "files": {}
+}

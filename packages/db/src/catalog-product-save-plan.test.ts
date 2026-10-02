@@ -277,6 +277,34 @@ test('adding optional description media leaves historical publication receipts u
   );
 });
 
+test('unrelated updates preserve legacy Headphones classification without an explicit family', () => {
+  for (const category of ['wired', 'office', 'bluetooth']) {
+    for (const data of [{ published: false }, { name: 'Updated headset' }]) {
+      const existing: CollectionDoc = {
+        _id: 'legacy-headset',
+        name: 'Legacy headset',
+        category,
+        published: Object.hasOwn(data, 'published'),
+        description: 'Ready for publication',
+        imageIds: ['image'],
+        wholesalePrice: 5.5,
+        moq: 500,
+      };
+      const plan = planCatalogProductSave(
+        existing,
+        { mode: 'update', productId: existing._id, data },
+        '2026-10-02T00:00:00.000Z',
+      );
+      assert.equal(plan.result, 'ready');
+      if (plan.result !== 'ready') continue;
+      assert.equal(plan.doc.category, category);
+      assert.equal(plan.doc.productFamily, undefined);
+      assert.deepEqual(plan.doc.imageIds, existing.imageIds);
+      assert.equal(plan.doc.wholesalePrice, existing.wholesalePrice);
+    }
+  }
+});
+
 test('an unrelated update clears stale non-Headphones subcategory in the atomic save plan', () => {
   const now = '2026-08-21T00:00:00.000Z';
   const plan = planCatalogProductSave(

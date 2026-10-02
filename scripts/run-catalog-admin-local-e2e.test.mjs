@@ -26,7 +26,7 @@ test('taxonomy mutations run last with owned local database guards and real API 
   const source = await readFile('scripts/run-catalog-admin-local-e2e.mjs', 'utf8');
   assert.match(
     source,
-    /\['test', 'tests\/e2e\/catalog-taxonomy\.spec\.ts'\],\s*e2eEnvironment,?\s*\);\s*\} finally/,
+    /\['test', 'tests\/e2e\/catalog-taxonomy\.spec\.ts'\],\s*e2eEnvironment,?\s*\);\s*\}\s*\} finally/,
   );
   assert.match(source, /E2E_CATALOG_LOCAL_SEED: '1'/);
   assert.match(source, /E2E_CATALOG_LOCAL_DB: databaseFile/);
@@ -51,7 +51,7 @@ test('taxonomy mutations run last with owned local database guards and real API 
 
 test('admin subcategory journey runs in every lane before taxonomy with owned local guards', async () => {
   const source = await readFile('scripts/run-catalog-admin-local-e2e.mjs', 'utf8');
-  const journey = source.indexOf("'tests/e2e/admin-subcategory-visibility.spec.ts'");
+  const journey = source.lastIndexOf("'tests/e2e/admin-subcategory-visibility.spec.ts'");
   assert.ok(journey > source.indexOf('tests/e2e/catalog-formal-journey.spec.ts'));
   assert.ok(journey > source.indexOf('tests/e2e/admin-product-family-tabs.spec.ts'));
   assert.ok(journey < source.indexOf("'tests/e2e/catalog-taxonomy.spec.ts'"));

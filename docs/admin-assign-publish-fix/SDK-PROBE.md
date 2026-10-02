@@ -1,0 +1,55 @@
+# CloudBase true-batch publication: SDK contract probe
+
+Date: 2026-09-29. Status: **client behavior established; remote atomicity NOT verified; G3 blocked.** No application source, lockfile, CloudBase collection or customer product was changed.
+
+## Answer: what does not work today?
+
+| Layer | Evidence | Result |
+| --- | --- | --- |
+| Installed server SDK: `@cloudbase/node-sdk@3.17.2` -> `@cloudbase/database@1.4.3` | Inspected `src/query.ts` and the executed `dist/commonjs/query.js`. Fake `Db.reqClass.send` captured `startTransaction`, `modifyDocument({multi:true, queryType:'WHERE'})` **without** `transactionId`, then `commitTransaction`. | `transaction.collection(...).where(...).update(...)` is type-accepted but the multi-update is **outside** this transaction. Do not use it to claim rollback. |
+| Latest 3.x: `@cloudbase/node-sdk@3.18.6` | npm package dependency metadata still fixes database 1.4.3. | A 3.x version bump alone does not repair that path. |
+| New major: `@cloudbase/node-sdk@4.1.0` -> `@cloudbase/js-sdk@3.10.1` | Isolated install in `/tmp` and source maps show embedded database 1.5.1. Fake request transport observed `startTransaction`, `modifyDocument({multi:true, transactionId:'fake-new-tx'})`, `commitTransaction` with the same ID; a deliberate callback error sent `abortTransaction` with that ID. The older allowed JS SDK 3.9.2 has the same forwarding fix. | **Client request construction is fixed.** This is not proof that the remote NoSQL server accepts/rolls back a 20-document, cross-collection transaction. The Node SDK's `database()` return is typed `any`; existing storage/DB contracts would need re-verification before upgrade. |
+| Official CloudBase NoSQL API | [OpenAPI](https://docs.cloudbase.net/openapi/nosql.v1.openapi.yaml): start, commit, rollback and `POST /commands` accepting `commands[]` plus optional `transactionId`, returning `list[][]`. JS SDK 3.10.1 gateway posts EJSON to `/commands`. | A batch-command route exists. Neither its generic result schema nor these local probes prove exact per-product matching, transaction limits, atomicity in this deployment, or lost-response recovery. PostgreSQL examples are not evidence for this NoSQL runtime. |
+
+The missing `transactionId` is **inside the installed 1.4.3 SDK's `Query.update()` implementation**, not a parameter our code forgot to pass. The current publish path does not call `transaction.collection(...).where(...).update(...)` at all: it calls a separate document-ID transaction per product. This SDK defect blocks the *proposed* old-SDK set-based transaction, not the currently sequential publication.
+
+## Current call chain for N selected products (N <= 20)
+
+| Stage | Actual calls | Database effect / limit |
+| --- | --- | --- |
+| Browser saves classification | `ProductClassificationEditor.save()` -> `assignmentCall()` -> `POST /api/admin` with `action:'catalogCategories'` and `includeSavedRevision:true` | One HTTP request, but not one DB write. |
+| Admin function assigns categories | `handler` -> `manageCatalogCategories()` -> `manageCatalogClassificationAssignment()` -> `for (command.products) await assignProduct(...)` | Per product: read actor/product/taxonomy; `saveCatalogProductWithIdentities()` starts its own `runTransaction`. It may read/write `products`, `users` authorization fence, `catalogTaxonomies`, `catalogProductIdentities` and supplier source/link/mapping fences. Earlier products can be saved when a later one conflicts. |
+| Browser publishes only after all classifications are confirmed | `publishConfirmedClassification()` -> `batchUpdateRecords('products', ..., {published:true}, savedRevisions)` -> for each ID `updateRecord()` | For each ordinary success, first `POST catalogDetailCapabilities`, then `POST update` to `/api/admin`. An approved supplier-detail path can also call `get`/media import/approval actions, or reject a revisioned publish and require Edit. Baseline N=20 can therefore require **1 classification + 20 capability + 20 update = 41 HTTP requests**, excluding initial reads and final invalidation. |
+| Admin function updates each product | `handler.updateAction()` -> `updateCatalogProductRecord()` -> `saveCatalogProductWithIdentities()` -> `saveCatalogProductInCloudBase()` | Each product gets a distinct document-ID transaction: check revision, source review, publication validity, approval receipt/fingerprint and identity conflicts; then commit the product and any affected identity/fence documents. Not a 20-product transaction. |
+| Image visibility after each product commit | `applyImageVisibilityDelta(before, after)` -> `incrementField('images', imageId, 'publishedRefCount', delta)` | For each distinct referenced image of that product, one atomic counter update and readback **outside** the product transaction. The referenced IDs include gallery, description and approved detail/variant/header images; failures are logged and skipped. Public storage images with count 0 return 404. There is no NoSQL foreign-key cascade. |
+| Generic `batchUpdate` action (different path) | `handler.batchUpdateAction()` rejects `products`; `packages/db.batchUpdate()` otherwise loops `db().update()` by ID. | Neither path is a set-based product publication command. A single HTTP request here would still not imply one DB batch. |
+
+The Cloud Function is an HTTP business-logic layer; the managed NoSQL database is a separate service reached through SDK calls. The obstruction is the present client/server action contract plus application-maintained cross-collection state, not a mandatory Cloud Function/DB binding. Replacing only the publication phase still leaves classification as a server-side per-product loop; a requirement for **classification plus publication as one all-or-nothing batch** would need a larger redesign than the requested batch publication alone.
+
+## Product-specific requirements
+
+The current product write checks revision (`expectedUpdatedAt`), supplier review/source identity, publication validity and, when enabled, a detail approval fingerprint/receipt. The public image route uses `images.publishedRefCount`; the existing handler increments it **after** product commit and logs/skips errors. The generic product `batchUpdate` rejects products and its DB facade loops over IDs. A blind `published:true` set cannot preserve this behavior.
+
+A candidate for the current <=20 selection is one batch read for planning, then one transaction-bound **set-based product update** with per-ID revision/eligibility predicates and an exact count of distinct matched IDs; on mismatch abort before commit. In the same transaction, apply the aggregated per-image counter deltas with acknowledgement checks, and write an operation receipt keyed by a client-generated idempotency ID. Constructing predicates in memory does not mean sending per-product update requests. Verify how already-published products, missing images, shared images, counter corruption, concurrent classification and supplier review affect the counts. The official `commands[]` API could group cross-collection updates in one request, but its inner result shape must be tested before relying on it. **This is a design hypothesis, not an approved implementation.**
+
+After a successful commit followed by a lost HTTP response, the operation receipt and authoritative product/image readback must distinguish committed from not committed before any retry. If the network remains unavailable, no backend can deliver a guaranteed final response to the disconnected browser; the UI must wait/recover on reconnection rather than claim success or failure without proof.
+
+## Local checks and their limit
+
+Focused current-flow tests passed on 2026-09-29: site classification/publication 40/40, DB transaction/guard planning 51/51, local-server assignment 5/5, Admin handler 184/184 and public image visibility 60/60 (340 total). The existing `pnpm verify:cloudbase-sdk` gate, workspace typecheck and Biome also passed. These tests certify existing per-item behavior, **not** a new all-or-nothing batch. The old and new SDK fake-transport probes above verify request construction without network.
+
+An isolated `/tmp` SDK installation or a new git worktree isolates files/dependencies but still targets whichever CloudBase EnvId the credentials select; it is not an isolated database. Docker Desktop is installed locally but its daemon was not running. A Docker MongoDB could validate proposed Mongo predicates/transactions against MongoDB, not CloudBase's NoSQL gateway, permissions, result envelope, quotas or deployed rollback. It cannot close the remote acceptance gate below. A separate CloudBase NoSQL environment is needed **for verification without production writes**; it is not intrinsically a new production-infrastructure requirement.
+
+## Remote acceptance gate (not run)
+
+The repo's deployment docs label `diversity-123-d9grnqfux221323bb` as `test`. On 2026-09-29, read-only CloudBase `queryEnv(info)` confirmed NoSQL, **but** `queryGateway(listCustomDomains)` showed both `www.supplychainsai.com` and `supplychainsai.com` plus `/api/admin` routing in this SAME environment. It serves the live site. `queryHosting(domainStatus)` saying "no such domain" is a narrower static-hosting lookup and must not override the gateway evidence. **Do not run even temporary collection writes in this environment.**
+
+Before G3 approval, obtain a physically distinct NoSQL environment with an explicit EnvId and run disposable fixtures there (never customer products):
+
+1. Confirm 20 matching IDs in a guarded batch plus image counter deltas and operation receipt commit together. Check both updated documents and the receipt with a separate post-commit read; capture exact `commands[].list`/`n`/error shapes, transaction limits and duration.
+2. Make one version/approval predicate stale, and separately force an image counter/command error. Verify **zero** product, image and receipt changes after rollback. Include shared images, duplicate IDs, already-published records, missing image IDs and corrupted counters.
+3. Interleave another admin's product edit, image mutation and concurrent publication with the proposed transaction. Verify the write-time condition, conflict behavior and image reference counts; do not accept preflight-only validation.
+4. Simulate a lost HTTP response after commit and before commit with the same operation ID. Verify receipt-based lookup/readback reports a final result when reachable, does not double-increment images, and never automatically retries an ambiguous write.
+5. Re-run this repo's SDK contract gate, full typecheck/lint, Admin/local-server parity and isolated browser workflow against the exact **pinned** SDK versions. Measure actual latency rather than assuming one request is faster.
+
+Until these pass, neither CloudBase server rollback for this batch nor a guaranteed final UI result has been proven. No G3/G4 approval or publication code change follows from this document.

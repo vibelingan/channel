@@ -333,18 +333,11 @@ test.describe('public browser smoke', () => {
     const reveal = page.locator('#process .reveal').first();
     await expect(reveal).toHaveCount(1);
     await reveal.evaluate((element) => element.classList.remove('reveal-pending', 'is-visible'));
-
-    const state = await reveal.evaluate((element) => {
-      const style = getComputedStyle(element);
-      return {
-        opacity: style.opacity,
-        transform: style.transform,
-        noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth,
-      };
-    });
-    expect(state.opacity).toBe('1');
-    expect(state.transform).toBe('none');
-    expect(state.noHorizontalOverflow).toBe(true);
+    await expect(reveal).toHaveCSS('opacity', '1');
+    await expect(reveal).toHaveCSS('transform', 'none');
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
   });
 
   test('static reveal content stays visible when IntersectionObserver is unavailable', async ({
