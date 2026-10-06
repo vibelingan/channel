@@ -257,8 +257,14 @@ test('several offers in the shown scope keep their own labels and currencies', (
   ];
   const primary = primaryArea(renderPanel(detail));
   assert.deepEqual(tierTexts(primary), ['CNY 5.70 per unit', 'USD 0.80 per unit']);
-  assert.ok(primary.indexOf('Regular source quote') < primary.indexOf('CNY 5.70'));
-  assert.ok(primary.indexOf('Promotional source quote') < primary.indexOf('USD 0.80'));
+  for (const [label, price] of [
+    ['Regular source quote', 'CNY 5.70'],
+    ['Promotional source quote', 'USD 0.80'],
+  ]) {
+    const labelAt = primary.indexOf(label);
+    assert.ok(labelAt >= 0, `${label} renders`);
+    assert.ok(labelAt < primary.indexOf(price), `${label} precedes ${price}`);
+  }
   assert.doesNotMatch(primary, /EUR/);
 });
 
@@ -312,6 +318,24 @@ test('compact prices retain zero, exact hundredths, and a single amount for equa
     assert.ok(html.includes(['JPY 0.00', 'EUR 90071992547409.91', 'USD 5.70'][index]));
     if (pricing.mode === 'tiered') assert.equal((html.match(/USD 5\.70/g) ?? []).length, 1);
   }
+});
+
+test('tiers below the minimum order are never offered as orderable windows', () => {
+  const pricing: Pricing = {
+    mode: 'tiered',
+    currency: 'USD',
+    minimumOrderQuantity: 10,
+    tiers: [
+      { minimumQuantity: 1, maximumQuantity: 4, unitAmountMinor: 600 },
+      { minimumQuantity: 5, maximumQuantity: 49, unitAmountMinor: 500 },
+      { minimumQuantity: 50, unitAmountMinor: 450 },
+    ],
+  };
+  const html = primaryArea(
+    renderPanel(pricedDetail({ websitePricing: { basis: 'website-manual', pricing } })),
+  );
+  assert.deepEqual(tierTexts(html), ['USD 5.00 10-49 pieces', 'USD 4.50 ≥50 pieces']);
+  assert.doesNotMatch(html, /USD 6\.00|1-4 pieces|5-49 pieces/);
 });
 
 test('no-SKU products enable one product customization quote while unselected variants stay disabled', () => {

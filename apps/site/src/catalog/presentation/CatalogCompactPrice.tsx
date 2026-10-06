@@ -17,24 +17,26 @@ function pricePairs(pricing: Offer['pricing'], copy: SharedDetailContent): Price
   const format = (amount: number) => formatCatalogQuoteAmount(amount, pricing.currency);
   if (pricing.mode === 'tiered') {
     // Contiguous tiers at one price read as one window; a gap between them
-    // stays visible so no unquoted quantity appears covered.
+    // stays visible so no unquoted quantity appears covered. Quantities below
+    // the minimum order cannot be ordered, so they are never shown as windows.
+    const moq = pricing.minimumOrderQuantity;
     const windows: Array<{ minimum: number; maximum?: number; amount: number }> = [];
     for (const tier of pricing.tiers) {
       if (!valid(tier.unitAmountMinor)) continue;
+      if (moq !== undefined && tier.maximumQuantity !== undefined && tier.maximumQuantity < moq)
+        continue;
+      const minimum =
+        moq !== undefined ? Math.max(tier.minimumQuantity, moq) : tier.minimumQuantity;
       const previous = windows.at(-1);
       if (
         previous?.amount === tier.unitAmountMinor &&
         previous.maximum !== undefined &&
-        previous.maximum + 1 === tier.minimumQuantity
+        previous.maximum + 1 === minimum
       ) {
         previous.maximum = tier.maximumQuantity;
         continue;
       }
-      windows.push({
-        minimum: tier.minimumQuantity,
-        maximum: tier.maximumQuantity,
-        amount: tier.unitAmountMinor,
-      });
+      windows.push({ minimum, maximum: tier.maximumQuantity, amount: tier.unitAmountMinor });
     }
     return windows.map(({ minimum, maximum, amount }) => ({
       amount: format(amount),
