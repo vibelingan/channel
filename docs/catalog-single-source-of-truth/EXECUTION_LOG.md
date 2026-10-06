@@ -1,0 +1,87 @@
+# Catalog single source of truth — execution log
+
+Per-MIU record, written when each MIU completes (what changed, tests, result,
+commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.md).
+
+## Status
+
+| MIU | Title | Batch | Status | Commit |
+|---|---|---|---|---|
+| 1 | Normalizer omits wholesale headline when SKUs exist | 1 | Not started | |
+| 2 | Raw replay deactivates dropped `'@product'`, stores new hash | 1 | Not started | |
+| 3 | Price summary contract + `derivePriceSummary` | 2 | Not started | |
+| 4 | Approval plan stores `priceSummary` | 2 | Not started | |
+| 5 | `resolvePublicVersion` shared rule | 3 | Not started | |
+| 6 | Price summary backfill (db) | 2 | Not started | |
+| 7 | Backfill admin action + script | 2 | Not started | |
+| 8 | Public list / item / slug read the one version | 3 | Not started | |
+| 9 | Product page endpoint uses the rule | 3 | Not started | |
+| 10 | Quote request uses the rule | 3 | Not started | |
+| 11 | Site decoder + `Product.priceSummary` | 3 | Not started | |
+| 12 | Card price / MOQ from summary | 3 | Not started | |
+| 13 | Hub featured strip effective MOQ | 3 | Not started | |
+| 14 | E2E: configuration switch changes price; card matches page | 3 | Not started | |
+| 15 | `alibabaReviewReason` field + identity rules | 4 | Not started | |
+| 16 | `publicSourceDigest` | 4 | Not started | |
+| 17 | Prepare records source digest | 4 | Not started | |
+| 18 | Approval receipt carries digest | 4 | Not started | |
+| 19 | Promote step flags changed / removed | 4 | Not started | |
+| 20 | Quarantine path + refresh contract | 4 | Not started | |
+| 21 | Approve / acknowledge clears reason | 4 | Not started (Owner: DEC-11) | |
+| 22 | "Changed since approval" audit action | 4 | Not started | |
+| 23 | Admin badge / chip show reason | 4 | Not started (Owner: DEC-11) | |
+| 24 | "Approve changes" action | 4 | Not started (Owner: DEC-11) | |
+| 25 | Batch category assignment skips changed | 4 | Not started | |
+| 26 | `catalog-consistency-audit` script | 3 | Not started | |
+
+## Runbook status
+
+| Step | Status | Notes |
+|---|---|---|
+| R1 Unpublish the 21 | Waiting for owner (DEC-13) | List below |
+| R2 Replay rebuild | Not started | |
+| R3 Pinned-offer count | Not started | |
+| R4 Price summary backfill | Not started | |
+| R5 Consistency audit after batch 3 | Not started | |
+| R6 Changed-since-approval audit | Not started | |
+| R7 Admin re-approval | Not started | |
+| R8 Final audit + browser checks | Not started | |
+
+## The 21 products (live audit 2026-10-06)
+
+Card price ≠ product page price; the product page shows the wholesale headline
+paired with the MOQ. Names are truncated as captured.
+
+| # | Product ID | Name |
+|---|---|---|
+| 1 | `cd823b43-c5e8-4590-af70-3c771036e25d` | 3.5mm On-Ear Wired Headphones for Kids Safe Casque for … |
+| 2 | `4ac1eef6-2d4a-4332-a8a9-55028332fc99` | 3.5mm Wired Office Headset with Microphone for Call Cen… |
+| 3 | `0e18d7ff-8a92-45b8-aa3d-461634880ac8` | Adjustable Wired Over Ear Headphones With Mic Stereo So… |
+| 4 | `7df1ce02-579e-43a5-ae84-57a4f7dd857a` | BH14 Custom OEM Stereo Best Headset Microphone New Chea… |
+| 5 | `8f45ab2e-a44f-40b8-a57e-fd7a27feefe8` | Best Stylish Wired Headset RGB Battery Indicator ANC PS… |
+| 6 | `c9a4d22d-fc31-4123-a0ba-49ee29ec020e` | Computer Gaming Accessories 3.5mm Stereo Plug Headband … |
+| 7 | `e4bd5237-4d71-492f-a748-9fec706535d5` | Factory Headphones Headset Max Wired Stereo HIFI Headph… |
+| 8 | `14185dbc-c03c-4f7a-ae46-0707766059b1` | Factory Price Wholesale Children's Earphone Children To… |
+| 9 | `4e2f0c91-6a68-40a8-aa9b-b7277793902f` | High Quality Wired Headphones BT Noise Cancellation Fol… |
+| 10 | `93a55b79-cbb5-4631-aa9b-5caef570881e` | Hot Sell Adjustable Head Band Blue Tooth5.0 Wireless Ac… |
+| 11 | `2429aef6-18c9-4407-ab14-2551dac7c844` | Hot Selling Products 2025 Adjustable Wired Headphones G… |
+| 12 | `a7f1b2dd-3d68-46f5-a566-ae7add1c80f5` | KH3 New Original Kin for Children School Student Headse… |
+| 13 | `c5186aef-6bc1-4325-a5c9-b80e2f45bc47` | KH6 amazon Best with Mic Microphone Girl Cat Ear Cartoo… |
+| 14 | `ea411ae2-9925-45dc-a609-e64237aa880d` | KH7 Original Toddler Earphone Best Headphone Head-mount… |
+| 15 | `02503c24-a383-48fb-ac75-b4598cb585e1` | Lightweight Foldable 3.5mm Wired Music Earphones & Head… |
+| 16 | `60722976-359d-4f77-a1d9-a569d3c88aeb` | New Premium Audio Quality Transparent White Wired Call … |
+| 17 | `7ac5152c-9f3c-4538-aa31-78c625ccea52` | New Wireless Headphones Earphones Headphone Speaker Gam… |
+| 18 | `23645c96-6b99-4537-a9f1-2679286b9e03` | WH5 Hot for Mobile Phones High Quality Price Over Ear C… |
+| 19 | `47aed9b1-733b-4ab5-a4fd-1fd2b1ee046b` | WH7 Cheap Microphone Pc Over the Ear Wired for Call Cen… |
+| 20 | `8fd31bc1-256c-4674-ac43-c8529c8d6147` | WH8 Cable Microphone Noise Canceling Computer Call Cent… |
+| 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
+
+## Log
+
+<!-- One entry per completed MIU:
+### MIU-n — <title> (YYYY-MM-DD, <commit>)
+- What changed:
+- Tests (red → green):
+- Validation commands and results:
+- Deviations from the spec:
+-->
