@@ -100,6 +100,13 @@ export const ALIBABA_SOURCE_STATUS_OPTIONS = [
   'unknown',
 ] as const;
 
+/**
+ * Why a product needs review: first sight, a supplier change since approval,
+ * removal at the source, or a contributor edit waiting for an admin (DEC-7).
+ */
+export const ALIBABA_REVIEW_REASON_OPTIONS = ['new', 'changed', 'removed', 'edited'] as const;
+export type AlibabaReviewReason = (typeof ALIBABA_REVIEW_REASON_OPTIONS)[number];
+
 /** Run lifecycle states for alibabaSyncRuns (ARCHITECTURE §12, R1). */
 export const ALIBABA_SYNC_RUN_STATUS_OPTIONS = [
   'running',
@@ -440,6 +447,16 @@ export const COLLECTIONS: readonly CollectionDef[] = [
         name: 'alibabaReviewPending',
         label: 'Alibaba Review Pending',
         type: 'boolean',
+        readOnly: true,
+        hideInTable: true,
+      },
+      {
+        // Why the product needs review (DEC-7). Absent on older rows: a pending
+        // row without a reason means 'new'.
+        name: 'alibabaReviewReason',
+        label: 'Alibaba Review Reason',
+        type: 'select',
+        options: ALIBABA_REVIEW_REASON_OPTIONS,
         readOnly: true,
         hideInTable: true,
       },

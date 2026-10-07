@@ -74,6 +74,7 @@ function fixture(): Store {
         alibabaSourceStatus: 'available',
         alibabaSourceReview: { provider: 'alibaba' },
         alibabaReviewPending: true,
+        alibabaReviewReason: 'changed',
         alibabaReviewedAt: NOW,
         alibabaReviewedByUserId: 'admin',
       },
@@ -432,6 +433,8 @@ for (const backend of ['local', 'cloud'] as const) {
       const saved = harness.read();
       const draft = saved.products.find((row) => row._id === 'new-draft');
       assert.equal(draft?.published, false);
+      assert.equal(draft?.alibabaReviewPending, true);
+      assert.equal(draft?.alibabaReviewReason, 'new');
       assert.equal(draft?.alibabaLinkRevision, 1);
       assert.equal(draft?.alibabaPrimarySourceKey, 'source-b');
       assert.equal(
@@ -504,6 +507,27 @@ for (const backend of ['local', 'cloud'] as const) {
     assert.equal(harness.read().products[0].alibabaLinkRevision, 2);
     assert.equal(harness.read().products[0].alibabaReviewedAt, NOW);
     assert.deepEqual(await harness.mutate(pin), { ok: false, reason: 'identity-conflict' });
+  });
+
+  test(`${backend}: reconciliation marks a legacy row "new" only when it sets the review flag`, async (context) => {
+    for (const reviewedAt of [undefined, NOW]) {
+      const initial = fixture();
+      const product = initial.products[0];
+      // Rows from before the review flag existed carry neither field.
+      const { alibabaReviewPending: _pending, alibabaReviewReason: _reason, ...legacy } = product;
+      initial.products[0] = { ...legacy, alibabaReviewedAt: reviewedAt ?? null };
+      const harness = setup(context, initial);
+      const result = await harness.mutate({
+        ...unlinkInput(initial),
+        action: 'reconcile',
+        sourceKey: 'source-a',
+        patch: { alibabaDescriptionImageUrls: ['fresh'] },
+      });
+      assert.equal(result.ok, true);
+      const saved = harness.read().products[0];
+      assert.equal(saved.alibabaReviewPending, reviewedAt === undefined);
+      assert.equal(saved.alibabaReviewReason, reviewedAt === undefined ? 'new' : null);
+    }
   });
 
   test(`${backend}: concurrent pin or reconciliation and promotion have exactly one winner`, async (context) => {

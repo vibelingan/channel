@@ -95,6 +95,7 @@ const clearedFields = {
   alibabaSourceStatus: null,
   alibabaSourceReview: null,
   alibabaReviewPending: null,
+  alibabaReviewReason: null,
   alibabaReviewedAt: null,
   alibabaReviewedByUserId: null,
 };
@@ -111,6 +112,7 @@ const writableFields = new Set([
   'alibabaSourceLastSyncedAt',
   'alibabaSourceReview',
   'alibabaReviewPending',
+  'alibabaReviewReason',
 ]);
 
 const reconciliationFields = new Set(['alibabaDescriptionImageUrls', 'alibabaSourceReview']);
@@ -132,9 +134,10 @@ function reconciliationPatch(product: CollectionDoc, patch: Record<string, unkno
     typeof product.alibabaReviewedAt === 'string' && product.alibabaReviewedAt.trim() !== '';
   return {
     ...patch,
+    // A row from before the review flag gets one; 'new' only when it is pending.
     ...(typeof product.alibabaReviewPending === 'boolean'
       ? {}
-      : { alibabaReviewPending: !reviewed }),
+      : { alibabaReviewPending: !reviewed, alibabaReviewReason: reviewed ? null : 'new' }),
   };
 }
 
@@ -324,6 +327,7 @@ export async function runAlibabaProductMutation(
           alibabaSourceCategoryId: String(source.sourceCategoryId ?? ''),
           alibabaSourceStatus: source.active === true ? 'available' : 'removed',
           alibabaReviewPending: true,
+          alibabaReviewReason: 'new',
           alibabaLinkRevision: nextRevision,
           alibabaSourceLastSyncedAt: input.now,
           createdAt: input.now,

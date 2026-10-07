@@ -85,6 +85,7 @@ const ALIBABA_PRODUCT_FIELDS = [
   'alibabaSourceStatus',
   'alibabaSourceLastSyncedAt',
   'alibabaReviewPending',
+  'alibabaReviewReason',
   'alibabaReviewedAt',
   'alibabaReviewedByUserId',
 ];
