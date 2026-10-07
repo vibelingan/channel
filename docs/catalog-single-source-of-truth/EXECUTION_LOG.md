@@ -11,10 +11,10 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 2 | Raw replay deactivates dropped `'@product'`, stores new hash | 1 | Done | `c42fc7c` |
 | 3 | Price summary contract + `derivePriceSummary` | 2a | Done | `5cf2a6b` |
 | 4 | Approval plan stores `priceSummary` | 2b | Done | `1b22ff5` |
-| 5 | `resolvePublicVersion` shared rule | 3 | Done | (this commit) |
+| 5 | `resolvePublicVersion` shared rule | 3 | Done | `3407529` |
 | 6 | Price summary backfill (db command) | 2b | Done | `96c3157` |
 | 7 | Backfill admin action + script | 2b | Done | `bcfac0a` |
-| 8 | Public list / item / slug read the one version | 3 | Not started | |
+| 8 | Public list / item / slug read the one version | 3 | Done | (this commit) |
 | 9 | Product page endpoint uses the rule | 3 | Not started | |
 | 10 | Quote request uses the rule | 3 | Not started | |
 | 11 | Site decoder + `Product.priceSummary` | 3 | Not started | |
@@ -91,6 +91,33 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-8 — public list / item / slug read the one version (2026-10-07)
+- What changed: `enableCatalogDetail` moved from `PublicHttpConfig` to
+  `PublicApiConfig` (the same config object already reaches the catalog
+  handlers). New `publicItem(…) → { doc, kind }` wraps `publicDoc`, whose
+  signature is unchanged because tests in other packages import it.
+  - For an approved product (`resolvePublicVersion`) it projects:
+    - name, photos (absolute, at most 9, header order) and description from the
+      approved header;
+    - `priceSummary`, and `moq` from the summary;
+    - optional identity and classification fields as for row products.
+  - It never ships `unitPrice`, `wholesalePrice`, `clearancePrice`, `moq` from
+    the row, `manualCatalogPricing`, `catalogPricingMode`, `vipPrice`, any
+    `alibaba*` marker, or row `variants` (the list and `withVariants` skip
+    `attachVariants` for approved items).
+- Tests:
+  - approved projection;
+  - synced and manual approved products have identical keys and no `alibaba*`;
+  - feature off or not yet approved → today's row projection;
+  - item and slug equal the list item.
+
+  The latter two passed before the change (unchanged behaviour); the first two
+  went red → green.
+- Validation: public-api 119/119; `pnpm test` exit 0; `pnpm typecheck`;
+  `pnpm lint`; packaged smoke 3/3. Deploy smoke rules (family, at most 9 images,
+  forbidden keys) still hold.
+- Must ship with MIU-11/12 (site reads `priceSummary`).
 
 ### MIU-5 — `resolvePublicVersion` (2026-10-07)
 - What changed: new `packages/shared/src/catalog/public-version.ts`. A product is

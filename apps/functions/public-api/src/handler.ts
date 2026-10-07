@@ -21,6 +21,10 @@ import {
   toRole,
   validateManualCatalogPricing,
 } from '@vibelingan-channel/shared';
+import {
+  type CatalogDetailPublication,
+  resolvePublicVersion,
+} from '@vibelingan-channel/shared/catalog-public-version';
 import { readCatalogTaxonomy } from './catalog-taxonomy.ts';
 
 const CATALOGS = PUBLIC_CATALOG_COLLECTIONS;
@@ -48,6 +52,11 @@ export interface PublicApiConfig {
    * tiers ever attached), which is the safe default.
    */
   jwtSecret?: string;
+  /**
+   * Approved product detail is on. Also decides which version of a product is
+   * public everywhere (DEC-1): the approved version when this is on.
+   */
+  enableCatalogDetail?: boolean;
 }
 
 /**
@@ -293,6 +302,74 @@ const PUBLIC_VARIANTS_PER_PRODUCT_CAP = 50;
  */
 const GATED_CATALOG_FIELDS = ['vipPrice'] as const;
 
+/** Row fields that carry price or source state; never shipped for an approved product. */
+const ROW_ONLY_FIELDS = new Set<string>([
+  'unitPrice',
+  'wholesalePrice',
+  'clearancePrice',
+  'moq',
+  'manualCatalogPricing',
+  'catalogPricingMode',
+  'alibabaPrimarySourceKey',
+  'alibabaCatalogPricing',
+  'alibabaSourceStatus',
+  'alibabaSourceLastSyncedAt',
+]);
+
+function summaryMoq(publication: CatalogDetailPublication): number | undefined {
+  const pricing = publication.priceSummary?.pricing;
+  if (!pricing) return undefined;
+  if (pricing.minimumOrderQuantity !== undefined) return pricing.minimumOrderQuantity;
+  return pricing.mode === 'tiered' ? pricing.tiers[0]?.minimumQuantity : undefined;
+}
+
+/**
+ * One product's public projection plus which version it came from. An approved
+ * product shows its approved name, photos, description, price summary and MOQ;
+ * row prices and Alibaba markers never ship for it, so a synced and a manual
+ * product look the same (DEC-14).
+ */
+export function publicItem(
+  collection: PublicCatalog,
+  doc: CollectionDoc,
+  config: PublicApiConfig,
+  viewer: CatalogViewer = ANONYMOUS_VIEWER,
+): { doc: CollectionDoc; kind: 'approved' | 'row' } {
+  const version =
+    collection === 'products'
+      ? resolvePublicVersion(doc, { detailEnabled: config.enableCatalogDetail === true })
+      : ({ kind: 'row' } as const);
+  if (version.kind === 'row')
+    return { doc: publicDoc(collection, doc, config, viewer), kind: 'row' };
+  const { header, priceSummary } = version.publication;
+  const out: CollectionDoc = {
+    _id: doc._id,
+    name: header.name,
+    images: header.images.slice(0, PRODUCT_IMAGE_MAX_COUNT).map((path) => apiUrl(path, config)),
+  };
+  for (const key of PUBLIC_CATALOG_FIELDS) {
+    if (key === '_id' || key === 'name' || key === 'description' || key === 'category') continue;
+    if (ROW_ONLY_FIELDS.has(key) || !(key in doc)) continue;
+    out[key] = doc[key];
+  }
+  if (header.descriptionText) out.description = header.descriptionText;
+  if (priceSummary) out.priceSummary = priceSummary;
+  const moq = summaryMoq(version.publication);
+  if (moq !== undefined) out.moq = moq;
+  const productFamily = productFamilyForDoc(doc);
+  if (productFamily !== null) {
+    out.productFamily = productFamily;
+    if (productFamily === 'headphones' && typeof doc.category === 'string') {
+      out.category = doc.category;
+    }
+  }
+  const skuCode = normalizeSkuCode(doc.skuCode);
+  const slug = normalizeProductSlug(doc.slug);
+  if (skuCode !== null) out.skuCode = skuCode;
+  if (slug !== null) out.slug = slug;
+  return { doc: out, kind: 'approved' };
+}
+
 export function publicDoc(
   collection: PublicCatalog,
   doc: CollectionDoc,
@@ -406,10 +483,16 @@ export async function listCatalog(
     sort: [{ field: '_id', dir: 'asc' }],
   });
 
-  const variants = await attachVariants(collection, result.items);
+  const projections = result.items.map((doc) => publicItem(collection, doc, config, viewer));
+  // Row configurations are not part of an approved version; only row-fallback
+  // products keep them.
+  const variants = await attachVariants(
+    collection,
+    result.items.filter((_, index) => projections[index]?.kind === 'row'),
+  );
   return ok({
-    items: result.items.map((doc) => {
-      const projected = publicDoc(collection, doc, config, viewer);
+    items: result.items.map((doc, index) => {
+      const projected = projections[index]?.doc ?? publicDoc(collection, doc, config, viewer);
       const own = variants.get(doc._id);
       // Only products that actually have variants gain the key, so existing
       // legacy and Alibaba-linked payloads stay byte-identical.
@@ -435,7 +518,7 @@ export async function getCatalogItem(
   ) {
     return err('NOT_FOUND', 'Item not found');
   }
-  return ok(await withVariants(collection, doc, publicDoc(collection, doc, config, viewer)));
+  return ok(await withVariants(collection, doc, publicItem(collection, doc, config, viewer)));
 }
 
 export async function getCatalogItemBySlug(
@@ -452,15 +535,17 @@ export async function getCatalogItemBySlug(
   ) {
     return err('NOT_FOUND', 'Item not found');
   }
-  return ok(await withVariants('products', doc, publicDoc('products', doc, config, viewer)));
+  return ok(await withVariants('products', doc, publicItem('products', doc, config, viewer)));
 }
 
 /** Attach variants to one already-projected document, when it has any. */
 async function withVariants(
   collection: PublicCatalog,
   doc: CollectionDoc,
-  projected: CollectionDoc,
+  item: { doc: CollectionDoc; kind: 'approved' | 'row' },
 ): Promise<CollectionDoc> {
+  const projected = item.doc;
+  if (item.kind === 'approved') return projected;
   const variants = (await attachVariants(collection, [doc])).get(doc._id);
   return variants === undefined || variants.length === 0 ? projected : { ...projected, variants };
 }

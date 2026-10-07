@@ -23,8 +23,7 @@ import {
 
 export interface PublicHttpConfig extends PublicApiConfig {
   corsAllowedOrigins?: readonly string[];
-  /** UI-02 opt-in. Not wired from cloud env; local review server enables this. */
-  enableCatalogDetail?: boolean;
+  // `enableCatalogDetail` lives on PublicApiConfig: the catalog projection uses it too.
   /** Explicit cloud rollout gate; no email, checkout or OEM side effects. */
   enableInquiries?: boolean;
 }
