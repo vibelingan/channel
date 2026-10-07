@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { detailFixture } from '../../catalog/testing/detail-fixture.ts';
+import { updateRecord } from './api.ts';
 import {
   type DetailReview,
   approveDetailReview,
@@ -136,4 +137,88 @@ test('failed import, concurrent edit and abort never begin approval', async (t) 
     );
     mock.mock.restore();
   }
+});
+
+// --- MIU-32: manual products publish through the same approval ---------------
+
+type AdminCall = { action: string; data?: Record<string, unknown> };
+function manualApi(
+  t: { mock: { method: typeof test.mock.method } },
+  product: Record<string, unknown>,
+) {
+  const calls: string[] = [];
+  const updates: Record<string, unknown>[] = [];
+  let current: Record<string, unknown> = {
+    _id: 'canonical-product',
+    name: 'Kids headset',
+    ...product,
+  };
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    const body: AdminCall = JSON.parse(String(init.body));
+    const step =
+      body.action === 'catalogDetailApproval' ? `approval:${body.data?.action}` : body.action;
+    calls.push(step);
+    let data: unknown = progress;
+    if (body.action === 'catalogDetailCapabilities') data = { enabled: true };
+    if (body.action === 'get') data = current;
+    if (body.action === 'update') {
+      updates.push(body.data ?? {});
+      current = { ...current, ...(body.data?.values as object), updatedAt: 'after-update' };
+      data = current;
+    }
+    // As the server answers: begin stages the job (not complete); finish completes it.
+    if (body.data?.action === 'begin') data = { ...progress, complete: false };
+    if (body.data?.action === 'review')
+      data = { ...review(1, 0), productId: 'canonical-product', previewMedia: undefined };
+    return Response.json({ ok: true, data });
+  });
+  return { calls, updates };
+}
+
+test('publishing a manual product runs the approval, then publishes; no Alibaba imports', async (t) => {
+  const api = manualApi(t, { productFamily: 'headphones', imageIds: ['img'], published: false });
+  const saved = await updateRecord('products', 'canonical-product', { published: true });
+  assert.equal(saved.published, true);
+  assert.deepEqual(
+    api.calls.filter((call) => call !== 'get' && call !== 'catalogDetailCapabilities'),
+    ['approval:prepare', 'approval:review', 'approval:begin', 'approval:finish', 'update'],
+  );
+  assert.equal(api.calls.includes('importSourceImage'), false);
+  assert.deepEqual(api.updates.at(-1)?.values, { published: true });
+});
+
+test('a manual product without photos stops before any approval call', async (t) => {
+  const api = manualApi(t, { productFamily: 'headphones', imageIds: [], published: false });
+  await assert.rejects(
+    updateRecord('products', 'canonical-product', { published: true }),
+    /Add at least one photo before publishing/,
+  );
+  assert.equal(
+    api.calls.some((call) => call.startsWith('approval:')),
+    false,
+  );
+});
+
+test('a category-only save on a published manual product refreshes its approved version', async (t) => {
+  const api = manualApi(t, { productFamily: 'headphones', imageIds: ['img'], published: true });
+  await updateRecord('products', 'canonical-product', { productFamily: 'toys' });
+  assert.ok(api.calls.includes('approval:finish'), api.calls.join(' → '));
+  assert.deepEqual(api.updates[0]?.values, { productFamily: 'toys' });
+  assert.equal(api.updates.length, 1, 'publication state is not touched');
+});
+
+test('a guarded batch publish of a manual product keeps its revision guard through approval', async (t) => {
+  const api = manualApi(t, {
+    productFamily: 'headphones',
+    imageIds: ['img'],
+    published: false,
+    updatedAt: 'seen',
+  });
+  await updateRecord('products', 'canonical-product', { published: true }, 'seen');
+  assert.deepEqual(api.updates.at(-1), {
+    collection: 'products',
+    id: 'canonical-product',
+    values: { published: true },
+    expectedUpdatedAt: 'seen',
+  });
 });

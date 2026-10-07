@@ -10,6 +10,7 @@ import {
 } from '@vibelingan-channel/shared';
 import { type ReactNode, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { detailFixture } from '../../catalog/testing/detail-fixture.ts';
 import { assignmentCall, publishConfirmedClassification, taxonomyCall } from './api.ts';
 import {
   classificationChoices,
@@ -680,9 +681,36 @@ test('revisioned bulk publish never approves unseen supplier detail', async (con
           published: false,
           ...(request.data.id === 'supplier-linked'
             ? { alibabaPrimarySourceKey: 'a'.repeat(64) }
-            : {}),
+            : { productFamily: 'headphones', imageIds: ['img'] }),
         },
       });
+    // A manual product has no supplier detail to miss: it is approved from the
+    // admin's own row (MIU-32), then published under the same revision guard.
+    if (request.action === 'catalogDetailApproval') {
+      actions[actions.length - 1] = `approval:${request.data.action}`;
+      const step = request.data.action;
+      return Response.json({
+        ok: true,
+        data:
+          step === 'review'
+            ? {
+                ok: true,
+                kind: 'review',
+                productId: 'ordinary-draft',
+                expectedDigest: 'a'.repeat(64),
+                expectedRevision: null,
+                detail: { ...detailFixture(0), _id: 'ordinary-draft' },
+              }
+            : {
+                ok: true,
+                jobId: 'job',
+                revision: 'r',
+                nextPage: 0,
+                pages: 0,
+                complete: step !== 'begin',
+              },
+      });
+    }
     assert.equal(request.action, 'update');
     assert.equal(request.data.id, 'ordinary-draft');
     assert.equal(request.data.expectedUpdatedAt, revision);
@@ -707,6 +735,10 @@ test('revisioned bulk publish never approves unseen supplier detail', async (con
     'get',
     'catalogDetailCapabilities',
     'get',
+    'approval:prepare',
+    'approval:review',
+    'approval:begin',
+    'approval:finish',
     'update',
   ]);
 });

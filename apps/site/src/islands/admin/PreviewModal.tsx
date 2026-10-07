@@ -43,7 +43,9 @@ export function PreviewModal({
   onUnpublish,
 }: Props) {
   const dialogRef = useModalDialog();
-  const sharedPreview = canMarkReviewed && typeof doc.alibabaPrimarySourceKey === 'string';
+  // Manual products are approved like synced ones (MIU-32), so admins preview
+  // the same shared product page for both.
+  const sharedPreview = canMarkReviewed;
   const imageIds = Array.isArray(doc.imageIds) ? (doc.imageIds as string[]) : [];
   const sourceImageUrls = alibabaSourcePreviewUrls(doc.alibabaSourceImageUrls);
   const descriptionIds = Array.isArray(doc.descriptionImageIds)

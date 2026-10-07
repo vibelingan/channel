@@ -278,9 +278,10 @@ export async function updateRecord(
     isProductFamily(values.productFamily)
   ) {
     const current = await call<CollectionDoc>('get', { collection, id });
-    if (current.published === true && typeof current.alibabaPrimarySourceKey === 'string') {
+    if (current.published === true) {
       // Refresh the approved detail without inventing publication intent. Another
-      // admin may withdraw the product while this operation is in flight.
+      // admin may withdraw the product while this operation is in flight. Manual
+      // products too: an admin edit is their source (MIU-32).
       refreshPublishedDetail = true;
     }
   }
@@ -290,6 +291,11 @@ export async function updateRecord(
       throw new AdminApiError('INVALID_RESPONSE', 'Approval capability could not be confirmed.');
     if (capabilities.enabled) {
       let current = await call<CollectionDoc>('get', { collection, id });
+      if (typeof current.alibabaPrimarySourceKey !== 'string')
+        return approveManualProduct(collection, id, values, current, {
+          refreshPublishedDetail,
+          ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+        });
       if (typeof current.alibabaPrimarySourceKey === 'string') {
         if (expectedUpdatedAt)
           throw new AdminApiError(
@@ -383,6 +389,48 @@ export async function updateRecord(
     id,
     values,
     ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+  });
+}
+
+/**
+ * A manual product is approved like a synced one (MIU-32): save the form edits,
+ * build its version from the row (no Alibaba imports), approve, then publish.
+ * A revision guard from a classification flow carries through to each write.
+ */
+async function approveManualProduct(
+  collection: string,
+  id: string,
+  values: Record<string, unknown>,
+  initial: CollectionDoc,
+  options: { refreshPublishedDetail: boolean; expectedUpdatedAt?: string },
+): Promise<CollectionDoc> {
+  let current = initial;
+  let guard = options.expectedUpdatedAt;
+  const { published: _published, ...draftValues } = values;
+  if (Object.keys(draftValues).length) {
+    current = await call<CollectionDoc>('update', {
+      collection,
+      id,
+      values: draftValues,
+      ...(guard ? { expectedUpdatedAt: guard } : {}),
+    });
+    if (guard) guard = typeof current.updatedAt === 'string' ? current.updatedAt : undefined;
+  }
+  if (!isProductFamily(current.productFamily))
+    throw new AdminApiError('INVALID_PRODUCT', 'Choose a website category before publishing.');
+  if (!Array.isArray(current.imageIds) || current.imageIds.length === 0)
+    throw new AdminApiError('MEDIA_NOT_READY', 'Add at least one photo before publishing.');
+  const { prepareDetailReview, approveDetailReview } = await import(
+    './catalog-detail-approval-api.ts'
+  );
+  const review = await prepareDetailReview(id);
+  await approveDetailReview(review, crypto.randomUUID());
+  if (options.refreshPublishedDetail) return call<CollectionDoc>('get', { collection, id });
+  return call<CollectionDoc>('update', {
+    collection,
+    id,
+    values: { published: true },
+    ...(guard ? { expectedUpdatedAt: guard } : {}),
   });
 }
 
