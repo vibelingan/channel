@@ -44,17 +44,26 @@ export function tallyResults(results) {
   return tally;
 }
 
-/** Sends only `ready` rows, in batches; throws on any unconfirmed row. */
+/**
+ * Sends only `ready` rows, in batches; throws on any unconfirmed row. Rows already
+ * confirmed are on the error's `results`, so the receipt survives a partial run.
+ */
 export async function applyReadyRows(call, rows) {
   const ready = rows
     .filter((row) => row.outcome === 'ready')
     .map(({ productId, revision, priceSummary }) => ({ productId, revision, priceSummary }));
   const results = [];
+  const stop = (message) => Object.assign(new Error(message), { results });
   for (let start = 0; start < ready.length; start += BATCH) {
-    const response = await call({ mode: 'apply', rows: ready.slice(start, start + BATCH) });
+    let response;
+    try {
+      response = await call({ mode: 'apply', rows: ready.slice(start, start + BATCH) });
+    } catch (error) {
+      throw stop(`${error.message} — ${results.length} rows were confirmed before it.`);
+    }
     for (const item of response.results) {
       if (item.result?.ok !== true)
-        throw new Error(
+        throw stop(
           `${item.productId}: ${item.result?.code ?? 'unconfirmed'} — re-plan before retrying.`,
         );
       results.push(item);
@@ -116,7 +125,15 @@ async function main() {
     !Array.isArray(manifest.rows)
   )
     throw new Error('Manifest identity/format does not match the requested operation.');
-  manifest.results = await applyReadyRows(call, manifest.rows);
+  try {
+    manifest.results = await applyReadyRows(call, manifest.rows);
+  } catch (error) {
+    manifest.results = error.results ?? [];
+    manifest.failedAt = new Date().toISOString();
+    manifest.failure = error.message;
+    await save(manifest);
+    throw error;
+  }
   manifest.appliedAt = new Date().toISOString();
   await save(manifest);
   const after = countOutcomes(await planAll(call));

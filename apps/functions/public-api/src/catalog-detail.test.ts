@@ -93,11 +93,14 @@ test('an approved manual product (no configurations, website price) serves the s
   setAdapter(new ReadOnlyAdapter({ products: [approved('manual')] }));
   const result = await getProductDetail('manual');
   assert.ok(result.ok);
-  if (result.ok) {
-    assert.deepEqual(result.data.websitePricing, header('manual').websitePricing);
-    assert.deepEqual(result.data.facts, [{ name: 'Series', value: 'S1' }]);
-    assert.equal(result.data.variants.total, 0);
-  }
+  // The whole response: the approved header plus revision and an empty
+  // configuration page, nothing from the row (row name, row prices).
+  if (result.ok)
+    assert.deepEqual(result.data, {
+      ...header('manual'),
+      revision: 'r1',
+      variants: { items: [], total: 0, page: 1, pageSize: 50, hasMore: false },
+    });
 });
 
 test('a product not yet approved, or with a mismatched version, is not found (row fallback page)', async () => {

@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { applyCatalog, auditCatalog, verifyPage } from './catalog-price-repair.mjs';
+import {
+  applyCatalog,
+  auditCatalog,
+  publicPriceVerified,
+  verifyPage,
+} from './catalog-price-repair.mjs';
 
 function result(mode, offset, count) {
   const outcomes = Array.from({ length: count }, (_, index) => ({
@@ -188,4 +193,16 @@ test('malformed/duplicate pages and backwards cursors fail closed', () => {
   ])
     assert.throws(() => verifyPage(page, 'dry-run'), /Unconfirmed/);
   assert.throws(() => verifyPage(base, 'dry-run', 'p-099'), /Unconfirmed/);
+});
+
+test('public verification checks the sync price only on row-served products', () => {
+  const price = { mode: 'fixed', currency: 'USD', amountMinor: 250 };
+  const row = { alibabaPrimarySourceKey: 'linked', alibabaCatalogPricing: price };
+  assert.equal(publicPriceVerified(row, price), 'verified');
+  assert.equal(
+    publicPriceVerified({ ...row, alibabaCatalogPricing: { ...price, amountMinor: 1 } }, price),
+    'mismatch',
+  );
+  // Served from the approved version: no sync markers, so the repair is invisible publicly.
+  assert.equal(publicPriceVerified({ _id: 'p', priceSummary: {} }, price), 'approved-version');
 });

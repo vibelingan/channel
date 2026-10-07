@@ -81,6 +81,23 @@ test('apply stops when the server reports a row it could not confirm', async () 
   );
 });
 
+test('a run that fails partway still reports the rows it confirmed', async () => {
+  let calls = 0;
+  const rows = Array.from({ length: 25 }, (_, i) => ready(`p${i}`));
+  const error = await applyReadyRows(async (data) => {
+    calls++;
+    if (calls === 2) throw new Error('API call unconfirmed (503, unknown).');
+    return {
+      results: data.rows.map((row) => ({
+        productId: row.productId,
+        result: { ok: true, backfill: 'applied' },
+      })),
+    };
+  }, rows).catch((caught) => caught);
+  assert.match(error.message, /503.*20 rows were confirmed/);
+  assert.equal(error.results.length, 20);
+});
+
 test('apply totals separate applied rows from skipped rows by reason', () => {
   assert.deepEqual(
     tallyResults([

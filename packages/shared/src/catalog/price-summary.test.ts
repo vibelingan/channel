@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CatalogOfferPricing } from './offer-pricing.ts';
-import { CatalogPriceSummarySchema, derivePriceSummary } from './price-summary.ts';
+import { CatalogPriceSummarySchema, derivePriceSummary, priceSummaryMoq } from './price-summary.ts';
 import { CatalogDetailPublicationSchema } from './product-detail.ts';
 
 const tiers: CatalogOfferPricing = {
@@ -245,4 +245,26 @@ test('the summary schema ties variantId to SKU summaries and refuses empty price
       pricing: { mode: 'negotiable', minimumOrderQuantity: 5 },
     }).success,
   );
+});
+
+test('summary MOQ: the stated minimum order wins over the first tier; else the first tier', () => {
+  const tiered = (minimumOrderQuantity?: number): CatalogOfferPricing => ({
+    mode: 'tiered',
+    currency: 'USD',
+    ...(minimumOrderQuantity === undefined ? {} : { minimumOrderQuantity }),
+    tiers: [
+      { minimumQuantity: 5, maximumQuantity: 99, unitAmountMinor: 200 },
+      { minimumQuantity: 100, unitAmountMinor: 150 },
+    ],
+  });
+  assert.equal(priceSummaryMoq({ source: 'website', pricing: tiered(50) }), 50);
+  assert.equal(priceSummaryMoq({ source: 'website', pricing: tiered() }), 5);
+  assert.equal(
+    priceSummaryMoq({
+      source: 'product',
+      pricing: { mode: 'fixed', currency: 'USD', amountMinor: 100 },
+    }),
+    undefined,
+  );
+  assert.equal(priceSummaryMoq(undefined), undefined);
 });

@@ -4971,7 +4971,13 @@ test('price summary backfill plans read-only, then applies only reviewed rows id
     pricing: { mode: 'fixed', currency: 'USD', amountMinor: 120 },
   };
   assert.deepEqual(plan.rows, [
-    { productId: 'approved-1', revision: 'r1', outcome: 'ready', priceSummary: summary },
+    {
+      productId: 'approved-1',
+      revision: 'r1',
+      variantCount: 2,
+      outcome: 'ready',
+      priceSummary: summary,
+    },
     { productId: 'manual-1', outcome: 'not-approved' },
   ]);
   assert.equal(plan.done, true);
@@ -5039,8 +5045,41 @@ test('price summary backfill apply writes the server-derived summary, never a ca
   assert.deepEqual(stale.results, [
     { productId: 'manual-1', result: { ok: true, backfill: 'skipped', reason: 'plan-changed' } },
   ]);
-  expectErr(
-    await backfillCall({ mode: 'plan', afterId: 'x'.repeat(70_000) }, token),
-    'VALIDATION_ERROR',
+  const tooLarge = await backfillCall({ mode: 'plan', afterId: 'x'.repeat(70_000) }, token);
+  expectErr(tooLarge, 'VALIDATION_ERROR');
+  // The size cap answers before the schema does.
+  assert.equal(
+    tooLarge.ok ? undefined : tooLarge.error.message,
+    'Price summary backfill request is too large.',
+  );
+});
+
+test('price summary backfill apply skips a row reviewed against an older revision', async () => {
+  const store = backfillStore();
+  setAdapter(new BackfillAdapter(store));
+  currentStore = store;
+  const token = await adminToken();
+  const plan = okData<{ rows: Array<Record<string, unknown>> }>(
+    await backfillCall({ mode: 'plan' }, token),
+  );
+  const current = plan.rows[0];
+  const result = okData<{ results: unknown[] }>(
+    await backfillCall(
+      {
+        mode: 'apply',
+        rows: [{ productId: 'approved-1', revision: 'r0', priceSummary: current?.priceSummary }],
+      },
+      token,
+    ),
+  );
+  assert.deepEqual(result.results, [
+    {
+      productId: 'approved-1',
+      result: { ok: true, backfill: 'skipped', reason: 'summary-changed' },
+    },
+  ]);
+  assert.equal(
+    Object.hasOwn(store.products?.[0]?.catalogDetailPublication as object, 'priceSummary'),
+    false,
   );
 });

@@ -29,11 +29,23 @@ export interface PriceSummaryBackfillReader {
   ): Promise<CollectionDoc[]>;
 }
 
+/**
+ * `variantCount` lets the operator spot a `source: 'product'` summary on a product
+ * that has configurations: an approval from before batch 1 may still hold the
+ * retired wholesale headline as its product-level price (runbook R4).
+ */
 export type PriceSummaryBackfillRow =
-  | { productId: string; revision: string; outcome: 'ready'; priceSummary: CatalogPriceSummary }
+  | {
+      productId: string;
+      revision: string;
+      variantCount: number;
+      outcome: 'ready';
+      priceSummary: CatalogPriceSummary;
+    }
   | {
       productId: string;
       revision?: string;
+      variantCount?: number;
       outcome: 'already-present' | 'not-approved' | 'invalid-variant-rows' | 'no-price';
     };
 
@@ -54,7 +66,11 @@ export async function planProductPriceSummary(
     return { productId: product._id, outcome: 'not-approved' };
   }
   const publication = parsed.data;
-  const base = { productId: product._id, revision: publication.revision };
+  const base = {
+    productId: product._id,
+    revision: publication.revision,
+    variantCount: publication.variantCount,
+  };
   if (publication.priceSummary) return { ...base, outcome: 'already-present' };
   const storage = publication.variantStorage === 'immutable-v1' ? 'immutable-v1' : 'legacy';
   const rows = await reader.listApprovedVariants(product._id, publication.revision, storage);
