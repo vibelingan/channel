@@ -161,10 +161,9 @@ async function main() {
     await save(manifest);
     throw error;
   }
-  manifest.appliedAt = new Date().toISOString();
-  delete manifest.failedAt;
-  delete manifest.failure;
-  await save(manifest);
+  // A successful re-run replaces the record of an earlier failure.
+  const { failedAt: _failedAt, failure: _failure, ...applied } = manifest;
+  await save({ ...applied, appliedAt: new Date().toISOString() });
   const after = countOutcomes(await planAll(call));
   console.log(
     JSON.stringify({ results: tallyResults(manifest.results), afterPlan: after }, null, 2),

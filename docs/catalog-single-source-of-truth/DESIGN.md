@@ -352,9 +352,9 @@ product page already shows the selected configuration's own price.
 
 ## 7. Restoring the 21 products (rollout)
 
-1. Implement the fix and validate it locally (all batches' tests, local e2e).
-   Then unpublish the 21 (DEC-13) so their wrong price leaves the site before the
-   deploys start.
+1. Implement the fix and validate it locally (tests and local e2e of batches
+   1–3; owner 2026-10-08: deploy those first). Then unpublish the 21 (DEC-13) so
+   their wrong price leaves the site before the deploys start.
 2. Deploy the headline fix and rebuild stored offers from saved payloads
    (dry run → apply).
 3. Deploy the price summary in two steps: first the code that can *read* it,

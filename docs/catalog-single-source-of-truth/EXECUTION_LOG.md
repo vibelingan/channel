@@ -50,11 +50,11 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 
 | Step | Status | Notes |
 |---|---|---|
-| R1 Unpublish the 21 | Not started — after local validation of all batches (DEC-13) | List below |
+| R1 Unpublish the 21 | Not started — after local validation of batches 1–3 (DEC-13, owner 2026-10-08). 2026-10-08: the session's permission check refused this production write; needs the owner | List below |
 | R2 Replay rebuild | Not started | |
-| R3 Pinned-offer count | Not started | |
+| R3 Pinned-offer count | **Done 2026-10-08**: 0 of 1,118 products have `alibabaPinnedOfferKey` → R2 may proceed | Read-only admin list |
 | R4 Price summary backfill | Not started | |
-| R5 Consistency audit after batch 3 | Not started | |
+| R5 Consistency audit (before and after batch 3) | **Before done 2026-10-08** (production, read-only): 137 listed, 130 approved, 7 fallback (the manual products), 0 errors, 0 name/photo changes; every approved card lacks a summary until stage B (expected) | After: not started |
 | R6 Changed-since-approval audit | Not started | |
 | R7 Admin re-approval | Not started | |
 | R8 Final audit + browser checks | Not started | |
@@ -91,6 +91,32 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### Batch 3 fix re-review (2026-10-08)
+- Two reviewers on `4d69d06..7ad213a`: code (no P1/P2, 7 P3) and docs/drift
+  (one conditional P1, one P2, P3s).
+- P1: the stage A deploy (then planned as `bcfac0a` + `de87798`) lacked the
+  planner's `variantCount`, so R4's check for product-level card prices would
+  have matched nothing. Fixed in the recipe: stage A also takes the three
+  `8958d90` planner files (bases verified identical).
+- P2: R5 "Before" needed every name/photo change; the audit printed only the
+  first 20 of all mismatches. Added `--only-fields` (tested).
+- P3 fixed (`fa4e78d` and this commit): page shows the MOQ of any price with
+  nothing orderable; MOQ line spacing; backfill receipt keeps every confirmed
+  row, rejects short responses, clears an old failure, and the plan prints the
+  R4 list; audit fails on an empty list; price repair needs positive evidence
+  of an approved version; runbook wording (no admin screen for the backfill,
+  functions always deploy before the site, `invalid-variant-rows` handling,
+  stage B pinned when shipped, MIU-7 arguments); README lists DEC-17.
+- Deploy plan changed: batches 1, 2a, 2b ship as one deploy (stage A) with no
+  approvals during it; batch 3 as stage B (MIU_BREAKDOWN "Order").
+- Also fixed while running both CI browser lanes locally (`95ee994`): MIU-1 had
+  broken the approved-product lane's fixture, which still expected the $7.67
+  headline. Lane 1: 151 passed. Lane 2: all passed after the fix.
+- Production, read-only (2026-10-08): R3 done (0 pinned offers); R5 "Before"
+  baseline recorded in the runbook table.
+- Validation: site 517; scripts 14 + 8 + 7 for the touched files, full
+  `pnpm test:deploy-smoke` earlier 449; typecheck; lint.
 
 ### Batch 3 review fixes (2026-10-08)
 - Review of `bcfac0a..4d69d06` by four reviewers (assumption drift, deep +

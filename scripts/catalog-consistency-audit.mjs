@@ -4,6 +4,7 @@
  *
  *   node --experimental-strip-types scripts/catalog-consistency-audit.mjs --api https://API-ORIGIN
  *   node --experimental-strip-types scripts/catalog-consistency-audit.mjs --api https://API-ORIGIN --require-no-fallback
+ *   … --only-fields name,mainPhoto   (report only these fields, every product; runbook R5 "Before")
  *
  * For every listed product with an approved page it compares the name, the main
  * photo (by image id), the card's price summary and MOQ with what the page's own
@@ -169,6 +170,16 @@ export async function auditCatalog(get, { concurrency = 8, listPageSize = LIST_P
   return report;
 }
 
+/** Keeps only mismatches on the given fields, narrowed to those fields. */
+export function onlyFields(mismatches, fields) {
+  return mismatches.flatMap((mismatch) => {
+    const kept = mismatch.fields.filter((field) => fields.includes(field));
+    if (kept.length === 0) return [];
+    const pick = (side) => Object.fromEntries(kept.map((field) => [field, side[field]]));
+    return [{ ...mismatch, fields: kept, card: pick(mismatch.card), page: pick(mismatch.page) }];
+  });
+}
+
 export function auditExitCode(report, { requireNoFallback = false } = {}) {
   // An empty list means a wrong origin or an empty catalog: nothing was checked.
   if (report.listed === 0) return 1;
@@ -181,6 +192,7 @@ async function main() {
     options: {
       api: { type: 'string' },
       'require-no-fallback': { type: 'boolean', default: false },
+      'only-fields': { type: 'string' },
     },
   });
   const url = values.api ?? '';
@@ -202,6 +214,15 @@ async function main() {
     return { status: response.status, body };
   };
   const report = await auditCatalog(get);
+  const fields = values['only-fields']?.split(',').map((field) => field.trim());
+  if (fields) {
+    // A focused question (e.g. which cards will change name or photo): every
+    // matching product, nothing else, and the exit code answers only that.
+    const focused = onlyFields(report.mismatches, fields);
+    console.log(JSON.stringify({ listed: report.listed, fields, mismatches: focused }, null, 2));
+    process.exitCode = report.listed === 0 || report.errors.length > 0 || focused.length ? 1 : 0;
+    return;
+  }
   console.log(
     JSON.stringify(
       {

@@ -69,32 +69,41 @@ define shapes that later MIUs consume.
 | 5b | 31, 37 | Publish gate for every product (after R9); audit shows 0 products on the row fallback (R10) |
 
 Order: implement and validate batches locally first (DEC-13), run R1, then
-deploy batch by batch. Owner 2026-10-08: batches 1–3 (which fix the 21 products)
-deploy as soon as they pass local validation; batches 4–5 follow when done.
-**Batch 2a must deploy on its own** (on top of batch 1): if the summary reader
-and its writers deploy together, any approval made during or after that deploy
-writes a `priceSummary` that the previous build cannot read, so neither a
-rollback nor a function-by-function rollout is safe (batch 2 review #2). Each
-batch: PR into `test` → Deploy Test → runbook checks → next batch.
+deploy. Owner 2026-10-08: batches 1–3 deploy as soon as they pass local
+validation; with R2 and a re-approval (Publish) of each of the 21 they fix the
+21 products. Batches 4–5 follow when done.
 
-**What each deploy contains.** Two review fixes were committed after later work
-(`c2e0bdb` for batch 1 after MIU-4; `de87798` for batch 2b after MIU-8/9), so a
-batch is *not* a plain prefix of the branch. Build each deploy branch from the
-batch's last commit plus that batch's fix files. Every fix file is
-byte-identical at the batch's last commit and at the fix's parent (checked
-2026-10-08), so the copy is exact:
+Batches 1, 2a and 2b ship as **one deploy (stage A)**, batch 3 as a second
+(stage B). Batch 2a was planned alone (batch 2 review #2) so that no approval
+could write a `priceSummary` that a not-yet-updated function cannot read.
+Within one deploy run the pipeline updates `admin` (the writer) before
+`public-api` (a reader), so the rule becomes: **no approvals while stage A
+deploys** (the operator holds them; nothing approves automatically), and R4
+writes summaries only after stage A is verified. From then on the only rollback
+target is stage A itself, which reads summaries. Never roll back past stage A
+once R4 has run. Each stage: PR into `test` → Deploy Test → runbook checks.
 
-| Deploy | Branch from | Then copy these files from | Files |
-|---|---|---|---|
-| 1 | `f0e3da7` | `c2e0bdb` | `apps/functions/alibaba-catalog-sync/src/{ingest,raw-replay,raw-replay.test}.ts`, `packages/alibaba-catalog-sync/src/{alibaba-normalizer,alibaba-raw-completeness.test}.ts` |
-| 2a | `5cf2a6b` | `c2e0bdb` | same five files |
-| 2b | `bcfac0a` | `de87798` | its nine code files (`git show --name-only de87798 -- ':!docs'`) |
-| 3 | branch head after the batch 3 review | — | — |
+**What each deploy contains.** Some fixes were committed after later work, so
+stage A is *not* a plain prefix of the branch. It is `bcfac0a` (batches 1, 2a,
+2b and the batch 1 fix `c2e0bdb`) plus these files, each byte-identical at
+`bcfac0a` and at its source commit's parent (checked 2026-10-08):
 
-`git switch -c deploy/<n> <from> && git checkout <fix> -- <files> && git commit`.
-For batch 3, deploying the site before the functions avoids a short window in
-which an old browser bundle reads the new list (approved cards would show
-"Request a quote"); the new bundle reads the old list exactly as today.
+| From | Files | Why |
+|---|---|---|
+| `de87798` | its nine code files (`git show --name-only de87798 -- ':!docs'`) | batch 2 review fixes |
+| `8958d90` | `packages/db/src/catalog-price-summary-backfill{,.test}.ts`, `apps/functions/admin/src/handler.test.ts` | plan rows carry `variantCount`, which the R4 review needs |
+| `95ee994` | `tests/fixtures/seed-raw-catalog.ts`, `tests/e2e/catalog-formal-journey.spec.ts` without its `[data-quote-moq]` lines | MIU-1 removed the fixture's headline price; MIU-33 (the MOQ line) arrives in stage B |
+
+Each stage branch is then merged with `origin/main` and `origin/test` (conflicts:
+the price block and its test, the formal journey, the admin handler test and
+five test-only docs; in each, the branch side is the newer version) and pushed
+as a PR into `test`. Check before the PR: the stage tree differs from `main`
+only in the stage's own files. Stage B is the reviewed branch head, recorded in
+EXECUTION_LOG when it ships.
+
+The pipeline always deploys functions before the site, so during each deploy an
+open old browser bundle can read the new list for a few minutes (approved cards
+show "Request a quote"). Accepted (MIU-8).
 
 ---
 
@@ -464,8 +473,8 @@ Depends on: MIU-6
   afterId?, manifest? }` → plan returns the manifest page and `nextAfterId`; apply
   takes the reviewed manifest rows back and returns per-row outcomes.
 - Script mirrors `scripts/catalog-price-repair.mjs` (same auth/env handling): pages
-  through `plan`, writes the manifest to a local file, and only with
-  `--apply <manifest>` calls `apply`. Prints totals: eligible, applied, skipped by
+  through `plan`, writes the manifest to a local file, and only in `apply` mode
+  (`plan|apply <manifest> <api-origin>`, token in `CHANNEL_ADMIN_TOKEN`) calls `apply`. Prints totals: eligible, applied, skipped by
   reason.
 - Non-admin roles → `FORBIDDEN`.
 
@@ -1672,8 +1681,8 @@ production data and need the owner's go-ahead at the time.
 | R1 ⚠ | After batches 1–3 pass local validation, before the first deploy (DEC-13; owner 2026-10-08) | Unpublish the 21 products (list in EXECUTION_LOG) via admin. Their "changed" flag (set later by R6) is not cleared by unpublishing (DEC-11) | Their list/detail URLs return not found |
 | R2 ⚠ | After batch 1 | Alibaba observation replay: Validate (dry run, made **after** the deploy — dry runs made before it fail safely with `page-changed` because the page hash inputs changed) → check counts ("Headline prices removed", price modes) and failures → Apply. Also count wholesale products without SKUs that now use their ladder (MIU-1). Run R3 **before** this step. Note: replay never writes `products`; a product row's sync price (`alibabaCatalogPricing`) changes only when a later run sees and re-promotes that product ("Run now" is incremental). After batch 3 no public surface reads that field, and re-approval (R7) reads the replayed observations, so this lag affects only admin views | No `offer-set-mismatch` failures; next "Run now" counts no surge; re-running the same Apply is safe (repeat-safe since the batch 1 review) |
 | R3 | **Before R2** | Count products with `alibabaPinnedOfferKey`, and especially any pin pointing at a product-level (`'@product'`) offer that R2 would retire (pricing repair would then report `invalid-pin` and promotion would silently pick another offer) | 0 → continue; >0 → stop and ask (DESIGN §9) |
-| R4 ⚠ | After batch 2b; **hard gate for batch 3** | Check no `catalogDetailApprovals` job is in `staging` (a job begun before the deploy finishes without a summary). Then backfill plan → review → `apply` (`node scripts/catalog-price-summary-backfill.mjs plan\|apply <manifest> https://API-ORIGIN`, or the same admin action from the logged-in admin page). In the review of the **saved plan** (before apply; the `plan` step prints them as `productPriceWithConfigurations`), list rows with `priceSummary.source === 'product'` and `variantCount > 0`: their card price comes from a product-level offer although the product has configurations, possibly the retired wholesale headline (batch 3 review #7). Unpublish or re-approve those after R2 before batch 3. Re-run the plan right before the batch 3 deploy | Re-plan: 0 `ready` rows. `no-price` rows are accepted (their page also says "Request a quote"); `invalid-variant-rows` rows are listed (their page already shows an error). An approved version without a summary shows "Request a quote" on its card, never a row or sync price (DESIGN §8) |
-| R5 | Before and after batch 3 | **Before:** count (a) unlinked products with an old publication; run the audit and read only its `name` / `mainPhoto` mismatches: those cards change to their approved name/photo at batch 3. **After:** `node --experimental-strip-types scripts/catalog-consistency-audit.mjs --api https://API-ORIGIN`; (b) = its `fallbackIds` that are linked (counted with the shared rule, not by field presence) | Exit 0: 0 mismatches, 0 errors (a 404 other than "Detail not available" is an error). Fallback = products with no approved version, expected ≈ the 7 manual products; the 21 are unpublished, so not listed |
+| R4 ⚠ | After batch 2b; **hard gate for batch 3** | Check no `catalogDetailApprovals` job is in `staging` (a job begun before the deploy finishes without a summary). Then backfill plan → review → `apply` (`CHANNEL_ADMIN_TOKEN=… node scripts/catalog-price-summary-backfill.mjs plan\|apply <manifest> https://API-ORIGIN`; no admin screen calls this action). In the review of the **saved plan** (before apply; the `plan` step prints them as `productPriceWithConfigurations`), list rows with `priceSummary.source === 'product'` and `variantCount > 0`: their card price comes from a product-level offer although the product has configurations, possibly the retired wholesale headline (batch 3 review #7). Unpublish or re-approve those after R2 before batch 3. Re-run the plan right before the batch 3 deploy | Re-plan: 0 `ready` rows. `no-price` rows are accepted (their page also says "Request a quote"); `invalid-variant-rows` rows are listed (their page already shows an error) and each is re-approved (Publish) or unpublished before batch 3, because R5 counts their page error as a failure. An approved version without a summary shows "Request a quote" on its card, never a row or sync price (DESIGN §8) |
+| R5 | Before and after batch 3 | **Before:** count (a) unlinked products with an old publication; run the audit with `--only-fields name,mainPhoto`: it lists every card that changes to its approved name/photo at batch 3 (2026-10-08 production: 0). **After:** `node --experimental-strip-types scripts/catalog-consistency-audit.mjs --api https://API-ORIGIN`; (b) = its `fallbackIds` that are linked (counted with the shared rule, not by field presence) | Exit 0: 0 mismatches, 0 errors (a 404 other than "Detail not available" is an error). Fallback = products with no approved version, expected ≈ the 7 manual products; the 21 are unpublished, so not listed |
 | R6 ⚠ | Right after batch 4, before admins use Save on published products | `auditChangesSinceApproval` plan → review → apply (MIU-38). Until it runs, products have no baseline digest and are never flagged, so DEC-12 cannot hold back their supplier changes | The 21 appear as `changed`; others get a baseline digest |
 | R7 | After R6 | Admin approves each flagged product ("Approve changes" or Publish) | Flags cleared; products back in the list |
 | R8 | After R7 | `node --experimental-strip-types scripts/catalog-consistency-audit.mjs --api https://API-ORIGIN`; browser check at 390px and 1440px: one multi-tier, one single-tier, one website-price, one "Request a quote" product; switch configurations | 0 mismatches; each configuration shows its own price |

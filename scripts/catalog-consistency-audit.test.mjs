@@ -4,7 +4,12 @@ import {
   derivePriceSummary,
   priceSummaryMoq,
 } from '../packages/shared/src/catalog/price-summary.ts';
-import { auditCatalog, auditExitCode, cardPriceFromDetail } from './catalog-consistency-audit.mjs';
+import {
+  auditCatalog,
+  auditExitCode,
+  cardPriceFromDetail,
+  onlyFields,
+} from './catalog-consistency-audit.mjs';
 
 const tiered = (amounts, currency = 'USD') => ({
   mode: 'tiered',
@@ -249,4 +254,23 @@ test('an empty list fails: a wrong origin must not pass as "no mismatches"', asy
   const report = await auditCatalog(fakeApi([], {}).get);
   assert.equal(report.listed, 0);
   assert.equal(auditExitCode(report), 1);
+});
+
+test('--only-fields keeps every product that differs on those fields, and only those fields', async () => {
+  const stale = { source: 'sku', variantId: 'black', pricing: black };
+  const report = await auditCatalog(
+    fakeApi([card('a', stale, { name: 'Old name' }), card('b', stale)], {
+      a: ok(approved),
+      b: ok(detail('b', [variant('black', black), variant('white', white)])),
+    }).get,
+  );
+  assert.equal(report.mismatches.length, 2);
+  assert.deepEqual(onlyFields(report.mismatches, ['name', 'mainPhoto']), [
+    {
+      productId: 'a',
+      fields: ['name'],
+      card: { name: 'Old name' },
+      page: { name: 'Product a' },
+    },
+  ]);
 });

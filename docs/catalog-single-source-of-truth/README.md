@@ -4,8 +4,9 @@
 the same approved data for a product, synced from Alibaba or entered by an admin,
 and admins see every Alibaba change before it goes public.
 
-**Status (2026-10-07):** plan approved except DEC-12 (below); execution started in
-batch order. Branch `feat/catalog-alibaba-price-tiers` (not yet merged to `main`;
+**Status (2026-10-08):** batches 1–3 implemented, reviewed and validated locally
+(unit tests, typecheck, lint, build, both CI browser lanes). Open for the owner:
+DEC-12 and DEC-17 (below); neither blocks batches 1–3. Branch `feat/catalog-alibaba-price-tiers` (not yet merged to `main`;
 continue here).
 
 ## Read in this order
@@ -33,6 +34,14 @@ repair they disagreed on 21 products, and the page showed Alibaba's headline pri
 - the 21 products are restored through normal re-approval.
 
 ## Waiting for owner review
+
+**DEC-17 — which configuration the product page opens on.** The card shows the
+cheapest configuration ("From $4.30 · MOQ 1000" for a headset whose White option
+starts at 1,000 pieces). The page opens on the first configuration (Black,
+"$6.61, 2–99 pieces"). Both are right, but the first screen does not match the
+card; this is also how the site behaves today. Proposal: open the page on the
+configuration the card's price comes from. Alternative: keep today's behaviour.
+Batch 3 ships either way.
 
 **DEC-12 — what Save does on a product that is already live.**
 
