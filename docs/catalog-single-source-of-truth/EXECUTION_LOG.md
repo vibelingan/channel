@@ -32,14 +32,14 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 23 | Admin badge / chip show reason | 4 | Not started | |
 | 24 | "Approve changes" action | 4 | Not started | |
 | 25 | Edit form shows pending Alibaba changes before Save | 4 | Pending owner review (DEC-12) | |
-| 26 | `catalog-consistency-audit` script | 3 | Done | (this commit) |
+| 26 | `catalog-consistency-audit` script | 3 | Done | `4d69d06` (review fix `844d98b`) |
 | 27 | Manual draft, spec facts, MOQ-only price in the planner | 5a | Not started | |
 | 28 | `manual-source` prepare command + spec fields in approval fingerprint | 5a | Not started | |
 | 29 | Receipt fingerprint covers spec fields for manual owners | 5a | Not started | |
 | 30 | Admin prepare — manual branch | 5a | Not started | |
 | 31 | Publish gate for every product on update | 5b | Not started (ships after R9) | |
 | 32 | Admin publish flow and preview include manual products | 5a | Not started | |
-| 33 | Product page shows MOQ when there is no price | 5a | Not started | |
+| 33 | Product page shows MOQ when there is no price | 3 (moved from 5a) | Done | `00a157a` |
 | 34 | Manual product end-to-end (local) + admin e2e updates | 5a | Not started | |
 | 35 | Batch "Assign category" confirms before publishing pending changes | 4 | Pending owner review (DEC-12) | |
 | 36 | Replay admin page shows `productHeadlineDropped` | 1 | Done | `f0e3da7` |
@@ -91,6 +91,62 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### Batch 3 review fixes (2026-10-08)
+- Review of `bcfac0a..4d69d06` by four reviewers (assumption drift, deep +
+  cross-file + security, tests + types, old data + other readers). No P1 in the
+  code; 8 P2. Findings: `.claude/review-findings-4d69d06.md` (local).
+- Fixed:
+  - `42d4cb5`: tests pin that an approved product with no stored summary
+    ships no price, MOQ or row description; a VIP viewer gets no row price for
+    an approved product; a not-yet-approved product projects the same with the
+    flag on or off. Stale comment corrected. Mutation (row description leaks)
+    failed the new test.
+  - `844d98b`: the audit counts only "Detail not available" as fallback (any
+    other 404 is an error; a card with a summary must have a page); compares
+    the MOQ; rejects row price fields on approved cards. New tests for the
+    missed-backfill shape and a failing list page. The reviewer's two
+    mutations now fail tests.
+  - `583208e`: the row-page price block shows the summary price; an equal
+    range shows one price; tests for tiers below the MOQ; hub and e2e fixtures
+    use a row MOQ that differs from the summary's; the e2e test fails on any
+    unmocked API call (re-run: passed).
+  - `8958d90`: backfill plan rows carry `variantCount` (R4 lists product-level
+    summaries on products with configurations); the backfill script keeps its
+    receipt on a partial failure; `catalog-price-repair.mjs` no longer fails
+    for products served from their approved version; the size-cap and
+    revision-check tests now fail when the check is removed (verified); MOQ
+    precedence, full product-page response and oldest legacy row shape tested.
+  - `00a157a`: MIU-33 pulled into batch 3 (see its entry).
+- Docs (this commit): deploy recipe per batch (the batch 1 and 2b fixes were
+  committed after later work; each deploy = the batch's last commit plus its
+  fix files, bases verified identical); R4 is a hard gate for batch 3 with a
+  0-`ready` criterion; R5 runs before and after batch 3; audit commands spelled
+  out; MIU-38 compares product-level offers; DESIGN §8 drops the promised
+  fallback to the version's own product price (it could show the retired
+  headline) and records the remaining known limits; "As built" notes on MIU-11,
+  12, 13, 14, 26, 33.
+- Behaviour decision made here (DESIGN §8): an approved version without a
+  stored summary shows "Request a quote" on its card. Showing nothing is
+  safer than showing a possibly retired price; R4 makes the case not occur.
+- Left for the owner: DEC-17 (open the product on the card's configuration).
+- Separate task offered (pre-existing, not this branch): public search matches
+  the Alibaba product ID.
+- Validation: shared 176, db 235, admin 247, public-api 125, site 517, scripts
+  449 — all pass; `pnpm typecheck`; `pnpm lint`; `pnpm build`; MIU-14 e2e.
+
+### MIU-33 — product page shows the MOQ when there is no price (2026-10-08, `00a157a`)
+- What changed: `CatalogCompactPrice` shows "≥N pieces" under "Request a
+  quote" when the quote states a minimum order: website price first; else the
+  product's own quote, then the selected configuration's (the card summary's
+  order). No new copy keys.
+- Why now: batch 3 already shows "Request a quote · MOQ N" on the card, so
+  the page needed the same line (batch 3 review #9).
+- Tests (red → green): website unavailable MOQ 50 → "≥50 pieces"; product
+  negotiable MOQ 200 → "≥200 pieces"; configuration-only MOQ 1 → "≥1 piece";
+  no MOQ → no line. The existing "unknown configuration prices" test is
+  unchanged and passes.
+- Validation: site 517 pass; typecheck; lint; build.
 
 ### MIU-26 — `catalog-consistency-audit` script (2026-10-07)
 - What changed: new read-only `scripts/catalog-consistency-audit.mjs`. It pages
