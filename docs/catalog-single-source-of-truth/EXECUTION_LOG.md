@@ -20,7 +20,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 11 | Site decoder + `Product.priceSummary` | 3 | Done | `e9f696c` |
 | 12 | Card price / MOQ from summary | 3 | Done | `f41d391` |
 | 13 | Hub featured strip effective MOQ | 3 | Done | `0a8b59e` |
-| 14 | E2E: configuration switch changes price; card matches page | 3 | Done | (this commit) |
+| 14 | E2E: configuration switch changes price; card matches page | 3 | Done | `0ac6f8f` |
 | 15 | `alibabaReviewReason` field + identity rules | 4 | Not started | |
 | 16 | `publicSourceDigest` | 4 | Not started | |
 | 17 | Prepare records source digest | 4 | Not started | |
@@ -32,7 +32,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 23 | Admin badge / chip show reason | 4 | Not started | |
 | 24 | "Approve changes" action | 4 | Not started | |
 | 25 | Edit form shows pending Alibaba changes before Save | 4 | Pending owner review (DEC-12) | |
-| 26 | `catalog-consistency-audit` script | 3 | Not started | |
+| 26 | `catalog-consistency-audit` script | 3 | Done | (this commit) |
 | 27 | Manual draft, spec facts, MOQ-only price in the planner | 5a | Not started | |
 | 28 | `manual-source` prepare command + spec fields in approval fingerprint | 5a | Not started | |
 | 29 | Receipt fingerprint covers spec fields for manual owners | 5a | Not started | |
@@ -91,6 +91,38 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-26 — `catalog-consistency-audit` script (2026-10-07)
+- What changed: new read-only `scripts/catalog-consistency-audit.mjs`. It pages
+  through the public list, reads each product's page (every configuration page,
+  pinned to the first page's revision, 8 at a time) and, for approved products,
+  compares name, main photo (by image id) and the card's price summary with the
+  price the page's own offers give under the approval rule. Products without an
+  approved page are listed apart as row fallback. Exit 1 on any mismatch or
+  unconfirmed read; `--require-no-fallback` also fails on any fallback product.
+  Prints counts, fallback IDs and the first 20 mismatches (card value vs page value).
+- Run: `node --experimental-strip-types scripts/catalog-consistency-audit.mjs --api https://API-ORIGIN`
+  (HTTP only for localhost). No credentials: public API only.
+- Deviations:
+  - It imports `derivePriceSummary` from the shared package instead of
+    re-implementing the rule (same pattern as `catalog-taxonomy-migration.mjs`),
+    so there is no second copy to drift. The parity test still checks the input
+    mapping against a direct `derivePriceSummary` call.
+  - It reads the unfiltered list (every family at once) instead of each family's
+    list, so every product is checked exactly once.
+- Tests (7, written first; first run failed on the missing module):
+  agree → 0; price mismatch → 1 with the product named; name and photo compared,
+  photo by id; fallback counted apart, `--require-no-fallback` → 1; every list
+  page and configuration page read, pinned to one revision; a 500 is an error,
+  never a pass; parity with `derivePriceSummary`. Mutation checks: skipping later
+  configuration pages failed 1 test; comparing photos by URL failed 5.
+- Live run against the real local API (`apps/local-server`, scratch database,
+  detail enabled): its 12 seeded products → `listed 12, approved 0, fallback 12`,
+  exit 0. After adding two approved products (one correct, one whose stored card
+  price was $9.00 while its page offer is $5.00) → `listed 14, approved 2,
+  mismatched 1` naming the stale one, exit 1. This also confirms over HTTP that
+  the list serves the approved name, photo and summary (MIU-8).
+- Validation: `pnpm test:deploy-smoke` 443 pass, 0 fail; `pnpm lint`.
 
 ### MIU-14 — e2e: card shows the summary; each configuration its own tiers (2026-10-07)
 - What changed: one new scenario in `tests/e2e/sku-detail.spec.ts`. The list
