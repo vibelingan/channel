@@ -4,10 +4,52 @@
 the same approved data for a product, synced from Alibaba or entered by an admin,
 and admins see every Alibaba change before it goes public.
 
-**Status (2026-10-08):** batches 1–3 implemented, reviewed and validated locally
-(unit tests, typecheck, lint, build, both CI browser lanes). Open for the owner:
-DEC-12 and DEC-17 (below); neither blocks batches 1–3. Branch `feat/catalog-alibaba-price-tiers` (not yet merged to `main`;
-continue here).
+**Status (2026-10-08 morning):**
+- Batches 1–3 are reviewed, tested and ready to ship as two deploys:
+  stage A = [#67](https://github.com/vibelingan/channel/pull/67) (CI green,
+  nothing visible changes) and stage B =
+  [#68](https://github.com/vibelingan/channel/pull/68) (draft; customers see this
+  one). **Neither is merged**: the session's permission check refuses production
+  deploys and production data writes, so those steps are yours (or allow them).
+- Batch 4 (the "changed since approval" flag) is built and tested locally,
+  except MIU-25/35, which wait for DEC-12. Batch 5 (manual products) is not
+  started.
+- Open decisions: DEC-12 and DEC-17 (below). Neither blocks batches 1–3.
+- Branch `feat/catalog-alibaba-price-tiers` (not yet merged to `main`).
+
+## Morning checklist (production, in this order)
+
+Each step needs the one before it. Steps 1, 3, 4 and 7 change production data.
+
+1. **Hide the 21 wrong products.** Admin → Products → search each name (list in
+   [EXECUTION_LOG.md](EXECUTION_LOG.md)) → tick it → **Disable**. Check: their
+   pages say not found.
+2. **Deploy stage A.** Merge [#67](https://github.com/vibelingan/channel/pull/67)
+   into `test`; wait for "Deploy Test" to finish. Nothing on the site should
+   change. Do not approve or publish products while it deploys.
+3. **Rebuild the stored Alibaba offers.** Admin → Alibaba Sync → observation
+   replay: **Validate** (dry run) → check the counts ("Headline prices removed"
+   is expected, no `offer-set-mismatch` failures) → **Apply**.
+4. **Give older approvals their card price.** From the repo:
+   `CHANNEL_ADMIN_TOKEN=… node scripts/catalog-price-summary-backfill.mjs plan /private/backfill.json https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com`,
+   read the output (`productPriceWithConfigurations` lists products whose card
+   would show a product-level price although they have configurations; unpublish
+   or re-approve those), then the same command with `apply`. The token is your
+   admin login's session token (browser DevTools → Application → Local Storage →
+   `channel.token`); never paste it anywhere else. Done when the re-plan shows
+   0 `ready` rows.
+5. **Deploy stage B.** Mark [#68](https://github.com/vibelingan/channel/pull/68)
+   ready, merge it into `test`, wait for "Deploy Test".
+6. **Check card = page everywhere.**
+   `node --experimental-strip-types scripts/catalog-consistency-audit.mjs --api https://diversity-123-d9grnqfux221323bb.service.tcloudbase.com`
+   must exit 0 (fallback: the 7 manual products).
+7. **Bring the 21 back with correct prices.** For each: Admin → Products →
+   Preview (check the configurations' prices) → **Publish**. Publishing runs the
+   approval from the replayed data. Check on the site that the card and the page
+   show the same price, and switch configurations.
+
+If you prefer that Claude runs steps 1–7, allow it in the session's permission
+settings (merging into `test` and admin writes from the logged-in browser).
 
 ## Read in this order
 
