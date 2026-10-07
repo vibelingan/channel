@@ -216,11 +216,11 @@ test('local admin subcategories: saved names, scoped filter, pagination and read
   const subcategoryTrigger = page
     .getByRole('combobox', { name: 'Website subcategory', exact: true })
     .and(page.locator('button'));
-  // A pending-review badge appends "N new product(s) to review" to the tab name.
+  // A pending-review badge appends "N product(s) to review" to the tab name.
   const familyTab = (label: string) =>
     page
       .getByRole('group', { name: 'Product family', exact: true })
-      .getByRole('button', { name: new RegExp(`^${label}(?: \\d+ new products? to review)?$`) });
+      .getByRole('button', { name: new RegExp(`^${label}(?: \\d+ products? to review)?$`) });
   async function searchProducts() {
     await page.getByPlaceholder(/^Search name/).fill(marker);
     await page.getByRole('button', { name: 'Search', exact: true }).click();

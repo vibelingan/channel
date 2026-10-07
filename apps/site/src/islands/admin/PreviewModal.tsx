@@ -8,6 +8,7 @@ import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { decodeAlibabaSourceReview, formatAlibabaSourcePricing } from './alibaba-source-review.ts';
 import { getImagePreview } from './api.ts';
 import { adminCatalogPricingInput } from './product-pricing-editor.ts';
+import { reviewLabel } from './review-reason.ts';
 import { useModalDialog } from './use-modal-dialog.ts';
 
 const AdminDetailPreview = lazy(() => import('./AdminDetailPreview.tsx'));
@@ -132,9 +133,9 @@ export function PreviewModal({
             <h2 id="product-preview-title" className="text-lg font-semibold text-slate-900">
               Product preview
             </h2>
-            {doc.alibabaReviewPending === true && (
+            {reviewLabel(doc) && (
               <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
-                New · review needed
+                {reviewLabel(doc)} · review needed
               </span>
             )}
             <span
@@ -331,7 +332,9 @@ export function PreviewModal({
           >
             Close
           </button>
-          {canMarkReviewed && doc.alibabaReviewPending === true && onMarkReviewed && (
+          {/* "Mark reviewed" is for first sight only; a changed, removed or edited
+              product is approved (published) or archived instead (DEC-11). */}
+          {canMarkReviewed && reviewLabel(doc) === 'New' && onMarkReviewed && (
             <button
               type="button"
               disabled={reviewBusy}

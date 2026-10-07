@@ -54,6 +54,7 @@ import {
   adminSubcategoryFromSearch,
   productFamilyListArgs,
 } from './product-family-tabs.ts';
+import { reviewLabel } from './review-reason.ts';
 import type { DashboardSection } from './sections.ts';
 import {
   savedProductSubcategories,
@@ -627,7 +628,7 @@ export function CollectionView({
           <Select
             ariaLabel="Product family"
             value={productFamily ?? ''}
-            placeholder={`All products${(reviewSummary?.pendingTotal ?? 0) > 0 ? ' • New' : ''}`}
+            placeholder={`All products${(reviewSummary?.pendingTotal ?? 0) > 0 ? ' • Needs review' : ''}`}
             options={[
               {
                 value: 'unclassified',
@@ -635,7 +636,7 @@ export function CollectionView({
               },
               ...PRODUCT_FAMILY_OPTIONS.map((value) => ({
                 value,
-                label: `${productFamilyLabel(value)}${(reviewSummary?.byFamily[value] ?? 0) > 0 ? ' • New' : ''}`,
+                label: `${productFamilyLabel(value)}${(reviewSummary?.byFamily[value] ?? 0) > 0 ? ' • Needs review' : ''}`,
               })),
             ]}
             className="block xl:hidden"
@@ -1176,8 +1177,8 @@ export function ProductFamilyTab({
         {label}
         {pendingCount > 0 && (
           <span
-            aria-label={`${pendingCount} new product${pendingCount === 1 ? '' : 's'} to review`}
-            title={`${pendingCount} new product${pendingCount === 1 ? '' : 's'} to review`}
+            aria-label={`${pendingCount} product${pendingCount === 1 ? '' : 's'} to review`}
+            title={`${pendingCount} product${pendingCount === 1 ? '' : 's'} to review`}
             className={`h-2 w-2 rounded-full ${selected ? 'bg-amber-300' : 'bg-amber-500'}`}
           />
         )}
@@ -1410,12 +1411,12 @@ function SortIcon({ dir }: { dir: 'asc' | 'desc' | null }) {
 
 export function ProductThumbnail({ doc }: { doc: CollectionDoc }) {
   const ids = Array.isArray(doc.imageIds) ? (doc.imageIds as string[]) : [];
-  const badge =
-    doc.alibabaReviewPending === true ? (
-      <span className="absolute -left-1 -top-1 rounded bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-white shadow-sm">
-        New
-      </span>
-    ) : null;
+  const label = reviewLabel(doc);
+  const badge = label ? (
+    <span className="absolute -left-1 -top-1 rounded bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-white shadow-sm">
+      {label}
+    </span>
+  ) : null;
   if (ids[0]) {
     return (
       <span className="relative inline-block">

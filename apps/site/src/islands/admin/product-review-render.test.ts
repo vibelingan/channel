@@ -54,7 +54,9 @@ test('family tab exposes an accessible notification dot only when pending', () =
       onSelect: () => {},
     }),
   );
-  assert.ok(withPending.includes('3 new products to review'));
+  // Counts every flagged product, not only new ones (MIU-23).
+  assert.ok(withPending.includes('3 products to review'));
+  assert.ok(!withPending.includes('new products'));
   const clear = renderToStaticMarkup(
     createElement(ProductFamilyTab, {
       label: 'Toys',
@@ -98,4 +100,31 @@ test('malformed source review data degrades without throwing or rendering attack
   );
   assert.ok(html.includes('New Alibaba product'));
   assert.ok(!html.includes('polluted'));
+});
+
+test('the badge names why a product needs review; nothing when it does not (MIU-23)', () => {
+  const badge = (extra: object) =>
+    renderToStaticMarkup(createElement(ProductThumbnail, { doc: { ...pending, ...extra } }));
+  assert.match(badge({ alibabaReviewReason: 'changed' }), />Changed</);
+  assert.match(badge({ alibabaReviewReason: 'removed' }), />Removed</);
+  assert.match(badge({ alibabaReviewReason: 'edited' }), />Edited</);
+  assert.match(badge({}), />New</, 'a pending row without a reason is new');
+  assert.doesNotMatch(badge({ alibabaReviewPending: false }), /New|Changed|Removed|Edited/);
+});
+
+test('the preview chip names the reason; "Mark reviewed" is offered only for new products', () => {
+  const preview = (extra: object) =>
+    renderToStaticMarkup(
+      createElement(PreviewModal, {
+        doc: { ...pending, ...extra } as CollectionDoc,
+        canMarkReviewed: true,
+        onMarkReviewed: () => {},
+        onClose: () => {},
+        onEdit: () => {},
+      }),
+    );
+  const changed = preview({ alibabaReviewReason: 'changed' });
+  assert.ok(changed.includes('Changed · review needed'));
+  assert.ok(!changed.includes('Mark reviewed'));
+  assert.ok(preview({ alibabaReviewReason: 'new' }).includes('Mark reviewed'));
 });
