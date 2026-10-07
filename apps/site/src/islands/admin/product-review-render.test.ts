@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { createElement } from 'react';
@@ -127,4 +128,45 @@ test('the preview chip names the reason; "Mark reviewed" is offered only for new
   assert.ok(changed.includes('Changed · review needed'));
   assert.ok(!changed.includes('Mark reviewed'));
   assert.ok(preview({ alibabaReviewReason: 'new' }).includes('Mark reviewed'));
+});
+
+test('"Approve changes" appears only on a published product flagged changed, removed or edited (MIU-24)', () => {
+  const preview = (extra: object) =>
+    renderToStaticMarkup(
+      createElement(PreviewModal, {
+        doc: { ...pending, ...extra } as CollectionDoc,
+        canMarkReviewed: true,
+        onMarkReviewed: () => {},
+        onApproveChanges: () => {},
+        onUnpublish: () => {},
+        onClose: () => {},
+        onEdit: () => {},
+      }),
+    );
+  const changed = preview({ published: true, alibabaReviewReason: 'changed' });
+  assert.ok(changed.includes('Approve changes'));
+  assert.ok(!changed.includes('>Unpublish<'));
+  const removed = preview({ published: true, alibabaReviewReason: 'removed' });
+  assert.ok(removed.includes('Approve changes'));
+  assert.ok(removed.includes('>Unpublish<'), 'a removed source can also be taken offline');
+  // Unpublished or new products use Publish / Mark reviewed instead.
+  assert.ok(
+    !preview({ published: false, alibabaReviewReason: 'changed' }).includes('Approve changes'),
+  );
+  assert.ok(!preview({ published: true, alibabaReviewReason: 'new' }).includes('Approve changes'));
+  assert.ok(!preview({ published: true, alibabaReviewPending: false }).includes('Approve changes'));
+});
+
+test('"Approve changes" publishes through the full approval path', () => {
+  const source = readFileSync(new URL('./CollectionView.tsx', import.meta.url), 'utf8');
+  // updateRecord with published: true runs prepare → begin/page/finish → publish
+  // for a linked product, and the server then clears the review flag (MIU-21).
+  assert.match(
+    source,
+    /approveChangesMutation = useMutation\(\{\s*mutationFn: \(productId: string\) =>\s*updateRecord\('products', productId, \{ published: true \}\)/,
+  );
+  assert.match(
+    source,
+    /onApproveChanges=\{\(\) => approveChangesMutation\.mutate\(previewing\._id\)\}/,
+  );
 });

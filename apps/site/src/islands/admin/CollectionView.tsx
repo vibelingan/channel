@@ -291,6 +291,22 @@ export function CollectionView({
       invalidate();
     },
   });
+  // Approving a published product's flagged changes is publishing it again:
+  // the full approval, then publish; the server clears the flag (MIU-21, MIU-24).
+  const approveChangesMutation = useMutation({
+    mutationFn: (productId: string) => updateRecord('products', productId, { published: true }),
+    onSuccess: (updated) => {
+      setPreviewing(updated);
+      invalidate();
+    },
+  });
+  const unpublishFromReviewMutation = useMutation({
+    mutationFn: (productId: string) => updateRecord('products', productId, { published: false }),
+    onSuccess: (updated) => {
+      setPreviewing(updated);
+      invalidate();
+    },
+  });
   const recordWritePending =
     updateMutation.isPending ||
     removeMutation.isPending ||
@@ -1028,9 +1044,19 @@ export function CollectionView({
         <PreviewModal
           doc={previewing}
           canMarkReviewed={canReviewAlibabaProducts}
-          reviewBusy={reviewMutation.isPending}
-          reviewError={reviewMutation.error as Error | null}
+          reviewBusy={
+            reviewMutation.isPending ||
+            approveChangesMutation.isPending ||
+            unpublishFromReviewMutation.isPending
+          }
+          reviewError={
+            (reviewMutation.error ??
+              approveChangesMutation.error ??
+              unpublishFromReviewMutation.error) as Error | null
+          }
           onMarkReviewed={() => reviewMutation.mutate(previewing._id)}
+          onApproveChanges={() => approveChangesMutation.mutate(previewing._id)}
+          onUnpublish={() => unpublishFromReviewMutation.mutate(previewing._id)}
           onClose={() => setPreviewing(null)}
           onEdit={() => {
             setEditing(previewing);
