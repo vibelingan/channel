@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import type { CatalogContent } from '../../i18n/catalog.ts';
 import { type Product, fetchCatalog } from './api.ts';
+import { effectiveCatalogMoq } from './catalog-pricing.ts';
 
 interface Props {
   content: CatalogContent;
@@ -75,39 +76,7 @@ export function FeaturedProducts({ content }: Props) {
     visualState = (
       <div className="grid grid-cols-1 gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-4">
         {linkedProducts.map((product) => (
-          <a
-            key={product._id}
-            href={`/products/item/?slug=${encodeURIComponent(product.slug ?? '')}`}
-            className="group min-w-0 bg-white p-4 transition hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-brand-700"
-          >
-            <div className="aspect-square overflow-hidden bg-slate-100">
-              {product.images?.[0] ? (
-                <img
-                  src={product.images[0]}
-                  alt={product.name}
-                  loading="lazy"
-                  className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.025]"
-                />
-              ) : (
-                <div className="grid h-full place-items-center px-4 text-center text-sm text-ink-muted">
-                  {product.name}
-                </div>
-              )}
-            </div>
-            {product.skuCode && (
-              <p className="mt-4 text-xs font-semibold uppercase text-brand-600">
-                {product.skuCode}
-              </p>
-            )}
-            <h3 className="mt-1 line-clamp-2 font-display text-base font-semibold text-ink group-hover:text-brand-700">
-              {product.name}
-            </h3>
-            {product.moq !== undefined && (
-              <p className="mt-2 text-sm text-ink-muted">
-                {content.list.moqLabel} {product.moq}
-              </p>
-            )}
-          </a>
+          <FeaturedProductCard key={product._id} product={product} content={content} />
         ))}
       </div>
     );
@@ -120,5 +89,45 @@ export function FeaturedProducts({ content }: Props) {
       </p>
       {visualState}
     </>
+  );
+}
+
+/** One hub card. MOQ matches the catalog card (summary first, then row rules). */
+export function FeaturedProductCard({
+  product,
+  content,
+}: { product: Product; content: CatalogContent }) {
+  const moq = effectiveCatalogMoq(product);
+  return (
+    <a
+      href={`/products/item/?slug=${encodeURIComponent(product.slug ?? '')}`}
+      className="group min-w-0 bg-white p-4 transition hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-brand-700"
+    >
+      <div className="aspect-square overflow-hidden bg-slate-100">
+        {product.images?.[0] ? (
+          <img
+            src={product.images[0]}
+            alt={product.name}
+            loading="lazy"
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.025]"
+          />
+        ) : (
+          <div className="grid h-full place-items-center px-4 text-center text-sm text-ink-muted">
+            {product.name}
+          </div>
+        )}
+      </div>
+      {product.skuCode && (
+        <p className="mt-4 text-xs font-semibold uppercase text-brand-600">{product.skuCode}</p>
+      )}
+      <h3 className="mt-1 line-clamp-2 font-display text-base font-semibold text-ink group-hover:text-brand-700">
+        {product.name}
+      </h3>
+      {moq !== undefined && (
+        <p className="mt-2 text-sm text-ink-muted">
+          {content.list.moqLabel} {moq}
+        </p>
+      )}
+    </a>
   );
 }

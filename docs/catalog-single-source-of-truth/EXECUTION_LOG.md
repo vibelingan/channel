@@ -18,8 +18,8 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 9 | Product page endpoint uses the rule | 3 | Done | `443f22d` |
 | 10 | Quote request uses the rule | 3 | Done | `375b139` |
 | 11 | Site decoder + `Product.priceSummary` | 3 | Done | `e9f696c` |
-| 12 | Card price / MOQ from summary | 3 | Done | (this commit) |
-| 13 | Hub featured strip effective MOQ | 3 | Not started | |
+| 12 | Card price / MOQ from summary | 3 | Done | `f41d391` |
+| 13 | Hub featured strip effective MOQ | 3 | Done | (this commit) |
 | 14 | E2E: configuration switch changes price; card matches page | 3 | Not started | |
 | 15 | `alibabaReviewReason` field + identity rules | 4 | Not started | |
 | 16 | `publicSourceDigest` | 4 | Not started | |
@@ -91,6 +91,19 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-13 — hub featured strip shows the effective MOQ (2026-10-07)
+- What changed: the electronics-toys hub strip (`FeaturedProducts.tsx`) reads
+  `effectiveCatalogMoq(product)` instead of the raw `product.moq`, so it shows
+  the same MOQ as the catalog card. Still no price on the strip.
+- Deviation: the card markup moved into an exported `FeaturedProductCard`
+  component (same markup) so it can be rendered in a test without the network
+  fetch. The component had no test before; `featured-products.test.ts` is new.
+- Tests: approved product → summary MOQ 10; row-fallback product with manual
+  tiers from 20 and row `moq` 2 → 20; no MOQ anywhere → no MOQ line. First run
+  failed only on the missing export; a mutation check (raw `product.moq` put
+  back) failed the row-fallback test, then passed again after restoring.
+- Validation: site 514 pass, 0 fail; `pnpm typecheck`; `pnpm lint`; `pnpm build`.
 
 ### MIU-12 — card price and MOQ read the summary (2026-10-07)
 - What changed:
