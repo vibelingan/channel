@@ -7,7 +7,7 @@ import {
   validateCatalogSourceObservation,
 } from '@vibelingan-channel/catalog-import/observations';
 import { buildStructuredContent } from '@vibelingan-channel/catalog-import/structured-content';
-import { get, persistCatalogDetailApproval } from '@vibelingan-channel/db';
+import { get, list, persistCatalogDetailApproval } from '@vibelingan-channel/db';
 import { sourceDigest, sourceGalleryDigest } from '@vibelingan-channel/db/catalog-source-staging';
 import { isProductFamily } from '@vibelingan-channel/shared';
 import { z } from 'zod';
@@ -61,9 +61,31 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
   if (!parsed.success) return { ok: false as const, code: 'VALIDATION_ERROR' as const };
   const { productId, page } = parsed.data;
   const product = await get('products', productId);
-  const sourceKey = product?.alibabaPrimarySourceKey;
-  if (!product || typeof sourceKey !== 'string')
-    return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
+  if (!product) return { ok: false as const, code: 'SOURCE_NOT_READY' as const };
+  const sourceKey = product.alibabaPrimarySourceKey;
+  if (typeof sourceKey !== 'string' || sourceKey === '') {
+    // Manual product (MIU-30): approval reads configuration rows only from the
+    // prepare manifest, which is empty here, so rows from the Excel import would
+    // be dropped silently. Refuse instead (DESIGN §5.2).
+    const rows = await list({
+      collection: 'productVariants',
+      page: 1,
+      pageSize: 1,
+      filter: {
+        combinator: 'and',
+        clauses: [
+          { field: 'productId', op: 'eq', value: productId },
+          { field: 'archived', op: 'ne', value: true },
+        ],
+      },
+    });
+    if (rows.total > 0) return { ok: false as const, code: 'MANUAL_CONFIGURATIONS' as const };
+    return persistCatalogDetailApproval(actorId, {
+      action: 'manual-source',
+      productId,
+      configurationRowIds: [],
+    });
+  }
   const observationId = sourceObservationDocumentId('alibaba', sourceKey);
   const row = await get('catalogSourceObservations', observationId);
   const valid = validateCatalogSourceObservation(row?.observation);

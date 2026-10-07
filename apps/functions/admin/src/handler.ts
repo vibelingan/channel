@@ -612,6 +612,11 @@ export async function handleAdminRequest(
             ? await prepareCatalogSource(claims.sub, req.data)
             : await manageCatalogDetailApproval(claims.sub, req.data);
         if (result.ok) return ok(result);
+        if (result.code === 'MANUAL_CONFIGURATIONS')
+          return err(
+            'CONFLICT',
+            'This product has configurations; approving manual configurations is not supported yet.',
+          );
         if (result.code === 'SOURCE_NOT_READY')
           return err(
             'CONFLICT',
