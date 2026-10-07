@@ -15,7 +15,7 @@ pnpm lint
 pnpm typecheck
 NODE_OPTIONS=--no-experimental-webstorage pnpm test
 pnpm build
-pnpm build:functions && pnpm smoke:functions
+pnpm package:functions && pnpm smoke:functions
 ```
 
 `NODE_OPTIONS=--no-experimental-webstorage` is needed only on local Node 25 (its
@@ -105,7 +105,7 @@ Depends on: none
 
 **Build/Deploy/Runtime impact**
 - Package is bundled by `tsup` into `apps/functions/alibaba-catalog-sync`; no new
-  dependency. Verify `pnpm build:functions && pnpm smoke:functions`.
+  dependency. Verify `pnpm package:functions && pnpm smoke:functions`.
 - Changes the source content hash for affected products on their next ingest;
   handled by MIU-2 (replay stores the new hash) and runbook R2.
 - No CloudBase index or env change.
@@ -126,7 +126,7 @@ Depends on: none
 
 **Done when**
 - All test-plan assertions pass; all `packages/alibaba-catalog-sync` tests pass.
-- `pnpm typecheck` and `pnpm build:functions && pnpm smoke:functions` pass.
+- `pnpm typecheck` and `pnpm package:functions && pnpm smoke:functions` pass.
 
 ### MIU-2: raw replay — accept and deactivate a dropped `'@product'` offer; store the new content hash
 
@@ -179,7 +179,7 @@ Depends on: MIU-1
 
 **Done when**
 - All `raw-replay` tests pass; `apps/functions/alibaba-catalog-sync` tests pass.
-- `pnpm typecheck`, `pnpm build:functions && pnpm smoke:functions` pass.
+- `pnpm typecheck`, `pnpm package:functions && pnpm smoke:functions` pass.
 
 ### MIU-36: replay admin page accepts and shows `productHeadlineDropped`
 
@@ -259,7 +259,7 @@ Depends on: none
 **Build/Deploy/Runtime impact**
 - `@vibelingan-channel/shared` is consumed raw-TS by the site (Astro/Vite) and
   bundled by `tsup` into every function. No new dependency. Verify `pnpm build`
-  and `pnpm build:functions && pnpm smoke:functions`.
+  and `pnpm package:functions && pnpm smoke:functions`.
 - Adding an optional key to a strict schema: existing stored publications (no key)
   still decode.
 
@@ -277,7 +277,7 @@ Depends on: none
 
 **Done when**
 - Tests pass; `pnpm typecheck` passes for all packages and the e2e project.
-- `pnpm build` and `pnpm build:functions && pnpm smoke:functions` pass.
+- `pnpm build` and `pnpm package:functions && pnpm smoke:functions` pass.
 
 ### MIU-4: `planCatalogDetailApproval` stores `priceSummary` on every new approval
 
@@ -322,7 +322,7 @@ Depends on: MIU-3
 **Done when**
 - Tests pass; existing approval/staging/commit tests pass (update pinned digests
   only where the new field changes them, and say so in the commit).
-- `pnpm typecheck`, `pnpm build:functions && pnpm smoke:functions` pass.
+- `pnpm typecheck`, `pnpm package:functions && pnpm smoke:functions` pass.
 
 ### MIU-5: `resolvePublicVersion` — the shared rule for which version is public
 
@@ -414,7 +414,7 @@ Depends on: MIU-3
   a second apply is a no-op.
 
 **Done when**
-- Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
+- Tests pass; `pnpm typecheck`; `pnpm package:functions && pnpm smoke:functions`.
 
 ### MIU-7: admin action + script to run the backfill
 
@@ -447,7 +447,7 @@ Depends on: MIU-6
 - Script dry run (mocked fetch) writes a manifest file and makes no apply call.
 
 **Done when**
-- Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
+- Tests pass; `pnpm typecheck`; `pnpm package:functions && pnpm smoke:functions`.
 
 ### MIU-8: public list / item / slug projection reads the one version
 
@@ -521,7 +521,7 @@ Depends on: MIU-3, MIU-5
 **Done when**
 - Updated public-api tests pass (`http-adapter.test.ts`; existing
   `handler.test.ts` and `catalog-variants.test.ts` stay green).
-- `pnpm typecheck`, `pnpm build:functions && pnpm smoke:functions` pass.
+- `pnpm typecheck`, `pnpm package:functions && pnpm smoke:functions` pass.
 
 ### MIU-9: product page endpoint uses the shared rule
 
@@ -556,7 +556,7 @@ Depends on: MIU-5
 
 **Done when**
 - Tests pass, including `apps/local-server/src/catalog-detail-staging.test.ts`;
-  `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
+  `pnpm typecheck`; `pnpm package:functions && pnpm smoke:functions`.
 
 ### MIU-10: quote request uses the shared rule
 
@@ -586,7 +586,7 @@ Depends on: MIU-5
 - Product not yet approved → failure, no record written.
 
 **Done when**
-- Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
+- Tests pass; `pnpm typecheck`; `pnpm package:functions && pnpm smoke:functions`.
 
 ### MIU-11: site list decoder and `Product` type accept `priceSummary`
 
@@ -764,7 +764,7 @@ Depends on: none
 - Unlink → both cleared to `null`.
 
 **Done when**
-- Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
+- Tests pass; `pnpm typecheck`; `pnpm package:functions && pnpm smoke:functions`.
 
 ### MIU-16: `publicSourceDigest` — stable hash of what a buyer would see
 
@@ -813,7 +813,7 @@ Depends on: none
   would be flagged "changed" on its first sync).
 
 **Done when**
-- Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
+- Tests pass; `pnpm typecheck`; `pnpm package:functions && pnpm smoke:functions`.
 
 ### MIU-17: prepare records the source digest of the candidate it builds
 
@@ -873,7 +873,7 @@ Depends on: MIU-17
 - Job created without a digest → finish succeeds, receipt has no `sourceDigest`.
 
 **Done when**
-- Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
+- Tests pass; `pnpm typecheck`; `pnpm package:functions && pnpm smoke:functions`.
 
 ### MIU-19: sync promote step flags "changed" / "removed"
 
@@ -912,7 +912,7 @@ Depends on: MIU-15, MIU-16, MIU-18
 
 **Done when**
 - Tests pass; `apps/functions/alibaba-catalog-sync` tests pass; `pnpm typecheck`;
-  `pnpm build:functions && pnpm smoke:functions`.
+  `pnpm package:functions && pnpm smoke:functions`.
 
 ### MIU-20: quarantine approval uses the same flag rule; keep "never resurrect as New", add the "changed" rule
 
@@ -944,7 +944,7 @@ Depends on: MIU-19
   `{pending: false}`.
 
 **Done when**
-- Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
+- Tests pass; `pnpm typecheck`; `pnpm package:functions && pnpm smoke:functions`.
 
 ### MIU-21: approving or acknowledging clears the reason
 
@@ -985,7 +985,7 @@ Depends on: MIU-15
 - Re-acknowledging an already-reviewed product → unchanged row (idempotent).
 
 **Done when**
-- Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
+- Tests pass; `pnpm typecheck`; `pnpm package:functions && pnpm smoke:functions`.
 
 ### MIU-22: `change-audit-mark` db command (writes for the one-time audit)
 
@@ -1021,7 +1021,7 @@ Depends on: MIU-15, MIU-18
 - Revision changed / digest already present → skipped, no write.
 
 **Done when**
-- Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
+- Tests pass; `pnpm typecheck`; `pnpm package:functions && pnpm smoke:functions`.
 
 ### MIU-38: admin action `auditChangesSinceApproval` (plan / apply)
 
@@ -1064,7 +1064,7 @@ Depends on: MIU-16, MIU-22
 - Contributor role → `FORBIDDEN`.
 
 **Done when**
-- Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
+- Tests pass; `pnpm typecheck`; `pnpm package:functions && pnpm smoke:functions`.
 
 ### MIU-23: admin badge and preview chip show the reason
 
@@ -1300,7 +1300,7 @@ Depends on: MIU-4
 
 **Done when**
 - Tests pass; existing `detail-approval.test.ts` passes; `pnpm typecheck`;
-  `pnpm build:functions && pnpm smoke:functions`.
+  `pnpm package:functions && pnpm smoke:functions`.
 
 ### MIU-28: `manual-source` prepare command (db) and spec fields in the approval fingerprint
 
@@ -1354,7 +1354,7 @@ Depends on: MIU-27
 
 **Done when**
 - Tests pass; `packages/db` and `apps/local-server` tests pass; `pnpm typecheck`;
-  `pnpm build:functions && pnpm smoke:functions`.
+  `pnpm package:functions && pnpm smoke:functions`.
 
 ### MIU-29: publication receipt fingerprint covers spec fields for manual owners
 
@@ -1410,7 +1410,7 @@ Depends on: MIU-28
 - Linked product → existing Alibaba prepare path, manual command not called.
 
 **Done when**
-- Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
+- Tests pass; `pnpm typecheck`; `pnpm package:functions && pnpm smoke:functions`.
 
 ### MIU-31: publish gate for every product on update
 
@@ -1459,7 +1459,7 @@ Depends on: MIU-29, MIU-30
   version unchanged until approval).
 
 **Done when**
-- Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
+- Tests pass; `pnpm typecheck`; `pnpm package:functions && pnpm smoke:functions`.
 - `pnpm test:e2e:catalog-admin-local` re-run (the manual-product e2e from MIU-34
   must still pass with the gate on).
 
@@ -1501,7 +1501,7 @@ Depends on: MIU-15, MIU-31
   flagged `'edited'`, public version unchanged.
 
 **Done when**
-- Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
+- Tests pass; `pnpm typecheck`; `pnpm package:functions && pnpm smoke:functions`.
 
 ### MIU-32: admin publish flow and preview include manual products
 

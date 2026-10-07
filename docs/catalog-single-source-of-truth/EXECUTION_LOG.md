@@ -7,7 +7,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 
 | MIU | Title | Batch | Status | Commit |
 |---|---|---|---|---|
-| 1 | Normalizer omits wholesale headline when SKUs exist | 1 | Not started | |
+| 1 | Normalizer omits wholesale headline when SKUs exist | 1 | Done | (this commit) |
 | 2 | Raw replay deactivates dropped `'@product'`, stores new hash | 1 | Not started | |
 | 3 | Price summary contract + `derivePriceSummary` | 2a | Not started | |
 | 4 | Approval plan stores `priceSummary` | 2b | Not started | |
@@ -91,6 +91,29 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-1 — wholesale headline is not a price when SKUs exist (2026-10-07)
+- What changed: `normalizeProductDetail` emits the product-level (`'@product'`)
+  offer for wholesale products only when they have no SKUs; a no-SKU wholesale
+  product with a product ladder uses the ladder (USD contract) instead of the
+  headline. Sourcing / FOB unchanged.
+- Tests (red → green): 4 failing first —
+  - headline dropped with invalid SKUs;
+  - headline dropped next to SKU tiers (3.90 = cheapest tier);
+  - no-SKU wholesale ladder → tiered;
+  - captured camping-light wire → SKU scope only.
+
+  The new headline-only (no SKU) test passed before and after.
+- Deviation: `apps/functions/alibaba-catalog-sync/src/raw-replay.test.ts` (a 4th
+  file) pinned the Sept repair adding the headline offer for the camping-light
+  product (which has SKUs). Updated to the new truth: the replay produces only the
+  SKU offer. Deactivating headline offers already stored by that repair is MIU-2.
+- Validation: `pnpm test` (all workspaces) exit 0; sync package 151/151; sync
+  function 218/218; `pnpm typecheck`; `pnpm lint`;
+  `pnpm package:functions && pnpm smoke:functions` (all three functions passed).
+- Doc fix found while validating: the MIU validation command is
+  `pnpm package:functions && pnpm smoke:functions` (smoke reads packaged
+  artifacts; `build:functions` alone leaves none). Corrected throughout.
 
 ### PT-0 review fix — tiers below the minimum order (2026-10-07, `71272a6`)
 - What changed: `CatalogCompactPrice` drops tier windows that end below the

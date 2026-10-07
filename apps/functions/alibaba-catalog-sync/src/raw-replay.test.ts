@@ -71,7 +71,7 @@ test('targeted replay rejects missing, disabled, wrong-account or changed raw ev
   }
 });
 
-test('versioned raw repair adds only the previously omitted product quote and preserves known MOQ', async () => {
+test('versioned raw replay of a wholesale product with SKUs stores no headline product quote and keeps the SKU MOQ', async () => {
   const f = fixture('local-raw-camping-light');
   f.bodyText = readFileSync(
     new URL('../../../../tests/fixtures/alibaba-camping-light-wire.json', import.meta.url),
@@ -88,7 +88,8 @@ test('versioned raw repair adds only the previously omitted product quote and pr
   const dry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, harness.p);
   assert.ok(dry.ok);
   assert.equal(dry.ready, true);
-  assert.equal(dry.counts.offers, 2);
+  // The 7.67 wholesale headline summarises the SKUs; it is not a product price.
+  assert.equal(dry.counts.offers, 1);
   assert.equal(harness.updatedOffers.length, 0);
   const applied = await replayAlibabaRawPage(
     {
@@ -102,13 +103,16 @@ test('versioned raw repair adds only the previously omitted product quote and pr
   );
   assert.ok(applied.ok);
   assert.equal(applied.applied, 1);
-  assert.equal(harness.updatedOffers.length, 2);
-  const productOffer = harness.updatedOffers.find(
-    (o) => o.id === alibabaOfferKey('channeltec', 'local-raw-camping-light'),
+  assert.equal(harness.updatedOffers.length, 1);
+  assert.equal(
+    harness.updatedOffers.some(
+      (o) => o.id === alibabaOfferKey('channeltec', 'local-raw-camping-light'),
+    ),
+    false,
   );
-  assert.ok(productOffer);
-  assert.equal(Reflect.get(productOffer.patch.pricing as object, 'amountMinor'), 767);
-  assert.equal(Reflect.get(productOffer.patch.pricing as object, 'sourceMoq'), 1);
+  const skuOffer = harness.updatedOffers[0];
+  assert.equal(skuOffer?.id, f.offer._id);
+  assert.equal(Reflect.get(skuOffer?.patch.pricing as object, 'sourceMoq'), 1);
   assert.equal(
     JSON.stringify(harness.observations[0]?.value).includes('raw-fixture-detail-16'),
     true,

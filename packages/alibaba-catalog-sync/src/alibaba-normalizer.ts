@@ -314,16 +314,23 @@ export function normalizeProductDetail(input: {
   }
   // A product quote is not a fallback assigned to each SKU. Keep its scope,
   // including when the same response has separate (possibly invalid) SKU quotes.
+  // The wholesale headline price is Alibaba's cheapest-tier summary of the SKUs,
+  // not a price at MOQ, so it is only a product price when there are no SKUs.
   if (
     detail.skus.length === 0 ||
-    (detail.productType === 'wholesale' && detail.wholesaleTrade?.priceLexeme !== undefined) ||
     (detail.productType === 'sourcing' &&
       (detail.fobMinLexeme !== undefined || detail.fobMaxLexeme !== undefined))
   ) {
     const offerKey = alibabaOfferKey(connectionId, sourceProductId);
     const context: PricingContext = { ...contextBase, offerKey };
     let pricing: AlibabaCatalogPricing;
-    if (detail.productType === 'wholesale' && detail.wholesaleTrade?.priceLexeme !== undefined) {
+    if (wholesaleSku && !unsupportedWholesaleSku && detail.ladderPrices.length > 0) {
+      // A product ladder is the real price; the headline only summarises it.
+      pricing = tieredPricing(detail.ladderPrices, { ...context, currency: 'USD' });
+    } else if (
+      detail.productType === 'wholesale' &&
+      detail.wholesaleTrade?.priceLexeme !== undefined
+    ) {
       const trade = detail.wholesaleTrade;
       const parsed = parseWholesalePrice(detail.wholesaleTrade.priceLexeme);
       // Batch and non-piece trading need a distinct quantity contract. Never
