@@ -16,7 +16,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 7 | Backfill admin action + script | 2b | Done | `bcfac0a` |
 | 8 | Public list / item / slug read the one version | 3 | Done | `b7153f5` |
 | 9 | Product page endpoint uses the rule | 3 | Done | `443f22d` |
-| 10 | Quote request uses the rule | 3 | Not started | |
+| 10 | Quote request uses the rule | 3 | Done | (this commit) |
 | 11 | Site decoder + `Product.priceSummary` | 3 | Not started | |
 | 12 | Card price / MOQ from summary | 3 | Not started | |
 | 13 | Hub featured strip effective MOQ | 3 | Not started | |
@@ -91,6 +91,20 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-10 — quote request uses the shared rule (2026-10-07)
+- What changed: `planCatalogQuote` decides with `resolvePublicVersion` (all nine
+  `approved.data` references renamed). No behaviour change; the snapshot is
+  unchanged.
+- Tests: new characterisation test, passing before and after the refactor:
+  - an approved manual product with zero configurations records a
+    customization quote with the header snapshot and website price;
+  - a never-approved product is `unavailable`.
+
+  (My first version of the test used an invalid customization input, which the
+  quote schema rejects: it needs a type and a 10+ character brief. Fixed the
+  input, not the code.)
+- Validation: `pnpm test` exit 0; `pnpm typecheck`; `pnpm lint`.
 
 ### Batch 2 review fixes (2026-10-07)
 Review of the batch 1 fix, MIU-3, MIU-4, MIU-6 and MIU-7: 0 P1, 2 P2, 12 P3.
