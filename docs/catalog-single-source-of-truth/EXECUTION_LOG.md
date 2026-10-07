@@ -17,8 +17,8 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 8 | Public list / item / slug read the one version | 3 | Done | `b7153f5` |
 | 9 | Product page endpoint uses the rule | 3 | Done | `443f22d` |
 | 10 | Quote request uses the rule | 3 | Done | `375b139` |
-| 11 | Site decoder + `Product.priceSummary` | 3 | Done | (this commit) |
-| 12 | Card price / MOQ from summary | 3 | Not started | |
+| 11 | Site decoder + `Product.priceSummary` | 3 | Done | `e9f696c` |
+| 12 | Card price / MOQ from summary | 3 | Done | (this commit) |
 | 13 | Hub featured strip effective MOQ | 3 | Not started | |
 | 14 | E2E: configuration switch changes price; card matches page | 3 | Not started | |
 | 15 | `alibabaReviewReason` field + identity rules | 4 | Not started | |
@@ -91,6 +91,37 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-12 — card price and MOQ read the summary (2026-10-07)
+- What changed:
+  - `effectiveCatalogPriceSummary` and `effectiveCatalogMoq` check
+    `readPriceSummary` first. When a valid summary is present it is the only
+    input: row prices, row `moq` and any Alibaba quote are ignored.
+  - Card text: fixed → the amount; tiered and range → "From <lowest orderable
+    amount>"; negotiable / unavailable → the quote label. USD and CNY use the
+    card formatter ("$1.20"); other currencies use `formatCatalogQuoteAmount`
+    ("EUR 12.00").
+  - MOQ: the summary's stated minimum order, else the first tier's start.
+- Deviation (one rule instead of copies):
+  - `lowestOrderableAmountMinor` (was the private `lowestAmount`) and a new
+    `priceSummaryMoq` are exported from `packages/shared/src/catalog/price-summary.ts`
+    and re-exported through `@vibelingan-channel/shared/catalog-detail`.
+  - The public API's private `summaryMoq` (MIU-8) was removed; it now calls
+    `priceSummaryMoq`, so the API's `moq` and the card's MOQ come from one function.
+  - Not in the spec's file list: `price-summary.ts`, `product-detail.ts`,
+    `apps/functions/public-api/src/handler.ts`.
+- Tests (red → green), in `catalog-family-render.test.ts`:
+  - tiered 130/122/120 USD → "From $1.20", MOQ 10 (from the first tier);
+  - fixed EUR 1200 → "EUR 12.00", MOQ 50; range CNY → "From CN¥4.50", no MOQ;
+  - MOQ-only negotiable → quote label and MOQ 200, even with a row `wholesalePrice`;
+  - summary wins over stale `wholesalePrice`, `moq` and `alibabaCatalogPricing`,
+    and that card's markup equals the plain manual card's markup;
+  - malformed summary → row prices (passed before and after, as intended).
+
+  The first two tests failed before the change ("Request a Quote", "$99.00").
+  The existing row-fallback tests are unchanged and pass.
+- Validation: site 511 pass, 0 fail; shared 175/175; public-api 122/122;
+  `pnpm typecheck`; `pnpm lint`; `pnpm build`.
 
 ### MIU-11 — site accepts `priceSummary` without trusting it (2026-10-07)
 - What changed:

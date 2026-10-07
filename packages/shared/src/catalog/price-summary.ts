@@ -11,7 +11,9 @@ import { type CatalogOfferPricing, catalogOfferPricingSchema } from './offer-pri
 
 /** Amount-bearing, or a "request a quote" that still states a minimum order (DEC-16). */
 function isMeaningful(pricing: CatalogOfferPricing): boolean {
-  return lowestAmount(pricing) !== undefined || pricing.minimumOrderQuantity !== undefined;
+  return (
+    lowestOrderableAmountMinor(pricing) !== undefined || pricing.minimumOrderQuantity !== undefined
+  );
 }
 
 export const CatalogPriceSummarySchema = z
@@ -54,8 +56,9 @@ export interface PriceSummaryInput {
 /**
  * Lowest orderable unit amount. Tiers that end below the minimum order are
  * skipped, exactly as the product page skips them (`CatalogCompactPrice`).
+ * The card's "From $X" uses this too, so card and summary agree.
  */
-function lowestAmount(pricing: CatalogOfferPricing): number | undefined {
+export function lowestOrderableAmountMinor(pricing: CatalogOfferPricing): number | undefined {
   switch (pricing.mode) {
     case 'fixed':
       return pricing.amountMinor;
@@ -104,7 +107,7 @@ function cheapest(
   let best: Candidate | undefined;
   groups.forEach((group, position) => {
     for (const { pricing } of group.offers) {
-      const amount = lowestAmount(pricing);
+      const amount = lowestOrderableAmountMinor(pricing);
       if (amount === undefined || !('currency' in pricing) || pricing.currency === undefined) {
         continue;
       }
@@ -131,6 +134,14 @@ function firstMoqOnly(
       return { ...(group.id === undefined ? {} : { variantId: group.id }), pricing: offer.pricing };
   }
   return undefined;
+}
+
+/** The summary's minimum order: stated MOQ, else the first tier's start. */
+export function priceSummaryMoq(summary: CatalogPriceSummary | undefined): number | undefined {
+  const pricing = summary?.pricing;
+  if (!pricing) return undefined;
+  if (pricing.minimumOrderQuantity !== undefined) return pricing.minimumOrderQuantity;
+  return pricing.mode === 'tiered' ? pricing.tiers[0]?.minimumQuantity : undefined;
 }
 
 /**

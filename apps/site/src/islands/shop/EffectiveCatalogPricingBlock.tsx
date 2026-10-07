@@ -1,17 +1,43 @@
 import type { CatalogPricingInput } from '@vibelingan-channel/shared/catalog';
 import {
+  type CatalogPriceSummary,
+  lowestOrderableAmountMinor,
+} from '@vibelingan-channel/shared/catalog-detail';
+import { formatCatalogQuoteAmount } from '../../catalog/presentation/CatalogQuoteConditions.tsx';
+import {
   AlibabaCatalogPricingBlock,
   DEFAULT_ALIBABA_PRICING_LABELS,
   alibabaPriceSummary,
+  formatMinorAmount,
 } from './AlibabaCatalogPricingBlock.tsx';
 import { QuantityTierPricingBlock, quantityTierPriceSummary } from './QuantityTierPricingBlock.tsx';
 import { formatPrice } from './api.ts';
-import { effectiveCatalogPricing } from './catalog-pricing.ts';
+import { effectiveCatalogPricing, readPriceSummary } from './catalog-pricing.ts';
+
+/** "$7.67" for USD/CNY like every other card; "EUR 7.67" like the product page otherwise. */
+function formatSummaryAmount(amountMinor: number, currency: string): string {
+  const code = currency.toUpperCase();
+  return code === 'USD' || code === 'CNY'
+    ? formatMinorAmount(amountMinor, code)
+    : formatCatalogQuoteAmount(amountMinor, currency);
+}
+
+/** Card text for an approved product: the lowest orderable price, or the quote label. */
+function summaryCardPrice(summary: CatalogPriceSummary, quoteLabel: string): string {
+  const { pricing } = summary;
+  if (pricing.mode === 'negotiable' || pricing.mode === 'unavailable') return quoteLabel;
+  const amount = lowestOrderableAmountMinor(pricing);
+  if (amount === undefined) return quoteLabel;
+  const text = formatSummaryAmount(amount, pricing.currency);
+  return pricing.mode === 'fixed' ? text : `From ${text}`;
+}
 
 export function effectiveCatalogPriceSummary(
-  product: CatalogPricingInput,
+  product: CatalogPricingInput & { priceSummary?: unknown },
   quoteLabel: string,
 ): string {
+  const summary = readPriceSummary(product);
+  if (summary) return summaryCardPrice(summary, quoteLabel);
   const decision = effectiveCatalogPricing(product);
   if (decision.source === 'manual-tiered') return quantityTierPriceSummary(decision.pricing);
   if (decision.source === 'scalar') return formatPrice(decision.amount);

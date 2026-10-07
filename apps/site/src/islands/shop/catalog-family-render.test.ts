@@ -11,6 +11,8 @@ import {
   catalogProductPrice,
   hasUsableCatalogSlug,
 } from './CatalogFamilyGrid.tsx';
+import { effectiveCatalogMoq } from './catalog-pricing.ts';
+import type { Product } from './catalog-types.ts';
 import {
   beginNumberedPage,
   failNumberedPage,
@@ -173,6 +175,99 @@ test('family cards choose source, public, or quote pricing and require usable sl
   assert.equal(hasUsableCatalogSlug({ _id: 'valid', name: 'Valid', slug: ' valid ' }), true);
   assert.equal(hasUsableCatalogSlug({ _id: 'blank', name: 'Blank', slug: '   ' }), false);
   assert.equal(hasUsableCatalogSlug({ _id: 'missing', name: 'Missing' }), false);
+});
+
+const tieredSummary = {
+  source: 'sku',
+  variantId: 'v1',
+  pricing: {
+    mode: 'tiered',
+    currency: 'USD',
+    tiers: [
+      { minimumQuantity: 10, maximumQuantity: 99, unitAmountMinor: 130 },
+      { minimumQuantity: 100, maximumQuantity: 499, unitAmountMinor: 122 },
+      { minimumQuantity: 500, unitAmountMinor: 120 },
+    ],
+  },
+};
+const renderCard = (product: Product) => {
+  const markup = renderGrid({ ...readyState(), total: 1, products: [product] });
+  return markup.match(/<button[^>]+data-product-card[\s\S]*?<\/button>/)?.[0] ?? '';
+};
+
+test('approved cards take price and MOQ from the price summary only (MIU-12)', () => {
+  const tiered = { _id: 'tiered', name: 'Tiered', priceSummary: tieredSummary };
+  assert.equal(catalogProductPrice(tiered, 'Request a Quote'), 'From $1.20');
+  assert.equal(effectiveCatalogMoq(tiered), 10);
+  assert.match(renderCard(tiered), />MOQ 10<.*>From \$1\.20</);
+
+  const euro = {
+    _id: 'euro',
+    name: 'Euro',
+    priceSummary: {
+      source: 'website',
+      pricing: { mode: 'fixed', currency: 'EUR', amountMinor: 1200, minimumOrderQuantity: 50 },
+    },
+  };
+  assert.equal(catalogProductPrice(euro, 'Request a Quote'), 'EUR 12.00');
+  assert.equal(effectiveCatalogMoq(euro), 50);
+
+  const range = {
+    _id: 'range',
+    name: 'Range',
+    priceSummary: {
+      source: 'product',
+      pricing: { mode: 'range', currency: 'CNY', minimumAmountMinor: 450, maximumAmountMinor: 900 },
+    },
+  };
+  assert.equal(catalogProductPrice(range, 'Request a Quote'), 'From CN¥4.50');
+  assert.equal(effectiveCatalogMoq(range), undefined);
+
+  const moqOnly = {
+    _id: 'quote',
+    name: 'Quote',
+    wholesalePrice: 9,
+    priceSummary: {
+      source: 'website',
+      pricing: { mode: 'negotiable', minimumOrderQuantity: 200 },
+    },
+  };
+  assert.equal(catalogProductPrice(moqOnly, 'Request a Quote'), 'Request a Quote');
+  assert.equal(effectiveCatalogMoq(moqOnly), 200);
+});
+
+test('the summary wins over stale row prices, and manual and synced cards render the same', () => {
+  const manual = { _id: 'same', name: 'Headset', priceSummary: tieredSummary };
+  const staleSynced = {
+    ...manual,
+    moq: 1,
+    wholesalePrice: 99,
+    alibabaPrimarySourceKey: 'source-1',
+    alibabaCatalogPricing: {
+      schemaVersion: 'alibaba-catalog-pricing-v1',
+      source: 'alibaba',
+      mode: 'fixed',
+      currency: 'USD',
+      amountMinor: 250,
+      sourceMoq: 2,
+      syncedAt: '2026-08-20T00:00:00.000Z',
+    },
+  } as Product;
+  assert.equal(catalogProductPrice(staleSynced, 'Request a Quote'), 'From $1.20');
+  assert.equal(effectiveCatalogMoq(staleSynced), 10);
+  assert.equal(renderCard(staleSynced), renderCard(manual));
+});
+
+test('a malformed summary falls back to the row prices', () => {
+  const broken = {
+    _id: 'broken',
+    name: 'Broken',
+    wholesalePrice: 8,
+    moq: 5,
+    priceSummary: { source: 'sku', pricing: { mode: 'fixed', currency: 'USD', amountMinor: 1 } },
+  };
+  assert.equal(catalogProductPrice(broken, 'Request a Quote'), '$8.00');
+  assert.equal(effectiveCatalogMoq(broken), 5);
 });
 
 test('family controller owns family/filter/search generation resets and abortable fetches', () => {

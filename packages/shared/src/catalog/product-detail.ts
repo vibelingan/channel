@@ -9,7 +9,9 @@ export {
   type CatalogPriceSummary,
   CatalogPriceSummarySchema,
   derivePriceSummary,
+  lowestOrderableAmountMinor,
   type PriceSummaryInput,
+  priceSummaryMoq,
 } from './price-summary.ts';
 
 const text = (max: number) =>

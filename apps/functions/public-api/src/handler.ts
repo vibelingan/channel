@@ -21,10 +21,8 @@ import {
   toRole,
   validateManualCatalogPricing,
 } from '@vibelingan-channel/shared';
-import {
-  type CatalogDetailPublication,
-  resolvePublicVersion,
-} from '@vibelingan-channel/shared/catalog-public-version';
+import { priceSummaryMoq } from '@vibelingan-channel/shared/catalog-detail';
+import { resolvePublicVersion } from '@vibelingan-channel/shared/catalog-public-version';
 import { readCatalogTaxonomy } from './catalog-taxonomy.ts';
 
 const CATALOGS = PUBLIC_CATALOG_COLLECTIONS;
@@ -316,13 +314,6 @@ const ROW_ONLY_FIELDS = new Set<string>([
   'alibabaSourceLastSyncedAt',
 ]);
 
-function summaryMoq(publication: CatalogDetailPublication): number | undefined {
-  const pricing = publication.priceSummary?.pricing;
-  if (!pricing) return undefined;
-  if (pricing.minimumOrderQuantity !== undefined) return pricing.minimumOrderQuantity;
-  return pricing.mode === 'tiered' ? pricing.tiers[0]?.minimumQuantity : undefined;
-}
-
 /**
  * One product's public projection plus which version it came from. An approved
  * product shows its approved name, photos, description, price summary and MOQ;
@@ -354,7 +345,7 @@ export function publicItem(
   }
   if (header.descriptionText) out.description = header.descriptionText;
   if (priceSummary) out.priceSummary = priceSummary;
-  const moq = summaryMoq(version.publication);
+  const moq = priceSummaryMoq(version.publication.priceSummary);
   if (moq !== undefined) out.moq = moq;
   const productFamily = productFamilyForDoc(doc);
   if (productFamily !== null) {
