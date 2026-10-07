@@ -70,6 +70,7 @@ test('plan proposes the cheapest approved SKU for an approved version without a 
     {
       productId: 'p1',
       revision: 'r1',
+      variantCount: 2,
       outcome: 'ready',
       priceSummary: {
         source: 'sku',
@@ -87,7 +88,9 @@ test('legacy storage, existing summaries, unapproved, unpriced and inconsistent 
     catalogDetailPublication: { state: 'approved', revision: 'r1', header, variantCount: 1 },
   });
   const seen: string[] = [];
-  const legacyRow = { ...variant('a', fixed(300)), _id: 'a' };
+  // The oldest real shape: legacy rows carry no storage key or position.
+  const { catalogDetailApproved } = variant('a', fixed(300));
+  const legacyRow = { _id: 'a', catalogDetailApproved };
   const legacyPlan = await planPriceSummaryBackfill(reader([legacy], [legacyRow], seen), {
     pageSize: 20,
   });
@@ -210,4 +213,23 @@ test('apply writes only the summary, idempotently, and skips a changed revision'
     ok: false,
     code: 'FORBIDDEN',
   });
+});
+
+test('a product-level summary on a product with configurations is visible in the plan', async () => {
+  // Pre-batch-1 approvals can hold the retired wholesale headline as a product
+  // offer while every configuration is unpriced; R4 lists these for review.
+  const headline = product({
+    catalogDetailPublication: {
+      ...(product().catalogDetailPublication as object),
+      header: { ...header, offers: fixed(390) },
+    },
+  });
+  const plan = await planPriceSummaryBackfill(
+    reader([headline], [variant('a', [], 0), variant('b', [], 1)]),
+    { pageSize: 20 },
+  );
+  const row = plan.rows[0];
+  assert.equal(row?.outcome, 'ready');
+  assert.equal(row?.variantCount, 2);
+  assert.equal(row?.outcome === 'ready' ? row.priceSummary.source : undefined, 'product');
 });
