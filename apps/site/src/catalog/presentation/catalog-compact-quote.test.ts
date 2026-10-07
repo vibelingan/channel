@@ -290,6 +290,46 @@ test('unknown configuration prices never pass as the configuration price and aut
   }
 });
 
+test('a "request a quote" price that states a minimum order shows it under the label (DEC-16)', () => {
+  const website = pricedDetail({
+    websitePricing: {
+      basis: 'website-manual',
+      pricing: { mode: 'unavailable', minimumOrderQuantity: 50 },
+    },
+  });
+  const websiteArea = primaryArea(renderPanel(website));
+  assert.match(websiteArea, /Request a quote<\/p>/);
+  assert.match(websiteArea, /data-quote-moq[^>]*>≥50 pieces</);
+  assert.doesNotMatch(websiteArea, /data-price-tier|EUR/);
+
+  const productOnly = pricedDetail({
+    offers: [
+      {
+        kind: 'supplier',
+        basis: 'source-quote',
+        pricing: { mode: 'negotiable', minimumOrderQuantity: 200 },
+      },
+    ],
+  });
+  productOnly.variants.items[0].offers = [];
+  assert.match(primaryArea(renderPanel(productOnly)), /data-quote-moq[^>]*>≥200 pieces</);
+
+  const configurationOnly = pricedDetail({ offers: [] });
+  configurationOnly.variants.items[0].offers = [
+    {
+      kind: 'regular',
+      basis: 'source-quote',
+      pricing: { mode: 'unavailable', minimumOrderQuantity: 1 },
+    },
+  ];
+  assert.match(primaryArea(renderPanel(configurationOnly)), /data-quote-moq[^>]*>≥1 piece</);
+
+  const noMoq = pricedDetail({
+    websitePricing: { basis: 'website-manual', pricing: { mode: 'unavailable' } },
+  });
+  assert.doesNotMatch(primaryArea(renderPanel(noMoq)), /data-quote-moq/);
+});
+
 test('a configuration without any quote of its own shows the product quote without a notice', () => {
   const detail = pricedDetail();
   detail.variants.items[0].offers = [];

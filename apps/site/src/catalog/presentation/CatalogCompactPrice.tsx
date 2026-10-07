@@ -8,12 +8,26 @@ const valid = (amount: number) => Number.isSafeInteger(amount) && amount >= 0;
 
 type PricePair = { amount: string; quantity?: string };
 
+const count = (value: number) => value.toLocaleString('en-US');
+const piecesText = (value: number, copy: SharedDetailContent) =>
+  `${count(value)} ${value === 1 ? copy.quotePieceLabel : copy.quotePiecesLabel}`;
+const atLeastText = (value: number, copy: SharedDetailContent) => `≥${piecesText(value, copy)}`;
+
+/** DEC-16: a "request a quote" price may still state a minimum order. */
+function quoteMoq(offers: readonly { pricing: Offer['pricing'] }[]): number | undefined {
+  for (const { pricing } of offers)
+    if (
+      (pricing.mode === 'unavailable' || pricing.mode === 'negotiable') &&
+      pricing.minimumOrderQuantity !== undefined
+    )
+      return pricing.minimumOrderQuantity;
+  return undefined;
+}
+
 function pricePairs(pricing: Offer['pricing'], copy: SharedDetailContent): PricePair[] {
   if (pricing.mode === 'unavailable' || pricing.mode === 'negotiable') return [];
-  const count = (value: number) => value.toLocaleString('en-US');
-  const pieces = (value: number) =>
-    `${count(value)} ${value === 1 ? copy.quotePieceLabel : copy.quotePiecesLabel}`;
-  const atLeast = (value: number) => `≥${pieces(value)}`;
+  const pieces = (value: number) => piecesText(value, copy);
+  const atLeast = (value: number) => atLeastText(value, copy);
   const format = (amount: number) => formatCatalogQuoteAmount(amount, pricing.currency);
   if (pricing.mode === 'tiered') {
     // Contiguous tiers at one price read as one window; a gap between them
@@ -92,8 +106,16 @@ function PriceTiers({ pairs, copy }: { pairs: PricePair[]; copy: SharedDetailCon
   );
 }
 
-const inquiry = (copy: SharedDetailContent) => (
-  <p className="text-xl font-semibold leading-snug text-brand-950">{copy.inquiryLabel}</p>
+/** "Request a quote", with the stated minimum order underneath when there is one. */
+const inquiry = (copy: SharedDetailContent, moq?: number) => (
+  <>
+    <p className="text-xl font-semibold leading-snug text-brand-950">{copy.inquiryLabel}</p>
+    {moq !== undefined && (
+      <p data-quote-moq className="mt-1 text-sm leading-5 tabular-nums text-ink-muted">
+        {atLeastText(moq, copy)}
+      </p>
+    )}
+  </>
 );
 
 /** One price block: website price, else the selected configuration's own
@@ -124,7 +146,11 @@ export function CatalogCompactPrice({
       {websitePricing ? (
         (() => {
           const pairs = pricePairs(websitePricing.pricing, copy);
-          return pairs.length ? <PriceTiers pairs={pairs} copy={copy} /> : inquiry(copy);
+          return pairs.length ? (
+            <PriceTiers pairs={pairs} copy={copy} />
+          ) : (
+            inquiry(copy, quoteMoq([websitePricing]))
+          );
         })()
       ) : scope ? (
         <div data-quote-scope={scope} className="min-w-0 space-y-3">
@@ -143,7 +169,9 @@ export function CatalogCompactPrice({
           )}
         </div>
       ) : (
-        inquiry(copy)
+        // Same order as the card's summary: the product's own quote, then the
+        // selected configuration's (price-summary.ts, rule 4).
+        inquiry(copy, quoteMoq(productOffers) ?? quoteMoq(variantOffers ?? []))
       )}
     </div>
   );
