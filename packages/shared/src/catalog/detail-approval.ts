@@ -1,6 +1,7 @@
 /** Pure write preflight. Reading, authorization, media readiness and atomic commit belong to callers. */
 import { z } from 'zod';
 import { PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT } from '../media.ts';
+import { manualFacts } from './manual-detail.ts';
 import {
   CatalogContentSchema,
   CatalogDetailHeaderSchema,
@@ -41,10 +42,32 @@ const productInput = z.object({
   wholesalePrice: z.unknown(),
   moq: z.unknown(),
   productFamily: z.enum(['headphones', 'ai-gadgets', 'toys', 'misc']).optional(),
+  // Spec fields a manual product's facts come from (MIU-27).
+  skuCode: z.unknown(),
+  series: z.unknown(),
+  modName: z.unknown(),
+  modType: z.unknown(),
 });
+
+const isManualOwner = (product: z.infer<typeof productInput>) =>
+  product.detailSourceOwner.startsWith('manual:');
+const positiveMoq = (value: unknown) =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined;
 
 function websitePricing(product: z.infer<typeof productInput>) {
   const decision = resolveManualCatalogPricing(product);
+  // DEC-16: a manual product with no price but a minimum order shows
+  // "Request a quote" with that minimum, on the card and the page.
+  const moqOnly = positiveMoq(product.moq);
+  if (
+    isManualOwner(product) &&
+    moqOnly !== undefined &&
+    (decision.source === 'inherit' || decision.source === 'empty-manual')
+  )
+    return WebsiteDetailPricingSchema.parse({
+      basis: 'website-manual',
+      pricing: { mode: 'unavailable', minimumOrderQuantity: moqOnly },
+    });
   if (decision.source === 'inherit') return undefined;
   if (decision.source === 'invalid') throw new Error(decision.reason);
   if (decision.source === 'manual-tiered')
@@ -134,6 +157,8 @@ export function planCatalogDetailApproval(input: {
       : {}),
     images: product.imageIds.map((id) => `/api/images/${id}`),
     descriptionImages: product.descriptionImageIds?.map((id) => `/api/images/${id}`),
+    // A manual product's facts are its spec fields; a synced one keeps its source facts.
+    ...(isManualOwner(product) ? { facts: manualFacts(product) } : {}),
     websitePricing: websitePricing(product),
     ...(description ? { descriptionText: description } : {}),
   });
