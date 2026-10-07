@@ -14,8 +14,8 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 5 | `resolvePublicVersion` shared rule | 3 | Done | `3407529` |
 | 6 | Price summary backfill (db command) | 2b | Done | `96c3157` |
 | 7 | Backfill admin action + script | 2b | Done | `bcfac0a` |
-| 8 | Public list / item / slug read the one version | 3 | Done | (this commit) |
-| 9 | Product page endpoint uses the rule | 3 | Not started | |
+| 8 | Public list / item / slug read the one version | 3 | Done | `b7153f5` |
+| 9 | Product page endpoint uses the rule | 3 | Done | (this commit) |
 | 10 | Quote request uses the rule | 3 | Not started | |
 | 11 | Site decoder + `Product.priceSummary` | 3 | Not started | |
 | 12 | Card price / MOQ from summary | 3 | Not started | |
@@ -91,6 +91,19 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-9 — product page endpoint uses the shared rule (2026-10-07)
+- What changed: `getProductDetail` uses `resolvePublicVersion` for both its first
+  read and its consistency re-read. No behaviour change: the old check already
+  ignored the Alibaba link. The rule is now shared with the list.
+- Tests: new `catalog-detail.test.ts` (the endpoint had no unit test).
+  Approved synced and approved manual (zero configurations, website price)
+  serve the detail; not-yet-approved and mismatched → `NOT_FOUND`. Written as
+  characterisation tests before the refactor; they passed before and after.
+- Caught during validation: my first refactor missed one rename
+  (`= approved.data;`). The new tests and 17 local-server tests failed until it
+  was fixed; local-server is now 152/152.
+- Validation: public-api 122/122; local-server 152/152; `pnpm typecheck`.
 
 ### MIU-8 — public list / item / slug read the one version (2026-10-07)
 - What changed: `enableCatalogDetail` moved from `PublicHttpConfig` to
