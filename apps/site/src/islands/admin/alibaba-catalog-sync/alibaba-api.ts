@@ -346,6 +346,8 @@ export interface SourceObservationReplayCounts {
   attributedVariants: number;
   attributePairs: number;
   warnings: number;
+  /** Stored wholesale headline offers retired by the replay (not a price). */
+  productHeadlineDropped: number;
 }
 
 export interface SourceObservationReplayFailure {
@@ -404,6 +406,7 @@ const REPLAY_COUNT_KEYS = [
   'attributedVariants',
   'attributePairs',
   'warnings',
+  'productHeadlineDropped',
 ] as const satisfies readonly (keyof SourceObservationReplayCounts)[];
 const MAX_REPLAY_PAGES = 1_000;
 const REPLAY_PAGE_SIZE = 20;
@@ -513,6 +516,7 @@ export function decodeSourceObservationReplayPage(
     counts.observations + failures.length !== counts.sourceProducts ||
     counts.attributedVariants > counts.variants ||
     counts.attributePairs < counts.attributedVariants ||
+    counts.productHeadlineDropped > counts.observations ||
     pricedOffers !== counts.offers ||
     totalSourceProducts < counts.sourceProducts ||
     !cursorIsValid ||
@@ -579,6 +583,7 @@ function emptyReplayCounts(): SourceObservationReplayCounts {
     attributedVariants: 0,
     attributePairs: 0,
     warnings: 0,
+    productHeadlineDropped: 0,
   };
 }
 

@@ -8,7 +8,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | MIU | Title | Batch | Status | Commit |
 |---|---|---|---|---|
 | 1 | Normalizer omits wholesale headline when SKUs exist | 1 | Done | `98a462c` |
-| 2 | Raw replay deactivates dropped `'@product'`, stores new hash | 1 | Done | (this commit) |
+| 2 | Raw replay deactivates dropped `'@product'`, stores new hash | 1 | Done | `c42fc7c` |
 | 3 | Price summary contract + `derivePriceSummary` | 2a | Not started | |
 | 4 | Approval plan stores `priceSummary` | 2b | Not started | |
 | 5 | `resolvePublicVersion` shared rule | 3 | Not started | |
@@ -42,7 +42,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 33 | Product page shows MOQ when there is no price | 5a | Not started | |
 | 34 | Manual product end-to-end (local) + admin e2e updates | 5a | Not started | |
 | 35 | Batch "Assign category" confirms before publishing pending changes | 4 | Pending owner review (DEC-12) | |
-| 36 | Replay admin page shows `productHeadlineDropped` | 1 | Not started | |
+| 36 | Replay admin page shows `productHeadlineDropped` | 1 | Done | (this commit) |
 | 37 | Gate on creating an already-published product | 5b | Not started (ships after R9) | |
 | 38 | Admin action `auditChangesSinceApproval` | 4 | Not started | |
 
@@ -91,6 +91,19 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-36 — replay admin page accepts and shows the headline count (2026-10-07)
+- What changed: the strict counts decoder (`alibaba-api.ts`) accepts
+  `productHeadlineDropped` (and rejects a value above the page's observations);
+  page totals include it; the replay panel shows "Headline prices removed: N".
+- Tests (red → green):
+  - fixtures carry the new count;
+  - -1 and 21 are rejected;
+  - the rendered value is shown;
+  - the two-page total is 3.
+- Validation: site 506 pass / 0 fail; `pnpm typecheck`; `pnpm build`; `pnpm lint`.
+- Batch 1 code complete (MIU-1, MIU-2, MIU-36). Not deployed (DEC-13: all batches
+  are validated locally first).
 
 ### MIU-2 — replay deactivates stored headline offers and stores the new hash (2026-10-07)
 - What changed: `replayAlibabaRawPage` accepts an existing active set that equals
