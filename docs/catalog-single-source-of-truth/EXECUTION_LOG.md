@@ -27,18 +27,26 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 18 | Approval receipt carries digest | 4 | Not started | |
 | 19 | Promote step flags changed / removed | 4 | Not started | |
 | 20 | Quarantine path + refresh contract | 4 | Not started | |
-| 21 | Approve / acknowledge clears reason | 4 | Not started (Owner: DEC-11) | |
+| 21 | Approve / acknowledge clears reason (not unpublish) | 4 | Not started | |
 | 22 | "Changed since approval" audit action | 4 | Not started | |
-| 23 | Admin badge / chip show reason | 4 | Not started (Owner: DEC-11) | |
-| 24 | "Approve changes" action | 4 | Not started (Owner: DEC-11) | |
-| 25 | Batch category assignment skips changed | 4 | Not started | |
+| 23 | Admin badge / chip show reason | 4 | Not started | |
+| 24 | "Approve changes" action | 4 | Not started | |
+| 25 | Save never publishes unreviewed supplier changes | 4 | Not started | |
 | 26 | `catalog-consistency-audit` script | 3 | Not started | |
+| 27 | Manual draft, spec facts, MOQ-only price in the planner | 5 | Not started | |
+| 28 | `manual-source` prepare command + spec fields in approval fingerprint | 5 | Not started | |
+| 29 | Receipt fingerprint covers spec fields for manual owners | 5 | Not started | |
+| 30 | Admin prepare — manual branch | 5 | Not started | |
+| 31 | Publish gate for every product, including create | 5 | Waiting for owner (OWN-1, OWN-2) | |
+| 32 | Admin publish flow and preview include manual products | 5 | Not started | |
+| 33 | Product page shows MOQ when there is no price | 5 | Not started | |
+| 34 | Manual product end-to-end (local) + admin e2e updates | 5 | Not started | |
 
 ## Runbook status
 
 | Step | Status | Notes |
 |---|---|---|
-| R1 Unpublish the 21 | Waiting for owner (DEC-13) | List below |
+| R1 Unpublish the 21 | Not started — after local validation of all batches (DEC-13) | List below |
 | R2 Replay rebuild | Not started | |
 | R3 Pinned-offer count | Not started | |
 | R4 Price summary backfill | Not started | |
@@ -46,6 +54,8 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | R6 Changed-since-approval audit | Not started | |
 | R7 Admin re-approval | Not started | |
 | R8 Final audit + browser checks | Not started | |
+| R9 Admin approves the 7 manual products | Not started | |
+| R10 Audit with `--require-no-fallback` | Not started | |
 
 ## The 21 products (live audit 2026-10-06)
 
@@ -77,6 +87,21 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### PT-0 review fix — tiers below the minimum order (2026-10-07, `71272a6`)
+- What changed: `CatalogCompactPrice` drops tier windows that end below the
+  quote's MOQ and starts the first remaining window at the MOQ; the offer-label
+  order test now fails when a label is missing.
+- Why: pre-push review of the price-block commits (`5913f20`, `7984dea`).
+- Tests (red → green): new "tiers below the minimum order…" test failed, then
+  passed; site unit tests 506 pass, 0 fail.
+- Validation: lint, typecheck, build; local e2e with `E2E_CATALOG_FORMAL=1`:
+  public 41, catalog suites 88 (incl. 45 product-page tests), formal journey 6,
+  taxonomy and admin subcategory — all passed. Not run (need saved sample data or
+  live credentials): `shared-detail-preview.spec.ts`,
+  `catalog-live-acceptance.spec.ts`.
+- Live data: 0 of 411 tiered offers had an MOQ above the first tier, so no visible
+  change today.
 
 <!-- One entry per completed MIU:
 ### MIU-n — <title> (YYYY-MM-DD, <commit>)
