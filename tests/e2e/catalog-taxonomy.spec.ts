@@ -192,8 +192,8 @@ test('local taxonomy: saved categories and assignments drive all four storefront
   }
   async function confirmAssignment() {
     const dialog = page.getByRole('dialog', { name: 'Edit website classification', exact: true });
-    await dialog.getByRole('button', { name: 'Review assignment', exact: true }).click();
-    await dialog.getByRole('button', { name: 'Confirm assignment', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Save classification', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Confirm save', exact: true }).click();
     await expect(dialog).toHaveCount(0);
   }
 
@@ -330,9 +330,8 @@ test('local taxonomy: saved categories and assignments drive all four storefront
       await page.getByRole('button', { name: 'Assign category', exact: true }).click();
       dialog = page.getByRole('dialog', { name: 'Edit website classification', exact: true });
       await expect(dialog).toContainText('2 selected products.');
-      await dialog
-        .getByRole('checkbox', { name: 'Publish only after all classifications are confirmed' })
-        .uncheck();
+      await expect(dialog.getByRole('button', { name: 'Save classification' })).toBeVisible();
+      await expect(dialog.getByRole('button', { name: 'Save and publish' })).toBeVisible();
       for (const child of children)
         await dialog.getByRole('checkbox', { name: child.name, exact: true }).check();
       await confirmAssignment();
@@ -351,6 +350,9 @@ test('local taxonomy: saved categories and assignments drive all four storefront
       await expect(page.getByRole('checkbox', { name: 'Select row', exact: true })).toHaveCount(14);
       await page.getByRole('checkbox', { name: 'Select all rows', exact: true }).check();
       await page.getByRole('button', { name: 'Publish', exact: true }).click();
+      await expect(page.getByRole('status').filter({ hasText: '14 published' })).toBeVisible({
+        timeout: 60_000,
+      });
       await expect
         .poll(async () =>
           (await Promise.all(products.map((product) => readProduct(product._id)))).every(
@@ -359,7 +361,12 @@ test('local taxonomy: saved categories and assignments drive all four storefront
         )
         .toBe(true);
       expect(await readProduct(single._id)).toMatchObject({ subcategoryIds: [], published: true });
-      expect((await publicProducts(family)).total).toBe(14);
+      const unfilteredFirst = await publicProducts(family);
+      const unfilteredSecond = await publicProducts(family, undefined, 2);
+      expect(unfilteredFirst.total).toBe(14);
+      expect(
+        [...unfilteredFirst.items, ...unfilteredSecond.items].map((product) => product._id).sort(),
+      ).toEqual(products.map((product) => product._id).sort());
 
       await test.step('public filters, header, overlap deduplication and responsive evidence', async () => {
         const exposed = await publicTaxonomy(family);

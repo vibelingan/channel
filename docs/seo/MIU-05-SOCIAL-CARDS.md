@@ -1,14 +1,10 @@
 # MIU-05: Open Graph and Twitter Cards
 
-Status: deployed and verified on `test`; pending independent main-promotion review
+Status: implemented; pending final delivery verification
 
-Historical implementation branch: `feat/seo-phase-2-social-cards`
+Branch: `feat/seo-phase-2-social-cards`
 
-Historical implementation base: `origin/test@c2061a1`
-
-Main-promotion branch: `feat/seo-phase-2-main-delivery`
-
-Main-promotion base: `origin/main@7978369`
+Base: `origin/test@c2061a1`
 
 ## Goal
 
@@ -63,9 +59,8 @@ onto unrelated pages; future page-specific images can use the typed `socialImage
 - six noindex pages contain zero OG/Twitter tags;
 - asset exists in the built output;
 - full site/workspace tests, typechecks, Biome, and local browser smoke pass;
-- test-branch CI, CloudBase deploy, deployed smoke, and public browser E2E pass;
-- production-visible page tags and social image HTTP response pass;
-- social-platform cache/debugger refreshes remain an external operational follow-up, not a code gate.
+- CI, deploy, production pages, social image HTTP response, and platform debugger probes pass before
+	changing status to delivered.
 
 ## Scope boundary
 

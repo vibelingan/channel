@@ -101,8 +101,16 @@ export async function adminAction<T>(
   return json.data;
 }
 
-export async function loginAdmin(request: APIRequestContext): Promise<AdminSession> {
-  const credentials = { email: e2e.adminEmail, password: e2e.adminPassword };
+export function loginAdmin(request: APIRequestContext): Promise<AdminSession> {
+  return loginUser(request, e2e.adminEmail, e2e.adminPassword);
+}
+
+export async function loginUser(
+  request: APIRequestContext,
+  email: string,
+  password: string,
+): Promise<AdminSession> {
+  const credentials = { email, password };
   for (let attempt = 1; ; attempt++) {
     const response = await request.post(`${e2e.apiUrl}/api/admin`, {
       data: { action: 'login', data: credentials },
