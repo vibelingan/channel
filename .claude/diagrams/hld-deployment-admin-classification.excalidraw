@@ -1,0 +1,18 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {"id":"operator","type":"ellipse","x":45,"y":230,"width":180,"height":85,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#b2f2bb","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Admin browser\nOperator","fontSize":18,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"hosting","type":"rectangle","x":425,"y":230,"width":245,"height":85,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#a5d8ff","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"CloudBase static web hosting\nExisting Astro bundle","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"admin","type":"rectangle","x":870,"y":90,"width":235,"height":90,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#e9ecef","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Existing Admin function\nAuthorization + updates","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"public","type":"rectangle","x":870,"y":430,"width":235,"height":90,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#e9ecef","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"Existing Public API function\nPublished catalog only","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"database","type":"rectangle","x":1305,"y":230,"width":250,"height":85,"angle":0,"strokeColor":"#1e1e1e","backgroundColor":"#e9ecef","fillStyle":"solid","strokeWidth":2,"roughness":1,"opacity":100,"text":"CloudBase NoSQL\nProducts / taxonomy / images","fontSize":17,"fontFamily":5,"textAlign":"center","verticalAlign":"middle"},
+    {"id":"a-hosting","type":"arrow","x":225,"y":272,"width":200,"height":0,"points":[[0,0],[200,0]],"startBinding":{"elementId":"operator","gap":5,"focus":0},"endBinding":{"elementId":"hosting","gap":5,"focus":0},"label":{"text":"Load site bundle","fontSize":14,"fontFamily":5}},
+    {"id":"a-admin","type":"arrow","x":670,"y":260,"width":200,"height":-125,"points":[[0,0],[200,-125]],"startBinding":{"elementId":"hosting","gap":5,"focus":0},"endBinding":{"elementId":"admin","gap":5,"focus":0},"label":{"text":"Admin action POST","fontSize":14,"fontFamily":5}},
+    {"id":"a-persist","type":"arrow","x":1105,"y":135,"width":200,"height":137,"points":[[0,0],[200,137]],"startBinding":{"elementId":"admin","gap":5,"focus":0},"endBinding":{"elementId":"database","gap":5,"focus":0},"label":{"text":"Validated write","fontSize":14,"fontFamily":5}},
+    {"id":"a-public","type":"arrow","x":1305,"y":272,"width":-200,"height":203,"points":[[0,0],[-200,203]],"startBinding":{"elementId":"database","gap":5,"focus":0},"endBinding":{"elementId":"public","gap":5,"focus":0},"label":{"text":"Published projection","fontSize":14,"fontFamily":5}}
+  ],
+  "appState": {"viewBackgroundColor":"#ffffff","gridSize":20},
+  "files": {}
+}

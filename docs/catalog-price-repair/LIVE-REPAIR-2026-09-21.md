@@ -1,10 +1,10 @@
 # Catalog Price Repair - Live Repair, 2026-09-21
 
-Status: Eligible catalog summary-price repair and post-repair acceptance completed. All 1062 eligible products repaired, including all 117 affected published products; zero eligible omissions remain. Eight classified deferred products remain private and unchanged. All 129 post-repair public tests passed. Final offer verification and sync/lease cleanup passed; PR delivery is the remaining administrative step. Approved SKU snapshots were intentionally preserved, not repriced.
+Status: Eligible catalog summary-price repair and post-repair acceptance completed. All 1062 eligible products repaired, including all 117 affected published products; zero eligible omissions remain. Eight classified deferred products remain private and unchanged. All 129 post-repair public tests passed. Final offer verification and sync/lease cleanup passed; PR #60 merged to main at `fcf1431` on 2026-09-21. Approved SKU snapshots were intentionally preserved, not repriced.
 
-**Current phase:** `deliver`.
+**Current phase:** `complete`.
 
-**Current/next MIU:** commit and review the final evidence record, pass same-head PR checks, and merge PR #60 without importing test-only changes. No further cloud data mutation is needed. Separate SKU review/approval is not authorized automatically.
+**Current/next MIU:** eligible summary repair and PR #60 delivery are complete. No further cloud data mutation is needed for this repair. Separate SKU review/approval is not authorized automatically.
 
 This is the current live-repair record linked from
 [RELEASE-2026-09-21.md](RELEASE-2026-09-21.md). It supersedes that document's

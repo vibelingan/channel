@@ -19,7 +19,7 @@ import {
   isProductFamily,
   productFamilyForDoc,
 } from '@vibelingan-channel/shared';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { Select } from '../../components/form/Select.tsx';
 import { BatchUpdateFeedback } from './BatchUpdateFeedback.tsx';
 import { CatalogTaxonomyManager } from './CatalogTaxonomyManager.tsx';
@@ -27,6 +27,10 @@ import { ClassificationDialog } from './ClassificationDialog.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { FilterBuilder } from './FilterBuilder.tsx';
 import { PreviewModal } from './PreviewModal.tsx';
+import {
+  type UnresolvedClassificationSnapshot,
+  matchesVerifiedOutcome,
+} from './ProductClassificationEditor.tsx';
 import { RecordForm } from './RecordForm.tsx';
 import { alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { productReviewCellValue } from './alibaba-source-review.ts';
@@ -35,6 +39,7 @@ import {
   batchUpdateRecords,
   createRecord,
   fetchProductReviewSummary,
+  getRecord,
   imageUrl,
   listRecords,
   markProductReviewed,
@@ -59,20 +64,43 @@ import {
 
 const PAGE_SIZE = 20;
 
+export interface ProductClassificationReview {
+  snapshot: UnresolvedClassificationSnapshot;
+  names: Record<string, string>;
+  beforeProducts: readonly CollectionDoc[];
+}
+
 interface Props {
   collection: CollectionDef;
   section: DashboardSection;
   role: string;
+  productSelection: Record<string, boolean>;
+  onProductSelectionChange: Dispatch<SetStateAction<Record<string, boolean>>>;
+  productReview: ProductClassificationReview | null;
+  onProductReviewChange: Dispatch<SetStateAction<ProductClassificationReview | null>>;
 }
 
-export function CollectionView({ collection, section, role }: Props) {
+export function CollectionView({
+  collection,
+  section,
+  role,
+  productSelection,
+  onProductSelectionChange,
+  productReview,
+  onProductReviewChange,
+}: Props) {
   const queryClient = useQueryClient();
+  const isProducts = collection.name === 'products';
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [filter, setFilter] = useState<FilterModel | null>(null);
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
+  const [localRowSelection, setLocalRowSelection] = useState<Record<string, boolean>>({});
+  const rowSelection = isProducts ? productSelection : localRowSelection;
+  const setRowSelection = isProducts ? onProductSelectionChange : setLocalRowSelection;
+  const currentSelectionRef = useRef(rowSelection);
+  currentSelectionRef.current = rowSelection;
   const [editing, setEditing] = useState<CollectionDoc | null>(null);
   const [creating, setCreating] = useState(false);
   const [previewing, setPreviewing] = useState<CollectionDoc | null>(null);
@@ -80,10 +108,32 @@ export function CollectionView({ collection, section, role }: Props) {
     products: CollectionDoc[];
     publishOnSave: boolean;
   } | null>(null);
+  const classificationReview = isProducts ? productReview : null;
+  const classificationBlocked = classificationReview !== null;
+  const reviewIds = classificationReview
+    ? [
+        ...new Set([
+          ...classificationReview.snapshot.unresolvedIds,
+          ...classificationReview.snapshot.attentionIds,
+        ]),
+      ]
+    : [];
+  const setClassificationReview = onProductReviewChange;
+  const currentReviewRef = useRef(classificationReview);
+  currentReviewRef.current = classificationReview;
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const [reviewRefreshing, setReviewRefreshing] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState('');
+  const reviewAction = useRef<HTMLButtonElement>(null);
   const [taxonomyOpened, setTaxonomyOpened] = useState(false);
 
   const isCatalog = section.catalog === true;
-  const isProducts = collection.name === 'products';
   const canReviewAlibabaProducts = isProducts && role === 'admin';
   // Registry reads are admin-only on the server, so only admins get subcategory names and filters.
   const canReadSubcategories = isProducts && role === 'admin';
@@ -158,6 +208,36 @@ export function CollectionView({ collection, section, role }: Props) {
     setRowSelection({});
   }
 
+  async function refreshClassificationStatuses() {
+    if (!classificationReview || reviewRefreshing) return;
+    const current = classificationReview;
+    const selectionAtRefresh = rowSelection;
+    setReviewRefreshing(true);
+    setReviewMessage('');
+    try {
+      await queryClient.invalidateQueries(
+        { queryKey: ['list', 'products'] },
+        { throwOnError: true },
+      );
+      if (!mounted.current || currentReviewRef.current !== current) return;
+      const products = await Promise.all(
+        current.snapshot.submittedIds.map((id) => getRecord('products', id)),
+      );
+      if (!mounted.current || currentReviewRef.current !== current) return;
+      if (matchesVerifiedOutcome(current.snapshot, current.beforeProducts, products)) {
+        setClassificationReview(null);
+        if (currentSelectionRef.current === selectionAtRefresh) clearSelection();
+      } else {
+        setReviewMessage('Statuses refreshed. Inspect affected products before retrying.');
+      }
+    } catch {
+      if (mounted.current && currentReviewRef.current === current)
+        setReviewMessage('Product status refresh failed. Confirmed receipts remain available.');
+    } finally {
+      if (mounted.current) setReviewRefreshing(false);
+    }
+  }
+
   const createMutation = useMutation({
     mutationFn: (values: Record<string, unknown>) => createRecord(collection.name, values),
     onSuccess: () => {
@@ -210,6 +290,11 @@ export function CollectionView({ collection, section, role }: Props) {
       invalidate();
     },
   });
+  const recordWritePending =
+    updateMutation.isPending ||
+    removeMutation.isPending ||
+    batchUpdateMutation.isPending ||
+    batchRemoveMutation.isPending;
 
   const visibleMutationError =
     batchUpdateMutation.error ||
@@ -221,11 +306,19 @@ export function CollectionView({ collection, section, role }: Props) {
     updateMutation.mutate({ id, values });
   }
 
-  // Drop any stale selection when the visible result set changes.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset triggers
+  // biome-ignore lint/correctness/useExhaustiveDependencies: selection resets only when the visible scope changes
   useEffect(() => {
-    setRowSelection({});
+    setRowSelection(
+      classificationReview
+        ? Object.fromEntries(classificationReview.snapshot.submittedIds.map((id) => [id, true]))
+        : {},
+    );
   }, [search, filter, page, productFamily, subcategoryId]);
+
+  useEffect(() => {
+    if (!classifying && classificationReview && document.activeElement === document.body)
+      reviewAction.current?.focus({ preventScroll: true });
+  }, [classifying, classificationReview]);
 
   function pushProductScope(nextFamily: AdminProductFamily, nextSubcategory: string | null) {
     if (typeof window === 'undefined') return;
@@ -260,7 +353,7 @@ export function CollectionView({ collection, section, role }: Props) {
     };
     window.addEventListener('popstate', recoverFamily);
     return () => window.removeEventListener('popstate', recoverFamily);
-  }, [isProducts, canReadSubcategories]);
+  }, [isProducts, canReadSubcategories, setRowSelection]);
 
   const tableFields = useMemo(() => {
     const visible = collection.fields.filter(
@@ -388,7 +481,7 @@ export function CollectionView({ collection, section, role }: Props) {
         cell: ({ row }) => (
           <PublishToggle
             published={row.original.published === true}
-            busy={updateMutation.isPending || batchUpdateMutation.isPending}
+            busy={recordWritePending}
             onToggle={() =>
               patch(row.original._id, { published: !(row.original.published === true) })
             }
@@ -408,7 +501,12 @@ export function CollectionView({ collection, section, role }: Props) {
             {isProducts && role === 'admin' && (
               <button
                 type="button"
-                disabled={updateMutation.isPending || batchUpdateMutation.isPending}
+                disabled={classificationBlocked || recordWritePending}
+                title={
+                  classificationBlocked
+                    ? 'Resolve the pending classification result before starting another'
+                    : undefined
+                }
                 onClick={() => setClassifying({ products: [doc], publishOnSave: false })}
                 className="mr-3 min-h-11 text-sm font-medium text-brand-700 disabled:opacity-50"
               >
@@ -426,7 +524,7 @@ export function CollectionView({ collection, section, role }: Props) {
             )}
             <button
               type="button"
-              disabled={batchUpdateMutation.isPending}
+              disabled={recordWritePending}
               onClick={() => setEditing(doc)}
               className="ml-3 text-sm font-medium text-slate-700 hover:text-slate-900 disabled:opacity-50"
             >
@@ -434,13 +532,16 @@ export function CollectionView({ collection, section, role }: Props) {
             </button>
             <button
               type="button"
-              disabled={batchUpdateMutation.isPending}
+              disabled={recordWritePending || (isProducts && doc.archived === true)}
               onClick={() => {
-                if (confirm('Delete this record?')) removeMutation.mutate(doc._id);
+                if (isProducts) {
+                  if (confirm('Archive this product? It will no longer be published.'))
+                    patch(doc._id, { archived: true, published: false });
+                } else if (confirm('Delete this record?')) removeMutation.mutate(doc._id);
               }}
               className="ml-3 text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
             >
-              Delete
+              {isProducts ? 'Archive' : 'Delete'}
             </button>
           </div>
         );
@@ -455,8 +556,8 @@ export function CollectionView({ collection, section, role }: Props) {
     canReadSubcategories,
     role,
     inlineEdit,
-    updateMutation.isPending,
-    batchUpdateMutation.isPending,
+    classificationBlocked,
+    recordWritePending,
   ]);
 
   const table = useReactTable({
@@ -496,7 +597,7 @@ export function CollectionView({ collection, section, role }: Props) {
 
       {isProducts && (
         <div className="mt-6 border-b border-slate-200 pb-3">
-          <fieldset className="hidden min-w-0 gap-1 overflow-x-auto sm:flex">
+          <fieldset className="hidden min-w-0 flex-wrap gap-1 xl:flex">
             <legend className="sr-only">Product family</legend>
             <ProductFamilyTab
               label="All products"
@@ -537,7 +638,7 @@ export function CollectionView({ collection, section, role }: Props) {
                 label: `${productFamilyLabel(value)}${(reviewSummary?.byFamily[value] ?? 0) > 0 ? ' • New' : ''}`,
               })),
             ]}
-            className="block sm:hidden"
+            className="block xl:hidden"
             triggerClassName="font-medium text-slate-800"
             onChange={(value) =>
               changeProductFamily(isProductFamily(value) || value === 'unclassified' ? value : null)
@@ -574,6 +675,73 @@ export function CollectionView({ collection, section, role }: Props) {
           </summary>
           {taxonomyOpened && <CatalogTaxonomyManager />}
         </details>
+      )}
+      {classificationReview && (
+        <div
+          role="alert"
+          className="mt-4 border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+        >
+          <p className="font-semibold">
+            {classificationReview.snapshot.unresolvedIds.length > 0
+              ? 'Classification result not confirmed for:'
+              : classificationReview.snapshot.attentionIds.length > 0
+                ? 'Classification needs attention for:'
+                : 'Product status refresh failed for:'}
+          </p>
+          <p className="mt-1 break-words">
+            {(reviewIds.length > 0 ? reviewIds : classificationReview.snapshot.submittedIds)
+              .map((id) => classificationReview.names[id] ?? id)
+              .join(', ')}
+          </p>
+          <p className="mt-1">
+            {classificationReview.snapshot.confirmedPublishedIds.length} confirmed published;{' '}
+            {classificationReview.snapshot.unresolvedIds.length} unresolved;{' '}
+            {classificationReview.snapshot.attentionIds.length} need attention. Check product
+            statuses before retrying.
+          </p>
+          {classificationReview.snapshot.unresolvedIds.length > 0 && (
+            <ul aria-label="Products to verify" className="mt-2 list-disc space-y-1 pl-5">
+              {classificationReview.snapshot.unresolvedIds.map((id) => (
+                <li key={id} className="break-words">
+                  {classificationReview.names[id] ?? id}:{' '}
+                  {classificationReview.snapshot.issuesById[id] ??
+                    'Result not confirmed; inspect before retrying.'}
+                </li>
+              ))}
+            </ul>
+          )}
+          {classificationReview.snapshot.attentionIds.length > 0 && (
+            <ul aria-label="Products needing attention" className="mt-2 list-disc space-y-1 pl-5">
+              {classificationReview.snapshot.attentionIds.map((id) => (
+                <li key={id} className="break-words">
+                  {classificationReview.names[id] ?? id}:{' '}
+                  {classificationReview.snapshot.issuesById[id] ?? 'Review product status'}
+                </li>
+              ))}
+            </ul>
+          )}
+          {reviewMessage && <p className="mt-1">{reviewMessage}</p>}
+          <button
+            type="button"
+            disabled={reviewRefreshing}
+            className="mt-2 mr-4 min-h-11 text-sm font-semibold underline disabled:opacity-50"
+            onClick={() => void refreshClassificationStatuses()}
+          >
+            {reviewRefreshing ? 'Refreshing statuses...' : 'Refresh statuses'}
+          </button>
+          <button
+            type="button"
+            ref={reviewAction}
+            className="mt-2 min-h-11 text-sm font-semibold underline"
+            onClick={() => {
+              clearSelection();
+              setClassificationReview(null);
+              setReviewMessage('');
+            }}
+          >
+            Clear selection and reminder
+          </button>
+        </div>
       )}
       <div className="mt-6 flex flex-wrap items-center gap-2">
         <form
@@ -613,13 +781,13 @@ export function CollectionView({ collection, section, role }: Props) {
           count={selectedIds.length}
           isCatalog={isCatalog}
           isUsers={isUsers}
+          canClassify={isProducts && role === 'admin'}
+          classifyBlocked={classificationBlocked}
           collection={collection}
-          busy={
-            batchUpdateMutation.isPending ||
-            batchRemoveMutation.isPending ||
-            updateMutation.isPending
-          }
-          onClear={clearSelection}
+          busy={recordWritePending}
+          onClear={() => {
+            clearSelection();
+          }}
           onClassify={() =>
             setClassifying({
               products: rows.filter((row) => selectedIds.includes(row._id)),
@@ -634,7 +802,18 @@ export function CollectionView({ collection, section, role }: Props) {
             })
           }
           onDelete={() => {
-            if (confirm(`Delete ${selectedIds.length} record(s)?`)) {
+            if (isProducts) {
+              if (
+                confirm(`Archive ${selectedIds.length} products? They will no longer be published.`)
+              )
+                batchUpdateMutation.mutate({
+                  ids: selectedIds,
+                  values: { archived: true, published: false },
+                  names: Object.fromEntries(
+                    rows.map((row) => [row._id, String(row.name ?? row._id)]),
+                  ),
+                });
+            } else if (confirm(`Delete ${selectedIds.length} record(s)?`)) {
               batchRemoveMutation.mutate(selectedIds);
             }
           }}
@@ -682,7 +861,10 @@ export function CollectionView({ collection, section, role }: Props) {
           </button>
         </div>
       )}
-      <div className="mt-4 max-w-full overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <div
+        className="mt-4 max-w-full overflow-x-auto rounded-xl border border-slate-200 bg-white"
+        style={{ contain: 'paint' }}
+      >
         <table className="w-full min-w-max text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             {table.getHeaderGroups().map((group) => (
@@ -782,6 +964,33 @@ export function CollectionView({ collection, section, role }: Props) {
           products={classifying.products}
           publishOnSave={classifying.publishOnSave}
           onClose={() => setClassifying(null)}
+          onUnresolved={(snapshot) => {
+            setReviewMessage('');
+            setClassificationReview({
+              snapshot,
+              beforeProducts: classifying.products,
+              names: Object.fromEntries(
+                classifying.products.map((product) => [
+                  product._id,
+                  String(product.name ?? product._id),
+                ]),
+              ),
+            });
+            setRowSelection((current) => ({
+              ...current,
+              ...Object.fromEntries(snapshot.submittedIds.map((id) => [id, true])),
+            }));
+          }}
+          onVerified={(ids) => {
+            setReviewMessage('');
+            setClassificationReview((current) =>
+              current &&
+              current.snapshot.submittedIds.length === ids.length &&
+              ids.every((id) => current.snapshot.submittedIds.includes(id))
+                ? null
+                : current,
+            );
+          }}
           onSaved={() => {
             setClassifying(null);
             clearSelection();
@@ -981,6 +1190,8 @@ function BatchBar({
   count,
   isCatalog,
   isUsers,
+  canClassify,
+  classifyBlocked,
   collection,
   busy,
   onClear,
@@ -991,6 +1202,8 @@ function BatchBar({
   count: number;
   isCatalog: boolean;
   isUsers: boolean;
+  canClassify: boolean;
+  classifyBlocked: boolean;
   collection: CollectionDef;
   busy: boolean;
   onClear: () => void;
@@ -1000,6 +1213,7 @@ function BatchBar({
 }) {
   const roleField = collection.fields.find((f) => f.name === 'role');
   const statusField = collection.fields.find((f) => f.name === 'status');
+  const compactActions = collection.name === 'products';
 
   return (
     <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3">
@@ -1011,7 +1225,7 @@ function BatchBar({
             type="button"
             disabled={busy}
             onClick={() => onSetValues({ published: true })}
-            className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+            className={`${compactActions ? 'hidden xl:inline-flex' : ''} rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50`}
           >
             Publish
           </button>
@@ -1019,7 +1233,7 @@ function BatchBar({
             type="button"
             disabled={busy}
             onClick={() => onSetValues({ published: false })}
-            className="rounded-lg bg-slate-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+            className={`${compactActions ? 'hidden xl:inline-flex' : ''} rounded-lg bg-slate-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50`}
           >
             Disable
           </button>
@@ -1034,10 +1248,15 @@ function BatchBar({
           onPick={(value) => onSetValues({ role: value })}
         />
       )}
-      {collection.name === 'products' && (
+      {canClassify && (
         <button
           type="button"
-          disabled={busy || count > 20}
+          disabled={busy || count > 20 || classifyBlocked}
+          title={
+            classifyBlocked
+              ? 'Resolve the pending classification result before starting another'
+              : undefined
+          }
           onClick={onClassify}
           className="min-h-11 rounded-lg border border-brand-300 bg-white px-4 text-sm font-semibold text-brand-700 disabled:opacity-50"
         >
@@ -1057,10 +1276,48 @@ function BatchBar({
         type="button"
         disabled={busy}
         onClick={onDelete}
-        className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+        className={`${compactActions ? 'hidden xl:inline-flex' : ''} rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50`}
       >
-        Delete
+        {compactActions ? 'Archive' : 'Delete'}
       </button>
+
+      {compactActions && (
+        <details className="relative xl:hidden">
+          <summary className="flex min-h-11 cursor-pointer items-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700">
+            Actions
+          </summary>
+          <div className="absolute left-0 z-20 mt-1 flex min-w-40 flex-col gap-1 border border-slate-200 bg-white p-2 shadow-md sm:left-auto sm:right-0">
+            {isCatalog && (
+              <>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onSetValues({ published: true })}
+                  className="min-h-11 rounded-lg bg-green-600 px-3 text-left text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  Publish
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onSetValues({ published: false })}
+                  className="min-h-11 rounded-lg bg-slate-600 px-3 text-left text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  Disable
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onDelete}
+              className="min-h-11 rounded-lg bg-red-600 px-3 text-left text-sm font-semibold text-white disabled:opacity-50"
+            >
+              Archive
+            </button>
+          </div>
+        </details>
+      )}
 
       <button
         type="button"
