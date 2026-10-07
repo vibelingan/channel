@@ -11,6 +11,7 @@ import {
   catalogProductPrice,
   hasUsableCatalogSlug,
 } from './CatalogFamilyGrid.tsx';
+import { EffectiveCatalogPricingBlock } from './EffectiveCatalogPricingBlock.tsx';
 import { effectiveCatalogMoq } from './catalog-pricing.ts';
 import type { Product } from './catalog-types.ts';
 import {
@@ -234,6 +235,48 @@ test('approved cards take price and MOQ from the price summary only (MIU-12)', (
   };
   assert.equal(catalogProductPrice(moqOnly, 'Request a Quote'), 'Request a Quote');
   assert.equal(effectiveCatalogMoq(moqOnly), 200);
+});
+
+test('the card skips tiers below the MOQ and shows an equal-ended range as one price', () => {
+  const belowMoq = {
+    _id: 'below',
+    name: 'Below MOQ',
+    priceSummary: {
+      source: 'website',
+      pricing: {
+        mode: 'tiered',
+        currency: 'USD',
+        minimumOrderQuantity: 100,
+        tiers: [
+          { minimumQuantity: 1, maximumQuantity: 99, unitAmountMinor: 50 },
+          { minimumQuantity: 100, unitAmountMinor: 80 },
+        ],
+      },
+    },
+  };
+  assert.equal(catalogProductPrice(belowMoq, 'Request a Quote'), 'From $0.80');
+  assert.equal(effectiveCatalogMoq(belowMoq), 100);
+  const flatRange = {
+    _id: 'flat',
+    name: 'Flat range',
+    priceSummary: {
+      source: 'product',
+      pricing: { mode: 'range', currency: 'USD', minimumAmountMinor: 500, maximumAmountMinor: 500 },
+    },
+  };
+  assert.equal(catalogProductPrice(flatRange, 'Request a Quote'), '$5.00');
+});
+
+test('the row-page price block shows the same summary price as the card', () => {
+  const markup = renderToStaticMarkup(
+    createElement(EffectiveCatalogPricingBlock, {
+      product: { wholesalePrice: 99, priceSummary: tieredSummary },
+      quoteLabel: 'Request a Quote',
+    }),
+  );
+  assert.match(markup, /data-effective-pricing="summary"/);
+  assert.match(markup, />From \$1\.20</);
+  assert.doesNotMatch(markup, /99/);
 });
 
 test('the summary wins over stale row prices, and manual and synced cards render the same', () => {

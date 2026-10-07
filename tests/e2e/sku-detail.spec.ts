@@ -1346,16 +1346,26 @@ test('card shows the approved summary and each configuration shows its own tiers
   whiteVariant.options = [{ name: 'Color', value: 'White' }];
   whiteVariant.offers = [{ kind: 'regular', basis: 'source-quote', pricing: white }];
   // What the public list serves for an approved product (MIU-8): the summary
-  // picked at approval time (White is cheapest), no row prices.
+  // picked at approval time (White is cheapest), no row prices. `moq` differs
+  // from the summary's on purpose: the card must take the summary's.
   const listItem = {
     _id: detail._id,
     name: detail.name,
     productFamily: 'toys',
     slug: 'two-color-headset',
-    moq: 1000,
+    moq: 5,
     priceSummary: { source: 'sku', variantId: whiteVariant.id, pricing: white },
     images: ['/media/section-capabilities.png'],
   };
+  // Registered first, so it runs only for calls no later route claims: an
+  // unmocked API call fails the test instead of reaching a real backend.
+  const unmocked: string[] = [];
+  await page.route('**/api/**', (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/catalog-taxonomy') return route.fallback();
+    unmocked.push(path);
+    return route.abort();
+  });
   await page.route('**/api/products?*', (route) =>
     route.fulfill({
       contentType: 'application/json',
@@ -1385,6 +1395,7 @@ test('card shows the approved summary and each configuration shows its own tiers
   ]);
   await article.getByRole('radio', { name: /White/ }).check();
   await expect(tiers).toHaveText(['USD 4.30 ≥1,000 pieces']);
+  expect(unmocked).toEqual([]);
 });
 
 test('retry recovers from a detail transport error', async ({ page }) => {

@@ -16,7 +16,7 @@ test('an approved product shows the summary MOQ', () => {
     _id: 'approved',
     name: 'Approved',
     slug: 'approved',
-    moq: 10,
+    moq: 3,
     priceSummary: {
       source: 'website',
       pricing: {

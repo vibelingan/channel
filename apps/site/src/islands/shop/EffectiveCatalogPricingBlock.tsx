@@ -29,7 +29,10 @@ function summaryCardPrice(summary: CatalogPriceSummary, quoteLabel: string): str
   const amount = lowestOrderableAmountMinor(pricing);
   if (amount === undefined) return quoteLabel;
   const text = formatSummaryAmount(amount, pricing.currency);
-  return pricing.mode === 'fixed' ? text : `From ${text}`;
+  const single =
+    pricing.mode === 'fixed' ||
+    (pricing.mode === 'range' && pricing.minimumAmountMinor === pricing.maximumAmountMinor);
+  return single ? text : `From ${text}`;
 }
 
 export function effectiveCatalogPriceSummary(
@@ -47,10 +50,23 @@ export function effectiveCatalogPriceSummary(
   return quoteLabel;
 }
 
+/**
+ * Row-page price block. An approved product normally opens the shared product
+ * page; if it lands here, it shows the same summary price as its card.
+ */
 export function EffectiveCatalogPricingBlock({
   product,
   quoteLabel = 'Request a quote',
-}: { product: CatalogPricingInput; quoteLabel?: string }) {
+}: { product: CatalogPricingInput & { priceSummary?: unknown }; quoteLabel?: string }) {
+  const summary = readPriceSummary(product);
+  if (summary)
+    return (
+      <div data-effective-pricing="summary">
+        <p className="font-display text-2xl font-bold text-brand-700">
+          {summaryCardPrice(summary, quoteLabel)}
+        </p>
+      </div>
+    );
   const decision = effectiveCatalogPricing(product);
   return (
     <div data-effective-pricing={decision.source}>
