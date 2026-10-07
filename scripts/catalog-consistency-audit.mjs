@@ -6,19 +6,40 @@
  *   node --experimental-strip-types scripts/catalog-consistency-audit.mjs --api https://API-ORIGIN --require-no-fallback
  *
  * For every listed product with an approved page it compares the name, the main
- * photo (by image id) and the card's price summary with the price the page's own
- * offers give under the approval rule (`derivePriceSummary`, imported, not copied).
- * Products without an approved page are on the row fallback and listed apart.
+ * photo (by image id), the card's price summary and MOQ with what the page's own
+ * offers give under the approval rule (`derivePriceSummary`, imported, not copied),
+ * and checks the card carries no row price fields. Only the API's "Detail not
+ * available" answer (published, no approved version) counts as row fallback; any
+ * other 404 (route switched off, product gone) is an unconfirmed read.
  * Exits 1 on any mismatch or unconfirmed read; with --require-no-fallback, also
  * when any product is still on the row fallback.
  */
 import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual, parseArgs } from 'node:util';
-import { derivePriceSummary } from '../packages/shared/src/catalog/price-summary.ts';
+import {
+  derivePriceSummary,
+  priceSummaryMoq,
+} from '../packages/shared/src/catalog/price-summary.ts';
 
 const LIST_PAGE_SIZE = 48; // public API maximum
 const DETAIL_PAGE_SIZE = 50; // detail endpoint maximum
 const SHOWN = 20;
+/** catalog-detail.ts: the product is published but has no approved version. */
+const NOT_APPROVED = 'Detail not available';
+/** Row-only fields the public API must never ship for an approved product (MIU-8). */
+const ROW_FIELDS = [
+  'unitPrice',
+  'wholesalePrice',
+  'clearancePrice',
+  'vipPrice',
+  'manualCatalogPricing',
+  'catalogPricingMode',
+  'alibabaPrimarySourceKey',
+  'alibabaCatalogPricing',
+  'alibabaSourceStatus',
+  'alibabaSourceLastSyncedAt',
+  'variants',
+];
 
 /** The card price the approval rule gives for this page's prices. */
 export function cardPriceFromDetail(detail, variants) {
@@ -73,7 +94,8 @@ async function listAll(get, pageSize) {
 async function readDetail(get, productId) {
   const base = `/api/products/${encodeURIComponent(productId)}/detail`;
   const first = await get(`${base}?page=1&pageSize=${DETAIL_PAGE_SIZE}`);
-  if (first.status === 404) return { kind: 'fallback' };
+  if (first.status === 404 && first.body?.error?.message === NOT_APPROVED)
+    return { kind: 'fallback' };
   if (first.status !== 200 || first.body?.ok !== true)
     return { kind: 'error', message: failure(first) };
   const detail = first.body.data;
@@ -94,15 +116,20 @@ async function readDetail(get, productId) {
 }
 
 function compare(card, { detail, variants }) {
+  const pagePrice = cardPriceFromDetail(detail, variants);
   const cardSide = {
     name: card.name,
     mainPhoto: photoId(card.images?.[0]),
     priceSummary: card.priceSummary,
+    moq: card.moq,
+    rowFields: ROW_FIELDS.filter((key) => key in card),
   };
   const pageSide = {
     name: detail.name,
     mainPhoto: photoId(detail.images?.[0]),
-    priceSummary: cardPriceFromDetail(detail, variants),
+    priceSummary: pagePrice,
+    moq: priceSummaryMoq(pagePrice),
+    rowFields: [],
   };
   const fields = Object.keys(cardSide).filter(
     (field) => !isDeepStrictEqual(cardSide[field], pageSide[field]),
@@ -124,7 +151,13 @@ export async function auditCatalog(get, { concurrency = 8, listPageSize = LIST_P
   });
   const report = { listed: cards.length, approved: 0, fallback: [], mismatches: [], errors: [] };
   for (const outcome of outcomes) {
-    if (outcome.kind === 'fallback') report.fallback.push(outcome.card._id);
+    if (outcome.kind === 'fallback' && outcome.card.priceSummary !== undefined)
+      // A price summary is stored only with an approved version, so its page must exist.
+      report.errors.push({
+        productId: outcome.card._id,
+        message: 'card has a price summary but no approved page',
+      });
+    else if (outcome.kind === 'fallback') report.fallback.push(outcome.card._id);
     else if (outcome.kind === 'error')
       report.errors.push({ productId: outcome.card._id, message: outcome.message });
     else {

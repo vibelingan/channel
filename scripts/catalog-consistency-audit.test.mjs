@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { derivePriceSummary } from '../packages/shared/src/catalog/price-summary.ts';
+import {
+  derivePriceSummary,
+  priceSummaryMoq,
+} from '../packages/shared/src/catalog/price-summary.ts';
 import { auditCatalog, auditExitCode, cardPriceFromDetail } from './catalog-consistency-audit.mjs';
 
 const tiered = (amounts, currency = 'USD') => ({
@@ -35,15 +38,20 @@ const detail = (id, variants, extra = {}) => ({
   variants: { items: variants, total: variants.length, page: 1, pageSize: 50, hasMore: false },
   ...extra,
 });
+/** A list card as the public API serves it: MOQ comes from the summary (MIU-8). */
 const card = (id, priceSummary, extra = {}) => ({
   _id: id,
   name: `Product ${id}`,
   images: [`https://api.example.test/api/images/${id}-main`],
   ...(priceSummary ? { priceSummary } : {}),
+  ...(priceSummaryMoq(priceSummary) === undefined ? {} : { moq: priceSummaryMoq(priceSummary) }),
   ...extra,
 });
 const ok = (data) => ({ status: 200, body: { ok: true, data } });
-const notFound = { status: 404, body: { ok: false, error: { code: 'NOT_FOUND' } } };
+const notFound = (message = 'Detail not available') => ({
+  status: 404,
+  body: { ok: false, error: { code: 'NOT_FOUND', message } },
+});
 
 /** In-memory public API: a list of cards plus per-product detail responses. */
 function fakeApi(cards, details, pageSize = 48) {
@@ -60,7 +68,7 @@ function fakeApi(cards, details, pageSize = 48) {
     }
     const match = url.pathname.match(/^\/api\/products\/([^/]+)\/detail$/);
     const response = match && details[decodeURIComponent(match[1])];
-    if (!response) return notFound;
+    if (!response) return notFound();
     return typeof response === 'function' ? response(url) : response;
   };
   return { get, calls };
@@ -135,7 +143,7 @@ test('every list page and every configuration page are read, pinned to one revis
     variants: { items: [variant('white', white)], total: 2, page: 2, pageSize: 50, hasMore: false },
   };
   const api = fakeApi(
-    [{ ...cards[0], priceSummary: matchingSummary }, cards[1], cards[2]],
+    [card('p0', matchingSummary), cards[1], cards[2]],
     {
       p0: (url) => {
         if (url.searchParams.get('page') === '2') {
@@ -152,6 +160,54 @@ test('every list page and every configuration page are read, pinned to one revis
   assert.deepEqual(report.mismatches, []);
   assert.deepEqual(report.fallback, ['p1', 'p2']);
   assert.ok(api.calls.includes('/api/products?page=2&pageSize=2'));
+});
+
+test('a card without a summary next to a priced page is a mismatch (missed backfill)', async () => {
+  const api = fakeApi([card('a')], { a: ok(approved) });
+  const report = await auditCatalog(api.get);
+  assert.deepEqual(
+    report.mismatches.map(({ productId, fields }) => [productId, fields]),
+    [['a', ['priceSummary', 'moq']]],
+  );
+  assert.equal(auditExitCode(report), 1);
+});
+
+test('an approved card that still carries row price fields is a mismatch', async () => {
+  const leaky = card('a', matchingSummary, { wholesalePrice: 8, alibabaCatalogPricing: {} });
+  const report = await auditCatalog(fakeApi([leaky], { a: ok(approved) }).get);
+  assert.deepEqual(report.mismatches[0]?.fields, ['rowFields']);
+  assert.deepEqual(report.mismatches[0]?.card.rowFields, [
+    'wholesalePrice',
+    'alibabaCatalogPricing',
+  ]);
+});
+
+test('only "Detail not available" counts as fallback; any other 404 is an error', async () => {
+  const routeOff = fakeApi([card('a'), card('b')], {
+    a: notFound('Route not found'),
+    b: notFound('Item not found'),
+  });
+  const report = await auditCatalog(routeOff.get);
+  assert.deepEqual(report.fallback, []);
+  assert.deepEqual(
+    report.errors.map(({ productId }) => productId),
+    ['a', 'b'],
+  );
+  assert.equal(auditExitCode(report), 1);
+});
+
+test('a card with a summary whose page says "not approved" is an error, not fallback', async () => {
+  const report = await auditCatalog(fakeApi([card('a', matchingSummary)], {}).get);
+  assert.deepEqual(report.fallback, []);
+  assert.match(report.errors[0]?.message ?? '', /price summary but no approved page/);
+  assert.equal(auditExitCode(report), 1);
+});
+
+test('a failing list page stops the audit instead of reporting a partial pass', async () => {
+  await assert.rejects(
+    auditCatalog(async () => ({ status: 503, body: null })),
+    /List page 1 failed: 503/,
+  );
 });
 
 test('a product page that fails for another reason is an error, never a pass', async () => {
