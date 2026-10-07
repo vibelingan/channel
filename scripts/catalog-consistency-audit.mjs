@@ -4,7 +4,8 @@
  *
  *   node --experimental-strip-types scripts/catalog-consistency-audit.mjs --api https://API-ORIGIN
  *   node --experimental-strip-types scripts/catalog-consistency-audit.mjs --api https://API-ORIGIN --require-no-fallback
- *   … --only-fields name,mainPhoto   (report only these fields, every product; runbook R5 "Before")
+ *   … --only-fields name,mainPhoto   (only these of name, mainPhoto, priceSummary, moq,
+ *                                     rowFields; every product; runbook R5 "Before")
  *
  * For every listed product with an approved page it compares the name, the main
  * photo (by image id), the card's price summary and MOQ with what the page's own
@@ -25,6 +26,7 @@ import {
 const LIST_PAGE_SIZE = 48; // public API maximum
 const DETAIL_PAGE_SIZE = 50; // detail endpoint maximum
 const SHOWN = 20;
+const FIELDS = ['name', 'mainPhoto', 'priceSummary', 'moq', 'rowFields'];
 /** catalog-detail.ts: the product is published but has no approved version. */
 const NOT_APPROVED = 'Detail not available';
 /** Row-only fields the public API must never ship for an approved product (MIU-8). */
@@ -203,7 +205,7 @@ async function main() {
     (api.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(api.hostname))
   )
     throw new Error(
-      'Usage: node --experimental-strip-types scripts/catalog-consistency-audit.mjs --api https://API-ORIGIN [--require-no-fallback] (HTTP only for localhost)',
+      'Usage: node --experimental-strip-types scripts/catalog-consistency-audit.mjs --api https://API-ORIGIN [--require-no-fallback] [--only-fields name,mainPhoto] (HTTP only for localhost)',
     );
   const get = async (path) => {
     const response = await fetch(`${api.origin}${path}`, {
@@ -213,13 +215,22 @@ async function main() {
     const body = await response.json().catch(() => null);
     return { status: response.status, body };
   };
-  const report = await auditCatalog(get);
   const fields = values['only-fields']?.split(',').map((field) => field.trim());
+  const unknownField = fields?.find((field) => !FIELDS.includes(field));
+  if (unknownField)
+    throw new Error(`Unknown field "${unknownField}"; use any of: ${FIELDS.join(', ')}.`);
+  const report = await auditCatalog(get);
   if (fields) {
     // A focused question (e.g. which cards will change name or photo): every
     // matching product, nothing else, and the exit code answers only that.
     const focused = onlyFields(report.mismatches, fields);
-    console.log(JSON.stringify({ listed: report.listed, fields, mismatches: focused }, null, 2));
+    console.log(
+      JSON.stringify(
+        { listed: report.listed, fields, mismatches: focused, errors: report.errors },
+        null,
+        2,
+      ),
+    );
     process.exitCode = report.listed === 0 || report.errors.length > 0 || focused.length ? 1 : 0;
     return;
   }

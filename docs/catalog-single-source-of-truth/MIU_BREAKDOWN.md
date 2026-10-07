@@ -70,8 +70,8 @@ define shapes that later MIUs consume.
 
 Order: implement and validate batches locally first (DEC-13), run R1, then
 deploy. Owner 2026-10-08: batches 1–3 deploy as soon as they pass local
-validation; with R2 and a re-approval (Publish) of each of the 21 they fix the
-21 products. Batches 4–5 follow when done.
+validation. The 21 are then fixed by R2 and a re-approval (Publish) of each,
+after stage B (R7 below, done early). Batches 4–5 follow when done.
 
 Batches 1, 2a and 2b ship as **one deploy (stage A)**, batch 3 as a second
 (stage B). Batch 2a was planned alone (batch 2 review #2) so that no approval
@@ -81,12 +81,18 @@ Within one deploy run the pipeline updates `admin` (the writer) before
 deploys** (the operator holds them; nothing approves automatically), and R4
 writes summaries only after stage A is verified. From then on the only rollback
 target is stage A itself, which reads summaries. Never roll back past stage A
-once R4 has run. Each stage: PR into `test` → Deploy Test → runbook checks.
+once any approval or R4 has written a summary (every approval after stage A
+writes one, and the older reader then treats the product as not approved).
+Each stage: PR into `test` → Deploy Test → runbook checks. Operator scripts
+(backfill, audit) always run from the branch head, not from a stage branch.
 
 **What each deploy contains.** Some fixes were committed after later work, so
 stage A is *not* a plain prefix of the branch. It is `bcfac0a` (batches 1, 2a,
-2b and the batch 1 fix `c2e0bdb`) plus these files, each byte-identical at
-`bcfac0a` and at its source commit's parent (checked 2026-10-08):
+2b and the batch 1 fix `c2e0bdb`) plus these files, **applied top to bottom**:
+each file is byte-identical in the tree built so far and at its source commit's
+parent (checked 2026-10-08). Out of order, `de87798` would overwrite the three
+`8958d90` files and silently drop `variantCount`. Built as `7e1b20c` → `ae5d81d`,
+then merged with `main` (`d4ee7c1`) and `test` (`b5f50c9`):
 
 | From | Files | Why |
 |---|---|---|
@@ -1601,7 +1607,7 @@ Type:       modify-existing
 Depends on: none
 ```
 
-> **Moved to batch 3** (batch 3 review #9). As built: any stated MOQ on a price with nothing orderable (also a tiered price whose tiers all end below it); the product's own quote first, then the selected configuration's. The card takes the first configuration that states one, so the two differ only when the configuration shown states none (DEC-17).
+> **Moved to batch 3** (batch 3 review #9). As built: any stated MOQ on a price with nothing orderable (also a tiered price whose tiers all end below it); the product's own quote first, then the selected configuration's. The card takes the first configuration that states one, so on the configuration the page opens on, the two differ only when it states none (DEC-17).
 
 **What it does** (DEC-16)
 - When the scope that would be shown has no usable price but its pricing carries
@@ -1683,7 +1689,7 @@ production data and need the owner's go-ahead at the time.
 | R3 | **Before R2** | Count products with `alibabaPinnedOfferKey`, and especially any pin pointing at a product-level (`'@product'`) offer that R2 would retire (pricing repair would then report `invalid-pin` and promotion would silently pick another offer) | 0 → continue; >0 → stop and ask (DESIGN §9) |
 | R4 ⚠ | After batch 2b; **hard gate for batch 3** | Check no `catalogDetailApprovals` job is in `staging` (a job begun before the deploy finishes without a summary). Then backfill plan → review → `apply` (`CHANNEL_ADMIN_TOKEN=… node scripts/catalog-price-summary-backfill.mjs plan\|apply <manifest> https://API-ORIGIN`; no admin screen calls this action). In the review of the **saved plan** (before apply; the `plan` step prints them as `productPriceWithConfigurations`), list rows with `priceSummary.source === 'product'` and `variantCount > 0`: their card price comes from a product-level offer although the product has configurations, possibly the retired wholesale headline (batch 3 review #7). Unpublish or re-approve those after R2 before batch 3. Re-run the plan right before the batch 3 deploy | Re-plan: 0 `ready` rows. `no-price` rows are accepted (their page also says "Request a quote"); `invalid-variant-rows` rows are listed (their page already shows an error) and each is re-approved (Publish) or unpublished before batch 3, because R5 counts their page error as a failure. An approved version without a summary shows "Request a quote" on its card, never a row or sync price (DESIGN §8) |
 | R5 | Before and after batch 3 | **Before:** count (a) unlinked products with an old publication; run the audit with `--only-fields name,mainPhoto`: it lists every card that changes to its approved name/photo at batch 3 (2026-10-08 production: 0). **After:** `node --experimental-strip-types scripts/catalog-consistency-audit.mjs --api https://API-ORIGIN`; (b) = its `fallbackIds` that are linked (counted with the shared rule, not by field presence) | Exit 0: 0 mismatches, 0 errors (a 404 other than "Detail not available" is an error). Fallback = products with no approved version, expected ≈ the 7 manual products; the 21 are unpublished, so not listed |
-| R6 ⚠ | Right after batch 4, before admins use Save on published products | `auditChangesSinceApproval` plan → review → apply (MIU-38). Until it runs, products have no baseline digest and are never flagged, so DEC-12 cannot hold back their supplier changes | The 21 appear as `changed`; others get a baseline digest |
+| R6 ⚠ | Right after batch 4, before admins use Save on published products | `auditChangesSinceApproval` plan → review → apply (MIU-38). Until it runs, products have no baseline digest and are never flagged, so DEC-12 cannot hold back their supplier changes | Products changed since their approval appear as `changed` (the 21 only if not yet re-approved); others get a baseline digest |
 | R7 | After R6 | Admin approves each flagged product ("Approve changes" or Publish) | Flags cleared; products back in the list |
 | R8 | After R7 | `node --experimental-strip-types scripts/catalog-consistency-audit.mjs --api https://API-ORIGIN`; browser check at 390px and 1440px: one multi-tier, one single-tier, one website-price, one "Request a quote" product; switch configurations | 0 mismatches; each configuration shows its own price |
 | R9 ⚠ | After batch 5a, before 5b | Admin approves each of the 7 live manual products (they are already published, so: Edit → Save; with MIU-32, Save on a published product runs the approval). Before each, check in Edit the three rules approval enforces: at most 9 photos, photos uploaded to storage (not legacy embedded images), prices with at most 2 decimals. A refusal shows a generic message ("The catalog approval could not be completed." or the media-not-ready text), so check these three first | All 7 have an approved version |

@@ -33,6 +33,14 @@ export async function planAll(call) {
  * headline). Read this on the saved plan, before apply.
  */
 export function productPriceWithConfigurations(rows) {
+  // A planner without `variantCount` would make this list silently empty.
+  const unknown = rows.find(
+    (row) => row.outcome === 'ready' && !Number.isSafeInteger(row.variantCount),
+  );
+  if (unknown)
+    throw new Error(
+      `${unknown.productId}: plan row has no variantCount — the deployed planner is too old for the R4 review.`,
+    );
   return rows
     .filter(
       (row) =>
@@ -78,6 +86,8 @@ export async function applyReadyRows(call, rows) {
     // The server answers every row it was sent; keep every confirmed one
     // before reporting the first failure, so the receipt is complete.
     const sent = Math.min(BATCH, ready.length - start);
+    if (!Array.isArray(response?.results))
+      throw stop(`Unconfirmed apply response — ${results.length} rows were confirmed before it.`);
     const failed = response.results.find((item) => item.result?.ok !== true);
     results.push(...response.results.filter((item) => item.result?.ok === true));
     if (failed)
@@ -152,6 +162,9 @@ async function main() {
     !Array.isArray(manifest.rows)
   )
     throw new Error('Manifest identity/format does not match the requested operation.');
+  // Keep what an earlier run of this manifest confirmed; this run's rows follow.
+  if (Array.isArray(manifest.results) && manifest.results.length > 0)
+    manifest.previousResults = [...(manifest.previousResults ?? []), ...manifest.results];
   try {
     manifest.results = await applyReadyRows(call, manifest.rows);
   } catch (error) {

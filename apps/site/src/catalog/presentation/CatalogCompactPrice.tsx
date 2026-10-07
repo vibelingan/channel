@@ -171,8 +171,8 @@ export function CatalogCompactPrice({
       ) : (
         // The product's own quote first, then the selected configuration's.
         // The card's summary (price-summary.ts, rule 4) takes the first
-        // configuration that states one, so the two differ only when the
-        // configuration shown here states none (DEC-17).
+        // configuration that states one, so on the configuration the page
+        // opens on they differ only when it states none (DEC-17).
         inquiry(copy, quoteMoq(productOffers) ?? quoteMoq(variantOffers ?? []))
       )}
     </div>

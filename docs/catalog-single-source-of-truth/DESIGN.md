@@ -364,11 +364,12 @@ product page already shows the selected configuration's own price.
    the one-time "changed since approval" audit (dry run → apply). Products whose
    current source differs from their approved version are flagged "changed"; the
    rest get their source digest recorded. Until it runs no product has a baseline,
-   so nothing is flagged and Save could still publish unreviewed changes. The 21
-   are expected in the flagged set.
+   so nothing is flagged and Save could still publish unreviewed changes.
 5. Admin opens each flagged product, checks the preview, and approves. Re-approval
    rebuilds the version from the repaired data (verified in code: preparing a
-   review reads the current observation, which the Sept 21 replay already rebuilt).
+   review reads the current observation, which the replay rebuilt). Owner
+   2026-10-08: the 21 are re-approved (Publish) right after stage B and R2,
+   before batch 4, so they are not expected in the flagged set.
 6. Manual products: the admin checks the 7 live manual products against the three
    approval rules, fixes what fails, then publishes each one through approval
    (runbook R9). Only then does the publish gate for manual products ship.

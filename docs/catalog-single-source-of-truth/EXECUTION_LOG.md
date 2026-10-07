@@ -92,6 +92,24 @@ paired with the MOQ. Names are truncated as captured.
 
 ## Log
 
+### Final re-review of the fixes (2026-10-08)
+- One reviewer on `95ee994..5ff409c`: **PASS**, no P1. It rebuilt stage A
+  independently and ran typecheck, every package's tests and both CI browser
+  lanes on it: all pass.
+- Fixed (this commit): P2 — the stage A recipe must be applied top to bottom
+  (`de87798` and `8958d90` share three files); the doc now says so and names the
+  built commits. P3 — the R4 list refuses plan rows without `variantCount`
+  instead of returning nothing; `--only-fields` rejects unknown names, prints
+  read errors and is in the usage line; a re-run of apply keeps the earlier
+  run's record (`previousResults`) and a response without a results list keeps
+  the rows confirmed before it; the rollback rule covers every approval, not
+  only R4; one timeline for the 21 (re-approved after stage B and R2, before
+  batch 4); operator scripts run from the branch head; MOQ wording.
+- Stage A as built (`b5f50c9` = `bcfac0a` + `7e1b20c` + `ae5d81d` + merges of
+  `main` and `test`): equals `main` plus 26 stage files; install, typecheck,
+  lint and all 15 packages' tests pass (about 2,800 tests).
+- Validation (branch head): scripts 457; site 517; lint.
+
 ### Batch 3 fix re-review (2026-10-08)
 - Two reviewers on `4d69d06..7ad213a`: code (no P1/P2, 7 P3) and docs/drift
   (one conditional P1, one P2, P3s).

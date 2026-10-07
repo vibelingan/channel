@@ -164,3 +164,28 @@ test('the plan lists product-level card prices on products with configurations (
     ['headline'],
   );
 });
+
+test('the R4 list refuses plan rows without variantCount instead of returning nothing', () => {
+  assert.throws(
+    () => productPriceWithConfigurations([ready('old-planner')]),
+    /old-planner: plan row has no variantCount/,
+  );
+});
+
+test('a response without a results list keeps the rows confirmed before it', async () => {
+  let calls = 0;
+  const error = await applyReadyRows(
+    async (data) =>
+      ++calls === 1
+        ? {
+            results: data.rows.map((row) => ({
+              productId: row.productId,
+              result: { ok: true, backfill: 'applied' },
+            })),
+          }
+        : { unexpected: true },
+    Array.from({ length: 21 }, (_, i) => ready(`p${i}`)),
+  ).catch((caught) => caught);
+  assert.match(error.message, /Unconfirmed apply response — 20 rows/);
+  assert.equal(error.results.length, 20);
+});
