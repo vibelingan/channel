@@ -40,8 +40,11 @@ export async function prepareManualSource(
     typeof product.alibabaPrimarySourceKey === 'string' && product.alibabaPrimarySourceKey !== '';
   if (linked || product.archived === true) return { ok: false, code: 'CONFLICT' };
   const revision = sourceDigest(['manual', product._id, 'v1']);
+  // A product unlinked from Alibaba must not carry its old source fingerprint
+  // into a manual approval.
+  const { detailSourcePublicDigest: _previous, ...current } = product;
   await tx.set('products', {
-    ...product,
+    ...current,
     detailSourceOwner: `manual:${product._id}`,
     detailSourceRevision: revision,
     detailSourceManifest: { revision, variantIds: [] },

@@ -98,6 +98,7 @@ const clearedFields = {
   alibabaSourceReview: null,
   alibabaReviewPending: null,
   alibabaReviewReason: null,
+  alibabaSourcePublicDigest: null,
   alibabaReviewedAt: null,
   alibabaReviewedByUserId: null,
 };
@@ -152,7 +153,7 @@ export function flagForReview(product: CollectionDoc, reason: FlagReason) {
   const keep =
     product.alibabaReviewPending === true &&
     typeof existing === 'string' &&
-    existing in REASON_STRENGTH &&
+    Object.hasOwn(REASON_STRENGTH, existing) &&
     REASON_STRENGTH[existing as FlagReason] > REASON_STRENGTH[reason];
   return { alibabaReviewPending: true, alibabaReviewReason: keep ? existing : reason };
 }
@@ -556,6 +557,10 @@ export async function runAlibabaProductMutation(
       : {}),
     ...(input.action === 'promote'
       ? sourceChangeFlag(product, source.active === true, input.publicSourceDigest)
+      : {}),
+    // What the sync last saw; publishing an approval of older data keeps the flag.
+    ...(input.action === 'promote' && input.publicSourceDigest !== undefined
+      ? { alibabaSourcePublicDigest: input.publicSourceDigest }
       : {}),
     alibabaLinkRevision: revision + 1,
     alibabaSourceLastSyncedAt: input.now,

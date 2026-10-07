@@ -191,7 +191,7 @@ test('a manual product without photos stops before any approval call', async (t)
   const api = manualApi(t, { productFamily: 'headphones', imageIds: [], published: false });
   await assert.rejects(
     updateRecord('products', 'canonical-product', { published: true }),
-    /Add at least one photo before publishing/,
+    /Add at least one product image before publishing/,
   );
   assert.equal(
     api.calls.some((call) => call.startsWith('approval:')),

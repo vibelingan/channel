@@ -191,3 +191,27 @@ test('extra keys on any object never change the digest (fields are picked explic
     base,
   );
 });
+
+test('several offers on one configuration: their order does not matter, their content does', () => {
+  const twoOffers = (amounts: number[]) =>
+    digestAfter((value) => {
+      value.offers = amounts.map((amountMinor, index) => ({
+        sourceOfferKey: `o-${index}`,
+        sourceVariantKey: 'black',
+        kind: 'supplier',
+        pricing: { mode: 'fixed', currency: 'USD', amountMinor },
+      }));
+    });
+  assert.equal(twoOffers([430, 500]), twoOffers([500, 430]));
+  assert.notEqual(twoOffers([430, 500]), twoOffers([430, 501]));
+});
+
+test('whitespace around a fact is not a change', () => {
+  assert.equal(
+    digestAfter((value) => {
+      const fact = value.identity.attributes[0];
+      if (fact) fact.value = '  ABS ';
+    }),
+    base,
+  );
+});

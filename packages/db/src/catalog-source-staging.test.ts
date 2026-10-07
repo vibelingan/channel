@@ -96,10 +96,19 @@ const realObservation = (amountMinor: number) => ({
   ],
 });
 
-async function prepareOnce(observation: unknown, revision: string) {
+async function prepareOnce(
+  observation: unknown,
+  revision: string,
+  existing: Record<string, unknown> = {},
+) {
   const store: Record<string, CollectionDoc> = {
     'users/admin': { _id: 'admin', role: 'admin' },
-    'products/product': { _id: 'product', alibabaPrimarySourceKey: 'source', imageIds: [] },
+    'products/product': {
+      _id: 'product',
+      alibabaPrimarySourceKey: 'source',
+      imageIds: [],
+      ...existing,
+    },
     'catalogSourceObservations/source': { _id: 'source', observation },
   };
   const tx = {
@@ -151,5 +160,25 @@ test('prepare records the public digest of the observation it built the candidat
 test('an observation without the public fields records no digest instead of failing prepare', async () => {
   const prepared = await prepareOnce({ value: 1 }, 'c'.repeat(64));
   assert.equal(prepared?.detailSourceReady, true);
+  assert.equal('detailSourcePublicDigest' in (prepared ?? {}), false);
+});
+
+test('a product prepared before digests existed gets one when prepared again from the same data', async () => {
+  // Same revision, already complete: prepare short-circuits, but must still
+  // record the digest, or approvals of most live products would carry none.
+  const observation = realObservation(430);
+  const revision = 'd'.repeat(64);
+  const prepared = await prepareOnce(observation, revision, {
+    detailSourceRevision: revision,
+    detailSourceNextPage: 1,
+    detailSourceReady: true,
+  });
+  assert.equal(prepared?.detailSourcePublicDigest, publicSourceDigest(observation));
+});
+
+test('a fresh prepare from data without the public fields drops an old digest', async () => {
+  const prepared = await prepareOnce({ value: 1 }, 'e'.repeat(64), {
+    detailSourcePublicDigest: 'f'.repeat(64),
+  });
   assert.equal('detailSourcePublicDigest' in (prepared ?? {}), false);
 });

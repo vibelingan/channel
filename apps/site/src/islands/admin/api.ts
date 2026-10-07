@@ -419,7 +419,7 @@ async function approveManualProduct(
   if (!isProductFamily(current.productFamily))
     throw new AdminApiError('INVALID_PRODUCT', 'Choose a website category before publishing.');
   if (!Array.isArray(current.imageIds) || current.imageIds.length === 0)
-    throw new AdminApiError('MEDIA_NOT_READY', 'Add at least one photo before publishing.');
+    throw new AdminApiError('MEDIA_NOT_READY', 'Add at least one product image before publishing.');
   const { prepareDetailReview, approveDetailReview } = await import(
     './catalog-detail-approval-api.ts'
   );

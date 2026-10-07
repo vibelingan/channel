@@ -339,6 +339,51 @@ class ReviewRaceAdapter extends MemoryAdapter {
   }
 }
 
+test('publishing an approval built from older supplier data keeps the "changed" flag', async () => {
+  // A sync saw newer data (last-seen digest) after the approval's prepare read
+  // the older one (receipt digest): clearing the flag would hide that change.
+  const product = (id: string, lastSeen: string) =>
+    ({
+      _id: id,
+      ...publishableProduct({ published: false }),
+      alibabaPrimarySourceKey: `source-${id}`,
+      alibabaReviewPending: true,
+      alibabaReviewReason: 'changed',
+      alibabaSourcePublicDigest: lastSeen,
+      catalogDetailApprovalReceipt: { revision: 'r1', sourceDigest: 'a'.repeat(64) },
+    }) as CollectionDoc;
+  const store = setup({
+    users: [],
+    products: [product('older', 'b'.repeat(64)), product('current', 'a'.repeat(64))],
+    catalogProductIdentities: [],
+  });
+  const admin = await adminToken();
+  const row = (id: string) => store.products?.find((item) => item._id === id) as CollectionDoc;
+  okData(
+    await call(
+      'update',
+      { collection: 'products', id: 'older', values: { published: true } },
+      admin,
+    ),
+  );
+  assert.equal(row('older').published, true);
+  assert.deepEqual(
+    { pending: row('older').alibabaReviewPending, reason: row('older').alibabaReviewReason },
+    { pending: true, reason: 'changed' },
+  );
+  okData(
+    await call(
+      'update',
+      { collection: 'products', id: 'current', values: { published: true } },
+      admin,
+    ),
+  );
+  assert.deepEqual(
+    { pending: row('current').alibabaReviewPending, reason: row('current').alibabaReviewReason },
+    { pending: false, reason: null },
+  );
+});
+
 test('publish and archive clear the review reason; unpublish never does; mark reviewed is for "new" only (MIU-21)', async () => {
   const flagged = (id: string, reason: string, published = false) =>
     ({

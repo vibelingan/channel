@@ -10,7 +10,7 @@ export type ReviewLabel = (typeof LABELS)[keyof typeof LABELS];
 export function reviewLabel(doc: CollectionDoc): ReviewLabel | null {
   if (doc.alibabaReviewPending !== true) return null;
   const reason = doc.alibabaReviewReason;
-  return typeof reason === 'string' && reason in LABELS
+  return typeof reason === 'string' && Object.hasOwn(LABELS, reason)
     ? LABELS[reason as keyof typeof LABELS]
     : 'New';
 }

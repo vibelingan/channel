@@ -1509,16 +1509,29 @@ async function acknowledgeAlibabaProductReview(
     }
     data[field] = normalized;
   }
+  // A sync that saw newer supplier data than this approval was built from keeps
+  // the flag: clearing it would hide a change nobody approved (batch 4 review).
+  const receipt = product.catalogDetailApprovalReceipt;
+  const approvedDigest =
+    receipt && typeof receipt === 'object' ? Reflect.get(receipt, 'sourceDigest') : undefined;
+  const staleApproval =
+    data.published === true &&
+    data.archived !== true &&
+    typeof approvedDigest === 'string' &&
+    typeof product.alibabaSourcePublicDigest === 'string' &&
+    approvedDigest !== product.alibabaSourcePublicDigest;
   const result = await saveCatalogProductWithIdentities({
     mode: 'update',
     productId: product._id,
-    data: {
-      ...data,
-      alibabaReviewPending: false,
-      alibabaReviewReason: null,
-      alibabaReviewedAt: new Date().toISOString(),
-      alibabaReviewedByUserId: reviewerId,
-    },
+    data: staleApproval
+      ? data
+      : {
+          ...data,
+          alibabaReviewPending: false,
+          alibabaReviewReason: null,
+          alibabaReviewedAt: new Date().toISOString(),
+          alibabaReviewedByUserId: reviewerId,
+        },
     expectedAlibabaIdentity: {
       revision: alibabaLinkRevision(product),
       primarySourceKey:
@@ -1569,10 +1582,9 @@ async function markProductReviewedAction(
   }
   // "Mark reviewed" is for first sight only (DEC-11): a changed, removed or
   // edited product must be published (approved) or archived instead.
-  if (
-    product.alibabaReviewPending === true &&
-    ['changed', 'removed', 'edited'].includes(String(product.alibabaReviewReason))
-  ) {
+  // Allow-list: only a "new" (or legacy reason-less) flag can be marked reviewed.
+  const reason = product.alibabaReviewReason;
+  if (product.alibabaReviewPending === true && reason != null && reason !== 'new') {
     return err('CONFLICT', 'Review and publish the supplier changes, or archive the product.');
   }
   const result = await acknowledgeAlibabaProductReview(product, {}, claims.sub);

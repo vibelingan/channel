@@ -686,10 +686,14 @@ test('a source that changed since approval flags the product "changed" without t
   assert.deepEqual((store.products?.[0] as CollectionDoc).catalogDetailPublication, before);
 });
 
-test('an unchanged source leaves the review fields alone', async () => {
+test('an unchanged source leaves the review fields alone, and records what the sync saw', async () => {
   setupApproved(430, 430);
   assert.equal((await promote()).ok, true);
   assert.deepEqual(review(), { pending: undefined, reason: undefined });
+  assert.equal(
+    (store.products?.[0] as CollectionDoc).alibabaSourcePublicDigest,
+    publicSourceDigest(observedAt(430)),
+  );
 });
 
 test('an inactive source flags the approved product "removed"', async () => {

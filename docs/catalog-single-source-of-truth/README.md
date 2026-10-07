@@ -14,7 +14,7 @@ and admins see every Alibaba change before it goes public.
 - Batch 4 (the "changed since approval" flag) is built and tested locally,
   except MIU-25/35, which wait for DEC-12. Batch 5 (manual products) is not
   started.
-- Open decisions: DEC-12 and DEC-17 (below). Neither blocks batches 1–3.
+- Open decisions: DEC-12, DEC-17 and DEC-18 (below). None blocks batches 1–3.
 - Branch `feat/catalog-alibaba-price-tiers` (not yet merged to `main`).
 
 ## Morning checklist (production, in this order)
@@ -76,6 +76,15 @@ repair they disagreed on 21 products, and the page showed Alibaba's headline pri
 - the 21 products are restored through normal re-approval.
 
 ## Waiting for owner review
+
+**DEC-18 — what counts as "changed".** A product's description and main photos
+belong to the admin: approval publishes the admin's text and photos, not the
+supplier's. So flagging a supplier description or photo change leads nowhere:
+approving it changes nothing on the site, and the flag disappears. Proposal:
+flag only what approval actually takes from Alibaba (configurations, their
+prices, options and photos, the product price, and facts). Alternative: keep
+flagging description and photo changes and make approval adopt the supplier's
+versions. Batch 4 ships either way after a small change.
 
 **DEC-17 — which configuration the product page opens on.** The card shows the
 cheapest configuration ("From $4.30 · MOQ 1000" for a headset whose White option

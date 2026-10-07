@@ -4,9 +4,9 @@
  * them. For each such product, plan builds what an approval would produce today
  * from the stored observation (same builder and configuration ids as a real
  * approval, no staging writes) and compares it with the approved version on
- * what both sides express (DEC-6): configurations, their prices and options,
- * the product-level price, facts and description. Images are not compared:
- * approved rows hold image ids, the source holds URLs.
+ * what both sides take from the source (DEC-6): configurations, their prices
+ * and options, the product-level price and facts. Not the description (the
+ * approved text is the admin's) or images (ids versus URLs).
  *
  * Apply re-plans each reviewed row on the server and writes through the
  * `change-audit-mark` command (MIU-22): "unchanged" records the baseline
@@ -149,8 +149,9 @@ export async function planProductChange(
   }
   if (offerSet(header.offers) !== offerSet(first.value.offers)) differences.push('product price');
   if (canonical(header.facts) !== canonical(first.value.facts)) differences.push('facts');
-  if ((header.descriptionText ?? '') !== (first.value.descriptionText ?? ''))
-    differences.push('description');
+  // Not compared: the description (the approved text is the admin's own, from
+  // the row, and there is no record of the supplier's text at approval) and
+  // images (approved rows hold image ids, the source holds URLs).
 
   const sourceDigest = publicSourceDigest(observation);
   return differences.length > 0

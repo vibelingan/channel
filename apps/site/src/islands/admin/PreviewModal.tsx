@@ -357,6 +357,16 @@ export function PreviewModal({
                     Unpublish
                   </button>
                 )}
+                {/* The preview shows the current source; the live page shows what
+                    is approved now. Compare before approving (DEC-12, R7). */}
+                <a
+                  href={`/products/item/?id=${encodeURIComponent(doc._id)}`}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="self-center text-sm font-medium text-brand-700 underline"
+                >
+                  Compare with the live page
+                </a>
                 {onApproveChanges && (
                   <button
                     type="button"

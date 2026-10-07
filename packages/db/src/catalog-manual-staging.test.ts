@@ -89,6 +89,12 @@ test('manual prepare writes an empty manual candidate and is ready at once', asy
   assert.equal(saved.published, false, 'prepare never publishes');
 });
 
+test('a product unlinked from Alibaba drops its old source fingerprint on manual prepare', async () => {
+  const h = harness(manualProduct({ detailSourcePublicDigest: 'f'.repeat(64) }));
+  assert.equal((await h.prepare()).ok, true);
+  assert.equal('detailSourcePublicDigest' in h.product(), false);
+});
+
 test('synced, archived and configured products, and non-admins, are refused without a write', async () => {
   const cases: Array<[CollectionDoc, string, string[], string]> = [
     [manualProduct({ alibabaPrimarySourceKey: 'source-a' }), 'admin', [], 'CONFLICT'],

@@ -115,7 +115,15 @@ export async function stageSourcePage(
     pages,
     complete: nextPage === pages,
   });
-  if (same && cursor > input.page) return progress(cursor);
+  if (same && cursor > input.page) {
+    // Already prepared from this exact observation (the revision covers it).
+    // Products prepared before digests existed get theirs now; otherwise every
+    // later approval would carry none and the sync could never flag them.
+    const publicDigest = publicDigestOf(observed.observation);
+    if (publicDigest !== undefined && product.detailSourcePublicDigest !== publicDigest)
+      await tx.set('products', { ...product, detailSourcePublicDigest: publicDigest });
+    return progress(cursor);
+  }
   if (input.page !== cursor) return fail('SOURCE_NOT_READY');
   const owner = `alibaba:${input.sourceKey}`;
   const rows = [];

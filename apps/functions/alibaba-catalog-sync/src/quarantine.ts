@@ -1,3 +1,13 @@
+/**
+ * Quarantine approval (ARCHITECTURE §12, R1 E4).
+ *
+ * Approval promotes the FROZEN candidate set of a quarantined run — nothing
+ * else. Immutability is enforced by recomputing the candidate hash from the
+ * current mirror and comparing it to the hash stored at quarantine time: any
+ * newer run that touched the mirror changes the hash and the approval is
+ * rejected as superseded. Tombstone sets are NEVER applied through approval —
+ * a fresh full run must re-derive and re-confirm them.
+ */
 import {
   type AlibabaCatalogPricing,
   buildPromotionCandidate,
@@ -10,16 +20,6 @@ import {
   mutateAlibabaProduct,
   releaseAlibabaSyncLease,
 } from '@vibelingan-channel/db';
-/**
- * Quarantine approval (ARCHITECTURE §12, R1 E4).
- *
- * Approval promotes the FROZEN candidate set of a quarantined run — nothing
- * else. Immutability is enforced by recomputing the candidate hash from the
- * current mirror and comparing it to the hash stored at quarantine time: any
- * newer run that touched the mirror changes the hash and the approval is
- * rejected as superseded. Tombstone sets are NEVER applied through approval —
- * a fresh full run must re-derive and re-confirm them.
- */
 import { publicSourceDigest } from '@vibelingan-channel/shared/catalog-source-digest';
 import type { AlertSender } from './alerts.ts';
 import {

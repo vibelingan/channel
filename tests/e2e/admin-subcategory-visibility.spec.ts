@@ -1116,9 +1116,11 @@ test('bulk classification publishes confirmed selections and reports rejected pu
   await expect(partial.locator('section[role="alert"]')).toContainText('1 need attention');
   const laterIds = writes[3]?.ids ?? [];
   expect([...laterIds].sort()).toEqual([later._id, rejected._id].sort());
+  // A manual product is approved before it publishes (MIU-32); one without an
+  // image is refused in the browser before any publish write.
   expect(writes.slice(3)).toEqual([
     { action: 'classify', ids: laterIds },
-    ...laterIds.map((id) => ({ action: 'publish', ids: [id] })),
+    { action: 'publish', ids: [later._id] },
   ]);
   expect(await read(later._id)).toMatchObject({ published: true, subcategoryIds: [child.id] });
   expect(await read(rejected._id)).toMatchObject({ published: false, subcategoryIds: [child.id] });

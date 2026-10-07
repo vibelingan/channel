@@ -185,12 +185,25 @@ test('identical source → unchanged; apply records only the baseline digest', a
   });
 });
 
-test('a description or product-level change is changed too; images are never compared', async () => {
+test('a product-level price change is changed; a description difference is not compared', async () => {
+  // The approved description is the admin's own text (the planner takes it from
+  // the row), and the audit has no record of the supplier's text at approval.
+  const described = approvedStore(observation(TIERS));
+  described.observation = observation(TIERS, 'A different description');
+  const unchanged = (await planChangeAudit(reader(described), { pageSize: 20 })).rows[0];
+  assert.equal(unchanged?.outcome, 'unchanged');
+
   const store = approvedStore(observation(TIERS));
-  store.observation = observation(TIERS, 'A different description');
+  const withHeadline = observation(TIERS);
+  withHeadline.offers.push({
+    sourceOfferKey: 'o-product',
+    kind: 'supplier',
+    pricing: { mode: 'fixed', currency: 'USD', amountMinor: 390 },
+  } as never);
+  store.observation = withHeadline;
   const row = (await planChangeAudit(reader(store), { pageSize: 20 })).rows[0];
   assert.ok(row?.outcome === 'changed');
-  assert.deepEqual(row.differences, ['description']);
+  assert.deepEqual(row.differences, ['product price']);
 });
 
 test('a plan that no longer matches at apply time is skipped without a write', async () => {

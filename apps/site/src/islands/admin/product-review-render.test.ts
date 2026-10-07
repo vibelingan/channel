@@ -145,6 +145,10 @@ test('"Approve changes" appears only on a published product flagged changed, rem
     );
   const changed = preview({ published: true, alibabaReviewReason: 'changed' });
   assert.ok(changed.includes('Approve changes'));
+  assert.ok(
+    changed.includes('href="/products/item/?id=p-new"'),
+    'a link to compare with the live page',
+  );
   assert.ok(!changed.includes('>Unpublish<'));
   const removed = preview({ published: true, alibabaReviewReason: 'removed' });
   assert.ok(removed.includes('Approve changes'));

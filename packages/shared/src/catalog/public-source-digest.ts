@@ -71,8 +71,12 @@ function pricing(value: CatalogOfferPricing): unknown[] {
   }
 }
 
+// Trimmed like the candidate builder, so a whitespace-only edit is not a change.
 const facts = (values: readonly DigestFact[]) =>
-  values.map((fact) => [fact.sourceName, fact.value]);
+  values.map((fact) => [
+    fact.sourceName.trim(),
+    typeof fact.value === 'string' ? fact.value.trim() : fact.value,
+  ]);
 const urls = (values: readonly DigestMedia[] | undefined) =>
   (values ?? []).map((media) => media.sourceUrl);
 
