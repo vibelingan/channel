@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { readImageMutationState } from './adapter.ts';
 import { ChangeAuditMarkSchema, markChangeAudit } from './catalog-change-audit-store.ts';
 import { approvedVariantDocumentId } from './catalog-detail-storage.ts';
+import { ManualSourceSchema, prepareManualSource } from './catalog-manual-staging.ts';
 import { publicationContentFingerprint } from './catalog-publication-fingerprint.ts';
 import { SourcePageSchema, stageSourcePage } from './catalog-source-staging.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
@@ -95,6 +96,7 @@ const PersistenceCommandSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('finish'), jobId: digest }).strict(),
   PriceSummaryBackfillSchema,
   ChangeAuditMarkSchema,
+  ManualSourceSchema,
 ]);
 /** Internal adapter command. HTTP handlers must never forward a submitted `prepared` object. */
 export type ApprovalPersistenceCommand = z.infer<typeof PersistenceCommandSchema>;
@@ -134,6 +136,12 @@ export function approvalProductFingerprint(product: CollectionDoc) {
     'detailSourceCandidate',
     'detailSourceContentCandidate',
     'detailSourceNoteBlocksCandidate',
+    // A manual product's facts come from these (MIU-27/28): an edit between
+    // begin and finish must not slip into the approved version.
+    'skuCode',
+    'series',
+    'modName',
+    'modType',
   ];
   return hash(Object.fromEntries(fields.map((field) => [field, product[field] ?? null])));
 }
@@ -434,6 +442,7 @@ export async function runStagedApproval(
   if (command.action === 'price-summary-backfill')
     return backfillPublicationPriceSummary(tx, actorId, command);
   if (command.action === 'change-audit-mark') return markChangeAudit(tx, actorId, command);
+  if (command.action === 'manual-source') return prepareManualSource(tx, actorId, command);
   if (command.action === 'begin') return beginStagedApproval(tx, actorId, command.prepared);
   if (command.action === 'page') return stageApprovalPage(tx, actorId, command.jobId, command.page);
   return finishStagedApproval(tx, actorId, command.jobId);

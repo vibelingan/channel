@@ -5,6 +5,7 @@ import { PublicProductSchema } from './index.ts';
 import { catalogOfferPricingSchema } from './offer-pricing.ts';
 import { CatalogPriceSummarySchema } from './price-summary.ts';
 
+export { manualDetailCandidate, manualFacts } from './manual-detail.ts';
 export {
   type CatalogPriceSummary,
   CatalogPriceSummarySchema,
