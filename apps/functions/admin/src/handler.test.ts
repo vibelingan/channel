@@ -23,6 +23,7 @@ import {
   type ApprovalPersistenceCommand,
   runStagedApproval,
 } from '@vibelingan-channel/db/catalog-detail-staging';
+import { approvedVariantDocumentId } from '@vibelingan-channel/db/catalog-detail-storage';
 import {
   type MediaStorageAdapter,
   type UploadCredential,
@@ -4873,7 +4874,7 @@ const backfillHeader = {
   offers: [],
 };
 const approvedVariantRow = (variantId: string, amountMinor: number, position: number) => ({
-  _id: `approved-1:r1:${variantId}`,
+  _id: approvedVariantDocumentId('approved-1', 'r1', variantId),
   productId: 'approved-1',
   variantId,
   catalogDetailRevision: 'r1',
@@ -4999,6 +5000,47 @@ test('price summary backfill plans read-only, then applies only reviewed rows id
   ]);
   expectErr(
     await backfillCall({ mode: 'apply', rows: Array.from({ length: 21 }, () => rows[0]) }, token),
+    'VALIDATION_ERROR',
+  );
+});
+
+test('price summary backfill apply writes the server-derived summary, never a caller-supplied one', async () => {
+  const store = backfillStore();
+  setAdapter(new BackfillAdapter(store));
+  currentStore = store;
+  const token = await adminToken();
+  const forged = {
+    source: 'sku',
+    variantId: 'b',
+    pricing: { mode: 'fixed', currency: 'USD', amountMinor: 1 },
+  };
+  const result = okData<{ results: unknown[] }>(
+    await backfillCall(
+      { mode: 'apply', rows: [{ productId: 'approved-1', revision: 'r1', priceSummary: forged }] },
+      token,
+    ),
+  );
+  assert.deepEqual(result.results, [
+    {
+      productId: 'approved-1',
+      result: { ok: true, backfill: 'skipped', reason: 'summary-changed' },
+    },
+  ]);
+  assert.equal(
+    Object.hasOwn(store.products?.[0]?.catalogDetailPublication as object, 'priceSummary'),
+    false,
+  );
+  const stale = okData<{ results: unknown[] }>(
+    await backfillCall(
+      { mode: 'apply', rows: [{ productId: 'manual-1', revision: 'r1', priceSummary: forged }] },
+      token,
+    ),
+  );
+  assert.deepEqual(stale.results, [
+    { productId: 'manual-1', result: { ok: true, backfill: 'skipped', reason: 'plan-changed' } },
+  ]);
+  expectErr(
+    await backfillCall({ mode: 'plan', afterId: 'x'.repeat(70_000) }, token),
     'VALIDATION_ERROR',
   );
 });

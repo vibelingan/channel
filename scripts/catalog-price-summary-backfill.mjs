@@ -33,6 +33,17 @@ export function countOutcomes(rows) {
   return counts;
 }
 
+/** Applied vs skipped-by-reason totals for an apply run. */
+export function tallyResults(results) {
+  const tally = {};
+  for (const { result } of results) {
+    const key =
+      result?.backfill === 'applied' ? 'applied' : `skipped:${result?.reason ?? 'unknown'}`;
+    tally[key] = (tally[key] ?? 0) + 1;
+  }
+  return tally;
+}
+
 /** Sends only `ready` rows, in batches; throws on any unconfirmed row. */
 export async function applyReadyRows(call, rows) {
   const ready = rows
@@ -109,7 +120,9 @@ async function main() {
   manifest.appliedAt = new Date().toISOString();
   await save(manifest);
   const after = countOutcomes(await planAll(call));
-  console.log(JSON.stringify({ applied: manifest.results.length, afterPlan: after }, null, 2));
+  console.log(
+    JSON.stringify({ results: tallyResults(manifest.results), afterPlan: after }, null, 2),
+  );
   if ((after.ready ?? 0) > 0) process.exitCode = 2;
 }
 

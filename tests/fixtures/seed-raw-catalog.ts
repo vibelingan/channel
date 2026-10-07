@@ -53,12 +53,16 @@ export async function seedRawCatalog(db: JsonFileAdapter, mediaDirectory: string
   const { observation, draft } = await seedRawObservation(db, raw);
   assert.equal(observation.identity.attributes.length, 47);
   assert.equal(observation.content.description?.imageUrls?.length, 17);
-  assert.deepEqual(observation.offers.find((o) => !o.sourceVariantKey)?.pricing, {
-    mode: 'fixed',
-    currency: 'USD',
-    amountMinor: 767,
-    minimumOrderQuantity: 1,
-  });
+  // The wholesale headline ($7.67) is not a price when the product has SKUs
+  // (MIU-1, DEC-5): only the SKU's own quote remains, which has no price.
+  assert.equal(
+    observation.offers.find((o) => !o.sourceVariantKey),
+    undefined,
+  );
+  assert.deepEqual(
+    observation.offers.map((o) => o.pricing),
+    [{ mode: 'unavailable', minimumOrderQuantity: 1 }],
+  );
   const gallery = observation.content.media.map((m) => m.sourceUrl);
   const description = observation.content.description?.imageUrls ?? [];
   const ids: string[] = [];

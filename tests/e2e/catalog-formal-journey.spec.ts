@@ -179,7 +179,8 @@ test('raw Alibaba response → draft/edit/preview → approved detail preserves 
   expect(draft.wholesalePrice).toBeUndefined();
   expect(draft.alibabaSourceReview).toMatchObject({
     minimumOrderQuantity: 1,
-    primaryPricing: { mode: 'fixed', amountMinor: 767 },
+    // No headline price since MIU-1: the only quote is the SKU's, which has none.
+    primaryPricing: { mode: 'unavailable', minimumOrderQuantity: 1 },
   });
   const publicBefore = await request.get(`${e2e.apiUrl}/api/images/raw-wire-image-6`);
   expect(publicBefore.status()).toBe(404);
@@ -194,7 +195,7 @@ test('raw Alibaba response → draft/edit/preview → approved detail preserves 
   await page.getByPlaceholder(/^Search name/).fill('Raw Wire Camping Light');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   const row = page.getByRole('row').filter({ hasText: 'Raw Wire Camping Light' });
-  await expect(row).toContainText('7.67');
+  await expect(row).not.toContainText('7.67');
   let mediaFailureInjected = false;
   await page.route('**/api/admin', async (route) => {
     const body = route.request().postDataJSON();
@@ -220,7 +221,9 @@ test('raw Alibaba response → draft/edit/preview → approved detail preserves 
   await expect(preview.getByRole('alert')).toContainText('Saved images have not been removed');
   expect(mediaFailureInjected).toBe(true);
   await preview.getByRole('button', { name: 'Retry images' }).click();
-  await expect(preview.locator('[data-catalog-compact-price]')).toContainText('USD 7.67');
+  const previewPrice = preview.locator('[data-catalog-compact-price]');
+  await expect(previewPrice).toContainText('Request a quote');
+  await expect(previewPrice).not.toContainText('7.67');
   // 30 unambiguous facts + 17 values under repeated labels. The latter stay
   // in notes, not misleading single-valued headline specs.
   await expect(preview.locator('[data-catalog-specifications] dd')).toHaveCount(30);
@@ -254,7 +257,7 @@ test('raw Alibaba response → draft/edit/preview → approved detail preserves 
   await preview.getByRole('button', { name: 'Close', exact: true }).first().click();
   await row.getByRole('button', { name: 'Edit', exact: true }).click();
   const editor = page.getByRole('dialog', { name: 'Edit Product', exact: true });
-  await expect(editor.getByRole('region', { name: 'Effective website pricing' })).toContainText(
+  await expect(editor.getByRole('region', { name: 'Effective website pricing' })).not.toContainText(
     '7.67',
   );
   await editor.getByRole('button', { name: 'Close editor', exact: true }).click();
@@ -297,7 +300,9 @@ test('raw Alibaba response → draft/edit/preview → approved detail preserves 
   await expect(page.locator('[data-shared-catalog-detail]')).toBeVisible();
   await expect(page.locator('[data-catalog-specifications] dd')).toHaveCount(30);
   await expect(page.locator('[data-catalog-notes] p')).toHaveCount(17);
-  await expect(page.locator('[data-catalog-compact-price]')).toContainText('USD 7.67');
+  const pagePrice = page.locator('[data-catalog-compact-price]');
+  await expect(pagePrice).toContainText('Request a quote');
+  await expect(pagePrice).not.toContainText('7.67');
   await expect(page.locator('section[data-catalog-notes] p').first()).toBeVisible();
   await expect(page.locator('section[data-description-images] img').first()).toBeVisible();
   await expect(

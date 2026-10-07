@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
 import { runStagedApproval } from './catalog-detail-staging.ts';
+import { approvedVariantDocumentId } from './catalog-detail-storage.ts';
 import {
   type PriceSummaryBackfillReader,
   planPriceSummaryBackfill,
@@ -22,8 +23,10 @@ const fixed = (amountMinor: number) => [
     pricing: { mode: 'fixed', currency: 'USD', amountMinor },
   },
 ];
-const variant = (id: string, offers: unknown[]) => ({
-  _id: `row-${id}`,
+const variant = (id: string, offers: unknown[], position = 0) => ({
+  _id: approvedVariantDocumentId('p1', 'r1', id),
+  variantId: id,
+  catalogDetailPosition: position,
   catalogDetailApproved: {
     id,
     options: [],
@@ -60,7 +63,7 @@ const reader = (
 test('plan proposes the cheapest approved SKU for an approved version without a summary', async () => {
   const seen: string[] = [];
   const plan = await planPriceSummaryBackfill(
-    reader([product()], [variant('a', fixed(500)), variant('b', fixed(120))], seen),
+    reader([product()], [variant('a', fixed(500), 0), variant('b', fixed(120), 1)], seen),
     { pageSize: 20 },
   );
   assert.deepEqual(plan.rows, [
@@ -84,10 +87,10 @@ test('legacy storage, existing summaries, unapproved, unpriced and inconsistent 
     catalogDetailPublication: { state: 'approved', revision: 'r1', header, variantCount: 1 },
   });
   const seen: string[] = [];
-  const legacyPlan = await planPriceSummaryBackfill(
-    reader([legacy], [variant('a', fixed(300))], seen),
-    { pageSize: 20 },
-  );
+  const legacyRow = { ...variant('a', fixed(300)), _id: 'a' };
+  const legacyPlan = await planPriceSummaryBackfill(reader([legacy], [legacyRow], seen), {
+    pageSize: 20,
+  });
   assert.equal(legacyPlan.rows[0]?.outcome, 'ready');
   assert.deepEqual(seen, ['p1:r1:legacy']);
   const present = product({
@@ -110,7 +113,29 @@ test('legacy storage, existing summaries, unapproved, unpriced and inconsistent 
     ['invalid-variant-rows'],
     'variant count mismatch',
   );
-  assert.deepEqual(await outcomes([product()], [variant('a', []), variant('b', [])]), ['no-price']);
+  assert.deepEqual(await outcomes([product()], [variant('a', [], 0), variant('b', [], 1)]), [
+    'no-price',
+  ]);
+  assert.deepEqual(
+    await outcomes(
+      [product()],
+      [variant('a', fixed(1), 0), { ...variant('b', fixed(1), 1), _id: 'forged' }],
+    ),
+    ['invalid-variant-rows'],
+    'row id must match the approved storage key',
+  );
+  assert.deepEqual(
+    await outcomes([product()], [variant('a', fixed(1), 0), variant('b', fixed(1), 5)]),
+    ['invalid-variant-rows'],
+    'positions must be contiguous',
+  );
+  const mismatched = product({
+    catalogDetailPublication: {
+      ...(product().catalogDetailPublication as object),
+      header: { ...header, _id: 'someone-else' },
+    },
+  });
+  assert.deepEqual(await outcomes([mismatched], []), ['not-approved']);
 });
 
 function store(initial: Record<string, Record<string, CollectionDoc>>) {

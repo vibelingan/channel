@@ -16,6 +16,7 @@
  */
 import { Buffer } from 'node:buffer';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { type SessionClaims, signSession, verifySession } from '@vibelingan-channel/auth/jwt';
 import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password';
 import {
@@ -45,6 +46,7 @@ import {
 import {
   type PriceSummaryBackfillReader,
   planPriceSummaryBackfill,
+  planProductPriceSummary,
 } from '@vibelingan-channel/db/catalog-price-summary-backfill';
 import { sendOemConfirmationEmail, sendPasswordResetEmail } from '@vibelingan-channel/email';
 import {
@@ -2196,6 +2198,9 @@ async function backfillPublicationPriceSummaryAction(
   if (config.enableDetailApproval !== true) {
     return err('FORBIDDEN', 'Catalog detail approval is not enabled.');
   }
+  if (Buffer.byteLength(JSON.stringify(req.data ?? null), 'utf8') > 65536) {
+    return err('VALIDATION_ERROR', 'Price summary backfill request is too large.');
+  }
   const parsed = priceSummaryBackfillRequest.safeParse(req.data);
   if (!parsed.success) return err('VALIDATION_ERROR', 'Invalid price summary backfill request.');
   if (parsed.data.mode === 'plan') {
@@ -2206,13 +2211,38 @@ async function backfillPublicationPriceSummaryAction(
       }),
     );
   }
+  // The server, not the caller, decides the summary: re-plan each product and
+  // write the server's summary only when it still matches the reviewed row.
+  const skipped = (reason: string) => ({ ok: true, backfill: 'skipped', reason });
   const results: Array<{ productId: string; result: unknown }> = [];
   for (const row of parsed.data.rows) {
+    const product = await get('products', row.productId);
+    const planned = product
+      ? await planProductPriceSummary(priceSummaryBackfillReader, product)
+      : undefined;
+    if (planned?.outcome !== 'ready') {
+      results.push({
+        productId: row.productId,
+        result: skipped(
+          planned?.outcome === 'already-present' ? 'already-present' : 'plan-changed',
+        ),
+      });
+      continue;
+    }
+    if (
+      planned.revision !== row.revision ||
+      !isDeepStrictEqual(planned.priceSummary, row.priceSummary)
+    ) {
+      results.push({ productId: row.productId, result: skipped('summary-changed') });
+      continue;
+    }
     results.push({
       productId: row.productId,
       result: await persistCatalogDetailApproval(claims.sub, {
         action: 'price-summary-backfill',
-        ...row,
+        productId: row.productId,
+        revision: planned.revision,
+        priceSummary: planned.priceSummary,
       }),
     });
   }
