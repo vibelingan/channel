@@ -396,7 +396,9 @@ Depends on: MIU-3
   - Idempotent: a product that already has a summary is skipped.
   - Result type: extend `ApprovalStageResult` (`catalog-detail-staging.ts:46-61`,
     today `Progress | Failure`) with
-    `{ ok: true, kind: 'backfill', outcome: 'applied' | 'skipped', reason? }`.
+    `{ ok: true, backfill: 'applied' | 'skipped', reason? }`. (Not `kind`: the
+    review result is identified by `kind: 'review'` and callers narrow with
+    `'kind' in result`.)
 - No new CloudBase SDK surface (`pnpm verify:cloudbase-sdk` unaffected).
 
 **Build/Deploy/Runtime impact**
@@ -1009,8 +1011,8 @@ Depends on: MIU-15, MIU-18
   - `unchanged` → write the row back with receipt `sourceDigest` set.
   - `changed` → write it back with `alibabaReviewPending: true`,
     `alibabaReviewReason: 'changed'`.
-- Result: the same `{ ok: true, kind: …, outcome: 'applied' | 'skipped', reason? }`
-  shape added in MIU-6 (`kind: 'change-audit'`).
+- Result: the same `{ ok: true, backfill: 'applied' | 'skipped', reason? }` shape
+  added in MIU-6 (reuse it; reasons extended with this command's skip reasons).
 
 **Build/Deploy/Runtime impact**
 - db package; admin function. No index; no new SDK surface.

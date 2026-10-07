@@ -12,7 +12,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 3 | Price summary contract + `derivePriceSummary` | 2a | Done | `5cf2a6b` |
 | 4 | Approval plan stores `priceSummary` | 2b | Done | `1b22ff5` |
 | 5 | `resolvePublicVersion` shared rule | 3 | Not started | |
-| 6 | Price summary backfill (db command) | 2b | Not started | |
+| 6 | Price summary backfill (db command) | 2b | Done | (this commit) |
 | 7 | Backfill admin action + script | 2b | Not started | |
 | 8 | Public list / item / slug read the one version | 3 | Not started | |
 | 9 | Product page endpoint uses the rule | 3 | Not started | |
@@ -91,6 +91,28 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-6 — price summary backfill (db) (2026-10-07)
+- What changed:
+  - New `catalog-price-summary-backfill.ts`: a read-only planner with an
+    injected reader (no db imports, no import cycle). It classifies products as
+    `ready` (with the proposed summary), `already-present`, `not-approved`,
+    `invalid-variant-rows` (row count ≠ `variantCount` or an invalid row) or
+    `no-price`. It reads SKU rows by storage mode (`immutable-v1` / legacy).
+  - New staging command `price-summary-backfill`. It is admin-only; re-checks the
+    publication revision and an existing summary inside the transaction; writes
+    the row back with only `catalogDetailPublication.priceSummary` added.
+- Checked before writing: neither `publicationContentFingerprint` nor
+  `approvalProductFingerprint` covers the publication, so existing approvals and
+  in-flight jobs stay valid.
+- Deviation: the result field is `backfill: 'applied' | 'skipped'`, not `kind`.
+  The review result uses `kind: 'review'`, and an existing test narrows with
+  `'kind' in result`. MIU_BREAKDOWN (MIU-6, MIU-22) updated.
+- Tests: planner (immutable and legacy storage, every classification) and apply
+  (only the summary changes, idempotent, changed revision skipped, contributor
+  refused). Written before the implementation; first run after it.
+- Validation: db package all green; `pnpm test` exit 0; `pnpm typecheck`;
+  `pnpm lint`; packaged smoke 3/3.
 
 ### Batch 1 review fixes (2026-10-07)
 Review of MIU-1, MIU-2, MIU-36: 0 P1, 1 P2, 8 P3. Fixed:

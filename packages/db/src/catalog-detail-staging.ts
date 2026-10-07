@@ -1,7 +1,10 @@
 /** Server-only, bounded approval staging. No stage publishes a product. */
 import { createHash, randomUUID } from 'node:crypto';
 import { type CollectionDoc, catalogReferencedImageIds } from '@vibelingan-channel/shared';
-import { CatalogDetailPublicationSchema } from '@vibelingan-channel/shared/catalog-detail';
+import {
+  CatalogDetailPublicationSchema,
+  CatalogPriceSummarySchema,
+} from '@vibelingan-channel/shared/catalog-detail';
 import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
 import { z } from 'zod';
 import { readImageMutationState } from './adapter.ts';
@@ -60,7 +63,22 @@ type Progress = {
   pages: number;
   complete: boolean;
 };
-export type ApprovalStageResult = Progress | Failure;
+/** Outcome of the one-time price summary backfill (MIU-6). */
+type Backfill = {
+  ok: true;
+  /** Distinct from the review result's `kind` so `'kind' in result` narrowing stays valid. */
+  backfill: 'applied' | 'skipped';
+  reason?: 'revision-changed' | 'already-present' | 'not-approved';
+};
+export type ApprovalStageResult = Progress | Failure | Backfill;
+const PriceSummaryBackfillSchema = z
+  .object({
+    action: z.literal('price-summary-backfill'),
+    productId: id,
+    revision: id,
+    priceSummary: CatalogPriceSummarySchema,
+  })
+  .strict();
 const PersistenceCommandSchema = z.discriminatedUnion('action', [
   SourcePageSchema,
   z.object({ action: z.literal('begin'), prepared: JobSchema }).strict(),
@@ -72,6 +90,7 @@ const PersistenceCommandSchema = z.discriminatedUnion('action', [
     })
     .strict(),
   z.object({ action: z.literal('finish'), jobId: digest }).strict(),
+  PriceSummaryBackfillSchema,
 ]);
 /** Internal adapter command. HTTP handlers must never forward a submitted `prepared` object. */
 export type ApprovalPersistenceCommand = z.infer<typeof PersistenceCommandSchema>;
@@ -361,6 +380,38 @@ export async function finishStagedApproval(
   return progress(completed);
 }
 
+/**
+ * Adds a price summary to an existing approved version without re-approving it.
+ * Writes only `catalogDetailPublication.priceSummary`; the revision, receipts and
+ * publication state are untouched (no approval fingerprint covers the
+ * publication, so existing approvals stay valid).
+ */
+export async function backfillPublicationPriceSummary(
+  tx: CatalogApprovalTransaction,
+  actorId: string,
+  command: z.infer<typeof PriceSummaryBackfillSchema>,
+): Promise<ApprovalStageResult> {
+  if (!(await isAdmin(tx, actorId))) return fail('FORBIDDEN');
+  const product = await tx.get('products', command.productId);
+  if (!product) return fail('NOT_FOUND');
+  const skipped = (reason: NonNullable<Backfill['reason']>): Backfill => ({
+    ok: true,
+    backfill: 'skipped',
+    reason,
+  });
+  const current = CatalogDetailPublicationSchema.safeParse(product.catalogDetailPublication);
+  if (!current.success || current.data.header._id !== product._id) return skipped('not-approved');
+  if (current.data.revision !== command.revision) return skipped('revision-changed');
+  if (current.data.priceSummary) return skipped('already-present');
+  const next = {
+    ...(product.catalogDetailPublication as Record<string, unknown>),
+    priceSummary: command.priceSummary,
+  };
+  if (!CatalogDetailPublicationSchema.safeParse(next).success) return fail('VALIDATION_ERROR');
+  await tx.set('products', { ...product, catalogDetailPublication: next });
+  return { ok: true, backfill: 'applied' };
+}
+
 export async function runStagedApproval(
   tx: CatalogApprovalTransaction,
   actorId: string,
@@ -370,6 +421,8 @@ export async function runStagedApproval(
   if (!parsed.success || !id.safeParse(actorId).success) return fail('VALIDATION_ERROR');
   const command = parsed.data;
   if (command.action === 'source-page') return stageSourcePage(tx, actorId, command);
+  if (command.action === 'price-summary-backfill')
+    return backfillPublicationPriceSummary(tx, actorId, command);
   if (command.action === 'begin') return beginStagedApproval(tx, actorId, command.prepared);
   if (command.action === 'page') return stageApprovalPage(tx, actorId, command.jobId, command.page);
   return finishStagedApproval(tx, actorId, command.jobId);
