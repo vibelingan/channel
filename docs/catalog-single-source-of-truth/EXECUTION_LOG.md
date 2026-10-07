@@ -29,22 +29,22 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 20 | Quarantine path + refresh contract | 4 | Done (local) | `fb7ba50` |
 | 21 | Approve / acknowledge clears reason (not unpublish) | 4 | Done (local) | `8ef0b3a` |
 | 22 | `change-audit-mark` db command | 4 | Done (local) | `ab7b3c1` |
-| 23 | Admin badge / chip show reason | 4 | Not started | |
-| 24 | "Approve changes" action | 4 | Not started | |
+| 23 | Admin badge / chip show reason | 4 | Done (local) | `756a364` |
+| 24 | "Approve changes" action | 4 | Done (local) | `d5a601d` |
 | 25 | Edit form shows pending Alibaba changes before Save | 4 | Pending owner review (DEC-12) | |
 | 26 | `catalog-consistency-audit` script | 3 | Done | `4d69d06` (review fix `844d98b`) |
-| 27 | Manual draft, spec facts, MOQ-only price in the planner | 5a | Not started | |
-| 28 | `manual-source` prepare command + spec fields in approval fingerprint | 5a | Not started | |
-| 29 | Receipt fingerprint covers spec fields for manual owners | 5a | Not started | |
-| 30 | Admin prepare — manual branch | 5a | Not started | |
+| 27 | Manual draft, spec facts, MOQ-only price in the planner | 5a | Done (local) | `4a76230` |
+| 28 | `manual-source` prepare command + spec fields in approval fingerprint | 5a | Done (local) | `788d134` |
+| 29 | Receipt fingerprint covers spec fields for manual owners | 5a | Done (local) | `15a1f90` |
+| 30 | Admin prepare — manual branch | 5a | Done (local) | `572877b` |
 | 31 | Publish gate for every product on update | 5b | Not started (ships after R9) | |
-| 32 | Admin publish flow and preview include manual products | 5a | Not started | |
+| 32 | Admin publish flow and preview include manual products | 5a | Done (local) | `20e8a2e` |
 | 33 | Product page shows MOQ when there is no price | 3 (moved from 5a) | Done | `00a157a` |
 | 34 | Manual product end-to-end (local) + admin e2e updates | 5a | Not started | |
 | 35 | Batch "Assign category" confirms before publishing pending changes | 4 | Pending owner review (DEC-12) | |
 | 36 | Replay admin page shows `productHeadlineDropped` | 1 | Done | `f0e3da7` |
 | 37 | Gate on creating an already-published product | 5b | Not started (ships after R9) | |
-| 38 | Admin action `auditChangesSinceApproval` | 4 | Not started | |
+| 38 | Admin action `auditChangesSinceApproval` | 4 | Done (local) | `9e7b020` (+ script `f250478`) |
 
 ## Runbook status
 
@@ -91,6 +91,42 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-23, 24, 38, R6 script, MIU-27 to 32 (2026-10-08, local)
+- MIU-38 `9e7b020`: admin action `auditChangesSinceApproval`. Plan builds the
+  candidate with the same builder and configuration ids as a real approval
+  (the id rule and category label are now shared with prepare), compares
+  configurations added/removed, each configuration's price and options, the
+  product-level price, facts and description (not images). Apply re-plans on
+  the server and writes through MIU-22. Test fixtures build the "approved"
+  side with the real builder, so the identical case proves no false
+  "changed". Mutation (configuration price comparison disabled) failed 2 tests.
+- `f250478`: `scripts/catalog-change-audit.mjs` (runbook R6), same shape as
+  the backfill script; done when no `unchanged` row is left.
+- MIU-23 `756a364`: badge/chip read New / Changed / Removed / Edited; tabs and
+  filter say "N products to review" / "• Needs review"; "Mark reviewed" only for
+  New. One e2e pattern updated for the new tab name.
+- MIU-24 `d5a601d`: "Approve changes" (publish again = full approval) and, for
+  Removed, "Unpublish". Deviation: no separate before/after price diff (the
+  preview shows each configuration's current price).
+- MIU-27 `4a76230`: planner builds a manual product's version (spec facts;
+  MOQ-only price for manual products, DEC-16). Synced plans unchanged.
+- MIU-28 `788d134`: `manual-source` command; refuses linked, archived and
+  configured products (the server lists configuration rows, because the
+  transaction can only read by id); approval fingerprint now covers SKU /
+  Series / Model / Type (open reviews get one CONFLICT after deploy).
+- MIU-29 `15a1f90`: publication fingerprint covers the spec fields for manual
+  owners only; synced receipts unchanged (red seen with the old code).
+- MIU-30 `572877b`: admin prepare takes the manual path; a product with
+  configuration rows gets a clear refusal.
+- MIU-32 `20e8a2e`: publishing a manual product runs the approval first; no
+  photo → refused before any approval call; category-only save on a published
+  manual product refreshes its version; the classification flow's revision
+  guard carries through. Behaviour change: the classification bulk publish
+  now approves a manual draft first (its test updated; synced products are
+  still refused there).
+- Batch 4 full validation at `d5a601d`: all package tests, build, both browser
+  lanes pass.
 
 ### Deploy status (2026-10-08 07:55 JST)
 - Feature branch pushed at `2e34df6` (batch 3 reviewed and blessed; batch 4
