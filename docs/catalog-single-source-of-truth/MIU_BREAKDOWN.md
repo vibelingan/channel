@@ -5,7 +5,7 @@ Branch: `feat/catalog-alibaba-price-tiers` (continue here until it merges to `ma
 
 Each MIU goes through test-first → implement → simplify → review → validate →
 commit on its own. MIUs marked **Owner: OWN-n** must not ship until the owner has
-decided (README "Open decisions"); today that is only MIU-31.
+decided (README "Open decisions"); today that is MIU-31 and MIU-37.
 
 Validation commands used below (repo root):
 
@@ -47,10 +47,10 @@ PT-C   15 → 21, 23 → 24, 25 → 35
        15, 16, 18 → 19 → 20
        15, 18 → 22;  16, 22 → 38
 PT-D   3, 8 → 26
-PT-E   4 → 27 → 28 → 29, 30 → 31 → 37
+PT-E   4 → 27 → 28 → 29, 30 → 31 → 37;  15 → 37
        25, 30 → 32
        33 (none)
-       8, 9, 10, 27–33 → 34
+       8, 9, 10, 27–30, 32, 33 → 34
 ```
 
 Contracts come first: MIU-3 (price summary schema), MIU-5 (public version rule),
@@ -124,7 +124,7 @@ Depends on: none
 - A sourcing product with SKUs still yields its FOB range offer.
 
 **Done when**
-- The four assertions pass; all `packages/alibaba-catalog-sync` tests pass.
+- All test-plan assertions pass; all `packages/alibaba-catalog-sync` tests pass.
 - `pnpm typecheck` and `pnpm build:functions && pnpm smoke:functions` pass.
 
 ### MIU-2: raw replay — accept and deactivate a dropped `'@product'` offer; store the new content hash
@@ -148,7 +148,7 @@ Depends on: MIU-1
 - The replay result today is `{counts, priceModes, failures[]}`
   (`raw-replay.ts:165-208`). Add `counts.productHeadlineDropped` (number of
   products whose headline offer will be / was deactivated). The admin page
-  decodes this result strictly (`alibaba-api.ts:430-446`, `hasExactKeys`), so the
+  decodes this result strictly (`alibaba-api.ts`: result interface `:341-349`, strict counts decoder `REPLAY_COUNT_KEYS` / `hasExactKeys` `:399-428`, `emptyReplayCounts` `:573-581`), so the
   decoder and display change in MIU-36, deployed in the same batch.
 - On apply (`raw-replay.ts:706-769`), set `active: false` on that `'@product'`
   offer in the same guarded write as the rebuilt SKU offers.
@@ -192,7 +192,7 @@ Depends on: MIU-2
 ```
 
 **What it does**
-- The replay result decoder (`alibaba-api.ts:430-446`, `hasExactKeys`) accepts the
+- The replay result decoder (`alibaba-api.ts`: result interface `:341-349`, strict counts decoder `REPLAY_COUNT_KEYS` / `hasExactKeys` `:399-428`, `emptyReplayCounts` `:573-581`) accepts the
   new `counts.productHeadlineDropped` (non-negative integer) and still rejects any
   other unknown key.
 - The replay page shows it next to the existing counts: "Headline prices removed:
@@ -208,8 +208,6 @@ Depends on: MIU-2
 
 **Done when**
 - Tests pass; `pnpm typecheck`; `pnpm build`.
-
----
 
 ---
 
@@ -241,7 +239,9 @@ Depends on: none
   product page decode).
 - `derivePriceSummary({ websitePricing?, offers, variants: {id, offers}[] })
   → CatalogPriceSummary | undefined`, pure, never throws:
-  1. `websitePricing` with an amount-bearing mode → `source: 'website'`.
+  1. `websitePricing` with an amount-bearing mode, **or** an `unavailable` /
+     `negotiable` website price that carries `minimumOrderQuantity` (DEC-16) →
+     `source: 'website'`.
   2. Else the amount-bearing SKU offer with the lowest minimum unit amount;
      currency preference USD, then CNY, then others alphabetically; ties → earliest
      SKU position → `source: 'sku'`, `variantId`.
@@ -251,7 +251,9 @@ Depends on: none
   (`packages/shared/package.json`; `./catalog-detail` → `product-detail.ts`).
   Re-export the schema, type and `derivePriceSummary` from `product-detail.ts`, so
   db, public-api and the site import them from `@vibelingan-channel/shared/catalog-detail`
-  without a new package entry.
+  without a new package entry. `price-summary.ts` imports only `offer-pricing.ts`
+  (never `product-detail.ts`) and declares its input structurally, so there is no
+  import cycle.
 
 **Build/Deploy/Runtime impact**
 - `@vibelingan-channel/shared` is consumed raw-TS by the site (Astro/Vite) and
@@ -266,7 +268,9 @@ Depends on: none
   `variantId: 'A'` (minimum 120 < 125).
 - SKU USD 500 and SKU CNY 300 → picks the USD one (currency preference over amount).
 - All SKUs `unavailable`, header fixed 400 → `source: 'product'`.
-- Everything unavailable/negotiable → `undefined`.
+- Website price `unavailable` with MOQ 50 → `{source: 'website'}` with that
+  pricing (the card shows "Request a quote" and MOQ 50).
+- Everything else unavailable/negotiable, no MOQ → `undefined`.
 - Schema: a publication without `priceSummary` decodes; one with an unknown key
   inside `priceSummary` is rejected; a header with `priceSummary` is still rejected.
 
@@ -325,7 +329,7 @@ Depends on: MIU-3
 Block:      BACKEND (shared contract)
 Files:      packages/shared/src/catalog/public-version.ts        (new)
             packages/shared/src/catalog/public-version.test.ts   (new)
-            packages/shared/src/catalog/product-detail.ts        (re-export)
+            packages/shared/src/catalog/index.ts                 (re-export)
 Type:       new-file + modify-existing
 Depends on: MIU-3
 ```
@@ -340,8 +344,10 @@ Depends on: MIU-3
   and a product linked or unlinked after approval keeps its approved version.
 - Everything else (never approved yet, feature off) → `row`, the temporary fallback
   that the consistency audit counts.
-- Pure; never throws. Re-exported from `product-detail.ts`
-  (`@vibelingan-channel/shared/catalog-detail`), like MIU-3.
+- Pure; never throws. `public-version.ts` imports the publication schema from
+  `product-detail.ts`, so it is re-exported from `catalog/index.ts`
+  (`@vibelingan-channel/shared/catalog`), not from `product-detail.ts` (that would
+  be an import cycle).
 
 **Build/Deploy/Runtime impact**
 - Shared package, as MIU-3. None beyond build verification.
@@ -387,6 +393,9 @@ Depends on: MIU-3
     `catalogDetailPublication.priceSummary` added.
   - It never changes `revision`, receipts, `published` or any other field.
   - Idempotent: a product that already has a summary is skipped.
+  - Result type: extend `ApprovalStageResult` (`catalog-detail-staging.ts:46-61`,
+    today `Progress | Failure`) with
+    `{ ok: true, kind: 'backfill', outcome: 'applied' | 'skipped', reason? }`.
 - No new CloudBase SDK surface (`pnpm verify:cloudbase-sdk` unaffected).
 
 **Build/Deploy/Runtime impact**
@@ -472,8 +481,12 @@ Depends on: MIU-3, MIU-5
     `alibabaSourceLastSyncedAt` (DEC-14).
 - Row `variants` are attached **outside** `publicDoc`: `attachVariants`
   (`handler.ts:257-284`) is called from `listCatalog` (`:409, :416`) and
-  `withVariants` (`:459-466`). Both call sites must skip approved items, so
-  `publicDoc` (or a small wrapper) also returns the version kind. The site never
+  `withVariants` (`:459-466`). Both call sites must skip approved items. Keep
+  `publicDoc(doc, config): CollectionDoc` unchanged in signature (it is imported by
+  public-api `handler.test.ts`, local-server `catalog-manual-price-publication.test.ts`
+  and alibaba-catalog-sync `pricing-repair*.test.ts`) and add a wrapper
+  `publicItem(doc, config) → { doc, kind: 'approved' | 'row' }` for the two call
+  sites. The site never
   renders list `variants` (checked by grep).
 - `row` (not yet approved) → today's projection, byte-identical.
 - Applies to `listCatalog` (`handler.ts:348-422`), item (`:424-439`) and slug
@@ -494,9 +507,11 @@ Depends on: MIU-3, MIU-5
   `priceSummary` equal to the stored one, and **no** `alibabaCatalogPricing`,
   `unitPrice`, `wholesalePrice`, `manualCatalogPricing`.
 - Same product with `enableCatalogDetail: false` → today's row projection.
-- **Parity:** an approved synced product and an approved manual product produce
-  payloads with the identical key set (assert `Object.keys` equal) and no
-  `alibaba*` key.
+- **Parity:** an approved synced product and an approved manual product built
+  from the same optional fixture fields (e.g. both with `series`, both without
+  `modType`) produce identical key sets, and neither has any `alibaba*` key or
+  `variants`. (Real products may still differ in optional row fields such as
+  series, model, type or product code — allowed by DEC-14.)
 - Manual product not yet approved → byte-identical to today
   (`http-adapter.test.ts:459` allowlist test unchanged).
 - Images: absolute URLs, ≤9, header order.
@@ -590,7 +605,9 @@ Depends on: MIU-3 (contract: packages/shared/src/catalog/price-summary.ts)
   (`:215, :288, :313`) and cannot strip keys. So it does **not** check
   `priceSummary` at all: a bad summary can never fail the whole page
   (`isCatalogPage`, `api.ts:211-220`).
-- New helper `readPriceSummary(product) → CatalogPriceSummary | undefined` runs
+- New helper `readPriceSummary(product) → CatalogPriceSummary | undefined`, in
+  `catalog-types.ts` (not `api.ts`: `api.ts` already imports `catalog-pricing.ts`,
+  which will use the helper, so placing it in `api.ts` would create a cycle). It runs
   `CatalogPriceSummarySchema.safeParse` at use time; an invalid summary reads as
   absent. MIU-12 and MIU-13 read the summary only through this helper.
 
@@ -625,6 +642,7 @@ Depends on: MIU-11
   - tiered → "From <lowest tier>"
   - fixed → the amount
   - range → "From <min>"
+  - unavailable / negotiable (MOQ-only, DEC-16) → the existing quote label
   - MOQ from the summary
 - USD/CNY use the existing card formatter ("$7.67"); any other currency uses the
   product page formatter (`formatCatalogQuoteAmount`, "EUR 7.67").
@@ -896,7 +914,7 @@ Depends on: MIU-15, MIU-16, MIU-18
 - Tests pass; `apps/functions/alibaba-catalog-sync` tests pass; `pnpm typecheck`;
   `pnpm build:functions && pnpm smoke:functions`.
 
-### MIU-20: quarantine approval uses the same flag rule; retire "never resurrect"
+### MIU-20: quarantine approval uses the same flag rule; keep "never resurrect as New", add the "changed" rule
 
 ```
 Block:      BACKEND
@@ -926,7 +944,7 @@ Depends on: MIU-19
   `{pending: false}`.
 
 **Done when**
-- Tests pass; `pnpm build:functions && pnpm smoke:functions`.
+- Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
 
 ### MIU-21: approving or acknowledging clears the reason
 
@@ -943,7 +961,7 @@ Depends on: MIU-15
 - `acknowledgeAlibabaProductReview` (`handler.ts:1468-1510`) writes
   `alibabaReviewReason: null` with `alibabaReviewPending: false`.
 - `markProductReviewed` (`handler.ts:1532-1551`) is allowed only when the reason is
-  `'new'` or absent (DEC-11); for `'changed'` / `'removed'` it returns
+  `'new'` or absent (DEC-11); for `'changed'` / `'removed'` / `'edited'` it returns
   `CONFLICT 'Review and publish the supplier changes, or archive the product.'`
 - Clearing rule (DEC-11): the flag clears on **publish** and **archive** (the
   existing acknowledge triggers, `handler.ts:1929-1938, 1956-1957`) and **never on
@@ -991,6 +1009,8 @@ Depends on: MIU-15, MIU-18
   - `unchanged` → write the row back with receipt `sourceDigest` set.
   - `changed` → write it back with `alibabaReviewPending: true`,
     `alibabaReviewReason: 'changed'`.
+- Result: the same `{ ok: true, kind: …, outcome: 'applied' | 'skipped', reason? }`
+  shape added in MIU-6 (`kind: 'change-audit'`).
 
 **Build/Deploy/Runtime impact**
 - db package; admin function. No index; no new SDK surface.
@@ -1094,7 +1114,7 @@ Depends on: MIU-21, MIU-23
 
 **What it does**
 - In the preview of a product with `published === true` and reason
-  `'changed'` / `'removed'`, show **"Approve changes"**. It calls the existing
+  `'changed'` / `'removed'` / `'edited'`, show **"Approve changes"**. It calls the existing
   `updateRecord(..., { published: true })` (`apps/site/src/islands/admin/api.ts:258-377`),
   which already runs prepare → begin/page/finish → publish and, on the server,
   clears the flag (MIU-21).
@@ -1150,7 +1170,8 @@ Depends on: MIU-15
   - its `alibabaReviewReason` is `'changed'` or `'removed'`;
   - `values` is not exactly `{ published: true }` (a publish);
   - `values.published !== false` (not an unpublish);
-  - `values.archived` is absent (not an archive).
+  - `values.archived !== true` (not an archive; the edit form always sends
+    `archived` as a boolean, `false` on a normal save — `RecordForm.tsx:940-942`).
 
   Unpublish and archive therefore keep working exactly as today. When the rule
   applies:
@@ -1169,10 +1190,14 @@ Depends on: MIU-15
 - Admin island bundle only. No endpoint change.
 
 **Test plan (write first)**
-- Published + `'changed'` + edit-form Save (values include `published: true`) →
+- Published + `'changed'` + edit-form Save, fixture built from the real
+  `coerceValues` output (all editable fields, `published: true`,
+  `archived: false`) →
   one `update` call without `published`, no `prepareDetailReview` /
   `approveDetailReview` call, outcome `supplier-changes-pending`.
 - Published + `'changed'` + category-only save → same.
+- Published + `'changed'` + edit-form Save that also changes the family
+  (`coerceValues` output without `published`, `archived: false`) → same.
 - Published + `'changed'` + `{ published: true }` only → prepare → approve →
   publish (call order asserted).
 - Published + not flagged + category-only save → today's refresh
@@ -1412,7 +1437,7 @@ Depends on: MIU-28
 - Linked product → existing Alibaba prepare path, manual command not called.
 
 **Done when**
-- Tests pass; `pnpm build:functions && pnpm smoke:functions`.
+- Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
 
 ### MIU-31: publish gate for every product on update (Owner: OWN-1, OWN-2)
 
@@ -1422,38 +1447,46 @@ Files:      packages/db/src/adapter.ts
             packages/db/src/catalog-product-save-plan.test.ts
             apps/functions/admin/src/handler.ts
 Type:       modify-existing
-Depends on: MIU-15, MIU-29, MIU-30
+Depends on: MIU-29, MIU-30
 ```
 
 **What it does** (DEC-15)
 - `planCatalogProductSave` (`adapter.ts:236-256`) checks the approval receipt for
-  every product being published or having its price changed, not only
-  Alibaba-linked ones (drop the `typeof doc.alibabaPrimarySourceKey === 'string'`
-  condition).
+  every product, not only Alibaba-linked ones (drop the
+  `typeof doc.alibabaPrimarySourceKey === 'string'` condition).
+- In `'publication-or-pricing'` mode it checks only when the write **publishes**
+  (`data.published === true`), no longer when a price field changes. After batch
+  3 every public surface reads the approved version, so a price typed into the
+  row of a published product cannot reach buyers before approval. Today the
+  price trigger refuses the browser's own "save draft fields first" step
+  (`api.ts:289-293`) on published products, so admins must unpublish to change
+  a price. Removing it lets the edit form's Save change a price and re-approve in
+  one go, for synced and manual products alike.
+  `requireDetailApproval === true` (classification assignment) is unchanged.
 - A refused publish surfaces as today's `INVALID_PRODUCT` error
   (`catalog-product-identities.ts` ~100); no new error code.
-- If OWN-1 is accepted: in `updateAction` (`handler.ts:1940-1967`), a contributor's
-  save on a published product writes the draft fields without `published` and
-  sets `alibabaReviewPending: true, alibabaReviewReason: 'edited'`, so an admin
-  sees it.
 - Only when `CATALOG_DETAIL_APPROVAL_ENABLED === '1'`, as today.
 - Create is gated separately (MIU-37).
 
 **Build/Deploy/Runtime impact**
 - db package + admin function. **Breaks raw-API publishing** (Hermes, scripts) for
   manual products — must not deploy before OWN-2 is decided and Hermes is adjusted.
-- Must deploy **after** R9 (the 7 live manual products approved); otherwise a
-  published manual product without a receipt could no longer save a price fix.
+- Must deploy **after** R9 (the 7 live manual products approved), so every
+  published product already has an approved version when the gate starts
+  applying to manual products.
 
 **Test plan (write first)**
 - Manual product, no receipt, `update {published: true}` → refused (`INVALID_PRODUCT`).
 - Manual product with matching receipt → published.
 - Manual product with receipt, `series` edited, then publish → refused (MIU-29).
-- (OWN-1) contributor save on a published product → draft fields saved, product
-  flagged `'edited'`, public version unchanged.
+- Published product (manual or synced) with a receipt: draft save that changes
+  `manualCatalogPricing` without `published` → accepted (row only; public
+  version unchanged until approval).
 
 **Done when**
 - Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
+- `pnpm test:e2e:catalog-admin-local` re-run (the manual-product e2e from MIU-34
+  must still pass with the gate on).
 
 ### MIU-37: gate on creating a product that is already published (Owner: OWN-1, OWN-2)
 
@@ -1463,26 +1496,34 @@ Files:      apps/functions/admin/src/catalog-product-identities.ts
             apps/functions/admin/src/handler.ts
             apps/functions/admin/src/handler.test.ts
 Type:       modify-existing
-Depends on: MIU-31
+Depends on: MIU-15, MIU-31
 ```
 
 **What it does** (DEC-15)
 - `createCatalogProductRecord` (`catalog-product-identities.ts:121-126`) gains the
-  same `requireDetailApproval` option as the update path; `createAction`
-  (`handler.ts:1850-1873`) passes `'publication-or-pricing'` when approval is
-  enabled. A new product has no approved version, so `create` with
+  same `requireDetailApproval` option as the update path. `createAction(req, claims)`
+  (`handler.ts:652, 1850-1873`) takes no `config` today (`updateAction` does,
+  `:655, 1894`); thread `config` through so it can pass `'publication-or-pricing'`
+  when approval is enabled. A new product has no approved version, so `create` with
   `published: true` is refused (`INVALID_PRODUCT`).
 - `create` without `published` (a draft) is unchanged.
 - The contributor test at `handler.test.ts:1383-1395` ("contributor can
   publish…") is rewritten per OWN-1.
+- If OWN-1 is accepted: in `updateAction` (`handler.ts:1940-1967`) a contributor's
+  save on a published product writes the draft fields without `published` and
+  sets `alibabaReviewPending: true, alibabaReviewReason: 'edited'`, so an admin
+  sees it.
 
 **Build/Deploy/Runtime impact**
 - Admin function. Same rollout constraint as MIU-31 (after R9, after OWN-2).
+- Re-run `pnpm test:e2e:catalog-admin-local` after this MIU.
 
 **Test plan (write first)**
 - `create {published: true}` with approval enabled → refused, nothing stored.
 - `create` draft → stored unpublished.
 - Approval disabled → today's behaviour.
+- (OWN-1) contributor save on a published product → draft fields saved, product
+  flagged `'edited'`, public version unchanged.
 
 **Done when**
 - Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
@@ -1558,7 +1599,7 @@ Block:      TESTING
 Files:      apps/local-server/src/catalog-manual-approval.test.ts   (new)
             tests/e2e/catalog-admin.spec.ts
 Type:       new-test + modify-existing
-Depends on: MIU-8, MIU-9, MIU-10, MIU-27 … MIU-33
+Depends on: MIU-8, MIU-9, MIU-10, MIU-27, MIU-28, MIU-29, MIU-30, MIU-32, MIU-33
 ```
 
 **What it does**
@@ -1566,7 +1607,8 @@ Depends on: MIU-8, MIU-9, MIU-10, MIU-27 … MIU-33
   1. Create a manual product (tiered price, 2 stored photos, series/model).
   2. Run prepare → review → begin → finish → publish.
   3. Check:
-     - the list item has the same key set as an approved synced item;
+     - the list item has no `alibaba*` key or `variants`, and the same key set as
+       an approved synced item built from the same optional fixture fields;
      - the card summary equals the page price;
      - the page has the spec facts and zero configurations;
      - a customization quote is recorded.
@@ -1583,8 +1625,9 @@ Depends on: MIU-8, MIU-9, MIU-10, MIU-27 … MIU-33
   disk (Astro moves build files with rename; `EXDEV` otherwise).
 
 **Test plan (this MIU is the test)**
-- Local server: list item keys of the approved manual product equal those of an
-  approved synced product; card summary equals the page price.
+- Local server: with the same optional fixture fields, list item keys of the
+  approved manual product equal those of an approved synced product, with no
+  `alibaba*` key; card summary equals the page price.
 - Local server: page facts are SKU / Series / Model / Type; `variants.total === 0`;
   a customization quote request is stored with the header snapshot.
 - E2E: manual product published via the UI shows `[data-shared-catalog-detail]`
@@ -1613,5 +1656,5 @@ production data and need the owner's go-ahead at the time.
 | R6 ⚠ | Right after batch 4, before admins use Save on published products | `auditChangesSinceApproval` plan → review → apply (MIU-38). Until it runs, products have no baseline digest and are never flagged, so DEC-12 cannot hold back their supplier changes | The 21 appear as `changed`; others get a baseline digest |
 | R7 | After R6 | Admin approves each flagged product ("Approve changes" or Publish) | Flags cleared; products back in the list |
 | R8 | After R7 | `catalog-consistency-audit.mjs`; browser check at 390px and 1440px: one multi-tier, one single-tier, one website-price, one "Request a quote" product; switch configurations | 0 mismatches; each configuration shows its own price |
-| R9 ⚠ | After batch 5a, before 5b | Admin publishes each of the 7 live manual products through approval (Edit → Save & publish). Before each, check in Edit the three rules approval enforces: at most 9 photos, photos uploaded to storage (not legacy embedded images), prices with at most 2 decimals. A refusal shows a generic message ("The catalog approval could not be completed." or the media-not-ready text), so check these three first | All 7 have an approved version |
+| R9 ⚠ | After batch 5a, before 5b | Admin approves each of the 7 live manual products (they are already published, so: Edit → Save; with MIU-32, Save on a published product runs the approval). Before each, check in Edit the three rules approval enforces: at most 9 photos, photos uploaded to storage (not legacy embedded images), prices with at most 2 decimals. A refusal shows a generic message ("The catalog approval could not be completed." or the media-not-ready text), so check these three first | All 7 have an approved version |
 | R10 | After batch 5b | `catalog-consistency-audit.mjs --require-no-fallback`; browser check of one manual product next to a synced one | 0 mismatches, 0 products on the row fallback; the two pages look alike |

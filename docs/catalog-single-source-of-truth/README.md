@@ -70,7 +70,9 @@ after the fix is validated locally).
   a deleted product stays on our site and can still get quote requests, and nobody
   is told. Deferred as a separate decision (DESIGN §5.1, §9).
 - **Save vs publish:** Save stores the admin's edits; it never publishes supplier
-  changes nobody reviewed. Publish / Save & publish / Approve changes do. Today
+  changes nobody reviewed. Publish does (row toggle, batch Publish, ticking
+  "Published" on a draft, classification "Review and publish"), and so does
+  "Approve changes" for an already-published product. Today
   the edit form's Save and the batch "Assign category" bar, used on an
   already-published product, silently re-publish the latest Alibaba data — MIU-25
   fixes that (DEC-12). The classification editor's "save only" is already safe.
