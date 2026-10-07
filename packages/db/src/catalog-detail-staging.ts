@@ -41,6 +41,8 @@ const JobSchema = z
     nextPage: z.number().int().nonnegative(),
     state: z.enum(['staging', 'complete']),
     createdAt: z.string().datetime(),
+    /** What a buyer saw from the source when this candidate was prepared (MIU-18). */
+    sourceDigest: digest.optional(),
   })
   .strict();
 export type PreparedApproval = z.infer<typeof JobSchema>;
@@ -179,6 +181,11 @@ export function prepareStagedApproval(
       nextPage: 0,
       state: 'staging',
       createdAt: new Date().toISOString(),
+      // Absent for products prepared before MIU-17; the change audit covers them.
+      ...(typeof product.detailSourcePublicDigest === 'string' &&
+      /^[a-f0-9]{64}$/.test(product.detailSourcePublicDigest)
+        ? { sourceDigest: product.detailSourcePublicDigest }
+        : {}),
     });
     if (Buffer.byteLength(JSON.stringify(job)) > 512 * 1024) return fail('VALIDATION_ERROR');
     return { ok: true, value: job };
@@ -373,6 +380,7 @@ export async function finishStagedApproval(
       actorId,
       variantCount: job.variantIds.length,
       approvedAt: new Date().toISOString(),
+      ...(job.sourceDigest === undefined ? {} : { sourceDigest: job.sourceDigest }),
     },
   });
   const completed = { ...job, state: 'complete' as const };

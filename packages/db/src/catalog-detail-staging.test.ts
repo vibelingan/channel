@@ -14,7 +14,11 @@ import {
 import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
 
-function fixture(count = 105, offersAt: (position: number) => unknown[] = () => []) {
+function fixture(
+  count = 105,
+  offersAt: (position: number) => unknown[] = () => [],
+  productExtra: Record<string, unknown> = {},
+) {
   const variants = Array.from({ length: count }, (_, position) => ({
     _id: `v${position}`,
     productId: 'p',
@@ -55,6 +59,7 @@ function fixture(count = 105, offersAt: (position: number) => unknown[] = () => 
     detailSourceCandidate: header,
     detailSourceManifest: { revision: 'source-r1', variantIds: variants.map((v) => v._id) },
     catalogDetailPublication: { state: 'approved', revision: 'old', header, variantCount: 0 },
+    ...productExtra,
   };
   const command = {
     productId: 'p',
@@ -225,6 +230,25 @@ test('the approved version carries the price summary planned from every SKU acro
     pricing: { mode: 'fixed', currency: 'USD', amountMinor: 99 },
   });
   assert.equal(h.publication().revision, h.prepared.revision);
+});
+
+test('the approval receipt records the public source digest prepared with the candidate (MIU-18)', async () => {
+  const sourceDigest = 'd'.repeat(64);
+  const h = fixture(0, undefined, { detailSourcePublicDigest: sourceDigest });
+  const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
+  assert.ok(begin.ok);
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+  const receipt = h.row('products', 'p').catalogDetailApprovalReceipt as Record<string, unknown>;
+  assert.equal(receipt.sourceDigest, sourceDigest);
+});
+
+test('a product prepared before digests existed still approves, with no digest on the receipt', async () => {
+  const h = fixture(0);
+  const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
+  assert.ok(begin.ok);
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+  const receipt = h.row('products', 'p').catalogDetailApprovalReceipt as Record<string, unknown>;
+  assert.equal('sourceDigest' in receipt, false);
 });
 
 test('review digest covers manual pricing: editing price after review cannot prepare a stale approval', () => {
