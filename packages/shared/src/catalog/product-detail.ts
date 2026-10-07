@@ -3,6 +3,14 @@ import { z } from 'zod';
 import { PRODUCT_DESCRIPTION_IMAGE_MAX_COUNT } from '../media.ts';
 import { PublicProductSchema } from './index.ts';
 import { catalogOfferPricingSchema } from './offer-pricing.ts';
+import { CatalogPriceSummarySchema } from './price-summary.ts';
+
+export {
+  type CatalogPriceSummary,
+  CatalogPriceSummarySchema,
+  derivePriceSummary,
+  type PriceSummaryInput,
+} from './price-summary.ts';
 
 const text = (max: number) =>
   z
@@ -94,6 +102,12 @@ export const CatalogDetailPublicationSchema = z
     noteBlocks: CatalogNoteBlocksSchema.optional(),
     variantCount: count,
     variantStorage: z.literal('immutable-v1').optional(),
+    /**
+     * The card's "From $X", derived from this same approved version at approval
+     * time. Beside `header`, never inside it: the header is decoded strictly by
+     * the product page, so a new header key would fail every page.
+     */
+    priceSummary: CatalogPriceSummarySchema.optional(),
     /** Private publication manifest for SKU-only media; not a product gallery. */
     variantImageIds: z
       .array(z.string().regex(/^[A-Za-z0-9_-]+$/))

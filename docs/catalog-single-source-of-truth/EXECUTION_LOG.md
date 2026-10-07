@@ -9,7 +9,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 |---|---|---|---|---|
 | 1 | Normalizer omits wholesale headline when SKUs exist | 1 | Done | `98a462c` |
 | 2 | Raw replay deactivates dropped `'@product'`, stores new hash | 1 | Done | `c42fc7c` |
-| 3 | Price summary contract + `derivePriceSummary` | 2a | Not started | |
+| 3 | Price summary contract + `derivePriceSummary` | 2a | Done | (this commit) |
 | 4 | Approval plan stores `priceSummary` | 2b | Not started | |
 | 5 | `resolvePublicVersion` shared rule | 3 | Not started | |
 | 6 | Price summary backfill (db command) | 2b | Not started | |
@@ -42,7 +42,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 33 | Product page shows MOQ when there is no price | 5a | Not started | |
 | 34 | Manual product end-to-end (local) + admin e2e updates | 5a | Not started | |
 | 35 | Batch "Assign category" confirms before publishing pending changes | 4 | Pending owner review (DEC-12) | |
-| 36 | Replay admin page shows `productHeadlineDropped` | 1 | Done | (this commit) |
+| 36 | Replay admin page shows `productHeadlineDropped` | 1 | Done | `f0e3da7` |
 | 37 | Gate on creating an already-published product | 5b | Not started (ships after R9) | |
 | 38 | Admin action `auditChangesSinceApproval` | 4 | Not started | |
 
@@ -91,6 +91,26 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-3 — price summary contract (2026-10-07)
+- What changed: new `packages/shared/src/catalog/price-summary.ts` with
+  `CatalogPriceSummarySchema` and `derivePriceSummary`. The publication schema
+  gains an optional top-level `priceSummary` (never inside `header`). Re-exported
+  from `product-detail.ts` (`@vibelingan-channel/shared/catalog-detail`).
+  `price-summary.ts` imports only `offer-pricing.ts` (no cycle).
+- Rule:
+  1. A website price is authoritative: a price, or "request a quote" with an MOQ,
+     becomes the summary. A website "request a quote" without an MOQ gives no
+     summary and never falls back to supplier prices, matching the product page.
+  2. Otherwise the cheapest priced SKU: USD, then CNY, then other currencies;
+     then the lowest amount; then the earliest SKU.
+  3. Otherwise the product-level price.
+- Spec refinement (recorded): the authoritative-website rule is not spelled out in
+  MIU-3's text. It follows `CatalogCompactPrice`'s existing "authoritative unknown
+  prices never fall back" test, so card and page agree.
+- Tests: 8 (red: module missing → green).
+- Validation: `pnpm test` exit 0; `pnpm typecheck`; `pnpm lint`; `pnpm build`;
+  `pnpm package:functions && pnpm smoke:functions` 3/3.
 
 ### MIU-36 — replay admin page accepts and shows the headline count (2026-10-07)
 - What changed: the strict counts decoder (`alibaba-api.ts`) accepts
