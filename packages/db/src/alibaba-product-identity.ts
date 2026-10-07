@@ -146,6 +146,17 @@ function reconciliationPatch(product: CollectionDoc, patch: Record<string, unkno
 const REASON_STRENGTH = { new: 0, edited: 1, changed: 2, removed: 3 } as const;
 type FlagReason = keyof typeof REASON_STRENGTH;
 
+/** The review fields after flagging `reason`, keeping a stronger reason already set. */
+export function flagForReview(product: CollectionDoc, reason: FlagReason) {
+  const existing = product.alibabaReviewReason;
+  const keep =
+    product.alibabaReviewPending === true &&
+    typeof existing === 'string' &&
+    existing in REASON_STRENGTH &&
+    REASON_STRENGTH[existing as FlagReason] > REASON_STRENGTH[reason];
+  return { alibabaReviewPending: true, alibabaReviewReason: keep ? existing : reason };
+}
+
 /**
  * A sync flags an approved product whose source no longer matches what was
  * approved: 'removed' when the source is inactive, 'changed' when the public
@@ -167,14 +178,7 @@ function sourceChangeFlag(
     : digest !== undefined && digest !== approved
       ? 'changed'
       : undefined;
-  if (!reason) return {};
-  const existing = product.alibabaReviewReason;
-  const keep =
-    product.alibabaReviewPending === true &&
-    typeof existing === 'string' &&
-    existing in REASON_STRENGTH &&
-    REASON_STRENGTH[existing as FlagReason] > REASON_STRENGTH[reason];
-  return { alibabaReviewPending: true, alibabaReviewReason: keep ? existing : reason };
+  return reason ? flagForReview(product, reason) : {};
 }
 
 export function alibabaLinkRevision(product: CollectionDoc): number | null {

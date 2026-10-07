@@ -8,6 +8,7 @@ import {
 import { planCatalogDetailApproval } from '@vibelingan-channel/shared/catalog-detail-approval';
 import { z } from 'zod';
 import { readImageMutationState } from './adapter.ts';
+import { ChangeAuditMarkSchema, markChangeAudit } from './catalog-change-audit-store.ts';
 import { approvedVariantDocumentId } from './catalog-detail-storage.ts';
 import { publicationContentFingerprint } from './catalog-publication-fingerprint.ts';
 import { SourcePageSchema, stageSourcePage } from './catalog-source-staging.ts';
@@ -70,7 +71,7 @@ type Backfill = {
   ok: true;
   /** Distinct from the review result's `kind` so `'kind' in result` narrowing stays valid. */
   backfill: 'applied' | 'skipped';
-  reason?: 'revision-changed' | 'already-present' | 'not-approved';
+  reason?: 'revision-changed' | 'already-present' | 'not-approved' | 'archived';
 };
 export type ApprovalStageResult = Progress | Failure | Backfill;
 const PriceSummaryBackfillSchema = z
@@ -93,6 +94,7 @@ const PersistenceCommandSchema = z.discriminatedUnion('action', [
     .strict(),
   z.object({ action: z.literal('finish'), jobId: digest }).strict(),
   PriceSummaryBackfillSchema,
+  ChangeAuditMarkSchema,
 ]);
 /** Internal adapter command. HTTP handlers must never forward a submitted `prepared` object. */
 export type ApprovalPersistenceCommand = z.infer<typeof PersistenceCommandSchema>;
@@ -431,6 +433,7 @@ export async function runStagedApproval(
   if (command.action === 'source-page') return stageSourcePage(tx, actorId, command);
   if (command.action === 'price-summary-backfill')
     return backfillPublicationPriceSummary(tx, actorId, command);
+  if (command.action === 'change-audit-mark') return markChangeAudit(tx, actorId, command);
   if (command.action === 'begin') return beginStagedApproval(tx, actorId, command.prepared);
   if (command.action === 'page') return stageApprovalPage(tx, actorId, command.jobId, command.page);
   return finishStagedApproval(tx, actorId, command.jobId);
