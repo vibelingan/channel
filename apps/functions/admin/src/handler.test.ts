@@ -339,6 +339,59 @@ class ReviewRaceAdapter extends MemoryAdapter {
   }
 }
 
+test('publish and archive clear the review reason; unpublish never does; mark reviewed is for "new" only (MIU-21)', async () => {
+  const flagged = (id: string, reason: string, published = false) =>
+    ({
+      _id: id,
+      ...publishableProduct({ published }),
+      alibabaPrimarySourceKey: `source-${id}`,
+      alibabaReviewPending: true,
+      alibabaReviewReason: reason,
+    }) as CollectionDoc;
+  const store = setup({
+    users: [],
+    products: [
+      flagged('changed-publish', 'changed'),
+      flagged('changed-unpublish', 'changed', true),
+      flagged('changed-archive', 'changed'),
+      flagged('changed-mark', 'changed'),
+      flagged('new-mark', 'new'),
+    ],
+    catalogProductIdentities: [],
+  });
+  const row = (id: string) => store.products?.find((item) => item._id === id) as CollectionDoc;
+  const flag = (id: string) => ({
+    pending: row(id).alibabaReviewPending,
+    reason: row(id).alibabaReviewReason,
+  });
+  const admin = await adminToken();
+  const update = (id: string, values: Record<string, unknown>) =>
+    call('update', { collection: 'products', id, values }, admin);
+
+  okData(await update('changed-publish', { published: true }));
+  assert.deepEqual(flag('changed-publish'), { pending: false, reason: null });
+
+  // Hiding a product publishes nothing: the change still needs review (DEC-11).
+  okData(await update('changed-unpublish', { published: false }));
+  assert.deepEqual(flag('changed-unpublish'), { pending: true, reason: 'changed' });
+
+  okData(await update('changed-archive', { archived: true }));
+  assert.deepEqual(flag('changed-archive'), { pending: false, reason: null });
+
+  const before = structuredClone(row('changed-mark'));
+  expectErr(await call('markProductReviewed', { productId: 'changed-mark' }, admin), 'CONFLICT');
+  assert.deepEqual(row('changed-mark'), before, 'refused without a write');
+
+  okData(await call('markProductReviewed', { productId: 'new-mark' }, admin));
+  assert.deepEqual(flag('new-mark'), { pending: false, reason: null });
+  const reviewed = structuredClone(row('new-mark'));
+  const again = okData<CollectionDoc>(
+    await call('markProductReviewed', { productId: 'new-mark' }, admin),
+  );
+  assert.equal(Reflect.get(again, 'alreadyReviewed'), true);
+  assert.deepEqual(row('new-mark'), reviewed, 're-acknowledging leaves the row unchanged');
+});
+
 for (const action of ['mark', 'publish', 'archive'] as const) {
   test(`Alibaba review acknowledgement ${action} rejects a concurrent relink at the write boundary`, async () => {
     const product = reviewProduct();

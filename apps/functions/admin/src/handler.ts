@@ -1502,6 +1502,7 @@ async function acknowledgeAlibabaProductReview(
     data: {
       ...data,
       alibabaReviewPending: false,
+      alibabaReviewReason: null,
       alibabaReviewedAt: new Date().toISOString(),
       alibabaReviewedByUserId: reviewerId,
     },
@@ -1552,6 +1553,14 @@ async function markProductReviewedAction(
   if (!product) return err('NOT_FOUND', 'Product not found');
   if (typeof product.alibabaPrimarySourceKey !== 'string' || !product.alibabaPrimarySourceKey) {
     return err('CONFLICT', 'Only Alibaba-linked products belong to this review queue.');
+  }
+  // "Mark reviewed" is for first sight only (DEC-11): a changed, removed or
+  // edited product must be published (approved) or archived instead.
+  if (
+    product.alibabaReviewPending === true &&
+    ['changed', 'removed', 'edited'].includes(String(product.alibabaReviewReason))
+  ) {
+    return err('CONFLICT', 'Review and publish the supplier changes, or archive the product.');
   }
   const result = await acknowledgeAlibabaProductReview(product, {}, claims.sub);
   return ok({

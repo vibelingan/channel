@@ -190,6 +190,7 @@ export function planCatalogProductSave(
   if (expected && existing?.alibabaReviewPending === false && data.alibabaReviewPending === false) {
     const {
       alibabaReviewPending: _pending,
+      alibabaReviewReason: _reason,
       alibabaReviewedAt: _reviewedAt,
       alibabaReviewedByUserId: _reviewer,
       ...remainingData
