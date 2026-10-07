@@ -249,3 +249,60 @@ test('operator description replacement or deletion invalidates supplier-derived 
     assert.equal(Object.hasOwn(result.publication, 'noteBlocks'), false);
   }
 });
+
+test('approval stores the card price summary from the same approved SKUs', () => {
+  const input = fixture();
+  const priced = (id: string, pricing: object) => {
+    const row = input.variants.find((variant) => variant._id === id);
+    if (!row) throw new Error('fixture variant missing');
+    return {
+      ...row,
+      detailSourceCandidate: {
+        ...row.detailSourceCandidate,
+        offers: [{ kind: 'supplier', basis: 'source-quote', pricing }],
+      },
+    };
+  };
+  const tiers = {
+    mode: 'tiered',
+    currency: 'USD',
+    minimumOrderQuantity: 10,
+    tiers: [
+      { minimumQuantity: 10, maximumQuantity: 499, unitAmountMinor: 130 },
+      { minimumQuantity: 500, unitAmountMinor: 120 },
+    ],
+  };
+  const result = planCatalogDetailApproval({
+    ...input,
+    variants: [
+      priced('a', { mode: 'fixed', currency: 'USD', amountMinor: 125 }),
+      priced('b', tiers),
+      priced('c', { mode: 'unavailable' }),
+    ],
+  });
+  assert.deepEqual(result.publication.priceSummary, {
+    source: 'sku',
+    variantId: 'b',
+    pricing: tiers,
+  });
+});
+
+test('a website price becomes the summary; no price anywhere stores no summary', () => {
+  const input = fixture();
+  const manual = { ...input.product, catalogPricingMode: 'manual', unitPrice: 3.1, moq: 1000 };
+  assert.deepEqual(
+    planCatalogDetailApproval({ ...input, product: manual }).publication.priceSummary,
+    {
+      source: 'website',
+      pricing: { mode: 'fixed', currency: 'USD', amountMinor: 310, minimumOrderQuantity: 1000 },
+    },
+  );
+  assert.equal(Object.hasOwn(planCatalogDetailApproval(input).publication, 'priceSummary'), false);
+});
+
+test('a one-page partial plan (staged approval) does not throw while deriving the summary', () => {
+  const input = fixture();
+  assert.doesNotThrow(() =>
+    planCatalogDetailApproval({ ...input, variants: input.variants.slice(0, 1) }),
+  );
+});

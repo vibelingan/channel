@@ -8,6 +8,7 @@ import {
   CatalogDetailVariantSchema,
   CatalogNoteBlocksSchema,
   WebsiteDetailPricingSchema,
+  derivePriceSummary,
 } from './product-detail.ts';
 import { resolveManualCatalogPricing, scalarPriceMinorUnits } from './resolve-pricing.ts';
 
@@ -156,6 +157,13 @@ export function planCatalogDetailApproval(input: {
     unchanged && product.detailSourceNoteBlocksCandidate != null
       ? CatalogNoteBlocksSchema.parse(product.detailSourceNoteBlocksCandidate)
       : undefined;
+  // The card's "From $X" comes from this same version, computed while every SKU
+  // is in memory, so the list never needs to read SKU rows.
+  const priceSummary = derivePriceSummary({
+    websitePricing: header.websitePricing,
+    offers: header.offers,
+    variants: variants.map((variant) => ({ id: variant.id, offers: variant.offers })),
+  });
   const publication = CatalogDetailPublicationSchema.parse({
     state: 'approved',
     revision: input.revision,
@@ -164,6 +172,7 @@ export function planCatalogDetailApproval(input: {
     ...(noteBlocks ? { noteBlocks } : {}),
     variantCount: variants.length,
     ...(variantImageIds.length ? { variantImageIds } : {}),
+    ...(priceSummary ? { priceSummary } : {}),
   });
   return {
     publication,

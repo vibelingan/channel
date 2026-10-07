@@ -14,7 +14,7 @@ import {
 import { runCatalogApprovalWorkflow } from './catalog-detail-workflow.ts';
 import type { NodeSdkDatabase } from './cloudbase-adapter.ts';
 
-function fixture(count = 105) {
+function fixture(count = 105, offersAt: (position: number) => unknown[] = () => []) {
   const variants = Array.from({ length: count }, (_, position) => ({
     _id: `v${position}`,
     productId: 'p',
@@ -29,7 +29,7 @@ function fixture(count = 105) {
       id: `v${position}`,
       options: [],
       images: ['/api/images/image'],
-      offers: [],
+      offers: offersAt(position),
       inventory: { state: 'unknown' },
     },
   }));
@@ -201,6 +201,30 @@ test('zero-SKU publication needs no page, and a failed final commit leaves the o
   h.fail(Number.POSITIVE_INFINITY);
   assert.equal((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok, true);
   assert.equal(h.publication().variantCount, 0);
+});
+
+test('the approved version carries the price summary planned from every SKU across pages', async () => {
+  const fixed = (amountMinor: number) => [
+    {
+      kind: 'supplier',
+      basis: 'source-quote',
+      pricing: { mode: 'fixed', currency: 'USD', amountMinor },
+    },
+  ];
+  const h = fixture(25, (position) => fixed(position === 22 ? 99 : 500 + position));
+  const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
+  assert.ok(begin.ok);
+  for (let page = 0; page < begin.pages; page++) {
+    assert.ok((await h.run((tx) => stageApprovalPage(tx, 'admin', begin.jobId, page))).ok);
+  }
+  assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+  // The cheapest SKU sits on the second staging page; the summary still finds it.
+  assert.deepEqual(h.publication().priceSummary, {
+    source: 'sku',
+    variantId: 'v22',
+    pricing: { mode: 'fixed', currency: 'USD', amountMinor: 99 },
+  });
+  assert.equal(h.publication().revision, h.prepared.revision);
 });
 
 test('review digest covers manual pricing: editing price after review cannot prepare a stale approval', () => {

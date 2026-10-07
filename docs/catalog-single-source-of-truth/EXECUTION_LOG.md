@@ -9,8 +9,8 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 |---|---|---|---|---|
 | 1 | Normalizer omits wholesale headline when SKUs exist | 1 | Done | `98a462c` |
 | 2 | Raw replay deactivates dropped `'@product'`, stores new hash | 1 | Done | `c42fc7c` |
-| 3 | Price summary contract + `derivePriceSummary` | 2a | Done | (this commit) |
-| 4 | Approval plan stores `priceSummary` | 2b | Not started | |
+| 3 | Price summary contract + `derivePriceSummary` | 2a | Done | `5cf2a6b` |
+| 4 | Approval plan stores `priceSummary` | 2b | Done | (this commit) |
 | 5 | `resolvePublicVersion` shared rule | 3 | Not started | |
 | 6 | Price summary backfill (db command) | 2b | Not started | |
 | 7 | Backfill admin action + script | 2b | Not started | |
@@ -91,6 +91,21 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-4 — every approval stores the price summary (2026-10-07)
+- What changed: `planCatalogDetailApproval` derives the summary from the planned
+  header and all planned SKUs and stores it as `publication.priceSummary`. All
+  approval paths (staged prepare, single-transaction commit, workflow review,
+  local rehearsal) inherit it; `finishStagedApproval` copies it unchanged.
+- Tests:
+  - planner: cheapest SKU → summary; website price → summary; no price → no key;
+    partial page → no throw. Red then green.
+  - staging round-trip: 25 SKUs across 2 pages, the cheapest on page 2, ends up
+    in the stored version. Written after the planner change, so it confirms the
+    integration rather than driving it.
+- No pinned approval digest broke (`pnpm test` exit 0).
+- Validation: `pnpm typecheck`; `pnpm lint`; `pnpm package:functions && pnpm
+  smoke:functions` 3/3.
 
 ### MIU-3 — price summary contract (2026-10-07)
 - What changed: new `packages/shared/src/catalog/price-summary.ts` with
