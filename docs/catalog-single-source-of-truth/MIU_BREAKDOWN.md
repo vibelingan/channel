@@ -4,8 +4,9 @@ Design and decisions: [DESIGN.md](DESIGN.md). Progress: [EXECUTION_LOG.md](EXECU
 Branch: `feat/catalog-alibaba-price-tiers` (continue here until it merges to `main`).
 
 Each MIU goes through test-first → implement → simplify → review → validate →
-commit on its own. MIUs marked **Owner: OWN-n** must not ship until the owner has
-decided (README "Open decisions"); today that is MIU-31 and MIU-37.
+commit on its own. MIUs marked **Pending owner review** must not start until the
+owner confirms the decision they implement (README "Open decisions"); today that
+is MIU-25 and MIU-35 (DEC-12).
 
 Validation commands used below (repo root):
 
@@ -42,13 +43,13 @@ PT-B   3 → 4
        3 → 5 → 8, 9, 10
        3 → 11 → 12 → 13
        8, 12 → 14
-PT-C   15 → 21, 23 → 24, 25 → 35
+PT-C   15 → 21, 23 → 24, 25;  15 → 35
        16 → 17 → 18
        15, 16, 18 → 19 → 20
        15, 18 → 22;  16, 22 → 38
 PT-D   3, 8 → 26
 PT-E   4 → 27 → 28 → 29, 30 → 31 → 37;  15 → 37
-       25, 30 → 32
+       30 → 32
        33 (none)
        8, 9, 10, 27–30, 32, 33 → 34
 ```
@@ -65,7 +66,7 @@ define shapes that later MIUs consume.
 | 3 | 5, 8–14, 26 | All public surfaces read the one version; consistency audit passes (R5) |
 | 4 | 15–25, 35, 38 | "Changed" flag live; audit flags stale products (R6, run before admins use Save); admin re-approves (R7) |
 | 5a | 27–30, 32–34 | Manual products approvable; admin approves the 7 live ones (R9) |
-| 5b | 31, 37 | Publish gate for every product (needs R9 done and OWN-1 / OWN-2 decided); audit shows 0 products on the row fallback (R10) |
+| 5b | 31, 37 | Publish gate for every product (after R9); audit shows 0 products on the row fallback (R10) |
 
 Order: implement and validate **all** batches locally first (DEC-13), run R1, then
 deploy batch by batch. Each batch: PR into `test` → Deploy Test → runbook checks →
@@ -742,8 +743,7 @@ Depends on: none
 **What it does**
 - New read-only product field
   `alibabaReviewReason: 'new' | 'changed' | 'removed' | 'edited' | null`
-  (`'edited'` is written only if OWN-1 is accepted: a contributor's save on a
-  published product, MIU-31)
+  (`'edited'`: a contributor's save on a published product, OWN-1, MIU-37)
   next to `alibabaReviewPending` (`collections.ts:439-445`), in the pinned field
   list (`alibaba-collections.test.ts:77-91`).
 - `alibaba-product-identity.ts`: add to `writableFields` / `clearedFields`
@@ -1082,7 +1082,7 @@ Depends on: MIU-15
   - `'new'` or absent → "New"
   - `'changed'` → "Changed"
   - `'removed'` → "Removed"
-  - `'edited'` → "Edited" (only written if OWN-1 is accepted)
+  - `'edited'` → "Edited" (contributor draft waiting for an admin, OWN-1)
 
   Same amber style.
 - Category tab markers (`CollectionView.tsx:529,537`) read "• Needs review" instead
@@ -1135,112 +1135,79 @@ Depends on: MIU-21, MIU-23
 - Tests pass; `pnpm typecheck`; `pnpm build`; local admin e2e `pnpm test:e2e:catalog-admin-local`
   passes.
 
-### MIU-25: `updateRecord` — Save never publishes unreviewed supplier changes
+### MIU-25: edit form shows pending Alibaba changes before Save (Pending owner review: DEC-12)
 
 ```
 Block:      FRONTEND
-Files:      apps/site/src/islands/admin/api.ts
+Files:      apps/site/src/islands/admin/RecordForm.tsx
+            apps/site/src/islands/admin/PreviewModal.tsx
+            apps/site/src/islands/admin/review-badge.test.ts
+Type:       modify-existing
+Depends on: MIU-15, MIU-23
+```
+
+**What it does** (DEC-12)
+- Save keeps today's behaviour: on an already-published Alibaba product the edit
+  form's Save runs the approval sequence in `updateRecord` (`api.ts:283-367`) and
+  the product stays live with its latest data. No unpublish, no extra step.
+- When the product is flagged `'changed'` / `'removed'`, the form shows a notice
+  directly above Save (`RecordForm.tsx:581`): "Alibaba data changed since the
+  last approval. Saving publishes these changes too." with a "See changes" button
+  that opens the preview (`PreviewModal`, which shows the per-configuration
+  differences from MIU-24).
+- After a successful Save the flag is cleared by the server (MIU-21); the notice
+  disappears.
+- `updateRecord` itself is unchanged by this MIU.
+
+**Build/Deploy/Runtime impact**
+- Admin island bundle only. No endpoint change.
+
+**Test plan (write first)**
+- Form for a published product with `{pending: true, reason: 'changed'}` → notice
+  and "See changes" render above Save.
+- Form for an unflagged product, or a `'new'` draft → no notice.
+- Clicking "See changes" opens the preview for that product.
+
+**Done when**
+- Tests pass; `pnpm typecheck`; `pnpm build`.
+- `pnpm test:e2e:catalog-admin-local` passes.
+
+### MIU-35: batch "Assign category" confirms before publishing pending changes (Pending owner review: DEC-12)
+
+```
+Block:      FRONTEND
+Files:      apps/site/src/islands/admin/BatchCategoryAssignment.tsx
+            apps/site/src/islands/admin/CollectionView.tsx
             apps/site/src/islands/admin/product-batch-update.test.ts
 Type:       modify-existing
 Depends on: MIU-15
 ```
 
 **What it does** (DEC-12)
-- Today `updateRecord` (`api.ts:258-377`) re-approves a published Alibaba product
-  **from the latest source** in two "save" cases:
-  - a category-only save (`refreshPublishedDetail`, `api.ts:264-276`), used by the
-    batch "Assign category" bar (`BatchCategoryAssignment.tsx` → `updateRecord`);
-  - the edit form's Save, which sends every editable field including
-    `published: true` (`RecordForm.tsx:877-907`) and so takes the approval branch.
-  (The classification editor's "save only" does **not** use `updateRecord`; it
-  calls the `catalogCategories` server action, which never re-approves.)
-
-  If the sync has changed the product since approval, either save publishes
-  supplier changes nobody reviewed.
-- **Publish vs save is decided by what the caller sends.** Every publish action
-  already sends exactly `{ published: true }` and nothing else: row Publish toggle
-  (`CollectionView.tsx:171`), batch Publish (`CollectionView.tsx:188` →
-  `batchUpdateRecords`), classification "Review classification and publish"
-  (`publishConfirmedClassification`, `api.ts:629-650`), and "Approve changes"
-  (MIU-24). Every save sends other fields: edit-form Save sends all editable
-  fields; category saves send `productFamily` etc.
-- New rule, one place: load `current` first. The rule applies only when **all**
-  hold:
-  - `current.published === true`;
-  - its `alibabaReviewReason` is `'changed'` or `'removed'`;
-  - `values` is not exactly `{ published: true }` (a publish);
-  - `values.published !== false` (not an unpublish);
-  - `values.archived !== true` (not an archive; the edit form always sends
-    `archived` as a boolean, `false` on a normal save — `RecordForm.tsx:940-942`).
-
-  Unpublish and archive therefore keep working exactly as today. When the rule
-  applies:
-  - write only the draft values (`update` without `published`);
-  - skip prepare/approve;
-  - return outcome `supplier-changes-pending`.
-- `updateRecord` keeps returning the saved `CollectionDoc`; the caller recognises
-  this outcome because the returned doc is still published and still flagged
-  `'changed'` / `'removed'`. Showing the message is MIU-35.
-- Publish requests keep today's behaviour: review latest source → approve →
-  publish → flag cleared (MIU-21).
-- Not flagged → today's behaviour (the refresh only repeats already-reviewed
-  supplier data plus the admin's edits).
-
-**Build/Deploy/Runtime impact**
-- Admin island bundle only. No endpoint change.
-
-**Test plan (write first)**
-- Published + `'changed'` + edit-form Save, fixture built from the real
-  `coerceValues` output (all editable fields, `published: true`,
-  `archived: false`) →
-  one `update` call without `published`, no `prepareDetailReview` /
-  `approveDetailReview` call, outcome `supplier-changes-pending`.
-- Published + `'changed'` + category-only save → same.
-- Published + `'changed'` + edit-form Save that also changes the family
-  (`coerceValues` output without `published`, `archived: false`) → same.
-- Published + `'changed'` + `{ published: true }` only → prepare → approve →
-  publish (call order asserted).
-- Published + not flagged + category-only save → today's refresh
-  (`product-batch-update.test.ts:107-150` unchanged).
-- Published + `'changed'` + `{ published: false }` → unpublished (one plain update
-  with `published: false`); the flag stays (DEC-11).
-- Published + `'changed'` + `{ archived: true }` → archived as today.
-- Batch of 3 with one `'changed'` → two refreshes, one `supplier-changes-pending`.
-
-**Done when**
-- Tests pass; `pnpm typecheck`; `pnpm build`; local admin e2e `pnpm test:e2e:catalog-admin-local`
-  passes.
-
-### MIU-35: admin feedback when a save keeps supplier changes pending
-
-```
-Block:      FRONTEND
-Files:      apps/site/src/islands/admin/CollectionView.tsx
-            apps/site/src/islands/admin/BatchUpdateFeedback.tsx
-            apps/site/src/islands/admin/batch-update-feedback.test.ts
-Type:       modify-existing
-Depends on: MIU-25
-```
-
-**What it does**
-- Edit form: `updateMutation.onSuccess` (`CollectionView.tsx:172-175`) closes the
-  editor and drops the result today. When the returned doc is still published and
-  flagged `'changed'` / `'removed'`, show "Saved. Supplier changes are waiting for
-  review — use Approve changes to publish them." instead of closing silently.
-- Batch "Assign category": `BatchUpdateFeedback.tsx` lists such products under the
-  same message, separate from failures.
+- The batch family bar (`BatchCategoryAssignment.tsx` → `batchUpdateRecords` →
+  `updateRecord`, which re-approves published Alibaba products from their latest
+  data, `api.ts:264-276`) shows no product details, so it is the one place an
+  admin could publish Alibaba changes without seeing them.
+- Before calling `batchUpdateRecords`, if any selected published product is
+  flagged `'changed'` / `'removed'`, show a confirmation listing those products:
+  "Assigning a category also publishes their pending Alibaba changes."
+  - **Continue** — all selected products.
+  - **Skip those** — only the unflagged ones; the flagged ones are listed as
+    skipped in `BatchUpdateFeedback`.
+- No flagged products → no dialog, today's behaviour.
 
 **Build/Deploy/Runtime impact**
 - Admin island bundle only.
 
 **Test plan (write first)**
-- Saved doc published + `'changed'` → the message renders.
-- Saved doc not flagged → today's silent close.
-- Batch result with one held-back product → listed under the message, not counted
-  as a failure.
+- Selection with one flagged published product → dialog lists it; Continue sends
+  all ids; Skip sends the others and reports the skipped one.
+- Selection without flagged products → no dialog, `batchUpdateRecords` called
+  once with all ids (`product-batch-update.test.ts:107-150` unchanged).
 
 **Done when**
 - Tests pass; `pnpm typecheck`; `pnpm build`.
+- `pnpm test:e2e:catalog-admin-local` passes.
 
 ---
 
@@ -1352,6 +1319,10 @@ Depends on: MIU-27
 - One transaction (3 operations: actor get, product get, product set):
   - actor is an active admin;
   - product exists, not archived, and has **no** `alibabaPrimarySourceKey`;
+  - the product has **no** active `productVariants` rows — otherwise refuse with
+    "This product has configurations; approving manual configurations is not
+    supported yet." (only the not-yet-production Excel import creates them; never
+    drop them silently, DESIGN §5.2);
   - writes `detailSourceOwner: 'manual:<id>'`,
     `detailSourceRevision = sourceDigest(['manual', id, 'v1'])`,
     `detailSourceManifest {revision, variantIds: []}`, `detailSourceNextPage: 1`,
@@ -1374,6 +1345,8 @@ Depends on: MIU-27
 - Manual product → all fields above written; the response passes the strict
   `progress` schema with `complete: true`.
 - Linked product → refused (wrong owner), nothing written.
+- Manual product with one active `productVariants` row → refused with the
+  configurations message, nothing written.
 - Archived product or contributor actor → refused, nothing written.
 - Edit `series` between begin and finish → finish returns CONFLICT.
 - Full sequence prepare → review → begin → finish on a manual product produces a
@@ -1439,7 +1412,7 @@ Depends on: MIU-28
 **Done when**
 - Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
 
-### MIU-31: publish gate for every product on update (Owner: OWN-1, OWN-2)
+### MIU-31: publish gate for every product on update
 
 ```
 Block:      BACKEND
@@ -1469,8 +1442,10 @@ Depends on: MIU-29, MIU-30
 - Create is gated separately (MIU-37).
 
 **Build/Deploy/Runtime impact**
-- db package + admin function. **Breaks raw-API publishing** (Hermes, scripts) for
-  manual products — must not deploy before OWN-2 is decided and Hermes is adjusted.
+- db package + admin function. **Refuses raw-API publishing** (Hermes, scripts)
+  for manual products. Decided (OWN-2): Hermes creates drafts and an admin
+  publishes; Hermes's import currently fails per the client and is not
+  investigated now, so it is adjusted when that is fixed.
 - Must deploy **after** R9 (the 7 live manual products approved), so every
   published product already has an approved version when the gate starts
   applying to manual products.
@@ -1488,7 +1463,7 @@ Depends on: MIU-29, MIU-30
 - `pnpm test:e2e:catalog-admin-local` re-run (the manual-product e2e from MIU-34
   must still pass with the gate on).
 
-### MIU-37: gate on creating a product that is already published (Owner: OWN-1, OWN-2)
+### MIU-37: gate on creating a product that is already published
 
 ```
 Block:      BACKEND
@@ -1509,20 +1484,20 @@ Depends on: MIU-15, MIU-31
 - `create` without `published` (a draft) is unchanged.
 - The contributor test at `handler.test.ts:1383-1395` ("contributor can
   publish…") is rewritten per OWN-1.
-- If OWN-1 is accepted: in `updateAction` (`handler.ts:1940-1967`) a contributor's
+- OWN-1 (decided): in `updateAction` (`handler.ts:1940-1967`) a contributor's
   save on a published product writes the draft fields without `published` and
   sets `alibabaReviewPending: true, alibabaReviewReason: 'edited'`, so an admin
   sees it.
 
 **Build/Deploy/Runtime impact**
-- Admin function. Same rollout constraint as MIU-31 (after R9, after OWN-2).
+- Admin function. Same rollout constraint as MIU-31 (after R9).
 - Re-run `pnpm test:e2e:catalog-admin-local` after this MIU.
 
 **Test plan (write first)**
 - `create {published: true}` with approval enabled → refused, nothing stored.
 - `create` draft → stored unpublished.
 - Approval disabled → today's behaviour.
-- (OWN-1) contributor save on a published product → draft fields saved, product
+- Contributor save on a published product (OWN-1) → draft fields saved, product
   flagged `'edited'`, public version unchanged.
 
 **Done when**
@@ -1536,7 +1511,7 @@ Files:      apps/site/src/islands/admin/api.ts
             apps/site/src/islands/admin/PreviewModal.tsx
             apps/site/src/islands/admin/catalog-detail-approval-api.test.ts
 Type:       modify-existing
-Depends on: MIU-25, MIU-30
+Depends on: MIU-30
 ```
 
 **What it does**
@@ -1546,7 +1521,6 @@ Depends on: MIU-25, MIU-30
 - For manual products: skip the Alibaba gallery and description-image imports
   (`api.ts:299-355`); if `imageIds` is empty, stop before prepare with
   "Add at least one photo before publishing."
-- MIU-25's save rule still applies (a flagged product's Save does not publish).
 - `PreviewModal.tsx:39` shows the shared detail preview for manual products too.
 
 **Build/Deploy/Runtime impact**

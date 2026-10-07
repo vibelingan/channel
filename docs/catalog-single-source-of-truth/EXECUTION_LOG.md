@@ -31,19 +31,19 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 22 | `change-audit-mark` db command | 4 | Not started | |
 | 23 | Admin badge / chip show reason | 4 | Not started | |
 | 24 | "Approve changes" action | 4 | Not started | |
-| 25 | Save never publishes unreviewed supplier changes | 4 | Not started | |
+| 25 | Edit form shows pending Alibaba changes before Save | 4 | Pending owner review (DEC-12) | |
 | 26 | `catalog-consistency-audit` script | 3 | Not started | |
 | 27 | Manual draft, spec facts, MOQ-only price in the planner | 5a | Not started | |
 | 28 | `manual-source` prepare command + spec fields in approval fingerprint | 5a | Not started | |
 | 29 | Receipt fingerprint covers spec fields for manual owners | 5a | Not started | |
 | 30 | Admin prepare — manual branch | 5a | Not started | |
-| 31 | Publish gate for every product on update | 5b | Waiting for owner (OWN-1, OWN-2) and R9 | |
+| 31 | Publish gate for every product on update | 5b | Not started (ships after R9) | |
 | 32 | Admin publish flow and preview include manual products | 5a | Not started | |
 | 33 | Product page shows MOQ when there is no price | 5a | Not started | |
 | 34 | Manual product end-to-end (local) + admin e2e updates | 5a | Not started | |
-| 35 | Admin feedback when a save keeps supplier changes pending | 4 | Not started | |
+| 35 | Batch "Assign category" confirms before publishing pending changes | 4 | Pending owner review (DEC-12) | |
 | 36 | Replay admin page shows `productHeadlineDropped` | 1 | Not started | |
-| 37 | Gate on creating an already-published product | 5b | Waiting for owner (OWN-1, OWN-2) and R9 | |
+| 37 | Gate on creating an already-published product | 5b | Not started (ships after R9) | |
 | 38 | Admin action `auditChangesSinceApproval` | 4 | Not started | |
 
 ## Runbook status

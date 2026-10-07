@@ -172,14 +172,14 @@ the owner's confirmation before the dependent MIUs run (see README).
 | DEC-8 | Flag scope: "changed" / "removed" apply to products that have an approved version (published or not) and supplier data; manual products (no supplier data) and archived products never get them; never-approved drafts keep "new". "edited" (only if OWN-1 is accepted) can apply to any published product. | Decided |
 | DEC-9 | While a product is flagged "changed", list, page and quote keep showing the **approved** version (follows from DEC-1). | Decided |
 | DEC-10 | **Admin list**: keep the existing flagged-first default sort (server-side, index-backed, pagination-safe) and per-category counts; show the reason on the badge. No new tab. | Decided |
-| DEC-11 | **Approve**: Publish already runs prepare → stage → finish → publish → clear flag. Add **"Approve changes"** for a flagged product that is already published (same sequence). The flag means "supplier data changed and nobody has reviewed it yet", so it clears **only when the change is published** (Publish, or "Approve changes" for an already-published product) **or the product is archived** (it leaves the catalog). **Unpublishing does not clear it**: hiding a product reviews nothing, and the change still needs attention before the product goes public again. "Mark reviewed" stays for "new" only. | Decided (owner 2026-10-07) |
-| DEC-12 | **Save never publishes unreviewed supplier changes.** "Save" (the edit form's Save and the batch "Assign category" bar) stores the admin's edits. (The classification editor's "save only" already never re-approves.) On a published product that is *not* flagged, the public version is refreshed with those edits as today (supplier data is unchanged, so nothing unreviewed goes out). On a product flagged "changed", Save stores the edits but leaves the public version and the flag alone and says "Supplier changes are waiting for review". Only **Publish** (row toggle, batch Publish, the edit form's Save with "Published" ticked on a draft, classification "Review classification and publish") or **"Approve changes"** (for an already-published product) publishes supplier changes. | Decided (owner 2026-10-07) |
+| DEC-11 | **Publishing a change** clears the review flag. A change is published by Publish (row toggle, batch Publish, ticking "Published" on a draft, classification "Review classification and publish"), by **Save on an already-published product** (DEC-12), or by **"Approve changes"** in the preview (approve without editing). The flag means "supplier data changed since the last approval and nobody has published it yet", so it also clears when the product is archived (it leaves the catalog) — but **not when it is unpublished**: hiding a product publishes nothing, and the change still needs attention before the product goes public again. "Mark reviewed" stays for "new" only. | Decided (owner 2026-10-07) |
+| DEC-12 | **Save on a published product takes effect on the live site immediately; it is the admin's approval.** Nothing is unpublished and there is no extra step. Because Save publishes the product's *latest* data — including Alibaba changes synced since the last approval — the admin must be able to see those changes before saving: when the product is flagged "Changed", the edit form shows a notice above Save ("Alibaba data changed since the last approval. Saving publishes these changes too — see them in Preview."), and the batch "Assign category" bar lists flagged products and asks for confirmation (Continue / Skip those). Saving clears the flag (DEC-11). | **Proposed — owner review** (replaces the earlier "Save holds supplier changes back" rule) |
 | DEC-13 | **The 21 products**: implement the fix and validate it locally first; then unpublish the 21; deploy; let the audit flag them "changed"; admin re-approves. No direct write into approved versions. | Decided (owner 2026-10-07) |
 | DEC-14 | **Synced and manual products are indistinguishable in public responses.** For any product served from its approved version, the public list/item/slug payload omits the Alibaba markers (`alibabaPrimarySourceKey`, `alibabaSourceStatus`, `alibabaSourceLastSyncedAt`) and the row `variants`. Both kinds then draw from the same set of possible keys; optional fields such as series or model appear only when the product has them, for either kind. | Decided |
 | DEC-15 | **Publishing always needs an approved version**, for every product: the publish gate stops checking "is it linked to Alibaba?", and creating a product with Published already ticked goes through the same gate (today it bypasses it). The gate checks at the moment of publishing only, not on every price edit: once public surfaces read only approved versions, a price typed into a published product's record is invisible until it is approved, so admins no longer need to unpublish to change a price. | Decided |
 | DEC-16 | **A minimum order with no price is still shown**: "Request a quote" plus "MOQ N pieces", for synced and manual products alike (today the MOQ disappears when there is no price). | Decided |
-| OWN-1 | **Contributors.** Approval is admin-only today, but contributors can publish manual products directly. With DEC-15, a contributor's save on a published product would stay a draft until an admin publishes it, and the product is flagged so the admin sees it (reason "edited"). | Owner |
-| OWN-2 | **Hermes / WeCom importer** publishes through raw API calls. With DEC-15 those calls are refused. Recommended: Hermes creates drafts; an admin publishes in the admin UI. | Owner |
+| OWN-1 | **Contributors** cannot approve. A contributor's save on a published product stays a draft (row only; the public version is unchanged) and flags the product "edited" so an admin sees it and publishes it. | Decided (owner 2026-10-07) |
+| OWN-2 | **Hermes / WeCom importer** will create drafts; an admin publishes them in the admin UI (the new gate refuses Hermes's raw publish call). The client reports the Hermes import currently fails; per the owner this is **not investigated now** — Hermes is adjusted to the draft flow when its import is fixed. | Decided (owner 2026-10-07) |
 
 ### 5.1 Why these choices
 
@@ -217,16 +217,19 @@ the owner's confirmation before the dependent MIUs run (see README).
   sync, so with it every product would look "changed" every time. Approval
   therefore saves a new fingerprint that ignores timestamps and stock (DEC-6
   content only).
-- **"Removed" (deferred).** When a supplier deletes or delists a product on
+- **"Removed" — decided: behaviour stays (owner 2026-10-07).** Nothing on our site
+  changes by itself when something changes on Alibaba: any change, including a
+  deletion, reaches us only through a sync, and the existing behaviour for
+  deletions stays as it is (no new detection, timer stays off). For the record,
+  why deletions are rarely noticed: when a supplier deletes or delists a product on
   Alibaba, our sync only notices during a *full run* (it checks every product).
   The admin's "Run now" is a *quick run*: it fetches only products that changed
   recently, and a deleted product simply stops appearing rather than showing up as
   changed. Full runs are started only by the timer, and the timer is switched off
   (`DESIRED_TIMER_TRIGGERS = {}`). Impact today and after this work: a product
   removed on Alibaba stays on our site with its approved data, can still receive
-  quote requests, and the admin is not told. Fixing it means turning on a periodic
-  full run (for example weekly) or reading the listing status during quick runs —
-  a separate decision.
+  quote requests, and the admin is not told. If a full run does mark a source as
+  gone, the product is flagged "removed" for the admin (MIU-19).
 
 ### 5.2 Manual products (DEC-4)
 
@@ -252,7 +255,7 @@ link. Evidence:
 | Name, photos (≤9), description, description images | Product row (admin-reviewed) | Product row — same |
 | Website price | Admin's manual pricing, if set | Admin's manual pricing (tiers or single price + MOQ) — same block |
 | Specification facts | Alibaba attributes | SKU code, Series, Model, Type from the row (empty ones dropped) |
-| Configurations | One row per Alibaba SKU, own prices | None today (no editor exists); the page shows the product-level price and the "customization" quote, exactly as a synced product without SKUs does |
+| Configurations | One row per Alibaba SKU, own prices | None for products made in the admin form (it has no configuration editor); the page shows the product-level price and the "customization" quote, exactly as a synced product without SKUs does. See "Configurations from the Excel import" below |
 | Price summary for cards | Website price, else cheapest SKU | Website price |
 | Draft owner | `alibaba:<source>` | `manual:<productId>` (the owner field is free text; no schema change) |
 
@@ -278,6 +281,18 @@ legacy page to the shared product page. They gain the Alibaba-style price block 
 the quote form (today manual pages only link to the OEM inquiry form). They lose
 what synced pages also do not have: related-products row, the OEM call-to-action
 and Product JSON-LD (JSON-LD is deferred for all products, §9).
+
+**Configurations from the Excel import.** The admin's "Catalog import" page is a
+read-only preview of import jobs. The import itself runs from a command-line tool
+(`apps/local-server/src/dianxiaomi-import-cli.ts`) that does create configuration
+rows (`writeVariant`, without public prices — CNY source prices are withheld). Its
+docs state it has **not run in production**
+(`docs/dianxiaomi-excel-import/REMAINING-PRODUCTION-STEPS.md`), so no live manual
+product has configurations today. Decision: the manual approval supports zero
+configurations, and **refuses** a manual product that has configuration rows with
+a clear message instead of silently dropping them (MIU-28). Approving manual
+configurations is a follow-up that must be built before the Excel import goes to
+production (§9).
 
 **Data that may not pass approval yet.** Approval accepts at most 9 photos, only
 images in cloud or local storage (not legacy embedded images), and prices with at
@@ -373,7 +388,7 @@ product page already shows the selected configuration's own price.
 | "Removed" never fires while the timer and full runs are off | Deferred (§9) |
 | A live manual product breaks an approval rule (more than 9 photos, legacy embedded image, price with more than 2 decimals) | Admin checks the three rules in Edit first (R9); the product stays on the row fallback until fixed and approved; the gate ships after R9. Approval errors are generic, so the check comes before publishing |
 | **Rollback after summaries are written.** The approved-version schema is strict: code from before MIU-3 rejects a stored `priceSummary`, so rolling the functions back past MIU-3 after R4 would break every product page and quote | MIU-3 deploys alone first (batch 2a) and writers follow (2b), so rolling back to 2a or later is safe. Never roll back past 2a once summaries exist |
-| Contributors and the Hermes importer publish directly today; DEC-15 refuses that | Owner decisions OWN-1 / OWN-2 before the gate MIU ships |
+| Contributors and the Hermes importer publish directly today; DEC-15 refuses that | Decided (OWN-1, OWN-2): contributors' saves become drafts flagged "edited"; Hermes creates drafts once its (currently failing) import is fixed |
 | Adding spec fields to the approval fingerprints causes one CONFLICT for an open review | Deploy with no review open (same as the planner change) |
 
 ## 9. Deferred (out of scope, recorded)
@@ -387,7 +402,10 @@ product page already shows the selected configuration's own price.
 - **Admin "public price" column** next to the live sync price.
 - **Promotion churn** (writes on every sync even when nothing changed).
 - **Lot / kg / set units and other currencies** (§2.4).
-- **Configurations for manual products** (needs a new admin editor; none exists).
+- **Configurations for manual products.** Admin form: needs a new editor (none
+  exists). Excel import: its configuration rows must be carried through manual
+  approval — required before that import runs in production; until then manual
+  approval refuses products with configuration rows (MIU-28).
 - **Related products and the OEM call-to-action** on the shared product page.
 - **Local-only direct-publish paths** (local seed, local Dianxiaomi import CLI) keep
   writing `published: true` without approval; documented as local-only.
