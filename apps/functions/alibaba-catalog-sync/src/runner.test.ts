@@ -42,6 +42,7 @@ import {
   compareBySort,
   matchesFilter,
 } from '@vibelingan-channel/shared';
+import { publicSourceDigest } from '@vibelingan-channel/shared/catalog-source-digest';
 import { linkExistingProduct, unlinkProduct } from './linking.ts';
 import { promoteLinkedProduct } from './promotion.ts';
 import { approveQuarantinedRun } from './quarantine.ts';
@@ -961,6 +962,59 @@ test('unsupported currency quarantines BEFORE promotion; approval promotes the f
   const promotedProduct = store.products?.[0] as CollectionDoc;
   assert.equal((promotedProduct.alibabaCatalogPricing as { mode?: string })?.mode, 'unavailable');
   assert.equal(promotedProduct.unitPrice, 12.5, 'legacy untouched throughout');
+});
+
+test('quarantine approval flags a reviewed product "changed" only when its source moved (MIU-20)', async () => {
+  for (const sameSource of [false, true]) {
+    setup();
+    const sourceKey = alibabaSourceKey('primary', 'item-1');
+    store.alibabaProductLinks = [productLink('item-1')];
+    store.products = [
+      {
+        _id: 'p-1',
+        name: 'Curated',
+        category: 'bluetooth',
+        alibabaPrimarySourceKey: sourceKey,
+        // Reviewed and approved earlier: never resurrected as "new".
+        alibabaReviewPending: false,
+        alibabaReviewedAt: '2026-08-01T00:00:00.000Z',
+      } as CollectionDoc,
+    ];
+    const backend = fakeBackend(() => [
+      { id: 'item-1', modifiedMs: ITEM_TIME, priceLexeme: '2.50' },
+    ]);
+    const originalFetch = backend.fetchImpl;
+    const sabotaged = (async (url: unknown, init?: RequestInit) => {
+      const response = await originalFetch(String(url), init);
+      return new Response((await response.text()).replace('"USD"', '"EUR"'), { status: 200 });
+    }) as typeof fetch;
+    const report = await runSyncTick({ deps: makeDeps(sabotaged), trigger: 'timer' });
+    assert.equal(report.outcome, 'quarantined');
+    const observed = store.catalogSourceObservations?.[0]?.observation;
+    assert.ok(observed, 'the run stores the observation');
+    const product = store.products?.[0] as CollectionDoc;
+    product.catalogDetailApprovalReceipt = {
+      revision: 'r1',
+      sourceDigest: sameSource
+        ? publicSourceDigest(observed as Parameters<typeof publicSourceDigest>[0])
+        : 'f'.repeat(64),
+    };
+    const run = store.alibabaSyncRuns?.[0] as CollectionDoc;
+    const approved = await approveQuarantinedRun({
+      runId: String(run._id),
+      candidateHash: String(run.candidateHash),
+      approvedByUserId: 'admin-1',
+      now,
+      alert: async () => {},
+    });
+    assert.equal(approved.ok, true, String(sameSource));
+    const after = store.products?.[0] as CollectionDoc;
+    assert.deepEqual(
+      { pending: after.alibabaReviewPending, reason: after.alibabaReviewReason },
+      sameSource ? { pending: false, reason: undefined } : { pending: true, reason: 'changed' },
+      sameSource ? 'unchanged source stays reviewed' : 'changed source is flagged',
+    );
+  }
 });
 
 async function quarantineLinkedProducts(count = 1, products?: CollectionDoc[]) {
