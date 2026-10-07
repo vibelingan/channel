@@ -7,6 +7,7 @@ import {
   fetchProductFamily,
   fetchRelatedProducts,
 } from './api.ts';
+import { readPriceSummary } from './catalog-pricing.ts';
 import type { Product } from './catalog-types.ts';
 
 interface FetchCall {
@@ -539,4 +540,48 @@ test('fetchCatalog propagates AbortError and never returns a successful page aft
     return error instanceof DOMException && error.name === 'AbortError';
   });
   assert.equal(settledAsSuccess, false);
+});
+
+const validSummary = {
+  source: 'sku',
+  variantId: 'v1',
+  pricing: {
+    mode: 'tiered',
+    currency: 'USD',
+    minimumOrderQuantity: 10,
+    tiers: [
+      { minimumQuantity: 10, maximumQuantity: 499, unitAmountMinor: 130 },
+      { minimumQuantity: 500, unitAmountMinor: 120 },
+    ],
+  },
+};
+
+test('a valid approved price summary is kept and read back', async (t) => {
+  installBrowserMocks(t, [
+    jsonResponse({ _id: 'product-1', name: 'Headset', priceSummary: validSummary }),
+  ]);
+  const product = await fetchProductBySlug('headset');
+  assert.deepEqual(readPriceSummary(product), validSummary);
+});
+
+test('a malformed price summary never fails the product or the page; it reads as absent', async (t) => {
+  const broken = { ...validSummary, unexpected: true };
+  installBrowserMocks(t, [
+    jsonResponse({ _id: 'product-1', name: 'Headset', priceSummary: broken }),
+    jsonResponse({
+      items: [
+        { _id: 'a', name: 'A', priceSummary: broken },
+        { _id: 'b', name: 'B', priceSummary: validSummary },
+      ],
+      total: 2,
+      page: 1,
+      pageSize: 24,
+    }),
+  ]);
+  const product = await fetchProductBySlug('headset');
+  assert.equal(readPriceSummary(product), undefined);
+  const page = await fetchProductFamily('headphones', {});
+  assert.equal(page.items.length, 2);
+  assert.equal(readPriceSummary(page.items[0] as Product), undefined);
+  assert.deepEqual(readPriceSummary(page.items[1] as Product), validSummary);
 });

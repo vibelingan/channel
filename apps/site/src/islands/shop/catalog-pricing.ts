@@ -3,7 +3,17 @@ import {
   createAlibabaPricingAdapter,
   resolveCatalogPricing,
 } from '@vibelingan-channel/shared/catalog';
+import {
+  type CatalogPriceSummary,
+  CatalogPriceSummarySchema,
+} from '@vibelingan-channel/shared/catalog-detail';
 import type { AlibabaCatalogPricing, Product, ProductFamily } from './catalog-types.ts';
+
+/** The approved price summary, or undefined when absent or malformed (never throws). */
+export function readPriceSummary(product: Product): CatalogPriceSummary | undefined {
+  const parsed = CatalogPriceSummarySchema.safeParse(product.priceSummary);
+  return parsed.success ? parsed.data : undefined;
+}
 
 const alibabaAdapter = createAlibabaPricingAdapter();
 

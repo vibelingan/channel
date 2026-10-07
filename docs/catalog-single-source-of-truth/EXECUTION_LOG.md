@@ -16,8 +16,8 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 7 | Backfill admin action + script | 2b | Done | `bcfac0a` |
 | 8 | Public list / item / slug read the one version | 3 | Done | `b7153f5` |
 | 9 | Product page endpoint uses the rule | 3 | Done | `443f22d` |
-| 10 | Quote request uses the rule | 3 | Done | (this commit) |
-| 11 | Site decoder + `Product.priceSummary` | 3 | Not started | |
+| 10 | Quote request uses the rule | 3 | Done | `375b139` |
+| 11 | Site decoder + `Product.priceSummary` | 3 | Done | (this commit) |
 | 12 | Card price / MOQ from summary | 3 | Not started | |
 | 13 | Hub featured strip effective MOQ | 3 | Not started | |
 | 14 | E2E: configuration switch changes price; card matches page | 3 | Not started | |
@@ -91,6 +91,24 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-11 — site accepts `priceSummary` without trusting it (2026-10-07)
+- What changed:
+  - `Product.priceSummary` is typed `unknown`.
+  - New `readPriceSummary` in `catalog-pricing.ts` runs
+    `CatalogPriceSummarySchema.safeParse` at use time; malformed reads as absent.
+  - `isProduct` is unchanged: it already ignores unknown keys, so one bad
+    summary can never fail a page.
+- Deviation:
+  - `api.ts` needed no change.
+  - The helper lives in `catalog-pricing.ts`, not `catalog-types.ts`, which
+    holds only types.
+  - No cycle: `api.ts` does not use the helper.
+- Tests: a valid summary is read back; a malformed summary leaves the product
+  and the page decodable and reads as absent. Written before the implementation
+  but not run red in between.
+- Validation: site 508/509 pass (1 existing skip), 0 fail; `pnpm build` (the
+  shared schema bundles into the browser fine); `pnpm typecheck`; `pnpm lint`.
 
 ### MIU-10 — quote request uses the shared rule (2026-10-07)
 - What changed: `planCatalogQuote` decides with `resolvePublicVersion` (all nine
