@@ -21,6 +21,13 @@ export function publicationContentFingerprint(product: CollectionDoc): string {
     'detailSourceRevision',
   ];
   if (product.descriptionImageIds !== undefined) fields.push('descriptionImageIds');
+  // A manual product's facts come from its spec fields (MIU-27); a later edit
+  // must be approved again. Synced fingerprints stay as they were (MIU-29).
+  if (
+    typeof product.detailSourceOwner === 'string' &&
+    product.detailSourceOwner.startsWith('manual:')
+  )
+    fields.push('skuCode', 'series', 'modName', 'modType');
   return createHash('sha256')
     .update(JSON.stringify(fields.map((key) => [key, product[key] ?? null])))
     .digest('hex');
