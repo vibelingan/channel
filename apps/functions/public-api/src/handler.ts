@@ -171,8 +171,9 @@ const PUBLIC_CATALOG_FIELDS = [
   'manualCatalogPricing',
   'catalogPricingMode',
   // Alibaba-linked catalog fields (docs/alibaba-linked-catalog-sync, MIU 9).
-  // Ungated by design: anonymous and authenticated callers receive IDENTICAL
-  // Alibaba pricing (never in GATED_CATALOG_FIELDS). alibabaPrimaryOfferKey
+  // Row path only: an approved product never ships these (ROW_ONLY_FIELDS in
+  // `publicItem`). Ungated by design: anonymous and authenticated callers
+  // receive IDENTICAL Alibaba pricing (never in GATED_CATALOG_FIELDS). alibabaPrimaryOfferKey
   // is deliberately absent. The nested pricing object is sub-projected below
   // — offer provenance never ships. Overstock rows can never carry these
   // keys (strict write schema), so the shared allowlist leaves overstock

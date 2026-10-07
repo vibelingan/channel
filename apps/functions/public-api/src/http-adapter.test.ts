@@ -1587,6 +1587,54 @@ test('feature off or not yet approved: the row projection is unchanged', async (
   assert.equal(row?.unitPrice, 9);
 });
 
+test('an approved product without a stored summary ships no price at all, never the row price', async () => {
+  // An approval made before summaries existed, not yet backfilled (runbook R4):
+  // the card shows "Request a quote" rather than any row or sync price.
+  const bare = approvedRow('bare-1');
+  const publication = bare.catalogDetailPublication as Record<string, unknown>;
+  const { priceSummary: _summary, ...withoutSummary } = publication;
+  const { descriptionText: _text, ...header } = publication.header as Record<string, unknown>;
+  setup({ products: [{ ...bare, catalogDetailPublication: { ...withoutSummary, header } }] });
+  const item = (await listItems(versionConfig))[0];
+  assert.ok(item);
+  assert.equal(item.name, 'Approved name');
+  for (const key of [
+    'priceSummary',
+    'moq',
+    'description',
+    'unitPrice',
+    'wholesalePrice',
+    'clearancePrice',
+    'vipPrice',
+    'manualCatalogPricing',
+    'catalogPricingMode',
+  ])
+    assert.equal(key in item, false, key);
+});
+
+test('an entitled VIP viewer gets no row price for an approved product either', async () => {
+  const store = seedStore();
+  setup({ ...store, products: [syncedApproved] });
+  const token = await memberToken('member');
+  const response = await handlePublicApiEvent(authEvent('/api/products', token), {
+    ...versionConfig,
+    jwtSecret: JWT_SECRET,
+  });
+  const item = (body(response) as { data: { items: CollectionDoc[] } }).data.items[0];
+  assert.equal(item?.name, 'Approved name');
+  assert.equal('vipPrice' in (item ?? {}), false);
+  assert.equal('wholesalePrice' in (item ?? {}), false);
+});
+
+test('a product not yet approved projects identically with the feature on or off', async () => {
+  const unapproved = { ...syncedApproved, catalogDetailPublication: undefined };
+  setup({ ...versionStore(), products: [unapproved] });
+  const on = await listItems(versionConfig);
+  const off = await listItems({ apiBaseUrl: 'https://api.example.test' });
+  assert.deepEqual(on, off);
+  assert.equal(on[0]?.unitPrice, 9);
+});
+
 test('item and slug endpoints return the same approved projection as the list', async () => {
   setup(versionStore());
   const fromList = (await listItems(versionConfig)).find((doc) => doc._id === 'synced-1');
