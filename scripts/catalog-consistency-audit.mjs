@@ -170,6 +170,8 @@ export async function auditCatalog(get, { concurrency = 8, listPageSize = LIST_P
 }
 
 export function auditExitCode(report, { requireNoFallback = false } = {}) {
+  // An empty list means a wrong origin or an empty catalog: nothing was checked.
+  if (report.listed === 0) return 1;
   if (report.mismatches.length > 0 || report.errors.length > 0) return 1;
   return requireNoFallback && report.fallback.length > 0 ? 1 : 0;
 }

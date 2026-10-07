@@ -244,3 +244,9 @@ test('parity: the page price is derived exactly as approval derives it', () => {
     pricing: website.pricing,
   });
 });
+
+test('an empty list fails: a wrong origin must not pass as "no mismatches"', async () => {
+  const report = await auditCatalog(fakeApi([], {}).get);
+  assert.equal(report.listed, 0);
+  assert.equal(auditExitCode(report), 1);
+});

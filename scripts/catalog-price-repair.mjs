@@ -77,8 +77,13 @@ export function verifyPage(page, mode, afterId) {
  * page change only through re-approval.
  */
 export function publicPriceVerified(projected, price) {
-  if (!Object.hasOwn(projected ?? {}, 'alibabaPrimarySourceKey')) return 'approved-version';
-  return isDeepStrictEqual(projected.alibabaCatalogPricing, price) ? 'verified' : 'mismatch';
+  const item = projected ?? {};
+  const approved =
+    Object.hasOwn(item, 'priceSummary') ||
+    (!Object.hasOwn(item, 'alibabaPrimarySourceKey') &&
+      !Object.hasOwn(item, 'alibabaCatalogPricing'));
+  if (approved) return 'approved-version';
+  return isDeepStrictEqual(item.alibabaCatalogPricing, price) ? 'verified' : 'mismatch';
 }
 
 export async function auditCatalog(call, save, manifest) {

@@ -328,6 +328,48 @@ test('a "request a quote" price that states a minimum order shows it under the l
     websitePricing: { basis: 'website-manual', pricing: { mode: 'unavailable' } },
   });
   assert.doesNotMatch(primaryArea(renderPanel(noMoq)), /data-quote-moq/);
+
+  // The product's own quote comes before the configuration's.
+  const both = pricedDetail({
+    offers: [
+      {
+        kind: 'supplier',
+        basis: 'source-quote',
+        pricing: { mode: 'negotiable', minimumOrderQuantity: 200 },
+      },
+    ],
+  });
+  both.variants.items[0].offers = [
+    {
+      kind: 'regular',
+      basis: 'source-quote',
+      pricing: { mode: 'unavailable', minimumOrderQuantity: 50 },
+    },
+  ];
+  assert.match(primaryArea(renderPanel(both)), /data-quote-moq[^>]*>≥200 pieces</);
+
+  // A website price is authoritative: without its own MOQ, none is borrowed.
+  const websiteWithoutMoq = { ...both, websitePricing: noMoq.websitePricing };
+  assert.doesNotMatch(primaryArea(renderPanel(websiteWithoutMoq)), /data-quote-moq/);
+
+  // Every tier ends below the minimum order: nothing orderable, MOQ still shown.
+  const belowMoq = pricedDetail({
+    websitePricing: {
+      basis: 'website-manual',
+      pricing: {
+        mode: 'tiered',
+        currency: 'USD',
+        minimumOrderQuantity: 100,
+        tiers: [
+          { minimumQuantity: 1, maximumQuantity: 49, unitAmountMinor: 500 },
+          { minimumQuantity: 50, maximumQuantity: 99, unitAmountMinor: 400 },
+        ],
+      },
+    },
+  });
+  const belowArea = primaryArea(renderPanel(belowMoq));
+  assert.match(belowArea, /Request a quote<\/p>/);
+  assert.match(belowArea, /data-quote-moq[^>]*>≥100 pieces</);
 });
 
 test('a configuration without any quote of its own shows the product quote without a notice', () => {

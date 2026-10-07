@@ -205,4 +205,10 @@ test('public verification checks the sync price only on row-served products', ()
   );
   // Served from the approved version: no sync markers, so the repair is invisible publicly.
   assert.equal(publicPriceVerified({ _id: 'p', priceSummary: {} }, price), 'approved-version');
+  assert.equal(publicPriceVerified({ _id: 'p' }, price), 'approved-version');
+  // A sync price without the link marker is not evidence of an approved version.
+  assert.equal(
+    publicPriceVerified({ _id: 'p', alibabaCatalogPricing: { ...price, amountMinor: 1 } }, price),
+    'mismatch',
+  );
 });

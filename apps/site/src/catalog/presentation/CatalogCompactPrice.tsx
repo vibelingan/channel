@@ -13,15 +13,15 @@ const piecesText = (value: number, copy: SharedDetailContent) =>
   `${count(value)} ${value === 1 ? copy.quotePieceLabel : copy.quotePiecesLabel}`;
 const atLeastText = (value: number, copy: SharedDetailContent) => `≥${piecesText(value, copy)}`;
 
-/** DEC-16: a "request a quote" price may still state a minimum order. */
+/**
+ * DEC-16: a price with nothing orderable to show may still state a minimum
+ * order. Callers pass only offers that render no price row, so any stated
+ * minimum counts (also a tiered price whose every tier ends below it), as in
+ * the card summary's `isMeaningful`.
+ */
 function quoteMoq(offers: readonly { pricing: Offer['pricing'] }[]): number | undefined {
-  for (const { pricing } of offers)
-    if (
-      (pricing.mode === 'unavailable' || pricing.mode === 'negotiable') &&
-      pricing.minimumOrderQuantity !== undefined
-    )
-      return pricing.minimumOrderQuantity;
-  return undefined;
+  return offers.find(({ pricing }) => pricing.minimumOrderQuantity !== undefined)?.pricing
+    .minimumOrderQuantity;
 }
 
 function pricePairs(pricing: Offer['pricing'], copy: SharedDetailContent): PricePair[] {
@@ -108,14 +108,14 @@ function PriceTiers({ pairs, copy }: { pairs: PricePair[]; copy: SharedDetailCon
 
 /** "Request a quote", with the stated minimum order underneath when there is one. */
 const inquiry = (copy: SharedDetailContent, moq?: number) => (
-  <>
+  <div>
     <p className="text-xl font-semibold leading-snug text-brand-950">{copy.inquiryLabel}</p>
     {moq !== undefined && (
       <p data-quote-moq className="mt-1 text-sm leading-5 tabular-nums text-ink-muted">
         {atLeastText(moq, copy)}
       </p>
     )}
-  </>
+  </div>
 );
 
 /** One price block: website price, else the selected configuration's own
@@ -169,8 +169,10 @@ export function CatalogCompactPrice({
           )}
         </div>
       ) : (
-        // Same order as the card's summary: the product's own quote, then the
-        // selected configuration's (price-summary.ts, rule 4).
+        // The product's own quote first, then the selected configuration's.
+        // The card's summary (price-summary.ts, rule 4) takes the first
+        // configuration that states one, so the two differ only when the
+        // configuration shown here states none (DEC-17).
         inquiry(copy, quoteMoq(productOffers) ?? quoteMoq(variantOffers ?? []))
       )}
     </div>

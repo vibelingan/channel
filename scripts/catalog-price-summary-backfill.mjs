@@ -27,6 +27,20 @@ export async function planAll(call) {
   throw new Error('Plan did not finish; refusing to continue.');
 }
 
+/**
+ * R4 review: `ready` rows whose card price would come from a product-level offer
+ * although the product has configurations (possibly the retired wholesale
+ * headline). Read this on the saved plan, before apply.
+ */
+export function productPriceWithConfigurations(rows) {
+  return rows
+    .filter(
+      (row) =>
+        row.outcome === 'ready' && row.priceSummary?.source === 'product' && row.variantCount > 0,
+    )
+    .map((row) => row.productId);
+}
+
 export function countOutcomes(rows) {
   const counts = {};
   for (const row of rows) counts[row.outcome] = (counts[row.outcome] ?? 0) + 1;
@@ -61,13 +75,17 @@ export async function applyReadyRows(call, rows) {
     } catch (error) {
       throw stop(`${error.message} — ${results.length} rows were confirmed before it.`);
     }
-    for (const item of response.results) {
-      if (item.result?.ok !== true)
-        throw stop(
-          `${item.productId}: ${item.result?.code ?? 'unconfirmed'} — re-plan before retrying.`,
-        );
-      results.push(item);
-    }
+    // The server answers every row it was sent; keep every confirmed one
+    // before reporting the first failure, so the receipt is complete.
+    const sent = Math.min(BATCH, ready.length - start);
+    const failed = response.results.find((item) => item.result?.ok !== true);
+    results.push(...response.results.filter((item) => item.result?.ok === true));
+    if (failed)
+      throw stop(
+        `${failed.productId}: ${failed.result?.code ?? 'unconfirmed'} — re-plan before retrying.`,
+      );
+    if (response.results.length !== sent)
+      throw stop(`The server confirmed ${response.results.length} of ${sent} rows — re-plan.`);
   }
   return results;
 }
@@ -115,7 +133,16 @@ async function main() {
       `${JSON.stringify({ schemaVersion: SCHEMA, apiOrigin: api.origin, createdAt: new Date().toISOString(), rows }, null, 2)}\n`,
       { mode: 0o600, flag: 'wx' },
     );
-    console.log(JSON.stringify(countOutcomes(rows), null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          ...countOutcomes(rows),
+          productPriceWithConfigurations: productPriceWithConfigurations(rows),
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
   const manifest = JSON.parse(await readFile(file, 'utf8'));
@@ -135,6 +162,8 @@ async function main() {
     throw error;
   }
   manifest.appliedAt = new Date().toISOString();
+  delete manifest.failedAt;
+  delete manifest.failure;
   await save(manifest);
   const after = countOutcomes(await planAll(call));
   console.log(

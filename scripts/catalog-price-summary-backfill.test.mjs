@@ -4,6 +4,7 @@ import {
   applyReadyRows,
   countOutcomes,
   planAll,
+  productPriceWithConfigurations,
   tallyResults,
 } from './catalog-price-summary-backfill.mjs';
 
@@ -106,5 +107,60 @@ test('apply totals separate applied rows from skipped rows by reason', () => {
       { productId: 'c', result: { ok: true, backfill: 'skipped', reason: 'summary-changed' } },
     ]),
     { applied: 1, 'skipped:summary-changed': 2 },
+  );
+});
+
+test('a batch with one refused row still records every row the server confirmed', async () => {
+  const rows = Array.from({ length: 5 }, (_, i) => ready(`p${i}`));
+  const error = await applyReadyRows(
+    async (data) => ({
+      results: data.rows.map((row) => ({
+        productId: row.productId,
+        result:
+          row.productId === 'p1'
+            ? { ok: false, code: 'CONFLICT' }
+            : { ok: true, backfill: 'applied' },
+      })),
+    }),
+    rows,
+  ).catch((caught) => caught);
+  assert.match(error.message, /p1: CONFLICT/);
+  assert.deepEqual(
+    error.results.map((item) => item.productId),
+    ['p0', 'p2', 'p3', 'p4'],
+  );
+});
+
+test('a response that answers fewer rows than were sent is not taken as complete', async () => {
+  const error = await applyReadyRows(
+    async (data) => ({
+      results: data.rows.slice(0, 1).map((row) => ({
+        productId: row.productId,
+        result: { ok: true, backfill: 'applied' },
+      })),
+    }),
+    [ready('a'), ready('b')],
+  ).catch((caught) => caught);
+  assert.match(error.message, /confirmed 1 of 2 rows/);
+  assert.equal(error.results.length, 1);
+});
+
+test('the plan lists product-level card prices on products with configurations (R4 review)', () => {
+  const productLevel = {
+    ...ready('headline'),
+    variantCount: 4,
+    priceSummary: {
+      source: 'product',
+      pricing: { mode: 'fixed', currency: 'USD', amountMinor: 1 },
+    },
+  };
+  const noConfigurations = { ...productLevel, productId: 'plain', variantCount: 0 };
+  assert.deepEqual(
+    productPriceWithConfigurations([
+      productLevel,
+      noConfigurations,
+      { ...ready('sku'), variantCount: 2 },
+    ]),
+    ['headline'],
   );
 });
