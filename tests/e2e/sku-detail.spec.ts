@@ -1,5 +1,6 @@
 import { type Locator, type Page, expect, test } from '@playwright/test';
 import { detailFixture } from '../../apps/site/src/catalog/testing/detail-fixture.ts';
+import type { CatalogOfferPricing } from '../../packages/shared/src/catalog/offer-pricing.ts';
 import type { CatalogQuoteSubmission } from '../../packages/shared/src/catalog/quote-draft.ts';
 import { mockCatalogTaxonomy } from './helpers/admin-api';
 
@@ -1318,6 +1319,72 @@ test('manual tiers drive card, in-page detail, slug detail, and AggregateOffer w
       fullPage: true,
     });
   }
+});
+
+test('card shows the approved summary and each configuration shows its own tiers (MIU-14)', async ({
+  page,
+}) => {
+  const black: CatalogOfferPricing = {
+    mode: 'tiered',
+    currency: 'USD',
+    tiers: [
+      { minimumQuantity: 2, maximumQuantity: 99, unitAmountMinor: 661 },
+      { minimumQuantity: 100, maximumQuantity: 999, unitAmountMinor: 555 },
+      { minimumQuantity: 1000, unitAmountMinor: 476 },
+    ],
+  };
+  const white: CatalogOfferPricing = {
+    mode: 'tiered',
+    currency: 'USD',
+    tiers: [{ minimumQuantity: 1000, unitAmountMinor: 430 }],
+  };
+  const detail = detailFixture(2);
+  const [blackVariant, whiteVariant] = detail.variants.items;
+  if (!blackVariant || !whiteVariant) throw new Error('Two configurations expected');
+  blackVariant.options = [{ name: 'Color', value: 'Black' }];
+  blackVariant.offers = [{ kind: 'regular', basis: 'source-quote', pricing: black }];
+  whiteVariant.options = [{ name: 'Color', value: 'White' }];
+  whiteVariant.offers = [{ kind: 'regular', basis: 'source-quote', pricing: white }];
+  // What the public list serves for an approved product (MIU-8): the summary
+  // picked at approval time (White is cheapest), no row prices.
+  const listItem = {
+    _id: detail._id,
+    name: detail.name,
+    productFamily: 'toys',
+    slug: 'two-color-headset',
+    moq: 1000,
+    priceSummary: { source: 'sku', variantId: whiteVariant.id, pricing: white },
+    images: ['/media/section-capabilities.png'],
+  };
+  await page.route('**/api/products?*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: envelope({ items: [listItem], total: 1, page: 1, pageSize: 12 }),
+    }),
+  );
+  await page.route(`**/api/products/${detail._id}/detail*`, (route) =>
+    route.fulfill({ contentType: 'application/json', body: envelope(detail) }),
+  );
+  await page.route('**/api/images/**', (route) =>
+    route.fulfill({ contentType: 'image/png', body: imageBytes }),
+  );
+
+  await page.goto('/toys/');
+  const card = page.locator(`[data-product-card="${detail._id}"]`);
+  await expect(card.locator('[data-product-card-price]')).toHaveText('From $4.30');
+  await expect(card).toContainText('MOQ 1000');
+  await card.click();
+
+  const article = page.locator('[data-shared-catalog-detail]');
+  const tiers = article.locator('[data-catalog-compact-price] [data-price-tier]');
+  await article.getByRole('radio', { name: /Black/ }).check();
+  await expect(tiers).toHaveText([
+    'USD 6.61 2-99 pieces',
+    'USD 5.55 100-999 pieces',
+    'USD 4.76 ≥1,000 pieces',
+  ]);
+  await article.getByRole('radio', { name: /White/ }).check();
+  await expect(tiers).toHaveText(['USD 4.30 ≥1,000 pieces']);
 });
 
 test('retry recovers from a detail transport error', async ({ page }) => {

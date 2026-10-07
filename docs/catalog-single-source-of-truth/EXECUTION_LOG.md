@@ -19,8 +19,8 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 10 | Quote request uses the rule | 3 | Done | `375b139` |
 | 11 | Site decoder + `Product.priceSummary` | 3 | Done | `e9f696c` |
 | 12 | Card price / MOQ from summary | 3 | Done | `f41d391` |
-| 13 | Hub featured strip effective MOQ | 3 | Done | (this commit) |
-| 14 | E2E: configuration switch changes price; card matches page | 3 | Not started | |
+| 13 | Hub featured strip effective MOQ | 3 | Done | `0a8b59e` |
+| 14 | E2E: configuration switch changes price; card matches page | 3 | Done | (this commit) |
 | 15 | `alibabaReviewReason` field + identity rules | 4 | Not started | |
 | 16 | `publicSourceDigest` | 4 | Not started | |
 | 17 | Prepare records source digest | 4 | Not started | |
@@ -91,6 +91,25 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-14 — e2e: card shows the summary; each configuration its own tiers (2026-10-07)
+- What changed: one new scenario in `tests/e2e/sku-detail.spec.ts`. The list
+  serves an approved product the way MIU-8 does (summary from White, no row
+  prices); the product page has Black (2–99 $6.61, 100–999 $5.55, ≥1,000 $4.76)
+  and White (≥1,000 $4.30). The test opens `/toys/`, checks the card, clicks it,
+  then switches configurations on the page that opens.
+- Assertions: card "From $4.30" and "MOQ 1000"; Black → three
+  `[data-price-tier]` rows (`USD 6.61 2-99 pieces`, `USD 5.55 100-999 pieces`,
+  `USD 4.76 ≥1,000 pieces`); White → `USD 4.30 ≥1,000 pieces`.
+- Deviation: added as a separate test next to the existing card test instead of
+  extending the 836–870 loop, which runs 6 times (3 widths × 2 price sources)
+  and does not open the page from a card.
+- Mutation check: rebuilt with the pre-MIU-12 `EffectiveCatalogPricingBlock.tsx`;
+  the test failed (card showed "Request a Quote"). Restored and rebuilt.
+- Validation: `sku-detail.spec.ts` on chromium, 34 passed, against this
+  worktree's build served by `astro preview --port 4329` (`E2E_SITE_URL`); port
+  4321 was another checkout's dev server and was left alone. `pnpm typecheck`
+  (includes the e2e project); `pnpm lint`.
 
 ### MIU-13 — hub featured strip shows the effective MOQ (2026-10-07)
 - What changed: the electronics-toys hub strip (`FeaturedProducts.tsx`) reads
