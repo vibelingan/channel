@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { publicSourceDigest } from '@vibelingan-channel/shared/catalog-source-digest';
 import { SourcePageSchema, sourceDigest, stageSourcePage } from './catalog-source-staging.ts';
 
 test('source preparation seals only the complete generation; retries, changed observation and wrong actor are safe', async () => {
@@ -74,4 +75,81 @@ test('source preparation seals only the complete generation; retries, changed ob
   assert.equal(product?.unitPrice, 7);
   assert.equal(product?.published, true);
   assert.equal(Object.keys(store).filter((key) => key.startsWith('productVariants/')).length, 21);
+});
+
+const realObservation = (amountMinor: number) => ({
+  identity: { attributes: [{ sourceName: 'Material', value: 'ABS' }] },
+  content: {
+    description: { text: 'Headset' },
+    media: [{ sourceUrl: 'https://img.example/1.jpg' }],
+  },
+  variants: [
+    { sourceVariantKey: 'black', options: [{ sourceName: 'Color', value: 'Black' }], media: [] },
+  ],
+  offers: [
+    {
+      sourceOfferKey: 'o-black',
+      sourceVariantKey: 'black',
+      kind: 'supplier',
+      pricing: { mode: 'fixed' as const, currency: 'USD', amountMinor },
+    },
+  ],
+});
+
+async function prepareOnce(observation: unknown, revision: string) {
+  const store: Record<string, CollectionDoc> = {
+    'users/admin': { _id: 'admin', role: 'admin' },
+    'products/product': { _id: 'product', alibabaPrimarySourceKey: 'source', imageIds: [] },
+    'catalogSourceObservations/source': { _id: 'source', observation },
+  };
+  const tx = {
+    get: async (c: string, id: string) => structuredClone(store[`${c}/${id}`] ?? null),
+    set: async (c: string, row: CollectionDoc) => {
+      store[`${c}/${row._id}`] = structuredClone(row);
+    },
+  };
+  const result = await stageSourcePage(
+    tx,
+    'admin',
+    SourcePageSchema.parse({
+      action: 'source-page',
+      productId: 'product',
+      sourceKey: 'source',
+      observationId: 'source',
+      observationDigest: sourceDigest(observation),
+      galleryDigest: sourceDigest([]),
+      revision,
+      header: {
+        schemaVersion: 'catalog-product-detail-v1',
+        _id: 'product',
+        name: 'Source',
+        images: [],
+        facts: [],
+        offers: [],
+      },
+      content: null,
+      noteBlocks: null,
+      variantIds: ['black'],
+      page: 0,
+      variants: [
+        { id: 'black', options: [], images: [], offers: [], inventory: { state: 'unknown' } },
+      ],
+    }),
+  );
+  assert.equal(result.ok, true);
+  return store['products/product'];
+}
+
+test('prepare records the public digest of the observation it built the candidate from (MIU-17)', async () => {
+  const first = realObservation(430);
+  const prepared = await prepareOnce(first, 'a'.repeat(64));
+  assert.equal(prepared?.detailSourcePublicDigest, publicSourceDigest(first));
+  const repriced = await prepareOnce(realObservation(399), 'b'.repeat(64));
+  assert.notEqual(repriced?.detailSourcePublicDigest, prepared?.detailSourcePublicDigest);
+});
+
+test('an observation without the public fields records no digest instead of failing prepare', async () => {
+  const prepared = await prepareOnce({ value: 1 }, 'c'.repeat(64));
+  assert.equal(prepared?.detailSourceReady, true);
+  assert.equal('detailSourcePublicDigest' in (prepared ?? {}), false);
 });

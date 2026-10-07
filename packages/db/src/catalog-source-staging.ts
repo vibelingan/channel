@@ -6,6 +6,10 @@ import {
   CatalogDetailVariantSchema,
   CatalogNoteBlocksSchema,
 } from '@vibelingan-channel/shared/catalog-detail';
+import {
+  type PublicSourceDigestInput,
+  publicSourceDigest,
+} from '@vibelingan-channel/shared/catalog-source-digest';
 import { z } from 'zod';
 import type { CatalogApprovalTransaction } from './catalog-detail-commit.ts';
 
@@ -18,6 +22,22 @@ export const sourceGalleryDigest = (product: Record<string, unknown>) =>
       ? (product.imageIds ?? [])
       : [product.imageIds ?? [], product.descriptionImageIds],
   );
+/**
+ * What a buyer would see from the observation this candidate was built from
+ * (MIU-17). A stored row without the public fields records no digest; the
+ * one-time change audit (MIU-38) handles products prepared without one.
+ */
+function publicDigestOf(observation: unknown): string | undefined {
+  const value = observation as Partial<PublicSourceDigestInput> | null;
+  return value &&
+    Array.isArray(value.variants) &&
+    Array.isArray(value.offers) &&
+    Array.isArray(value.identity?.attributes) &&
+    Array.isArray(value.content?.media)
+    ? publicSourceDigest(value as PublicSourceDigestInput)
+    : undefined;
+}
+
 export const SourcePageSchema = z
   .object({
     action: z.literal('source-page'),
@@ -127,8 +147,11 @@ export async function stageSourcePage(
     ...observed,
     detailPreparationFence: input.revision,
   });
+  const publicDigest = publicDigestOf(observed.observation);
+  // A re-prepare from a shape without public fields must not keep an old digest.
+  const { detailSourcePublicDigest: _previous, ...current } = product;
   await tx.set('products', {
-    ...product,
+    ...current,
     detailSourceOwner: owner,
     detailSourceRevision: input.revision,
     detailSourceManifest: { revision: input.revision, variantIds: input.variantIds },
@@ -137,6 +160,7 @@ export async function stageSourcePage(
     detailSourceCandidate: input.header,
     detailSourceContentCandidate: input.content,
     detailSourceNoteBlocksCandidate: input.noteBlocks,
+    ...(publicDigest === undefined ? {} : { detailSourcePublicDigest: publicDigest }),
   });
   return progress(input.page + 1);
 }
