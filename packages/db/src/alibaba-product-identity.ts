@@ -57,6 +57,8 @@ export type AlibabaProductMutationInput = AlibabaProductExpectation &
         sourceKey: string;
         guard: AlibabaLeaseGuard;
         patch: Record<string, unknown>;
+        /** What a buyer would see from the source now (MIU-16); flags "changed". */
+        publicSourceDigest?: string;
       }
   );
 
@@ -139,6 +141,40 @@ function reconciliationPatch(product: CollectionDoc, patch: Record<string, unkno
       ? {}
       : { alibabaReviewPending: !reviewed, alibabaReviewReason: reviewed ? null : 'new' }),
   };
+}
+
+const REASON_STRENGTH = { new: 0, edited: 1, changed: 2, removed: 3 } as const;
+type FlagReason = keyof typeof REASON_STRENGTH;
+
+/**
+ * A sync flags an approved product whose source no longer matches what was
+ * approved: 'removed' when the source is inactive, 'changed' when the public
+ * digest differs (MIU-19). Never clears a flag; an existing flag keeps the
+ * stronger reason. Products without an approved digest are left to the
+ * one-time change audit; archived products are never flagged.
+ */
+function sourceChangeFlag(
+  product: CollectionDoc,
+  sourceActive: boolean,
+  digest: string | undefined,
+): Record<string, unknown> {
+  const receipt = product.catalogDetailApprovalReceipt;
+  const approved =
+    receipt && typeof receipt === 'object' ? Reflect.get(receipt, 'sourceDigest') : undefined;
+  if (typeof approved !== 'string' || product.archived === true) return {};
+  const reason: FlagReason | undefined = !sourceActive
+    ? 'removed'
+    : digest !== undefined && digest !== approved
+      ? 'changed'
+      : undefined;
+  if (!reason) return {};
+  const existing = product.alibabaReviewReason;
+  const keep =
+    product.alibabaReviewPending === true &&
+    typeof existing === 'string' &&
+    existing in REASON_STRENGTH &&
+    REASON_STRENGTH[existing as FlagReason] > REASON_STRENGTH[reason];
+  return { alibabaReviewPending: true, alibabaReviewReason: keep ? existing : reason };
 }
 
 export function alibabaLinkRevision(product: CollectionDoc): number | null {
@@ -513,6 +549,9 @@ export async function runAlibabaProductMutation(
     alibabaSourceCategoryId: String(source.sourceCategoryId ?? ''),
     ...(input.action === 'link'
       ? { alibabaSourceStatus: source.active === true ? 'available' : 'removed' }
+      : {}),
+    ...(input.action === 'promote'
+      ? sourceChangeFlag(product, source.active === true, input.publicSourceDigest)
       : {}),
     alibabaLinkRevision: revision + 1,
     alibabaSourceLastSyncedAt: input.now,

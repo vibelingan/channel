@@ -16,6 +16,7 @@ import {
   compareBySort,
   matchesFilter,
 } from '@vibelingan-channel/shared';
+import { publicSourceDigest } from '@vibelingan-channel/shared/catalog-source-digest';
 import { linkExistingProduct, setPinnedOffer, unlinkProduct } from './linking.ts';
 import { promoteLinkedProduct } from './promotion.ts';
 
@@ -605,4 +606,112 @@ test('a pin is refused unless the offer is ACTIVE and belongs to this product', 
     ok: false,
     reason: 'offer-not-found',
   });
+});
+
+// --- MIU-19: a sync flags "changed" / "removed" against the approved digest ---
+
+function observedAt(amountMinor: number) {
+  return {
+    schemaVersion: 'catalog-source-observation-v1',
+    source: {
+      provider: 'alibaba',
+      sourceProductKey: SOURCE_KEY,
+      externalProductId: '987',
+      observedAt: NOW,
+      captureMode: 'incremental',
+      completeness: 'full-product',
+    },
+    identity: { title: 'Source title', matchHints: {}, attributes: [] },
+    content: { media: [] },
+    lifecycle: { sourceListingStatus: 'published' },
+    variants: [
+      {
+        sourceVariantKey: 'black',
+        options: [{ sourceName: 'Color', value: 'Black' }],
+        inventory: [],
+        media: [],
+      },
+    ],
+    offers: [
+      {
+        sourceOfferKey: 'o-black',
+        sourceVariantKey: 'black',
+        kind: 'supplier',
+        pricing: { mode: 'fixed', currency: 'USD', amountMinor },
+      },
+    ],
+    evidence: [{ kind: 'raw-payload', evidenceId: 'a'.repeat(64) }],
+    warnings: [],
+  } as const;
+}
+
+/** Product approved when the source showed `approvedAmount`; the sync now sees `nowAmount`. */
+function setupApproved(
+  approvedAmount: number | null,
+  nowAmount: number,
+  product: Record<string, unknown> = {},
+  source: Partial<CollectionDoc> = {},
+) {
+  setup({
+    alibabaSourceProducts: [sourceDoc(source)],
+    catalogSourceObservations: [
+      {
+        _id: sourceObservationDocumentId('alibaba', SOURCE_KEY),
+        observation: observedAt(nowAmount),
+      } as CollectionDoc,
+    ],
+  });
+  const row = store.products?.[0] as CollectionDoc;
+  Object.assign(row, {
+    catalogDetailApprovalReceipt: {
+      revision: 'r1',
+      ...(approvedAmount === null
+        ? {}
+        : { sourceDigest: publicSourceDigest(observedAt(approvedAmount)) }),
+    },
+    ...product,
+  });
+}
+const promote = () => promoteLinkedProduct({ sourceKey: SOURCE_KEY, guard: GUARD, now: NOW });
+const review = () => {
+  const row = store.products?.[0] as CollectionDoc;
+  return { pending: row.alibabaReviewPending, reason: row.alibabaReviewReason };
+};
+
+test('a source that changed since approval flags the product "changed" without touching its version', async () => {
+  setupApproved(430, 399);
+  const before = structuredClone((store.products?.[0] as CollectionDoc).catalogDetailPublication);
+  assert.equal((await promote()).ok, true);
+  assert.deepEqual(review(), { pending: true, reason: 'changed' });
+  assert.deepEqual((store.products?.[0] as CollectionDoc).catalogDetailPublication, before);
+});
+
+test('an unchanged source leaves the review fields alone', async () => {
+  setupApproved(430, 430);
+  assert.equal((await promote()).ok, true);
+  assert.deepEqual(review(), { pending: undefined, reason: undefined });
+});
+
+test('an inactive source flags the approved product "removed"', async () => {
+  setupApproved(430, 430, {}, { active: false });
+  assert.equal((await promote()).ok, true);
+  assert.deepEqual(review(), { pending: true, reason: 'removed' });
+});
+
+test('no approved digest or an archived product: no flag (the one-time audit covers the first)', async () => {
+  setupApproved(null, 399);
+  assert.equal((await promote()).ok, true);
+  assert.deepEqual(review(), { pending: undefined, reason: undefined });
+  setupApproved(430, 399, { archived: true });
+  assert.equal((await promote()).ok, true);
+  assert.deepEqual(review(), { pending: undefined, reason: undefined });
+});
+
+test('an existing flag keeps the stronger reason: removed > changed > edited > new', async () => {
+  setupApproved(430, 399, { alibabaReviewPending: true, alibabaReviewReason: 'edited' });
+  assert.equal((await promote()).ok, true);
+  assert.deepEqual(review(), { pending: true, reason: 'changed' });
+  setupApproved(430, 399, { alibabaReviewPending: true, alibabaReviewReason: 'removed' });
+  assert.equal((await promote()).ok, true);
+  assert.deepEqual(review(), { pending: true, reason: 'removed' });
 });

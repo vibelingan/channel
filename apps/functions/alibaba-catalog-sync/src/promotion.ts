@@ -1,13 +1,3 @@
-/**
- * Fenced product promotion (MIU 8): materialize the selected primary offer
- * into the linked product's Alibaba-owned fields.
- *
- * The write path is `mutateAlibabaProduct`: product revision, exact links and
- * lease holder/fence/expiry are re-verified in the same transaction as the patch.
- * A stale candidate cannot promote after unlink or fence takeover. The patch
- * carries ONLY Alibaba-owned additive fields; curated fields,
- * publication state, and legacy pricing are structurally out of reach.
- */
 import {
   type AlibabaCatalogPricing,
   type OfferForSelection,
@@ -20,6 +10,17 @@ import {
   type AlibabaProductMutationResult,
   mutateAlibabaProduct,
 } from '@vibelingan-channel/db';
+/**
+ * Fenced product promotion (MIU 8): materialize the selected primary offer
+ * into the linked product's Alibaba-owned fields.
+ *
+ * The write path is `mutateAlibabaProduct`: product revision, exact links and
+ * lease holder/fence/expiry are re-verified in the same transaction as the patch.
+ * A stale candidate cannot promote after unlink or fence takeover. The patch
+ * carries ONLY Alibaba-owned additive fields; curated fields,
+ * publication state, and legacy pricing are structurally out of reach.
+ */
+import { publicSourceDigest } from '@vibelingan-channel/shared/catalog-source-digest';
 import {
   buildAlibabaSourceReview,
   loadAlibabaObservation,
@@ -156,6 +157,8 @@ export async function promoteLinkedProduct(input: PromoteInput): Promise<Promote
     guard: input.guard,
     now: input.now,
     patch,
+    // The transaction compares it with the approved digest (MIU-19).
+    ...(observation ? { publicSourceDigest: publicSourceDigest(observation) } : {}),
   });
   if (!result.ok) {
     if (result.reason === 'product-not-found') return { ok: false, reason: 'product-missing' };
