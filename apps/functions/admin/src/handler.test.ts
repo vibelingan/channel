@@ -20,6 +20,10 @@ import {
   transitionImageMutationRelease,
 } from '@vibelingan-channel/db';
 import {
+  type ApprovalPersistenceCommand,
+  runStagedApproval,
+} from '@vibelingan-channel/db/catalog-detail-staging';
+import {
   type MediaStorageAdapter,
   type UploadCredential,
   setMediaStorage,
@@ -4855,5 +4859,146 @@ test('Alibaba hash/envelope fields are not filterable or sortable (query oracle 
       token,
     ),
     'BAD_REQUEST',
+  );
+});
+
+// ── MIU-7: price summary backfill ──────────────────────────────────────────────
+const approvalConfig = { ...config, enableDetailApproval: true } satisfies AdminConfig;
+const backfillHeader = {
+  schemaVersion: 'catalog-product-detail-v1',
+  _id: 'approved-1',
+  name: 'Headset',
+  images: [],
+  facts: [],
+  offers: [],
+};
+const approvedVariantRow = (variantId: string, amountMinor: number, position: number) => ({
+  _id: `approved-1:r1:${variantId}`,
+  productId: 'approved-1',
+  variantId,
+  catalogDetailRevision: 'r1',
+  catalogDetailPosition: position,
+  catalogDetailApproved: {
+    id: variantId,
+    options: [],
+    images: [],
+    inventory: { state: 'unknown' },
+    offers: [
+      {
+        kind: 'supplier',
+        basis: 'source-quote',
+        pricing: { mode: 'fixed', currency: 'USD', amountMinor },
+      },
+    ],
+  },
+});
+function backfillStore(): Store {
+  return {
+    users: [],
+    products: [
+      {
+        _id: 'approved-1',
+        name: 'Headset',
+        published: true,
+        catalogDetailPublication: {
+          state: 'approved',
+          revision: 'r1',
+          header: backfillHeader,
+          variantCount: 2,
+          variantStorage: 'immutable-v1',
+        },
+      },
+      { _id: 'manual-1', name: 'Manual', published: true },
+    ],
+    catalogDetailVariants: [approvedVariantRow('a', 500, 0), approvedVariantRow('b', 120, 1)],
+  };
+}
+class BackfillAdapter extends MemoryAdapter {
+  constructor(private readonly backing: Store) {
+    super(backing);
+  }
+  async persistCatalogDetailApproval(actorId: string, input: ApprovalPersistenceCommand) {
+    return runStagedApproval(
+      {
+        get: async (collection, id) =>
+          structuredClone(this.backing[collection]?.find((row) => row._id === id) ?? null),
+        set: async (collection, row) => {
+          const rows = this.backing[collection] ?? [];
+          this.backing[collection] = rows;
+          const index = rows.findIndex((existing) => existing._id === row._id);
+          if (index < 0) rows.push(structuredClone(row));
+          else rows[index] = structuredClone(row);
+        },
+      },
+      actorId,
+      input,
+    );
+  }
+}
+const backfillCall = (data: unknown, token: string, override: AdminConfig = approvalConfig) =>
+  handleAdminRequest(
+    { action: 'backfillPublicationPriceSummary', token, data } as Parameters<
+      typeof handleAdminRequest
+    >[0],
+    override,
+  );
+
+test('price summary backfill is admin-only and needs catalog detail approval', async () => {
+  setup(backfillStore());
+  const contributor = await sessionToken({
+    sub: 'c-1',
+    email: 'c@example.com',
+    name: 'contributor',
+    role: 'contributor',
+  });
+  expectErr(await backfillCall({ mode: 'plan' }, contributor), 'FORBIDDEN');
+  expectErr(await backfillCall({ mode: 'plan' }, await adminToken(), config), 'FORBIDDEN');
+  expectErr(await backfillCall({ mode: 'delete' }, await adminToken()), 'VALIDATION_ERROR');
+});
+
+test('price summary backfill plans read-only, then applies only reviewed rows idempotently', async () => {
+  const store = backfillStore();
+  setAdapter(new BackfillAdapter(store));
+  currentStore = store;
+  const token = await adminToken();
+  const plan = okData<{ rows: Array<Record<string, unknown>>; nextAfterId: string; done: boolean }>(
+    await backfillCall({ mode: 'plan' }, token),
+  );
+  const summary = {
+    source: 'sku',
+    variantId: 'b',
+    pricing: { mode: 'fixed', currency: 'USD', amountMinor: 120 },
+  };
+  assert.deepEqual(plan.rows, [
+    { productId: 'approved-1', revision: 'r1', outcome: 'ready', priceSummary: summary },
+    { productId: 'manual-1', outcome: 'not-approved' },
+  ]);
+  assert.equal(plan.done, true);
+  assert.equal(
+    Object.hasOwn(store.products?.[0]?.catalogDetailPublication as object, 'priceSummary'),
+    false,
+    'planning writes nothing',
+  );
+  const rows = [{ productId: 'approved-1', revision: 'r1', priceSummary: summary }];
+  const applied = okData<{ results: unknown[] }>(
+    await backfillCall({ mode: 'apply', rows }, token),
+  );
+  assert.deepEqual(applied.results, [
+    { productId: 'approved-1', result: { ok: true, backfill: 'applied' } },
+  ]);
+  assert.deepEqual(
+    (store.products?.[0]?.catalogDetailPublication as Record<string, unknown>).priceSummary,
+    summary,
+  );
+  const again = okData<{ results: unknown[] }>(await backfillCall({ mode: 'apply', rows }, token));
+  assert.deepEqual(again.results, [
+    {
+      productId: 'approved-1',
+      result: { ok: true, backfill: 'skipped', reason: 'already-present' },
+    },
+  ]);
+  expectErr(
+    await backfillCall({ mode: 'apply', rows: Array.from({ length: 21 }, () => rows[0]) }, token),
+    'VALIDATION_ERROR',
   );
 });

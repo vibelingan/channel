@@ -35,12 +35,17 @@ import {
   list,
   manageCatalogDetailApproval,
   manageCatalogInquiry,
+  persistCatalogDetailApproval,
   releaseImageMutation,
   remove,
   saveCatalogProductWithIdentities,
   update,
   updateDoc,
 } from '@vibelingan-channel/db';
+import {
+  type PriceSummaryBackfillReader,
+  planPriceSummaryBackfill,
+} from '@vibelingan-channel/db/catalog-price-summary-backfill';
 import { sendOemConfirmationEmail, sendPasswordResetEmail } from '@vibelingan-channel/email';
 import {
   type StoredMediaObject,
@@ -114,6 +119,7 @@ import {
   toRole,
   withinPendingCap,
 } from '@vibelingan-channel/shared';
+import { CatalogPriceSummarySchema } from '@vibelingan-channel/shared/catalog-detail';
 import {
   type InquiryEnvelope,
   inquiryErrorMessages,
@@ -665,6 +671,8 @@ export async function handleAdminRequest(
         return await markProductReviewedAction(req, claims);
       case 'backfillImageRefCounts':
         return await backfillImageRefCountsAction(req, claims);
+      case 'backfillPublicationPriceSummary':
+        return await backfillPublicationPriceSummaryAction(req, claims, config);
       case 'cleanupOrphanImages':
         return await cleanupOrphanImagesAction(req, claims);
       case 'migrateLegacyImages':
@@ -2109,6 +2117,106 @@ async function backfillImageRefCountsAction(
     (req.data as { dryRun?: unknown }).dryRun === true;
   const report = await backfillPublishedRefCounts({ dryRun });
   return ok(report);
+}
+
+const PRICE_SUMMARY_BACKFILL_PAGE = 20;
+const priceSummaryBackfillRequest = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('plan'), afterId: z.string().min(1).max(200).optional() }).strict(),
+  z
+    .object({
+      mode: z.literal('apply'),
+      rows: z
+        .array(
+          z
+            .object({
+              productId: z.string().min(1).max(200),
+              revision: z.string().min(1).max(200),
+              priceSummary: CatalogPriceSummarySchema,
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(PRICE_SUMMARY_BACKFILL_PAGE),
+    })
+    .strict(),
+]);
+
+/** Approved SKU rows are read exactly like the public detail endpoint reads them. */
+const priceSummaryBackfillReader: PriceSummaryBackfillReader = {
+  async listProducts(afterId, pageSize) {
+    const page = await list({
+      collection: 'products',
+      page: 1,
+      pageSize,
+      sort: [{ field: '_id', dir: 'asc' }],
+      ...(afterId
+        ? { filter: { combinator: 'and', clauses: [{ field: '_id', op: 'gt', value: afterId }] } }
+        : {}),
+    });
+    return page.items;
+  },
+  async listApprovedVariants(productId, revision, storage) {
+    const rows: CollectionDoc[] = [];
+    for (let page = 1; ; page++) {
+      const result = await list({
+        collection: storage === 'immutable-v1' ? 'catalogDetailVariants' : 'productVariants',
+        page,
+        pageSize: 100,
+        filter: {
+          combinator: 'and',
+          clauses: [
+            { field: 'productId', op: 'eq', value: productId },
+            { field: 'catalogDetailRevision', op: 'eq', value: revision },
+            { field: 'archived', op: 'ne', value: true },
+          ],
+        },
+        sort: [
+          { field: 'catalogDetailPosition', dir: 'asc' },
+          { field: '_id', dir: 'asc' },
+        ],
+      });
+      rows.push(...result.items);
+      if (result.items.length === 0 || rows.length >= result.total) return rows;
+    }
+  },
+};
+
+/**
+ * One-time backfill of approved price summaries (MIU-7). `plan` is read-only;
+ * `apply` sends reviewed rows to the revision-checked staging command.
+ */
+async function backfillPublicationPriceSummaryAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+  config: AdminConfig,
+): Promise<ApiResult<unknown>> {
+  if (claims.role !== 'admin') {
+    return err('FORBIDDEN', 'Only an admin may backfill price summaries.');
+  }
+  if (config.enableDetailApproval !== true) {
+    return err('FORBIDDEN', 'Catalog detail approval is not enabled.');
+  }
+  const parsed = priceSummaryBackfillRequest.safeParse(req.data);
+  if (!parsed.success) return err('VALIDATION_ERROR', 'Invalid price summary backfill request.');
+  if (parsed.data.mode === 'plan') {
+    return ok(
+      await planPriceSummaryBackfill(priceSummaryBackfillReader, {
+        ...(parsed.data.afterId ? { afterId: parsed.data.afterId } : {}),
+        pageSize: PRICE_SUMMARY_BACKFILL_PAGE,
+      }),
+    );
+  }
+  const results: Array<{ productId: string; result: unknown }> = [];
+  for (const row of parsed.data.rows) {
+    results.push({
+      productId: row.productId,
+      result: await persistCatalogDetailApproval(claims.sub, {
+        action: 'price-summary-backfill',
+        ...row,
+      }),
+    });
+  }
+  return ok({ results });
 }
 
 /** Default orphan TTL: a `pending`/`failed` image older than this is treated as

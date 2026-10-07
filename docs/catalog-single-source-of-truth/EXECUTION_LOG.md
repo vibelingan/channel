@@ -12,8 +12,8 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 3 | Price summary contract + `derivePriceSummary` | 2a | Done | `5cf2a6b` |
 | 4 | Approval plan stores `priceSummary` | 2b | Done | `1b22ff5` |
 | 5 | `resolvePublicVersion` shared rule | 3 | Not started | |
-| 6 | Price summary backfill (db command) | 2b | Done | (this commit) |
-| 7 | Backfill admin action + script | 2b | Not started | |
+| 6 | Price summary backfill (db command) | 2b | Done | `96c3157` |
+| 7 | Backfill admin action + script | 2b | Done | (this commit) |
 | 8 | Public list / item / slug read the one version | 3 | Not started | |
 | 9 | Product page endpoint uses the rule | 3 | Not started | |
 | 10 | Quote request uses the rule | 3 | Not started | |
@@ -91,6 +91,36 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-7 — backfill admin action and operator script (2026-10-07)
+- What changed:
+  - New admin action `backfillPublicationPriceSummary`. It is admin-only and
+    needs `enableDetailApproval`.
+    - `plan`: read-only, a page of 20 products from the planner (MIU-6), using a
+      db reader that queries approved SKU rows exactly as the public detail
+      endpoint does.
+    - `apply`: at most 20 reviewed rows, each sent to the revision-checked
+      staging command.
+  - New script `scripts/catalog-price-summary-backfill.mjs`, modelled on the
+    price-repair script:
+    - token only from `CHANNEL_ADMIN_TOKEN`; HTTPS origin; owner-only manifest;
+    - `plan` pages through the whole catalog;
+    - `apply` sends only `ready` rows in batches of 20, stops on any unconfirmed
+      row, then re-plans and exits 2 if anything is still `ready`.
+- Deviations (extra files):
+  - `packages/db/package.json` gains the subpath export
+    `./catalog-price-summary-backfill` (existing pattern; the admin function
+    imports db through package exports).
+  - `scripts/catalog-price-summary-backfill.test.mjs`, a script test like the
+    price-repair one. Script and test were written together, not red-first.
+- Tests: handler (contributor and approval-off refused; bad mode rejected; plan
+  is read-only; apply writes the summary; second apply skipped; 21 rows
+  rejected) and script (paging, ≤20 per batch with the outcome field stripped,
+  stop on an unconfirmed row).
+- Validation: admin function 245/245; `pnpm test` exit 0 (includes
+  `test:deploy-smoke` script tests); `pnpm typecheck`; `pnpm lint`; packaged
+  smoke 3/3.
+- Batch 2b code complete (MIU-4, MIU-6, MIU-7).
 
 ### MIU-6 — price summary backfill (db) (2026-10-07)
 - What changed:
