@@ -19,6 +19,7 @@ import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { type SessionClaims, signSession, verifySession } from '@vibelingan-channel/auth/jwt';
 import { hashPassword, verifyPassword } from '@vibelingan-channel/auth/password';
+import { sourceObservationDocumentId } from '@vibelingan-channel/catalog-import/observations';
 import {
   type CatalogProductSaveInput,
   UnknownCollectionError,
@@ -129,6 +130,11 @@ import {
 import { releaseInfo } from '@vibelingan-channel/shared/release';
 import { z } from 'zod';
 import { manageCatalogCategories, saveCategoryMapping } from './catalog-categories.ts';
+import {
+  type ChangeAuditReader,
+  applyChangeAudit,
+  planChangeAudit,
+} from './catalog-change-audit.ts';
 import { prepareCatalogSource } from './catalog-detail-source.ts';
 import {
   CatalogProductWriteError,
@@ -675,6 +681,8 @@ export async function handleAdminRequest(
         return await backfillImageRefCountsAction(req, claims);
       case 'backfillPublicationPriceSummary':
         return await backfillPublicationPriceSummaryAction(req, claims, config);
+      case 'auditChangesSinceApproval':
+        return await auditChangesSinceApprovalAction(req, claims, config);
       case 'cleanupOrphanImages':
         return await cleanupOrphanImagesAction(req, claims);
       case 'migrateLegacyImages':
@@ -2256,6 +2264,81 @@ async function backfillPublicationPriceSummaryAction(
     });
   }
   return ok({ results });
+}
+
+const changeAuditRequest = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('plan'), afterId: z.string().min(1).max(200).optional() }).strict(),
+  z
+    .object({
+      mode: z.literal('apply'),
+      rows: z
+        .array(
+          z
+            .object({
+              productId: z.string().min(1).max(200),
+              revision: z.string().min(1).max(200),
+              outcome: z.enum(['unchanged', 'changed']),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(PRICE_SUMMARY_BACKFILL_PAGE),
+    })
+    .strict(),
+]);
+
+/** Reads exactly what an approval and the public detail reader read. */
+const changeAuditReader: ChangeAuditReader = {
+  listProducts: priceSummaryBackfillReader.listProducts,
+  listApprovedVariants: priceSummaryBackfillReader.listApprovedVariants,
+  getProduct: (id) => get('products', id),
+  async getObservation(sourceKey) {
+    const row = await get(
+      'catalogSourceObservations',
+      sourceObservationDocumentId('alibaba', sourceKey),
+    );
+    return row?.observation ?? null;
+  },
+};
+
+/**
+ * One-time "changed since approval" audit (MIU-38, runbook R6). `plan` is
+ * read-only; `apply` re-plans each reviewed row on the server and writes the
+ * baseline digest ("unchanged") or the review flag ("changed").
+ */
+async function auditChangesSinceApprovalAction(
+  req: AdminRequest,
+  claims: SessionClaims,
+  config: AdminConfig,
+): Promise<ApiResult<unknown>> {
+  if (claims.role !== 'admin') return err('FORBIDDEN', 'Only an admin may audit changes.');
+  if (config.enableDetailApproval !== true) {
+    return err('FORBIDDEN', 'Catalog detail approval is not enabled.');
+  }
+  if (Buffer.byteLength(JSON.stringify(req.data ?? null), 'utf8') > 65536) {
+    return err('VALIDATION_ERROR', 'Change audit request is too large.');
+  }
+  const parsed = changeAuditRequest.safeParse(req.data);
+  if (!parsed.success) return err('VALIDATION_ERROR', 'Invalid change audit request.');
+  if (parsed.data.mode === 'plan') {
+    return ok(
+      await planChangeAudit(changeAuditReader, {
+        ...(parsed.data.afterId ? { afterId: parsed.data.afterId } : {}),
+        pageSize: PRICE_SUMMARY_BACKFILL_PAGE,
+      }),
+    );
+  }
+  return ok({
+    results: await applyChangeAudit(
+      changeAuditReader,
+      (command) =>
+        persistCatalogDetailApproval(
+          claims.sub,
+          command as Parameters<typeof persistCatalogDetailApproval>[1],
+        ),
+      parsed.data.rows,
+    ),
+  });
 }
 
 /** Default orphan TTL: a `pending`/`failed` image older than this is treated as

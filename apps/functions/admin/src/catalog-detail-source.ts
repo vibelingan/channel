@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { buildCatalogDetailCandidate } from '@vibelingan-channel/catalog-import/detail-candidate';
 import {
+  type CatalogSourceObservation,
   sourceMediaLinkId,
   sourceObservationDocumentId,
   validateCatalogSourceObservation,
@@ -18,6 +19,42 @@ const command = z
     page: z.number().int().min(0).max(499).default(0),
   })
   .strict();
+/**
+ * Stable configuration ids: the same product, source and source variant always
+ * get the same id, so an approved configuration and today's candidate line up.
+ */
+export function sourceVariantIds(
+  productId: string,
+  sourceKey: string,
+  observation: CatalogSourceObservation,
+): Map<string, string> {
+  return new Map(
+    observation.variants.map((v) => {
+      const hash = createHash('sha256')
+        .update(JSON.stringify(['alibaba', productId, sourceKey, v.sourceVariantKey]))
+        .digest('hex');
+      return [
+        v.sourceVariantKey,
+        `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`,
+      ];
+    }),
+  );
+}
+
+/** The category fact label a candidate gets for the product's family. */
+export function catalogCategoryLabel(productFamily: unknown): { categoryLabel?: string } {
+  return isProductFamily(productFamily)
+    ? {
+        categoryLabel: {
+          headphones: 'Headphones',
+          'ai-gadgets': 'AI Gadgets',
+          toys: 'Toys',
+          misc: 'Misc',
+        }[productFamily],
+      }
+    : {};
+}
+
 /** Read the existing observation; approval never invokes Alibaba or downloads media. */
 export async function prepareCatalogSource(actorId: string, input: unknown) {
   const parsed = command.safeParse(input);
@@ -74,34 +111,10 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
       }),
     );
   }
-  const variants = new Map(
-    observation.variants.map((v) => {
-      const hash = createHash('sha256')
-        .update(JSON.stringify(['alibaba', productId, sourceKey, v.sourceVariantKey]))
-        .digest('hex');
-      return [
-        v.sourceVariantKey,
-        `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`,
-      ];
-    }),
-  );
+  const variants = sourceVariantIds(productId, sourceKey, observation);
   const candidate = buildCatalogDetailCandidate(
     observation,
-    {
-      productId,
-      variants,
-      images,
-      ...(isProductFamily(product.productFamily)
-        ? {
-            categoryLabel: {
-              headphones: 'Headphones',
-              'ai-gadgets': 'AI Gadgets',
-              toys: 'Toys',
-              misc: 'Misc',
-            }[product.productFamily],
-          }
-        : {}),
-    },
+    { productId, variants, images, ...catalogCategoryLabel(product.productFamily) },
     page + 1,
     20,
   );

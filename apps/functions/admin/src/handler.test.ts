@@ -5196,3 +5196,49 @@ test('price summary backfill apply skips a row reviewed against an older revisio
     false,
   );
 });
+
+// --- MIU-38: one-time "changed since approval" audit, through the handler ---
+
+const auditCall = (data: unknown, token: string, override: AdminConfig = approvalConfig) =>
+  handleAdminRequest(
+    { action: 'auditChangesSinceApproval', token, data } as Parameters<
+      typeof handleAdminRequest
+    >[0],
+    override,
+  );
+
+test('change audit is admin-only, needs detail approval and validates its request', async () => {
+  setup(backfillStore());
+  const contributor = await sessionToken({
+    sub: 'c-1',
+    email: 'c@example.com',
+    name: 'contributor',
+    role: 'contributor',
+  });
+  expectErr(await auditCall({ mode: 'plan' }, contributor), 'FORBIDDEN');
+  const admin = await adminToken();
+  expectErr(await auditCall({ mode: 'plan' }, admin, config), 'FORBIDDEN');
+  expectErr(await auditCall({ mode: 'apply', rows: [] }, admin), 'VALIDATION_ERROR');
+  expectErr(
+    await auditCall(
+      { mode: 'apply', rows: [{ productId: 'p', revision: 'r', outcome: 'maybe' }] },
+      admin,
+    ),
+    'VALIDATION_ERROR',
+  );
+});
+
+test('change audit plan reads products through the real wiring and writes nothing', async () => {
+  const store = backfillStore();
+  setAdapter(new BackfillAdapter(store));
+  currentStore = store;
+  const before = structuredClone(store.products);
+  const plan = okData<{ rows: Array<Record<string, unknown>>; done: boolean }>(
+    await auditCall({ mode: 'plan' }, await adminToken()),
+  );
+  assert.equal(plan.done, true);
+  assert.equal(plan.rows.length, store.products?.length);
+  // Neither fixture product has an Alibaba source with a stored observation.
+  assert.ok(plan.rows.every((row) => row.outcome === 'skipped'));
+  assert.deepEqual(store.products, before);
+});
