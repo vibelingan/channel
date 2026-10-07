@@ -69,7 +69,11 @@ define shapes that later MIUs consume.
 | 5b | 31, 37 | Publish gate for every product (after R9); audit shows 0 products on the row fallback (R10) |
 
 Order: implement and validate **all** batches locally first (DEC-13), run R1, then
-deploy batch by batch. Each batch: PR into `test` → Deploy Test → runbook checks →
+deploy batch by batch. **Batch 2a must deploy on its own** (only commit
+`5cf2a6b` on top of production): if the summary reader and its writers deploy
+together, any approval made during or after that deploy writes a `priceSummary`
+that the previous build cannot read, so neither a rollback nor a function-by-
+function rollout is safe (batch 2 review #2). Each batch: PR into `test` → Deploy Test → runbook checks →
 next batch.
 
 ---
@@ -247,7 +251,12 @@ Depends on: none
      currency preference USD, then CNY, then others alphabetically; ties → earliest
      SKU position → `source: 'sku'`, `variantId`.
   3. Else an amount-bearing product-level offer → `source: 'product'`.
-  4. Else `undefined` (card shows "Request a quote").
+  4. Else a "request a quote" that still states a minimum order (product-level
+     first, then the first SKU) → so the card can show the MOQ like the page
+     (DEC-16; added in the batch 2 review).
+  5. Else `undefined` (card shows "Request a quote").
+  Tiers ending below the minimum order are ignored (the page ignores them too);
+  currency ranking ignores letter case.
 - Wiring: `@vibelingan-channel/shared` lists its exports explicitly
   (`packages/shared/package.json`; `./catalog-detail` → `product-detail.ts`).
   Re-export the schema, type and `derivePriceSummary` from `product-detail.ts`, so
@@ -1626,9 +1635,9 @@ production data and need the owner's go-ahead at the time.
 | Step | When | What | Check |
 |---|---|---|---|
 | R1 ⚠ | After all batches are implemented and pass local validation, before the first deploy (DEC-13) | Unpublish the 21 products (list in EXECUTION_LOG) via admin. Their "changed" flag (set later by R6) is not cleared by unpublishing (DEC-11) | Their list/detail URLs return not found |
-| R2 ⚠ | After batch 1 | Alibaba observation replay: Validate (dry run) → check counts ("Headline prices removed", price modes) and failures → Apply. Also count wholesale products without SKUs that now use their ladder (MIU-1). Run R3 **before** this step. Note: replay never writes `products`; a product row's sync price (`alibabaCatalogPricing`) changes only when a later run sees and re-promotes that product ("Run now" is incremental). After batch 3 no public surface reads that field, and re-approval (R7) reads the replayed observations, so this lag affects only admin views | No `offer-set-mismatch` failures; next "Run now" counts no surge; re-running the same Apply is safe (repeat-safe since the batch 1 review) |
+| R2 ⚠ | After batch 1 | Alibaba observation replay: Validate (dry run, made **after** the deploy — dry runs made before it fail safely with `page-changed` because the page hash inputs changed) → check counts ("Headline prices removed", price modes) and failures → Apply. Also count wholesale products without SKUs that now use their ladder (MIU-1). Run R3 **before** this step. Note: replay never writes `products`; a product row's sync price (`alibabaCatalogPricing`) changes only when a later run sees and re-promotes that product ("Run now" is incremental). After batch 3 no public surface reads that field, and re-approval (R7) reads the replayed observations, so this lag affects only admin views | No `offer-set-mismatch` failures; next "Run now" counts no surge; re-running the same Apply is safe (repeat-safe since the batch 1 review) |
 | R3 | **Before R2** | Count products with `alibabaPinnedOfferKey`, and especially any pin pointing at a product-level (`'@product'`) offer that R2 would retire (pricing repair would then report `invalid-pin` and promotion would silently pick another offer) | 0 → continue; >0 → stop and ask (DESIGN §9) |
-| R4 ⚠ | After batch 2b | `catalog-price-summary-backfill.mjs` plan → review → `--apply` | Approved versions without `priceSummary`: 0 |
+| R4 ⚠ | After batch 2b | Check no `catalogDetailApprovals` job is in `staging` (a job begun before the deploy finishes without a summary). Then `catalog-price-summary-backfill.mjs` plan → review → `apply`; re-run the plan right before the batch 3 deploy | Approved versions without `priceSummary`: 0 |
 | R5 | After batch 3 | Count (a) unlinked products with an old publication and (b) linked published products without an approved version; run `catalog-consistency-audit.mjs` | (b) = 0 expected (2026-10-06: 0); mismatches: 0 (the 21 are unpublished, so not counted) |
 | R6 ⚠ | Right after batch 4, before admins use Save on published products | `auditChangesSinceApproval` plan → review → apply (MIU-38). Until it runs, products have no baseline digest and are never flagged, so DEC-12 cannot hold back their supplier changes | The 21 appear as `changed`; others get a baseline digest |
 | R7 | After R6 | Admin approves each flagged product ("Approve changes" or Publish) | Flags cleared; products back in the list |

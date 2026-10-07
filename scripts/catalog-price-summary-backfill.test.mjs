@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { applyReadyRows, countOutcomes, planAll } from './catalog-price-summary-backfill.mjs';
+import {
+  applyReadyRows,
+  countOutcomes,
+  planAll,
+  tallyResults,
+} from './catalog-price-summary-backfill.mjs';
 
 const ready = (id) => ({
   productId: id,
@@ -73,5 +78,16 @@ test('apply stops when the server reports a row it could not confirm', async () 
       [ready('a')],
     ),
     /a: CONFLICT/,
+  );
+});
+
+test('apply totals separate applied rows from skipped rows by reason', () => {
+  assert.deepEqual(
+    tallyResults([
+      { productId: 'a', result: { ok: true, backfill: 'applied' } },
+      { productId: 'b', result: { ok: true, backfill: 'skipped', reason: 'summary-changed' } },
+      { productId: 'c', result: { ok: true, backfill: 'skipped', reason: 'summary-changed' } },
+    ]),
+    { applied: 1, 'skipped:summary-changed': 2 },
   );
 });

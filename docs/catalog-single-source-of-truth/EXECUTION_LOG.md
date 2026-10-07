@@ -15,7 +15,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 6 | Price summary backfill (db command) | 2b | Done | `96c3157` |
 | 7 | Backfill admin action + script | 2b | Done | `bcfac0a` |
 | 8 | Public list / item / slug read the one version | 3 | Done | `b7153f5` |
-| 9 | Product page endpoint uses the rule | 3 | Done | (this commit) |
+| 9 | Product page endpoint uses the rule | 3 | Done | `443f22d` |
 | 10 | Quote request uses the rule | 3 | Not started | |
 | 11 | Site decoder + `Product.priceSummary` | 3 | Not started | |
 | 12 | Card price / MOQ from summary | 3 | Not started | |
@@ -91,6 +91,36 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### Batch 2 review fixes (2026-10-07)
+Review of the batch 1 fix, MIU-3, MIU-4, MIU-6 and MIU-7: 0 P1, 2 P2, 12 P3.
+Fixed:
+
+- **P2 — the backfill trusted the caller's summary.** `apply` now re-plans each
+  product on the server (`planProductPriceSummary`) and writes the server's
+  summary only when it equals the reviewed row; otherwise it skips with
+  `summary-changed` / `plan-changed`. Test: a forged summary is refused and
+  nothing is written.
+- **P2 — deploy order.** Runbook: batch 2a (`5cf2a6b`) deploys alone, before any
+  writer.
+- **P3:**
+  - card/page parity: tiers below the MOQ are ignored;
+  - DEC-16 for synced products: a "request a quote" with an MOQ yields a summary
+    (rule 4);
+  - currency ranking ignores case;
+  - the schema ties `variantId` to SKU summaries and requires a price or an MOQ;
+  - the planner applies the public reader's row checks (storage key, variant id,
+    contiguous positions);
+  - 64 KB request cap;
+  - script totals by reason;
+  - replay comment on update-only false;
+  - runbook: redo the replay dry run after deploy; check no staging job before R4;
+    re-plan before batch 3;
+  - more tests (range, case, CNY SKU vs USD product, MOQ-only, schema, row
+    forgery, positions, header mismatch).
+- **Not fixed (out of scope, noted):** the local JSON adapter's `_id gt`
+  comparison (`packages/shared/src/query.ts`) can mis-page unusual ids. Local
+  rehearsal only; CloudBase is unaffected.
 
 ### MIU-9 — product page endpoint uses the shared rule (2026-10-07)
 - What changed: `getProductDetail` uses `resolvePublicVersion` for both its first

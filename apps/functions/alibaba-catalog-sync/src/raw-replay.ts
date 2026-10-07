@@ -775,6 +775,10 @@ export async function replayAlibabaRawPage(
           );
           if (!deactivated) return { ok: false, reason: 'lease-lost' };
         }
+        // Update-only writes return false for a missing document as well as for a
+        // lost lease. Both documents were read under this lease in this call, so
+        // in practice false means the lease was lost; either way nothing partial
+        // is created and the apply must be re-validated.
         // Store the content hash the next ingest will compute, so a parser change
         // does not make every replayed product look changed to the surge guard.
         const sourceWritten = await port.updateSourceProduct(

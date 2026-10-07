@@ -140,3 +140,109 @@ test('summary schema is strict and the publication accepts it only at top level'
     false,
   );
 });
+
+test('tiers below the minimum order are ignored, as the product page ignores them', () => {
+  const belowMoq: CatalogOfferPricing = {
+    mode: 'tiered',
+    currency: 'USD',
+    minimumOrderQuantity: 100,
+    tiers: [
+      { minimumQuantity: 1, maximumQuantity: 99, unitAmountMinor: 50 },
+      { minimumQuantity: 100, unitAmountMinor: 80 },
+    ],
+  };
+  const cheaperElsewhere: CatalogOfferPricing = { mode: 'fixed', currency: 'USD', amountMinor: 70 };
+  assert.deepEqual(
+    derivePriceSummary({
+      offers: [],
+      variants: [
+        { id: 'a', offers: [supplier(belowMoq)] },
+        { id: 'b', offers: [supplier(cheaperElsewhere)] },
+      ],
+    }),
+    { source: 'sku', variantId: 'b', pricing: cheaperElsewhere },
+  );
+});
+
+test('currency ranking ignores letter case; range prices compare by their minimum', () => {
+  const lowerUsd: CatalogOfferPricing = { mode: 'fixed', currency: 'usd', amountMinor: 900 };
+  const range: CatalogOfferPricing = {
+    mode: 'range',
+    currency: 'CNY',
+    minimumAmountMinor: 100,
+    maximumAmountMinor: 200,
+  };
+  assert.equal(
+    derivePriceSummary({
+      offers: [],
+      variants: [
+        { id: 'cny', offers: [supplier(range)] },
+        { id: 'usd', offers: [supplier(lowerUsd)] },
+      ],
+    })?.variantId,
+    'usd',
+  );
+});
+
+test('a priced SKU in any currency wins over a product-level price, as on the product page', () => {
+  const cny: CatalogOfferPricing = { mode: 'fixed', currency: 'CNY', amountMinor: 3000 };
+  assert.deepEqual(
+    derivePriceSummary({
+      offers: [supplier({ mode: 'fixed', currency: 'USD', amountMinor: 400 })],
+      variants: [{ id: 'a', offers: [supplier(cny)] }],
+    }),
+    { source: 'sku', variantId: 'a', pricing: cny },
+  );
+});
+
+test('with no price anywhere, a minimum order still gives a summary (product first, then first SKU)', () => {
+  const moq = (n: number): CatalogOfferPricing => ({
+    mode: 'unavailable',
+    minimumOrderQuantity: n,
+  });
+  assert.deepEqual(
+    derivePriceSummary({
+      offers: [supplier(moq(50))],
+      variants: [{ id: 'a', offers: [supplier(moq(10))] }],
+    }),
+    { source: 'product', pricing: moq(50) },
+  );
+  assert.deepEqual(
+    derivePriceSummary({
+      offers: [],
+      variants: [
+        { id: 'a', offers: [supplier({ mode: 'unavailable' })] },
+        { id: 'b', offers: [supplier({ mode: 'negotiable', minimumOrderQuantity: 20 })] },
+      ],
+    }),
+    {
+      source: 'sku',
+      variantId: 'b',
+      pricing: { mode: 'negotiable', minimumOrderQuantity: 20 },
+    },
+  );
+});
+
+test('the summary schema ties variantId to SKU summaries and refuses empty price-less summaries', () => {
+  const fixed = { mode: 'fixed', currency: 'USD', amountMinor: 1 };
+  assert.equal(
+    CatalogPriceSummarySchema.safeParse({ source: 'sku', pricing: fixed }).success,
+    false,
+  );
+  assert.equal(
+    CatalogPriceSummarySchema.safeParse({ source: 'product', variantId: 'a', pricing: fixed })
+      .success,
+    false,
+  );
+  assert.equal(
+    CatalogPriceSummarySchema.safeParse({ source: 'product', pricing: { mode: 'unavailable' } })
+      .success,
+    false,
+  );
+  assert.ok(
+    CatalogPriceSummarySchema.safeParse({
+      source: 'website',
+      pricing: { mode: 'negotiable', minimumOrderQuantity: 5 },
+    }).success,
+  );
+});
