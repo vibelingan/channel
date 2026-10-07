@@ -27,27 +27,27 @@ built-in `localStorage` breaks some admin tests); CI uses Node 22.
 | ID | Product task (what a buyer or admin notices) | MIUs |
 |---|---|---|
 | PT-0 | Product page shows Alibaba-style tier prices (done: PR #64 to `test`, commits `5913f20`, `7984dea`; review fix `71272a6` hides tiers below the MOQ) | — |
-| PT-A | A product's headline Alibaba price is never shown as a fixed price | 1–2 |
+| PT-A | A product's headline Alibaba price is never shown as a fixed price | 1, 2, 36 |
 | PT-B | List card, product page and quote always show the same approved data | 3–14 |
-| PT-C | Admins see which products changed since approval and approve them in one action | 15–25 |
+| PT-C | Admins see which products changed since approval and approve them in one action | 15–25, 35, 38 |
 | PT-D | The 21 products are restored and consistency is proven on the live site | 26 + runbook |
-| PT-E | Manual products look and behave exactly like synced ones (same version, API keys, page, quote) | 27–34 |
+| PT-E | Manual products look and behave exactly like synced ones (same version, API keys, page, quote) | 27–34, 37 |
 
 ## Dependency order and deploy batches
 
 ```
-PT-A   1 → 2
+PT-A   1 → 2 → 36
 PT-B   3 → 4
        3 → 6 → 7
        3 → 5 → 8, 9, 10
        3 → 11 → 12 → 13
        8, 12 → 14
-PT-C   15 → 21, 23 → 24, 25
+PT-C   15 → 21, 23 → 24, 25 → 35
        16 → 17 → 18
        15, 16, 18 → 19 → 20
-       15, 16, 18 → 22
-PT-D   26 (no code dependency; run after batch 3 and batch 4)
-PT-E   4 → 27 → 28 → 29, 30 → 31
+       15, 18 → 22;  16, 22 → 38
+PT-D   3, 8 → 26
+PT-E   4 → 27 → 28 → 29, 30 → 31 → 37
        25, 30 → 32
        33 (none)
        8, 9, 10, 27–33 → 34
@@ -59,11 +59,13 @@ define shapes that later MIUs consume.
 
 | Batch | MIUs | Deployed state after the batch |
 |---|---|---|
-| 1 | 1, 2 | Headline no longer a price; stored offers rebuilt by replay (runbook R2) |
-| 2 | 3, 4, 6, 7 | Every approval stores a price summary; existing versions backfilled (R4). **Public reads unchanged.** |
-| 3 | 5, 8, 9, 10, 11, 12, 13, 14, 26 | All public surfaces read the one version; consistency audit passes (R5) |
-| 4 | 15–25 | "Changed" flag live; audit flags stale products (R6); admin re-approves (R7) |
-| 5 | 27–34 | Manual products approvable; admin approves the 7 live ones (R9); audit shows 0 products on the row fallback (R10). MIU-31 waits for OWN-1 / OWN-2 |
+| 1 | 1, 2, 36 | Headline no longer a price; stored offers rebuilt by replay (runbook R2) |
+| 2a | 3 | Functions can **read** a publication with a price summary (nothing writes one yet). Makes later rollbacks safe |
+| 2b | 4, 6, 7 | Every approval stores a price summary; existing versions backfilled (R4). **Public reads unchanged** |
+| 3 | 5, 8–14, 26 | All public surfaces read the one version; consistency audit passes (R5) |
+| 4 | 15–25, 35, 38 | "Changed" flag live; audit flags stale products (R6, run before admins use Save); admin re-approves (R7) |
+| 5a | 27–30, 32–34 | Manual products approvable; admin approves the 7 live ones (R9) |
+| 5b | 31, 37 | Publish gate for every product (needs R9 done and OWN-1 / OWN-2 decided); audit shows 0 products on the row fallback (R10) |
 
 Order: implement and validate **all** batches locally first (DEC-13), run R1, then
 deploy batch by batch. Each batch: PR into `test` → Deploy Test → runbook checks →
@@ -90,8 +92,12 @@ Depends on: none
   `detail.skus.length > 0`. The wholesale headline
   (`wholesaleTrade.priceLexeme`) is Alibaba's cheapest-tier summary, not a price
   (DESIGN §2.3).
-- Products **without** SKUs keep today's behaviour (ladder → tiered, wholesale
-  price → fixed, FOB → range). Sourcing (FOB) products **with** SKUs are unchanged.
+- Products **without** SKUs: if Alibaba sends a product-level ladder, use it
+  (tiered) — today the wholesale branch runs first (`alibaba-normalizer.ts:327-341`)
+  and stores the headline as fixed even when a ladder exists, the same defect.
+  Only a wholesale product with neither SKUs nor a ladder keeps the headline as
+  its fixed price. FOB → range unchanged. Sourcing (FOB) products **with** SKUs
+  are unchanged.
 - Return type `NormalizeResult` unchanged; only the `offers` array content changes.
 - Keep the headline amount available for audit only if a caller needs it (no new
   field unless a test requires it).
@@ -111,9 +117,11 @@ Depends on: none
   pricing `mode === 'unavailable'` (product shows "Request a quote").
 - `:498-514` captured wire fixture: update the "both price scopes" expectation to
   SKU scope only.
-- Regression: a wholesale product with **zero** SKUs still yields one `'@product'`
-  fixed offer (`alibaba-normalizer.test.ts:126` stays green); a sourcing product
-  with SKUs still yields its FOB range offer.
+- Wholesale, zero SKUs, product ladder present → one `'@product'` **tiered** offer
+  from the ladder (new test).
+- Wholesale, zero SKUs, no ladder → one `'@product'` fixed offer (the existing loop
+  at `alibaba-raw-completeness.test.ts:343-357` stays green).
+- A sourcing product with SKUs still yields its FOB range offer.
 
 **Done when**
 - The four assertions pass; all `packages/alibaba-catalog-sync` tests pass.
@@ -135,8 +143,13 @@ Depends on: MIU-1
   `'alibaba-content-media-v5'`) to `'alibaba-content-media-v6'`.
 - Extend the one-way key exception (`raw-replay.ts:606-621`): when the existing
   active set equals the replayed set **plus** exactly the `'@product'` offer, the
-  manifest row is valid (reason `product-headline-dropped`) instead of
-  `offer-set-mismatch`. Any other difference still fails.
+  product is accepted instead of failing with `offer-set-mismatch`. Any other
+  difference still fails.
+- The replay result today is `{counts, priceModes, failures[]}`
+  (`raw-replay.ts:165-208`). Add `counts.productHeadlineDropped` (number of
+  products whose headline offer will be / was deactivated). The admin page
+  decodes this result strictly (`alibaba-api.ts:430-446`, `hasExactKeys`), so the
+  decoder and display change in MIU-36, deployed in the same batch.
 - On apply (`raw-replay.ts:706-769`), set `active: false` on that `'@product'`
   offer in the same guarded write as the rebuilt SKU offers.
 - Export `contentFingerprint` from `ingest.ts` (no behaviour change) and have apply
@@ -153,18 +166,50 @@ Depends on: MIU-1
 
 **Test plan (write first)**
 - Existing active offers = SKU offers + `'@product'`; replayed = SKU offers only →
-  dry-run row status valid with reason `product-headline-dropped` (not
-  `offer-set-mismatch`).
+  dry run: no failure, `counts.productHeadlineDropped === 1`.
 - Apply on that row: SKU offers rebuilt; `'@product'` offer `active === false`;
   `alibabaSourceProducts.contentHash` equals `contentFingerprint(...)` of the
   replayed result; no `products` write captured.
 - Negative: replay set missing a **SKU** offer → still `offer-set-mismatch`, nothing
   written.
 - `raw-replay.test.ts:74` add-only exception still passes.
+- Update the pinned parser version expectation (`raw-replay.test.ts:348`,
+  `'alibaba-content-media-v5'` → `v6`).
 
 **Done when**
 - All `raw-replay` tests pass; `apps/functions/alibaba-catalog-sync` tests pass.
 - `pnpm typecheck`, `pnpm build:functions && pnpm smoke:functions` pass.
+
+### MIU-36: replay admin page accepts and shows `productHeadlineDropped`
+
+```
+Block:      FRONTEND
+Files:      apps/site/src/islands/admin/alibaba-catalog-sync/alibaba-api.ts
+            apps/site/src/islands/admin/alibaba-catalog-sync/AlibabaObservationReplay.tsx
+            apps/site/src/islands/admin/alibaba-catalog-sync/alibaba-observation-replay.test.ts
+Type:       modify-existing
+Depends on: MIU-2
+```
+
+**What it does**
+- The replay result decoder (`alibaba-api.ts:430-446`, `hasExactKeys`) accepts the
+  new `counts.productHeadlineDropped` (non-negative integer) and still rejects any
+  other unknown key.
+- The replay page shows it next to the existing counts: "Headline prices removed:
+  N", so the admin sees in the dry run how many products are affected (runbook R2).
+
+**Build/Deploy/Runtime impact**
+- Admin island bundle. Must ship in the **same deploy** as MIU-2, or the replay
+  page rejects the new response.
+
+**Test plan (write first)**
+- Response with `productHeadlineDropped: 3` → decodes; the page renders "3".
+- Response with an unknown extra key → still rejected.
+
+**Done when**
+- Tests pass; `pnpm typecheck`; `pnpm build`.
+
+---
 
 ---
 
@@ -202,8 +247,11 @@ Depends on: none
      SKU position → `source: 'sku'`, `variantId`.
   3. Else an amount-bearing product-level offer → `source: 'product'`.
   4. Else `undefined` (card shows "Request a quote").
-- Re-exported from `packages/shared/src/catalog/index.ts` only if that is the
-  existing pattern for catalog helpers.
+- Wiring: `@vibelingan-channel/shared` lists its exports explicitly
+  (`packages/shared/package.json`; `./catalog-detail` → `product-detail.ts`).
+  Re-export the schema, type and `derivePriceSummary` from `product-detail.ts`, so
+  db, public-api and the site import them from `@vibelingan-channel/shared/catalog-detail`
+  without a new package entry.
 
 **Build/Deploy/Runtime impact**
 - `@vibelingan-channel/shared` is consumed raw-TS by the site (Astro/Vite) and
@@ -277,7 +325,8 @@ Depends on: MIU-3
 Block:      BACKEND (shared contract)
 Files:      packages/shared/src/catalog/public-version.ts        (new)
             packages/shared/src/catalog/public-version.test.ts   (new)
-Type:       new-file
+            packages/shared/src/catalog/product-detail.ts        (re-export)
+Type:       new-file + modify-existing
 Depends on: MIU-3
 ```
 
@@ -291,7 +340,8 @@ Depends on: MIU-3
   and a product linked or unlinked after approval keeps its approved version.
 - Everything else (never approved yet, feature off) → `row`, the temporary fallback
   that the consistency audit counts.
-- Pure; never throws.
+- Pure; never throws. Re-exported from `product-detail.ts`
+  (`@vibelingan-channel/shared/catalog-detail`), like MIU-3.
 
 **Build/Deploy/Runtime impact**
 - Shared package, as MIU-3. None beyond build verification.
@@ -313,7 +363,8 @@ Depends on: MIU-3
 Block:      BACKEND
 Files:      packages/db/src/catalog-price-summary-backfill.ts        (new)
             packages/db/src/catalog-price-summary-backfill.test.ts   (new)
-Type:       new-file
+            packages/db/src/catalog-detail-staging.ts
+Type:       new-file + modify-existing
 Depends on: MIU-3
 ```
 
@@ -325,13 +376,18 @@ Depends on: MIU-3
   `immutable-v1`, else `productVariants.catalogDetailApproved`, same as
   `catalog-detail.ts:43-48`), and returns a manifest row per product:
   `{productId, revision, proposedSummary | null, reason}`.
-- `applyPriceSummaryBackfill(manifestRows)` writes **only**
-  `catalogDetailPublication.priceSummary`, in a transaction that re-reads the
-  product and requires the same `revision` (skip with `revision-changed`
-  otherwise). Never changes `revision`, receipts, `published` or any other field.
-  Idempotent: rows that already have a summary are skipped.
-- Uses only the existing db adapter (`get`, `list`, transactions). No new CloudBase
-  SDK surface, so `pnpm verify:cloudbase-sdk` is not affected.
+- Apply: the db adapter has no generic transaction; each transactional write is a
+  purpose-built command (`adapter.ts:491-571`, dispatched through
+  `persistCatalogDetailApproval`). Add a command
+  `{action: 'price-summary-backfill', productId, revision, priceSummary}` to
+  `PersistenceCommandSchema` and its dispatch (`catalog-detail-staging.ts:64-75, 372`).
+  - In one transaction it re-reads the product and requires the same publication
+    `revision` (else `revision-changed`, no write).
+  - It writes the product row back (transaction `set` replaces the row) with only
+    `catalogDetailPublication.priceSummary` added.
+  - It never changes `revision`, receipts, `published` or any other field.
+  - Idempotent: a product that already has a summary is skipped.
+- No new CloudBase SDK surface (`pnpm verify:cloudbase-sdk` unaffected).
 
 **Build/Deploy/Runtime impact**
 - `packages/db` is bundled into the admin function. No index change: paging by
@@ -343,8 +399,9 @@ Depends on: MIU-3
 - Legacy-storage product (`productVariants.catalogDetailApproved`) → same rule.
 - Product whose revision changes between plan and apply → `revision-changed`, no
   write captured.
-- Apply writes exactly one field path (assert the captured update object has only
-  `catalogDetailPublication.priceSummary`); second apply is a no-op.
+- After apply, the stored row equals the row before except at
+  `catalogDetailPublication.priceSummary` (deep-equal after deleting that path);
+  a second apply is a no-op.
 
 **Done when**
 - Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
@@ -387,13 +444,18 @@ Depends on: MIU-6
 ```
 Block:      BACKEND
 Files:      apps/functions/public-api/src/handler.ts
+            apps/functions/public-api/src/http-adapter.ts   (one-line field move)
             apps/functions/public-api/src/http-adapter.test.ts
-            apps/functions/public-api/src/handler.test.ts
 Type:       modify-existing
 Depends on: MIU-3, MIU-5
 ```
 
 **What it does**
+- Move `enableCatalogDetail?: boolean` from `PublicHttpConfig`
+  (`http-adapter.ts:27`) to `PublicApiConfig` (`handler.ts:42-51`).
+  `PublicHttpConfig extends PublicApiConfig`, and the same config object is
+  already passed to `listCatalog` / `getCatalogItem` / `getCatalogItemBySlug`
+  (`http-adapter.ts:367, 378, 389`), so no other wiring changes.
 - In `publicDoc` (`handler.ts:296-341`), call
   `resolvePublicVersion(doc, { detailEnabled: config.enableCatalogDetail === true })`.
 - `approved` →
@@ -407,9 +469,12 @@ Depends on: MIU-3, MIU-5
   - **omit** `alibabaCatalogPricing`, `unitPrice`, `wholesalePrice`,
     `manualCatalogPricing` (sync and row prices must not reach the card)
   - **omit** the Alibaba markers `alibabaPrimarySourceKey`, `alibabaSourceStatus`,
-    `alibabaSourceLastSyncedAt` and the row `variants` (`attachVariants`,
-    `handler.ts:257-284`), so a synced and a manual product carry exactly the same
-    keys (DEC-14). The site never renders list `variants` (checked by grep).
+    `alibabaSourceLastSyncedAt` (DEC-14).
+- Row `variants` are attached **outside** `publicDoc`: `attachVariants`
+  (`handler.ts:257-284`) is called from `listCatalog` (`:409, :416`) and
+  `withVariants` (`:459-466`). Both call sites must skip approved items, so
+  `publicDoc` (or a small wrapper) also returns the version kind. The site never
+  renders list `variants` (checked by grep).
 - `row` (not yet approved) → today's projection, byte-identical.
 - Applies to `listCatalog` (`handler.ts:348-422`), item (`:424-439`) and slug
   (`:441-456`) because all three use `publicDoc`. Filters, sort, paging, search and
@@ -438,8 +503,8 @@ Depends on: MIU-3, MIU-5
 - Item and slug endpoints return the same projection as the list for the same product.
 
 **Done when**
-- Updated public-api tests pass (`http-adapter.test.ts`, `handler.test.ts`,
-  `catalog-variants.test.ts`).
+- Updated public-api tests pass (`http-adapter.test.ts`; existing
+  `handler.test.ts` and `catalog-variants.test.ts` stay green).
 - `pnpm typecheck`, `pnpm build:functions && pnpm smoke:functions` pass.
 
 ### MIU-9: product page endpoint uses the shared rule
@@ -521,18 +586,21 @@ Depends on: MIU-3 (contract: packages/shared/src/catalog/price-summary.ts)
 **What it does**
 - `Product` (`catalog-types.ts:45-77`) gains `priceSummary?: CatalogPriceSummary`
   (type imported from the MIU-3 contract).
-- `isProduct` (`api.ts:152-209`) validates `priceSummary` with
-  `CatalogPriceSummarySchema.safeParse`; on failure it **drops only that key** and
-  keeps the product, so one bad summary cannot fail the whole page
+- `isProduct` (`api.ts:152-209`) is a boolean type guard used in three places
+  (`:215, :288, :313`) and cannot strip keys. So it does **not** check
+  `priceSummary` at all: a bad summary can never fail the whole page
   (`isCatalogPage`, `api.ts:211-220`).
+- New helper `readPriceSummary(product) → CatalogPriceSummary | undefined` runs
+  `CatalogPriceSummarySchema.safeParse` at use time; an invalid summary reads as
+  absent. MIU-12 and MIU-13 read the summary only through this helper.
 
 **Build/Deploy/Runtime impact**
 - Site bundle only. Ships in the same deploy as MIU-8.
 
 **Test plan (write first)**
-- Valid summary → kept on the decoded product.
-- Malformed summary (unknown key / bad pricing) → product kept, `priceSummary`
-  undefined, page decodes.
+- Valid summary → `readPriceSummary` returns it.
+- Malformed summary (unknown key / bad pricing) → page still decodes;
+  `readPriceSummary` returns `undefined`.
 - Product without summary → unchanged behaviour.
 
 **Done when**
@@ -552,7 +620,8 @@ Depends on: MIU-11
 **What it does**
 - `effectiveCatalogPriceSummary` and `effectiveCatalogMoq`
   (`EffectiveCatalogPricingBlock.tsx:11-22`, `catalog-pricing.ts:15-22`): when
-  `product.priceSummary` is present it is the only price input. Card text:
+  `readPriceSummary(product)` (MIU-11) returns a summary it is the only price
+  input. Card text:
   - tiered → "From <lowest tier>"
   - fixed → the amount
   - range → "From <min>"
@@ -597,23 +666,27 @@ Depends on: MIU-12
 - Site bundle only.
 
 **Test plan (write first)**
-- Product with `priceSummary` MOQ 10 and row `moq` 2 → strip shows 10.
-- Manual product with row `moq` 50 → strip shows 50.
+- Approved product (payload `moq` already taken from the summary by MIU-8, e.g.
+  10) with a summary MOQ 10 → strip shows 10.
+- Product on the row fallback with manual tiers starting at 20 and row `moq` 2 →
+  strip shows 20 (effective MOQ, as the card does), not the raw 2.
 
 **Done when**
-- Tests pass; `pnpm build`.
+- Tests pass; `pnpm typecheck`; `pnpm build`.
 
 ### MIU-14: e2e — configuration switch changes the price; card matches page
 
 ```
 Block:      TESTING
 Files:      tests/e2e/sku-detail.spec.ts
-Type:       new-test
+Type:       modify-existing
 Depends on: MIU-8, MIU-12
 ```
 
 **What it does**
-- New mocked-API test: product with SKU "Black" (tiers 2–99 $6.61, 100–999 $5.55,
+- `sku-detail.spec.ts:836-870` already asserts per-configuration tiers and the
+  White fallback in one scenario; extend that file rather than duplicating it.
+- Mocked-API test: product with SKU "Black" (tiers 2–99 $6.61, 100–999 $5.55,
   ≥1,000 $4.76) and SKU "White" (≥1,000 $4.30). Selecting each configuration shows
   that configuration's own tiers in `[data-price-tier]`.
 - Card test: list item with `priceSummary` from "White" → card shows "From $4.30";
@@ -630,6 +703,8 @@ Depends on: MIU-8, MIU-12
 **Done when**
 - `pnpm exec playwright test tests/e2e/sku-detail.spec.ts --project=chromium`
   passes locally (with `NODE_OPTIONS=--no-experimental-webstorage` on Node 25).
+- All existing `sku-detail.spec.ts` scenarios stay green; `pnpm typecheck` (e2e
+  project) passes.
 
 ---
 
@@ -647,7 +722,10 @@ Depends on: none
 ```
 
 **What it does**
-- New read-only product field `alibabaReviewReason: 'new' | 'changed' | 'removed' | null`
+- New read-only product field
+  `alibabaReviewReason: 'new' | 'changed' | 'removed' | 'edited' | null`
+  (`'edited'` is written only if OWN-1 is accepted: a contributor's save on a
+  published product, MIU-31)
   next to `alibabaReviewPending` (`collections.ts:439-445`), in the pinned field
   list (`alibaba-collections.test.ts:77-91`).
 - `alibaba-product-identity.ts`: add to `writableFields` / `clearedFields`
@@ -676,7 +754,8 @@ Depends on: none
 Block:      BACKEND (shared contract)
 Files:      packages/shared/src/catalog/public-source-digest.ts        (new)
             packages/shared/src/catalog/public-source-digest.test.ts   (new)
-Type:       new-file
+            packages/shared/package.json   (new export entry)
+Type:       new-file + modify-existing
 Depends on: none
 ```
 
@@ -695,10 +774,15 @@ Depends on: none
   `sourceUpdatedAt`, pricing `syncedAt`, title.
 
 **Build/Deploy/Runtime impact**
-- Shared package; uses `node:crypto` like existing digest helpers in `packages/db`
-  and `alibaba-catalog-sync`. It must not be imported by site/browser code (add a
-  comment and keep it out of the browser `index.ts` export if that index is
-  browser-shared).
+- Shared package. It is the first file in `shared` to use `node:crypto`, so it
+  gets its own export entry `./catalog-source-digest` in
+  `packages/shared/package.json` and is never re-exported from a module the site
+  imports (`./catalog`, `./catalog-detail`). Consumers: `packages/db` (MIU-17),
+  the sync function (MIU-19) and the admin function (MIU-38), all server-side.
+- The helper picks fields explicitly (never hashes a whole object), because the
+  db path hashes the stored observation and the sync path hashes the
+  `validateCatalogSourceObservation` result (`linking.ts:297-310`); extra or
+  defaulted keys must not change the digest.
 
 **Test plan (write first)**
 - Same observation with different `observedAt`, `captureMode`, stock and
@@ -706,6 +790,9 @@ Depends on: none
 - One SKU tier amount changed → different digest.
 - SKU added / option value changed / media order changed → different digest.
 - Title changed → identical digest.
+- Parity: one stored observation hashed raw and after
+  `validateCatalogSourceObservation` → identical digest (otherwise every product
+  would be flagged "changed" on its first sync).
 
 **Done when**
 - Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
@@ -823,10 +910,11 @@ Depends on: MIU-19
 **What it does**
 - Quarantine approval builds its own promote patch (`quarantine.ts:136-210`); route
   it through the same digest comparison and pass the digest to the promote mutation.
-- `linking.test.ts:731-748` pins "an incremental refresh never resurrects a reviewed
-  product as New". Keep that for **New** (a refresh never sets reason `'new'` on a
-  reviewed product), and add the new rule: a refresh with a changed digest sets
-  `'changed'`.
+- `linking.test.ts:731-748` pins "a draft retry never reopens a product an admin
+  already reviewed"; the review-queue doc (`NEW-PRODUCT-REVIEW-QUEUE-MIU-2026-09-04.md:37`)
+  states the broader "never resurrect as New" rule. Keep both for **New** (nothing
+  sets reason `'new'` on a reviewed product), and add the new rule: a sync whose
+  digest differs from the approved one sets `'changed'`.
 - Add a dated note to the review-queue doc pointing to this design.
 
 **Build/Deploy/Runtime impact**
@@ -881,7 +969,41 @@ Depends on: MIU-15
 **Done when**
 - Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
 
-### MIU-22: one-time "changed since approval" audit action
+### MIU-22: `change-audit-mark` db command (writes for the one-time audit)
+
+```
+Block:      BACKEND
+Files:      packages/db/src/catalog-change-audit-store.ts        (new)
+            packages/db/src/catalog-change-audit-store.test.ts   (new)
+            packages/db/src/catalog-detail-staging.ts
+Type:       new-file + modify-existing
+Depends on: MIU-15, MIU-18
+```
+
+**What it does**
+- New persistence command
+  `{action: 'change-audit-mark', productId, revision, outcome: 'unchanged' | 'changed', sourceDigest?}`
+  in `PersistenceCommandSchema` and its dispatch (`catalog-detail-staging.ts:64-75, 372`).
+  The db adapter has no generic transaction; this follows the existing command
+  pattern.
+- One transaction: re-read the product; require the same publication `revision`
+  and no existing receipt `sourceDigest` (else skipped, no write).
+  - `unchanged` → write the row back with receipt `sourceDigest` set.
+  - `changed` → write it back with `alibabaReviewPending: true`,
+    `alibabaReviewReason: 'changed'`.
+
+**Build/Deploy/Runtime impact**
+- db package; admin function. No index; no new SDK surface.
+
+**Test plan (write first)**
+- `unchanged` → stored row equals the previous row except receipt `sourceDigest`.
+- `changed` → only the two review fields differ.
+- Revision changed / digest already present → skipped, no write.
+
+**Done when**
+- Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
+
+### MIU-38: admin action `auditChangesSinceApproval` (plan / apply)
 
 ```
 Block:      BACKEND
@@ -889,7 +1011,7 @@ Files:      apps/functions/admin/src/catalog-change-audit.ts        (new)
             apps/functions/admin/src/catalog-change-audit.test.ts   (new)
             apps/functions/admin/src/handler.ts
 Type:       new-file + modify-existing
-Depends on: MIU-15, MIU-16, MIU-18
+Depends on: MIU-16, MIU-22
 ```
 
 **What it does**
@@ -907,9 +1029,8 @@ Depends on: MIU-15, MIU-16, MIU-18
     holds URLs.
 
   Manifest row: `{productId, revision, outcome: 'unchanged' | 'changed', diffSummary}`.
-- Apply: `unchanged` → write receipt `sourceDigest = publicSourceDigest(observation)`
-  (baseline); `changed` → set `alibabaReviewPending: true, alibabaReviewReason:
-  'changed'`. Both in a transaction that requires the same revision.
+- Apply: send each reviewed manifest row to the MIU-22 command (`unchanged` with
+  `sourceDigest = publicSourceDigest(observation)` as the baseline, or `changed`).
 
 **Build/Deploy/Runtime impact**
 - Admin function (depends on `catalog-import` and `shared`, already dependencies).
@@ -941,6 +1062,7 @@ Depends on: MIU-15
   - `'new'` or absent → "New"
   - `'changed'` → "Changed"
   - `'removed'` → "Removed"
+  - `'edited'` → "Edited" (only written if OWN-1 is accepted)
 
   Same amber style.
 - Category tab markers (`CollectionView.tsx:529,537`) read "• Needs review" instead
@@ -957,7 +1079,7 @@ Depends on: MIU-15
 - Mark reviewed button absent for `'changed'`, present for `'new'`.
 
 **Done when**
-- Tests pass; `pnpm build`.
+- Tests pass; `pnpm typecheck`; `pnpm build`.
 
 ### MIU-24: "Approve changes" for a flagged, already-published product
 
@@ -990,7 +1112,7 @@ Depends on: MIU-21, MIU-23
 - Button absent for unflagged or unpublished products (Publish covers those).
 
 **Done when**
-- Tests pass; `pnpm build`; local admin e2e `pnpm test:e2e:catalog-admin-local`
+- Tests pass; `pnpm typecheck`; `pnpm build`; local admin e2e `pnpm test:e2e:catalog-admin-local`
   passes.
 
 ### MIU-25: `updateRecord` — Save never publishes unreviewed supplier changes
@@ -1006,10 +1128,12 @@ Depends on: MIU-15
 **What it does** (DEC-12)
 - Today `updateRecord` (`api.ts:258-377`) re-approves a published Alibaba product
   **from the latest source** in two "save" cases:
-  - a category-only save (`refreshPublishedDetail`, `api.ts:264-276`), used by
-    classification "save only" and batch category assignment;
-  - the edit form's Save, which always sends `published: true`
-    (`RecordForm.tsx:877-907`) and so takes the approval branch.
+  - a category-only save (`refreshPublishedDetail`, `api.ts:264-276`), used by the
+    batch "Assign category" bar (`BatchCategoryAssignment.tsx` → `updateRecord`);
+  - the edit form's Save, which sends every editable field including
+    `published: true` (`RecordForm.tsx:877-907`) and so takes the approval branch.
+  (The classification editor's "save only" does **not** use `updateRecord`; it
+  calls the `catalogCategories` server action, which never re-approves.)
 
   If the sync has changed the product since approval, either save publishes
   supplier changes nobody reviewed.
@@ -1020,15 +1144,22 @@ Depends on: MIU-15
   (`publishConfirmedClassification`, `api.ts:629-650`), and "Approve changes"
   (MIU-24). Every save sends other fields: edit-form Save sends all editable
   fields; category saves send `productFamily` etc.
-- New rule, one place: load `current` first. If `current.published === true`, its
-  `alibabaReviewReason` is `'changed'` or `'removed'`, and `values` is anything
-  other than exactly `{ published: true }`, then:
+- New rule, one place: load `current` first. The rule applies only when **all**
+  hold:
+  - `current.published === true`;
+  - its `alibabaReviewReason` is `'changed'` or `'removed'`;
+  - `values` is not exactly `{ published: true }` (a publish);
+  - `values.published !== false` (not an unpublish);
+  - `values.archived` is absent (not an archive).
+
+  Unpublish and archive therefore keep working exactly as today. When the rule
+  applies:
   - write only the draft values (`update` without `published`);
   - skip prepare/approve;
   - return outcome `supplier-changes-pending`.
-- The edit form and the classification editor show "Saved. Supplier changes are
-  waiting for review — use Approve changes to publish them." Batch feedback lists
-  those products under the same message.
+- `updateRecord` keeps returning the saved `CollectionDoc`; the caller recognises
+  this outcome because the returned doc is still published and still flagged
+  `'changed'` / `'removed'`. Showing the message is MIU-35.
 - Publish requests keep today's behaviour: review latest source → approve →
   publish → flag cleared (MIU-21).
 - Not flagged → today's behaviour (the refresh only repeats already-reviewed
@@ -1046,11 +1177,45 @@ Depends on: MIU-15
   publish (call order asserted).
 - Published + not flagged + category-only save → today's refresh
   (`product-batch-update.test.ts:107-150` unchanged).
+- Published + `'changed'` + `{ published: false }` → unpublished (one plain update
+  with `published: false`); the flag stays (DEC-11).
+- Published + `'changed'` + `{ archived: true }` → archived as today.
 - Batch of 3 with one `'changed'` → two refreshes, one `supplier-changes-pending`.
 
 **Done when**
-- Tests pass; `pnpm build`; local admin e2e `pnpm test:e2e:catalog-admin-local`
+- Tests pass; `pnpm typecheck`; `pnpm build`; local admin e2e `pnpm test:e2e:catalog-admin-local`
   passes.
+
+### MIU-35: admin feedback when a save keeps supplier changes pending
+
+```
+Block:      FRONTEND
+Files:      apps/site/src/islands/admin/CollectionView.tsx
+            apps/site/src/islands/admin/BatchUpdateFeedback.tsx
+            apps/site/src/islands/admin/batch-update-feedback.test.ts
+Type:       modify-existing
+Depends on: MIU-25
+```
+
+**What it does**
+- Edit form: `updateMutation.onSuccess` (`CollectionView.tsx:172-175`) closes the
+  editor and drops the result today. When the returned doc is still published and
+  flagged `'changed'` / `'removed'`, show "Saved. Supplier changes are waiting for
+  review — use Approve changes to publish them." instead of closing silently.
+- Batch "Assign category": `BatchUpdateFeedback.tsx` lists such products under the
+  same message, separate from failures.
+
+**Build/Deploy/Runtime impact**
+- Admin island bundle only.
+
+**Test plan (write first)**
+- Saved doc published + `'changed'` → the message renders.
+- Saved doc not flagged → today's silent close.
+- Batch result with one held-back product → listed under the message, not counted
+  as a failure.
+
+**Done when**
+- Tests pass; `pnpm typecheck`; `pnpm build`.
 
 ---
 
@@ -1063,7 +1228,8 @@ Block:      TESTING
 Files:      scripts/catalog-consistency-audit.mjs        (new)
             scripts/catalog-consistency-audit.test.mjs   (new)
 Type:       new-file + new-test
-Depends on: none (uses the public API contract from MIU-8)
+Depends on: MIU-3, MIU-8 (reads the card summary shape and re-applies the
+            `derivePriceSummary` rule to the detail)
 ```
 
 **What it does**
@@ -1088,9 +1254,13 @@ Depends on: none (uses the public API contract from MIU-8)
 - Fixture with a price mismatch → exit 1 and the product named.
 - Detail 404 for a not-yet-approved product → counted as fallback, not a mismatch;
   with `--require-no-fallback` → exit 1.
+- Parity: for a fixture detail, the script's price equals `derivePriceSummary`'s
+  result (imported from the shared package).
 
 **Done when**
 - `pnpm test:deploy-smoke` passes.
+- Run against the local server with seeded products, the script exits 0 and prints
+  the expected product count.
 
 ---
 
@@ -1162,8 +1332,11 @@ Depends on: MIU-27
     `detailSourceManifest {revision, variantIds: []}`, `detailSourceNextPage: 1`,
     `detailSourceReady: true`, `detailSourceCandidate = manualDetailCandidate(product)`,
     and content / noteBlocks `null`.
-- Returns `{pages: 1, complete: true}` so the existing browser loop
-  (`catalog-detail-approval-api.ts:140-157`) runs unchanged.
+- Returns the same strict progress object the Alibaba prepare returns
+  (`catalog-detail-approval-api.ts:4-13`):
+  `{ok: true, jobId, revision, nextPage: 1, pages: 1, complete: true}`, with
+  `jobId` built the same way `stageSourcePage` builds it. The browser's prepare
+  loop (`catalog-detail-approval-api.ts:49-61`) then goes straight to review.
 - `approvalProductFingerprint` (`catalog-detail-staging.ts:89-114`) adds `skuCode`,
   `series`, `modName`, `modType`, so a spec edit between begin and finish is a
   CONFLICT.
@@ -1173,7 +1346,8 @@ Depends on: MIU-27
   only; no new CloudBase SDK surface (`pnpm verify:cloudbase-sdk` unaffected).
 
 **Test plan (write first)**
-- Manual product → all fields above written; response `{pages: 1, complete: true}`.
+- Manual product → all fields above written; the response passes the strict
+  `progress` schema with `complete: true`.
 - Linked product → refused (wrong owner), nothing written.
 - Archived product or contributor actor → refused, nothing written.
 - Edit `series` between begin and finish → finish returns CONFLICT.
@@ -1189,8 +1363,8 @@ Depends on: MIU-27
 ```
 Block:      BACKEND
 Files:      packages/db/src/catalog-publication-fingerprint.ts
-            packages/db/src/catalog-publication-fingerprint.test.ts
-Type:       modify-existing
+            packages/db/src/catalog-publication-fingerprint.test.ts   (new)
+Type:       modify-existing + new-test
 Depends on: MIU-28
 ```
 
@@ -1233,21 +1407,22 @@ Depends on: MIU-28
 - Admin function only.
 
 **Test plan (write first)**
-- Manual product → `{pages: 1, complete: true}`, manual command called once.
+- Manual product → a progress object with `complete: true`; manual command called
+  once.
 - Linked product → existing Alibaba prepare path, manual command not called.
 
 **Done when**
 - Tests pass; `pnpm build:functions && pnpm smoke:functions`.
 
-### MIU-31: publish gate for every product, including create (Owner: OWN-1, OWN-2)
+### MIU-31: publish gate for every product on update (Owner: OWN-1, OWN-2)
 
 ```
 Block:      BACKEND
 Files:      packages/db/src/adapter.ts
+            packages/db/src/catalog-product-save-plan.test.ts
             apps/functions/admin/src/handler.ts
-            apps/functions/admin/src/handler.test.ts
 Type:       modify-existing
-Depends on: MIU-29, MIU-30
+Depends on: MIU-15, MIU-29, MIU-30
 ```
 
 **What it does** (DEC-15)
@@ -1255,22 +1430,59 @@ Depends on: MIU-29, MIU-30
   every product being published or having its price changed, not only
   Alibaba-linked ones (drop the `typeof doc.alibabaPrimarySourceKey === 'string'`
   condition).
-- `createAction` (`handler.ts:1850-1873`) passes the same
-  `'publication-or-pricing'` gate, so creating with `published: true` without an
-  approved version is refused with `APPROVAL_REQUIRED`.
-- Contributor behaviour follows OWN-1; the contributor test at
-  `handler.test.ts:1383-1395` is rewritten accordingly.
+- A refused publish surfaces as today's `INVALID_PRODUCT` error
+  (`catalog-product-identities.ts` ~100); no new error code.
+- If OWN-1 is accepted: in `updateAction` (`handler.ts:1940-1967`), a contributor's
+  save on a published product writes the draft fields without `published` and
+  sets `alibabaReviewPending: true, alibabaReviewReason: 'edited'`, so an admin
+  sees it.
 - Only when `CATALOG_DETAIL_APPROVAL_ENABLED === '1'`, as today.
+- Create is gated separately (MIU-37).
 
 **Build/Deploy/Runtime impact**
 - db package + admin function. **Breaks raw-API publishing** (Hermes, scripts) for
   manual products — must not deploy before OWN-2 is decided and Hermes is adjusted.
+- Must deploy **after** R9 (the 7 live manual products approved); otherwise a
+  published manual product without a receipt could no longer save a price fix.
 
 **Test plan (write first)**
-- Manual product, no receipt, `update {published: true}` → refused.
+- Manual product, no receipt, `update {published: true}` → refused (`INVALID_PRODUCT`).
 - Manual product with matching receipt → published.
 - Manual product with receipt, `series` edited, then publish → refused (MIU-29).
-- `create {published: true}` → refused; `create` without `published` → succeeds.
+- (OWN-1) contributor save on a published product → draft fields saved, product
+  flagged `'edited'`, public version unchanged.
+
+**Done when**
+- Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
+
+### MIU-37: gate on creating a product that is already published (Owner: OWN-1, OWN-2)
+
+```
+Block:      BACKEND
+Files:      apps/functions/admin/src/catalog-product-identities.ts
+            apps/functions/admin/src/handler.ts
+            apps/functions/admin/src/handler.test.ts
+Type:       modify-existing
+Depends on: MIU-31
+```
+
+**What it does** (DEC-15)
+- `createCatalogProductRecord` (`catalog-product-identities.ts:121-126`) gains the
+  same `requireDetailApproval` option as the update path; `createAction`
+  (`handler.ts:1850-1873`) passes `'publication-or-pricing'` when approval is
+  enabled. A new product has no approved version, so `create` with
+  `published: true` is refused (`INVALID_PRODUCT`).
+- `create` without `published` (a draft) is unchanged.
+- The contributor test at `handler.test.ts:1383-1395` ("contributor can
+  publish…") is rewritten per OWN-1.
+
+**Build/Deploy/Runtime impact**
+- Admin function. Same rollout constraint as MIU-31 (after R9, after OWN-2).
+
+**Test plan (write first)**
+- `create {published: true}` with approval enabled → refused, nothing stored.
+- `create` draft → stored unpublished.
+- Approval disabled → today's behaviour.
 
 **Done when**
 - Tests pass; `pnpm typecheck`; `pnpm build:functions && pnpm smoke:functions`.
@@ -1308,7 +1520,7 @@ Depends on: MIU-25, MIU-30
 - Linked product → today's call sequence unchanged.
 
 **Done when**
-- Tests pass; `pnpm build`; `pnpm test:e2e:catalog-admin-local` passes.
+- Tests pass; `pnpm typecheck`; `pnpm build`; `pnpm test:e2e:catalog-admin-local` passes.
 
 ### MIU-33: product page shows the MOQ when there is no price
 
@@ -1337,7 +1549,7 @@ Depends on: none
   (`catalog-compact-quote.test.ts` "unknown configuration prices…").
 
 **Done when**
-- Tests pass; `pnpm build`.
+- Tests pass; `pnpm typecheck`; `pnpm build`.
 
 ### MIU-34: manual product end-to-end (local) and admin e2e updates
 
@@ -1371,11 +1583,18 @@ Depends on: MIU-8, MIU-9, MIU-10, MIU-27 … MIU-33
   disk (Astro moves build files with rename; `EXDEV` otherwise).
 
 **Test plan (this MIU is the test)**
-- The assertions above.
+- Local server: list item keys of the approved manual product equal those of an
+  approved synced product; card summary equals the page price.
+- Local server: page facts are SKU / Series / Model / Type; `variants.total === 0`;
+  a customization quote request is stored with the header snapshot.
+- E2E: manual product published via the UI shows `[data-shared-catalog-detail]`
+  and the tier block; a product with a legacy embedded image is refused before
+  approval with a clear message.
 
 **Done when**
-- `E2E_CATALOG_FORMAL=1 node scripts/run-catalog-admin-local-e2e.mjs` passes, and
-  the local-server test passes.
+- `E2E_CATALOG_FORMAL=1 node scripts/run-catalog-admin-local-e2e.mjs` passes
+  (set `TMPDIR` on the same disk if needed).
+- The local-server test passes; `pnpm typecheck` passes.
 
 ---
 
@@ -1387,12 +1606,12 @@ production data and need the owner's go-ahead at the time.
 | Step | When | What | Check |
 |---|---|---|---|
 | R1 ⚠ | After all batches are implemented and pass local validation, before the first deploy (DEC-13) | Unpublish the 21 products (list in EXECUTION_LOG) via admin. Their "changed" flag (set later by R6) is not cleared by unpublishing (DEC-11) | Their list/detail URLs return not found |
-| R2 ⚠ | After batch 1 | Alibaba observation replay: Validate (dry run) → review manifest (`product-headline-dropped` rows) → Apply | No `offer-set-mismatch`; next "Run now" counts no surge |
-| R3 | After batch 2 | Count products with `alibabaPinnedOfferKey` | 0 → continue; >0 → stop and ask (DESIGN §9) |
-| R4 ⚠ | After batch 2 | `catalog-price-summary-backfill.mjs` plan → review → `--apply` | Approved versions without `priceSummary`: 0 |
+| R2 ⚠ | After batch 1 | Alibaba observation replay: Validate (dry run) → check counts ("Headline prices removed", price modes) and failures → Apply. Also count wholesale products without SKUs that now use their ladder (MIU-1) | No `offer-set-mismatch` failures; next "Run now" counts no surge |
+| R3 | After batch 2b | Count products with `alibabaPinnedOfferKey` | 0 → continue; >0 → stop and ask (DESIGN §9) |
+| R4 ⚠ | After batch 2b | `catalog-price-summary-backfill.mjs` plan → review → `--apply` | Approved versions without `priceSummary`: 0 |
 | R5 | After batch 3 | Count (a) unlinked products with an old publication and (b) linked published products without an approved version; run `catalog-consistency-audit.mjs` | (b) = 0 expected (2026-10-06: 0); mismatches: 0 (the 21 are unpublished, so not counted) |
-| R6 ⚠ | After batch 4 | `auditChangesSinceApproval` plan → review → apply | The 21 appear as `changed`; others get a baseline digest |
+| R6 ⚠ | Right after batch 4, before admins use Save on published products | `auditChangesSinceApproval` plan → review → apply (MIU-38). Until it runs, products have no baseline digest and are never flagged, so DEC-12 cannot hold back their supplier changes | The 21 appear as `changed`; others get a baseline digest |
 | R7 | After R6 | Admin approves each flagged product ("Approve changes" or Publish) | Flags cleared; products back in the list |
 | R8 | After R7 | `catalog-consistency-audit.mjs`; browser check at 390px and 1440px: one multi-tier, one single-tier, one website-price, one "Request a quote" product; switch configurations | 0 mismatches; each configuration shows its own price |
-| R9 ⚠ | After batch 5 | Admin publishes each of the 7 live manual products through approval (Edit → Save & publish). A refusal names the broken rule (more than 9 photos, legacy embedded image, price precision): fix in Edit, retry | All 7 have an approved version |
-| R10 | After R9 | `catalog-consistency-audit.mjs --require-no-fallback`; browser check of one manual product next to a synced one | 0 mismatches, 0 products on the row fallback; the two pages look alike |
+| R9 ⚠ | After batch 5a, before 5b | Admin publishes each of the 7 live manual products through approval (Edit → Save & publish). Before each, check in Edit the three rules approval enforces: at most 9 photos, photos uploaded to storage (not legacy embedded images), prices with at most 2 decimals. A refusal shows a generic message ("The catalog approval could not be completed." or the media-not-ready text), so check these three first | All 7 have an approved version |
+| R10 | After batch 5b | `catalog-consistency-audit.mjs --require-no-fallback`; browser check of one manual product next to a synced one | 0 mismatches, 0 products on the row fallback; the two pages look alike |

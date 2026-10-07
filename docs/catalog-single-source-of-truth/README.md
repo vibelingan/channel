@@ -12,8 +12,8 @@ price-block commits, see EXECUTION_LOG). Branch `feat/catalog-alibaba-price-tier
 
 1. [DESIGN.md](DESIGN.md) — background, live investigation, problems, decisions,
    manual products (§5.2), target design, rollout, risks, deferred items.
-2. [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md) — 34 technical MIUs in five deploy
-   batches, plus the rollout runbook (R1–R10).
+2. [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md) — 38 technical MIUs in seven deploy
+   steps (batches 1, 2a, 2b, 3, 4, 5a, 5b), plus the rollout runbook (R1–R10).
 3. [EXECUTION_LOG.md](EXECUTION_LOG.md) — status per MIU and runbook step; the list
    of the 21 products.
 
@@ -39,7 +39,7 @@ repair they disagreed on 21 products, and the page showed Alibaba's headline pri
 | OWN-1 | Approval is admin-only. Contributors can publish manual products directly today. After the change, should a contributor's save on a published product stay a draft (flagged "edited") until an admin publishes it? | Yes |
 | OWN-2 | The Hermes / WeCom importer publishes through raw API calls, which the new gate refuses. Should Hermes create drafts for an admin to publish in the admin UI? | Yes |
 
-Only MIU-31 waits for these. Decided on 2026-10-07: DEC-4 (manual products are
+Only MIU-31 and MIU-37 wait for these. Decided on 2026-10-07: DEC-4 (manual products are
 first-class approved versions), DEC-11 (unpublishing does not clear the flag),
 DEC-12 (Save never publishes unreviewed supplier changes), DEC-13 (unpublish the 21
 after the fix is validated locally).
@@ -71,8 +71,9 @@ after the fix is validated locally).
   is told. Deferred as a separate decision (DESIGN §5.1, §9).
 - **Save vs publish:** Save stores the admin's edits; it never publishes supplier
   changes nobody reviewed. Publish / Save & publish / Approve changes do. Today
-  "save only" on an already-published product silently re-publishes the latest
-  Alibaba data — MIU-25 fixes that (DEC-12).
+  the edit form's Save and the batch "Assign category" bar, used on an
+  already-published product, silently re-publish the latest Alibaba data — MIU-25
+  fixes that (DEC-12). The classification editor's "save only" is already safe.
 - **Do manual products get the same tiered price display?** Yes. Their manual
   pricing (tiers, or one price with MOQ) becomes the website price of the same
   approved version and is shown in the same Alibaba-style block, list card and

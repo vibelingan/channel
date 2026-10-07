@@ -168,14 +168,14 @@ the owner's confirmation before the dependent MIUs run (see README).
 | DEC-4 | **Manual products are first-class approved versions.** They go through the same Publish → approval pipeline and get the same approved version (header, configuration rows, price summary), the same list/detail/quote API shape, the same Alibaba-style product page and the same quote form. Differences are only in where the data comes from: the admin's fields instead of an Alibaba draft. Details in §5.2. | Decided (owner 2026-10-07) |
 | DEC-5 | **Headline price**: for a wholesale product that has SKUs, Alibaba's headline price is not stored as a price. Prices come only from SKUs. If no SKU has a usable price, the product shows "Request a quote". Sourcing (FOB) products are unchanged (no evidence of a defect). | Decided |
 | DEC-6 | **"Changed" means** a change to what a buyer would see from Alibaba: any SKU's price / tiers / MOQ, SKUs added or removed, SKU options, photos, specification facts, description text. Not stock counts, timestamps or the Alibaba title (the product name is admin-owned). | Decided |
-| DEC-7 | **One review flag with a reason.** Reuse `alibabaReviewPending` (index, sort, counts and badge already exist) and add `alibabaReviewReason: 'new' \| 'changed' \| 'removed'`. Approval clears both. A later sync sets them again only if DEC-6 content differs from the approved version. | Decided |
+| DEC-7 | **One review flag with a reason.** Reuse `alibabaReviewPending` (index, sort, counts and badge already exist) and add `alibabaReviewReason: 'new' \| 'changed' \| 'removed'` (plus `'edited'` if OWN-1 is accepted). Approval clears both. A later sync sets them again only if DEC-6 content differs from the approved version. | Decided |
 | DEC-8 | Flag scope: "changed" applies to products that have an approved version (published or not). Manual and archived products are never flagged; never-approved drafts keep "new". | Decided |
 | DEC-9 | While a product is flagged "changed", list, page and quote keep showing the **approved** version (follows from DEC-1). | Decided |
 | DEC-10 | **Admin list**: keep the existing flagged-first default sort (server-side, index-backed, pagination-safe) and per-category counts; show the reason on the badge. No new tab. | Decided |
 | DEC-11 | **Approve**: Publish already runs prepare → stage → finish → publish → clear flag. Add **"Approve changes"** for a flagged product that is already published (same sequence). The flag means "supplier data changed and nobody has reviewed it yet", so it clears **only when the change is published** (Publish / Save & publish / Approve changes) **or the product is archived** (it leaves the catalog). **Unpublishing does not clear it**: hiding a product reviews nothing, and the change still needs attention before the product goes public again. "Mark reviewed" stays for "new" only. | Decided (owner 2026-10-07) |
-| DEC-12 | **Save never publishes unreviewed supplier changes.** "Save" (edit form, classification "save only", batch category) stores the admin's edits. On a published product that is *not* flagged, the public version is refreshed with those edits as today (supplier data is unchanged, so nothing unreviewed goes out). On a product flagged "changed", Save stores the edits but leaves the public version and the flag alone and says "Supplier changes are waiting for review". Only **Publish / Save & publish / Approve changes** publishes supplier changes. | Decided (owner 2026-10-07) |
+| DEC-12 | **Save never publishes unreviewed supplier changes.** "Save" (the edit form's Save and the batch "Assign category" bar) stores the admin's edits. (The classification editor's "save only" already never re-approves.) On a published product that is *not* flagged, the public version is refreshed with those edits as today (supplier data is unchanged, so nothing unreviewed goes out). On a product flagged "changed", Save stores the edits but leaves the public version and the flag alone and says "Supplier changes are waiting for review". Only **Publish / Save & publish / Approve changes** publishes supplier changes. | Decided (owner 2026-10-07) |
 | DEC-13 | **The 21 products**: implement the fix and validate it locally first; then unpublish the 21; deploy; let the audit flag them "changed"; admin re-approves. No direct write into approved versions. | Decided (owner 2026-10-07) |
-| DEC-14 | **Synced and manual products are indistinguishable in public responses.** For any product served from its approved version, the public list/item/slug payload omits the Alibaba markers (`alibabaPrimarySourceKey`, `alibabaSourceStatus`, `alibabaSourceLastSyncedAt`) and the row `variants`, so both kinds carry exactly the same keys. | Decided |
+| DEC-14 | **Synced and manual products are indistinguishable in public responses.** For any product served from its approved version, the public list/item/slug payload omits the Alibaba markers (`alibabaPrimarySourceKey`, `alibabaSourceStatus`, `alibabaSourceLastSyncedAt`) and the row `variants`. Both kinds then draw from the same set of possible keys; optional fields such as series or model appear only when the product has them, for either kind. | Decided |
 | DEC-15 | **Publishing always needs an approved version**, for every product: the publish gate stops checking "is it linked to Alibaba?", and creating a product with Published already ticked goes through the same gate (today it bypasses it). | Decided |
 | DEC-16 | **A minimum order with no price is still shown**: "Request a quote" plus "MOQ N pieces", for synced and manual products alike (today the MOQ disappears when there is no price). | Decided |
 | OWN-1 | **Contributors.** Approval is admin-only today, but contributors can publish manual products directly. With DEC-15, a contributor's save on a published product would stay a draft until an admin publishes it, and the product is flagged so the admin sees it (reason "edited"). | Owner |
@@ -281,9 +281,11 @@ and Product JSON-LD (JSON-LD is deferred for all products, §9).
 **Data that may not pass approval yet.** Approval accepts at most 9 photos, only
 images in cloud or local storage (not legacy embedded images), and prices with at
 most 2 decimals. Some manual rows may break these rules (one Hermes-imported product
-had 18 photos). Runbook R9 runs a read-only check of the 7 live manual products
-before the admin approves them; until approved they stay on the row fallback, so
-nothing disappears.
+had 18 photos). In runbook R9 the admin checks these three rules in Edit for each
+of the 7 live manual products, then publishes it through approval. Until approved
+they stay on the row fallback, so nothing disappears. The publish gate for manual
+products (MIU-31, MIU-37) ships only after R9, so a product that needs a fix can
+still be saved meanwhile.
 
 ## 6. Target design
 
@@ -338,16 +340,21 @@ product page already shows the selected configuration's own price.
    deploys start.
 2. Deploy the headline fix and rebuild stored offers from saved payloads
    (dry run → apply).
-3. Deploy the public-version rule, the price summary and the "changed" flag;
-   backfill price summaries for existing approved versions.
-4. Run the one-time "changed since approval" audit (dry run → apply). Products whose
+3. Deploy the price summary in two steps: first the code that can *read* it,
+   then the code that *writes* it, and backfill existing approved versions. Then
+   deploy the public-version rule and the "changed" flag.
+4. Right after the flag deploy, before admins use Save on published products, run
+   the one-time "changed since approval" audit (dry run → apply). Products whose
    current source differs from their approved version are flagged "changed"; the
-   rest get their source digest recorded. The 21 are expected in the flagged set.
+   rest get their source digest recorded. Until it runs no product has a baseline,
+   so nothing is flagged and Save could still publish unreviewed changes. The 21
+   are expected in the flagged set.
 5. Admin opens each flagged product, checks the preview, and approves. Re-approval
    rebuilds the version from the repaired data (verified in code: preparing a
    review reads the current observation, which the Sept 21 replay already rebuilt).
-6. Manual products: read-only check of the 7 live manual products (runbook R9),
-   admin fixes what fails, then publishes each one through approval.
+6. Manual products: the admin checks the 7 live manual products against the three
+   approval rules, fixes what fails, then publishes each one through approval
+   (runbook R9). Only then does the publish gate for manual products ship.
 7. Verify on the live site: list vs product page for every product (name, main
    photo, price) — target 0 mismatches and 0 products on the row fallback — plus
    browser checks at phone and desktop width.
@@ -363,7 +370,8 @@ product page already shows the selected configuration's own price.
 | A missing price summary (old version, not yet backfilled) | Rollout order: summaries are computed and backfilled (and counted: 0 missing) **before** the list switches. If one is still absent, the card uses the version's own website / product-level price, else "Request a quote" — never the sync price — and the consistency audit (MIU-26) reports it |
 | Sync still bumps `updatedAt` / link revision on every run, which can cause review CONFLICTs | Existing behaviour; deferred (§9) |
 | "Removed" never fires while the timer and full runs are off | Deferred (§9) |
-| A live manual product breaks an approval rule (more than 9 photos, legacy embedded image, price with more than 2 decimals) | R9 read-only check first; it stays on the row fallback until the admin fixes and approves it |
+| A live manual product breaks an approval rule (more than 9 photos, legacy embedded image, price with more than 2 decimals) | Admin checks the three rules in Edit first (R9); the product stays on the row fallback until fixed and approved; the gate ships after R9. Approval errors are generic, so the check comes before publishing |
+| **Rollback after summaries are written.** The approved-version schema is strict: code from before MIU-3 rejects a stored `priceSummary`, so rolling the functions back past MIU-3 after R4 would break every product page and quote | MIU-3 deploys alone first (batch 2a) and writers follow (2b), so rolling back to 2a or later is safe. Never roll back past 2a once summaries exist |
 | Contributors and the Hermes importer publish directly today; DEC-15 refuses that | Owner decisions OWN-1 / OWN-2 before the gate MIU ships |
 | Adding spec fields to the approval fingerprints causes one CONFLICT for an open review | Deploy with no review open (same as the planner change) |
 

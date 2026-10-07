@@ -9,11 +9,11 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 |---|---|---|---|---|
 | 1 | Normalizer omits wholesale headline when SKUs exist | 1 | Not started | |
 | 2 | Raw replay deactivates dropped `'@product'`, stores new hash | 1 | Not started | |
-| 3 | Price summary contract + `derivePriceSummary` | 2 | Not started | |
-| 4 | Approval plan stores `priceSummary` | 2 | Not started | |
+| 3 | Price summary contract + `derivePriceSummary` | 2a | Not started | |
+| 4 | Approval plan stores `priceSummary` | 2b | Not started | |
 | 5 | `resolvePublicVersion` shared rule | 3 | Not started | |
-| 6 | Price summary backfill (db) | 2 | Not started | |
-| 7 | Backfill admin action + script | 2 | Not started | |
+| 6 | Price summary backfill (db command) | 2b | Not started | |
+| 7 | Backfill admin action + script | 2b | Not started | |
 | 8 | Public list / item / slug read the one version | 3 | Not started | |
 | 9 | Product page endpoint uses the rule | 3 | Not started | |
 | 10 | Quote request uses the rule | 3 | Not started | |
@@ -28,19 +28,23 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 19 | Promote step flags changed / removed | 4 | Not started | |
 | 20 | Quarantine path + refresh contract | 4 | Not started | |
 | 21 | Approve / acknowledge clears reason (not unpublish) | 4 | Not started | |
-| 22 | "Changed since approval" audit action | 4 | Not started | |
+| 22 | `change-audit-mark` db command | 4 | Not started | |
 | 23 | Admin badge / chip show reason | 4 | Not started | |
 | 24 | "Approve changes" action | 4 | Not started | |
 | 25 | Save never publishes unreviewed supplier changes | 4 | Not started | |
 | 26 | `catalog-consistency-audit` script | 3 | Not started | |
-| 27 | Manual draft, spec facts, MOQ-only price in the planner | 5 | Not started | |
-| 28 | `manual-source` prepare command + spec fields in approval fingerprint | 5 | Not started | |
-| 29 | Receipt fingerprint covers spec fields for manual owners | 5 | Not started | |
-| 30 | Admin prepare — manual branch | 5 | Not started | |
-| 31 | Publish gate for every product, including create | 5 | Waiting for owner (OWN-1, OWN-2) | |
-| 32 | Admin publish flow and preview include manual products | 5 | Not started | |
-| 33 | Product page shows MOQ when there is no price | 5 | Not started | |
-| 34 | Manual product end-to-end (local) + admin e2e updates | 5 | Not started | |
+| 27 | Manual draft, spec facts, MOQ-only price in the planner | 5a | Not started | |
+| 28 | `manual-source` prepare command + spec fields in approval fingerprint | 5a | Not started | |
+| 29 | Receipt fingerprint covers spec fields for manual owners | 5a | Not started | |
+| 30 | Admin prepare — manual branch | 5a | Not started | |
+| 31 | Publish gate for every product on update | 5b | Waiting for owner (OWN-1, OWN-2) and R9 | |
+| 32 | Admin publish flow and preview include manual products | 5a | Not started | |
+| 33 | Product page shows MOQ when there is no price | 5a | Not started | |
+| 34 | Manual product end-to-end (local) + admin e2e updates | 5a | Not started | |
+| 35 | Admin feedback when a save keeps supplier changes pending | 4 | Not started | |
+| 36 | Replay admin page shows `productHeadlineDropped` | 1 | Not started | |
+| 37 | Gate on creating an already-published product | 5b | Waiting for owner (OWN-1, OWN-2) and R9 | |
+| 38 | Admin action `auditChangesSinceApproval` | 4 | Not started | |
 
 ## Runbook status
 
