@@ -7,8 +7,8 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 
 | MIU | Title | Batch | Status | Commit |
 |---|---|---|---|---|
-| 1 | Normalizer omits wholesale headline when SKUs exist | 1 | Done | (this commit) |
-| 2 | Raw replay deactivates dropped `'@product'`, stores new hash | 1 | Not started | |
+| 1 | Normalizer omits wholesale headline when SKUs exist | 1 | Done | `98a462c` |
+| 2 | Raw replay deactivates dropped `'@product'`, stores new hash | 1 | Done | (this commit) |
 | 3 | Price summary contract + `derivePriceSummary` | 2a | Not started | |
 | 4 | Approval plan stores `priceSummary` | 2b | Not started | |
 | 5 | `resolvePublicVersion` shared rule | 3 | Not started | |
@@ -91,6 +91,26 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-2 — replay deactivates stored headline offers and stores the new hash (2026-10-07)
+- What changed: `replayAlibabaRawPage` accepts an existing active set that equals
+  the replayed set plus exactly the product-level offer, for wholesale products
+  with SKUs, and on apply deactivates that offer (`active: false`). Apply also
+  writes the recomputed `alibabaSourceProducts.contentHash` through a new port
+  method `upsertSourceProduct`. `counts.productHeadlineDropped` reports how many.
+  Parser version `alibaba-content-media-v6`. `contentFingerprint` is exported
+  from `ingest.ts` and reused, so replay and ingest hash identically.
+- Tests (red → green):
+  - headline offer deactivated;
+  - hash stored;
+  - count = 1;
+  - an extra missing SKU still fails `offer-set-mismatch`;
+  - parser version pin updated;
+  - the full counts expectation gains `productHeadlineDropped: 0`.
+- Validation: sync function 220/220; `pnpm test` exit 0; `pnpm typecheck`;
+  `pnpm lint`; `pnpm package:functions && pnpm smoke:functions` (3/3).
+- Deploy note: the admin replay page decodes counts strictly; MIU-36 must ship in
+  the same deploy.
 
 ### MIU-1 — wholesale headline is not a price when SKUs exist (2026-10-07)
 - What changed: `normalizeProductDetail` emits the product-level (`'@product'`)

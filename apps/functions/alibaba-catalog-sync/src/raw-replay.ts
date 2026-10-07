@@ -28,11 +28,12 @@ import {
 } from '@vibelingan-channel/db';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
 import type { CollectionDoc, FilterModel } from '@vibelingan-channel/shared';
+import { contentFingerprint } from './ingest.ts';
 import { listAllDocs } from './list-all.ts';
 import { PRIMARY_CONNECTION_ID } from './oauth.ts';
 
 const MAX_RAW_BYTES = 8 * 1024 * 1024;
-const REPLAY_PARSER_VERSION = 'alibaba-content-media-v5';
+const REPLAY_PARSER_VERSION = 'alibaba-content-media-v6';
 const REPLAY_MANIFEST_TTL_MS = 2 * 60 * 60 * 1000;
 const MAX_REPLAY_MANIFEST_PAGES = 200;
 const MANIFEST_ID_PATTERN =
@@ -54,6 +55,11 @@ export interface AlibabaRawReplayPort {
   listActiveOffers(sourceKey: string): Promise<CollectionDoc[]>;
   readObjectAsBase64(fileId: string): Promise<{ body: string; byteSize?: number }>;
   upsertOffer(
+    id: string,
+    patch: Record<string, unknown>,
+    guard: AlibabaLeaseGuard,
+  ): Promise<boolean>;
+  upsertSourceProduct(
     id: string,
     patch: Record<string, unknown>,
     guard: AlibabaLeaseGuard,
@@ -130,6 +136,8 @@ const defaultPort: AlibabaRawReplayPort = {
   readObjectAsBase64: (fileId) => mediaStorage().getObjectAsBase64(fileId),
   upsertOffer: (id, patch, guard) =>
     upsertDocWithAlibabaLease('alibabaSupplierOffers', id, patch, {}, guard),
+  upsertSourceProduct: (id, patch, guard) =>
+    upsertDocWithAlibabaLease('alibabaSourceProducts', id, patch, {}, guard),
   upsertObservation: (id, value, createOnly, guard) =>
     upsertDocWithAlibabaLease('catalogSourceObservations', id, value, createOnly, guard),
   upsertReplayManifest: (id, value, createOnly, guard) =>
@@ -176,6 +184,8 @@ export interface AlibabaRawReplayCounts {
   attributedVariants: number;
   attributePairs: number;
   warnings: number;
+  /** Stored wholesale headline offers this replay deactivates (MIU-1). */
+  productHeadlineDropped: number;
 }
 
 export type AlibabaRawReplayResult =
@@ -212,6 +222,8 @@ interface ReplayPlan {
   firstSeenOperationId: string;
   lastSeenOperationId: string;
   normalized: Extract<ReturnType<typeof normalizeProductDetail>, { ok: true }>;
+  /** A stored wholesale headline offer the current parser no longer emits. */
+  deactivateOfferKey?: string;
   observation: NonNullable<
     ReturnType<typeof alibabaObservationAdapter.toObservations>['observations'][number]
   >;
@@ -262,6 +274,7 @@ function pageFingerprint(
     payloadId: plan.payloadId,
     firstSeenOperationId: plan.firstSeenOperationId,
     lastSeenOperationId: plan.lastSeenOperationId,
+    ...(plan.deactivateOfferKey ? { deactivateOfferKey: plan.deactivateOfferKey } : {}),
     offers: plan.normalized.offers.map((offer) => ({
       offerKey: offer.offerKey,
       sourceAttributes: offer.sourceAttributes,
@@ -616,7 +629,19 @@ export async function replayAlibabaRawPage(
           existingKeys,
           replayKeys.filter((key) => key !== productOfferKey),
         );
-      if (!sameKeys(existingKeys, replayKeys) && !onlyMissingProductQuote) {
+      // The inverse audited change: a wholesale headline stored as a product
+      // quote (Sept 2026 repair) that the parser no longer treats as a price
+      // because the product has SKUs. It is deactivated, never silently kept.
+      const onlyHeadlineDropped =
+        existingKeys.includes(productOfferKey) &&
+        !replayKeys.includes(productOfferKey) &&
+        detail.productType === 'wholesale' &&
+        detail.skus.length > 0 &&
+        sameKeys(
+          existingKeys.filter((key) => key !== productOfferKey),
+          replayKeys,
+        );
+      if (!sameKeys(existingKeys, replayKeys) && !onlyMissingProductQuote && !onlyHeadlineDropped) {
         failures.push({ sourceKey, reason: 'offer-set-mismatch' });
         continue;
       }
@@ -643,6 +668,7 @@ export async function replayAlibabaRawPage(
         lastSeenOperationId: lastSeenRunId,
         normalized,
         observation,
+        ...(onlyHeadlineDropped ? { deactivateOfferKey: productOfferKey } : {}),
       });
     }
 
@@ -720,6 +746,41 @@ export async function replayAlibabaRawPage(
           );
           if (!updated) return { ok: false, reason: 'lease-lost' };
         }
+        if (plan.deactivateOfferKey) {
+          const deactivated = await port.upsertOffer(
+            plan.deactivateOfferKey,
+            {
+              active: false,
+              lastSeenRunId: plan.lastSeenOperationId,
+              parserVersion: REPLAY_PARSER_VERSION,
+            },
+            {
+              connectionId: PRIMARY_CONNECTION_ID,
+              holder,
+              fence: grant.fence,
+              now: port.now(),
+            },
+          );
+          if (!deactivated) return { ok: false, reason: 'lease-lost' };
+        }
+        // Store the content hash the next ingest will compute, so a parser change
+        // does not make every replayed product look changed to the surge guard.
+        const sourceWritten = await port.upsertSourceProduct(
+          plan.source._id,
+          {
+            contentHash: contentFingerprint(
+              plan.normalized.sourceProduct as unknown as Record<string, unknown>,
+              plan.normalized.offers,
+            ),
+          },
+          {
+            connectionId: PRIMARY_CONNECTION_ID,
+            holder,
+            fence: grant.fence,
+            now: port.now(),
+          },
+        );
+        if (!sourceWritten) return { ok: false, reason: 'lease-lost' };
         const observationWritten = await port.upsertObservation(
           sourceObservationDocumentId('alibaba', plan.source._id),
           {
@@ -789,6 +850,7 @@ export async function replayAlibabaRawPage(
         0,
       ),
       warnings: plans.reduce((total, plan) => total + plan.observation.warnings.length, 0),
+      productHeadlineDropped: plans.filter((plan) => plan.deactivateOfferKey !== undefined).length,
     };
     const priceModes: Record<string, number> = {};
     for (const plan of plans) {

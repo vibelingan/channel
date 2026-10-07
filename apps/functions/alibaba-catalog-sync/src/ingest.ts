@@ -129,7 +129,7 @@ export type IngestDetailResult =
  * how many linked products CHANGED, not how many were seen — without this the
  * guard trips on every full run, since a full run sees the whole catalog.
  */
-function contentFingerprint(product: Record<string, unknown>, offers: unknown[]): string {
+export function contentFingerprint(product: Record<string, unknown>, offers: unknown[]): string {
   const stamps = new Set([
     'lastSeenRunId',
     'firstSeenRunId',
