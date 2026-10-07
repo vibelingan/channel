@@ -453,6 +453,35 @@ test('wholesale product without SKUs uses its product ladder, not the headline',
   });
 });
 
+test('wholesale product without SKUs: unsupported trade, currency or ladder never becomes a price', () => {
+  const product = {
+    product_id: 'wholesale-no-sku-boundaries',
+    product_type: 'wholesale',
+    wholesale_trade: {
+      price: '1.20',
+      min_order_quantity: 10,
+      sale_type: 'normal',
+      unit_type: 'Piece',
+    },
+    ladder_prices: [
+      { min_quantity: 10, price: '1.30' },
+      { min_quantity: 500, price: '1.20' },
+    ],
+  };
+  const productPricing = (patch: object) =>
+    observeRaw({ ...product, ...patch }).offers.find((o) => !o.sourceVariantKey)?.pricing;
+  for (const patch of [
+    { currency: 'CNY' },
+    { wholesale_trade: { ...product.wholesale_trade, sale_type: 'batch' } },
+    { wholesale_trade: { ...product.wholesale_trade, unit_type: 'Lot' } },
+    { ladder_prices: [{ min_quantity: -1, price: '1.30' }] },
+  ]) {
+    assert.equal(productPricing(patch)?.mode, 'unavailable', JSON.stringify(patch));
+  }
+  // Headline only (no ladder) in a non-USD currency is not a USD price either.
+  assert.equal(productPricing({ ladder_prices: undefined, currency: 'CNY' })?.mode, 'unavailable');
+});
+
 test('wholesale SKU currency does not bless conflicting currencies, units or invalid tiers', () => {
   const product = {
     product_id: 'wholesale-boundaries',

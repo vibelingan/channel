@@ -2,8 +2,15 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { alibabaOfferKey, alibabaSourceKey } from '@vibelingan-channel/alibaba-catalog-sync';
+import {
+  alibabaOfferKey,
+  alibabaSourceKey,
+  extractProductDetail,
+  normalizeProductDetail,
+  parseAlibabaApiResponse,
+} from '@vibelingan-channel/alibaba-catalog-sync';
 import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { contentFingerprint } from './ingest.ts';
 import { type AlibabaRawReplayPort, replayAlibabaRawPage } from './raw-replay.ts';
 
 const NOW = '2026-09-04T08:00:00.000Z';
@@ -162,15 +169,108 @@ test('replay deactivates a stored wholesale headline offer that is no longer a p
   );
   assert.ok(applied.ok);
   assert.equal(applied.applied, 1);
-  const headline = harness.updatedOffers.find((o) => o.id === headlineKey);
-  assert.equal(headline?.patch.active, false);
-  assert.equal(headline?.patch.parserVersion, 'alibaba-content-media-v6');
+  assert.deepEqual(
+    harness.deactivatedOffers.map((o) => [o.id, o.patch.active, o.patch.parserVersion]),
+    [[headlineKey, false, 'alibaba-content-media-v6']],
+  );
+  assert.equal(
+    harness.updatedOffers.some((o) => o.id === headlineKey),
+    false,
+  );
   assert.ok(harness.updatedOffers.some((o) => o.id === f.offer._id && o.patch.active === true));
   // The source's content hash is recomputed with the new parser so the next sync
   // does not count this product as changed (surge guard).
   assert.equal(harness.updatedSources.length, 1);
   assert.equal(harness.updatedSources[0]?.id, f.sourceKey);
-  assert.match(String(harness.updatedSources[0]?.patch.contentHash), /^[a-f0-9]{64}$/);
+  // Exactly what the next ingest computes, whatever its clock or payload id.
+  const response = parseAlibabaApiResponse(f.bodyText);
+  assert.equal(response.kind, 'success');
+  if (response.kind !== 'success') return;
+  const normalized = normalizeProductDetail({
+    connectionId: 'channeltec',
+    detail: extractProductDetail(response.root),
+    payloadId: 'a-later-payload',
+    now: '2026-12-31T00:00:00.000Z',
+  });
+  assert.ok(normalized.ok);
+  assert.equal(
+    harness.updatedSources[0]?.patch.contentHash,
+    contentFingerprint(normalized.sourceProduct, normalized.offers),
+  );
+});
+
+test('a repeated apply after a committed or interrupted headline retirement is safe', async () => {
+  for (const interruption of ['committed', 'lease-lost-after-deactivation'] as const) {
+    const f = campingLightFixture();
+    const headlineKey = alibabaOfferKey('channeltec', 'local-raw-camping-light');
+    const harness = port(f);
+    // A store that reflects writes, unlike the default harness.
+    let active: CollectionDoc[] = [
+      f.offer,
+      { ...f.offer, _id: headlineKey, sourceSkuId: '@product' },
+    ];
+    harness.p.listActiveOffers = async () => active;
+    let renewals = 0;
+    harness.p.updateOffer = async (id, patch) => {
+      harness.deactivatedOffers.push({ id, patch });
+      if (patch.active === false) active = active.filter((offer) => offer._id !== id);
+      return true;
+    };
+    const dry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, harness.p);
+    assert.ok(dry.ok && dry.ready);
+    const apply = {
+      mode: 'apply' as const,
+      limit: 10,
+      expectedPageHash: dry.pageHash,
+      expectedTotalSourceProducts: 1,
+      manifestId: dry.manifestId,
+    };
+    if (interruption === 'lease-lost-after-deactivation') {
+      const renew = harness.p.renewLease;
+      harness.p.updateSourceProduct = async () => false; // lease lost right after deactivation
+      const lost = await replayAlibabaRawPage(apply, harness.p);
+      assert.deepEqual(lost, { ok: false, reason: 'lease-lost' });
+      harness.p.updateSourceProduct = async (id, patch) => {
+        harness.updatedSources.push({ id, patch });
+        return true;
+      };
+      harness.p.renewLease = async (...args) => {
+        renewals += 1;
+        return renew(...args);
+      };
+    } else {
+      const first = await replayAlibabaRawPage(apply, harness.p);
+      assert.ok(first.ok && first.applied === 1);
+    }
+    const retried = await replayAlibabaRawPage(apply, harness.p);
+    assert.ok(retried.ok, interruption);
+    assert.equal(retried.applied, 1, interruption);
+    assert.equal(
+      harness.deactivatedOffers.filter((o) => o.id === headlineKey).length,
+      1,
+      `${interruption}: headline deactivated exactly once`,
+    );
+    assert.ok(active.every((offer) => offer._id !== headlineKey));
+    if (interruption === 'lease-lost-after-deactivation') assert.ok(renewals > 0);
+  }
+});
+
+test('a stale product-level offer on a non-wholesale product still fails the offer-set check', async () => {
+  const f = fixture('sourcing-no-FOB');
+  const harness = port(f);
+  harness.p.listActiveOffers = async () => [
+    f.offer,
+    { ...f.offer, _id: alibabaOfferKey('channeltec', 'sourcing-no-FOB'), sourceSkuId: '@product' },
+  ];
+  const dry = await replayAlibabaRawPage({ mode: 'dry-run', limit: 10 }, harness.p);
+  assert.ok(dry.ok);
+  assert.equal(dry.ready, false);
+  assert.deepEqual(
+    dry.failures.map((failure) => failure.reason),
+    ['offer-set-mismatch'],
+  );
+  assert.equal(dry.counts.productHeadlineDropped, 0);
+  assert.equal(harness.deactivatedOffers.length, 0);
 });
 
 test('replay still refuses an offer set that differs by more than the dropped headline', async () => {
@@ -317,6 +417,7 @@ function fixture(sourceProductId = 'live-product', connectionId = 'channeltec') 
 function port(f = fixture()) {
   const updatedOffers: Array<{ id: string; patch: Record<string, unknown> }> = [];
   const updatedSources: Array<{ id: string; patch: Record<string, unknown> }> = [];
+  const deactivatedOffers: Array<{ id: string; patch: Record<string, unknown> }> = [];
   const observations: Array<{ id: string; value: Record<string, unknown> }> = [];
   const manifests = new Map<string, CollectionDoc>();
   const p: AlibabaRawReplayPort = {
@@ -342,7 +443,11 @@ function port(f = fixture()) {
       observations.push({ id, value: { ...createOnly, ...value } });
       return true;
     },
-    upsertSourceProduct: async (id, patch) => {
+    updateOffer: async (id, patch) => {
+      deactivatedOffers.push({ id, patch });
+      return true;
+    },
+    updateSourceProduct: async (id, patch) => {
       updatedSources.push({ id, patch });
       return true;
     },
@@ -351,7 +456,7 @@ function port(f = fixture()) {
       return true;
     },
   };
-  return { p, updatedOffers, updatedSources, observations, manifests };
+  return { p, updatedOffers, updatedSources, deactivatedOffers, observations, manifests };
 }
 
 test('dry-run reconstructs the exact current page without writing', async () => {

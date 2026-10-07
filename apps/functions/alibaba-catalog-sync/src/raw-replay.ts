@@ -24,6 +24,7 @@ import {
   list,
   releaseAlibabaSyncLease,
   renewAlibabaSyncLease,
+  updateDocWithAlibabaLease,
   upsertDocWithAlibabaLease,
 } from '@vibelingan-channel/db';
 import { mediaStorage } from '@vibelingan-channel/media-storage';
@@ -59,7 +60,14 @@ export interface AlibabaRawReplayPort {
     patch: Record<string, unknown>,
     guard: AlibabaLeaseGuard,
   ): Promise<boolean>;
-  upsertSourceProduct(
+  /** Update-only: never creates a stub for a document that has vanished. */
+  updateOffer(
+    id: string,
+    patch: Record<string, unknown>,
+    guard: AlibabaLeaseGuard,
+  ): Promise<boolean>;
+  /** Update-only: never creates a stub for a document that has vanished. */
+  updateSourceProduct(
     id: string,
     patch: Record<string, unknown>,
     guard: AlibabaLeaseGuard,
@@ -136,8 +144,10 @@ const defaultPort: AlibabaRawReplayPort = {
   readObjectAsBase64: (fileId) => mediaStorage().getObjectAsBase64(fileId),
   upsertOffer: (id, patch, guard) =>
     upsertDocWithAlibabaLease('alibabaSupplierOffers', id, patch, {}, guard),
-  upsertSourceProduct: (id, patch, guard) =>
-    upsertDocWithAlibabaLease('alibabaSourceProducts', id, patch, {}, guard),
+  updateOffer: (id, patch, guard) =>
+    updateDocWithAlibabaLease('alibabaSupplierOffers', id, patch, guard),
+  updateSourceProduct: (id, patch, guard) =>
+    updateDocWithAlibabaLease('alibabaSourceProducts', id, patch, guard),
   upsertObservation: (id, value, createOnly, guard) =>
     upsertDocWithAlibabaLease('catalogSourceObservations', id, value, createOnly, guard),
   upsertReplayManifest: (id, value, createOnly, guard) =>
@@ -274,7 +284,6 @@ function pageFingerprint(
     payloadId: plan.payloadId,
     firstSeenOperationId: plan.firstSeenOperationId,
     lastSeenOperationId: plan.lastSeenOperationId,
-    ...(plan.deactivateOfferKey ? { deactivateOfferKey: plan.deactivateOfferKey } : {}),
     offers: plan.normalized.offers.map((offer) => ({
       offerKey: offer.offerKey,
       sourceAttributes: offer.sourceAttributes,
@@ -746,8 +755,11 @@ export async function replayAlibabaRawPage(
           );
           if (!updated) return { ok: false, reason: 'lease-lost' };
         }
+        // Derived from the live active set at apply time: after a committed or
+        // interrupted apply the offer is already inactive, so a repeat skips it
+        // and the page hash (which excludes it) still matches.
         if (plan.deactivateOfferKey) {
-          const deactivated = await port.upsertOffer(
+          const deactivated = await port.updateOffer(
             plan.deactivateOfferKey,
             {
               active: false,
@@ -765,13 +777,10 @@ export async function replayAlibabaRawPage(
         }
         // Store the content hash the next ingest will compute, so a parser change
         // does not make every replayed product look changed to the surge guard.
-        const sourceWritten = await port.upsertSourceProduct(
+        const sourceWritten = await port.updateSourceProduct(
           plan.source._id,
           {
-            contentHash: contentFingerprint(
-              plan.normalized.sourceProduct as unknown as Record<string, unknown>,
-              plan.normalized.offers,
-            ),
+            contentHash: contentFingerprint(plan.normalized.sourceProduct, plan.normalized.offers),
           },
           {
             connectionId: PRIMARY_CONNECTION_ID,

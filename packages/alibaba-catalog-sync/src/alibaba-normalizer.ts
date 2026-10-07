@@ -336,7 +336,7 @@ export function normalizeProductDetail(input: {
       // Batch and non-piece trading need a distinct quantity contract. Never
       // label a lot/kg quote as a per-piece price.
       pricing =
-        parsed.ok && trade.saleType === 'normal' && trade.unitType === 'Piece'
+        parsed.ok && !unsupportedWholesaleSku
           ? finalize(
               {
                 ...baseFields({ ...context, currency: 'USD' }),
