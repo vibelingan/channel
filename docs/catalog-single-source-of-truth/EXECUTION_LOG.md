@@ -11,9 +11,9 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 2 | Raw replay deactivates dropped `'@product'`, stores new hash | 1 | Done | `c42fc7c` |
 | 3 | Price summary contract + `derivePriceSummary` | 2a | Done | `5cf2a6b` |
 | 4 | Approval plan stores `priceSummary` | 2b | Done | `1b22ff5` |
-| 5 | `resolvePublicVersion` shared rule | 3 | Not started | |
+| 5 | `resolvePublicVersion` shared rule | 3 | Done | (this commit) |
 | 6 | Price summary backfill (db command) | 2b | Done | `96c3157` |
-| 7 | Backfill admin action + script | 2b | Done | (this commit) |
+| 7 | Backfill admin action + script | 2b | Done | `bcfac0a` |
 | 8 | Public list / item / slug read the one version | 3 | Not started | |
 | 9 | Product page endpoint uses the rule | 3 | Not started | |
 | 10 | Quote request uses the rule | 3 | Not started | |
@@ -91,6 +91,19 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-5 — `resolvePublicVersion` (2026-10-07)
+- What changed: new `packages/shared/src/catalog/public-version.ts`. A product is
+  served from its approved version when the detail feature is on, the
+  publication decodes, and `header._id` matches. The Alibaba link is not
+  checked. Everything else uses the row fallback.
+- Deviation (corrects the docs review's N12 suggestion): published as the subpath
+  `@vibelingan-channel/shared/catalog-public-version`, not re-exported from
+  `catalog/index.ts`. `product-detail.ts` imports that index at load time, so the
+  re-export would create a load cycle that reads `PublicProductSchema` before it
+  is defined.
+- Tests: synced and manual approved → approved; feature off, never approved,
+  malformed, id mismatch, non-object → row.
 
 ### MIU-7 — backfill admin action and operator script (2026-10-07)
 - What changed:

@@ -330,7 +330,7 @@ Depends on: MIU-3
 Block:      BACKEND (shared contract)
 Files:      packages/shared/src/catalog/public-version.ts        (new)
             packages/shared/src/catalog/public-version.test.ts   (new)
-            packages/shared/src/catalog/index.ts                 (re-export)
+            packages/shared/package.json   (new subpath export)
 Type:       new-file + modify-existing
 Depends on: MIU-3
 ```
@@ -345,10 +345,11 @@ Depends on: MIU-3
   and a product linked or unlinked after approval keeps its approved version.
 - Everything else (never approved yet, feature off) → `row`, the temporary fallback
   that the consistency audit counts.
-- Pure; never throws. `public-version.ts` imports the publication schema from
-  `product-detail.ts`, so it is re-exported from `catalog/index.ts`
-  (`@vibelingan-channel/shared/catalog`), not from `product-detail.ts` (that would
-  be an import cycle).
+- Pure; never throws. Published as its own subpath
+  `@vibelingan-channel/shared/catalog-public-version`. Not re-exported from
+  `catalog/index.ts`: `product-detail.ts` imports that index at load time
+  (`PublicProductSchema.pick`), so re-exporting a module that imports
+  `product-detail.ts` from it would read `PublicProductSchema` before it exists.
 
 **Build/Deploy/Runtime impact**
 - Shared package, as MIU-3. None beyond build verification.

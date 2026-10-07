@@ -8,6 +8,7 @@
     "./catalog-pricing": "./src/catalog/offer-pricing.ts",
     "./catalog-detail": "./src/catalog/product-detail.ts",
     "./catalog-detail-approval": "./src/catalog/detail-approval.ts",
+    "./catalog-public-version": "./src/catalog/public-version.ts",
     "./catalog-quote": "./src/catalog/quote-draft.ts",
     "./catalog-inquiry": "./src/catalog/inquiry.ts",
     "./countries": "./src/countries.ts",
