@@ -21,14 +21,14 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 12 | Card price / MOQ from summary | 3 | Done | `f41d391` |
 | 13 | Hub featured strip effective MOQ | 3 | Done | `0a8b59e` |
 | 14 | E2E: configuration switch changes price; card matches page | 3 | Done | `0ac6f8f` |
-| 15 | `alibabaReviewReason` field + identity rules | 4 | Not started | |
-| 16 | `publicSourceDigest` | 4 | Not started | |
-| 17 | Prepare records source digest | 4 | Not started | |
-| 18 | Approval receipt carries digest | 4 | Not started | |
-| 19 | Promote step flags changed / removed | 4 | Not started | |
-| 20 | Quarantine path + refresh contract | 4 | Not started | |
-| 21 | Approve / acknowledge clears reason (not unpublish) | 4 | Not started | |
-| 22 | `change-audit-mark` db command | 4 | Not started | |
+| 15 | `alibabaReviewReason` field + identity rules | 4 | Done (local) | `91659ab` |
+| 16 | `publicSourceDigest` | 4 | Done (local) | `2e33853` |
+| 17 | Prepare records source digest | 4 | Done (local) | `0d85a37` |
+| 18 | Approval receipt carries digest | 4 | Done (local) | `a34b267` |
+| 19 | Promote step flags changed / removed | 4 | Done (local) | `fc2631f` |
+| 20 | Quarantine path + refresh contract | 4 | Done (local) | `fb7ba50` |
+| 21 | Approve / acknowledge clears reason (not unpublish) | 4 | Done (local) | `8ef0b3a` |
+| 22 | `change-audit-mark` db command | 4 | Done (local) | `ab7b3c1` |
 | 23 | Admin badge / chip show reason | 4 | Not started | |
 | 24 | "Approve changes" action | 4 | Not started | |
 | 25 | Edit form shows pending Alibaba changes before Save | 4 | Pending owner review (DEC-12) | |
@@ -91,6 +91,48 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### Deploy status (2026-10-08 07:55 JST)
+- Feature branch pushed at `2e34df6` (batch 3 reviewed and blessed; batch 4
+  work after it is local only until its own review).
+- Stage A: PR [#67](https://github.com/vibelingan/channel/pull/67) into `test`,
+  CI green (lint, typecheck, unit tests, function smoke, site build, both
+  browser lanes). **Not merged:** this session's permission check refused the
+  merge (a production deploy); it needs the owner.
+- Stage B: draft PR [#68](https://github.com/vibelingan/channel/pull/68),
+  identical to the reviewed head; merge only after stage A, R1, R2 and R4.
+- R1 (unpublish the 21) was refused the same way. R2 and R4 are production
+  writes too, so they also wait for the owner.
+
+### MIU-15 to MIU-22 — batch 4 back end (2026-10-08, local)
+- MIU-15 `91659ab`: read-only `alibabaReviewReason`; new draft = 'new'; unlink
+  clears it; the legacy-row repair sets 'new' only when it sets pending.
+- MIU-16 `2e33853`: `publicSourceDigest` (server-only export
+  `shared/catalog-source-digest`). Deviation: each SKU's own photos are hashed
+  too (DEC-6 counts photos). The parity test lives in `catalog-import`, because
+  `shared` must not depend on it; typecheck caught the input type not accepting
+  the real observation type (strict optional properties) and it was fixed.
+- MIU-17 `0d85a37`: prepare stores `detailSourcePublicDigest`; a non-observation
+  shape stores none and a re-prepare never keeps an old one.
+- MIU-18 `a34b267`: job and receipt carry `sourceDigest` (optional; receipt
+  readers accept the extra key).
+- MIU-19 `fc2631f`: the promote transaction flags 'changed' (digest differs) or
+  'removed' (inactive source) on products with an approved digest; never
+  clears, keeps the stronger reason (removed > changed > edited > new), never
+  touches the approved version; archived products are never flagged.
+- MIU-20 `fb7ba50`: quarantine approval passes the same digest; a reviewed
+  product stays reviewed unless its source moved. Dated note added to the
+  review-queue doc.
+- MIU-21 `8ef0b3a`: publish and archive clear the reason; unpublish never does
+  (pinned by a test); "Mark reviewed" only for 'new' (CONFLICT otherwise).
+- MIU-22 `ab7b3c1`: `change-audit-mark` command. Deviation: also skips
+  archived products ('archived'), and the digest rule for 'unchanged' is
+  checked in the command, because a refined schema cannot join the persistence
+  discriminated union (caught by the tests).
+- Each written test-first and seen failing for the intended reason. Validation
+  per MIU: the touched suites (sync function 228, db 245, admin 250, shared,
+  catalog-import), `pnpm typecheck`, `pnpm lint`, and
+  `pnpm package:functions && pnpm smoke:functions` where the spec asks.
 
 ### Final re-review of the fixes (2026-10-08)
 - One reviewer on `95ee994..5ff409c`: **PASS**, no P1. It rebuilt stage A
