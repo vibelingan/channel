@@ -40,7 +40,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 31 | Publish gate for every product on update | 5b | Not started (ships after R9) | |
 | 32 | Admin publish flow and preview include manual products | 5a | Done (local) | `20e8a2e` |
 | 33 | Product page shows MOQ when there is no price | 3 (moved from 5a) | Done | `00a157a` |
-| 34 | Manual product end-to-end (local) + admin e2e updates | 5a | Not started | |
+| 34 | Manual product end-to-end (local) + admin e2e updates | 5a | Part 1 done (local server); part 2 (admin e2e) open | see log |
 | 35 | Batch Publish confirms before publishing pending changes (retargeted, see log) | 4 | Done (local) | see log |
 | 36 | Replay admin page shows `productHeadlineDropped` | 1 | Done | `f0e3da7` |
 | 37 | Gate on creating an already-published product | 5b | Not started (ships after R9) | |
@@ -93,6 +93,24 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-34 part 1 — manual product end to end on the local server (2026-10-08)
+- New `apps/local-server/src/catalog-manual-approval.test.ts`, through the real
+  admin and public handlers on a local database: a manual product (tiered
+  website price, two photos, SKU/series/model/type) is prepared, reviewed,
+  approved and published; a synced product with the same optional fields is
+  approved and published the same way. Checks: the two list items have the same
+  keys and neither has an `alibaba*` key or `variants`; the card's price summary
+  is the approved version's; the page shows the tier ladder, the facts SKU /
+  Series / Model / Type and zero configurations; a customization request is
+  stored with the approved product name.
+- Found while writing it: with the detail feature off (`enableCatalogDetail`
+  unset) the list still shows the raw row, including `alibabaPrimarySourceKey`,
+  `catalogPricingMode` and `manualCatalogPricing`. Production runs with it on,
+  so this is expected; the test uses the production setting.
+- Not done yet (part 2): the admin e2e tests in `catalog-admin.spec.ts` that
+  publish manual products with a raw `update` should publish through the UI
+  approval and expect the shared product page.
 
 ### Review of the DEC-12 fixes and MIU-39 (2026-10-08, `a5e45d6..c0fc5c5`)
 - One reviewer: WARN, no P1. Fixed:

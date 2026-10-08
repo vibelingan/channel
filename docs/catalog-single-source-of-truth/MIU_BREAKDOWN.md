@@ -84,7 +84,7 @@ writes summaries only after stage A is verified. From then on the only rollback
 target is stage A itself, which reads summaries. Never roll back past stage A
 once any approval or R4 has written a summary (every approval after stage A
 writes one, and the older reader then treats the product as not approved).
-Each stage: PR into `test` → Deploy Test → runbook checks. Operator scripts
+Each stage: pushed (fast-forward) to `test` → Deploy Test → runbook checks. No PR into `test` (owner 2026-10-08: PRs are only for merging into `main`). Operator scripts
 (backfill, audit) always run from the branch head, not from a stage branch.
 
 **What each deploy contains.** Some fixes were committed after later work, so
@@ -104,7 +104,7 @@ then merged with `main` (`d4ee7c1`) and `test` (`b5f50c9`):
 Each stage branch is then merged with `origin/main` and `origin/test` (conflicts:
 the price block and its test, the formal journey, the admin handler test and
 five test-only docs; in each, the branch side is the newer version) and pushed
-as a PR into `test`. Check before the PR: the stage tree differs from `main`
+to `test`. Check before the push: the stage tree differs from `main`
 only in the stage's own files. Stage B is the reviewed branch head, recorded in
 EXECUTION_LOG when it ships.
 
