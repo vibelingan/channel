@@ -31,7 +31,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 22 | `change-audit-mark` db command | 4 | Done (local) | `ab7b3c1` |
 | 23 | Admin badge / chip show reason | 4 | Done (local) | `756a364` |
 | 24 | "Approve changes" action | 4 | Done (local) | `d5a601d` |
-| 25 | Edit form shows pending Alibaba changes before Save | 4 | Pending owner review (DEC-12) | |
+| 25 | Edit form shows pending Alibaba changes before Save | 4 | Done (local) | see log |
 | 26 | `catalog-consistency-audit` script | 3 | Done | `4d69d06` (review fix `844d98b`) |
 | 27 | Manual draft, spec facts, MOQ-only price in the planner | 5a | Done (local) | `4a76230` |
 | 28 | `manual-source` prepare command + spec fields in approval fingerprint | 5a | Done (local) | `788d134` |
@@ -41,7 +41,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 32 | Admin publish flow and preview include manual products | 5a | Done (local) | `20e8a2e` |
 | 33 | Product page shows MOQ when there is no price | 3 (moved from 5a) | Done | `00a157a` |
 | 34 | Manual product end-to-end (local) + admin e2e updates | 5a | Not started | |
-| 35 | Batch "Assign category" confirms before publishing pending changes | 4 | Pending owner review (DEC-12) | |
+| 35 | Batch Publish confirms before publishing pending changes (retargeted, see log) | 4 | Done (local) | see log |
 | 36 | Replay admin page shows `productHeadlineDropped` | 1 | Done | `f0e3da7` |
 | 37 | Gate on creating an already-published product | 5b | Not started (ships after R9) | |
 | 38 | Admin action `auditChangesSinceApproval` | 4 | Done (local) | `9e7b020` (+ script `f250478`) |
@@ -91,6 +91,28 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-25 and MIU-35 — the DEC-12 notices (2026-10-08)
+- What changed: the edit form shows "Alibaba data changed since the last
+  approval. Saving publishes these changes too." (or the "removed on Alibaba"
+  text) above Save for a live product flagged changed/removed, with a "See
+  changes" button that opens the preview. The batch bar's **Publish** now asks
+  first when the selection holds such products: Continue (all), Skip those
+  (the rest; the skipped ones are listed in the result), or Cancel. One shared
+  rule, `pendingSupplierChange` in `review-reason.ts`.
+- Deviation (MIU-35): the spec targeted `BatchCategoryAssignment.tsx`, which
+  nothing imports any more. Bulk "Assign category" now goes through
+  `ProductClassificationEditor`: its "Save and publish" works only when every
+  selected product is a draft, and changing the family of a live product is
+  refused by the server, so it cannot re-approve live products. The one batch
+  path that can is the batch bar's Publish (`{published: true}` re-approves
+  live products from the latest data), so the confirmation is there. The dead
+  component was removed.
+- Drafts are not included: Publish is their approval, as decided 2026-10-07.
+- Tests (red → green): five new tests in `product-review-render.test.ts`
+  (rule, form notice and its placement above Save, "See changes" wiring,
+  confirmation with and without "Skip those", skipped products in the result).
+  Site unit tests 538, 0 fail (typecheck included).
 
 ### Re-review of batch 4 fixes and batch 5a (2026-10-08, `84c4a22`)
 - One reviewer on `d5a601d..399a26c`: no P1; the batch 4 P1 confirmed fixed by

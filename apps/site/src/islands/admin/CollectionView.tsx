@@ -26,6 +26,7 @@ import { CatalogTaxonomyManager } from './CatalogTaxonomyManager.tsx';
 import { ClassificationDialog } from './ClassificationDialog.tsx';
 import { FileDownloadLink } from './FileDownloadLink.tsx';
 import { FilterBuilder } from './FilterBuilder.tsx';
+import { PendingChangesConfirm } from './PendingChangesConfirm.tsx';
 import { PreviewModal } from './PreviewModal.tsx';
 import {
   type UnresolvedClassificationSnapshot,
@@ -54,7 +55,7 @@ import {
   adminSubcategoryFromSearch,
   productFamilyListArgs,
 } from './product-family-tabs.ts';
-import { reviewLabel } from './review-reason.ts';
+import { reviewLabel, splitPendingSupplierChanges } from './review-reason.ts';
 import type { DashboardSection } from './sections.ts';
 import {
   savedProductSubcategories,
@@ -105,6 +106,11 @@ export function CollectionView({
   const [editing, setEditing] = useState<CollectionDoc | null>(null);
   const [creating, setCreating] = useState(false);
   const [previewing, setPreviewing] = useState<CollectionDoc | null>(null);
+  const [publishConfirm, setPublishConfirm] = useState<{
+    flagged: CollectionDoc[];
+    others: string[];
+    names: Record<string, string>;
+  } | null>(null);
   const [classifying, setClassifying] = useState<{
     products: CollectionDoc[];
     publishOnSave: boolean;
@@ -266,6 +272,7 @@ export function CollectionView({
       ids: string[];
       values: Record<string, unknown>;
       names: Record<string, string>;
+      skipped?: string[];
     }) => batchUpdateRecords(collection.name, vars.ids, vars.values),
     onSuccess: (result) => {
       const completed = new Set(result.items.map((item) => item._id));
@@ -811,13 +818,19 @@ export function CollectionView({
               publishOnSave: true,
             })
           }
-          onSetValues={(values) =>
-            batchUpdateMutation.mutate({
-              ids: selectedIds,
-              values,
-              names: Object.fromEntries(rows.map((row) => [row._id, String(row.name ?? row._id)])),
-            })
-          }
+          onSetValues={(values) => {
+            const names = Object.fromEntries(
+              rows.map((row) => [row._id, String(row.name ?? row._id)]),
+            );
+            const [flagged, others] = splitPendingSupplierChanges(
+              rows.filter((row) => selectedIds.includes(row._id)),
+            );
+            if (isProducts && values.published === true && flagged.length > 0) {
+              setPublishConfirm({ flagged, others: others.map((row) => row._id), names });
+              return;
+            }
+            batchUpdateMutation.mutate({ ids: selectedIds, values, names });
+          }}
           onDelete={() => {
             if (isProducts) {
               if (
@@ -837,6 +850,34 @@ export function CollectionView({
         />
       )}
 
+      {publishConfirm && selectedIds.length > 0 && (
+        <PendingChangesConfirm
+          flagged={publishConfirm.flagged}
+          othersCount={publishConfirm.others.length}
+          busy={recordWritePending}
+          onContinue={() => {
+            const { flagged, others, names } = publishConfirm;
+            setPublishConfirm(null);
+            batchUpdateMutation.mutate({
+              ids: [...flagged.map((row) => row._id), ...others],
+              values: { published: true },
+              names,
+            });
+          }}
+          onSkip={() => {
+            const { flagged, others, names } = publishConfirm;
+            setPublishConfirm(null);
+            batchUpdateMutation.mutate({
+              ids: others,
+              values: { published: true },
+              names,
+              skipped: flagged.map((row) => row._id),
+            });
+          }}
+          onCancel={() => setPublishConfirm(null)}
+        />
+      )}
+
       {batchUpdateMutation.isPending && (
         <output className="mt-4 block text-sm text-slate-600">
           Updating selected records. Please keep this page open.
@@ -846,6 +887,7 @@ export function CollectionView({
         <BatchUpdateFeedback
           result={batchUpdateMutation.data}
           names={batchUpdateMutation.variables?.names ?? {}}
+          skipped={batchUpdateMutation.variables?.skipped ?? []}
           published={
             typeof batchUpdateMutation.variables?.values.published === 'boolean'
               ? batchUpdateMutation.variables.values.published
@@ -1037,6 +1079,7 @@ export function CollectionView({
           error={updateMutation.error as Error | null}
           onCancel={() => setEditing(null)}
           onSubmit={(values) => updateMutation.mutate({ id: editing._id, values })}
+          onSeeChanges={() => setPreviewing(editing)}
         />
       )}
 

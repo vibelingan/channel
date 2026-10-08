@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import type { CollectionDoc } from '@vibelingan-channel/shared';
+import { type CollectionDoc, getCollection } from '@vibelingan-channel/shared';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { BatchUpdateFeedback } from './BatchUpdateFeedback.tsx';
 import { ProductFamilyTab, ProductThumbnail } from './CollectionView.tsx';
+import { PendingChangesConfirm } from './PendingChangesConfirm.tsx';
 import { PreviewModal } from './PreviewModal.tsx';
+import { RecordForm } from './RecordForm.tsx';
+import { pendingSupplierChange, splitPendingSupplierChanges } from './review-reason.ts';
 
 const pending = {
   _id: 'p-new',
@@ -173,4 +177,144 @@ test('"Approve changes" publishes through the full approval path', () => {
     source,
     /onApproveChanges=\{\(\) => approveChangesMutation\.mutate\(previewing\._id\)\}/,
   );
+});
+
+test('a pending supplier change is a published product flagged changed or removed (DEC-12)', () => {
+  const doc = (extra: object) => ({ ...pending, ...extra }) as CollectionDoc;
+  assert.equal(
+    pendingSupplierChange(doc({ published: true, alibabaReviewReason: 'changed' })),
+    'Changed',
+  );
+  assert.equal(
+    pendingSupplierChange(doc({ published: true, alibabaReviewReason: 'removed' })),
+    'Removed',
+  );
+  // Publish is the approval for drafts; new and edited are not Alibaba changes.
+  assert.equal(
+    pendingSupplierChange(doc({ published: false, alibabaReviewReason: 'changed' })),
+    null,
+  );
+  assert.equal(pendingSupplierChange(doc({ published: true, alibabaReviewReason: 'new' })), null);
+  assert.equal(
+    pendingSupplierChange(doc({ published: true, alibabaReviewReason: 'edited' })),
+    null,
+  );
+  assert.equal(
+    pendingSupplierChange(
+      doc({ published: true, alibabaReviewPending: false, alibabaReviewReason: 'changed' }),
+    ),
+    null,
+  );
+});
+
+test('the edit form warns above Save when saving would publish pending Alibaba changes (MIU-25)', () => {
+  const products = getCollection('products');
+  assert.ok(products);
+  let opened = 0;
+  const form = (extra: object) =>
+    renderToStaticMarkup(
+      createElement(RecordForm, {
+        collection: products,
+        title: 'Edit Product',
+        initial: { ...pending, ...extra } as CollectionDoc,
+        submitting: false,
+        error: null,
+        onSubmit: () => undefined,
+        onCancel: () => undefined,
+        onSeeChanges: () => {
+          opened += 1;
+        },
+      }),
+    );
+  const changed = form({ published: true, alibabaReviewReason: 'changed' });
+  assert.ok(
+    changed.includes(
+      'Alibaba data changed since the last approval. Saving publishes these changes too.',
+    ),
+  );
+  assert.ok(changed.includes('See changes'));
+  assert.ok(
+    changed.indexOf('data-pending-supplier-change') < changed.indexOf('type="submit"'),
+    'the notice sits above Save',
+  );
+  const removed = form({ published: true, alibabaReviewReason: 'removed' });
+  assert.ok(removed.includes('removed on Alibaba since the last approval'));
+  for (const quiet of [
+    { published: true, alibabaReviewPending: false },
+    { published: true, alibabaReviewReason: 'new' },
+    { published: false, alibabaReviewReason: 'changed' },
+  ])
+    assert.ok(!form(quiet).includes('data-pending-supplier-change'), JSON.stringify(quiet));
+  assert.equal(opened, 0, 'rendering never opens the preview');
+});
+
+test('"See changes" opens the preview of the product being edited', () => {
+  const source = readFileSync(new URL('./CollectionView.tsx', import.meta.url), 'utf8');
+  assert.match(source, /onSeeChanges=\{\(\) => setPreviewing\(editing\)\}/);
+});
+
+test('batch Publish asks first when selected live products have pending Alibaba changes (MIU-35)', () => {
+  const live = { ...pending, _id: 'live', name: 'Live headset', published: true } as CollectionDoc;
+  const flagged = {
+    ...live,
+    _id: 'flagged',
+    name: 'Changed headset',
+    alibabaReviewReason: 'changed',
+  };
+  const draft = { ...pending, _id: 'draft', alibabaReviewReason: 'changed' } as CollectionDoc;
+  assert.deepEqual(
+    splitPendingSupplierChanges([live, flagged, draft]).map((group) => group.map((doc) => doc._id)),
+    [['flagged'], ['live', 'draft']],
+  );
+  let choice = '';
+  const html = renderToStaticMarkup(
+    createElement(PendingChangesConfirm, {
+      flagged: [flagged],
+      othersCount: 2,
+      busy: false,
+      onContinue: () => {
+        choice = 'continue';
+      },
+      onSkip: () => {
+        choice = 'skip';
+      },
+      onCancel: () => {
+        choice = 'cancel';
+      },
+    }),
+  );
+  assert.ok(html.includes('Changed headset'));
+  assert.ok(html.includes('Publishing also approves their pending Alibaba changes.'));
+  assert.ok(html.includes('>Continue<'));
+  assert.ok(html.includes('>Skip those<'));
+  assert.equal(choice, '');
+  const onlyFlagged = renderToStaticMarkup(
+    createElement(PendingChangesConfirm, {
+      flagged: [flagged],
+      othersCount: 0,
+      busy: false,
+      onContinue: () => {},
+      onSkip: () => {},
+      onCancel: () => {},
+    }),
+  );
+  assert.ok(!onlyFlagged.includes('>Skip those<'), 'nothing would be left to publish');
+});
+
+test('batch Publish routes through the confirmation; skipped products are reported', () => {
+  const source = readFileSync(new URL('./CollectionView.tsx', import.meta.url), 'utf8');
+  assert.match(source, /splitPendingSupplierChanges\(/);
+  assert.match(source, /<PendingChangesConfirm/);
+  const feedback = renderToStaticMarkup(
+    createElement(BatchUpdateFeedback, {
+      result: { updated: 1, items: [], failures: [] },
+      names: { flagged: 'Changed headset' },
+      published: true,
+      skipped: ['flagged'],
+      onDismiss: () => {},
+    }),
+  );
+  assert.ok(feedback.includes('1 published'));
+  assert.ok(feedback.includes('Skipped (pending Alibaba changes)'));
+  assert.ok(feedback.includes('Changed headset'));
 });

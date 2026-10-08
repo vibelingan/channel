@@ -28,6 +28,7 @@ import { importAlibabaGallery } from './alibaba-gallery-import.ts';
 import { alibabaSourcePreviewInfo, alibabaSourcePreviewUrls } from './alibaba-source-preview.ts';
 import { AdminApiError } from './api.ts';
 import { ADMIN_PRODUCT_FAMILY_LABELS } from './product-family-tabs.ts';
+import { PENDING_SUPPLIER_CHANGE_NOTICE, pendingSupplierChange } from './review-reason.ts';
 import { taxonomyQuery } from './taxonomy-ui-state.ts';
 import { useModalDialog } from './use-modal-dialog.ts';
 
@@ -42,6 +43,8 @@ interface RecordFormProps {
   error: Error | null;
   onSubmit: (values: Record<string, unknown>) => void;
   onCancel: () => void;
+  /** Opens the preview, which shows what changed on Alibaba (DEC-12). */
+  onSeeChanges?: () => void;
 }
 
 type FormState = Record<string, string | boolean>;
@@ -152,6 +155,7 @@ export function RecordForm({
   error,
   onSubmit,
   onCancel,
+  onSeeChanges,
 }: RecordFormProps) {
   const [state, setState] = useState<FormState>(() => initialState(collection, initial, defaults));
   const [localError, setLocalError] = useState('');
@@ -172,6 +176,7 @@ export function RecordForm({
   const cancelInFlight = useRef(false);
   const mediaBusy = imageBusy || descriptionImageBusy || sourceImageBusy;
   const busy = submitting || mediaBusy;
+  const supplierChange = initial ? pendingSupplierChange(initial) : null;
   const dirty = JSON.stringify(state) !== JSON.stringify(initialStateRef.current);
 
   function setField(name: string, value: string | boolean) {
@@ -564,23 +569,43 @@ export function RecordForm({
               </div>
             </div>
           ) : (
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={requestClose}
-                disabled={busy}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={busy || pricingInvalid || mappingInvalid}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
-              >
-                {mediaBusy ? 'Waiting for uploads…' : submitting ? 'Saving…' : 'Save'}
-              </button>
-            </div>
+            <>
+              {supplierChange && (
+                <div
+                  data-pending-supplier-change
+                  role="note"
+                  className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+                >
+                  <p>{PENDING_SUPPLIER_CHANGE_NOTICE[supplierChange]}</p>
+                  {onSeeChanges && (
+                    <button
+                      type="button"
+                      onClick={onSeeChanges}
+                      className="min-h-11 rounded-lg border border-amber-400 bg-white px-3 font-medium focus-visible:ring-2 focus-visible:ring-brand-600"
+                    >
+                      See changes
+                    </button>
+                  )}
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={requestClose}
+                  disabled={busy}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={busy || pricingInvalid || mappingInvalid}
+                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+                >
+                  {mediaBusy ? 'Waiting for uploads…' : submitting ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </>
           )}
         </footer>
       </form>

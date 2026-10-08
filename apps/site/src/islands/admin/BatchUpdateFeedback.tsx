@@ -4,10 +4,12 @@ interface Props {
   result: BatchUpdateResult;
   names: Record<string, string>;
   published?: boolean;
+  /** Ids the admin chose not to publish because of pending Alibaba changes. */
+  skipped?: readonly string[];
   onDismiss: () => void;
 }
 
-export function BatchUpdateFeedback({ result, names, published, onDismiss }: Props) {
+export function BatchUpdateFeedback({ result, names, published, skipped = [], onDismiss }: Props) {
   const hasFailures = result.failures.length > 0;
   return (
     <section
@@ -24,6 +26,12 @@ export function BatchUpdateFeedback({ result, names, published, onDismiss }: Pro
           Dismiss
         </button>
       </div>
+      {skipped.length > 0 && (
+        <p className="mt-2">
+          Skipped (pending Alibaba changes): {skipped.map((id) => names[id] || id).join(', ')}. Open
+          each one's preview to review and approve its changes.
+        </p>
+      )}
       {hasFailures && (
         <>
           <ul className="mt-2 space-y-2">

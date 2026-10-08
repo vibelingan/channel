@@ -5,8 +5,8 @@ Branch: `feat/catalog-alibaba-price-tiers` (continue here until it merges to `ma
 
 Each MIU goes through test-first → implement → simplify → review → validate →
 commit on its own. MIUs marked **Pending owner review** must not start until the
-owner confirms the decision they implement (README "Open decisions"); today that
-is MIU-25 and MIU-35 (DEC-12).
+owner confirms the decision they implement (README "Open decisions"). None is
+pending now: DEC-12 was confirmed on 2026-10-08 (MIU-25, MIU-35 built).
 
 Validation commands used below (repo root):
 
@@ -1201,7 +1201,7 @@ Depends on: MIU-21, MIU-23
 - Tests pass; `pnpm typecheck`; `pnpm build`; local admin e2e `pnpm test:e2e:catalog-admin-local`
   passes.
 
-### MIU-25: edit form shows pending Alibaba changes before Save (Pending owner review: DEC-12)
+### MIU-25: edit form shows pending Alibaba changes before Save (DEC-12, confirmed 2026-10-08)
 
 ```
 Block:      FRONTEND
@@ -1238,7 +1238,13 @@ Depends on: MIU-15, MIU-23
 - Tests pass; `pnpm typecheck`; `pnpm build`.
 - `pnpm test:e2e:catalog-admin-local` passes.
 
-### MIU-35: batch "Assign category" confirms before publishing pending changes (Pending owner review: DEC-12)
+### MIU-35: batch "Assign category" confirms before publishing pending changes (DEC-12, confirmed 2026-10-08)
+
+> **As built** (EXECUTION_LOG): the confirmation sits on the batch bar's
+> **Publish**, not on "Assign category". The component named below is no longer
+> used; bulk classification publishes drafts only and cannot change a live
+> product's family, so batch Publish is the one batch path that re-approves live
+> products.
 
 ```
 Block:      FRONTEND
