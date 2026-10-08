@@ -44,7 +44,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 35 | Batch Publish confirms before publishing pending changes (retargeted, see log) | 4 | Done (local) | see log |
 | 36 | Replay admin page shows `productHeadlineDropped` | 1 | Done | `f0e3da7` |
 | 37 | Gate on creating an already-published product | 5b | Not started (ships after R9) | |
-| 39 | Approval takes the supplier's new description and photos unless an admin changed them (DEC-18) | 4 | Done (local, unit tests; e2e with batch 4) | see log |
+| 39 | Approval takes the supplier's new description and photos unless an admin changed them (DEC-18) | 4 | Steps 1–2 done (local); step 3 removed after the owner's revision of DEC-18 (2026-10-08) | see log |
 | 38 | Admin action `auditChangesSinceApproval` | 4 | Done (local) | `9e7b020` (+ script `f250478`) |
 
 ## Runbook status
@@ -94,6 +94,16 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### DEC-18 revised — approval no longer takes supplier text or photos (2026-10-08)
+- Owner: keep admin edits; never map supplier changes silently, edited or not;
+  show incoming vs current side by side and let the admin choose per field
+  (design open). Removed `takeSupplierChanges` from `updateRecord` and the
+  preview sentence. Approval again publishes the product's own text and
+  photos. Kept: the per-approval baseline (`supplierParts`) and the read-only
+  `supplier-adoption` plan, as groundwork for the chooser; neither changes data.
+- Test: approving a live linked product makes no plan call, no photo import and
+  no write except the publication. Site 540 (539 pass, 1 skipped).
 
 ### Review of the MIU-39 fixes and MIU-34 part 1 (2026-10-08, `c0fc5c5..9131191`)
 - One reviewer: WARN, two P2, no P1. Fixed:

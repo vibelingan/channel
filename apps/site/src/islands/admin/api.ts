@@ -312,10 +312,6 @@ export async function updateRecord(
             'INVALID_PRODUCT',
             'Choose a website category before publishing.',
           );
-        // Only a re-approval can take newer supplier data; a first approval
-        // builds from what the draft was created with.
-        if (current.catalogDetailPublication != null)
-          current = await takeSupplierChanges(collection, id, current);
         if (!Array.isArray(current.imageIds) || current.imageIds.length === 0) {
           const [{ importAlibabaGallery }, { importAlibabaSourceImage }] = await Promise.all([
             import('./alibaba-gallery-import.ts'),
@@ -336,8 +332,8 @@ export async function updateRecord(
             await call('update', { collection, id, values: { imageIds: imported.imageIds } });
         }
         if (
-          // First publication only. A re-approval takes newer supplier media
-          // only through takeSupplierChanges, for parts nobody edited (DEC-18).
+          // First publication only. A re-approval never takes newer supplier
+          // text or photos on its own; the admin chooses them (DEC-18).
           !refreshPublishedDetail &&
           current.published !== true &&
           current.descriptionImageIds === undefined &&
@@ -393,70 +389,6 @@ export async function updateRecord(
     values,
     ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
   });
-}
-
-/**
- * Before approving a linked product, take the supplier's newer description and
- * photos for the parts nobody edited since the last approval (DEC-18, MIU-39);
- * the server decides which. Every photo imports first and any failure stops
- * before a write, so the product never shows half of the supplier's gallery.
- */
-async function takeSupplierChanges(
-  collection: string,
-  id: string,
-  current: CollectionDoc,
-): Promise<CollectionDoc> {
-  const plan = await call<{ adoption?: Record<string, unknown>; updatedAt?: unknown }>(
-    'catalogDetailApproval',
-    {
-      action: 'supplier-adoption',
-      productId: id,
-    },
-  );
-  const adoption = plan?.adoption ?? {};
-  const values: Record<string, unknown> = {};
-  if (typeof adoption.description === 'string') values.description = adoption.description;
-  const photos = [
-    ['imageIds', adoption.gallery, 9],
-    ['descriptionImageIds', adoption.descriptionImages, 18],
-  ] as const;
-  for (const [field, urls, maxItems] of photos) {
-    if (!Array.isArray(urls) || urls.length === 0) continue;
-    const [{ importAlibabaGallery }, { importAlibabaSourceImage }] = await Promise.all([
-      import('./alibaba-gallery-import.ts'),
-      import('./alibaba-catalog-sync/alibaba-api.ts'),
-    ]);
-    const imported = await importAlibabaGallery({
-      sourceUrls: urls,
-      imageIds: [],
-      maxItems,
-      importImage: importAlibabaSourceImage,
-      onProgress: () => {},
-    });
-    if (imported.failures.length || imported.remaining || imported.imageIds.length === 0)
-      throw new AdminApiError(
-        'MEDIA_NOT_READY',
-        'Some supplier images could not be imported. Try again, or open Edit and import the source gallery.',
-      );
-    values[field] = imported.imageIds;
-  }
-  if (Object.keys(values).length === 0) return current;
-  // Guarded: an edit made while the photos imported is never overwritten.
-  try {
-    return await call<CollectionDoc>('update', {
-      collection,
-      id,
-      values,
-      ...(typeof plan?.updatedAt === 'string' ? { expectedUpdatedAt: plan.updatedAt } : {}),
-    });
-  } catch (error) {
-    if (error instanceof AdminApiError && error.code === 'CONFLICT')
-      throw new AdminApiError(
-        'CONFLICT',
-        'The product changed while supplier photos were imported. Refresh and approve again.',
-      );
-    throw error;
-  }
 }
 
 /**
