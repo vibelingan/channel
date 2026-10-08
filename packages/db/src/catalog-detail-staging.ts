@@ -45,6 +45,11 @@ const JobSchema = z
     createdAt: z.string().datetime(),
     /** What a buyer saw from the source when this candidate was prepared (MIU-18). */
     sourceDigest: digest.optional(),
+    /** Which row parts were still the supplier's own (MIU-39); linked products only. */
+    supplierParts: z
+      .object({ description: z.boolean(), gallery: z.boolean(), descriptionImages: z.boolean() })
+      .strict()
+      .optional(),
   })
   .strict();
 export type PreparedApproval = z.infer<typeof JobSchema>;
@@ -196,12 +201,38 @@ export function prepareStagedApproval(
       /^[a-f0-9]{64}$/.test(product.detailSourcePublicDigest)
         ? { sourceDigest: product.detailSourcePublicDigest }
         : {}),
+      ...(String(product.detailSourceOwner).startsWith('alibaba:')
+        ? { supplierParts: supplierParts(product) }
+        : {}),
     });
     if (Buffer.byteLength(JSON.stringify(job)) > 512 * 1024) return fail('VALIDATION_ERROR');
     return { ok: true, value: job };
   } catch {
     return fail('VALIDATION_ERROR');
   }
+}
+
+/**
+ * Which parts of the row are still the supplier's own (MIU-39). The next
+ * approval may replace only those with the supplier's newer version. Photos
+ * count only when every supplier photo is imported and the row shows exactly
+ * those, in order; the finish fingerprint keeps this true until the switch.
+ */
+function supplierParts(product: CollectionDoc) {
+  const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+  const candidate = product.detailSourceCandidate;
+  const supplierText =
+    candidate && typeof candidate === 'object' ? Reflect.get(candidate, 'descriptionText') : '';
+  const media = product.detailSourceSupplierMedia;
+  const supplier = (key: string) =>
+    media && typeof media === 'object' ? Reflect.get(media, key) : undefined;
+  const same = (row: unknown, ids: unknown) =>
+    Array.isArray(ids) && JSON.stringify(Array.isArray(row) ? row : []) === JSON.stringify(ids);
+  return {
+    description: text(product.description) === text(supplierText),
+    gallery: same(product.imageIds, supplier('gallery')),
+    descriptionImages: same(product.descriptionImageIds, supplier('descriptionImages')),
+  };
 }
 
 async function isAdmin(tx: CatalogApprovalTransaction, actorId: string) {
@@ -391,6 +422,7 @@ export async function finishStagedApproval(
       variantCount: job.variantIds.length,
       approvedAt: new Date().toISOString(),
       ...(job.sourceDigest === undefined ? {} : { sourceDigest: job.sourceDigest }),
+      ...(job.supplierParts === undefined ? {} : { supplierParts: job.supplierParts }),
     },
   });
   const completed = { ...job, state: 'complete' as const };

@@ -100,6 +100,7 @@ async function prepareOnce(
   observation: unknown,
   revision: string,
   existing: Record<string, unknown> = {},
+  input: Record<string, unknown> = {},
 ) {
   const store: Record<string, CollectionDoc> = {
     'users/admin': { _id: 'admin', role: 'admin' },
@@ -143,6 +144,7 @@ async function prepareOnce(
       variants: [
         { id: 'black', options: [], images: [], offers: [], inventory: { state: 'unknown' } },
       ],
+      ...input,
     }),
   );
   assert.equal(result.ok, true);
@@ -181,4 +183,30 @@ test('a fresh prepare from data without the public fields drops an old digest', 
     detailSourcePublicDigest: 'f'.repeat(64),
   });
   assert.equal('detailSourcePublicDigest' in (prepared ?? {}), false);
+});
+
+test("prepare records which of our images are the supplier's photos (MIU-39)", async () => {
+  const supplierMedia = { gallery: ['img-1', 'img-2'], descriptionImages: null };
+  const prepared = await prepareOnce(realObservation(430), 'a'.repeat(64), {}, { supplierMedia });
+  assert.deepEqual(prepared?.detailSourceSupplierMedia, supplierMedia);
+  // Same data prepared again: refreshed (an import since may have linked a photo).
+  const revision = 'b'.repeat(64);
+  const linked = { gallery: ['img-1', 'img-2'], descriptionImages: ['img-3'] };
+  const again = await prepareOnce(
+    realObservation(430),
+    revision,
+    {
+      detailSourceRevision: revision,
+      detailSourceNextPage: 1,
+      detailSourceReady: true,
+      detailSourceSupplierMedia: supplierMedia,
+    },
+    { supplierMedia: linked },
+  );
+  assert.deepEqual(again?.detailSourceSupplierMedia, linked);
+  // A prepare that sends none drops an old record instead of keeping a stale one.
+  const none = await prepareOnce(realObservation(430), 'c'.repeat(64), {
+    detailSourceSupplierMedia: supplierMedia,
+  });
+  assert.equal('detailSourceSupplierMedia' in (none ?? {}), false);
 });

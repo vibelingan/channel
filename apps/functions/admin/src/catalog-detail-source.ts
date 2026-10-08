@@ -112,6 +112,7 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
   for (const id of Array.isArray(product.descriptionImageIds) ? product.descriptionImageIds : [])
     gallery.add(id);
   const images = new Map<string, string>();
+  const linked = new Map<string, string>();
   const variantUrls = new Set(observation.variants.flatMap((v) => v.media.map((m) => m.sourceUrl)));
   // General images must be attached to this product. SKU-only images instead
   // require an exact mapping in this product's source observation and an owned link.
@@ -135,15 +136,23 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
           transport.protocol = 'https:';
         const link = await get('catalogSourceLinks', sourceMediaLinkId('alibaba', transport.href));
         if (
-          link?.provider === 'alibaba' &&
-          link.sourceUrl === transport.href &&
-          typeof link.imageId === 'string' &&
-          (gallery.has(link.imageId) || variantUrls.has(url))
+          link?.provider !== 'alibaba' ||
+          link.sourceUrl !== transport.href ||
+          typeof link.imageId !== 'string'
         )
-          images.set(url, link.imageId);
+          return;
+        linked.set(url, link.imageId);
+        if (gallery.has(link.imageId) || variantUrls.has(url)) images.set(url, link.imageId);
       }),
     );
   }
+  // Our image ids for the supplier's photos as an import would add them (first
+  // N distinct URLs, in order); null while any is not imported (MIU-39).
+  const linkedIds = (media: readonly { sourceUrl: string }[], limit: number) => {
+    const urls = [...new Set(media.map((m) => m.sourceUrl))].slice(0, limit);
+    const ids = urls.map((url) => linked.get(url));
+    return ids.every((value): value is string => value !== undefined) ? ids : null;
+  };
   const variants = sourceVariantIds(productId, sourceKey, observation);
   const candidate = buildCatalogDetailCandidate(
     observation,
@@ -176,6 +185,16 @@ export async function prepareCatalogSource(actorId: string, input: unknown) {
     variantIds: [...variants.values()],
     page,
     variants: pageVariants.items,
+    supplierMedia: {
+      gallery: linkedIds(
+        [...observation.content.media].sort((a, b) => a.position - b.position),
+        9,
+      ),
+      descriptionImages: linkedIds(
+        (observation.content.description?.imageUrls ?? []).map((sourceUrl) => ({ sourceUrl })),
+        18,
+      ),
+    },
     variantMedia: observation.variants.slice(page * 20, (page + 1) * 20).map((variant) => {
       const id = variants.get(variant.sourceVariantKey);
       if (!id) throw new Error('Canonical variant binding changed during source preparation');

@@ -154,7 +154,9 @@ test('prepare → begin → finish approves a manual product with zero configura
   assert.deepEqual(publication.priceSummary, {
     source: 'website',
     pricing: { mode: 'unavailable', minimumOrderQuantity: 50 },
-  });
+  }); // No supplier, so nothing to take from one later (MIU-39).
+  const receipt = h.product().catalogDetailApprovalReceipt as Record<string, unknown>;
+  assert.equal('supplierParts' in receipt, false);
 });
 
 test('a spec edit between begin and finish is a conflict', async () => {

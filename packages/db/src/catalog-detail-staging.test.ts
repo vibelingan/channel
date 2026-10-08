@@ -251,6 +251,47 @@ test('a product prepared before digests existed still approves, with no digest o
   assert.equal('sourceDigest' in receipt, false);
 });
 
+test("the receipt records which parts were still the supplier's own at approval (MIU-39)", async () => {
+  const approve = async (extra: Record<string, unknown>) => {
+    const h = fixture(0, undefined, extra);
+    const begin = await h.run((tx) => beginStagedApproval(tx, 'admin', h.prepared));
+    assert.ok(begin.ok);
+    assert.ok((await h.run((tx) => finishStagedApproval(tx, 'admin', begin.jobId))).ok);
+    return (h.row('products', 'p').catalogDetailApprovalReceipt as Record<string, unknown>)
+      .supplierParts;
+  };
+  const supplier = {
+    schemaVersion: 'catalog-product-detail-v1',
+    _id: 'p',
+    name: 'Headset',
+    images: ['/api/images/image'],
+    facts: [],
+    offers: [],
+    descriptionText: 'Soft ear pads',
+  };
+  assert.deepEqual(
+    await approve({
+      description: ' Soft ear pads ',
+      detailSourceCandidate: supplier,
+      detailSourceSupplierMedia: { gallery: ['image'], descriptionImages: [] },
+    }),
+    { description: true, gallery: true, descriptionImages: true },
+  );
+  assert.deepEqual(
+    await approve({
+      description: 'Our own words',
+      detailSourceCandidate: supplier,
+      detailSourceSupplierMedia: { gallery: ['other'], descriptionImages: null },
+    }),
+    { description: false, gallery: false, descriptionImages: false },
+  );
+  // Prepared before this MIU, or a photo not yet imported: photos count as ours.
+  assert.deepEqual(
+    await approve({ description: 'Soft ear pads', detailSourceCandidate: supplier }),
+    { description: true, gallery: false, descriptionImages: false },
+  );
+});
+
 test('review digest covers manual pricing: editing price after review cannot prepare a stale approval', () => {
   const h = fixture(1);
   const changed = { ...h.product, catalogPricingMode: 'manual', unitPrice: 6.2 };

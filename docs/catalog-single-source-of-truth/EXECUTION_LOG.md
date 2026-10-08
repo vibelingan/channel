@@ -44,7 +44,7 @@ commit). Plan: [MIU_BREAKDOWN.md](MIU_BREAKDOWN.md). Design: [DESIGN.md](DESIGN.
 | 35 | Batch Publish confirms before publishing pending changes (retargeted, see log) | 4 | Done (local) | see log |
 | 36 | Replay admin page shows `productHeadlineDropped` | 1 | Done | `f0e3da7` |
 | 37 | Gate on creating an already-published product | 5b | Not started (ships after R9) | |
-| 39 | Approval takes the supplier's new description and photos unless an admin changed them (DEC-18) | 4 | Spec written 2026-10-08; not started | |
+| 39 | Approval takes the supplier's new description and photos unless an admin changed them (DEC-18) | 4 | In progress: baseline done (local) | see log |
 | 38 | Admin action `auditChangesSinceApproval` | 4 | Done (local) | `9e7b020` (+ script `f250478`) |
 
 ## Runbook status
@@ -93,6 +93,18 @@ paired with the MOQ. Names are truncated as captured.
 | 21 | `7d6f778f-5275-4ad1-a77b-b56f8a1fa4cb` | Wired Headphone Stereo Foldable Headset Earphone Over-h… |
 
 ## Log
+
+### MIU-39 step 1 — record what was the supplier's at each approval (2026-10-08)
+- What changed: prepare sends our image ids for the supplier's gallery (first
+  nine, by position) and description images (first 18), or null while any is not
+  imported; staging stores them as `detailSourceSupplierMedia` (also refreshed on
+  a same-data re-prepare, dropped when a prepare sends none). Begin computes
+  `supplierParts` `{description, gallery, descriptionImages}` for linked products;
+  finish writes it to the receipt. Manual products get none.
+- Tests (red → green): prepare test (fails on the old prepare), staging tests for
+  store/refresh/drop, receipt true/false per part and the legacy case, manual
+  receipt without the field. db 257/257, admin 264/264, typecheck clean.
+- Next: the read-only plan action and the approval flow (steps 2–3 of the spec).
 
 ### MIU-25 and MIU-35 — the DEC-12 notices (2026-10-08)
 - What changed: the edit form shows "Alibaba data changed since the last

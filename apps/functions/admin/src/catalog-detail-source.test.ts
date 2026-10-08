@@ -1,6 +1,10 @@
 /** Admin prepare: manual products take the manual path (MIU-30). */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {
+  sourceMediaLinkId,
+  sourceObservationDocumentId,
+} from '@vibelingan-channel/catalog-import/observations';
 import { type AdapterListQuery, type DbAdapter, setAdapter } from '@vibelingan-channel/db';
 import type { ApprovalPersistenceCommand } from '@vibelingan-channel/db/catalog-detail-staging';
 import { type CollectionDoc, type ListResult, matchesFilter } from '@vibelingan-channel/shared';
@@ -103,4 +107,66 @@ test('leftover rows from an earlier Alibaba link do not block a manual approval'
   const result = await prepareCatalogSource('admin', { action: 'prepare', productId: 'm1' });
   assert.equal(result.ok, true);
   assert.equal(adapter.commands.length, 1);
+});
+
+test('prepare sends our image ids for the supplier photos, null while one is not imported (MIU-39)', async () => {
+  const url = (name: string) => `https://sc04.alicdn.com/${name}.jpg`;
+  const observation = {
+    schemaVersion: 'catalog-source-observation-v1',
+    source: {
+      provider: 'alibaba',
+      sourceProductKey: 'source-a',
+      externalProductId: '987',
+      observedAt: '2026-10-01T00:00:00.000Z',
+      captureMode: 'full',
+      completeness: 'full-product',
+    },
+    identity: { title: 'Supplier title', matchHints: {}, attributes: [] },
+    content: {
+      description: {
+        text: 'Comfortable headset',
+        imageUrls: [url('c')],
+        placeholder: false,
+        sanitized: true,
+        provenance: 'provider-description',
+      },
+      media: [
+        { sourceUrl: url('a'), position: 1, role: 'gallery' },
+        { sourceUrl: url('b'), position: 0, role: 'primary' },
+      ],
+    },
+    lifecycle: { sourceListingStatus: 'published' },
+    variants: [],
+    offers: [],
+    evidence: [{ kind: 'raw-payload', evidenceId: 'a'.repeat(64) }],
+    warnings: [],
+  };
+  const link = (name: string) => ({
+    _id: sourceMediaLinkId('alibaba', url(name)),
+    provider: 'alibaba',
+    sourceUrl: url(name),
+    imageId: `img-${name}`,
+  });
+  const adapter = new RecordingAdapter({
+    products: [
+      {
+        _id: 'p1',
+        name: 'Synced',
+        alibabaPrimarySourceKey: 'source-a',
+        productFamily: 'headphones',
+        imageIds: ['img-b', 'img-a'],
+      },
+    ],
+    catalogSourceObservations: [
+      { _id: sourceObservationDocumentId('alibaba', 'source-a'), observation },
+    ],
+    // The description photo "c" is not imported yet.
+    catalogSourceLinks: [link('a'), link('b')],
+  });
+  setAdapter(adapter);
+  const result = await prepareCatalogSource('admin', { action: 'prepare', productId: 'p1' });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  const command = adapter.commands[0] as { supplierMedia?: unknown };
+  // In the supplier's order (by position), as an import would add them.
+  assert.deepEqual(command.supplierMedia, { gallery: ['img-b', 'img-a'], descriptionImages: null });
 });

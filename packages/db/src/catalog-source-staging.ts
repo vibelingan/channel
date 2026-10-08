@@ -68,6 +68,17 @@ export const SourcePageSchema = z
       )
       .max(20)
       .optional(),
+    /**
+     * Our image ids for the supplier's gallery and description images, in
+     * order; null while any of them is not imported yet (MIU-39).
+     */
+    supplierMedia: z
+      .object({
+        gallery: z.array(id).max(9).nullable(),
+        descriptionImages: z.array(id).max(18).nullable(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -119,9 +130,18 @@ export async function stageSourcePage(
     // Already prepared from this exact observation (the revision covers it).
     // Products prepared before digests existed get theirs now; otherwise every
     // later approval would carry none and the sync could never flag them.
+    // An import since the last prepare may have linked a supplier photo.
     const publicDigest = publicDigestOf(observed.observation);
-    if (publicDigest !== undefined && product.detailSourcePublicDigest !== publicDigest)
-      await tx.set('products', { ...product, detailSourcePublicDigest: publicDigest });
+    const patch = {
+      ...(publicDigest !== undefined && product.detailSourcePublicDigest !== publicDigest
+        ? { detailSourcePublicDigest: publicDigest }
+        : {}),
+      ...(input.supplierMedia &&
+      JSON.stringify(product.detailSourceSupplierMedia) !== JSON.stringify(input.supplierMedia)
+        ? { detailSourceSupplierMedia: input.supplierMedia }
+        : {}),
+    };
+    if (Object.keys(patch).length > 0) await tx.set('products', { ...product, ...patch });
     return progress(cursor);
   }
   if (input.page !== cursor) return fail('SOURCE_NOT_READY');
@@ -156,8 +176,12 @@ export async function stageSourcePage(
     detailPreparationFence: input.revision,
   });
   const publicDigest = publicDigestOf(observed.observation);
-  // A re-prepare from a shape without public fields must not keep an old digest.
-  const { detailSourcePublicDigest: _previous, ...current } = product;
+  // A re-prepare without these must not keep old ones.
+  const {
+    detailSourcePublicDigest: _previous,
+    detailSourceSupplierMedia: _previousMedia,
+    ...current
+  } = product;
   await tx.set('products', {
     ...current,
     detailSourceOwner: owner,
@@ -169,6 +193,7 @@ export async function stageSourcePage(
     detailSourceContentCandidate: input.content,
     detailSourceNoteBlocksCandidate: input.noteBlocks,
     ...(publicDigest === undefined ? {} : { detailSourcePublicDigest: publicDigest }),
+    ...(input.supplierMedia ? { detailSourceSupplierMedia: input.supplierMedia } : {}),
   });
   return progress(input.page + 1);
 }
